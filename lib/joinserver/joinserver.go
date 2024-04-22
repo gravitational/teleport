@@ -22,6 +22,7 @@ package joinserver
 
 import (
 	"context"
+	"log/slog"
 	"net"
 	"slices"
 	"time"
@@ -261,9 +262,10 @@ func (s *JoinServiceGRPCServer) RegisterUsingTPMMethod(srv proto.JoinService_Reg
 		if peerInfo, ok := peer.FromContext(ctx); ok {
 			nodeAddr = peerInfo.Addr.String()
 		}
-		logrus.Warnf(
-			"TPM join attempt timed out, node at (%s) is misbehaving or did not close the connection after encountering an error.",
-			nodeAddr,
+		slog.WarnContext(
+			srv.Context(),
+			"TPM join attempt timed out, node is misbehaving or did not close the connection after encountering an error",
+			"node_addr", nodeAddr,
 		)
 		// Returning here should cancel any blocked Send or Recv operations.
 		return trace.LimitExceeded(
@@ -283,23 +285,22 @@ func (s *JoinServiceGRPCServer) registerUsingTPMMethod(
 	if err != nil {
 		return trace.Wrap(err, "receiving initial payload")
 	}
-	initReq, ok := req.Payload.(*proto.RegisterUsingTPMMethodRequest_Init)
-	if !ok {
+	initReq := req.GetInit()
+	if initReq == nil {
+		return trace.BadParameter("expected non-nil Init payload")
+	}
+	if initReq.JoinRequest == nil {
 		return trace.BadParameter(
-			"expected RegisterUsingTPMMethodRequest_Init payload, got %T",
-			req.Payload,
+			"expected JoinRequest in RegisterUsingTPMMethodRequest_Init, got nil",
 		)
 	}
-	if initReq.Init.JoinRequest == nil {
-		return trace.BadParameter("expected JoinRequest in RegisterUsingTPMMethodRequest_Init, got nil")
-	}
-	if err := setClientRemoteAddr(ctx, initReq.Init.JoinRequest); err != nil {
+	if err := setClientRemoteAddr(ctx, initReq.JoinRequest); err != nil {
 		return trace.Wrap(err, "setting client address")
 	}
 
 	certs, err := s.joinServiceClient.RegisterUsingTPMMethod(
 		ctx,
-		initReq.Init,
+		initReq,
 		func(challenge *proto.TPMEncryptedCredential,
 		) (*proto.RegisterUsingTPMMethodChallengeResponse, error) {
 			// First, forward the challenge from Auth to the client.
@@ -309,21 +310,24 @@ func (s *JoinServiceGRPCServer) registerUsingTPMMethod(
 				},
 			})
 			if err != nil {
-				return nil, trace.Wrap(err, "forwarding challenge to client")
+				return nil, trace.Wrap(
+					err, "forwarding challenge to client",
+				)
 			}
 			// Get response from Client
 			req, err := srv.Recv()
 			if err != nil {
-				return nil, trace.Wrap(err, "receiving challenge solution from client")
-			}
-			challengeResponse, ok := req.Payload.(*proto.RegisterUsingTPMMethodRequest_ChallengeResponse)
-			if !ok {
-				return nil, trace.BadParameter(
-					"expected RegisterUsingTPMMethodRequest_ChallengeResponse payload, got %T",
-					req.Payload,
+				return nil, trace.Wrap(
+					err, "receiving challenge solution from client",
 				)
 			}
-			return challengeResponse.ChallengeResponse, nil
+			challengeResponse := req.GetChallengeResponse()
+			if challengeResponse == nil {
+				return nil, trace.BadParameter(
+					"expected non-nil ChallengeResponse payload",
+				)
+			}
+			return challengeResponse, nil
 		})
 	if err != nil {
 		return trace.Wrap(err)
