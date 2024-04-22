@@ -64,7 +64,7 @@ var (
 	defaultDNSAddress = tcpip.AddrFrom4([4]byte{100, 127, 100, 127})
 )
 
-func BaseIPv6Address() (tcpip.Address, error) {
+func IPv6Prefix() (tcpip.Address, error) {
 	// |   8 bits   |  40 bits   |  16 bits  |          64 bits           |
 	// +------------+------------+-----------+----------------------------+
 	// | ULA Prefix | Global ID  | Subnet ID |        Interface ID        |
@@ -83,22 +83,22 @@ func BaseIPv6Address() (tcpip.Address, error) {
 
 // Run is a blocking call to create and start Teleport VNet.
 func Run(ctx context.Context, tc *client.TeleportClient, customDNSZones []string) error {
-	baseAddress, err := BaseIPv6Address()
+	ipv6Prefix, err := IPv6Prefix()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	tun, cleanup, err := CreateAndSetupTUNDevice(ctx, baseAddress.String(), customDNSZones)
+	tun, cleanup, err := CreateAndSetupTUNDevice(ctx, ipv6Prefix.String(), customDNSZones)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer cleanup()
 
 	manager, err := NewManager(ctx, &Config{
-		Client:          tc,
-		TUNDevice:       tun,
-		BaseIPv6Address: baseAddress,
-		customDNSZones:  customDNSZones,
+		Client:         tc,
+		TUNDevice:      tun,
+		IPv6Prefix:     ipv6Prefix,
+		customDNSZones: customDNSZones,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -111,11 +111,11 @@ func Run(ctx context.Context, tc *client.TeleportClient, customDNSZones []string
 
 // Config holds configuration parameters for the VNet.
 type Config struct {
-	Client          *client.TeleportClient
-	TUNDevice       tun.Device
-	DNSAddress      tcpip.Address
-	BaseIPv6Address tcpip.Address
-	customDNSZones  []string
+	Client         *client.TeleportClient
+	TUNDevice      tun.Device
+	DNSAddress     tcpip.Address
+	IPv6Prefix     tcpip.Address
+	customDNSZones []string
 }
 
 // CheckAndSetDefaults checks the config and sets defaults.
@@ -169,7 +169,7 @@ type Manager struct {
 	state         state
 	// TODO: remove this and get custom DNS zones per cluster.
 	globalCustomDNSZones []string
-	baseIPv6Address      tcpip.Address
+	ipv6Prefix           tcpip.Address
 }
 
 // NewManager creates a new VNet manager with the given configuration and root
@@ -194,7 +194,7 @@ func NewManager(ctx context.Context, cfg *Config) (*Manager, error) {
 		slog:                 slog,
 		state:                newState(),
 		globalCustomDNSZones: cfg.customDNSZones,
-		baseIPv6Address:      cfg.BaseIPv6Address,
+		ipv6Prefix:           cfg.IPv6Prefix,
 	}
 
 	dnsServer, err := dns.NewServer(slog, m)
@@ -400,7 +400,7 @@ func (m *Manager) assignIPsToApp(fqdn string, app types.Application) (ipv4 tcpip
 	m.state.nextFreeIP += 1
 
 	ipv4 = tcpip.AddrFrom4([4]byte{byte(ip >> 24), byte(ip >> 16), byte(ip >> 8), byte(ip >> 0)})
-	ipv6Bytes := m.baseIPv6Address.As16()
+	ipv6Bytes := m.ipv6Prefix.As16()
 	copy(ipv6Bytes[12:16], ipv4.AsSlice())
 	ipv6 = tcpip.AddrFrom16(ipv6Bytes)
 

@@ -73,7 +73,7 @@ func newVnetAdminSetupCommand(app *kingpin.Application) *vnetAdminSetupCommand {
 	cmd.Flag("socket", "unix socket path").StringVar(&cmd.socketPath)
 	cmd.Flag("pidfile", "pid file path").StringVar(&cmd.pidFilePath)
 	cmd.Flag("custom-dns-zones", "custom DNS zones (comma-separated)").StringVar(&cmd.customDNSZones)
-	cmd.Flag("ipv6-address", "IPv6 prefix for the VNet").StringVar(&cmd.baseIPv6Address)
+	cmd.Flag("ipv6-prefix", "IPv6 prefix for the VNet").StringVar(&cmd.baseIPv6Address)
 
 	return cmd
 }

@@ -35,7 +35,7 @@ import (
 	"github.com/gravitational/teleport"
 )
 
-func CreateAndSetupTUNDevice(ctx context.Context, baseIPv6Address string, customDNSZones []string) (tun.Device, func(), error) {
+func CreateAndSetupTUNDevice(ctx context.Context, ipv6Prefix string, customDNSZones []string) (tun.Device, func(), error) {
 	var (
 		device  tun.Device
 		name    string
@@ -43,9 +43,9 @@ func CreateAndSetupTUNDevice(ctx context.Context, baseIPv6Address string, custom
 		err     error
 	)
 	if os.Getuid() == 0 {
-		device, name, cleanup, err = createAndSetupTUNDeviceAsRoot(ctx, baseIPv6Address, customDNSZones)
+		device, name, cleanup, err = createAndSetupTUNDeviceAsRoot(ctx, ipv6Prefix, customDNSZones)
 	} else {
-		device, name, cleanup, err = createAndSetupTUNDeviceWithoutRoot(ctx, baseIPv6Address, customDNSZones)
+		device, name, cleanup, err = createAndSetupTUNDeviceWithoutRoot(ctx, ipv6Prefix, customDNSZones)
 	}
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -54,7 +54,7 @@ func CreateAndSetupTUNDevice(ctx context.Context, baseIPv6Address string, custom
 	return device, cleanup, nil
 }
 
-func createAndSetupTUNDeviceAsRoot(ctx context.Context, baseIPv6Address string, customDNSZones []string) (tun.Device, string, func(), error) {
+func createAndSetupTUNDeviceAsRoot(ctx context.Context, ipv6Prefix string, customDNSZones []string) (tun.Device, string, func(), error) {
 	tun, tunName, err := createTUNDevice()
 	if err != nil {
 		return nil, "", nil, trace.Wrap(err)
@@ -65,7 +65,7 @@ func createAndSetupTUNDeviceAsRoot(ctx context.Context, baseIPv6Address string, 
 		tunIPv4 = "100.64.0.1"
 		netmask = tunIPv4 + "/10"
 	)
-	tunIPv6 := baseIPv6Address + "1"
+	tunIPv6 := ipv6Prefix + "1"
 	dnsZones, err := allDNSZones(customDNSZones)
 	if err != nil {
 		return nil, "", nil, trace.Wrap(err, "finding all DNS zones")
@@ -91,7 +91,7 @@ func createAndSetupTUNDeviceAsRoot(ctx context.Context, baseIPv6Address string, 
 	return tun, tunName, cleanup, nil
 }
 
-func createAndSetupTUNDeviceWithoutRoot(ctx context.Context, baseIPv6Address string, customDNSZones []string) (tun.Device, string, func(), error) {
+func createAndSetupTUNDeviceWithoutRoot(ctx context.Context, ipv6Prefix string, customDNSZones []string) (tun.Device, string, func(), error) {
 	slog.Info("Spawning child process as root to create and setup TUN device")
 	socket, socketPath, err := createUnixSocket()
 	if err != nil {
@@ -113,7 +113,7 @@ func createAndSetupTUNDeviceWithoutRoot(ctx context.Context, baseIPv6Address str
 	go func() {
 		// If everything goes well, this will write to the channel only after
 		// the context gets canceled.
-		errC <- trace.Wrap(runAdminSubcommand(ctx, socketPath, pidFilePath, customDNSZones))
+		errC <- trace.Wrap(runAdminSubcommand(ctx, socketPath, pidFilePath, ipv6Prefix, customDNSZones))
 	}()
 
 	cleanup := func() {
@@ -242,7 +242,7 @@ func recvTUNNameAndFd(ctx context.Context, socket *net.UnixListener) (string, ui
 	return tunName, fd, nil
 }
 
-func runAdminSubcommand(ctx context.Context, socketPath, pidFilePath string, customDNSZones []string) error {
+func runAdminSubcommand(ctx context.Context, socketPath, pidFilePath, ipv6Prefix string, customDNSZones []string) error {
 	executableName, err := os.Executable()
 	if err != nil {
 		return trace.Wrap(err, "getting executable path")
@@ -253,9 +253,10 @@ func runAdminSubcommand(ctx context.Context, socketPath, pidFilePath string, cus
 set executableName to "%s"
 set socketPath to "%s"
 set pidFile to "%s"
+set ipv6Prefix to "%s"
 set customDNSZones to "%s"
-do shell script quoted form of executableName & " %s --socket " & quoted form of socketPath & " --pidfile " & quoted form of pidFile & " --custom-dns-zones " & quoted form of customDNSZones with prompt "%s" with administrator privileges`,
-		executableName, socketPath, pidFilePath, strings.Join(customDNSZones, ","), teleport.VnetAdminSetupSubCommand, prompt)
+do shell script quoted form of executableName & " %s --socket " & quoted form of socketPath & " --pidfile " & quoted form of pidFile & " --ipv6-prefix " & quoted form of ipv6Prefix & " --custom-dns-zones " & quoted form of customDNSZones with prompt "%s" with administrator privileges`,
+		executableName, socketPath, pidFilePath, ipv6Prefix, strings.Join(customDNSZones, ","), teleport.VnetAdminSetupSubCommand, prompt)
 
 	// The context we pass here has effect only on the password prompt being shown. Once osascript
 	// spawns the privileged process, canceling the context (and thus killing osascript) has no effect
@@ -283,12 +284,12 @@ do shell script quoted form of executableName & " %s --socket " & quoted form of
 // AdminSubcommand is the tsh subcommand that should run as root that will
 // create and setup a TUN device and pass the file descriptor for that device
 // over the unix socket found at socketPath.
-func AdminSubcommand(ctx context.Context, socketPath, pidFilePath string, baseIPv6Address string, customDNSZones []string) error {
+func AdminSubcommand(ctx context.Context, socketPath, pidFilePath string, ipv6Prefix string, customDNSZones []string) error {
 	ctx, err := withPidfileContext(ctx, pidFilePath)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	tun, tunName, cleanup, err := createAndSetupTUNDeviceAsRoot(ctx, baseIPv6Address, customDNSZones)
+	tun, tunName, cleanup, err := createAndSetupTUNDeviceAsRoot(ctx, ipv6Prefix, customDNSZones)
 	if err != nil {
 		return trace.Wrap(err, "doing admin setup")
 	}
