@@ -499,7 +499,7 @@ type BaseMeta = {
 // that needs to be preserved throughout the flow.
 export type NodeMeta = BaseMeta & {
   node: Node;
-  ec2Ice?: Ec2InstanceConnectEndpoint;
+  ec2Ices?: Ec2InstanceConnectEndpoint[];
 };
 
 // DbMeta describes the fields for a db resource

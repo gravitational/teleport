@@ -777,8 +777,12 @@ export const formatters: Formatters = {
   [eventCodes.CREATE_MFA_AUTH_CHALLENGE]: {
     type: 'mfa_auth_challenge.create',
     desc: 'MFA Authentication Attempt',
-    format: ({ user }) =>
-      `User [${user}] requested an MFA authentication challenge`,
+    format: ({ user }) => {
+      if (user) {
+        return `User [${user}] requested an MFA authentication challenge`;
+      }
+      return `Passwordless user requested an MFA authentication challenge`;
+    },
   },
   [eventCodes.VALIDATE_MFA_AUTH_RESPONSE]: {
     type: 'mfa_auth_challenge.validate',
@@ -1402,6 +1406,14 @@ export const formatters: Formatters = {
       success || (status && status.success)
         ? `User [${user}] has issued a device web token`
         : `User [${user}] has failed to issue a device web token`,
+  },
+  [eventCodes.DEVICE_AUTHENTICATE_CONFIRM]: {
+    type: 'device.authenticate.confirm',
+    desc: 'Device Web Authentication Confirmed',
+    format: ({ user, status, success }) =>
+      success || (status && status.success)
+        ? `User [${user}] has confirmed device web authentication`
+        : `User [${user}] has failed to confirm device web authentication`,
   },
   [eventCodes.X11_FORWARD]: {
     type: 'x11-forward',

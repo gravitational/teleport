@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
+	"github.com/gravitational/teleport/integrations/lib/plugindata"
 	pd "github.com/gravitational/teleport/integrations/lib/plugindata"
 )
 
@@ -37,4 +38,6 @@ type MessagingBot interface {
 	// UpdateMessages updates access request messages that were previously sent via Broadcast
 	// This is used to change the access-request status and number of required approval remaining
 	UpdateMessages(ctx context.Context, reqID string, data pd.AccessRequestData, messageData SentMessages, reviews []types.AccessReview) error
+	// NotifyUser notifies the user if their access request status has changed
+	NotifyUser(ctx context.Context, reqID string, ard plugindata.AccessRequestData) error
 }

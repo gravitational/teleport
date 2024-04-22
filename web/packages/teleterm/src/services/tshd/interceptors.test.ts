@@ -40,7 +40,7 @@ it('do not log sensitive info like password', () => {
       service: { typeName: 'FooService' } as ServiceInfo,
     } as MethodInfo,
     {
-      passw: {},
+      password: {},
       userData: {
         login: 'admin',
         password: 'admin',
@@ -50,7 +50,7 @@ it('do not log sensitive info like password', () => {
   );
 
   expect(infoLogger).toHaveBeenCalledWith(expect.any(String), {
-    passw: '~FILTERED~',
+    password: '~FILTERED~',
     userData: { login: 'admin', password: '~FILTERED~' },
   });
 });

@@ -26,7 +26,7 @@ import { initialize, mswLoader } from 'msw-storybook-addon';
 
 import { rest } from 'msw';
 
-import { DeviceUsage } from 'teleport/services/mfa';
+import { DeviceUsage } from 'teleport/services/auth';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { ContextProvider } from 'teleport/index';
 

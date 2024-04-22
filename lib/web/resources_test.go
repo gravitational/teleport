@@ -300,7 +300,7 @@ version: v2
 func TestGetRoles(t *testing.T) {
 	m := &mockedResourceAPIGetter{}
 
-	m.mockGetRoles = func(ctx context.Context) ([]types.Role, error) {
+	m.mockListRoles = func(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error) {
 		role, err := types.NewRole("test", types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				Logins: []string{"test"},
@@ -308,14 +308,17 @@ func TestGetRoles(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		return []types.Role{role}, nil
+		return &proto.ListRolesResponse{
+			Roles:   []*types.RoleV6{role.(*types.RoleV6)},
+			NextKey: "",
+		}, nil
 	}
 
 	// Test response is converted to ui objects.
-	roles, err := getRoles(m)
+	roles, err := listRoles(m, url.Values{})
 	require.NoError(t, err)
-	require.Len(t, roles, 1)
-	require.Contains(t, roles[0].Content, "name: test")
+	require.Len(t, roles.Items, 1)
+	require.Contains(t, roles.Items.([]ui.ResourceItem)[0].Content, "name: test")
 }
 
 func TestRoleCRUD(t *testing.T) {
@@ -402,15 +405,16 @@ func TestRoleCRUD(t *testing.T) {
 	_, err = pack.clt.Delete(ctx, pack.clt.Endpoint("webapi", "roles", expected.GetName()))
 	require.NoError(t, err, "unexpected error deleting role")
 
-	resp, err = pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "roles"), nil)
+	resp, err = pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "roles"), url.Values{"limit": []string{"15"}})
 	assert.NoError(t, err, "unexpected error listing role")
 
-	var items []ui.ResourceItem
-	require.NoError(t, json.Unmarshal(resp.Bytes(), &items), "invalid resource item received")
+	var getResponse listResourcesWithoutCountGetResponse
+	require.NoError(t, json.Unmarshal(resp.Bytes(), &getResponse), "invalid resource item received")
 	assert.Equal(t, http.StatusOK, resp.Code(), "unexpected status code getting roles")
 
-	for _, item := range items {
-		assert.NotEqual(t, "test-role", item.Name, "expected test-role to be deleted")
+	assert.Equal(t, "", getResponse.StartKey)
+	for _, item := range getResponse.Items.([]interface{}) {
+		assert.NotEqual(t, "test-role", item.(map[string]interface{})["name"], "expected test-role to be deleted")
 	}
 }
 
@@ -609,6 +613,7 @@ func TestListResources(t *testing.T) {
 type mockedResourceAPIGetter struct {
 	mockGetRole               func(ctx context.Context, name string) (types.Role, error)
 	mockGetRoles              func(ctx context.Context) ([]types.Role, error)
+	mockListRoles             func(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error)
 	mockUpsertRole            func(ctx context.Context, role types.Role) (types.Role, error)
 	mockGetGithubConnectors   func(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error)
 	mockGetGithubConnector    func(ctx context.Context, id string, withSecrets bool) (types.GithubConnector, error)
@@ -632,6 +637,13 @@ func (m *mockedResourceAPIGetter) GetRoles(ctx context.Context) ([]types.Role, e
 		return m.mockGetRoles(ctx)
 	}
 	return nil, trace.NotImplemented("mockGetRoles not implemented")
+}
+
+func (m *mockedResourceAPIGetter) ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error) {
+	if m.mockListRoles != nil {
+		return m.mockListRoles(ctx, req)
+	}
+	return nil, trace.NotImplemented("mockListRoles not implemented")
 }
 
 func (m *mockedResourceAPIGetter) UpsertRole(ctx context.Context, role types.Role) (types.Role, error) {

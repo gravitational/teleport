@@ -78,7 +78,7 @@ func (process *TeleportProcess) initDiscoveryService() error {
 	accessGraphCfg, err := buildAccessGraphFromTAGOrFallbackToAuth(
 		process.ExitContext(),
 		process.Config,
-		process.getInstanceClient(),
+		conn.Client,
 		logger,
 	)
 	if err != nil {
@@ -100,7 +100,7 @@ func (process *TeleportProcess) initDiscoveryService() error {
 		ServerID:          process.Config.HostUUID,
 		Log:               process.log,
 		ClusterName:       conn.ClientIdentity.ClusterName,
-		ClusterFeatures:   process.getClusterFeatures,
+		ClusterFeatures:   process.GetClusterFeatures,
 		PollInterval:      process.Config.Discovery.PollInterval,
 		ServerCredentials: tlsConfig,
 		AccessGraphConfig: accessGraphCfg,

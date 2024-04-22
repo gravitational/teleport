@@ -1,0 +1,503 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema",
+    "$id": "http://example.com/example.json",
+    "default": {},
+    "required": [
+        "image",
+        "imagePullSecrets",
+        "nameOverride",
+        "fullnameOverride",
+        "podAnnotations",
+        "podSecurityContext",
+        "securityContext",
+        "nodeSelector",
+        "tolerations",
+        "affinity",
+        "teleport",
+        "fluentd"
+    ],
+    "properties": {
+        "image": {
+            "$id": "#/properties/image",
+            "type": "object",
+            "default": {},
+            "examples": [
+                {
+                    "repository": "public.ecr.aws/gravitational/teleport-plugin-event-handler",
+                    "pullPolicy": "IfNotPresent",
+                    "tag": ""
+                }
+            ],
+            "required": [
+                "repository",
+                "pullPolicy",
+                "tag"
+            ],
+            "properties": {
+                "repository": {
+                    "$id": "#/properties/image/properties/repository",
+                    "type": "string",
+                    "default": "public.ecr.aws/gravitational/teleport-plugin-event-handler",
+                    "examples": [
+                        "public.ecr.aws/gravitational/teleport-plugin-event-handler"
+                    ]
+                },
+                "pullPolicy": {
+                    "$id": "#/properties/image/properties/pullPolicy",
+                    "type": "string",
+                    "default": "IfNotPresent",
+                    "examples": [
+                        "IfNotPresent"
+                    ]
+                },
+                "tag": {
+                    "$id": "#/properties/image/properties/tag",
+                    "type": "string",
+                    "default": ""
+                }
+            },
+            "additionalProperties": true
+        },
+        "imagePullSecrets": {
+            "$id": "#/properties/imagePullSecrets",
+            "type": "array",
+            "default": [],
+            "examples": [
+                [
+                    {
+                    "name": "image-pull-secrets"
+                    }
+                ]
+            ],
+            "additionalItems": true,
+            "items": {
+                "$id": "#/properties/imagePullSecrets/items"
+            }
+        },
+        "nameOverride": {
+            "$id": "#/properties/nameOverride",
+            "type": "string",
+            "default": ""
+        },
+        "fullnameOverride": {
+            "$id": "#/properties/fullnameOverride",
+            "type": "string",
+            "default": ""
+        },
+        "podAnnotations": {
+            "$id": "#/properties/podAnnotations",
+            "type": "object",
+            "additionalProperties": true
+        },
+        "podSecurityContext": {
+            "$id": "#/properties/podSecurityContext",
+            "type": "object",
+            "required": [],
+            "additionalProperties": true
+        },
+        "securityContext": {
+            "$id": "#/properties/securityContext",
+            "type": "object",
+            "properties": {
+                "capabilities": {
+                    "$id": "#/properties/securityContext/properties/capabilities",
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "readOnlyRootFilesystem": {
+                    "$id": "#/properties/securityContext/properties/readOnlyRootFilesystem",
+                    "type": "boolean",
+                    "default": false,
+                    "examples": [
+                        true
+                    ]
+                },
+                "runAsNonRoot": {
+                    "$id": "#/properties/securityContext/properties/runAsNonRoot",
+                    "type": "boolean",
+                    "default": false,
+                    "examples": [
+                        true
+                    ]
+                },
+                "runAsUser": {
+                    "$id": "#/properties/securityContext/properties/runAsUser",
+                    "type": "integer",
+                    "default": 0,
+                    "examples": [
+                        1000
+                    ]
+                }
+            },
+            "additionalProperties": true
+        },
+        "resources": {
+            "$id": "#/properties/resources",
+            "type": "object",
+            "default": {},
+            "examples": [
+                {
+                    "limits": {
+                        "cpu": "100m",
+                        "memory": "128Mi"
+                    },
+                    "requests": {
+                        "cpu": "100m",
+                        "memory": "128Mi"
+                    }
+                }
+            ],
+            "properties": {
+                "limits": {
+                    "$id": "#/properties/resources/properties/limits",
+                    "type": "object",
+                    "default": {},
+                    "examples": [
+                        {
+                            "cpu": "100m",
+                            "memory": "128Mi"
+                        }
+                    ],
+                    "required": [
+                        "cpu",
+                        "memory"
+                    ],
+                    "properties": {
+                        "cpu": {
+                            "$id": "#/properties/resources/properties/limits/properties/cpu",
+                            "type": "string",
+                            "default": "",
+                            "examples": [
+                                "100m"
+                            ]
+                        },
+                        "memory": {
+                            "$id": "#/properties/resources/properties/limits/properties/memory",
+                            "type": "string",
+                            "default": "",
+                            "examples": [
+                                "128Mi"
+                            ]
+                        }
+                    },
+                    "additionalProperties": true
+                },
+                "requests": {
+                    "$id": "#/properties/resources/properties/requests",
+                    "type": "object",
+                    "default": {},
+                    "examples": [
+                        {
+                            "cpu": "100m",
+                            "memory": "128Mi"
+                        }
+                    ],
+                    "required": [
+                        "cpu",
+                        "memory"
+                    ],
+                    "properties": {
+                        "cpu": {
+                            "$id": "#/properties/resources/properties/requests/properties/cpu",
+                            "type": "string",
+                            "default": "",
+                            "examples": [
+                                "100m"
+                            ]
+                        },
+                        "memory": {
+                            "$id": "#/properties/resources/properties/requests/properties/memory",
+                            "type": "string",
+                            "default": "",
+                            "examples": [
+                                "128Mi"
+                            ]
+                        }
+                    },
+                    "additionalProperties": true
+                }
+            },
+            "additionalProperties": true
+        },
+        "nodeSelector": {
+            "$id": "#/properties/nodeSelector",
+            "type": "object",
+            "default": {},
+            "additionalProperties": true
+        },
+        "tolerations": {
+            "$id": "#/properties/tolerations",
+            "type": "array",
+            "default": [],
+            "additionalItems": true,
+            "items": {
+                "$id": "#/properties/tolerations/items"
+            }
+        },
+        "affinity": {
+            "$id": "#/properties/affinity",
+            "type": "object",
+            "default": {},
+            "additionalProperties": true
+        },
+        "volumes": {
+            "$id": "#/properties/volumes",
+            "type": "array",
+            "default": [],
+            "items": {
+                "$id": "#/properties/volumes/items",
+                "type": "object",
+                "additionalItems": true
+            }
+        },
+        "volumeMounts": {
+            "$id": "#/properties/volumeMounts",
+            "type": "array",
+            "default": [],
+            "items": {
+                "$id": "#/properties/volumeMounts/items",
+                "type": "object",
+                "additionalItems": true
+            }
+        },
+        "teleport": {
+            "$id": "#/properties/teleport",
+            "type": "object",
+            "default": {},
+            "examples": [
+                {
+                    "address": "auth.example.com:3025",
+                    "identitySecretName": "teleport-plugin-event-handler-auth-id",
+                    "identitySecretPath": "auth_id"
+                }
+            ],
+            "required": [
+                "address",
+                "identitySecretName",
+                "identitySecretPath"
+            ],
+            "properties": {
+                "address": {
+                    "$id": "#/properties/teleport/properties/address",
+                    "type": "string",
+                    "default": "",
+                    "examples": [
+                        "auth.example.com:3025"
+                    ]
+                },
+                "identitySecretName": {
+                    "$id": "#/properties/teleport/properties/identitySecretName",
+                    "type": "string",
+                    "default": ""
+                },
+                "identitySecretPath": {
+                    "$id": "#/properties/teleport/properties/identitySecretPath",
+                    "type": "string",
+                    "default": "auth_id",
+                    "examples": [
+                        "auth_id"
+                    ]
+                }
+            },
+            "additionalProperties": true
+        },
+        "eventHandler": {
+            "$id": "#/properties/eventHandler",
+            "type": "object",
+            "default": {
+                "storagePath": "/var/lib/teleport/plugins/event-handler/storage",
+                "timeout": "10s",
+                "batch": 20
+            },
+            "examples": [
+                {
+                    "storagePath": "/var/lib/teleport/plugins/event-handler/storage",
+                    "timeout": "10s",
+                    "batch": 20
+                }
+            ],
+            "required": [
+                "storagePath",
+                "timeout"
+            ],
+            "properties": {
+                "storagePath": {
+                    "$id": "#/properties/eventHandler/properties/storagePath",
+                    "type": "string",
+                    "default": "/var/lib/teleport/plugins/event-handler/storage",
+                    "examples": [
+                        "/var/lib/teleport/plugins/event-handler/storage",
+                        "/storage"
+                    ]
+                },
+                "timeout": {
+                    "$id": "#/properties/eventHandler/properties/timeout",
+                    "type": "string",
+                    "default": "10s"
+                },
+                "batch": {
+                    "$id": "#/properties/eventHandler/properties/batch",
+                    "type": "number",
+                    "default": 20
+                }
+            },
+            "additionalProperties": true
+        },
+        "fluentd": {
+            "$id": "#/properties/fluentd",
+            "type": "object",
+            "default": {},
+            "examples": [
+                {
+                    "url": "https://fluentd:8888/test.log",
+                    "sessionUrl": "https://fluentd:8888/session",
+                    "certificate": {
+                        "secretName": "",
+                        "caPath": "ca.crt",
+                        "certPath": "client.crt",
+                        "keyPath": "client.key"
+                    }
+                }
+            ],
+            "required": [
+                "url",
+                "sessionUrl",
+                "certificate"
+            ],
+            "properties": {
+                "url": {
+                    "$id": "#/properties/fluentd/properties/url",
+                    "type": "string",
+                    "default": "",
+                    "examples": [
+                        "https://fluentd:8888/test.log"
+                    ]
+                },
+                "sessionUrl": {
+                    "$id": "#/properties/fluentd/properties/sessionUrl",
+                    "type": "string",
+                    "default": "",
+                    "examples": [
+                        "https://fluentd:8888/session"
+                    ]
+                },
+                "certificate": {
+                    "$id": "#/properties/fluentd/properties/certificate",
+                    "type": "object",
+                    "default": {
+                        "secretName": "",
+                        "caPath": "ca.crt",
+                        "certPath": "client.crt",
+                        "keyPath": "client.key"
+                    },
+                    "examples": [
+                        {
+                            "secretName": "event-handler-fluentd-credentials",
+                            "caPath": "ca.crt",
+                            "certPath": "client.crt",
+                            "keyPath": "client.key"
+                        }
+                    ],
+                    "required": [
+                        "secretName",
+                        "caPath",
+                        "certPath",
+                        "keyPath"
+                    ],
+                    "properties": {
+                        "secretName": {
+                            "$id": "#/properties/fluentd/properties/credentials/properties/secretName",
+                            "type": "string",
+                            "default": ""
+                        },
+                        "caPath": {
+                            "$id": "#/properties/fluentd/properties/credentials/properties/caPath",
+                            "type": "string",
+                            "default": "ca.crt"
+                        },
+                        "certPath": {
+                            "$id": "#/properties/fluentd/properties/credentials/properties/certPath",
+                            "type": "string",
+                            "default": "client.crt"
+                        },
+                        "keyPath": {
+                            "$id": "#/properties/fluentd/properties/credentials/properties/keyPath",
+                            "type": "string",
+                            "default": "client.key"
+                        }
+                    }
+                }
+            },
+            "additionalProperties": true
+        },
+        "persistentVolumeClaim": {
+            "$id": "#/properties/persistentVolumeClaim",
+            "type": "object",
+            "default": {
+                "enabled": true,
+                "size": "1Gi",
+                "storageClassName": "",
+                "existingClaim": ""
+            },
+            "examples": [
+                {
+                    "enabled": true,
+                    "size": "1Gi",
+                    "storageClassName": "",
+                    "existingClaim": ""
+                }
+            ],
+            "required": [
+                "enabled",
+                "size",
+                "storageClassName",
+                "existingClaim"
+            ],
+            "properties": {
+                "enabled": {
+                    "$id": "#/properties/persistentVolumeClaim/properties/enabled",
+                    "type": "boolean",
+                    "default": false,
+                    "examples": [
+                        true
+                    ]
+                },
+                "size": {
+                    "$id": "#/properties/persistentVolumeClaim/properties/size",
+                    "type": "string",
+                    "default": "1Gi",
+                    "examples": [
+                        "1Gi",
+                        "1Ti"
+                    ]
+                },
+                "storageClassName": {
+                    "$id": "#/properties/persistentVolumeClaim/properties/storageClassName",
+                    "type": "string",
+                    "default": "",
+                    "examples": [
+                        "gp2"
+                    ]
+                },
+                "existingClaim": {
+                    "$id": "#/properties/persistentVolumeClaim/properties/existingClaim",
+                    "type": "string",
+                    "default": "",
+                    "examples": [
+                        "teleport-plugin-event-handler-pvc"
+                    ]
+                },
+                "volumeName": {
+                    "$id": "#/properties/persistentVolumeClaim/properties/volumeName",
+                    "type": "string",
+                    "default": "storage",
+                    "examples": [
+                        "storage"
+                    ]
+                }
+            },
+            "additionalProperties": true
+        }
+    },
+    "additionalProperties": true
+}

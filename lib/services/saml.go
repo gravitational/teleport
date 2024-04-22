@@ -53,10 +53,11 @@ func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter) error {
 		if err != nil {
 			return trace.WrapWithMessage(err, "unable to fetch entity descriptor from %v for SAML connector %v", sc.GetEntityDescriptorURL(), sc.GetName())
 		}
+		defer resp.Body.Close()
+
 		if resp.StatusCode != http.StatusOK {
 			return trace.BadParameter("status code %v when fetching from %v for SAML connector %v", resp.StatusCode, sc.GetEntityDescriptorURL(), sc.GetName())
 		}
-		defer resp.Body.Close()
 		body, err := utils.ReadAtMost(resp.Body, teleport.MaxHTTPResponseSize)
 		if err != nil {
 			return trace.Wrap(err)

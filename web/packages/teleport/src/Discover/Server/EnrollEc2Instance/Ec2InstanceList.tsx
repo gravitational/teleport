@@ -17,9 +17,8 @@
  */
 
 import React from 'react';
-import { Box, Text } from 'design';
+import { Text } from 'design';
 import Table from 'design/DataTable';
-import { Danger } from 'design/Alert';
 import { FetchStatus } from 'design/DataTable/types';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 
@@ -30,11 +29,6 @@ import {
   labelMatcher,
 } from 'teleport/Discover/Shared';
 
-import { useDiscover } from 'teleport/Discover/useDiscover';
-import { Regions } from 'teleport/services/integrations';
-import { isIamPermError } from 'teleport/Discover/Shared/Aws/error';
-import { ConfigureIamPerms } from 'teleport/Discover/Shared/Aws/ConfigureIamPerms';
-
 import { CheckedEc2Instance } from './EnrollEc2Instance';
 
 type Props = {
@@ -44,7 +38,7 @@ type Props = {
   fetchNextPage(): void;
   onSelectInstance(item: CheckedEc2Instance): void;
   selectedInstance?: CheckedEc2Instance;
-  region: Regions;
+  wantAutoDiscover: boolean;
 };
 
 export const Ec2InstanceList = ({
@@ -54,20 +48,12 @@ export const Ec2InstanceList = ({
   fetchNextPage,
   onSelectInstance,
   selectedInstance,
-  region,
+  wantAutoDiscover,
 }: Props) => {
   const hasError = attempt.status === 'failed';
-  const { agentMeta } = useDiscover();
-
-  const showConfigureScript = isIamPermError(attempt);
-
-  const disabledText = `This EC2 instance is already enrolled and is a part of this cluster`;
 
   return (
     <>
-      {hasError && !showConfigureScript && (
-        <Danger>{attempt.statusText}</Danger>
-      )}
       {!hasError && (
         <Table
           data={items}
@@ -85,9 +71,11 @@ export const Ec2InstanceList = ({
                     key={item.awsMetadata.instanceId}
                     isChecked={isChecked}
                     onChange={onSelectInstance}
-                    disabled={item.ec2InstanceExists}
                     value={item.awsMetadata.instanceId}
-                    disabledText={disabledText}
+                    {...disabledStates(
+                      item.ec2InstanceExists,
+                      wantAutoDiscover
+                    )}
                   />
                 );
               },
@@ -96,7 +84,7 @@ export const Ec2InstanceList = ({
               altKey: 'name',
               headerText: 'Name',
               render: ({ labels, ec2InstanceExists }) => (
-                <Cell disabledText={disabledText} disabled={ec2InstanceExists}>
+                <Cell {...disabledStates(ec2InstanceExists, wantAutoDiscover)}>
                   {labels.find(label => label.name === 'Name')?.value}
                 </Cell>
               ),
@@ -105,7 +93,7 @@ export const Ec2InstanceList = ({
               key: 'hostname',
               headerText: 'Hostname',
               render: ({ hostname, ec2InstanceExists }) => (
-                <Cell disabledText={disabledText} disabled={ec2InstanceExists}>
+                <Cell {...disabledStates(ec2InstanceExists, wantAutoDiscover)}>
                   {hostname}
                 </Cell>
               ),
@@ -114,7 +102,7 @@ export const Ec2InstanceList = ({
               key: 'addr',
               headerText: 'Address',
               render: ({ addr, ec2InstanceExists }) => (
-                <Cell disabledText={disabledText} disabled={ec2InstanceExists}>
+                <Cell {...disabledStates(ec2InstanceExists, wantAutoDiscover)}>
                   {addr}
                 </Cell>
               ),
@@ -123,7 +111,7 @@ export const Ec2InstanceList = ({
               altKey: 'instanceId',
               headerText: 'AWS Instance ID',
               render: ({ awsMetadata, ec2InstanceExists }) => (
-                <Cell disabledText={disabledText} disabled={ec2InstanceExists}>
+                <Cell {...disabledStates(ec2InstanceExists, wantAutoDiscover)}>
                   <Text
                     css={`
                       text-wrap: nowrap;
@@ -138,7 +126,7 @@ export const Ec2InstanceList = ({
               key: 'labels',
               headerText: 'Labels',
               render: ({ labels, ec2InstanceExists }) => (
-                <Cell disabledText={disabledText} disabled={ec2InstanceExists}>
+                <Cell {...disabledStates(ec2InstanceExists, wantAutoDiscover)}>
                   <Labels labels={labels} />
                 </Cell>
               ),
@@ -151,15 +139,17 @@ export const Ec2InstanceList = ({
           isSearchable
         />
       )}
-      {showConfigureScript && (
-        <Box mt={4}>
-          <ConfigureIamPerms
-            kind="ec2"
-            region={region}
-            integrationRoleArn={agentMeta.awsIntegration.spec.roleArn}
-          />
-        </Box>
-      )}
     </>
   );
 };
+
+function disabledStates(ec2InstanceExists: boolean, wantAutoDiscover: boolean) {
+  const disabled = wantAutoDiscover || ec2InstanceExists;
+
+  let disabledText = `This EC2 instance is already enrolled and is a part of this cluster`;
+  if (wantAutoDiscover) {
+    disabledText = 'All eligible EC2 instances will be enrolled automatically';
+  }
+
+  return { disabled, disabledText };
+}

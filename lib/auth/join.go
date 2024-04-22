@@ -222,12 +222,12 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		}
 	}()
 
-	log.Infof("Node %q [%v] is trying to join with role: %v.", req.NodeName, req.HostID, req.Role)
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	switch method := a.tokenJoinMethod(ctx, req.Token); method {
+	method := a.tokenJoinMethod(ctx, req.Token)
+	switch method {
 	case types.JoinMethodEC2:
 		if err := a.checkEC2JoinRequest(ctx, req); err != nil {
 			return nil, trace.Wrap(err)

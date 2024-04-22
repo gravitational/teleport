@@ -120,25 +120,14 @@ information encoded in it, and uses it to authenticate with the Database Service
 
 ### Database Service to database
 
-Database authentication is handled differently for self-hosted databases and
-databases hosted by AWS.
+The Database Service needs to authenticate to databases protected by Teleport.
+The authentication method depends on the database. For self-hosted databases,
+the Database Service usually uses certificate-based authentication with mutual
+TLS. For managed databases running on AWS, Google Cloud, and Azure, the Database
+Service uses IAM authentication.
 
-#### Self-hosted
-
-Teleport Database Service uses client certificate authentication with self-hosted
-database servers.
-
-See respective [guides](./guides.mdx) for details on configuring client
-certificate authentication.
-
-#### Cloud-hosted
-
-Teleport Database Service uses IAM authentication for Amazon-hosted and
-Google-Cloud-hosted database servers, and uses Active Directory authentication
-for Azure-hosted database servers.
-
-See respective [guides](./guides.mdx) for details on configuring IAM/AD
-authentication.
+Read the guides to [connecting databases](./guides.mdx) for details on how the
+Database Service authenticates with your database.
 
 ## Discovery
 

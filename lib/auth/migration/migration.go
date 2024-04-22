@@ -89,13 +89,7 @@ func Apply(ctx context.Context, b backend.Backend, opts ...func(c *applyConfig))
 	}
 
 	ctx, span := tracer.Start(ctx, "migrations/Apply")
-	defer func() {
-		if err != nil {
-			span.SetStatus(codes.Error, err.Error())
-			span.RecordError(err)
-		}
-		span.End()
-	}()
+	defer func() { tracing.EndSpan(span, err) }()
 
 	slices.SortFunc(cfg.migrations, func(a, b migration) int {
 		return cmp.Compare(a.Version(), b.Version())
