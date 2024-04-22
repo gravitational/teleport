@@ -41,6 +41,10 @@ type DestinationKubernetesSecret struct {
 	// Name is the name the Kubernetes Secret that should be created and written
 	// to.
 	Name string `yaml:"name"`
+	// Labels is a set of labels to apply to the output Kubernetes secret.
+	// When configured, these labels will overwrite any existing labels on the
+	// secret.
+	Labels map[string]string `yaml:"labels,omitempty"`
 
 	mu          sync.Mutex
 	namespace   string
@@ -68,6 +72,7 @@ func (dks *DestinationKubernetesSecret) secretTemplate() *corev1.Secret {
 		ObjectMeta: v1.ObjectMeta{
 			Name:      dks.Name,
 			Namespace: dks.namespace,
+			Labels:    dks.Labels,
 		},
 		Data: map[string][]byte{},
 	}
@@ -78,6 +83,12 @@ func (dks *DestinationKubernetesSecret) upsertSecret(ctx context.Context, secret
 		WithData(secret.Data).
 		WithResourceVersion(secret.ResourceVersion).
 		WithType(secret.Type)
+
+	// If user has configured labels, we overwrite the labels on the secret.
+	if len(dks.Labels) > 0 {
+		apply = apply.
+			WithLabels(dks.Labels)
+	}
 
 	applyOpts := v1.ApplyOptions{
 		FieldManager: "tbot",
@@ -192,6 +203,42 @@ func (dks *DestinationKubernetesSecret) Write(ctx context.Context, name string, 
 	}
 
 	secret.Data[name] = data
+
+	err = dks.upsertSecret(ctx, secret, false)
+	return trace.Wrap(err)
+}
+
+// WriteMany allows you to write multiple artifacts to a destination at once.
+// This should be atomic, meaning all artifacts are written or none are. Any
+// artifacts that are not specified will be removed from the destination.
+func (dks *DestinationKubernetesSecret) WriteMany(ctx context.Context, toWrite map[string][]byte) error {
+	ctx, span := tracer.Start(
+		ctx,
+		"DestinationKubernetesSecret/WriteMany",
+	)
+	defer span.End()
+
+	dks.mu.Lock()
+	defer dks.mu.Unlock()
+	if dks.initialized == false {
+		return trace.BadParameter("destination has not been initialized")
+	}
+
+	secret, err := dks.getSecret(ctx)
+	if err != nil {
+		if !kubeerrors.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+		log.WithFields(logrus.Fields{
+			"secret_name":      dks.Name,
+			"secret_namespace": dks.namespace,
+		}).Warn("Kubernetes secret missing on attempt to write data. One will be created.")
+		// If the secret doesn't exist, we create it on write - this is ensures
+		// that we can recover if the secret is deleted between renewal loops.
+		secret = dks.secretTemplate()
+	}
+
+	secret.Data = toWrite
 
 	err = dks.upsertSecret(ctx, secret, false)
 	return trace.Wrap(err)

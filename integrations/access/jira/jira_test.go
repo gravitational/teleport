@@ -852,3 +852,21 @@ func (s *JiraSuite) TestRace() {
 	})
 	assert.Equal(t, s.raceNumber, count)
 }
+
+// TestCustomIssueType tests that requests can use a custom issue type.
+func (s *JiraSuite) TestCustomIssueType() {
+	t := s.T()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	t.Cleanup(cancel)
+
+	s.appConfig.Jira.IssueType = "Story"
+	s.startApp()
+
+	// Test setup: we create an access request
+	_ = s.createAccessRequest()
+
+	// We validate that the issue was created using the Issue Type "Story"
+	newIssue, err := s.fakeJira.CheckNewIssue(ctx)
+	require.NoError(t, err)
+	require.Equal(t, "Story", newIssue.Fields.Type.Name)
+}

@@ -215,6 +215,8 @@ func (s *TestServer) handleMessage(message protocol.Message) (protocol.Message, 
 	switch command {
 	case commandIsMaster:
 		return s.handleIsMaster(message)
+	case commandHello:
+		return s.handleHello(message)
 	case commandAuth:
 		return s.handleAuth(message)
 	case commandPing:
@@ -272,7 +274,7 @@ func (s *TestServer) handleAuth(message protocol.Message) (protocol.Message, err
 // handleIsMaster makes response to the client's "isMaster" command.
 //
 // isMaster command is used as a handshake by the client to determine the
-// cluster topology.
+// cluster topology. Replaced by hello command in newer versions.
 func (s *TestServer) handleIsMaster(message protocol.Message) (protocol.Message, error) {
 	isMasterReply, err := makeIsMasterReply(s.getWireVersion(), s.getMaxMessageSize())
 	if err != nil {
@@ -285,6 +287,28 @@ func (s *TestServer) handleIsMaster(message protocol.Message) (protocol.Message,
 		return protocol.MakeOpMsg(isMasterReply), nil
 	}
 	return nil, trace.NotImplemented("unsupported message: %v", message)
+}
+
+// handleHello makes response to the client's "hello" command.
+//
+// hello command is used as a handshake by the client to determine the
+// cluster topology.
+func (s *TestServer) handleHello(message protocol.Message) (protocol.Message, error) {
+	reply, err := bson.Marshal(bson.M{
+		"ok":                  1,
+		"isWritablePrimary":   true,
+		"maxMessageSizeBytes": s.getMaxMessageSize(),
+		"maxWireVersion":      s.getWireVersion(),
+		"readOnly":            false,
+		"compression":         []string{"zlib"},
+		// `serviceId` is required for LoadBalanced mode. Reference:
+		// https://github.com/mongodb/specifications/blob/master/source/load-balancers/load-balancers.rst
+		"serviceId": primitive.NewObjectID(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return protocol.MakeOpMsg(reply), nil
 }
 
 // handlePing makes response to the client's "ping" command.
@@ -716,6 +740,7 @@ const (
 
 	commandAuth         = "authenticate"
 	commandIsMaster     = "isMaster"
+	commandHello        = "hello"
 	commandPing         = "ping"
 	commandFind         = "find"
 	commandSaslStart    = "saslStart"
@@ -745,7 +770,9 @@ func makeIsMasterReply(wireVersion int, maxMessageSize uint32) ([]byte, error) {
 		"maxWireVersion":  wireVersion,
 		"maxMessageBytes": maxMessageSize,
 		"compression":     []string{"zlib"},
-		"serviceId":       primitive.NewObjectID(),
+		// `serviceId` is required for LoadBalanced mode. Reference:
+		// https://github.com/mongodb/specifications/blob/master/source/load-balancers/load-balancers.rst
+		"serviceId": primitive.NewObjectID(),
 	})
 }
 

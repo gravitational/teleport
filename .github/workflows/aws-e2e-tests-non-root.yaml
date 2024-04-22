@@ -37,6 +37,7 @@ env:
   RDS_DISCOVERY_ROLE: arn:aws:iam::307493967395:role/ci-database-e2e-tests-rds-discovery
   RDS_POSTGRES_INSTANCE_NAME: ci-database-e2e-tests-rds-postgres-instance-us-west-2-307493967395
   RDS_MYSQL_INSTANCE_NAME: ci-database-e2e-tests-rds-mysql-instance-us-west-2-307493967395
+  RDS_MARIADB_INSTANCE_NAME: ci-database-e2e-tests-rds-mariadb-instance-us-west-2-307493967395
   DISCOVERY_MATCHER_LABELS: "*=*"
 jobs:
   test:

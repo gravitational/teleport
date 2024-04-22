@@ -224,7 +224,7 @@ func TestRegisterBotCertificateGenerationCheck(t *testing.T) {
 	tlsPublicKey, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(sshPrivateKey)
 	require.NoError(t, err)
 
-	certs, err := Register(RegisterParams{
+	certs, err := Register(ctx, RegisterParams{
 		Token: bot.TokenID,
 		ID: IdentityID{
 			Role: types.RoleBot,
@@ -282,7 +282,7 @@ func TestRegisterBotCertificateGenerationStolen(t *testing.T) {
 	tlsPublicKey, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(sshPrivateKey)
 	require.NoError(t, err)
 
-	certs, err := Register(RegisterParams{
+	certs, err := Register(ctx, RegisterParams{
 		Token: bot.TokenID,
 		ID: IdentityID{
 			Role: types.RoleBot,
@@ -343,7 +343,7 @@ func TestRegisterBotCertificateExtensions(t *testing.T) {
 	tlsPublicKey, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(sshPrivateKey)
 	require.NoError(t, err)
 
-	certs, err := Register(RegisterParams{
+	certs, err := Register(ctx, RegisterParams{
 		Token: bot.TokenID,
 		ID: IdentityID{
 			Role: types.RoleBot,

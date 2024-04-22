@@ -77,7 +77,7 @@ func (process *TeleportProcess) initDiscoveryService() error {
 	accessGraphCfg, err := buildAccessGraphFromTAGOrFallbackToAuth(
 		process.ExitContext(),
 		process.Config,
-		process.getInstanceClient(),
+		conn.Client,
 		log,
 	)
 	if err != nil {
