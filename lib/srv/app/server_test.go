@@ -63,6 +63,7 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/aws"
 )
 
 func TestMain(m *testing.M) {
@@ -331,18 +332,19 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	}
 
 	connectionsHandler, err := NewConnectionsHandler(s.closeContext, &ConnectionsHandlerConfig{
-		Clock:             s.clock,
-		DataDir:           s.dataDir,
-		Emitter:           s.authClient,
-		Authorizer:        authorizer,
-		HostID:            s.hostUUID,
-		AuthClient:        s.authClient,
-		AccessPoint:       s.authClient,
-		Cloud:             &testCloud{},
-		TLSConfig:         tlsConfig,
-		ConnectionMonitor: fakeConnMonitor{},
-		CipherSuites:      utils.DefaultCipherSuites(),
-		ServiceComponent:  teleport.ComponentApp,
+		Clock:              s.clock,
+		DataDir:            s.dataDir,
+		Emitter:            s.authClient,
+		Authorizer:         authorizer,
+		HostID:             s.hostUUID,
+		AuthClient:         s.authClient,
+		AccessPoint:        s.authClient,
+		Cloud:              &testCloud{},
+		TLSConfig:          tlsConfig,
+		ConnectionMonitor:  fakeConnMonitor{},
+		CipherSuites:       utils.DefaultCipherSuites(),
+		ServiceComponent:   teleport.ComponentApp,
+		AWSSessionProvider: aws.SessionProviderUsingAmbientCredentials(),
 	})
 	require.NoError(t, err)
 
@@ -1232,7 +1234,7 @@ func testRotationGetter(role types.SystemRole) (*types.Rotation, error) {
 
 type testCloud struct{}
 
-func (c *testCloud) GetAWSSigninURL(_ AWSSigninRequest) (*AWSSigninResponse, error) {
+func (c *testCloud) GetAWSSigninURL(_ context.Context, _ AWSSigninRequest) (*AWSSigninResponse, error) {
 	return &AWSSigninResponse{
 		SigninURL: "https://signin.aws.amazon.com",
 	}, nil

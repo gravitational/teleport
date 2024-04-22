@@ -146,6 +146,7 @@ import (
 	"github.com/gravitational/teleport/lib/system"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/gravitational/teleport/lib/utils/cert"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
@@ -5465,18 +5466,19 @@ func (process *TeleportProcess) initApps() {
 		}
 
 		connectionsHandler, err := app.NewConnectionsHandler(process.ExitContext(), &app.ConnectionsHandlerConfig{
-			Clock:             process.Config.Clock,
-			DataDir:           process.Config.DataDir,
-			AuthClient:        conn.Client,
-			AccessPoint:       accessPoint,
-			Authorizer:        authorizer,
-			TLSConfig:         tlsConfig,
-			CipherSuites:      process.Config.CipherSuites,
-			HostID:            process.Config.HostUUID,
-			Emitter:           asyncEmitter,
-			ConnectionMonitor: connMonitor,
-			ServiceComponent:  teleport.ComponentApp,
-			Logger:            logger,
+			Clock:              process.Config.Clock,
+			DataDir:            process.Config.DataDir,
+			AuthClient:         conn.Client,
+			AccessPoint:        accessPoint,
+			Authorizer:         authorizer,
+			TLSConfig:          tlsConfig,
+			CipherSuites:       process.Config.CipherSuites,
+			HostID:             process.Config.HostUUID,
+			Emitter:            asyncEmitter,
+			ConnectionMonitor:  connMonitor,
+			ServiceComponent:   teleport.ComponentApp,
+			Logger:             logger,
+			AWSSessionProvider: awsutils.SessionProviderUsingAmbientCredentials(),
 		})
 		if err != nil {
 			return trace.Wrap(err)
