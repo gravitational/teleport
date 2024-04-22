@@ -118,9 +118,9 @@ func (s *TerraformSuite) TestImportDatabase() {
 				ImportState:   true,
 				ImportStateId: id,
 				ImportStateCheck: func(state []*terraform.InstanceState) error {
-					require.Equal(s.T(), state[0].Attributes["kind"], "db")
-					require.Equal(s.T(), state[0].Attributes["spec.uri"], "localhost:3000/test")
-					require.Equal(s.T(), state[0].Attributes["spec.protocol"], "postgres")
+					require.Equal(s.T(), "db", state[0].Attributes["kind"])
+					require.Equal(s.T(), "localhost:3000/test", state[0].Attributes["spec.uri"])
+					require.Equal(s.T(), "postgres", state[0].Attributes["spec.protocol"])
 
 					return nil
 				},
