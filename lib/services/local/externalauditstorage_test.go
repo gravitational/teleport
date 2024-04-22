@@ -151,7 +151,7 @@ func TestExternalAuditStorageService(t *testing.T) {
 
 		// When
 		err := service.PromoteToClusterExternalAuditStorage(ctx)
-		require.NoError(t, err)
+		require.NoError(t, err, trace.DebugReport(err))
 		// Then
 		out, err := service.GetClusterExternalAuditStorage(ctx)
 		require.NoError(t, err)

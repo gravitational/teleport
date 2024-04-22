@@ -38,29 +38,11 @@ const (
 type IntegrationsService struct {
 	svc              generic.Service[types.Integration]
 	backend          backend.Backend
-	preDeleteChecks  []PreDeleteCheck
 	deleteAllEnabled bool
 }
 
 // IntegrationsServiceOption is a functional option for the IntegrationsService.
 type IntegrationsServiceOption func(*IntegrationsService)
-
-// PreDeleteCheck is a check that should run before any integration is deleted to make sure it is safe to
-// delete.
-//
-// If the check returns any error, the integration will not be deleted.
-//
-// The check should probably hold a lock around both the check and the integration deletion to avoid race
-// conditions. If the check does not return an error, [release] will be invoked by the caller to release the
-// lock.
-type PreDeleteCheck func(ctx context.Context, bk backend.Backend, integrationName string) (release func(), err error)
-
-// WithPreDeleteChecks is a functional option for the IntegrationsService to use the given [preDeleteChecks].
-func WithPreDeleteChecks(preDeleteChecks ...PreDeleteCheck) func(*IntegrationsService) {
-	return func(svc *IntegrationsService) {
-		svc.preDeleteChecks = append(svc.preDeleteChecks, preDeleteChecks...)
-	}
-}
 
 // WithDeleteAllIntegrationsEnabled configure the IntegrationsService to support the DeleteAllIntegrations
 // method, which does not include protections against deleting integrations referenced by other components and
@@ -136,14 +118,50 @@ func (s *IntegrationsService) UpdateIntegration(ctx context.Context, ig types.In
 
 // DeleteIntegration removes the specified Integration resource.
 func (s *IntegrationsService) DeleteIntegration(ctx context.Context, name string) error {
-	for _, preDeleteCheck := range s.preDeleteChecks {
-		release, err := preDeleteCheck(ctx, s.backend, name)
-		if err != nil {
-			return trace.Wrap(err, "running pre-delete check for integration %q", name)
-		}
-		defer release()
+	conditionalActions, err := notReferencedByEAS(ctx, s.backend, name)
+	if err != nil {
+		return trace.Wrap(err)
 	}
-	return trace.Wrap(s.svc.DeleteResource(ctx, name))
+	conditionalActions = append(conditionalActions, backend.ConditionalAction{
+		Key:       s.svc.MakeKey(name),
+		Condition: backend.Whatever(),
+		Action:    backend.Delete(),
+	})
+	_, err = s.backend.AtomicWrite(ctx, conditionalActions)
+	return trace.Wrap(err)
+}
+
+// notReferencedByEAS returns a slice of ConditionalActions to use with a backend.AtomicWrite to ensure that
+// integration [name] is not referenced by any EAS (External Audit Storage) integration.
+func notReferencedByEAS(ctx context.Context, bk backend.Backend, name string) ([]backend.ConditionalAction, error) {
+	var conditionalActions []backend.ConditionalAction
+	for _, key := range [][]byte{draftExternalAuditStorageBackendKey, clusterExternalAuditStorageBackendKey} {
+		condition := backend.ConditionalAction{
+			Key:    key,
+			Action: backend.Nop(),
+			// Condition: will be set below based on existence of key.
+		}
+
+		eas, err := getExternalAuditStorage(ctx, bk, key)
+		if err != nil {
+			if !trace.IsNotFound(err) {
+				return nil, trace.Wrap(err)
+			}
+			// If this EAS configuration currently doesn't exist, make sure it still doesn't exist when
+			// deleting the AWS integration.
+			condition.Condition = backend.NotExists()
+		} else {
+			if eas.Spec.IntegrationName == name {
+				return nil, trace.BadParameter("cannot delete AWS OIDC integration currently referenced by External Audit Storage integration")
+			}
+			// If this EAS configuration currently doesn't reference the AWS integration being deleted, make
+			// sure it hasn't changed when deleting the AWS integration.
+			condition.Condition = backend.Revision(eas.GetRevision())
+		}
+
+		conditionalActions = append(conditionalActions, condition)
+	}
+	return conditionalActions, nil
 }
 
 // DeleteAllIntegrations removes all Integration resources. This should only be used in a cache.
