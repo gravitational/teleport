@@ -128,8 +128,11 @@ func (a *Server) handleJoinFailure(
 	}
 	if req != nil {
 		fields["role"] = req.Role
+		fields["host_id"] = req.HostID
+		fields["node_name"] = req.NodeName
 	}
 
+	// Fetch and encode attributes if they are available.
 	var attributesProto *apievents.Struct
 	if attributeSource != nil {
 		var err error
@@ -144,11 +147,12 @@ func (a *Server) handleJoinFailure(
 		}
 	}
 
+	// Add log fields from token if available.
 	if pt != nil {
 		fields["join_method"] = string(pt.GetJoinMethod())
 		fields["token_name"] = pt.GetSafeName()
 	}
-	log.WithError(origErr).WithFields(fields).Error("Failure to join cluster occurred")
+	log.WithError(origErr).WithFields(fields).Warn("Failure to join cluster occurred")
 
 	var evt apievents.AuditEvent
 	status := apievents.Status{
