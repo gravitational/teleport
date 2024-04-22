@@ -20,6 +20,7 @@ package services
 
 import (
 	"context"
+	"slices"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -85,6 +86,13 @@ func ValidateAccessMonitoringRule(accessMonitoringRule *accessmonitoringrulesv1.
 	if accessMonitoringRule.Spec.Notification != nil && accessMonitoringRule.Spec.Notification.Name == "" {
 		return trace.BadParameter("accessMonitoringRule notification plugin name is missing")
 	}
+	if hasAccessRequestAsSubject := slices.ContainsFunc(accessMonitoringRule.Spec.Subjects, func(subject string) bool {
+		return subject == types.KindAccessRequest
+	}); hasAccessRequestAsSubject && accessMonitoringRule.Spec.Notification == nil {
+		return trace.BadParameter("accessMonitoringRule notification configuration must be set if subjects contain %q",
+			types.KindAccessRequest)
+	}
+
 	return nil
 }
 
