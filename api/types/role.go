@@ -50,14 +50,14 @@ const (
 
 // Match checks if the given role matches this filter.
 func (f *RoleFilter) Match(role *RoleV6) bool {
+	if f.SkipSystemRoles {
+		return !IsSystemResource(role)
+	}
+
 	if len(f.SearchKeywords) != 0 {
 		if !role.MatchSearch(f.SearchKeywords) {
 			return false
 		}
-	}
-
-	if f.SkipSystemRoles {
-		return !IsSystemResource(role)
 	}
 
 	return true
