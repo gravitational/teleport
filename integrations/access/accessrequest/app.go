@@ -246,8 +246,7 @@ func (a *App) handleAccessMonitoringRule(ctx context.Context, event types.Event)
 		return nil
 	}
 
-	op := event.Type
-	switch op {
+	switch op := event.Type; op {
 	case types.OpPut:
 		a.accessMonitoringRules.Lock()
 		defer a.accessMonitoringRules.Unlock()
