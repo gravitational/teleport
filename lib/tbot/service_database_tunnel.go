@@ -192,7 +192,7 @@ func (s *DatabaseTunnelService) Run(ctx context.Context) error {
 		}
 		defer func() {
 			if err := l.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
-				s.log.ErrorContext(ctx, "Failed to close listener", "err", err)
+				s.log.ErrorContext(ctx, "Failed to close listener", "error", err)
 			}
 		}()
 	}
@@ -209,7 +209,7 @@ func (s *DatabaseTunnelService) Run(ctx context.Context) error {
 	}
 	defer func() {
 		if err := lp.Close(); err != nil {
-			s.log.ErrorContext(ctx, "Failed to close local proxy", "err", err)
+			s.log.ErrorContext(ctx, "Failed to close local proxy", "error", err)
 		}
 	}()
 	// Closed further down.
@@ -262,7 +262,7 @@ func (s *DatabaseTunnelService) getRouteToDatabaseWithImpersonation(ctx context.
 	}
 	defer func() {
 		if err := impersonatedClient.Close(); err != nil {
-			s.log.ErrorContext(ctx, "Failed to close impersonated client.", "err", err)
+			s.log.ErrorContext(ctx, "Failed to close impersonated client.", "error", err)
 		}
 	}()
 

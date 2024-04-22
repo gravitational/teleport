@@ -187,7 +187,7 @@ func createListener(ctx context.Context, log *slog.Logger, addr string) (net.Lis
 		// Remove the file if it already exists. This is necessary to handle
 		// unclean exits.
 		if err := os.Remove(absPath); err != nil && !os.IsNotExist(err) {
-			log.WarnContext(ctx, "Failed to remove existing socket file", "err", err)
+			log.WarnContext(ctx, "Failed to remove existing socket file", "error", err)
 		}
 
 		return net.ListenUnix("unix", &net.UnixAddr{
@@ -245,7 +245,7 @@ func (s *SPIFFEWorkloadAPIService) Run(ctx context.Context) error {
 	}
 	defer func() {
 		if err := lis.Close(); err != nil {
-			s.log.ErrorContext(ctx, "Encountered error closing listener", "err", err)
+			s.log.ErrorContext(ctx, "Encountered error closing listener", "error", err)
 		}
 	}()
 	s.log.InfoContext(ctx, "Listener opened for Workload API endpoint", "addr", lis.Addr().String())

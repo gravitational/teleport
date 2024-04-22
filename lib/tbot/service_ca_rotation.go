@@ -169,7 +169,7 @@ func (s *caRotationService) Run(ctx context.Context) error {
 		if isCancelledErr {
 			s.log.DebugContext(ctx, "CA watcher detected client closing. Waiting to rewatch", "wait", backoffPeriod)
 		} else if err != nil {
-			s.log.ErrorContext(ctx, "Error occurred whilst watching CA rotations. Waiting to retry", "wait", backoffPeriod, "err", err)
+			s.log.ErrorContext(ctx, "Error occurred whilst watching CA rotations. Waiting to retry", "wait", backoffPeriod, "error", err)
 		}
 
 		select {

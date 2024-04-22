@@ -128,7 +128,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		if unlock != nil {
 			if err := unlock(); err != nil {
 				b.log.WarnContext(
-					ctx, "Failed to release lock. Future starts of tbot may fail.", "err", err,
+					ctx, "Failed to release lock. Future starts of tbot may fail.", "error", err,
 				)
 			}
 		}
@@ -194,7 +194,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			b.log.ErrorContext(
 				ctx,
 				"Failed to close bot identity service",
-				"err", err,
+				"error", err,
 			)
 		}
 	}()
@@ -288,7 +288,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		}
 	}
 
-	b.log.InfoContext(ctx, "Initialization complete. Starting services.")
+	b.log.InfoContext(ctx, "Initialization complete. Starting services")
 	// Start services
 	for _, svc := range services {
 		svc := svc
@@ -298,32 +298,32 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			svc, ok := svc.(OneShotService)
 			// We ignore services with no one-shot implementation
 			if !ok {
-				log.DebugContext(ctx, "Service does not support oneshot mode, ignoring.")
+				log.DebugContext(ctx, "Service does not support oneshot mode, ignoring")
 				continue
 			}
 			eg.Go(func() error {
-				log.InfoContext(ctx, "Running service in oneshot mode.")
+				log.InfoContext(ctx, "Running service in oneshot mode")
 				err := svc.OneShot(egCtx)
 				if err != nil {
 					log.ErrorContext(
-						egCtx, "Service exited with error.", "err", err,
+						egCtx, "Service exited with error", "error", err,
 					)
 					return trace.Wrap(err, "service(%s)", svc.String())
 				}
-				log.InfoContext(ctx, "Service finished.")
+				log.InfoContext(ctx, "Service finished")
 				return nil
 			})
 		} else {
 			eg.Go(func() error {
-				log.InfoContext(ctx, "Starting service.")
+				log.InfoContext(ctx, "Starting service")
 				err := svc.Run(egCtx)
 				if err != nil {
 					log.ErrorContext(
-						egCtx, "Service exited with error.", "err", err,
+						egCtx, "Service exited with error", "error", err,
 					)
 					return trace.Wrap(err, "service(%s)", svc.String())
 				}
-				log.InfoContext(ctx, "Service exited.")
+				log.InfoContext(ctx, "Service exited")
 				return nil
 			})
 		}
@@ -513,7 +513,7 @@ func (a *authPingCache) ping(ctx context.Context) (proto.PingResponse, error) {
 	a.log.DebugContext(ctx, "Pinging auth server.")
 	res, err := a.client.Ping(ctx)
 	if err != nil {
-		a.log.ErrorContext(ctx, "Failed to ping auth server.", "err", err)
+		a.log.ErrorContext(ctx, "Failed to ping auth server.", "error", err)
 		return proto.PingResponse{}, trace.Wrap(err)
 	}
 	a.cachedValue = &res
@@ -561,7 +561,7 @@ func (p *proxyPingCache) ping(ctx context.Context) (*webclient.PingResponse, err
 		Insecure:  p.botCfg.Insecure,
 	})
 	if err != nil {
-		p.log.ErrorContext(ctx, "Failed to ping proxy.", "err", err)
+		p.log.ErrorContext(ctx, "Failed to ping proxy.", "error", err)
 		return nil, trace.Wrap(err)
 	}
 	p.log.DebugContext(ctx, "Successfully pinged proxy.", "pong", res)

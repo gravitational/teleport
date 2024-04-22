@@ -87,7 +87,7 @@ func (s *diagnosticsService) Run(ctx context.Context) error {
 	go func() {
 		<-ctx.Done()
 		if err := srv.Close(); err != nil {
-			s.log.WarnContext(ctx, "Failed to close HTTP server", "err", err)
+			s.log.WarnContext(ctx, "Failed to close HTTP server", "error", err)
 		}
 	}()
 

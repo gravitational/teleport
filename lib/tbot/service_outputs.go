@@ -103,7 +103,7 @@ func (s *outputsService) renewOutputs(
 	// should all match bot-$name)
 	defaultRoles, err := fetchDefaultRoles(ctx, s.botClient, s.getBotIdentity())
 	if err != nil {
-		s.log.WarnContext(ctx, "Unable to determine default roles, no roles will be requested if unspecified", "err", err)
+		s.log.WarnContext(ctx, "Unable to determine default roles, no roles will be requested if unspecified", "error", err)
 		defaultRoles = []string{}
 	}
 
@@ -150,7 +150,7 @@ func (s *outputsService) renewOutputs(
 		}
 
 		if err := output.Render(ctx, dp, impersonatedIdentity); err != nil {
-			s.log.WarnContext(ctx, "Failed to render output", "output", output, "err", err)
+			s.log.WarnContext(ctx, "Failed to render output", "output", output, "error", err)
 			return trace.Wrap(err, "rendering output: %s", output)
 		}
 
@@ -201,7 +201,7 @@ func (s *outputsService) Run(ctx context.Context) error {
 					"attempt", attempt,
 					"retry_limit", renewalRetryLimit,
 					"backoff", backoffTime,
-					"err", err,
+					"error", err,
 				)
 				select {
 				case <-ctx.Done():
@@ -268,7 +268,7 @@ func describeTLSIdentity(ctx context.Context, log *slog.Logger, ident *identity.
 
 	tlsIdent, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
 	if err != nil {
-		log.WarnContext(ctx, "Bot TLS certificate can not be parsed as an identity", "err", err)
+		log.WarnContext(ctx, "Bot TLS certificate can not be parsed as an identity", "error", err)
 		return failedToDescribe
 	}
 

@@ -217,7 +217,7 @@ func Run(args []string, stdout io.Writer) error {
 				log.ErrorContext(
 					ctx,
 					"Failed to shut down tracing provider",
-					"err", err,
+					"error", err,
 				)
 			}
 			log.InfoContext(ctx, "Shut down tracing provider")
@@ -413,7 +413,7 @@ func onStart(ctx context.Context, botConfig *config.BotConfig) error {
 			ctx, telemetryClient(os.Getenv), os.Getenv, log, botConfig,
 		); err != nil {
 			log.ErrorContext(
-				ctx, "Failed to send anonymous telemetry.", "err", err,
+				ctx, "Failed to send anonymous telemetry.", "error", err,
 			)
 		}
 	}()

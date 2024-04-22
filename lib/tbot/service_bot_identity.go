@@ -125,7 +125,7 @@ func (s *identityService) loadIdentityFromStore(ctx context.Context, store bot.D
 			// we failed to get the newly configured token to compare to,
 			// we'll assume the last good credentials written to disk should
 			// still be used.
-			s.log.ErrorContext(ctx, "There was an error loading the configured token. Bot identity loaded from store will be tried.", "err", err)
+			s.log.ErrorContext(ctx, "There was an error loading the configured token. Bot identity loaded from store will be tried.", "error", err)
 		}
 	}
 	s.log.InfoContext(ctx, "Loaded existing bot identity from store.", "identity", describeTLSIdentity(ctx, s.log, loadedIdent))
@@ -267,7 +267,7 @@ func (s *identityService) Run(ctx context.Context) error {
 				s.log.ErrorContext(
 					ctx,
 					"Bot identity renewal attempt failed. Waiting to retry.",
-					"err", err,
+					"error", err,
 					"attempt", attempt,
 					"retry_limit", botIdentityRenewalRetryLimit,
 					"backoff", backoffTime,
@@ -283,7 +283,7 @@ func (s *identityService) Run(ctx context.Context) error {
 			s.log.ErrorContext(
 				ctx,
 				"All bot identity renewal attempts exhausted. Exiting",
-				"err", err,
+				"error", err,
 				"retry_limit", botIdentityRenewalRetryLimit,
 			)
 			return trace.Wrap(err)

@@ -133,7 +133,7 @@ func createStandard(path string, isDir bool) error {
 			context.TODO(),
 			"Failed to close file",
 			"path", path,
-			"err", err,
+			"error", err,
 		)
 	}
 

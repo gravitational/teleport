@@ -157,7 +157,7 @@ func createSecure(path string, isDir bool) error {
 			context.TODO(),
 			"Failed to close file",
 			"path", path,
-			"err", err,
+			"error", err,
 		)
 	}
 
@@ -464,7 +464,7 @@ func HasSecureWriteSupport() bool {
 		log.InfoContext(
 			context.TODO(),
 			"Failed to determine kernel version. It will be assumed secure write support is not available",
-			"err", err,
+			"error", err,
 		)
 		return false
 	}

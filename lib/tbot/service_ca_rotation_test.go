@@ -197,7 +197,7 @@ func rotate( //nolint:unused // used in skipped test
 			ctx,
 			"Error occurred during triggering rotation",
 			"phase", phase,
-			"err", err,
+			"error", err,
 		)
 	}
 	require.NoError(t, err)

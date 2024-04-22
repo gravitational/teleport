@@ -213,7 +213,7 @@ func ensurePermissions(
 	// Correct ownership.
 	ownedByDesiredOwner, err := botfs.IsOwnedBy(stat, params.ownerUser)
 	if err != nil {
-		log.DebugContext(ctx, "Could not determine file ownership", "path", path, "err", err)
+		log.DebugContext(ctx, "Could not determine file ownership", "path", path, "error", err)
 
 		// Can't read file ownership on this platform (e.g. Windows), so always
 		// attempt to chown (which does work on Windows)
@@ -266,7 +266,7 @@ func ensurePermissions(
 					ctx,
 					"ACL for file is not correct and will be corrected",
 					"path", path,
-					"err", err,
+					"error", err,
 				)
 			}
 
@@ -277,7 +277,7 @@ func ensurePermissions(
 				"ACL for file is incorrect but `tbot init` must be run as root or the owner to correct it",
 				"path", path,
 				"username", params.ownerUser.Username,
-				"err", err,
+				"error", err,
 			)
 			return trace.AccessDenied("Elevated permissions required")
 		}
@@ -484,7 +484,7 @@ func onInit(botConfig *config.BotConfig, cf *config.CLIConf) error {
 			}
 
 			// Otherwise, fall back to no ACL with a warning.
-			log.WarnContext(ctx, aclTestFailedMessage, "destination", destImpl, "err", err)
+			log.WarnContext(ctx, aclTestFailedMessage, "destination", destImpl, "error", err)
 			aclOpts = nil
 
 			// We'll also need to re-fetch the owner as the defaults are
