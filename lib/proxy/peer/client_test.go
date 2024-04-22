@@ -19,6 +19,7 @@
 package peer
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"testing"
@@ -29,6 +30,7 @@ import (
 	"google.golang.org/grpc/connectivity"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	clientapi "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -49,22 +51,22 @@ func TestClientConn(t *testing.T) {
 	stream, cached, err := client.dial([]string{"s1"}, &proto.DialRequest{})
 	require.NoError(t, err)
 	require.True(t, cached)
-	require.NotNil(t, stream)
-	stream.CloseSend()
+	require.NotNil(t, stream.stream)
+	stream.Close()
 
 	// dial second server
 	stream, cached, err = client.dial([]string{"s2"}, &proto.DialRequest{})
 	require.NoError(t, err)
 	require.True(t, cached)
-	require.NotNil(t, stream)
-	stream.CloseSend()
+	require.NotNil(t, stream.stream)
+	stream.Close()
 
 	// redial second server
 	stream, cached, err = client.dial([]string{"s2"}, &proto.DialRequest{})
 	require.NoError(t, err)
 	require.True(t, cached)
-	require.NotNil(t, stream)
-	stream.CloseSend()
+	require.NotNil(t, stream.stream)
+	stream.Close()
 
 	// close second server
 	// and attempt to redial it
@@ -72,7 +74,7 @@ func TestClientConn(t *testing.T) {
 	stream, cached, err = client.dial([]string{"s2"}, &proto.DialRequest{})
 	require.Error(t, err)
 	require.True(t, cached)
-	require.Nil(t, stream)
+	require.Nil(t, stream.stream)
 }
 
 // TestClientUpdate checks the client's watcher update behavior
@@ -92,10 +94,10 @@ func TestClientUpdate(t *testing.T) {
 
 	s1, _, err := client.dial([]string{"s1"}, &proto.DialRequest{})
 	require.NoError(t, err)
-	require.NotNil(t, s1)
+	require.NotNil(t, s1.stream)
 	s2, _, err := client.dial([]string{"s2"}, &proto.DialRequest{})
 	require.NoError(t, err)
-	require.NotNil(t, s2)
+	require.NotNil(t, s2.stream)
 
 	// watcher finds one of the two servers
 	err = client.updateConnections([]types.Server{def1})
@@ -105,7 +107,7 @@ func TestClientUpdate(t *testing.T) {
 	sendMsg(t, s1) // stream is not broken across updates
 	sendMsg(t, s2) // stream is not forcefully closed. ClientConn waits for a graceful shutdown before it closes.
 
-	s2.CloseSend()
+	s2.Close()
 
 	// watcher finds two servers with one broken connection
 	server2.Shutdown()
@@ -128,8 +130,8 @@ func TestClientUpdate(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, s3)
 
-	s1.CloseSend()
-	s3.CloseSend()
+	s1.Close()
+	s3.Close()
 }
 
 func TestCAChange(t *testing.T) {
@@ -143,10 +145,11 @@ func TestCAChange(t *testing.T) {
 	conn, err := client.connect("s1", server.config.Listener.Addr().String())
 	require.NoError(t, err)
 	require.NotNil(t, conn)
-	stream, err := client.startStream(conn)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	stream, err := clientapi.NewProxyServiceClient(conn.ClientConn).DialNode(ctx)
 	require.NoError(t, err)
 	require.NotNil(t, stream)
-	stream.CloseSend()
 
 	// rotate server ca
 	require.NoError(t, server.Close())
@@ -158,7 +161,7 @@ func TestCAChange(t *testing.T) {
 	conn, err = client.connect("s1", server.config.Listener.Addr().String())
 	require.NoError(t, err)
 	require.NotNil(t, conn)
-	stream, err = client.startStream(conn)
+	stream, err = clientapi.NewProxyServiceClient(conn.ClientConn).DialNode(ctx)
 	require.Error(t, err)
 	require.Nil(t, stream)
 
@@ -175,10 +178,9 @@ func TestCAChange(t *testing.T) {
 	conn, err = client.connect("s1", server.config.Listener.Addr().String())
 	require.NoError(t, err)
 	require.NotNil(t, conn)
-	stream, err = client.startStream(conn)
+	stream, err = clientapi.NewProxyServiceClient(conn.ClientConn).DialNode(ctx)
 	require.NoError(t, err)
 	require.NotNil(t, stream)
-	stream.CloseSend()
 }
 
 func TestBackupClient(t *testing.T) {

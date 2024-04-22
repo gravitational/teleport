@@ -28,11 +28,14 @@ import (
 	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
+	"github.com/aws/aws-sdk-go/aws/endpoints"
+	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -193,4 +196,45 @@ func (g *staticCredentialsGetter) Get(_ context.Context, _ GetCredentialsRequest
 		return nil, trace.NotFound("no credentials found")
 	}
 	return g.credentials, nil
+}
+
+// AWSSessionProvider defines a function that creates an AWS Session.
+// It must use ambient credentials if Integration is empty.
+// It must use Integration credentials otherwise.
+type AWSSessionProvider func(ctx context.Context, region string, integration string) (*session.Session, error)
+
+// StaticAWSSessionProvider is a helper method that returns a static session.
+// Must not be used to provide sessions when using Integrations.
+func StaticAWSSessionProvider(awsSession *session.Session) AWSSessionProvider {
+	return func(ctx context.Context, region, integration string) (*session.Session, error) {
+		if integration != "" {
+			return nil, trace.BadParameter("integration %q is not allowed to use static sessions", integration)
+		}
+		return awsSession, nil
+	}
+}
+
+// SessionProviderUsingAmbientCredentials returns an AWS Session using ambient credentials.
+// This is in contrast with AWS Sessions that can be generated using an AWS OIDC Integration.
+func SessionProviderUsingAmbientCredentials() AWSSessionProvider {
+	return func(ctx context.Context, region, integration string) (*session.Session, error) {
+		if integration != "" {
+			return nil, trace.BadParameter("integration %q is not allowed to use ambient sessions", integration)
+		}
+		useFIPSEndpoint := endpoints.FIPSEndpointStateUnset
+		if modules.GetModules().IsBoringBinary() {
+			useFIPSEndpoint = endpoints.FIPSEndpointStateEnabled
+		}
+		session, err := session.NewSessionWithOptions(session.Options{
+			SharedConfigState: session.SharedConfigEnable,
+			Config: aws.Config{
+				UseFIPSEndpoint: useFIPSEndpoint,
+			},
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return session, nil
+	}
 }

@@ -442,7 +442,7 @@ func botIdentityFromToken(ctx context.Context, log *slog.Logger, cfg *config.Bot
 		}
 	}
 
-	certs, err := auth.Register(params)
+	certs, err := auth.Register(ctx, params)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

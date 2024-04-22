@@ -25,8 +25,11 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types/compare"
 	"github.com/gravitational/teleport/api/utils"
 )
+
+var _ compare.IsEqual[Application] = (*AppV3)(nil)
 
 // Application represents a web, TCP or cloud console application.
 type Application interface {

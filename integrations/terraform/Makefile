@@ -130,3 +130,7 @@ reapply:
 .PHONY: destroy
 destroy:
 	terraform -chdir=$(TFDIR) destroy -auto-approve
+
+.PHONY: lint
+lint:
+	golangci-lint run -c ../../.golangci.yml

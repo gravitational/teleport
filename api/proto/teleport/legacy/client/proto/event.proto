@@ -18,6 +18,7 @@ package proto;
 
 import "teleport/accesslist/v1/accesslist.proto";
 import "teleport/accessmonitoringrules/v1/access_monitoring_rules.proto";
+import "teleport/crownjewel/v1/crownjewel.proto";
 import "teleport/discoveryconfig/v1/discoveryconfig.proto";
 import "teleport/kubewaitingcontainer/v1/kubewaitingcontainer.proto";
 import "teleport/legacy/types/types.proto";
@@ -159,5 +160,7 @@ message Event {
     teleport.notifications.v1.Notification UserNotification = 56;
     // GlobalNotification is a global notification resource.
     teleport.notifications.v1.GlobalNotification GlobalNotification = 57;
+    // CrownJewel is a Crown Jewel resource.
+    teleport.crownjewel.v1.CrownJewel CrownJewel = 58;
   }
 }
