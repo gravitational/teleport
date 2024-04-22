@@ -32,6 +32,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
@@ -338,7 +339,7 @@ func withFips(fips bool) iamRegisterOption {
 // The caller must provide a ChallengeResponseFunc which returns a
 // *types.RegisterUsingTokenRequest with a signed sts:GetCallerIdentity request
 // including the challenge as a signed header.
-func (a *Server) RegisterUsingIAMMethod(ctx context.Context, challengeResponse client.RegisterIAMChallengeResponseFunc, opts ...iamRegisterOption) (*proto.Certs, error) {
+func (a *Server) RegisterUsingIAMMethod(ctx context.Context, challengeResponse client.RegisterIAMChallengeResponseFunc, opts ...iamRegisterOption) (_ *proto.Certs, err error) {
 	cfg := defaultIAMRegisterConfig(a.fips)
 	for _, opt := range opts {
 		opt(cfg)
@@ -365,11 +366,30 @@ func (a *Server) RegisterUsingIAMMethod(ctx context.Context, challengeResponse c
 		return nil, trace.Wrap(err)
 	}
 
+	var method types.JoinMethod = "unknown"
+	defer func() {
+		if err == nil {
+			return
+		}
+		level := logrus.WarnLevel
+		if trace.IsAccessDenied(err) {
+			level = logrus.DebugLevel
+		}
+		log.WithFields(logrus.Fields{
+			"node_name":     req.RegisterUsingTokenRequest.NodeName,
+			"host_id":       req.RegisterUsingTokenRequest.HostID,
+			"role":          req.RegisterUsingTokenRequest.Role,
+			"method":        method,
+			logrus.ErrorKey: err,
+		}).Log(level, "Agent has failed to join the cluster.")
+	}()
+
 	// perform common token checks
 	provisionToken, err := a.checkTokenJoinRequestCommon(ctx, req.RegisterUsingTokenRequest)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	method = provisionToken.GetJoinMethod()
 
 	// check that the GetCallerIdentity request is valid and matches the token
 	if err := a.checkIAMRequest(ctx, challenge, req, cfg); err != nil {
