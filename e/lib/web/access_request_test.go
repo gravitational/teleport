@@ -588,7 +588,11 @@ func TestSuggestAccessLists(t *testing.T) {
 	})
 
 	ctx := context.Background()
-	s := newWebSuite(t)
+	s := newWebSuite(t,
+		// Disable retry interval to prevent test from hanging
+		// because it uses the fake clock.
+		withRunWhileLockedRetryInterval(-1*time.Millisecond),
+	)
 	authServer := s.testAuthServer.AuthServer.AuthServer
 
 	// create requester, access and godmode roles
@@ -741,7 +745,11 @@ func TestPromoteAccessRequest(t *testing.T) {
 	})
 
 	ctx := context.Background()
-	s := newWebSuite(t)
+	s := newWebSuite(t,
+		// Disable retry interval to prevent test from hanging
+		// because it uses the fake clock.
+		withRunWhileLockedRetryInterval(-1*time.Millisecond),
+	)
 
 	authServer := s.testAuthServer.AuthServer.AuthServer
 	authClient := s.newAdminAuthClient(s.ctx, t)
