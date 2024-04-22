@@ -110,7 +110,8 @@ func listRoles(clt resourcesAPIGetter, values url.Values) (*listResourcesWithout
 		Limit:    limit,
 		StartKey: values.Get("startKey"),
 		Filter: &types.RoleFilter{
-			SearchKeywords: client.ParseSearchKeywords(values.Get("search"), ' '),
+			SearchKeywords:  client.ParseSearchKeywords(values.Get("search"), ' '),
+			SkipSystemRoles: true,
 		},
 	})
 	if err != nil {
