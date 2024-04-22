@@ -19,13 +19,11 @@
 import React from 'react';
 import Table from 'design/DataTable';
 
-import { Resource, KindRole } from 'teleport/services/resources';
+import { RoleResource } from 'teleport/services/resources';
 
-import { renderActionCell, SimpleListProps } from '../common';
+import { renderActionCell, ServerSideListProps } from '../common';
 
-export function Roles(
-  props: SimpleListProps & { roles: Resource<KindRole>[] }
-) {
+export function Roles(props: ServerSideListProps & { roles: RoleResource[] }) {
   const {
     roles = [],
     selectedResources,
@@ -50,8 +48,7 @@ export function Roles(
         },
       ]}
       emptyText="No Roles Found"
-      pagination={{ pageSize: props.pageSize }}
-      isSearchable
+      disableFilter
       fetching={{
         fetchStatus,
       }}

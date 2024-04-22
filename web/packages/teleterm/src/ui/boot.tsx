@@ -51,7 +51,9 @@ async function boot(): Promise<void> {
     renderApp(<App ctx={appContext} />);
   } catch (e) {
     logger.error('Failed to boot the React app', e);
-    renderApp(<FailedApp message={e.toString()} />);
+    renderApp(
+      <FailedApp message={`Could not start the application: ${e.toString()}`} />
+    );
   }
 }
 

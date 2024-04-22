@@ -65,9 +65,7 @@ func getCredentialData(idFile *identityfile.IdentityFile, currentTime time.Time)
 	return data, nil
 }
 
-func onKubeCredentialsCommand(cfg *config.BotConfig) error {
-	ctx := context.Background()
-
+func onKubeCredentialsCommand(ctx context.Context, cfg *config.BotConfig) error {
 	destination, err := tshwrap.GetDestinationDirectory(cfg)
 	if err != nil {
 		return trace.Wrap(err)
