@@ -900,8 +900,7 @@ func (proxy *ProxyClient) FindDatabasesByFiltersForCluster(ctx context.Context, 
 		return nil, trace.Wrap(err)
 	}
 
-	databases := types.DatabaseServers(servers).ToDatabases()
-	return types.DeduplicateDatabases(databases), nil
+	return types.DatabaseServers(servers).ToDatabases(), nil
 }
 
 // ListResources returns a paginated list of resources.
