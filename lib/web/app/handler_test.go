@@ -633,6 +633,14 @@ func TestMatchApplicationServers(t *testing.T) {
 func TestHealthCheckAppServer(t *testing.T) {
 	ctx := context.Background()
 	clusterName := "test-cluster"
+	publicAddr := "valid.example.com"
+
+	key, cert, err := tlsca.GenerateSelfSignedCA(
+		pkix.Name{CommonName: clusterName},
+		[]string{publicAddr, apiutils.EncodeClusterName(clusterName)},
+		defaults.CATTL,
+	)
+	require.NoError(t, err)
 
 	for _, tc := range []struct {
 		desc                string
@@ -674,15 +682,8 @@ func TestHealthCheckAppServer(t *testing.T) {
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			key, cert, err := tlsca.GenerateSelfSignedCA(
-				pkix.Name{CommonName: clusterName},
-				[]string{tc.publicAddr, apiutils.EncodeClusterName(clusterName)},
-				defaults.CATTL,
-			)
-			require.NoError(t, err)
-
 			fakeClock := clockwork.NewFakeClock()
-			appSession := createAppSession(t, fakeClock, key, cert, clusterName, tc.publicAddr)
+			appSession := createAppSession(t, fakeClock, key, cert, clusterName, publicAddr)
 			authClient := &mockAuthClient{
 				clusterName: clusterName,
 				appSession:  appSession,
@@ -713,11 +714,15 @@ func TestHealthCheckAppServer(t *testing.T) {
 			}
 
 			appHandler, err := NewHandler(ctx, &HandlerConfig{
-				Clock:        fakeClock,
-				AuthClient:   authClient,
-				AccessPoint:  authClient,
-				ProxyClient:  tunnel,
-				CipherSuites: utils.DefaultCipherSuites(),
+				Clock:          fakeClock,
+				AuthClient:     authClient,
+				AccessPoint:    authClient,
+				ProxyClient:    tunnel,
+				CipherSuites:   utils.DefaultCipherSuites(),
+				DataDir:        t.TempDir(),
+				HostID:         uuid.NewString(),
+				Emitter:        authClient,
+				ProxyTLSConfig: utils.TLSConfig(utils.DefaultCipherSuites()),
 			})
 			require.NoError(t, err)
 
@@ -740,6 +745,10 @@ func setup(t *testing.T, clock clockwork.FakeClock, authClient auth.ClientI, pro
 		ProxyClient:      proxyClient,
 		CipherSuites:     utils.DefaultCipherSuites(),
 		ProxyPublicAddrs: proxyPublicAddrs,
+		DataDir:          t.TempDir(),
+		HostID:           uuid.NewString(),
+		Emitter:          authClient,
+		ProxyTLSConfig:   utils.TLSConfig(utils.DefaultCipherSuites()),
 	})
 	require.NoError(t, err)
 
@@ -855,6 +864,14 @@ func (c *mockAuthClient) GetCertAuthority(ctx context.Context, id types.CertAuth
 	}
 
 	return ca, nil
+}
+
+func (c *mockAuthClient) NewWatcher(context.Context, types.Watch) (types.Watcher, error) {
+	return nil, trace.NotImplemented("")
+}
+
+func (c *mockAuthClient) GetProxies() ([]types.Server, error) {
+	return []types.Server{}, nil
 }
 
 // fakeRemoteListener Implements a `net.Listener` that return `net.Conn` from

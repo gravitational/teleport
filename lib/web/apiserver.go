@@ -242,6 +242,9 @@ type Config struct {
 	// HostUUID is the UUID of this process.
 	HostUUID string
 
+	// DataDir is the path to the data directory for the server.
+	DataDir string
+
 	// Context is used to signal process exit.
 	Context context.Context
 
@@ -618,6 +621,15 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	// forwarding for application access.
 	var appHandler *app.Handler
 	if !cfg.MinimalReverseTunnelRoutesOnly {
+		proxyIdentity, err := cfg.GetProxyIdentity()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		tlsConfig, err := proxyIdentity.TLSConfig(cfg.CipherSuites)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		appHandler, err = app.NewHandler(cfg.Context, &app.HandlerConfig{
 			Clock:            h.clock,
 			AuthClient:       cfg.ProxyClient,
@@ -626,6 +638,10 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 			CipherSuites:     cfg.CipherSuites,
 			ProxyPublicAddrs: cfg.ProxyPublicAddrs,
 			WebPublicAddr:    resp.SSH.PublicAddr,
+			HostID:           cfg.HostUUID,
+			DataDir:          cfg.DataDir,
+			Emitter:          cfg.Emitter,
+			ProxyTLSConfig:   tlsConfig,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
