@@ -275,7 +275,7 @@ func TestServer_RegisterUsingTPMMethod(t *testing.T) {
 			validateReturnTPM: &tpm.ValidatedTPM{
 				EKCertSerial: "mock-ekcert-serial",
 			},
-			validateReturnErr: trace.AccessDenied("capacitor overcharged"),
+			validateReturnErr: errors.New("capacitor overcharged"),
 		},
 		{
 			name:   "failure, no enterprise",
