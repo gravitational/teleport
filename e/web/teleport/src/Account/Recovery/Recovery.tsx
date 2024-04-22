@@ -7,8 +7,6 @@ import { Header } from 'teleport/Account/Header';
 import * as Icon from 'design/Icon';
 import { EnterpriseComponentProps } from 'teleport/Account/Account';
 
-import { MfaChallengeScope } from 'teleport/services/auth/auth';
-
 import useTeleportE from 'e-teleport/useTeleportE';
 
 import useRecovery, { State } from './useRecovery';
@@ -85,7 +83,6 @@ export function Recovery({
         <ReAuthenticate
           onAuthenticated={setToken}
           onClose={hideReAuthenticate}
-          challengeScope={MfaChallengeScope.ACCOUNT_RECOVERY}
         />
       )}
       {isCodesVisible && (
