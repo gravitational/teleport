@@ -14,5 +14,4 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import RoleList from './RoleList';
-export default RoleList;
+export { RoleList } from './RoleList';

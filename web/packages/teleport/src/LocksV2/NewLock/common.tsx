@@ -105,7 +105,7 @@ export const baseResourceKindOpts: LockResourceOption[] = [
   {
     value: 'role',
     label: 'Roles',
-    listKind: 'simple',
+    listKind: 'server-side',
   },
   {
     value: 'mfa_device',

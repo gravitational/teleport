@@ -95,7 +95,7 @@ const sample = {
     message: '',
   },
   users: users,
-  roles: roles,
+  fetchRoles: async (input: string) => roles.filter(r => r.includes(input)),
   operation: {
     type: 'none',
     user: null,

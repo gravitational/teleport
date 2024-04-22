@@ -36,6 +36,7 @@ export type UnifiedResource =
 export type UnifiedResourceKind = UnifiedResource['kind'];
 
 export type ResourcesResponse<T> = {
+  //TODO(gzdunek): Rename to items.
   agents: T[];
   startKey?: string;
   totalCount?: number;
