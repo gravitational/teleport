@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package test
+package testlib
 
 import (
 	"context"
@@ -21,15 +21,18 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
+	"github.com/stretchr/testify/require"
 
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/types"
 )
 
-func (s *TerraformSuite) TestLoginRule() {
-	if !(s.teleportFeatures.GetOIDC() || s.teleportFeatures.GetSAML()) {
-		s.T().Skip("Doesn't work in OSS version, requires OIDC or SAML")
-	}
+func (s *TerraformSuiteEnterprise) TestLoginRule() {
+	require.True(s.T(),
+		s.teleportFeatures.GetOIDC() || s.teleportFeatures.GetSAML(),
+		"Test requires enterprise version of teleport",
+	)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
 
@@ -104,10 +107,12 @@ func (s *TerraformSuite) TestLoginRule() {
 	})
 }
 
-func (s *TerraformSuite) TestImportLoginRule() {
-	if !(s.teleportFeatures.GetOIDC() || s.teleportFeatures.GetSAML()) {
-		s.T().Skip("Doesn't work in OSS version, requires OIDC or SAML")
-	}
+func (s *TerraformSuiteEnterprise) TestImportLoginRule() {
+	require.True(s.T(),
+		s.teleportFeatures.GetOIDC() || s.teleportFeatures.GetSAML(),
+		"Test requires OIDC or SAML",
+	)
+
 	ctx := context.Background()
 
 	r := "teleport_login_rule"

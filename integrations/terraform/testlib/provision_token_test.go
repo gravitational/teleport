@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package test
+package testlib
 
 import (
 	"context"
@@ -28,7 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-func (s *TerraformSuite) TestProvisionToken() {
+func (s *TerraformSuiteOSS) TestProvisionToken() {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
 
@@ -85,7 +85,7 @@ func (s *TerraformSuite) TestProvisionToken() {
 	})
 }
 
-func (s *TerraformSuite) TestProvisionTokenV2() {
+func (s *TerraformSuiteOSS) TestProvisionTokenV2() {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
 
@@ -147,7 +147,7 @@ func (s *TerraformSuite) TestProvisionTokenV2() {
 	})
 }
 
-func (s *TerraformSuite) TestImportProvisionToken() {
+func (s *TerraformSuiteOSS) TestImportProvisionToken() {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
 
@@ -188,7 +188,7 @@ func (s *TerraformSuite) TestImportProvisionToken() {
 	})
 }
 
-func (s *TerraformSuite) TestProvisionTokenDoesNotLeakSensitiveData() {
+func (s *TerraformSuiteOSS) TestProvisionTokenDoesNotLeakSensitiveData() {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
 
@@ -237,7 +237,7 @@ func (s *TerraformSuite) TestProvisionTokenDoesNotLeakSensitiveData() {
 	})
 }
 
-func (s *TerraformSuite) TestProvisionTokenWithoutExpiration() {
+func (s *TerraformSuiteOSS) TestProvisionTokenWithoutExpiration() {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
 
@@ -276,7 +276,7 @@ func (s *TerraformSuite) TestProvisionTokenWithoutExpiration() {
 	})
 }
 
-func (s *TerraformSuite) TestProvisionTokenIAMToken() {
+func (s *TerraformSuiteOSS) TestProvisionTokenIAMToken() {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
 

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package test
+package testlib
 
 import (
 	"encoding/base64"
@@ -25,7 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func (s *TerraformSuite) TestConfigureAuthBase64() {
+func (s *TerraformSuiteOSS) TestConfigureAuthBase64() {
 	name := "teleport_app.test_auth_b64"
 
 	key, err := os.ReadFile(s.teleportConfig.ClientKey)
@@ -63,7 +63,7 @@ provider "teleport" {
 	})
 }
 
-func (s *TerraformSuite) TestConfigureAuthFiles() {
+func (s *TerraformSuiteOSS) TestConfigureAuthFiles() {
 	name := "teleport_app.test_auth_files"
 
 	providerConfigUsingAuthFiles := `
@@ -89,7 +89,7 @@ provider "teleport" {
 	})
 }
 
-func (s *TerraformSuite) TestConfigureIdentityFilePath() {
+func (s *TerraformSuiteOSS) TestConfigureIdentityFilePath() {
 	name := "teleport_app.test"
 
 	providerConfigUsingAuthFiles := `
@@ -113,7 +113,7 @@ provider "teleport" {
 	})
 }
 
-func (s *TerraformSuite) TestConfigureIdentityFileBase64() {
+func (s *TerraformSuiteOSS) TestConfigureIdentityFileBase64() {
 	name := "teleport_app.test"
 
 	identity, err := os.ReadFile(s.teleportConfig.Identity)
@@ -141,7 +141,7 @@ provider "teleport" {
 	})
 }
 
-func (s *TerraformSuite) TestConfigureIdentityFileBase64_InvalidBase64() {
+func (s *TerraformSuiteOSS) TestConfigureIdentityFileBase64_InvalidBase64() {
 	identityAsB64 := base64.StdEncoding.EncodeToString([]byte("invalid"))
 
 	providerConfigUsingAuthFiles := `

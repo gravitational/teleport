@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package test
+package testlib
 
 import (
 	"context"
@@ -29,10 +29,9 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 )
 
-func (s *TerraformSuite) TestOIDCConnector() {
-	if !s.teleportFeatures.GetOIDC() {
-		s.T().Skip("Doesn't work in OSS version, requires OIDC")
-	}
+func (s *TerraformSuiteEnterprise) TestOIDCConnector() {
+	require.True(s.T(), s.teleportFeatures.GetOIDC(), "Test requires OIDC")
+
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
 
@@ -84,10 +83,9 @@ func (s *TerraformSuite) TestOIDCConnector() {
 	})
 }
 
-func (s *TerraformSuite) TestImportOIDCConnector() {
-	if !s.teleportFeatures.GetOIDC() {
-		s.T().Skip("Doesn't work in OSS version, requires OIDC")
-	}
+func (s *TerraformSuiteEnterprise) TestImportOIDCConnector() {
+	require.True(s.T(), s.teleportFeatures.GetOIDC(), "Test requires OIDC")
+
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
 
@@ -145,10 +143,9 @@ func (s *TerraformSuite) TestImportOIDCConnector() {
 	})
 }
 
-func (s *TerraformSuite) TestOIDCConnectorWithoutMaxAge() {
-	if !s.teleportFeatures.GetOIDC() {
-		s.T().Skip("Doesn't work in OSS version, requires OIDC")
-	}
+func (s *TerraformSuiteEnterprise) TestOIDCConnectorWithoutMaxAge() {
+	require.True(s.T(), s.teleportFeatures.GetOIDC(), "Test requires OIDC")
+
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
 
@@ -189,10 +186,9 @@ func (s *TerraformSuite) TestOIDCConnectorWithoutMaxAge() {
 	})
 }
 
-func (s *TerraformSuite) TestImportOIDCConnectorWithoutMaxAge() {
-	if !s.teleportFeatures.GetOIDC() {
-		s.T().Skip("Doesn't work in OSS version, requires OIDC")
-	}
+func (s *TerraformSuiteEnterprise) TestImportOIDCConnectorWithoutMaxAge() {
+	require.True(s.T(), s.teleportFeatures.GetOIDC(), "Test requires OIDC")
+
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
 
