@@ -222,7 +222,7 @@ func StripSANExtensionOIDs(cert *x509.Certificate) {
 		last := len(cert.UnhandledCriticalExtensions) - 1
 		cert.UnhandledCriticalExtensions[i] = cert.UnhandledCriticalExtensions[last]
 		cert.UnhandledCriticalExtensions[last] = nil // "Release" extension
-		cert.UnhandledCriticalExtensions = cert.UnhandledCriticalExtensions[:last-1]
+		cert.UnhandledCriticalExtensions = cert.UnhandledCriticalExtensions[:last]
 		i--
 	}
 }
