@@ -196,7 +196,7 @@ func (s *JiraSuiteOSS) TestIssueCreationWithLargeRequestReason() {
 }
 
 // TestCustomIssueType tests that requests can use a custom issue type.
-func (s *JiraSuite) TestCustomIssueType() {
+func (s *JiraSuiteOSS) TestCustomIssueType() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)

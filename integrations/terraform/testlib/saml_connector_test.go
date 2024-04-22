@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package test
+package testlib
 
 import (
 	"context"
@@ -31,10 +31,11 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-func (s *TerraformSuite) TestSAMLConnector() {
-	if !s.teleportFeatures.GetSAML() {
-		s.T().Skip("Doesn't work in OSS version, requires SAML")
-	}
+func (s *TerraformSuiteEnterprise) TestSAMLConnector() {
+	require.True(s.T(),
+		s.teleportFeatures.GetSAML(),
+		"Test requires SAML",
+	)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
@@ -86,10 +87,11 @@ func (s *TerraformSuite) TestSAMLConnector() {
 	})
 }
 
-func (s *TerraformSuite) TestImportSAMLConnector() {
-	if !s.teleportFeatures.GetSAML() {
-		s.T().Skip("Doesn't work in OSS version, requires SAML")
-	}
+func (s *TerraformSuiteEnterprise) TestImportSAMLConnector() {
+	require.True(s.T(),
+		s.teleportFeatures.GetSAML(),
+		"Test requires SAML",
+	)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
@@ -163,10 +165,12 @@ func (s *TerraformSuite) TestImportSAMLConnector() {
 	})
 }
 
-func (s *TerraformSuite) TestSAMLConnectorWithEntityDescriptorURL() {
-	if !s.teleportFeatures.GetSAML() {
-		s.T().Skip("Doesn't work in OSS version, requires SAML")
-	}
+func (s *TerraformSuiteEnterprise) TestSAMLConnectorWithEntityDescriptorURL() {
+	require.True(s.T(),
+		s.teleportFeatures.GetSAML(),
+		"Test requires SAML",
+	)
+
 	// Start test HTTP server that returns SAML descriptor.
 	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, testDescriptor)
@@ -182,10 +186,12 @@ func (s *TerraformSuite) TestSAMLConnectorWithEntityDescriptorURL() {
 	})
 }
 
-func (s *TerraformSuite) TestSAMLConnectorWithoutEntityDescriptor() {
-	if !s.teleportFeatures.GetSAML() {
-		s.T().Skip("Doesn't work in OSS version, requires SAML")
-	}
+func (s *TerraformSuiteEnterprise) TestSAMLConnectorWithoutEntityDescriptor() {
+	require.True(s.T(),
+		s.teleportFeatures.GetSAML(),
+		"Test requires SAML",
+	)
+
 	resource.Test(s.T(), resource.TestCase{
 		ProtoV6ProviderFactories: s.terraformProviders,
 		Steps: []resource.TestStep{
