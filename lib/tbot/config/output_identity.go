@@ -33,6 +33,25 @@ import (
 
 const IdentityOutputType = "identity"
 
+// SSHConfigMode controls whether to write an ssh_config file to the
+// destination directory.
+type SSHConfigMode string
+
+const (
+	// SSHConfigModeNone will default to SSHConfigModeOn.
+	SSHConfigModeNone SSHConfigMode = ""
+	// SSHConfigModeOff will not write an ssh_config file. This is useful where
+	// you do not want to use SSH functionality and would like to avoid
+	// pinging the proxy.
+	SSHConfigModeOff SSHConfigMode = "off"
+	// SSHConfigModeOn will write an ssh_config file to the destination
+	// directory.
+	// Causes the generation of:
+	// - ssh_config
+	// - known_hosts
+	SSHConfigModeOn SSHConfigMode = "on"
+)
+
 // IdentityOutput produces credentials which can be used with `tsh`, `tctl`,
 // `openssh` and most SSH compatible tooling. It can also be used with the
 // Teleport API and things which use the API client (e.g the terraform provider)
@@ -54,19 +73,26 @@ type IdentityOutput struct {
 	// For now, only SSH is supported.
 	Cluster string `yaml:"cluster,omitempty"`
 
+	// SSHConfigMode controls whether to write an ssh_config file to the
+	// destination directory. Defaults to SSHConfigModeOn.
+	SSHConfigMode SSHConfigMode `yaml:"ssh_config,omitempty"`
+
 	destPath string
 }
 
 func (o *IdentityOutput) templates() []template {
-	return []template{
+	templates := []template{
 		&templateTLSCAs{},
-		&templateSSHClient{
+		&templateIdentity{},
+	}
+	if o.SSHConfigMode == SSHConfigModeOn {
+		templates = append(templates, &templateSSHClient{
 			getSSHVersion:        openssh.GetSystemSSHVersion,
 			executablePathGetter: os.Executable,
 			destPath:             o.destPath,
-		},
-		&templateIdentity{},
+		})
 	}
+	return templates
 }
 
 func (o *IdentityOutput) Render(ctx context.Context, p provider, ident *identity.Identity) error {
@@ -124,6 +150,15 @@ func (o *IdentityOutput) CheckAndSetDefaults() error {
 			"Note: no ssh_config will be written for non-filesystem destination",
 			"destination", o.Destination,
 		)
+	}
+
+	switch o.SSHConfigMode {
+	case SSHConfigModeNone:
+		log.DebugContext(context.TODO(), "Defaulting to SSHConfigModeOn")
+		o.SSHConfigMode = SSHConfigModeOn
+	case SSHConfigModeOff, SSHConfigModeOn:
+	default:
+		return trace.BadParameter("ssh_config: unrecognized value %q", o.SSHConfigMode)
 	}
 
 	return nil
