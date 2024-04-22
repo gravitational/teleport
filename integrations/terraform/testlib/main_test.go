@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package test
+package testlib
 
 import (
 	"context"
@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"testing"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
@@ -65,29 +64,17 @@ type TerraformBaseSuite struct {
 	terraformProviders map[string]func() (tfprotov6.ProviderServer, error)
 }
 
-type TerraformSuiteWithCache struct {
+type TerraformSuiteOSSWithCache struct {
 	TerraformBaseSuite
 }
-type TerraformSuite struct {
+type TerraformSuiteOSS struct {
 	TerraformBaseSuite
 }
-
-func TestTerraform(t *testing.T) {
-	suite.Run(t, &TerraformSuite{
-		TerraformBaseSuite: TerraformBaseSuite{
-			AuthHelper: &integration.MinimalAuthHelper{},
-		},
-	})
+type TerraformSuiteEnterprise struct {
+	TerraformBaseSuite
 }
-
-func TestTerraformWithCache(t *testing.T) {
-	suite.Run(t, &TerraformSuiteWithCache{
-		TerraformBaseSuite: TerraformBaseSuite{
-			AuthHelper: &integration.MinimalAuthHelper{
-				AuthConfig: auth.TestAuthServerConfig{CacheEnabled: true},
-			},
-		},
-	})
+type TerraformSuiteEnterpriseWithCache struct {
+	TerraformBaseSuite
 }
 
 func (s *TerraformBaseSuite) SetupSuite() {

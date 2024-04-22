@@ -62,10 +62,8 @@ func NewTracer(name string) oteltrace.Tracer {
 // Example usage:
 //
 //	func myFunc() (err error) {
-//	  ctx, span := tracer.NewSpan(ctx, "myFunc")
-//	  defer func() {
-//	    tracing.EndSpan(span, err)
-//	  }()
+//	  ctx, span := tracer.Start(ctx, "myFunc")
+//	  defer func() { tracing.EndSpan(span, err) }()
 //	  ...
 //	}
 func EndSpan(span oteltrace.Span, err error) {

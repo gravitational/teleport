@@ -49,7 +49,7 @@ import { StepSlider, StepComponentProps } from 'design/StepSlider';
 
 import { UserCredentials } from 'teleport/services/auth';
 
-import { PasskeyIcons } from '../PasskeyIcons';
+import { PasskeyIcons } from '../Passkeys';
 
 import SSOButtonList from './SsoButtons';
 

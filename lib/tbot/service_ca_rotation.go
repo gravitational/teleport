@@ -22,12 +22,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"slices"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -127,7 +127,7 @@ const caRotationRetryBackoff = time.Second * 2
 //     certificates issued by the old CA, and stop trusting the new CA.
 //   - Update Servers -> Standby: So we can stop trusting the old CA.
 type caRotationService struct {
-	log               logrus.FieldLogger
+	log               *slog.Logger
 	reloadBroadcaster *channelBroadcaster
 	botClient         *auth.Client
 	getBotIdentity    getBotIdentityFn
@@ -167,14 +167,14 @@ func (s *caRotationService) Run(ctx context.Context) error {
 		}
 		isCancelledErr := errors.As(err, &statusErr) && statusErr.GRPCStatus().Code() == codes.Canceled
 		if isCancelledErr {
-			s.log.Debugf("CA watcher detected client closing. Re-watching in %s.", backoffPeriod)
+			s.log.DebugContext(ctx, "CA watcher detected client closing. Waiting to rewatch", "wait", backoffPeriod)
 		} else if err != nil {
-			s.log.WithError(err).Errorf("Error occurred whilst watching CA rotations, retrying in %s.", backoffPeriod)
+			s.log.ErrorContext(ctx, "Error occurred whilst watching CA rotations. Waiting to retry", "wait", backoffPeriod, "error", err)
 		}
 
 		select {
 		case <-ctx.Done():
-			s.log.Warn("Context canceled during backoff for CA rotation watcher. Aborting.")
+			s.log.WarnContext(ctx, "Context canceled during backoff for CA rotation watcher. Aborting")
 			return nil
 		case <-time.After(backoffPeriod):
 		}
@@ -185,7 +185,7 @@ func (s *caRotationService) Run(ctx context.Context) error {
 // attempts to trigger a renewal via the debounced reload channel when it
 // detects the entry into an important rotation phase.
 func (s *caRotationService) watchCARotations(ctx context.Context, queueReload func()) error {
-	s.log.Debugf("Attempting to establish watch for CA events")
+	s.log.DebugContext(ctx, "Attempting to establish watch for CA events")
 
 	ident := s.getBotIdentity()
 	clusterName := ident.ClusterName
@@ -210,19 +210,19 @@ func (s *caRotationService) watchCARotations(ctx context.Context, queueReload fu
 			// OpInit is a special case omitted by the Watcher when the
 			// connection succeeds.
 			if event.Type == types.OpInit {
-				s.log.Infof("Started watching for CA rotations")
+				s.log.InfoContext(ctx, "Started watching for CA rotations")
 				continue
 			}
 
-			ignoreReason := filterCAEvent(s.log, event, clusterName)
+			ignoreReason := filterCAEvent(ctx, s.log, event, clusterName)
 			if ignoreReason != "" {
-				s.log.Debugf("Ignoring CA event: %s", ignoreReason)
+				s.log.DebugContext(ctx, "Ignoring CA event", "reason", ignoreReason)
 				continue
 			}
 
 			// We need to debounce here, as multiple events will be received if
 			// the user is rotating multiple CAs at once.
-			s.log.Infof("CA Rotation step detected; queueing renewal.")
+			s.log.InfoContext(ctx, "CA Rotation step detected; queueing renewa.")
 			queueReload()
 		case <-watcher.Done():
 			if err := watcher.Error(); err != nil {
@@ -237,7 +237,7 @@ func (s *caRotationService) watchCARotations(ctx context.Context, queueReload fu
 
 // filterCAEvent returns a reason why an event should be ignored or an empty
 // string is a renewal is needed.
-func filterCAEvent(log logrus.FieldLogger, event types.Event, clusterName string) string {
+func filterCAEvent(ctx context.Context, log *slog.Logger, event types.Event, clusterName string) string {
 	if event.Type != types.OpPut {
 		return "type not PUT"
 	}
@@ -245,7 +245,7 @@ func filterCAEvent(log logrus.FieldLogger, event types.Event, clusterName string
 	if !ok {
 		return fmt.Sprintf("event resource was not CertAuthority (%T)", event.Resource)
 	}
-	log.Debugf("Filtering CA: %+v %s %s", ca, ca.GetKind(), ca.GetSubKind())
+	log.DebugContext(ctx, "Filtering CA", "ca", ca, "ca_kind", ca.GetKind(), "ca_sub_kind", ca.GetSubKind())
 
 	// We want to update for all phases but init and update_servers
 	phase := ca.GetRotation().Phase
