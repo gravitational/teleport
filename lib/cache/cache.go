@@ -30,7 +30,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 
@@ -42,6 +41,7 @@ import (
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
+	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -1548,14 +1548,7 @@ func tracedApplyFn(parent oteltrace.Span, tracer oteltrace.Tracer, kind resource
 			oteltrace.ContextWithSpan(ctx, parent),
 			fmt.Sprintf("cache/apply/%s", kind.String()),
 		)
-
-		defer func() {
-			if err != nil {
-				span.RecordError(err)
-				span.SetStatus(codes.Error, err.Error())
-			}
-			span.End()
-		}()
+		defer func() { apitracing.EndSpan(span, err) }()
 
 		return f(ctx)
 	}
@@ -1587,13 +1580,7 @@ func isControlPlane(target string) bool {
 
 func (c *Cache) fetch(ctx context.Context, confirmedKinds map[resourceKind]types.WatchKind) (fn applyFn, err error) {
 	ctx, fetchSpan := c.Tracer.Start(ctx, "cache/fetch", oteltrace.WithAttributes(attribute.String("target", c.target)))
-	defer func() {
-		if err != nil {
-			fetchSpan.RecordError(err)
-			fetchSpan.SetStatus(codes.Error, err.Error())
-		}
-		fetchSpan.End()
-	}()
+	defer func() { apitracing.EndSpan(fetchSpan, err) }()
 
 	g, ctx := errgroup.WithContext(ctx)
 	g.SetLimit(fetchLimit(c.target))
@@ -1612,13 +1599,7 @@ func (c *Cache) fetch(ctx context.Context, confirmedKinds map[resourceKind]types
 					attribute.String("target", c.target),
 				),
 			)
-			defer func() {
-				if err != nil {
-					span.RecordError(err)
-					span.SetStatus(codes.Error, err.Error())
-				}
-				span.End()
-			}()
+			defer func() { apitracing.EndSpan(span, err) }()
 
 			_, cacheOK := confirmedKinds[resourceKind{kind: kind.kind, subkind: kind.subkind}]
 			applyfn, err := collection.fetch(ctx, cacheOK)
@@ -2380,7 +2361,7 @@ func (c *Cache) GetAppSession(ctx context.Context, req types.GetAppSessionReques
 		// fallback is sane because method is never used
 		// in construction of derivative caches.
 		if sess, err := c.Config.AppSession.GetAppSession(ctx, req); err == nil {
-			c.Logger.Warnf("Cache was forced to load session %v/%v from upstream. Frequent occurrence may indicate sync/perf issues.", sess.GetSubKind(), sess.GetName())
+			c.Logger.Debugf("Cache was forced to load session %v/%v from upstream.", sess.GetSubKind(), sess.GetName())
 			return sess, nil
 		}
 	}
@@ -2419,7 +2400,7 @@ func (c *Cache) GetSnowflakeSession(ctx context.Context, req types.GetSnowflakeS
 		// fallback is sane because method is never used
 		// in construction of derivative caches.
 		if sess, err := c.Config.SnowflakeSession.GetSnowflakeSession(ctx, req); err == nil {
-			c.Logger.Warnf("Cache was forced to load session %v/%v from upstream. Frequent occurrence may indicate sync/perf issues.", sess.GetSubKind(), sess.GetName())
+			c.Logger.Debugf("Cache was forced to load session %v/%v from upstream.", sess.GetSubKind(), sess.GetName())
 			return sess, nil
 		}
 	}
@@ -2445,7 +2426,7 @@ func (c *Cache) GetSAMLIdPSession(ctx context.Context, req types.GetSAMLIdPSessi
 		// fallback is sane because method is never used
 		// in construction of derivative caches.
 		if sess, err := c.Config.SAMLIdPSession.GetSAMLIdPSession(ctx, req); err == nil {
-			c.Logger.Warnf("Cache was forced to load session %v/%v from upstream. Frequent occurrence may indicate sync/perf issues.", sess.GetSubKind(), sess.GetName())
+			c.Logger.Debugf("Cache was forced to load session %v/%v from upstream.", sess.GetSubKind(), sess.GetName())
 			return sess, nil
 		}
 	}
@@ -2511,7 +2492,7 @@ func (c *Cache) GetWebSession(ctx context.Context, req types.GetWebSessionReques
 		// fallback is sane because method is never used
 		// in construction of derivative caches.
 		if sess, err := c.Config.WebSession.Get(ctx, req); err == nil {
-			c.Logger.Warnf("Cache was forced to load session %v/%v from upstream. Frequent occurrence may indicate sync/perf issues.", sess.GetSubKind(), sess.GetName())
+			c.Logger.Debugf("Cache was forced to load session %v/%v from upstream.", sess.GetSubKind(), sess.GetName())
 			return sess, nil
 		}
 	}
