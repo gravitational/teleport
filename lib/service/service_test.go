@@ -504,8 +504,7 @@ func TestAthenaAuditLogSetup(t *testing.T) {
 	_, err = integrationSvc.CreateIntegration(ctx, oidcIntegration)
 	require.NoError(t, err)
 
-	easSvc, err := local.NewExternalAuditStorageServiceFallible(backend)
-	require.NoError(t, err)
+	easSvc := local.NewExternalAuditStorageService(backend)
 	_, err = easSvc.GenerateDraftExternalAuditStorage(ctx, "aws-integration-1", "us-west-2")
 	require.NoError(t, err)
 

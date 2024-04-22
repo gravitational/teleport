@@ -48,8 +48,7 @@ func TestExternalAuditStorageService(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	service, err := NewExternalAuditStorageServiceFallible(backend.NewSanitizer(mem))
-	require.NoError(t, err)
+	service := NewExternalAuditStorageService(backend.NewSanitizer(mem))
 
 	sessRecURL1 := "s3://bucket1/ses-rec-v1"
 	sessRecURL2 := "s3://bucket1/ses-rec-v2"
@@ -95,7 +94,11 @@ func TestExternalAuditStorageService(t *testing.T) {
 		},
 	)
 	require.NoError(t, err)
-	service.integrationsSvc.CreateIntegration(ctx, oidcIntegration)
+
+	integrationsSvc, err := NewIntegrationsService(mem)
+	require.NoError(t, err)
+	_, err = integrationsSvc.CreateIntegration(ctx, oidcIntegration)
+	require.NoError(t, err)
 
 	t.Run("create draft", func(t *testing.T) {
 		// Given no draft

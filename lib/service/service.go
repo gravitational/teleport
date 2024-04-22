@@ -6181,10 +6181,7 @@ func (process *TeleportProcess) newExternalAuditStorageConfigurator() (*external
 	// watcher initialized.
 	watcher.WaitInit(process.GracefulExitContext())
 
-	easSvc, err := local.NewExternalAuditStorageServiceFallible(process.backend)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	easSvc := local.NewExternalAuditStorageService(process.backend)
 	integrationSvc, err := local.NewIntegrationsService(process.backend)
 	if err != nil {
 		return nil, trace.Wrap(err)

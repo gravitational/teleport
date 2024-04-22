@@ -402,8 +402,7 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 	trustSvc := local.NewCAService(backend)
 	roleSvc := local.NewAccessService(backend)
 	userSvc := local.NewTestIdentityService(backend)
-	easSvc, err := local.NewExternalAuditStorageServiceFallible(backend)
-	require.NoError(t, err)
+	easSvc := local.NewExternalAuditStorageService(backend)
 
 	_, err = clusterConfigSvc.UpsertAuthPreference(ctx, types.DefaultAuthPreference())
 	require.NoError(t, err)

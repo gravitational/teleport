@@ -47,36 +47,16 @@ var (
 
 // ExternalAuditStorageService manages External Audit Storage resources in the Backend.
 type ExternalAuditStorageService struct {
-	backend         backend.Backend
-	integrationsSvc *IntegrationsService
-	// TODO(nklaassen): delete this once teleport.e is updated
-	skipOIDCIntegrationCheck bool
-	logger                   *logrus.Entry
+	backend backend.Backend
+	logger  *logrus.Entry
 }
 
-// NewExternalAuditStorageServiceFallible returns a new *ExternalAuditStorageService or an error if it fails.
-// TODO(nklaassen): once teleport.e is updated unify this with NewExternalAuditStorage.
-func NewExternalAuditStorageServiceFallible(backend backend.Backend) (*ExternalAuditStorageService, error) {
-	integrationsSvc, err := NewIntegrationsService(backend)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &ExternalAuditStorageService{
-		backend:         backend,
-		integrationsSvc: integrationsSvc,
-		logger:          logrus.WithField(teleport.ComponentKey, "ExternalAuditStorage.backend"),
-	}, nil
-}
-
-// NewExternalAuditStorageServiceFallible returns a new *ExternalAuditStorageService.
-// TODO(nklaassen): once teleport.e is updated unify this with NewExternalAuditStorageServiceFallible.
+// NewExternalAuditStorageService returns a new *ExternalAuditStorageService or an error if it fails.
 func NewExternalAuditStorageService(backend backend.Backend) *ExternalAuditStorageService {
-	svc, err := NewExternalAuditStorageServiceFallible(backend)
-	if err != nil {
-		panic(err)
+	return &ExternalAuditStorageService{
+		backend: backend,
+		logger:  logrus.WithField(teleport.ComponentKey, "ExternalAuditStorage.backend"),
 	}
-	svc.skipOIDCIntegrationCheck = true
-	return svc
 }
 
 // GetDraftExternalAuditStorage returns the draft External Audit Storage resource.
@@ -269,11 +249,11 @@ func (s *ExternalAuditStorageService) DisableClusterExternalAuditStorage(ctx con
 }
 
 func (s *ExternalAuditStorageService) checkOIDCIntegration(ctx context.Context, integrationName string) error {
-	// TODO(nklaassen): delete this once teleport.e is updated.
-	if s.skipOIDCIntegrationCheck {
-		return nil
+	integrationsSvc, err := NewIntegrationsService(s.backend)
+	if err != nil {
+		return trace.Wrap(err)
 	}
-	integration, err := s.integrationsSvc.GetIntegration(ctx, integrationName)
+	integration, err := integrationsSvc.GetIntegration(ctx, integrationName)
 	if err != nil {
 		return trace.Wrap(err, "getting integration")
 	}
