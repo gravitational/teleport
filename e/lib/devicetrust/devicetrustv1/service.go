@@ -929,22 +929,6 @@ func (s *Service) confirmDeviceWebAuthentication(
 		}
 	}
 
-	sourceIP, err := getSourceIPFromContext(ctx)
-	if err != nil {
-		s.logger.DebugContext(ctx,
-			"Failed to get source IP from context",
-			"error", err,
-		)
-		// err swallowed on purpose.
-		return tokenData, nil, trace.Wrap(errInvalidDeviceConfirmationToken)
-	}
-	if sourceIP != tokenData.BrowserIP {
-		return tokenData, nil, auditStatusError{
-			Err:         trace.Wrap(errInvalidDeviceConfirmationToken),
-			UserMessage: "browser IP mismatch",
-		}
-	}
-
 	dev, err := s.storage.GetDeviceByID(ctx, tokenData.AuthenticatedDeviceID)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

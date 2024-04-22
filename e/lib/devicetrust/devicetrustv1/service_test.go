@@ -2821,7 +2821,6 @@ func TestService_ConfirmDeviceWebAuthentication(t *testing.T) {
 
 		outCtx := configureOutgoingContext(ctx, outgoingContextParams{
 			User:       userProxy,
-			SourceIP:   params.sourceIP,
 			EmitterKey: params.webSessionID,
 		})
 
@@ -2860,7 +2859,6 @@ func TestService_ConfirmDeviceWebAuthentication(t *testing.T) {
 	tests := []struct {
 		name               string
 		currentUser        string // defaults to userProxy
-		currentSourceIP    string // defaults to sampleIP
 		failAugmentWebFunc bool
 		makeRequest        func(*testing.T) *devicepb.ConfirmDeviceWebAuthenticationRequest
 		assertErr          func(error) bool
@@ -2932,14 +2930,6 @@ func TestService_ConfirmDeviceWebAuthentication(t *testing.T) {
 			wantAuditErr: "token move",
 		},
 		{
-			name:            "invalid source IP",
-			currentSourceIP: "142.251.132.3", // doesn't match token creator
-			makeRequest:     makeSuccessRequest,
-			assertErr:       trace.IsAccessDenied,
-			wantErr:         invalidTokenError,
-			wantAuditErr:    "IP mismatch",
-		},
-		{
 			name:               "fails to issue certificates",
 			failAugmentWebFunc: true,
 			makeRequest:        makeSuccessRequest,
@@ -2952,14 +2942,10 @@ func TestService_ConfirmDeviceWebAuthentication(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Prepare outCtx user and source IP.
+			// Prepare outCtx user.
 			user := userProxy
 			if test.currentUser != "" {
 				user = test.currentUser
-			}
-			ip := sampleIP
-			if test.currentSourceIP != "" {
-				ip = test.currentSourceIP
 			}
 
 			req := test.makeRequest(t)
@@ -2972,7 +2958,6 @@ func TestService_ConfirmDeviceWebAuthentication(t *testing.T) {
 
 			outCtx := configureOutgoingContext(ctx, outgoingContextParams{
 				User:       user,
-				SourceIP:   ip,
 				EmitterKey: emitterKey,
 			})
 
