@@ -32,11 +32,9 @@ import {
 import ReAuthenticate from 'teleport/components/ReAuthenticate';
 import { RemoveDialog } from 'teleport/components/MfaDeviceList';
 
-import { MfaChallengeScope } from 'teleport/services/auth/auth';
-
 import cfg from 'teleport/config';
 
-import { DeviceUsage } from 'teleport/services/mfa';
+import { DeviceUsage } from 'teleport/services/auth';
 
 import { AuthDeviceList } from './ManageDevices/AuthDeviceList/AuthDeviceList';
 import useManageDevices, {
@@ -232,7 +230,6 @@ export function Account({
               onAuthenticated={setToken}
               onClose={hideReAuthenticate}
               actionText="registering a new device"
-              challengeScope={MfaChallengeScope.MANAGE_DEVICES}
             />
           )}
           {EnterpriseComponent && (
