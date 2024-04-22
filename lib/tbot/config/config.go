@@ -22,7 +22,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/url"
 	"reflect"
 	"slices"
@@ -39,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
@@ -60,7 +60,7 @@ var SupportedJoinMethods = []string{
 	string(types.JoinMethodToken),
 }
 
-var log = slog.With(teleport.ComponentKey, teleport.ComponentTBot)
+var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTBot)
 
 // RemainingArgsList is a custom kingpin parser that consumes all remaining
 // arguments.

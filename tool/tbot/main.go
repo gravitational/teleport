@@ -40,9 +40,10 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tpm"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-var log = slog.With(teleport.ComponentKey, teleport.ComponentTBot)
+var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTBot)
 
 const (
 	authServerEnvVar  = "TELEPORT_AUTH_SERVER"

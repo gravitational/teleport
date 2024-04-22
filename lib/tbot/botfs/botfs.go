@@ -21,7 +21,6 @@ package botfs
 import (
 	"context"
 	"io/fs"
-	"log/slog"
 	"os"
 	"os/user"
 	"runtime"
@@ -32,9 +31,10 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-var log = slog.With(teleport.ComponentKey, teleport.ComponentTBot)
+var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTBot)
 
 // SymlinksMode is an enum type listing various symlink behavior modes.
 type SymlinksMode string

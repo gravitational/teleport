@@ -21,7 +21,6 @@ package tshwrap
 import (
 	"context"
 	"encoding/json"
-	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -38,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tlsca"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
@@ -50,7 +50,7 @@ const (
 	TSHMinVersion = "9.3.0"
 )
 
-var log = slog.With(teleport.ComponentKey, teleport.ComponentTBot)
+var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTBot)
 
 // capture runs a command (presumably tsh) with the given arguments and
 // returns it's captured stdout. Stderr is ignored. Errors are returned per

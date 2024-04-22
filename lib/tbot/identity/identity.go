@@ -23,7 +23,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"log/slog"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -35,6 +34,7 @@ import (
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tlsca"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
@@ -65,7 +65,7 @@ const (
 	WriteTestKey = ".write-test"
 )
 
-var log = slog.With(teleport.ComponentKey, teleport.ComponentTBot)
+var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTBot)
 
 // Identity is collection of raw key and certificate data as well as the
 // parsed equivalents that make up a Teleport identity.
