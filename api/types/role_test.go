@@ -437,3 +437,65 @@ func TestUnmarshallCreateHostUserModeYAML(t *testing.T) {
 		require.Equal(t, tc.expected, got)
 	}
 }
+
+func TestRoleFilterMatch(t *testing.T) {
+	regularRole := RoleV6{
+		Metadata: Metadata{
+			Name: "request-approver",
+		},
+	}
+	systemRole := RoleV6{
+		Metadata: Metadata{
+			Name: "bot",
+			Labels: map[string]string{
+				TeleportInternalResourceType: SystemResource,
+			},
+		},
+	}
+
+	tests := []struct {
+		name        string
+		role        *RoleV6
+		filter      *RoleFilter
+		shouldMatch bool
+	}{
+		{
+			name:        "empty filter should match everything",
+			role:        &regularRole,
+			filter:      &RoleFilter{},
+			shouldMatch: true,
+		},
+		{
+			name:        "correct search keyword should match the role",
+			role:        &regularRole,
+			filter:      &RoleFilter{SearchKeywords: []string{"appr"}},
+			shouldMatch: true,
+		},
+		{
+			name:        "incorrect search keyword shouldn't match the role",
+			role:        &regularRole,
+			filter:      &RoleFilter{SearchKeywords: []string{"xyz"}},
+			shouldMatch: false,
+		},
+		{
+			name:        "skip system roles filter shouldn't match the system role",
+			role:        &systemRole,
+			filter:      &RoleFilter{SkipSystemRoles: true},
+			shouldMatch: false,
+		},
+		{
+			name:        "skip system roles filter should match the regular role",
+			role:        &regularRole,
+			filter:      &RoleFilter{SkipSystemRoles: true},
+			shouldMatch: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.role.CheckAndSetDefaults()
+			require.NoError(t, err)
+			require.Equal(t, tt.shouldMatch, tt.filter.Match(tt.role))
+		})
+	}
+}
