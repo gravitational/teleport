@@ -19,6 +19,16 @@
     {{- else }}
     auto_scaling: false
     {{- end }}
+  {{- if .Values.aws.accessMonitoring.enabled }}
+    {{- if not .Values.aws.athenaURL }}
+      {{- fail "AccessMonitoring requires an Athena Event backend" }}
+    {{- end }}
+  access_monitoring:
+    enabled: true
+    report_results: {{ .Values.aws.accessMonitoring.reportResults | quote }}
+    role_arn: {{ .Values.aws.accessMonitoring.roleARN | quote }}
+    workgroup: {{ .Values.aws.accessMonitoring.workgroup | quote }}
+  {{- end }}
 {{- end -}}
 
 {{- define "teleport-cluster.auth.config.aws.audit" -}}
