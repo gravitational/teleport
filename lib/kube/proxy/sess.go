@@ -643,6 +643,11 @@ func (s *session) launch(isEphemeralCont bool) error {
 			s.log.WithError(err).Warning("Executor failed while streaming.")
 		}
 
+		if !isEphemeralCont {
+			onErr(streamErr)
+			return trace.Wrap(streamErr)
+		}
+
 		// If attaching to the container failed, check if the container
 		// is terminated. If it is, try to stream the logs. If it's not
 		// terminated or can't be found return the original error.
