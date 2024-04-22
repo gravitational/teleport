@@ -629,7 +629,7 @@ func TestTCP(t *testing.T) {
 	evilUser, _ := pack.CreateUser(t)
 
 	rootWs := pack.CreateAppSession(t, pack.tc.Username, pack.rootAppClusterName, pack.rootTCPPublicAddr)
-	leafWs := pack.CreateAppSession(t, pack.tc.Username, pack.rootAppClusterName, pack.leafTCPPublicAddr)
+	leafWs := pack.CreateAppSession(t, pack.tc.Username, pack.leafAppClusterName, pack.leafTCPPublicAddr)
 
 	tests := []struct {
 		description string
