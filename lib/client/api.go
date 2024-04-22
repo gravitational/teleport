@@ -41,7 +41,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
@@ -1660,15 +1659,7 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 			attribute.String("node", node),
 		),
 	)
-	defer func() {
-		if err != nil {
-			// The error is unwrapped here so that the error reported is any underlying
-			// error and not a trace.TraceErr.
-			span.RecordError(trace.Unwrap(err))
-			span.SetStatus(codes.Error, err.Error())
-		}
-		span.End()
-	}()
+	defer func() { apitracing.EndSpan(span, err) }()
 
 	// if per-session mfa is required, perform the mfa ceremony to get
 	// new certificates and use them to connect.
@@ -2837,15 +2828,7 @@ func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (_ *ClusterClien
 			attribute.String("proxy_ssh", tc.Config.SSHProxyAddr),
 		),
 	)
-	defer func() {
-		if err != nil {
-			// The error is unwrapped here so that the error reported is any underlying
-			// error and not a trace.TraceErr.
-			span.RecordError(trace.Unwrap(err))
-			span.SetStatus(codes.Error, err.Error())
-		}
-		span.End()
-	}()
+	defer func() { apitracing.EndSpan(span, err) }()
 
 	cfg, err := tc.generateClientConfig(ctx)
 	if err != nil {

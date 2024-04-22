@@ -2635,6 +2635,8 @@ message PluginDataUpdateParams {
 message RoleFilter {
   // SearchKeywords is a list of search keywords to match against resource field values.
   repeated string SearchKeywords = 1 [(gogoproto.jsontag) = "search_keywords,omitempty"];
+  // SkipSystemRoles filters out teleport system roles from the results.
+  bool SkipSystemRoles = 2 [(gogoproto.jsontag) = "skip_system_roles,omitempty"];
 }
 
 // RoleV6 represents role resource specification
