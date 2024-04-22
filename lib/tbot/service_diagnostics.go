@@ -21,11 +21,11 @@ package tbot
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/pprof"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/sirupsen/logrus"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -34,7 +34,7 @@ import (
 // diagnosticsService is a [bot.Service] that exposes diagnostics endpoints.
 // It's only started when a --diag-addr is provided.
 type diagnosticsService struct {
-	log          logrus.FieldLogger
+	log          *slog.Logger
 	diagAddr     string
 	pprofEnabled bool
 }
@@ -44,14 +44,16 @@ func (s *diagnosticsService) String() string {
 }
 
 func (s *diagnosticsService) Run(ctx context.Context) error {
-	s.log.WithField("addr", s.diagAddr).Info(
+	s.log.InfoContext(
+		ctx,
 		"diagnostics service will be starting",
+		"addr", s.diagAddr,
 	)
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.Handler())
 	// Only expose pprof when `-d` is provided.
 	if s.pprofEnabled {
-		s.log.Info("debug mode enabled, profiling endpoints will be served on the diagnostics service.")
+		s.log.InfoContext(ctx, "debug mode enabled, profiling endpoints will be served on the diagnostics service.")
 		mux.HandleFunc("/debug/pprof/", pprof.Index)
 		mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
 		mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
@@ -85,7 +87,7 @@ func (s *diagnosticsService) Run(ctx context.Context) error {
 	go func() {
 		<-ctx.Done()
 		if err := srv.Close(); err != nil {
-			s.log.WithError(err).Warn("Failed to close HTTP server.")
+			s.log.WarnContext(ctx, "Failed to close HTTP server", "error", err)
 		}
 	}()
 
