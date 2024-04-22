@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"errors"
 	"net"
 	"testing"
 
@@ -54,7 +55,9 @@ func TestJoinServiceClient_RegisterUsingTPMMethod(t *testing.T) {
 	mockService := &mockJoinServiceServer{
 		registerUsingTPMMethod: func(srv proto.JoinService_RegisterUsingTPMMethodServer) error {
 			req, err := srv.Recv()
-			require.NoError(t, err)
+			if !assert.NoError(t, err) {
+				return err
+			}
 			assert.Empty(t, cmp.Diff(req.GetInit(), mockInitReq))
 
 			err = srv.Send(&proto.RegisterUsingTPMMethodResponse{
@@ -62,10 +65,14 @@ func TestJoinServiceClient_RegisterUsingTPMMethod(t *testing.T) {
 					ChallengeRequest: mockChallenge,
 				},
 			})
-			require.NoError(t, err)
+			if !assert.NoError(t, err) {
+				return err
+			}
 
 			req, err = srv.Recv()
-			require.NoError(t, err)
+			if !assert.NoError(t, err) {
+				return err
+			}
 			assert.Empty(t, cmp.Diff(req.GetChallengeResponse(), mockChallengeResp))
 
 			err = srv.Send(&proto.RegisterUsingTPMMethodResponse{
@@ -73,7 +80,9 @@ func TestJoinServiceClient_RegisterUsingTPMMethod(t *testing.T) {
 					Certs: mockCerts,
 				},
 			})
-			require.NoError(t, err)
+			if !assert.NoError(t, err) {
+				return err
+			}
 			return nil
 		},
 	}
@@ -85,11 +94,13 @@ func TestJoinServiceClient_RegisterUsingTPMMethod(t *testing.T) {
 
 	go func() {
 		err := srv.Serve(lis)
-		assert.NotErrorIs(t, err, grpc.ErrServerStopped)
+		if err != nil && !errors.Is(err, grpc.ErrServerStopped) {
+			assert.NoError(t, err)
+		}
 		cancel()
 	}()
 
-	c, err := grpc.NewClient("example.com", grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
+	c, err := grpc.NewClient("unused.com", grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
 		return lis.DialContext(ctx)
 	}), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
