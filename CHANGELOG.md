@@ -1,5 +1,38 @@
 # Changelog
 
+## 15.2.3 (04/19/24)
+
+* Fixed spurious ambiguous host errors in SSH routing. [#40706](https://github.com/gravitational/teleport/pull/40706)
+* Patch `CVE-2023-45288` and `CVE-2024-32473`. [#40695](https://github.com/gravitational/teleport/pull/40695)
+* Fixed a resource leak in the Teleport proxy server when using proxy peering. [#40672](https://github.com/gravitational/teleport/pull/40672)
+* Allow other issue types when configuring JIRA plugin. [#40644](https://github.com/gravitational/teleport/pull/40644)
+* Add `regexp.match` to access request `filter` and `where` expressions. [#40642](https://github.com/gravitational/teleport/pull/40642)
+* Notify the requester in Slack review request messages. [#40624](https://github.com/gravitational/teleport/pull/40624)
+* Handle passwordless in MFA audit events. [#40617](https://github.com/gravitational/teleport/pull/40617)
+* Add auto discover capability to EC2 enrollment in the web UI. [#40605](https://github.com/gravitational/teleport/pull/40605)
+* Fixes RDP licensing. [#40595](https://github.com/gravitational/teleport/pull/40595)
+* Adds support for the ASCII variants of smartcard calls. [#40566](https://github.com/gravitational/teleport/pull/40566)
+* Adds the ability to configure labels that should be set on the Kubernetes secret when using the `kubernetes_secret` destination in `tbot`. [#40550](https://github.com/gravitational/teleport/pull/40550)
+* Update cosign to address `CVE-2024-29902` and `CVE-2024-29903`. [#40497](https://github.com/gravitational/teleport/pull/40497)
+* Improve the responsiveness of the session player during long periods of idle time. [#40442](https://github.com/gravitational/teleport/pull/40442)
+* Fix incorrect format for `database_object_import_rule` resources with non-empty expiry. [#40203](https://github.com/gravitational/teleport/pull/40203)
+* Update Opsgenie annotations so approve-schedules is used for both alert creation and auto approval if notify schedules is not set. [#40121](https://github.com/gravitational/teleport/pull/40121)
+
+## 15.2.2 (04/11/24)
+
+* Updated the cluster selector in the UI to now only be visible when more than one cluster is available. [#40478](https://github.com/gravitational/teleport/pull/40478)
+* Fixed accidental passkey "downgrades" to MFA. [#40409](https://github.com/gravitational/teleport/pull/40409)
+* Added `tsh proxy kube --exec` mode that spawns kube proxy in the background, which re-executes the user shell with the appropriate kubeconfig. [#40395](https://github.com/gravitational/teleport/pull/40395)
+* Made Amazon S3 fields optional when creating or editing AWS OIDC integration on the web UI. [#40368](https://github.com/gravitational/teleport/pull/40368)
+* Fixed a bug that prevented the available logins from being displayed for Windows desktops in leaf clusters that were being accessed via the root cluster web ui. [#40367](https://github.com/gravitational/teleport/pull/40367)
+* Changed Teleport Connect to hide cluster name in the connection list if there is only a single cluster available. [#40356](https://github.com/gravitational/teleport/pull/40356)
+* Fixed `invalid session TTL` error when creating access request with `tsh`. [#40335](https://github.com/gravitational/teleport/pull/40335)
+* Added missing discovery AWS matchers fields "Integration" and "KubeAppDiscovery" to the file configuration. [#40320](https://github.com/gravitational/teleport/pull/40320)
+* Added automatic role access requests. [#40285](https://github.com/gravitational/teleport/pull/40285)
+* Redesigned the login UI. [#40272](https://github.com/gravitational/teleport/pull/40272)
+* Added friendly role names for Okta sourced roles. These will be displayed in access list and access request pages in the UI. [#40260](https://github.com/gravitational/teleport/pull/40260)
+* Added Teleport Machine ID Workload Identity support for legacy systems which are not able to parse DNS SANs, and which are not SPIFFE aware. [#40180](https://github.com/gravitational/teleport/pull/40180)
+
 ## 15.2.1 (04/05/24)
 
 * Teleport Connect now shows all recent connections instead of capping them at 10. [#40250](https://github.com/gravitational/teleport/pull/40250)

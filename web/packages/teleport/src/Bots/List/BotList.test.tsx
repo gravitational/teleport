@@ -31,7 +31,7 @@ const makeProps = (): BotListProps => ({
   onClose: () => {},
   onDelete: () => {},
   onEdit: () => {},
-  roles: [],
+  fetchRoles: async () => [],
   selectedBot: null,
   selectedRoles: [],
   setSelectedBot: () => {},

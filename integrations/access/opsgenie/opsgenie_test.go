@@ -39,7 +39,7 @@ import (
 
 const (
 	NotifyServiceName       = "Teleport Notifications"
-	NotifyServiceAnnotation = types.TeleportNamespace + types.ReqAnnotationNotifyServicesLabel
+	NotifyServiceAnnotation = types.TeleportNamespace + types.ReqAnnotationNotifySchedulesLabel
 	ResponderName1          = "Responder 1"
 	ResponderName2          = "Responder 2"
 	ResponderName3          = "Responder 3"

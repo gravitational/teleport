@@ -221,6 +221,8 @@ func (h *Handler) ttyPlaybackHandle(
 						return
 					}
 
+				case *events.SessionLeave: // do nothing
+
 				default:
 					h.log.Debugf("unexpected event type %T", evt)
 				}

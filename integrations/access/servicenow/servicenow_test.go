@@ -38,7 +38,7 @@ import (
 )
 
 const (
-	ScheduleAnnotation = types.TeleportNamespace + types.ReqAnnotationSchedulesLabel
+	ScheduleAnnotation = types.TeleportNamespace + types.ReqAnnotationApproveSchedulesLabel
 	Schedule           = "someRotaID"
 	ResponderName1     = "ResponderID1"
 	ResponderName2     = "RespondeID2"

@@ -123,7 +123,7 @@ type InitConfig struct {
 	OIDCConnectors []types.OIDCConnector
 
 	// Trust is a service that manages users and credentials
-	Trust services.Trust
+	Trust services.TrustInternal
 
 	// Presence service is a discovery and heartbeat tracker
 	Presence services.PresenceInternal
@@ -286,6 +286,9 @@ type InitConfig struct {
 
 	// AccessMonitoringEnabled is true if access monitoring is enabled.
 	AccessMonitoringEnabled bool
+
+	// AccessMonitoringRules is a service that manages access monitoring rules.
+	AccessMonitoringRules services.AccessMonitoringRules
 
 	// CloudClients provides clients for various cloud providers.
 	CloudClients cloud.Clients
@@ -496,7 +499,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		return trace.Wrap(err, "applying migrations")
 	}
 	span.AddEvent("migrating db_client_authority")
-	err = migrateDBClientAuthority(ctx, asrv.Trust, cfg.ClusterName.GetClusterName())
+	err = migrateDBClientAuthority(ctx, asrv.Services, cfg.ClusterName.GetClusterName())
 	if err != nil {
 		return trace.Wrap(err)
 	}
