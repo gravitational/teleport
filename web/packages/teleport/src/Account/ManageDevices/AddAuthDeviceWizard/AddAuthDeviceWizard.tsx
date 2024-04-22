@@ -252,7 +252,6 @@ export function CreateDeviceStep({
   onClose,
   onDeviceCreated,
 }: AddAuthDeviceWizardStepProps) {
-  const ctx = useTeleport();
   const createPasskeyAttempt = useAttempt();
   const onCreate = () => {
     if (usage === 'passwordless' || newMfaDeviceType === 'webauthn') {
