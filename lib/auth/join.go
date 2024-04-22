@@ -123,9 +123,7 @@ func (a *Server) handleJoinFailure(
 	attributeSource joinAttributeSourcer,
 	req *types.RegisterUsingTokenRequest,
 ) {
-	fields := logrus.Fields{
-		"role": "unknown",
-	}
+	fields := logrus.Fields{}
 	if req != nil {
 		fields["role"] = req.Role
 		fields["host_id"] = req.HostID
@@ -166,8 +164,6 @@ func (a *Server) handleJoinFailure(
 				Code: events.BotJoinFailureCode,
 			},
 			Status:     status,
-			BotName:    "unknown",
-			Method:     "unknown",
 			Attributes: attributesProto,
 		}
 		if pt != nil {
@@ -182,11 +178,6 @@ func (a *Server) handleJoinFailure(
 				Code: events.InstanceJoinFailureCode,
 			},
 			Status:     status,
-			NodeName:   "unknown",
-			Role:       "unknown",
-			Method:     "unknown",
-			TokenName:  "unknown",
-			HostID:     "unknown",
 			Attributes: attributesProto,
 		}
 		if pt != nil {
