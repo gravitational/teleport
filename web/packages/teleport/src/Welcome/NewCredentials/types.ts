@@ -24,7 +24,7 @@ import { NewFlow, StepComponentProps } from 'design/StepSlider';
 
 import { ReactElement } from 'react';
 
-import { RecoveryCodes, ResetToken } from 'teleport/services/auth';
+import { DeviceUsage, RecoveryCodes, ResetToken } from 'teleport/services/auth';
 
 export type UseTokenState = {
   auth2faType: Auth2faType;
@@ -32,8 +32,10 @@ export type UseTokenState = {
   isPasswordlessEnabled: boolean;
   fetchAttempt: Attempt;
   submitAttempt: Attempt;
+  credential?: Credential;
   clearSubmitAttempt: () => void;
   onSubmit: (password: string, otpCode?: string, deviceName?: string) => void;
+  createNewWebAuthnDevice: (usage: DeviceUsage) => void;
   onSubmitWithWebauthn: (password?: string, deviceName?: string) => void;
   resetToken: ResetToken;
   recoveryCodes: RecoveryCodes;

@@ -133,74 +133,76 @@ export function TopBar({ CustomLogo, assistProps }: TopBarProps) {
       {!feature?.hideNavigation && (
         <>
           <TeleportLogo CustomLogo={CustomLogo} />
-          <Flex
-            height="100%"
-            css={`
-              margin-left: auto;
-              @media screen and (min-width: ${p =>
-                  p.theme.breakpoints.medium}px) {
-                margin-left: 0;
-                margin-right: auto;
-              }
-            `}
-          >
-            {cfg.isDashboard ? (
+          {!feature?.logoOnlyTopbar && (
+            <Flex
+              height="100%"
+              css={`
+                margin-left: auto;
+                @media screen and (min-width: ${p =>
+                    p.theme.breakpoints.medium}px) {
+                  margin-left: 0;
+                  margin-right: auto;
+                }
+              `}
+            >
+              {cfg.isDashboard ? (
+                <MainNavItem
+                  name="Downloads"
+                  to={cfg.routes.downloadCenter}
+                  isSelected={downloadTabSelected}
+                  size={iconSize}
+                  Icon={Download}
+                />
+              ) : (
+                <MainNavItem
+                  name="Resources"
+                  to={cfg.getUnifiedResourcesRoute(clusterId)}
+                  isSelected={resourceTabSelected}
+                  size={iconSize}
+                  Icon={Server}
+                />
+              )}
               <MainNavItem
-                name="Downloads"
-                to={cfg.routes.downloadCenter}
-                isSelected={downloadTabSelected}
+                name="Access Management"
+                to={
+                  previousManagementRoute ||
+                  getFirstRouteForCategory(
+                    features,
+                    NavigationCategory.Management
+                  )
+                }
                 size={iconSize}
-                Icon={Download}
+                isSelected={managementTabSelected}
+                Icon={SlidersVertical}
               />
-            ) : (
-              <MainNavItem
-                name="Resources"
-                to={cfg.getUnifiedResourcesRoute(clusterId)}
-                isSelected={resourceTabSelected}
-                size={iconSize}
-                Icon={Server}
-              />
-            )}
-            <MainNavItem
-              name="Access Management"
-              to={
-                previousManagementRoute ||
-                getFirstRouteForCategory(
-                  features,
-                  NavigationCategory.Management
-                )
-              }
-              size={iconSize}
-              isSelected={managementTabSelected}
-              Icon={SlidersVertical}
-            />
 
-            {topBarLinks.map(({ topMenuItem, navigationItem }) => {
-              const link = navigationItem.getLink(clusterId);
-              const currentPath = history.location.pathname;
-              const selected =
-                navigationItem.isSelected?.(clusterId, currentPath) ||
-                history.location.pathname.includes(link);
-              return (
-                <NavigationButton
-                  key={topMenuItem.title}
-                  to={topMenuItem.getLink(clusterId)}
-                  selected={selected}
-                  title={topMenuItem.title}
-                  css={`
-                    &:hover {
-                      color: red;
-                    }
-                  `}
-                >
-                  <topMenuItem.icon
-                    color={selected ? 'text.main' : 'text.muted'}
-                    size={iconSize}
-                  />
-                </NavigationButton>
-              );
-            })}
-          </Flex>
+              {topBarLinks.map(({ topMenuItem, navigationItem }) => {
+                const link = navigationItem.getLink(clusterId);
+                const currentPath = history.location.pathname;
+                const selected =
+                  navigationItem.isSelected?.(clusterId, currentPath) ||
+                  history.location.pathname.includes(link);
+                return (
+                  <NavigationButton
+                    key={topMenuItem.title}
+                    to={topMenuItem.getLink(clusterId)}
+                    selected={selected}
+                    title={topMenuItem.title}
+                    css={`
+                      &:hover {
+                        color: red;
+                      }
+                    `}
+                  >
+                    <topMenuItem.icon
+                      color={selected ? 'text.main' : 'text.muted'}
+                      size={iconSize}
+                    />
+                  </NavigationButton>
+                );
+              })}
+            </Flex>
+          )}
         </>
       )}
       {feature?.hideNavigation && (
