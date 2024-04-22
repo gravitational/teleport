@@ -60,6 +60,54 @@ func newIdentityService(t *testing.T, clock clockwork.Clock) *local.IdentityServ
 	return local.NewTestIdentityService(backend)
 }
 
+func TestIdentityService_CreateUser(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	identity := newIdentityService(t, clockwork.NewFakeClock())
+
+	tests := []struct {
+		desc, username, password, role string
+		passwordState                  types.PasswordState
+	}{{
+		desc:          "user without a password",
+		username:      "capybara",
+		role:          "access",
+		passwordState: types.PasswordState_PASSWORD_STATE_UNSET,
+	}, {
+		desc:          "user with a password",
+		username:      "llama",
+		password:      "verysecret",
+		role:          "editor",
+		passwordState: types.PasswordState_PASSWORD_STATE_SET,
+	}}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			user, err := types.NewUser(tt.username)
+			require.NoError(t, err)
+			user.AddRole(tt.role)
+			if tt.password != "" {
+				hash, err := bcrypt.GenerateFromPassword(([]byte(tt.password)), bcrypt.MinCost)
+				require.NoError(t, err, "Unable to generate password hash")
+				user.SetLocalAuth(&types.LocalAuthSecrets{PasswordHash: hash})
+			}
+			_, err = identity.CreateUser(ctx, user)
+			require.NoError(t, err, "failed to create the user")
+
+			user, err = identity.GetUser(ctx, tt.username, true /* withSecrets */)
+			require.NoError(t, err, "failed to get the user")
+			assert.Equal(t, []string{tt.role}, user.GetRoles(), "roles are not set")
+			assert.Equal(t, tt.passwordState, user.GetPasswordState(), "password state is not set")
+			if tt.password != "" {
+				assert.NoError(t,
+					bcrypt.CompareHashAndPassword(user.GetLocalAuth().PasswordHash, []byte(tt.password)),
+					"password hash does not match")
+			}
+		})
+	}
+
+}
+
 func TestRecoveryCodesCRUD(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -1175,6 +1223,54 @@ func TestIdentityService_ListUsers(t *testing.T) {
 		return strings.Compare(a.GetName(), b.GetName())
 	})
 	require.Empty(t, cmp.Diff(expectedUsers, retrieved, cmpopts.SortSlices(devicesSort)), "not all users returned from listing operation")
+}
+
+func TestIdentityService_UpsertAndDeletePassword(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	identity := newIdentityService(t, clockwork.NewFakeClock())
+
+	// Create a user.
+	user, err := types.NewUser("capybara")
+	require.NoError(t, err)
+	_, err = identity.CreateUser(ctx, user)
+	require.NoError(t, err, "failed to create the user")
+
+	// Verify the initial password state
+	user, err = identity.GetUser(ctx, "capybara", true /* withSecrets */)
+	require.NoError(t, err, "failed to get the user")
+	assert.Equal(t, types.PasswordState_PASSWORD_STATE_UNSET, user.GetPasswordState(), "password state is not UNSET")
+
+	// Set the password.
+	err = identity.UpsertPassword(user.GetName(), []byte("gimme12chars"))
+	require.NoError(t, err, "failed to set password")
+
+	// Validate that the password is set.
+	user, err = identity.GetUser(ctx, "capybara", true /* withSecrets */)
+	require.NoError(t, err, "failed to get the user")
+	assert.NoError(t,
+		bcrypt.CompareHashAndPassword(user.GetLocalAuth().PasswordHash, []byte("gimme12chars")),
+		"password hash does not match")
+	assert.Equal(t, types.PasswordState_PASSWORD_STATE_SET, user.GetPasswordState(), "password state is not SET")
+
+	// Delete the password.
+	err = identity.DeletePassword(ctx, "capybara")
+	require.NoError(t, err, "failed to delete password")
+
+	// Validate that the password is removed.
+	user, err = identity.GetUser(ctx, "capybara", true /* withSecrets */)
+	require.NoError(t, err, "failed to get the user")
+	assert.Nil(t, user.GetLocalAuth(), "secrets are not empty")
+	assert.Equal(t, types.PasswordState_PASSWORD_STATE_UNSET, user.GetPasswordState(), "password state is not UNSET")
+
+	// Attempt to delete the password again. This should return an error.
+	err = identity.DeletePassword(ctx, "capybara")
+	assert.Error(t, err)
+	assert.True(t, trace.IsNotFound(err), "expected not found error, got %v", err)
+	user, err = identity.GetUser(ctx, "capybara", true /* withSecrets */)
+	require.NoError(t, err, "failed to get the user")
+	assert.Nil(t, user.GetLocalAuth(), "secrets are not empty")
+	assert.Equal(t, types.PasswordState_PASSWORD_STATE_UNSET, user.GetPasswordState(), "password state is not UNSET")
 }
 
 func TestCompareAndSwapUser(t *testing.T) {

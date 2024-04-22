@@ -3371,6 +3371,30 @@ message UserV2 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "spec"
   ];
+  UserStatusV2 Status = 6 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "status,omitempty"
+  ];
+}
+
+// UserStatusV2 is a dynamic state of UserV2.
+message UserStatusV2 {
+  // password_state reflects what the system knows about the user's password.
+  // Note that this is a "best effort" property, in that it can be UNSPECIFIED
+  // for users who were created before this property was introduced and didn't
+  // perform any password-related activity since then. See RFD 0159 for
+  // details. Do NOT use this value for authentication purposes!
+  PasswordState password_state = 1 [(gogoproto.jsontag) = "password_state,omitempty"];
+}
+
+// PasswordState indicates what is known about existence of user's password.
+enum PasswordState {
+  // Unable to tell whether the password has been configured.
+  PASSWORD_STATE_UNSPECIFIED = 0;
+  // Password is known to be not configured.
+  PASSWORD_STATE_UNSET = 1;
+  // Password is known to be configured.
+  PASSWORD_STATE_SET = 2;
 }
 
 // UserSpecV2 is a specification for V2 user

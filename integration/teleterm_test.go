@@ -134,7 +134,7 @@ func TestTeleterm(t *testing.T) {
 		require.NoError(t, err)
 
 		// Enforce MFA
-		_, err = authServer.UpsertAuthPreference(context.Background(), &types.AuthPreferenceV2{
+		helpers.UpsertAuthPrefAndWaitForCache(t, context.Background(), authServer, &types.AuthPreferenceV2{
 			Spec: types.AuthPreferenceSpecV2{
 				Type:         constants.Local,
 				SecondFactor: constants.SecondFactorWebauthn,
@@ -143,11 +143,10 @@ func TestTeleterm(t *testing.T) {
 				},
 			},
 		})
-		require.NoError(t, err)
 
 		// Remove MFA enforcement on cleanup.
 		t.Cleanup(func() {
-			_, err := authServer.UpsertAuthPreference(context.Background(), &types.AuthPreferenceV2{
+			helpers.UpsertAuthPrefAndWaitForCache(t, context.Background(), authServer, &types.AuthPreferenceV2{
 				Spec: types.AuthPreferenceSpecV2{
 					Type:         constants.Local,
 					SecondFactor: constants.SecondFactorOff,
