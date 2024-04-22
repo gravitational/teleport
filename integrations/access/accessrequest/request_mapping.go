@@ -32,7 +32,6 @@ const (
 // accessRequestExpressionEnv holds user details that can be mapped in an
 // access request condition assertion.
 type accessRequestExpressionEnv struct {
-	// e.g access_request.spec.roles.contains('prod-rw')
 	Roles              []string
 	SuggestedReviewers []string
 	Annotations        map[string][]string
@@ -46,6 +45,9 @@ type accessRequestExpression typical.Expression[accessRequestExpressionEnv, any]
 
 func parseAccessRequestExpression(expr string) (accessRequestExpression, error) {
 	parser, err := newRequestConditionParser()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	parsedExpr, err := parser.Parse(expr)
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing label expression")

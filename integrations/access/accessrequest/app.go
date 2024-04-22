@@ -61,15 +61,11 @@ type amrMap struct {
 	rules map[string]*accessmonitoringrulesv1.AccessMonitoringRule
 }
 
-func newAMRMap() *amrMap {
-	return &amrMap{
-		rules: make(map[string]*accessmonitoringrulesv1.AccessMonitoringRule),
-	}
-}
-
 // NewApp will create a new access request application.
 func NewApp(bot MessagingBot) common.App {
-	app := &App{accessMonitoringRules: *newAMRMap()}
+	app := &App{accessMonitoringRules: amrMap{
+		rules: make(map[string]*accessmonitoringrulesv1.AccessMonitoringRule),
+	}}
 	app.job = lib.NewServiceJob(app.run)
 	return app
 }
@@ -138,12 +134,12 @@ func (a *App) run(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	amrs, err := a.getAllAccessMonitoringRules(ctx)
+	accessMonitoringRules, err := a.getAllAccessMonitoringRules(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	a.accessMonitoringRules.Lock()
-	for _, amr := range amrs {
+	for _, amr := range accessMonitoringRules {
 		if !a.checkIfAMRIsRelevent(amr) {
 			continue
 		}
@@ -499,6 +495,7 @@ func (a *App) recipientsFromAccessMonitoringRules(ctx context.Context, req types
 				rec, err := a.bot.FetchRecipient(ctx, recipient)
 				if err != nil {
 					log.Warning(err)
+					continue
 				}
 				recipientSet.Add(*rec)
 			}
