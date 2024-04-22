@@ -23,6 +23,7 @@ import cfg from 'teleport/config';
 import history from 'teleport/services/history';
 import auth, {
   ChangedUserAuthn,
+  DeviceUsage,
   RecoveryCodes,
   ResetPasswordReqWithEvent,
   ResetPasswordWithWebauthnReqWithEvent,
@@ -34,6 +35,7 @@ export default function useToken(tokenId: string): UseTokenState {
   const [resetToken, setResetToken] = useState<ResetToken>();
   const [recoveryCodes, setRecoveryCodes] = useState<RecoveryCodes>();
   const [success, setSuccess] = useState(false); // TODO rename
+  const [credential, setCredential] = useState<Credential | undefined>();
 
   const fetchAttempt = useAttempt('');
   const submitAttempt = useAttempt('');
@@ -68,17 +70,23 @@ export default function useToken(tokenId: string): UseTokenState {
       .catch(submitAttempt.handleError);
   }
 
+  function createNewWebAuthnDevice(deviceUsage: DeviceUsage) {
+    submitAttempt.run(async () => {
+      setCredential(
+        await auth.createNewWebAuthnDevice({ tokenId, deviceUsage })
+      );
+    });
+  }
+
   function onSubmitWithWebauthn(password?: string, deviceName = '') {
     const req: ResetPasswordWithWebauthnReqWithEvent = {
       req: { tokenId, password, deviceName },
+      credential,
       eventMeta: { username: resetToken.user, mfaType: auth2faType },
     };
-
-    submitAttempt.setAttempt({ status: 'processing' });
-    auth
-      .resetPasswordWithWebauthn(req)
-      .then(handleResponse)
-      .catch(submitAttempt.handleError);
+    submitAttempt.run(async () => {
+      handleResponse(await auth.resetPasswordWithWebauthn(req));
+    });
   }
 
   function redirect() {
@@ -87,6 +95,7 @@ export default function useToken(tokenId: string): UseTokenState {
 
   function clearSubmitAttempt() {
     submitAttempt.setAttempt({ status: '' });
+    setCredential(undefined);
   }
 
   function finishedRegister() {
@@ -99,8 +108,10 @@ export default function useToken(tokenId: string): UseTokenState {
     isPasswordlessEnabled: cfg.isPasswordlessEnabled(),
     fetchAttempt: fetchAttempt.attempt,
     submitAttempt: submitAttempt.attempt,
+    credential,
     clearSubmitAttempt,
     onSubmit,
+    createNewWebAuthnDevice, // Added missing property
     onSubmitWithWebauthn,
     resetToken,
     recoveryCodes,

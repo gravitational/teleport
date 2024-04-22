@@ -34,7 +34,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -254,14 +253,6 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err)
 	}
 
-	// Block and wait a few seconds for the session that was created to show up
-	// in the cache. If this request is not blocked here, it can get stuck in a
-	// racy session creation loop.
-	err = h.waitForAppSession(r.Context(), ws.GetName(), ctx.GetUser())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// Extract the identity of the user.
 	certificate, err := tlsca.ParseCertificatePEM(ws.GetTLSCert())
 	if err != nil {
@@ -313,12 +304,6 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 		SubjectCookieValue: ws.GetBearerToken(),
 		FQDN:               result.FQDN,
 	}, nil
-}
-
-// waitForAppSession will block until the requested application session shows up in the
-// cache or a timeout occurs.
-func (h *Handler) waitForAppSession(ctx context.Context, sessionID, user string) error {
-	return auth.WaitForAppSession(ctx, sessionID, user, h.cfg.AccessPoint)
 }
 
 type ResolveAppParams struct {

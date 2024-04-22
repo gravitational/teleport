@@ -25,8 +25,7 @@ import (
 	"github.com/gravitational/teleport/tool/tctl/sso/tester"
 )
 
-// Commands returns the set of commands that are to oss and ent
-// variants of tctl.
+// Commands returns the set of available subcommands for tctl.
 func Commands() []CLICommand {
 	return []CLICommand{
 		&UserCommand{},
@@ -57,13 +56,6 @@ func Commands() []CLICommand {
 		&IdPCommand{},
 		&accessmonitoring.Command{},
 		&PluginsCommand{},
-	}
-}
-
-// OSSCommands returns the oss variants of commands that use different variants
-// for oss and ent.
-func OSSCommands() []CLICommand {
-	return []CLICommand{
 		&configure.SSOConfigureCommand{},
 		&tester.SSOTestCommand{},
 	}

@@ -803,10 +803,6 @@ func (proxy *ProxyClient) CreateAppSession(ctx context.Context, req *proto.Creat
 	}
 	defer accessPoint.Close()
 
-	err = auth.WaitForAppSession(ctx, ws.GetName(), ws.GetUser(), accessPoint)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	return ws, nil
 }
 
