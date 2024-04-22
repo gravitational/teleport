@@ -2,6 +2,6 @@ extends: substitution
 message: Use the verb phrase "%s" instead of "%s", which is the noun form.
 ignorecase: true
 swap:
-  - 'setup (?=\w+)': "set up"
-  - 'login (?=\w+)': "log in"
-  - 'rollout (?=\w+)': "roll out"
+  - 'setup (?=the |a )': "set up"
+  - 'login (?=to )': "log in"
+  - 'rollout (?=the |a )': "roll out"
