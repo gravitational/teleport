@@ -1352,7 +1352,7 @@ func TestCreateResources(t *testing.T) {
 	t.Parallel()
 
 	fc, fds := testhelpers.DefaultConfig(t)
-	_ = testhelpers.MakeAndRunTestAuthServer(t, utils.NewLoggerForTests(), fc, fds)
+	_ = testhelpers.MakeAndRunTestAuthServer(t, utils.NewSlogLoggerForTests(), fc, fds)
 
 	tests := []struct {
 		kind   string

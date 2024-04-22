@@ -158,7 +158,7 @@ func (c *templateSSHClient) render(
 	identityFilePath := filepath.Join(absDestPath, identity.PrivateKeyKey)
 	certificateFilePath := filepath.Join(absDestPath, identity.SSHCertKey)
 
-	sshConf := openssh.NewSSHConfig(c.getSSHVersion, log)
+	sshConf := openssh.NewSSHConfig(c.getSSHVersion, nil)
 	if err := sshConf.GetSSHConfig(&sshConfigBuilder, &openssh.SSHConfigParameters{
 		AppName:             openssh.TbotApp,
 		ClusterNames:        clusterNames,
