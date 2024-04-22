@@ -203,6 +203,7 @@ func NewManager(ctx context.Context, cfg *Config) (*Manager, error) {
 	}
 	m.dnsServer = dnsServer
 	m.state.udpHandlers[cfg.DNSAddress] = dnsServer.HandleUDPConn
+
 	return m, nil
 }
 
@@ -244,6 +245,10 @@ func (m *Manager) Run() error {
 			spew.Dump(stats)
 		}
 	}()
+
+	if err := m.addProtocolAddress(m.dnsAddress); err != nil {
+		return trace.Wrap(err)
+	}
 
 	return trace.Wrap(forwardBetweenOsAndVnet(m.rootCtx, m.tun, linkEndpoint))
 }
@@ -394,7 +399,6 @@ func (m *Manager) assignIPsToApp(fqdn string, app types.Application) (ipv4 tcpip
 	}
 
 	m.state.mu.Lock()
-	defer m.state.mu.Unlock()
 
 	ip := m.state.nextFreeIP
 	m.state.nextFreeIP += 1
@@ -407,6 +411,15 @@ func (m *Manager) assignIPsToApp(fqdn string, app types.Application) (ipv4 tcpip
 	m.state.tcpHandlers[ipv4] = appHandler
 	m.state.tcpHandlers[ipv6] = appHandler
 	m.state.ips[fqdn] = ipv6
+
+	m.state.mu.Unlock()
+
+	if err := m.addProtocolAddress(ipv4); err != nil {
+		return ipv4, ipv6, trace.Wrap(err)
+	}
+	if err := m.addProtocolAddress(ipv6); err != nil {
+		return ipv4, ipv6, trace.Wrap(err)
+	}
 
 	return ipv4, ipv6, nil
 }
@@ -436,23 +449,6 @@ func (m *Manager) udpHandler(addr tcpip.Address, port uint16) (udpHandler, bool)
 	return handler, ok
 }
 
-func protocolAddress(addr tcpip.Address) (tcpip.ProtocolAddress, error) {
-	addrWithPrefix := addr.WithPrefix()
-	var protocol tcpip.NetworkProtocolNumber
-	switch addrWithPrefix.PrefixLen {
-	case 32:
-		protocol = ipv4.ProtocolNumber
-	case 128:
-		protocol = ipv6.ProtocolNumber
-	default:
-		return tcpip.ProtocolAddress{}, trace.BadParameter("unhandled prefx len %d", addrWithPrefix.PrefixLen)
-	}
-	return tcpip.ProtocolAddress{
-		AddressWithPrefix: addrWithPrefix,
-		Protocol:          protocol,
-	}, nil
-}
-
 func (m *Manager) handleTCP(req *tcp.ForwarderRequest) {
 	ctx, cancel := context.WithCancel(m.rootCtx)
 	defer cancel()
@@ -460,18 +456,6 @@ func (m *Manager) handleTCP(req *tcp.ForwarderRequest) {
 	slog := m.slog.With("request_id", id)
 	slog.Debug("Got TCP forward request.")
 	defer slog.Debug("Finished TCP forward request.")
-
-	// Add the address to the NIC so that the gvisor stack routes packets back
-	// out to the host. Seems fine to call multiple times for same IP.
-	protocolAddress, err := protocolAddress(id.LocalAddress)
-	if err != nil {
-		slog.With("error", err).Debug("Failed to construct protocol address.")
-		return
-	}
-	if err := m.stack.AddProtocolAddress(nicID, protocolAddress, stack.AddressProperties{}); err != nil {
-		slog.With("error", err).Debug("Failed to add protocol address to netstack.")
-		return
-	}
 
 	handler, ok := m.tcpHandler(id.LocalAddress, id.LocalPort)
 	if !ok {
@@ -538,13 +522,6 @@ func (m *Manager) handleUDPConcurrent(req *udp.ForwarderRequest) {
 		return
 	}
 
-	// Add the address to the NIC so that the VNet routes packets back out
-	// to the host. Seems fine to call multiple times for same IP.
-	m.stack.AddProtocolAddress(nicID, tcpip.ProtocolAddress{
-		AddressWithPrefix: id.LocalAddress.WithPrefix(),
-		Protocol:          ipv4.ProtocolNumber, // TODO(nklaassen): Support IPv6
-	}, stack.AddressProperties{})
-
 	var wq waiter.Queue
 	ep, err := req.CreateEndpoint(&wq)
 	if err != nil {
@@ -560,6 +537,34 @@ func (m *Manager) handleUDPConcurrent(req *udp.ForwarderRequest) {
 	if err := handler(ctx, conn); err != nil {
 		slog.Debug("Error handling UDP conn.", "err", err)
 	}
+}
+
+func (m *Manager) addProtocolAddress(localAddress tcpip.Address) error {
+	protocolAddress, err := protocolAddress(localAddress)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := m.stack.AddProtocolAddress(nicID, protocolAddress, stack.AddressProperties{}); err != nil {
+		return trace.Errorf("Failed to add protocol address: %s", err)
+	}
+	return nil
+}
+
+func protocolAddress(addr tcpip.Address) (tcpip.ProtocolAddress, error) {
+	addrWithPrefix := addr.WithPrefix()
+	var protocol tcpip.NetworkProtocolNumber
+	switch addrWithPrefix.PrefixLen {
+	case 32:
+		protocol = ipv4.ProtocolNumber
+	case 128:
+		protocol = ipv6.ProtocolNumber
+	default:
+		return tcpip.ProtocolAddress{}, trace.BadParameter("unhandled prefx len %d", addrWithPrefix.PrefixLen)
+	}
+	return tcpip.ProtocolAddress{
+		AddressWithPrefix: addrWithPrefix,
+		Protocol:          protocol,
+	}, nil
 }
 
 func createStack() (*stack.Stack, error) {
