@@ -77,12 +77,13 @@ jobs:
               amd64
               arm
               arm64
-          # FIPS release is currently amd64-only
+          # FIPS release is currently amd64 and arm64-only
           - release: 'fips'
             repo-infix: '-fips'
             dockerfile-suffix: '-fips'
             architectures: |
               amd64
+              arm64
     uses: ./.github/workflows/oci-image-build.yml
     with:
       teleport-release: ${{ matrix.release }}
