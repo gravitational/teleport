@@ -88,8 +88,16 @@ class CloudService {
     return api.post(cfg.api.teleportInvitePath, req, null, webauthnResponse);
   }
 
-  sendTeleportCredentialReset(req: SendTeleportCredentialReset): Promise<void> {
-    return api.post(cfg.api.teleportCredentialResetPath, req);
+  async sendTeleportCredentialReset(
+    req: SendTeleportCredentialReset
+  ): Promise<void> {
+    const webauthnResponse = await auth.getWebauthnResponseForAdminAction(true);
+    return api.post(
+      cfg.api.teleportCredentialResetPath,
+      req,
+      null,
+      webauthnResponse
+    );
   }
 }
 
