@@ -166,7 +166,7 @@ automatic updates:
 
 ## Version locking
 
-As of Teleport `15.1.10+`, a version locking mechanism is enabled by the updater.
+As of Teleport `15.1.10`, a version locking mechanism is enabled by the updater.
 This mechanism locks the version of Teleport and prevents manual updates of the Teleport
 package. This prevents unintentional updates during routine system maintenance, or
 an accidental update by a user. The updater still has the capability to update the
@@ -189,7 +189,7 @@ to bypass the version lock.
 $ yum install --disablerepo="*" --enablerepo="teleport" --disableexcludes="teleport" "teleport-ent-<target-version>"
 ```
 
-With the ZYPPER package manager CLI, the lock must be disabled and then re-enabled
+With the Zypper package manager CLI, the lock must be disabled and then re-enabled
 after the update.
 ```code
 $ zypper removelock "teleport-ent"
