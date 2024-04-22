@@ -205,7 +205,7 @@ func verifyEKCert(
 var sanExtensionOID = []int{2, 5, 29, 17}
 
 // StripSANExtensionOIDs removes the SAN Extension OID from the specified
-// cert.
+// cert. This method may re-assign the remaining extensions out of order.
 //
 // This is necessary because the EKCert may contain additional data
 // bundled within the SAN extension. This ext is also sometimes marked
