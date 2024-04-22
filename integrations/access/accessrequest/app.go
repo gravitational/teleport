@@ -21,14 +21,15 @@ package accessrequest
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/accessrequest"
-	"github.com/gravitational/teleport/api/types"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
@@ -140,7 +141,7 @@ func (a *App) run(ctx context.Context) error {
 	}
 	a.accessMonitoringRules.Lock()
 	for _, amr := range accessMonitoringRules {
-		if !a.checkIfAMRIsRelevent(amr) {
+		if !a.amrAppliesToThisPlugin(amr) {
 			continue
 		}
 		a.accessMonitoringRules.rules[amr.GetMetadata().Name] = amr
@@ -163,16 +164,13 @@ func (a *App) run(ctx context.Context) error {
 	return nil
 }
 
-func (a *App) checkIfAMRIsRelevent(amr *accessmonitoringrulesv1.AccessMonitoringRule) bool {
+func (a *App) amrAppliesToThisPlugin(amr *accessmonitoringrulesv1.AccessMonitoringRule) bool {
 	if amr.Spec.Notification.Name != a.pluginName {
 		return false
 	}
-	for _, subject := range amr.Spec.Subjects {
-		if subject == types.KindAccessRequest {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(amr.Spec.Subjects, func(subject string) bool {
+		return subject == types.KindAccessRequest
+	})
 }
 
 // onWatcherEvent is called for every cluster Event. It will filter out non-access-request events and
@@ -233,12 +231,12 @@ func (a *App) handleAccessMonitoringRule(ctx context.Context, event types.Event)
 		return trace.Errorf("unexpected kind %s", kind)
 	}
 
-	req, ok := 	types.LegacyToResource153(event.Resource).(*accessmonitoringrulesv1.AccessMonitoringRule)
+	req, ok := types.LegacyToResource153(event.Resource).(*accessmonitoringrulesv1.AccessMonitoringRule)
 	if !ok {
 		return trace.Errorf("unexpected resource type %T", event.Resource)
 	}
 
-	if !a.checkIfAMRIsRelevent(req) {
+	if !a.amrAppliesToThisPlugin(req) {
 		return nil
 	}
 
