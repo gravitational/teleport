@@ -66,10 +66,12 @@ type PluginServiceClient interface {
 	// GetAvailablePluginTypes returns the types of plugins
 	// that the auth server supports onboarding.
 	GetAvailablePluginTypes(ctx context.Context, in *GetAvailablePluginTypesRequest, opts ...grpc.CallOption) (*GetAvailablePluginTypesResponse, error)
-	// SearchPluginStaticCredentials returns static credentials that are searched for. Only accessible by RoleAdmin and,
-	// in the case of Teleport Assist, RoleProxy.
+	// SearchPluginStaticCredentials returns static credentials that are searched
+	// for. Only accessible by RoleAdmin and, in the case of Teleport Assist,
+	// RoleProxy.
 	SearchPluginStaticCredentials(ctx context.Context, in *SearchPluginStaticCredentialsRequest, opts ...grpc.CallOption) (*SearchPluginStaticCredentialsResponse, error)
-	// NeedsCleanup will indicate whether a plugin of the given type needs cleanup before it can be created.
+	// NeedsCleanup will indicate whether a plugin of the given type needs cleanup
+	// before it can be created.
 	NeedsCleanup(ctx context.Context, in *NeedsCleanupRequest, opts ...grpc.CallOption) (*NeedsCleanupResponse, error)
 	// Cleanup will clean up the resources for the given plugin type.
 	Cleanup(ctx context.Context, in *CleanupRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
@@ -192,10 +194,12 @@ type PluginServiceServer interface {
 	// GetAvailablePluginTypes returns the types of plugins
 	// that the auth server supports onboarding.
 	GetAvailablePluginTypes(context.Context, *GetAvailablePluginTypesRequest) (*GetAvailablePluginTypesResponse, error)
-	// SearchPluginStaticCredentials returns static credentials that are searched for. Only accessible by RoleAdmin and,
-	// in the case of Teleport Assist, RoleProxy.
+	// SearchPluginStaticCredentials returns static credentials that are searched
+	// for. Only accessible by RoleAdmin and, in the case of Teleport Assist,
+	// RoleProxy.
 	SearchPluginStaticCredentials(context.Context, *SearchPluginStaticCredentialsRequest) (*SearchPluginStaticCredentialsResponse, error)
-	// NeedsCleanup will indicate whether a plugin of the given type needs cleanup before it can be created.
+	// NeedsCleanup will indicate whether a plugin of the given type needs cleanup
+	// before it can be created.
 	NeedsCleanup(context.Context, *NeedsCleanupRequest) (*NeedsCleanupResponse, error)
 	// Cleanup will clean up the resources for the given plugin type.
 	Cleanup(context.Context, *CleanupRequest) (*emptypb.Empty, error)

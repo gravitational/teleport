@@ -27,9 +27,11 @@ import (
 )
 
 func TestJiraPluginOSS(t *testing.T) {
-	jiraSuite := &JiraSuite{
-		AccessRequestSuite: &integration.AccessRequestSuite{
-			AuthHelper: &integration.OSSAuthHelper{},
+	jiraSuite := &JiraSuiteOSS{
+		JiraBaseSuite: JiraBaseSuite{
+			AccessRequestSuite: &integration.AccessRequestSuite{
+				AuthHelper: &integration.MinimalAuthHelper{},
+			},
 		},
 	}
 	suite.Run(t, jiraSuite)

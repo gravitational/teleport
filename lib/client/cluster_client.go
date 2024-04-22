@@ -86,7 +86,11 @@ func (c *ClusterClient) ConnectToCluster(ctx context.Context, clusterName string
 		return c.CurrentCluster(), nil
 	}
 
-	clientConfig := c.ProxyClient.ClientConfig(ctx, clusterName)
+	clientConfig, err := c.ProxyClient.ClientConfig(ctx, clusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	authClient, err := auth.NewClient(clientConfig)
 	return authClient, trace.Wrap(err)
 }
@@ -152,6 +156,20 @@ func (c *ClusterClient) ReissueUserCerts(ctx context.Context, cachePolicy CertCa
 	)
 	defer span.End()
 
+	key, err := c.generateUserCerts(ctx, cachePolicy, params)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if cachePolicy == CertCacheDrop {
+		c.tc.localAgent.DeleteUserCerts("", WithAllCerts...)
+	}
+
+	// save the cert to the local storage (~/.tsh usually):
+	return trace.Wrap(c.tc.localAgent.AddKey(key))
+}
+
+func (c *ClusterClient) generateUserCerts(ctx context.Context, cachePolicy CertCachePolicy, params ReissueParams) (*Key, error) {
 	if params.RouteToCluster == "" {
 		params.RouteToCluster = c.cluster
 	}
@@ -172,24 +190,24 @@ func (c *ClusterClient) ReissueUserCerts(ctx context.Context, cachePolicy CertCa
 
 		key, err = c.tc.localAgent.GetKey(params.RouteToCluster, certOptions...)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 	}
 
 	req, err := c.prepareUserCertsRequest(params, key)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	rootClient, err := c.ConnectToRootCluster(ctx)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	defer rootClient.Close()
 
 	certs, err := rootClient.GenerateUserCerts(ctx, *req)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	key.ClusterName = params.RouteToCluster
@@ -211,7 +229,7 @@ func (c *ClusterClient) ReissueUserCerts(ctx context.Context, cachePolicy CertCa
 	case proto.UserCertsRequest_Database:
 		dbCert, err := makeDatabaseClientPEM(params.RouteToDatabase.Protocol, certs.TLS, key)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		key.DBTLSCerts[params.RouteToDatabase.ServiceName] = dbCert
 	case proto.UserCertsRequest_Kubernetes:
@@ -220,12 +238,7 @@ func (c *ClusterClient) ReissueUserCerts(ctx context.Context, cachePolicy CertCa
 		key.WindowsDesktopCerts[params.RouteToWindowsDesktop.WindowsDesktop] = certs.TLS
 	}
 
-	if cachePolicy == CertCacheDrop {
-		c.tc.localAgent.DeleteUserCerts("", WithAllCerts...)
-	}
-
-	// save the cert to the local storage (~/.tsh usually):
-	return trace.Wrap(c.tc.localAgent.AddKey(key))
+	return key, nil
 }
 
 // SessionSSHConfig returns the [ssh.ClientConfig] that should be used to connected to the
@@ -262,7 +275,12 @@ func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, targe
 
 	mfaClt := c
 	if target.Cluster != rootClusterName {
-		authClient, err := auth.NewClient(c.ProxyClient.ClientConfig(ctx, rootClusterName))
+		cfg, err := c.ProxyClient.ClientConfig(ctx, rootClusterName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		authClient, err := auth.NewClient(cfg)
 		if err != nil {
 			return nil, trace.Wrap(MFARequiredUnknown(err))
 		}
@@ -280,13 +298,15 @@ func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, targe
 	}
 
 	log.Debug("Attempting to issue a single-use user certificate with an MFA check.")
-	key, err = c.performMFACeremony(ctx, mfaClt,
+	key, err = c.performMFACeremony(ctx,
+		mfaClt,
 		ReissueParams{
 			NodeName:       nodeName(targetNode{addr: target.Addr}),
 			RouteToCluster: target.Cluster,
 			MFACheck:       target.MFACheck,
 		},
 		key,
+		c.tc.NewMFAPrompt(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -344,7 +364,7 @@ func (c *ClusterClient) prepareUserCertsRequest(params ReissueParams, key *Key) 
 
 // performMFACeremony runs the mfa ceremony to completion.
 // If successful the returned [Key] will be authorized to connect to the target.
-func (c *ClusterClient) performMFACeremony(ctx context.Context, rootClient *ClusterClient, params ReissueParams, key *Key) (*Key, error) {
+func (c *ClusterClient) performMFACeremony(ctx context.Context, rootClient *ClusterClient, params ReissueParams, key *Key, mfaPrompt mfa.Prompt) (*Key, error) {
 	certsReq, err := rootClient.prepareUserCertsRequest(params, key)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -353,7 +373,7 @@ func (c *ClusterClient) performMFACeremony(ctx context.Context, rootClient *Clus
 	key, _, err = PerformMFACeremony(ctx, PerformMFACeremonyParams{
 		CurrentAuthClient: c.AuthClient,
 		RootAuthClient:    rootClient.AuthClient,
-		MFAPrompt:         c.tc.NewMFAPrompt(),
+		MFAPrompt:         mfaPrompt,
 		MFAAgainstRoot:    c.cluster == rootClient.cluster,
 		MFARequiredReq:    params.isMFARequiredRequest(c.tc.HostLogin),
 		ChallengeExtensions: mfav1.ChallengeExtensions{
@@ -363,6 +383,113 @@ func (c *ClusterClient) performMFACeremony(ctx context.Context, rootClient *Clus
 		Key:      key,
 	})
 	return key, trace.Wrap(err)
+}
+
+// IssueUserCertsWithMFA generates a single-use certificate for the user. If MFA is required
+// to access the resource the provided [mfa.Prompt] will be used to perform the MFA ceremony.
+func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params ReissueParams, mfaPrompt mfa.Prompt) (*Key, proto.MFARequired, error) {
+	ctx, span := c.Tracer.Start(
+		ctx,
+		"ClusterClient/IssueUserCertsWithMFA",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("cluster", c.tc.SiteName),
+		),
+	)
+	defer span.End()
+
+	if params.RouteToCluster == "" {
+		params.RouteToCluster = c.tc.SiteName
+	}
+
+	key := params.ExistingCreds
+	if key == nil {
+		var err error
+		key, err = c.tc.localAgent.GetKey(params.RouteToCluster, WithAllCerts...)
+		if err != nil {
+			return nil, proto.MFARequired_MFA_REQUIRED_UNSPECIFIED, trace.Wrap(err)
+		}
+	}
+
+	certClient := c
+	var mfaRequired bool
+	if params.MFACheck == nil {
+		var err error
+		authClient := params.AuthClient
+		if authClient == nil {
+			authClient, err = c.ConnectToCluster(ctx, params.RouteToCluster)
+			if err != nil {
+				return nil, proto.MFARequired_MFA_REQUIRED_UNSPECIFIED, trace.Wrap(err)
+			}
+		}
+
+		resp, err := authClient.IsMFARequired(ctx, params.isMFARequiredRequest(c.tc.HostLogin))
+		if err != nil {
+			return nil, proto.MFARequired_MFA_REQUIRED_UNSPECIFIED, trace.Wrap(err)
+		}
+		mfaRequired = resp.Required
+
+		// If connected to the root cluster, store the client so that it
+		// can be reused below.
+		if params.RouteToCluster == c.root {
+			certClient = &ClusterClient{
+				tc:          c.tc,
+				ProxyClient: c.ProxyClient,
+				AuthClient:  authClient,
+				Tracer:      c.Tracer,
+				cluster:     c.root,
+				root:        c.root,
+			}
+		}
+
+		// only close the new auth client and not the copied cluster client.
+		defer authClient.Close()
+	} else {
+		mfaRequired = params.MFACheck.Required
+	}
+
+	// SSH certs can be used without embedding the node name.
+	if !mfaRequired && params.usage() == proto.UserCertsRequest_SSH && key.Cert != nil {
+		return key, proto.MFARequired_MFA_REQUIRED_NO, nil
+	}
+
+	// At this point, a connection to the root cluster is required to generate
+	// an MFA verified certificate OR to issue certificates with the target
+	// embedded in them for routing.
+	if params.RouteToCluster != certClient.root {
+		authClient, err := c.ConnectToRootCluster(ctx)
+		if err != nil {
+			return nil, proto.MFARequired_MFA_REQUIRED_UNSPECIFIED, trace.Wrap(err)
+		}
+
+		certClient = &ClusterClient{
+			tc:          c.tc,
+			ProxyClient: c.ProxyClient,
+			AuthClient:  authClient,
+			Tracer:      c.Tracer,
+			cluster:     c.root,
+			root:        c.root,
+		}
+		// only close the new auth client and not the copied cluster client.
+		defer authClient.Close()
+	}
+
+	// MFA is not required, but the user requires a new certificate with the
+	// target included in it for routing.
+	if !mfaRequired {
+		log.Debug("MFA not required for access.")
+		key, err := certClient.generateUserCerts(ctx, CertCacheKeep, params)
+		return key, proto.MFARequired_MFA_REQUIRED_NO, trace.Wrap(err)
+	}
+
+	// Perform the MFA ceremony and retrieve a new key.
+	key, err := c.performMFACeremony(ctx, certClient, params, key, mfaPrompt)
+	if err != nil {
+		return nil, proto.MFARequired_MFA_REQUIRED_YES, trace.Wrap(err)
+	}
+
+	log.Debug("Issued single-use user certificate after an MFA check.")
+	return key, proto.MFARequired_MFA_REQUIRED_YES, nil
 }
 
 // PerformMFARootClient is a subset of Auth methods required for MFA.

@@ -214,6 +214,10 @@ type CommandLineFlags struct {
 	// `teleport integration configure eice-iam` command
 	IntegrationConfEICEIAMArguments IntegrationConfEICEIAM
 
+	// IntegrationConfAWSAppAccessIAMArguments contains the arguments of
+	// `teleport integration configure aws-app-access-iam` command
+	IntegrationConfAWSAppAccessIAMArguments IntegrationConfAWSAppAccessIAM
+
 	// IntegrationConfEKSIAMArguments contains the arguments of
 	// `teleport integration configure eks-iam` command
 	IntegrationConfEKSIAMArguments IntegrationConfEKSIAM
@@ -268,6 +272,13 @@ type IntegrationConfEICEIAM struct {
 	Region string
 	// Role is the AWS Role associated with the Integration
 	Role string
+}
+
+// IntegrationConfAWSAppAccessIAM contains the arguments of
+// `teleport integration configure aws-app-access-iam` command
+type IntegrationConfAWSAppAccessIAM struct {
+	// RoleName is the AWS Role associated with the Integration
+	RoleName string
 }
 
 // IntegrationConfEKSIAM contains the arguments of
@@ -1542,12 +1553,14 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 
 		serviceMatcher := types.AWSMatcher{
-			Types:      matcher.Types,
-			Regions:    matcher.Regions,
-			AssumeRole: assumeRole,
-			Tags:       matcher.Tags,
-			Params:     installParams,
-			SSM:        &types.AWSSSM{DocumentName: matcher.SSM.DocumentName},
+			Types:            matcher.Types,
+			Regions:          matcher.Regions,
+			AssumeRole:       assumeRole,
+			Tags:             matcher.Tags,
+			Params:           installParams,
+			SSM:              &types.AWSSSM{DocumentName: matcher.SSM.DocumentName},
+			Integration:      matcher.Integration,
+			KubeAppDiscovery: matcher.KubeAppDiscovery,
 		}
 		if err := serviceMatcher.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
@@ -1737,6 +1750,7 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 					RoleARN:    matcher.AssumeRoleARN,
 					ExternalID: matcher.ExternalID,
 				},
+				Integration: matcher.Integration,
 			})
 	}
 	for _, matcher := range fc.Databases.AzureMatchers {

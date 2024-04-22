@@ -26,6 +26,7 @@ import {
 import { IntegrationList } from './IntegrationList';
 import { DeleteIntegrationDialog } from './RemoveIntegrationDialog';
 import { EditAwsOidcIntegrationDialog } from './EditAwsOidcIntegrationDialog';
+import { UpdateAwsOidcThumbprint } from './UpdateAwsOidcThumbprint';
 import { plugins, integrations } from './fixtures';
 
 export default {
@@ -34,6 +35,20 @@ export default {
 
 export function List() {
   return <IntegrationList list={[...plugins, ...integrations]} />;
+}
+
+export function UpdateAwsOidcThumbprintHoverTooltip() {
+  return (
+    <UpdateAwsOidcThumbprint
+      integration={{
+        resourceType: 'integration',
+        name: 'aws',
+        kind: IntegrationKind.AwsOidc,
+        statusCode: IntegrationStatusCode.Running,
+        spec: { roleArn: '', issuerS3Prefix: '', issuerS3Bucket: '' },
+      }}
+    />
+  );
 }
 
 export function DeleteDialog() {

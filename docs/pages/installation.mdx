@@ -517,9 +517,14 @@ $ docker run -it --entrypoint="" (=teleport.latest_oss_debug_docker_image=) busy
 #### Machine ID (tbot)
 
 We also provide a slimmed down distroless image that only contains the `tbot`
-binary for use with Teleport Machine ID. The latest release can be found at
-`public.ecr.aws/gravitational/tbot-distroless:(=teleport.version=)` and the
-version tagging follows the same pattern as the main `teleport-distroless`
+binary for use with Teleport Machine ID.
+
+| Image name                                                               | FIPS Support | Image base                                                                 |
+|--------------------------------------------------------------------------|--------------|----------------------------------------------------------------------------|
+| `public.ecr.aws/gravitational/tbot-distroless:(=teleport.version=)`      | No           | [Distroless Debian 12](https://github.com/GoogleContainerTools/distroless) |
+| `public.ecr.aws/gravitational/tbot-fips-distroless:(=teleport.version=)` | Yes          | [Distroless Debian 12](https://github.com/GoogleContainerTools/distroless) |
+
+The version tagging follows the same pattern as the main `teleport-distroless`
 image.
 
 Whilst the `teleport-distroless` image also includes `tbot`, using the `tbot`
@@ -531,12 +536,6 @@ container environment.
 To learn more, read the
 [Deploying Machine ID on Kubernetes](./machine-id/deployment/kubernetes.mdx)
 guide.
-
-<Admonition type="warning" title="FIPS Support">
-This image includes the non-FIPS version of the `tbot` binary. If you require
-FIPS support, you should continue to use the
-`public.ecr.aws/gravitational/teleport-ent-fips-distroless` image.
-</Admonition>
 
 ### Running Teleport on Docker
 

@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
@@ -237,6 +238,7 @@ type cacheCollections struct {
 	windowsDesktopServices   collectionReader[windowsDesktopServiceGetter]
 	userNotifications        collectionReader[notificationGetter]
 	globalNotifications      collectionReader[notificationGetter]
+	accessMonitoringRules    collectionReader[accessMonitoringRuleGetter]
 }
 
 // setupCollections returns a registry of collections.
@@ -696,6 +698,12 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.globalNotifications
+		case types.KindAccessMonitoringRule:
+			if c.AccessMonitoringRules == nil {
+				return nil, trace.BadParameter("missing parameter AccessMonitoringRule")
+			}
+			collections.accessMonitoringRules = &genericCollection[*accessmonitoringrulesv1.AccessMonitoringRule, accessMonitoringRuleGetter, accessMonitoringRulesExecutor]{cache: c, watch: watch}
+			collections.byKind[resourceKind] = collections.accessMonitoringRules
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}
@@ -2859,6 +2867,7 @@ type accessListMembersGetter interface {
 	CountAccessListMembers(ctx context.Context, accessListName string) (uint32, error)
 	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, nextToken string) ([]*accesslist.AccessListMember, string, error)
 	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
+	ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error)
 }
 
 type accessListReviewExecutor struct{}
@@ -2938,7 +2947,6 @@ func (userNotificationExecutor) getAll(ctx context.Context, cache *Cache, loadSe
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
 		notifications = append(notifications, notifs...)
 
 		if nextKey == "" {
@@ -3054,3 +3062,51 @@ func (globalNotificationExecutor) getReader(cache *Cache, cacheOK bool) notifica
 }
 
 var _ executor[*notificationsv1.GlobalNotification, notificationGetter] = globalNotificationExecutor{}
+
+type accessMonitoringRulesExecutor struct{}
+
+func (accessMonitoringRulesExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*accessmonitoringrulesv1.AccessMonitoringRule, error) {
+	var resources []*accessmonitoringrulesv1.AccessMonitoringRule
+	var nextToken string
+	for {
+		var page []*accessmonitoringrulesv1.AccessMonitoringRule
+		var err error
+		page, nextToken, err = cache.AccessMonitoringRules.ListAccessMonitoringRules(ctx, 0 /* page size */, nextToken)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resources = append(resources, page...)
+
+		if nextToken == "" {
+			break
+		}
+	}
+	return resources, nil
+}
+
+func (accessMonitoringRulesExecutor) upsert(ctx context.Context, cache *Cache, resource *accessmonitoringrulesv1.AccessMonitoringRule) error {
+	_, err := cache.accessMontoringRuleCache.UpsertAccessMonitoringRule(ctx, resource)
+	return trace.Wrap(err)
+}
+
+func (accessMonitoringRulesExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.accessMontoringRuleCache.DeleteAllAccessMonitoringRules(ctx)
+}
+
+func (accessMonitoringRulesExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return cache.accessMontoringRuleCache.DeleteAccessMonitoringRule(ctx, resource.GetName())
+}
+
+func (accessMonitoringRulesExecutor) isSingleton() bool { return false }
+
+func (accessMonitoringRulesExecutor) getReader(cache *Cache, cacheOK bool) accessMonitoringRuleGetter {
+	if cacheOK {
+		return cache.accessMontoringRuleCache
+	}
+	return cache.Config.AccessMonitoringRules
+}
+
+type accessMonitoringRuleGetter interface {
+	GetAccessMonitoringRule(ctx context.Context, name string) (*accessmonitoringrulesv1.AccessMonitoringRule, error)
+	ListAccessMonitoringRules(ctx context.Context, limit int, startKey string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
+}

@@ -6571,7 +6571,7 @@ type DeviceMetadata struct {
 	// Only present in "device.authenticate" type events.
 	WebAuthentication bool `protobuf:"varint,6,opt,name=web_authentication,json=webAuthentication,proto3" json:"web_authentication,omitempty"`
 	// Web Session ID associated with the device.
-	// Only present if web_authentication is true.
+	// Present in events related to device web authentication.
 	WebSessionId         string   `protobuf:"bytes,7,opt,name=web_session_id,json=webSessionId,proto3" json:"web_session_id,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`

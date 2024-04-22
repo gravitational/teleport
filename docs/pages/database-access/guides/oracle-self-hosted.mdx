@@ -3,7 +3,11 @@ title: Database Access with Oracle
 description: How to configure Teleport database access with Oracle.
 ---
 
-(!docs/pages/includes/database-access/db-introduction.mdx  dbType="Oracle" dbConfigure="Oracle with mutual TLS authentication" dbName="Oracle" !)
+(!docs/pages/includes/database-access/db-introduction.mdx  dbType="Oracle" dbConfigure="Oracle" dbName="Oracle" !)
+
+## How it works
+
+(!docs/pages/includes/database-access/how-it-works/mtls.mdx db="Oracle"!)
 
 <Tabs>
 <TabItem scope={["enterprise"]} label="Teleport Enterprise">
@@ -63,7 +67,7 @@ Follow the instructions below to generate TLS credentials for your database.
 
 ```code
 # Export Teleport's certificate authority and a generated certificate/key pair
-# for host db.example.com with a 1-year validity period.
+# for host db.example.com with a 3-month validity period.
 $ tctl auth sign --format=oracle --host=db.example.com --out=server --ttl=2190h
 ```
 

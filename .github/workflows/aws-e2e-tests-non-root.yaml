@@ -14,11 +14,11 @@ env:
   KUBERNETES_SERVICE_ASSUME_ROLE: arn:aws:iam::307493967395:role/tf-eks-discovery-ci-cluster-kubernetes-service-access-role
   KUBE_DISCOVERY_SERVICE_ASSUME_ROLE: arn:aws:iam::307493967395:role/tf-eks-discovery-ci-cluster-discovery-service-access-role
   EKS_CLUSTER_NAME: gha-discovery-ci-eks-us-west-2-307493967395
-  DATABASE_USER: teleport-ci-e2e-test
-  DATABASE_SERVICE_ASSUME_ROLE: arn:aws:iam::307493967395:role/ci-database-e2e-tests-database-svc
-  DATABASE_DISCOVERY_SERVICE_ASSUME_ROLE: arn:aws:iam::307493967395:role/ci-database-e2e-tests-discovery-svc
+  RDS_ACCESS_ROLE: arn:aws:iam::307493967395:role/ci-database-e2e-tests-rds-access
+  RDS_DISCOVERY_ROLE: arn:aws:iam::307493967395:role/ci-database-e2e-tests-rds-discovery
   RDS_POSTGRES_INSTANCE_NAME: ci-database-e2e-tests-rds-postgres-instance-us-west-2-307493967395
   RDS_MYSQL_INSTANCE_NAME: ci-database-e2e-tests-rds-mysql-instance-us-west-2-307493967395
+  RDS_MARIADB_INSTANCE_NAME: ci-database-e2e-tests-rds-mariadb-instance-us-west-2-307493967395
   DISCOVERY_MATCHER_LABELS: "*=*"
 jobs:
   changes:
