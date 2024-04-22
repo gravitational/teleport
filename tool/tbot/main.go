@@ -174,6 +174,11 @@ func Run(args []string, stdout io.Writer) error {
 		app.Usage(args)
 		return trace.Wrap(err)
 	}
+	// Logging must be configured as early as possible to ensure all log
+	// message are formatted correctly.
+	if err := setupLogger(cf.Debug, cf.LogFormat); err != nil {
+		return trace.Wrap(err, "setting up logger")
+	}
 
 	if legacyProxyFlag != "" {
 		cf.ProxyServer = legacyProxyFlag
@@ -192,9 +197,6 @@ func Run(args []string, stdout io.Writer) error {
 		cf.RemainingArgs = *proxyRemaining
 	}
 
-	if err := setupLogger(cf.Debug, cf.LogFormat); err != nil {
-		return trace.Wrap(err, "setting up logger")
-	}
 	if cf.Trace {
 		log.InfoContext(
 			ctx,
