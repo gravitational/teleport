@@ -26,6 +26,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc/peer"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -122,14 +123,31 @@ func setRemoteAddrFromContext(ctx context.Context, req *types.RegisterUsingToken
 //
 // If the token includes a specific join method, the rules for that join method
 // will be checked.
-func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
-	log.Infof("Node %q [%v] is trying to join with role: %v.", req.NodeName, req.HostID, req.Role)
+func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (_ *proto.Certs, err error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	method := a.tokenJoinMethod(ctx, req.Token)
+	defer func() {
+		if err == nil {
+			return
+		}
+		level := logrus.WarnLevel
+		if trace.IsAccessDenied(err) {
+			level = logrus.DebugLevel
+		}
+		log.WithFields(logrus.Fields{
+			"node_name":     req.NodeName,
+			"host_id":       req.HostID,
+			"role":          req.Role,
+			"method":        method,
+			logrus.ErrorKey: err,
+		}).Log(level, "Agent has failed to join the cluster.")
+	}()
+
 	var joinAttributeSrc joinAttributeSourcer
-	switch method := a.tokenJoinMethod(ctx, req.Token); method {
+	switch method {
 	case types.JoinMethodEC2:
 		if err := a.checkEC2JoinRequest(ctx, req); err != nil {
 			return nil, trace.Wrap(err)

@@ -72,37 +72,35 @@ func NewJoinServiceGRPCServer(joinServiceClient joinServiceClient) *JoinServiceG
 // sts:GetCallerIdentity request with the challenge string. Finally, the signed
 // cluster certs are sent on the server stream.
 func (s *JoinServiceGRPCServer) RegisterUsingIAMMethod(srv proto.JoinService_RegisterUsingIAMMethodServer) error {
-	ctx := srv.Context()
-
 	// Enforce a timeout on the entire RPC so that misbehaving clients cannot
 	// hold connections open indefinitely.
-	timeout := s.clock.After(iamJoinRequestTimeout)
+	timeout := s.clock.NewTimer(iamJoinRequestTimeout)
+	defer timeout.Stop()
 
 	// The only way to cancel a blocked Send or Recv on the server side without
 	// adding an interceptor to the entire gRPC service is to return from the
 	// handler https://github.com/grpc/grpc-go/issues/465#issuecomment-179414474
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- s.registerUsingIAMMethod(ctx, srv)
+		errCh <- s.registerUsingIAMMethod(srv)
 	}()
 	select {
 	case err := <-errCh:
 		// Completed before the deadline, return the error (may be nil).
 		return trace.Wrap(err)
-	case <-timeout:
+	case <-timeout.Chan():
 		nodeAddr := ""
-		if peerInfo, ok := peer.FromContext(ctx); ok {
+		if peerInfo, ok := peer.FromContext(srv.Context()); ok {
 			nodeAddr = peerInfo.Addr.String()
 		}
 		logrus.Warnf("IAM join attempt timed out, node at (%s) is misbehaving or did not close the connection after encountering an error.", nodeAddr)
 		// Returning here should cancel any blocked Send or Recv operations.
 		return trace.LimitExceeded("RegisterUsingIAMMethod timed out after %s, terminating the stream on the server", iamJoinRequestTimeout)
-	case <-ctx.Done():
-		return trace.Wrap(ctx.Err())
 	}
 }
 
-func (s *JoinServiceGRPCServer) registerUsingIAMMethod(ctx context.Context, srv proto.JoinService_RegisterUsingIAMMethodServer) error {
+func (s *JoinServiceGRPCServer) registerUsingIAMMethod(srv proto.JoinService_RegisterUsingIAMMethodServer) error {
+	ctx := srv.Context()
 	// Call RegisterUsingIAMMethod with a callback to get the challenge response
 	// from the gRPC client.
 	certs, err := s.joinServiceClient.RegisterUsingIAMMethod(ctx, func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error) {
@@ -144,33 +142,30 @@ func (s *JoinServiceGRPCServer) registerUsingIAMMethod(ctx context.Context, srv 
 // attested data document with the challenge string. Finally, the signed
 // cluster certs are sent on the server stream.
 func (s *JoinServiceGRPCServer) RegisterUsingAzureMethod(srv proto.JoinService_RegisterUsingAzureMethodServer) error {
-	ctx := srv.Context()
-
 	// Enforce a timeout on the entire RPC so that misbehaving clients cannot
 	// hold connections open indefinitely.
-	timeout := s.clock.After(azureJoinRequestTimeout)
+	timeout := s.clock.NewTimer(azureJoinRequestTimeout)
+	defer timeout.Stop()
 
 	// The only way to cancel a blocked Send or Recv on the server side without
 	// adding an interceptor to the entire gRPC service is to return from the
 	// handler https://github.com/grpc/grpc-go/issues/465#issuecomment-179414474
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- s.registerUsingAzureMethod(ctx, srv)
+		errCh <- s.registerUsingAzureMethod(srv)
 	}()
 	select {
 	case err := <-errCh:
 		// Completed before the deadline, return the error (may be nil).
 		return trace.Wrap(err)
-	case <-timeout:
+	case <-timeout.Chan():
 		nodeAddr := ""
-		if peerInfo, ok := peer.FromContext(ctx); ok {
+		if peerInfo, ok := peer.FromContext(srv.Context()); ok {
 			nodeAddr = peerInfo.Addr.String()
 		}
 		logrus.Warnf("Azure join attempt timed out, node at (%s) is misbehaving or did not close the connection after encountering an error.", nodeAddr)
 		// Returning here should cancel any blocked Send or Recv operations.
 		return trace.LimitExceeded("RegisterUsingAzureMethod timed out after %s, terminating the stream on the server", azureJoinRequestTimeout)
-	case <-ctx.Done():
-		return trace.Wrap(ctx.Err())
 	}
 }
 
@@ -196,7 +191,8 @@ func setClientRemoteAddr(ctx context.Context, req *types.RegisterUsingTokenReque
 	return nil
 }
 
-func (s *JoinServiceGRPCServer) registerUsingAzureMethod(ctx context.Context, srv proto.JoinService_RegisterUsingAzureMethodServer) error {
+func (s *JoinServiceGRPCServer) registerUsingAzureMethod(srv proto.JoinService_RegisterUsingAzureMethodServer) error {
+	ctx := srv.Context()
 	certs, err := s.joinServiceClient.RegisterUsingAzureMethod(ctx, func(challenge string) (*proto.RegisterUsingAzureMethodRequest, error) {
 		err := srv.Send(&proto.RegisterUsingAzureMethodResponse{
 			Challenge: challenge,
