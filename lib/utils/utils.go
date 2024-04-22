@@ -655,18 +655,34 @@ func StoreErrorOf(f func() error, err *error) {
 	*err = trace.NewAggregate(*err, f())
 }
 
+// LimitReader returns a reader that limits bytes from r, and reports an error
+// when limit bytes are read.
+func LimitReader(r io.Reader, limit int64) io.Reader {
+	return &limitedReader{
+		LimitedReader: &io.LimitedReader{R: r, N: limit},
+	}
+}
+
+// limitedReader wraps an [io.LimitedReader] that limits bytes read, and
+// reports an error when the read limit is reached.
+type limitedReader struct {
+	*io.LimitedReader
+}
+
+func (l *limitedReader) Read(p []byte) (int, error) {
+	n, err := l.LimitedReader.Read(p)
+	if l.LimitedReader.N <= 0 {
+		return n, ErrLimitReached
+	}
+	return n, err
+}
+
 // ReadAtMost reads up to limit bytes from r, and reports an error
 // when limit bytes are read.
 func ReadAtMost(r io.Reader, limit int64) ([]byte, error) {
-	limitedReader := &io.LimitedReader{R: r, N: limit}
+	limitedReader := LimitReader(r, limit)
 	data, err := io.ReadAll(limitedReader)
-	if err != nil {
-		return data, err
-	}
-	if limitedReader.N <= 0 {
-		return data, ErrLimitReached
-	}
-	return data, nil
+	return data, err
 }
 
 // HasPrefixAny determines if any of the string values have the given prefix.
@@ -696,6 +712,9 @@ func ByteCount(b int64) string {
 }
 
 // ErrLimitReached means that the read limit is reached.
+//
+// TODO(gavin): this should be converted to a 413 StatusRequestEntityTooLarge
+// in trace.ErrorToCode instead of 429 StatusTooManyRequests.
 var ErrLimitReached = &trace.LimitExceededError{Message: "the read limit is reached"}
 
 const (

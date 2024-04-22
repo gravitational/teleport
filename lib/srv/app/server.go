@@ -322,9 +322,6 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 	// Make copy of server's TLS configuration and update it with the specific
 	// functionality this server needs, like requiring client certificates.
 	s.tlsConfig = CopyAndConfigureTLS(s.log, s.c.AccessPoint, s.c.TLSConfig)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	clustername, err := s.c.AccessPoint.GetClusterName()
 	if err != nil {
