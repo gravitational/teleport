@@ -88,7 +88,6 @@ type Server struct {
 	hostname  string
 
 	srv         *sshutils.Server
-	shell       string
 	getRotation services.RotationGetter
 	authService srv.AccessPoint
 	reg         *srv.SessionRegistry
@@ -207,9 +206,6 @@ type Server struct {
 	// connectedProxyGetter gets the proxies teleport is connected to.
 	connectedProxyGetter *reversetunnel.ConnectedProxyGetter
 
-	// nodeWatcher is the server's node watcher.
-	nodeWatcher *services.NodeWatcher
-
 	// createHostUser configures whether a host should allow host user
 	// creation
 	createHostUser bool
@@ -241,8 +237,6 @@ type Server struct {
 
 	// proxySigner is used to generate signed PROXYv2 header so we can securely propagate client IP
 	proxySigner PROXYHeaderSigner
-	// caGetter is used to get host CA of the cluster to verify signed PROXY headers
-	caGetter CertAuthorityGetter
 }
 
 // TargetMetadata returns metadata about the server.
@@ -449,15 +443,6 @@ func SetRotationGetter(getter services.RotationGetter) ServerOption {
 	}
 }
 
-// SetShell sets default shell that will be executed for interactive
-// sessions
-func SetShell(shell string) ServerOption {
-	return func(s *Server) error {
-		s.shell = shell
-		return nil
-	}
-}
-
 // SetProxyMode starts this server in SSH proxying mode
 func SetProxyMode(peerAddr string, tsrv reversetunnelclient.Tunnel, ap auth.ReadProxyAccessPoint, router *proxy.Router) ServerOption {
 	return func(s *Server) error {
@@ -652,14 +637,6 @@ func SetLockWatcher(lockWatcher *services.LockWatcher) ServerOption {
 	}
 }
 
-// SetNodeWatcher sets the server's node watcher.
-func SetNodeWatcher(nodeWatcher *services.NodeWatcher) ServerOption {
-	return func(s *Server) error {
-		s.nodeWatcher = nodeWatcher
-		return nil
-	}
-}
-
 // SetX11ForwardingConfig sets the server's X11 forwarding configuration
 func SetX11ForwardingConfig(xc *x11.ServerConfig) ServerOption {
 	return func(s *Server) error {
@@ -714,14 +691,6 @@ func SetSessionController(controller *srv.SessionController) ServerOption {
 func SetPROXYSigner(proxySigner PROXYHeaderSigner) ServerOption {
 	return func(s *Server) error {
 		s.proxySigner = proxySigner
-		return nil
-	}
-}
-
-// SetCAGetter sets the cert authority getter
-func SetCAGetter(caGetter CertAuthorityGetter) ServerOption {
-	return func(s *Server) error {
-		s.caGetter = caGetter
 		return nil
 	}
 }
@@ -871,7 +840,6 @@ func New(
 		sshutils.SetFIPS(s.fips),
 		sshutils.SetClock(s.clock),
 		sshutils.SetIngressReporter(s.ingressService, s.ingressReporter),
-		sshutils.SetCAGetter(s.caGetter),
 		sshutils.SetClusterName(clusterName.GetClusterName()),
 	)
 	if err != nil {

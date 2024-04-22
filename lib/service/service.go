@@ -2591,10 +2591,6 @@ func (process *TeleportProcess) initSSH() error {
 			return trace.Wrap(err)
 		}
 
-		caGetter := func(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
-			return authClient.GetCertAuthority(ctx, id, loadKeys)
-		}
-
 		s, err := regular.New(
 			process.ExitContext(),
 			cfg.SSH.Addr,
@@ -2606,7 +2602,6 @@ func (process *TeleportProcess) initSSH() error {
 			process.proxyPublicAddr(),
 			conn.Client,
 			regular.SetLimiter(limiter),
-			regular.SetShell(cfg.SSH.Shell),
 			regular.SetEmitter(&events.StreamerAndEmitter{Emitter: asyncEmitter, Streamer: streamer}),
 			regular.SetLabels(cfg.SSH.Labels, cfg.SSH.CmdLabels, process.cloudLabels),
 			regular.SetNamespace(namespace),
@@ -2631,7 +2626,6 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetInventoryControlHandle(process.inventoryHandle),
 			regular.SetTracerProvider(process.TracingProvider),
 			regular.SetSessionController(sessionController),
-			regular.SetCAGetter(caGetter),
 			regular.SetPublicAddrs(cfg.SSH.PublicAddrs),
 		)
 		if err != nil {
@@ -4164,7 +4158,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		regular.SetOnHeartbeat(process.OnHeartbeat(teleport.ComponentProxy)),
 		regular.SetEmitter(streamEmitter),
 		regular.SetLockWatcher(lockWatcher),
-		regular.SetNodeWatcher(nodeWatcher),
 		// Allow Node-wide file copying checks to succeed so they can be
 		// accurately checked later when an SCP/SFTP request hits the
 		// destination Node.
