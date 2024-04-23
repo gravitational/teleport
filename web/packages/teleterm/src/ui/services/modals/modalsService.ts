@@ -167,6 +167,7 @@ export interface DialogDocumentsReopen {
 
 export interface DialogDeviceTrustAuthorize {
   kind: 'device-trust-authorize';
+  rootClusterUri: RootClusterUri;
   onConfirm?(): void;
   onCancel?(): void;
 }

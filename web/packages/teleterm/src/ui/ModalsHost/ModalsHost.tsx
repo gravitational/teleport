@@ -55,6 +55,7 @@ function renderDialog(dialog: Dialog, handleClose: () => void) {
     case 'device-trust-authorize': {
       return (
         <AuthenticateWebDevice
+          rootClusterUri={dialog.rootClusterUri}
           onAuthorize={dialog.onConfirm}
           onClose={handleClose}
         />

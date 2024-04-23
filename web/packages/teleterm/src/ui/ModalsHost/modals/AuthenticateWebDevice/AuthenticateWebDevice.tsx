@@ -17,26 +17,38 @@
  */
 
 import Alert from 'design/Alert';
-import { ButtonPrimary, ButtonSecondary } from 'design/Button';
+import { ButtonPrimary, ButtonSecondary } from 'design';
 import Dialog, { DialogContent } from 'design/Dialog';
 import Flex from 'design/Flex';
 import { useAsync } from 'shared/hooks/useAsync';
 
+import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { RootClusterAppUri, routing } from 'teleterm/ui/uri';
+
 type Props = {
+  rootClusterUri: RootClusterAppUri;
   onClose(): void;
   onAuthorize(): void;
 };
 
-export const AuthenticateWebDevice = ({ onAuthorize, onClose }: Props) => {
+export const AuthenticateWebDevice = ({
+  onAuthorize,
+  onClose,
+  rootClusterUri,
+}: Props) => {
   const [attempt, run] = useAsync(async () => {
     await onAuthorize();
     onClose();
   });
+  const { clustersService } = useAppContext();
+  const clusterName =
+    clustersService.findCluster(rootClusterUri)?.name ||
+    routing.parseClusterName(rootClusterUri);
 
   return (
     <Dialog open={true}>
-      <DialogContent>
-        Would you like to launch an authorized web session?
+      <DialogContent maxWidth="360px">
+        Would you like to launch an authorized web session for {clusterName}?
       </DialogContent>
       {attempt.status === 'error' && <Alert>{attempt.statusText}</Alert>}
       <Flex justifyContent="space-between">
@@ -54,7 +66,7 @@ export const AuthenticateWebDevice = ({ onAuthorize, onClose }: Props) => {
           textTransform="none"
           onClick={onClose}
         >
-          Close
+          Cancel
         </ButtonSecondary>
       </Flex>
     </Dialog>
