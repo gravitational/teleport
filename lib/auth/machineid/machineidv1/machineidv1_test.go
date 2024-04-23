@@ -203,6 +203,9 @@ func TestCreateBot(t *testing.T) {
 						constants.TraitLogins: {"root"},
 					},
 				},
+				Status: types.UserStatusV2{
+					PasswordState: types.PasswordState_PASSWORD_STATE_UNSET,
+				},
 			},
 			wantRole: &types.RoleV6{
 				Kind:    types.KindRole,
@@ -553,6 +556,9 @@ func TestUpdateBot(t *testing.T) {
 						// not adjust the CreatedBy field.
 						User: types.UserRef{Name: "Admin.localhost"},
 					},
+				},
+				Status: types.UserStatusV2{
+					PasswordState: types.PasswordState_PASSWORD_STATE_UNSET,
 				},
 			},
 			wantRole: &types.RoleV6{
@@ -1699,6 +1705,9 @@ func TestGetBotUsersLegacy(t *testing.T) {
 							User: types.UserRef{Name: "Admin.localhost"},
 						},
 					},
+					Status: types.UserStatusV2{
+						PasswordState: types.PasswordState_PASSWORD_STATE_UNSET,
+					},
 				},
 				&types.UserV2{
 					Kind:    types.KindUser,
@@ -1716,6 +1725,9 @@ func TestGetBotUsersLegacy(t *testing.T) {
 						CreatedBy: types.CreatedBy{
 							User: types.UserRef{Name: "Admin.localhost"},
 						},
+					},
+					Status: types.UserStatusV2{
+						PasswordState: types.PasswordState_PASSWORD_STATE_UNSET,
 					},
 				},
 			},

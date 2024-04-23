@@ -39,7 +39,7 @@ import Box from 'design/Box';
 
 import { DialogHeader } from 'teleport/Account/DialogHeader';
 import useReAuthenticate from 'teleport/components/ReAuthenticate/useReAuthenticate';
-import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
+import auth from 'teleport/services/auth/auth';
 import { DeviceUsage } from 'teleport/services/auth';
 import useTeleport from 'teleport/useTeleport';
 
@@ -127,7 +127,6 @@ export function ReauthenticateStep({
   onClose,
   onAuthenticated: onAuthenticatedProp,
 }: ReauthenticateStepProps) {
-  const challengeScope = MfaChallengeScope.MANAGE_DEVICES;
   const onAuthenticated = (privilegeToken: string) => {
     onAuthenticatedProp(privilegeToken);
     next();
@@ -135,7 +134,6 @@ export function ReauthenticateStep({
   const { attempt, clearAttempt, submitWithTotp, submitWithWebauthn } =
     useReAuthenticate({
       onAuthenticated,
-      challengeScope,
     });
   const mfaOptions = createMfaOptions({
     auth2faType,
@@ -156,7 +154,7 @@ export function ReauthenticateStep({
     e.preventDefault();
     if (!validator.validate()) return;
     if (mfaOption === 'webauthn') {
-      submitWithWebauthn(challengeScope);
+      submitWithWebauthn();
     }
     if (mfaOption === 'otp') {
       submitWithTotp(authCode);

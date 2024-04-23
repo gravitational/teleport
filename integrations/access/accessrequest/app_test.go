@@ -100,7 +100,7 @@ func TestOpsGenieGetMessageRecipients(t *testing.T) {
 				},
 			}
 			recipients := a.getMessageRecipients(ctx, req)
-			require.Equal(t, tt.expectedRecipients, recipients)
+			require.ElementsMatch(t, tt.expectedRecipients, recipients)
 		})
 	}
 

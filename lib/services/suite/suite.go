@@ -36,6 +36,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -240,12 +241,21 @@ func (s *ServicesTestSuite) UsersCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, u)
 
-	require.NoError(t, s.WebS.UpsertPasswordHash("user1", []byte("hash")))
-	require.NoError(t, s.WebS.UpsertPasswordHash("user2", []byte("hash2")))
+	u1 := newUser("user1", nil)
+	u2 := newUser("user2", nil)
+	_, err = s.WebS.CreateUser(ctx, u1)
+	require.NoError(t, err)
+	_, err = s.WebS.CreateUser(ctx, u2)
+	require.NoError(t, err)
+	require.NoError(t, s.WebS.UpsertPassword("user1", []byte("secretpassword123")))
+	require.NoError(t, s.WebS.UpsertPassword("user2", []byte("secretpassword234")))
+
+	u1.SetPasswordState(types.PasswordState_PASSWORD_STATE_SET)
+	u2.SetPasswordState(types.PasswordState_PASSWORD_STATE_SET)
 
 	u, err = s.WebS.GetUsers(ctx, false)
 	require.NoError(t, err)
-	userSlicesEqual(t, u, []types.User{newUser("user1", nil), newUser("user2", nil)})
+	userSlicesEqual(t, u, []types.User{u1, u2})
 
 	out, err := s.WebS.GetUser(ctx, "user1", false)
 	require.NoError(t, err)
@@ -267,7 +277,7 @@ func (s *ServicesTestSuite) UsersCRUD(t *testing.T) {
 
 	u, err = s.WebS.GetUsers(ctx, false)
 	require.NoError(t, err)
-	userSlicesEqual(t, u, []types.User{newUser("user2", nil)})
+	userSlicesEqual(t, u, []types.User{u2})
 
 	err = s.WebS.DeleteUser(ctx, "user1")
 	require.True(t, trace.IsNotFound(err))
@@ -612,23 +622,31 @@ func (s *ServicesTestSuite) ReverseTunnelsCRUD(t *testing.T) {
 	require.True(t, trace.IsBadParameter(err))
 }
 
-func (s *ServicesTestSuite) PasswordHashCRUD(t *testing.T) {
+func (s *ServicesTestSuite) PasswordCRUD(t *testing.T) {
+	ctx := context.Background()
+
 	_, err := s.WebS.GetPasswordHash("user1")
 	require.True(t, trace.IsNotFound(err), fmt.Sprintf("%#v", err))
 
-	err = s.WebS.UpsertPasswordHash("user1", []byte("hello123"))
+	u1 := newUser("user1", nil)
+	_, err = s.WebS.CreateUser(ctx, u1)
+	require.NoError(t, err)
+
+	err = s.WebS.UpsertPassword("user1", []byte("secretpassword123"))
 	require.NoError(t, err)
 
 	hash, err := s.WebS.GetPasswordHash("user1")
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(hash, []byte("hello123")))
+	err = bcrypt.CompareHashAndPassword(hash, []byte("secretpassword123"))
+	require.NoError(t, err)
 
-	err = s.WebS.UpsertPasswordHash("user1", []byte("hello321"))
+	err = s.WebS.UpsertPassword("user1", []byte("secretpassword321"))
 	require.NoError(t, err)
 
 	hash, err = s.WebS.GetPasswordHash("user1")
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(hash, []byte("hello321")))
+	err = bcrypt.CompareHashAndPassword(hash, []byte("secretpassword321"))
+	require.NoError(t, err)
 }
 
 func (s *ServicesTestSuite) WebSessionCRUD(t *testing.T) {

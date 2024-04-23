@@ -25,7 +25,6 @@ import (
 	"sync"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	corev1 "k8s.io/api/core/v1"
@@ -195,10 +194,12 @@ func (dks *DestinationKubernetesSecret) Write(ctx context.Context, name string, 
 		if !kubeerrors.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
-		log.WithFields(logrus.Fields{
-			"secret_name":      dks.Name,
-			"secret_namespace": dks.namespace,
-		}).Warn("Kubernetes secret missing on attempt to write data. One will be created.")
+		log.WarnContext(
+			ctx,
+			"Kubernetes secret missing on attempt to write data. One will be created.",
+			"secret_name", dks.Name,
+			"secret_namespace", dks.namespace,
+		)
 		// If the secret doesn't exist, we create it on write - this is ensures
 		// that we can recover if the secret is deleted between renewal loops.
 		secret = dks.secretTemplate()
@@ -231,10 +232,12 @@ func (dks *DestinationKubernetesSecret) WriteMany(ctx context.Context, toWrite m
 		if !kubeerrors.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
-		log.WithFields(logrus.Fields{
-			"secret_name":      dks.Name,
-			"secret_namespace": dks.namespace,
-		}).Warn("Kubernetes secret missing on attempt to write data. One will be created.")
+		log.WarnContext(
+			ctx,
+			"Kubernetes secret missing on attempt to write data. One will be created.",
+			"secret_name", dks.Name,
+			"secret_namespace", dks.namespace,
+		)
 		// If the secret doesn't exist, we create it on write - this is ensures
 		// that we can recover if the secret is deleted between renewal loops.
 		secret = dks.secretTemplate()
