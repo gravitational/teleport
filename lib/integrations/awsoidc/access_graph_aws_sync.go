@@ -84,7 +84,7 @@ func NewAccessGraphIAMConfigureClient(ctx context.Context) (AccessGraphIAMConfig
 // AWS resources into Teleport.
 // The following actions must be allowed by the IAM Role assigned in the Client.
 //   - iam:PutRolePolicy
-func ConfigureAccessGraphSyncIAM(ctx context.Context, clt AccessGraphIAMConfigureClient, req *AccessGraphAWSIAMConfigureRequest) error {
+func ConfigureAccessGraphSyncIAM(ctx context.Context, clt AccessGraphIAMConfigureClient, req AccessGraphAWSIAMConfigureRequest) error {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}

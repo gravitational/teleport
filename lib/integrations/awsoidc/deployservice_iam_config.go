@@ -183,7 +183,7 @@ func (d defaultDeployServiceIAMConfigureClient) GetCallerIdentity(ctx context.Co
 // - iam:PutRolePolicy
 // - iam:TagPolicy
 // - iam:TagRole
-func ConfigureDeployServiceIAM(ctx context.Context, clt DeployServiceIAMConfigureClient, req *DeployServiceIAMConfigureRequest) error {
+func ConfigureDeployServiceIAM(ctx context.Context, clt DeployServiceIAMConfigureClient, req DeployServiceIAMConfigureRequest) error {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -220,7 +220,7 @@ func ConfigureDeployServiceIAM(ctx context.Context, clt DeployServiceIAMConfigur
 // - connect to any RDS DB
 // - Get, Put and Delete Role Policies to manage the Policy Statements when adding other rds-db:connect entries
 // - write application logs to CloudWatch
-func createBoundaryPolicyForTaskRole(ctx context.Context, clt DeployServiceIAMConfigureClient, req *DeployServiceIAMConfigureRequest) error {
+func createBoundaryPolicyForTaskRole(ctx context.Context, clt DeployServiceIAMConfigureClient, req DeployServiceIAMConfigureRequest) error {
 	taskRoleARN := awslibutils.RoleARN(req.partitionID, req.AccountID, req.TaskRole)
 
 	taskRoleBoundaryPolicyDocument, err := awslib.NewPolicyDocument(
@@ -250,7 +250,7 @@ func createBoundaryPolicyForTaskRole(ctx context.Context, clt DeployServiceIAMCo
 }
 
 // createTaskRole creates the TaskRole and sets up the Role Boundary and its Trust Relationship.
-func createTaskRole(ctx context.Context, clt DeployServiceIAMConfigureClient, req *DeployServiceIAMConfigureRequest) error {
+func createTaskRole(ctx context.Context, clt DeployServiceIAMConfigureClient, req DeployServiceIAMConfigureRequest) error {
 	taskRoleAssumeRoleDocument, err := awslib.NewPolicyDocument(
 		awslib.StatementForECSTaskRoleTrustRelationships(),
 	).Marshal()
@@ -282,7 +282,7 @@ func createTaskRole(ctx context.Context, clt DeployServiceIAMConfigureClient, re
 // addPolicyToTaskRole updates the TaskRole to allow the service to:
 // - manage Policies of the TaskRole
 // - write logs to CloudWatch
-func addPolicyToTaskRole(ctx context.Context, clt DeployServiceIAMConfigureClient, req *DeployServiceIAMConfigureRequest) error {
+func addPolicyToTaskRole(ctx context.Context, clt DeployServiceIAMConfigureClient, req DeployServiceIAMConfigureRequest) error {
 	taskRoleARN := awslibutils.RoleARN(req.partitionID, req.AccountID, req.TaskRole)
 
 	taskRolePolicyDocument, err := awslib.NewPolicyDocument(
@@ -308,7 +308,7 @@ func addPolicyToTaskRole(ctx context.Context, clt DeployServiceIAMConfigureClien
 
 // addPolicyToIntegrationRole creates or updates the DeployService Policy in IntegrationRole.
 // It allows the Proxy to call ECS APIs and to pass the TaskRole when deploying a service.
-func addPolicyToIntegrationRole(ctx context.Context, clt DeployServiceIAMConfigureClient, req *DeployServiceIAMConfigureRequest) error {
+func addPolicyToIntegrationRole(ctx context.Context, clt DeployServiceIAMConfigureClient, req DeployServiceIAMConfigureRequest) error {
 	taskRoleARN := awslibutils.RoleARN(req.partitionID, req.AccountID, req.TaskRole)
 
 	taskRolePolicyDocument, err := awslib.NewPolicyDocument(

@@ -50,7 +50,7 @@ func onIntegrationConfDeployService(ctx context.Context, params config.Integrati
 		return trace.Wrap(err)
 	}
 
-	confReq := &awsoidc.DeployServiceIAMConfigureRequest{
+	confReq := awsoidc.DeployServiceIAMConfigureRequest{
 		Cluster:         params.Cluster,
 		IntegrationName: params.Name,
 		Region:          params.Region,
@@ -69,7 +69,7 @@ func onIntegrationConfEICEIAM(ctx context.Context, params config.IntegrationConf
 		return trace.Wrap(err)
 	}
 
-	confReq := &awsoidc.EICEIAMConfigureRequest{
+	confReq := awsoidc.EICEIAMConfigureRequest{
 		Region:          params.Region,
 		IntegrationRole: params.Role,
 	}
@@ -85,7 +85,7 @@ func onIntegrationConfAWSAppAccessIAM(ctx context.Context, params config.Integra
 		return trace.Wrap(err)
 	}
 
-	confReq := &awsoidc.AWSAppAccessConfigureRequest{
+	confReq := awsoidc.AWSAppAccessConfigureRequest{
 		IntegrationRole: params.RoleName,
 	}
 	return trace.Wrap(awsoidc.ConfigureAWSAppAccess(ctx, iamClient, confReq))
@@ -100,7 +100,7 @@ func onIntegrationConfEKSIAM(ctx context.Context, params config.IntegrationConfE
 		return trace.Wrap(err)
 	}
 
-	confReq := &awsoidc.EKSIAMConfigureRequest{
+	confReq := awsoidc.EKSIAMConfigureRequest{
 		Region:          params.Region,
 		IntegrationRole: params.Role,
 	}
@@ -119,7 +119,7 @@ func onIntegrationConfAWSOIDCIdP(ctx context.Context, clf config.CommandLineFlag
 		return trace.Wrap(err)
 	}
 
-	confReq := &awsoidc.IdPIAMConfigureRequest{
+	confReq := awsoidc.IdPIAMConfigureRequest{
 		Cluster:            clf.IntegrationConfAWSOIDCIdPArguments.Cluster,
 		IntegrationName:    clf.IntegrationConfAWSOIDCIdPArguments.Name,
 		IntegrationRole:    clf.IntegrationConfAWSOIDCIdPArguments.Role,
@@ -146,7 +146,7 @@ func onIntegrationConfListDatabasesIAM(ctx context.Context, params config.Integr
 
 	iamClient := iam.NewFromConfig(cfg)
 
-	confReq := &awsoidc.ConfigureIAMListDatabasesRequest{
+	confReq := awsoidc.ConfigureIAMListDatabasesRequest{
 		Region:          params.Region,
 		IntegrationRole: params.Role,
 	}
@@ -182,7 +182,7 @@ func onIntegrationConfExternalAuditCmd(ctx context.Context, params easconfig.Ext
 		Iam: iam.NewFromConfig(cfg),
 		Sts: sts.NewFromConfig(cfg),
 	}
-	return trace.Wrap(awsoidc.ConfigureExternalAuditStorage(ctx, clt, &params))
+	return trace.Wrap(awsoidc.ConfigureExternalAuditStorage(ctx, clt, params))
 }
 
 func onIntegrationConfAccessGraphAWSSync(ctx context.Context, params config.IntegrationConfAccessGraphAWSSync) error {
@@ -194,7 +194,7 @@ func onIntegrationConfAccessGraphAWSSync(ctx context.Context, params config.Inte
 		return trace.Wrap(err)
 	}
 
-	confReq := &awsoidc.AccessGraphAWSIAMConfigureRequest{
+	confReq := awsoidc.AccessGraphAWSIAMConfigureRequest{
 		IntegrationRole: params.Role,
 	}
 	return trace.Wrap(awsoidc.ConfigureAccessGraphSyncIAM(ctx, iamClient, confReq))

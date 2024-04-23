@@ -69,7 +69,7 @@ type ListDatabasesIAMConfigureClient interface {
 //
 // The following actions must be allowed by the IAM Role assigned in the Client.
 //   - iam:PutRolePolicy
-func ConfigureListDatabasesIAM(ctx context.Context, clt ListDatabasesIAMConfigureClient, req *ConfigureIAMListDatabasesRequest) error {
+func ConfigureListDatabasesIAM(ctx context.Context, clt ListDatabasesIAMConfigureClient, req ConfigureIAMListDatabasesRequest) error {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}

@@ -83,12 +83,12 @@ func TestEKSAMConfig(t *testing.T) {
 	for _, tt := range []struct {
 		name              string
 		mockExistingRoles []string
-		req               *EKSIAMConfigureRequest
+		req               EKSIAMConfigureRequest
 		errCheck          require.ErrorAssertionFunc
 	}{
 		{
 			name: "valid",
-			req: &EKSIAMConfigureRequest{
+			req: EKSIAMConfigureRequest{
 				Region:          "us-east-1",
 				IntegrationRole: "integrationRole",
 			},
@@ -98,7 +98,7 @@ func TestEKSAMConfig(t *testing.T) {
 		{
 			name:              "integration role does not exist",
 			mockExistingRoles: []string{},
-			req: &EKSIAMConfigureRequest{
+			req: EKSIAMConfigureRequest{
 				Region:          "us-east-1",
 				IntegrationRole: "integrationRole",
 			},

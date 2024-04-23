@@ -77,8 +77,8 @@ func TestAccessGraphIAMConfigReqDefaults(t *testing.T) {
 
 func TestAccessGraphAWSIAMConfig(t *testing.T) {
 	ctx := context.Background()
-	baseReq := func() *AccessGraphAWSIAMConfigureRequest {
-		return &AccessGraphAWSIAMConfigureRequest{
+	baseReq := func() AccessGraphAWSIAMConfigureRequest {
+		return AccessGraphAWSIAMConfigureRequest{
 			IntegrationRole: "integrationrole",
 		}
 	}
@@ -86,7 +86,7 @@ func TestAccessGraphAWSIAMConfig(t *testing.T) {
 	for _, tt := range []struct {
 		name              string
 		mockExistingRoles []string
-		req               func() *AccessGraphAWSIAMConfigureRequest
+		req               func() AccessGraphAWSIAMConfigureRequest
 		errCheck          require.ErrorAssertionFunc
 	}{
 		{

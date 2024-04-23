@@ -87,8 +87,8 @@ func TestEICEIAMConfigReqDefaults(t *testing.T) {
 
 func TestEICEIAMConfig(t *testing.T) {
 	ctx := context.Background()
-	baseReq := func() *EICEIAMConfigureRequest {
-		return &EICEIAMConfigureRequest{
+	baseReq := func() EICEIAMConfigureRequest {
+		return EICEIAMConfigureRequest{
 			Region:          "us-east-1",
 			IntegrationRole: "integrationrole",
 		}
@@ -97,7 +97,7 @@ func TestEICEIAMConfig(t *testing.T) {
 	for _, tt := range []struct {
 		name              string
 		mockExistingRoles []string
-		req               func() *EICEIAMConfigureRequest
+		req               func() EICEIAMConfigureRequest
 		errCheck          require.ErrorAssertionFunc
 	}{
 		{
