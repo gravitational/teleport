@@ -24,10 +24,12 @@ import {
   useState,
   useCallback,
   useMemo,
+  useEffect,
 } from 'react';
 import { useAsync, Attempt } from 'shared/hooks/useAsync';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { useAppState } from 'teleterm/ui/hooks/useAppState';
 
 /**
  * VnetContext manages the VNet instance.
@@ -53,6 +55,9 @@ export const VnetContext = createContext<VnetContext>(null);
 export const VnetContextProvider: FC<PropsWithChildren> = props => {
   const [status, setStatus] = useState<VnetStatus>('stopped');
   const { vnet, mainProcessClient, configService } = useAppContext();
+  const [{ autoStart }, setAppState] = useAppState('vnet', {
+    autoStart: false,
+  });
 
   const isSupported = useMemo(
     () =>
@@ -69,15 +74,33 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
       // Reconsider this only once the VNet daemon gets added.
       await vnet.start({});
       setStatus('running');
-    }, [vnet])
+      setAppState({ autoStart: true });
+    }, [vnet, setAppState])
   );
 
   const [stopAttempt, stop] = useAsync(
     useCallback(async () => {
       await vnet.stop({});
       setStatus('stopped');
-    }, [vnet])
+      setAppState({ autoStart: false });
+    }, [vnet, setAppState])
   );
+
+  useEffect(() => {
+    const handleAutoStart = async () => {
+      if (isSupported && autoStart && startAttempt.status === '') {
+        const [, error] = await start();
+
+        // Turn off autostart if starting fails. Otherwise the user wouldn't be able to turn off
+        // autostart by themselves.
+        if (error) {
+          setAppState({ autoStart: false });
+        }
+      }
+    };
+
+    handleAutoStart();
+  }, []);
 
   return (
     <VnetContext.Provider
