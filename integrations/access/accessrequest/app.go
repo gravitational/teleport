@@ -242,15 +242,13 @@ func (a *App) handleAccessMonitoringRule(ctx context.Context, event types.Event)
 		return nil
 	}
 
+	a.accessMonitoringRules.Lock()
+	defer a.accessMonitoringRules.Unlock()
 	switch op := event.Type; op {
 	case types.OpPut:
-		a.accessMonitoringRules.Lock()
-		defer a.accessMonitoringRules.Unlock()
 		a.accessMonitoringRules.rules[req.Metadata.Name] = req
 		return nil
 	case types.OpDelete:
-		a.accessMonitoringRules.Lock()
-		defer a.accessMonitoringRules.Unlock()
 		delete(a.accessMonitoringRules.rules, req.Metadata.Name)
 		return nil
 	default:

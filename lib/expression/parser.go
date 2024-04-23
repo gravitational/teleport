@@ -146,7 +146,7 @@ func DefaultParserSpec[evaluationEnv any]() typical.ParserSpec[evaluationEnv] {
 					}
 					first, second := interval[0], interval[1]
 					if first.After(second) {
-						first, second  = second, first
+						first, second = second, first
 					}
 					return t.After(first) && t.Before(second), nil
 				}),
