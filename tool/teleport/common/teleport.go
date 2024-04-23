@@ -32,29 +32,16 @@ import (
 	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
-	awsConfig "github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/athena"
-	"github.com/aws/aws-sdk-go-v2/service/glue"
-	"github.com/aws/aws-sdk-go-v2/service/iam"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	ecatypes "github.com/gravitational/teleport/api/types/externalauditstorage"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/configurators"
 	awsconfigurators "github.com/gravitational/teleport/lib/configurators/aws"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/integrations/awsoidc"
-	"github.com/gravitational/teleport/lib/integrations/externalauditstorage"
-	"github.com/gravitational/teleport/lib/integrations/externalauditstorage/easconfig"
-	"github.com/gravitational/teleport/lib/integrations/samlidp"
-	"github.com/gravitational/teleport/lib/integrations/samlidp/samlidpconfig"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/openssh"
 	"github.com/gravitational/teleport/lib/service"
@@ -616,23 +603,23 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	case joinOpenSSH.FullCommand():
 		err = onJoinOpenSSH(ccf, conf)
 	case integrationConfDeployServiceCmd.FullCommand():
-		err = onIntegrationConfDeployService(ccf.IntegrationConfDeployServiceIAMArguments)
+		err = onIntegrationConfDeployService(ctx, ccf.IntegrationConfDeployServiceIAMArguments)
 	case integrationConfEICECmd.FullCommand():
-		err = onIntegrationConfEICEIAM(ccf.IntegrationConfEICEIAMArguments)
+		err = onIntegrationConfEICEIAM(ctx, ccf.IntegrationConfEICEIAMArguments)
 	case integrationConfAWSAppAccessCmd.FullCommand():
 		err = onIntegrationConfAWSAppAccessIAM(ctx, ccf.IntegrationConfAWSAppAccessIAMArguments)
 	case integrationConfEKSCmd.FullCommand():
-		err = onIntegrationConfEKSIAM(ccf.IntegrationConfEKSIAMArguments)
+		err = onIntegrationConfEKSIAM(ctx, ccf.IntegrationConfEKSIAMArguments)
 	case integrationConfAWSOIDCIdPCmd.FullCommand():
-		err = onIntegrationConfAWSOIDCIdP(ccf)
+		err = onIntegrationConfAWSOIDCIdP(ctx, ccf)
 	case integrationConfListDatabasesCmd.FullCommand():
-		err = onIntegrationConfListDatabasesIAM(ccf.IntegrationConfListDatabasesIAMArguments)
+		err = onIntegrationConfListDatabasesIAM(ctx, ccf.IntegrationConfListDatabasesIAMArguments)
 	case integrationConfExternalAuditCmd.FullCommand():
-		err = onIntegrationConfExternalAuditCmd(ccf.IntegrationConfExternalAuditStorageArguments)
+		err = onIntegrationConfExternalAuditCmd(ctx, ccf.IntegrationConfExternalAuditStorageArguments)
 	case integrationConfTAGSyncCmd.FullCommand():
-		err = onIntegrationConfAccessGraphAWSSync(ccf.IntegrationConfAccessGraphAWSSyncArguments)
+		err = onIntegrationConfAccessGraphAWSSync(ctx, ccf.IntegrationConfAccessGraphAWSSyncArguments)
 	case integrationSAMLIdPGCPWorkforce.FullCommand():
-		err = onIntegrationConfSAMLIdPGCPWorkforce(ccf.IntegrationConfSAMLIdPGCPWorkforceArguments)
+		err = onIntegrationConfSAMLIdPGCPWorkforce(ctx, ccf.IntegrationConfSAMLIdPGCPWorkforceArguments)
 	case tpmIdentifyCmd.FullCommand():
 		var query *tpm.QueryRes
 		query, err = tpm.Query(context.Background(), slog.Default())
@@ -973,218 +960,5 @@ func onJoinOpenSSH(clf config.CommandLineFlags, conf *servicecfg.Config) error {
 	if err := OnStart(clf, conf); err != nil {
 		return trace.Wrap(err)
 	}
-	return nil
-}
-
-func onIntegrationConfDeployService(params config.IntegrationConfDeployServiceIAM) error {
-	ctx := context.Background()
-
-	// Ensure we print output to the user. LogLevel at this point was set to Error.
-	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
-
-	iamClient, err := awsoidc.NewDeployServiceIAMConfigureClient(ctx, params.Region)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = awsoidc.ConfigureDeployServiceIAM(ctx, iamClient, awsoidc.DeployServiceIAMConfigureRequest{
-		Cluster:         params.Cluster,
-		IntegrationName: params.Name,
-		Region:          params.Region,
-		IntegrationRole: params.Role,
-		TaskRole:        params.TaskRole,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-func onIntegrationConfEICEIAM(params config.IntegrationConfEICEIAM) error {
-	ctx := context.Background()
-
-	// Ensure we print output to the user. LogLevel at this point was set to Error.
-	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
-
-	iamClient, err := awsoidc.NewEICEIAMConfigureClient(ctx, params.Region)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = awsoidc.ConfigureEICEIAM(ctx, iamClient, awsoidc.EICEIAMConfigureRequest{
-		Region:          params.Region,
-		IntegrationRole: params.Role,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-func onIntegrationConfAWSAppAccessIAM(ctx context.Context, params config.IntegrationConfAWSAppAccessIAM) error {
-	// Ensure we print output to the user. LogLevel at this point was set to Error.
-	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
-
-	iamClient, err := awsoidc.NewAWSAppAccessConfigureClient(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = awsoidc.ConfigureAWSAppAccess(ctx, iamClient, &awsoidc.AWSAppAccessConfigureRequest{
-		IntegrationRole: params.RoleName,
-	})
-	return trace.Wrap(err)
-}
-
-func onIntegrationConfEKSIAM(params config.IntegrationConfEKSIAM) error {
-	ctx := context.Background()
-
-	// Ensure we print output to the user. LogLevel at this point was set to Error.
-	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
-
-	iamClient, err := awsoidc.NewEKSIAMConfigureClient(ctx, params.Region)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = awsoidc.ConfigureEKSIAM(ctx, iamClient, awsoidc.EKSIAMConfigureRequest{
-		Region:          params.Region,
-		IntegrationRole: params.Role,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-func onIntegrationConfAWSOIDCIdP(clf config.CommandLineFlags) error {
-	ctx := context.Background()
-
-	// pass the value of --insecure flag to the runtime
-	lib.SetInsecureDevMode(clf.InsecureMode)
-
-	// Ensure we print output to the user. LogLevel at this point was set to Error.
-	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
-
-	iamClient, err := awsoidc.NewIdPIAMConfigureClient(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = awsoidc.ConfigureIdPIAM(ctx, iamClient, awsoidc.IdPIAMConfigureRequest{
-		Cluster:            clf.IntegrationConfAWSOIDCIdPArguments.Cluster,
-		IntegrationName:    clf.IntegrationConfAWSOIDCIdPArguments.Name,
-		IntegrationRole:    clf.IntegrationConfAWSOIDCIdPArguments.Role,
-		ProxyPublicAddress: clf.IntegrationConfAWSOIDCIdPArguments.ProxyPublicURL,
-		S3BucketLocation:   clf.IntegrationConfAWSOIDCIdPArguments.S3BucketURI,
-		S3JWKSContentsB64:  clf.IntegrationConfAWSOIDCIdPArguments.S3JWKSContentsB64,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-func onIntegrationConfListDatabasesIAM(params config.IntegrationConfListDatabasesIAM) error {
-	ctx := context.Background()
-
-	// Ensure we show progress to the user.
-	// LogLevel at this point is set to Error.
-	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
-
-	if params.Region == "" {
-		return trace.BadParameter("region is required")
-	}
-
-	cfg, err := awsConfig.LoadDefaultConfig(ctx, awsConfig.WithRegion(params.Region))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	iamClient := iam.NewFromConfig(cfg)
-
-	err = awsoidc.ConfigureListDatabasesIAM(ctx, iamClient, awsoidc.ConfigureIAMListDatabasesRequest{
-		Region:          params.Region,
-		IntegrationRole: params.Role,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-func onIntegrationConfExternalAuditCmd(params easconfig.ExternalAuditStorageConfiguration) error {
-	ctx := context.Background()
-	cfg, err := awsConfig.LoadDefaultConfig(ctx, awsConfig.WithRegion(params.Region))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if params.Bootstrap {
-		err = externalauditstorage.BootstrapInfra(ctx, externalauditstorage.BootstrapInfraParams{
-			Athena: athena.NewFromConfig(cfg),
-			Glue:   glue.NewFromConfig(cfg),
-			S3:     s3.NewFromConfig(cfg),
-			Spec: &ecatypes.ExternalAuditStorageSpec{
-				SessionRecordingsURI:   params.SessionRecordingsURI,
-				AuditEventsLongTermURI: params.AuditEventsURI,
-				AthenaResultsURI:       params.AthenaResultsURI,
-				AthenaWorkgroup:        params.AthenaWorkgroup,
-				GlueDatabase:           params.GlueDatabase,
-				GlueTable:              params.GlueTable,
-			},
-			Region: params.Region,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	clt := &awsoidc.DefaultConfigureExternalAuditStorageClient{
-		Iam: iam.NewFromConfig(cfg),
-		Sts: sts.NewFromConfig(cfg),
-	}
-	return trace.Wrap(awsoidc.ConfigureExternalAuditStorage(ctx, clt, &params))
-}
-
-func onIntegrationConfAccessGraphAWSSync(params config.IntegrationConfAccessGraphAWSSync) error {
-	ctx := context.Background()
-
-	iamClient, err := awsoidc.NewAccessGraphIAMConfigureClient(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = awsoidc.ConfigureAccessGraphSyncIAM(ctx, iamClient, awsoidc.AccessGraphAWSIAMConfigureRequest{
-		IntegrationRole: params.Role,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-func onIntegrationConfSAMLIdPGCPWorkforce(params samlidpconfig.GCPWorkforceAPIParams) error {
-	ctx := context.Background()
-
-	// Ensure we print output to the user. LogLevel at this point was set to Error.
-	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
-
-	gcpWorkforceService, err := samlidp.NewGCPWorkforceService(samlidp.GCPWorkforceService{
-		APIParams: params,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := gcpWorkforceService.CreateWorkforcePoolAndProvider(ctx); err != nil {
-		return trace.Wrap(err)
-	}
-
 	return nil
 }
