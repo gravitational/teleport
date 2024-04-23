@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -1272,9 +1271,9 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 	case teleport.ForceTerminateRequest:
 		return s.termHandlers.HandleForceTerminate(ch, req, scx)
 	case sshutils.EnvRequest:
-		return s.handleEnv(ctx, ch, req, scx)
+		return s.handleEnv(ctx, req, scx)
 	case tracessh.EnvsRequest:
-		return s.handleEnvs(ctx, ch, req, scx)
+		return s.handleEnvs(ctx, req, scx)
 	case sshutils.SubsystemRequest:
 		return s.handleSubsystem(ctx, ch, req, scx)
 	case sshutils.X11ForwardRequest:
@@ -1478,21 +1477,23 @@ func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.R
 	return nil
 }
 
-func (s *Server) handleEnv(ctx context.Context, ch ssh.Channel, req *ssh.Request, scx *srv.ServerContext) error {
+func (s *Server) handleEnv(ctx context.Context, req *ssh.Request, scx *srv.ServerContext) error {
 	var e sshutils.EnvReqParams
 	if err := ssh.Unmarshal(req.Payload, &e); err != nil {
 		scx.Error(err)
 		return trace.Wrap(err, "failed to parse env request")
 	}
 
-	if isTeleportEnv(e.Name) {
+	if srv.IsTeleportEnv(e.Name) {
 		// As a forwarder we want to capture the Teleport environment variables
 		// set by the caller. Environment variables are used to pass existing
 		// session IDs (Assist) and other flags like enabling non-interactive
 		// session recording.
 		// We want to save the environment variables even if the ssh server rejects
 		// them, as we still need their information (e.g. the session ID).
-		scx.SetEnv(e.Name, e.Value)
+		if err := scx.SetTeleportEnv(true, e.Name, e.Value); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	err := scx.RemoteSession.Setenv(ctx, e.Name, e.Value)
@@ -1505,7 +1506,7 @@ func (s *Server) handleEnv(ctx context.Context, ch ssh.Channel, req *ssh.Request
 
 // handleEnvs accepts environment variables sent by the client and forwards them
 // to the remote session.
-func (s *Server) handleEnvs(ctx context.Context, ch ssh.Channel, req *ssh.Request, scx *srv.ServerContext) error {
+func (s *Server) handleEnvs(ctx context.Context, req *ssh.Request, scx *srv.ServerContext) error {
 	var raw tracessh.EnvsReq
 	if err := ssh.Unmarshal(req.Payload, &raw); err != nil {
 		scx.Error(err)
@@ -1518,14 +1519,16 @@ func (s *Server) handleEnvs(ctx context.Context, ch ssh.Channel, req *ssh.Reques
 	}
 
 	for envName, envValue := range envs {
-		if isTeleportEnv(envName) {
+		if srv.IsTeleportEnv(envName) {
 			// As a forwarder we want to capture the Teleport environment variables
 			// set by the caller. Environment variables are used to pass existing
 			// session IDs (Assist) and other flags like enabling non-interactive
 			// session recording.
 			// We want to save the environment variables even if the ssh server rejects
 			// them, as we still need their information (e.g. the session ID).
-			scx.SetEnv(envName, envValue)
+			if err := scx.SetTeleportEnv(true, envName, envValue); err != nil {
+				return trace.Wrap(err)
+			}
 		}
 	}
 
@@ -1582,20 +1585,4 @@ func (s *Server) handlePuTTYWinadj(ch ssh.Channel, req *ssh.Request) error {
 	// of leaving handleSessionRequests to do it) so set the WantReply flag to false here.
 	req.WantReply = false
 	return nil
-}
-
-// teleportVarPrefixes contains the list of prefixes used by Teleport environment
-// variables. Matching variables are saved in the session context when forwarding
-// the calls to a remote SSH server as they can contain Teleport-specific
-// information used to process the session properly (e.g. TELEPORT_SESSION or
-// SSH_TELEPORT_RECORD_NON_INTERACTIVE)
-var teleportVarPrefixes = []string{"TELEPORT_", "SSH_TELEPORT_"}
-
-func isTeleportEnv(varName string) bool {
-	for _, prefix := range teleportVarPrefixes {
-		if strings.HasPrefix(varName, prefix) {
-			return true
-		}
-	}
-	return false
 }

@@ -1768,9 +1768,9 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		case sshutils.SubsystemRequest:
 			return s.handleSubsystem(ctx, ch, req, serverContext)
 		case sshutils.EnvRequest:
-			return s.handleEnv(ch, req, serverContext)
+			return s.handleEnv(req, serverContext)
 		case tracessh.EnvsRequest:
-			return s.handleEnvs(ch, req, serverContext)
+			return s.handleEnvs(req, serverContext)
 		case sshutils.AgentForwardRequest:
 			// process agent forwarding, but we will only forward agent to proxy in
 			// recording proxy mode.
@@ -1866,9 +1866,9 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 	case teleport.ForceTerminateRequest:
 		return s.termHandlers.HandleForceTerminate(ch, req, serverContext)
 	case sshutils.EnvRequest:
-		return s.handleEnv(ch, req, serverContext)
+		return s.handleEnv(req, serverContext)
 	case tracessh.EnvsRequest:
-		return s.handleEnvs(ch, req, serverContext)
+		return s.handleEnvs(req, serverContext)
 	case sshutils.SubsystemRequest:
 		// subsystems are SSH subsystems defined in http://tools.ietf.org/html/rfc4254 6.6
 		// they are in essence SSH session extensions, allowing to implement new SSH commands
@@ -2042,22 +2042,32 @@ func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.R
 
 // handleEnv accepts an environment variable sent by the client and stores it
 // in connection context
-func (s *Server) handleEnv(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerContext) error {
+func (s *Server) handleEnv(req *ssh.Request, scx *srv.ServerContext) error {
 	var e sshutils.EnvReqParams
 	if err := ssh.Unmarshal(req.Payload, &e); err != nil {
-		ctx.Error(err)
+		scx.Error(err)
 		return trace.Wrap(err, "failed to parse env request")
 	}
-	ctx.SetEnv(e.Name, e.Value)
+
+	if srv.IsTeleportEnv(e.Name) {
+		// if this session is being recorded at the Proxy the Proxy will
+		// not allow internal env vars to be set by users, so any requests
+		// to set internal env vars are from the Proxy itself and are safe
+		// to allow
+		blockInternalEnvs := !services.IsRecordAtProxy(scx.SessionRecordingConfig.GetMode())
+		return trace.Wrap(scx.SetTeleportEnv(blockInternalEnvs, e.Name, e.Value))
+	}
+
+	scx.SetEnv(e.Name, e.Value)
 	return nil
 }
 
 // handleEnvs accepts environment variables sent by the client and stores them
 // in connection context
-func (s *Server) handleEnvs(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerContext) error {
+func (s *Server) handleEnvs(req *ssh.Request, scx *srv.ServerContext) error {
 	var raw tracessh.EnvsReq
 	if err := ssh.Unmarshal(req.Payload, &raw); err != nil {
-		ctx.Error(err)
+		scx.Error(err)
 		return trace.Wrap(err, "failed to parse envs request")
 	}
 
@@ -2066,8 +2076,18 @@ func (s *Server) handleEnvs(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerCon
 		return trace.Wrap(err, "failed to unmarshal envs")
 	}
 
+	// if this session is being recorded at the Proxy the Proxy will
+	// not allow internal env vars to be set by users, so any requests
+	// to set internal env vars are from the Proxy itself and are safe
+	// to allow
+	blockInternalEnvs := !services.IsRecordAtProxy(scx.SessionRecordingConfig.GetMode())
 	for k, v := range envs {
-		ctx.SetEnv(k, v)
+		if srv.IsTeleportEnv(k) {
+			if err := scx.SetTeleportEnv(blockInternalEnvs, k, v); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		scx.SetEnv(k, v)
 	}
 
 	return nil

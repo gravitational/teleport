@@ -26,6 +26,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -77,6 +78,14 @@ var (
 var (
 	ErrNodeFileCopyingNotPermitted  = trace.AccessDenied("node does not allow file copying via SCP or SFTP")
 	errCannotStartUnattendedSession = trace.AccessDenied("lacking privileges to start unattended session")
+
+	// InternalEnvVars are environment variables used by Teleport that
+	// users don't need to/should never be allowed to create or modify.
+	InternalEnvVars = []string{
+		teleport.SSHTeleportUser,
+		teleport.SSHTeleportHostUUID,
+		teleport.SSHTeleportClusterName,
+	}
 )
 
 func init() {
@@ -701,6 +710,37 @@ func (c *ServerContext) SetTerm(t Terminal) {
 	c.term = t
 }
 
+var (
+	// teleportVarPrefixes contains the list of prefixes used by Teleport environment
+	// variables. Matching variables are saved in the session context when forwarding
+	// the calls to a remote SSH server as they can contain Teleport-specific
+	// information used to process the session properly (e.g. TELEPORT_SESSION or
+	// SSH_TELEPORT_RECORD_NON_INTERACTIVE)
+	teleportVarPrefixes = []string{"TELEPORT_", "SSH_TELEPORT_"}
+	// teleportSSHVars contains a list of Teleport environment variables that don't
+	// contain TELEPORT. They are checked against directly instead of checking the
+	// SSH_SESSION prefix because other non-Teleport environment variables may share
+	// that prefix.
+	teleportSSHVars = []string{
+		teleport.SSHSessionID,
+		teleport.SSHSessionWebProxyAddr,
+	}
+)
+
+// IsTeleportEnv returns true if the environment variable is used
+// by Teleport to track information in an SSH session.
+func IsTeleportEnv(varName string) bool {
+	if slices.Contains(teleportSSHVars, varName) {
+		return true
+	}
+	for _, prefix := range teleportVarPrefixes {
+		if strings.HasPrefix(varName, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
 // VisitEnv grants visitor-style access to env variables.
 func (c *ServerContext) VisitEnv(visit func(key, val string)) {
 	c.mu.RLock()
@@ -711,6 +751,29 @@ func (c *ServerContext) VisitEnv(visit func(key, val string)) {
 	for key, val := range c.env {
 		visit(key, val)
 	}
+}
+
+// SetTeleportEnv sets a environment variable used by Teleport within
+// this context. If the environment variable is an internal environment
+// variable and blockInternalEnvVars is true or it has already been set,
+// an error will be returned.
+func (c *ServerContext) SetTeleportEnv(blockInternalEnvVars bool, key, val string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if blockInternalEnvVars && slices.Contains(InternalEnvVars, key) {
+		c.Warnf("An attempt was made to set an internal environmental variable %s to %q.", key, val)
+		return trace.AccessDenied("not allowed to set internal environmental variable %s", key)
+	}
+
+	// only allow Teleport env vars to be set once, there is no legitimate
+	// reason they should need to be updated
+	if _, ok := c.env[key]; ok {
+		return trace.AlreadyExists("environmental variable %s has already been set", key)
+	}
+	c.env[key] = val
+
+	return nil
 }
 
 // SetEnv sets a environment variable within this context.
