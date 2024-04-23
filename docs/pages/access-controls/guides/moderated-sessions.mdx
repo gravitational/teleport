@@ -80,7 +80,11 @@ spec:
 
 Because this sample policy requires that at least one user with the `auditor` role to be present
 as a moderator to start SSH or Kubernetes sessions, a user assigned this `prod-access` role 
-won't be able to start any sessions on matching resources until the policy requirements are fulfilled.
+won't be able to start any sessions until the policy requirements are fulfilled. 
+
+The `require_session_join` will apply to all of the user's SSH or Kubernetes sessions including
+other roles with different resource labeling. If you do not want to require session joining for
+all user sessions applying this as a Access Request role is recommended.
 
 ### Required fields
 
