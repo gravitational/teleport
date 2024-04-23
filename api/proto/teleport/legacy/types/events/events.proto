@@ -6172,4 +6172,10 @@ message AccessPathChanged {
 
   // ChangeID is the id of the change.
   string ChangeID = 2 [(gogoproto.jsontag) = "change_id"];
+
+  // AffectedResourceID is the name of the affected resource.
+  string AffectedResourceName = 3 [(gogoproto.jsontag) = "affected_resource_name"];
+
+  // AffectedResourceSource is the source of the affected resource, ex: Teleport, AWS, GitLab, etc.
+  string AffectedResourceSource = 4 [(gogoproto.jsontag) = "affected_resource_source"];
 }
