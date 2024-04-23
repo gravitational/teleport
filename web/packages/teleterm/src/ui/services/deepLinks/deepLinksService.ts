@@ -88,11 +88,68 @@ export class DeepLinksService {
         break;
       }
       case '/authenticate_web_device': {
-        // TODO (avatus): add authenticate device web confirmation dialog
-        // this case is a stub and will not be reached
+        const id = result.url?.searchParams?.id;
+        const token = result.url?.searchParams?.token;
+        await this.askAuthorizeDeviceTrust(result.url, id, token);
         break;
       }
     }
+  }
+
+  private async askAuthorizeDeviceTrust(
+    url: DeepURL,
+    id: string,
+    token: string
+  ): Promise<void> {
+    const rootClusterId = url.hostname;
+    const clusterAddress = url.host;
+    const prefill = {
+      clusterAddress,
+      username: url.username,
+    };
+
+    const rootClusterUri = routing.getClusterUri({ rootClusterId });
+    const rootCluster = this.clustersService.findCluster(rootClusterUri);
+
+    if (!rootCluster) {
+      const { canceled } = await new Promise<{ canceled: boolean }>(resolve => {
+        this.modalsService.openRegularDialog({
+          kind: 'cluster-connect',
+          clusterUri: undefined,
+          reason: undefined,
+          prefill,
+          onSuccess: () => resolve({ canceled: false }),
+          onCancel: () => resolve({ canceled: true }),
+        });
+      });
+
+      if (canceled) {
+        return;
+      }
+    }
+
+    const { isAtDesiredWorkspace } =
+      await this.workspacesService.setActiveWorkspace(rootClusterUri, prefill);
+
+    if (!isAtDesiredWorkspace) {
+      return;
+    }
+
+    this.modalsService.openImportantDialog({
+      kind: 'device-trust-authorize',
+      onCancel: () => console.log('cancelled'),
+      onConfirm: async () => {
+        await this.clustersService.authenticateWebDevice(rootClusterUri, {
+          id,
+          token,
+        });
+        // open url to confirm the token. This endpoint verifies the token and "upgrades"
+        // the web session and redirects to "/web"
+        window.open(
+          `https://${url.host}/webapi/devices/webconfirm?id=${id}&token=${token}`
+        );
+      },
+    });
   }
 
   /**
