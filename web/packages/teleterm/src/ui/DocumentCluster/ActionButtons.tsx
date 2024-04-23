@@ -25,8 +25,9 @@ import {
   connectToServer,
   connectToDatabase,
   connectToKube,
-  connectToApp,
+  connectToAppWithVnet,
   captureAppLaunchInBrowser,
+  setUpAppGateway,
 } from 'teleterm/ui/services/workspacesService';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
@@ -47,7 +48,7 @@ import {
   getAwsAppLaunchUrl,
   getSamlAppSsoUrl,
 } from 'teleterm/services/tshd/app';
-import { useVnetContext } from 'teleterm/ui/Vnet';
+import { useVnetContext, useVnetLauncher } from 'teleterm/ui/Vnet';
 
 export function ConnectServerActionButton(props: {
   server: Server;
@@ -110,9 +111,14 @@ export function ConnectKubeActionButton(props: {
 export function ConnectAppActionButton(props: { app: App }): React.JSX.Element {
   const appContext = useAppContext();
   const { isSupported: isVnetSupported } = useVnetContext();
+  const launchVnet = useVnetLauncher();
 
-  function connect(): void {
-    connectToApp(appContext, props.app, { origin: 'resource_table' });
+  function connectWithVnet(): void {
+    connectToAppWithVnet(appContext, launchVnet, props.app);
+  }
+
+  function setUpGateway(): void {
+    setUpAppGateway(appContext, props.app, { origin: 'resource_table' });
   }
 
   const rootCluster = appContext.clustersService.findCluster(
@@ -124,7 +130,8 @@ export function ConnectAppActionButton(props: { app: App }): React.JSX.Element {
 
   return (
     <AppButton
-      connect={connect}
+      connectWithVnet={connectWithVnet}
+      setUpGateway={setUpGateway}
       app={props.app}
       cluster={cluster}
       rootCluster={rootCluster}
@@ -213,7 +220,8 @@ function AppButton(props: {
   app: App;
   cluster: Cluster;
   rootCluster: Cluster;
-  connect(): void;
+  connectWithVnet(): void;
+  setUpGateway(): void;
   onLaunchUrl(): void;
   isVnetSupported: boolean;
 }) {
@@ -269,7 +277,7 @@ function AppButton(props: {
         target="_blank"
         title="Launch the app in the browser"
       >
-        <MenuItem onClick={props.connect}>Set up connection</MenuItem>
+        <MenuItem onClick={props.setUpGateway}>Set up connection</MenuItem>
       </ButtonWithMenu>
     );
   }
@@ -281,16 +289,20 @@ function AppButton(props: {
         text="Connect"
         textTransform="none"
         size="small"
-        onClick={() => window.alert('TODO(ravicious): Open VNet')}
+        onClick={props.connectWithVnet}
       >
-        <MenuItem onClick={props.connect}>Connect to local port</MenuItem>
+        <MenuItem onClick={props.setUpGateway}>Connect to local port</MenuItem>
       </ButtonWithMenu>
     );
   }
 
   // TCP app without VNet.
   return (
-    <ButtonBorder size="small" onClick={props.connect} textTransform="none">
+    <ButtonBorder
+      size="small"
+      onClick={props.setUpGateway}
+      textTransform="none"
+    >
       Connect
     </ButtonBorder>
   );

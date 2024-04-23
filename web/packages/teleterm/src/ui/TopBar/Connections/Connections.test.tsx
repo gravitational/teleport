@@ -32,6 +32,7 @@ import { routing } from 'teleterm/ui/uri';
 import { unique } from 'teleterm/ui/utils';
 
 import { Connections } from './Connections';
+import { ConnectionsContextProvider } from './connectionsContext';
 
 beforeAll(() => {
   Logger.init(new NullService());
@@ -60,9 +61,11 @@ describe('opening VNet panel', () => {
 
     render(
       <MockAppContextProvider>
-        <VnetContextProvider>
-          <Connections />
-        </VnetContextProvider>
+        <ConnectionsContextProvider>
+          <VnetContextProvider>
+            <Connections />
+          </VnetContextProvider>
+        </ConnectionsContextProvider>
       </MockAppContextProvider>
     );
 
@@ -124,9 +127,11 @@ describe('opening a connection', () => {
 
     render(
       <MockAppContextProvider appContext={appContext}>
-        <VnetContextProvider>
-          <Connections />
-        </VnetContextProvider>
+        <ConnectionsContextProvider>
+          <VnetContextProvider>
+            <Connections />
+          </VnetContextProvider>
+        </ConnectionsContextProvider>
       </MockAppContextProvider>
     );
 
@@ -170,9 +175,11 @@ test('adding a new conn while the list is open puts the new conn at the top', as
 
   render(
     <MockAppContextProvider appContext={appContext}>
-      <VnetContextProvider>
-        <Connections />
-      </VnetContextProvider>
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <Connections />
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
     </MockAppContextProvider>
   );
 
@@ -246,9 +253,11 @@ test('disconnecting a conn does not update its position in the list', async () =
 
   render(
     <MockAppContextProvider appContext={appContext}>
-      <VnetContextProvider>
-        <Connections />
-      </VnetContextProvider>
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <Connections />
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
     </MockAppContextProvider>
   );
 

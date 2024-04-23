@@ -173,7 +173,7 @@ func (s *Service) ListLeafClusters(ctx context.Context, uri string) ([]clusters.
 		return nil, trace.Wrap(err)
 	}
 
-	proxyClient, err := s.GetCachedClient(ctx, cluster.URI)
+	clusterClient, err := s.GetCachedClient(ctx, cluster.URI)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -183,7 +183,7 @@ func (s *Service) ListLeafClusters(ctx context.Context, uri string) ([]clusters.
 		return nil, nil
 	}
 
-	leaves, err := cluster.GetLeafClusters(ctx, proxyClient)
+	leaves, err := cluster.GetLeafClusters(ctx, clusterClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -319,7 +319,7 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 		return gateway, nil
 	}
 
-	proxyClient, err := s.GetCachedClient(ctx, targetURI.GetClusterURI())
+	clusterClient, err := s.GetCachedClient(ctx, targetURI.GetClusterURI())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -332,7 +332,7 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 		OnExpiredCert:         s.reissueGatewayCerts,
 		KubeconfigsDir:        s.cfg.KubeconfigsDir,
 		MFAPromptConstructor:  s.NewMFAPromptConstructor(targetURI.String()),
-		ProxyClient:           proxyClient,
+		ClusterClient:         clusterClient,
 	}
 
 	gateway, err := s.cfg.GatewayCreator.CreateGateway(ctx, clusterCreateGatewayParams)
@@ -372,12 +372,12 @@ func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) (t
 			return trace.Wrap(err)
 		}
 
-		proxyClient, err := s.GetCachedClient(ctx, cluster.URI)
+		clusterClient, err := s.GetCachedClient(ctx, cluster.URI)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		cert, err = cluster.ReissueGatewayCerts(ctx, proxyClient, g)
+		cert, err = cluster.ReissueGatewayCerts(ctx, clusterClient, g)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1118,7 +1118,7 @@ func (s *Service) findGatewayByTargetURI(targetURI uri.ResourceURI) (gateway.Gat
 
 // GetCachedClient returns a client from the cache if it exists,
 // otherwise it dials the remote server.
-func (s *Service) GetCachedClient(ctx context.Context, clusterURI uri.ResourceURI) (*client.ProxyClient, error) {
+func (s *Service) GetCachedClient(ctx context.Context, clusterURI uri.ResourceURI) (*client.ClusterClient, error) {
 	clt, err := s.clientCache.Get(ctx, clusterURI)
 	return clt, trace.Wrap(err)
 }
