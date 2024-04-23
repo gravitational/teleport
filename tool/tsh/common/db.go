@@ -87,9 +87,6 @@ func onListDatabases(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	databases := types.DatabaseServers(servers).ToDatabases()
-	types.DeduplicateDatabases(databases)
-
 	accessChecker, err := services.NewAccessCheckerForRemoteCluster(cf.Context, profile.AccessInfo(), tc.SiteName, clusterClient.AuthClient)
 	if err != nil {
 		log.Debugf("Failed to fetch user roles: %v.", err)
@@ -100,6 +97,7 @@ func onListDatabases(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	databases := types.DatabaseServers(servers).ToDatabases()
 	sort.Sort(types.Databases(databases))
 	return trace.Wrap(showDatabases(cf, databases, activeDatabases, accessChecker))
 }
@@ -188,12 +186,12 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 			}
 
 			localDBListings := make(databaseListings, 0, len(databases))
-			for _, database := range databases {
+			for _, database := range types.DatabaseServers(databases).ToDatabases() {
 				localDBListings = append(localDBListings, databaseListing{
 					Proxy:         cluster.profile.ProxyURL.Host,
 					Cluster:       cluster.name,
 					accessChecker: accessChecker,
-					Database:      database.GetDatabase(),
+					Database:      database,
 				})
 			}
 			mu.Lock()
