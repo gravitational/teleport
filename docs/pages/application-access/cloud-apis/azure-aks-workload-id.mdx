@@ -5,6 +5,8 @@ description: How to enable secure access to Azure CLIs on Azure Kubernetes Servi
 
 (!docs/pages/includes/application-access/azure-intro.mdx!)
 
+In this guide, you will:
+
 1. Create an Azure managed identity for the Application Service and set it as the default Workload ID for your Kubernetes service account.
 1. Create an Azure managed identity for user access and attach it to the same Kubernetes service account.
 1. Deploy a Teleport Application Service with an Azure app in your Teleport cluster.
@@ -38,11 +40,11 @@ description: How to enable secure access to Azure CLIs on Azure Kubernetes Servi
 
 ## Step 1/6. Create an Azure managed identity for Teleport Application Service
 
-Teleport Application Service requires a managed identity that can retrieve the
-client IDs of the managed identities for user access. This managed identity
+The Teleport Application Service requires a managed identity that can retrieve
+the client IDs of the managed identities for user access. This managed identity
 will be assigned as the default identity for the Kubernetes service account.
 
-Login to your Azure admin account with `az login` command if you haven't
+Log in to your Azure admin account with `az login` command if you haven't
 already, and prepare some environment variables for later steps:
 ```code
 $ export SUBSCRIPTION="$(az account show --query id --output tsv)"
@@ -93,7 +95,7 @@ $ az aks get-credentials -n "${AKS_CLUSTER_NAME}" -g "${RESOURCE_GROUP}"
 Create a Kubernetes service account and annotate it with the client ID of
 the managed identity created in the previous step:
 ```code
-$ cat <<EOF | kubectl apply -f -
+$ cat > azure_access_aks_service_account.yaml <<EOF
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -102,6 +104,7 @@ metadata:
   name: "<Var name="teleport-azure-cli-aks-service-account" />"
   namespace: "<Var name="teleport-ns" />"
 EOF
+$ kubectl apply -f azure_access_aks_service_account.yaml
 ```
 
 Now create a federated credential to associate the managed identity created in
