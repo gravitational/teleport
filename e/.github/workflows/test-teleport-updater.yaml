@@ -1,0 +1,23 @@
+# This is a placeholder workflow and will be replaced once the appropriate
+# functionality passes code review.
+#
+# Dispatching workflow calls to a GHA workflow on a branch requires that a
+# workflow file with the correct name exists in the default branch, even
+# if that workflow bears no resemblance to the target workflow
+
+name: Test the Teleport updater
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/build-teleport-updater.yaml
+      - .github/workflows/deploy-packages.yaml
+      - .github/actions/load-gpg-key/action.yaml
+      - .github/actions/deploy-os-package/action.yaml
+      - assets/systemd-unit-upgrader/**
+jobs:
+  dummy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Greeting
+        run: echo "This is a dummy build to placate GitHub."
