@@ -32,11 +32,13 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
+	dtauthn "github.com/gravitational/teleport/lib/devicetrust/authn"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/cmd"
@@ -1072,6 +1074,28 @@ func (s *Service) UpdateUserPreferences(ctx context.Context, clusterURI uri.Reso
 	})
 
 	return preferences, trace.Wrap(err)
+}
+
+// AuthenticateWebDevice is used to upgrade a web session (identified by a DeviceWebToken) to include device trust extensions.
+func (s *Service) AuthenticateWebDevice(ctx context.Context, rootClusterURI uri.ResourceURI, req *api.AuthenticateWebDeviceRequest) (*api.AuthenticateWebDeviceResponse, error) {
+	proxyClient, err := s.GetCachedClient(ctx, rootClusterURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	devicesClient := proxyClient.CurrentCluster().DevicesClient()
+
+	ceremony := dtauthn.NewCeremony()
+	confirmationToken, err := ceremony.RunWeb(ctx, devicesClient, &devicepb.DeviceWebToken{
+		Id:    req.DeviceWebToken.Id,
+		Token: req.DeviceWebToken.Token,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &api.AuthenticateWebDeviceResponse{
+		ConfirmationToken: confirmationToken,
+	}, nil
 }
 
 func (s *Service) shouldReuseGateway(targetURI uri.ResourceURI) (gateway.Gateway, bool) {

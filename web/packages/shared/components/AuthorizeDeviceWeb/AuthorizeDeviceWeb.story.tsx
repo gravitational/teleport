@@ -16,35 +16,26 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { getPlatform } from 'design/platform';
+import { MemoryRouter } from 'react-router';
 
-import { State } from './useReAuthenticate';
-import { ReAuthenticate } from './ReAuthenticate';
+import { getConnectDownloadLinks } from '../DownloadConnect/DownloadConnect';
+
+import { DeviceTrustConnectPassthrough } from './AuthorizeDeviceWeb';
 
 export default {
-  title: 'Teleport/ReAuthenticate',
+  title: 'Shared/AuthorizeDeviceWeb',
 };
 
-export const Loaded = () => <ReAuthenticate {...props} />;
-
-export const Processing = () => (
-  <ReAuthenticate {...props} attempt={{ status: 'processing' }} />
-);
-
-export const Failed = () => (
-  <ReAuthenticate
-    {...props}
-    attempt={{ status: 'failed', statusText: 'an error has occurred' }}
-  />
-);
-
-const props: State = {
-  attempt: { status: '' },
-  clearAttempt: () => null,
-  submitWithTotp: () => null,
-  submitWithWebauthn: () => null,
-  preferredMfaType: 'webauthn',
-  onClose: () => null,
-  auth2faType: 'on',
-  actionText: 'performing this action',
-};
+export function AuthorizeDeviceWeb() {
+  const platform = getPlatform();
+  const downloadLinks = getConnectDownloadLinks(platform, '15.2.2');
+  return (
+    <MemoryRouter>
+      <DeviceTrustConnectPassthrough
+        authorizeWebDeviceDeepLink={'blank'}
+        downloadLinks={downloadLinks}
+      />
+    </MemoryRouter>
+  );
+}
