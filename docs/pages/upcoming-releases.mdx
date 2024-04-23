@@ -7,10 +7,10 @@ The Teleport team delivers a new major release roughly every 4 months.
 
 ## Teleport
 
-| Version | Date            |
-|---------|-----------------|
-| 15.3.0  | April 30, 2024  |
-| 16.0.0  | May 31, 2024    |
+| Version | Date           |
+| ------- | -------------- |
+| 15.3.0  | April 30, 2024 |
+| 16.0.0  | May 31, 2024   |
 
 ### 15.3.0
 
@@ -30,6 +30,25 @@ Database access users will be able to connect to GCP Spanner.
 Windows desktop sessions will automatically resize as the size of the browser
 window changes.
 
+#### Hardware key support for agentless nodes
+
+Teleport will support connecting to agentless OpenSSH nodes even when Teleport
+is configured to require hardware key MFA checks.
+
+### 15.4.0
+
+#### Access requests notification routing rules
+
+Hosted Slack plugin users will be able to configure notification routing rules
+for role-based access requests.
+
+#### TPM joining
+
+The new TPM join method will enable secure joining for agents and Machine ID bots that
+run on-premise. Based on the secure properties of the host's hardware trusted platform module,
+this join method removes the need to create and distribute secret tokens, significantly
+reducing the risk of exfiltration.
+
 ### 16.0.0
 
 #### Teleport VNet
@@ -42,14 +61,25 @@ This will allow scripts and software applications to connect to any
 Teleport-protected application as if they were connected to a VPN, without the
 need to manage local tunnels.
 
+#### Per-session MFA for applications
+
+Teleport 16 will support per-session MFA checks when accessing web and TCP applications.
+
+#### Device Trust support for the Web UI
+
+With Teleport 16, Device Trust checks can be enforced for workflows that require the Web UI.
+This includes access to web applications and Windows desktops.
+
+Teleport Connect must be installed on user workstations in order to satisfy device checks.
+
 ## Teleport Cloud
 
 The key deliverables for Teleport Cloud in the next quarter:
 
-| Week of       | Description                                                  |
-|---------------|--------------------------------------------------------------|
-| May 6, 2024   | Teleport 15.3 will begin rollout on Cloud.                   |
-| May 6, 2024   | Teleport 15.3 agents will begin rollout to eligible tenants. |
+| Week of     | Description                                                  |
+| ----------- | ------------------------------------------------------------ |
+| May 6, 2024 | Teleport 15.3 will begin rollout on Cloud.                   |
+| May 6, 2024 | Teleport 15.3 agents will begin rollout to eligible tenants. |
 
 ## Production readiness
 
