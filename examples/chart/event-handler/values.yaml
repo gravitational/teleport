@@ -1,0 +1,68 @@
+# Default values for event-handler.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+#
+# Plugin specific options
+#
+teleport:
+  address: ""
+  identitySecretName: ""
+  identitySecretPath: "auth_id"
+
+eventHandler:
+  storagePath: "/var/lib/teleport/plugins/event-handler/storage"
+  timeout: "10s"
+  batch: 20
+
+fluentd:
+  url: ""
+  sessionUrl: ""
+  certificate:
+    secretName: ""
+    caPath: "ca.crt"
+    certPath: "client.crt"
+    keyPath: "client.key"
+
+persistentVolumeClaim:
+  enabled: false
+  size: 1Gi
+  storageClassName: ""
+  existingClaim: ""
+  volumeName: "storage"
+
+#
+# Deployment
+#
+image:
+  repository: public.ecr.aws/gravitational/teleport-plugin-event-handler
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+podAnnotations: {}
+
+podSecurityContext: {}
+
+securityContext: {}
+
+resources: {}
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+volumes: []
+  # - name: storage
+  #   persistentVolumeClaim:
+  #     claimName: teleport-plugin-event-handler
+
+volumeMounts: []
+  # - name: storage
+  #   mountPath: "/var/lib/teleport/plugins/event-handler/storage"

@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "event-handler.fullname" . }}
+  labels:
+    {{- include "event-handler.labels" . | nindent 4 }}
+data:
+  teleport-event-handler.toml: |
+    storage = {{ .Values.eventHandler.storagePath | toJson }}
+    timeout = {{ .Values.eventHandler.timeout | toJson }}
+    batch = {{ .Values.eventHandler.batch }}
+
+    [teleport]
+    addr = "{{ .Values.teleport.address }}"
+    identity = "/var/lib/teleport/plugins/event-handler/teleport-identity/{{ .Values.teleport.identitySecretPath }}"
+    refresh.enabled = true
+
+    [forward.fluentd]
+    url = "{{ .Values.fluentd.url }}"
+    session-url = "{{ .Values.fluentd.sessionUrl }}"
+    ca = "/var/lib/teleport/plugins/event-handler/ca.crt"
+    cert = "/var/lib/teleport/plugins/event-handler/client.crt"
+    key = "/var/lib/teleport/plugins/event-handler/client.key"

@@ -670,7 +670,7 @@ tooling: ensure-gotestsum $(DIFF_TEST)
 # Runs all Go/shell tests, called by CI/CD.
 #
 .PHONY: test
-test: test-helm test-sh test-api test-go test-rust test-operator
+test: test-helm test-sh test-api test-go test-rust test-operator test-terraform-provider
 
 $(TEST_LOG_DIR):
 	mkdir $(TEST_LOG_DIR)
@@ -693,12 +693,16 @@ test-helm: helmunit/installed
 	helm unittest -3 --with-subchart=false examples/chart/teleport-cluster
 	helm unittest -3 examples/chart/teleport-kube-agent
 	helm unittest -3 examples/chart/teleport-cluster/charts/teleport-operator
+	helm unittest -3 examples/chart/access/*
+	helm unittest -3 examples/chart/event-handler
 
 .PHONY: test-helm-update-snapshots
 test-helm-update-snapshots: helmunit/installed
 	helm unittest -3 -u --with-subchart=false examples/chart/teleport-cluster
 	helm unittest -3 -u examples/chart/teleport-kube-agent
 	helm unittest -3 -u examples/chart/teleport-cluster/charts/teleport-operator
+	helm unittest -3 -u examples/chart/access/*
+	helm unittest -3 -u examples/chart/event-handler
 
 #
 # Runs all Go tests except integration, called by CI/CD.
@@ -811,6 +815,12 @@ test-api:
 test-operator:
 	make -C integrations/operator test
 #
+# Runs Teleport Terraform provider tests.
+#
+.PHONY: test-terraform-provider
+test-terraform-provider:
+	make -C integrations/terraform test
+#
 # Runs Go tests on the integrations/kube-agent-updater module. These have to be run separately as the package name is different.
 #
 .PHONY: test-kube-agent-updater
@@ -825,6 +835,10 @@ test-kube-agent-updater:
 .PHONY: test-access-integrations
 test-access-integrations:
 	make -C integrations test-access
+
+.PHONY: test-access-integrations
+test-event-handler-integrations:
+	make -C integrations test-event-handler
 
 .PHONY: test-integrations-lib
 test-integrations-lib:
@@ -983,7 +997,9 @@ endif
 .PHONY: lint-go
 lint-go: GO_LINT_FLAGS ?=
 lint-go:
-	golangci-lint run -c .golangci.yml --build-tags='$(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG)' $(GO_LINT_FLAGS)
+	golangci-lint run -c .golangci.yml --build-tags='$(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_LINT_TAG)' $(GO_LINT_FLAGS)
+	$(MAKE) -C integrations/terraform lint
+	$(MAKE) -C integrations/event-handler lint
 
 .PHONY: fix-imports
 fix-imports:
