@@ -601,7 +601,7 @@ release-windows: release-windows-unsigned
 		echo "Failed to sign tctl.exe, aborting."; \
 		exit 1; \
 	fi
-	
+
 	zip -9 -y -r -q $(RELEASE).zip teleport/
 	rm -rf teleport/
 	@echo "---> Created $(RELEASE).zip."
@@ -1408,7 +1408,7 @@ must-start-clean/host:
 .PHONY: crds-up-to-date
 crds-up-to-date: must-start-clean/host
 	$(MAKE) -C integrations/operator manifests
-	@if ! $(GIT) diff --quiet; then \
+	@if ! git diff --quiet; then \
 		echo 'Please run make -C integrations/operator manifests.'; \
 		exit 1; \
 	fi
