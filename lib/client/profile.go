@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
@@ -374,8 +373,8 @@ func profileStatusFromKey(key *Key, opts profileOptions) (*ProfileStatus, error)
 }
 
 // IsExpired returns true if profile is not expired yet
-func (p *ProfileStatus) IsExpired(clock clockwork.Clock) bool {
-	return p.ValidUntil.Sub(clock.Now()) <= 0
+func (p *ProfileStatus) IsExpired(now time.Time) bool {
+	return p.ValidUntil.Sub(now) <= 0
 }
 
 // virtualPathWarnOnce is used to ensure warnings about missing virtual path

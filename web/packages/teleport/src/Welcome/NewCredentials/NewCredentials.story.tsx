@@ -53,6 +53,15 @@ export const PrimaryPasswordWithMfa = () =>
 export const PrimaryPasswordlessNoMfa = () =>
   renderNewCredentials({ primaryAuthType: 'passwordless' });
 
+export const PrimaryPasswordlessPasskeyCreated = () =>
+  renderNewCredentials({
+    primaryAuthType: 'passwordless',
+    credential: {
+      id: 'some-credential',
+      type: 'public-key',
+    },
+  });
+
 export const PrimaryPasswordlessWithMfa = () =>
   renderNewCredentials({
     primaryAuthType: 'passwordless',
@@ -76,6 +85,15 @@ export const MfaDeviceOtp = () =>
 export const MfaDeviceWebauthn = () =>
   renderMfaFlow({
     auth2faType: 'webauthn',
+  });
+
+export const MfaDeviceWebauthnKeyCreated = () =>
+  renderMfaFlow({
+    auth2faType: 'webauthn',
+    credential: {
+      id: 'some-credential',
+      type: 'public-key',
+    },
   });
 
 export const MfaDeviceOptional = () =>
@@ -184,6 +202,7 @@ const makeNewCredProps = (
       clearSubmitAttempt: () => null,
       fetchAttempt: { status: 'success' },
       onSubmitWithWebauthn: () => null,
+      createNewWebAuthnDevice: () => null,
       onSubmit: () => null,
       redirect: () => null,
       success: false,

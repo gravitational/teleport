@@ -803,10 +803,6 @@ func (proxy *ProxyClient) CreateAppSession(ctx context.Context, req *proto.Creat
 	}
 	defer accessPoint.Close()
 
-	err = auth.WaitForAppSession(ctx, ws.GetName(), ws.GetUser(), accessPoint)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	return ws, nil
 }
 
@@ -941,8 +937,7 @@ func (proxy *ProxyClient) FindDatabasesByFiltersForCluster(ctx context.Context, 
 		return nil, trace.Wrap(err)
 	}
 
-	databases := types.DatabaseServers(servers).ToDatabases()
-	return types.DeduplicateDatabases(databases), nil
+	return types.DatabaseServers(servers).ToDatabases(), nil
 }
 
 // ListResources returns a paginated list of resources.

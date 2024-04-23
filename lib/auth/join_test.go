@@ -370,7 +370,7 @@ func TestRegister_Bot(t *testing.T) {
 	} {
 		t.Run(test.desc, func(t *testing.T) {
 			start := srv.Clock().Now()
-			certs, err := Register(RegisterParams{
+			certs, err := Register(ctx, RegisterParams{
 				Token: test.token.GetName(),
 				ID: IdentityID{
 					Role: types.RoleBot,
@@ -473,7 +473,7 @@ func TestRegister_Bot_Expiry(t *testing.T) {
 			tok := newBotToken(t, t.Name(), botName, types.RoleBot, srv.Clock().Now().Add(time.Hour))
 			require.NoError(t, srv.Auth().UpsertToken(ctx, tok))
 
-			certs, err := Register(RegisterParams{
+			certs, err := Register(ctx, RegisterParams{
 				Token: tok.GetName(),
 				ID: IdentityID{
 					Role: types.RoleBot,

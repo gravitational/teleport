@@ -1054,22 +1054,12 @@
           "forScopes": ["enterprise", "cloud"],
           "entries": [
             {
-              "title": "Okta Service",
-              "slug": "/application-access/okta/guide/",
-              "forScopes": ["enterprise", "cloud"]
-            },
-            {
-              "title": "Okta Service Hosted Integration",
+              "title": "Okta Integration",
               "slug": "/application-access/okta/hosted-guide/",
               "forScopes": [
                 "enterprise",
                 "cloud"
               ]
-            },
-            {
-              "title": "Architecture",
-              "slug": "/application-access/okta/architecture/",
-              "forScopes": ["enterprise", "cloud"]
             },
             {
               "title": "Synchronization and SCIM",
@@ -1885,7 +1875,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "15.2.0",
+      "version": "15.2.2",
       "major_version": "15",
       "sla": {
         "monthly_percentage": "99.9%",

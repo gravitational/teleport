@@ -218,7 +218,6 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 		SetUUID(nodeID),
 		SetNamespace(apidefaults.Namespace),
 		SetEmitter(nodeClient),
-		SetShell("/bin/sh"),
 		SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
 		SetLabels(
 			map[string]string{"foo": "bar"},
@@ -1545,7 +1544,6 @@ func TestProxyRoundRobin(t *testing.T) {
 		SetBPF(&bpf.NOP{}),
 		SetClock(f.clock),
 		SetLockWatcher(lockWatcher),
-		SetNodeWatcher(nodeWatcher),
 		SetSessionController(sessionController),
 	)
 	require.NoError(t, err)
@@ -1685,7 +1683,6 @@ func TestProxyDirectAccess(t *testing.T) {
 		SetBPF(&bpf.NOP{}),
 		SetClock(f.clock),
 		SetLockWatcher(lockWatcher),
-		SetNodeWatcher(nodeWatcher),
 		SetSessionController(sessionController),
 	)
 	require.NoError(t, err)
@@ -1918,7 +1915,6 @@ func TestLimiter(t *testing.T) {
 		utils.NetAddr{},
 		nodeClient,
 		SetLimiter(limiter),
-		SetShell("/bin/sh"),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
 		SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
@@ -2403,7 +2399,6 @@ func TestParseSubsystemRequest(t *testing.T) {
 			SetBPF(&bpf.NOP{}),
 			SetClock(f.clock),
 			SetLockWatcher(lockWatcher),
-			SetNodeWatcher(nodeWatcher),
 			SetSessionController(sessionController),
 		)
 		require.NoError(t, err)
@@ -2664,7 +2659,6 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 		SetBPF(&bpf.NOP{}),
 		SetClock(f.clock),
 		SetLockWatcher(lockWatcher),
-		SetNodeWatcher(nodeWatcher),
 		SetSessionController(sessionController),
 	)
 	require.NoError(t, err)

@@ -72,7 +72,7 @@ func getMetadata(ctx context.Context, suffix string) (string, error) {
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	resp, err := client.Get(suffix)
+	resp, err := client.GetWithContext(ctx, suffix)
 	return resp, trace.Wrap(convertMetadataError(err))
 }
 

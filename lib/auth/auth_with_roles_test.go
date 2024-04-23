@@ -5455,9 +5455,9 @@ func TestLocalServiceRolesHavePermissionsForUploaderService(t *testing.T) {
 
 	roles := types.LocalServiceMappings()
 	for _, role := range roles {
-		// RoleMDM services don't create events by themselves, instead they rely on
+		// RoleMDM and AccessGraphPlugin services don't create events by themselves, instead they rely on
 		// Auth to issue events.
-		if role == types.RoleAuth || role == types.RoleMDM {
+		if role == types.RoleAuth || role == types.RoleMDM || role == types.RoleAccessGraphPlugin {
 			continue
 		}
 

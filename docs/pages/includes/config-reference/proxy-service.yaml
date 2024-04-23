@@ -127,6 +127,9 @@ proxy_service:
     # Also set using the CLI command:
     # 'teleport configure --acme --acme-email=email@example.com \
     # --cluster-name=tele.example.com -o file'
+    # This should NOT be enabled in a highly available Teleport deployment
+    # Using in HA can lead to too many failed authorizations and a lock-up
+    # of the ACME process (https://letsencrypt.org/docs/failed-validation-limit/)
     #acme:
     #  enabled: yes
     #  email: user@example.com

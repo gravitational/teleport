@@ -500,8 +500,11 @@ func (s *WindowsService) initializeLDAP() error {
 		return trace.Wrap(err)
 	}
 
-	conn, err := ldap.DialURL("ldaps://"+s.cfg.Addr,
-		ldap.DialWithTLSDialer(tc, &net.Dialer{Timeout: ldapDialTimeout}))
+	conn, err := ldap.DialURL(
+		"ldaps://"+s.cfg.Addr,
+		ldap.DialWithDialer(&net.Dialer{Timeout: ldapDialTimeout}),
+		ldap.DialWithTLSConfig(tc),
+	)
 	if err != nil {
 		s.mu.Lock()
 		s.ldapInitialized = false

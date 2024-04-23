@@ -91,7 +91,7 @@ func (t *templateMongo) render(
 		return trace.Wrap(err)
 	}
 
-	log.Debugf("Wrote MongoDB identity files: %+v", files)
+	log.DebugContext(ctx, "Wrote MongoDB identity files", "files", files)
 
 	return nil
 }

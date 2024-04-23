@@ -197,7 +197,7 @@ endif
 # On Windows only build tsh. On all other platforms build teleport, tctl,
 # and tsh.
 BINS_default = teleport tctl tsh tbot
-BINS_windows = tsh
+BINS_windows = tsh tctl
 BINS = $(or $(BINS_$(OS)),$(BINS_default))
 BINARIES = $(addprefix $(BUILDDIR)/,$(BINS))
 
@@ -288,6 +288,9 @@ binaries:
 # * Build will rely on go build internal caching https://golang.org/doc/go1.10 at all times
 # * Manual change detection was broken on a large dependency tree
 # If you are considering changing this behavior, please consult with dev team first
+#
+# NOTE: Any changes to the `tctl` build here must be copied to `build.assets/windows/build.ps1`
+# until we can use this Makefile for native Windows builds.
 .PHONY: $(BUILDDIR)/tctl
 $(BUILDDIR)/tctl:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(PIV_BUILD_TAG)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
@@ -377,7 +380,7 @@ print-fido2-pkg-path:
 #
 # make full - Builds Teleport binaries with the built-in web assets and
 # places them into $(BUILDDIR). On Windows, this target is skipped because
-# only tsh is built.
+# only tsh and tctl are built.
 #
 .PHONY:full
 full: WEBASSETS_SKIP_BUILD = 0
@@ -540,7 +543,7 @@ release-darwin: $(RELEASE_darwin_arm64) $(RELEASE_darwin_amd64)
 endif
 
 #
-# make release-windows-unsigned - Produces a binary release archive containing only tsh.
+# make release-windows-unsigned - Produces a binary release archive containing tsh and tctl.
 #
 .PHONY: release-windows-unsigned
 release-windows-unsigned: clean all
@@ -551,6 +554,7 @@ release-windows-unsigned: clean all
 		CHANGELOG.md \
 		teleport/
 	mv teleport/tsh teleport/tsh-unsigned.exe
+	mv teleport/tctl teleport/tctl-unsigned.exe
 	echo $(GITTAG) > teleport/VERSION
 	zip -9 -y -r -q $(RELEASE)-unsigned.zip teleport/
 	rm -rf teleport/
@@ -558,7 +562,7 @@ release-windows-unsigned: clean all
 
 #
 # make release-windows - Produces an archive containing a signed release of
-# tsh.exe
+# tsh.exe and tctl.exe
 #
 .PHONY: release-windows
 release-windows: release-windows-unsigned
@@ -571,7 +575,7 @@ release-windows: release-windows-unsigned
 	@echo "---> Extracting $(RELEASE)-unsigned.zip"
 	unzip $(RELEASE)-unsigned.zip
 
-	@echo "---> Signing Windows binary."
+	@echo "---> Signing Windows tsh binary."
 	@osslsigncode sign \
 		-pkcs12 "windows-signing-cert.pfx" \
 		-n "Teleport" \
@@ -587,6 +591,22 @@ release-windows: release-windows-unsigned
 		exit 1; \
 	fi
 
+	echo "---> Signing Windows tctl binary."
+	@osslsigncode sign \
+		-pkcs12 "windows-signing-cert.pfx" \
+		-n "Teleport" \
+		-i https://goteleport.com \
+		-t http://timestamp.digicert.com \
+		-h sha2 \
+		-in teleport/tctl-unsigned.exe \
+		-out teleport/tctl.exe; \
+	success=$$?; \
+	rm -f teleport/tctl-unsigned.exe; \
+	if [ "$${success}" -ne 0 ]; then \
+		echo "Failed to sign tctl.exe, aborting."; \
+		exit 1; \
+	fi
+	
 	zip -9 -y -r -q $(RELEASE).zip teleport/
 	rm -rf teleport/
 	@echo "---> Created $(RELEASE).zip."
@@ -829,7 +849,7 @@ test-operator:
 #
 .PHONY: test-terraform-provider
 test-terraform-provider:
-	make -C integrations/terraform test
+	make -C integrations test-terraform-provider
 #
 # Runs Go tests on the integrations/kube-agent-updater module. These have to be run separately as the package name is different.
 #
@@ -846,7 +866,7 @@ test-kube-agent-updater:
 test-access-integrations:
 	make -C integrations test-access
 
-.PHONY: test-access-integrations
+.PHONY: test-event-handler-integrations
 test-event-handler-integrations:
 	make -C integrations test-event-handler
 
@@ -1008,6 +1028,8 @@ endif
 lint-go: GO_LINT_FLAGS ?=
 lint-go:
 	golangci-lint run -c .golangci.yml --build-tags='$(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_LINT_TAG)' $(GO_LINT_FLAGS)
+	$(MAKE) -C integrations/terraform lint
+	$(MAKE) -C integrations/event-handler lint
 
 .PHONY: fix-imports
 fix-imports:
@@ -1023,9 +1045,8 @@ fix-imports/host:
 		echo 'gci is not installed or is missing from PATH, consider installing it ("go install github.com/daixiang0/gci@latest") or use "make -C build.assets/ fix-imports"';\
 		exit 1;\
 	fi
-	gci write -s standard -s default -s 'prefix(github.com/gravitational/teleport)' --skip-generated .
+	gci write -s standard -s default  -s 'prefix(github.com/gravitational/teleport)' -s 'prefix(github.com/gravitational/teleport/integrations/terraform,github.com/gravitational/teleport/integrations/event-handler)' --skip-generated .
 
-.PHONY: lint-build-tooling
 lint-build-tooling: GO_LINT_FLAGS ?=
 lint-build-tooling:
 	cd build.assets/tooling && golangci-lint run -c ../../.golangci.yml $(GO_LINT_FLAGS)

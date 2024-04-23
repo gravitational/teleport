@@ -145,7 +145,7 @@ type Config struct {
 	PIDFile string
 
 	// Trust is a service that manages certificate authorities
-	Trust services.Trust
+	Trust services.TrustInternal
 
 	// Presence service is a discovery and heartbeat tracker
 	Presence services.PresenceInternal
@@ -571,7 +571,6 @@ func ApplyDefaults(cfg *Config) {
 
 	// SSH service defaults.
 	cfg.SSH.Enabled = true
-	cfg.SSH.Shell = defaults.DefaultShell
 	defaults.ConfigureLimiter(&cfg.SSH.Limiter)
 	cfg.SSH.PAM = &PAMConfig{Enabled: false}
 	cfg.SSH.BPF = &BPFConfig{Enabled: false}
