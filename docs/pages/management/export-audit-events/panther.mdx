@@ -47,10 +47,6 @@ from Teleport's events API, and forwards them to Fluentd.
 
 ## Step 4/6. Create teleport-event-handler credentials
 
-### Enable impersonation of the Event Handler user
-
-(!docs/pages/includes/plugins/rbac-impersonate-event-handler.mdx!)
-
 ### Export an identity file for the Event Handler plugin user
 
 Give the plugin access to a Teleport identity file. We recommend using Machine
@@ -72,7 +68,7 @@ longer-lived identity files with `tctl`:
 To send logs to Panther, you need to use the Fluentd output plugin for S3. Create
 a `Dockerfile` with the following content:
 
-```Dockerfile
+```text
 FROM fluent/fluentd:edge
 USER root
 RUN fluent-gem install fluent-plugin-s3
@@ -80,6 +76,7 @@ USER fluent
 ```
 
 Build the Docker image:
+
 ```shell
 $ docker build -t fluentd-s3 .
 ```
@@ -124,7 +121,7 @@ right date and time format for Panther.
 #       @type json
 #       json_parser oj
 #
-#       # This time format is used by Go marshaller
+#       # This time format is used by Teleport Event Handler.
 #       time_type string
 #       time_format %Y-%m-%dT%H:%M:%S
 #     </parse>
@@ -217,10 +214,6 @@ Teleport Cluster, ensure that:
 - Read more about
 [impersonation](../../access-controls/guides/impersonation.mdx)
 here.
-- While this guide uses the `tctl auth sign` command to issue credentials for the
-Teleport Event Handler, production clusters should use Machine ID for safer,
-more reliable renewals. Read [our guide](../../machine-id/getting-started.mdx)
-to getting started with Machine ID.
 - To see all of the options you can set in the values file for the
 `teleport-plugin-event-handler` Helm chart, consult our [reference
 guide](../../reference/helm-reference/teleport-plugin-event-handler.mdx).
