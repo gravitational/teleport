@@ -5482,6 +5482,7 @@ func (process *TeleportProcess) initApps() {
 			ConnectedProxyGetter: proxyGetter,
 			Emitter:              asyncEmitter,
 			ConnectionMonitor:    connMonitor,
+			Logger:               logger,
 		})
 		if err != nil {
 			return trace.Wrap(err)
