@@ -17,7 +17,6 @@
  */
 
 import { OutlineDanger } from 'design/Alert/Alert';
-import Box from 'design/Box';
 import { ButtonPrimary, ButtonSecondary } from 'design/Button';
 import Dialog from 'design/Dialog';
 import Flex from 'design/Flex';
@@ -36,13 +35,15 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 import { Auth2faType } from 'shared/services';
 import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
 
-import { PasskeyIcons } from 'teleport/components/PasskeyIcons';
+import Box from 'design/Box';
 
 import { DialogHeader } from 'teleport/Account/DialogHeader';
 import useReAuthenticate from 'teleport/components/ReAuthenticate/useReAuthenticate';
 import auth from 'teleport/services/auth/auth';
-import { DeviceUsage } from 'teleport/services/mfa';
+import { DeviceUsage } from 'teleport/services/auth';
 import useTeleport from 'teleport/useTeleport';
+
+import { PasskeyBlurb } from '../../../components/Passkeys/PasskeyBlurb';
 
 interface AddAuthDeviceWizardProps {
   /** Indicates usage of the device to be added: MFA or a passkey. */
@@ -245,12 +246,11 @@ export function CreateDeviceStep({
   onClose,
   onDeviceCreated,
 }: CreateDeviceStepProps) {
-  const ctx = useTeleport();
   const createPasskeyAttempt = useAttempt();
   const onCreate = () => {
     if (usage === 'passwordless' || newMfaDeviceType === 'webauthn') {
       createPasskeyAttempt.run(async () => {
-        const credential = await ctx.mfaService.createNewWebAuthnDevice({
+        const credential = await auth.createNewWebAuthnDevice({
           tokenId: privilegeToken,
           deviceUsage: usage,
         });
@@ -275,7 +275,11 @@ export function CreateDeviceStep({
       {createPasskeyAttempt.attempt.status === 'failed' && (
         <OutlineDanger>{createPasskeyAttempt.attempt.statusText}</OutlineDanger>
       )}
-      {usage === 'passwordless' && <PasskeyBlurb />}
+      {usage === 'passwordless' && (
+        <Box mb={4}>
+          <PasskeyBlurb />
+        </Box>
+      )}
       {usage === 'mfa' && (
         <CreateMfaBox
           auth2faType={auth2faType}
@@ -510,27 +514,5 @@ export function SaveDeviceStep({
         )}
       </Validation>
     </div>
-  );
-}
-
-function PasskeyBlurb() {
-  return (
-    <Box
-      mb={4}
-      border={1}
-      borderColor="interactive.tonal.neutral.2"
-      borderRadius={3}
-      p={3}
-    >
-      <PasskeyIcons />
-      <p>
-        Teleport supports passkeys, a password replacement that validates your
-        identity using touch, facial recognition, a device password, or a PIN.
-      </p>
-      <p style={{ marginBottom: 0 }}>
-        Passkeys can be used to sign in as a simple and secure alternative to
-        your password and multi-factor credentials.
-      </p>
-    </Box>
   );
 }

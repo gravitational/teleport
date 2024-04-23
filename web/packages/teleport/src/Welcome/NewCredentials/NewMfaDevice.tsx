@@ -17,16 +17,13 @@
  */
 
 import React, { useState } from 'react';
-import { Box, ButtonPrimary, Flex, Image, Link, Text } from 'design';
+import { Box, ButtonPrimary, Flex, Image, Text } from 'design';
 import { Danger } from 'design/Alert';
 import { ArrowBack } from 'design/Icon';
 import { RadioGroup } from 'design/RadioGroup';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
-import {
-  requiredField,
-  requiredToken,
-} from 'shared/components/Validation/rules';
+import { requiredField } from 'shared/components/Validation/rules';
 import createMfaOptions from 'shared/utils/createMfaOptions';
 
 import { useRefAutoFocus } from 'shared/hooks';
@@ -39,14 +36,16 @@ import {
   UseTokenState,
 } from 'teleport/Welcome/NewCredentials/types';
 
-import secKeyGraphic from './sec-key-with-bg.png';
+import { PasskeyIcons } from 'teleport/components/Passkeys';
 
 export function NewMfaDevice(props: NewMfaDeviceProps) {
   const {
     resetToken,
     submitAttempt,
+    credential,
     clearSubmitAttempt,
     auth2faType,
+    createNewWebAuthnDevice,
     onSubmitWithWebauthn,
     onSubmit,
     password,
@@ -80,7 +79,11 @@ export function NewMfaDevice(props: NewMfaDeviceProps) {
 
     switch (mfaType?.value) {
       case 'webauthn':
-        onSubmitWithWebauthn(password, deviceName);
+        if (!credential) {
+          createNewWebAuthnDevice('mfa');
+        } else {
+          onSubmitWithWebauthn(password, deviceName);
+        }
         break;
       default:
         onSubmit(password, otp, deviceName);
@@ -99,10 +102,7 @@ export function NewMfaDevice(props: NewMfaDeviceProps) {
     }
   }
 
-  const imgSrc =
-    mfaType?.value === 'otp'
-      ? `data:image/png;base64,${resetToken.qrCode}`
-      : secKeyGraphic;
+  const qrCodeImage = `data:image/png;base64,${resetToken.qrCode}`;
 
   return (
     <Validation>
@@ -119,19 +119,19 @@ export function NewMfaDevice(props: NewMfaDeviceProps) {
               style={{ cursor: 'pointer' }}
             />
             <Box>
-              <Text typography="h4" color="text.main" bold>
-                Set Two-Factor Device
-              </Text>
               <Text color="text.slightlyMuted">Step 2 of 2</Text>
+              <Text typography="h4" color="text.main" bold>
+                Set up Multi-Factor Authentication
+              </Text>
             </Box>
           </Flex>
           {submitAttempt.status === 'failed' && (
             <Danger children={submitAttempt.statusText} />
           )}
-          <Text typography="subtitle1" color="text.main" caps mb={1}>
-            Two-Factor Method
+          <Text typography="subtitle1" color="text.main" mb={1}>
+            Multi-factor type
           </Text>
-          <Box mb={1}>
+          <Box mb={3}>
             <RadioGroup
               name="mfaType"
               options={mfaOptions}
@@ -144,94 +144,95 @@ export function NewMfaDevice(props: NewMfaDeviceProps) {
           <Flex
             flexDirection="column"
             justifyContent="center"
-            alignItems="center"
             borderRadius={8}
             bg={mfaType?.value === 'optional' ? 'levels.elevated' : ''}
-            height={mfaType?.value === 'optional' ? '340px' : '240px'}
-            px={3}
           >
-            {mfaType?.value === 'otp' && (
-              <>
-                <Image
-                  src={imgSrc}
-                  width="145px"
-                  height="145px"
-                  css={`
-                    border: 4px solid white;
-                  `}
-                />
-                <Text
-                  fontSize={1}
-                  textAlign="center"
-                  mt={2}
-                  color="text.slightlyMuted"
-                >
-                  Scan the QR Code with any authenticator app and enter the
-                  generated code. We recommend{' '}
-                  <Link href="https://authy.com/download/" target="_blank">
-                    Authy
-                  </Link>
-                  .
-                </Text>
-              </>
-            )}
-            {mfaType?.value === 'webauthn' && (
-              <>
-                <Image src={imgSrc} width="220px" height="154px" />
-                <Text
-                  fontSize={1}
-                  color="text.slightlyMuted"
-                  textAlign="center"
-                >
-                  We support a wide range of hardware devices including
-                  YubiKeys, Touch ID, watches, and more.
-                </Text>
-              </>
-            )}
-            {mfaType?.value === 'optional' && (
-              <Text textAlign="center">
-                We strongly recommend enrolling a two-factor device to protect
-                both yourself and your organization.
-              </Text>
-            )}
-          </Flex>
-          {mfaType?.value !== 'optional' && (
-            <Flex alignItems="center" height={100}>
+            {(mfaType?.value === 'otp' ||
+              (mfaType?.value === 'webauthn' && !!credential)) && (
               <FieldInput
-                rule={requiredField('Device name is required')}
-                label="Device Name"
+                rule={requiredField('MFA method name is required')}
+                label="MFA method name"
                 placeholder="Name"
                 ref={deviceNameInputRef}
-                width={mfaType?.value === 'otp' ? '50%' : '100%'}
                 value={deviceName}
                 type="text"
                 onChange={e => setDeviceName(e.target.value)}
                 readonly={submitAttempt.status === 'processing'}
-                mr={mfaType?.value === 'otp' ? 3 : 0}
+                mb={3}
               />
-              {mfaType?.value === 'otp' && (
-                <FieldInput
-                  width="50%"
-                  label="Authenticator Code"
-                  rule={requiredToken}
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  value={otp}
-                  onChange={e => setOtp(e.target.value)}
-                  placeholder="123 456"
-                  readonly={submitAttempt.status === 'processing'}
+            )}
+            {mfaType?.value === 'otp' && (
+              <Flex
+                mb={4}
+                border={1}
+                borderColor="interactive.tonal.neutral.2"
+                borderRadius={3}
+                p={3}
+                gap={3}
+              >
+                <Image
+                  src={qrCodeImage}
+                  width="168px"
+                  height="168px"
+                  css={`
+                    border: 4px solid white;
+                    box-sizing: border-box;
+                    border: 8px solid white;
+                    border-radius: 8px;
+                  `}
                 />
-              )}
-            </Flex>
-          )}
+                <Flex flexDirection="column">
+                  <Box flex="1">
+                    <Text typography="body-2">
+                      Scan the QR Code with any authenticator app and enter the
+                      generated code.
+                    </Text>
+                  </Box>
+                  <FieldInput
+                    label="Authenticator Code"
+                    rule={requiredField('Authenticator code is required')}
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    value={otp}
+                    onChange={e => setOtp(e.target.value)}
+                    placeholder="123 456"
+                    readonly={submitAttempt.status === 'processing'}
+                    mb={0}
+                  />
+                </Flex>
+              </Flex>
+            )}
+            {mfaType?.value === 'webauthn' && (
+              <Box
+                border={1}
+                borderColor="interactive.tonal.neutral.2"
+                borderRadius={3}
+                p={3}
+              >
+                <PasskeyIcons />
+                <Text mt={2}>
+                  You can use Touch ID, Face ID, Windows Hello, a hardware
+                  device, or an authenticator app as an MFA method.
+                </Text>
+              </Box>
+            )}
+            {mfaType?.value === 'optional' && (
+              <Text textAlign="center" p={5}>
+                We strongly recommend enrolling a multi-factor authentication
+                method to protect both yourself and your organization.
+              </Text>
+            )}
+          </Flex>
           <ButtonPrimary
             width="100%"
-            mt={2}
+            mt={3}
             disabled={submitAttempt.status === 'processing'}
             size="large"
             onClick={e => onBtnClick(e, validator)}
           >
-            Submit
+            {mfaType.value === 'webauthn' && !credential
+              ? 'Create an MFA method'
+              : 'Submit'}
           </ButtonPrimary>
         </OnboardCard>
       )}
