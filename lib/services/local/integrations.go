@@ -36,20 +36,19 @@ const (
 
 // IntegrationsService manages Integrations in the Backend.
 type IntegrationsService struct {
-	svc              generic.Service[types.Integration]
-	backend          backend.Backend
-	deleteAllEnabled bool
+	svc       generic.Service[types.Integration]
+	backend   backend.Backend
+	cacheMode bool
 }
 
 // IntegrationsServiceOption is a functional option for the IntegrationsService.
 type IntegrationsServiceOption func(*IntegrationsService)
 
-// WithDeleteAllIntegrationsEnabled configure the IntegrationsService to support the DeleteAllIntegrations
-// method, which does not include protections against deleting integrations referenced by other components and
-// should only be used in e.g. a local cache.
-func WithDeleteAllIntegrationsEnabled(deleteAllEnabled bool) func(*IntegrationsService) {
+// WithIntegrationsServiceCacheMode configures the IntegrationsService to skip certain checks against deleting
+// integrations referenced by other components and should only be used in e.g. a local cache.
+func WithIntegrationsServiceCacheMode(cacheMode bool) func(*IntegrationsService) {
 	return func(svc *IntegrationsService) {
-		svc.deleteAllEnabled = deleteAllEnabled
+		svc.cacheMode = cacheMode
 	}
 }
 
@@ -118,13 +117,23 @@ func (s *IntegrationsService) UpdateIntegration(ctx context.Context, ig types.In
 
 // DeleteIntegration removes the specified Integration resource.
 func (s *IntegrationsService) DeleteIntegration(ctx context.Context, name string) error {
+	if s.cacheMode {
+		// No checks are done in cache mode.
+		return trace.Wrap(s.svc.DeleteResource(ctx, name))
+	}
+
+	// First check if the integration exists to return NotFound in case it doesn't.
+	if _, err := s.svc.GetResource(ctx, name); err != nil {
+		return trace.Wrap(err)
+	}
+
 	conditionalActions, err := notReferencedByEAS(ctx, s.backend, name)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	conditionalActions = append(conditionalActions, backend.ConditionalAction{
 		Key:       s.svc.MakeKey(name),
-		Condition: backend.Whatever(),
+		Condition: backend.Exists(),
 		Action:    backend.Delete(),
 	})
 	_, err = s.backend.AtomicWrite(ctx, conditionalActions)
@@ -166,7 +175,7 @@ func notReferencedByEAS(ctx context.Context, bk backend.Backend, name string) ([
 
 // DeleteAllIntegrations removes all Integration resources. This should only be used in a cache.
 func (s *IntegrationsService) DeleteAllIntegrations(ctx context.Context) error {
-	if !s.deleteAllEnabled {
+	if !s.cacheMode {
 		return trace.BadParameter("Deleting all integrations is not supported, this is a bug")
 	}
 	return trace.Wrap(s.svc.DeleteAllResources(ctx))

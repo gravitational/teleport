@@ -300,33 +300,19 @@ func TestIntegrationCRUD(t *testing.T) {
 
 		// Delete all
 		{
-			Name: "remove all integrations fails when no access",
-			Role: types.RoleSpecV6{},
-			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
-				_, err := resourceSvc.DeleteAllIntegrations(ctx, &integrationpb.DeleteAllIntegrationsRequest{})
-				return err
-			},
-			ErrAssertion: trace.IsAccessDenied,
-		},
-		{
-			Name: "remove all integrations",
+			Name: "delete all integrations fails",
 			Role: types.RoleSpecV6{
 				Allow: types.RoleConditions{Rules: []types.Rule{{
 					Resources: []string{types.KindIntegration},
 					Verbs:     []string{types.VerbDelete},
 				}}},
 			},
-			Setup: func(t *testing.T, _ string) {
-				for i := 0; i < 10; i++ {
-					_, err := localClient.CreateIntegration(ctx, sampleIntegrationFn(t, uuid.NewString()))
-					require.NoError(t, err)
-				}
-			},
 			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
 				_, err := resourceSvc.DeleteAllIntegrations(ctx, &integrationpb.DeleteAllIntegrationsRequest{})
 				return err
 			},
-			ErrAssertion: noError,
+			// Deleting all integrations via gRPC is not supported.
+			ErrAssertion: trace.IsBadParameter,
 		},
 	}
 
@@ -334,18 +320,17 @@ func TestIntegrationCRUD(t *testing.T) {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			localCtx := authorizerForDummyUser(t, ctx, tc.Role, localClient)
-
 			igName := uuid.NewString()
 			if tc.Setup != nil {
 				tc.Setup(t, igName)
 			}
 
+			if tc.Cleanup != nil {
+				t.Cleanup(func() { tc.Cleanup(t, igName) })
+			}
+
 			err := tc.Test(localCtx, resourceSvc, igName)
 			require.True(t, tc.ErrAssertion(err), err)
-
-			if tc.Cleanup != nil {
-				tc.Cleanup(t, igName)
-			}
 		})
 	}
 }
@@ -437,8 +422,10 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 	})
 	require.NoError(t, err)
 
-	localResourceService, err := local.NewIntegrationsService(backend,
-		local.WithDeleteAllIntegrationsEnabled(true))
+	localResourceService, err := local.NewIntegrationsService(backend)
+	require.NoError(t, err)
+
+	cacheResourceService, err := local.NewIntegrationsService(backend, local.WithIntegrationsServiceCacheMode(true))
 	require.NoError(t, err)
 
 	keystoreManager, err := keystore.NewManager(ctx, keystore.Config{
@@ -456,7 +443,7 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 				PublicAddrs: []string{proxyPublicAddr},
 			}},
 		},
-		IntegrationsService: *localResourceService,
+		IntegrationsService: *cacheResourceService,
 	}
 
 	resourceSvc, err := NewService(&ServiceConfig{

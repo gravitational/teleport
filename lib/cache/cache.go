@@ -884,7 +884,7 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	integrationsCache, err := local.NewIntegrationsService(config.Backend, local.WithDeleteAllIntegrationsEnabled(true))
+	integrationsCache, err := local.NewIntegrationsService(config.Backend, local.WithIntegrationsServiceCacheMode(true))
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
