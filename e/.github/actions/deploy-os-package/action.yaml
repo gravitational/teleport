@@ -64,17 +64,23 @@ runs:
       with:
         github-token: ${{ inputs.github-token }}
         script: |
-          // Map the input to the actual environment names in Github
+          // Validate the input environment
           function getWorkflowEnvironment() {
-            const workflowEnvironmentMap = {
-              "development": "build",
-              "production": "promote",
-              "build-stage": "build-stage"
-            };
+            const workflowEnvironment = core.getInput("environment", { required: true });
 
-            const workflowEnvironment = workflowEnvironmentMap[core.getInput("environment", { required: true })];
-            if (typeof workflowEnvironment === "undefined") {
-              throw new Error(`Provided environment ${workflowEnvironment} is invalid. Value values are: ${JSON.stringify(Object.keys(workflowEnvironmentMap))}`);
+            // Legacy compatibility to avoid breaking existing workflows
+            if (workflowEnvironment == "development") {
+              return "publish-stage"
+            }
+
+            if (workflowEnvironment == "production") {
+              return "publish-prod"
+            }
+
+            // Input logic for actual environments
+            const validWorkflowEnvironments = ["publish-stage", "publish-prod"];
+            if (!validWorkflowEnvironments.includes(workflowEnvironment)) {
+              throw new Error(`Provided environment ${workflowEnvironment} is invalid. Valid values are: ${JSON.stringify(validWorkflowEnvironments)}`);
             }
 
             return workflowEnvironment;

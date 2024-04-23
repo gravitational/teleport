@@ -13,7 +13,7 @@ on:
           - apt
           - yum
       environment:
-        description: "Environment to deploy the package to"
+        description: "Environment to deploy the package to. Either publish-stage, or publish-prod."
         type: environment
         required: true
       package-name-filter:
@@ -67,10 +67,10 @@ jobs:
           ENVIRONMENT: ${{ inputs.environment }}
         run: |
           case "$ENVIRONMENT" in
-            "promote" | "build-prod")
+            "publish-prod")
               RUNNER_LABEL_ENVIRONMENT="prod"
             ;;
-            "build" | "build-stage")
+            "publish-stage")
               RUNNER_LABEL_ENVIRONMENT="dev"
             ;;
             *)
@@ -127,13 +127,6 @@ jobs:
       GNUPGHOME: /tmp/gnupg
       CACHE_PATH: /mnt/oprt-cache
     steps:
-      - name: Disallow prerelease artifacts from being deployed to production repos
-        if: inputs.environment == 'production' || inputs.environment == 'promote'
-        uses: actions/github-script@v7
-        with: 
-          script: |
-            if ("${{ inputs.artifact-tag }}".indexOf("-") > -1)
-              core.setFailed("Prerelease artifacts may not be deployed to production repos");
       - name: Derive and set version channel
         id: component-version-channel
         if: inputs.package-to-test != ''
@@ -312,9 +305,11 @@ jobs:
           gpg-signing-archive: ${{ secrets.GPG_SIGNING_ARCHIVE }}
           gnupghome: ${{ env.GNUPGHOME }}
       - name: Ensure the environment cache path exists
+        env:
+          ENVIRONMENT_NAME: ${{ inputs.environment }}
         run: |
           OWNER="$(id -un):$(id -gn)"
-          echo "Creating the ${{ inputs.environment }} environment cache path at $CACHE_PATH, owned by $OWNER"
+          echo "Creating the $ENVIRONMENT_NAME environment cache path at $CACHE_PATH, owned by $OWNER"
           mkdir -pv -m0770 "$CACHE_PATH"
           sudo chown -v "$OWNER" "$CACHE_PATH"
 
@@ -423,11 +418,11 @@ jobs:
       # Note: These values are intentionally hard-coded here to prevent false positives or negatives due
       #       to a value in one of our code/IaC repos changing without the change propegating everywhere.
       - name: Derive and set Github environment-specific variables for production
-        if: inputs.environment == 'production' || inputs.environment == 'promote'
+        if: inputs.environment == 'publish-prod'
         run: |
           echo "APT_REPO_DOMAIN_NAME=apt.releases.teleport.dev" >> "$GITHUB_ENV"
       - name: Derive and set Github environment-specific variables for development
-        if: inputs.environment == 'build-stage' || inputs.environment == 'build'
+        if: inputs.environment == 'publish-stage'
         run: |
           echo "APT_REPO_DOMAIN_NAME=apt.releases.development.teleport.dev" >> "$GITHUB_ENV"
       - name: Log set variables
@@ -575,12 +570,12 @@ jobs:
       # Note: These values are intentionally hard-coded here to prevent false positives or negatives due
       #       to a value in one of our code/IaC repos changing without the change propegating everywhere.
       - name: Derive and set Github environment-specific variables for production
-        if: inputs.environment == 'production' || inputs.environment == 'promote'
+        if: inputs.environment == 'publish-prod'
         run: |
           echo "YUM_REPO_DOMAIN_NAME=yum.releases.teleport.dev" >> "$GITHUB_ENV"
           echo "FORCE_INSTALL_PROD_PUBLIC_KEY=false" >> "$GITHUB_ENV"
       - name: Derive and set Github environment-specific variables for development
-        if: inputs.environment == 'build-stage' || inputs.environment == 'build'
+        if: inputs.environment == 'publish-stage'
         run: |
           echo "YUM_REPO_DOMAIN_NAME=yum.releases.development.teleport.dev" >> "$GITHUB_ENV"
           # This is required as the RPMs are signed by the prod key, not the dev key
@@ -728,12 +723,12 @@ jobs:
       # Note: These values are intentionally hard-coded here to prevent false positives or negatives due
       #       to a value in one of our code/IaC repos changing without the change propegating everywhere.
       - name: Derive and set Github environment-specific variables for production
-        if: inputs.environment == 'production' || inputs.environment == 'promote'
+        if: inputs.environment == 'publish-prod'
         run: |
           echo "ZYPPER_REPO_DOMAIN_NAME=zypper.releases.teleport.dev" >> "$GITHUB_ENV"
           echo "FORCE_INSTALL_PROD_PUBLIC_KEY=false" >> "$GITHUB_ENV"
       - name: Derive and set Github environment-specific variables for development
-        if: inputs.environment == 'build-stage' || inputs.environment == 'build'
+        if: inputs.environment == 'publish-stage'
         run: |
           echo "ZYPPER_REPO_DOMAIN_NAME=zypper.releases.development.teleport.dev" >> "$GITHUB_ENV"
           # This is required as the RPMs are signed by the prod key, not the dev key

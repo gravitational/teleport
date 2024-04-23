@@ -49,7 +49,6 @@ jobs:
     needs:
       - setup
       - build
-    environment: "build-stage"
     concurrency: Only allow a single teleport-ent-updater ${{ matrix.repo-type }} deployment at a time
     strategy:
       fail-fast: false  # If either APT or YUM deployment fails, let the other one run before failing
@@ -65,9 +64,7 @@ jobs:
       - name: Deploy package to `stable/${{ env.VERSION_CHANNEL }}` ${{ matrix.repo-type }} repos
         uses: ./.github/actions/deploy-os-package
         with:
-          # TODO set this to publish-stage https://github.com/gravitational/teleport.e/pull/4012 lands
-          # This only (might) work because build-stage has historically be abused here
-          environment: "build-stage"
+          environment: "publish-stage"
           repo-type: ${{ matrix.repo-type }}
           artifact-tag: ${{ needs.setup.outputs.artifact-version }}
           version-channel: ${{ env.VERSION_CHANNEL }}
