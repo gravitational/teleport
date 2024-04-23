@@ -14,6 +14,8 @@ Teleport cluster while preserving compatibility.
 
 (!docs/pages/includes/compatibility.mdx!)
 
+## Upgrading Teleport Cloud
+
 In Teleport Enterprise Cloud, we manage the Auth and Proxy Services for you. You
 can determine the current version of these services by running the following
 command, where `mytenant` is the name of your Teleport Enterprise Cloud tenant:
@@ -21,6 +23,16 @@ command, where `mytenant` is the name of your Teleport Enterprise Cloud tenant:
 ```code
 $ curl -s https://mytenant.teleport.sh/webapi/ping | jq '.server_version'
 ```
+
+Teleport Cloud clusters are updated on a weekly basis. Major version updates are
+performed every 4 months. You can monitor and subscribe to the [Teleport Cloud Status](https://status.teleport.sh/)
+page to be notified of scheduled updates.
+
+To maintain version compatibility between your Teleport agents and the Teleport
+Proxy Services, ensure that all your Teleport agents stay up to date with the Teleport
+version of your Teleport Proxy Services. Failure to maintain version compatibility
+for your Teleport agents may result in a degraded connection or disconnection of
+those agents.
 
 ## Upgrading a self-hosted Teleport cluster
 

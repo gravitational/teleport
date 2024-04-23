@@ -4,24 +4,19 @@ description: Explains how to upgrade Teleport depending on your environment and 
 layout: tocless-doc
 ---
 
-The guides in this section show you how to upgrade Teleport to a more recent
-version.
-
-## Upgrading compatibility overview
-
-Since Teleport is a distributed system with a number of services that run on
-potentially many hosts, you should take care when upgrading the cluster to
-ensure that all components remain compatible.
-
-The [Upgrading Compatibility Overview](./upgrading/overview.mdx) explains how to
-upgrade components in your Teleport cluster to ensure that they communicate as
-expected.
+Teleport components need to be updated regularly to stay up to date with the latest
+features and security updates. Teleport releases a new major version every 4 months.
+See the [Upcoming Releases](./upcoming-releases.mdx) page to view upcoming changes
+and releases.
 
 ## Upgrading guides
 
-After getting familiar with the Compatibility Overview, read one of the
-following guides to upgrade the components in your Teleport cluster. Choose the
-guide that matches your Teleport edition and the platform where you run Teleport
+Before starting one of the following guides, please read the [Upgrading Compatibility Overview](./upgrading/overview.mdx)
+to understand how to upgrade components in your Teleport cluster while maintaining
+version compatibility between all components.
+
+The Teleport upgrade process is different for Teleport Cloud and self-hosted deployments.
+Choose the guide that matches your Teleport edition and the platform where you run Teleport
 services:
 
 Teleport Cloud:
@@ -32,16 +27,5 @@ Teleport Cloud:
 Self-hosted deployments:
 
 - [Linux Servers](./upgrading/self-hosted-linux.mdx)
+- [Linux Servers (automatic updates)](./upgrading/self-hosted-automatic-agent-updates.mdx)
 - [Kubernetes](./upgrading/self-hosted-kubernetes.mdx)
-
-## Automatic agent upgrades
-
-We recommend that Teleport users set up automatic agent upgrades, where agents
-query a **version server** in order to determine whether they are out of date
-and need to install a new version of Teleport. 
-
-On Teleport Cloud, the version server is managed for you.
-
-If you are running Teleport Enterprise, read the [Self-Hosted Automatic Agent
-Updates](./upgrading/self-hosted-automatic-agent-updates.mdx) guide to set up
-the version server yourself.
