@@ -207,15 +207,14 @@ func convertToAPIResourceAccess(access services.ResourceAccess) *api.ResourceAcc
 func (c *Cluster) GetRoles(ctx context.Context) ([]*types.Role, error) {
 	var roles []*types.Role
 	err := AddMetadataToRetryableError(ctx, func() error {
-		//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
-		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
+		clusterClient, err := c.clusterClient.ConnectToCluster(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		defer proxyClient.Close()
+		defer clusterClient.Close()
 
 		for _, name := range c.status.Roles {
-			role, err := proxyClient.GetRole(ctx, name)
+			role, err := clusterClient.AuthClient.GetRole(ctx, name)
 			if err != nil {
 				return trace.Wrap(err)
 			}
