@@ -32,22 +32,22 @@ a VM. You will need to adjust paths, ports, and domains for other environments.
 
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/6. Install the Event Handler plugin
+## Step 1/7. Install the Event Handler plugin
 
 The Teleport event handler runs alongside the Fluentd forwarder, receives events
 from Teleport's events API, and forwards them to Fluentd.
 
 (!docs/pages/includes/install-event-handler.mdx!)
 
-## Step 2/6. Generate a plugin configuration
+## Step 2/7. Generate a plugin configuration
 
 (!docs/pages/includes/configure-event-handler.mdx!)
 
-## Step 3/6. Create a user and role for reading audit events
+## Step 3/7. Create a user and role for reading audit events
 
 (!docs/pages/includes/plugins/event-handler-role-user.mdx!)
 
-## Step 4/6. Create teleport-event-handler credentials
+## Step 4/7. Create teleport-event-handler credentials
 
 ### Export an identity file for the Event Handler plugin user
 
@@ -65,7 +65,7 @@ longer-lived identity files with `tctl`:
 </TabItem>
 </Tabs>
 
-## Step 5/6. Create a Dockerfile with Fluentd and the S3 plugin
+## Step 5/7. Create a Dockerfile with Fluentd and the S3 plugin
 
 To send logs to Panther, you need to use the Fluentd output plugin for S3. Create
 a `Dockerfile` with the following content:
@@ -176,7 +176,7 @@ right date and time format for Panther.
 </match>
 ```
 
-## Step 6/6. Run the Teleport Event Handler plugin
+## Step 6/7. Run the Teleport Event Handler plugin
 
 ### Configure the Event Handler
 
@@ -196,6 +196,14 @@ Next, modify the configuration file as follows:
 (!docs/pages/includes/start-event-handler.mdx!)
 
 The Logs view in Panter should now report your Teleport cluster events. 
+
+## Step 7/7. Configure Panther to ingest logs from S3
+
+Once logs are being sent to S3, you can configure Panther to ingest them. Follow
+the [Panther documentation](https://docs.panther.com/data-onboarding/supported-logs/teleport) to set
+up the S3 bucket as a data source.
+
+![Example ](../../../img/management/fluentd-diagram.png)
 
 ## Troubleshooting connection issues
 
