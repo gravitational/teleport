@@ -2,76 +2,32 @@
 name: Build the Teleport updater
 
 on:
-  push:
-    tags:
-      - 'v*'
-  pull_request:
-    paths:
-      - .github/workflows/build-teleport-updater.yaml
-      - .github/workflows/deploy-packages.yaml
-      - .github/actions/load-gpg-key/action.yaml
-      - .github/actions/deploy-os-package/action.yaml
-      - assets/systemd-unit-upgrader/**
+  workflow_call:
+    inputs:
+      updater-version:
+        description: |
+          The version to use for the updater, i.e. `v1.2.3`.
+        type: string
+        required: true
 
+      environment:
+        description: |
+          GitHub Actions environment in which to run the build. Can be either
+          `build-stage` or `build-prod`.
+        type: string
+        default: build-prod
 env:
   DEBIAN_FRONTEND: noninteractive
   VERSION_CHANNEL: cloud
 
 jobs:
-  setup-build:
-    name: Determine variables for the build environment
-    runs-on: ubuntu-latest
-    outputs:
-      should-target-production: ${{ steps.set-variables.outputs.should-target-production }}
-      package-environment: ${{ steps.set-variables.outputs.package-environment }}
-      artifact-version: ${{ steps.set-variables.outputs.artifact-version }}
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Set environment output values
-        id: set-variables
-        env:
-          GITHUB_EVENT_REF: ${{ github.ref }}
-          GITHUB_EVENT_NAME: ${{ github.event_name }}
-        run: |
-          REF_TYPE=$(echo "$GITHUB_EVENT_REF" | cut -d'/' -f2)
-          REF_VALUE=$(echo "$GITHUB_EVENT_REF" | cut -d'/' -f3)
-
-          # If this run was caused by a tag event
-          if [ "$GITHUB_EVENT_NAME" = "push" ] && [ "$REF_TYPE" = "tags" ]; then
-            # If the tag is not a pre-release
-            if [ "${REF_VALUE#*-}" = "$REF_VALUE" ]; then
-              echo "package-environment=promote" >> "$GITHUB_OUTPUT"
-              echo "should-target-production=true" >> "$GITHUB_OUTPUT"
-            else
-              echo "package-environment=build" >> "$GITHUB_OUTPUT"
-              echo "should-target-production=false" >> "$GITHUB_OUTPUT"
-            fi
-
-            echo "artifact-version=${GITHUB_EVENT_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
-          else
-            echo "package-environment=build" >> "$GITHUB_OUTPUT"
-            echo "should-target-production=false" >> "$GITHUB_OUTPUT"
-            # The "match" glob here matches tags that are (probably) semver tags
-            # RPMs don't allow "-" in the version so it is replaced here with an underscore
-            echo "artifact-version=$(git describe --tags --match "v[[:digit:]]*.[[:digit:]]*.[[:digit:]]")" >> "$GITHUB_OUTPUT"
-          fi
-
-          # Set job summary
-          echo "Built config:" | tee -a "$GITHUB_STEP_SUMMARY"
-          cat "$GITHUB_OUTPUT" | while read line; do
-            echo "* $line" | tee -a "$GITHUB_STEP_SUMMARY"
-          done
-  build-artifacts:
+  build:
     name: Package the Teleport updater
-    needs: setup-build
     permissions:
       contents: read
       id-token: write   # Required for aws-actions/configure-aws-credentials
     runs-on: ubuntu-latest
-    environment: ${{ needs.setup-build.outputs.package-environment }}
+    environment: ${{ inputs.environment }}
     strategy:
       fail-fast: true
       matrix:
@@ -91,6 +47,10 @@ jobs:
           - armhf
     env:
       GNUPGHOME: /tmp/gnupg
+      ARTIFACT_VERSION: ${{ inputs.updater-version }}
+      ARCHITECTURE: ${{ matrix.architecture }}
+      PACKAGE_FILE_EXTENSION: ${{ matrix.package.file-extension }}
+      PACKAGE_MANAGER: ${{ matrix.package.manager }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -107,7 +67,7 @@ jobs:
         run: |
           INSTALLER_CONFIG_PATH="$CONFIG_FOLDER_PATH/installer"
           mkdir -pv -m755 "$CONFIG_FOLDER_PATH"
-          echo "${{ matrix.package.manager }}" > "$INSTALLER_CONFIG_PATH"
+          echo "$PACKAGE_MANAGER" > "$INSTALLER_CONFIG_PATH"
           chmod -R 755 "$CONFIG_FOLDER_PATH"
           sudo chown -R "root:root" "$CONFIG_FOLDER_PATH"
 
@@ -117,7 +77,6 @@ jobs:
         working-directory: ./assets/systemd-unit-upgrader/rootfs
         env:
           SCRIPT_PATH: "usr/sbin/teleport-upgrade"
-          ARTIFACT_VERSION: ${{ needs.setup-build.outputs.artifact-version }}
         run: |
           sed -e "s/self_version=.*/self_version=\"$ARTIFACT_VERSION\"/" -i "$SCRIPT_PATH"
           echo "Updater version number: $("./$SCRIPT_PATH" version)"
@@ -132,7 +91,6 @@ jobs:
         working-directory: ./assets/systemd-unit-upgrader/rootfs
         env:
           ENV_CONFIG_PATH: "etc/systemd/system/teleport.service.d/teleport-upgrader-env.conf"
-          ARTIFACT_VERSION: ${{ needs.setup-build.outputs.artifact-version }}
         run: |
           sed -e "s/TELEPORT_EXT_UPGRADER_VERSION=.*-unset/TELEPORT_EXT_UPGRADER_VERSION=$ARTIFACT_VERSION/" -i "$ENV_CONFIG_PATH"
           UPGRADER_VERSION=$(grep TELEPORT_EXT_UPGRADER_VERSION "$ENV_CONFIG_PATH" | sed -e "s/.*TELEPORT_EXT_UPGRADER_VERSION=\($ARTIFACT_VERSION\).*/\1/")
@@ -146,11 +104,9 @@ jobs:
       - name: Package the Teleport updater into ${{ matrix.package.file-extension }}s for ISA ${{ matrix.architecture }}
         working-directory: ./assets/systemd-unit-upgrader/
         id: build-package
-        env:
-          ARTIFACT_VERSION: ${{ needs.setup-build.outputs.artifact-version }}
         # This must be ran as root because the directories are owned by root
         run: |
-          PACKAGE_NAME="teleport-ent-updater-${ARTIFACT_VERSION#v}.${{ matrix.architecture }}.${{ matrix.package.manager }}.${{ matrix.package.file-extension }}"
+          PACKAGE_NAME="teleport-ent-updater-${ARTIFACT_VERSION#v}.$ARCHITECTURE.$PACKAGE_MANAGER.$PACKAGE_FILE_EXTENSION"
           sudo fpm \
             --output-type "${{ matrix.package.file-extension }}" \
             --architecture "${{ matrix.architecture }}" \
@@ -159,7 +115,7 @@ jobs:
           echo "PACKAGE_NAME=$PACKAGE_NAME" >> "$GITHUB_ENV"
       - name: Update package file ownership
         working-directory: ./assets/systemd-unit-upgrader/
-        run: sudo chown -Rv "$(id -un):$(id -gn)" *.${{ matrix.package.file-extension }}
+        run: sudo chown -Rv "$(id -un):$(id -gn)" *.$PACKAGE_FILE_EXTENSION
       - name: Log created file info
         working-directory: ./assets/systemd-unit-upgrader/
         run: ls -laht "$PACKAGE_NAME"
@@ -229,9 +185,9 @@ jobs:
       # Upload the artifact
       - name: Set artifact bucket paths
         env:
-          ARTIFACT_VERSION: ${{ needs.setup-build.outputs.artifact-version }}
+          ARTIFACT_SOURCE_BUCKET: ${{ vars.ARTIFACT_SOURCE_BUCKET }}
         run: |
-          ARTIFACT_BUCKET_PATH="s3://${{ vars.ARTIFACT_SOURCE_BUCKET }}/teleport/tag/${ARTIFACT_VERSION#v}/$PACKAGE_NAME"
+          ARTIFACT_BUCKET_PATH="s3://$ARTIFACT_SOURCE_BUCKET/teleport/tag/${ARTIFACT_VERSION#v}/$PACKAGE_NAME"
           ARTIFACT_CHECKSUM_BUCKET_PATH="$ARTIFACT_BUCKET_PATH.sha256"
           echo "Setting artifact bucket upload path to $ARTIFACT_BUCKET_PATH and checksum upload path to $ARTIFACT_CHECKSUM_BUCKET_PATH"
           echo "ARTIFACT_BUCKET_PATH=$ARTIFACT_BUCKET_PATH" >> "$GITHUB_ENV"
@@ -250,58 +206,3 @@ jobs:
       - name: Upload the artifact checksum to S3
         working-directory: ./assets/systemd-unit-upgrader/
         run: aws s3 cp "$PACKAGE_CHECKSUM_NAME" "$ARTIFACT_CHECKSUM_BUCKET_PATH"
-  # This job will deploy artifacts when not targeting production to facilitate easier development and testing
-  # This could probably be joined with the build-artifacts step as the strategy is the same, but doing so would
-  # increase complexity without providing a meaningful decrease in runtime.
-  deploy-artifacts:
-    name: Deploy the Teleport updater packages
-    permissions:
-      contents: read
-      actions: write
-    runs-on: ubuntu-latest
-    needs:
-      - setup-build
-      - build-artifacts
-    if: needs.setup-build.outputs.should-target-production == 'false'
-    environment: ${{ needs.setup-build.outputs.package-environment }}
-    concurrency: Only allow a single teleport-ent-updater ${{ matrix.repo-type }} deployment at a time
-    strategy:
-      fail-fast: false  # If either APT or YUM deployment fails, let the other one run before failing
-      matrix:
-        repo-type:
-          - apt
-          - yum
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-      - name: Map current environment to deployment environment
-        env:
-          CURRENT_ENVIRONMENT: ${{ needs.setup-build.outputs.package-environment }}
-        run: |
-          echo "Current environment: $CURRENT_ENVIRONMENT"
-          if [ -z "$CURRENT_ENVIRONMENT" ]; then
-            echo "Current environment value is empty or unset!"
-            exit 1
-          fi
-
-          if [ "$CURRENT_ENVIRONMENT" = "build" ]; then
-            echo "DEPLOY_ENVIRONMENT=development" >> "$GITHUB_ENV"
-          elif [ "$CURRENT_ENVIRONMENT" =  "promote" ]; then
-            echo "DEPLOY_ENVIRONMENT=production" >> "$GITHUB_ENV"
-          else
-            echo "Current environment value is unknown or invalid! Accepted values are build and promote."
-          fi
-
-          echo "Deployment environment: $DEPLOY_ENVIRONMENT"
-      - name: Deploy package to `stable/${{ env.VERSION_CHANNEL }}` ${{ matrix.repo-type }} repos
-        uses: ./.github/actions/deploy-os-package
-        with:
-          environment: ${{ env.DEPLOY_ENVIRONMENT }}
-          repo-type: ${{ matrix.repo-type }}
-          artifact-tag: ${{ needs.setup-build.outputs.artifact-version }}
-          version-channel: ${{ env.VERSION_CHANNEL }}
-          package-name-filter: "teleport-ent-updater*"
-          package-to-test: teleport-ent-updater
-          do-teleport-package-tests: false
-          workflow-git-reference: ${{ github.event_name == 'pull_request' && github.head_ref || 'refs/heads/master' }}
-    

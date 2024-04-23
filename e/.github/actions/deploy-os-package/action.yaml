@@ -68,7 +68,8 @@ runs:
           function getWorkflowEnvironment() {
             const workflowEnvironmentMap = {
               "development": "build",
-              "production": "promote"
+              "production": "promote",
+              "build-stage": "build-stage"
             };
 
             const workflowEnvironment = workflowEnvironmentMap[core.getInput("environment", { required: true })];

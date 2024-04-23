@@ -1,13 +1,7 @@
-# This is a placeholder workflow and will be replaced once the appropriate
-# functionality passes code review.
-#
-# Dispatching workflow calls to a GHA workflow on a branch requires that a
-# workflow file with the correct name exists in the default branch, even
-# if that workflow bears no resemblance to the target workflow
-
+---
 name: Test the Teleport updater
+
 on:
-  workflow_dispatch:
   pull_request:
     paths:
       - .github/workflows/build-teleport-updater.yaml
@@ -15,9 +9,70 @@ on:
       - .github/actions/load-gpg-key/action.yaml
       - .github/actions/deploy-os-package/action.yaml
       - assets/systemd-unit-upgrader/**
+
 jobs:
-  dummy:
+  setup:
+    name: Setup for the test
     runs-on: ubuntu-latest
+    outputs:
+      artifact-version: ${{ steps.gen-version.outputs.artifact-version }}
     steps:
-      - name: Greeting
-        run: echo "This is a dummy build to placate GitHub."
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Generate a new unique version based on the nearest tag
+        id: gen-version
+        run: |
+          ARTIFACT_VERSION="$(git describe --tags --match "v[[:digit:]]*.[[:digit:]]*.[[:digit:]]")"
+          echo "Artifact version: $ARTIFACT_VERSION" >> "$GITHUB_STEP_SUMMARY"
+          echo "artifact-version=$ARTIFACT_VERSION" >> "$GITHUB_OUTPUT"
+  build:
+    name: Build the updater
+    uses: ./.github/workflows/build-teleport-updater.yaml
+    needs:
+      - setup
+    permissions:
+      contents: read
+      id-token: write
+    secrets: inherit
+    with:
+      environment: "build-stage"  # If a QA environment is ever deployed then this should probably to it
+      updater-version: ${{ needs.setup.outputs.artifact-version }}
+  # The updater is tightly coupled with OS package repos, so the package must be published to OS package repos to test
+  publish:
+    name: Publish the updater
+    permissions:
+      contents: read
+      actions: write
+    runs-on: ubuntu-latest
+    needs:
+      - setup
+      - build
+    environment: "build-stage"
+    concurrency: Only allow a single teleport-ent-updater ${{ matrix.repo-type }} deployment at a time
+    strategy:
+      fail-fast: false  # If either APT or YUM deployment fails, let the other one run before failing
+      matrix:
+        repo-type:
+          - apt
+          - yum
+    env:
+      VERSION_CHANNEL: cloud
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+      - name: Deploy package to `stable/${{ env.VERSION_CHANNEL }}` ${{ matrix.repo-type }} repos
+        uses: ./.github/actions/deploy-os-package
+        with:
+          # TODO set this to publish-stage https://github.com/gravitational/teleport.e/pull/4012 lands
+          # This only (might) work because build-stage has historically be abused here
+          environment: "build-stage"
+          repo-type: ${{ matrix.repo-type }}
+          artifact-tag: ${{ needs.setup.outputs.artifact-version }}
+          version-channel: ${{ env.VERSION_CHANNEL }}
+          package-name-filter: "teleport-ent-updater*"
+          package-to-test: teleport-ent-updater
+          do-teleport-package-tests: true
+          workflow-git-reference: ${{ github.head_ref }}
+    
