@@ -3,10 +3,12 @@ package okta
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sync/singleflight"
 )
 
 // assignmentClient is a caching Okta client that will keep track of of Okta
@@ -29,6 +31,10 @@ type assignmentClient struct {
 	// Apps membership.
 	appsMu sync.RWMutex
 	apps   map[string]map[appAssignment]bool
+	// syncSingleFlight is used to prevent multiple requests during listing user apps groups
+	// assignments. Parallel calls will be collapsed in to one and all receive the same result.
+	// Assumed that Okta GroupID and AppID  are exclusive uniq (Okta Group ID != Okta App ID)
+	syncSingleFlight singleflight.Group
 }
 
 // newAssignmentClient will return a new assignment client.
@@ -39,6 +45,30 @@ func newAssignmentClient(log *logrus.Entry, oktaClient OktaClient) *assignmentCl
 		groups:     map[string]map[string]bool{},
 		apps:       map[string]map[appAssignment]bool{},
 	}
+}
+
+func (a *assignmentClient) getGroupAssignments(ctx context.Context, groupID string) ([]string, error) {
+	// syncSingleFlight is used to prevent multiple requests during listing user groups assignments.
+	// assignments are processed in parallel (See processAssignments function)
+	// We need to make sure that we don't make multiple requests to Okta for the same group.
+	// After the first request, the result is cached and returned for subsequent requests.
+	key := fmt.Sprintf("group:%s", groupID)
+	items, err, _ := a.syncSingleFlight.Do(key, func() (interface{}, error) {
+		a.log.Debugf("Refreshing assignments for group %s", groupID)
+		members, err := a.oktaClient.getGroupAssignments(ctx, groupID)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		return members, nil
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	members, ok := items.([]string)
+	if !ok {
+		return nil, trace.BadParameter("unexpected type %T returned", items)
+	}
+	return members, nil
 }
 
 // userAssignedToGroup will return true if the user is assigned to the group.
@@ -54,8 +84,7 @@ func (a *assignmentClient) userAssignedToGroup(ctx context.Context, username, gr
 	a.groupsMu.Unlock()
 
 	if assignments == nil {
-		a.log.Debugf("Refreshing assignments for group %s", groupID)
-		members, err := a.oktaClient.getGroupAssignments(ctx, groupID)
+		members, err := a.getGroupAssignments(ctx, groupID)
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
@@ -148,6 +177,30 @@ func (a *assignmentClient) unregisterUserFromGroup(ctx context.Context, username
 	return nil
 }
 
+func (a *assignmentClient) getUserAssignedToApp(ctx context.Context, appID string) ([]appAssignment, error) {
+	// syncSingleFlight is used to prevent multiple requests during listing user apps assignments.
+	// assignments are processed in parallel (See processAssignments function)
+	// We need to make sure that we don't make multiple requests to Okta for the same app.
+	// After the first request, the result is cached and returned for subsequent requests.
+	key := fmt.Sprintf("app:%s", appID)
+	items, err, _ := a.syncSingleFlight.Do(key, func() (interface{}, error) {
+		a.log.Debugf("Refreshing assignments for app %s", appID)
+		items, err := a.oktaClient.getAppAssignments(ctx, appID)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		return items, nil
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	members, ok := items.([]appAssignment)
+	if !ok {
+		return nil, trace.BadParameter("unexpected type %T returned", items)
+	}
+	return members, nil
+}
+
 // userAssignedToApp will return true if the user is assigned to the app.
 func (a *assignmentClient) userAssignedToApp(ctx context.Context, username, appID string) (bool, error) {
 	userID, err := a.userID(ctx, username)
@@ -161,8 +214,7 @@ func (a *assignmentClient) userAssignedToApp(ctx context.Context, username, appI
 	a.appsMu.RUnlock()
 
 	if assignments == nil {
-		a.log.Debugf("Refreshing assignments for app %s", appID)
-		members, err := a.oktaClient.getAppAssignments(ctx, appID)
+		members, err := a.getUserAssignedToApp(ctx, appID)
 		if err != nil {
 			return false, trace.Wrap(err)
 		}

@@ -2,10 +2,17 @@ package okta
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/gravitational/trace"
+	"github.com/okta/okta-sdk-golang/v2/okta"
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
@@ -245,5 +252,118 @@ func TestAssignmentClient(t *testing.T) {
 		isAssigned, err = assignmentClient.userAssignedToGroup(ctx, testUser, testGroup)
 		require.NoError(t, err)
 		require.True(t, isAssigned)
+	})
+}
+
+func TestClientGetAssignedAppsGroups(t *testing.T) {
+	ctx := context.Background()
+	var appsCallsCount atomic.Int64
+	var group1CallsCount atomic.Int64
+	var group2CallsCount atomic.Int64
+	const numOfParallelCalls = 20
+
+	httpServer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var payload any
+		switch r.URL.Path {
+		case "/api/v1/users":
+			payload = []*okta.User{
+				{Id: "username1", Profile: &okta.UserProfile{oktaUserProfileLogin: "username1"}},
+				{Id: "username2", Profile: &okta.UserProfile{oktaUserProfileLogin: "username2"}},
+			}
+		case "/api/v1/apps/testApp/users":
+			appsCallsCount.Add(1)
+			payload = []*okta.AppUser{
+				{Id: "username1", Scope: "GROUP"},
+			}
+		case "/api/v1/groups/testGroup1/users":
+			group1CallsCount.Add(1)
+			payload = []*okta.User{
+				{Id: "username1"},
+			}
+		case "/api/v1/groups/testGroup2/users":
+			group2CallsCount.Add(1)
+			payload = []*okta.User{
+				{Id: "username1"},
+			}
+
+		default:
+			t.Fatalf("unexpected URL %s", r.URL.Path)
+		}
+
+		w.Header().Add("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(payload); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	_, oktaClient, err := okta.NewClient(ctx,
+		okta.WithHttpClientPtr(httpServer.Client()),
+		okta.WithCache(false),
+		okta.WithOrgUrl(httpServer.URL),
+		okta.WithToken("test"),
+	)
+	require.NoError(t, err)
+	client := wrappedClient{
+		client: oktaClient,
+	}
+	log := logrus.WithField(teleport.ComponentKey, eteleport.ComponentOkta)
+	assignmentClient := newAssignmentClient(log, &client)
+	t.Run("get assigned app for user concurrent calls", func(t *testing.T) {
+		// Test the OKTA API is called only once for the same user and app
+		// when multiple concurrent calls are made to the assignmentClient
+		// for the same user and app.
+		var wg sync.WaitGroup
+		for i := 0; i < numOfParallelCalls; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				ok, err := assignmentClient.userAssignedToApp(ctx, "username1", "testApp")
+				assert.NoError(t, err)
+				assert.True(t, ok)
+			}()
+		}
+		wg.Wait()
+		require.Equal(t, int64(1), appsCallsCount.Load())
+	})
+
+	t.Run("get assigned groups for user concurrent calls", func(t *testing.T) {
+		// Test the OKTA API is called only once for the same user and group
+		// when multiple concurrent calls are made to the assignmentClient
+		// for the same user and app.
+		var wg sync.WaitGroup
+		for i := 0; i < numOfParallelCalls; i++ {
+			wg.Add(2)
+			go func() {
+				defer wg.Done()
+				ok, err := assignmentClient.userAssignedToGroup(ctx, "username1", "testGroup1")
+				require.NoError(t, err)
+				require.True(t, ok)
+			}()
+			go func() {
+				defer wg.Done()
+				ok, err := assignmentClient.userAssignedToGroup(ctx, "username1", "testGroup2")
+				require.NoError(t, err)
+				require.True(t, ok)
+			}()
+		}
+		wg.Wait()
+		require.Equal(t, int64(1), group1CallsCount.Load())
+		require.Equal(t, int64(1), group2CallsCount.Load())
+	})
+
+	t.Run("get assigned for username2", func(t *testing.T) {
+		// Check if for other user the OKTA API will not be called again and cached value will be used.
+		ok, err := assignmentClient.userAssignedToGroup(ctx, "username2", "testGroup1")
+		require.NoError(t, err)
+		require.False(t, ok)
+
+		ok, err = assignmentClient.userAssignedToApp(ctx, "username2", "testApp")
+		require.NoError(t, err)
+		require.False(t, ok)
+		require.Equal(t, int64(1), group1CallsCount.Load())
+		require.Equal(t, int64(1), group2CallsCount.Load())
+		require.Equal(t, int64(1), appsCallsCount.Load())
 	})
 }
