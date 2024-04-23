@@ -196,9 +196,7 @@ type HostCredentials func(context.Context, string, bool, types.RegisterUsingToke
 // as well as a method for the node to validate the auth server.
 func Register(ctx context.Context, params RegisterParams) (certs *proto.Certs, err error) {
 	ctx, span := tracer.Start(ctx, "Register")
-	defer func() {
-		tracing.EndSpan(span, err)
-	}()
+	defer func() { tracing.EndSpan(span, err) }()
 
 	if err := params.checkAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -324,9 +322,7 @@ func registerThroughProxy(
 	params RegisterParams,
 ) (certs *proto.Certs, err error) {
 	ctx, span := tracer.Start(ctx, "registerThroughProxy")
-	defer func() {
-		tracing.EndSpan(span, err)
-	}()
+	defer func() { tracing.EndSpan(span, err) }()
 
 	switch params.JoinMethod {
 	case types.JoinMethodIAM, types.JoinMethodAzure:
@@ -387,9 +383,7 @@ func registerThroughAuth(
 	ctx context.Context, token string, params RegisterParams,
 ) (certs *proto.Certs, err error) {
 	ctx, span := tracer.Start(ctx, "registerThroughAuth")
-	defer func() {
-		tracing.EndSpan(span, err)
-	}()
+	defer func() { tracing.EndSpan(span, err) }()
 
 	var client *Client
 	// Build a client for the Auth Server with different certificate validation
