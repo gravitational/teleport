@@ -37,18 +37,29 @@ func (a *Server) registerUsingTPMMethod(
 	ctx context.Context,
 	initReq *proto.RegisterUsingTPMMethodInitialRequest,
 	solveChallenge client.RegisterTPMChallengeResponseFunc,
-) (*proto.Certs, error) {
+) (_ *proto.Certs, err error) {
+	var provisionToken types.ProvisionToken
+	var attributeSrc joinAttributeSourcer
+	defer func() {
+		// Emit a log message and audit event on join failure.
+		if err != nil {
+			a.handleJoinFailure(
+				err, provisionToken, attributeSrc, initReq.JoinRequest,
+			)
+		}
+	}()
+
 	// First, check the specified token exists, and is a TPM-type join token.
 	if err := initReq.JoinRequest.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	pt, err := a.checkTokenJoinRequestCommon(ctx, initReq.JoinRequest)
+	provisionToken, err = a.checkTokenJoinRequestCommon(ctx, initReq.JoinRequest)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ptv2, ok := pt.(*types.ProvisionTokenV2)
+	ptv2, ok := provisionToken.(*types.ProvisionTokenV2)
 	if !ok {
-		return nil, trace.BadParameter("expected *types.ProvisionTokenV2, got %T", pt)
+		return nil, trace.BadParameter("expected *types.ProvisionTokenV2, got %T", provisionToken)
 	}
 	if ptv2.Spec.JoinMethod != types.JoinMethodTPM {
 		return nil, trace.BadParameter("specified join token is not for `tpm` method")
@@ -91,6 +102,7 @@ func (a *Server) registerUsingTPMMethod(
 	if err != nil {
 		return nil, trace.Wrap(err, "validating TPM EK")
 	}
+	attributeSrc = validatedEK
 
 	if err := checkTPMAllowRules(validatedEK, ptv2.Spec.TPM.Allow); err != nil {
 		return nil, trace.Wrap(err)
