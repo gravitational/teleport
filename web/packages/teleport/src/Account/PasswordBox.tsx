@@ -26,18 +26,23 @@ import cfg from 'teleport/config';
 
 import { MfaDevice } from 'teleport/services/mfa';
 
+import { PasswordState } from 'teleport/services/user';
+
 import { ActionButtonSecondary, Header } from './Header';
 import { ChangePasswordWizard } from './ChangePasswordWizard';
+import { StatePill } from './StatePill';
 
 export interface PasswordBoxProps {
   changeDisabled: boolean;
   devices: MfaDevice[];
+  passwordState: PasswordState;
   onPasswordChange: () => void;
 }
 
 export function PasswordBox({
   changeDisabled,
   devices,
+  passwordState,
   onPasswordChange,
 }: PasswordBoxProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -51,7 +56,14 @@ export function PasswordBox({
     <Box>
       <SingleRowBox>
         <Header
-          title="Password"
+          title={
+            <>
+              Password
+              <span data-testid="password-state-pill">
+                <PasswordStatePill state={passwordState} />
+              </span>
+            </>
+          }
           icon={<Icon.Password />}
           actions={
             <ActionButtonSecondary
@@ -74,4 +86,15 @@ export function PasswordBox({
       )}
     </Box>
   );
+}
+
+function PasswordStatePill({ state }: { state: PasswordState }) {
+  switch (state) {
+    case PasswordState.PASSWORD_STATE_SET:
+      return <StatePill state="active" />;
+    case PasswordState.PASSWORD_STATE_UNSET:
+      return <StatePill state="inactive" />;
+    default:
+      return null;
+  }
 }
