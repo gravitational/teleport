@@ -30,6 +30,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/azure"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -123,6 +124,9 @@ func newAzureHandler(ctx context.Context, config HandlerConfig) (*handler, error
 
 // RoundTrip handles incoming requests and forwards them to the proper API.
 func (s *handler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	if req.Body != nil {
+		req.Body = utils.MaxBytesReader(w, req.Body, teleport.MaxHTTPRequestSize)
+	}
 	if err := s.serveHTTP(w, req); err != nil {
 		s.formatForwardResponseError(w, req, err)
 		return
