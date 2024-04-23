@@ -6,6 +6,8 @@ description: How to configure the Teleport Event Handler plugin and Fluentd to s
 Panther is a cloud-native security analytics platform. In this guide, we'll explain
 how to forward Teleport audit events to Panther using Fluentd.
 
+## How it works
+
 The Teleport Event Handler is designed to communicate with Fluentd using mTLS
 to establish a secure channel. In this setup, the Event Handler sends events to Fluentd, which forwards them to S3 to be ingested by Panther.
 
@@ -26,7 +28,7 @@ to establish a secure channel. In this setup, the Event Handler sends events to 
 - An S3 bucket to store the logs. Panther will ingest the logs from this bucket.
 
 The instructions below demonstrate a local test of the Event Handler plugin on
-VM. You will need to adjust paths, ports, and domains for other environments.
+a VM. You will need to adjust paths, ports, and domains for other environments.
 
 - (!docs/pages/includes/tctl.mdx!)
 
@@ -94,7 +96,7 @@ $(pwd)/fluent.conf:/fluentd/etc/fluent.conf --entrypoint=/bin/sh -i --tty  fluen
 
 </Admonition>
 
-### Configure Fluentd for Panter
+### Configure Fluentd for Panther
 
 When you run the Teleport Event Handler, it will create a `fluent.conf` file.  This file needs to be updated
 to send logs to Panther. This means adding a `<filter>` and `<match>` section to the file. These sections
@@ -198,7 +200,7 @@ The Logs view in Panter should now report your Teleport cluster events.
 ## Troubleshooting connection issues
 
 If the Teleport Event Handler is displaying error logs while connecting to your
-Teleport Cluster, ensure that:
+Teleport cluster, ensure that:
 
 - The certificate the Teleport Event Handler is using to connect to your
   Teleport cluster is not past its expiration date. This is the value of the
