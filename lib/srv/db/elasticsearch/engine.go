@@ -31,6 +31,7 @@ import (
 	elastic "github.com/elastic/go-elasticsearch/v8/typedapi/types"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/events"
@@ -146,6 +147,11 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 // process reads request from connected elasticsearch client, processes the requests/responses and send data back
 // to the client.
 func (e *Engine) process(ctx context.Context, sessionCtx *common.Session, req *http.Request, client *http.Client) error {
+	if req.Body != nil {
+		// make sure we close the incoming request's body. ignore any close error.
+		defer req.Body.Close()
+		req.Body = io.NopCloser(utils.LimitReader(req.Body, teleport.MaxHTTPRequestSize))
+	}
 	payload, err := utils.GetAndReplaceRequestBody(req)
 	if err != nil {
 		return trace.Wrap(err)
