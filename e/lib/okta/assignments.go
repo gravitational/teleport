@@ -223,7 +223,7 @@ func (a *assignmentReconciler) startResourceWatcher(ctx context.Context) (*servi
 
 // onCreate will update the Okta API based on newly created Okta assignments.
 func (a *assignmentReconciler) onCreate(ctx context.Context, newAssignment types.OktaAssignment) error {
-	if err := a.assignmentProcessor.processAssignment(ctx, newAssignment, false); err != nil {
+	if err := a.assignmentProcessor.processAssignment(ctx, newAssignment.Copy(), false); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -236,7 +236,7 @@ func (a *assignmentReconciler) onCreate(ctx context.Context, newAssignment types
 
 // onUpdate will perform necessary Okta assignment operations based on updated Okta assignments.
 func (a *assignmentReconciler) onUpdate(ctx context.Context, updatedAssignment, _ types.OktaAssignment) error {
-	if err := a.assignmentProcessor.processAssignment(ctx, updatedAssignment, false); err != nil {
+	if err := a.assignmentProcessor.processAssignment(ctx, updatedAssignment.Copy(), false); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -251,7 +251,7 @@ func (a *assignmentReconciler) onUpdate(ctx context.Context, updatedAssignment, 
 // NOTE: This should never actually be run as users shouldn't be deleting OktaAssignment objects.
 func (a *assignmentReconciler) onDelete(ctx context.Context, deletedAssignment types.OktaAssignment) error {
 	deletedAssignment.SetCleanupTime(a.clock.Now())
-	if err := a.assignmentProcessor.processAssignment(ctx, deletedAssignment, false); err != nil {
+	if err := a.assignmentProcessor.processAssignment(ctx, deletedAssignment.Copy(), false); err != nil {
 		return trace.Wrap(err)
 	}
 

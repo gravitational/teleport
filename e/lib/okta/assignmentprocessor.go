@@ -42,16 +42,15 @@ const (
 type assignmentProcessorAccessPoint interface {
 	// UpdateOktaAssignment updates an existing Okta assignment resource.
 	UpdateOktaAssignment(context.Context, types.OktaAssignment) (types.OktaAssignment, error)
-
 	// UpdateOktaAssignmentStatus will update the status for an Okta assignment if the given time has passed
 	// since the last transition.
 	UpdateOktaAssignmentStatus(ctx context.Context, name, status string, timeHasPassed time.Duration) error
-
 	// GetUserGroup returns the specified user group resources.
 	GetUserGroup(ctx context.Context, name string) (types.UserGroup, error)
-
 	// ListResources returns a paginated list of resources.
 	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
+	// DeleteOktaAssignment removes the specified Okta assignment resource.
+	DeleteOktaAssignment(ctx context.Context, name string) error
 }
 
 // assignmentProcessor will process an Okta assignment, updating its status along the way.
@@ -208,8 +207,12 @@ func (a *assignmentProcessor) processAssignment(ctx context.Context, assignment 
 	needsCleanup := !cleanupTime.IsZero() && !a.clock.Now().Before(cleanupTime)
 	needsReprovision := assignment.IsFinalized() && !needsCleanup
 
-	// Skip a finalized assignment, as it's already been cleaned up.
 	if assignment.IsFinalized() && needsCleanup {
+		// If the assigment was Finalized (Successfully processed in needCleanupState)
+		// delete Okta assignment from backend.
+		if err := a.deleteFinalizedAssignment(ctx, assignment); err != nil && !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
 		return nil
 	}
 
@@ -606,4 +609,12 @@ func userTargetName(assignment types.OktaAssignment, target types.OktaAssignment
 // targetDescriptor will return a string describing the target.
 func targetDescriptor(assignment types.OktaAssignment, target types.OktaAssignmentTarget) string {
 	return fmt.Sprintf("assignment %s for user %s, target %s %s", assignment.GetName(), assignment.GetUser(), target.GetTargetType(), target.GetID())
+}
+
+func (a *assignmentProcessor) deleteFinalizedAssignment(ctx context.Context, assignment types.OktaAssignment) error {
+	a.log.Debugf("Pruning cleaned up assignment %s from backend", assignment.GetName())
+	if err := a.accessPoint.DeleteOktaAssignment(ctx, assignment.GetName()); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }

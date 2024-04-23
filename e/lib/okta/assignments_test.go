@@ -48,45 +48,23 @@ func TestAssignmentReconciler(t *testing.T) {
 	waitForResult(t, onReconcileCh, struct{}{}, 1)
 
 	// Reconciler should be empty to start
-	require.Empty(t, reconciler.getAssignments())
-	require.Empty(t, reconciler.getNewAssignments())
+	assertRecNewAndCurAssignments(t, reconciler, types.OktaAssignments{})
 
-	// Create the cleaned up resources in the backend.
-	require.NoError(t, ap.CreateUserGroup(ctx, group(t, "cleanedUpGroup1", types.OriginOkta, testOrgURL)))
-	_, err := ap.UpsertApplicationServer(ctx,
-		application(t, hash, "cleanedUpApp1", link, types.OriginOkta, testOrgURL, testHostID))
-	require.NoError(t, err)
-	oktaClient.addGroupToMapping("cleanedUpGroup1")
-	oktaClient.addApplicationToMapping("okta-app-1")
+	t.Run("finalized assigment should be deleted from backend", func(t *testing.T) {
+		cleanedUpAssignment := assignment(t, "cleaned-up-assignment", testUser, clock.Now(), constants.OktaAssignmentStatusSuccessful, clock.Now(), true,
+			target(types.OktaAssignmentTargetV1_APPLICATION, appName("cleanedUpApp1")),
+			target(types.OktaAssignmentTargetV1_GROUP, "cleanedUpGroup1"),
+		)
+		_, err := ap.CreateOktaAssignment(ctx, cleanedUpAssignment)
+		require.NoError(t, err)
 
-	// This Okta assignment should not be operated on by the processor.
-	startTime := clock.Now()
-	cleanedUpAssignment := assignment(t, "cleaned-up-assignment", testUser, startTime, constants.OktaAssignmentStatusSuccessful, clock.Now(), true,
-		target(types.OktaAssignmentTargetV1_APPLICATION, appName("cleanedUpApp1")),
-		target(types.OktaAssignmentTargetV1_GROUP, "cleanedUpGroup1"),
-	)
-	_, err = ap.CreateOktaAssignment(ctx, cleanedUpAssignment)
-	require.NoError(t, err)
+		// 2 event expected:
+		// Assignment Creation
+		// Assigment Deletion
+		waitForResult(t, onReconcileCh, struct{}{}, 2)
+		assertRecNewAndCurAssignments(t, reconciler, types.OktaAssignments{})
 
-	// 1 event expected:
-	// Creation of the above assignment.
-	// No further actions on this for now.
-	waitForResult(t, onReconcileCh, struct{}{}, 1)
-
-	require.Empty(t, cmp.Diff(types.OktaAssignments{cleanedUpAssignment}, reconciler.getAssignments(),
-		cmpopts.SortSlices(assignmentLess), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")),
-	)
-	require.Empty(t, cmp.Diff(types.OktaAssignments{cleanedUpAssignment}, reconciler.getNewAssignments(),
-		cmpopts.SortSlices(assignmentLess), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")),
-	)
-
-	// Create the actual resources in the backend.
-	require.NoError(t, ap.CreateUserGroup(ctx, group(t, "group1", types.OriginOkta, testOrgURL)))
-	_, err = ap.UpsertApplicationServer(ctx,
-		application(t, hash, "app1", "link", types.OriginOkta, testOrgURL, testHostID))
-	require.NoError(t, err)
-	oktaClient.addGroupToMapping("group1")
-	oktaClient.addApplicationToMapping("okta-app-2")
+	})
 
 	// This Okta assignment should be recognized.
 	assignment1 := assignment(t, "assignment1", testUser, time.Time{}, constants.OktaAssignmentStatusPending, clock.Now(), false,
@@ -94,10 +72,7 @@ func TestAssignmentReconciler(t *testing.T) {
 		target(types.OktaAssignmentTargetV1_GROUP, "group1"),
 	)
 
-	oktaClient.addApplicationToMapping("app1")
-	oktaClient.addGroupToMapping("group1")
-
-	_, err = ap.CreateOktaAssignment(ctx, assignment1)
+	_, err := ap.CreateOktaAssignment(ctx, assignment1)
 	require.NoError(t, err)
 
 	// 3 events expected:
@@ -117,19 +92,11 @@ func TestAssignmentReconciler(t *testing.T) {
 		target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
 		target(types.OktaAssignmentTargetV1_GROUP, "group1"),
 	)
-
-	require.Empty(t, cmp.Diff(types.OktaAssignments{cleanedUpAssignment, assignment1}, reconciler.getAssignments(),
-		cmpopts.SortSlices(assignmentLess), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")),
-	)
-	require.Empty(t, cmp.Diff(types.OktaAssignments{cleanedUpAssignment, assignment1}, reconciler.getNewAssignments(),
-		cmpopts.SortSlices(assignmentLess), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")),
-	)
+	assertRecNewAndCurAssignments(t, reconciler, types.OktaAssignments{assignment1})
 
 	foundAssignment, err := ap.GetOktaAssignment(ctx, assignment1.GetName())
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(foundAssignment, assignment1,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")),
-	)
+	assertAssignments(t, types.OktaAssignments{assignment1}, types.OktaAssignments{foundAssignment})
 
 	// Update should be recognized.
 	cleanupTime := clock.Now()
@@ -144,7 +111,7 @@ func TestAssignmentReconciler(t *testing.T) {
 	// app1 -> object update (the test update above)
 	// app1 -> PROCESSING
 	// app1 -> SUCCESSFUL (cleaned up)
-	waitForResult(t, onReconcileCh, struct{}{}, 3)
+	waitForResult(t, onReconcileCh, struct{}{}, 4)
 
 	expectAuditEvent(t, emitter, func(event *apievents.OktaAssignmentResult) {
 		require.Equal(t, events.OktaAssignmentCleanupEvent, event.GetType())
@@ -153,38 +120,21 @@ func TestAssignmentReconciler(t *testing.T) {
 		require.Equal(t, constants.OktaAssignmentStatusSuccessful, event.EndingStatus)
 	})
 
-	assignment1 = assignment(t, "assignment1", testUser, cleanupTime, constants.OktaAssignmentStatusSuccessful, clock.Now(), true,
-		target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
-		target(types.OktaAssignmentTargetV1_GROUP, "group1"),
-	)
+	assertAssigmentDoesntExist(t, ap, assignment1.GetName())
+	assertRecNewAndCurAssignments(t, reconciler, types.OktaAssignments{})
+}
 
-	require.Empty(t, cmp.Diff(types.OktaAssignments{cleanedUpAssignment, assignment1}, reconciler.getAssignments(),
-		cmpopts.SortSlices(assignmentLess), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")),
-	)
-	require.Empty(t, cmp.Diff(types.OktaAssignments{cleanedUpAssignment, assignment1}, reconciler.getNewAssignments(),
-		cmpopts.SortSlices(assignmentLess), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")),
-	)
-
-	foundAssignment, err = ap.GetOktaAssignment(ctx, assignment1.GetName())
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(foundAssignment, assignment1,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")),
-	)
-
-	// This delete be recognized.
-	require.NoError(t, ap.DeleteOktaAssignment(ctx, assignment1.GetName()))
-
-	// 1 event expected:
-	// Deletion of the Okta assignment.
-	waitForResult(t, onReconcileCh, struct{}{}, 1)
-
-	require.Empty(t, cmp.Diff(types.OktaAssignments{cleanedUpAssignment}, reconciler.getAssignments(),
-		cmpopts.SortSlices(assignmentLess), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")),
-	)
-	require.Empty(t, cmp.Diff(types.OktaAssignments{cleanedUpAssignment}, reconciler.getNewAssignments(),
-		cmpopts.SortSlices(assignmentLess), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")),
-	)
-
-	_, err = ap.GetOktaAssignment(ctx, assignment1.GetName())
+func assertAssigmentDoesntExist(t *testing.T, ap *testAccessPoint, name string) {
+	_, err := ap.GetOktaAssignment(context.Background(), name)
 	require.True(t, trace.IsNotFound(err))
+}
+
+func assertRecNewAndCurAssignments(t *testing.T, reconciler *assignmentReconciler, want types.OktaAssignments) {
+	assertAssignments(t, want, reconciler.getAssignments())
+	assertAssignments(t, want, reconciler.getNewAssignments())
+}
+
+func assertAssignments(t *testing.T, got, want types.OktaAssignments) {
+	cmpOpts := cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")
+	require.Empty(t, cmp.Diff(want, got, cmpopts.SortSlices(assignmentLess), cmpOpts))
 }

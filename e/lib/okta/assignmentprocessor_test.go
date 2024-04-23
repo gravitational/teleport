@@ -272,7 +272,7 @@ func TestProcessAssignments(t *testing.T) {
 			errAssertionFunc: require.NoError,
 		},
 		{
-			name: "finalized assignment not reprocessed",
+			name: "finalized assignment will be deleted",
 			groups: types.UserGroups{
 				group(t, "group1", types.OriginOkta, testOrgURL),
 			},
@@ -283,10 +283,7 @@ func TestProcessAssignments(t *testing.T) {
 				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
 				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
 			)},
-			expected: types.OktaAssignments{assignment(t, "assignment1", testUser, startTime, constants.OktaAssignmentStatusSuccessful, startTime, true,
-				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
-				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
-			)},
+			expected:              types.OktaAssignments{},
 			incrementTimeDuration: time.Minute,
 			oktaClientGroupMapping: map[string]map[string]bool{
 				"group1": {},
