@@ -161,7 +161,10 @@ export async function connectToAppWithVnet(
   ctx.notificationsService.notifyInfo(`Copied ${addrToCopy} to clipboard`);
 }
 
-// TODO(ravicious): For apps from a root cluster, the copied address needs to be:
+// TODO(ravicious): Check whether the domain from public addr is configured as a custom DNS zone in
+// VNet.
+//
+// For apps from a root cluster, the copied address needs to be:
 // * publicAddr if the domain from the public addr is configured as a DNS zone.
 // * fqdn if the domain from the public addr is not configured as a DNS zone.
 //
@@ -170,18 +173,16 @@ export async function connectToAppWithVnet(
 // * <app name>.<leaf cluster proxy host> if the domain from the public addr is not configured as
 // a DNS zone.
 //
-// For now, it can be just fqdn for root apps and the latter form for leaf apps.
-const getVnetAddr = (cluster: Cluster, target: App): string => {
-  if (!cluster.leaf) {
-    return target.fqdn;
-  }
-
-  // Strip port number from proxyHost.
-  const { hostname: leafProxyHostname } = new URL(
-    `https://${cluster.proxyHost}`
-  );
-  return `${target.name}.${leafProxyHostname}`;
-};
+// For now, it can be just fqdn for root apps and the latter form for leaf apps, however…
+//
+// TODO(ravicious): Figure out a way to provide proxy hostname for leaf apps.
+//
+// A root cluster has no idea of the proxy host of any given leaf. Thus, for now we depend on
+// publicAddr. However, if an app resource has publicAddr set to a domain which has not
+// been configured as a custom DNZ zone, then accessing an app over that publicAddr through VNet
+// will simply not work.
+const getVnetAddr = (cluster: Cluster, target: App): string =>
+  cluster.leaf ? target.publicAddr : target.fqdn;
 
 /**
  * When the app is opened outside Connect,
