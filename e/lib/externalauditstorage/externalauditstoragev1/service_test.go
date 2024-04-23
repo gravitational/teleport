@@ -44,6 +44,16 @@ func newTestPack(t *testing.T) *testPack {
 	integrationsSvc, err := local.NewIntegrationsService(mem)
 	require.NoError(t, err)
 
+	oidcIntegration, err := types.NewIntegrationAWSOIDC(
+		types.Metadata{Name: "aws-integration-1"},
+		&types.AWSOIDCIntegrationSpecV1{
+			RoleARN: "role1",
+		},
+	)
+	require.NoError(t, err)
+	_, err = integrationsSvc.CreateIntegration(context.Background(), oidcIntegration)
+	require.NoError(t, err)
+
 	return &testPack{
 		clock:           clock,
 		mem:             mem,
@@ -214,7 +224,7 @@ func TestRBAC(t *testing.T) {
 			desc: "generate draft",
 			f: func(service *Service) error {
 				_, err := service.GenerateDraftExternalAuditStorage(ctx, &pb.GenerateDraftExternalAuditStorageRequest{
-					IntegrationName: "test-integration",
+					IntegrationName: "aws-integration-1",
 					Region:          "us-west-2",
 				})
 				return err
@@ -343,7 +353,7 @@ func TestClusterAuditConfigCheck(t *testing.T) {
 
 			_, err = service.GenerateDraftExternalAuditStorage(ctx, &pb.GenerateDraftExternalAuditStorageRequest{
 				Region:          tc.easRegion,
-				IntegrationName: "test-integration",
+				IntegrationName: "aws-integration-1",
 			})
 			assert.ErrorIs(t, err, tc.expectErr)
 
@@ -353,7 +363,7 @@ func TestClusterAuditConfigCheck(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			draft, err := externalauditstorage.GenerateDraftExternalAuditStorage("test-integration", tc.easRegion)
+			draft, err := externalauditstorage.GenerateDraftExternalAuditStorage("aws-integration-1", tc.easRegion)
 			require.NoError(t, err)
 
 			_, err = service.CreateDraftExternalAuditStorage(ctx, &pb.CreateDraftExternalAuditStorageRequest{
