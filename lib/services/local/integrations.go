@@ -120,55 +120,40 @@ func (s *IntegrationsService) DeleteIntegration(ctx context.Context, name string
 		return trace.Wrap(s.svc.DeleteResource(ctx, name))
 	}
 
-	// First check if the integration exists to return NotFound in case it doesn't.
-	if _, err := s.svc.GetResource(ctx, name); err != nil {
-		return trace.Wrap(err)
-	}
-
-	conditionalActions, err := notReferencedByEAS(ctx, s.backend, name)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	conditionalActions = append(conditionalActions, backend.ConditionalAction{
-		Key:       s.svc.MakeKey(name),
-		Condition: backend.Exists(),
-		Action:    backend.Delete(),
+	// Check that this integration is not referenced by an EAS integration under the externalAuditStorageLock
+	// so that no new EAS integrations can be concurrently created.
+	err := backend.RunWhileLocked(ctx, backend.RunWhileLockedConfig{
+		LockConfiguration: backend.LockConfiguration{
+			Backend:  s.backend,
+			LockName: externalAuditStorageLockName,
+			TTL:      externalAuditStorageLockTTL,
+		},
+	}, func(ctx context.Context) error {
+		if err := notReferencedByEAS(ctx, s.backend, name); err != nil {
+			return trace.Wrap(err)
+		}
+		return trace.Wrap(s.svc.DeleteResource(ctx, name))
 	})
-	_, err = s.backend.AtomicWrite(ctx, conditionalActions)
 	return trace.Wrap(err)
 }
 
-// notReferencedByEAS returns a slice of ConditionalActions to use with a backend.AtomicWrite to ensure that
-// integration [name] is not referenced by any EAS (External Audit Storage) integration.
-func notReferencedByEAS(ctx context.Context, bk backend.Backend, name string) ([]backend.ConditionalAction, error) {
-	var conditionalActions []backend.ConditionalAction
+// notReferencedByEAS checks that integration [name] is not referenced by any EAS (External Audit Storage)
+// integration. It should be called under the externalAuditStorageLock only.
+func notReferencedByEAS(ctx context.Context, bk backend.Backend, name string) error {
 	for _, key := range [][]byte{draftExternalAuditStorageBackendKey, clusterExternalAuditStorageBackendKey} {
-		condition := backend.ConditionalAction{
-			Key:    key,
-			Action: backend.Nop(),
-			// Condition: will be set below based on existence of key.
-		}
-
 		eas, err := getExternalAuditStorage(ctx, bk, key)
 		if err != nil {
 			if !trace.IsNotFound(err) {
-				return nil, trace.Wrap(err)
+				return trace.Wrap(err)
 			}
-			// If this EAS configuration currently doesn't exist, make sure it still doesn't exist when
-			// deleting the AWS integration.
-			condition.Condition = backend.NotExists()
-		} else {
-			if eas.Spec.IntegrationName == name {
-				return nil, trace.BadParameter("cannot delete AWS OIDC integration currently referenced by External Audit Storage integration")
-			}
-			// If this EAS configuration currently doesn't reference the AWS integration being deleted, make
-			// sure it hasn't changed when deleting the AWS integration.
-			condition.Condition = backend.Revision(eas.GetRevision())
+			// If this EAS configuration currently doesn't exist, continue.
+			continue
 		}
-
-		conditionalActions = append(conditionalActions, condition)
+		if eas.Spec.IntegrationName == name {
+			return trace.BadParameter("cannot delete AWS OIDC integration currently referenced by External Audit Storage integration")
+		}
 	}
-	return conditionalActions, nil
+	return nil
 }
 
 // DeleteAllIntegrations removes all Integration resources. This should only be used in a cache.

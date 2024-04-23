@@ -18,6 +18,7 @@ package local
 
 import (
 	"context"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -32,6 +33,8 @@ const (
 	externalAuditStoragePrefix      = "external_audit_storage"
 	externalAuditStorageDraftName   = "draft"
 	externalAuditStorageClusterName = "cluster"
+	externalAuditStorageLockName    = "external_audit_storage_lock"
+	externalAuditStorageLockTTL     = 10 * time.Second
 )
 
 var (
@@ -77,38 +80,31 @@ func (s *ExternalAuditStorageService) CreateDraftExternalAuditStorage(ctx contex
 		Value: value,
 	}
 
-	// First check if a draft already exists for a nicer error message than the one returned by AtomicWrite.
-	_, err = s.backend.Get(ctx, draftExternalAuditStorageBackendKey)
-	if err == nil {
-		return nil, trace.AlreadyExists("draft external_audit_storage already exists")
-	}
-
-	// Check that the referenced AWS OIDC integration actually exists.
-	integrationKey, integrationRevision, err := s.checkAWSIntegration(ctx, in.Spec.IntegrationName)
-	if err != nil {
-		return nil, trace.Wrap(err, "checking AWS OIDC integration")
-	}
-
-	revision, err := s.backend.AtomicWrite(ctx, []backend.ConditionalAction{
-		{
-			// Make sure the AWS OIDC integration checked above hasn't changed.
-			Key:       integrationKey,
-			Condition: backend.Revision(integrationRevision),
-			Action:    backend.Nop(),
+	var lease *backend.Lease
+	err = backend.RunWhileLocked(ctx, backend.RunWhileLockedConfig{
+		LockConfiguration: backend.LockConfiguration{
+			Backend:  s.backend,
+			LockName: externalAuditStorageLockName,
+			TTL:      externalAuditStorageLockTTL,
 		},
-		{
-			// Create the new draft EAS integration if one doesn't already exist.
-			Key:       item.Key,
-			Condition: backend.NotExists(),
-			Action:    backend.Put(item),
-		},
+	}, func(ctx context.Context) error {
+		// Check that the referenced AWS OIDC integration actually exists.
+		if _, _, err := s.checkAWSIntegration(ctx, in.Spec.IntegrationName); err != nil {
+			return trace.Wrap(err, "checking AWS OIDC integration")
+		}
+
+		lease, err = s.backend.Create(ctx, item)
+		return trace.Wrap(err)
 	})
 	if err != nil {
+		if trace.IsAlreadyExists(err) {
+			return nil, trace.AlreadyExists("draft external_audit_storage already exists")
+		}
 		return nil, trace.Wrap(err)
 	}
 
 	out := in.Clone()
-	out.SetRevision(revision)
+	out.SetRevision(lease.Revision)
 	return out, nil
 }
 
@@ -123,32 +119,31 @@ func (s *ExternalAuditStorageService) UpsertDraftExternalAuditStorage(ctx contex
 		Value: value,
 	}
 
-	// Check that the referenced AWS OIDC integration actually exists.
-	integrationKey, integrationRevision, err := s.checkAWSIntegration(ctx, in.Spec.IntegrationName)
-	if err != nil {
-		return nil, trace.Wrap(err, "checking AWS OIDC integration")
-	}
+	var lease *backend.Lease
+	err = backend.RunWhileLocked(ctx, backend.RunWhileLockedConfig{
+		LockConfiguration: backend.LockConfiguration{
+			Backend:  s.backend,
+			LockName: externalAuditStorageLockName,
+			TTL:      externalAuditStorageLockTTL,
+		},
+	}, func(ctx context.Context) error {
+		// Check that the referenced AWS OIDC integration actually exists.
+		if _, _, err := s.checkAWSIntegration(ctx, in.Spec.IntegrationName); err != nil {
+			return trace.Wrap(err, "checking AWS OIDC integration")
+		}
 
-	revision, err := s.backend.AtomicWrite(ctx, []backend.ConditionalAction{
-		{
-			// Make sure the AWS OIDC integration checked above hasn't changed.
-			Key:       integrationKey,
-			Condition: backend.Revision(integrationRevision),
-			Action:    backend.Nop(),
-		},
-		{
-			// Upsert the new draft EAS integration.
-			Key:       item.Key,
-			Condition: backend.Whatever(),
-			Action:    backend.Put(item),
-		},
+		lease, err = s.backend.Put(ctx, item)
+		return trace.Wrap(err)
 	})
 	if err != nil {
+		if trace.IsAlreadyExists(err) {
+			return nil, trace.AlreadyExists("draft external_audit_storage already exists")
+		}
 		return nil, trace.Wrap(err)
 	}
 
 	out := in.Clone()
-	out.SetRevision(revision)
+	out.SetRevision(lease.Revision)
 	return out, nil
 }
 
@@ -188,52 +183,48 @@ func (s *ExternalAuditStorageService) GetClusterExternalAuditStorage(ctx context
 // PromoteToClusterExternalAuditStorage promotes the current draft to be the cluster ExternalAuditStorage
 // resource.
 func (s *ExternalAuditStorageService) PromoteToClusterExternalAuditStorage(ctx context.Context) error {
-	draft, err := s.GetDraftExternalAuditStorage(ctx)
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return trace.BadParameter("can't promote to cluster when draft does not exist")
+	err := backend.RunWhileLocked(ctx, backend.RunWhileLockedConfig{
+		LockConfiguration: backend.LockConfiguration{
+			Backend:  s.backend,
+			LockName: externalAuditStorageLockName,
+			TTL:      externalAuditStorageLockTTL,
+		},
+	}, func(ctx context.Context) error {
+		draft, err := s.GetDraftExternalAuditStorage(ctx)
+		if err != nil {
+			if trace.IsNotFound(err) {
+				return trace.BadParameter("can't promote to cluster when draft does not exist")
+			}
+			return trace.Wrap(err)
 		}
-		return trace.Wrap(err)
-	}
 
-	cluster, err := externalauditstorage.NewClusterExternalAuditStorage(header.Metadata{}, draft.Spec)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	value, err := services.MarshalExternalAuditStorage(cluster)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	item := backend.Item{
-		Key:   clusterExternalAuditStorageBackendKey,
-		Value: value,
-	}
+		// Check that the referenced AWS OIDC integration actually exists.
+		if _, _, err := s.checkAWSIntegration(ctx, draft.Spec.IntegrationName); err != nil {
+			return trace.Wrap(err, "checking AWS OIDC integration")
+		}
 
-	integrationKey, integrationRevision, err := s.checkAWSIntegration(ctx, draft.Spec.IntegrationName)
-	if err != nil {
-		return trace.Wrap(err, "checking AWS OIDC integration")
-	}
-
-	_, err = s.backend.AtomicWrite(ctx, []backend.ConditionalAction{
-		{
-			// Make sure the AWS OIDC integration checked above hasn't changed.
-			Key:       integrationKey,
-			Condition: backend.Revision(integrationRevision),
-			Action:    backend.Nop(),
-		},
-		{
-			// Make sure the draft EAS integration copied above hasn't changed, and delete it after the
-			// promotion.
-			Key:       draftExternalAuditStorageBackendKey,
-			Condition: backend.Revision(draft.GetRevision()),
-			Action:    backend.Delete(),
-		},
-		{
-			// Upsert the new cluster EAS integration.
-			Key:       item.Key,
-			Condition: backend.Whatever(),
-			Action:    backend.Put(item),
-		},
+		out, err := externalauditstorage.NewClusterExternalAuditStorage(header.Metadata{}, draft.Spec)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		value, err := services.MarshalExternalAuditStorage(out)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		_, err = s.backend.Put(ctx, backend.Item{
+			Key:   clusterExternalAuditStorageBackendKey,
+			Value: value,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		// Clean up the current draft which has now been promoted.
+		// Failing to delete the current draft is not critical and the promotion
+		// has already succeeded, so just log any failure and return nil.
+		if err := s.backend.Delete(ctx, draftExternalAuditStorageBackendKey); err != nil {
+			s.logger.Info("failed to delete current draft external_audit_storage after promoting to cluster")
+		}
+		return nil
 	})
 	return trace.Wrap(err)
 }

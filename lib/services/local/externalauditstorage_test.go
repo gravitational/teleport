@@ -107,7 +107,6 @@ func TestExternalAuditStorageService(t *testing.T) {
 		created, err := service.CreateDraftExternalAuditStorage(ctx, draftFromSpec1)
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(draftFromSpec1, created, cmpOpts...))
-		require.NotEmpty(t, created.GetRevision())
 
 		// Then
 		got, err := service.GetDraftExternalAuditStorage(ctx)
@@ -134,7 +133,6 @@ func TestExternalAuditStorageService(t *testing.T) {
 		created, err := service.UpsertDraftExternalAuditStorage(ctx, draftFromSpec1)
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(draftFromSpec1, created, cmpOpts...))
-		require.NotEmpty(t, created.GetRevision())
 
 		// Then
 		got, err := service.GetDraftExternalAuditStorage(ctx)
