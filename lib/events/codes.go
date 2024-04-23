@@ -381,8 +381,12 @@ const (
 
 	// BotJoinCode is the 'bot.join' event code.
 	BotJoinCode = "TJ001I"
+	// BotJoinFailureCode is the 'bot.join' event code for failures.
+	BotJoinFailureCode = "TJ001E"
 	// InstanceJoinCode is the 'node.join' event code.
 	InstanceJoinCode = "TJ002I"
+	// InstanceJoinFailureCode is the 'node.join' event code for failures.
+	InstanceJoinFailureCode = "TJ002E"
 
 	// LockCreatedCode is the lock created event code.
 	LockCreatedCode = "TLK00I"
