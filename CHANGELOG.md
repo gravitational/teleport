@@ -4741,7 +4741,7 @@ The most pressing issues (a phishing attack which can potentially be used to ext
 
 ### Bugfixes
 
-* Roles created the the Web UI now have `node` resource. [#949](https://github.com/gravitational/teleport/pull/949)
+* Roles created in the Web UI now have `node` resource. [#949](https://github.com/gravitational/teleport/pull/949)
 
 ## 2.0.3
 

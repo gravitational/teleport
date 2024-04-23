@@ -369,7 +369,7 @@ func (c *ConnectionsHandler) serveSession(w http.ResponseWriter, r *http.Request
 	return nil
 }
 
-// sessionStartTime fetches the session start time based on the the certificate
+// sessionStartTime fetches the session start time based on the certificate
 // valid date.
 func (c *ConnectionsHandler) sessionStartTime(ctx context.Context) time.Time {
 	if userCert, err := authz.UserCertificateFromContext(ctx); err == nil {
