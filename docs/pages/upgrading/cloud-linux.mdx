@@ -160,7 +160,7 @@ version.
 ### Automatic updates with Teleport OSS
 
 Automatic updates is not currently supported with OSS editions of Teleport. Ensure
-that you are using `teleport-ent` package, which is the Teleport Enterprise edition
+that you are using the `teleport-ent` package, which is the Teleport Enterprise edition
 of Teleport.
 
 ## Troubleshooting
@@ -177,6 +177,7 @@ Tool for automatic upgrades of Teleport agents.
 Commands:
   run           check for and potentially apply a teleport upgrade.
   dry-run       check for new teleport version but do not upgrade.
+  force         performs an upgrade if an upgrade is available.
   version       print the current version of /usr/sbin/teleport-upgrade.
   help          show this help text.
 ```
@@ -208,6 +209,16 @@ $ teleport-upgrade run
 $ teleport-upgrade run
 [i] an upgrade is available (13.4.14 -> 14.3.14) [ 585 ]
 [i] upgrade is non-critical and we are outside of maintenance window, not attempting. [ 618 ]
+```
+
+The `force` command performs an update immediately even when outside the maintenance
+window.
+```code
+$ teleport-upgrade force
+[i] an upgrade is available (13.4.14 -> 14.3.14) [ 585 ]
+[i] attempting apt install teleport-ent=14.3.14... [ 480 ]
+[...]
+[i] gracefully restarting Teleport (if already running) [ 449 ]
 ```
 
 Teleport agents are not updated immediately when a new version of Teleport is released,
