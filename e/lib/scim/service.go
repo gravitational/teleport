@@ -267,7 +267,7 @@ func (s *Service) CreateSCIMResource(ctx context.Context, req *scimpb.CreateSCIM
 }
 
 // UpdateSCIMResource handles a request to update a single, specific instance of
-// a resource. Depending on how the the upstream IdP implements the SCIM protocol,
+// a resource. Depending on how the upstream IdP implements the SCIM protocol,
 // an "update" may can include deleting the user.
 func (s *Service) UpdateSCIMResource(ctx context.Context, req *scimpb.UpdateSCIMResourceRequest) (*scimpb.Resource, error) {
 	if err := s.authorizeGRPCRequest(ctx); err != nil {

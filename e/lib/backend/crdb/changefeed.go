@@ -174,7 +174,7 @@ type changeReader struct {
 	rr   *pgconn.ResultReader
 
 	// watchdog calls cancel when the timer expires. Changes received from the
-	// changefeed reset the timer. This ensures the the changefeed does not hang.
+	// changefeed reset the timer. This ensures that the changefeed does not hang.
 	watchdog *time.Timer
 	// cancel cancels the context for the connection and rows.
 	cancel context.CancelFunc

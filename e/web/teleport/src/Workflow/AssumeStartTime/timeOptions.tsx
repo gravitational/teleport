@@ -97,7 +97,7 @@ export function convertStartToTimeOption(
  * Calculates selectable time options based on the day user has selected.
  * There are limits to the earliest time option selectable and to the
  * latest time option selectable based on the time options (`created` and
- * `maxDuration`) returned from the the initial dry run access request.
+ * `maxDuration`) returned from the initial dry run access request.
  */
 export function getTimeOptions(
   selectedDate: Date,

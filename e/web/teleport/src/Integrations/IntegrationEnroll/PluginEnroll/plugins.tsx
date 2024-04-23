@@ -146,9 +146,9 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
           If an access request includes suggested reviewers, the Slack
           integration will add these to the list of channels to notify. If a
           suggested reviewer is an email address, the Slack integration will
-          look up the the direct message channel for that address and post a
-          message in that channel. Otherwise, the integration will post messages
-          in the default channel that you select on this screen.
+          look up the direct message channel for that address and post a message
+          in that channel. Otherwise, the integration will post messages in the
+          default channel that you select on this screen.
         </p>
         <p>
           Please note that if you do not have permissions to add new apps to
@@ -1259,8 +1259,8 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
           If an access request includes suggested reviewers, the Mattermost
           integration will add these to the list of channels to notify. If a
           suggested reviewer is an email address, the integration will look up
-          the the direct message channel for that address and post a message in
-          that channel. Otherwise, the integration will post the message to the
+          the direct message channel for that address and post a message in that
+          channel. Otherwise, the integration will post the message to the
           default channel that you specify on this screen.
         </p>
       </Text>

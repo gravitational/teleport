@@ -36,7 +36,7 @@ type resourceTypeHandler struct {
 }
 
 // getResource fetches a single resource from the underlying `resourceHandler`
-// implementation, validates it and forwards it back the the Service as a
+// implementation, validates it and forwards it back to the Service as a
 // generic Resource.
 func (t *resourceTypeHandler) getResource(ctx context.Context, shim providerShim, target *scimpb.RequestTarget) (*scimpb.Resource, error) {
 	resource, err := t.handler.get(ctx, shim, target.ResourceId)

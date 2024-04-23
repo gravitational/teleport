@@ -29,7 +29,7 @@ var reservedAttributeNames = [...]string{
 	attributeMeta,
 }
 
-// meta encodes the JSON wire format of the the SCIM resource metadata.
+// meta encodes the JSON wire format of the SCIM resource metadata.
 type meta struct {
 	ResourceType string     `mapstructure:"resourceType,omitempty"`
 	Created      *time.Time `mapstructure:"created,omitempty"`
