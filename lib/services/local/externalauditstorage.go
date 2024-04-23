@@ -86,11 +86,13 @@ func (s *ExternalAuditStorageService) CreateDraftExternalAuditStorage(ctx contex
 		return nil, trace.AlreadyExists("draft external_audit_storage already exists")
 	}
 
+	// Check that the referenced AWS OIDC integration actually exists.
 	integrationKey, integrationRevision, err := s.checkAWSIntegration(ctx, in.Spec.IntegrationName)
 	if err != nil {
 		return nil, trace.Wrap(err, "checking AWS OIDC integration")
 	}
-	_, err = s.backend.AtomicWrite(ctx, []backend.ConditionalAction{
+
+	revision, err := s.backend.AtomicWrite(ctx, []backend.ConditionalAction{
 		{
 			// Make sure the AWS OIDC integration checked above hasn't changed.
 			Key:       integrationKey,
@@ -104,7 +106,13 @@ func (s *ExternalAuditStorageService) CreateDraftExternalAuditStorage(ctx contex
 			Action:    backend.Put(item),
 		},
 	})
-	return in, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	out := in.Clone()
+	out.SetRevision(revision)
+	return out, nil
 }
 
 // UpsertDraftExternalAudit upserts the draft External Audit Storage resource.
@@ -118,11 +126,13 @@ func (s *ExternalAuditStorageService) UpsertDraftExternalAuditStorage(ctx contex
 		Value: value,
 	}
 
+	// Check that the referenced AWS OIDC integration actually exists.
 	integrationKey, integrationRevision, err := s.checkAWSIntegration(ctx, in.Spec.IntegrationName)
 	if err != nil {
 		return nil, trace.Wrap(err, "checking AWS OIDC integration")
 	}
-	_, err = s.backend.AtomicWrite(ctx, []backend.ConditionalAction{
+
+	revision, err := s.backend.AtomicWrite(ctx, []backend.ConditionalAction{
 		{
 			// Make sure the AWS OIDC integration checked above hasn't changed.
 			Key:       integrationKey,
@@ -136,7 +146,13 @@ func (s *ExternalAuditStorageService) UpsertDraftExternalAuditStorage(ctx contex
 			Action:    backend.Put(item),
 		},
 	})
-	return in, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	out := in.Clone()
+	out.SetRevision(revision)
+	return out, nil
 }
 
 // GenerateDraftExternalAuditStorage creates a new draft ExternalAuditStorage with

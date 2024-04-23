@@ -104,17 +104,21 @@ func TestExternalAuditStorageService(t *testing.T) {
 		// Given no draft
 		// When CreateDraftExternalAuditStorage
 		// Then draft is returned on GetDraftExternalAuditStorage
-		// And GetClusterExternalCloutAudit returns not found.
+		// And GetClusterExternalAuditStorage returns not found.
 		// And CreateDraftExternalAuditStorage again returns AlreadyExists
 
 		// When
-		_, err := service.CreateDraftExternalAuditStorage(ctx, draftFromSpec1)
+		created, err := service.CreateDraftExternalAuditStorage(ctx, draftFromSpec1)
 		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(draftFromSpec1, created, cmpOpts...))
+		require.NotEmpty(t, created.GetRevision())
 
 		// Then
-		out, err := service.GetDraftExternalAuditStorage(ctx)
+		got, err := service.GetDraftExternalAuditStorage(ctx)
 		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(draftFromSpec1, out, cmpOpts...))
+		require.Empty(t, cmp.Diff(created, got, cmpOpts...))
+		require.Equal(t, created.GetRevision(), got.GetRevision())
+
 		// And
 		_, err = service.GetClusterExternalAuditStorage(ctx)
 		require.Error(t, err)
@@ -131,13 +135,17 @@ func TestExternalAuditStorageService(t *testing.T) {
 		// And GetClusterExternalCloutAudit returns not found.
 
 		// When
-		_, err := service.UpsertDraftExternalAuditStorage(ctx, draftFromSpec1)
+		created, err := service.UpsertDraftExternalAuditStorage(ctx, draftFromSpec1)
 		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(draftFromSpec1, created, cmpOpts...))
+		require.NotEmpty(t, created.GetRevision())
 
 		// Then
-		out, err := service.GetDraftExternalAuditStorage(ctx)
+		got, err := service.GetDraftExternalAuditStorage(ctx)
 		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(draftFromSpec1, out, cmpOpts...))
+		require.Empty(t, cmp.Diff(created, got, cmpOpts...))
+		require.Equal(t, created.GetRevision(), got.GetRevision())
+
 		// And
 		_, err = service.GetClusterExternalAuditStorage(ctx)
 		require.Error(t, err)
