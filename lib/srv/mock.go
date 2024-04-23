@@ -50,7 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *ServerContext {
+func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet, recConfig types.SessionRecordingConfig) *ServerContext {
 	usr, err := user.Current()
 	require.NoError(t, err)
 
@@ -62,8 +62,6 @@ func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *S
 	sshConn.remoteAddr, _ = utils.ParseAddr("10.0.0.5:4817")
 
 	ctx, cancel := context.WithCancel(context.Background())
-	recConfig := types.DefaultSessionRecordingConfig()
-	recConfig.SetMode(types.RecordOff)
 	clusterName := "localhost"
 	scx := &ServerContext{
 		Entry: logrus.NewEntry(logrus.StandardLogger()),

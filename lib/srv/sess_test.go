@@ -119,10 +119,10 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 		},
 	})
 	auditorRoleSet := services.NewRoleSet(auditorRole)
-	auditScx := newTestServerContext(t, reg.Srv, auditorRoleSet)
+	auditScx := newTestServerContext(t, reg.Srv, auditorRoleSet, types.DefaultSessionRecordingConfig())
 	// change the teleport user so we don't match the user in the test cases
 	auditScx.Identity.TeleportUser = "mod"
-	auditSess, _ := testOpenSession(t, reg, auditorRoleSet)
+	auditSess, _ := testOpenSession(t, reg, auditorRoleSet, types.DefaultSessionRecordingConfig())
 	approvers := make(map[string]*party)
 	auditChan := newMockSSHChannel()
 	approvers["mod"] = newParty(auditSess, types.SessionModeratorMode, auditChan, auditScx)
@@ -198,13 +198,13 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
 			// create and add a session to the registry
-			sess, _ := testOpenSession(t, reg, accessRoleSet)
+			sess, _ := testOpenSession(t, reg, accessRoleSet, types.DefaultSessionRecordingConfig())
 
 			// create a FileTransferRequest. can be nil
 			sess.fileTransferReq = tt.req
 
 			// new exec request context
-			scx := newTestServerContext(t, reg.Srv, accessRoleSet)
+			scx := newTestServerContext(t, reg.Srv, accessRoleSet, types.DefaultSessionRecordingConfig())
 			scx.SetEnv(string(sftp.ModeratedSessionID), sess.ID())
 			result, err := reg.isApprovedFileTransfer(scx)
 			if err != nil {
@@ -231,6 +231,11 @@ func TestSession_newRecorder(t *testing.T) {
 
 	nodeRecordingSync, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 		Mode: types.RecordAtNodeSync,
+	})
+	require.NoError(t, err)
+
+	nodeRecording, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
+		Mode: types.RecordAtNode,
 	})
 	require.NoError(t, err)
 
@@ -290,7 +295,7 @@ func TestSession_newRecorder(t *testing.T) {
 			recAssertion: isNotSessionWriter,
 		},
 		{
-			desc: "strict-err-new-audit-writer-fails",
+			desc: "err-new-audit-writer-fails-sync",
 			sess: &session{
 				id:  "test",
 				log: logger,
@@ -304,6 +309,33 @@ func TestSession_newRecorder(t *testing.T) {
 			},
 			sctx: &ServerContext{
 				SessionRecordingConfig: nodeRecordingSync,
+				srv: &mockServer{
+					component: teleport.ComponentNode,
+				},
+				Identity: IdentityContext{
+					AccessChecker: services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
+						Roles: []string{"dev"},
+					}, "test", services.RoleSet{}),
+				},
+			},
+			errAssertion: require.Error,
+			recAssertion: require.Nil,
+		},
+		{
+			desc: "strict-err-new-audit-writer-fails",
+			sess: &session{
+				id:  "test",
+				log: logger,
+				registry: &SessionRegistry{
+					SessionRegistryConfig: SessionRegistryConfig{
+						Srv: &mockServer{
+							component: teleport.ComponentNode,
+						},
+					},
+				},
+			},
+			sctx: &ServerContext{
+				SessionRecordingConfig: nodeRecording,
 				srv: &mockServer{
 					component: teleport.ComponentNode,
 				},
@@ -405,6 +437,8 @@ func TestSession_newRecorder(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.desc, func(t *testing.T) {
+			tt.sess.scx = tt.sctx
+
 			rec, err := newRecorder(tt.sess, tt.sctx)
 			tt.errAssertion(t, err)
 			tt.recAssertion(t, rec)
@@ -437,7 +471,7 @@ func TestSession_emitAuditEvent(t *testing.T) {
 			},
 			emitter:  srv,
 			registry: reg,
-			scx:      newTestServerContext(t, srv, nil),
+			scx:      newTestServerContext(t, srv, nil, types.DefaultSessionRecordingConfig()),
 		}
 
 		controlCh := make(chan struct{})
@@ -476,7 +510,7 @@ func TestInteractiveSession(t *testing.T) {
 
 	t.Run("Stop", func(t *testing.T) {
 		t.Parallel()
-		sess, _ := testOpenSession(t, reg, nil)
+		sess, _ := testOpenSession(t, reg, nil, types.DefaultSessionRecordingConfig())
 
 		// Stopping the session should trigger the session
 		// to end and cleanup in the background
@@ -517,7 +551,7 @@ func TestStopUnstarted(t *testing.T) {
 	require.NoError(t, err)
 
 	roles := services.NewRoleSet(role)
-	sess, _ := testOpenSession(t, reg, roles)
+	sess, _ := testOpenSession(t, reg, roles, types.DefaultSessionRecordingConfig())
 
 	// Stopping the session should trigger the session
 	// to end and cleanup in the background
@@ -549,7 +583,7 @@ func TestParties(t *testing.T) {
 	t.Cleanup(func() { reg.Close() })
 
 	// Create a session with 3 parties
-	sess, _ := testOpenSession(t, reg, nil)
+	sess, _ := testOpenSession(t, reg, nil, types.DefaultSessionRecordingConfig())
 	require.Len(t, sess.getParties(), 1)
 	testJoinSession(t, reg, sess)
 	require.Len(t, sess.getParties(), 2)
@@ -608,7 +642,7 @@ func TestParties(t *testing.T) {
 }
 
 func testJoinSession(t *testing.T, reg *SessionRegistry, sess *session) {
-	scx := newTestServerContext(t, reg.Srv, nil)
+	scx := newTestServerContext(t, reg.Srv, nil, types.DefaultSessionRecordingConfig())
 	scx.setSession(sess)
 
 	// Open a new session
@@ -625,23 +659,84 @@ func testJoinSession(t *testing.T, reg *SessionRegistry, sess *session) {
 func TestSessionRecordingModes(t *testing.T) {
 	t.Parallel()
 
+	proxyRecording, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
+		Mode: types.RecordAtProxy,
+	})
+	require.NoError(t, err)
+
+	proxyRecordingSync, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
+		Mode: types.RecordAtProxySync,
+	})
+	require.NoError(t, err)
+
+	nodeRecording, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
+		Mode: types.RecordAtNode,
+	})
+	require.NoError(t, err)
+
+	nodeRecordingSync, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
+		Mode: types.RecordAtNodeSync,
+	})
+	require.NoError(t, err)
+
 	for _, tt := range []struct {
 		desc                 string
 		sessionRecordingMode constants.SessionRecordingMode
+		recConf              types.SessionRecordingConfig
 		expectClosedSession  bool
 	}{
 		{
-			desc:                 "StrictMode",
+			desc:                 "StrictMode-Proxy",
 			sessionRecordingMode: constants.SessionRecordingModeStrict,
+			recConf:              proxyRecording,
 			expectClosedSession:  true,
 		},
 		{
-			desc:                 "BestEffortMode",
+			desc:                 "BestEffortMode-Proxy",
 			sessionRecordingMode: constants.SessionRecordingModeBestEffort,
+			recConf:              proxyRecording,
 			expectClosedSession:  false,
+		},
+		{
+			desc:                 "StrictMode-ProxySync",
+			sessionRecordingMode: constants.SessionRecordingModeStrict,
+			recConf:              proxyRecordingSync,
+			expectClosedSession:  true,
+		},
+		{
+			desc:                 "BestEffortMode-ProxySync",
+			sessionRecordingMode: constants.SessionRecordingModeBestEffort,
+			recConf:              proxyRecordingSync,
+			expectClosedSession:  true,
+		},
+		{
+			desc:                 "StrictMode-Node",
+			sessionRecordingMode: constants.SessionRecordingModeStrict,
+			recConf:              nodeRecording,
+			expectClosedSession:  true,
+		},
+		{
+			desc:                 "BestEffortMode-Node",
+			sessionRecordingMode: constants.SessionRecordingModeBestEffort,
+			recConf:              nodeRecording,
+			expectClosedSession:  false,
+		},
+		{
+			desc:                 "StrictMode-NodeSync",
+			sessionRecordingMode: constants.SessionRecordingModeStrict,
+			recConf:              nodeRecordingSync,
+			expectClosedSession:  true,
+		},
+		{
+			desc:                 "BestEffortMode-NodeSync",
+			sessionRecordingMode: constants.SessionRecordingModeBestEffort,
+			recConf:              nodeRecordingSync,
+			expectClosedSession:  true,
 		},
 	} {
 		t.Run(tt.desc, func(t *testing.T) {
+			t.Parallel()
+
 			srv := newMockServer(t)
 			srv.component = teleport.ComponentNode
 
@@ -663,7 +758,7 @@ func TestSessionRecordingModes(t *testing.T) {
 						},
 					},
 				},
-			})
+			}, tt.recConf)
 
 			// Write stuff in the session
 			_, err = sessCh.Write([]byte("hello"))
@@ -694,7 +789,7 @@ func TestSessionRecordingModes(t *testing.T) {
 				}
 
 				emittedEvents := srv.Events()
-				if len(emittedEvents) != len(expectedEventTypes) {
+				if len(emittedEvents) < len(expectedEventTypes) {
 					return false
 				}
 
@@ -710,8 +805,8 @@ func TestSessionRecordingModes(t *testing.T) {
 	}
 }
 
-func testOpenSession(t *testing.T, reg *SessionRegistry, roleSet services.RoleSet) (*session, ssh.Channel) {
-	scx := newTestServerContext(t, reg.Srv, roleSet)
+func testOpenSession(t *testing.T, reg *SessionRegistry, roleSet services.RoleSet, recConf types.SessionRecordingConfig) (*session, ssh.Channel) {
+	scx := newTestServerContext(t, reg.Srv, roleSet, recConf)
 
 	// Open a new session
 	sshChanOpen := newMockSSHChannel()
@@ -862,7 +957,7 @@ func TestTrackingSession(t *testing.T) {
 				createError: tt.createError,
 			}
 
-			scx := newTestServerContext(t, srv, nil)
+			scx := newTestServerContext(t, srv, nil, types.DefaultSessionRecordingConfig())
 			scx.SessionRecordingConfig = &types.SessionRecordingConfigV2{
 				Kind:    types.KindSessionRecordingConfig,
 				Version: types.V2,

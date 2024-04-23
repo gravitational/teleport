@@ -101,6 +101,9 @@ type SessionWriterConfig struct {
 
 	// BackoffDuration is a duration of the backoff before the next try
 	BackoffDuration time.Duration
+
+	// Strict defines if RecordEvent should return error when an event is lost.
+	Strict bool
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -293,6 +296,10 @@ func (a *SessionWriter) RecordEvent(ctx context.Context, pe apievents.PreparedSe
 	// If backoff is in effect, lose event, return right away
 	if isBackoff := a.checkAndResetBackoff(a.cfg.Clock.Now()); isBackoff {
 		a.lostEvents.Add(1)
+		if a.cfg.Strict {
+			return trace.ConnectionProblem(a.closeCtx.Err(), "writer has a backoff in effect, the event is lost")
+		}
+
 		return nil
 	}
 
@@ -350,6 +357,10 @@ func (a *SessionWriter) RecordEvent(ctx context.Context, pe apievents.PreparedSe
 			a.log.Errorf("Audit write timed out after %v. Will be losing events for the next %v.", a.cfg.BackoffTimeout, a.cfg.BackoffDuration)
 		}
 		a.lostEvents.Add(1)
+
+		if a.cfg.Strict {
+			return trace.ConnectionProblem(a.closeCtx.Err(), "audit write timed out")
+		}
 		return nil
 	case <-ctx.Done():
 		a.lostEvents.Add(1)
