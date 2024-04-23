@@ -9,6 +9,8 @@ import (
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/lib/authz"
 )
 
 // getResultAs extracts a value from a testify mock argument collection and
@@ -40,6 +42,9 @@ var _ UsersService = (*mockUserService)(nil)
 
 func (m *mockUserService) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error) {
 	result := m.Called(ctx, req)
+	if fn, isDelegate := result.Get(0).(func(context.Context, *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)); isDelegate {
+		return fn(ctx, req)
+	}
 	return getResultAs[*userspb.ListUsersResponse](result, 0), result.Error(1)
 }
 
@@ -122,6 +127,17 @@ type mockProviderShim struct {
 
 var _ providerShim = (*mockProviderShim)(nil)
 
+// accessListPredicate checks if the access list is "owned" by this provider
+func (m *mockProviderShim) accessListPredicate(ctx context.Context, acl *accesslist.AccessList) bool {
+	result := m.Called(ctx, acl)
+
+	if fn, isDelegate := result.Get(0).(func(context.Context, *accesslist.AccessList) bool); isDelegate {
+		return fn(ctx, acl)
+	}
+
+	return result.Bool(0)
+}
+
 func (m *mockProviderShim) userPredicate(ctx context.Context, u types.User) bool {
 	// Mock doesn't give us an easy way to execute an arbitrary function and
 	// return that function's result as the mocked call's result. We emulate
@@ -161,6 +177,19 @@ func (m *mockProviderShim) authorizeRequest(ctx context.Context, hdr string) err
 	return result.Error(0)
 }
 
+func (m *mockProviderShim) onCreatingAccessList(ctx context.Context, accessList *accesslist.AccessList) error {
+	result := m.Called(ctx, accessList)
+	return result.Error(0)
+}
+
+func (m *mockProviderShim) onCreatingAccessListMember(ctx context.Context, member *accesslist.AccessListMember) error {
+	result := m.Called(ctx, member)
+	if fn, isDelegate := result.Get(0).(func(context.Context, *accesslist.AccessListMember) error); isDelegate {
+		return fn(ctx, member)
+	}
+	return result.Error(0)
+}
+
 func (m *mockProviderShim) onCreatingUser(ctx context.Context, u types.User, r *scimpb.Resource) error {
 	result := m.Called(ctx, u, r)
 	return result.Error(0)
@@ -178,4 +207,85 @@ func (m *mockProviderShim) onUpdatingUser(ctx context.Context, u types.User, r *
 		return fn(ctx, u, r)
 	}
 	return getResultAs[types.User](result, 0), result.Bool(1), result.Error(2)
+}
+
+func (m *mockProviderShim) getResourceLabels() map[string]string {
+	result := m.Called()
+	return getResultAs[map[string]string](result, 0)
+}
+
+type mockAuthorizer struct {
+	mock.Mock
+}
+
+var _ authz.Authorizer = (*mockAuthorizer)(nil)
+
+func (m *mockAuthorizer) Authorize(ctx context.Context) (*authz.Context, error) {
+	result := m.Called(ctx)
+	return getResultAs[*authz.Context](result, 0), result.Error(1)
+}
+
+type mockRoleService struct {
+	mock.Mock
+}
+
+func (m *mockRoleService) UpsertRole(ctx context.Context, role types.Role) (types.Role, error) {
+	result := m.Called(ctx, role)
+	if fn, ok := result.Get(0).(func(context.Context, types.Role) (types.Role, error)); ok {
+		return fn(ctx, role)
+	}
+	return getResultAs[types.Role](result, 0), result.Error(1)
+}
+
+type mockAccessListService struct {
+	mock.Mock
+}
+
+func (m *mockAccessListService) DeleteAccessList(ctx context.Context, accessList string) error {
+	result := m.Called(ctx, accessList)
+	return result.Error(0)
+}
+
+func (m *mockAccessListService) DeleteAccessListMember(ctx context.Context, accessList string, memberName string) error {
+	result := m.Called(ctx, accessList, memberName)
+	return result.Error(0)
+}
+
+func (m *mockAccessListService) GetAccessList(ctx context.Context, aclName string) (*accesslist.AccessList, error) {
+	result := m.Called(ctx, aclName)
+	return getResultAs[*accesslist.AccessList](result, 0), result.Error(1)
+}
+
+func (m *mockAccessListService) ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error) {
+	result := m.Called(ctx, accessListName, pageSize, pageToken)
+	return getResultAs[[]*accesslist.AccessListMember](result, 0), result.String(1), result.Error(2)
+}
+
+func (m *mockAccessListService) ListAccessLists(ctx context.Context, pageSize int, nextToken string) ([]*accesslist.AccessList, string, error) {
+	result := m.Called(ctx, pageSize, nextToken)
+	return getResultAs[[]*accesslist.AccessList](result, 0), result.String(1), result.Error(2)
+}
+
+func (m *mockAccessListService) UpsertAccessList(ctx context.Context, al *accesslist.AccessList) (*accesslist.AccessList, error) {
+	result := m.Called(ctx, al)
+	if fn, ok := result.Get(0).(func(context.Context, *accesslist.AccessList) (*accesslist.AccessList, error)); ok {
+		return fn(ctx, al)
+	}
+	return getResultAs[*accesslist.AccessList](result, 0), result.Error(1)
+}
+
+func (m *mockAccessListService) UpsertAccessListWithMembers(ctx context.Context, al *accesslist.AccessList, ms []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
+	result := m.Called(ctx, al, ms)
+	if fn, ok := result.Get(0).(func(context.Context, *accesslist.AccessList, []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error)); ok {
+		return fn(ctx, al, ms)
+	}
+	return getResultAs[*accesslist.AccessList](result, 0), getResultAs[[]*accesslist.AccessListMember](result, 1), result.Error(2)
+}
+
+func (m *mockAccessListService) UpsertAccessListMember(ctx context.Context, alm *accesslist.AccessListMember) (*accesslist.AccessListMember, error) {
+	result := m.Called(ctx, alm)
+	if fn, ok := result.Get(0).(func(context.Context, *accesslist.AccessListMember) (*accesslist.AccessListMember, error)); ok {
+		return fn(ctx, alm)
+	}
+	return getResultAs[*accesslist.AccessListMember](result, 0), result.Error(1)
 }

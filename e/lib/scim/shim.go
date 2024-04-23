@@ -5,6 +5,7 @@ import (
 
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 )
 
 // providerShim is an abstraction over the identity-provider-specific
@@ -19,6 +20,9 @@ type providerShim interface {
 	// supplied authorization header string.
 	authorizeRequest(context.Context, string) error
 
+	// accessListPredicate checks if the access list is "owned" by this provider
+	accessListPredicate(context.Context, *accesslist.AccessList) bool
+
 	// userPredicate checks if the given user is "owned" by this provider
 	userPredicate(context.Context, types.User) bool
 
@@ -28,6 +32,16 @@ type providerShim interface {
 	// resourceToUser constructs an in-memory Teleport user from the supplied
 	// SCIM resource
 	resourceToUser(context.Context, *scimpb.Resource) (types.User, error)
+
+	// onCreatingAccessList is called immediately before the SCIM service creates
+	// an access list in order to give the shim a chance to modify the supplied
+	// resources before they are actually created.
+	onCreatingAccessList(context.Context, *accesslist.AccessList) error
+
+	// onCreatingAccessList is called before the SCIM service creates an access
+	// list member in order to give the shim a chance to modify the member
+	// record before it is presented to the AccessList service
+	onCreatingAccessListMember(context.Context, *accesslist.AccessListMember) error
 
 	// onCreatingUser is called by the User handler immediately prior to
 	// creating a cluster user in order to give the shim a chance to take
@@ -49,6 +63,8 @@ type providerShim interface {
 	// `false` if the user handler should take no further action
 	// and just return the updated user to the client as-is.
 	onUpdatingUser(context.Context, types.User, *scimpb.Resource) (types.User, bool, error)
+
+	getResourceLabels() map[string]string
 }
 
 // shimFactory is a function for creating new shim instances from a given plugin

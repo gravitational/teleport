@@ -5,6 +5,7 @@ import (
 
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 )
 
 // UsersService is an abstraction over the lock used by the SCIM service to
@@ -47,7 +48,49 @@ type PluginsService interface {
 	GetPlugin(ctx context.Context, name string, withSecrets bool) (types.Plugin, error)
 }
 
+// CredentialsService is an abstraction over the cluster PluginsStaticCredentials
+// database, defining only the operations used by the SCIM service
 type CredentialsService interface {
 	// GetPluginStaticCredentialsByLabels will get a list of plugin static credentials resource by matching labels.
 	GetPluginStaticCredentialsByLabels(ctx context.Context, labels map[string]string) ([]types.PluginStaticCredentials, error)
+}
+
+// AccessListsService describes the subset of services.AccessLists required by
+// the SCIM server
+type AccessListsService interface {
+	ListAccessLists(context.Context, int, string) ([]*accesslist.AccessList, string, error)
+
+	// UpsertAccessList creates or updates an access list resource.
+	UpsertAccessList(context.Context, *accesslist.AccessList) (*accesslist.AccessList, error)
+
+	// GetAccessList fetches a specific access list by name
+	GetAccessList(context.Context, string) (*accesslist.AccessList, error)
+
+	// UpsertAccessListMember creates or updates an individual list AccessListMember
+	// record
+	UpsertAccessListMember(context.Context, *accesslist.AccessListMember) (*accesslist.AccessListMember, error)
+
+	// UpsertAccessListWithMembers creates or updates an entire access list at
+	// once
+	UpsertAccessListWithMembers(context.Context, *accesslist.AccessList, []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error)
+
+	// ListAccessListMembers pages over the known members of a given AccessList
+	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
+
+	// Delete deletes a specific AccessList membership
+	DeleteAccessListMember(ctx context.Context, accessList string, memberName string) error
+
+	// Delete deletes a specific AccessList. It is assumed that the delete will
+	// cascades onto the AccessListMembers associated with the deleted list.
+	DeleteAccessList(ctx context.Context, accessList string) error
+}
+
+// Static assertion that AccessListsService is a subset of services.AccessLists
+// var _ AccessListsService = services.AccessLists(nil)
+
+// RolesService describes the minimal set of operations that the SCIM service
+// will run perform on the cluster Role database. This is expected to be a
+// subset of the Auth Service interface
+type RolesService interface {
+	UpsertRole(context.Context, types.Role) (types.Role, error)
 }

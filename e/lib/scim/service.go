@@ -7,6 +7,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
@@ -20,6 +21,8 @@ const (
 	ComponentName     = "scim"
 	ContentTypeHeader = "Content-Type"
 	ContentType       = "application/scim+json"
+	resourceTypeUser  = "User"
+	resourceTypeGroup = "Group"
 )
 
 // Service implements the GRPC SCIM service back end. It acts as the central
@@ -33,6 +36,7 @@ type Service struct {
 	plugins       PluginsService
 	creds         CredentialsService
 	locks         LocksService
+	accessLists   AccessListsService
 	shimFactories map[types.PluginType]shimFactory
 	resourceTypes map[string]resourceTypeHandler
 	log           logrus.FieldLogger
@@ -50,8 +54,10 @@ type Config struct {
 	Authorizer         authz.Authorizer
 	Log                logrus.FieldLogger
 	UsersService       UsersService
+	RolesService       RolesService
 	PluginsService     PluginsService
 	CredentialsService CredentialsService
+	AccessListsService AccessListsService
 	LocksService       LocksService
 	ShimFactories      map[types.PluginType]shimFactory
 	Clock              clockwork.Clock
@@ -66,12 +72,20 @@ func (cfg *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing user service")
 	}
 
+	if cfg.RolesService == nil {
+		return trace.BadParameter("missing roles service")
+	}
+
 	if cfg.PluginsService == nil {
 		return trace.BadParameter("missing plugin service")
 	}
 
 	if cfg.LocksService == nil {
 		return trace.BadParameter("missing locks service")
+	}
+
+	if cfg.AccessListsService == nil {
+		return trace.BadParameter("missing access lists service")
 	}
 
 	if cfg.ShimFactories == nil {
@@ -101,12 +115,14 @@ func NewService(cfg *Config) (*Service, error) {
 
 	log := cfg.Log.WithField(teleport.ComponentKey, ComponentName)
 	usersLog := log.WithField("ResourceType", "Users")
+	groupsLog := log.WithField("ResourceType", "Groups")
 
 	return &Service{
 		authorizer:    cfg.Authorizer,
 		users:         cfg.UsersService,
 		plugins:       cfg.PluginsService,
 		locks:         cfg.LocksService,
+		accessLists:   cfg.AccessListsService,
 		shimFactories: cfg.ShimFactories,
 		creds:         cfg.CredentialsService,
 		log:           log,
@@ -119,6 +135,19 @@ func NewService(cfg *Config) (*Service, error) {
 				schema:   schema.CoreUserSchema(),
 				handler:  &userHandler{users: cfg.UsersService, log: usersLog},
 				log:      usersLog,
+			},
+			"Groups": {
+				name:     "Group",
+				endpoint: "/Groups",
+				schema:   schema.CoreGroupSchema(),
+				log:      groupsLog,
+				handler: &groupHandler{
+					accessLists: cfg.AccessListsService,
+					roles:       cfg.RolesService,
+					users:       cfg.UsersService,
+					clock:       cfg.Clock,
+					log:         groupsLog,
+				},
 			},
 		},
 	}, nil
@@ -259,5 +288,35 @@ func (s *Service) UpdateSCIMResource(ctx context.Context, req *scimpb.UpdateSCIM
 		return nil, trace.NotFound(req.Target.ResourceType)
 	}
 
+	if req.Resource.Id == "" {
+		req.Resource.Id = req.Target.ResourceId
+	}
+
 	return resourceTypeHandler.updateResource(ctx, shim, req.Resource)
+}
+
+func (s *Service) DeleteSCIMResource(ctx context.Context, req *scimpb.DeleteSCIMResourceRequest) (*emptypb.Empty, error) {
+	if err := s.authorizeGRPCRequest(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	shim, err := s.makeProviderShim(ctx, req.Target.PluginId)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := shim.authorizeRequest(ctx, req.Target.Authorization); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resourceTypeHandler, ok := s.resourceTypes[req.Target.ResourceType]
+	if !ok {
+		return nil, trace.NotFound(req.Target.ResourceType)
+	}
+
+	if err := resourceTypeHandler.deleteResource(ctx, shim, req.Target.ResourceId); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &emptypb.Empty{}, nil
 }

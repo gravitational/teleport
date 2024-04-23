@@ -342,10 +342,12 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server interface{}) e
 
 	err = p.registerSCIMService(ctx, gRPCServer, &scim.Config{
 		Authorizer:         p.authServer.Authorizer,
-		UsersService:       p.authServer.AuthServer.Services,
+		UsersService:       p.authServer.AuthServer,
+		RolesService:       p.authServer.AuthServer,
 		PluginsService:     p.plugins,
 		CredentialsService: p.pluginCreds,
 		LocksService:       p.authServer.AuthServer.Services,
+		AccessListsService: p.authServer.AuthServer.Services,
 		Log:                log,
 	})
 	if err != nil {

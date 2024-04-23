@@ -180,7 +180,7 @@ func (s *Service) CreatePlugin(ctx context.Context, req *pluginspb.CreatePluginR
 	return &emptypb.Empty{}, nil
 }
 
-// updatePluginWithLiveCredetials will update the plugin with live credentials if needed.
+// updatePluginWithLiveCredentials will update the plugin with live credentials if needed.
 func (s *Service) updatePluginWithLiveCredentials(ctx context.Context, plugin types.Plugin, bootstrapCreds *types.PluginBootstrapCredentialsV1) error {
 	if !plugins.NeedsOAuth(plugin) {
 		return nil

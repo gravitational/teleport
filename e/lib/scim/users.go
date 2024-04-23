@@ -162,3 +162,7 @@ func (uh *userHandler) list(ctx context.Context, shim providerShim, filter filte
 
 	return output, nil
 }
+
+func (uh *userHandler) delete(ctx context.Context, shim providerShim, id string) error {
+	return trace.NotImplemented("delete")
+}

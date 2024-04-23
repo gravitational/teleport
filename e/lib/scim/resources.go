@@ -19,6 +19,7 @@ type resourceHandler interface {
 	list(context.Context, providerShim, filter.Expression, *scimpb.Page) (*scimpb.ResourceList, error)
 	get(context.Context, providerShim, string) (*scimpb.Resource, error)
 	update(context.Context, providerShim, *scimpb.Resource) (*scimpb.Resource, error)
+	delete(context.Context, providerShim, string) error
 }
 
 // resourceTypeHandler acts as the glue between the top-level SCIM service and the
@@ -95,6 +96,10 @@ func (t *resourceTypeHandler) updateResource(ctx context.Context, shim providerS
 	t.ensureMetadata(outputResource)
 
 	return outputResource, nil
+}
+
+func (t *resourceTypeHandler) deleteResource(ctx context.Context, shim providerShim, resourceID string) error {
+	return trace.Wrap(t.handler.delete(ctx, shim, resourceID))
 }
 
 func (t *resourceTypeHandler) ensureMetadata(res *scimpb.Resource) {

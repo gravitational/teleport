@@ -628,7 +628,7 @@ func newAccessListMember(t *testing.T, accessListName, memberName string, joined
 		AccessList: accessListName,
 		Name:       memberName,
 		Joined:     joined,
-		AddedBy:    "okta-importer",
+		AddedBy:    ImporterName,
 	})
 	require.NoError(t, err)
 
@@ -638,7 +638,7 @@ func newAccessListMember(t *testing.T, accessListName, memberName string, joined
 func newReviewerRole(t *testing.T, grantRoleName string) types.Role {
 	t.Helper()
 
-	role, err := types.NewRole(grantRoleName+reviewerSuffix, types.RoleSpecV6{
+	role, err := types.NewRole(grantRoleName+ReviewerSuffix, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			ReviewRequests: &types.AccessReviewConditions{
 				Roles: []string{grantRoleName},

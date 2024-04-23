@@ -36,7 +36,7 @@ func oktaInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 	// TODO: Propagate license changes to Okta hosted plugin runtime.
 	// Currently, if license gets upgraded, okta service will still be
 	// running with stale settings (unless it was restarted).
-	oktaSpec.EnableUserSync = oktaSpec.EnableUserSync && modules.GetModules().Features().IGSEnabled()
+	oktaSpec.SyncSettings.SyncUsers = oktaSpec.SyncSettings.SyncUsers && modules.GetModules().Features().IGSEnabled()
 
 	return func() error {
 		closeEvent := services.InitOktaPlugin(deps.lifetime, deps.parentProcess, deps.statusSink, *oktaSpec, oktaAPIToken, plugin.GetName())

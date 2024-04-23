@@ -32,6 +32,12 @@ func (p *Plugin) registerSCIMHandlers() {
 		p.h.WithUnauthenticatedHighLimiter(
 			p.wrapSCIMRequest(p.scimGetResourceList)))
 
+	for _, m := range []string{http.MethodPut, http.MethodPatch, http.MethodDelete} {
+		p.h.Handle(m, "/webapi/scim/:integration/:resourceType",
+			p.h.WithUnauthenticatedHighLimiter(
+				p.wrapSCIMRequest(p.scimLogRequest)))
+	}
+
 	p.h.GET("/webapi/scim/:integration/:resourceType/:resourceID",
 		p.h.WithUnauthenticatedHighLimiter(
 			p.wrapSCIMRequest(p.scimGetResource)))
@@ -44,13 +50,29 @@ func (p *Plugin) registerSCIMHandlers() {
 		p.h.WithUnauthenticatedHighLimiter(
 			p.wrapSCIMRequest(p.scimUpdateResource)))
 
+	p.h.DELETE("/webapi/scim/:integration/:resourceType/:resourceID",
+		p.h.WithUnauthenticatedHighLimiter(
+			p.wrapSCIMRequest(p.scimDeleteResource)))
+
 	p.h.PATCH("/webapi/scim/:integration/:resourceType/:resourceID",
 		p.h.WithUnauthenticatedHighLimiter(
 			p.wrapSCIMRequest(p.scimPatchResource)))
+
+	for _, m := range []string{http.MethodGet, http.MethodPut, http.MethodPatch, http.MethodDelete} {
+		p.h.Handle(m, "/webapi/scim",
+			p.h.WithUnauthenticatedHighLimiter(
+				p.wrapSCIMRequest(p.scimLogRequest)))
+
+		p.h.Handle(m, "/webapi/scim/:integration",
+			p.h.WithUnauthenticatedHighLimiter(
+				p.wrapSCIMRequest(p.scimLogRequest)))
+	}
 }
 
 func (p *Plugin) wrapSCIMRequest(fn func(http.ResponseWriter, *http.Request, httprouter.Params) error) httplib.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
+		p.Log.WithField(teleport.ComponentKey, "scim").Debugf("Handling %s %s", r.Method, r.URL)
+
 		var err error
 		if !p.h.ClusterFeatures.IdentityGovernance {
 			err = trace.AccessDenied("SCIM support requires Teleport Identity")
@@ -119,7 +141,7 @@ func (p *Plugin) scimGetResourceList(w http.ResponseWriter, r *http.Request, par
 		return trace.BadParameter("invalid page request")
 	}
 
-	log.Info("Listing resources")
+	log.Debugf("Listing resources; filter %q, start: %d, count %d", filter, page.StartIndex, page.Count)
 
 	scimClient := p.h.GetProxyClient().SCIMClient()
 	resources, err := scimClient.ListSCIMResources(r.Context(), &scimpb.ListSCIMResourcesRequest{
@@ -180,7 +202,6 @@ func (p *Plugin) scimGetResource(w http.ResponseWriter, r *http.Request, params 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	writeSCIMResponse(w, http.StatusOK, body)
 	return nil
 }
@@ -203,7 +224,7 @@ func (p *Plugin) scimCreateResource(w http.ResponseWriter, r *http.Request, para
 		return trace.Wrap(err)
 	}
 
-	log.Info("Creating new resource")
+	log.Debug("Creating new resource")
 
 	scimClient := p.h.GetProxyClient().SCIMClient()
 	updated, err := scimClient.CreateSCIMResource(r.Context(), &scimpb.CreateSCIMResourceRequest{
@@ -223,7 +244,6 @@ func (p *Plugin) scimCreateResource(w http.ResponseWriter, r *http.Request, para
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	writeSCIMResponse(w, http.StatusOK, body)
 	return nil
 }
@@ -274,8 +294,44 @@ func (p *Plugin) scimUpdateResource(w http.ResponseWriter, r *http.Request, para
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	writeSCIMResponse(w, http.StatusOK, body)
+	return nil
+}
+
+func (p *Plugin) scimDeleteResource(w http.ResponseWriter, r *http.Request, params httprouter.Params) error {
+	integration := params.ByName("integration")
+	resourceType := params.ByName("resourceType")
+	resourceID, err := url.QueryUnescape(params.ByName("resourceID"))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	log := p.Log.
+		WithFields(logrus.Fields{
+			teleport.ComponentKey: "scim",
+			"integration":         integration,
+			"resourceType":        resourceType,
+			"resourceID":          resourceID,
+		})
+
+	log.Info("Deleting resource")
+
+	scimClient := p.h.GetProxyClient().SCIMClient()
+	_, err = scimClient.DeleteSCIMResource(r.Context(), &scimpb.DeleteSCIMResourceRequest{
+		Target: &scimpb.RequestTarget{
+			Authorization: r.Header.Get("Authorization"),
+			PluginId:      integration,
+			ResourceType:  resourceType,
+			ResourceId:    resourceID,
+		},
+	})
+
+	if err != nil {
+		log.Errorf("Failed deleting resource: %s", err)
+		return trace.Wrap(err)
+	}
+	writeSCIMResponse(w, http.StatusNoContent, nil)
+
 	return nil
 }
 
@@ -294,11 +350,24 @@ func (p *Plugin) scimPatchResource(w http.ResponseWriter, r *http.Request, param
 	p.Log.
 		WithFields(logrus.Fields{
 			teleport.ComponentKey: "scim",
+			"method":              r.Method,
 			"integration":         integration,
 			"resourceType":        resourceType,
 			"resourceID":          resourceID,
 		}).
-		Info("Unexpected PATCH request")
+		Info("Unexpected PATCH resource request")
+
+	return trace.NotImplemented(http.MethodPatch)
+}
+
+func (p *Plugin) scimLogRequest(w http.ResponseWriter, r *http.Request, params httprouter.Params) error {
+	p.Log.
+		WithFields(logrus.Fields{
+			"method": r.Method,
+			"path":   r.URL.Path,
+			"query":  r.URL.Query(),
+		}).
+		Info("Unexpected SCIM request")
 
 	return trace.NotImplemented(http.MethodPatch)
 }

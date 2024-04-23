@@ -9,6 +9,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/mitchellh/mapstructure"
 	oktapi "github.com/okta/okta-sdk-golang/v2/okta"
+	oktaquery "github.com/okta/okta-sdk-golang/v2/okta/query"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -16,21 +17,27 @@ import (
 	"github.com/gravitational/teleport"
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/e/lib/okta"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
+)
+
+const (
+	oktaGroupLimit = 100
 )
 
 // oktaShim provides Okta-specific behavior to the provider-agnostic SCIM server
 // and resource handlers. A new shim will be created for every request requiring
 // Okta-specific behavior.
 type oktaShim struct {
-	creds       CredentialsService
-	locks       LocksService
-	users       UsersService
-	isValidUser func(types.User) bool
-	plugin      *types.PluginV1
-	clock       clockwork.Clock
-	log         logrus.FieldLogger
+	isValidUser       func(types.User) bool
+	isValidAccessList func(*accesslist.AccessList) bool
+	creds             CredentialsService
+	locks             LocksService
+	users             UsersService
+	plugin            *types.PluginV1
+	clock             clockwork.Clock
+	log               logrus.FieldLogger
 }
 
 // Static assertion that the oktaShim implements the `shim` interface
@@ -63,6 +70,15 @@ func newOktaShim(ctx context.Context, plugin types.Plugin, service *Service) (pr
 	}, nil
 }
 
+func (s *oktaShim) syncSettings() *types.PluginOktaSyncSettings {
+	oktaSettings := s.plugin.Spec.GetOkta()
+	if oktaSettings == nil {
+		return nil
+	}
+
+	return oktaSettings.SyncSettings
+}
+
 // authorizeRequest grants or denies access based on a bearer
 func (s *oktaShim) authorizeRequest(ctx context.Context, authHeader string) error {
 	creds, err := getStaticCreds(ctx, s.creds, s.plugin)
@@ -84,6 +100,13 @@ func (s *oktaShim) authorizeRequest(ctx context.Context, authHeader string) erro
 	}
 
 	return nil
+}
+
+func (s *oktaShim) accessListPredicate(_ context.Context, accessList *accesslist.AccessList) bool {
+	if s.isValidAccessList == nil {
+		s.isValidAccessList = okta.MatchByLabels[*accesslist.AccessList](s.plugin.Spec.GetOkta().OrgUrl)
+	}
+	return s.isValidAccessList(accessList)
 }
 
 func (s *oktaShim) userPredicate(_ context.Context, user types.User) bool {
@@ -143,9 +166,39 @@ func (s *oktaShim) resourceToUser(ctx context.Context, res *scimpb.Resource) (ty
 	return teleportUser, nil
 }
 
-// onCreatingUser is called by the user handler immediately before the Teleport
-// user is created in the cluster. No-op.
-func (*oktaShim) onCreatingUser(context.Context, types.User, *scimpb.Resource) error {
+func (s *oktaShim) onCreatingAccessList(ctx context.Context, acl *accesslist.AccessList) error {
+	// The group ID should be unset on the initial ACL creation. In order to
+	// maintain compatibility with the Okta Sync service, we reach out via the
+	// Okta API to find out what the Okta ID for the group is.
+	groupID := acl.GetName()
+	if groupID == "" {
+		var err error
+		groupID, err = s.lookupGroup(ctx, acl.Spec.Title)
+		if err != nil {
+			return trace.Wrap(err, "looking up group ID")
+		}
+	}
+
+	acl.Metadata.Name = groupID
+	acl.Spec.Owners = s.defaultOwners()
+
+	return nil
+}
+
+func (s *oktaShim) getResourceLabels() map[string]string {
+	return map[string]string{
+		types.OriginLabel:                  types.OriginOkta,
+		types.TeleportInternalResourceType: types.SystemResource,
+		eteleport.OktaOrgURLLabel:          s.plugin.Spec.GetOkta().OrgUrl,
+	}
+}
+
+func (s *oktaShim) onCreatingAccessListMember(_ context.Context, m *accesslist.AccessListMember) error {
+	m.Spec.AddedBy = okta.ImporterName
+	return nil
+}
+
+func (s *oktaShim) onCreatingUser(ctx context.Context, createdUser types.User, res *scimpb.Resource) error {
 	return nil
 }
 
@@ -271,6 +324,68 @@ func (s *oktaShim) getOktaUser(ctx context.Context, userID string, oktaSettings 
 	return newUser, nil
 }
 
+// lookupGroup looks up the Okta group ID for a given display name. For a given
+// displayName, `lookupGroup()` will list all Okta groups with that name, and if
+// exactly one group is found with that name, it will return that group's
+// Okta ID. If either no group or multiple groups are found, `lookupGroup()`
+// returns an error
+func (s *oktaShim) lookupGroup(ctx context.Context, displayName string) (string, error) {
+	c, err := s.oktaClient(ctx)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	// For authoritative details on how Okta group name search works, visit
+	//  https://developer.okta.com/docs/reference/api/groups/#list-groups-with-search
+	//
+	// But to summarize:
+	//  * Searching and paging are mutually exclusive in the API.
+	//  * Okta performs a "starts-with" search, so we may get multiple results.
+	//  * Exact matches are sorted first in the returned list
+
+	s.log.Debugf("Looking up group %q", displayName)
+	groups, _, err := c.Group.ListGroups(ctx, &oktaquery.Params{Q: displayName, Limit: oktaGroupLimit})
+	if err != nil {
+		return "", trace.Wrap(err, "listing groups")
+	}
+
+	candidateID := ""
+
+	// Okta performs a "starts-with" search, so we may get multiple results.
+	for _, candidate := range groups {
+		log := s.log.WithField("candidate", candidate.Id)
+
+		if candidate.Profile == nil {
+			log.Info("Candidate has no profile")
+			continue
+		}
+
+		log.Infof("testing group %q", candidate.Profile.Name)
+
+		if candidate.Profile.Name != displayName {
+			log.Infof("Display name mismatch")
+			continue
+		}
+
+		if candidate.Type != "OKTA_GROUP" {
+			log.Infof("Invalid group type")
+			continue
+		}
+
+		if candidateID != "" {
+			return "", trace.BadParameter("multiple candidates found for okta group %q", displayName)
+		}
+
+		candidateID = candidate.Id
+	}
+
+	if candidateID == "" {
+		return "", trace.NotFound("no such okta group: %q", displayName)
+	}
+
+	return candidateID, nil
+}
+
 func (s *oktaShim) oktaClient(ctx context.Context) (*oktapi.Client, error) {
 	staticCredsRef := s.plugin.GetCredentials().GetStaticCredentialsRef()
 	if staticCredsRef == nil {
@@ -300,6 +415,20 @@ func (s *oktaShim) oktaClient(ctx context.Context) (*oktapi.Client, error) {
 	}
 
 	return apiClient, nil
+}
+
+func (s *oktaShim) defaultOwners() []accesslist.Owner {
+	settings := s.syncSettings()
+	if settings == nil {
+		return nil
+	}
+	result := make([]accesslist.Owner, len(settings.DefaultOwners))
+	for i, owner := range settings.DefaultOwners {
+		result[i] = accesslist.Owner{
+			Name: owner,
+		}
+	}
+	return result
 }
 
 func getOktaUserExternalID(u types.User) string {

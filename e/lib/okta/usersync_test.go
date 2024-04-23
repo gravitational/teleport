@@ -76,6 +76,10 @@ func (m *mockReconcilerAP) GetLocks(ctx context.Context, inForceOnly bool, targe
 
 func (m *mockReconcilerAP) UpsertLock(ctx context.Context, lock types.Lock) error {
 	result := m.Called(ctx, lock)
+	fn, isDelegate := result.Get(0).(func(context.Context, types.Lock) error)
+	if isDelegate {
+		return fn(ctx, lock)
+	}
 	return result.Error(0)
 }
 
@@ -817,4 +821,29 @@ func mkLockTargetsFor(users ...types.User) []types.LockTarget {
 		result[i] = types.LockTarget{User: user.GetName()}
 	}
 	return result
+}
+
+func TestLockUser(t *testing.T) {
+	mockClock := clockwork.NewFakeClock()
+	mockAccessPoint := &mockReconcilerAP{}
+	targetUser := mkOktaUser(t, "hiro@enzos-pizza.com", "00ub1q9yfsRSfO91a5d7")
+
+	targetedLock := mock.MatchedBy(func(l types.Lock) bool {
+		return l.Target().User == targetUser.GetName()
+	})
+
+	mockAccessPoint.
+		On("UpsertLock", someContext, targetedLock).
+		Return(nil)
+
+	lock, err := LockUser(context.Background(), LockParams{
+		User:     targetUser,
+		Reason:   LockReasonSuspended,
+		OrgURL:   "https://enzos-pizza.okta.com",
+		LocksSvc: mockAccessPoint,
+		Clock:    mockClock,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, lock)
 }

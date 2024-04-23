@@ -36,8 +36,11 @@ const (
 	// Wait 5 minutes for the first loop in hopes that the synchronizer has run.
 	accessListSyncFirstDuration = 5 * time.Minute
 
-	// reviewerSuffix is the string to append to the end of a role to indicate it's for reviews.
-	reviewerSuffix = "-reviewer"
+	// ReviewerSuffix is the string to append to the end of a role to indicate it's for reviews.
+	ReviewerSuffix = "-reviewer"
+
+	// Importer
+	ImporterName = "okta-importer"
 )
 
 // accessListSyncConfig is the configuration for the access list synchronizer.
@@ -317,6 +320,21 @@ func (a *accessListSync) reconcileAll(ctx context.Context) error {
 
 	existingMembers := a.importAccessListMembers.Clone()
 	newMembers := a.newImportAccessListMembers.Clone()
+
+	for key, existing := range existingMembers {
+		if new, ok := newMembers[key]; ok {
+			if !existing.Spec.Expires.IsZero() {
+				new.Spec.Expires = existing.Spec.Expires
+			}
+
+			if existing.Spec.Reason != "" {
+				new.Spec.Reason = existing.Spec.Reason
+			}
+		}
+	}
+
+	a.log.Infof("Reconciling %d new memberships against %d old memberships",
+		len(newMembers), len(existingMembers))
 	memberErr := a.accessListMemberReconciler.Reconcile(ctx, newMembers, existingMembers)
 
 	roleErr := a.roleReconciler.Reconcile(ctx)
@@ -772,6 +790,8 @@ func (a *accessListSync) importGroups(ctx context.Context, params importGroupsPa
 			log.Debug("application has no internal Okta group name label")
 		}
 
+		log = log.WithField("okta_group_name", oktaGroupName)
+
 		if len(a.groupFilters) > 0 {
 			matchFound := false
 			for _, filter := range a.groupFilters {
@@ -876,7 +896,7 @@ func (a *accessListSync) metadataToImportResources(irMetadata importResourceMeta
 			}
 		})
 
-	reviewerRoleName := irMetadata.name + reviewerSuffix
+	reviewerRoleName := irMetadata.name + ReviewerSuffix
 
 	// Create an access list for the resources.
 	accessList, err := accesslist.NewAccessList(header.Metadata{
@@ -908,7 +928,7 @@ func (a *accessListSync) metadataToImportResources(irMetadata importResourceMeta
 			AccessList: accessList.GetName(),
 			Name:       memberName,
 			Joined:     a.clock.Now(),
-			AddedBy:    "okta-importer",
+			AddedBy:    ImporterName,
 		})
 		if err != nil {
 			return nil, nil, nil, trace.Wrap(err)
@@ -1008,7 +1028,7 @@ func (a *accessListSync) addRolesToOktaRequester(ctx context.Context) error {
 	a.importRoles.Read(
 		func(importRoles map[string]types.Role) {
 			for roleName := range importRoles {
-				if strings.HasSuffix(roleName, reviewerSuffix) {
+				if strings.HasSuffix(roleName, ReviewerSuffix) {
 					continue
 				}
 

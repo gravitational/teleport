@@ -1496,7 +1496,10 @@ func (s *Service) hasUserRBAC(ctx context.Context, authCtx *authz.Context, verb 
 // oktaModificationAllowed will return true if an Okta modification is allowed. If the access list is not an Okta object,
 // this will return true.
 func oktaModificationAllowed(authCtx authz.Context, oldAccessList, newAccessList *accesslist.AccessList) bool {
+
 	hasOktaOrigin := false
+	// If *either* of the supplied access lists are marked as okta origin, the
+	// special Okta rules start applying
 	for _, accessList := range []*accesslist.AccessList{oldAccessList, newAccessList} {
 		if accessList != nil && accessList.Origin() == types.OriginOkta {
 			hasOktaOrigin = true
