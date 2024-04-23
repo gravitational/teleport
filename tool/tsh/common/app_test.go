@@ -27,20 +27,19 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
+	"os/user"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
+	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/client"
-	defaults2 "github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
-	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 func startDummyHTTPServer(t *testing.T, name string) string {
@@ -58,15 +57,14 @@ func startDummyHTTPServer(t *testing.T, name string) string {
 	return srv.URL
 }
 
-func TestAppLoginLeaf(t *testing.T) {
-	// TODO(tener): changing ResyncInterval defaults speeds up the tests considerably.
-	// 	It may be worth making the change global either for tests or production.
-	// 	See also SetTestTimeouts() in integration/helpers/timeouts.go
-	oldResyncInterval := defaults2.ResyncInterval
-	defaults2.ResyncInterval = time.Millisecond * 100
-	t.Cleanup(func() {
-		defaults2.ResyncInterval = oldResyncInterval
-	})
+// TestAppCommands tests the following basic app command functionality for registered root and leaf apps.
+// - tsh app ls
+// - tsh app login
+// - tsh app config
+func TestAppCommands(t *testing.T) {
+	ctx := context.Background()
+
+	testserver.WithResyncInterval(t, 0)
 
 	isInsecure := lib.IsInsecureDevMode()
 	lib.SetInsecureDevMode(true)
@@ -74,163 +72,178 @@ func TestAppLoginLeaf(t *testing.T) {
 		lib.SetInsecureDevMode(isInsecure)
 	})
 
+	accessUser, err := types.NewUser("access")
+	require.NoError(t, err)
+	accessUser.SetRoles([]string{"access"})
+
+	user, err := user.Current()
+	require.NoError(t, err)
+	accessUser.SetLogins([]string{user.Name})
 	connector := mockConnector(t)
 
-	alice, err := types.NewUser("alice@example.com")
-	require.NoError(t, err)
-	alice.SetRoles([]string{"access"})
-
-	// TODO(tener): consider making this default for tests.
-	configStorage := func(cfg *servicecfg.Config) {
-		cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
-		cfg.Auth.StorageConfig.Params["poll_stream_period"] = 50 * time.Millisecond
+	rootServerOpts := []testserver.TestServerOptFunc{
+		testserver.WithTestDefaults(t),
+		testserver.WithBootstrap(connector, accessUser),
+		testserver.WithClusterName(t, "root"),
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			cfg.Apps = servicecfg.AppsConfig{
+				Enabled: true,
+				Apps: []servicecfg.App{{
+					Name: "rootapp",
+					URI:  startDummyHTTPServer(t, "rootapp"),
+				}},
+			}
+		}),
 	}
-
-	rootAuth, rootProxy := makeTestServers(t,
-		withClusterName(t, "root"),
-		withBootstrap(connector, alice),
-		withConfig(configStorage),
-	)
-	event, err := rootAuth.WaitForEventTimeout(time.Second, service.ProxyReverseTunnelReady)
-	require.NoError(t, err)
-	tunnel, ok := event.Payload.(reversetunnelclient.Server)
-	require.True(t, ok)
-
-	rootAppURL := startDummyHTTPServer(t, "rootapp")
-	rootAppServer := makeTestApplicationServer(t, rootProxy, servicecfg.App{Name: "rootapp", URI: rootAppURL})
-	_, err = rootAppServer.WaitForEventTimeout(time.Second*10, service.TeleportReadyEvent)
+	rootServer := testserver.MakeTestServer(t, rootServerOpts...)
+	rootAuthServer := rootServer.GetAuthServer()
+	rootProxyAddr, err := rootServer.ProxyWebAddr()
 	require.NoError(t, err)
 
-	rootProxyAddr, err := rootProxy.ProxyWebAddr()
-	require.NoError(t, err)
-	rootTunnelAddr, err := rootProxy.ProxyTunnelAddr()
-	require.NoError(t, err)
+	leafServerOpts := []testserver.TestServerOptFunc{
+		testserver.WithTestDefaults(t),
+		testserver.WithBootstrap(accessUser),
+		testserver.WithClusterName(t, "leaf"),
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			cfg.Apps = servicecfg.AppsConfig{
+				Enabled: true,
+				Apps: []servicecfg.App{{
+					Name: "leafapp",
+					URI:  startDummyHTTPServer(t, "leafapp"),
+				}},
+			}
+		}),
+	}
+	leafServer := testserver.MakeTestServer(t, leafServerOpts...)
+	testserver.SetupTrustedCluster(ctx, t, rootServer, leafServer)
 
-	trustedCluster, err := types.NewTrustedCluster("localhost", types.TrustedClusterSpecV2{
-		Enabled:              true,
-		Roles:                []string{},
-		Token:                staticToken,
-		ProxyAddress:         rootProxyAddr.String(),
-		ReverseTunnelAddress: rootTunnelAddr.String(),
-		RoleMap: []types.RoleMapping{
-			{
-				Remote: "access",
-				Local:  []string{"access"},
+	// Set up user with MFA device for per session MFA tests below.
+	origin := "https://127.0.0.1"
+	device, err := mocku2f.Create()
+	require.NoError(t, err)
+	device.SetPasswordless()
+	webauthnLoginOpt := setupWebAuthnChallengeSolver(device, true /* success */)
+
+	_, err = rootAuthServer.UpsertAuthPreference(ctx, &types.AuthPreferenceV2{
+		Spec: types.AuthPreferenceSpecV2{
+			SecondFactor: constants.SecondFactorOptional,
+			Webauthn: &types.Webauthn{
+				RPID: "127.0.0.1",
 			},
 		},
 	})
 	require.NoError(t, err)
+	registerDeviceForUser(t, rootAuthServer, device, accessUser.GetName(), origin)
 
-	leafAuth, leafProxy := makeTestServers(t, withClusterName(t, "leaf"), withConfig(configStorage))
-
-	leafAppURL := startDummyHTTPServer(t, "leafapp")
-	leafAppServer := makeTestApplicationServer(t, leafProxy, servicecfg.App{Name: "leafapp", URI: leafAppURL})
-	_, err = leafAppServer.WaitForEventTimeout(time.Second*10, service.TeleportReadyEvent)
-	require.NoError(t, err)
-
-	tryCreateTrustedCluster(t, leafAuth.GetAuthServer(), trustedCluster)
-
-	// wait for the connection to come online and the app server information propagate.
-	require.Eventually(t, func() bool {
-		conns, err := rootAuth.GetAuthServer().GetTunnelConnections("leaf")
-		return err == nil && len(conns) == 1
-	}, 10*time.Second, 100*time.Millisecond, "leaf cluster did not come online")
-
-	require.Eventually(t, func() bool {
-		leafSite, err := tunnel.GetSite("leaf")
-		require.NoError(t, err)
-		ap, err := leafSite.CachingAccessPoint()
-		require.NoError(t, err)
-
-		servers, err := ap.GetApplicationServers(context.Background(), defaults.Namespace)
-		if err != nil {
-			return false
-		}
-		return len(servers) == 1 && servers[0].GetName() == "leafapp"
-	}, 10*time.Second, 100*time.Millisecond, "leaf cluster did not come online")
-
-	// helpers
-	getHelpers := func(t *testing.T) (func(cluster string) string, func(args ...string) string) {
-		tmpHomePath := t.TempDir()
-
-		run := func(args []string, opts ...CliOption) string {
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-			defer cancel()
-
-			captureStdout := new(bytes.Buffer)
-			opts = append(opts, setHomePath(tmpHomePath))
-			opts = append(opts, setCopyStdout(captureStdout))
-			err := Run(ctx, args, opts...)
-			require.NoError(t, err)
-			return captureStdout.String()
-		}
-
-		login := func(cluster string) string {
-			args := []string{
+	for _, loginCluster := range []string{"root", "leaf"} {
+		t.Run(fmt.Sprintf("login %v", loginCluster), func(t *testing.T) {
+			// Login to the cluster through the root proxy.
+			tmpHomePath := t.TempDir()
+			err = Run(context.Background(), []string{
 				"login",
 				"--insecure",
-				"--debug",
 				"--proxy", rootProxyAddr.String(),
-				cluster,
+				loginCluster,
+			}, setHomePath(tmpHomePath), setMockSSOLogin(rootAuthServer, accessUser, connector.GetName()))
+			require.NoError(t, err)
+
+			for _, requireMFAType := range []types.RequireMFAType{
+				types.RequireMFAType_OFF,
+				types.RequireMFAType_SESSION,
+			} {
+				t.Run(fmt.Sprintf("require mfa %v", requireMFAType.String()), func(t *testing.T) {
+					_, err = rootAuthServer.UpsertAuthPreference(ctx, &types.AuthPreferenceV2{
+						Spec: types.AuthPreferenceSpecV2{
+							SecondFactor: constants.SecondFactorOptional,
+							Webauthn: &types.Webauthn{
+								RPID: "127.0.0.1",
+							},
+							RequireMFAType: requireMFAType,
+						},
+					})
+					require.NoError(t, err)
+					_, err = leafServer.GetAuthServer().UpsertAuthPreference(ctx, &types.AuthPreferenceV2{
+						Spec: types.AuthPreferenceSpecV2{
+							RequireMFAType: requireMFAType,
+						},
+					})
+					require.NoError(t, err)
+
+					for _, app := range []struct {
+						cluster string
+						name    string
+					}{
+						{
+							cluster: "root",
+							name:    "rootapp",
+						}, {
+							cluster: "leaf",
+							name:    "leafapp",
+						},
+					} {
+						app := app
+						t.Run(app.name, func(t *testing.T) {
+							// List the apps in the app's cluster to ensure the app is listed.
+							lsOut := new(bytes.Buffer)
+							err = Run(context.Background(), []string{
+								"app",
+								"ls",
+								"-v",
+								"--format", "json",
+								"--cluster", app.cluster,
+							}, setHomePath(tmpHomePath), setOverrideStdout(lsOut))
+							require.NoError(t, err)
+							require.Contains(t, lsOut.String(), app.name)
+
+							// Login to the app.
+							err = Run(context.Background(), []string{
+								"app",
+								"login",
+								app.name,
+								"--cluster", app.cluster,
+							}, setHomePath(tmpHomePath), webauthnLoginOpt)
+							require.NoError(t, err)
+
+							// Retrieve the app login config (private key, ca, and cert).
+							confOut := new(bytes.Buffer)
+							err = Run(context.Background(), []string{
+								"app",
+								"config",
+								app.name,
+								"--format", "json",
+							}, setHomePath(tmpHomePath), setOverrideStdout(confOut), webauthnLoginOpt)
+							require.NoError(t, err)
+
+							// Verify that we can connect to the app using the generated app cert.
+							var info appConfigInfo
+							require.NoError(t, json.Unmarshal(confOut.Bytes(), &info))
+
+							clientCert, err := tls.LoadX509KeyPair(info.Cert, info.Key)
+							require.NoError(t, err)
+							clt := &http.Client{
+								Transport: &http.Transport{
+									TLSClientConfig: &tls.Config{
+										InsecureSkipVerify: true,
+										Certificates:       []tls.Certificate{clientCert},
+									},
+								},
+							}
+
+							resp, err := clt.Get(fmt.Sprintf("https://%v", rootProxyAddr.Addr))
+							require.NoError(t, err)
+
+							respData, _ := httputil.DumpResponse(resp, true)
+							t.Log(string(respData))
+
+							require.Equal(t, 200, resp.StatusCode)
+							require.Equal(t, app.name, resp.Header.Get("Server"))
+							_ = resp.Body.Close()
+						})
+					}
+				})
 			}
-
-			opt := setMockSSOLogin(rootAuth.GetAuthServer(), alice, connector.GetName())
-
-			return run(args, opt)
-		}
-		tsh := func(args ...string) string { return run(args) }
-
-		return login, tsh
-	}
-
-	verifyAppIsAvailable := func(t *testing.T, conf string, appName string) {
-		var info appConfigInfo
-		require.NoError(t, json.Unmarshal([]byte(conf), &info))
-
-		clientCert, err := tls.LoadX509KeyPair(info.Cert, info.Key)
-		require.NoError(t, err)
-
-		clt := &http.Client{
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{
-					InsecureSkipVerify: true,
-					Certificates:       []tls.Certificate{clientCert},
-				},
-			},
-		}
-
-		resp, err := clt.Get(fmt.Sprintf("https://%v", rootProxyAddr.Addr))
-		require.NoError(t, err)
-
-		respData, _ := httputil.DumpResponse(resp, true)
-
-		t.Log(string(respData))
-
-		require.Equal(t, 200, resp.StatusCode)
-		require.Equal(t, appName, resp.Header.Get("Server"))
-		_ = resp.Body.Close()
-	}
-
-	tests := []struct{ name, loginCluster, appCluster, appName string }{
-		{"root login cluster, root app cluster", "root", "root", "rootapp"},
-		{"root login cluster, leaf app cluster", "root", "leaf", "leafapp"},
-		{"leaf login cluster, root app cluster", "leaf", "root", "rootapp"},
-		{"leaf login cluster, leaf app cluster", "leaf", "leaf", "leafapp"},
-	}
-
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			login, tsh := getHelpers(t)
-
-			login(tt.loginCluster)
-			tsh("app", "ls", "--verbose", "--format=json", "--cluster", tt.appCluster)
-			tsh("app", "login", tt.appName, "--cluster", tt.appCluster)
-			conf := tsh("app", "config", "--format=json")
-			verifyAppIsAvailable(t, conf, tt.appName)
-			tsh("logout")
 		})
 	}
 }

@@ -287,6 +287,16 @@ type TestServersOpts struct {
 
 type TestServerOptFunc func(o *TestServersOpts)
 
+// TODO(Joerger): consider applying these defaults in MakeTestServer by default.
+func WithTestDefaults(t *testing.T) TestServerOptFunc {
+	return WithAuthConfig(func(cfg *servicecfg.AuthConfig) {
+		// Disable session recording to prevent writing to disk after the test concludes.
+		cfg.SessionRecordingConfig.SetMode(types.RecordOff)
+		// Speeds up tests considerably.
+		cfg.StorageConfig.Params["poll_stream_period"] = 50 * time.Millisecond
+	})
+}
+
 func WithBootstrap(bootstrap ...types.Resource) TestServerOptFunc {
 	return func(o *TestServersOpts) {
 		o.Bootstrap = append(o.Bootstrap, bootstrap...)
