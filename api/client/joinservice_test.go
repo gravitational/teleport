@@ -116,7 +116,7 @@ func TestJoinServiceClient_RegisterUsingTPMMethod(t *testing.T) {
 		cancel()
 	}()
 
-	c, err := grpc.NewClient("unused.com", grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
+	c, err := grpc.Dial("unused.com", grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
 		return lis.DialContext(ctx)
 	}), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
