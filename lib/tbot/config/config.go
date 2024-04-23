@@ -58,6 +58,7 @@ var SupportedJoinMethods = []string{
 	string(types.JoinMethodKubernetes),
 	string(types.JoinMethodSpacelift),
 	string(types.JoinMethodToken),
+	string(types.JoinMethodTPM),
 }
 
 var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTBot)
