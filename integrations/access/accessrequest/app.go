@@ -135,6 +135,12 @@ func (a *App) run(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
+	process.SpawnCriticalJob(job)
+
+	ok, err := job.WaitReady(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	accessMonitoringRules, err := a.getAllAccessMonitoringRules(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -147,13 +153,6 @@ func (a *App) run(ctx context.Context) error {
 		a.accessMonitoringRules.rules[amr.GetMetadata().Name] = amr
 	}
 	a.accessMonitoringRules.Unlock()
-
-	process.SpawnCriticalJob(job)
-
-	ok, err := job.WaitReady(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 
 	a.job.SetReady(ok)
 	if !ok {
@@ -176,13 +175,16 @@ func (a *App) amrAppliesToThisPlugin(amr *accessmonitoringrulesv1.AccessMonitori
 // onWatcherEvent is called for every cluster Event. It will filter out non-access-request events and
 // call onPendingRequest, onResolvedRequest and on DeletedRequest depending on the event.
 func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
-	if kind := event.Resource.GetKind(); kind == types.KindAccessMonitoringRule {
+	switch event.Resource.GetKind() {
+	case types.KindAccessMonitoringRule:
 		return trace.Wrap(a.handleAccessMonitoringRule(ctx, event))
+	case types.KindAccessRequest:
+		return trace.Wrap(a.handleAcessRequest(ctx, event))
 	}
+	return trace.Errorf("unexpected kind %s", event.Resource.GetKind())
+}
 
-	if kind := event.Resource.GetKind(); kind != types.KindAccessRequest {
-		return trace.Errorf("unexpected kind %s", kind)
-	}
+func (a *App) handleAcessRequest(ctx context.Context, event types.Event) error {
 	op := event.Type
 	reqID := event.Resource.GetName()
 	ctx, _ = logger.WithField(ctx, "request_id", reqID)
@@ -249,9 +251,7 @@ func (a *App) handleAccessMonitoringRule(ctx context.Context, event types.Event)
 	case types.OpDelete:
 		a.accessMonitoringRules.Lock()
 		defer a.accessMonitoringRules.Unlock()
-		if _, ok := a.accessMonitoringRules.rules[req.Metadata.Name]; ok {
-			delete(a.accessMonitoringRules.rules, req.Metadata.Name)
-		}
+		delete(a.accessMonitoringRules.rules, req.Metadata.Name)
 		return nil
 	default:
 		return trace.BadParameter("unexpected event operation %s", op)
@@ -488,15 +488,16 @@ func (a *App) recipientsFromAccessMonitoringRules(ctx context.Context, req types
 		if err != nil {
 			log.WithError(err).Warn("Failed to parse access monitoring notification rule")
 		}
-		if match {
-			for _, recipient := range rule.Spec.Notification.Recipients {
-				rec, err := a.bot.FetchRecipient(ctx, recipient)
-				if err != nil {
-					log.Warning(err)
-					continue
-				}
-				recipientSet.Add(*rec)
+		if !match {
+			continue
+		}
+		for _, recipient := range rule.Spec.Notification.Recipients {
+			rec, err := a.bot.FetchRecipient(ctx, recipient)
+			if err != nil {
+				log.Warning(err)
+				continue
 			}
+			recipientSet.Add(*rec)
 		}
 	}
 	return &recipientSet

@@ -142,7 +142,7 @@ func DefaultParserSpec[evaluationEnv any]() typical.ParserSpec[evaluationEnv] {
 			"between": typical.BinaryVariadicFunction[evaluationEnv](
 				func(t time.Time, interval ...time.Time) (bool, error) {
 					if len(interval) != 2 {
-						return false, trace.BadParameter("time.between expected 2 parameters: got %v", len(interval))
+						return false, trace.BadParameter("between expected 2 parameters: got %v", len(interval))
 					}
 					first, second := interval[0], interval[1]
 					if first.After(second) {
