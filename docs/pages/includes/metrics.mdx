@@ -209,6 +209,7 @@ The following table identifies all metrics available for incoming connections.
 | `rx` | counter | Teleport | Number of bytes received during an SSH connection. |
 | `server_interactive_sessions_total` | gauge | Teleport | Number of active sessions. |
 | `teleport_build_info` | gauge | Teleport | Provides build information of Teleport including gitref (git describe --long --tags), Go version, and Teleport version. The value of this gauge will always be 1. |
+| `teleport_breaker_connector_executions_total` | counter | Teleport | Number of requests to the Teleport Auth Service API that go through a circuit breaker done by Teleport services, labeled by `role` of the connector (almost always `Instance`), `state` of the associated circuit breaker and `success` as interpreted by the breaker. |
 | `teleport_cache_events` | counter | Teleport | Number of events received by a Teleport service cache. Teleport's Auth Service, Proxy Service, and other services cache incoming events related to their service. |
 | `teleport_cache_stale_events` | counter | Teleport | Number of stale events received by a Teleport service cache. A high percentage of stale events can indicate a degraded backend. |
 | `tx` | counter | Teleport | Number of bytes transmitted during an SSH connection. |
