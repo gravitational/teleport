@@ -878,6 +878,24 @@ func (a *ServerWithRoles) RegisterUsingAzureMethod(ctx context.Context, challeng
 	return certs, trace.Wrap(err)
 }
 
+// RegisterUsingTPMMethod registers the caller using the TPM join method and
+// returns signed certs to join the cluster.
+//
+// See (*Server).RegisterUsingTPMMethod for further documentation.
+//
+// This wrapper does not do any extra authz checks, as the register method has
+// its own authz mechanism.
+func (a *ServerWithRoles) RegisterUsingTPMMethod(
+	ctx context.Context,
+	initReq *proto.RegisterUsingTPMMethodInitialRequest,
+	solveChallenge client.RegisterTPMChallengeResponseFunc,
+) (*proto.Certs, error) {
+	certs, err := a.authServer.registerUsingTPMMethod(
+		ctx, initReq, solveChallenge,
+	)
+	return certs, trace.Wrap(err)
+}
+
 // GenerateHostCerts generates new host certificates (signed
 // by the host certificate authority) for a node.
 func (a *ServerWithRoles) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequest) (*proto.Certs, error) {
@@ -2217,15 +2235,20 @@ func enforceEnterpriseJoinMethodCreation(token types.ProvisionToken) error {
 	switch v.Spec.JoinMethod {
 	case types.JoinMethodGitHub:
 		if v.Spec.GitHub != nil && v.Spec.GitHub.EnterpriseServerHost != "" {
-			return fmt.Errorf(
-				"github enterprise server joining: %w",
+			return trace.Wrap(
 				ErrRequiresEnterprise,
+				"github enterprise server joining",
 			)
 		}
 	case types.JoinMethodSpacelift:
-		return fmt.Errorf(
-			"spacelift joining: %w",
+		return trace.Wrap(
 			ErrRequiresEnterprise,
+			"spacelift joining",
+		)
+	case types.JoinMethodTPM:
+		return trace.Wrap(
+			ErrRequiresEnterprise,
+			"tpm joining",
 		)
 	}
 
