@@ -23,6 +23,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -44,11 +45,20 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	kubetypes "k8s.io/apimachinery/pkg/types"
 	streamspdy "k8s.io/apimachinery/pkg/util/httpstream/spdy"
+	"k8s.io/apimachinery/pkg/util/strategicpatch"
+	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
+	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/tools/remotecommand"
+	watchtools "k8s.io/client-go/tools/watch"
 	"k8s.io/client-go/transport"
 	"k8s.io/client-go/transport/spdy"
 
@@ -65,6 +75,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/events"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -174,6 +185,7 @@ func TestKube(t *testing.T) {
 	// Users under moderated session should only be able to get the pod and shouldn't
 	// be able to exec into a pod
 	t.Run("ExecWithNoAuth", suite.bind(testExecNoAuth))
+	t.Run("EphemeralContainers", suite.bind(testKubeEphemeralContainers))
 }
 
 func testExec(t *testing.T, suite *KubeSuite, pinnedIP string, clientError string) {
@@ -273,7 +285,7 @@ func testExec(t *testing.T, suite *KubeSuite, pinnedIP string, clientError strin
 	require.NoError(t, err)
 
 	out := &bytes.Buffer{}
-	err = kubeExec(proxyClientConfig, kubeExecArgs{
+	err = kubeExec(proxyClientConfig, execInContainer, kubeExecArgs{
 		podName:      pod.Name,
 		podNamespace: pod.Namespace,
 		container:    pod.Spec.Containers[0].Name,
@@ -291,7 +303,7 @@ func testExec(t *testing.T, suite *KubeSuite, pinnedIP string, clientError strin
 	term.Type("\aecho hi\n\r\aexit\n\r\a")
 
 	out = &bytes.Buffer{}
-	err = kubeExec(proxyClientConfig, kubeExecArgs{
+	err = kubeExec(proxyClientConfig, execInContainer, kubeExecArgs{
 		podName:      pod.Name,
 		podNamespace: pod.Namespace,
 		container:    pod.Spec.Containers[0].Name,
@@ -332,7 +344,7 @@ loop:
 	term = NewTerminal(250)
 	term.Type("\aecho hi\n\r\aexit\n\r\a")
 	out = &bytes.Buffer{}
-	err = kubeExec(impersonatingProxyClientConfig, kubeExecArgs{
+	err = kubeExec(impersonatingProxyClientConfig, execInContainer, kubeExecArgs{
 		podName:      pod.Name,
 		podNamespace: pod.Namespace,
 		container:    pod.Spec.Containers[0].Name,
@@ -349,7 +361,7 @@ loop:
 	term = NewTerminal(250)
 	term.Type("\aecho hi\n\r\aexit\n\r\a")
 	out = &bytes.Buffer{}
-	err = kubeExec(scopedProxyClientConfig, kubeExecArgs{
+	err = kubeExec(scopedProxyClientConfig, execInContainer, kubeExecArgs{
 		podName:      pod.Name,
 		podNamespace: pod.Namespace,
 		container:    pod.Spec.Containers[0].Name,
@@ -708,7 +720,7 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 	require.NoError(t, err)
 
 	out := &bytes.Buffer{}
-	err = kubeExec(proxyClientConfig, kubeExecArgs{
+	err = kubeExec(proxyClientConfig, execInContainer, kubeExecArgs{
 		podName:      pod.Name,
 		podNamespace: pod.Namespace,
 		container:    pod.Spec.Containers[0].Name,
@@ -726,7 +738,7 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 	term.Type("\aecho hi\n\r\aexit\n\r\a")
 
 	out = &bytes.Buffer{}
-	err = kubeExec(proxyClientConfig, kubeExecArgs{
+	err = kubeExec(proxyClientConfig, execInContainer, kubeExecArgs{
 		podName:      pod.Name,
 		podNamespace: pod.Namespace,
 		container:    pod.Spec.Containers[0].Name,
@@ -767,7 +779,7 @@ loop:
 	term = NewTerminal(250)
 	term.Type("\aecho hi\n\r\aexit\n\r\a")
 	out = &bytes.Buffer{}
-	err = kubeExec(impersonatingProxyClientConfig, kubeExecArgs{
+	err = kubeExec(impersonatingProxyClientConfig, execInContainer, kubeExecArgs{
 		podName:      pod.Name,
 		podNamespace: pod.Namespace,
 		container:    pod.Spec.Containers[0].Name,
@@ -982,7 +994,7 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 	require.NoError(t, err)
 
 	out := &bytes.Buffer{}
-	err = kubeExec(proxyClientConfig, kubeExecArgs{
+	err = kubeExec(proxyClientConfig, execInContainer, kubeExecArgs{
 		podName:      pod.Name,
 		podNamespace: pod.Namespace,
 		container:    pod.Spec.Containers[0].Name,
@@ -1000,7 +1012,7 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 	term.Type("\aecho hi\n\r\aexit\n\r\a")
 
 	out = &bytes.Buffer{}
-	err = kubeExec(proxyClientConfig, kubeExecArgs{
+	err = kubeExec(proxyClientConfig, execInContainer, kubeExecArgs{
 		podName:      pod.Name,
 		podNamespace: pod.Namespace,
 		container:    pod.Spec.Containers[0].Name,
@@ -1041,7 +1053,7 @@ loop:
 	term = NewTerminal(250)
 	term.Type("\aecho hi\n\r\aexit\n\r\a")
 	out = &bytes.Buffer{}
-	err = kubeExec(impersonatingProxyClientConfig, kubeExecArgs{
+	err = kubeExec(impersonatingProxyClientConfig, execInContainer, kubeExecArgs{
 		podName:      pod.Name,
 		podNamespace: pod.Namespace,
 		container:    pod.Spec.Containers[0].Name,
@@ -1181,7 +1193,7 @@ func runKubeDisconnectTest(t *testing.T, suite *KubeSuite, tc disconnectTestCase
 	require.NoError(t, err)
 
 	out := &bytes.Buffer{}
-	err = kubeExec(proxyClientConfig, kubeExecArgs{
+	err = kubeExec(proxyClientConfig, execInContainer, kubeExecArgs{
 		podName:      pod.Name,
 		podNamespace: pod.Namespace,
 		container:    pod.Spec.Containers[0].Name,
@@ -1198,7 +1210,7 @@ func runKubeDisconnectTest(t *testing.T, suite *KubeSuite, tc disconnectTestCase
 	sessionCtx, sessionCancel := context.WithCancel(ctx)
 	go func() {
 		defer sessionCancel()
-		err := kubeExec(proxyClientConfig, kubeExecArgs{
+		err := kubeExec(proxyClientConfig, execInContainer, kubeExecArgs{
 			podName:      pod.Name,
 			podNamespace: pod.Namespace,
 			container:    pod.Spec.Containers[0].Name,
@@ -1311,13 +1323,265 @@ func testKubeTransportProtocol(t *testing.T, suite *KubeSuite) {
 		command:      []string{"ls"},
 	}
 
-	err = kubeExec(proxyClientConfig, command)
+	err = kubeExec(proxyClientConfig, execInContainer, command)
 	require.NoError(t, err)
 
 	// stream fails with an h2 transport
 	proxyClientConfig.TLSClientConfig.NextProtos = []string{"h2"}
-	err = kubeExec(proxyClientConfig, command)
+	err = kubeExec(proxyClientConfig, execInContainer, command)
 	require.Error(t, err)
+}
+
+// TODO: test against tsh kubectl
+func testKubeEphemeralContainers(t *testing.T, suite *KubeSuite) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Kubernetes: true,
+		},
+	})
+
+	tconf := suite.teleKubeConfig(Host)
+	teleport := helpers.NewInstance(t, helpers.InstanceConfig{
+		ClusterName: helpers.Site,
+		HostID:      helpers.HostID,
+		NodeName:    Host,
+		Priv:        suite.priv,
+		Pub:         suite.pub,
+		Log:         suite.log,
+	})
+
+	username := suite.me.Username
+	kubeUsers := []string{"alice@example.com"}
+	kubeGroups := []string{kube.TestImpersonationGroup}
+	kubeAccessRole, err := types.NewRole("kubemaster", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins:     []string{username},
+			KubeUsers:  kubeUsers,
+			KubeGroups: kubeGroups,
+			KubernetesLabels: types.Labels{
+				types.Wildcard: []string{types.Wildcard},
+			},
+			KubernetesResources: []types.KubernetesResource{
+				{
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	peerRole, err := types.NewRole("peer", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			RequireSessionJoin: []*types.SessionRequirePolicy{
+				{
+					Name:   "Requires oversight",
+					Filter: `equals("true", "true")`,
+					Kinds: []string{
+						string(types.KubernetesSessionKind),
+					},
+					Count: 1,
+					Modes: []string{
+						string(types.SessionModeratorMode),
+					},
+					OnLeave: string(types.OnSessionLeaveTerminate),
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	teleport.AddUserWithRole(username, kubeAccessRole, peerRole)
+
+	moderatorUser := username + "-moderator"
+	moderatorRole, err := types.NewRole("moderator", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			JoinSessions: []*types.SessionJoinPolicy{{
+				Name:  "Session moderator",
+				Roles: []string{"kubemaster"},
+				Kinds: []string{string(types.KubernetesSessionKind)},
+				Modes: []string{string(types.SessionModeratorMode), string(types.SessionObserverMode)},
+			}},
+		},
+	})
+	require.NoError(t, err)
+	teleport.AddUserWithRole(moderatorUser, kubeAccessRole, moderatorRole)
+
+	err = teleport.CreateEx(t, nil, tconf)
+	require.NoError(t, err)
+
+	err = teleport.Start()
+	require.NoError(t, err)
+	defer teleport.StopAll()
+
+	// set up kube configuration using proxy
+	proxyClient, kubeConfig, err := kube.ProxyClient(kube.ProxyConfig{
+		T:          teleport,
+		Username:   username,
+		KubeGroups: kubeGroups,
+	})
+	require.NoError(t, err)
+
+	// try get request to fetch available pods
+	ctx := context.Background()
+	podsClient := proxyClient.CoreV1().Pods(testNamespace)
+	pod, err := podsClient.Get(ctx, testPod, metav1.GetOptions{})
+	require.NoError(t, err)
+
+	podJS, err := json.Marshal(pod)
+	require.NoError(t, err)
+
+	group := &errgroup.Group{}
+	group.Go(func() error {
+		name := "debug-1"
+		cmd := []string{"/bin/sh", "echo", "hello from a debug container"}
+		debugPod, _, err := generateDebugContainer(name, cmd, pod)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		debugJS, err := json.Marshal(debugPod)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		patch, err := strategicpatch.CreateTwoWayMergePatch(podJS, debugJS, pod)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		_, err = podsClient.Patch(ctx, pod.Name, kubetypes.StrategicMergePatchType, patch, metav1.PatchOptions{}, "ephemeralcontainers")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		_, err = waitForContainer(ctx, podsClient, pod.Name, name)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		err = kubeExec(kubeConfig, attachToContainer, kubeExecArgs{
+			podName:      pod.Name,
+			podNamespace: testNamespace,
+			container:    name,
+			command:      cmd,
+			tty:          true,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		return nil
+	})
+
+	// We need to wait for the exec request to be handled here for the session to be
+	// created. Sadly though the k8s API doesn't give us much indication of when that is.
+	var session types.SessionTracker
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		// We need to wait for the session to be created here. We can't use the
+		// session manager's WaitUntilExists method because it doesn't work for
+		// kubernetes sessions.
+		sessions, err := teleport.Process.GetAuthServer().GetActiveSessionTrackers(context.Background())
+		if !assert.NoError(t, err) || !assert.NotEmpty(t, sessions) {
+			return
+		}
+		session = sessions[0]
+	}, 10*time.Second, 100*time.Millisecond)
+
+	group.Go(func() error {
+		tc, err := teleport.NewClient(helpers.ClientConfig{
+			Login:   moderatorUser,
+			Cluster: helpers.Site,
+			Host:    Host,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		stream, err := kubeJoin(kube.ProxyConfig{
+			T:          teleport,
+			Username:   username,
+			KubeUsers:  kubeUsers,
+			KubeGroups: kubeGroups,
+		}, tc, session, types.SessionPeerMode)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		return trace.Wrap(stream.Close())
+	})
+
+	require.NoError(t, group.Wait())
+}
+
+func generateDebugContainer(name string, cmd []string, pod *v1.Pod) (*v1.Pod, *v1.EphemeralContainer, error) {
+	ec := &v1.EphemeralContainer{
+		EphemeralContainerCommon: v1.EphemeralContainerCommon{
+			Name:                     name,
+			Image:                    "alpine:latest",
+			Command:                  cmd,
+			ImagePullPolicy:          v1.PullIfNotPresent,
+			Stdin:                    true,
+			TerminationMessagePolicy: v1.TerminationMessageReadFile,
+			TTY:                      true,
+		},
+		TargetContainerName: pod.Spec.Containers[0].Name,
+	}
+
+	copied := pod.DeepCopy()
+	copied.Spec.EphemeralContainers = append(copied.Spec.EphemeralContainers, *ec)
+	ec = &copied.Spec.EphemeralContainers[len(copied.Spec.EphemeralContainers)-1]
+
+	return copied, ec, nil
+}
+
+func waitForContainer(ctx context.Context, podClient corev1client.PodInterface, podName, containerName string) (*v1.Pod, error) {
+	fieldSelector := fields.OneTermEqualSelector("metadata.name", podName).String()
+	lw := &cache.ListWatch{
+		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+			options.FieldSelector = fieldSelector
+			return podClient.List(ctx, options)
+		},
+		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+			options.FieldSelector = fieldSelector
+			return podClient.Watch(ctx, options)
+		},
+	}
+
+	ev, err := watchtools.UntilWithSync(ctx, lw, &v1.Pod{}, nil, func(ev watch.Event) (bool, error) {
+		switch ev.Type {
+		case watch.Deleted:
+			return false, errors.NewNotFound(schema.GroupResource{Resource: "pods"}, "")
+		}
+
+		p, ok := ev.Object.(*v1.Pod)
+		if !ok {
+			return false, fmt.Errorf("watch did not return a pod: %v", ev.Object)
+		}
+
+		s := getContainerStatusByName(p, containerName)
+		fmt.Println("test", s)
+		if s == nil {
+			return false, nil
+		}
+		if s.State.Running != nil || s.State.Terminated != nil {
+			return true, nil
+		}
+
+		return false, nil
+	})
+	if ev != nil {
+		return ev.Object.(*v1.Pod), nil
+	}
+	return nil, err
+}
+
+func getContainerStatusByName(pod *v1.Pod, containerName string) *v1.ContainerStatus {
+	allContainerStatus := [][]v1.ContainerStatus{pod.Status.InitContainerStatuses, pod.Status.ContainerStatuses, pod.Status.EphemeralContainerStatuses}
+	for _, statusSlice := range allContainerStatus {
+		for i := range statusSlice {
+			if statusSlice[i].Name == containerName {
+				return &statusSlice[i]
+			}
+		}
+	}
+	return nil
 }
 
 // teleKubeConfig sets up teleport with kubernetes turned on
@@ -1490,11 +1754,21 @@ func newPortForwarder(kubeConfig *rest.Config, args kubePortForwardArgs) (*kubeP
 	return &kubePortForwarder{PortForwarder: fwd, stopC: stopC, readyC: readyC}, nil
 }
 
+// execMode is the type of Kubernetes
+type execMode int
+
+const (
+	execInContainer execMode = iota
+	attachToContainer
+)
+
 // kubeExec executes command against kubernetes API server
-func kubeExec(kubeConfig *rest.Config, args kubeExecArgs) error {
+func kubeExec(kubeConfig *rest.Config, mode execMode, args kubeExecArgs) error {
 	query := make(url.Values)
-	for _, arg := range args.command {
-		query.Add("command", arg)
+	if mode == execInContainer {
+		for _, arg := range args.command {
+			query.Add("command", arg)
+		}
 	}
 	if args.stdout != nil {
 		query.Set("stdout", "true")
@@ -1519,7 +1793,11 @@ func kubeExec(kubeConfig *rest.Config, args kubeExecArgs) error {
 		return trace.Wrap(err)
 	}
 	u.Scheme = "https"
-	u.Path = fmt.Sprintf("/api/v1/namespaces/%v/pods/%v/exec", args.podNamespace, args.podName)
+	resource := "exec"
+	if mode == attachToContainer {
+		resource = "attach"
+	}
+	u.Path = fmt.Sprintf("/api/v1/namespaces/%v/pods/%v/%v", args.podNamespace, args.podName, resource)
 	u.RawQuery = query.Encode()
 	executor, err := remotecommand.NewSPDYExecutor(kubeConfig, "POST", u)
 	if err != nil {
@@ -1561,6 +1839,7 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 		Log:         suite.log,
 	})
 
+	// fooey
 	hostUsername := suite.me.Username
 	participantUsername := suite.me.Username + "-participant"
 	kubeGroups := []string{kube.TestImpersonationGroup}
@@ -1626,7 +1905,7 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 
 	// Start the main session.
 	group.Go(func() error {
-		err := kubeExec(proxyClientConfig, kubeExecArgs{
+		err := kubeExec(proxyClientConfig, execInContainer, kubeExecArgs{
 			podName:      pod.Name,
 			podNamespace: pod.Namespace,
 			container:    pod.Spec.Containers[0].Name,
@@ -1971,7 +2250,7 @@ func testExecNoAuth(t *testing.T, suite *KubeSuite) {
 			term := NewTerminal(250)
 			// lets type "echo hi" followed by "enter" and then "exit" + "enter":
 			term.Type("\aecho hi\n\r\aexit\n\r\a")
-			err = kubeExec(tt.clientConfig, kubeExecArgs{
+			err = kubeExec(tt.clientConfig, execInContainer, kubeExecArgs{
 				podName:      pod.Name,
 				podNamespace: pod.Namespace,
 				container:    pod.Spec.Containers[0].Name,
