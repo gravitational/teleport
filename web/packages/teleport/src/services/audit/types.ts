@@ -1229,8 +1229,6 @@ export type RawEvents = {
       role: string;
     }
   >;
-<<<<<<< HEAD
-=======
   [eventCodes.INSTANCE_JOIN_FAILURE]: RawEvent<
     typeof eventCodes.INSTANCE_JOIN,
     {
@@ -1239,10 +1237,6 @@ export type RawEvents = {
       role: string;
     }
   >;
-  [eventCodes.BOT_CREATED]: RawEvent<typeof eventCodes.BOT_CREATED, HasName>;
-  [eventCodes.BOT_UPDATED]: RawEvent<typeof eventCodes.BOT_UPDATED, HasName>;
-  [eventCodes.BOT_DELETED]: RawEvent<typeof eventCodes.BOT_DELETED, HasName>;
->>>>>>> cea1425a13 (Emit an Audit log event when a Bot or Instance fails to join (#40329))
   [eventCodes.LOGIN_RULE_CREATE]: RawEvent<
     typeof eventCodes.LOGIN_RULE_CREATE,
     HasName
