@@ -29,6 +29,7 @@ import (
 	"net/http/httputil"
 	"os/user"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -61,6 +62,7 @@ func startDummyHTTPServer(t *testing.T, name string) string {
 // - tsh app ls
 // - tsh app login
 // - tsh app config
+// - tsh proxy app
 func TestAppCommands(t *testing.T) {
 	ctx := context.Background()
 
@@ -71,6 +73,8 @@ func TestAppCommands(t *testing.T) {
 	t.Cleanup(func() {
 		lib.SetInsecureDevMode(isInsecure)
 	})
+
+	localProxyPort := ports.Pop()
 
 	accessUser, err := types.NewUser("access")
 	require.NoError(t, err)
@@ -213,7 +217,7 @@ func TestAppCommands(t *testing.T) {
 								"config",
 								app.name,
 								"--format", "json",
-							}, setHomePath(tmpHomePath), setOverrideStdout(confOut), webauthnLoginOpt)
+							}, setHomePath(tmpHomePath), setOverrideStdout(confOut))
 							require.NoError(t, err)
 
 							// Verify that we can connect to the app using the generated app cert.
@@ -240,6 +244,31 @@ func TestAppCommands(t *testing.T) {
 							require.Equal(t, 200, resp.StatusCode)
 							require.Equal(t, app.name, resp.Header.Get("Server"))
 							_ = resp.Body.Close()
+
+							// Test connecting to the app through a local proxy.
+							proxyCtx, proxyCancel := context.WithTimeout(context.Background(), time.Second)
+							defer proxyCancel()
+
+							go func() {
+								Run(proxyCtx, []string{
+									"--insecure",
+									"proxy",
+									"app",
+									app.name,
+									"--port", localProxyPort,
+									"--cluster", app.cluster,
+								}, setHomePath(tmpHomePath))
+							}()
+
+							require.EventuallyWithT(t, func(t *assert.CollectT) {
+								resp, err := http.Get("http://127.0.0.1:" + localProxyPort)
+								assert.NoError(t, err)
+								if err == nil {
+									assert.Equal(t, 200, resp.StatusCode)
+									assert.Equal(t, app.name, resp.Header.Get("Server"))
+									_ = resp.Body.Close()
+								}
+							}, time.Second, 100*time.Millisecond)
 						})
 					}
 				})

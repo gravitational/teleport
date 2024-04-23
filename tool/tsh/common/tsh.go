@@ -870,6 +870,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	proxyApp := proxy.Command("app", "Start local TLS proxy for app connection when using Teleport in single-port mode.")
 	proxyApp.Arg("app", "The name of the application to start local proxy for").Required().StringVar(&cf.AppName)
 	proxyApp.Flag("port", "Specifies the source port used by by the proxy app listener").Short('p').StringVar(&cf.LocalProxyPort)
+	proxyApp.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 
 	proxyAWS := proxy.Command("aws", "Start local proxy for AWS access.")
 	proxyAWS.Flag("app", "Optional Name of the AWS application to use if logged into multiple.").StringVar(&cf.AppName)
