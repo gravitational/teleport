@@ -149,7 +149,7 @@ func (o *IdentityOutput) CheckAndSetDefaults() error {
 
 	switch o.SSHConfigMode {
 	case SSHConfigModeNone:
-		log.DebugContext(context.TODO(), "Defaulting to SSHConfigModeOn")
+		log.DebugContext(context.Background(), "Defaulting to SSHConfigModeOn")
 		o.SSHConfigMode = SSHConfigModeOn
 	case SSHConfigModeOff, SSHConfigModeOn:
 	default:
