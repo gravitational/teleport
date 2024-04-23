@@ -128,7 +128,7 @@ func TestEKSFetcher(t *testing.T) {
 
 type mockEKSClientGetter struct{}
 
-func (e *mockEKSClientGetter) GetAWSEKSClient(ctx context.Context, region string, opts ...cloud.AWSAssumeRoleOptionFn) (eksiface.EKSAPI, error) {
+func (e *mockEKSClientGetter) GetAWSEKSClient(ctx context.Context, region string, opts ...cloud.AWSOptionsFn) (eksiface.EKSAPI, error) {
 	return newPopulatedEKSMock(), nil
 }
 

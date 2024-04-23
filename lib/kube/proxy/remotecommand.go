@@ -116,6 +116,9 @@ func upgradeRequestToRemoteCommandProxy(req remoteCommandRequest, exec func(*rem
 		go proxy.resizeQueue.handleResizeEvents(proxy.resizeStream)
 	}
 	err = exec(proxy)
+	if !isRelevantWebsocketError(err) {
+		err = nil
+	}
 	if err := proxy.sendStatus(err); err != nil {
 		log.Warningf("Failed to send status: %v", err)
 	}

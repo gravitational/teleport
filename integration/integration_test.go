@@ -1855,6 +1855,11 @@ func testShutdown(t *testing.T, suite *integrationTestSuite) {
 		{
 			name: "cli sessions",
 			createSession: func(t *testing.T, i *helpers.TeleInstance, term *Terminal, cfg helpers.ClientConfig) {
+				// TODO(espadolini): make the connection detach timeout (or the
+				// clock that it uses) configurable; in the meantime, disable
+				// connection resumption here, since it could occasionally make
+				// the server wait for a full minute before shutting down
+				cfg.DisableSSHResumption = true
 				tc, err := i.NewClient(cfg)
 				require.NoError(t, err)
 
@@ -2441,7 +2446,7 @@ func testInvalidLogins(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 
 	err = tc.SSH(context.Background(), cmd, false)
-	require.ErrorIs(t, err, trace.NotFound("failed to dial target host\n\tcluster \"wrong-site\" is not found"))
+	require.ErrorIs(t, err, trace.NotFound("failed to dial target host\n\tlooking up remote cluster \"wrong-site\"\n\t\tnot found"))
 }
 
 // TestTwoClustersTunnel creates two teleport clusters: "a" and "b" and creates a

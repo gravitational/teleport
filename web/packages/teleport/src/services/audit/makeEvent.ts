@@ -1477,11 +1477,25 @@ export const formatters: Formatters = {
       return `Bot [${bot_name}] joined the cluster using the [${method}] join method`;
     },
   },
+  [eventCodes.BOT_JOIN_FAILURE]: {
+    type: 'bot.join',
+    desc: 'Bot Join Failed',
+    format: ({ bot_name }) => {
+      return `Bot [${bot_name || 'unknown'}] failed to join the cluster`;
+    },
+  },
   [eventCodes.INSTANCE_JOIN]: {
     type: 'instance.join',
     desc: 'Instance Joined',
     format: ({ node_name, role, method }) => {
       return `Instance [${node_name}] joined the cluster with the [${role}] role using the [${method}] join method`;
+    },
+  },
+  [eventCodes.INSTANCE_JOIN_FAILURE]: {
+    type: 'instance.join',
+    desc: 'Instance Join Failed',
+    format: ({ node_name }) => {
+      return `Instance [${node_name || 'unknown'}] failed to join the cluster`;
     },
   },
   [eventCodes.BOT_CREATED]: {

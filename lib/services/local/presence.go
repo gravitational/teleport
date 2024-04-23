@@ -1695,6 +1695,9 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 	case types.KindWindowsDesktopService:
 		keyPrefix = []string{windowsDesktopServicesPrefix}
 		unmarshalItemFunc = backendItemToWindowsDesktopService
+	case types.KindWindowsDesktop:
+		keyPrefix = []string{windowsDesktopsPrefix}
+		unmarshalItemFunc = backendItemToWindowsDesktop
 	case types.KindKubeServer:
 		keyPrefix = []string{kubeServersPrefix}
 		unmarshalItemFunc = backendItemToKubernetesServer
@@ -2052,6 +2055,17 @@ func backendItemToServer(kind string) backendItemToResourceFunc {
 			services.WithRevision(item.Revision),
 		)
 	}
+}
+
+// backendItemToWindowsDesktop unmarshals `backend.Item` into a
+// `types.WindowsDesktop`, returning it as a `types.ResourceWithLabels`.
+func backendItemToWindowsDesktop(item backend.Item) (types.ResourceWithLabels, error) {
+	return services.UnmarshalWindowsDesktop(
+		item.Value,
+		services.WithResourceID(item.ID),
+		services.WithExpires(item.Expires),
+		services.WithRevision(item.Revision),
+	)
 }
 
 // backendItemToWindowsDesktopService unmarshals `backend.Item` into a

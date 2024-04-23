@@ -19,6 +19,7 @@
 package botfs
 
 import (
+	"context"
 	"io/fs"
 	"os"
 	"os/user"
@@ -27,15 +28,13 @@ import (
 	"syscall"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-var log = logrus.WithFields(logrus.Fields{
-	teleport.ComponentKey: teleport.ComponentTBot,
-})
+var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTBot)
 
 // SymlinksMode is an enum type listing various symlink behavior modes.
 type SymlinksMode string
@@ -130,7 +129,12 @@ func createStandard(path string, isDir bool) error {
 	}
 
 	if err := f.Close(); err != nil {
-		log.Warnf("Failed to close file at %q: %+v", path, err)
+		log.WarnContext(
+			context.TODO(),
+			"Failed to close file",
+			"path", path,
+			"error", err,
+		)
 	}
 
 	return nil

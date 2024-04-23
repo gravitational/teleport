@@ -114,7 +114,10 @@ export function Main(props: MainProps) {
 
   const { alerts, dismissAlert } = useAlerts(props.initialAlerts);
 
-  const [showOnboardDiscover, setShowOnboardDiscover] = useState(true);
+  // if there is a redirectUrl, do not show the onboarding popup - it'll get in the way of the redirected page
+  const [showOnboardDiscover, setShowOnboardDiscover] = useState(
+    !ctx.redirectUrl
+  );
   const [showOnboardSurvey, setShowOnboardSurvey] = useState<boolean>(
     !!props.Questionnaire
   );
@@ -126,6 +129,8 @@ export function Main(props: MainProps) {
         exact: true,
       })
     ) {
+      // hide the onboarding popup if we're on the redirectUrl, just in case
+      setShowOnboardDiscover(false);
       ctx.redirectUrl = null;
     }
   }, [ctx, history.location.pathname]);

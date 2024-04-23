@@ -23,8 +23,11 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types/compare"
 	"github.com/gravitational/teleport/api/utils"
 )
+
+var _ compare.IsEqual[UserGroup] = (*UserGroupV1)(nil)
 
 // UserGroup specifies an externally sourced group.
 type UserGroup interface {

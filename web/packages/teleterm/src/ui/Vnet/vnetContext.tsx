@@ -40,9 +40,9 @@ export type VnetContext = {
    */
   isSupported: boolean;
   status: VnetStatus;
-  start: () => void;
+  start: () => Promise<[void, Error]>;
   startAttempt: Attempt<void>;
-  stop: () => void;
+  stop: () => Promise<[void, Error]>;
   stopAttempt: Attempt<void>;
 };
 
