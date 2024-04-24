@@ -1,0 +1,20 @@
+#!/bin/sh
+
+#
+# the directory where Teleport binaries will be located
+#
+BINDIR=/usr/local/bin
+
+#
+# the directory where Teleport Plugins store their data files
+# and certificates
+#
+DATADIR=/var/lib/teleport/plugins/discord
+
+[ ! $(id -u) != "0" ] || { echo "ERROR: You must be root"; exit 1; }
+cd "$(dirname "$0")"
+mkdir -p "$BINDIR" "$DATADIR" || exit 1
+cp -f teleport-discord "$BINDIR/" || exit 1
+
+echo "Teleport Discord binaries have been copied to $BINDIR"
+echo "You can run teleport-discord configure > /etc/teleport-discord.toml to bootstrap your config file"
