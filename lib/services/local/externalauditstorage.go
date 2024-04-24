@@ -20,6 +20,7 @@ package local
 
 import (
 	"context"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -35,6 +36,8 @@ const (
 	externalAuditStoragePrefix      = "external_audit_storage"
 	externalAuditStorageDraftName   = "draft"
 	externalAuditStorageClusterName = "cluster"
+	externalAuditStorageLockName    = "external_audit_storage_lock"
+	externalAuditStorageLockTTL     = 10 * time.Second
 )
 
 var (
@@ -94,6 +97,13 @@ func (s *ExternalAuditStorageService) CreateDraftExternalAuditStorage(ctx contex
 
 	revision, err := s.backend.AtomicWrite(ctx, []backend.ConditionalAction{
 		{
+			// Make sure another auth server on an older minor/patch version is not holding the lock that was
+			// used before this switched to AtomicWrite.
+			Key:       backend.LockKey(externalAuditStorageLockName),
+			Condition: backend.NotExists(),
+			Action:    backend.Nop(),
+		},
+		{
 			// Make sure the AWS OIDC integration checked above hasn't changed.
 			Key:       integrationKey,
 			Condition: backend.Revision(integrationRevision),
@@ -133,6 +143,13 @@ func (s *ExternalAuditStorageService) UpsertDraftExternalAuditStorage(ctx contex
 	}
 
 	revision, err := s.backend.AtomicWrite(ctx, []backend.ConditionalAction{
+		{
+			// Make sure another auth server on an older minor/patch version is not holding the lock that was
+			// used before this switched to AtomicWrite.
+			Key:       backend.LockKey(externalAuditStorageLockName),
+			Condition: backend.NotExists(),
+			Action:    backend.Nop(),
+		},
 		{
 			// Make sure the AWS OIDC integration checked above hasn't changed.
 			Key:       integrationKey,
@@ -218,6 +235,13 @@ func (s *ExternalAuditStorageService) PromoteToClusterExternalAuditStorage(ctx c
 	}
 
 	_, err = s.backend.AtomicWrite(ctx, []backend.ConditionalAction{
+		{
+			// Make sure another auth server on an older minor/patch version is not holding the lock that was
+			// used before this switched to AtomicWrite.
+			Key:       backend.LockKey(externalAuditStorageLockName),
+			Condition: backend.NotExists(),
+			Action:    backend.Nop(),
+		},
 		{
 			// Make sure the AWS OIDC integration checked above hasn't changed.
 			Key:       integrationKey,
