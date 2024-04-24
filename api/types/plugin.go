@@ -611,12 +611,6 @@ func (c *PluginEntraIDSettings) CheckAndSetDefaults() error {
 	if len(c.SyncSettings.DefaultOwners) == 0 {
 		return trace.BadParameter("sync_settings.default_owners must be set")
 	}
-	if c.TenantId == "" {
-		return trace.BadParameter("tenant_id must be set")
-	}
-	if c.ClientId == "" {
-		return trace.BadParameter("client_id must be set")
-	}
 
 	return nil
 }

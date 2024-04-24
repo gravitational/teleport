@@ -5963,14 +5963,6 @@ message PluginEntraIDSettings {
 
   // SyncSettings controls the user and access list sync settings for EntraID.
   PluginEntraIDSyncSettings sync_settings = 1;
-
-  // TenantID specifies the ID of Entra Tenant (Directory)
-  // that this plugin integrates with.
-  string tenant_id = 2;
-
-  // ClientID specifies the ID of Azure enterprise application (client)
-  // that corresponds to this plugin.
-  string client_id = 3;
 }
 
 // Defines settings for syncing users and access lists from Entra ID.
@@ -6437,6 +6429,8 @@ message IntegrationSpecV1 {
   oneof SubKindSpec {
     // AWSOIDC contains the specific fields to handle the AWS OIDC Integration subkind
     AWSOIDCIntegrationSpecV1 AWSOIDC = 1 [(gogoproto.jsontag) = "aws_oidc,omitempty"];
+    // AzureOIDC contains the specific fields to handle the Azure OIDC Integration subkind
+    AzureOIDCIntegrationSpecV1 AzureOIDC = 2 [(gogoproto.jsontag) = "azure_oidc,omitempty"];
   }
 }
 
@@ -6453,6 +6447,17 @@ message AWSOIDCIntegrationSpecV1 {
   // Format: s3://<bucket>/<prefix>
   // Optional. The proxy's endpoint is used if it is not specified.
   string IssuerS3URI = 2 [(gogoproto.jsontag) = "issuer_s3_uri,omitempty"];
+}
+
+// AzureOIDCIntegrationSpecV1 contains the spec properties for the Azure OIDC SubKind Integration.
+message AzureOIDCIntegrationSpecV1 {
+  // TenantID specifies the ID of Entra Tenant (Directory)
+  // that this plugin integrates with.
+  string TenantID = 1 [(gogoproto.jsontag) = "tenant_id,omitempty"];
+
+  // ClientID specifies the ID of Azure enterprise application (client)
+  // that corresponds to this plugin.
+  string ClientID = 2 [(gogoproto.jsontag) = "client_id,omitempty"];
 }
 
 // HeadlessAuthentication holds data for an ongoing headless authentication attempt.
