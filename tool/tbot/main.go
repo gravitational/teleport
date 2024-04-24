@@ -30,7 +30,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport"
@@ -41,11 +40,10 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tpm"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-var log = logrus.WithFields(logrus.Fields{
-	teleport.ComponentKey: teleport.ComponentTBot,
-})
+var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTBot)
 
 const (
 	authServerEnvVar  = "TELEPORT_AUTH_SERVER"
@@ -68,6 +66,7 @@ Find out more at https://goteleport.com/docs/machine-id/introduction/`
 
 func Run(args []string, stdout io.Writer) error {
 	var cf config.CLIConf
+	ctx := context.Background()
 
 	app := utils.InitCLIParser("tbot", appHelp).Interspersed(false)
 	app.Flag("debug", "Verbose logging to stdout.").Short('d').BoolVar(&cf.Debug)
@@ -176,10 +175,18 @@ func Run(args []string, stdout io.Writer) error {
 		app.Usage(args)
 		return trace.Wrap(err)
 	}
+	// Logging must be configured as early as possible to ensure all log
+	// message are formatted correctly.
+	if err := setupLogger(cf.Debug, cf.LogFormat); err != nil {
+		return trace.Wrap(err, "setting up logger")
+	}
 
 	if legacyProxyFlag != "" {
 		cf.ProxyServer = legacyProxyFlag
-		log.Warn("The --proxy flag is deprecated and will be removed in v17.0.0. Use --proxy-server instead.")
+		log.WarnContext(
+			ctx,
+			"The --proxy flag is deprecated and will be removed in v17.0.0. Use --proxy-server instead",
+		)
 	}
 
 	// Remaining args are stored directly to a []string rather than written to
@@ -191,34 +198,37 @@ func Run(args []string, stdout io.Writer) error {
 		cf.RemainingArgs = *proxyRemaining
 	}
 
-	if err := setupLogger(cf.Debug, cf.LogFormat); err != nil {
-		return trace.Wrap(err, "setting up logger")
-	}
 	if cf.Trace {
-		log.WithField("trace_exporter", cf.TraceExporter).Info("Initializing tracing provider. Traces will be exported.")
-		tp, err := initializeTracing(cf.TraceExporter)
+		log.InfoContext(
+			ctx,
+			"Initializing tracing provider. Traces will be exported",
+			"trace_exporter", cf.TraceExporter,
+		)
+		tp, err := initializeTracing(ctx, cf.TraceExporter)
 		if err != nil {
 			return trace.Wrap(err, "initializing tracing")
 		}
 		defer func() {
 			ctx, cancel := context.WithTimeout(
-				context.Background(), 5*time.Second,
+				ctx, 5*time.Second,
 			)
 			defer cancel()
-			log.Info("Shutting down tracing provider.")
+			log.InfoContext(ctx, "Shutting down tracing provider")
 			if err := tp.Shutdown(ctx); err != nil {
-				log.WithError(err).Error(
-					"Failed to shut down tracing provider.",
+				log.ErrorContext(
+					ctx,
+					"Failed to shut down tracing provider",
+					"error", err,
 				)
 			}
-			log.Info("Shut down tracing provider.")
+			log.InfoContext(ctx, "Shut down tracing provider")
 		}()
 	}
 
 	// If migration is specified, we want to run this before the config is
 	// loaded normally.
 	if migrateCmd.FullCommand() == command {
-		return onMigrate(cf, stdout)
+		return onMigrate(ctx, cf, stdout)
 	}
 
 	botConfig, err := config.FromCLIConf(&cf)
@@ -230,9 +240,9 @@ func Run(args []string, stdout io.Writer) error {
 	case versionCmd.FullCommand():
 		err = onVersion()
 	case startCmd.FullCommand():
-		err = onStart(botConfig)
+		err = onStart(ctx, botConfig)
 	case configureCmd.FullCommand():
-		err = onConfigure(cf, stdout)
+		err = onConfigure(ctx, cf, stdout)
 	case initCmd.FullCommand():
 		err = onInit(botConfig, &cf)
 	case dbCmd.FullCommand():
@@ -240,11 +250,11 @@ func Run(args []string, stdout io.Writer) error {
 	case proxyCmd.FullCommand():
 		err = onProxyCommand(botConfig, &cf)
 	case kubeCredentialsCmd.FullCommand():
-		err = onKubeCredentialsCommand(botConfig)
+		err = onKubeCredentialsCommand(ctx, botConfig)
 	case spiffeInspectCmd.FullCommand():
-		err = onSPIFFEInspect(spiffeInspectPath)
+		err = onSPIFFEInspect(ctx, spiffeInspectPath)
 	case tpmIdentifyCommand.FullCommand():
-		query, err := tpm.Query(context.Background(), slog.Default())
+		query, err := tpm.Query(ctx, log)
 		if err != nil {
 			return trace.Wrap(err, "querying TPM")
 		}
@@ -257,12 +267,14 @@ func Run(args []string, stdout io.Writer) error {
 	return err
 }
 
-func initializeTracing(endpoint string) (*tracing.Provider, error) {
+func initializeTracing(
+	ctx context.Context, endpoint string,
+) (*tracing.Provider, error) {
 	if endpoint == "" {
 		return nil, trace.BadParameter("trace exporter URL must be provided")
 	}
 
-	provider, err := tracing.NewTraceProvider(context.Background(), tracing.Config{
+	provider, err := tracing.NewTraceProvider(ctx, tracing.Config{
 		Service:     teleport.ComponentTBot,
 		ExporterURL: endpoint,
 		// We are using 1 here to record all spans as a result of this tbot command. Teleport
@@ -283,6 +295,7 @@ func onVersion() error {
 }
 
 func onConfigure(
+	ctx context.Context,
 	cf config.CLIConf,
 	stdout io.Writer,
 ) error {
@@ -322,8 +335,8 @@ func onConfigure(
 	}
 
 	if outPath != "" {
-		log.Infof(
-			"Generated config file written to file: %s", outPath,
+		log.InfoContext(
+			ctx, "Generated config file written", "path", outPath,
 		)
 	}
 
@@ -331,6 +344,7 @@ func onConfigure(
 }
 
 func onMigrate(
+	ctx context.Context,
 	cf config.CLIConf,
 	stdout io.Writer,
 ) error {
@@ -376,21 +390,21 @@ func onMigrate(
 	}
 
 	if outPath != "" {
-		log.Infof(
-			"Generated config file written to file: %s", outPath,
+		log.InfoContext(
+			ctx, "Generated config file written", "path", outPath,
 		)
 	}
 
 	return nil
 }
 
-func onStart(botConfig *config.BotConfig) error {
-	ctx, cancel := context.WithCancel(context.Background())
+func onStart(ctx context.Context, botConfig *config.BotConfig) error {
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	reloadCh := make(chan struct{})
 	botConfig.ReloadCh = reloadCh
-	go handleSignals(log, cancel, reloadCh)
+	go handleSignals(ctx, log, cancel, reloadCh)
 
 	telemetrySentCh := make(chan struct{})
 	go func() {
@@ -399,8 +413,8 @@ func onStart(botConfig *config.BotConfig) error {
 		if err := sendTelemetry(
 			ctx, telemetryClient(os.Getenv), os.Getenv, log, botConfig,
 		); err != nil {
-			log.WithError(err).Error(
-				"Failed to send anonymous telemetry.",
+			log.ErrorContext(
+				ctx, "Failed to send anonymous telemetry.", "error", err,
 			)
 		}
 	}()
@@ -414,16 +428,19 @@ func onStart(botConfig *config.BotConfig) error {
 		}
 
 		waitTime := 10 * time.Second
-		log.Infof(
-			"Waiting up to %s for anonymous telemetry to finish sending before exiting. Press CTRL-C to cancel.",
+		log.InfoContext(
+			ctx,
+			"Waiting for anonymous telemetry to finish sending before exiting. Press CTRL-C to cancel",
+			"wait_time",
 			waitTime,
 		)
 		ctx, cancel := context.WithTimeout(ctx, waitTime)
 		defer cancel()
 		select {
 		case <-ctx.Done():
-			log.Warn(
-				"Anonymous telemetry transmission canceled due to signal or timeout.",
+			log.WarnContext(
+				ctx,
+				"Anonymous telemetry transmission canceled due to signal or timeout",
 			)
 		case <-telemetrySentCh:
 		}
@@ -434,22 +451,27 @@ func onStart(botConfig *config.BotConfig) error {
 }
 
 // handleSignals handles incoming Unix signals.
-func handleSignals(log logrus.FieldLogger, cancel context.CancelFunc, reloadCh chan<- struct{}) {
+func handleSignals(
+	ctx context.Context,
+	log *slog.Logger,
+	cancel context.CancelFunc,
+	reloadCh chan<- struct{},
+) {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGHUP, syscall.SIGUSR1)
 
 	for sig := range signals {
 		switch sig {
 		case syscall.SIGINT:
-			log.Info("Received interrupt, triggering shutdown.")
+			log.InfoContext(ctx, "Received interrupt, triggering shutdown")
 			cancel()
 			return
 		case syscall.SIGHUP, syscall.SIGUSR1:
-			log.Info("Received reload signal, queueing reload.")
+			log.InfoContext(ctx, "Received reload signal, queueing reload")
 			select {
 			case reloadCh <- struct{}{}:
 			default:
-				log.Warn("Unable to queue reload, reload already queued.")
+				log.WarnContext(ctx, "Unable to queue reload, reload already queued")
 			}
 		}
 	}

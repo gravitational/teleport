@@ -1203,7 +1203,7 @@ message TokenRule {
   // AWSRegions is used for the EC2 join method and is a list of AWS regions a
   // node is allowed to join from.
   repeated string AWSRegions = 2 [(gogoproto.jsontag) = "aws_regions,omitempty"];
-  // AWSRole is used for the EC2 join method and is the the ARN of the AWS
+  // AWSRole is used for the EC2 join method and is the ARN of the AWS
   // role that the auth server will assume in order to call the ec2 API.
   string AWSRole = 3 [(gogoproto.jsontag) = "aws_role,omitempty"];
   // AWSARN is used for the IAM join method, the AWS identity of joining nodes
@@ -2635,6 +2635,8 @@ message PluginDataUpdateParams {
 message RoleFilter {
   // SearchKeywords is a list of search keywords to match against resource field values.
   repeated string SearchKeywords = 1 [(gogoproto.jsontag) = "search_keywords,omitempty"];
+  // SkipSystemRoles filters out teleport system roles from the results.
+  bool SkipSystemRoles = 2 [(gogoproto.jsontag) = "skip_system_roles,omitempty"];
 }
 
 // RoleV6 represents role resource specification
@@ -5777,8 +5779,10 @@ message PluginSpecV1 {
     PluginDiscordSettings discord = 9;
     // Settings for the ServiceNow plugin
     PluginServiceNowSettings serviceNow = 10;
+    // Settings for the Gitlab plugin.
+    PluginGitlabSettings gitlab = 12;
     // Settings for the Entra ID plugin
-    PluginEntraIDSettings entra_id = 12;
+    PluginEntraIDSettings entra_id = 13;
   }
 
   // generation contains a unique ID that should:
@@ -5793,6 +5797,13 @@ message PluginSlackAccessSettings {
   option (gogoproto.equal) = true;
 
   string fallback_channel = 1;
+}
+
+message PluginGitlabSettings {
+  option (gogoproto.equal) = true;
+
+  // APIEndpoint is the address of Gitlab API.
+  string api_endpoint = 1;
 }
 
 message PluginOpsgenieAccessSettings {

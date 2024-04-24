@@ -35,6 +35,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"math"
 	"math/big"
 	insecurerand "math/rand"
@@ -54,6 +55,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/maps"
@@ -112,6 +114,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/tpm"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
@@ -152,6 +155,8 @@ const (
 		"This is not recommended due to the volatitily of dynamic/ labels and is not allowed for new roles. " +
 		"(hint: use 'tctl get roles' to find roles that need updating)"
 )
+
+var tracer = otel.Tracer("github.com/gravitational/teleport/lib/auth")
 
 var ErrRequiresEnterprise = services.ErrRequiresEnterprise
 
@@ -493,6 +498,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 				ctx, as.clock, circleci.IssuerURLTemplate, organizationID, token,
 			)
 		}
+	}
+	if as.tpmValidator == nil {
+		as.tpmValidator = tpm.Validate
 	}
 	if as.k8sTokenReviewValidator == nil {
 		as.k8sTokenReviewValidator = &kubernetestoken.TokenReviewValidator{}
@@ -887,6 +895,12 @@ type Server struct {
 	// gitlabIDTokenValidator allows ID tokens from GitLab CI to be validated by
 	// the auth server. It can be overridden for the purpose of tests.
 	gitlabIDTokenValidator gitlabIDTokenValidator
+
+	// tpmValidator allows TPMs to be validated by the auth server. It can be
+	// overridden for the purpose of tests.
+	tpmValidator func(
+		ctx context.Context, log *slog.Logger, params tpm.ValidateParams,
+	) (*tpm.ValidatedTPM, error)
 
 	// circleCITokenValidate allows ID tokens from CircleCI to be validated by
 	// the auth server. It can be overridden for the purpose of tests.
@@ -2591,12 +2605,13 @@ func (a *Server) augmentUserCertificates(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	notAfter := x509Cert.NotAfter
 	newTLSCert, err := tlsCA.GenerateCertificate(tlsca.CertificateRequest{
 		Clock:     a.clock,
 		PublicKey: x509Cert.PublicKey,
 		Subject:   subj,
 		// Use the same expiration as the original cert.
-		NotAfter: x509Cert.NotAfter,
+		NotAfter: notAfter,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2614,7 +2629,7 @@ func (a *Server) augmentUserCertificates(
 			ValidPrincipals: sshCert.ValidPrincipals,
 			ValidAfter:      uint64(validAfter.Unix()),
 			// Use the same expiration as the x509 cert.
-			ValidBefore: uint64(x509Cert.NotAfter.Unix()),
+			ValidBefore: uint64(notAfter.Unix()),
 			Permissions: sshCert.Permissions,
 		}
 		newSSHCert.Extensions[teleport.CertExtensionDeviceID] = dev.DeviceID
@@ -2625,6 +2640,9 @@ func (a *Server) augmentUserCertificates(
 		}
 		newAuthorizedKey = ssh.MarshalAuthorizedKey(newSSHCert)
 	}
+
+	// Issue audit event on success, same as [Server.generateCert].
+	a.emitCertCreateEvent(ctx, newIdentity, notAfter)
 
 	return &proto.Certs{
 		SSH: newAuthorizedKey,
@@ -3038,23 +3056,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		}
 	}
 
-	eventIdentity := identity.GetEventIdentity()
-	eventIdentity.Expires = notAfter
-	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.CertificateCreate{
-		Metadata: apievents.Metadata{
-			Type: events.CertificateCreateEvent,
-			Code: events.CertificateCreateCode,
-		},
-		CertificateType: events.CertificateTypeUser,
-		Identity:        &eventIdentity,
-		ClientMetadata: apievents.ClientMetadata{
-			// TODO(greedy52) currently only user-agent from GRPC clients are
-			// fetched. Need to propagate user-agent from HTTP calls.
-			UserAgent: trimUserAgent(metadata.UserAgentFromContext(ctx)),
-		},
-	}); err != nil {
-		log.WithError(err).Warn("Failed to emit certificate create event.")
-	}
+	a.emitCertCreateEvent(ctx, &identity, notAfter)
 
 	// create certs struct to return to user
 	certs := &proto.Certs{
@@ -3156,6 +3158,26 @@ func (a *Server) getSigningCAs(ctx context.Context, domainName string, caType ty
 	}
 
 	return tlsCA, sshSigner, ca, nil
+}
+
+func (a *Server) emitCertCreateEvent(ctx context.Context, identity *tlsca.Identity, notAfter time.Time) {
+	eventIdentity := identity.GetEventIdentity()
+	eventIdentity.Expires = notAfter
+	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.CertificateCreate{
+		Metadata: apievents.Metadata{
+			Type: events.CertificateCreateEvent,
+			Code: events.CertificateCreateCode,
+		},
+		CertificateType: events.CertificateTypeUser,
+		Identity:        &eventIdentity,
+		ClientMetadata: apievents.ClientMetadata{
+			// TODO(greedy52) currently only user-agent from GRPC clients are
+			// fetched. Need to propagate user-agent from HTTP calls.
+			UserAgent: trimUserAgent(metadata.UserAgentFromContext(ctx)),
+		},
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit certificate create event.")
+	}
 }
 
 // WithUserLock executes function authenticateFn that performs user authentication

@@ -22,10 +22,10 @@ package rdpclient
 import (
 	"context"
 	"image/png"
+	"log/slog"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 )
@@ -64,8 +64,8 @@ type Config struct {
 	// the browser and force the session to use a particular size.
 	Width, Height uint32
 
-	// Log is the logger for status messages.
-	Log logrus.FieldLogger
+	// Logger is the logger for status messages.
+	Logger *slog.Logger
 }
 
 // GenerateUserCertFn generates user certificates for RDP authentication.
@@ -85,12 +85,12 @@ func (c *Config) checkAndSetDefaults() error {
 	if c.AuthorizeFn == nil {
 		return trace.BadParameter("missing AuthorizeFn in rdpclient.Config")
 	}
+	if c.Logger == nil {
+		return trace.BadParameter("missing Logger in rdpclient.Config")
+	}
 	if c.Encoder == nil {
 		c.Encoder = tdp.PNGEncoder()
 	}
-	if c.Log == nil {
-		c.Log = logrus.New()
-	}
-	c.Log = c.Log.WithField("rdp-addr", c.Addr)
+	c.Logger = c.Logger.With("rdp-addr", c.Addr)
 	return nil
 }
