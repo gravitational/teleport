@@ -23,6 +23,7 @@ import (
 	"crypto/x509/pkix"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"os"
 	"os/exec"
@@ -36,6 +37,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	libclient "github.com/gravitational/teleport/lib/client"
@@ -62,13 +64,34 @@ func onProxyCommandSSH(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 
-		targetHost, targetPort, err := net.SplitHostPort(tc.Host)
-		if err != nil {
-			targetHost = tc.Host
-			targetPort = strconv.Itoa(tc.HostPort)
+		slog.InfoContext(cf.Context, "Proxying connection to host.", "host", tc.Host, "search", tc.SearchKeywords, "query", tc.PredicateExpression)
+
+		var target string
+		switch {
+		case tc.Host != "":
+			targetHost, targetPort, err := net.SplitHostPort(tc.Host)
+			if err != nil {
+				targetHost = tc.Host
+				targetPort = strconv.Itoa(tc.HostPort)
+			}
+			targetHost = cleanTargetHost(targetHost, tc.WebProxyHost(), clt.ClusterName())
+			target = net.JoinHostPort(targetHost, targetPort)
+		case len(tc.SearchKeywords) != 0 || tc.PredicateExpression != "":
+			slog.InfoContext(cf.Context, "Searching for matching nodes.", "search", tc.SearchKeywords, "query", tc.PredicateExpression)
+			nodes, err := client.GetAllResources[types.Server](cf.Context, clt.AuthClient, tc.ResourceFilter(types.KindNode))
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			if len(nodes) == 0 {
+				return trace.NotFound("no matching targets found")
+			}
+
+			if len(nodes) > 1 {
+				return trace.BadParameter("found multiple matching targets")
+			}
+			target = fmt.Sprintf("%s:0", nodes[0].GetName())
 		}
-		targetHost = cleanTargetHost(targetHost, tc.WebProxyHost(), clt.ClusterName())
-		target := net.JoinHostPort(targetHost, targetPort)
 
 		conn, _, err := clt.DialHostWithResumption(cf.Context, target, clt.ClusterName(), tc.LocalAgent().ExtendedAgent)
 		if err != nil {

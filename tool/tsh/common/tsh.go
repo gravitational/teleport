@@ -3776,7 +3776,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	}
 
 	// Check if this host has a matching proxy template.
-	tProxy, tHost, tCluster, tMatched := cf.TSHConfig.ProxyTemplates.Apply(fullHostName)
+	tProxy, tHost, tCluster, tQuery, tSearch, tMatched := cf.TSHConfig.ProxyTemplates.Apply(fullHostName)
 	if !tMatched && useProxyTemplate {
 		return nil, trace.BadParameter("proxy jump contains {{proxy}} variable but did not match any of the templates in tsh config")
 	} else if tMatched {
@@ -3791,6 +3791,12 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 					return nil, trace.Wrap(err)
 				}
 			}
+		} else if tQuery != "" {
+			c.Host = ""
+			cf.PredicateExpression = tQuery
+		} else if tSearch != "" {
+			c.Host = ""
+			cf.SearchKeywords = tSearch
 		}
 
 		// Don't overwrite proxy jump if explicitly provided
@@ -3916,7 +3922,6 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	c.KeyTTL = time.Minute * time.Duration(cf.MinsToLive)
 	c.InsecureSkipVerify = cf.InsecureSkipVerify
 	c.PredicateExpression = cf.PredicateExpression
-
 	if cf.SearchKeywords != "" {
 		c.SearchKeywords = client.ParseSearchKeywords(cf.SearchKeywords, ',')
 	}

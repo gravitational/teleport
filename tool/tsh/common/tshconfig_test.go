@@ -279,6 +279,14 @@ func TestProxyTemplatesApply(t *testing.T) {
 				Template: `^(.+)\.(au.example.com):(.+)$`,
 				Host:     "$1:4022",
 			},
+			{
+				Template: `^(.+)\.search.example.com:(.+)$`,
+				Search:   "$1",
+			},
+			{
+				Template: `^(.+)\.query.example.com:(.+)$`,
+				Query:    `labels.animal == "$1"`,
+			},
 		},
 	}
 	require.NoError(t, tshConfig.Check())
@@ -289,6 +297,8 @@ func TestProxyTemplatesApply(t *testing.T) {
 		outProxy       string
 		outHost        string
 		outCluster     string
+		outSearch      string
+		outQuery       string
 		outMatch       bool
 	}{
 		{
@@ -322,14 +332,28 @@ func TestProxyTemplatesApply(t *testing.T) {
 			inFullHostname: "node-1.cn.example.com:3022",
 			outMatch:       false,
 		},
+		{
+			testName:       "matches search",
+			inFullHostname: "llama.search.example.com:3022",
+			outSearch:      "llama",
+			outMatch:       true,
+		},
+		{
+			testName:       "matches query",
+			inFullHostname: "llama.query.example.com:3022",
+			outQuery:       `labels.animal == "llama"`,
+			outMatch:       true,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.testName, func(t *testing.T) {
-			proxy, host, cluster, match := tshConfig.ProxyTemplates.Apply(test.inFullHostname)
+			proxy, host, cluster, query, search, match := tshConfig.ProxyTemplates.Apply(test.inFullHostname)
+			require.Equal(t, test.outMatch, match)
 			require.Equal(t, test.outProxy, proxy)
 			require.Equal(t, test.outHost, host)
 			require.Equal(t, test.outCluster, cluster)
-			require.Equal(t, test.outMatch, match)
+			require.Equal(t, test.outSearch, search)
+			require.Equal(t, test.outQuery, query)
 		})
 	}
 }
