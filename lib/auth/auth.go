@@ -2494,7 +2494,7 @@ func (a *Server) AugmentContextUserCertificates(
 	}
 
 	// Issue audit event on success, same as [Server.generateCert].
-	a.emitCertCreateEvent(ctx, newIdentity, notAfter)
+	a.emitCertCreateEvent(ctx, &newIdentity, notAfter)
 
 	return &proto.Certs{
 		SSH: newAuthorizedKey,
