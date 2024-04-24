@@ -1177,6 +1177,8 @@ func TestServer_AugmentContextUserCertificates(t *testing.T) {
 
 	testServer := newTestTLSServer(t)
 	authServer := testServer.Auth()
+	emitter := &eventstest.MockRecorderEmitter{}
+	authServer.emitter = emitter
 	ctx := context.Background()
 
 	const username = "llama"
@@ -1312,6 +1314,25 @@ func TestServer_AugmentContextUserCertificates(t *testing.T) {
 				"got newSSHCert.ValidAfter = %v, want > %v", newSSHCert.ValidAfter, validAfter.Unix())
 			assert.Equal(t, uint64(xCert.NotAfter.Unix()), newSSHCert.ValidBefore, "newSSHCert.ValidBefore mismatch")
 		})
+
+		// Assert audit events.
+		lastEvent := emitter.LastEvent()
+		require.NotNil(t, lastEvent, "emitter.LastEvent() is nil")
+		// Assert the code, that is a good enough proxy for other fields.
+		assert.Equal(t, events.CertificateCreateEvent, lastEvent.GetType(), "lastEvent type mismatch")
+		// Assert event DeviceExtensions.
+		certEvent, ok := lastEvent.(*apievents.CertificateCreate)
+		if assert.True(t, ok, "lastEvent is not an apievents.CertificateCreate, got %T", lastEvent) {
+			got := certEvent.Identity.DeviceExtensions
+			want := &apievents.DeviceExtensions{
+				DeviceId:     test.opts.DeviceExtensions.DeviceID,
+				AssetTag:     test.opts.DeviceExtensions.AssetTag,
+				CredentialId: test.opts.DeviceExtensions.CredentialID,
+			}
+			if diff := cmp.Diff(want, got); diff != "" {
+				t.Errorf("certEvent.Identity.DeviceExtensions mismatch (-want +got)\n%s", diff)
+			}
+		}
 	}
 }
 
