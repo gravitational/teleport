@@ -26,7 +26,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"net/http/httputil"
 	"os/user"
 	"testing"
 	"time"
@@ -56,6 +55,26 @@ func startDummyHTTPServer(t *testing.T, name string) string {
 	})
 
 	return srv.URL
+}
+
+func testDummyAppConn(t require.TestingT, name string, addr string, tlsCerts ...tls.Certificate) {
+	clt := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+				Certificates:       tlsCerts,
+			},
+		},
+	}
+
+	resp, err := clt.Get(addr)
+	assert.NoError(t, err)
+	if err != nil {
+		return
+	}
+	assert.Equal(t, 200, resp.StatusCode)
+	assert.Equal(t, name, resp.Header.Get("Server"))
+	_ = resp.Body.Close()
 }
 
 // TestAppCommands tests the following basic app command functionality for registered root and leaf apps.
@@ -141,134 +160,137 @@ func TestAppCommands(t *testing.T) {
 	require.NoError(t, err)
 	registerDeviceForUser(t, rootAuthServer, device, accessUser.GetName(), origin)
 
+	// Used to login to a cluster through the root proxy.
+	loginToCluster := func(t *testing.T, cluster string) string {
+		loginPath := t.TempDir()
+		err = Run(context.Background(), []string{
+			"login",
+			"--insecure",
+			"--proxy", rootProxyAddr.String(),
+			cluster,
+		}, setHomePath(loginPath), setMockSSOLogin(rootAuthServer, accessUser, connector.GetName()))
+		require.NoError(t, err)
+		return loginPath
+	}
+
+	// Used to change per-session MFA requirement for test cases.
+	setRequireMFA := func(t *testing.T, requireMFAType types.RequireMFAType) {
+		_, err = rootAuthServer.UpsertAuthPreference(ctx, &types.AuthPreferenceV2{
+			Spec: types.AuthPreferenceSpecV2{
+				SecondFactor: constants.SecondFactorOptional,
+				Webauthn: &types.Webauthn{
+					RPID: "127.0.0.1",
+				},
+				RequireMFAType: requireMFAType,
+			},
+		})
+		require.NoError(t, err)
+		_, err = leafServer.GetAuthServer().UpsertAuthPreference(ctx, &types.AuthPreferenceV2{
+			Spec: types.AuthPreferenceSpecV2{
+				RequireMFAType: requireMFAType,
+			},
+		})
+		require.NoError(t, err)
+	}
+
+	appTestCases := []struct {
+		name    string
+		cluster string
+	}{
+		{
+			name:    "rootapp",
+			cluster: "root",
+		}, {
+			name:    "leafapp",
+			cluster: "leaf",
+		},
+	}
+
 	for _, loginCluster := range []string{"root", "leaf"} {
 		t.Run(fmt.Sprintf("login %v", loginCluster), func(t *testing.T) {
-			// Login to the cluster through the root proxy.
-			tmpHomePath := t.TempDir()
-			err = Run(context.Background(), []string{
-				"login",
-				"--insecure",
-				"--proxy", rootProxyAddr.String(),
-				loginCluster,
-			}, setHomePath(tmpHomePath), setMockSSOLogin(rootAuthServer, accessUser, connector.GetName()))
-			require.NoError(t, err)
+			loginPath := loginToCluster(t, loginCluster)
 
+			// Run each test case twice to test with and without MFA.
 			for _, requireMFAType := range []types.RequireMFAType{
 				types.RequireMFAType_OFF,
 				types.RequireMFAType_SESSION,
 			} {
 				t.Run(fmt.Sprintf("require mfa %v", requireMFAType.String()), func(t *testing.T) {
-					_, err = rootAuthServer.UpsertAuthPreference(ctx, &types.AuthPreferenceV2{
-						Spec: types.AuthPreferenceSpecV2{
-							SecondFactor: constants.SecondFactorOptional,
-							Webauthn: &types.Webauthn{
-								RPID: "127.0.0.1",
-							},
-							RequireMFAType: requireMFAType,
-						},
-					})
-					require.NoError(t, err)
-					_, err = leafServer.GetAuthServer().UpsertAuthPreference(ctx, &types.AuthPreferenceV2{
-						Spec: types.AuthPreferenceSpecV2{
-							RequireMFAType: requireMFAType,
-						},
-					})
-					require.NoError(t, err)
+					setRequireMFA(t, requireMFAType)
 
-					for _, app := range []struct {
-						cluster string
-						name    string
-					}{
-						{
-							cluster: "root",
-							name:    "rootapp",
-						}, {
-							cluster: "leaf",
-							name:    "leafapp",
-						},
-					} {
-						app := app
-						t.Run(app.name, func(t *testing.T) {
+					for _, app := range appTestCases {
+						t.Run(fmt.Sprintf("login %v, app %v", loginCluster, app.name), func(t *testing.T) {
 							// List the apps in the app's cluster to ensure the app is listed.
-							lsOut := new(bytes.Buffer)
-							err = Run(context.Background(), []string{
-								"app",
-								"ls",
-								"-v",
-								"--format", "json",
-								"--cluster", app.cluster,
-							}, setHomePath(tmpHomePath), setOverrideStdout(lsOut))
-							require.NoError(t, err)
-							require.Contains(t, lsOut.String(), app.name)
+							t.Run("tsh app ls", func(t *testing.T) {
+								lsOut := new(bytes.Buffer)
+								err = Run(context.Background(), []string{
+									"app",
+									"ls",
+									"-v",
+									"--format", "json",
+									"--cluster", app.cluster,
+								}, setHomePath(loginPath), setOverrideStdout(lsOut))
+								require.NoError(t, err)
+								require.Contains(t, lsOut.String(), app.name)
+							})
 
-							// Login to the app.
-							err = Run(context.Background(), []string{
-								"app",
-								"login",
-								app.name,
-								"--cluster", app.cluster,
-							}, setHomePath(tmpHomePath), webauthnLoginOpt)
-							require.NoError(t, err)
+							// Test logging into the app and connecting.
+							t.Run("tsh app login", func(t *testing.T) {
+								err = Run(context.Background(), []string{
+									"app",
+									"login",
+									app.name,
+									"--cluster", app.cluster,
+								}, setHomePath(loginPath), webauthnLoginOpt)
+								require.NoError(t, err)
 
-							// Retrieve the app login config (private key, ca, and cert).
-							confOut := new(bytes.Buffer)
-							err = Run(context.Background(), []string{
-								"app",
-								"config",
-								app.name,
-								"--format", "json",
-							}, setHomePath(tmpHomePath), setOverrideStdout(confOut))
-							require.NoError(t, err)
+								// Retrieve the app login config (private key, ca, and cert).
+								confOut := new(bytes.Buffer)
+								err = Run(context.Background(), []string{
+									"app",
+									"config",
+									app.name,
+									"--format", "json",
+								}, setHomePath(loginPath), setOverrideStdout(confOut))
+								require.NoError(t, err)
 
-							// Verify that we can connect to the app using the generated app cert.
-							var info appConfigInfo
-							require.NoError(t, json.Unmarshal(confOut.Bytes(), &info))
+								// Verify that we can connect to the app using the generated app cert.
+								var info appConfigInfo
+								require.NoError(t, json.Unmarshal(confOut.Bytes(), &info))
 
-							clientCert, err := tls.LoadX509KeyPair(info.Cert, info.Key)
-							require.NoError(t, err)
-							clt := &http.Client{
-								Transport: &http.Transport{
-									TLSClientConfig: &tls.Config{
-										InsecureSkipVerify: true,
-										Certificates:       []tls.Certificate{clientCert},
-									},
-								},
-							}
+								clientCert, err := tls.LoadX509KeyPair(info.Cert, info.Key)
+								require.NoError(t, err)
 
-							resp, err := clt.Get(fmt.Sprintf("https://%v", rootProxyAddr.Addr))
-							require.NoError(t, err)
+								testDummyAppConn(t, app.name, fmt.Sprintf("https://%v", rootProxyAddr.Addr), clientCert)
 
-							respData, _ := httputil.DumpResponse(resp, true)
-							t.Log(string(respData))
-
-							require.Equal(t, 200, resp.StatusCode)
-							require.Equal(t, app.name, resp.Header.Get("Server"))
-							_ = resp.Body.Close()
+								// app logout.
+								err = Run(context.Background(), []string{
+									"app",
+									"logout",
+								}, setHomePath(loginPath))
+								require.NoError(t, err)
+							})
 
 							// Test connecting to the app through a local proxy.
-							proxyCtx, proxyCancel := context.WithTimeout(context.Background(), time.Second)
-							defer proxyCancel()
+							t.Run("tsh proxy app", func(t *testing.T) {
+								proxyCtx, proxyCancel := context.WithTimeout(context.Background(), time.Second)
+								defer proxyCancel()
 
-							go func() {
-								Run(proxyCtx, []string{
-									"--insecure",
-									"proxy",
-									"app",
-									app.name,
-									"--port", localProxyPort,
-									"--cluster", app.cluster,
-								}, setHomePath(tmpHomePath))
-							}()
+								go func() {
+									Run(proxyCtx, []string{
+										"--insecure",
+										"proxy",
+										"app",
+										app.name,
+										"--port", localProxyPort,
+										"--cluster", app.cluster,
+									}, setHomePath(loginPath), webauthnLoginOpt)
+								}()
 
-							require.EventuallyWithT(t, func(t *assert.CollectT) {
-								resp, err := http.Get("http://127.0.0.1:" + localProxyPort)
-								assert.NoError(t, err)
-								if err == nil {
-									assert.Equal(t, 200, resp.StatusCode)
-									assert.Equal(t, app.name, resp.Header.Get("Server"))
-									_ = resp.Body.Close()
-								}
-							}, time.Second, 100*time.Millisecond)
+								require.EventuallyWithT(t, func(t *assert.CollectT) {
+									testDummyAppConn(t, app.name, fmt.Sprintf("http://127.0.0.1:%v", localProxyPort))
+								}, time.Second, 100*time.Millisecond)
+							})
 						})
 					}
 				})
