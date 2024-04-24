@@ -17,18 +17,18 @@
  */
 
 import Alert from 'design/Alert';
-import { ButtonPrimary, ButtonSecondary } from 'design';
+import { ButtonPrimary, ButtonSecondary, Text } from 'design';
 import Dialog, { DialogContent } from 'design/Dialog';
 import Flex from 'design/Flex';
 import { useAsync } from 'shared/hooks/useAsync';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { RootClusterAppUri, routing } from 'teleterm/ui/uri';
+import { RootClusterUri, routing } from 'teleterm/ui/uri';
 
 type Props = {
-  rootClusterUri: RootClusterAppUri;
+  rootClusterUri: RootClusterUri;
   onClose(): void;
-  onAuthorize(): void;
+  onAuthorize(): Promise<void>;
 };
 
 export const AuthenticateWebDevice = ({
@@ -47,23 +47,25 @@ export const AuthenticateWebDevice = ({
 
   return (
     <Dialog open={true}>
+      {/* 360px was used as a way to do our best to get clusterName as the first item on the second line */}
       <DialogContent maxWidth="360px">
-        Would you like to launch an authorized web session for {clusterName}?
+        <Text>
+          Would you like to launch an authorized web session for{' '}
+          <b>{clusterName}</b>?
+        </Text>
       </DialogContent>
       {attempt.status === 'error' && <Alert>{attempt.statusText}</Alert>}
-      <Flex justifyContent="space-between">
+      <Flex>
         <ButtonPrimary
           disabled={attempt.status === 'processing'}
           block={true}
-          textTransform="none"
           onClick={run}
-          mr={4}
+          mr={3}
         >
           Launch Web Session
         </ButtonPrimary>
         <ButtonSecondary
           disabled={attempt.status === 'processing'}
-          textTransform="none"
           onClick={onClose}
         >
           Cancel

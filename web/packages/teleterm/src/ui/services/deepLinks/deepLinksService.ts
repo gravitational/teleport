@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { DeepURL } from 'shared/deepLinks';
+import { AuthenticateWebDeviceDeepURL, DeepURL } from 'shared/deepLinks';
 
 import { DeepLinkParseResult } from 'teleterm/deepLinks';
 import { RootClusterUri, routing } from 'teleterm/ui/uri';
@@ -90,9 +90,7 @@ export class DeepLinksService {
         break;
       }
       case '/authenticate_web_device': {
-        const id = result.url.searchParams.id;
-        const token = result.url.searchParams.token;
-        await this.askAuthorizeDeviceTrust(result.url, id, token);
+        await this.askAuthorizeDeviceTrust(result.url);
         break;
       }
     }
@@ -104,12 +102,11 @@ export class DeepLinksService {
    * user will be directed back to the web UI
    */
   private async askAuthorizeDeviceTrust(
-    url: DeepURL,
-    id: string,
-    token: string
+    url: AuthenticateWebDeviceDeepURL
   ): Promise<void> {
-    const result = await this.loginAndSetActiveWorkspace(url);
+    const { id, token } = url.searchParams;
 
+    const result = await this.loginAndSetActiveWorkspace(url);
     if (!result.isAtDesiredWorkspace) {
       return;
     }
@@ -120,7 +117,7 @@ export class DeepLinksService {
       kind: 'device-trust-authorize',
       rootClusterUri,
       onCancel: () => {},
-      onConfirm: async () => {
+      onAuthorize: async () => {
         await this.clustersService.authenticateWebDevice(rootClusterUri, {
           id,
           token,
