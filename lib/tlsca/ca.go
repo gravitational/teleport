@@ -315,6 +315,15 @@ func (id *Identity) GetEventIdentity() events.Identity {
 		}
 	}
 
+	var devExts *events.DeviceExtensions
+	if id.DeviceExtensions != (DeviceExtensions{}) {
+		devExts = &events.DeviceExtensions{
+			DeviceId:     id.DeviceExtensions.DeviceID,
+			AssetTag:     id.DeviceExtensions.AssetTag,
+			CredentialId: id.DeviceExtensions.CredentialID,
+		}
+	}
+
 	return events.Identity{
 		User:                    id.Username,
 		Impersonator:            id.Impersonator,
@@ -342,6 +351,7 @@ func (id *Identity) GetEventIdentity() events.Identity {
 		DisallowReissue:         id.DisallowReissue,
 		AllowedResourceIDs:      events.ResourceIDs(id.AllowedResourceIDs),
 		PrivateKeyPolicy:        string(id.PrivateKeyPolicy),
+		DeviceExtensions:        devExts,
 	}
 }
 
