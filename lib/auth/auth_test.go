@@ -1177,7 +1177,7 @@ func TestServer_AugmentContextUserCertificates(t *testing.T) {
 
 	testServer := newTestTLSServer(t)
 	authServer := testServer.Auth()
-	emitter := &eventstest.MockRecorderEmitter{}
+	emitter := &eventstest.MockEmitter{}
 	authServer.emitter = emitter
 	ctx := context.Background()
 
