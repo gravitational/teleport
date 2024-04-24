@@ -99,8 +99,6 @@ function TdpClientCanvas(props: Props) {
     }
   }, [client, clientOnPngFrame]);
 
-  const previousCursor = useRef('auto');
-
   useEffect(() => {
     if (client && updatePointer) {
       const canvas = canvasRef.current;
@@ -110,20 +108,29 @@ function TdpClientCanvas(props: Props) {
         hotspot_y?: number;
       }) => {
         if (typeof pointer.data === 'boolean') {
-          if (pointer.data) {
-            canvas.style.cursor = previousCursor.current;
-          } else {
-            previousCursor.current = canvas.style.cursor;
-            canvas.style.cursor = 'none';
-          }
+          canvas.style.cursor = pointer.data ? 'default' : 'none';
           return;
         }
-        const cursor = document.createElement('canvas');
+        let cursor = document.createElement('canvas');
         cursor.width = pointer.data.width;
         cursor.height = pointer.data.height;
         cursor
           .getContext('2d', { colorSpace: pointer.data.colorSpace })
           .putImageData(pointer.data, 0, 0);
+        if (pointer.data.width > 32 || pointer.data.height > 32) {
+          // scale the cursor down to at most 32px - max size fully supported by browsers
+          const resized = document.createElement('canvas');
+          let scale = Math.min(32 / cursor.width, 32 / cursor.height);
+          resized.width = cursor.width * scale;
+          resized.height = cursor.height * scale;
+
+          let context = resized.getContext('2d', {
+            colorSpace: pointer.data.colorSpace,
+          });
+          context.scale(scale, scale);
+          context.drawImage(cursor, 0, 0);
+          cursor = resized;
+        }
         canvas.style.cursor = `url(${cursor.toDataURL()}) ${
           pointer.hotspot_x
         } ${pointer.hotspot_y}, auto`;
