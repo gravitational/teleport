@@ -108,12 +108,13 @@ export class DeepLinksService {
     id: string,
     token: string
   ): Promise<void> {
-    const { isAtDesiredWorkspace, rootCluster, rootClusterUri } =
-      await this.loginAndSetActiveWorkspace(url);
+    const result = await this.loginAndSetActiveWorkspace(url);
 
-    if (!isAtDesiredWorkspace) {
+    if (!result.isAtDesiredWorkspace) {
       return;
     }
+
+    const { rootCluster, rootClusterUri } = result;
 
     this.modalsService.openRegularDialog({
       kind: 'device-trust-authorize',
@@ -145,12 +146,13 @@ export class DeepLinksService {
       return;
     }
 
-    const { isAtDesiredWorkspace, rootClusterUri } =
-      await this.loginAndSetActiveWorkspace(url);
+    const result = await this.loginAndSetActiveWorkspace(url);
 
-    if (!isAtDesiredWorkspace) {
+    if (!result.isAtDesiredWorkspace) {
       return;
     }
+
+    const { rootClusterUri } = result;
 
     this.workspacesService
       .getWorkspaceDocumentService(rootClusterUri)
@@ -161,11 +163,16 @@ export class DeepLinksService {
    * loginAndSetActiveWorkspace will set the relevant cluster if it is in the app and, if not,
    * it opens a login dialog with cluster address and username prefilled from the URL.
    */
-  private async loginAndSetActiveWorkspace(url: DeepURL): Promise<{
-    isAtDesiredWorkspace: boolean;
-    rootClusterUri: RootClusterUri;
-    rootCluster?: Cluster;
-  }> {
+  private async loginAndSetActiveWorkspace(url: DeepURL): Promise<
+    | {
+        isAtDesiredWorkspace: false;
+      }
+    | {
+        isAtDesiredWorkspace: true;
+        rootClusterUri: RootClusterUri;
+        rootCluster?: Cluster;
+      }
+  > {
     const rootClusterId = url.hostname;
     const clusterAddress = url.host;
     const prefill = {
@@ -191,7 +198,6 @@ export class DeepLinksService {
       if (canceled) {
         return {
           isAtDesiredWorkspace: false,
-          rootClusterUri,
         };
       }
     }
