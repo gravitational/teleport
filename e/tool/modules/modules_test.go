@@ -6,6 +6,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/cloud/feature"
 	"github.com/gravitational/teleport/lib/modules"
@@ -38,8 +39,14 @@ func TestGetLicenseFeatures(t *testing.T) {
 				DeviceTrust: modules.DeviceTrustFeature{
 					Enabled: true,
 				},
-				AccessList:       feature.GetUsageBasedAccessListFeatureLimits(),
-				AccessMonitoring: feature.GetUsageBasedAccessMonitoringFeatureLimits(false),
+				AccessList:             feature.GetUsageBasedAccessListFeatureLimits(),
+				AccessMonitoring:       feature.GetUsageBasedAccessMonitoringFeatureLimits(false),
+				Questionnaire:          false,
+				IsStripeManaged:        false,
+				ExternalAuditStorage:   false,
+				SupportType:            proto.SupportType_SUPPORT_TYPE_PREMIUM,
+				JoinActiveSessions:     true,
+				MobileDeviceManagement: true,
 			},
 		},
 		{
@@ -65,6 +72,12 @@ func TestGetLicenseFeatures(t *testing.T) {
 				AccessList:              feature.GetUsageBasedAccessListFeatureLimits(),
 				AccessMonitoring:        feature.GetUsageBasedAccessMonitoringFeatureLimits(false),
 				ProductType:             modules.ProductTypeEUB,
+				Questionnaire:           false,
+				IsStripeManaged:         false,
+				ExternalAuditStorage:    false,
+				SupportType:             proto.SupportType_SUPPORT_TYPE_PREMIUM,
+				JoinActiveSessions:      true,
+				MobileDeviceManagement:  true,
 			},
 		},
 		{
@@ -102,6 +115,12 @@ func TestGetLicenseFeatures(t *testing.T) {
 				},
 				ProductType:                modules.ProductTypeEUB,
 				IdentityGovernanceSecurity: true,
+				Questionnaire:              false,
+				IsStripeManaged:            false,
+				ExternalAuditStorage:       false,
+				SupportType:                proto.SupportType_SUPPORT_TYPE_PREMIUM,
+				JoinActiveSessions:         true,
+				MobileDeviceManagement:     true,
 			},
 		},
 	}

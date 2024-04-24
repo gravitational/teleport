@@ -15,6 +15,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -231,6 +232,12 @@ func getLicenseFeatures(license types.License) modules.Features {
 		Policy: modules.PolicyFeature{
 			Enabled: license.GetSupportsPolicy().Value(),
 		},
+		Questionnaire:          false,
+		IsStripeManaged:        false, // On-prem billing is never Stripe managed
+		ExternalAuditStorage:   false, // EAS is a Cloud-only feature
+		SupportType:            proto.SupportType_SUPPORT_TYPE_PREMIUM,
+		JoinActiveSessions:     true,
+		MobileDeviceManagement: true,
 	}
 
 	// There is only two types of `on-prem` licenses:

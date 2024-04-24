@@ -6,6 +6,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/e/api/cloud"
 	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
 	"github.com/gravitational/teleport/lib/backend"
@@ -52,6 +53,12 @@ func FetchFromCloud(ctx context.Context, cloudClient cloud.Client) (*modules.Fea
 			DeviceTrust: modules.DeviceTrustFeature{
 				Enabled: true,
 			},
+			Questionnaire:          resp.Questionnaire,
+			IsStripeManaged:        resp.StripeManaged,
+			ExternalAuditStorage:   resp.ExternalAuditStorage,
+			SupportType:            proto.SupportType(resp.SupportType),
+			JoinActiveSessions:     resp.JoinActiveSessions,
+			MobileDeviceManagement: resp.MobileDeviceManagement,
 			Policy: modules.PolicyFeature{
 				Enabled: resp.Policy,
 			},
@@ -90,6 +97,12 @@ func FetchFromCloud(ctx context.Context, cloudClient cloud.Client) (*modules.Fea
 		Policy: modules.PolicyFeature{
 			Enabled: resp.Policy,
 		},
+		Questionnaire:          resp.Questionnaire,
+		IsStripeManaged:        resp.StripeManaged,
+		ExternalAuditStorage:   resp.ExternalAuditStorage,
+		SupportType:            proto.SupportType(resp.SupportType),
+		JoinActiveSessions:     resp.JoinActiveSessions,
+		MobileDeviceManagement: resp.MobileDeviceManagement,
 	}
 
 	// TODO(lisa): these should be set to true from salescenter.
