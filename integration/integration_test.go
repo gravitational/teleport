@@ -4017,7 +4017,7 @@ func testDiscoveryRecovers(t *testing.T, suite *integrationTestSuite) {
 }
 
 // TestDiscovery tests case for multiple proxies and a reverse tunnel
-// agent that eventually connnects to the the right proxy
+// agent that eventually connnects to the right proxy
 func testDiscovery(t *testing.T, suite *integrationTestSuite) {
 	ctx := context.Background()
 	tr := utils.NewTracer(utils.ThisFunction()).Start()

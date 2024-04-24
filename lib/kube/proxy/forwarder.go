@@ -962,7 +962,7 @@ func (f *Forwarder) getKubeAccessDetails(
 		// accessChecker.CheckKubeGroupsAndUsers returns the accumulated kubernetes_groups
 		// and kubernetes_users that satisfy te provided matchers.
 		// When a KubernetesResourceMatcher, it will gather the Kubernetes principals
-		// whose role satisfy the the desired Kubernetes Resource.
+		// whose role satisfy the desired Kubernetes Resource.
 		// The users/groups will be forwarded to Kubernetes Cluster as Impersonation
 		// headers.
 		groups, users, err := accessChecker.CheckKubeGroupsAndUsers(sessionTTL, false /* overrideTTL */, matchers...)
