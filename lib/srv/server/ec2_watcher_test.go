@@ -40,7 +40,7 @@ type mockClients struct {
 	azureClient azure.VirtualMachinesClient
 }
 
-func (c *mockClients) GetAWSEC2Client(ctx context.Context, region string, _ ...cloud.AWSAssumeRoleOptionFn) (ec2iface.EC2API, error) {
+func (c *mockClients) GetAWSEC2Client(ctx context.Context, region string, _ ...cloud.AWSOptionsFn) (ec2iface.EC2API, error) {
 	return c.ec2Client, nil
 }
 

@@ -61,10 +61,10 @@ func (a *awsFetcher) fetchAWSSEKSClusters(ctx context.Context) (fetchAWSEKSClust
 		errs    []error
 	)
 	eG, ctx := errgroup.WithContext(ctx)
-	// Set the limit to 10 to avoid too many concurrent requests.
+	// Set the limit to 5 to avoid too many concurrent requests.
 	// This is a temporary solution until we have a better way to limit the
 	// number of concurrent requests.
-	eG.SetLimit(10)
+	eG.SetLimit(5)
 	collectClusters := func(cluster *accessgraphv1alpha.AWSEKSClusterV1,
 		clusterAssociatedPolicies []*accessgraphv1alpha.AWSEKSAssociatedAccessPolicyV1,
 		clusterAccessEntries []*accessgraphv1alpha.AWSEKSClusterAccessEntryV1,
