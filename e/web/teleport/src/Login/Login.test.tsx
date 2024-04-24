@@ -22,7 +22,7 @@ test('basic rendering', () => {
 });
 
 test('login with redirect', async () => {
-  jest.spyOn(auth, 'login').mockResolvedValue(null);
+  jest.spyOn(auth, 'login').mockResolvedValue({});
 
   render(<Login />);
 

@@ -21,6 +21,7 @@ import {
 
 import { NavTitle } from 'teleport/types';
 import { Users } from 'teleport/Users';
+import { PassthroughPage } from 'shared/components/AuthorizeDeviceWeb/AuthorizeDeviceWeb';
 
 import { storageService } from 'teleport/services/storageService';
 
@@ -413,6 +414,20 @@ class FeatureAccount extends OSS.FeatureAccount {
   };
 }
 
+export class FeatureDeviceTrustWeb implements TeleportFeature {
+  route = {
+    title: 'DeviceTrustWeb',
+    path: cfg.oss.routes.deviceTrustAuthorize,
+    component: PassthroughPage,
+  };
+
+  hasAccess() {
+    return true;
+  }
+
+  logoOnlyTopbar = true;
+}
+
 class FeatureHelpAndSupport extends OSS.FeatureHelpAndSupport {
   route = {
     title: 'Help & Support',
@@ -512,5 +527,6 @@ export function getEnterpriseFeatures(): TeleportFeature[] {
     // Other
     new FeatureAccount(),
     new FeatureHelpAndSupport(),
+    new FeatureDeviceTrustWeb(),
   ];
 }
