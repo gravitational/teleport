@@ -53,6 +53,7 @@ var SupportedJoinMethods = []types.JoinMethod{
 	types.JoinMethodKubernetes,
 	types.JoinMethodSpacelift,
 	types.JoinMethodToken,
+	types.JoinMethodTPM,
 }
 
 // BotResourceName returns the default name for resources associated with the

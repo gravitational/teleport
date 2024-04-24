@@ -27,17 +27,13 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/compare"
 )
-
-// IsEqual[T] will be used instead of cmp.Equal if a resource implements it.
-type IsEqual[T any] interface {
-	IsEqual(T) bool
-}
 
 // CompareResources compares two resources by all significant fields.
 func CompareResources[T any](resA, resB T) int {
 	var equal bool
-	if hasEqual, ok := any(resA).(IsEqual[T]); ok {
+	if hasEqual, ok := any(resA).(compare.IsEqual[T]); ok {
 		equal = hasEqual.IsEqual(resB)
 	} else {
 		equal = cmp.Equal(resA, resB,

@@ -56,9 +56,9 @@ const (
 
 type CloudClientProvider interface {
 	// GetAWSSTSClient returns AWS STS client for the specified region.
-	GetAWSSTSClient(ctx context.Context, region string, opts ...cloud.AWSAssumeRoleOptionFn) (stsiface.STSAPI, error)
+	GetAWSSTSClient(ctx context.Context, region string, opts ...cloud.AWSOptionsFn) (stsiface.STSAPI, error)
 	// GetAWSKMSClient returns AWS KMS client for the specified region.
-	GetAWSKMSClient(ctx context.Context, region string, opts ...cloud.AWSAssumeRoleOptionFn) (kmsiface.KMSAPI, error)
+	GetAWSKMSClient(ctx context.Context, region string, opts ...cloud.AWSOptionsFn) (kmsiface.KMSAPI, error)
 }
 
 // AWSKMSConfig holds configuration parameters specific to AWS KMS keystores.

@@ -32,7 +32,7 @@ import type { MfaAuthnResponse } from 'teleport/services/mfa';
 //    token, and after successfully obtaining the token, the function
 //    `onAuthenticated` will be called with this token.
 export default function useReAuthenticate(props: Props) {
-  const { onClose, actionText = defaultActionText, challengeScope } = props;
+  const { onClose, actionText = defaultActionText } = props;
 
   // Note that attempt state "success" is not used or required.
   // After the user submits, the control is passed back
@@ -53,12 +53,12 @@ export default function useReAuthenticate(props: Props) {
       .catch(handleError);
   }
 
-  function submitWithWebauthn(scope: MfaChallengeScope) {
+  function submitWithWebauthn() {
     setAttempt({ status: 'processing' });
 
     if ('onMfaResponse' in props) {
       auth
-        .getWebauthnResponse(scope)
+        .getWebauthnResponse(props.challengeScope)
         .then(webauthnResponse =>
           props.onMfaResponse({ webauthn_response: webauthnResponse })
         )
@@ -67,7 +67,7 @@ export default function useReAuthenticate(props: Props) {
     }
 
     auth
-      .createPrivilegeTokenWithWebauthn(scope)
+      .createPrivilegeTokenWithWebauthn()
       .then(props.onAuthenticated)
       .catch((err: Error) => {
         // This catches a webauthn frontend error that occurs on Firefox and replaces it with a more helpful error message.
@@ -97,7 +97,6 @@ export default function useReAuthenticate(props: Props) {
     auth2faType: cfg.getAuth2faType(),
     preferredMfaType: cfg.getPreferredMfaType(),
     actionText,
-    challengeScope,
     onClose,
   };
 }
@@ -116,10 +115,6 @@ type BaseProps = {
    *
    * */
   actionText?: string;
-  /**
-   * The MFA challenge scope of the action to perform, as defined in webauthn.proto.
-   */
-  challengeScope: MfaChallengeScope;
 };
 
 // MfaResponseProps defines a function
@@ -127,6 +122,10 @@ type BaseProps = {
 // authentication has been done at this point.
 type MfaResponseProps = BaseProps & {
   onMfaResponse(res: MfaAuthnResponse): void;
+  /**
+   * The MFA challenge scope of the action to perform, as defined in webauthn.proto.
+   */
+  challengeScope: MfaChallengeScope;
   onAuthenticated?: never;
 };
 
@@ -137,6 +136,7 @@ type MfaResponseProps = BaseProps & {
 type DefaultProps = BaseProps & {
   onAuthenticated(privilegeTokenId: string): void;
   onMfaResponse?: never;
+  challengeScope?: never;
 };
 
 export type Props = MfaResponseProps | DefaultProps;

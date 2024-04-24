@@ -51,7 +51,7 @@ type eksFetcher struct {
 // EKSClientGetter is an interface for getting an EKS client.
 type EKSClientGetter interface {
 	// GetAWSEKSClient returns AWS EKS client for the specified region.
-	GetAWSEKSClient(ctx context.Context, region string, opts ...cloud.AWSAssumeRoleOptionFn) (eksiface.EKSAPI, error)
+	GetAWSEKSClient(ctx context.Context, region string, opts ...cloud.AWSOptionsFn) (eksiface.EKSAPI, error)
 }
 
 // EKSFetcherConfig configures the EKS fetcher.
