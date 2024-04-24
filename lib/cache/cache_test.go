@@ -259,7 +259,7 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	}
 	p.okta = oktaSvc
 
-	igSvc, err := local.NewIntegrationsService(p.backend)
+	igSvc, err := local.NewIntegrationsService(p.backend, local.WithIntegrationsServiceCacheMode(true))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
