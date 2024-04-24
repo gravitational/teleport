@@ -9,12 +9,41 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/e/lib/web/ui"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/modules"
 )
 
-var sampleAthenaURI = "athena://db.table?topicArn=arn:aws:sns:eu-central-1:accnr:topicName&queryResultsS3=s3://testbucket/query-result/&workgroup=workgroup&locationS3=s3://testbucket/events-location&queueURL=https://sqs.eu-central-1.amazonaws.com/accnr/sqsname&largeEventsS3=s3://testbucket/largeevents"
+const (
+	testAthenaURI       = "athena://db.table?topicArn=arn:aws:sns:eu-central-1:accnr:topicName&queryResultsS3=s3://testbucket/query-result/&workgroup=workgroup&locationS3=s3://testbucket/events-location&queueURL=https://sqs.eu-central-1.amazonaws.com/accnr/sqsname&largeEventsS3=s3://testbucket/largeevents"
+	testRegion          = "us-west-2"
+	testIntegrationName = "test-integration"
+	testIAMRoleARN      = "test-iam-role"
+)
+
+func setupPreconditions(t *testing.T, auth *auth.Server) {
+	ctx := context.Background()
+
+	// There must be a cluster audit config with a region and athena URI.
+	auditConfig, err := auth.GetClusterAuditConfig(ctx)
+	require.NoError(t, err)
+	auditConfig.SetRegion(testRegion)
+	auditConfig.SetAuditEventsURIs([]string{testAthenaURI})
+	require.NoError(t, auth.SetClusterAuditConfig(ctx, auditConfig))
+
+	// There must be an AWS OIDC integration.
+	oidcIntegration, err := types.NewIntegrationAWSOIDC(
+		types.Metadata{Name: testIntegrationName},
+		&types.AWSOIDCIntegrationSpecV1{
+			RoleARN: testIAMRoleARN,
+		},
+	)
+	require.NoError(t, err)
+	_, err = auth.CreateIntegration(ctx, oidcIntegration)
+	require.NoError(t, err)
+}
 
 func TestGenerateDraftExternalAuditStorage(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
@@ -29,17 +58,11 @@ func TestGenerateDraftExternalAuditStorage(t *testing.T) {
 	webPack := s.newAuthWebPack(t, "foo")
 	clusterName := s.testAuthServer.ClusterName()
 
-	// Precondition: there must be a cluster audit config with a region and
-	// athena URI.
-	auditConfig, err := s.testAuthServer.Auth().GetClusterAuditConfig(ctx)
-	require.NoError(t, err)
-	auditConfig.SetRegion("us-west-2")
-	auditConfig.SetAuditEventsURIs([]string{sampleAthenaURI})
-	require.NoError(t, s.testAuthServer.Auth().SetClusterAuditConfig(ctx, auditConfig))
+	setupPreconditions(t, s.testAuthServer.Auth())
 
 	generateEndpoint := webPack.clt.Endpoint("webapi", "sites", clusterName, "integration", "externalauditstorage", "generate")
 	resp, err := webPack.clt.PostJSON(ctx, generateEndpoint, ui.GenerateDraftExternalAuditStorageRequest{
-		IntegrationName: "test-integration",
+		IntegrationName: testIntegrationName,
 	})
 	require.NoError(t, err)
 
@@ -51,7 +74,7 @@ func TestGenerateDraftExternalAuditStorage(t *testing.T) {
 	// Make sure an unauthenticated client can't generate
 	publicClt := s.client(t)
 	_, err = publicClt.PostJSON(ctx, generateEndpoint, ui.GenerateDraftExternalAuditStorageRequest{
-		IntegrationName: "test-integration",
+		IntegrationName: testIntegrationName,
 	})
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err))
@@ -222,22 +245,17 @@ func TestExternalAuditStoragePromote(t *testing.T) {
 	webPack := s.newAuthWebPack(t, "foo")
 	clusterName := s.testAuthServer.ClusterName()
 
-	// Precondition: there must be a cluster audit config with an athena URI.
-	auditConfig, err := s.testAuthServer.Auth().GetClusterAuditConfig(ctx)
-	require.NoError(t, err)
-	auditConfig.SetAuditEventsURIs([]string{sampleAthenaURI})
-	auditConfig.SetRegion("us-west-2")
-	require.NoError(t, s.testAuthServer.Auth().SetClusterAuditConfig(ctx, auditConfig))
+	setupPreconditions(t, s.testAuthServer.Auth())
 
 	// assert that it fails if no drafts exist
 	promoteEndpoint := webPack.clt.Endpoint("webapi", "sites", clusterName, "integration", "externalauditstorage", "promote")
-	_, err = webPack.clt.PostJSON(ctx, promoteEndpoint, nil)
+	_, err := webPack.clt.PostJSON(ctx, promoteEndpoint, nil)
 	require.Error(t, err)
 	require.False(t, trace.IsAccessDenied(err))
 
 	// create draft
 	client := s.newAdminAuthClient(ctx, t).ExternalAuditStorageClient()
-	_, err = client.GenerateDraftExternalAuditStorage(ctx, "test-integration", "us-west-2")
+	_, err = client.GenerateDraftExternalAuditStorage(ctx, testIntegrationName, testRegion)
 	require.NoError(t, err)
 	// assert that we can promote it
 	_, err = webPack.clt.PostJSON(ctx, promoteEndpoint, nil)
@@ -263,23 +281,18 @@ func TestExternalAuditStorageGetCluster(t *testing.T) {
 	webPack := s.newAuthWebPack(t, "foo")
 	clusterName := s.testAuthServer.ClusterName()
 
-	// Precondition: there must be a cluster audit config with an athena URI.
-	auditConfig, err := s.testAuthServer.Auth().GetClusterAuditConfig(ctx)
-	require.NoError(t, err)
-	auditConfig.SetAuditEventsURIs([]string{sampleAthenaURI})
-	auditConfig.SetRegion("us-west-2")
-	require.NoError(t, s.testAuthServer.Auth().SetClusterAuditConfig(ctx, auditConfig))
+	setupPreconditions(t, s.testAuthServer.Auth())
 
 	getClusterEndpoint := webPack.clt.Endpoint("webapi", "sites", clusterName, "integration", "externalauditstorage", "cluster")
 
 	// assert that it returns a not found error if no active cluster audit exist
-	_, err = webPack.clt.Get(ctx, getClusterEndpoint, nil)
+	_, err := webPack.clt.Get(ctx, getClusterEndpoint, nil)
 	require.Error(t, err)
 	require.True(t, trace.IsNotFound(err))
 
 	// assert that it returns the existing active cluster audit
 	client := s.newAdminAuthClient(ctx, t).ExternalAuditStorageClient()
-	_, err = client.GenerateDraftExternalAuditStorage(ctx, "test-integration", "us-west-2")
+	_, err = client.GenerateDraftExternalAuditStorage(ctx, testIntegrationName, testRegion)
 	require.NoError(t, err)
 	err = client.PromoteToClusterExternalAuditStorage(ctx)
 	require.NoError(t, err)
@@ -289,7 +302,7 @@ func TestExternalAuditStorageGetCluster(t *testing.T) {
 	// Make sure we can decode the generated config and it's valid
 	var returned externalauditstorage.ExternalAuditStorage
 	require.NoError(t, json.NewDecoder(resp.Reader()).Decode(&returned))
-	require.Equal(t, "test-integration", returned.Spec.IntegrationName)
+	require.Equal(t, testIntegrationName, returned.Spec.IntegrationName)
 
 	// Make sure an unauthenticated client can't get active cluster audit
 	publicClt := s.client(t)
@@ -311,23 +324,18 @@ func TestExternalAuditStorageGetDraft(t *testing.T) {
 	webPack := s.newAuthWebPack(t, "foo")
 	clusterName := s.testAuthServer.ClusterName()
 
-	// Precondition: there must be a cluster audit config with an athena URI.
-	auditConfig, err := s.testAuthServer.Auth().GetClusterAuditConfig(ctx)
-	require.NoError(t, err)
-	auditConfig.SetAuditEventsURIs([]string{sampleAthenaURI})
-	auditConfig.SetRegion("us-west-2")
-	require.NoError(t, s.testAuthServer.Auth().SetClusterAuditConfig(ctx, auditConfig))
+	setupPreconditions(t, s.testAuthServer.Auth())
 
 	getDraftEndpoint := webPack.clt.Endpoint("webapi", "sites", clusterName, "integration", "externalauditstorage", "draft")
 
 	// assert that it returns a not found error if no draft cluster audit exist
-	_, err = webPack.clt.Get(ctx, getDraftEndpoint, nil)
+	_, err := webPack.clt.Get(ctx, getDraftEndpoint, nil)
 	require.Error(t, err)
 	require.True(t, trace.IsNotFound(err))
 
 	// assert that it returns the existing draft cluster audit
 	client := s.newAdminAuthClient(ctx, t).ExternalAuditStorageClient()
-	_, err = client.GenerateDraftExternalAuditStorage(ctx, "test-integration", "us-west-2")
+	_, err = client.GenerateDraftExternalAuditStorage(ctx, testIntegrationName, testRegion)
 	require.NoError(t, err)
 
 	resp, err := webPack.clt.Get(ctx, getDraftEndpoint, nil)
@@ -335,7 +343,7 @@ func TestExternalAuditStorageGetDraft(t *testing.T) {
 	// Make sure we can decode the generated config and it's valid
 	var returned externalauditstorage.ExternalAuditStorage
 	require.NoError(t, json.NewDecoder(resp.Reader()).Decode(&returned))
-	require.Equal(t, "test-integration", returned.Spec.IntegrationName)
+	require.Equal(t, testIntegrationName, returned.Spec.IntegrationName)
 
 	// Make sure an unauthenticated client can't get draft cluster audit
 	publicClt := s.client(t)
@@ -357,23 +365,18 @@ func TestExternalAuditStorageDeleteCluster(t *testing.T) {
 	webPack := s.newAuthWebPack(t, "foo")
 	clusterName := s.testAuthServer.ClusterName()
 
-	// Precondition: there must be a cluster audit config with an athena URI.
-	auditConfig, err := s.testAuthServer.Auth().GetClusterAuditConfig(ctx)
-	require.NoError(t, err)
-	auditConfig.SetAuditEventsURIs([]string{sampleAthenaURI})
-	auditConfig.SetRegion("us-west-2")
-	require.NoError(t, s.testAuthServer.Auth().SetClusterAuditConfig(ctx, auditConfig))
+	setupPreconditions(t, s.testAuthServer.Auth())
 
 	deleteClusterEndpoint := webPack.clt.Endpoint("webapi", "sites", clusterName, "integration", "externalauditstorage", "cluster")
 
 	// assert that it returns a not found error if no active cluster audit exist
-	_, err = webPack.clt.Delete(ctx, deleteClusterEndpoint)
+	_, err := webPack.clt.Delete(ctx, deleteClusterEndpoint)
 	require.Error(t, err)
 	require.True(t, trace.IsNotFound(err))
 
 	// assert that it deletes the existing active cluster audit
 	client := s.newAdminAuthClient(ctx, t).ExternalAuditStorageClient()
-	_, err = client.GenerateDraftExternalAuditStorage(ctx, "test-integration", "us-west-2")
+	_, err = client.GenerateDraftExternalAuditStorage(ctx, testIntegrationName, testRegion)
 	require.NoError(t, err)
 	err = client.PromoteToClusterExternalAuditStorage(ctx)
 	require.NoError(t, err)
@@ -405,23 +408,18 @@ func TestExternalAuditStorageDeleteDraft(t *testing.T) {
 	webPack := s.newAuthWebPack(t, "foo")
 	clusterName := s.testAuthServer.ClusterName()
 
-	// Precondition: there must be a cluster audit config with an athena URI.
-	auditConfig, err := s.testAuthServer.Auth().GetClusterAuditConfig(ctx)
-	require.NoError(t, err)
-	auditConfig.SetAuditEventsURIs([]string{sampleAthenaURI})
-	auditConfig.SetRegion("us-west-2")
-	require.NoError(t, s.testAuthServer.Auth().SetClusterAuditConfig(ctx, auditConfig))
+	setupPreconditions(t, s.testAuthServer.Auth())
 
 	deleteDraftEndpoint := webPack.clt.Endpoint("webapi", "sites", clusterName, "integration", "externalauditstorage", "draft")
 
 	// assert that it returns a not found error if no draft cluster audit exist
-	_, err = webPack.clt.Delete(ctx, deleteDraftEndpoint)
+	_, err := webPack.clt.Delete(ctx, deleteDraftEndpoint)
 	require.Error(t, err)
 	require.True(t, trace.IsNotFound(err))
 
 	// assert that it deletes the existing draft cluster audit
 	client := s.newAdminAuthClient(ctx, t).ExternalAuditStorageClient()
-	_, err = client.GenerateDraftExternalAuditStorage(ctx, "test-integration", "us-west-2")
+	_, err = client.GenerateDraftExternalAuditStorage(ctx, testIntegrationName, testRegion)
 	require.NoError(t, err)
 
 	_, err = webPack.clt.Delete(ctx, deleteDraftEndpoint)
