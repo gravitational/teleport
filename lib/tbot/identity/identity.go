@@ -26,7 +26,6 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -35,6 +34,7 @@ import (
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tlsca"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
@@ -65,9 +65,7 @@ const (
 	WriteTestKey = ".write-test"
 )
 
-var log = logrus.WithFields(logrus.Fields{
-	teleport.ComponentKey: teleport.ComponentTBot,
-})
+var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTBot)
 
 // Identity is collection of raw key and certificate data as well as the
 // parsed equivalents that make up a Teleport identity.
@@ -296,7 +294,7 @@ func SaveIdentity(ctx context.Context, id *Identity, d bot.Destination, kinds ..
 
 		data := artifact.ToBytes(id)
 
-		log.Debugf("Writing %s", artifact.Key)
+		log.DebugContext(ctx, "Writing artifact", "key", artifact.Key)
 		if err := d.Write(ctx, artifact.Key, data); err != nil {
 			return trace.Wrap(err, "could not write to %v", artifact.Key)
 		}
@@ -326,10 +324,11 @@ func LoadIdentity(ctx context.Context, d bot.Destination, kinds ...ArtifactKind)
 		// not throw an error if the file does not exist.
 		// This allows migrations of key names.
 		if artifact.OldKey != "" && len(data) == 0 {
-			log.Debugf(
-				"Unable to load from current key %q, trying to migrate from old key %q",
-				artifact.Key,
-				artifact.OldKey,
+			log.DebugContext(
+				ctx,
+				"Unable to load from current key, trying to migrate from old key",
+				"key", artifact.Key,
+				"old_key", artifact.OldKey,
 			)
 			data, err = d.Read(ctx, artifact.OldKey)
 			if err != nil {
@@ -353,7 +352,12 @@ func LoadIdentity(ctx context.Context, d bot.Destination, kinds ...ArtifactKind)
 		artifact.FromBytes(&certs, &params, data)
 	}
 
-	log.Debugf("Loaded %d SSH CA certs and %d TLS CA certs", len(certs.SSHCACerts), len(certs.TLSCACerts))
+	log.DebugContext(
+		ctx,
+		"Loaded SSH CA certs and TLS CA certs",
+		"ssh_ca_len", len(certs.SSHCACerts),
+		"tls_ca_len", len(certs.TLSCACerts),
+	)
 
 	return ReadIdentityFromStore(&params, &certs)
 }

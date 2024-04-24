@@ -49,7 +49,7 @@ proxies in cluster.
 
 * Initially Proxy Agent connects to Proxy 1.
 * Proxy 1 starts sending information about all available proxies
-to the the Proxy Agent . This process is called "sending discovery request".
+to the Proxy Agent . This process is called "sending discovery request".
 
 +----------+
 |          <--------+

@@ -534,6 +534,116 @@ func TestDiscoveryServer(t *testing.T) {
 	}
 }
 
+func TestDiscoveryServerConcurrency(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := logrus.New()
+
+	defaultDiscoveryGroup := "dg01"
+	staticMatcher := Matchers{
+		AWS: []types.AWSMatcher{{
+			Types:       []string{"ec2"},
+			Regions:     []string{"eu-central-1"},
+			Tags:        map[string]utils.Strings{"teleport": {"yes"}},
+			Integration: "my-integration",
+			SSM:         &types.AWSSSM{DocumentName: "document"},
+		}},
+	}
+
+	emitter := &mockEmitter{
+		eventHandler: func(t *testing.T, ae events.AuditEvent, server *Server) {
+			t.Helper()
+		},
+	}
+
+	testCloudClients := &cloud.TestCloudClients{
+		EC2: &mockEC2Client{output: &ec2.DescribeInstancesOutput{
+			Reservations: []*ec2.Reservation{{
+				OwnerId: aws.String("123456789012"),
+				Instances: []*ec2.Instance{{
+					InstanceId: aws.String("i-123456789012"),
+					Tags: []*ec2.Tag{{
+						Key:   aws.String("env"),
+						Value: aws.String("dev"),
+					}},
+					PrivateIpAddress: aws.String("172.0.1.2"),
+					VpcId:            aws.String("vpcId"),
+					SubnetId:         aws.String("subnetId"),
+					PrivateDnsName:   aws.String("privateDnsName"),
+					State:            &ec2.InstanceState{Name: aws.String(ec2.InstanceStateNameRunning)},
+				}},
+			}},
+		}},
+	}
+
+	// Create and start test auth server.
+	testAuthServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+		Dir: t.TempDir(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
+
+	tlsServer, err := testAuthServer.NewTestTLSServer()
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
+
+	// Auth client for discovery service.
+	identity := auth.TestServerID(types.RoleDiscovery, "hostID")
+	authClient, err := tlsServer.NewClient(identity)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, authClient.Close()) })
+
+	// Create Server1
+	server1, err := New(authz.ContextWithUser(ctx, identity.I), &Config{
+		CloudClients:     testCloudClients,
+		ClusterFeatures:  func() proto.Features { return proto.Features{} },
+		KubernetesClient: fake.NewSimpleClientset(),
+		AccessPoint:      getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
+		Matchers:         staticMatcher,
+		Emitter:          emitter,
+		Log:              logger,
+		DiscoveryGroup:   defaultDiscoveryGroup,
+	})
+	require.NoError(t, err)
+
+	// Create Server2
+	server2, err := New(authz.ContextWithUser(ctx, identity.I), &Config{
+		CloudClients:     testCloudClients,
+		ClusterFeatures:  func() proto.Features { return proto.Features{} },
+		KubernetesClient: fake.NewSimpleClientset(),
+		AccessPoint:      getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
+		Matchers:         staticMatcher,
+		Emitter:          emitter,
+		Log:              logger,
+		DiscoveryGroup:   defaultDiscoveryGroup,
+	})
+	require.NoError(t, err)
+
+	// Start both servers.
+	go server1.Start()
+	t.Cleanup(server1.Stop)
+
+	go server2.Start()
+	t.Cleanup(server2.Stop)
+
+	// We must get only one EC2 EICE Node.
+	// Even when two servers are discovering the same EC2 Instance, they will use the same name when converting to EICE Node.
+	require.Eventually(t, func() bool {
+		allNodes, err := tlsServer.Auth().GetNodes(ctx, "default")
+		require.NoError(t, err)
+
+		return len(allNodes) == 1
+	}, 1*time.Second, 50*time.Millisecond)
+
+	// We should never get a duplicate instance.
+	require.Never(t, func() bool {
+		allNodes, err := tlsServer.Auth().GetNodes(ctx, "default")
+		require.NoError(t, err)
+
+		return len(allNodes) != 1
+	}, 2*time.Second, 50*time.Millisecond)
+}
+
 func newMockKubeService(name, namespace, externalName string, labels, annotations map[string]string, ports []corev1.ServicePort) *corev1.Service {
 	serviceType := corev1.ServiceTypeClusterIP
 	if externalName != "" {

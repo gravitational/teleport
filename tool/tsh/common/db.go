@@ -87,9 +87,6 @@ func onListDatabases(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	databases := types.DatabaseServers(servers).ToDatabases()
-	types.DeduplicateDatabases(databases)
-
 	accessChecker, err := services.NewAccessCheckerForRemoteCluster(cf.Context, profile.AccessInfo(), tc.SiteName, clusterClient.AuthClient)
 	if err != nil {
 		log.Debugf("Failed to fetch user roles: %v.", err)
@@ -100,19 +97,9 @@ func onListDatabases(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	databases := types.DatabaseServers(servers).ToDatabases()
 	sort.Sort(types.Databases(databases))
 	return trace.Wrap(showDatabases(cf, databases, activeDatabases, accessChecker))
-}
-
-func accessCheckerForRemoteCluster(ctx context.Context, profile *client.ProfileStatus, proxy *client.ProxyClient, clusterName string) (services.AccessChecker, error) {
-	cluster, err := proxy.ConnectToCluster(ctx, clusterName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer cluster.Close()
-
-	accessChecker, err := services.NewAccessCheckerForRemoteCluster(ctx, profile.AccessInfo(), clusterName, cluster)
-	return accessChecker, trace.Wrap(err)
 }
 
 type databaseListing struct {
@@ -183,7 +170,7 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 			defer span.End()
 
 			logger := log.WithField("cluster", cluster.name)
-			databases, err := cluster.proxy.FindDatabasesByFiltersForCluster(ctx, cluster.req, cluster.name)
+			databases, err := apiclient.GetAllResources[types.DatabaseServer](ctx, cluster.auth, &cluster.req)
 			if err != nil {
 				logger.Errorf("Failed to get databases: %v.", err)
 
@@ -193,13 +180,13 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 				return nil
 			}
 
-			accessChecker, err := accessCheckerForRemoteCluster(ctx, cluster.profile, cluster.proxy, cluster.name)
+			accessChecker, err := services.NewAccessCheckerForRemoteCluster(ctx, cluster.profile.AccessInfo(), cluster.name, cluster.auth)
 			if err != nil {
 				log.Debugf("Failed to fetch user roles: %v.", err)
 			}
 
 			localDBListings := make(databaseListings, 0, len(databases))
-			for _, database := range databases {
+			for _, database := range types.DatabaseServers(databases).ToDatabases() {
 				localDBListings = append(localDBListings, databaseListing{
 					Proxy:         cluster.profile.ProxyURL.Host,
 					Cluster:       cluster.name,
@@ -243,7 +230,7 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Println(out)
+		fmt.Fprintln(cf.Stdout(), out)
 	default:
 		return trace.BadParameter("unsupported format %q", format)
 	}

@@ -56,6 +56,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/gravitational/teleport"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -1111,7 +1112,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	reqCreate.Flag("resource", "Resource ID to be requested").StringsVar(&cf.RequestedResourceIDs)
 	reqCreate.Flag("request-ttl", "Expiration time for the access request").DurationVar(&cf.RequestTTL)
 	reqCreate.Flag("session-ttl", "Expiration time for the elevated certificate").DurationVar(&cf.SessionTTL)
-	reqCreate.Flag("max-duration", "How long the the access should be granted for").DurationVar(&cf.MaxDuration)
+	reqCreate.Flag("max-duration", "How long the access should be granted for").DurationVar(&cf.MaxDuration)
 	reqCreate.Flag("assume-start-time", "Sets time roles can be assumed by requestor (RFC3339 e.g 2023-12-12T23:20:50.52Z)").StringVar(&cf.AssumeStartTimeRaw)
 
 	reqReview := req.Command("review", "Review an access request.")
@@ -1815,7 +1816,7 @@ func onLogin(cf *CLIConf) error {
 	tc.HomePath = cf.HomePath
 
 	// client is already logged in and profile is not expired
-	if profile != nil && !profile.IsExpired(clockwork.NewRealClock()) {
+	if profile != nil && !profile.IsExpired(time.Now()) {
 		switch {
 		// in case if nothing is specified, re-fetch kube clusters and print
 		// current status
@@ -2214,7 +2215,8 @@ func onListNodes(cf *CLIConf) error {
 type clusterClient struct {
 	name            string
 	connectionError error
-	proxy           *client.ProxyClient
+	cluster         *client.ClusterClient
+	auth            auth.ClientI
 	profile         *client.ProfileStatus
 	req             proto.ListResourcesRequest
 }
@@ -2224,7 +2226,7 @@ func (c *clusterClient) Close() error {
 		return nil
 	}
 
-	return c.proxy.Close()
+	return trace.NewAggregate(c.auth.Close(), c.cluster.Close())
 }
 
 // getClusterClients establishes a ProxyClient to every cluster
@@ -2249,8 +2251,7 @@ func getClusterClients(cf *CLIConf, resource string) ([]*clusterClient, error) {
 		logger := log.WithField("cluster", profile.Cluster)
 
 		logger.Debug("Creating client...")
-		//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
-		proxy, err := tc.ConnectToProxy(ctx)
+		clt, err := tc.ConnectToCluster(ctx)
 		if err != nil {
 			// log error and return nil so that results may still be retrieved
 			// for other clusters.
@@ -2265,20 +2266,43 @@ func getClusterClients(cf *CLIConf, resource string) ([]*clusterClient, error) {
 			return nil
 		}
 
-		sites, err := proxy.GetSites(ctx)
+		// Add the local cluster to the output
+		mu.Lock()
+		clusters = append(clusters, &clusterClient{
+			name:    tc.SiteName,
+			cluster: clt,
+			auth:    clt.AuthClient,
+			profile: profile,
+			req:     *tc.ResourceFilter(resource),
+		})
+		mu.Unlock()
+
+		// Check if the user has access to any attached remote clusters.
+		remoteClusters, err := clt.AuthClient.GetRemoteClusters(ctx)
 		if err != nil {
-			// log error and create a site for the proxy we were able to
-			// connect to so that results are still retrieved.
+			// Log that an error happened but do not return an error to
+			// prevent results from other clusters from being retrieved.
 			logger.Errorf("Failed to lookup leaf clusters: %v", err)
-			sites = []types.Site{{Name: profile.Cluster}}
+			return nil
 		}
 
-		localClusters := make([]*clusterClient, 0, len(sites))
-		for _, site := range sites {
+		localClusters := make([]*clusterClient, 0, len(remoteClusters))
+		for _, cluster := range remoteClusters {
+			clusterName := cluster.GetName()
+			auth, err := clt.ConnectToCluster(ctx, clusterName)
+			if err != nil {
+				localClusters = append(localClusters, &clusterClient{
+					name:            clusterName,
+					connectionError: trace.ConnectionProblem(err, "failed to connect to cluster %s: %v", clusterName, err),
+				})
+				continue
+			}
+
 			localClusters = append(localClusters, &clusterClient{
-				proxy:   proxy,
+				cluster: clt,
+				auth:    auth,
 				profile: profile,
-				name:    site.Name,
+				name:    clusterName,
 				req:     *tc.ResourceFilter(resource),
 			})
 		}
@@ -2360,7 +2384,7 @@ func listNodesAllClusters(cf *CLIConf) error {
 			defer span.End()
 
 			logger := log.WithField("cluster", cluster.name)
-			nodes, err := cluster.proxy.FindNodesByFiltersForCluster(ctx, &cluster.req, cluster.name)
+			nodes, err := apiclient.GetAllResources[types.Server](ctx, cluster.auth, &cluster.req)
 			if err != nil {
 				logger.Errorf("Failed to get nodes: %v.", err)
 
@@ -2681,17 +2705,17 @@ func printNodesAsText[T types.Server](output io.Writer, nodes []T, verbose bool)
 	return nil
 }
 
-func showApps(apps []types.Application, active []tlsca.RouteToApp, format string, verbose bool) error {
+func showApps(apps []types.Application, active []tlsca.RouteToApp, w io.Writer, format string, verbose bool) error {
 	format = strings.ToLower(format)
 	switch format {
 	case teleport.Text, "":
-		showAppsAsText(apps, active, verbose)
+		showAppsAsText(apps, active, verbose, w)
 	case teleport.JSON, teleport.YAML:
 		out, err := serializeApps(apps, format)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Println(out)
+		fmt.Fprintln(w, out)
 	default:
 		return trace.BadParameter("unsupported format %q", format)
 	}
@@ -2736,7 +2760,7 @@ func getAppRow(proxy, cluster string, app types.Application, active []tlsca.Rout
 	return row
 }
 
-func showAppsAsText(apps []types.Application, active []tlsca.RouteToApp, verbose bool) {
+func showAppsAsText(apps []types.Application, active []tlsca.RouteToApp, verbose bool, w io.Writer) {
 	var rows [][]string
 	for _, app := range apps {
 		rows = append(rows, getAppRow("", "", app, active, verbose))
@@ -2751,7 +2775,7 @@ func showAppsAsText(apps []types.Application, active []tlsca.RouteToApp, verbose
 		t = asciitable.MakeTableWithTruncatedColumn(
 			[]string{"Application", "Description", "Type", "Public Address", "Labels"}, rows, "Labels")
 	}
-	fmt.Println(t.AsBuffer().String())
+	fmt.Fprintln(w, t.AsBuffer().String())
 }
 
 func showDatabases(cf *CLIConf, databases []types.Database, active []tlsca.RouteToDatabase, accessChecker services.AccessChecker) error {
@@ -4815,7 +4839,7 @@ func onApps(cf *CLIConf) error {
 		return apps[i].GetName() < apps[j].GetName()
 	})
 
-	return trace.Wrap(showApps(apps, profile.Apps, cf.Format, cf.Verbose))
+	return trace.Wrap(showApps(apps, profile.Apps, cf.Stdout(), cf.Format, cf.Verbose))
 }
 
 type appListing struct {
@@ -4845,25 +4869,78 @@ func (l appListings) Swap(i, j int) {
 }
 
 func listAppsAllClusters(cf *CLIConf) error {
-	var listings appListings
-	err := forEachProfile(cf, func(tc *client.TeleportClient, profile *client.ProfileStatus) error {
-		result, err := tc.ListAppsAllClusters(cf.Context, nil /* custom filter */)
-		if err != nil {
-			return trace.Wrap(err)
+	clusters, err := getClusterClients(cf, types.KindAppServer)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	defer func() {
+		// close all clients
+		for _, cluster := range clusters {
+			_ = cluster.Close()
 		}
-		for clusterName, apps := range result {
+	}()
+
+	// Fetch listings for all clusters in parallel with an upper limit
+	group, groupCtx := errgroup.WithContext(cf.Context)
+	group.SetLimit(10)
+
+	// mu guards access to dbListings
+	var (
+		mu       sync.Mutex
+		listings appListings
+		errors   []error
+	)
+	for _, cluster := range clusters {
+		cluster := cluster
+		if cluster.connectionError != nil {
+			mu.Lock()
+			errors = append(errors, cluster.connectionError)
+			mu.Unlock()
+			continue
+		}
+
+		logger := log.WithField("cluster", cluster.name)
+		group.Go(func() error {
+			servers, err := apiclient.GetAllResources[types.AppServer](groupCtx, cluster.auth, &cluster.req)
+			if err != nil {
+				logger.Errorf("Failed to get app servers: %v.", err)
+
+				mu.Lock()
+				errors = append(errors, trace.ConnectionProblem(err, "failed to list app serves for cluster %s: %v", cluster.name, err))
+				mu.Unlock()
+				return nil
+			}
+
+			apps := make([]types.Application, 0, len(servers))
+			for _, srv := range servers {
+				apps = append(apps, srv.GetApp())
+			}
+			apps = types.DeduplicateApps(apps)
+
+			localAppListings := make([]appListing, 0, len(servers))
 			for _, app := range apps {
-				listings = append(listings, appListing{
-					Proxy:   profile.ProxyURL.Host,
-					Cluster: clusterName,
+				localAppListings = append(localAppListings, appListing{
+					Proxy:   cluster.profile.ProxyURL.Host,
+					Cluster: cluster.name,
 					App:     app,
 				})
 			}
-		}
-		return nil
-	})
-	if err != nil {
+
+			mu.Lock()
+			listings = append(listings, localAppListings...)
+			mu.Unlock()
+
+			return nil
+		})
+	}
+
+	if err := group.Wait(); err != nil {
 		return trace.Wrap(err)
+	}
+
+	if len(listings) == 0 && len(errors) > 0 {
+		return trace.NewAggregate(errors...)
 	}
 
 	sort.Sort(listings)
@@ -4886,7 +4963,7 @@ func listAppsAllClusters(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Println(out)
+		fmt.Fprintln(cf.Stdout(), out)
 	default:
 		return trace.BadParameter("unsupported format %q", format)
 	}
@@ -5063,34 +5140,6 @@ func validateParticipantMode(mode types.SessionParticipantMode) error {
 	}
 }
 
-// forEachProfile performs an action for each profile a user is currently logged in to.
-func forEachProfile(cf *CLIConf, fn func(tc *client.TeleportClient, profile *client.ProfileStatus) error) error {
-	profiles, err := cf.ListProfiles()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	clock := clockwork.NewRealClock()
-	errors := make([]error, 0)
-	for _, p := range profiles {
-		proxyAddr := p.ProxyURL.Host
-		if p.IsExpired(clock) {
-			fmt.Fprintf(os.Stderr, "Credentials expired for proxy %q, skipping...\n", proxyAddr)
-			continue
-		}
-		tc, err := makeClientForProxy(cf, proxyAddr)
-		if err != nil {
-			errors = append(errors, err)
-			continue
-		}
-		if err := fn(tc, p); err != nil {
-			errors = append(errors, err)
-		}
-	}
-
-	return trace.NewAggregate(errors...)
-}
-
 // forEachProfileParallel performs an action for each profile a user is currently logged in to in
 // parallel.
 func forEachProfileParallel(cf *CLIConf, fn func(ctx context.Context, tc *client.TeleportClient, profile *client.ProfileStatus) error) error {
@@ -5102,11 +5151,10 @@ func forEachProfileParallel(cf *CLIConf, fn func(ctx context.Context, tc *client
 		return trace.Wrap(err)
 	}
 
-	clock := clockwork.NewRealClock()
 	for _, p := range profiles {
 		p := p
 		proxyAddr := p.ProxyURL.Host
-		if p.IsExpired(clock) {
+		if p.IsExpired(time.Now()) {
 			fmt.Fprintf(os.Stderr, "Credentials expired for proxy %q, skipping...\n", proxyAddr)
 			continue
 		}

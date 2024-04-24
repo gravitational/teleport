@@ -1203,7 +1203,7 @@ message TokenRule {
   // AWSRegions is used for the EC2 join method and is a list of AWS regions a
   // node is allowed to join from.
   repeated string AWSRegions = 2 [(gogoproto.jsontag) = "aws_regions,omitempty"];
-  // AWSRole is used for the EC2 join method and is the the ARN of the AWS
+  // AWSRole is used for the EC2 join method and is the ARN of the AWS
   // role that the auth server will assume in order to call the ec2 API.
   string AWSRole = 3 [(gogoproto.jsontag) = "aws_role,omitempty"];
   // AWSARN is used for the IAM join method, the AWS identity of joining nodes
@@ -1276,25 +1276,25 @@ message ProvisionTokenSpecV2 {
 // ProvisionTokenSpecV2
 message ProvisionTokenSpecV2TPM {
   message Rule {
+    reserved 2, 3;
+    reserved "EKPubHash", "EKCertSerial";
     // Description is a human-readable description of the rule. It has no
     // bearing on whether or not a TPM is allowed to join, but can be used
     // to associate a rule with a specific host (e.g the asset tag of the server
     // in which the TPM resides).
     // Example: "build-server-100"
     string Description = 1 [(gogoproto.jsontag) = "description,omitempty"];
-    oneof Identifier {
-      // EKPubHash is the SHA256 hash of the EKPub marshaled in PKIX format
-      // and encoded in hexadecimal. This value will also be checked when a TPM
-      // has submitted an EKCert, and the public key in the EKCert will be used
-      // for this check.
-      // Example: d4b45864d9d6fabfc568d74f26c35ababde2105337d7af9a6605e1c56c891aa6
-      string EKPubHash = 2 [(gogoproto.jsontag) = "ekpub_hash,omitempty"];
-      // EKCertSerial is the serial number of the EKCert in hexadecimal with
-      // colon separated nibbles. This value will not be checked when a TPM
-      // does not have an EKCert configured.
-      // Example: 73:df:dc:bd:af:ef:8a:d8:15:2e:96:71:7a:3e:7f:a4
-      string EKCertSerial = 3 [(gogoproto.jsontag) = "ekcert_serial,omitempty"];
-    }
+    // EKPublicHash is the SHA256 hash of the EKPub marshaled in PKIX format
+    // and encoded in hexadecimal. This value will also be checked when a TPM
+    // has submitted an EKCert, and the public key in the EKCert will be used
+    // for this check.
+    // Example: d4b45864d9d6fabfc568d74f26c35ababde2105337d7af9a6605e1c56c891aa6
+    string EKPublicHash = 4 [(gogoproto.jsontag) = "ek_public_hash,omitempty"];
+    // EKCertificateSerial is the serial number of the EKCert in hexadecimal
+    // with colon separated nibbles. This value will not be checked when a TPM
+    // does not have an EKCert configured.
+    // Example: 73:df:dc:bd:af:ef:8a:d8:15:2e:96:71:7a:3e:7f:a4
+    string EKCertificateSerial = 5 [(gogoproto.jsontag) = "ek_certificate_serial,omitempty"];
   }
   // Allow is a list of Rules, the presented delegated identity must match one
   // allow rule to permit joining.
@@ -2635,6 +2635,8 @@ message PluginDataUpdateParams {
 message RoleFilter {
   // SearchKeywords is a list of search keywords to match against resource field values.
   repeated string SearchKeywords = 1 [(gogoproto.jsontag) = "search_keywords,omitempty"];
+  // SkipSystemRoles filters out teleport system roles from the results.
+  bool SkipSystemRoles = 2 [(gogoproto.jsontag) = "skip_system_roles,omitempty"];
 }
 
 // RoleV6 represents role resource specification

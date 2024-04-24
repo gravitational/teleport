@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/aws"
 )
 
 // Server represents a Node, Proxy or Auth server in a Teleport cluster
@@ -131,6 +132,22 @@ func NewNode(name, subKind string, spec ServerSpecV2, labels map[string]string) 
 		SubKind: subKind,
 		Metadata: Metadata{
 			Name:   name,
+			Labels: labels,
+		},
+		Spec: spec,
+	}
+	if err := server.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return server, nil
+}
+
+// NewNode is a convenience method to create an EICE Node.
+func NewEICENode(spec ServerSpecV2, labels map[string]string) (Server, error) {
+	server := &ServerV2{
+		Kind:    KindNode,
+		SubKind: SubKindOpenSSHEICENode,
+		Metadata: Metadata{
 			Labels: labels,
 		},
 		Spec: spec,
@@ -485,16 +502,44 @@ func (s *ServerV2) openSSHEC2InstanceConnectEndpointNodeCheckAndSetDefaults() er
 	return nil
 }
 
+// serverNameForEICE returns the deterministic Server's name for an EICE instance.
+// This name must comply with the expected format for EC2 Nodes as defined here: api/utils/aws.IsEC2NodeID
+// Returns an error if AccountID or InstanceID is not present.
+func serverNameForEICE(s *ServerV2) (string, error) {
+	awsAccountID := s.GetAWSAccountID()
+	awsInstanceID := s.GetAWSInstanceID()
+
+	if awsAccountID != "" && awsInstanceID != "" {
+		eiceNodeName := fmt.Sprintf("%s-%s", awsAccountID, awsInstanceID)
+		if !aws.IsEC2NodeID(eiceNodeName) {
+			return "", trace.BadParameter("invalid account %q or instance id %q", awsAccountID, awsInstanceID)
+		}
+		return eiceNodeName, nil
+	}
+
+	return "", trace.BadParameter("missing account id or instance id in %s node", SubKindOpenSSHEICENode)
+}
+
 // CheckAndSetDefaults checks and set default values for any missing fields.
 func (s *ServerV2) CheckAndSetDefaults() error {
 	// TODO(awly): default s.Metadata.Expiry if not set (use
 	// defaults.ServerAnnounceTTL).
 	s.setStaticFields()
 
-	// if the server is a registered OpenSSH node, allow the name to be
-	// randomly generated
-	if s.Metadata.Name == "" && s.IsOpenSSHNode() {
-		s.Metadata.Name = uuid.New().String()
+	if s.Metadata.Name == "" {
+		switch s.SubKind {
+		case SubKindOpenSSHEICENode:
+			// For EICE nodes, use a deterministic name.
+			eiceNodeName, err := serverNameForEICE(s)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			s.Metadata.Name = eiceNodeName
+		case SubKindOpenSSHNode:
+			// if the server is a registered OpenSSH node, allow the name to be
+			// randomly generated
+			s.Metadata.Name = uuid.NewString()
+		}
 	}
 
 	if err := s.Metadata.CheckAndSetDefaults(); err != nil {

@@ -389,10 +389,10 @@ func (cc *credentialsCache) refreshIfNeeded(ctx context.Context) {
 
 	creds, err := cc.refresh(ctx)
 	if err != nil {
+		cc.log.Warnf("Failed to retrieve new credentials: %v", err)
 		// If we were not able to refresh, check if existing credentials in cache are still valid.
 		// If yes, just log debug, it will be retried on next interval check.
 		if credsFromCache.HasKeys() && cc.clock.Now().Before(credsFromCache.Expires) {
-			cc.log.Warnf("Failed to retrieve new credentials: %v", err)
 			cc.log.Debugf("Using existing credentials expiring in %s.", credsFromCache.Expires.Sub(cc.clock.Now()).Round(time.Second).String())
 			return
 		}

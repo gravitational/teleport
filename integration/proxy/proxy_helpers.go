@@ -663,7 +663,7 @@ func mustRegisterUsingIAMMethod(t *testing.T, proxyAddr utils.NetAddr, token str
 	require.NoError(t, err)
 
 	node := uuid.NewString()
-	_, err = auth.Register(auth.RegisterParams{
+	_, err = auth.Register(context.TODO(), auth.RegisterParams{
 		Token: token,
 		ID: auth.IdentityID{
 			Role:     types.RoleNode,

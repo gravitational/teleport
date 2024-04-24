@@ -45,7 +45,7 @@ type EventHandlerSuite struct {
 
 func TestEventHandler(t *testing.T) {
 	suite.Run(t, &EventHandlerSuite{
-		AuthHelper: &integration.OSSAuthHelper{},
+		AuthHelper: &integration.MinimalAuthHelper{},
 	})
 }
 

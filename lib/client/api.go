@@ -41,7 +41,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
@@ -81,7 +80,6 @@ import (
 	dtauthn "github.com/gravitational/teleport/lib/devicetrust/authn"
 	dtenroll "github.com/gravitational/teleport/lib/devicetrust/enroll"
 	"github.com/gravitational/teleport/lib/events"
-	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/tracing"
@@ -95,7 +93,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/agentconn"
-	"github.com/gravitational/teleport/lib/utils/proxy"
 )
 
 const (
@@ -1661,15 +1658,7 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 			attribute.String("node", node),
 		),
 	)
-	defer func() {
-		if err != nil {
-			// The error is unwrapped here so that the error reported is any underlying
-			// error and not a trace.TraceErr.
-			span.RecordError(trace.Unwrap(err))
-			span.SetStatus(codes.Error, err.Error())
-		}
-		span.End()
-	}()
+	defer func() { apitracing.EndSpan(span, err) }()
 
 	// if per-session mfa is required, perform the mfa ceremony to get
 	// new certificates and use them to connect.
@@ -2459,30 +2448,6 @@ func (tc *TeleportClient) GetClusterAlerts(ctx context.Context, req types.GetClu
 	return alerts, trace.Wrap(err)
 }
 
-// ListNodesWithFiltersAllClusters returns a map of all nodes in all clusters connected to this proxy.
-func (tc *TeleportClient) ListNodesWithFiltersAllClusters(ctx context.Context) (map[string][]types.Server, error) {
-	//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
-	proxyClient, err := tc.ConnectToProxy(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer proxyClient.Close()
-
-	clusters, err := proxyClient.GetSites(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	servers := make(map[string][]types.Server, len(clusters))
-	for _, cluster := range clusters {
-		s, err := proxyClient.FindNodesByFiltersForCluster(ctx, tc.ResourceFilter(types.KindNode), cluster.Name)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		servers[cluster.Name] = s
-	}
-	return servers, nil
-}
-
 // ListAppServersWithFilters returns a list of application servers.
 func (tc *TeleportClient) ListAppServersWithFilters(ctx context.Context, customFilter *proto.ListResourcesRequest) ([]types.AppServer, error) {
 	ctx, span := tc.Tracer.Start(
@@ -2507,35 +2472,6 @@ func (tc *TeleportClient) ListAppServersWithFilters(ctx context.Context, customF
 	return servers, trace.Wrap(err)
 }
 
-// listAppServersWithFiltersAllClusters returns a map of all app servers in all clusters connected to this proxy.
-func (tc *TeleportClient) listAppServersWithFiltersAllClusters(ctx context.Context, customFilter *proto.ListResourcesRequest) (map[string][]types.AppServer, error) {
-	//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
-	proxyClient, err := tc.ConnectToProxy(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer proxyClient.Close()
-
-	filter := customFilter
-	if customFilter == nil {
-		filter = tc.ResourceFilter(types.KindAppServer)
-	}
-
-	clusters, err := proxyClient.GetSites(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	servers := make(map[string][]types.AppServer, len(clusters))
-	for _, cluster := range clusters {
-		s, err := proxyClient.FindAppServersByFiltersForCluster(ctx, *filter, cluster.Name)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		servers[cluster.Name] = s
-	}
-	return servers, nil
-}
-
 // ListApps returns all registered applications.
 func (tc *TeleportClient) ListApps(ctx context.Context, customFilter *proto.ListResourcesRequest) ([]types.Application, error) {
 	ctx, span := tc.Tracer.Start(
@@ -2554,23 +2490,6 @@ func (tc *TeleportClient) ListApps(ctx context.Context, customFilter *proto.List
 		apps = append(apps, server.GetApp())
 	}
 	return types.DeduplicateApps(apps), nil
-}
-
-// ListAppsAllClusters returns all registered applications across all clusters.
-func (tc *TeleportClient) ListAppsAllClusters(ctx context.Context, customFilter *proto.ListResourcesRequest) (map[string][]types.Application, error) {
-	serversByCluster, err := tc.listAppServersWithFiltersAllClusters(ctx, customFilter)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	clusters := make(map[string][]types.Application, len(serversByCluster))
-	for cluster, servers := range serversByCluster {
-		var apps []types.Application
-		for _, server := range servers {
-			apps = append(apps, server.GetApp())
-		}
-		clusters[cluster] = types.DeduplicateApps(apps)
-	}
-	return clusters, nil
 }
 
 // CreateAppSession creates a new application access session.
@@ -2599,10 +2518,6 @@ func (tc *TeleportClient) CreateAppSession(ctx context.Context, req *proto.Creat
 		return nil, trace.Wrap(err)
 	}
 
-	err = auth.WaitForAppSession(ctx, ws.GetName(), ws.GetUser(), rootAuthClient)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	return ws, nil
 }
 
@@ -2654,35 +2569,6 @@ func (tc *TeleportClient) ListDatabaseServersWithFilters(ctx context.Context, cu
 	return servers, trace.Wrap(err)
 }
 
-// listDatabaseServersWithFilters returns all registered database proxy servers across all clusters.
-func (tc *TeleportClient) listDatabaseServersWithFiltersAllClusters(ctx context.Context, customFilter *proto.ListResourcesRequest) (map[string][]types.DatabaseServer, error) {
-	//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
-	proxyClient, err := tc.ConnectToProxy(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer proxyClient.Close()
-
-	filter := customFilter
-	if customFilter == nil {
-		filter = tc.ResourceFilter(types.KindDatabaseServer)
-	}
-
-	clusters, err := proxyClient.GetSites(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	servers := make(map[string][]types.DatabaseServer, len(clusters))
-	for _, cluster := range clusters {
-		s, err := proxyClient.FindDatabaseServersByFiltersForCluster(ctx, *filter, cluster.Name)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		servers[cluster.Name] = s
-	}
-	return servers, nil
-}
-
 // ListDatabases returns all registered databases.
 func (tc *TeleportClient) ListDatabases(ctx context.Context, customFilter *proto.ListResourcesRequest) ([]types.Database, error) {
 	ctx, span := tc.Tracer.Start(
@@ -2701,87 +2587,6 @@ func (tc *TeleportClient) ListDatabases(ctx context.Context, customFilter *proto
 		databases = append(databases, server.GetDatabase())
 	}
 	return types.DeduplicateDatabases(databases), nil
-}
-
-// ListDatabasesAllClusters returns all registered databases across all clusters.
-func (tc *TeleportClient) ListDatabasesAllClusters(ctx context.Context, customFilter *proto.ListResourcesRequest) (map[string][]types.Database, error) {
-	ctx, span := tc.Tracer.Start(
-		ctx,
-		"teleportClient/ListDatabasesAllClusters",
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-	)
-	defer span.End()
-
-	serversByCluster, err := tc.listDatabaseServersWithFiltersAllClusters(ctx, customFilter)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	clusters := make(map[string][]types.Database, len(serversByCluster))
-	for cluster, servers := range serversByCluster {
-		var databases []types.Database
-		for _, server := range servers {
-			databases = append(databases, server.GetDatabase())
-		}
-		clusters[cluster] = types.DeduplicateDatabases(databases)
-	}
-	return clusters, nil
-}
-
-// ListAllNodes is the same as ListNodes except that it ignores labels.
-func (tc *TeleportClient) ListAllNodes(ctx context.Context) ([]types.Server, error) {
-	ctx, span := tc.Tracer.Start(
-		ctx,
-		"teleportClient/ListAllNodes",
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-	)
-	defer span.End()
-
-	clt, err := tc.ConnectToCluster(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer clt.Close()
-
-	servers, err := client.GetAllResources[types.Server](ctx, clt.AuthClient, &proto.ListResourcesRequest{
-		Namespace:    tc.Namespace,
-		ResourceType: types.KindNode,
-	})
-	return servers, trace.Wrap(err)
-}
-
-// ListKubernetesClustersWithFiltersAllClusters returns a map of all kube clusters in all clusters connected to a proxy.
-func (tc *TeleportClient) ListKubernetesClustersWithFiltersAllClusters(ctx context.Context, req proto.ListResourcesRequest) (map[string][]types.KubeCluster, error) {
-	ctx, span := tc.Tracer.Start(
-		ctx,
-		"teleportClient/ListKubernetesClustersWithFiltersAllClusters",
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-	)
-	defer span.End()
-
-	//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
-	pc, err := tc.ConnectToProxy(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	clusters, err := pc.GetSites(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	kubeClusters := make(map[string][]types.KubeCluster, 0)
-	for _, cluster := range clusters {
-		ac, err := pc.ConnectToCluster(ctx, cluster.Name)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		kc, err := kubeutils.ListKubeClustersWithFilters(ctx, ac, req)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		kubeClusters[cluster.Name] = kc
-	}
-
-	return kubeClusters, nil
 }
 
 // roleGetter retrieves roles for the current user
@@ -3051,15 +2856,7 @@ func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (_ *ClusterClien
 			attribute.String("proxy_ssh", tc.Config.SSHProxyAddr),
 		),
 	)
-	defer func() {
-		if err != nil {
-			// The error is unwrapped here so that the error reported is any underlying
-			// error and not a trace.TraceErr.
-			span.RecordError(trace.Unwrap(err))
-			span.SetStatus(codes.Error, err.Error())
-		}
-		span.End()
-	}()
+	defer func() { apitracing.EndSpan(span, err) }()
 
 	cfg, err := tc.generateClientConfig(ctx)
 	if err != nil {
@@ -3199,156 +2996,6 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 	}, nil
 }
 
-// ConnectToProxy will dial to the proxy server and return a ProxyClient when
-// successful. If the passed in context is canceled, this function will return
-// a trace.ConnectionProblem right away.
-//
-// Deprecated: Use ConnectToCluster instead, it connects to the cluster via
-// gRPC instead of SSH to reduce latency.
-func (tc *TeleportClient) ConnectToProxy(ctx context.Context) (*ProxyClient, error) {
-	ctx, span := tc.Tracer.Start(
-		ctx,
-		"teleportClient/ConnectToProxy",
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-		oteltrace.WithAttributes(
-			attribute.String("proxy_web", tc.Config.WebProxyAddr),
-			attribute.String("proxy_ssh", tc.Config.SSHProxyAddr),
-		),
-	)
-	defer span.End()
-
-	type result struct {
-		proxyClient *ProxyClient
-		err         error
-	}
-	done := make(chan result)
-
-	// Use connectContext and the cancel function to signal when a response is
-	// returned from connectToProxy.
-	connectContext, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	go func() {
-		proxyClient, err := tc.connectToProxy(connectContext)
-		done <- result{proxyClient, err}
-	}()
-
-	select {
-	// connectToProxy returned a result, return that back to the caller.
-	case r := <-done:
-		return r.proxyClient, trace.Wrap(formatConnectToProxyErr(r.err))
-	// The passed in context timed out. This is often due to the network being
-	// down and the user hitting Ctrl-C.
-	case <-ctx.Done():
-		return nil, trace.ConnectionProblem(ctx.Err(), "connection canceled")
-	}
-}
-
-// connectToProxy will dial to the proxy server and return a ProxyClient when
-// successful.
-func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, error) {
-	cfg, err := tc.generateClientConfig(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	sshClient, err := makeProxySSHClient(ctx, tc, cfg.ClientConfig)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	pc := &ProxyClient{
-		teleportClient:  tc,
-		Client:          sshClient,
-		proxyAddress:    cfg.proxyAddress,
-		proxyPrincipal:  cfg.User,
-		hostKeyCallback: cfg.HostKeyCallback,
-		authMethods:     cfg.Auth,
-		hostLogin:       tc.HostLogin,
-		siteName:        cfg.clusterName(),
-		clientAddr:      tc.ClientAddr,
-		Tracer:          tc.Tracer,
-	}
-
-	// Create the auth.ClientI for the local auth server
-	// once per ProxyClient. This is an inexpensive
-	// operation since the actual dialing of the auth
-	// server is lazy - meaning it won't happen until the
-	// first use of the auth.ClientI. By establishing
-	// the auth.ClientI here we can ensure that any connections
-	// to the local cluster will end up reusing this auth.ClientI
-	// for the lifespan of the ProxyClient.
-	clt, err := pc.ConnectToCluster(ctx, pc.siteName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	pc.currentCluster = clt
-
-	return pc, nil
-}
-
-// confirmSSHConnectivityErrorMsg returns the error message for Proxy SSH
-// connectivity errors.
-func confirmSSHConnectivityErrorMsg(proxyAddress string) string {
-	return fmt.Sprintf("Unable to connect to ssh proxy at %v. "+
-		"Confirm connectivity and availability.", proxyAddress)
-}
-
-// makeProxySSHClient creates an SSH client by following steps:
-//  1. If the current proxy supports TLS Routing and JumpHost address was not provided use TLSWrapper.
-//  2. Check JumpHost raw SSH port or Teleport proxy address.
-//     In case of proxy web address check if the proxy supports TLS Routing and connect to the proxy with TLSWrapper
-//  3. Dial sshProxyAddr with raw SSH Dialer where sshProxyAddress is proxy ssh address or JumpHost address if
-//     JumpHost address was provided.
-func makeProxySSHClient(ctx context.Context, tc *TeleportClient, sshConfig *ssh.ClientConfig) (*tracessh.Client, error) {
-	// Use TLS Routing dialer only if proxy support TLS Routing and JumpHost was not set.
-	if tc.Config.TLSRoutingEnabled && len(tc.JumpHosts) == 0 {
-		log.Infof("Connecting to proxy=%v login=%q using TLS Routing", tc.Config.WebProxyAddr, sshConfig.User)
-		c, err := makeProxySSHClientWithTLSWrapper(ctx, tc, sshConfig, tc.Config.WebProxyAddr)
-		if err != nil {
-			return nil, trace.Wrap(err, confirmSSHConnectivityErrorMsg(tc.Config.WebProxyAddr))
-		}
-		log.Infof("Successful auth with proxy %v.", tc.Config.WebProxyAddr)
-		return c, nil
-	}
-
-	sshProxyAddr := tc.Config.SSHProxyAddr
-
-	// Handle situation where a Jump Host was set to proxy web address and Teleport supports TLS Routing.
-	if len(tc.JumpHosts) > 0 {
-		sshProxyAddr = tc.JumpHosts[0].Addr.Addr
-		// Check if JumpHost address is a proxy web address.
-		resp, err := webclient.Find(&webclient.Config{
-			Context:      ctx,
-			ProxyAddr:    sshProxyAddr,
-			Insecure:     tc.InsecureSkipVerify,
-			ExtraHeaders: tc.ExtraProxyHeaders,
-		})
-		// If JumpHost address is a proxy web port and proxy supports TLSRouting dial proxy with TLSWrapper.
-		if err == nil && resp.Proxy.TLSRoutingEnabled {
-			log.Infof("Connecting to proxy=%v login=%q using TLS Routing JumpHost", sshProxyAddr, sshConfig.User)
-			c, err := makeProxySSHClientWithTLSWrapper(ctx, tc, sshConfig, sshProxyAddr)
-			if err != nil {
-				return nil, trace.Wrap(err, confirmSSHConnectivityErrorMsg(tc.Config.WebProxyAddr))
-			}
-			log.Infof("Successful auth with proxy %v.", sshProxyAddr)
-			return c, nil
-		}
-	}
-
-	log.Infof("Connecting to proxy=%v login=%q", sshProxyAddr, sshConfig.User)
-	client, err := makeProxySSHClientDirect(ctx, tc, sshConfig, sshProxyAddr)
-	if err != nil {
-		if utils.IsHandshakeFailedError(err) {
-			return nil, trace.AccessDenied(confirmSSHConnectivityErrorMsg(sshProxyAddr)+" Error: %v", err)
-		}
-		return nil, trace.Wrap(err, confirmSSHConnectivityErrorMsg(sshProxyAddr))
-	}
-	log.Infof("Successful auth with proxy %v.", sshProxyAddr)
-	return client, nil
-}
-
 // CreatePROXYHeaderGetter returns PROXY headers signer with embedded client source/destination IP addresses,
 // which are taken from the context.
 func CreatePROXYHeaderGetter(ctx context.Context, proxySigner multiplexer.PROXYHeaderSigner) client.PROXYHeaderGetter {
@@ -3364,29 +3011,6 @@ func CreatePROXYHeaderGetter(ctx context.Context, proxySigner multiplexer.PROXYH
 	}
 
 	return nil
-}
-
-func makeProxySSHClientDirect(ctx context.Context, tc *TeleportClient, sshConfig *ssh.ClientConfig, proxyAddr string) (*tracessh.Client, error) {
-	dialer := proxy.DialerFromEnvironment(tc.Config.SSHProxyAddr, proxy.WithPROXYHeaderGetter(CreatePROXYHeaderGetter(ctx, tc.PROXYSigner)))
-	return dialer.Dial(ctx, "tcp", proxyAddr, sshConfig)
-}
-
-func makeProxySSHClientWithTLSWrapper(ctx context.Context, tc *TeleportClient, sshConfig *ssh.ClientConfig, proxyAddr string) (*tracessh.Client, error) {
-	tlsConfig, err := tc.LoadTLSConfig()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	headerGetter := CreatePROXYHeaderGetter(ctx, tc.PROXYSigner)
-
-	tlsConfig.NextProtos = []string{string(alpncommon.ProtocolProxySSH)}
-	dialer := proxy.DialerFromEnvironment(tc.Config.WebProxyAddr, proxy.WithALPNDialer(client.ALPNDialerConfig{
-		TLSConfig:               tlsConfig,
-		ALPNConnUpgradeRequired: tc.TLSRoutingConnUpgradeRequired,
-		DialTimeout:             sshConfig.Timeout,
-		PROXYHeaderGetter:       headerGetter,
-	}), proxy.WithPROXYHeaderGetter(headerGetter))
-	return dialer.Dial(ctx, "tcp", proxyAddr, sshConfig)
 }
 
 func (tc *TeleportClient) rootClusterName() (string, error) {

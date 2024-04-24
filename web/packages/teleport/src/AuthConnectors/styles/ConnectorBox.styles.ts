@@ -22,6 +22,7 @@ import styled from 'styled-components';
 export const ConnectorBox = styled(Box)`
   display: flex;
   flex-direction: column;
+  font-family: ${props => props.theme.font};
   width: 320px;
   padding: ${p => p.theme.space[4]}px;
   margin: ${p => p.theme.space[3]}px ${p => p.theme.space[2]}px;
