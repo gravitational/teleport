@@ -435,7 +435,7 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 }
 
 // TestEmitSessionEventsSameIndex given events that share the same session ID
-// and index, the emit should fail, avoiding any event to get overwritten.
+// and index, the emit should succeed.
 func TestEmitSessionEventsSameIndex(t *testing.T) {
 	ctx := context.Background()
 	tt := setupDynamoContext(t)
@@ -443,7 +443,7 @@ func TestEmitSessionEventsSameIndex(t *testing.T) {
 
 	require.NoError(t, tt.log.EmitAuditEvent(ctx, generateEvent(sessionID, 0)))
 	require.NoError(t, tt.log.EmitAuditEvent(ctx, generateEvent(sessionID, 1)))
-	require.Error(t, tt.log.EmitAuditEvent(ctx, generateEvent(sessionID, 1)))
+	require.NoError(t, tt.log.EmitAuditEvent(ctx, generateEvent(sessionID, 1)))
 }
 
 func generateEvent(sessionID session.ID, index int64) apievents.AuditEvent {
