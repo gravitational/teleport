@@ -104,14 +104,14 @@ type ProxyTemplates []*ProxyTemplate
 // Apply attempts to match the provided full hostname against all the templates
 // in the list. Returns extracted proxy and host upon encountering the first
 // matching template.
-func (t ProxyTemplates) Apply(fullHostname string) (proxy, host, cluster string, matched bool) {
+func (t ProxyTemplates) Apply(fullHostname string) (proxy, host, cluster, search, query string, matched bool) {
 	for _, template := range t {
-		proxy, host, cluster, matched := template.Apply(fullHostname)
+		proxy, host, cluster, search, query, matched := template.Apply(fullHostname)
 		if matched {
-			return proxy, host, cluster, true
+			return proxy, host, cluster, search, query, true
 		}
 	}
-	return "", "", "", false
+	return "", "", "", "", "", false
 }
 
 // ProxyTemplate describes a single rule for parsing out proxy address from
@@ -125,6 +125,10 @@ type ProxyTemplate struct {
 	Host string `yaml:"host"`
 	// Cluster is optional cluster name. Can refer to regex groups from the template.
 	Cluster string `yaml:"cluster"`
+	// Search is optional fuzzy searching that will be applied to resolve the host.
+	Search string `yaml:"search"`
+	// Query is optional predicate expression that will be applied to resolve the host.
+	Query string `yaml:"query"`
 	// re is the compiled template regexp.
 	re *regexp.Regexp
 }
@@ -134,8 +138,12 @@ func (t *ProxyTemplate) Check() (err error) {
 	if strings.TrimSpace(t.Template) == "" {
 		return trace.BadParameter("empty proxy template")
 	}
-	if strings.TrimSpace(t.Proxy) == "" && strings.TrimSpace(t.Cluster) == "" && strings.TrimSpace(t.Host) == "" {
-		return trace.BadParameter("empty proxy, cluster, and host fields in proxy template, but at least one is required")
+	if strings.TrimSpace(t.Proxy) == "" &&
+		strings.TrimSpace(t.Cluster) == "" &&
+		strings.TrimSpace(t.Host) == "" &&
+		strings.TrimSpace(t.Search) == "" &&
+		strings.TrimSpace(t.Query) == "" {
+		return trace.BadParameter("empty proxy, cluster, host, search, and query fields in proxy template, but at least one is required")
 	}
 	t.re, err = regexp.Compile(t.Template)
 	if err != nil {
@@ -146,10 +154,10 @@ func (t *ProxyTemplate) Check() (err error) {
 
 // Apply applies the proxy template to the provided hostname and returns
 // expanded proxy address and hostname.
-func (t ProxyTemplate) Apply(fullHostname string) (proxy, host, cluster string, matched bool) {
+func (t ProxyTemplate) Apply(fullHostname string) (proxy, host, cluster, search, query string, matched bool) {
 	match := t.re.FindAllStringSubmatchIndex(fullHostname, -1)
 	if match == nil {
-		return "", "", "", false
+		return "", "", "", "", "", false
 	}
 
 	if t.Proxy != "" {
@@ -176,7 +184,25 @@ func (t ProxyTemplate) Apply(fullHostname string) (proxy, host, cluster string, 
 		cluster = string(expandedCluster)
 	}
 
-	return proxy, host, cluster, true
+	if t.Search != "" {
+		var expandedSearch []byte
+		for _, m := range match {
+			expandedSearch = t.re.ExpandString(expandedSearch, t.Search, fullHostname, m)
+		}
+
+		search = string(expandedSearch)
+	}
+
+	if t.Query != "" {
+		var expandedQuery []byte
+		for _, m := range match {
+			expandedQuery = t.re.ExpandString(expandedQuery, t.Query, fullHostname, m)
+		}
+
+		query = string(expandedQuery)
+	}
+
+	return proxy, host, cluster, search, query, true
 }
 
 // loadConfig load a single config file from given path. If the path does not exist, an empty config is returned instead.

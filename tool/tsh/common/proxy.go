@@ -27,7 +27,6 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
-	"strconv"
 	"strings"
 	"text/template"
 	"time"
@@ -62,15 +61,20 @@ func onProxyCommandSSH(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 
-		targetHost, targetPort, err := net.SplitHostPort(tc.Host)
+		targets, err := tc.GetTargetNodes(cf.Context, clt.AuthClient, libclient.SSHOptions{})
 		if err != nil {
-			targetHost = tc.Host
-			targetPort = strconv.Itoa(tc.HostPort)
+			return trace.Wrap(err)
 		}
-		targetHost = cleanTargetHost(targetHost, tc.WebProxyHost(), clt.ClusterName())
-		target := net.JoinHostPort(targetHost, targetPort)
 
-		conn, _, err := clt.DialHostWithResumption(cf.Context, target, clt.ClusterName(), tc.LocalAgent().ExtendedAgent)
+		if len(targets) == 0 {
+			return trace.NotFound("no matching targets found")
+		}
+
+		if len(targets) > 1 {
+			return trace.BadParameter("found multiple matching targets")
+		}
+
+		conn, _, err := clt.DialHostWithResumption(cf.Context, targets[0].Addr, clt.ClusterName(), tc.LocalAgent().ExtendedAgent)
 		if err != nil {
 			return trace.Wrap(err)
 		}
