@@ -857,8 +857,6 @@ func TestPluginEntraIDValidation(t *testing.T) {
 				SyncSettings: &PluginEntraIDSyncSettings{
 					DefaultOwners: []string{"admin"},
 				},
-				TenantId: "foo",
-				ClientId: "bar",
 			},
 		}
 	}
@@ -892,20 +890,6 @@ func TestPluginEntraIDValidation(t *testing.T) {
 				s.EntraId.SyncSettings.DefaultOwners = []string{}
 			},
 			assertErr: requireNamedBadParameterError("sync_settings.default_owners"),
-		},
-		{
-			name: "missing tenant id",
-			mutateSettings: func(s *PluginSpecV1_EntraId) {
-				s.EntraId.TenantId = ""
-			},
-			assertErr: requireNamedBadParameterError("tenant_id"),
-		},
-		{
-			name: "missing client id",
-			mutateSettings: func(s *PluginSpecV1_EntraId) {
-				s.EntraId.ClientId = ""
-			},
-			assertErr: requireNamedBadParameterError("client_id"),
 		},
 	}
 
