@@ -32,11 +32,13 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
+	dtauthn "github.com/gravitational/teleport/lib/devicetrust/authn"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/cmd"
@@ -171,7 +173,7 @@ func (s *Service) ListLeafClusters(ctx context.Context, uri string) ([]clusters.
 		return nil, trace.Wrap(err)
 	}
 
-	proxyClient, err := s.GetCachedClient(ctx, cluster.URI)
+	clusterClient, err := s.GetCachedClient(ctx, cluster.URI)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -181,7 +183,7 @@ func (s *Service) ListLeafClusters(ctx context.Context, uri string) ([]clusters.
 		return nil, nil
 	}
 
-	leaves, err := cluster.GetLeafClusters(ctx, proxyClient)
+	leaves, err := cluster.GetLeafClusters(ctx, clusterClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -317,7 +319,7 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 		return gateway, nil
 	}
 
-	proxyClient, err := s.GetCachedClient(ctx, targetURI.GetClusterURI())
+	clusterClient, err := s.GetCachedClient(ctx, targetURI.GetClusterURI())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -330,7 +332,7 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 		OnExpiredCert:         s.reissueGatewayCerts,
 		KubeconfigsDir:        s.cfg.KubeconfigsDir,
 		MFAPromptConstructor:  s.NewMFAPromptConstructor(targetURI.String()),
-		ProxyClient:           proxyClient,
+		ClusterClient:         clusterClient,
 	}
 
 	gateway, err := s.cfg.GatewayCreator.CreateGateway(ctx, clusterCreateGatewayParams)
@@ -370,12 +372,12 @@ func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) (t
 			return trace.Wrap(err)
 		}
 
-		proxyClient, err := s.GetCachedClient(ctx, cluster.URI)
+		clusterClient, err := s.GetCachedClient(ctx, cluster.URI)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		cert, err = cluster.ReissueGatewayCerts(ctx, proxyClient, g)
+		cert, err = cluster.ReissueGatewayCerts(ctx, clusterClient, g)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -462,27 +464,28 @@ func (s *Service) ListGateways() []gateway.Gateway {
 }
 
 // GetGatewayCLICommand creates the CLI command used for the provided gateway.
-func (s *Service) GetGatewayCLICommand(gateway gateway.Gateway) (*exec.Cmd, error) {
+func (s *Service) GetGatewayCLICommand(gateway gateway.Gateway) (cmd.Cmds, error) {
 	targetURI := gateway.TargetURI()
 	switch {
 	case targetURI.IsDB():
 		cluster, _, err := s.cfg.Storage.GetByResourceURI(targetURI)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return cmd.Cmds{}, trace.Wrap(err)
 		}
 
-		cmd, err := cmd.NewDBCLICommand(cluster, gateway)
-		return cmd, trace.Wrap(err)
+		cmds, err := cmd.NewDBCLICommand(cluster, gateway)
+		return cmds, trace.Wrap(err)
 
 	case targetURI.IsKube():
-		cmd, err := cmd.NewKubeCLICommand(gateway)
-		return cmd, trace.Wrap(err)
+		cmds, err := cmd.NewKubeCLICommand(gateway)
+		return cmds, trace.Wrap(err)
 
 	case targetURI.IsApp():
-		return exec.Command(""), nil
+		blankCmd := exec.Command("")
+		return cmd.Cmds{Exec: blankCmd, Preview: blankCmd}, nil
 
 	default:
-		return nil, trace.NotImplemented("gateway not supported for %v", targetURI)
+		return cmd.Cmds{}, trace.NotImplemented("gateway not supported for %v", targetURI)
 	}
 }
 
@@ -1073,6 +1076,28 @@ func (s *Service) UpdateUserPreferences(ctx context.Context, clusterURI uri.Reso
 	return preferences, trace.Wrap(err)
 }
 
+// AuthenticateWebDevice is used to upgrade a web session (identified by a DeviceWebToken) to include device trust extensions.
+func (s *Service) AuthenticateWebDevice(ctx context.Context, rootClusterURI uri.ResourceURI, req *api.AuthenticateWebDeviceRequest) (*api.AuthenticateWebDeviceResponse, error) {
+	proxyClient, err := s.GetCachedClient(ctx, rootClusterURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	devicesClient := proxyClient.CurrentCluster().DevicesClient()
+
+	ceremony := dtauthn.NewCeremony()
+	confirmationToken, err := ceremony.RunWeb(ctx, devicesClient, &devicepb.DeviceWebToken{
+		Id:    req.DeviceWebToken.Id,
+		Token: req.DeviceWebToken.Token,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &api.AuthenticateWebDeviceResponse{
+		ConfirmationToken: confirmationToken,
+	}, nil
+}
+
 func (s *Service) shouldReuseGateway(targetURI uri.ResourceURI) (gateway.Gateway, bool) {
 	// A single gateway can be shared for all terminals of the same kube
 	// cluster.
@@ -1093,7 +1118,7 @@ func (s *Service) findGatewayByTargetURI(targetURI uri.ResourceURI) (gateway.Gat
 
 // GetCachedClient returns a client from the cache if it exists,
 // otherwise it dials the remote server.
-func (s *Service) GetCachedClient(ctx context.Context, clusterURI uri.ResourceURI) (*client.ProxyClient, error) {
+func (s *Service) GetCachedClient(ctx context.Context, clusterURI uri.ResourceURI) (*client.ClusterClient, error) {
 	clt, err := s.clientCache.Get(ctx, clusterURI)
 	return clt, trace.Wrap(err)
 }

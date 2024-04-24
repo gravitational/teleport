@@ -25,8 +25,11 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types/compare"
 	"github.com/gravitational/teleport/api/utils"
 )
+
+var _ compare.IsEqual[Application] = (*AppV3)(nil)
 
 // Application represents a web, TCP or cloud console application.
 type Application interface {
@@ -390,6 +393,14 @@ func (a *AppV3) CheckAndSetDefaults() error {
 	}
 
 	return nil
+}
+
+// IsEqual determines if two application resources are equivalent to one another.
+func (a *AppV3) IsEqual(i Application) bool {
+	if other, ok := i.(*AppV3); ok {
+		return deriveTeleportEqualAppV3(a, other)
+	}
+	return false
 }
 
 // DeduplicateApps deduplicates apps by combination of app name and public address.

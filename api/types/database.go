@@ -27,11 +27,14 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types/compare"
 	"github.com/gravitational/teleport/api/utils"
 	atlasutils "github.com/gravitational/teleport/api/utils/atlas"
 	awsutils "github.com/gravitational/teleport/api/utils/aws"
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
 )
+
+var _ compare.IsEqual[Database] = (*DatabaseV3)(nil)
 
 // Database represents a single database proxied by a database server.
 type Database interface {
@@ -885,6 +888,14 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 	}
 
 	return nil
+}
+
+// IsEqual determines if two database resources are equivalent to one another.
+func (d *DatabaseV3) IsEqual(i Database) bool {
+	if other, ok := i.(*DatabaseV3); ok {
+		return deriveTeleportEqualDatabaseV3(d, other)
+	}
+	return false
 }
 
 // handleDynamoDBConfig handles DynamoDB configuration checking.

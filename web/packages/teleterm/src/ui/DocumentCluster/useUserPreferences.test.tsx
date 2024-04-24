@@ -25,10 +25,15 @@ import {
 } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
+import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
-import { UserPreferences } from 'teleterm/services/tshd/types';
+import {
+  UserPreferences,
+  GetUserPreferencesResponse,
+  UpdateUserPreferencesResponse,
+} from 'teleterm/services/tshd/types';
 
 import { useUserPreferences } from './useUserPreferences';
 
@@ -44,7 +49,9 @@ const preferences: UserPreferences = {
 
 test('user preferences are fetched', async () => {
   const appContext = new MockAppContext();
-  const getUserPreferencesPromise = Promise.resolve(preferences);
+  const getUserPreferencesPromise = new MockedUnaryCall({
+    userPreferences: preferences,
+  });
 
   jest
     .spyOn(appContext.tshd, 'getUserPreferences')
@@ -77,14 +84,19 @@ test('user preferences are fetched', async () => {
 
 test('unified resources fallback preferences are taken from a workspace', async () => {
   const appContext = new MockAppContext();
-  let resolveGetUserPreferencesPromise: (u: UserPreferences) => void;
-  const getUserPreferencesPromise = new Promise(resolve => {
-    resolveGetUserPreferencesPromise = resolve;
-  });
+  let resolveGetUserPreferencesPromise: (u: GetUserPreferencesResponse) => void;
+  const getUserPreferencesPromise = new Promise<GetUserPreferencesResponse>(
+    resolve => {
+      resolveGetUserPreferencesPromise = resolve;
+    }
+  );
 
   jest
     .spyOn(appContext.tshd, 'getUserPreferences')
-    .mockImplementation(() => getUserPreferencesPromise);
+    .mockImplementation(async () => {
+      const response = await getUserPreferencesPromise;
+      return new MockedUnaryCall(response);
+    });
   jest
     .spyOn(appContext.workspacesService, 'getUnifiedResourcePreferences')
     .mockReturnValue(preferences.unifiedResourcePreferences);
@@ -119,14 +131,19 @@ describe('updating preferences', () => {
   });
 
   it('works correctly when the initial preferences were fetched', async () => {
-    const getUserPreferencesPromise = Promise.resolve(preferences);
+    const getUserPreferencesPromise = new MockedUnaryCall({
+      userPreferences: preferences,
+    });
 
     jest
       .spyOn(appContext.tshd, 'getUserPreferences')
       .mockImplementation(() => getUserPreferencesPromise);
     jest
       .spyOn(appContext.tshd, 'updateUserPreferences')
-      .mockImplementation(async preferences => preferences.userPreferences);
+      .mockImplementation(
+        async preferences =>
+          new MockedUnaryCall({ userPreferences: preferences.userPreferences })
+      );
 
     const { result } = renderHook(() => useUserPreferences(cluster.uri), {
       wrapper: ({ children }) => (
@@ -169,27 +186,34 @@ describe('updating preferences', () => {
 
   it('works correctly when the initial preferences have not been fetched yet', async () => {
     let rejectGetUserPreferencesPromise: (error: Error) => void;
-    const getUserPreferencesPromise = new Promise<UserPreferences>(
+    const getUserPreferencesPromise = new Promise<GetUserPreferencesResponse>(
       (resolve, reject) => {
         rejectGetUserPreferencesPromise = reject;
       }
     );
-    let resolveUpdateUserPreferencesPromise: (u: UserPreferences) => void;
-    const updateUserPreferencesPromise = new Promise(resolve => {
-      resolveUpdateUserPreferencesPromise = resolve;
-    });
+    let resolveUpdateUserPreferencesPromise: (
+      u: UpdateUserPreferencesResponse
+    ) => void;
+    const updateUserPreferencesPromise =
+      new Promise<UpdateUserPreferencesResponse>(resolve => {
+        resolveUpdateUserPreferencesPromise = resolve;
+      });
 
     jest
       .spyOn(appContext.tshd, 'getUserPreferences')
-      .mockImplementation((requestParams, abortSignal) => {
-        abortSignal.addEventListener('abort', () =>
+      .mockImplementation(async (requestParams, { abort }) => {
+        abort.addEventListener('abort', () =>
           rejectGetUserPreferencesPromise(new Error('Aborted'))
         );
-        return getUserPreferencesPromise;
+        const response = await getUserPreferencesPromise;
+        return new MockedUnaryCall(response);
       });
     jest
       .spyOn(appContext.tshd, 'updateUserPreferences')
-      .mockImplementation(() => updateUserPreferencesPromise);
+      .mockImplementation(async () => {
+        const response = await updateUserPreferencesPromise;
+        return new MockedUnaryCall(response);
+      });
 
     const { result } = renderHook(() => useUserPreferences(cluster.uri), {
       wrapper: ({ children }) => (
@@ -233,11 +257,13 @@ describe('updating preferences', () => {
     // (e.g., because they were changed it in the browser in the meantime)
     act(() =>
       resolveUpdateUserPreferencesPromise({
-        clusterPreferences: { pinnedResources: { resourceIds: ['abc'] } },
-        unifiedResourcePreferences: {
-          viewMode: ViewMode.CARD,
-          defaultTab: DefaultTab.PINNED,
-          labelsViewMode: LabelsViewMode.COLLAPSED,
+        userPreferences: {
+          clusterPreferences: { pinnedResources: { resourceIds: ['abc'] } },
+          unifiedResourcePreferences: {
+            viewMode: ViewMode.CARD,
+            defaultTab: DefaultTab.PINNED,
+            labelsViewMode: LabelsViewMode.COLLAPSED,
+          },
         },
       })
     );

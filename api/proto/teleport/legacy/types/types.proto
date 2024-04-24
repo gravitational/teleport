@@ -1203,7 +1203,7 @@ message TokenRule {
   // AWSRegions is used for the EC2 join method and is a list of AWS regions a
   // node is allowed to join from.
   repeated string AWSRegions = 2 [(gogoproto.jsontag) = "aws_regions,omitempty"];
-  // AWSRole is used for the EC2 join method and is the the ARN of the AWS
+  // AWSRole is used for the EC2 join method and is the ARN of the AWS
   // role that the auth server will assume in order to call the ec2 API.
   string AWSRole = 3 [(gogoproto.jsontag) = "aws_role,omitempty"];
   // AWSARN is used for the IAM join method, the AWS identity of joining nodes
@@ -1268,6 +1268,45 @@ message ProvisionTokenSpecV2 {
   ProvisionTokenSpecV2GCP GCP = 13 [(gogoproto.jsontag) = "gcp,omitempty"];
   // Spacelift allows the configuration of options specific to the "spacelift" join method.
   ProvisionTokenSpecV2Spacelift Spacelift = 14 [(gogoproto.jsontag) = "spacelift,omitempty"];
+  // TPM allows the configuration of options specific to the "tpm" join method.
+  ProvisionTokenSpecV2TPM TPM = 15 [(gogoproto.jsontag) = "tpm,omitempty"];
+}
+
+// ProvisionTokenSpecV2TPM contains the TPM-specific part of the
+// ProvisionTokenSpecV2
+message ProvisionTokenSpecV2TPM {
+  message Rule {
+    reserved 2, 3;
+    reserved "EKPubHash", "EKCertSerial";
+    // Description is a human-readable description of the rule. It has no
+    // bearing on whether or not a TPM is allowed to join, but can be used
+    // to associate a rule with a specific host (e.g the asset tag of the server
+    // in which the TPM resides).
+    // Example: "build-server-100"
+    string Description = 1 [(gogoproto.jsontag) = "description,omitempty"];
+    // EKPublicHash is the SHA256 hash of the EKPub marshaled in PKIX format
+    // and encoded in hexadecimal. This value will also be checked when a TPM
+    // has submitted an EKCert, and the public key in the EKCert will be used
+    // for this check.
+    // Example: d4b45864d9d6fabfc568d74f26c35ababde2105337d7af9a6605e1c56c891aa6
+    string EKPublicHash = 4 [(gogoproto.jsontag) = "ek_public_hash,omitempty"];
+    // EKCertificateSerial is the serial number of the EKCert in hexadecimal
+    // with colon separated nibbles. This value will not be checked when a TPM
+    // does not have an EKCert configured.
+    // Example: 73:df:dc:bd:af:ef:8a:d8:15:2e:96:71:7a:3e:7f:a4
+    string EKCertificateSerial = 5 [(gogoproto.jsontag) = "ek_certificate_serial,omitempty"];
+  }
+  // Allow is a list of Rules, the presented delegated identity must match one
+  // allow rule to permit joining.
+  repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+  // EKCertAllowedCAs is a list of CA certificates that will be used to validate
+  // TPM EKCerts.
+  // When specified, joining TPMs must present an EKCert signed by one of the
+  // specified CAs. TPMs that do not present an EKCert will be not permitted to
+  // join.
+  // When unspecified, TPMs will be allowed to join with either an EKCert or an
+  // EKPubHash.
+  repeated string EKCertAllowedCAs = 2 [(gogoproto.jsontag) = "ekcert_allowed_cas,omitempty"];
 }
 
 // ProvisionTokenSpecV2Github contains the GitHub-specific part of the
@@ -2501,6 +2540,12 @@ message AccessCapabilitiesRequest {
     (gogoproto.jsontag) = "resource_ids,omitempty",
     (gogoproto.nullable) = false
   ];
+  // Login is the host login the user is requesting access for.
+  string Login = 5 [(gogoproto.jsontag) = "login,omitempty"];
+  // FilterRequestableRolesByResource is a flag indicating that the returned
+  // list of roles that the user can request should be filtered to only include
+  // roles that allow access to the provided ResourceIDs.
+  bool FilterRequestableRolesByResource = 6 [(gogoproto.jsontag) = "filter_requestable_roles_by_resource,omitempty"];
 }
 
 // ResourceID is a unique identifier for a teleport resource.
@@ -2584,6 +2629,14 @@ message PluginDataUpdateParams {
   map<string, string> Set = 4 [(gogoproto.jsontag) = "set,omitempty"];
   // Expect optionally indicates the expected state of fields prior to this update.
   map<string, string> Expect = 5 [(gogoproto.jsontag) = "expect,omitempty"];
+}
+
+// RoleFilter matches role resources.
+message RoleFilter {
+  // SearchKeywords is a list of search keywords to match against resource field values.
+  repeated string SearchKeywords = 1 [(gogoproto.jsontag) = "search_keywords,omitempty"];
+  // SkipSystemRoles filters out teleport system roles from the results.
+  bool SkipSystemRoles = 2 [(gogoproto.jsontag) = "skip_system_roles,omitempty"];
 }
 
 // RoleV6 represents role resource specification
@@ -3047,16 +3100,10 @@ message RoleConditions {
   // SPIFFE is used to allow or deny access to a role holder to generating a
   // SPIFFE SVID.
   repeated SPIFFERoleCondition SPIFFE = 39 [(gogoproto.jsontag) = "spiffe,omitempty"];
-  // SAMLIdPServiceProviderLabels is a labels map used in RBAC system to allow/deny access
-  // to saml_idp_service_provider resource.
-  wrappers.LabelValues SAMLIdPServiceProviderLabels = 40 [
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "saml_idp_service_provider_labels,omitempty",
-    (gogoproto.customtype) = "Labels"
-  ];
-  // SAMLIdPServiceProviderLabelsExpression is a predicate expression used to allow/deny
-  // access to saml_idp_service_provider resource.
-  string SAMLIdPServiceProviderLabelsExpression = 41 [(gogoproto.jsontag) = "saml_idp_service_provider_labels_expression,omitempty"];
+  reserved 40; // removed saml_idp_service_provider_labels in favor of using app_labels.
+  reserved "SAMLIdPServiceProviderLabels";
+  reserved 41; // removed saml_idp_service_provider_labels_expression in favor of using app_labels_expression.
+  reserved "SAMLIdPServiceProviderLabelsExpression";
 }
 
 // SPIFFERoleCondition sets out which SPIFFE identities this role is allowed or
@@ -3303,6 +3350,12 @@ message BoolValue {
   bool Value = 1;
 }
 
+// UserFilter matches user resources.
+message UserFilter {
+  // SearchKeywords is a list of search keywords to match against resource field values.
+  repeated string SearchKeywords = 1 [(gogoproto.jsontag) = "search_keywords,omitempty"];
+}
+
 // UserV2 is version 2 resource spec of the user
 message UserV2 {
   option (gogoproto.goproto_stringer) = false;
@@ -3325,6 +3378,30 @@ message UserV2 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "spec"
   ];
+  UserStatusV2 Status = 6 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "status,omitempty"
+  ];
+}
+
+// UserStatusV2 is a dynamic state of UserV2.
+message UserStatusV2 {
+  // password_state reflects what the system knows about the user's password.
+  // Note that this is a "best effort" property, in that it can be UNSPECIFIED
+  // for users who were created before this property was introduced and didn't
+  // perform any password-related activity since then. See RFD 0159 for
+  // details. Do NOT use this value for authentication purposes!
+  PasswordState password_state = 1 [(gogoproto.jsontag) = "password_state,omitempty"];
+}
+
+// PasswordState indicates what is known about existence of user's password.
+enum PasswordState {
+  // Unable to tell whether the password has been configured.
+  PASSWORD_STATE_UNSPECIFIED = 0;
+  // Password is known to be not configured.
+  PASSWORD_STATE_UNSET = 1;
+  // Password is known to be configured.
+  PASSWORD_STATE_SET = 2;
 }
 
 // UserSpecV2 is a specification for V2 user
@@ -3811,6 +3888,9 @@ message WebSessionSpecV2 {
   // (typically performed by Connect).
   // Only present if on-behalf-of device authentication is possible.
   DeviceWebToken DeviceWebToken = 12 [(gogoproto.jsontag) = "device_web_token,omitempty"];
+  // HasDeviceExtensions is true if the session's TLS and SSH certificates are
+  // augmented with device extensions.
+  bool HasDeviceExtensions = 13 [(gogoproto.jsontag) = "has_device_extensions,omitempty"];
 }
 
 // Web-focused view of teleport.devicetrust.v1.DeviceWebToken.
@@ -5699,13 +5779,29 @@ message PluginSpecV1 {
     PluginDiscordSettings discord = 9;
     // Settings for the ServiceNow plugin
     PluginServiceNowSettings serviceNow = 10;
+    // Settings for the Gitlab plugin.
+    PluginGitlabSettings gitlab = 12;
   }
+
+  // generation contains a unique ID that should:
+  // - Be created by the backed on plugin creation.
+  // - Be updated by the backend if the plugin is updated in any way.
+  //
+  // For older plugins, it's possible for this to be empty.
+  string generation = 11;
 }
 
 message PluginSlackAccessSettings {
   option (gogoproto.equal) = true;
 
   string fallback_channel = 1;
+}
+
+message PluginGitlabSettings {
+  option (gogoproto.equal) = true;
+
+  // APIEndpoint is the address of Gitlab API.
+  string api_endpoint = 1;
 }
 
 message PluginOpsgenieAccessSettings {
@@ -6525,6 +6621,9 @@ message JamfInventoryEntry {
   // Must be either "NOOP" or "DELETE".
   // Defaults to "NOOP".
   string on_missing = 4 [(gogoproto.jsontag) = "on_missing,omitempty"];
+  // Custom page size for inventory queries.
+  // A server default is used if zeroed or negative.
+  int32 page_size = 5 [(gogoproto.jsontag) = "page_size,omitempty"];
 }
 
 // MessageWithHeader is a message with a resource header. This is used primarily

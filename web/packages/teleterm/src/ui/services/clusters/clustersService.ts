@@ -29,10 +29,11 @@ import { NotificationsService } from 'teleterm/ui/services/notifications';
 import {
   Cluster,
   Gateway,
-  CreateAccessRequestParams,
-  GetRequestableRolesParams,
-  ReviewAccessRequestParams,
-  PromoteAccessRequestParams,
+  CreateAccessRequestRequest,
+  GetRequestableRolesRequest,
+  ReviewAccessRequestRequest,
+  PromoteAccessRequestRequest,
+  PasswordlessPrompt,
 } from 'teleterm/services/tshd/types';
 import { MainProcessClient } from 'teleterm/mainProcess/types';
 import { UsageService } from 'teleterm/ui/services/usage';
@@ -40,6 +41,7 @@ import { UsageService } from 'teleterm/ui/services/usage';
 import { ImmutableStore } from '../immutableStore';
 
 import type * as types from './types';
+import type { TshdClient, CloneableAbortSignal } from 'teleterm/services/tshd';
 import type * as tsh from 'teleterm/services/tshd/types';
 
 const { routing } = uri;
@@ -55,7 +57,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
   state: types.ClustersServiceState = createClusterServiceState();
 
   constructor(
-    public client: tsh.TshdClient,
+    public client: TshdClient,
     private mainProcessClient: MainProcessClient,
     private notificationsService: NotificationsService,
     private usageService: UsageService
@@ -64,10 +66,10 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
   }
 
   async addRootCluster(addr: string) {
-    const cluster = await this.client.addRootCluster(addr);
+    const { response: cluster } = await this.client.addCluster({ name: addr });
     this.setState(draft => {
       draft.clusters.set(
-        cluster.uri,
+        cluster.uri as uri.RootClusterUri,
         this.removeInternalLoginsFromCluster(cluster)
       );
     });
@@ -86,8 +88,8 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
    */
   async logout(clusterUri: uri.RootClusterUri) {
     // TODO(gzdunek): logout and removeCluster should be combined into a single acton in tshd
-    await this.client.logout(clusterUri);
-    await this.client.removeCluster(clusterUri);
+    await this.client.logout({ clusterUri });
+    await this.client.removeCluster({ clusterUri });
 
     this.setState(draft => {
       draft.clusters.forEach(cluster => {
@@ -100,9 +102,22 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
 
   async loginLocal(
     params: types.LoginLocalParams,
-    abortSignal: tsh.CloneableAbortSignal
+    abortSignal: CloneableAbortSignal
   ) {
-    await this.client.loginLocal(params, abortSignal);
+    await this.client.login(
+      {
+        clusterUri: params.clusterUri,
+        params: {
+          oneofKind: 'local',
+          local: {
+            user: params.username,
+            password: params.password,
+            token: params.token,
+          },
+        },
+      },
+      { abort: abortSignal }
+    );
     // We explicitly use the `andCatchErrors` variant here. If loginLocal succeeds but syncing the
     // cluster fails, we don't want to stop the user on the failed modal – we want to open the
     // workspace and show an error state within the workspace.
@@ -112,18 +127,114 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
 
   async loginSso(
     params: types.LoginSsoParams,
-    abortSignal: tsh.CloneableAbortSignal
+    abortSignal: CloneableAbortSignal
   ) {
-    await this.client.loginSso(params, abortSignal);
+    await this.client.login(
+      {
+        clusterUri: params.clusterUri,
+        params: {
+          oneofKind: 'sso',
+          sso: {
+            providerType: params.providerType,
+            providerName: params.providerName,
+          },
+        },
+      },
+      { abort: abortSignal }
+    );
     await this.syncRootClusterAndCatchErrors(params.clusterUri);
     this.usageService.captureUserLogin(params.clusterUri, params.providerType);
   }
 
   async loginPasswordless(
     params: types.LoginPasswordlessParams,
-    abortSignal: tsh.CloneableAbortSignal
+    abortSignal: CloneableAbortSignal
   ) {
-    await this.client.loginPasswordless(params, abortSignal);
+    await new Promise<void>((resolve, reject) => {
+      const stream = this.client.loginPasswordless({
+        abort: abortSignal,
+      });
+
+      let hasDeviceBeenTapped = false;
+
+      // Init the stream.
+      stream.requests.send({
+        request: {
+          oneofKind: 'init',
+          init: {
+            clusterUri: params.clusterUri,
+          },
+        },
+      });
+
+      stream.responses.onMessage(function (response) {
+        switch (response.prompt) {
+          case PasswordlessPrompt.PIN:
+            const pinResponse = (pin: string) => {
+              stream.requests.send({
+                request: {
+                  oneofKind: 'pin',
+                  pin: { pin },
+                },
+              });
+            };
+
+            params.onPromptCallback({
+              type: 'pin',
+              onUserResponse: pinResponse,
+            });
+            return;
+
+          case PasswordlessPrompt.CREDENTIAL:
+            const credResponse = (index: number) => {
+              stream.requests.send({
+                request: {
+                  oneofKind: 'credential',
+                  credential: { index },
+                },
+              });
+            };
+
+            params.onPromptCallback({
+              type: 'credential',
+              onUserResponse: credResponse,
+              data: { credentials: response.credentials || [] },
+            });
+            return;
+
+          case PasswordlessPrompt.TAP:
+            if (hasDeviceBeenTapped) {
+              params.onPromptCallback({ type: 'retap' });
+            } else {
+              hasDeviceBeenTapped = true;
+              params.onPromptCallback({ type: 'tap' });
+            }
+            return;
+
+          // Following cases should never happen but just in case?
+          case PasswordlessPrompt.UNSPECIFIED:
+            stream.requests.complete();
+            return reject(new Error('no passwordless prompt was specified'));
+
+          default:
+            stream.requests.complete();
+            return reject(
+              new Error(
+                `passwordless prompt '${response.prompt}' not supported`
+              )
+            );
+        }
+      });
+
+      stream.responses.onComplete(function () {
+        resolve();
+      });
+
+      stream.responses.onError(function (err: Error) {
+        reject(err);
+      });
+    });
+
     await this.syncRootClusterAndCatchErrors(params.clusterUri);
     this.usageService.captureUserLogin(params.clusterUri, 'passwordless');
   }
@@ -163,7 +274,8 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     let clusters: Cluster[];
 
     try {
-      clusters = await this.client.listRootClusters();
+      const { response } = await this.client.listRootClusters({});
+      clusters = response.clusters;
     } catch (error) {
       this.notificationsService.notifyError({
         title: 'Could not fetch root clusters',
@@ -185,9 +297,9 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
 
   async syncGatewaysAndCatchErrors() {
     try {
-      const gws = await this.client.listGateways();
+      const { response } = await this.client.listGateways({});
       this.setState(draft => {
-        draft.gateways = new Map(gws.map(g => [g.uri, g]));
+        draft.gateways = new Map(response.gateways.map(g => [g.uri, g]));
       });
     } catch (error) {
       this.notificationsService.notifyError({
@@ -198,10 +310,12 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
   }
 
   private async syncLeafClustersList(clusterUri: uri.RootClusterUri) {
-    const leaves = await this.client.listLeafClusters(clusterUri);
+    const { response } = await this.client.listLeafClusters({
+      clusterUri,
+    });
 
     this.setState(draft => {
-      for (const leaf of leaves) {
+      for (const leaf of response.clusters) {
         draft.clusters.set(
           leaf.uri,
           this.removeInternalLoginsFromCluster(leaf)
@@ -209,18 +323,20 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
       }
     });
 
-    return leaves;
+    return response.clusters;
   }
 
-  async getRequestableRoles(params: GetRequestableRolesParams) {
-    const cluster = this.state.clusters.get(params.rootClusterUri);
+  async getRequestableRoles(params: GetRequestableRolesRequest) {
+    const cluster = this.state.clusters.get(params.clusterUri);
     // TODO(ravicious): Remove check for cluster.connected. This check should be done earlier in the
     // UI rather than be repeated in each ClustersService method.
     if (!cluster.connected) {
       return;
     }
 
-    return this.client.getRequestableRoles(params);
+    const { response } = await this.client.getRequestableRoles(params);
+
+    return response;
   }
 
   getAssumedRequests(rootClusterUri: uri.RootClusterUri) {
@@ -244,7 +360,10 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
       return;
     }
 
-    return this.client.getAccessRequests(rootClusterUri);
+    const { response } = await this.client.getAccessRequests({
+      clusterUri: rootClusterUri,
+    });
+    return response.requests;
   }
 
   async deleteAccessRequest(
@@ -256,7 +375,10 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     if (!cluster.connected) {
       return;
     }
-    return this.client.deleteAccessRequest(rootClusterUri, requestId);
+    await this.client.deleteAccessRequest({
+      rootClusterUri,
+      accessRequestId: requestId,
+    });
   }
 
   async assumeRole(
@@ -269,7 +391,11 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     if (!cluster.connected) {
       return;
     }
-    await this.client.assumeRole(rootClusterUri, requestIds, dropIds);
+    await this.client.assumeRole({
+      rootClusterUri,
+      accessRequestIds: requestIds,
+      dropRequestIds: dropIds,
+    });
     this.usageService.captureAccessRequestAssumeRole(rootClusterUri);
     return this.syncRootCluster(rootClusterUri);
   }
@@ -284,34 +410,33 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
       return;
     }
 
-    return this.client.getAccessRequest(rootClusterUri, requestId);
+    const { response } = await this.client.getAccessRequest({
+      clusterUri: rootClusterUri,
+      accessRequestId: requestId,
+    });
+
+    return response.request;
   }
 
-  async reviewAccessRequest(
-    rootClusterUri: uri.RootClusterUri,
-    params: ReviewAccessRequestParams
-  ) {
-    const cluster = this.state.clusters.get(rootClusterUri);
+  async reviewAccessRequest(params: ReviewAccessRequestRequest) {
+    const cluster = this.state.clusters.get(params.rootClusterUri);
     // TODO(ravicious): Remove check for cluster.connected. See the comment in getRequestableRoles.
     if (!cluster.connected) {
       return;
     }
 
-    const response = await this.client.reviewAccessRequest(
-      rootClusterUri,
-      params
-    );
-    this.usageService.captureAccessRequestReview(rootClusterUri);
-    return response;
-  }
-
-  async promoteAccessRequest(params: PromoteAccessRequestParams) {
-    const response = await this.client.promoteAccessRequest(params);
+    const { response } = await this.client.reviewAccessRequest(params);
     this.usageService.captureAccessRequestReview(params.rootClusterUri);
-    return response;
+    return response.request;
   }
 
-  async createAccessRequest(params: CreateAccessRequestParams) {
+  async promoteAccessRequest(params: PromoteAccessRequestRequest) {
+    const { response } = await this.client.promoteAccessRequest(params);
+    this.usageService.captureAccessRequestReview(params.rootClusterUri);
+    return response.request;
+  }
+
+  async createAccessRequest(params: CreateAccessRequestRequest) {
     const cluster = this.state.clusters.get(params.rootClusterUri);
     // TODO(ravicious): Remove check for cluster.connected. See the comment in getRequestableRoles.
     if (!cluster.connected) {
@@ -357,13 +482,12 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
   }
 
   async getAuthSettings(clusterUri: uri.RootClusterUri) {
-    return (await this.client.getAuthSettings(
-      clusterUri
-    )) as types.AuthSettings;
+    const { response } = await this.client.getAuthSettings({ clusterUri });
+    return response as types.AuthSettings;
   }
 
-  async createGateway(params: tsh.CreateGatewayParams) {
-    const gateway = await this.client.createGateway(params);
+  async createGateway(params: tsh.CreateGatewayRequest) {
+    const { response: gateway } = await this.client.createGateway(params);
     this.setState(draft => {
       draft.gateways.set(gateway.uri, gateway);
     });
@@ -372,7 +496,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
 
   async removeGateway(gatewayUri: uri.GatewayUri) {
     try {
-      await this.client.removeGateway(gatewayUri);
+      await this.client.removeGateway({ gatewayUri });
       this.setState(draft => {
         draft.gateways.delete(gatewayUri);
       });
@@ -409,10 +533,11 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
       throw new Error(`Could not find gateway ${gatewayUri}`);
     }
 
-    const gateway = await this.client.setGatewayTargetSubresourceName(
-      gatewayUri,
-      targetSubresourceName
-    );
+    const { response: gateway } =
+      await this.client.setGatewayTargetSubresourceName({
+        gatewayUri,
+        targetSubresourceName,
+      });
 
     this.setState(draft => {
       draft.gateways.set(gatewayUri, gateway);
@@ -426,10 +551,10 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
       throw new Error(`Could not find gateway ${gatewayUri}`);
     }
 
-    const gateway = await this.client.setGatewayLocalPort(
+    const { response: gateway } = await this.client.setGatewayLocalPort({
       gatewayUri,
-      localPort
-    );
+      localPort,
+    });
 
     this.setState(draft => {
       draft.gateways.set(gatewayUri, gateway);
@@ -494,6 +619,10 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     return [...this.state.clusters.values()];
   }
 
+  getClustersCount() {
+    return this.state.clusters.size;
+  }
+
   getRootClusters() {
     return this.getClusters().filter(c => !c.leaf);
   }
@@ -519,7 +648,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
   }
 
   private async syncClusterInfo(clusterUri: uri.RootClusterUri) {
-    const cluster = await this.client.getCluster(clusterUri);
+    const { response: cluster } = await this.client.getCluster({ clusterUri });
     // TODO: this information should eventually be gathered by getCluster
     const assumedRequests = cluster.loggedInUser
       ? await this.fetchClusterAssumedRequests(

@@ -1049,6 +1049,9 @@ message ListRolesRequest {
   // If the previous response had LastKey set then this should be
   // set to its value. Otherwise leave empty.
   string StartKey = 2;
+
+  // Filter matches roles.
+  types.RoleFilter Filter = 3;
 }
 
 // ListRolesResponse is a page of roles.

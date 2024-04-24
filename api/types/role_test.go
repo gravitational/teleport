@@ -443,7 +443,7 @@ func TestRoleV6_CheckAndSetDefaults(t *testing.T) {
 			require.ErrorContains(t, err, contains)
 		}
 	}
-	newRole := func(spec RoleSpecV6) *RoleV6 {
+	newRole := func(t *testing.T, spec RoleSpecV6) *RoleV6 {
 		return &RoleV6{
 			Metadata: Metadata{
 				Name: "test",
@@ -453,14 +453,13 @@ func TestRoleV6_CheckAndSetDefaults(t *testing.T) {
 	}
 
 	tests := []struct {
-		name                string
-		role                *RoleV6
-		requireError        require.ErrorAssertionFunc
-		compareDefaultValue RoleConditions
+		name         string
+		role         *RoleV6
+		requireError require.ErrorAssertionFunc
 	}{
 		{
 			name: "spiffe: valid",
-			role: newRole(RoleSpecV6{
+			role: newRole(t, RoleSpecV6{
 				Allow: RoleConditions{
 					SPIFFE: []*SPIFFERoleCondition{{Path: "/test"}},
 				},
@@ -469,7 +468,7 @@ func TestRoleV6_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "spiffe: valid regex path",
-			role: newRole(RoleSpecV6{
+			role: newRole(t, RoleSpecV6{
 				Allow: RoleConditions{
 					SPIFFE: []*SPIFFERoleCondition{{Path: `^\/svc\/foo\/.*\/bar$`}},
 				},
@@ -478,7 +477,7 @@ func TestRoleV6_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "spiffe: missing path",
-			role: newRole(RoleSpecV6{
+			role: newRole(t, RoleSpecV6{
 				Allow: RoleConditions{
 					SPIFFE: []*SPIFFERoleCondition{{Path: ""}},
 				},
@@ -487,7 +486,7 @@ func TestRoleV6_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "spiffe: path not prepended",
-			role: newRole(RoleSpecV6{
+			role: newRole(t, RoleSpecV6{
 				Allow: RoleConditions{
 					SPIFFE: []*SPIFFERoleCondition{{Path: "foo"}},
 				},
@@ -496,7 +495,7 @@ func TestRoleV6_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "spiffe: invalid ip cidr",
-			role: newRole(RoleSpecV6{
+			role: newRole(t, RoleSpecV6{
 				Allow: RoleConditions{
 					SPIFFE: []*SPIFFERoleCondition{
 						{
@@ -511,34 +510,74 @@ func TestRoleV6_CheckAndSetDefaults(t *testing.T) {
 			}),
 			requireError: requireBadParameterContains("validating ip_sans[1]: invalid CIDR address: llama"),
 		},
-		{
-			name: "SAMLIdpServiceProviderLabels: valid wildcard labels",
-			role: newRole(RoleSpecV6{
-				Allow: RoleConditions{
-					SAMLIdPServiceProviderLabels: Labels{
-						Wildcard: {Wildcard},
-					},
-				},
-			}),
-			requireError: require.NoError,
-		},
-		{
-			name: "SAMLIdpServiceProviderLabels: invalid labels",
-			role: newRole(RoleSpecV6{
-				Allow: RoleConditions{
-					SAMLIdPServiceProviderLabels: Labels{
-						Wildcard: {"val"},
-					},
-				},
-			}),
-			requireError: requireBadParameterContains("not supported"),
-		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.role.CheckAndSetDefaults()
 			tt.requireError(t, err)
+		})
+	}
+}
+
+func TestRoleFilterMatch(t *testing.T) {
+	regularRole := RoleV6{
+		Metadata: Metadata{
+			Name: "request-approver",
+		},
+	}
+	systemRole := RoleV6{
+		Metadata: Metadata{
+			Name: "bot",
+			Labels: map[string]string{
+				TeleportInternalResourceType: SystemResource,
+			},
+		},
+	}
+
+	tests := []struct {
+		name        string
+		role        *RoleV6
+		filter      *RoleFilter
+		shouldMatch bool
+	}{
+		{
+			name:        "empty filter should match everything",
+			role:        &regularRole,
+			filter:      &RoleFilter{},
+			shouldMatch: true,
+		},
+		{
+			name:        "correct search keyword should match the role",
+			role:        &regularRole,
+			filter:      &RoleFilter{SearchKeywords: []string{"appr"}},
+			shouldMatch: true,
+		},
+		{
+			name:        "incorrect search keyword shouldn't match the role",
+			role:        &regularRole,
+			filter:      &RoleFilter{SearchKeywords: []string{"xyz"}},
+			shouldMatch: false,
+		},
+		{
+			name:        "skip system roles filter shouldn't match the system role",
+			role:        &systemRole,
+			filter:      &RoleFilter{SkipSystemRoles: true},
+			shouldMatch: false,
+		},
+		{
+			name:        "skip system roles filter should match the regular role",
+			role:        &regularRole,
+			filter:      &RoleFilter{SkipSystemRoles: true},
+			shouldMatch: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.role.CheckAndSetDefaults()
+			require.NoError(t, err)
+			require.Equal(t, tt.shouldMatch, tt.filter.Match(tt.role))
 		})
 	}
 }

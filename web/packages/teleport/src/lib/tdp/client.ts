@@ -55,6 +55,7 @@ import type {
   SharedDirectoryDeleteResponse,
   FileSystemObject,
   SyncKeys,
+  SharedDirectoryTruncateResponse,
 } from './codec';
 import type { WebauthnAssertionResponse } from 'teleport/services/auth';
 
@@ -253,6 +254,9 @@ export default class Client extends EventEmitterWebAuthnSender {
           break;
         case MessageType.SHARED_DIRECTORY_LIST_REQUEST:
           this.handleSharedDirectoryListRequest(buffer);
+          break;
+        case MessageType.SHARED_DIRECTORY_TRUNCATE_REQUEST:
+          this.handleSharedDirectoryTruncateRequest(buffer);
           break;
         default:
           this.logger.warn(`received unsupported message type ${messageType}`);
@@ -563,6 +567,19 @@ export default class Client extends EventEmitterWebAuthnSender {
     }
   }
 
+  async handleSharedDirectoryTruncateRequest(buffer: ArrayBuffer) {
+    const req = this.codec.decodeSharedDirectoryTruncateRequest(buffer);
+    try {
+      await this.sdManager.truncateFile(req.path, req.endOfFile);
+      this.sendSharedDirectoryTruncateResponse({
+        completionId: req.completionId,
+        errCode: SharedDirectoryErrCode.Nil,
+      });
+    } catch (e) {
+      this.handleError(e, TdpClientEvent.CLIENT_ERROR);
+    }
+  }
+
   private toFso(info: FileOrDirInfo): FileSystemObject {
     return {
       lastModified: BigInt(info.lastModified),
@@ -682,6 +699,12 @@ export default class Client extends EventEmitterWebAuthnSender {
 
   sendSharedDirectoryDeleteResponse(response: SharedDirectoryDeleteResponse) {
     this.send(this.codec.encodeSharedDirectoryDeleteResponse(response));
+  }
+
+  sendSharedDirectoryTruncateResponse(
+    response: SharedDirectoryTruncateResponse
+  ) {
+    this.send(this.codec.encodeSharedDirectoryTruncateResponse(response));
   }
 
   resize(spec: ClientScreenSpec) {

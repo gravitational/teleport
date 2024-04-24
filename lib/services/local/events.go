@@ -29,7 +29,9 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
+	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/kubewaitingcontainer"
 	"github.com/gravitational/teleport/lib/backend"
@@ -117,13 +119,13 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 		case types.KindWebSession:
 			switch kind.SubKind {
 			case types.KindSAMLIdPSession:
-				parser = newSAMLIdPSessionParser()
+				parser = newSAMLIdPSessionParser(kind.LoadSecrets)
 			case types.KindSnowflakeSession:
-				parser = newSnowflakeSessionParser()
+				parser = newSnowflakeSessionParser(kind.LoadSecrets)
 			case types.KindAppSession:
-				parser = newAppSessionParser()
+				parser = newAppSessionParser(kind.LoadSecrets)
 			case types.KindWebSession:
-				parser = newWebSessionParser()
+				parser = newWebSessionParser(kind.LoadSecrets)
 			default:
 				if watch.AllowPartialSuccess {
 					continue
@@ -195,6 +197,12 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newAccessListReviewParser()
 		case types.KindKubeWaitingContainer:
 			parser = newKubeWaitingContainerParser()
+		case types.KindNotification:
+			parser = newUserNotificationParser()
+		case types.KindGlobalNotification:
+			parser = newGlobalNotificationParser()
+		case types.KindAccessMonitoringRule:
+			parser = newAccessMonitoringRuleParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
@@ -983,9 +991,10 @@ func (p *appServerV3Parser) parse(event backend.Event) (types.Resource, error) {
 	}
 }
 
-func newSAMLIdPSessionParser() *webSessionParser {
+func newSAMLIdPSessionParser(loadSecrets bool) *webSessionParser {
 	return &webSessionParser{
-		baseParser: newBaseParser(backend.Key(samlIdPPrefix, sessionsPrefix)),
+		baseParser:  newBaseParser(backend.Key(samlIdPPrefix, sessionsPrefix)),
+		loadSecrets: loadSecrets,
 		hdr: types.ResourceHeader{
 			Kind:    types.KindWebSession,
 			SubKind: types.KindSAMLIdPSession,
@@ -994,9 +1003,10 @@ func newSAMLIdPSessionParser() *webSessionParser {
 	}
 }
 
-func newSnowflakeSessionParser() *webSessionParser {
+func newSnowflakeSessionParser(loadSecrets bool) *webSessionParser {
 	return &webSessionParser{
-		baseParser: newBaseParser(backend.Key(snowflakePrefix, sessionsPrefix)),
+		baseParser:  newBaseParser(backend.Key(snowflakePrefix, sessionsPrefix)),
+		loadSecrets: loadSecrets,
 		hdr: types.ResourceHeader{
 			Kind:    types.KindWebSession,
 			SubKind: types.KindSnowflakeSession,
@@ -1005,9 +1015,10 @@ func newSnowflakeSessionParser() *webSessionParser {
 	}
 }
 
-func newAppSessionParser() *webSessionParser {
+func newAppSessionParser(loadSecrets bool) *webSessionParser {
 	return &webSessionParser{
-		baseParser: newBaseParser(backend.Key(appsPrefix, sessionsPrefix)),
+		baseParser:  newBaseParser(backend.Key(appsPrefix, sessionsPrefix)),
+		loadSecrets: loadSecrets,
 		hdr: types.ResourceHeader{
 			Kind:    types.KindWebSession,
 			SubKind: types.KindAppSession,
@@ -1016,9 +1027,10 @@ func newAppSessionParser() *webSessionParser {
 	}
 }
 
-func newWebSessionParser() *webSessionParser {
+func newWebSessionParser(loadSecrets bool) *webSessionParser {
 	return &webSessionParser{
-		baseParser: newBaseParser(backend.Key(webPrefix, sessionsPrefix)),
+		baseParser:  newBaseParser(backend.Key(webPrefix, sessionsPrefix)),
+		loadSecrets: loadSecrets,
 		hdr: types.ResourceHeader{
 			Kind:    types.KindWebSession,
 			SubKind: types.KindWebSession,
@@ -1029,7 +1041,8 @@ func newWebSessionParser() *webSessionParser {
 
 type webSessionParser struct {
 	baseParser
-	hdr types.ResourceHeader
+	loadSecrets bool
+	hdr         types.ResourceHeader
 }
 
 func (p *webSessionParser) parse(event backend.Event) (types.Resource, error) {
@@ -1044,6 +1057,9 @@ func (p *webSessionParser) parse(event backend.Event) (types.Resource, error) {
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
+		}
+		if !p.loadSecrets {
+			return resource.WithoutSecrets(), nil
 		}
 		return resource, nil
 	default:
@@ -1941,6 +1957,139 @@ func (p *kubeWaitingContainerParser) parse(event backend.Event) (types.Resource,
 			return nil, trace.Wrap(err)
 		}
 		return types.Resource153ToLegacy(resource), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newAccessMonitoringRuleParser() *AccessMonitoringRuleParser {
+	return &AccessMonitoringRuleParser{
+		baseParser: newBaseParser(backend.ExactKey(accessMonitoringRulesPrefix)),
+	}
+}
+
+type AccessMonitoringRuleParser struct {
+	baseParser
+}
+
+func (p *AccessMonitoringRuleParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindAccessMonitoringRule, types.V1, 0)
+	case types.OpPut:
+		r, err := services.UnmarshalAccessMonitoringRule(event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(r), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newUserNotificationParser() *userNotificationParser {
+	return &userNotificationParser{
+		baseParser: newBaseParser(backend.Key(notificationsUserSpecificPrefix)),
+	}
+}
+
+type userNotificationParser struct {
+	baseParser
+}
+
+func (p *userNotificationParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		// Remove the first separator so none of the separated parts will be
+		// empty strings
+		key := string(event.Item.Key)
+		key = strings.TrimPrefix(key, string(backend.Separator))
+		parts := strings.Split(key, string(backend.Separator))
+		if len(parts) != 4 {
+			return nil, trace.BadParameter("malformed key for %s event: %s", types.KindNotification, event.Item.Key)
+		}
+
+		notification := &notificationsv1.Notification{
+			Kind:    types.KindNotification,
+			Version: types.V1,
+			Spec: &notificationsv1.NotificationSpec{
+				Username: parts[2],
+				Id:       parts[3],
+			},
+			Metadata: &headerv1.Metadata{
+				Name: parts[3],
+			},
+		}
+
+		return types.Resource153ToLegacy(notification), nil
+	case types.OpPut:
+		notification, err := services.UnmarshalNotification(
+			event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(notification), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newGlobalNotificationParser() *globalNotificationParser {
+	return &globalNotificationParser{
+		baseParser: newBaseParser(backend.Key(notificationsGlobalPrefix)),
+	}
+}
+
+type globalNotificationParser struct {
+	baseParser
+}
+
+func (p *globalNotificationParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		// Remove the first separator so none of the separated parts will be
+		// empty strings
+		key := string(event.Item.Key)
+		key = strings.TrimPrefix(key, string(backend.Separator))
+		// notifications/global/<uuid>
+		parts := strings.Split(key, string(backend.Separator))
+		if len(parts) != 3 {
+			return nil, trace.BadParameter("malformed key for %s event: %s", types.KindGlobalNotification, event.Item.Key)
+		}
+
+		globalNotification := &notificationsv1.GlobalNotification{
+			Kind:    types.KindGlobalNotification,
+			Version: types.V1,
+			Spec: &notificationsv1.GlobalNotificationSpec{
+				Notification: &notificationsv1.Notification{
+					Spec: &notificationsv1.NotificationSpec{
+						Id: parts[2],
+					},
+				},
+			},
+			Metadata: &headerv1.Metadata{
+				Name: parts[2],
+			},
+		}
+
+		return types.Resource153ToLegacy(globalNotification), nil
+	case types.OpPut:
+		globalNotification, err := services.UnmarshalGlobalNotification(
+			event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(globalNotification), nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}

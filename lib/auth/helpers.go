@@ -90,6 +90,9 @@ type TestAuthServerConfig struct {
 	Embedder embedding.Embedder
 	// CacheEnabled enables the primary auth server cache.
 	CacheEnabled bool
+	// RunWhileLockedRetryInterval is the interval to retry the run while locked
+	// operation.
+	RunWhileLockedRetryInterval time.Duration
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -268,12 +271,17 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	}
 
 	access := local.NewAccessService(srv.Backend)
-	identity := local.NewIdentityService(srv.Backend)
+	identity := local.NewTestIdentityService(srv.Backend)
 
 	emitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{
 		Inner: srv.AuditLog,
 		Clock: cfg.Clock,
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessLists, err := local.NewAccessListService(srv.Backend, cfg.Clock, local.WithRunWhileLockedRetryInterval(cfg.RunWhileLockedRetryInterval))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -294,6 +302,8 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 			},
 		},
 		EmbeddingRetriever: ai.NewSimpleRetriever(),
+		HostUUID:           uuid.New().String(),
+		AccessLists:        accessLists,
 	},
 		WithClock(cfg.Clock),
 		WithEmbedder(cfg.Embedder),
@@ -446,6 +456,26 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	userNotificationCache, err := services.NewUserNotificationCache(services.NotificationCacheConfig{
+		Events: srv.AuthServer.Services,
+		Getter: srv.AuthServer.Cache,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	srv.AuthServer.SetUserNotificationCache(userNotificationCache)
+
+	globalNotificationCache, err := services.NewGlobalNotificationCache(services.NotificationCacheConfig{
+		Events: srv.AuthServer.Services,
+		Getter: srv.AuthServer.Cache,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	srv.AuthServer.SetGlobalNotificationCache(globalNotificationCache)
 
 	// Auth initialization is done (including creation/updating of all singleton
 	// configuration resources) so now we can start the cache.
@@ -1299,7 +1329,7 @@ func (n noopEmbedder) ComputeEmbeddings(_ context.Context, _ []string) ([]embedd
 	return []embedding.Vector64{}, nil
 }
 
-// flushClt is the set of methods expected by the the flushCache helper.
+// flushClt is the set of methods expected by the flushCache helper.
 type flushClt interface {
 	// GetNamespace returns namespace by name
 	GetNamespace(name string) (*types.Namespace, error)

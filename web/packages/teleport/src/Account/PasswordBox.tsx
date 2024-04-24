@@ -26,7 +26,7 @@ import cfg from 'teleport/config';
 
 import { MfaDevice } from 'teleport/services/mfa';
 
-import { ActionButton, Header } from './Header';
+import { ActionButtonSecondary, Header } from './Header';
 import { ChangePasswordWizard } from './ChangePasswordWizard';
 
 export interface PasswordBoxProps {
@@ -54,12 +54,12 @@ export function PasswordBox({
           title="Password"
           icon={<Icon.Password />}
           actions={
-            <ActionButton
+            <ActionButtonSecondary
               disabled={changeDisabled}
               onClick={() => setDialogOpen(true)}
             >
               Change Password
-            </ActionButton>
+            </ActionButtonSecondary>
           }
         />
       </SingleRowBox>

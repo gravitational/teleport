@@ -86,7 +86,9 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	transportpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
@@ -335,7 +337,6 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		nodeClient,
 		regular.SetUUID(nodeID),
 		regular.SetNamespace(apidefaults.Namespace),
-		regular.SetShell("/bin/sh"),
 		regular.SetEmitter(nodeClient),
 		regular.SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
 		regular.SetBPF(&bpf.NOP{}),
@@ -445,7 +446,6 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetClock(s.clock),
 		regular.SetLockWatcher(proxyLockWatcher),
-		regular.SetNodeWatcher(proxyNodeWatcher),
 		regular.SetSessionController(proxySessionController),
 	)
 	require.NoError(t, err)
@@ -605,7 +605,6 @@ func (s *WebSuite) addNode(t *testing.T, uuid string, hostname string, address s
 		nodeClient,
 		regular.SetUUID(uuid),
 		regular.SetNamespace(apidefaults.Namespace),
-		regular.SetShell("/bin/sh"),
 		regular.SetEmitter(nodeClient),
 		regular.SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
 		regular.SetBPF(&bpf.NOP{}),
@@ -1027,6 +1026,11 @@ func TestWebSessionsBadInput(t *testing.T) {
 	const pass = "abcdef123456"
 	otpSecret := newOTPSharedSecret()
 	badSecret := newOTPSharedSecret()
+
+	u, err := types.NewUser(user)
+	require.NoError(t, err)
+	_, err = authServer.CreateUser(ctx, u)
+	require.NoError(t, err)
 
 	err = authServer.UpsertPassword(user, []byte(pass))
 	require.NoError(t, err)
@@ -4359,9 +4363,11 @@ func TestApplicationAccessDisabled(t *testing.T) {
 
 	endpoint := pack.clt.Endpoint("webapi", "sessions", "app")
 	_, err = pack.clt.PostJSON(context.Background(), endpoint, &CreateAppSessionRequest{
-		FQDNHint:    "panel.example.com",
-		PublicAddr:  "panel.example.com",
-		ClusterName: "localhost",
+		ResolveAppParams: ResolveAppParams{
+			FQDNHint:    "panel.example.com",
+			PublicAddr:  "panel.example.com",
+			ClusterName: "localhost",
+		},
 	})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "this Teleport cluster is not licensed for application access")
@@ -4403,9 +4409,11 @@ func TestApplicationWebSessionsDeletedAfterLogout(t *testing.T) {
 		// Create application session
 		endpoint := pack.clt.Endpoint("webapi", "sessions", "app")
 		_, err = pack.clt.PostJSON(context.Background(), endpoint, &CreateAppSessionRequest{
-			FQDNHint:    application.publicAddr,
-			PublicAddr:  application.publicAddr,
-			ClusterName: "localhost",
+			ResolveAppParams: ResolveAppParams{
+				FQDNHint:    application.publicAddr,
+				PublicAddr:  application.publicAddr,
+				ClusterName: "localhost",
+			},
 		})
 		require.NoError(t, err)
 	}
@@ -5070,9 +5078,11 @@ func TestCreateAppSession(t *testing.T) {
 		{
 			name: "Valid request: all fields",
 			inCreateRequest: &CreateAppSessionRequest{
-				FQDNHint:    "panel.example.com",
-				PublicAddr:  "panel.example.com",
-				ClusterName: "localhost",
+				ResolveAppParams: ResolveAppParams{
+					FQDNHint:    "panel.example.com",
+					PublicAddr:  "panel.example.com",
+					ClusterName: "localhost",
+				},
 			},
 			outError:    require.NoError,
 			outFQDN:     "panel.example.com",
@@ -5081,8 +5091,10 @@ func TestCreateAppSession(t *testing.T) {
 		{
 			name: "Valid request: without FQDN",
 			inCreateRequest: &CreateAppSessionRequest{
-				PublicAddr:  "panel.example.com",
-				ClusterName: "localhost",
+				ResolveAppParams: ResolveAppParams{
+					PublicAddr:  "panel.example.com",
+					ClusterName: "localhost",
+				},
 			},
 			outError:    require.NoError,
 			outFQDN:     "panel.example.com",
@@ -5091,7 +5103,9 @@ func TestCreateAppSession(t *testing.T) {
 		{
 			name: "Valid request: only FQDN",
 			inCreateRequest: &CreateAppSessionRequest{
-				FQDNHint: "panel.example.com",
+				ResolveAppParams: ResolveAppParams{
+					FQDNHint: "panel.example.com",
+				},
 			},
 			outError:    require.NoError,
 			outFQDN:     "panel.example.com",
@@ -5100,41 +5114,51 @@ func TestCreateAppSession(t *testing.T) {
 		{
 			name: "Invalid request: only public address",
 			inCreateRequest: &CreateAppSessionRequest{
-				PublicAddr: "panel.example.com",
+				ResolveAppParams: ResolveAppParams{
+					PublicAddr: "panel.example.com",
+				},
 			},
 			outError: require.Error,
 		},
 		{
 			name: "Invalid request: only cluster name",
 			inCreateRequest: &CreateAppSessionRequest{
-				ClusterName: "localhost",
+				ResolveAppParams: ResolveAppParams{
+					ClusterName: "localhost",
+				},
 			},
 			outError: require.Error,
 		},
 		{
 			name: "Invalid application",
 			inCreateRequest: &CreateAppSessionRequest{
-				FQDNHint:    "panel.example.com",
-				PublicAddr:  "invalid.example.com",
-				ClusterName: "localhost",
+				ResolveAppParams: ResolveAppParams{
+					FQDNHint:    "panel.example.com",
+					PublicAddr:  "invalid.example.com",
+					ClusterName: "localhost",
+				},
 			},
 			outError: require.Error,
 		},
 		{
 			name: "Invalid cluster name",
 			inCreateRequest: &CreateAppSessionRequest{
-				FQDNHint:    "panel.example.com",
-				PublicAddr:  "panel.example.com",
-				ClusterName: "example.com",
+				ResolveAppParams: ResolveAppParams{
+					FQDNHint:    "panel.example.com",
+					PublicAddr:  "panel.example.com",
+					ClusterName: "example.com",
+				},
 			},
 			outError: require.Error,
 		},
 		{
 			name: "Malicious request: all fields",
 			inCreateRequest: &CreateAppSessionRequest{
-				FQDNHint:    "panel.example.com@malicious.com",
-				PublicAddr:  "panel.example.com",
-				ClusterName: "localhost",
+				ResolveAppParams: ResolveAppParams{
+					FQDNHint:    "panel.example.com@malicious.com",
+					PublicAddr:  "panel.example.com",
+					ClusterName: "localhost",
+				},
 			},
 			outError:    require.NoError,
 			outFQDN:     "panel.example.com",
@@ -5143,7 +5167,9 @@ func TestCreateAppSession(t *testing.T) {
 		{
 			name: "Malicious request: only FQDN",
 			inCreateRequest: &CreateAppSessionRequest{
-				FQDNHint: "panel.example.com@malicious.com",
+				ResolveAppParams: ResolveAppParams{
+					FQDNHint: "panel.example.com@malicious.com",
+				},
 			},
 			outError: require.Error,
 		},
@@ -5244,9 +5270,139 @@ func TestCreateAppSessionHealthCheckAppServer(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			endpoint := pack.clt.Endpoint("webapi", "sessions", "app")
 			_, err := pack.clt.PostJSON(s.ctx, endpoint, &CreateAppSessionRequest{
-				FQDNHint: tc.publicAddr,
+				ResolveAppParams: ResolveAppParams{
+					FQDNHint: tc.publicAddr,
+				},
 			})
 			tc.expectErr(t, err)
+		})
+	}
+}
+
+func TestCreateAppSession_RequireSessionMFA(t *testing.T) {
+	ctx := context.Background()
+	t.Parallel()
+	s := newWebSuite(t)
+	pack := s.authPack(t, "foo@example.com")
+
+	// Register an application called "panel".
+	app, err := types.NewAppV3(types.Metadata{
+		Name: "panel",
+	}, types.AppSpecV3{
+		URI:        "http://127.0.0.1:8080",
+		PublicAddr: "panel.example.com",
+	})
+	require.NoError(t, err)
+	server, err := types.NewAppServerV3FromApp(app, "host", uuid.New().String())
+	require.NoError(t, err)
+	_, err = s.server.Auth().UpsertApplicationServer(s.ctx, server)
+	require.NoError(t, err)
+
+	// Enable per session MFA.
+	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorWebauthn,
+		Webauthn: &types.Webauthn{
+			RPID: "localhost",
+		},
+		RequireMFAType: types.RequireMFAType_SESSION,
+	})
+	require.NoError(t, err)
+	_, err = s.server.Auth().UpsertAuthPreference(ctx, ap)
+	require.NoError(t, err)
+
+	// register an mfa device for the user.
+	userClient, err := s.server.NewClient(auth.TestUser(pack.user))
+	require.NoError(t, err)
+	webauthnDev, err := auth.RegisterTestDevice(
+		ctx,
+		userClient,
+		"webauthn", authproto.DeviceType_DEVICE_TYPE_WEBAUTHN, pack.device /* authenticator */)
+	require.NoError(t, err)
+
+	// Prepare a valid mfa response for the user.
+	chal, err := userClient.CreateAuthenticateChallenge(ctx, &authproto.CreateAuthenticateChallengeRequest{
+		Request: &authproto.CreateAuthenticateChallengeRequest_ContextUser{},
+		ChallengeExtensions: &mfav1.ChallengeExtensions{
+			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+		},
+	})
+	require.NoError(t, err)
+	mfaResp, err := webauthnDev.SolveAuthn(chal)
+	require.NoError(t, err)
+	mfaRespJSON, err := json.Marshal(mfaResponse{
+		WebauthnAssertionResponse: wantypes.CredentialAssertionResponseFromProto(mfaResp.GetWebauthn()),
+	})
+	require.NoError(t, err)
+
+	// Extract the session ID and bearer token for the current session.
+	rawCookie := *pack.cookies[0]
+	cookieBytes, err := hex.DecodeString(rawCookie.Value)
+	require.NoError(t, err)
+	var sessionCookie websession.Cookie
+	err = json.Unmarshal(cookieBytes, &sessionCookie)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name              string
+		inCreateRequest   *CreateAppSessionRequest
+		expectMFAVerified bool
+	}{
+		{
+			name: "NOK MFA not provided",
+			inCreateRequest: &CreateAppSessionRequest{
+				ResolveAppParams: ResolveAppParams{
+					FQDNHint:    "panel.example.com",
+					PublicAddr:  "panel.example.com",
+					ClusterName: "localhost",
+				},
+			},
+			expectMFAVerified: false,
+		},
+		{
+			name: "OK MFA provided",
+			inCreateRequest: &CreateAppSessionRequest{
+				ResolveAppParams: ResolveAppParams{
+					FQDNHint:    "panel.example.com",
+					PublicAddr:  "panel.example.com",
+					ClusterName: "localhost",
+				},
+				MFAResponse: string(mfaRespJSON),
+			},
+			expectMFAVerified: true,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			// Make a request to create an application session for "panel".
+			endpoint := pack.clt.Endpoint("webapi", "sessions", "app")
+			resp, err := pack.clt.PostJSON(s.ctx, endpoint, tt.inCreateRequest)
+			require.NoError(t, err)
+
+			// Unmarshal the response.
+			var response *CreateAppSessionResponse
+			require.NoError(t, json.Unmarshal(resp.Bytes(), &response))
+
+			// Verify that the application session was created.
+			sess, err := s.server.Auth().GetAppSession(s.ctx, types.GetAppSessionRequest{
+				SessionID: response.CookieValue,
+			})
+			require.NoError(t, err)
+
+			// Verify that the session is MFA verified
+			certificate, err := tlsca.ParseCertificatePEM(sess.GetTLSCert())
+			require.NoError(t, err)
+			identity, err := tlsca.FromSubject(certificate.Subject, certificate.NotAfter)
+			require.NoError(t, err)
+
+			if tt.expectMFAVerified {
+				require.NotEmpty(t, identity.MFAVerified, "expected app session to be MFA verified")
+			} else {
+				require.Empty(t, identity.MFAVerified, "expected app session to not be MFA verified")
+			}
 		})
 	}
 }
@@ -7354,7 +7510,7 @@ func (mock authProviderMock) GetRole(_ context.Context, _ string) (types.Role, e
 	return nil, nil
 }
 
-func waitForOutputWithDuration(r io.Reader, substr string, timeout time.Duration) error {
+func waitForOutputWithDuration(r ReaderWithDeadline, substr string, timeout time.Duration) error {
 	timeoutCh := time.After(timeout)
 
 	var prev string
@@ -7366,6 +7522,9 @@ func waitForOutputWithDuration(r io.Reader, substr string, timeout time.Duration
 		default:
 		}
 
+		if err := r.SetReadDeadline(time.Now().Add(timeout)); err != nil {
+			return trace.Wrap(err)
+		}
 		n, err := r.Read(out)
 		outStr := removeSpace(string(out[:n]))
 
@@ -7386,7 +7545,19 @@ func waitForOutputWithDuration(r io.Reader, substr string, timeout time.Duration
 	}
 }
 
-func waitForOutput(r io.Reader, substr string) error {
+type ReaderWithDeadline interface {
+	io.Reader
+	SetReadDeadline(time.Time) error
+}
+
+type ReadWriterWithDeadline interface {
+	io.Reader
+	io.Writer
+	SetReadDeadline(time.Time) error
+	SetWriteDeadline(time.Time) error
+}
+
+func waitForOutput(r ReaderWithDeadline, substr string) error {
 	return waitForOutputWithDuration(r, substr, 10*time.Second)
 }
 
@@ -7558,7 +7729,6 @@ func newWebPack(t *testing.T, numProxies int, opts ...proxyOption) *webPack {
 		nodeClient,
 		regular.SetUUID(nodeID),
 		regular.SetNamespace(apidefaults.Namespace),
-		regular.SetShell("/bin/sh"),
 		regular.SetEmitter(nodeClient),
 		regular.SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
 		regular.SetBPF(&bpf.NOP{}),
@@ -7600,11 +7770,29 @@ func newWebPack(t *testing.T, numProxies int, opts ...proxyOption) *webPack {
 	}
 }
 
+// wrappedAuthClient is used when tests need to mock or replace parts of the
+// underlying auth.Client used by the Proxy.
+type wrappedAuthClient struct {
+	*auth.Client
+	devicesClient devicepb.DeviceTrustServiceClient
+}
+
+func (w *wrappedAuthClient) DevicesClient() devicepb.DeviceTrustServiceClient {
+	return w.devicesClient
+}
+
 type proxyConfig struct {
-	minimalHandler bool
+	minimalHandler        bool
+	devicesClientOverride devicepb.DeviceTrustServiceClient
 }
 
 type proxyOption func(cfg *proxyConfig)
+
+func withDevicesClientOverride(c devicepb.DeviceTrustServiceClient) proxyOption {
+	return func(cfg *proxyConfig) {
+		cfg.devicesClientOverride = c
+	}
+}
 
 func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regular.Server, authServer *auth.TestTLSServer,
 	hostSigners []ssh.Signer, clock clockwork.FakeClock, opts ...proxyOption,
@@ -7614,14 +7802,26 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		opt(&cfg)
 	}
 	// create reverse tunnel service:
-	client, err := authServer.NewClient(auth.TestIdentity{
+	authClient, err := authServer.NewClient(auth.TestIdentity{
 		I: authz.BuiltinRole{
 			Role:     types.RoleProxy,
 			Username: proxyID,
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, client.Close()) })
+	t.Cleanup(func() { require.NoError(t, authClient.Close()) })
+
+	// Replace underlying devicesClient, if the option was supplied.
+	var client auth.ClientI
+	if cfg.devicesClientOverride != nil {
+		client = &wrappedAuthClient{
+			Client:        authClient,
+			devicesClient: cfg.devicesClientOverride,
+		}
+	} else {
+		client = authClient
+	}
+	// Favor client instead of authClient from here on.
 
 	revTunListener, err := net.Listen("tcp", fmt.Sprintf("%v:0", authServer.ClusterName()))
 	require.NoError(t, err)
@@ -7658,7 +7858,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	revTunServer, err := reversetunnel.NewServer(reversetunnel.Config{
 		ID:                    node.ID(),
 		Listener:              revTunListener,
-		ClientTLS:             client.TLSConfig(),
+		ClientTLS:             authClient.TLSConfig(),
 		ClusterName:           authServer.ClusterName(),
 		HostSigners:           hostSigners,
 		LocalAuthClient:       client,
@@ -7808,7 +8008,6 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetClock(clock),
 		regular.SetLockWatcher(proxyLockWatcher),
-		regular.SetNodeWatcher(proxyNodeWatcher),
 		regular.SetSessionController(sessionController),
 		regular.SetPublicAddrs([]utils.NetAddr{{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}}),
 	)
@@ -8106,7 +8305,7 @@ func (r *testProxy) makeDesktopSession(t *testing.T, pack *authPack) *websocket.
 	return ws
 }
 
-func validateTerminal(t *testing.T, term io.ReadWriter) {
+func validateTerminal(t *testing.T, term ReadWriterWithDeadline) {
 	t.Helper()
 
 	// here we intentionally run a command where the output we're looking
@@ -8209,11 +8408,27 @@ func TestIsMFARequired_AcceptedRequests(t *testing.T) {
 
 	cfg, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:           constants.Local,
-		SecondFactor:   constants.SecondFactorOTP,
+		SecondFactor:   constants.SecondFactorWebauthn,
 		RequireMFAType: types.RequireMFAType_SESSION,
+		Webauthn: &types.Webauthn{
+			RPID: env.server.ClusterName(),
+		},
 	})
 	require.NoError(t, err)
 	_, err = env.server.Auth().UpsertAuthPreference(ctx, cfg)
+	require.NoError(t, err)
+
+	// Register an application called "panel".
+	app, err := types.NewAppV3(types.Metadata{
+		Name: "panel",
+	}, types.AppSpecV3{
+		URI:        "http://127.0.0.1:8080",
+		PublicAddr: "panel.example.com",
+	})
+	require.NoError(t, err)
+	server, err := types.NewAppServerV3FromApp(app, "host", uuid.New().String())
+	require.NoError(t, err)
+	_, err = env.server.Auth().UpsertApplicationServer(ctx, server)
 	require.NoError(t, err)
 
 	for _, test := range []struct {
@@ -8290,6 +8505,46 @@ func TestIsMFARequired_AcceptedRequests(t *testing.T) {
 			errMsg: "missing desktop_name",
 			getRequest: func() isMFARequiredRequest {
 				return isMFARequiredRequest{WindowsDesktop: &isMFARequiredWindowsDesktop{}}
+			},
+		},
+		{
+			name: "valid app req - resolve addr",
+			getRequest: func() isMFARequiredRequest {
+				return isMFARequiredRequest{
+					App: &isMFARequiredApp{
+						ResolveAppParams: ResolveAppParams{
+							PublicAddr:  app.GetPublicAddr(),
+							ClusterName: env.server.ClusterName(),
+						},
+					},
+				}
+			},
+		},
+		{
+			name: "valid app req - resolve fqdn",
+			getRequest: func() isMFARequiredRequest {
+				return isMFARequiredRequest{
+					App: &isMFARequiredApp{
+						ResolveAppParams: ResolveAppParams{
+							FQDNHint: fmt.Sprintf("%v.%v", app.GetName(), "proxy-1.example.com"),
+						},
+					},
+				}
+			},
+		},
+		{
+			name:   "invalid app req",
+			errMsg: "no inputs to resolve application",
+			getRequest: func() isMFARequiredRequest {
+				return isMFARequiredRequest{App: &isMFARequiredApp{}}
+			},
+		},
+		{
+			name: "valid admin action req",
+			getRequest: func() isMFARequiredRequest {
+				return isMFARequiredRequest{
+					AdminAction: &isMFARequiredAdminAction{},
+				}
 			},
 		},
 		{
@@ -9315,7 +9570,7 @@ func TestModeratedSession(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, peerTerm.Close()) })
 
-	require.NoError(t, waitForOutput(peerTerm, "Teleport > User foo joined the session with participant mode: peer."))
+	require.NoError(t, waitForOutput(peerTerm, "Teleport > User foo joined the session with participant mode: peer."), "waiting for peer to enter session")
 
 	moderatorTerm, err := connectToHost(ctx, connectConfig{
 		pack:            s.authPack(t, "bar", moderatorRole.GetName()),
@@ -9327,21 +9582,21 @@ func TestModeratedSession(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, moderatorTerm.Close()) })
 
-	require.NoError(t, waitForOutput(peerTerm, "Teleport > Connecting to node over SSH"))
+	require.NoError(t, waitForOutput(peerTerm, "Teleport > Connecting to node over SSH"), "waiting for peer connection to node after moderator joins")
 
 	// here we intentionally run a command where the output we're looking
 	// for is not present in the command itself
 	_, err = io.WriteString(peerTerm, "echo llxmx | sed 's/x/a/g'\r\n")
 	require.NoError(t, err)
-	require.NoError(t, waitForOutput(peerTerm, "llama"))
-	require.NoError(t, waitForOutput(moderatorTerm, "llama"))
+	require.NoError(t, waitForOutput(peerTerm, "llama"), "waiting for output on peer terminal")
+	require.NoError(t, waitForOutput(moderatorTerm, "llama"), "waiting for output on moderator terminal")
 
 	// the moderator terminates the session
 	_, err = io.WriteString(moderatorTerm, "t")
 	require.NoError(t, err)
 
-	require.NoError(t, waitForOutput(moderatorTerm, "Stopping session..."))
-	require.NoError(t, waitForOutput(peerTerm, "Process exited with status 255"))
+	require.NoError(t, waitForOutput(moderatorTerm, "Stopping session..."), "waiting for moderator to terminate session")
+	require.NoError(t, waitForOutput(peerTerm, "Process exited with status 255"), "waiting for peer session to be terminated")
 }
 
 // TestModeratedSessionWithMFA validates the same behavior as TestModeratedSession while
@@ -9433,7 +9688,7 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, peerTerm.Close()) })
 
-	require.NoError(t, waitForOutput(peerTerm, "Teleport > User foo joined the session with participant mode: peer."))
+	require.NoError(t, waitForOutput(peerTerm, "Teleport > User foo joined the session with participant mode: peer."), "waiting for peer to start session")
 
 	moderatorTerm, err := connectToHost(ctx, connectConfig{
 		pack:            moderator,
@@ -9464,20 +9719,20 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, moderatorTerm.Close()) })
 
-	require.NoError(t, waitForOutput(peerTerm, "Teleport > Connecting to node over SSH"))
+	require.NoError(t, waitForOutput(peerTerm, "Teleport > Connecting to node over SSH"), "waiting for peer to connect after moderator joins")
 
 	// here we intentionally run a command where the output we're looking
 	// for is not present in the command itself
 	_, err = io.WriteString(peerTerm, "echo llxmx | sed 's/x/a/g'\r\n")
 	require.NoError(t, err)
-	require.NoError(t, waitForOutput(peerTerm, "llama"))
-	require.NoError(t, waitForOutput(moderatorTerm, "llama"))
+	require.NoError(t, waitForOutput(peerTerm, "llama"), "waiting for output in peer terminal")
+	require.NoError(t, waitForOutput(moderatorTerm, "llama"), "waiting for output in moderator terminal")
 
 	// run the presence check a few times
 	for i := 0; i < 3; i++ {
 		presenceClock.BlockUntil(1)
 		presenceClock.Advance(30 * time.Second)
-		require.NoError(t, waitForOutput(moderatorTerm, "Teleport > Please tap your MFA key"))
+		require.NoError(t, waitForOutput(moderatorTerm, "Teleport > Please tap your MFA key"), "waiting for moderator mfa prompt")
 
 		challenge, err := moderatorTerm.stream.readChallenge(protobufMFACodec{})
 		require.NoError(t, err)

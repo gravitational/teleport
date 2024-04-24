@@ -34,19 +34,20 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	DeviceTrustService_CreateDevice_FullMethodName            = "/teleport.devicetrust.v1.DeviceTrustService/CreateDevice"
-	DeviceTrustService_UpdateDevice_FullMethodName            = "/teleport.devicetrust.v1.DeviceTrustService/UpdateDevice"
-	DeviceTrustService_UpsertDevice_FullMethodName            = "/teleport.devicetrust.v1.DeviceTrustService/UpsertDevice"
-	DeviceTrustService_DeleteDevice_FullMethodName            = "/teleport.devicetrust.v1.DeviceTrustService/DeleteDevice"
-	DeviceTrustService_FindDevices_FullMethodName             = "/teleport.devicetrust.v1.DeviceTrustService/FindDevices"
-	DeviceTrustService_GetDevice_FullMethodName               = "/teleport.devicetrust.v1.DeviceTrustService/GetDevice"
-	DeviceTrustService_ListDevices_FullMethodName             = "/teleport.devicetrust.v1.DeviceTrustService/ListDevices"
-	DeviceTrustService_BulkCreateDevices_FullMethodName       = "/teleport.devicetrust.v1.DeviceTrustService/BulkCreateDevices"
-	DeviceTrustService_CreateDeviceEnrollToken_FullMethodName = "/teleport.devicetrust.v1.DeviceTrustService/CreateDeviceEnrollToken"
-	DeviceTrustService_EnrollDevice_FullMethodName            = "/teleport.devicetrust.v1.DeviceTrustService/EnrollDevice"
-	DeviceTrustService_AuthenticateDevice_FullMethodName      = "/teleport.devicetrust.v1.DeviceTrustService/AuthenticateDevice"
-	DeviceTrustService_SyncInventory_FullMethodName           = "/teleport.devicetrust.v1.DeviceTrustService/SyncInventory"
-	DeviceTrustService_GetDevicesUsage_FullMethodName         = "/teleport.devicetrust.v1.DeviceTrustService/GetDevicesUsage"
+	DeviceTrustService_CreateDevice_FullMethodName                   = "/teleport.devicetrust.v1.DeviceTrustService/CreateDevice"
+	DeviceTrustService_UpdateDevice_FullMethodName                   = "/teleport.devicetrust.v1.DeviceTrustService/UpdateDevice"
+	DeviceTrustService_UpsertDevice_FullMethodName                   = "/teleport.devicetrust.v1.DeviceTrustService/UpsertDevice"
+	DeviceTrustService_DeleteDevice_FullMethodName                   = "/teleport.devicetrust.v1.DeviceTrustService/DeleteDevice"
+	DeviceTrustService_FindDevices_FullMethodName                    = "/teleport.devicetrust.v1.DeviceTrustService/FindDevices"
+	DeviceTrustService_GetDevice_FullMethodName                      = "/teleport.devicetrust.v1.DeviceTrustService/GetDevice"
+	DeviceTrustService_ListDevices_FullMethodName                    = "/teleport.devicetrust.v1.DeviceTrustService/ListDevices"
+	DeviceTrustService_BulkCreateDevices_FullMethodName              = "/teleport.devicetrust.v1.DeviceTrustService/BulkCreateDevices"
+	DeviceTrustService_CreateDeviceEnrollToken_FullMethodName        = "/teleport.devicetrust.v1.DeviceTrustService/CreateDeviceEnrollToken"
+	DeviceTrustService_EnrollDevice_FullMethodName                   = "/teleport.devicetrust.v1.DeviceTrustService/EnrollDevice"
+	DeviceTrustService_AuthenticateDevice_FullMethodName             = "/teleport.devicetrust.v1.DeviceTrustService/AuthenticateDevice"
+	DeviceTrustService_ConfirmDeviceWebAuthentication_FullMethodName = "/teleport.devicetrust.v1.DeviceTrustService/ConfirmDeviceWebAuthentication"
+	DeviceTrustService_SyncInventory_FullMethodName                  = "/teleport.devicetrust.v1.DeviceTrustService/SyncInventory"
+	DeviceTrustService_GetDevicesUsage_FullMethodName                = "/teleport.devicetrust.v1.DeviceTrustService/GetDevicesUsage"
 )
 
 // DeviceTrustServiceClient is the client API for DeviceTrustService service.
@@ -127,6 +128,21 @@ type DeviceTrustServiceClient interface {
 	//
 	// Only registered and enrolled devices may perform device authentication.
 	AuthenticateDevice(ctx context.Context, opts ...grpc.CallOption) (DeviceTrustService_AuthenticateDeviceClient, error)
+	// ConfirmDeviceWebAuthentication finalizes the device web authentication
+	// ceremony started by the creation of a DeviceWebToken and subsequent
+	// AuthenticateDevice call.
+	//
+	// The DeviceConfirmationToken issued by AuthenticateDevice is spent in this
+	// method, which consequently augments the corresponding Web Session
+	// certificates with device extensions.
+	//
+	// This method must be called by the Teleport Proxy, and the Proxy itself must
+	// be called by the same browser that started the on-behalf-of authentication
+	// attempt. See the /webapi/device/webconfirm endpoint.
+	//
+	// See
+	// https://github.com/gravitational/teleport.e/blob/master/rfd/0009e-device-trust-web-support.md#device-web-authentication.
+	ConfirmDeviceWebAuthentication(ctx context.Context, in *ConfirmDeviceWebAuthenticationRequest, opts ...grpc.CallOption) (*ConfirmDeviceWebAuthenticationResponse, error)
 	// Syncs device inventory from a source exterior to Teleport, for example an
 	// MDM.
 	// Allows both partial and full syncs; for the latter, devices missing from
@@ -290,6 +306,15 @@ func (x *deviceTrustServiceAuthenticateDeviceClient) Recv() (*AuthenticateDevice
 	return m, nil
 }
 
+func (c *deviceTrustServiceClient) ConfirmDeviceWebAuthentication(ctx context.Context, in *ConfirmDeviceWebAuthenticationRequest, opts ...grpc.CallOption) (*ConfirmDeviceWebAuthenticationResponse, error) {
+	out := new(ConfirmDeviceWebAuthenticationResponse)
+	err := c.cc.Invoke(ctx, DeviceTrustService_ConfirmDeviceWebAuthentication_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *deviceTrustServiceClient) SyncInventory(ctx context.Context, opts ...grpc.CallOption) (DeviceTrustService_SyncInventoryClient, error) {
 	stream, err := c.cc.NewStream(ctx, &DeviceTrustService_ServiceDesc.Streams[2], DeviceTrustService_SyncInventory_FullMethodName, opts...)
 	if err != nil {
@@ -409,6 +434,21 @@ type DeviceTrustServiceServer interface {
 	//
 	// Only registered and enrolled devices may perform device authentication.
 	AuthenticateDevice(DeviceTrustService_AuthenticateDeviceServer) error
+	// ConfirmDeviceWebAuthentication finalizes the device web authentication
+	// ceremony started by the creation of a DeviceWebToken and subsequent
+	// AuthenticateDevice call.
+	//
+	// The DeviceConfirmationToken issued by AuthenticateDevice is spent in this
+	// method, which consequently augments the corresponding Web Session
+	// certificates with device extensions.
+	//
+	// This method must be called by the Teleport Proxy, and the Proxy itself must
+	// be called by the same browser that started the on-behalf-of authentication
+	// attempt. See the /webapi/device/webconfirm endpoint.
+	//
+	// See
+	// https://github.com/gravitational/teleport.e/blob/master/rfd/0009e-device-trust-web-support.md#device-web-authentication.
+	ConfirmDeviceWebAuthentication(context.Context, *ConfirmDeviceWebAuthenticationRequest) (*ConfirmDeviceWebAuthenticationResponse, error)
 	// Syncs device inventory from a source exterior to Teleport, for example an
 	// MDM.
 	// Allows both partial and full syncs; for the latter, devices missing from
@@ -458,6 +498,9 @@ func (UnimplementedDeviceTrustServiceServer) EnrollDevice(DeviceTrustService_Enr
 }
 func (UnimplementedDeviceTrustServiceServer) AuthenticateDevice(DeviceTrustService_AuthenticateDeviceServer) error {
 	return status.Errorf(codes.Unimplemented, "method AuthenticateDevice not implemented")
+}
+func (UnimplementedDeviceTrustServiceServer) ConfirmDeviceWebAuthentication(context.Context, *ConfirmDeviceWebAuthenticationRequest) (*ConfirmDeviceWebAuthenticationResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ConfirmDeviceWebAuthentication not implemented")
 }
 func (UnimplementedDeviceTrustServiceServer) SyncInventory(DeviceTrustService_SyncInventoryServer) error {
 	return status.Errorf(codes.Unimplemented, "method SyncInventory not implemented")
@@ -692,6 +735,24 @@ func (x *deviceTrustServiceAuthenticateDeviceServer) Recv() (*AuthenticateDevice
 	return m, nil
 }
 
+func _DeviceTrustService_ConfirmDeviceWebAuthentication_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ConfirmDeviceWebAuthenticationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DeviceTrustServiceServer).ConfirmDeviceWebAuthentication(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DeviceTrustService_ConfirmDeviceWebAuthentication_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DeviceTrustServiceServer).ConfirmDeviceWebAuthentication(ctx, req.(*ConfirmDeviceWebAuthenticationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _DeviceTrustService_SyncInventory_Handler(srv interface{}, stream grpc.ServerStream) error {
 	return srv.(DeviceTrustServiceServer).SyncInventory(&deviceTrustServiceSyncInventoryServer{stream})
 }
@@ -778,6 +839,10 @@ var DeviceTrustService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CreateDeviceEnrollToken",
 			Handler:    _DeviceTrustService_CreateDeviceEnrollToken_Handler,
+		},
+		{
+			MethodName: "ConfirmDeviceWebAuthentication",
+			Handler:    _DeviceTrustService_ConfirmDeviceWebAuthentication_Handler,
 		},
 		{
 			MethodName: "GetDevicesUsage",

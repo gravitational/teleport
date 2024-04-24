@@ -189,7 +189,6 @@ func TestIntegrations(t *testing.T) {
 	t.Run("UUIDBasedProxy", suite.bind(testUUIDBasedProxy))
 	t.Run("WindowChange", suite.bind(testWindowChange))
 	t.Run("SSHTracker", suite.bind(testSSHTracker))
-	t.Run("ListResourcesAcrossClusters", suite.bind(testListResourcesAcrossClusters))
 	t.Run("SessionRecordingModes", suite.bind(testSessionRecordingModes))
 	t.Run("DifferentPinnedIP", suite.bind(testDifferentPinnedIP))
 	t.Run("JoinOverReverseTunnelOnly", suite.bind(testJoinOverReverseTunnelOnly))
@@ -1543,42 +1542,6 @@ func testIPPropagation(t *testing.T, suite *integrationTestSuite) {
 		wg.Wait()
 	}
 
-	testSSHNodeConnection := func(t *testing.T, instance *helpers.TeleInstance, clusterName, nodeName string) {
-		person := NewTerminal(250)
-		ctx := context.Background()
-
-		tc, err := instance.NewClient(helpers.ClientConfig{
-			Login:   suite.Me.Username,
-			Cluster: clusterName,
-			Host:    nodeName,
-		})
-		require.NoError(t, err)
-
-		tc.Stdout = person
-		tc.Stdin = person
-
-		//nolint:staticcheck // SA1019. This test is meant to exercise the SSH connection path as long as it exists.
-		clt, err := tc.ConnectToProxy(ctx)
-		require.NoError(t, err)
-		defer clt.Close()
-
-		nodeClient, err := clt.ConnectToNode(
-			ctx,
-			client.NodeDetails{Addr: nodeName, Namespace: tc.Namespace, Cluster: tc.SiteName},
-			tc.Config.HostLogin,
-			sshutils.ClusterDetails{},
-		)
-		require.NoError(t, err)
-		defer nodeClient.Close()
-
-		err = nodeClient.RunCommand(ctx, []string{"echo $SSH_CLIENT"})
-		require.NoError(t, err)
-
-		require.Eventually(t, func() bool {
-			return getRemoteAddrString(person.Output(1000)) == clt.Client.LocalAddr().String()
-		}, time.Millisecond*100, time.Millisecond*10, "client IP:port that node sees doesn't match to real one")
-	}
-
 	testGRPCNodeConnection := func(t *testing.T, instance *helpers.TeleInstance, clusterName, nodeName string) {
 		person := NewTerminal(250)
 		ctx := context.Background()
@@ -1661,7 +1624,8 @@ func testIPPropagation(t *testing.T, suite *integrationTestSuite) {
 		// The above dialer does not work clt.AuthClient as it requires a
 		// custom transport from ProxyClient when TLS routing is disabled.
 		// Recreating the authClient without the above dialer.
-		authClientCfg := clt.ProxyClient.ClientConfig(ctx, clusterName)
+		authClientCfg, err := clt.ProxyClient.ClientConfig(ctx, clusterName)
+		require.NoError(t, err)
 		authClientCfg.DialOpts = nil
 		authClient, err := auth.NewClient(authClientCfg)
 		require.NoError(t, err)
@@ -1671,30 +1635,6 @@ func testIPPropagation(t *testing.T, suite *integrationTestSuite) {
 		require.Equal(t, local.get().String(), pingResp.RemoteAddr, "client IP:port that auth server sees doesn't match the real one")
 	}
 
-	testSSHAuthConnection := func(t *testing.T, instance *helpers.TeleInstance, clusterName string) {
-		ctx := context.Background()
-
-		tc, err := instance.NewClient(helpers.ClientConfig{
-			Login:   suite.Me.Username,
-			Cluster: clusterName,
-			Host:    Host,
-		})
-		require.NoError(t, err)
-
-		//nolint:staticcheck // SA1019. This test is meant to exercise the SSH connection path as long as it exists.
-		clt, err := tc.ConnectToProxy(ctx)
-		require.NoError(t, err)
-		defer clt.Close()
-
-		site, err := clt.ConnectToCluster(ctx, clusterName)
-		require.NoError(t, err)
-
-		pingResp, err := site.Ping(ctx)
-		require.NoError(t, err)
-
-		expected := clt.Client.LocalAddr().String()
-		require.Equal(t, expected, pingResp.RemoteAddr, "client IP:port that auth server sees doesn't match the real one")
-	}
 	_, root, leaf := createTrustedClusterPair(t, suite, startNodes)
 
 	testAuthCases := []struct {
@@ -1725,10 +1665,6 @@ func testIPPropagation(t *testing.T, suite *integrationTestSuite) {
 		for _, test := range testAuthCases {
 			t.Run(fmt.Sprintf("source cluster=%q target cluster=%q",
 				test.instance.Secrets.SiteName, test.clusterName), func(t *testing.T) {
-				t.Run("ssh connection", func(t *testing.T) {
-					testSSHAuthConnection(t, test.instance, test.clusterName)
-				})
-
 				t.Run("grpc connection", func(t *testing.T) {
 					testGRPCAuthConnection(t, test.instance, test.clusterName)
 				})
@@ -1741,10 +1677,6 @@ func testIPPropagation(t *testing.T, suite *integrationTestSuite) {
 			test := test
 			t.Run(fmt.Sprintf("target=%q source cluster=%q target cluster=%q",
 				test.nodeAddr, test.instance.Secrets.SiteName, test.clusterName), func(t *testing.T) {
-				t.Run("ssh connection", func(t *testing.T) {
-					testSSHNodeConnection(t, test.instance, test.clusterName, test.nodeAddr)
-				})
-
 				t.Run("grpc connection", func(t *testing.T) {
 					testGRPCNodeConnection(t, test.instance, test.clusterName, test.nodeAddr)
 				})
@@ -1855,6 +1787,11 @@ func testShutdown(t *testing.T, suite *integrationTestSuite) {
 		{
 			name: "cli sessions",
 			createSession: func(t *testing.T, i *helpers.TeleInstance, term *Terminal, cfg helpers.ClientConfig) {
+				// TODO(espadolini): make the connection detach timeout (or the
+				// clock that it uses) configurable; in the meantime, disable
+				// connection resumption here, since it could occasionally make
+				// the server wait for a full minute before shutting down
+				cfg.DisableSSHResumption = true
 				tc, err := i.NewClient(cfg)
 				require.NoError(t, err)
 
@@ -2441,7 +2378,7 @@ func testInvalidLogins(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 
 	err = tc.SSH(context.Background(), cmd, false)
-	require.ErrorIs(t, err, trace.NotFound("failed to dial target host\n\tcluster \"wrong-site\" is not found"))
+	require.ErrorIs(t, err, trace.NotFound("failed to dial target host\n\tlooking up remote cluster \"wrong-site\"\n\t\tnot found"))
 }
 
 // TestTwoClustersTunnel creates two teleport clusters: "a" and "b" and creates a
@@ -4080,7 +4017,7 @@ func testDiscoveryRecovers(t *testing.T, suite *integrationTestSuite) {
 }
 
 // TestDiscovery tests case for multiple proxies and a reverse tunnel
-// agent that eventually connnects to the the right proxy
+// agent that eventually connnects to the right proxy
 func testDiscovery(t *testing.T, suite *integrationTestSuite) {
 	ctx := context.Background()
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
@@ -7742,201 +7679,6 @@ func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraSe
 	return tc, root, leaf
 }
 
-func testListResourcesAcrossClusters(t *testing.T, suite *integrationTestSuite) {
-	ctx := context.Background()
-	tc, _, _ := createTrustedClusterPair(t, suite, func(t *testing.T, root, leaf *helpers.TeleInstance) {
-		rootNodes := []string{"root-one", "root-two"}
-		leafNodes := []string{"leaf-one", "leaf-two"}
-
-		// Start a Teleport node that has SSH, Apps, Databases, and Kubernetes.
-		startNode := func(name string, i *helpers.TeleInstance) {
-			conf := suite.defaultServiceConfig()
-			conf.Auth.Enabled = false
-			conf.Proxy.Enabled = false
-
-			conf.DataDir = t.TempDir()
-			conf.SetToken("token")
-			conf.Testing.UploadEventsC = i.UploadEventsC
-			conf.SetAuthServerAddress(*utils.MustParseAddr(net.JoinHostPort(i.Hostname, helpers.PortStr(t, i.Web))))
-			conf.HostUUID = name
-			conf.Hostname = name
-			conf.SSH.Enabled = true
-			conf.CachePolicy = servicecfg.CachePolicy{
-				Enabled: true,
-			}
-			conf.SSH.Addr = utils.NetAddr{
-				Addr: helpers.NewListenerOn(t, Host, service.ListenerNodeSSH, &conf.FileDescriptors),
-			}
-			conf.Proxy.Enabled = false
-
-			conf.Apps.Enabled = true
-			conf.Apps.Apps = []servicecfg.App{
-				{
-					Name: name,
-					URI:  name,
-				},
-			}
-
-			conf.Databases.Enabled = true
-			conf.Databases.Databases = []servicecfg.Database{
-				{
-					Name:     name,
-					URI:      name,
-					Protocol: "postgres",
-				},
-			}
-
-			conf.Kube.KubeconfigPath = filepath.Join(conf.DataDir, "kube_config")
-			require.NoError(t, helpers.EnableKube(t, conf, name))
-			conf.Kube.ListenAddr = nil
-			process, err := service.NewTeleport(conf)
-			require.NoError(t, err)
-			i.Nodes = append(i.Nodes, process)
-
-			expectedEvents := []string{
-				service.NodeSSHReady,
-				service.AppsReady,
-				service.DatabasesIdentityEvent,
-				service.DatabasesReady,
-				service.KubeIdentityEvent,
-				service.KubernetesReady,
-				service.TeleportReadyEvent,
-			}
-
-			receivedEvents, err := helpers.StartAndWait(process, expectedEvents)
-			require.NoError(t, err)
-			log.Debugf("Teleport Kube Server (in instance %v) started: %v/%v events received.",
-				i.Secrets.SiteName, len(expectedEvents), len(receivedEvents))
-		}
-
-		for _, node := range rootNodes {
-			startNode(node, root)
-		}
-		for _, node := range leafNodes {
-			startNode(node, leaf)
-		}
-	})
-
-	nodeTests := []struct {
-		name     string
-		search   string
-		expected []string
-	}{
-		{
-			name: "all nodes",
-			expected: []string{
-				"root-zero", "root-one", "root-two",
-				"leaf-zero", "leaf-one", "leaf-two",
-			},
-		},
-		{
-			name:     "leaf only",
-			search:   "leaf",
-			expected: []string{"leaf-zero", "leaf-one", "leaf-two"},
-		},
-		{
-			name:     "two only",
-			search:   "two",
-			expected: []string{"root-two", "leaf-two"},
-		},
-	}
-
-	for _, test := range nodeTests {
-		t.Run("node - "+test.name, func(t *testing.T) {
-			if test.search != "" {
-				tc.SearchKeywords = strings.Split(test.search, " ")
-			} else {
-				tc.SearchKeywords = nil
-			}
-			clusters, err := tc.ListNodesWithFiltersAllClusters(ctx)
-			require.NoError(t, err)
-			nodes := make([]string, 0)
-			for _, v := range clusters {
-				for _, node := range v {
-					nodes = append(nodes, node.GetHostname())
-				}
-			}
-
-			require.ElementsMatch(t, test.expected, nodes)
-		})
-	}
-
-	// Everything other than ssh nodes.
-	tests := []struct {
-		name     string
-		search   string
-		expected []string
-	}{
-		{
-			name: "all",
-			expected: []string{
-				"root-one", "root-two",
-				"leaf-one", "leaf-two",
-			},
-		},
-		{
-			name:     "leaf only",
-			search:   "leaf",
-			expected: []string{"leaf-one", "leaf-two"},
-		},
-		{
-			name:     "two only",
-			search:   "two",
-			expected: []string{"root-two", "leaf-two"},
-		},
-	}
-
-	for _, test := range tests {
-		if test.search != "" {
-			tc.SearchKeywords = strings.Split(test.search, " ")
-		} else {
-			tc.SearchKeywords = nil
-		}
-
-		t.Run("apps - "+test.name, func(t *testing.T) {
-			clusters, err := tc.ListAppsAllClusters(ctx, nil)
-			require.NoError(t, err)
-			apps := make([]string, 0)
-			for _, v := range clusters {
-				for _, app := range v {
-					apps = append(apps, app.GetName())
-				}
-			}
-
-			require.ElementsMatch(t, test.expected, apps)
-		})
-
-		t.Run("databases - "+test.name, func(t *testing.T) {
-			clusters, err := tc.ListDatabasesAllClusters(ctx, nil)
-			require.NoError(t, err)
-			databases := make([]string, 0)
-			for _, v := range clusters {
-				for _, db := range v {
-					databases = append(databases, db.GetName())
-				}
-			}
-
-			require.ElementsMatch(t, test.expected, databases)
-		})
-
-		t.Run("kube - "+test.name, func(t *testing.T) {
-			req := proto.ListResourcesRequest{}
-			if test.search != "" {
-				req.SearchKeywords = strings.Split(test.search, " ")
-			}
-			clusterMap, err := tc.ListKubernetesClustersWithFiltersAllClusters(ctx, req)
-			require.NoError(t, err)
-			clusters := make([]string, 0)
-			for _, cl := range clusterMap {
-				for _, c := range cl {
-					clusters = append(clusters, c.GetName())
-				}
-			}
-			require.ElementsMatch(t, test.expected, clusters)
-		})
-	}
-}
-
 func testJoinOverReverseTunnelOnly(t *testing.T, suite *integrationTestSuite) {
 	for _, proxyProtocolMode := range []multiplexer.PROXYProtocolMode{
 		multiplexer.PROXYProtocolOn, multiplexer.PROXYProtocolOff, multiplexer.PROXYProtocolUnspecified,
@@ -8930,20 +8672,12 @@ func TestProxySSHPortMultiplexing(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			// connect via SSH
-			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-			defer cancel()
-			//nolint:staticcheck // SA1019. This test is meant to exercise the SSH connection path as long as it exists.
-			pc, err := tc.ConnectToProxy(ctx)
-			require.NoError(t, err)
-			require.NoError(t, pc.Close())
-
 			// connect via gRPC
 			tlsConfig, err := tc.LoadTLSConfig()
 			require.NoError(t, err)
 			tlsConfig.NextProtos = []string{string(common.ProtocolProxySSHGRPC)}
 
-			ctx, cancel = context.WithTimeout(context.Background(), 15*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 			defer cancel()
 			conn, err := grpc.DialContext(
 				ctx,

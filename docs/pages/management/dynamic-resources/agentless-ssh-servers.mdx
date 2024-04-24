@@ -1,0 +1,291 @@
+---
+title: Registering Agentless OpenSSH Servers with IaC
+description: Use infrastructure-as-code tooling to register Agentless OpenSSH servers in Teleport.
+---
+
+In this guide, you will see how to register in Teleport your OpenSSH nodes
+through infrastructure as code (IaC). Teleport supports three ways to
+dynamically create resources from code:
+- The Teleport Kubernetes Operator, which allows you to manage Teleport resources
+  from Kubernetes
+- The Teleport Terraform Provider, which allows you to manage Teleport resources
+  via Terraform
+- The `tctl` CLI, which allows you to manage Teleport resources from your local
+  computer or your CI environment
+
+## Prerequisites
+
+To follow this guide, you must have:
+
+<Tabs>
+<TabItem label="tctl">
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+</TabItem>
+<TabItem label="Kubernetes Operator">
+
+A running operator by following either:
+- [the guide to enable the operator in the `teleport-cluster` Helm chart](./teleport-operator-helm.mdx).
+- [the guide to setup a standalone operator](./teleport-operator-standalone.mdx).
+
+You must also set the namespace in which you deployed the operator as this is
+the namespace where you will deploy the CustomResources:
+
+```code
+# for operators deployed with the `teleport-cluster` Helm chart
+$ export OPERATOR_NAMESPACE="teleport-cluster"
+
+# for standalone operators
+$ export OPERATOR_NAMESPACE="teleport-iac"
+```
+
+</TabItem>
+<TabItem label="Terraform">
+
+A functional Teleport Terraform provider by following [the Terraform provider guide](./terraform-provider.mdx).
+
+</TabItem>
+</Tabs>
+- a server running OpenSSH you will add to the Teleport cluster. This server
+  must be reachable from the proxy (public IP address and firewall allowing
+  traffic on port 22).
+
+<Admonition type="tip">
+  If you want to add a private SSH server (e.g. behind a NAT, in a private
+  network, protected by a firewall blocking inbound traffic, ...) you can
+  [install a Teleport agent](../../server-access/getting-started.mdx). The
+  Teleport agent opens a tunnel to the Teleport Proxy Service, allowing any user
+  to connect to it by going through the Proxy Service.
+</Admonition>
+
+## Step 1/4 - Gather the required information
+
+To register an OpenSSH server in Teleport you will need the following information:
+
+- The server hostname: <Var name="ssh-server-hostname" />
+- The public server IP address with SSH port: <Var name="198.51.100.1:22" />
+
+You must also choose a set of labels for the server. Those labels can be used to
+describe the server and control which users can access the server. They can be
+dynamically changed later, without having to reconfigure openSSH.
+
+See the [Access Controls for Servers](../../server-access/rbac.mdx) page for
+more details about labels and how to control access to your servers.
+
+In the rest of this guide, the labels will be:
+```yaml
+env: test
+team: engineering
+```
+
+## Step 2/4 - Write the server manifest
+
+In this step, we'll write text files describing the OpenSSH server resource we
+want to register in Teleport. Those files are called manifests and their syntax
+will vary based on the IaC tooling you'll use.
+
+Those manifests are typically versioned in a shared revision system like git.
+This allows you to keep track of all changes, follow standard code review
+procedures before changing resources in Teleport, and quickly redeploy your
+Teleport instance if needed.
+
+<Tabs>
+<TabItem label="tctl">
+
+You must pick a server ID, or Teleport will pick one for you. This ID is used
+for two things:
+
+- if you want to update the server information (e.g. change the labels) later,
+  you will need to specify its ID in the manifest. Else Teleport will create a
+  new server resource instead of editing the existing one.
+- if you have multiple servers with identical hostnames, the unique ID allows
+  you to pick a specific server.
+
+(!docs/pages/includes/uuidgen.mdx!)
+
+Create the following `openssh-node-resource.yaml` file:
+
+```yaml
+kind: node
+version: v2
+sub_kind: openssh
+metadata:
+  name: a100fdd0-52db-4eca-a7ab-c3afa7a1564a  # this is the UUID previously generated
+  labels:
+    env: test
+    team: engineering
+spec:
+  addr: <Var name="198.51.100.1:22" />
+  hostname: <Var name="ssh-server-hostname" />
+```
+
+</TabItem>
+<TabItem label="Kubernetes Operator">
+
+(!docs/pages/includes/uuidgen.mdx!)
+
+Create the following `openssh-node-resource.yaml` file:
+
+```yaml
+apiVersion: resources.teleport.dev/v1
+kind: TeleportOpenSSHServerV2
+metadata:
+  name: a100fdd0-52db-4eca-a7ab-c3afa7a1564a  # this is the UUID previously generated
+  # kubernetes CR labels are propagated to the Teleport resource
+  labels:
+    env: test
+    team: engineering
+spec:
+  addr: <Var name="198.51.100.1:22" />
+  hostname: <Var name="ssh-server-hostname" />
+```
+
+</TabItem>
+<TabItem label="Terraform">
+
+Create the following `openssh-node-resource.tf` file:
+
+```hcl
+resource "teleport_server" "openssh_agentless" {
+  version = "v2"
+  sub_kind = "openssh"
+  // Name is not required for servers, this is a special case.
+  // When a name is not set, an UUID will be generated by Teleport and
+  // imported back into Terraform.
+  spec = {
+    addr = "<Var name="198.51.100.1:22" />"
+    hostname = "<Var name="ssh-server-hostname" />"
+  }
+}
+
+output "openssh_node_id" {
+  value = teleport_server.openssh_agentless.metadata.name
+}
+```
+</TabItem>
+</Tabs>
+
+## Step 3/4. Apply all manifests
+
+<Tabs>
+<TabItem label="tctl">
+
+Declare the server with the following command:
+
+```code
+$ tctl create -f openssh-node-resource.yaml
+node "a100fdd0-52db-4eca-a7ab-c3afa7a1564a" has been created
+```
+
+
+</TabItem>
+<TabItem label="Kubernetes Operator">
+
+Apply the Kubernetes manifest with the following command:
+
+```code
+$ kubectl apply -n "$OPERATOR_NAMESPACE" -f openssh-node-resource.yaml
+teleportopensshserverv2.resources.teleport.dev/a100fdd0-52db-4eca-a7ab-c3afa7a1564a created
+```
+
+Then list the `TeleportOpenSSHServerV2` Kubernetes custom resources:
+
+```code
+$ kubectl get teleportopensshserverv2 -n "$OPERATOR_NAMESPACE"
+# NAME                                   AGE
+# a100fdd0-52db-4eca-a7ab-c3afa7a1564a   10m
+```
+
+</TabItem>
+<TabItem label="Terraform">
+
+Test the Terraform connectivity and review the changes:
+
+```code
+$ terraform plan
+Terraform will perform the following actions:
+
+  # teleport_server.openssh_agentless will be created
+  + resource "teleport_server" "openssh_agentless" {
+      + id       = (known after apply)
+      + kind     = (known after apply)
+      + metadata = (known after apply)
+      + spec     = {
+          + addr     = "<Var name="198.51.100.1:22" />"
+          + hostname = "<Var name="ssh-server-hostname" />"
+        }
+      + sub_kind = "openssh"
+      + version  = "v2"
+    }
+
+Plan: 1 to add, 0 to change, 0 to destroy.
+
+Changes to Outputs:
+  + openssh_node_id = (known after apply)
+```
+
+Apply the plan and recover the node UUID:
+
+```code
+$ terraform apply
+# [...]
+Do you want to perform these actions?
+  Terraform will perform the actions described above.
+  Only 'yes' will be accepted to approve.
+
+  Enter a value: yes
+
+teleport_server.openssh_agentless: Creating...
+teleport_server.openssh_agentless: Creation complete after 3s [id=a100fdd0-52db-4eca-a7ab-c3afa7a1564a]
+
+Apply complete! Resources: 1 added, 0 changed, 0 destroyed.
+
+Outputs:
+
+openssh_node_id = "a100fdd0-52db-4eca-a7ab-c3afa7a1564a"
+```
+
+</TabItem>
+</Tabs>
+
+## Step 3/4. Validate the server created in Teleport
+
+Now that the IaC tooling has run, we'll validate that Teleport is now aware of
+the OpenSSH server:
+
+```code
+# List nodes with a given hostname or IP address
+$ tsh ls --search="<Var name="ssh-server-hostname" />"
+Node Name                                           Address        Labels
+--------------------- ------------ --------------- --------------------------
+<Var name="ssh-server-hostname" /> <Var name="198.51.100.1:22" /> env=test,team=engineering
+
+# Get the node details by hostname
+$ tctl get "node/<Var name="ssh-server-hostname" />"
+
+# Get the node details by ID
+$ tctl get node/a100fdd0-52db-4eca-a7ab-c3afa7a1564a
+```
+
+## Step 4/4. Trust the Teleport CA and issue host certificates
+
+At this point, Teleport is aware that there's an OpenSSH server and knows how to
+contact it and which user should have access. However, neither Teleport nor the
+server trust each other.
+
+You need to configure the server to trust connections coming from Teleport (trust
+the Teleport SSH Certificate Authority), and you need to give the server an SSH
+Host certificate issued by Teleport.
+
+Those steps can be automated, but the automation will depend on your custom
+infrastructure and tooling (you can configure the SSH CA in the VM image, use
+custom startup scripts, provision servers with Ansible, ...).
+
+A step-by-step manual setup is described
+in [the OpenSSH manual installation guide](../../server-access/openssh/openssh-manual-install.mdx)
+starting with the Step 2.
+
+## Next steps
+
+- [Setup RBAC](../../server-access/rbac.mdx) to control which user can SSH on which server.

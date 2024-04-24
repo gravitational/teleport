@@ -164,16 +164,112 @@ automatic updates:
    $ sudo systemctl status teleport-upgrade
    ```
 
-## Troubleshooting
+## Version locking
 
-If the agent is not automatically updated, you can invoke the upgrader manually
-and look at its logs:
+As of Teleport `15.1.10`, a version locking mechanism is enabled by the updater.
+This mechanism locks the version of Teleport and prevents manual updates of the Teleport
+package. This prevents unintentional updates during routine system maintenance, or
+an accidental update by a user. The updater still has the capability to update the
+Teleport package, and all updates of Teleport are expected to be performed by the
+updater.
 
+The version locking mechanism is implemented using the features of the package managers.
+In case a user would like to manually update the Teleport version, this can be done
+with the following commands.
+
+With the APT package manager CLI, the `--allow-change-held-packages` flag must be provided
+to bypass the version lock.
 ```code
-$ sudo teleport-upgrade run
+$ apt-get install --allow-change-held-packages "teleport-ent=<target-version>"
 ```
 
-To suspend automatic updates, disable the systemd timer:
+With the YUM package manager CLI, the `--disableexcludes="teleport"` flag must be provided
+to bypass the version lock.
+```code
+$ yum install --disablerepo="*" --enablerepo="teleport" --disableexcludes="teleport" "teleport-ent-<target-version>"
+```
+
+With the Zypper package manager CLI, the lock must be disabled and then re-enabled
+after the update.
+```code
+$ zypper removelock "teleport-ent"
+$ zypper install --repo="teleport" "teleport-ent-<target-version>"
+$ zypper addlock "teleport-ent"
+```
+
+## Updating the updater
+
+The updater is designed to be minimal and relatively stable, but the updater will
+receive updates on occasion. Currently, the updater does not have the capability
+to update itself. Updates to the `teleport-ent-updater` package must be done manually.
+
+The `teleport-ent-updater` will be backwards compatible with older versions of Teleport,
+so you can always update the `teleport-ent-updater` package to the latest available
+version.
+
+## Troubleshooting
+
+The `teleport-upgrade` tool provides some basic commands to verify and perform an
+update of the Teleport agent.
+
+```code
+$ teleport-upgrade help
+USAGE: /usr/sbin/teleport-upgrade <command>
+
+Tool for automatic upgrades of Teleport agents.
+
+Commands:
+  run           check for and potentially apply a teleport upgrade.
+  dry-run       check for new teleport version but do not upgrade.
+  version       print the current version of /usr/sbin/teleport-upgrade.
+  help          show this help text.
+```
+
+The `dry-run` command can be used to check for an available update without performing
+an update.
+```code
+# Example output when teleport is already on the latest compatible version.
+$ teleport-upgrade dry-run
+[i] no upgrades available (14.3.14 == 14.3.14) [ 582 ]
+
+# Example output when an update is available.
+$ teleport-upgrade dry-run
+[i] an upgrade is available (13.4.14 -> 14.3.14) [ 585 ]
+[i] within maintenance window, upgrade will be attempted. [ 596 ]
+```
+
+The `run` command performs an update if available.
+```code
+# Successful teleport update from 13.4.14 to 14.3.14.
+$ teleport-upgrade run
+[i] an upgrade is available (13.4.14 -> 14.3.14) [ 585 ]
+[i] within maintenance window, upgrade will be attempted. [ 596 ]
+[i] attempting apt install teleport-ent=14.3.14... [ 480 ]
+[...]
+[i] gracefully restarting Teleport (if already running) [ 449 ]
+
+# Teleport updates are not attempted when outside the maintenance window.
+$ teleport-upgrade run
+[i] an upgrade is available (13.4.14 -> 14.3.14) [ 585 ]
+[i] upgrade is non-critical and we are outside of maintenance window, not attempting. [ 618 ]
+```
+
+Teleport agents are not updated immediately when a new version of Teleport is released,
+and agent updates can lag behind the cluster by a few days.
+
+If the Teleport agent has not been automatically updating for several weeks, you
+can view the logs of the `teleport-upgrade.service` to help troubleshoot the problem.
+
+```code
+$ journalctl -t teleport-upgrade
+Apr 16 16:44:32 example teleport-upgrade[168983]: [i] upgrade is non-critical and we are outside of maintenance window, not attempting. [ 618 ]
+Apr 16 16:50:32 example teleport-upgrade[169084]: [i] an upgrade is available (13.4.14 -> 14.3.14) [ 585 ]
+Apr 16 16:50:33 example teleport-upgrade[169084]: [i] upgrade is non-critical and we are outside of maintenance window, not attempting. [ 618 ]
+Apr 16 16:56:32 example teleport-upgrade[169187]: [i] an upgrade is available (13.4.14 -> 14.3.14) [ 585 ]
+...
+```
+
+To suspend automatic updates, disable the `teleport.upgrade.timer` systemd timer:
 
 ```code
 $ sudo systemctl disable --now teleport-upgrade.timer
@@ -184,4 +280,3 @@ To enable and start the systemd timer after suspending:
 ```code
 $ sudo systemctl enable --now teleport-upgrade.timer
 ```
-

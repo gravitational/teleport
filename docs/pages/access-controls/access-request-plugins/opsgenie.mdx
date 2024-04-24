@@ -60,8 +60,6 @@ To create a user first navigate to Management -> Access -> Roles
 
 Then select 'Create New Role' and create the requester role.
 
-![Add user one](../../../img/enterprise/plugins/opsgenie/add-requester-role.png)
-
 ```
 kind: role
 version: v5
@@ -75,10 +73,13 @@ spec:
         - approve: 1
           deny: 1
       annotations:
-        teleport.dev/schedules: ['teleport-access-request-notifications']
+        teleport.dev/notify-services: ['teleport-access-request-notifications']
+        teleport.dev/schedules: ['teleport-access-alert-schedules']
 ```
 
-The `teleport.dev/schedules` annotation specifies the schedule the alert will be be created for.
+The `teleport.dev/notify-services` annotation specifies the schedules the alert will be created for.
+The `teleport.dev/schedules` annotation specifies the schedules the alert will check, and auto approve the
+Access Request if the requesting user is on-call.
 
 ### Create a user who will request access
 
@@ -121,7 +122,7 @@ As the Teleport user `myuser`, create an Access Request for the `editor` role:
 
 In Opsgenie, you will see a new alert containing information about the
 Access Request in either the default schedule specified when enrolling the plugin,
-or in the schedules specified by `teleport.dev/schedules` annotation in the requester's role.
+or in the schedules specified by `teleport.dev/notify-services` annotation in the requester's role.
 
 ### Resolve the request
 

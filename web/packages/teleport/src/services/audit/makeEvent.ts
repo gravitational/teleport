@@ -186,19 +186,19 @@ export const formatters: Formatters = {
   },
   [eventCodes.GITHUB_CONNECTOR_CREATED]: {
     type: 'github.created',
-    desc: 'GITHUB Auth Connector Created',
+    desc: 'GitHub Auth Connector Created',
     format: ({ user, name }) =>
       `User [${user}] created GitHub connector [${name}]`,
   },
   [eventCodes.GITHUB_CONNECTOR_DELETED]: {
     type: 'github.deleted',
-    desc: 'GITHUB Auth Connector Deleted',
+    desc: 'GitHub Auth Connector Deleted',
     format: ({ user, name }) =>
       `User [${user}] deleted GitHub connector [${name}]`,
   },
   [eventCodes.GITHUB_CONNECTOR_UPDATED]: {
     type: 'github.updated',
-    desc: 'GITHUB Auth Connector Updated',
+    desc: 'GitHub Auth Connector Updated',
     format: ({ user, name }) =>
       `User [${user}] updated GitHub connector [${name}]`,
   },
@@ -777,8 +777,12 @@ export const formatters: Formatters = {
   [eventCodes.CREATE_MFA_AUTH_CHALLENGE]: {
     type: 'mfa_auth_challenge.create',
     desc: 'MFA Authentication Attempt',
-    format: ({ user }) =>
-      `User [${user}] requested an MFA authentication challenge`,
+    format: ({ user }) => {
+      if (user) {
+        return `User [${user}] requested an MFA authentication challenge`;
+      }
+      return `Passwordless user requested an MFA authentication challenge`;
+    },
   },
   [eventCodes.VALIDATE_MFA_AUTH_RESPONSE]: {
     type: 'mfa_auth_challenge.validate',
@@ -1403,6 +1407,14 @@ export const formatters: Formatters = {
         ? `User [${user}] has issued a device web token`
         : `User [${user}] has failed to issue a device web token`,
   },
+  [eventCodes.DEVICE_AUTHENTICATE_CONFIRM]: {
+    type: 'device.authenticate.confirm',
+    desc: 'Device Web Authentication Confirmed',
+    format: ({ user, status, success }) =>
+      success || (status && status.success)
+        ? `User [${user}] has confirmed device web authentication`
+        : `User [${user}] has failed to confirm device web authentication`,
+  },
   [eventCodes.X11_FORWARD]: {
     type: 'x11-forward',
     desc: 'X11 Forwarding Requested',
@@ -1465,11 +1477,25 @@ export const formatters: Formatters = {
       return `Bot [${bot_name}] joined the cluster using the [${method}] join method`;
     },
   },
+  [eventCodes.BOT_JOIN_FAILURE]: {
+    type: 'bot.join',
+    desc: 'Bot Join Failed',
+    format: ({ bot_name }) => {
+      return `Bot [${bot_name || 'unknown'}] failed to join the cluster`;
+    },
+  },
   [eventCodes.INSTANCE_JOIN]: {
     type: 'instance.join',
     desc: 'Instance Joined',
     format: ({ node_name, role, method }) => {
       return `Instance [${node_name}] joined the cluster with the [${role}] role using the [${method}] join method`;
+    },
+  },
+  [eventCodes.INSTANCE_JOIN_FAILURE]: {
+    type: 'instance.join',
+    desc: 'Instance Join Failed',
+    format: ({ node_name }) => {
+      return `Instance [${node_name || 'unknown'}] failed to join the cluster`;
     },
   },
   [eventCodes.BOT_CREATED]: {

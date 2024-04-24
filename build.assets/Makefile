@@ -35,10 +35,7 @@ ifneq ("$(KUBECONFIG)","")
 DOCKERFLAGS := $(DOCKERFLAGS) -v $(KUBECONFIG):/mnt/kube/config -e KUBECONFIG=/mnt/kube/config -e TEST_KUBE=$(TEST_KUBE)
 endif
 
-# conditionally force the use of UID/GID 1000:1000 if we're running in Drone or Github Actions (in which case CI env var will be set)
-ifeq ("$(DRONE)","true")
-CI := true
-endif
+# conditionally force the use of UID/GID 1000:1000 if we're running in Github Actions (in which case CI env var will be set)
 ifeq ("$(CI)","true")
 # The UID/GID of the runner user on ARC runners is 1001, not 1000
 # This var is currently only set for ARC runners via https://github.com/gravitational/cloud-terraform/pull/2473
@@ -466,14 +463,6 @@ release-arm64-fips:
 .PHONY: release-arm
 release-arm: webassets
 	$(MAKE) release RELEASE_TARGET=release-unix-preserving-webassets ARCH=arm BUILDBOX=$(BUILDBOX_ARM)
-
-# Compatibility targets for when we had separate Ubuntu and CentOS 7 targets for AMD64
-# TODO(camscale): Remove these when drone no longer calls them.
-.PHONY: release-amd64-centos7
-release-amd64-centos7: release-amd64
-
-.PHONY: release-amd64-centos7-fips
-release-amd64-centos7-fips: release-amd64-fips
 
 # #############################################################################
 # Generic release targets

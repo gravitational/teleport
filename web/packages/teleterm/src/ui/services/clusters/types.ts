@@ -28,13 +28,26 @@ export type AuthType = shared.AuthType;
 
 export type AuthProvider = tsh.AuthProvider;
 
-export type LoginLocalParams = { kind: 'local' } & tsh.LoginLocalParams;
+export interface LoginLocalParams {
+  kind: 'local';
+  clusterUri: uri.RootClusterUri;
+  username: string;
+  password: string;
+  token?: string;
+}
 
-export type LoginPasswordlessParams = {
+export interface LoginSsoParams {
+  kind: 'sso';
+  clusterUri: uri.RootClusterUri;
+  providerType: string;
+  providerName: string;
+}
+
+export interface LoginPasswordlessParams {
   kind: 'passwordless';
-} & tsh.LoginPasswordlessParams;
-
-export type LoginSsoParams = { kind: 'sso' } & tsh.LoginSsoParams;
+  clusterUri: uri.RootClusterUri;
+  onPromptCallback(res: WebauthnLoginPrompt): void;
+}
 
 export type LoginParams =
   | LoginLocalParams
@@ -43,7 +56,22 @@ export type LoginParams =
 
 export type LoginPasswordlessRequest = tsh.LoginPasswordlessRequest;
 
-export type WebauthnLoginPrompt = tsh.WebauthnLoginPrompt;
+export type WebauthnLoginPrompt =
+  | WebauthnLoginTapPrompt
+  | WebauthnLoginRetapPrompt
+  | WebauthnLoginPinPrompt
+  | WebauthnLoginCredentialPrompt;
+export type WebauthnLoginTapPrompt = { type: 'tap' };
+export type WebauthnLoginRetapPrompt = { type: 'retap' };
+export type WebauthnLoginPinPrompt = {
+  type: 'pin';
+  onUserResponse(pin: string): void;
+};
+export type WebauthnLoginCredentialPrompt = {
+  type: 'credential';
+  data: { credentials: tsh.CredentialInfo[] };
+  onUserResponse(index: number): void;
+};
 
 export interface AuthSettings extends tsh.AuthSettings {
   secondFactor: Auth2faType;
@@ -54,6 +82,16 @@ export interface AuthSettings extends tsh.AuthSettings {
 }
 
 export type ClustersServiceState = {
-  clusters: Map<uri.ClusterUri, tsh.Cluster>;
+  clusters: Map<
+    uri.ClusterUri,
+    tsh.Cluster & {
+      // TODO(gzdunek): Remove assumedRequests from loggedInUser.
+      // The AssumedRequest objects are needed only in AssumedRolesBar.
+      // We should be able to move fetching them there.
+      loggedInUser?: tsh.LoggedInUser & {
+        assumedRequests?: Record<string, tsh.AssumedRequest>;
+      };
+    }
+  >;
   gateways: Map<uri.GatewayUri, tsh.Gateway>;
 };

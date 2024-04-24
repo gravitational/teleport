@@ -381,6 +381,11 @@
               "forScopes": ["enterprise", "cloud"]
             },
             {
+              "title": "GCP Workforce Identity Federation",
+              "slug": "/access-controls/idps/saml-gcp-workforce-identity-federation/",
+              "forScopes": ["enterprise", "cloud"]
+            },
+            {
               "title": "SAML Identity Provider Reference",
               "slug": "/access-controls/idps/saml-reference/",
               "forScopes": ["enterprise", "cloud"]
@@ -491,6 +496,14 @@
               "title": "TAG for Self-Hosted Clusters with Helm",
               "slug": "/access-controls/access-graph/self-hosted-helm/",
               "forScopes": [
+                "enterprise"
+              ]
+            },
+            {
+              "title": "Analyze AWS IAM policies",
+              "slug": "/access-controls/access-graph/aws-sync/",
+              "forScopes": [
+                "cloud",
                 "enterprise"
               ]
             }
@@ -625,6 +638,10 @@
               "slug": "/management/dynamic-resources/user-and-role/"
             },
             {
+              "title": "Registering Agentless OpenSSH",
+              "slug": "/management/dynamic-resources/agentless-ssh-servers/"
+            },
+            {
               "title": "Managing Access Lists",
               "slug": "/management/dynamic-resources/access-list/"
             },
@@ -642,7 +659,7 @@
               "slug": "/management/dynamic-resources/teleport-operator-standalone/"
             },
             {
-              "title": "Terraform Provider",
+              "title": "Set up the Terraform Provider",
               "slug": "/management/dynamic-resources/terraform-provider/"
             }
           ]
@@ -965,6 +982,11 @@
           "slug": "/application-access/cloud-apis/",
           "entries": [
             {
+              "title": "Google Cloud Web Console Access",
+              "slug": "/access-controls/idps/saml-gcp-workforce-identity-federation/",
+              "forScopes": ["enterprise", "cloud"]
+            },
+            {
               "title": "Google Cloud CLI Access",
               "slug": "/application-access/cloud-apis/google-cloud/"
             },
@@ -1032,22 +1054,12 @@
           "forScopes": ["enterprise", "cloud"],
           "entries": [
             {
-              "title": "Okta Service",
-              "slug": "/application-access/okta/guide/",
-              "forScopes": ["enterprise", "cloud"]
-            },
-            {
-              "title": "Okta Service Hosted Integration",
+              "title": "Okta Integration",
               "slug": "/application-access/okta/hosted-guide/",
               "forScopes": [
                 "enterprise",
                 "cloud"
               ]
-            },
-            {
-              "title": "Architecture",
-              "slug": "/application-access/okta/architecture/",
-              "forScopes": ["enterprise", "cloud"]
             },
             {
               "title": "Synchronization and SCIM",
@@ -1379,6 +1391,10 @@
             {
               "title": "PostgreSQL",
               "slug": "/database-access/auto-user-provisioning/postgres/"
+            },
+            {
+              "title": "Database Access Controls",
+              "slug": "/database-access/auto-user-provisioning/database-access-controls/"
             }
           ]
         },
@@ -1601,6 +1617,24 @@
             {
               "title": "Upgrading to v14",
               "slug": "/machine-id/reference/v14-upgrade-guide/"
+            }
+          ]
+        },
+        {
+          "title": "Workload Identity (SPIFFE)",
+          "slug": "/machine-id/workload-identity/",
+          "entries": [
+            {
+              "title": "Getting Started",
+              "slug": "/machine-id/workload-identity/getting-started/"
+            },
+            {
+              "title": "Best Practices",
+              "slug": "/machine-id/workload-identity/best-practices/"
+            },
+            {
+              "title": "Tsh Support",
+              "slug": "/machine-id/workload-identity/tsh/"
             }
           ]
         },
@@ -1841,7 +1875,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "15.1.9",
+      "version": "15.2.2",
       "major_version": "15",
       "sla": {
         "monthly_percentage": "99.9%",

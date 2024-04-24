@@ -33,6 +33,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -196,12 +197,6 @@ type IdPIAMConfigureClient interface {
 	// HeadBucket checks if a bucket exists and if you have permission to access it.
 	HeadBucket(ctx context.Context, params *s3.HeadBucketInput, optFns ...func(*s3.Options)) (*s3.HeadBucketOutput, error)
 
-	// GetBucketPolicy returns the policy of a specified bucket
-	GetBucketPolicy(ctx context.Context, params *s3.GetBucketPolicyInput, optFns ...func(*s3.Options)) (*s3.GetBucketPolicyOutput, error)
-
-	// PutBucketPolicy applies an Amazon S3 bucket policy to an Amazon S3 bucket.
-	PutBucketPolicy(ctx context.Context, params *s3.PutBucketPolicyInput, optFns ...func(*s3.Options)) (*s3.PutBucketPolicyOutput, error)
-
 	// DeletePublicAccessBlock removes the PublicAccessBlock configuration for an Amazon S3 bucket.
 	DeletePublicAccessBlock(ctx context.Context, params *s3.DeletePublicAccessBlockInput, optFns ...func(*s3.Options)) (*s3.DeletePublicAccessBlockOutput, error)
 }
@@ -317,8 +312,6 @@ func NewIdPIAMConfigureClient(ctx context.Context) (IdPIAMConfigureClient, error
 //
 // If it's using the S3 bucket flow, the following are required as well:
 //   - s3:CreateBucket
-//   - s3:GetBucketPolicy
-//   - s3:PutBucketPolicy
 //   - s3:PutBucketPublicAccessBlock (used for s3:DeletePublicAccessBlock)
 //   - s3:ListBuckets (used for s3:HeadBucket)
 //   - s3:PutObject
@@ -360,8 +353,12 @@ func ConfigureIdPIAM(ctx context.Context, clt IdPIAMConfigureClient, req IdPIAMC
 		return trace.Wrap(err)
 	}
 
-	log.Info("Setting public access.")
-	if err := ensureBucketPoliciesIdPIAM(ctx, clt, req); err != nil {
+	log.Info(`Removing "Block all public access".`)
+	_, err := clt.DeletePublicAccessBlock(ctx, &s3.DeletePublicAccessBlockInput{
+		Bucket:              &req.s3Bucket,
+		ExpectedBucketOwner: &req.AccountID,
+	})
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -440,61 +437,12 @@ func ensureBucketIdPIAM(ctx context.Context, clt IdPIAMConfigureClient, req IdPI
 		_, err := clt.CreateBucket(ctx, &s3.CreateBucketInput{
 			Bucket:                    &req.s3Bucket,
 			CreateBucketConfiguration: awsutil.CreateBucketConfiguration(clt.RegionForCreateBucket()),
+			ObjectOwnership:           s3types.ObjectOwnershipBucketOwnerPreferred,
 		})
 		return trace.Wrap(err)
 	}
 
 	return trace.Wrap(awsErr)
-}
-
-func ensureBucketPoliciesIdPIAM(ctx context.Context, clt IdPIAMConfigureClient, req IdPIAMConfigureRequest) error {
-	_, err := clt.DeletePublicAccessBlock(ctx, &s3.DeletePublicAccessBlockInput{
-		Bucket:              &req.s3Bucket,
-		ExpectedBucketOwner: &req.AccountID,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	bucketPolicyDoc := awslib.NewPolicyDocument()
-	bucketPolicyResp, err := clt.GetBucketPolicy(ctx, &s3.GetBucketPolicyInput{
-		Bucket:              &req.s3Bucket,
-		ExpectedBucketOwner: &req.AccountID,
-	})
-	if err != nil {
-		// TODO(marco): this is an S3 error, not an IAM Error
-		awsErr := awslib.ConvertIAMv2Error(err)
-		// If no policy is defined yet, it will return a NotFound.
-		// Any other error, should be returned.
-		if !trace.IsNotFound(awsErr) {
-			return trace.Wrap(err)
-		}
-	} else {
-		bucketPolicyDoc, err = awslib.ParsePolicyDocument(aws.ToString(bucketPolicyResp.Policy))
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	policyS3PublicRead := awslib.StatementForS3BucketPublicRead(req.s3Bucket, req.s3BucketPrefix)
-	for _, existingStatement := range bucketPolicyDoc.Statements {
-		if existingStatement.EqualStatement(policyS3PublicRead) {
-			return nil
-		}
-	}
-
-	bucketPolicyDoc.Statements = append(bucketPolicyDoc.Statements, policyS3PublicRead)
-	newPolicyDocPublicRead, err := bucketPolicyDoc.Marshal()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	_, err = clt.PutBucketPolicy(ctx, &s3.PutBucketPolicyInput{
-		Bucket: &req.s3Bucket,
-		Policy: &newPolicyDocPublicRead,
-	})
-
-	return trace.Wrap(err)
 }
 
 func uploadOpenIDPublicFiles(ctx context.Context, clt IdPIAMConfigureClient, req IdPIAMConfigureRequest) error {
@@ -513,6 +461,7 @@ func uploadOpenIDPublicFiles(ctx context.Context, clt IdPIAMConfigureClient, req
 		Bucket: &req.s3Bucket,
 		Key:    &openidConfigPath,
 		Body:   bytes.NewReader(openIDConfigJSON),
+		ACL:    s3types.ObjectCannedACLPublicRead,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -522,6 +471,7 @@ func uploadOpenIDPublicFiles(ctx context.Context, clt IdPIAMConfigureClient, req
 		Bucket: &req.s3Bucket,
 		Key:    &jwksBucketPath,
 		Body:   bytes.NewReader(req.jwksFileContents),
+		ACL:    s3types.ObjectCannedACLPublicRead,
 	})
 	return trace.Wrap(err)
 }

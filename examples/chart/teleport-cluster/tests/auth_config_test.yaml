@@ -510,3 +510,121 @@ tests:
       - matchRegex:
           path: data.teleport\.yaml
           pattern: 'billing_mode: provisioned'
+
+  - it: fails when no audit backend is configured
+    set:
+      chartMode: aws
+      clusterName: "teleport.example.com"
+      aws:
+        region: asd
+        backendTable: asd
+        sessionRecordingBucket: asd
+    asserts:
+      - failedTemplate:
+          errorMessage: "You need an audit backend. In AWS mode, you must set at least one of `aws.auditLogTable` (Dynamo) and `aws.athenaURL` (Athena)."
+
+  - it: configures dynamo when dynamo is set
+    set:
+      chartMode: aws
+      clusterName: "teleport.example.com"
+      aws:
+        region: asd
+        backendTable: asd
+        sessionRecordingBucket: asd
+        auditLogTable: my-dynamodb-table
+    asserts:
+      - matchRegex:
+          path: data.teleport\.yaml
+          pattern: '- dynamodb://my-dynamodb-table'
+
+  - it: configures athena when athenaURL is set
+    set:
+      chartMode: aws
+      clusterName: "teleport.example.com"
+      aws:
+        region: asd
+        backendTable: asd
+        sessionRecordingBucket: asd
+        athenaURL: 'athena://db.table?topicArn=arn:aws:sns:region:account_id:topic_name'
+    asserts:
+      - matchRegex:
+          path: data.teleport\.yaml
+          pattern: '- athena://db.table'
+
+  - it: configures dynamo and stdout when dynamo is set and mirroring is on
+    set:
+      chartMode: aws
+      clusterName: "teleport.example.com"
+      aws:
+        region: asd
+        backendTable: asd
+        sessionRecordingBucket: asd
+        auditLogTable: my-dynamodb-table
+        auditLogMirrorOnStdout: true
+    asserts:
+      - matchRegex:
+          path: data.teleport\.yaml
+          pattern: '- dynamodb://my-dynamodb-table'
+      - matchRegex:
+          path: data.teleport\.yaml
+          pattern: '- stdout://'
+
+  - it: fails when both athena and dynamo are set but no order is specified
+    set:
+      chartMode: aws
+      clusterName: "teleport.example.com"
+      aws:
+        region: asd
+        backendTable: asd
+        sessionRecordingBucket: asd
+        auditLogTable: my-dynamodb-table
+        athenaURL: 'athena://db.table?topicArn=arn:aws:sns:region:account_id:topic_name'
+    asserts:
+      - failedTemplate:
+          errorMessage: "Both Dynamo and Athena audit backends are enabled. You must specify the primary backend by setting `aws.auditLogPrimaryBackend` to either 'dynamo' or 'athena'."
+
+  - it: uses athena as primary backend when configured
+    set:
+      chartMode: aws
+      clusterName: "teleport.example.com"
+      aws:
+        region: asd
+        backendTable: asd
+        sessionRecordingBucket: asd
+        auditLogTable: my-dynamodb-table
+        athenaURL: 'athena://db.table?topicArn=arn:aws:sns:region:account_id:topic_name'
+        auditLogPrimaryBackend: "athena"
+    asserts:
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: uses dynamo as primary backend when configured
+    set:
+      chartMode: aws
+      clusterName: "teleport.example.com"
+      aws:
+        region: asd
+        backendTable: asd
+        sessionRecordingBucket: asd
+        auditLogTable: my-dynamodb-table
+        athenaURL: 'athena://db.table?topicArn=arn:aws:sns:region:account_id:topic_name'
+        auditLogPrimaryBackend: "dynamo"
+    asserts:
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: uses athena, dynamo, and stdout when everything is on
+    set:
+      chartMode: aws
+      clusterName: "teleport.example.com"
+      aws:
+        region: asd
+        backendTable: asd
+        sessionRecordingBucket: asd
+        auditLogTable: my-dynamodb-table
+        athenaURL: 'athena://db.table?topicArn=arn:aws:sns:region:account_id:topic_name'
+        auditLogPrimaryBackend: "athena"
+        auditLogMirrorOnStdout: true
+    asserts:
+      - matchSnapshot:
+          path: data.teleport\.yaml
