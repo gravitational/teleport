@@ -19,7 +19,7 @@
 import React, { useState } from 'react';
 import { ButtonBorder } from 'design';
 import { LoginItem, MenuLogin } from 'shared/components/MenuLogin';
-import AwsLaunchButton from 'shared/components/AwsLaunchButton';
+import { AwsLaunchButton } from 'shared/components/AwsLaunchButton';
 
 import { UnifiedResource } from 'teleport/services/agents';
 import cfg from 'teleport/config';

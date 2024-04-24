@@ -16,5 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { AwsLaunchButton } from './AwsLaunchButton';
-export default AwsLaunchButton;
+export { AwsLaunchButton } from './AwsLaunchButton';
