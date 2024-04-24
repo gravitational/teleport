@@ -268,6 +268,7 @@ func TestAppCommands(t *testing.T) {
 								err = Run(ctx, []string{
 									"app",
 									"logout",
+									"--cluster", app.cluster,
 								}, setHomePath(loginPath))
 								require.NoError(t, err)
 							})
@@ -287,6 +288,17 @@ func TestAppCommands(t *testing.T) {
 										"--cluster", app.cluster,
 									}, setHomePath(loginPath), webauthnLoginOpt)
 								}()
+
+								if requireMFAType == types.RequireMFAType_SESSION {
+									// mfa verified proxy certs should not be saved to disk.
+									err = Run(context.Background(), []string{
+										"app",
+										"config",
+										app.name,
+										"--cluster", app.cluster,
+									}, setHomePath(loginPath))
+									require.Error(t, err)
+								}
 
 								require.EventuallyWithT(t, func(t *assert.CollectT) {
 									testDummyAppConn(t, app.name, fmt.Sprintf("http://127.0.0.1:%v", localProxyPort))
