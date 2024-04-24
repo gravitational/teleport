@@ -66,11 +66,12 @@ jobs:
           REPO_TYPE: ${{ inputs.repo-type }}
           ENVIRONMENT: ${{ inputs.environment }}
         run: |
+          # TODO(fheinecke) clean up the old environments listed here
           case "$ENVIRONMENT" in
-            "publish-prod")
+            "promote" | "build-prod" | "publish-prod")
               RUNNER_LABEL_ENVIRONMENT="prod"
             ;;
-            "publish-stage")
+            "build" | "build-stage" | "publish-stage")
               RUNNER_LABEL_ENVIRONMENT="dev"
             ;;
             *)
@@ -418,11 +419,11 @@ jobs:
       # Note: These values are intentionally hard-coded here to prevent false positives or negatives due
       #       to a value in one of our code/IaC repos changing without the change propegating everywhere.
       - name: Derive and set Github environment-specific variables for production
-        if: inputs.environment == 'publish-prod'
+        if: contains(fromJSON('["promote", "build-prod", "publish-prod"]'), inputs.environment)
         run: |
           echo "APT_REPO_DOMAIN_NAME=apt.releases.teleport.dev" >> "$GITHUB_ENV"
       - name: Derive and set Github environment-specific variables for development
-        if: inputs.environment == 'publish-stage'
+        if: contains(fromJSON('["build", "build-stage", "publish-stage"]'), inputs.environment)
         run: |
           echo "APT_REPO_DOMAIN_NAME=apt.releases.development.teleport.dev" >> "$GITHUB_ENV"
       - name: Log set variables
@@ -570,12 +571,12 @@ jobs:
       # Note: These values are intentionally hard-coded here to prevent false positives or negatives due
       #       to a value in one of our code/IaC repos changing without the change propegating everywhere.
       - name: Derive and set Github environment-specific variables for production
-        if: inputs.environment == 'publish-prod'
+        if: contains(fromJSON('["promote", "build-prod", "publish-prod"]'), inputs.environment)
         run: |
           echo "YUM_REPO_DOMAIN_NAME=yum.releases.teleport.dev" >> "$GITHUB_ENV"
           echo "FORCE_INSTALL_PROD_PUBLIC_KEY=false" >> "$GITHUB_ENV"
       - name: Derive and set Github environment-specific variables for development
-        if: inputs.environment == 'publish-stage'
+        if: contains(fromJSON('["build", "build-stage", "publish-stage"]'), inputs.environment)
         run: |
           echo "YUM_REPO_DOMAIN_NAME=yum.releases.development.teleport.dev" >> "$GITHUB_ENV"
           # This is required as the RPMs are signed by the prod key, not the dev key
@@ -723,12 +724,12 @@ jobs:
       # Note: These values are intentionally hard-coded here to prevent false positives or negatives due
       #       to a value in one of our code/IaC repos changing without the change propegating everywhere.
       - name: Derive and set Github environment-specific variables for production
-        if: inputs.environment == 'publish-prod'
+        if: contains(fromJSON('["promote", "build-prod", "publish-prod"]'), inputs.environment)
         run: |
           echo "ZYPPER_REPO_DOMAIN_NAME=zypper.releases.teleport.dev" >> "$GITHUB_ENV"
           echo "FORCE_INSTALL_PROD_PUBLIC_KEY=false" >> "$GITHUB_ENV"
       - name: Derive and set Github environment-specific variables for development
-        if: inputs.environment == 'publish-stage'
+        if: contains(fromJSON('["build", "build-stage", "publish-stage"]'), inputs.environment)
         run: |
           echo "ZYPPER_REPO_DOMAIN_NAME=zypper.releases.development.teleport.dev" >> "$GITHUB_ENV"
           # This is required as the RPMs are signed by the prod key, not the dev key
