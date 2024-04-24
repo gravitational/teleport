@@ -7,7 +7,9 @@ use std::{mem, ptr, slice};
 
 use anyhow::{anyhow, ensure, Context, Result};
 use itertools::Itertools;
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
+use rand::distributions::{Alphanumeric, DistString};
+use rand::rngs::OsRng;
 use windows::{
     core::*, Win32::Foundation::*, Win32::NetworkManagement::NetManagement::*,
     Win32::Security::Authentication::Identity::*, Win32::Security::Authorization::*,
@@ -17,6 +19,7 @@ use windows::{
 
 use crate::crypto::LicenseType;
 use crate::crypto::{CryptContext, UserCreation};
+use crate::utf16::UTF16;
 
 static DISPATCH_TABLE: AtomicPtr<LSA_SECPKG_FUNCTION_TABLE> = AtomicPtr::new(ptr::null_mut());
 
@@ -26,10 +29,11 @@ fn dispatch_table() -> LSA_SECPKG_FUNCTION_TABLE {
     unsafe { *DISPATCH_TABLE.load(Ordering::SeqCst) }
 }
 
-/// allocate_lsa_heap_size allocates memory using AllocateLsaHeap function. It's used in most places
-/// where we need to return data to LSA.
+/// allocate_lsa_heap_size allocates memory using [`AllocateLsaHeap`] function. 
+/// It's used in most places where we need to return data to LSA. If used in such context 
+/// the LSA will be responsible for freeing memory, and we must not use FreeLsaHeap.
 ///
-/// See: https://learn.microsoft.com/en-us/windows/win32/api/ntsecpkg/nc-ntsecpkg-lsa_allocate_lsa_heap
+/// [`AllocateLsaHeap`]: https://learn.microsoft.com/en-us/windows/win32/api/ntsecpkg/nc-ntsecpkg-lsa_allocate_lsa_heap
 fn allocate_lsa_heap_size<T>(size: u32) -> Result<*mut T> {
     let data = unsafe {
         dispatch_table()
@@ -43,7 +47,7 @@ fn allocate_lsa_heap_size<T>(size: u32) -> Result<*mut T> {
     }
 }
 
-/// Convenience method for calling allocate_lsa_heap_size with size calculated by the compiler.
+/// Convenience method for calling [allocate_lsa_heap_size] with size calculated by the compiler.
 /// Size of T must be smaller than 2^32 bytes
 fn allocate_lsa_heap<T>() -> Result<*mut T> {
     allocate_lsa_heap_size(mem::size_of::<T>().try_into()?)
@@ -169,7 +173,7 @@ fn create_group(name: &str) -> Result<()> {
     let mut uname = UTF16::from(name);
     let comment = w!("This group is managed by Teleport");
     let group = GROUP_INFO_1 {
-        grpi1_name: PWSTR::from_raw(uname.0.as_mut_ptr() as _),
+        grpi1_name: uname.pwstr(),
         grpi1_comment: PWSTR::from_raw(comment.as_ptr() as _),
     };
     let pgroup: *const GROUP_INFO_1 = &group;
@@ -227,13 +231,13 @@ fn ensure_user(name: &str) -> Result<()> {
     }
 }
 
-/// LsaAPLogonUser is the main function responsible for validating a user's login and creating a user token.
+/// LsaAPLogonUserEx2 is the main function responsible for validating a user's login and creating a user token.
 ///
-/// See: https://learn.microsoft.com/en-us/windows/win32/api/ntsecapi/nf-ntsecapi-lsalogonuser
+/// See: https://learn.microsoft.com/en-us/windows/win32/api/ntsecpkg/nc-ntsecpkg-lsa_ap_logon_user_ex2
 ///
 /// Windows promises that all pointers provided are valid, we do additional check to avoid null pointers.
 #[no_mangle]
-unsafe extern "system" fn LsaApLogonUser(
+unsafe extern "system" fn LsaApLogonUserEx2(
     client_request: *const *const c_void,
     logon_type: SECURITY_LOGON_TYPE,
     authentication_information: *const u8,
@@ -247,8 +251,11 @@ unsafe extern "system" fn LsaApLogonUser(
     token_information: *mut *mut LSA_TOKEN_INFORMATION_V1,
     account_name: *mut *mut UNICODE_STRING,
     authenticating_authority: *mut *mut UNICODE_STRING,
+    _machine_name: *mut *mut UNICODE_STRING,
+    primary_credential: *mut SECPKG_PRIMARY_CRED,
+    _supplemental_credentials: *mut *mut SECPKG_SUPPLEMENTAL_CRED_ARRAY,
 ) -> NTSTATUS {
-    debug!("LsaApLogonUser");
+    debug!("LsaApLogonUserEx2");
     if logon_type != SECURITY_LOGON_TYPE::RemoteInteractive {
         debug!("Invalid logon type {:?}", logon_type);
         return STATUS_INVALID_LOGON_TYPE;
@@ -264,6 +271,7 @@ unsafe extern "system" fn LsaApLogonUser(
         token_information,
         account_name,
         authenticating_authority,
+        primary_credential,
     ) {
         Ok(_) => STATUS_SUCCESS,
         Err(e) => {
@@ -289,6 +297,7 @@ unsafe fn lsa_ap_logon_user(
     token_information: *mut *mut LSA_TOKEN_INFORMATION_V1,
     account_name: *mut *mut UNICODE_STRING,
     authenticating_authority: *mut *mut UNICODE_STRING,
+    primary_credential: *mut SECPKG_PRIMARY_CRED,
 ) -> Result<()> {
     // Windows promises all pointers here are valid, we do additional check to avoid null pointers
     if authentication_information.is_null()
@@ -346,11 +355,53 @@ unsafe fn lsa_ap_logon_user(
     // take lock before syncing groups so login token returned will have consistent view of
     // group membership
     let _lock = GROUPS_LOCK.lock().unwrap();
-    let groups = sync_groups(&name, should_create_user, &user)?;
+    let (groups, managed_by) = sync_groups(&name, should_create_user, &user)?;
     copy_groups_to_token(token, groups).context("Can't copy groups to token")?;
+
+    if managed_by == ManagedBy::Teleport {
+        // We have to have password equivalent that is unique and secret for each user and is consistent
+        // between logins. We retrieve it from LSA secrets and if it's missing we generate new random one
+        // and store it there.
+        // Consistent password is required for Credential Manager to work.
+        // https://learn.microsoft.com/en-us/windows/win32/api/ntsecapi/nf-ntsecapi-lsaretrieveprivatedata
+        // https://learn.microsoft.com/en-us/windows/win32/api/ntsecapi/nf-ntsecapi-lsastoreprivatedata
+        // https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-lsad/483f1b6e-7b14-4341-9ab2-9b99c01f896e
+        let mut policy = LsaPolicy::new()?;
+        // L$ means that it's local secret, available only on this machine
+        let private_data_key = &format!("L$TELEPORT_{}", name);
+        let data = policy.retrieve_private_data(private_data_key)?;
+        let key = if let Some(key) = data {
+            key
+        } else {
+            let new_key: String = Alphanumeric.sample_string(&mut OsRng, 50);
+            policy.store_private_data(private_data_key, &new_key)?;
+            new_key
+        };
+
+        (*primary_credential).LogonId = *logon_id;
+        (*primary_credential).Flags = PRIMARY_CRED_CLEAR_PASSWORD;
+        (*primary_credential).DownlevelName = to_lsa_unicode_string(&name)?;
+        (*primary_credential).Password = to_lsa_unicode_string(&key)?;
+        (*primary_credential).UserSid = PSID(allocate_lsa_heap_size(user.sid_length()?)?);
+        CopySid(
+            user.sid.len() as _,
+            (*primary_credential).UserSid,
+            user.psid(),
+        )
+        .context("Can't copy user SID")?;
+    }
 
     info!("User {} logged in successfully", name);
     Ok(())
+}
+
+unsafe fn to_lsa_unicode_string(s: &str) -> Result<LSA_UNICODE_STRING> {
+    let s = *lsa_string(s)?;
+    Ok(LSA_UNICODE_STRING {
+        Length: s.Length,
+        MaximumLength: s.MaximumLength,
+        Buffer: s.Buffer,
+    })
 }
 
 unsafe fn process_certificate(pin: &[u8]) -> Result<(String, UserCreation)> {
@@ -408,6 +459,12 @@ unsafe fn copy_user_to_token(token: &mut LSA_TOKEN_INFORMATION_V1, user: &Accoun
     CopySid(user.sid.len() as _, token.User.User.Sid, user.psid()).context("Can't copy user SID")
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ManagedBy {
+    Windows,
+    Teleport,
+}
+
 /// sync_groups will return groups that should be included in the token returned to LSA.
 /// If user is managed by Teleport it will also add user to requested groups and remove it from
 /// all other groups.
@@ -415,8 +472,10 @@ fn sync_groups(
     name: &str,
     should_create_user: UserCreation,
     user: &Account,
-) -> Result<HashSet<String>> {
+) -> Result<(HashSet<String>, ManagedBy)> {
     let mut groups = lookup_groups(name)?;
+
+    let mut managed_by = ManagedBy::Windows;
 
     // auto user creation was requested and user is managed by Teleport, return groups requested in the certificate
     if let UserCreation::Yes(requested_groups) = should_create_user {
@@ -425,6 +484,7 @@ fn sync_groups(
                 "User managed by Teleport, creating requested groups: {}",
                 requested_groups.iter().format(", "),
             );
+            managed_by = ManagedBy::Teleport;
             for group in requested_groups.difference(&groups) {
                 create_group(group)?;
                 unsafe {
@@ -455,7 +515,7 @@ fn sync_groups(
             groups = requested_groups;
         }
     }
-    Ok(groups)
+    Ok((groups, managed_by))
 }
 
 /// REMOTE_DESKTOP_USERS_SID is [well-known SID] for users that can connect through RDP.
@@ -697,9 +757,9 @@ fn lookup_account(name: &str, sid_types: Vec<SID_NAME_USE>) -> Result<Account> {
 unsafe fn lsa_string(name: &str) -> Result<*mut UNICODE_STRING> {
     let uname = allocate_lsa_heap::<UNICODE_STRING>()?;
     let utf: Vec<u16> = name.encode_utf16().collect();
-    let buffer = allocate_lsa_heap_size((utf.len() * mem::size_of::<u16>()).try_into()?)?;
+    let buffer = allocate_lsa_heap_size((utf.len() * 2).try_into()?)?;
     ptr::copy(utf.as_ptr(), buffer, utf.len());
-    let size = (utf.len() * mem::size_of::<u16>()) as u16;
+    let size = (utf.len() * 2) as u16;
     ptr::write(
         uname,
         UNICODE_STRING {
@@ -765,25 +825,6 @@ unsafe fn to_string(psid: PSID) -> Result<String> {
     converted
 }
 
-#[derive(Clone, Debug)]
-struct UTF16(Vec<u16>);
-
-impl UTF16 {
-    pub fn from(s: &str) -> UTF16 {
-        let mut vec: Vec<u16> = s.encode_utf16().collect();
-        vec.push(0);
-        UTF16(vec)
-    }
-
-    pub fn pcwstr(&self) -> PCWSTR {
-        PCWSTR::from_raw(self.0.as_ptr())
-    }
-
-    pub fn pwstr(&mut self) -> PWSTR {
-        PWSTR::from_raw(self.0.as_mut_ptr())
-    }
-}
-
 struct Impersonation;
 
 impl Drop for Impersonation {
@@ -824,6 +865,86 @@ fn to_sid(s: &str) -> Result<Vec<u8>> {
         start += 4;
     }
     Ok(res)
+}
+
+/// Wrapper for handle returned by [`LsaOpenPolicy`] that will close is on drop
+///
+/// ['LsaOpenPolicy`]: https://learn.microsoft.com/en-us/windows/win32/api/ntsecapi/nf-ntsecapi-lsaopenpolicy
+struct LsaPolicy {
+    handle: LSA_HANDLE,
+}
+
+impl LsaPolicy {
+    /// Creates new handle to LSA policy with read and write access
+    fn new() -> Result<Self> {
+        let mut policy = LsaPolicy {
+            handle: LSA_HANDLE::default(),
+        };
+        let desired_access = GENERIC_WRITE | GENERIC_READ;
+        let object_attributes = LSA_OBJECT_ATTRIBUTES::default();
+        unsafe {
+            LsaOpenPolicy(
+                None,
+                &object_attributes,
+                desired_access.0,
+                &mut policy.handle,
+            )
+        }
+        .ok()?;
+        Ok(policy)
+    }
+
+    /// Wrapper for [`LsaStorePrivateData`] that stores private `data` indexed by `key`.
+    ///
+    /// [`LsaStorePrivateData`]: https://learn.microsoft.com/en-us/windows/win32/api/ntsecapi/nf-ntsecapi-lsastoreprivatedata
+    fn store_private_data(&self, key: &str, data: &str) -> Result<()> {
+        let mut key = UTF16::from(key);
+        let mut data = UTF16::from(data);
+        unsafe {
+            LsaStorePrivateData(
+                self.handle,
+                &key.lsa_unicode_string(),
+                Some(&data.lsa_unicode_string()),
+            )
+        }
+        .ok()
+        .context("storing private data")
+    }
+
+    /// Wrapper for [`LsaRetrievePrivateData`] that returns private data indexed by `key` as a string.
+    ///
+    /// [`LsaRetrievePrivateData`]: https://learn.microsoft.com/en-us/windows/win32/api/ntsecapi/nf-ntsecapi-lsaretrieveprivatedata
+    fn retrieve_private_data(&mut self, key: &str) -> Result<Option<String>> {
+        let mut key = UTF16::from(key);
+        let mut data: *mut LSA_UNICODE_STRING = ptr::null_mut();
+        unsafe {
+            let status = LsaRetrievePrivateData(self.handle, &key.lsa_unicode_string(), &mut data);
+            if status == STATUS_OBJECT_NAME_NOT_FOUND {
+                return Ok(None);
+            }
+            status.ok()?;
+            let len = ((*data).Length as usize) / mem::size_of::<u16>();
+
+            let s = String::from_utf16(slice::from_raw_parts((*data).Buffer.as_ptr(), len));
+            LsaFreeMemory(Some(data as *mut c_void));
+            Ok(Some(s?))
+        }
+    }
+}
+
+impl Drop for LsaPolicy {
+
+    /// Closes policy handle returned by [`LsaOpenPolicy`] using [`LsaClose`]
+    ///
+    /// [`LsaOpenPolicy`]: https://learn.microsoft.com/en-us/windows/win32/api/ntsecapi/nf-ntsecapi-lsaopenpolicy
+    /// [`LsaClose`]: https://learn.microsoft.com/en-us/windows/win32/api/ntsecapi/nf-ntsecapi-lsaclose
+    fn drop(&mut self) {
+        if !self.handle.is_invalid() {
+            if let Err(e) = unsafe { LsaClose(self.handle) }.ok() {
+                warn!("Can't close LSA policy: {}", e);
+            }
+        }
+    }
 }
 
 #[cfg(test)]

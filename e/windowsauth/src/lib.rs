@@ -15,6 +15,7 @@ pub mod credential_provider;
 pub mod crypto;
 pub mod filter;
 mod log;
+mod utf16;
 
 static DLL_REF_COUNT: AtomicI64 = AtomicI64::new(0);
 
