@@ -32,6 +32,6 @@ should match the snapshot (smtp on):
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-plugin-jira
-        app.kubernetes.io/version: 16.0.0-fred.30
-        helm.sh/chart: teleport-plugin-jira-16.0.0-fred.30
+        app.kubernetes.io/version: 16.0.0-fred.31.prod
+        helm.sh/chart: teleport-plugin-jira-16.0.0-fred.31.prod
       name: RELEASE-NAME-teleport-plugin-jira
