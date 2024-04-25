@@ -1725,6 +1725,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		OIDC:                   clusterFeatures.GetOIDC(),
 		SAML:                   clusterFeatures.GetSAML(),
 		MobileDeviceManagement: clusterFeatures.GetMobileDeviceManagement(),
+		JoinActiveSessions:     clusterFeatures.GetJoinActiveSessions(),
 		// TODO(mcbattirola): remove isTeam when it is no longer used in the web app
 		IsTeam: isTeam,
 	}
