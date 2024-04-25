@@ -53,6 +53,9 @@ export default function useLogin() {
     // from enterprise but just in case there is a version mismatch
     // between the webclient and proxy
     if (deviceWebToken && cfg.isEnterprise) {
+      console.log(
+        `deepLinkLaunch("teleport://avatus@teleport.zarquon.sh:3080/authenticate_web_device?id=${deviceWebToken.id}&token=${deviceWebToken.token}")`
+      );
       return authorizeWithDeviceTrust(deviceWebToken);
     }
     return loginSuccess();
