@@ -87,7 +87,7 @@ func startLocalProxy(ctx context.Context, insecureSkipVerify bool, tc *client.Te
 	opts := []alpnproxy.LocalProxyConfigOpt{
 		alpnproxy.WithDatabaseProtocol(dbProtocol),
 		alpnproxy.WithClusterCAsIfConnUpgrade(ctx, tc.RootClusterCACertPool),
-		alpnproxy.WithClientCerts(dbCert),
+		alpnproxy.WithClientCert(dbCert),
 	}
 
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{

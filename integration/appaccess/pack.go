@@ -265,7 +265,7 @@ func (p *Pack) initWebSession(t *testing.T) {
 
 // initTeleportClient initializes a Teleport client with this pack's user
 // credentials.
-func (p *Pack) initTeleportClient(t *testing.T, opts AppTestOptions) {
+func (p *Pack) initTeleportClient(t *testing.T) {
 	p.tc = p.MakeTeleportClient(t, p.username)
 }
 
@@ -452,7 +452,7 @@ func (p *Pack) startLocalProxy(t *testing.T, tlsConfig *tls.Config) string {
 		InsecureSkipVerify: true,
 		Listener:           listener,
 		ParentContext:      context.Background(),
-		Certs:              tlsConfig.Certificates,
+		Cert:               tlsConfig.Certificates[0],
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { proxy.Close() })

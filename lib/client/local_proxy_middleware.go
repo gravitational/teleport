@@ -35,8 +35,11 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+// CertChecker is a local proxy middleware that ensures certs are valid
+// on start up and on each new connection.
 type CertChecker struct {
-	CertReissuer
+	// certReissuer checks and reissues certs.
+	certReissuer certReissuer
 	// clock specifies the time provider. Will be used to override the time anchor
 	// for TLS certificate verification. Defaults to real clock if unspecified
 	clock clockwork.Clock
@@ -44,16 +47,17 @@ type CertChecker struct {
 
 var _ alpnproxy.LocalProxyMiddleware = (*CertChecker)(nil)
 
-func newCertChecker(certIssuer CertReissuer, clock clockwork.Clock) *CertChecker {
+func newCertChecker(certIssuer certReissuer, clock clockwork.Clock) *CertChecker {
 	if clock == nil {
 		clock = clockwork.NewRealClock()
 	}
 	return &CertChecker{
-		CertReissuer: certIssuer,
+		certReissuer: certIssuer,
 		clock:        clock,
 	}
 }
 
+// Create a new CertChecker for the given database.
 func NewDBCertChecker(tc *TeleportClient, dbRoute tlsca.RouteToDatabase, clock clockwork.Clock) *CertChecker {
 	return newCertChecker(&dbCertReissuer{
 		tc:      tc,
@@ -61,6 +65,7 @@ func NewDBCertChecker(tc *TeleportClient, dbRoute tlsca.RouteToDatabase, clock c
 	}, clock)
 }
 
+// Create a new CertChecker for the given app.
 func NewAppCertChecker(tc *TeleportClient, appRoute proto.RouteToApp, clock clockwork.Clock) *CertChecker {
 	return newCertChecker(&appCertReissuer{
 		tc:       tc,
@@ -81,36 +86,35 @@ func (c *CertChecker) OnStart(ctx context.Context, lp *alpnproxy.LocalProxy) err
 
 // ensureValidCerts ensures that the local proxy is configured with valid certs.
 func (c *CertChecker) ensureValidCerts(ctx context.Context, lp *alpnproxy.LocalProxy) error {
-	if err := lp.CheckCert(c.CheckCert); err != nil {
+	if err := lp.CheckCert(c.certReissuer.checkCert); err != nil {
 		log.WithError(err).Debug("local proxy tunnel certificates need to be reissued")
 	} else {
 		return nil
 	}
 
-	cert, err := c.ReissueCert(ctx)
+	cert, err := c.certReissuer.reissueCert(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// reduce per-handshake processing by setting the parsed leaf.
-	leaf, err := utils.TLSCertLeaf(cert)
-	if err != nil {
+	if err := utils.InitCertLeaf(&cert); err != nil {
 		return trace.Wrap(err)
 	}
-	certTTL := leaf.NotAfter.Sub(c.clock.Now()).Round(time.Minute)
-	log.Debugf("Certificate renewed: valid until %s [valid for %v]", leaf.NotAfter.Format(time.RFC3339), certTTL)
-	cert.Leaf = leaf
 
-	lp.SetCerts([]tls.Certificate{cert})
+	certTTL := cert.Leaf.NotAfter.Sub(c.clock.Now()).Round(time.Minute)
+	log.Debugf("Certificate renewed: valid until %s [valid for %v]", cert.Leaf.NotAfter.Format(time.RFC3339), certTTL)
+
+	lp.SetCert(cert)
 	return nil
 }
 
-// CertIssue checks and reissues certs.
-type CertReissuer interface {
-	// CheckCert checks that an existing certificate is valid.
-	CheckCert(cert *x509.Certificate) error
-	// ReissueCert reissues a tls certificate.
-	ReissueCert(ctx context.Context) (tls.Certificate, error)
+// certReissuer checks and reissues certs.
+type certReissuer interface {
+	// checkCert checks that an existing certificate is valid.
+	checkCert(cert *x509.Certificate) error
+	// reissueCert reissues a tls certificate.
+	reissueCert(ctx context.Context) (tls.Certificate, error)
 }
 
 type dbCertReissuer struct {
@@ -120,11 +124,11 @@ type dbCertReissuer struct {
 	dbRoute tlsca.RouteToDatabase
 }
 
-func (c *dbCertReissuer) CheckCert(cert *x509.Certificate) error {
+func (c *dbCertReissuer) checkCert(cert *x509.Certificate) error {
 	return alpnproxy.CheckDBCertSubject(cert, c.dbRoute)
 }
 
-func (c *dbCertReissuer) ReissueCert(ctx context.Context) (tls.Certificate, error) {
+func (c *dbCertReissuer) reissueCert(ctx context.Context) (tls.Certificate, error) {
 	var accessRequests []string
 	if profile, err := c.tc.ProfileStatus(); err != nil {
 		log.WithError(err).Warn("unable to load profile, requesting database certs without access requests")
@@ -165,7 +169,7 @@ type appCertReissuer struct {
 	appRoute proto.RouteToApp
 }
 
-func (c *appCertReissuer) CheckCert(cert *x509.Certificate) error {
+func (c *appCertReissuer) checkCert(cert *x509.Certificate) error {
 	// appCertIssuer does not perform any additional certificate checks.
 	return nil
 }

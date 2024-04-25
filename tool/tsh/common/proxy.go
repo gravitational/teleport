@@ -375,7 +375,7 @@ func onProxyCommandApp(cf *CLIConf) error {
 	if !required {
 		cert, _, err := loadAppCertificate(tc, routeToApp.Name)
 		if err == nil {
-			opts = append(opts, alpnproxy.WithClientCerts(cert))
+			opts = append(opts, alpnproxy.WithClientCert(cert))
 		}
 	}
 

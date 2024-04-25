@@ -302,7 +302,7 @@ func (a *gcpApp) startLocalALPNProxy(port string) error {
 		return trace.Wrap(err)
 	}
 
-	appCerts, err := loadAppCertificateWithAppLogin(a.cf, tc, a.app.Name)
+	appCert, err := loadAppCertificateWithAppLogin(a.cf, tc, a.app.Name)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -329,7 +329,7 @@ func (a *gcpApp) startLocalALPNProxy(port string) error {
 
 	a.localALPNProxy, err = alpnproxy.NewLocalProxy(
 		makeBasicLocalProxyConfig(a.cf, tc, listener),
-		alpnproxy.WithClientCerts(appCerts),
+		alpnproxy.WithClientCert(appCert),
 		alpnproxy.WithClusterCAsIfConnUpgrade(a.cf.Context, tc.RootClusterCACertPool),
 		alpnproxy.WithHTTPMiddleware(&alpnproxy.AuthorizationCheckerMiddleware{
 			Secret: a.secret,
