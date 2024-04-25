@@ -178,7 +178,7 @@ export class DeepLinksService {
     };
 
     const rootClusterUri = routing.getClusterUri({ rootClusterId });
-    const rootCluster = this.clustersService.findCluster(rootClusterUri);
+    let rootCluster = this.clustersService.findCluster(rootClusterUri);
 
     if (!rootCluster) {
       const { canceled } = await new Promise<{ canceled: boolean }>(resolve => {
@@ -198,6 +198,9 @@ export class DeepLinksService {
         };
       }
     }
+
+    // fetch the rootCluster now that we are logged in
+    rootCluster = this.clustersService.findCluster(rootClusterUri);
 
     const { isAtDesiredWorkspace } =
       await this.workspacesService.setActiveWorkspace(
