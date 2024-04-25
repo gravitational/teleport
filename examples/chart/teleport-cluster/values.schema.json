@@ -943,6 +943,11 @@
             "type": "object",
             "default": {}
         },
+        "podSecurityContext": {
+            "$id": "#/properties/podSecurityContext",
+            "type": "object",
+            "default": {}
+        },
         "securityContext": {
             "$id": "#/properties/securityContext",
             "type": "object",
