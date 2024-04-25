@@ -1,5 +1,28 @@
 # Changelog
 
+## 13.4.22 (04/24/24)
+
+* Issue cert.create events during device authentication. [#40874](https://github.com/gravitational/teleport/pull/40874)
+* Added a new Audit log event that is emitted when an Agent or Bot request to join the cluster is denied. [#40816](https://github.com/gravitational/teleport/pull/40816)
+* Fixed an issue that prevented uploading a zip file larger than 10MiB when updating an AWS Lambda function via tsh app access. [#40795](https://github.com/gravitational/teleport/pull/40795)
+* Added a new Prometheus metric to track requests initiated by Teleport against the control plane API. [#40757](https://github.com/gravitational/teleport/pull/40757)
+* Fixed possible data race that could lead to concurrent map read and map write while proxying Kubernetes requests. [#40722](https://github.com/gravitational/teleport/pull/40722)
+* Patch CVE-2023-45288 and CVE-2024-32473. [#40698](https://github.com/gravitational/teleport/pull/40698)
+* Generic "not found" errors are returned whether a remote cluster can't be found or access is denied. [#40683](https://github.com/gravitational/teleport/pull/40683)
+* Fixed a resource leak in the Teleport proxy server when using proxy peering. [#40676](https://github.com/gravitational/teleport/pull/40676)
+* Updated cosign to address CVE-2024-29902 and CVE-2024-29903. [#40500](https://github.com/gravitational/teleport/pull/40500)
+* Prevented accidental passkey "downgrades" to MFA. [#40411](https://github.com/gravitational/teleport/pull/40411)
+* Teleport Connect now hides cluster name in the connection list if there's only a single cluster available. [#40358](https://github.com/gravitational/teleport/pull/40358)
+* Teleport Connect now shows all recent connections instead of capping them at 10. [#40252](https://github.com/gravitational/teleport/pull/40252)
+* Fixed an issue that prevents the teleport service from restarting. [#40231](https://github.com/gravitational/teleport/pull/40231)
+* Include system annotations in audit event entries for access requests. [#40216](https://github.com/gravitational/teleport/pull/40216)
+* Updated Go to 1.21.9. [#40178](https://github.com/gravitational/teleport/pull/40178)
+* Allow diagnostic endpoints to be accessed behind a PROXY protocol enabled loadbalancer/proxy. [#40140](https://github.com/gravitational/teleport/pull/40140)
+* Fixed "Invalid URI" error in Teleport Connect when starting mongosh from database connection tab. [#40106](https://github.com/gravitational/teleport/pull/40106)
+* Fixed a verbosity issue that caused the `teleport-kube-agent-updater` to output debug logs by default. [#39955](https://github.com/gravitational/teleport/pull/39955)
+* Reduced default Jamf inventory page size, allow custom values to be provided. [#39935](https://github.com/gravitational/teleport/pull/39935)
+* Improved performance of resource filtering via labels and fuzzy search. [#39793](https://github.com/gravitational/teleport/pull/39793)
+
 ## 13.4.21 (03/27/24)
 
 * Fixed possible phishing links which could result in code execution with install and join scripts. [#39839](https://github.com/gravitational/teleport/pull/39839)
