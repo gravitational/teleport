@@ -27,11 +27,11 @@ use ironrdp_cliprdr::{Cliprdr, CliprdrClient, CliprdrSvcMessages};
 use ironrdp_connector::connection_activation::ConnectionActivationState;
 use ironrdp_connector::{Config, ConnectorError, Credentials, DesktopSize};
 use ironrdp_displaycontrol::client::DisplayControlClient;
-use ironrdp_displaycontrol::pdu::{DisplayControlMonitorLayout, DisplayControlPdu};
-use ironrdp_dvc::DynamicChannelId;
+use ironrdp_displaycontrol::pdu::{
+    DisplayControlMonitorLayout, DisplayControlPdu, MonitorLayoutEntry,
+};
 use ironrdp_dvc::{DrdynvcClient, DvcMessage};
 use ironrdp_dvc::{DvcProcessor, DynamicVirtualChannel};
-use ironrdp_pdu::cursor::WriteCursor;
 use ironrdp_pdu::input::fast_path::{
     FastPathInput, FastPathInputEvent, KeyboardFlags, SynchronizeFlags,
 };
@@ -42,8 +42,8 @@ use ironrdp_pdu::rdp::capability_sets::MajorPlatformType;
 use ironrdp_pdu::rdp::client_info::PerformanceFlags;
 use ironrdp_pdu::rdp::RdpError;
 use ironrdp_pdu::write_buf::WriteBuf;
+use ironrdp_pdu::PduResult;
 use ironrdp_pdu::{custom_err, function, PduError};
-use ironrdp_pdu::{PduEncode, PduResult};
 use ironrdp_rdpdr::pdu::efs::ClientDeviceListAnnounce;
 use ironrdp_rdpdr::pdu::RdpdrPdu;
 use ironrdp_rdpdr::Rdpdr;
@@ -701,7 +701,18 @@ impl Client {
         write_stream: &mut RdpWriteStream,
         resize_withholder: Arc<Mutex<ResizeWithholder>>,
     ) -> ClientResult<()> {
-        debug!("Received WriteScreenResize PDU");
+        // Adjust the screen size to the nearest supported resolution (per the RDP spec).
+        let init_width = width;
+        let init_height = height;
+        debug!(
+            "Received screen resize [{:?}x{:?}]",
+            init_width, init_height
+        );
+        let (width, height) = MonitorLayoutEntry::adjust_display_size(init_width, init_height);
+        if width != init_width || height != init_height {
+            debug!("Adjusted screen resize to [{:?}x{:?}]", width, height);
+        }
+
         // Determine whether to withhold the resize or perform it immediately.
         let action = {
             let x224_processor = Self::x224_lock(&x224_processor)?;
@@ -724,7 +735,6 @@ impl Client {
         }; // Drop the x224 lock here to avoid holding it over the await below.
 
         if let Some((width, height)) = action {
-            debug!("Performing resize to [{:?}x{:?}]", width, height);
             return Client::write_screen_resize(
                 write_stream,
                 x224_processor.clone(),
@@ -748,11 +758,15 @@ impl Client {
         let messages = global::TOKIO_RT
             .spawn_blocking(move || {
                 let x224_processor = Self::x224_lock(&cloned)?;
-                let dvc = x224_processor.get_dvc::<DisplayControlClient>().ok_or(
-                    ClientError::InternalError("DisplayControlClient not found".to_string()),
-                )?;
-                let disp_ctl_cli = dvc.channel_processor_downcast_ref()?;
-                let channel_id = dvc.channel_id()?;
+                let dvc = Self::get_dvc::<DisplayControlClient>(&x224_processor)?;
+                let channel_id = dvc.channel_id().ok_or(ClientError::InternalError(
+                    "DisplayControlClient channel_id not found".to_string(),
+                ))?;
+                let disp_ctl_cli = dvc
+                    .channel_processor_downcast_ref::<DisplayControlClient>()
+                    .ok_or(ClientError::InternalError(
+                        "DisplayControlClient not found".to_string(),
+                    ))?;
 
                 Ok::<_, ClientError>(disp_ctl_cli.encode_single_primary_monitor(
                     channel_id,
@@ -769,7 +783,7 @@ impl Client {
             SvcProcessorMessages::<DrdynvcClient>::new(messages),
         )
         .await?;
-
+        debug!("Writing resize to [{:?}x{:?}]", width, height);
         write_stream.write_all(&encoded).await?;
 
         Ok(())
@@ -799,7 +813,7 @@ impl Client {
             .spawn_blocking(move || {
                 debug!("received tdp: {:?}", res);
                 let mut x224_processor = Self::x224_lock(&x224_processor)?;
-                let rdpdr = Self::rdpdr_backend(&mut x224_processor)?;
+                let rdpdr: &mut TeleportRdpdrBackend = Self::rdpdr_backend(&mut x224_processor)?;
                 rdpdr.handle_tdp_sd_info_response(res)?;
                 Ok(())
             })
@@ -844,7 +858,7 @@ impl Client {
             .spawn_blocking(move || {
                 debug!("received tdp: {:?}", res);
                 let mut x224_processor = Self::x224_lock(&x224_processor)?;
-                let rdpdr = Self::rdpdr_backend(&mut x224_processor)?;
+                let rdpdr: &mut TeleportRdpdrBackend = Self::rdpdr_backend(&mut x224_processor)?;
                 rdpdr.handle_tdp_sd_list_response(res)?;
                 Ok(())
             })
@@ -889,7 +903,7 @@ impl Client {
             .spawn_blocking(move || {
                 debug!("received tdp: {:?}", res);
                 let mut x224_processor = Self::x224_lock(&x224_processor)?;
-                let rdpdr = Self::rdpdr_backend(&mut x224_processor)?;
+                let rdpdr: &mut TeleportRdpdrBackend = Self::rdpdr_backend(&mut x224_processor)?;
                 rdpdr.handle_tdp_sd_move_response(res)?;
                 Ok(())
             })
@@ -1023,7 +1037,7 @@ impl Client {
 
     fn get_dvc<'a, S>(
         x224_processor: &'a MutexGuard<'_, x224::Processor>,
-    ) -> Result<DynamicVirtualChannel<'a, S>, ClientError>
+    ) -> Result<&'a DynamicVirtualChannel, ClientError>
     where
         S: DvcProcessor + 'static,
     {
