@@ -412,10 +412,11 @@ func TestTeletermKubeGateway(t *testing.T) {
 
 	// MFA tests.
 	// They update user's authentication to Webauthn so they must run after tests which do not use MFA.
+	requireSessionMFARole(ctx, t, suite.root.Process.GetAuthServer(), "localhost", kubeRole)
+	requireSessionMFARole(ctx, t, suite.leaf.Process.GetAuthServer(), "localhost", kubeRole)
+	webauthnLogin := setupUserMFA(ctx, t, suite.root.Process.GetAuthServer(), username, "localhost")
 
 	t.Run("root with per-session MFA", func(t *testing.T) {
-		webauthnLogin := setupUserMFA(ctx, t, suite.root.Process.GetAuthServer(), kubeRole, username)
-
 		profileName := mustGetProfileName(t, suite.root.Web)
 		kubeURI := uri.NewClusterURI(profileName).AppendKube(kubeClusterName)
 		// The test can potentially hang forever if something is wrong with the MFA prompt, add a timeout.
@@ -428,11 +429,6 @@ func TestTeletermKubeGateway(t *testing.T) {
 		})
 	})
 	t.Run("leaf with per-session MFA", func(t *testing.T) {
-		// Set up MFA in the leaf cluster too so that MFA is required, but use webauthnLogin from the
-		// root cluster since we're connecting through the root cluster.
-		webauthnLogin := setupUserMFA(ctx, t, suite.root.Process.GetAuthServer(), kubeRole, username)
-		setupUserMFA(ctx, t, suite.leaf.Process.GetAuthServer(), kubeRole, username)
-
 		profileName := mustGetProfileName(t, suite.root.Web)
 		kubeURI := uri.NewClusterURI(profileName).AppendLeafCluster(suite.leaf.Secrets.SiteName).AppendKube(kubeClusterName)
 		// The test can potentially hang forever if something is wrong with the MFA prompt, add a timeout.
@@ -522,34 +518,17 @@ func checkKubeconfigPathInCommandEnv(t *testing.T, daemonService *daemon.Service
 	require.Equal(t, []string{"KUBECONFIG=" + wantKubeconfigPath}, cmds.Preview.Env)
 }
 
-// setupUserMFA upserts role so that it requires per-session MFA and configures the user account to
-// support MFA. Assumes that user already holds role. Returns WebauthnLoginFunc that can be passed
-// to the client.
+// setupUserMFA registers a mock MFA device for the user and returns a corresponding WebauthnLoginFunc
+// that can be passed to the client for MFA checks.
+//
+// Assumes that MFA is already enabled for the cluster. Per-session MFA should be configured separately.
 //
 // Based on setupUserMFA from e/tool/tsh/tsh_test.go.
-func setupUserMFA(ctx context.Context, t *testing.T, authServer *auth.Server, role types.Role, username string) libclient.WebauthnLoginFunc {
+func setupUserMFA(ctx context.Context, t *testing.T, authServer *auth.Server, username string, rpid string) libclient.WebauthnLoginFunc {
 	t.Helper()
 
-	// Enable optional MFA.
-	helpers.UpsertAuthPrefAndWaitForCache(t, ctx, authServer, &types.AuthPreferenceV2{
-		Spec: types.AuthPreferenceSpecV2{
-			Type:         constants.Local,
-			SecondFactor: constants.SecondFactorOptional,
-			Webauthn: &types.Webauthn{
-				RPID: "localhost",
-			},
-		},
-	})
-
-	// Configure role.
-	options := role.GetOptions()
-	options.RequireMFAType = types.RequireMFAType_SESSION
-	role.SetOptions(options)
-	_, err := authServer.UpsertRole(ctx, role)
-	require.NoError(t, err)
-
 	// Configure user account.
-	const origin = "https://localhost"
+	origin := "https://" + rpid
 	device, err := mocku2f.Create()
 	require.NoError(t, err)
 	device.SetPasswordless()
@@ -598,14 +577,51 @@ func setupUserMFA(ctx context.Context, t *testing.T, authServer *auth.Server, ro
 	return webauthnLogin
 }
 
+func requireSessionMFAAuthPref(ctx context.Context, t *testing.T, authServer *auth.Server, rpid string) {
+	// Enable optional MFA with per session MFA enabled.
+	helpers.UpsertAuthPrefAndWaitForCache(t, ctx, authServer, &types.AuthPreferenceV2{
+		Spec: types.AuthPreferenceSpecV2{
+			Type:         constants.Local,
+			SecondFactor: constants.SecondFactorOptional,
+			Webauthn: &types.Webauthn{
+				RPID: rpid,
+			},
+			RequireMFAType: types.RequireMFAType_SESSION,
+		},
+	})
+}
+
+func requireSessionMFARole(ctx context.Context, t *testing.T, authServer *auth.Server, rpid string, role types.Role) {
+	// Enable optional MFA.
+	helpers.UpsertAuthPrefAndWaitForCache(t, ctx, authServer, &types.AuthPreferenceV2{
+		Spec: types.AuthPreferenceSpecV2{
+			Type:         constants.Local,
+			SecondFactor: constants.SecondFactorOptional,
+			Webauthn: &types.Webauthn{
+				RPID: rpid,
+			},
+		},
+	})
+
+	// Configure role to require session MFA.
+	options := role.GetOptions()
+	options.RequireMFAType = types.RequireMFAType_SESSION
+	role.SetOptions(options)
+	_, err := authServer.UpsertRole(ctx, role)
+	require.NoError(t, err)
+}
+
 func testTeletermAppGateway(t *testing.T, pack *appaccess.Pack) {
 	ctx := context.Background()
+
+	user, _ := pack.CreateUser(t)
+	tc := pack.MakeTeleportClient(t, user.GetName())
 
 	t.Run("root cluster", func(t *testing.T) {
 		profileName := mustGetProfileName(t, pack.RootWebAddr())
 		appURI := uri.NewClusterURI(profileName).AppendApp(pack.RootAppName())
 
-		testAppGatewayCertRenewal(ctx, t, pack, appURI)
+		testAppGatewayCertRenewal(ctx, t, pack, tc, appURI)
 	})
 
 	t.Run("leaf cluster", func(t *testing.T) {
@@ -614,15 +630,40 @@ func testTeletermAppGateway(t *testing.T, pack *appaccess.Pack) {
 			AppendLeafCluster(pack.LeafAppClusterName()).
 			AppendApp(pack.LeafAppName())
 
-		testAppGatewayCertRenewal(ctx, t, pack, appURI)
+		testAppGatewayCertRenewal(ctx, t, pack, tc, appURI)
+	})
+
+	// MFA tests.
+	// They update user's authentication to Webauthn so they must run after tests which do not use MFA.
+	requireSessionMFAAuthPref(ctx, t, pack.RootAuthServer(), "127.0.0.1")
+	requireSessionMFAAuthPref(ctx, t, pack.LeafAuthServer(), "127.0.0.1")
+	tc.WebauthnLogin = setupUserMFA(ctx, t, pack.RootAuthServer(), user.GetName(), "127.0.0.1")
+
+	t.Run("root with per-session MFA", func(t *testing.T) {
+		profileName := mustGetProfileName(t, pack.RootWebAddr())
+		appURI := uri.NewClusterURI(profileName).AppendApp(pack.RootAppName())
+
+		// The test can potentially hang forever if something is wrong with the MFA prompt, add a timeout.
+		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		t.Cleanup(cancel)
+		testAppGatewayCertRenewal(ctx, t, pack, tc, appURI)
+	})
+
+	t.Run("leaf with per-session MFA", func(t *testing.T) {
+		profileName := mustGetProfileName(t, pack.RootWebAddr())
+		appURI := uri.NewClusterURI(profileName).
+			AppendLeafCluster(pack.LeafAppClusterName()).
+			AppendApp(pack.LeafAppName())
+
+		// The test can potentially hang forever if something is wrong with the MFA prompt, add a timeout.
+		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		t.Cleanup(cancel)
+		testAppGatewayCertRenewal(ctx, t, pack, tc, appURI)
 	})
 }
 
-func testAppGatewayCertRenewal(ctx context.Context, t *testing.T, pack *appaccess.Pack, appURI uri.ResourceURI) {
+func testAppGatewayCertRenewal(ctx context.Context, t *testing.T, pack *appaccess.Pack, tc *libclient.TeleportClient, appURI uri.ResourceURI) {
 	t.Helper()
-
-	user, _ := pack.CreateUser(t)
-	tc := pack.MakeTeleportClient(t, user.GetName())
 
 	testGatewayCertRenewal(
 		ctx,
@@ -634,6 +675,7 @@ func testAppGatewayCertRenewal(ctx context.Context, t *testing.T, pack *appacces
 			},
 			testGatewayConnectionFunc: mustConnectAppGateway,
 			generateAndSetupUserCreds: pack.GenerateAndSetupUserCreds,
+			webauthnLogin:             tc.WebauthnLogin,
 		},
 	)
 }

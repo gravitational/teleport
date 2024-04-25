@@ -30,6 +30,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -289,20 +290,19 @@ func TestAppCommands(t *testing.T) {
 									}, setHomePath(loginPath), webauthnLoginOpt)
 								}()
 
-								if requireMFAType == types.RequireMFAType_SESSION {
-									// mfa verified proxy certs should not be saved to disk.
-									err = Run(context.Background(), []string{
-										"app",
-										"config",
-										app.name,
-										"--cluster", app.cluster,
-									}, setHomePath(loginPath))
-									require.Error(t, err)
-								}
-
 								require.EventuallyWithT(t, func(t *assert.CollectT) {
 									testDummyAppConn(t, app.name, fmt.Sprintf("http://127.0.0.1:%v", localProxyPort))
 								}, time.Second, 100*time.Millisecond)
+
+								// proxy certs should not be saved to disk.
+								err = Run(context.Background(), []string{
+									"app",
+									"config",
+									app.name,
+									"--cluster", app.cluster,
+								}, setHomePath(loginPath))
+								require.Error(t, err)
+								require.True(t, trace.IsNotFound(err))
 							})
 						})
 					}

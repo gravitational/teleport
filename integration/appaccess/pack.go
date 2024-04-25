@@ -168,6 +168,10 @@ func (p *Pack) RootAppPublicAddr() string {
 	return p.rootAppPublicAddr
 }
 
+func (p *Pack) RootAuthServer() *auth.Server {
+	return p.rootCluster.Process.GetAuthServer()
+}
+
 func (p *Pack) LeafAppName() string {
 	return p.leafAppName
 }
@@ -178,6 +182,10 @@ func (p *Pack) LeafAppClusterName() string {
 
 func (p *Pack) LeafAppPublicAddr() string {
 	return p.leafAppPublicAddr
+}
+
+func (p *Pack) LeafAuthServer() *auth.Server {
+	return p.leafCluster.Process.GetAuthServer()
 }
 
 // initUser will create a user within the root cluster.
