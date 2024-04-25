@@ -648,3 +648,20 @@ tests:
       - equal:
           path: metadata.labels.baz
           value: overridden
+
+  - it: keeps the session_recording type even when it's "off"
+    set:
+      clusterName: helm-lint
+      sessionRecording: 'off'
+    asserts:
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: keeps the second factor type even when it's "off"
+    set:
+      clusterName: helm-lint
+      authentication:
+        secondFactor: 'off'
+    asserts:
+      - matchSnapshot:
+          path: data.teleport\.yaml
