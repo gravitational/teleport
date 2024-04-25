@@ -1057,8 +1057,6 @@ func (s *Service) GetDevicesUsage(_ context.Context, _ *devicepb.GetDevicesUsage
 	return nil, trace.BadParameter("deprecated, use ResourceUsageService.GetUsage instead")
 }
 
-var createWebTokenDisabledLogOnce sync.Once
-
 // CreateDeviceWebToken creates a device web token for a recently logged in Web
 // user.
 //
@@ -1070,13 +1068,6 @@ var createWebTokenDisabledLogOnce sync.Once
 // CreateDeviceWebToken is not an RPC. Instead, it is called directly by the
 // Auth Server's web login logic.
 func (s *Service) CreateDeviceWebToken(ctx context.Context, token *devicepb.DeviceWebToken) (*devicepb.DeviceWebToken, error) {
-	if !deviceWebAuthnEnabled {
-		createWebTokenDisabledLogOnce.Do(func() {
-			s.logger.WarnContext(ctx, "Attempt to create DeviceWebToken ignored, the feature is disabled by code")
-		})
-		return nil, nil
-	}
-
 	switch {
 	case token == nil:
 		return nil, trace.BadParameter("device web token required")

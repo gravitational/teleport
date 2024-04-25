@@ -122,11 +122,6 @@ func (c *authnCeremony) authenticateDevice(
 		}
 	}
 
-	// ...deny device web authn attempts if disabled...
-	if !deviceWebAuthnEnabled && initReq.DeviceWebToken != nil {
-		return nil, nil, errDeviceWebAuthnDisabled
-	}
-
 	// ...fetch the device...
 	ctx := stream.Context()
 	dev, err := findDeviceBySerial(ctx, c.storage, initReq.DeviceData.OsType, initReq.DeviceData.SerialNumber)

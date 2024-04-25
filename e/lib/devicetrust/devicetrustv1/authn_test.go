@@ -733,8 +733,6 @@ func TestService_AuthenticateDevice_webAuthn(t *testing.T) {
 		t.Skip(tpmSkip) // tpmsimulator required for this test.
 	}
 
-	enableDeviceWebAuthn(t)
-
 	const userLlama = "llama"
 	const userAlpaca = "alpaca"
 	allUsers := []string{userLlama, userAlpaca}
