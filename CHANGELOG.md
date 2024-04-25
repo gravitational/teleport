@@ -1,7 +1,8 @@
 # Changelog
 
-## 13.4.22 (04/24/24)
+## 13.4.23 (04/25/24)
 
+* Fixed a bug in the `teleport-cluster` Helm chart that happened when `sessionRecording` was `off`. [#40921](https://github.com/gravitational/teleport/pull/40921)
 * Issue cert.create events during device authentication. [#40874](https://github.com/gravitational/teleport/pull/40874)
 * Added a new Audit log event that is emitted when an Agent or Bot request to join the cluster is denied. [#40816](https://github.com/gravitational/teleport/pull/40816)
 * Fixed an issue that prevented uploading a zip file larger than 10MiB when updating an AWS Lambda function via tsh app access. [#40795](https://github.com/gravitational/teleport/pull/40795)
