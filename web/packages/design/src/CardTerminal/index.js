@@ -1,6 +1,6 @@
-/**
+/*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { Login } from './Login';
-export { LoginFailed } from './LoginFailed';
-export { LoginSuccess } from './LoginSuccess';
-export { LoginTerminalRedirect } from './LoginTerminalRedirect';
-export { LoginClose } from './LoginClose';
+import CardTerminal, { CardTerminalLogin } from './CardTerminal';
+export default CardTerminal;
+export { CardTerminalLogin };
