@@ -35,7 +35,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
@@ -68,6 +67,7 @@ func setupDynamoContext(t *testing.T) *dynamoContext {
 		Tablename:    fmt.Sprintf("teleport-test-%v", uuid.New().String()),
 		Clock:        fakeClock,
 		UIDGenerator: utils.NewFakeUID(),
+		Endpoint:     "http://localhost:8000",
 	})
 	require.NoError(t, err)
 
@@ -437,38 +437,43 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 }
 
 // TestEmitSessionEventsSameIndex given events that share the same session ID
-// and index, the emit should fail, avoiding any event to get overwritten.
+// and index, the emit should succeed.
 func TestEmitSessionEventsSameIndex(t *testing.T) {
 	ctx := context.Background()
 	tt := setupDynamoContext(t)
 	sessionID := session.NewID()
 
-	require.NoError(t, tt.log.EmitAuditEvent(ctx, generateEvent(sessionID, 0)))
-	require.NoError(t, tt.log.EmitAuditEvent(ctx, generateEvent(sessionID, 1)))
-	require.Error(t, tt.log.EmitAuditEvent(ctx, generateEvent(sessionID, 1)))
+	require.NoError(t, tt.log.EmitAuditEvent(ctx, generateEvent(sessionID, 0, "")))
+	require.NoError(t, tt.log.EmitAuditEvent(ctx, generateEvent(sessionID, 1, "")))
+	require.NoError(t, tt.log.EmitAuditEvent(ctx, generateEvent(sessionID, 1, "")))
 }
 
-func generateEvent(sessionID session.ID, index int64) apievents.AuditEvent {
-	return &apievents.AppSessionChunk{
+// TestValidationErrorsHandling given events that return validation
+// errors (large event size and already exists), the emit should handle them
+// and succeed on emitting the event when it does support trimming.
+func TestValidationErrorsHandling(t *testing.T) {
+	ctx := context.Background()
+	tt := setupDynamoContext(t)
+	sessionID := session.NewID()
+	largeQuery := strings.Repeat("A", maxItemSize)
+
+	// First write should only trigger the large event size
+	require.NoError(t, tt.log.EmitAuditEvent(ctx, generateEvent(sessionID, 0, largeQuery)))
+	// Second should trigger both errors.
+	require.NoError(t, tt.log.EmitAuditEvent(ctx, generateEvent(sessionID, 0, largeQuery)))
+}
+
+func generateEvent(sessionID session.ID, index int64, query string) apievents.AuditEvent {
+	return &apievents.DatabaseSessionQuery{
 		Metadata: apievents.Metadata{
-			Type:        events.AppSessionChunkEvent,
-			Code:        events.AppSessionChunkCode,
+			Type:        events.DatabaseSessionQueryEvent,
 			ClusterName: "root",
 			Index:       index,
-		},
-		ServerMetadata: apievents.ServerMetadata{
-			ServerID:        uuid.New().String(),
-			ServerNamespace: apidefaults.Namespace,
 		},
 		SessionMetadata: apievents.SessionMetadata{
 			SessionID: sessionID.String(),
 		},
-		AppMetadata: apievents.AppMetadata{
-			AppURI:        "nginx",
-			AppPublicAddr: "https://nginx",
-			AppName:       "nginx",
-		},
-		SessionChunkID: uuid.New().String(),
+		DatabaseQuery: query,
 	}
 }
 
