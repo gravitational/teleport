@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto"
 	"encoding/base64"
+	"fmt"
 	"sort"
 
 	"github.com/gravitational/trace"
@@ -240,6 +241,15 @@ func (u *UserAssignmentCreator) OnLogin(ctx context.Context, user types.User) er
 		// Only retire old assignments if they don't match the name of the new assignment.
 		if oldAssignment.GetName() != assignmentName {
 			oldAssignment.SetCleanupTime(u.clock.Now())
+			if newAssignment != nil {
+				neededTargets := newAssignment.GetTargets()
+				// Remove the targets that are being used in the new assignment.
+				// Let's say that user still have access to target A and B but old assigment has A, B, C, D.
+				// In order to prevent the cleanup of A and B, we need to remove them from the old assignment.
+				if err := removedUsedTargetsFromOldAssignment(neededTargets, oldAssignment); err != nil {
+					return trace.Wrap(err, "removing used targets from old assignment %s", oldAssignment.GetName())
+				}
+			}
 			if _, err := u.accessPoint.UpdateOktaAssignment(ctx, oldAssignment); err != nil {
 				return trace.Wrap(err, "cleaning up old assignment %s", oldAssignment.GetName())
 			}
@@ -256,6 +266,32 @@ func (u *UserAssignmentCreator) OnLogin(ctx context.Context, user types.User) er
 		u.log.Debugf("Removed apps for user %s: %v", userState.GetName(), removedApps)
 	}
 
+	return nil
+}
+
+func removedUsedTargetsFromOldAssignment(usedTargets []types.OktaAssignmentTarget, old types.OktaAssignment) error {
+	targetKey := func(target types.OktaAssignmentTarget) string {
+		return fmt.Sprintf("%s:%s", target.GetTargetType(), target.GetID())
+	}
+	usedTargetsSet := map[string]struct{}{}
+	for _, v := range usedTargets {
+		usedTargetsSet[targetKey(v)] = struct{}{}
+	}
+	var result []*types.OktaAssignmentTargetV1
+	for _, target := range old.GetTargets() {
+		if _, ok := usedTargetsSet[targetKey(target)]; !ok {
+			tv1, ok := target.(*types.OktaAssignmentTargetV1)
+			if !ok {
+				return trace.BadParameter("expected OktaAssignmentTargetV1, got %T", target)
+			}
+			result = append(result, tv1)
+		}
+		v1, ok := old.(*types.OktaAssignmentV1)
+		if !ok {
+			return trace.BadParameter("expected OktaAssignmentV1, got %T", old)
+		}
+		v1.Spec.Targets = result
+	}
 	return nil
 }
 

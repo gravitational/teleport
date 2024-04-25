@@ -2,11 +2,11 @@ package okta
 
 import (
 	"context"
+	"crypto"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
@@ -25,6 +25,8 @@ type testUACAccessPoint struct {
 	*testAccessPoint
 
 	userState *userloginstate.UserLoginState
+	uac       *UserAssignmentCreator
+	user      types.User
 }
 
 // GetUserOrLoginState will return the given user or the login state associated with the user.
@@ -38,372 +40,156 @@ func (t *testUACAccessPoint) GetUserOrLoginState(ctx context.Context, username s
 func TestUserAssignmentCreator(t *testing.T) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
-	ap := &testUACAccessPoint{
-		testAccessPoint: newTestAccessPoint(t, clock),
-	}
-	ap.serviceCounts[types.RoleOkta] = 1
-	connected, err := NewOktaConnected(OktaConnectedConfig{
-		DisableCache:    true,
-		ConnectedGetter: ap,
-		Plugins:         ap,
-	})
-	require.NoError(t, err)
+	suite := initUACSuite(t, ctx, clock)
 
-	uac, err := NewUserAssignmentCreator(UserAssignmentCreatorConfig{
-		Clock:         clock,
-		ClusterName:   testClusterName,
-		AccessPoint:   ap,
-		OktaConnected: connected,
-	})
-	require.NoError(t, err)
+	app1 := application(t, suite.uac.hash, "app1", "link", types.OriginOkta, testOrgURL, testHostID)
+	app2 := application(t, suite.uac.hash, "app2", "link", types.OriginOkta, testOrgURL, testHostID)
+	appDupe := application(t, suite.uac.hash, "app1", "link", types.OriginOkta, testOrgURL, "dummy-host")
+	group1 := group(t, "group1", types.OriginOkta, testOrgURL)
+	group2 := group(t, "group2", types.OriginOkta, testOrgURL)
 
-	// set app and group page sizes to 1 to make sure we exercise pagination logic.
-	uac.groupPageSize = 1
-	uac.appPageSize = 1
-
-	testUser := "test-user@test.user"
-	testRole := "test-role"
-
-	role, err := auth.CreateRole(ctx, ap, testRole, types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			AppLabels: types.Labels{
-				types.Wildcard: []string{types.Wildcard},
-			},
-			GroupLabels: types.Labels{
-				types.Wildcard: []string{types.Wildcard},
-			},
-			Rules: []types.Rule{
-				{
-					Resources: []string{
-						types.KindAppServer,
-						types.KindUserGroup,
-					},
-					Verbs: []string{
-						types.VerbRead, types.VerbList,
-					},
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	user, err := types.NewUser(testUser)
-	require.NoError(t, err)
-	user.SetRoles([]string{role.GetName()})
-
-	user, err = ap.CreateUser(ctx, user)
-	require.NoError(t, err)
-
-	assignments, _, err := ap.ListOktaAssignments(ctx, 0, "")
-	require.NoError(t, err)
-	require.Empty(t, assignments)
+	uac := suite.uac
+	user := suite.user
+	testUser := user.GetName()
+	ap := suite
 
 	// No valid resources, so this should exit quickly and produce nothing.
 	require.NoError(t, uac.OnLogin(ctx, user))
+	assertEmptyAssigmentList(t, ap)
 
-	assignments, _, err = ap.ListOktaAssignments(ctx, 0, "")
-	require.NoError(t, err)
-	require.Empty(t, assignments)
-
-	app1 := application(t, uac.hash, "app1", "link", types.OriginOkta, testOrgURL, testHostID)
-	_, err = ap.UpsertApplicationServer(ctx, app1)
-	require.NoError(t, err)
-	appDupe := application(t, uac.hash, "app1", "link", types.OriginOkta, testOrgURL, "dummy-host")
-	_, err = ap.UpsertApplicationServer(ctx, appDupe)
-	require.NoError(t, err)
-
-	// App servers from different hosts will both show up under list resources.
-	resources, err := ap.ListResources(ctx, proto.ListResourcesRequest{
-		ResourceType: types.KindAppServer,
-		Limit:        5,
-	})
-	require.NoError(t, err)
-	require.Len(t, resources.Resources, 2)
+	for _, v := range []types.AppServer{app1, appDupe} {
+		mustUpsertApplicationServer(t, ctx, ap, v)
+	}
+	assertResourceCount(t, ctx, ap, 2)
 
 	// This run should be skipped since no Okta roles or plugins are connected.
 	ap.serviceCounts[types.RoleOkta] = 0
 
 	require.NoError(t, uac.OnLogin(ctx, user))
 
-	assignments, _, err = ap.ListOktaAssignments(ctx, 0, "")
-	require.NoError(t, err)
-	require.Empty(t, assignments)
-
 	// Reconnect the service. Should get an assignment that has one action for the app.
 	ap.serviceCounts[types.RoleOkta] = 1
-	require.NoError(t, uac.OnLogin(ctx, user))
 
-	assignments, _, err = ap.ListOktaAssignments(ctx, 0, "")
-	require.NoError(t, err)
+	t.Run("test assignment creation", func(t *testing.T) {
+		require.NoError(t, uac.OnLogin(ctx, user))
+		want := mustCreateAssigmentList(t, uac.hash, testUser, clock)([][]types.Resource{
+			{app1},
+		})
+		mustFetchAndAssertAssignments(t, ctx, ap, want)
+	})
 
-	expectedName, err := uacAssignmentName(uac.hash, testUser, []string{}, []string{app1.GetName()})
-	require.NoError(t, err)
+	t.Run("test appserver deletion", func(t *testing.T) {
+		require.NoError(t, ap.DeleteApplicationServer(ctx, defaults.Namespace, app1.GetHostID(), app1.GetName()))
+		require.NoError(t, ap.DeleteApplicationServer(ctx, defaults.Namespace, appDupe.GetHostID(), appDupe.GetName()))
+		require.NoError(t, ap.CreateUserGroup(ctx, group1))
 
-	var allAssignments []types.OktaAssignment
-	expectedAssignmentAppOnly, err := types.NewOktaAssignment(types.Metadata{
-		Name: expectedName,
-		Labels: map[string]string{
-			teleport.OktaAssignmentSourceLabel: userAssignmentCreatorSource,
-		},
-	}, types.OktaAssignmentSpecV1{
-		User: testUser,
-		Targets: []*types.OktaAssignmentTargetV1{
-			{
-				Type: types.OktaAssignmentTargetV1_APPLICATION,
-				Id:   app1.GetName(),
+		require.NoError(t, uac.OnLogin(ctx, user))
+		mustDeleteCleanupAssignments(t, ctx, ap)
+
+		want := mustCreateAssigmentList(t, uac.hash, testUser, clock)([][]types.Resource{
+			{group1},
+		})
+		mustFetchAndAssertAssignments(t, ctx, ap, want)
+	})
+
+	t.Run("re-add application", func(t *testing.T) {
+		mustUpsertApplicationServer(t, ctx, ap, app1)
+
+		// Should get an assignment that has two actions: one for the app and one for the group.
+		require.NoError(t, uac.OnLogin(ctx, user))
+		mustDeleteCleanupAssignments(t, ctx, ap)
+
+		want := mustCreateAssigmentList(t, uac.hash, testUser, clock)([][]types.Resource{
+			{group1, app1},
+		})
+		mustFetchAndAssertAssignments(t, ctx, ap, want)
+	})
+
+	t.Run("Add a new app", func(t *testing.T) {
+		// We'll add a new app, which should cause a new assignment to be generated and the
+		// old one to be marked as needing cleanup.
+		mustUpsertApplicationServer(t, ctx, ap, app2)
+
+		require.NoError(t, uac.OnLogin(ctx, user))
+		mustDeleteCleanupAssignments(t, ctx, ap)
+
+		want := mustCreateAssigmentList(t, uac.hash, testUser, clock)([][]types.Resource{
+			{group1, app1, app2},
+		})
+		mustFetchAndAssertAssignments(t, ctx, ap, want)
+	})
+
+	t.Run("Add a new group", func(t *testing.T) {
+		// We'll add in a group and make sure that triggers a second cleanup and another new assignment.
+		require.NoError(t, ap.CreateUserGroup(ctx, group2))
+
+		require.NoError(t, uac.OnLogin(ctx, user))
+		mustDeleteCleanupAssignments(t, ctx, ap)
+
+		want := mustCreateAssigmentList(t, uac.hash, testUser, clock)([][]types.Resource{
+			{group1, group2, app1, app2},
+		})
+		mustFetchAndAssertAssignments(t, ctx, ap, want)
+	})
+
+	t.Run("Remove the group", func(t *testing.T) {
+		// We'll delete the old group and ensure that the old assignment is restored.
+		require.NoError(t, ap.DeleteUserGroup(ctx, group2.GetName()))
+
+		require.NoError(t, uac.OnLogin(ctx, user))
+		mustDeleteCleanupAssignments(t, ctx, ap)
+
+		want := mustCreateAssigmentList(t, uac.hash, testUser, clock)([][]types.Resource{
+			{group1, app1, app2},
+		})
+		mustFetchAndAssertAssignments(t, ctx, ap, want)
+	})
+
+	t.Run("lock user", func(t *testing.T) {
+		lock, err := types.NewLock("lock", types.LockSpecV2{
+			Target: types.LockTarget{
+				User: testUser,
 			},
-		},
-		Status:         types.OktaAssignmentSpecV1_PENDING,
-		LastTransition: clock.Now(),
+		})
+		require.NoError(t, err)
+		require.NoError(t, ap.UpsertLock(ctx, lock))
+
+		require.NoError(t, uac.OnLogin(ctx, user))
+		mustDeleteCleanupAssignments(t, ctx, ap)
+		assertEmptyAssigmentList(t, ap)
+	})
+
+	t.Run("unlock user", func(t *testing.T) {
+		require.NoError(t, ap.DeleteLock(ctx, "lock"))
+
+		require.NoError(t, uac.OnLogin(ctx, user))
+		mustDeleteCleanupAssignments(t, ctx, ap)
+
+		var err error
+		// Create an empty user state, which should cause a cleanup of all assignments since it has no permissions.
+		ap.userState, err = userloginstate.New(header.Metadata{
+			Name: testUser,
+		}, userloginstate.Spec{})
+		require.NoError(t, err)
+
+		require.NoError(t, uac.OnLogin(ctx, user))
+		mustDeleteCleanupAssignments(t, ctx, ap)
+		assertEmptyAssigmentList(t, ap)
+	})
+}
+
+func assertResourceCount(t *testing.T, ctx context.Context, ap *testUACAccessPoint, want int) {
+	resources, err := ap.ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType: types.KindAppServer,
+		Limit:        5,
 	})
 	require.NoError(t, err)
+	require.Len(t, resources.Resources, want)
+}
 
-	allAssignments = append(allAssignments, expectedAssignmentAppOnly)
-
-	cmpOpts := cmp.Options{
-		cmpopts.IgnoreFields(
-			types.OktaAssignmentV1{},
-			"ResourceHeader.Metadata.ID",
-			"ResourceHeader.Metadata.Revision"),
-		cmpopts.SortSlices(assignmentLess),
-	}
-	require.Empty(t, cmp.Diff(allAssignments, assignments, cmpOpts))
-
-	require.NoError(t, ap.DeleteApplicationServer(ctx, defaults.Namespace, app1.GetHostID(), app1.GetName()))
-	require.NoError(t, ap.DeleteApplicationServer(ctx, defaults.Namespace, appDupe.GetHostID(), appDupe.GetName()))
-
-	group1 := group(t, "group1", types.OriginOkta, testOrgURL)
-	require.NoError(t, ap.CreateUserGroup(ctx, group1))
-
-	// Should get an assignment that has one action for the group.
-	require.NoError(t, uac.OnLogin(ctx, user))
-
-	assignments, _, err = ap.ListOktaAssignments(ctx, 0, "")
+func mustUpsertApplicationServer(t *testing.T, ctx context.Context, ap *testUACAccessPoint, app1 types.AppServer) {
+	_, err := ap.UpsertApplicationServer(ctx, app1)
 	require.NoError(t, err)
-
-	expectedName, err = uacAssignmentName(uac.hash, testUser, []string{group1.GetName()}, []string{})
-	require.NoError(t, err)
-
-	expectedAssignmentAppOnly.SetCleanupTime(clock.Now())
-
-	expectedAssignmentGroupOnly, err := types.NewOktaAssignment(types.Metadata{
-		Name: expectedName,
-		Labels: map[string]string{
-			teleport.OktaAssignmentSourceLabel: userAssignmentCreatorSource,
-		},
-	}, types.OktaAssignmentSpecV1{
-		User: testUser,
-		Targets: []*types.OktaAssignmentTargetV1{
-			{
-				Type: types.OktaAssignmentTargetV1_GROUP,
-				Id:   group1.GetName(),
-			},
-		},
-		Status:         types.OktaAssignmentSpecV1_PENDING,
-		LastTransition: clock.Now(),
-	})
-	require.NoError(t, err)
-
-	allAssignments = append(allAssignments, expectedAssignmentGroupOnly)
-
-	require.Empty(t, cmp.Diff(allAssignments, assignments, cmpOpts))
-
-	// Re-add application server.
-	_, err = ap.UpsertApplicationServer(ctx, app1)
-	require.NoError(t, err)
-
-	// Should get an assignment that has two actions: one for the app and one for the group.
-	require.NoError(t, uac.OnLogin(ctx, user))
-
-	assignments, _, err = ap.ListOktaAssignments(ctx, 0, "")
-	require.NoError(t, err)
-
-	expectedName, err = uacAssignmentName(uac.hash, testUser, []string{group1.GetName()}, []string{app1.GetName()})
-	require.NoError(t, err)
-
-	expectedAssignmentGroupOnly.SetCleanupTime(clock.Now())
-
-	expectedAssignment1, err := types.NewOktaAssignment(types.Metadata{
-		Name: expectedName,
-		Labels: map[string]string{
-			teleport.OktaAssignmentSourceLabel: userAssignmentCreatorSource,
-		},
-	}, types.OktaAssignmentSpecV1{
-		User: testUser,
-		Targets: []*types.OktaAssignmentTargetV1{
-			{
-				Type: types.OktaAssignmentTargetV1_GROUP,
-				Id:   group1.GetName(),
-			},
-			{
-				Type: types.OktaAssignmentTargetV1_APPLICATION,
-				Id:   app1.GetName(),
-			},
-		},
-		Status:         types.OktaAssignmentSpecV1_PENDING,
-		LastTransition: clock.Now(),
-	})
-	require.NoError(t, err)
-
-	allAssignments = append(allAssignments, expectedAssignment1)
-	require.Empty(t, cmp.Diff(allAssignments, assignments, cmpOpts))
-
-	// We'll add a new app, which should cause a new assignment to be generated and the
-	// old one to be marked as needing cleanup.
-	app2 := application(t, uac.hash, "app2", "link", types.OriginOkta, testOrgURL, testHostID)
-	_, err = ap.UpsertApplicationServer(ctx, app2)
-	require.NoError(t, err)
-
-	require.NoError(t, uac.OnLogin(ctx, user))
-
-	assignments, _, err = ap.ListOktaAssignments(ctx, 0, "")
-	require.NoError(t, err)
-
-	expectedName, err = uacAssignmentName(uac.hash, testUser, []string{group1.GetName()}, []string{app1.GetName(), app2.GetName()})
-	require.NoError(t, err)
-
-	// Old assignment should be marked as needing cleanup.
-	expectedAssignment1.SetCleanupTime(clock.Now())
-
-	expectedAssignment2, err := types.NewOktaAssignment(types.Metadata{
-		Name: expectedName,
-		Labels: map[string]string{
-			teleport.OktaAssignmentSourceLabel: userAssignmentCreatorSource,
-		},
-	}, types.OktaAssignmentSpecV1{
-		User: testUser,
-		Targets: []*types.OktaAssignmentTargetV1{
-			{
-				Type: types.OktaAssignmentTargetV1_GROUP,
-				Id:   group1.GetName(),
-			},
-			{
-				Type: types.OktaAssignmentTargetV1_APPLICATION,
-				Id:   app1.GetName(),
-			},
-			{
-				Type: types.OktaAssignmentTargetV1_APPLICATION,
-				Id:   app2.GetName(),
-			},
-		},
-		Status:         types.OktaAssignmentSpecV1_PENDING,
-		LastTransition: clock.Now(),
-	})
-	require.NoError(t, err)
-
-	allAssignments = append(allAssignments, expectedAssignment2)
-
-	require.Empty(t, cmp.Diff(allAssignments, assignments, cmpOpts))
-
-	// We'll add in a group and make sure that triggers a second cleanup and another new assignment.
-	group2 := group(t, "group2", types.OriginOkta, testOrgURL)
-	require.NoError(t, ap.CreateUserGroup(ctx, group2))
-
-	require.NoError(t, uac.OnLogin(ctx, user))
-
-	assignments, _, err = ap.ListOktaAssignments(ctx, 0, "")
-	require.NoError(t, err)
-
-	expectedName, err = uacAssignmentName(uac.hash, testUser, []string{group1.GetName(), "group2"}, []string{app1.GetName(), app2.GetName()})
-	require.NoError(t, err)
-
-	// Old assignment should be given a cleanup time.
-	expectedAssignment2.SetCleanupTime(clock.Now())
-
-	expectedAssignment3, err := types.NewOktaAssignment(types.Metadata{
-		Name: expectedName,
-		Labels: map[string]string{
-			teleport.OktaAssignmentSourceLabel: userAssignmentCreatorSource,
-		},
-	}, types.OktaAssignmentSpecV1{
-		User: testUser,
-		Targets: []*types.OktaAssignmentTargetV1{
-			{
-				Type: types.OktaAssignmentTargetV1_GROUP,
-				Id:   group1.GetName(),
-			},
-			{
-				Type: types.OktaAssignmentTargetV1_GROUP,
-				Id:   "group2",
-			},
-			{
-				Type: types.OktaAssignmentTargetV1_APPLICATION,
-				Id:   app1.GetName(),
-			},
-			{
-				Type: types.OktaAssignmentTargetV1_APPLICATION,
-				Id:   app2.GetName(),
-			},
-		},
-		Status:         types.OktaAssignmentSpecV1_PENDING,
-		LastTransition: clock.Now(),
-	})
-	require.NoError(t, err)
-
-	allAssignments = append(allAssignments, expectedAssignment3)
-
-	require.Empty(t, cmp.Diff(allAssignments, assignments, cmpOpts))
-
-	// We'll delete the old group and ensure that the old assignment is restored.
-	require.NoError(t, ap.DeleteUserGroup(ctx, group2.GetName()))
-
-	require.NoError(t, uac.OnLogin(ctx, user))
-
-	assignments, _, err = ap.ListOktaAssignments(ctx, 0, "")
-	require.NoError(t, err)
-
-	// Old assignment should be marked as needing cleanup, other assignment should be restored.
-	expectedAssignment2.SetCleanupTime(time.Time{})
-	expectedAssignment3.SetCleanupTime(clock.Now())
-
-	require.Empty(t, cmp.Diff(allAssignments, assignments, cmpOpts))
-
-	// Lock should cause all assignments to be cleaned up.
-	lock, err := types.NewLock("lock", types.LockSpecV2{
-		Target: types.LockTarget{
-			User: testUser,
-		},
-	})
-	require.NoError(t, err)
-	require.NoError(t, ap.UpsertLock(ctx, lock))
-
-	require.NoError(t, uac.OnLogin(ctx, user))
-
-	assignments, _, err = ap.ListOktaAssignments(ctx, 0, "")
-	require.NoError(t, err)
-
-	expectedAssignment2.SetCleanupTime(clock.Now())
-
-	require.Empty(t, cmp.Diff(allAssignments, assignments, cmpOpts))
-
-	// Delete lock should restore assignments
-	require.NoError(t, ap.DeleteLock(ctx, "lock"))
-
-	require.NoError(t, uac.OnLogin(ctx, user))
-
-	assignments, _, err = ap.ListOktaAssignments(ctx, 0, "")
-	require.NoError(t, err)
-
-	expectedAssignment2.SetCleanupTime(time.Time{})
-
-	require.Empty(t, cmp.Diff(allAssignments, assignments, cmpOpts))
-
-	// Create an empty user state, which should cause a cleanup of all assignments since it has no permissions.
-	ap.userState, err = userloginstate.New(header.Metadata{
-		Name: testUser,
-	}, userloginstate.Spec{})
-	require.NoError(t, err)
-
-	require.NoError(t, uac.OnLogin(ctx, user))
-
-	assignments, _, err = ap.ListOktaAssignments(ctx, 0, "")
-	require.NoError(t, err)
-
-	// All assignments should have a cleanup time set to now.
-	expectedAssignment1.SetCleanupTime(clock.Now())
-	expectedAssignment2.SetCleanupTime(clock.Now())
-
-	require.Empty(t, cmp.Diff(allAssignments, assignments, cmpOpts))
 }
 
 func TestAssignmentDiff(t *testing.T) {
@@ -495,6 +281,212 @@ func TestAssignmentDiff(t *testing.T) {
 			require.Equal(t, test.expectedNewApps, newApps)
 			require.Equal(t, test.expectedRemovedGroups, removedGroups)
 			require.Equal(t, test.expectedRemovedApps, removedApps)
+		})
+	}
+}
+
+func assertEmptyAssigmentList(t *testing.T, ap *testUACAccessPoint) {
+	assignments, _, err := ap.ListOktaAssignments(context.Background(), 0, "")
+	require.NoError(t, err)
+	require.Empty(t, assignments)
+}
+
+func mustFetchAndAssertAssignments(t *testing.T, ctx context.Context, ap *testUACAccessPoint, want []types.OktaAssignment) {
+	assignments, _, err := ap.ListOktaAssignments(ctx, 0, "")
+	require.NoError(t, err)
+	assertAssignments(t, want, assignments)
+}
+
+func mustDeleteCleanupAssignments(t *testing.T, ctx context.Context, ap *testUACAccessPoint) {
+	assignments, _, err := ap.ListOktaAssignments(ctx, 0, "")
+	require.NoError(t, err)
+	for _, item := range assignments {
+		if !item.GetCleanupTime().IsZero() {
+			err := ap.DeleteOktaAssignment(ctx, item.GetName())
+			require.NoError(t, err)
+		}
+	}
+}
+
+func mustCreateAssigmentList(t *testing.T, hash crypto.Hash, user string, clock clockwork.FakeClock) func([][]types.Resource) []types.OktaAssignment {
+	return func(itemsTargets [][]types.Resource) []types.OktaAssignment {
+		var groups []string
+		var apps []string
+		var out []types.OktaAssignment
+
+		for _, v := range itemsTargets {
+			var targets []*types.OktaAssignmentTargetV1
+			for _, item := range v {
+				switch t := item.(type) {
+				case types.UserGroup:
+					targets = append(targets, &types.OktaAssignmentTargetV1{
+						Type: types.OktaAssignmentTargetV1_GROUP,
+						Id:   t.GetName(),
+					})
+					groups = append(groups, t.GetName())
+				case types.AppServer:
+					targets = append(targets, &types.OktaAssignmentTargetV1{
+						Type: types.OktaAssignmentTargetV1_APPLICATION,
+						Id:   t.GetName(),
+					})
+					apps = append(apps, t.GetName())
+				}
+			}
+			name, err := uacAssignmentName(hash, user, groups, apps)
+			require.NoError(t, err)
+			item, err := types.NewOktaAssignment(types.Metadata{
+				Name: name,
+				Labels: map[string]string{
+					teleport.OktaAssignmentSourceLabel: userAssignmentCreatorSource,
+				},
+			}, types.OktaAssignmentSpecV1{
+				User:           user,
+				Targets:        targets,
+				Status:         types.OktaAssignmentSpecV1_PENDING,
+				LastTransition: clock.Now(),
+			})
+			require.NoError(t, err)
+			out = append(out, item)
+		}
+		return out
+	}
+}
+
+func initUACSuite(t *testing.T, ctx context.Context, clock clockwork.Clock) *testUACAccessPoint {
+	ap := &testUACAccessPoint{
+		testAccessPoint: newTestAccessPoint(t, clock),
+	}
+	ap.serviceCounts[types.RoleOkta] = 1
+	connected, err := NewOktaConnected(OktaConnectedConfig{
+		DisableCache:    true,
+		ConnectedGetter: ap,
+		Plugins:         ap,
+	})
+	require.NoError(t, err)
+
+	ap.uac, err = NewUserAssignmentCreator(UserAssignmentCreatorConfig{
+		Clock:         clock,
+		ClusterName:   testClusterName,
+		AccessPoint:   ap,
+		OktaConnected: connected,
+	})
+	require.NoError(t, err)
+
+	// set app and group page sizes to 1 to make sure we exercise pagination logic.
+	ap.uac.groupPageSize = 1
+	ap.uac.appPageSize = 1
+
+	testUser := "test-user@test.user"
+	testRole := "test-role"
+
+	role, err := auth.CreateRole(ctx, ap, testRole, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			AppLabels: types.Labels{
+				types.Wildcard: []string{types.Wildcard},
+			},
+			GroupLabels: types.Labels{
+				types.Wildcard: []string{types.Wildcard},
+			},
+			Rules: []types.Rule{
+				{
+					Resources: []string{
+						types.KindAppServer,
+						types.KindUserGroup,
+					},
+					Verbs: []string{
+						types.VerbRead, types.VerbList,
+					},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	user, err := types.NewUser(testUser)
+	require.NoError(t, err)
+	user.SetRoles([]string{role.GetName()})
+	user, err = ap.CreateUser(ctx, user)
+	require.NoError(t, err)
+	ap.user = user
+	return ap
+}
+
+func TestRemovedUsedTargetsFromOldOldAnOldAssignments(t *testing.T) {
+	tests := []struct {
+		name        string
+		usedTargets []types.OktaAssignmentTarget
+		old         types.OktaAssignment
+		want        types.OktaAssignment
+	}{
+		{
+			name:        "empty used targets empty old assignment",
+			usedTargets: []types.OktaAssignmentTarget{},
+			old: &types.OktaAssignmentV1{
+				Spec: types.OktaAssignmentSpecV1{
+					Targets: []*types.OktaAssignmentTargetV1{},
+				},
+			},
+			want: &types.OktaAssignmentV1{
+				Spec: types.OktaAssignmentSpecV1{
+					Targets: []*types.OktaAssignmentTargetV1{},
+				},
+			},
+		},
+		{
+			name: "used app and group",
+			usedTargets: []types.OktaAssignmentTarget{
+				&types.OktaAssignmentTargetV1{Type: types.OktaAssignmentTargetV1_GROUP, Id: "group1"},
+				&types.OktaAssignmentTargetV1{Type: types.OktaAssignmentTargetV1_APPLICATION, Id: "app2"},
+			},
+			old: &types.OktaAssignmentV1{
+				Spec: types.OktaAssignmentSpecV1{
+					Targets: []*types.OktaAssignmentTargetV1{
+						{Type: types.OktaAssignmentTargetV1_GROUP, Id: "group1"},
+						{Type: types.OktaAssignmentTargetV1_GROUP, Id: "group2"},
+						{Type: types.OktaAssignmentTargetV1_APPLICATION, Id: "app1"},
+						{Type: types.OktaAssignmentTargetV1_APPLICATION, Id: "app2"},
+					},
+				},
+			},
+			want: &types.OktaAssignmentV1{
+				Spec: types.OktaAssignmentSpecV1{
+					Targets: []*types.OktaAssignmentTargetV1{
+						{Type: types.OktaAssignmentTargetV1_GROUP, Id: "group2"},
+						{Type: types.OktaAssignmentTargetV1_APPLICATION, Id: "app1"},
+					},
+				},
+			},
+		},
+		{
+			name: "remove all apps and groups",
+			usedTargets: []types.OktaAssignmentTarget{
+				&types.OktaAssignmentTargetV1{Type: types.OktaAssignmentTargetV1_GROUP, Id: "group1"},
+				&types.OktaAssignmentTargetV1{Type: types.OktaAssignmentTargetV1_GROUP, Id: "group2"},
+				&types.OktaAssignmentTargetV1{Type: types.OktaAssignmentTargetV1_APPLICATION, Id: "app1"},
+				&types.OktaAssignmentTargetV1{Type: types.OktaAssignmentTargetV1_APPLICATION, Id: "app2"},
+			},
+			old: &types.OktaAssignmentV1{
+				Spec: types.OktaAssignmentSpecV1{
+					Targets: []*types.OktaAssignmentTargetV1{
+						{Type: types.OktaAssignmentTargetV1_GROUP, Id: "group1"},
+						{Type: types.OktaAssignmentTargetV1_GROUP, Id: "group2"},
+						{Type: types.OktaAssignmentTargetV1_APPLICATION, Id: "app1"},
+						{Type: types.OktaAssignmentTargetV1_APPLICATION, Id: "app2"},
+					},
+				},
+			},
+			want: &types.OktaAssignmentV1{
+				Spec: types.OktaAssignmentSpecV1{
+					Targets: nil,
+				},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := removedUsedTargetsFromOldAssignment(tc.usedTargets, tc.old)
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(tc.old, tc.want))
 		})
 	}
 }
