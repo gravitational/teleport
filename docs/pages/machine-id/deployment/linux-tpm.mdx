@@ -65,16 +65,75 @@ for a different solution, we recommend creating udev rules similar to the ones
 shipped by the [TPM2 Software Stack](
 https://github.com/tpm2-software/tpm2-tss/blob/ede63dd1ac1f0a46029d457304edcac2162bfab8/dist/tpm-udev.rules#L4).
 
-## Step 2/5. Create a `tpm` join token
+## Step 2/5. Create a Bot
+
+Next, we need to create a Bot in the Teleport cluster. A Bot is an identity
+for a machine or group of machines, and like a user, its access is controlled
+by roles.
+
+Create `bot.yaml`:
+
+```yaml
+kind: bot
+version: v1
+metadata:
+  # name is a unique identifier for the Bot in the cluster.
+  name: example
+spec:
+  # roles is a list of Roles to grant to the Bot.
+  #
+  # If you don't know what roles your Bot will need yet, don't worry, the
+  # access guides will help you determine this.
+  roles: []
+```
+
+Ensure that you replace `example` with a unique descriptive name for your Bot.
+
+Apply this to your Teleport cluster using `tctl`:
+
+```code
+$ tctl create -f bot.yaml
+```
+
+## Step 3/5. Create a `tpm` join token
+
+With the Bot created, we now need to create a token. The token will be used by
+`tbot` to authenticate as the Bot to the Teleport cluster.
 
 ### Determining the EKPub Hash or EKCert Serial for your TPM
 
+First, you need to determine the characteristics of the TPM on the host that
+you wish to use Machine ID on. These characteristics will then be used within
+the allow rules of the join token to grant access to this specific host.
+
+On the machine, run `tbot tpm identify`:
+
+```
+$ tbot tpm identify
+TPM Information
+EKPub Hash: 6c5aada1c5abee6d869369a0example2fd2beb41c850d3f0227f029c4fffc4ba
+EKCert Detected: true
+EKCert Serial: 5e:cd:5f:8e
+```
+
+Copy down the long hexadecimal string after `EKPub Hash`. This uniquely
+identifies this TPM and will be used in the join token.
+
 ### Obtaining the manufacturer CA
+
+If in the previous step, `EKCert Detected` was `false`, then you can disregard
+this section.
+
+If in the previous step, `EKCert Detected` was `true`, then it is recommended
+to obtain the manufacturer's CA certificate. This will allow the TPM to be
+validated as legitimately manufactured as part of the join process.
+
+Instructions for obtaining the EKCert CA will vary from TPM to TPM. Consult
+your TPM's documentation for more information or contact your supplier.
 
 ### Creating the join token
 
-Create a file named `bot-token.yaml`. Ensure you substitute any values as
-suggested by the comments in this example:
+Create a file named `bot-token.yaml`:
 
 ```yaml
 kind: token
@@ -100,9 +159,6 @@ spec:
     # When specified, joining TPMs must present an EKCert signed by one of the
     # specified CAs. TPMs that do not present an EKCert will be not permitted to
     # join.
-    #
-    # When unspecified, TPMs will be allowed to join with either an EKCert or an
-    # EKPubHash.
     ekcert_allowed_cas:
       - |
         -----BEGIN CERTIFICATE-----
@@ -115,30 +171,34 @@ spec:
         # bearing on whether a TPM is allowed to join, but can be used to
         # associate a rule with a specific host (e.g the asset tag of the server
         # in which the TPM resides).
-      - description: "example-build-server-100"
+      - description: "example-server-100"
         # ek_public_hash is the SHA256 hash of the EKPub marshaled in PKIX format
         # and encoded in hexadecimal. This value will also be checked when a TPM
         # has submitted an EKCert, and the public key in the EKCert will be used
         # for this check.
-        ek_public_hash: "d4b4example6fabfc568d74f2example6c35a05337d7af9a6example6c891aa6"
-        # ek_certificate_serial is the serial number of the EKCert in hexadecimal
-        # with colon separated nibbles. This value will not be checked when a TPM
-        # does not have an EKCert configured.
-        ek_certificate_serial: "01:23:45:67:89:ex:am:pl:e0:23:45:67:89:ab:cd:ef"
+        ek_public_hash: "6c5aada1c5abee6d869369a0example2fd2beb41c850d3f0227f029c4fffc4ba"
 ```
+
+Replace the following:
+
+- `example-bot` with a unique name for the token.
+- `example` with the name of the Bot that you created in step 2.
+- `6c5aada1c5abee6d869369a0example2fd2beb41c850d3f0227f029c4fffc4ba` with the
+   EKPub hash of your TPM.
+- `example-server-100` with a human-readable description of the host that the
+   TPM resides in.
+
+If your TPM includes an EKCert and you have obtained the manufacturer's CA,
+replace the `ekcert_allowed_cas` section with the PEM wrapped CA certificate.
+Otherwise, remove this section.
+
+If you have multiple hosts that you wish to authenticate as the same Bot, you
+can add additional rules the `allow` list, one for each host.
 
 Apply this to your Teleport cluster using `tctl`:
 
 ```code
 $ tctl create -f bot-token.yaml
-```
-
-## Step 3/5. Create a Bot
-
-Create the bot, specifying the name of the token you have created:
-
-```code
-$ tctl bots add example --token example-bot
 ```
 
 ## Step 4/5. Configure `tbot`
@@ -159,16 +219,16 @@ outputs: []
 ```
 
 Replace:
-- `example.teleport.sh:443` with the address of your Teleport Proxy or
-Auth Server. Prefer using the address of a Teleport Proxy.
+
+- `example.teleport.sh:443` with the address of your Teleport Proxy.
 - `example-bot` with the name of the token that you created in step 2.
 
 ### Prepare the storage directory
 
-When using the `token` join method, `tbot` must be able to persist its state
-across restarts. The destination used to persist this state is known as the
-bot's "storage destination". In this guide, the directory
-`/var/lib/teleport/bot` will be used.
+The `tbot` service requires a way to store its state, such as internal
+credentials, across restarts. This is known as the storage destination.
+
+For this example, we will use the directory `/var/lib/teleport/bot`.
 
 As this directory will store the bots sensitive credentials, it is important
 to protect it. To do this, you will configure the directory to only be
