@@ -78,7 +78,7 @@ type WebConfig struct {
 	// CustomTheme is a string that represents the name of the custom theme that the WebUI should use.
 	CustomTheme string `json:"customTheme"`
 	// IsTeam is true if [Features.ProductType] = Team
-	// Prefer checking the clsuter features over this flag, as this will be removed.
+	// Prefer checking the cluster features over this flag, as this will be removed.
 	IsTeam bool `json:"isTeam"`
 	// IsIGSEnabled is true if [Features.IdentityGovernance] = true
 	IsIGSEnabled bool `json:"isIgsEnabled"`
@@ -88,7 +88,7 @@ type WebConfig struct {
 	FeatureLimits FeatureLimits `json:"featureLimits"`
 	// Questionnaire indicates whether cluster users should get an onboarding questionnaire
 	Questionnaire bool `json:"questionnaire"`
-	// indicates if the cluster billing is managed via Stripe
+	// indicates if the cluster billing & lifecycle is managed via Stripe
 	IsStripeManaged bool `json:"isStripeManaged"`
 	// ExternalAuditStorage indicates whether the EAS feature is enabled in the cluster.
 	ExternalAuditStorage bool `json:"externalAuditStorage"`
