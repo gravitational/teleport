@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"log/slog"
 	"os"
 	"slices"
 	"time"
@@ -53,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/spacelift"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/tpm"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -328,7 +330,7 @@ func registerThroughProxy(
 	defer func() { tracing.EndSpan(span, err) }()
 
 	switch params.JoinMethod {
-	case types.JoinMethodIAM, types.JoinMethodAzure:
+	case types.JoinMethodIAM, types.JoinMethodAzure, types.JoinMethodTPM:
 		// IAM and Azure join methods require gRPC client
 		conn, err := proxyJoinServiceConn(ctx, params, params.Insecure)
 		if err != nil {
@@ -337,10 +339,15 @@ func registerThroughProxy(
 		defer conn.Close()
 
 		joinServiceClient := client.NewJoinServiceClient(proto.NewJoinServiceClient(conn))
-		if params.JoinMethod == types.JoinMethodIAM {
+		switch params.JoinMethod {
+		case types.JoinMethodIAM:
 			certs, err = registerUsingIAMMethod(ctx, joinServiceClient, token, params)
-		} else {
+		case types.JoinMethodAzure:
 			certs, err = registerUsingAzureMethod(ctx, joinServiceClient, token, params)
+		case types.JoinMethodTPM:
+			certs, err = registerUsingTPMMethod(ctx, joinServiceClient, token, params)
+		default:
+			return nil, trace.BadParameter("unhandled join method %q", params.JoinMethod)
 		}
 
 		if err != nil {
@@ -418,6 +425,8 @@ func registerThroughAuth(
 		certs, err = registerUsingIAMMethod(ctx, client, token, params)
 	case types.JoinMethodAzure:
 		certs, err = registerUsingAzureMethod(ctx, client, token, params)
+	case types.JoinMethodTPM:
+		certs, err = registerUsingTPMMethod(ctx, client, token, params)
 	default:
 		// non-IAM join methods use HTTP endpoint
 		// Get the SSH and X509 certificates for a node.
@@ -670,6 +679,25 @@ func caPathRegisterClient(params RegisterParams) (*Client, error) {
 type joinServiceClient interface {
 	RegisterUsingIAMMethod(ctx context.Context, challengeResponse client.RegisterIAMChallengeResponseFunc) (*proto.Certs, error)
 	RegisterUsingAzureMethod(ctx context.Context, challengeResponse client.RegisterAzureChallengeResponseFunc) (*proto.Certs, error)
+	RegisterUsingTPMMethod(
+		ctx context.Context,
+		initReq *proto.RegisterUsingTPMMethodInitialRequest,
+		solveChallenge client.RegisterTPMChallengeResponseFunc,
+	) (*proto.Certs, error)
+}
+
+func registerUsingTokenRequestForParams(token string, params RegisterParams) *types.RegisterUsingTokenRequest {
+	return &types.RegisterUsingTokenRequest{
+		Token:                token,
+		HostID:               params.ID.HostUUID,
+		NodeName:             params.ID.NodeName,
+		Role:                 params.ID.Role,
+		AdditionalPrincipals: params.AdditionalPrincipals,
+		DNSNames:             params.DNSNames,
+		PublicTLSKey:         params.PublicTLSKey,
+		PublicSSHKey:         params.PublicSSHKey,
+		Expires:              params.Expires,
+	}
 }
 
 // registerUsingIAMMethod is used to register using the IAM join method. It is
@@ -691,18 +719,8 @@ func registerUsingIAMMethod(
 
 		// send the register request including the challenge response
 		return &proto.RegisterUsingIAMMethodRequest{
-			RegisterUsingTokenRequest: &types.RegisterUsingTokenRequest{
-				Token:                token,
-				HostID:               params.ID.HostUUID,
-				NodeName:             params.ID.NodeName,
-				Role:                 params.ID.Role,
-				AdditionalPrincipals: params.AdditionalPrincipals,
-				DNSNames:             params.DNSNames,
-				PublicTLSKey:         params.PublicTLSKey,
-				PublicSSHKey:         params.PublicSSHKey,
-				Expires:              params.Expires,
-			},
-			StsIdentityRequest: signedRequest,
+			RegisterUsingTokenRequest: registerUsingTokenRequestForParams(token, params),
+			StsIdentityRequest:        signedRequest,
 		}, nil
 	})
 	if err != nil {
@@ -734,20 +752,86 @@ func registerUsingAzureMethod(
 		}
 
 		return &proto.RegisterUsingAzureMethodRequest{
-			RegisterUsingTokenRequest: &types.RegisterUsingTokenRequest{
-				Token:                token,
-				HostID:               params.ID.HostUUID,
-				NodeName:             params.ID.NodeName,
-				Role:                 params.ID.Role,
-				AdditionalPrincipals: params.AdditionalPrincipals,
-				DNSNames:             params.DNSNames,
-				PublicTLSKey:         params.PublicTLSKey,
-				PublicSSHKey:         params.PublicSSHKey,
-			},
-			AttestedData: ad,
-			AccessToken:  accessToken,
+			RegisterUsingTokenRequest: registerUsingTokenRequestForParams(token, params),
+			AttestedData:              ad,
+			AccessToken:               accessToken,
 		}, nil
 	})
+	return certs, trace.Wrap(err)
+}
+
+// registerUsingTPMMethod is used to register using the TPM join method. It
+// is able to register through a proxy or through the auth server directly.
+func registerUsingTPMMethod(
+	ctx context.Context,
+	client joinServiceClient,
+	token string,
+	params RegisterParams,
+) (*proto.Certs, error) {
+	log := slog.Default()
+
+	initReq := &proto.RegisterUsingTPMMethodInitialRequest{
+		JoinRequest: registerUsingTokenRequestForParams(token, params),
+	}
+
+	attestation, close, err := tpm.Attest(ctx, log)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer func() {
+		if err := close(); err != nil {
+			log.WarnContext(ctx, "Failed to close TPM", "error", err)
+		}
+	}()
+
+	initReq.AttestationParams = tpm.AttestationParametersToProto(
+		attestation.AttestParams,
+	)
+	// Get the EKKey or EKCert. We want to prefer the EKCert if it is available
+	// as this is signed by the manufacturer.
+	switch {
+	case attestation.Data.EKCert != nil:
+		log.DebugContext(
+			ctx,
+			"Using EKCert for TPM registration",
+			"ekcert_serial", attestation.Data.EKCert.SerialNumber,
+		)
+		initReq.Ek = &proto.RegisterUsingTPMMethodInitialRequest_EkCert{
+			EkCert: attestation.Data.EKCert.Raw,
+		}
+	case attestation.Data.EKPub != nil:
+		log.DebugContext(
+			ctx,
+			"Using EKKey for TPM registration",
+			"ekpub_hash", attestation.Data.EKPubHash,
+		)
+		initReq.Ek = &proto.RegisterUsingTPMMethodInitialRequest_EkKey{
+			EkKey: attestation.Data.EKPub,
+		}
+	default:
+		return nil, trace.BadParameter("tpm has neither ekkey or ekcert")
+	}
+
+	// Submit initial request to the Auth Server.
+	certs, err := client.RegisterUsingTPMMethod(
+		ctx,
+		initReq,
+		func(
+			challenge *proto.TPMEncryptedCredential,
+		) (*proto.RegisterUsingTPMMethodChallengeResponse, error) {
+			// Solve the encrypted credential with our AK to prove possession
+			// and obtain the solution we need to complete the ceremony.
+			solution, err := attestation.Solve(tpm.EncryptedCredentialFromProto(
+				challenge,
+			))
+			if err != nil {
+				return nil, trace.Wrap(err, "activating credential")
+			}
+			return &proto.RegisterUsingTPMMethodChallengeResponse{
+				Solution: solution,
+			}, nil
+		},
+	)
 	return certs, trace.Wrap(err)
 }
 

@@ -145,8 +145,18 @@ function AwsConsole() {
         endpointUri: 'https://localhost:3000',
         awsConsole: true,
         awsRoles: [
-          { arn: 'foo', display: 'foo', name: 'foo' },
-          { arn: 'bar', display: 'bar', name: 'bar' },
+          {
+            arn: 'foo',
+            display: 'foo',
+            name: 'foo',
+            accountId: '123456789012',
+          },
+          {
+            arn: 'bar',
+            display: 'bar',
+            name: 'bar',
+            accountId: '123456789012',
+          },
         ],
         uri: `${testCluster.uri}/apps/bar`,
       })}

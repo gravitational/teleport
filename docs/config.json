@@ -1054,22 +1054,12 @@
           "forScopes": ["enterprise", "cloud"],
           "entries": [
             {
-              "title": "Okta Service",
-              "slug": "/application-access/okta/guide/",
-              "forScopes": ["enterprise", "cloud"]
-            },
-            {
-              "title": "Okta Service Hosted Integration",
+              "title": "Okta Integration",
               "slug": "/application-access/okta/hosted-guide/",
               "forScopes": [
                 "enterprise",
                 "cloud"
               ]
-            },
-            {
-              "title": "Architecture",
-              "slug": "/application-access/okta/architecture/",
-              "forScopes": ["enterprise", "cloud"]
             },
             {
               "title": "Synchronization and SCIM",

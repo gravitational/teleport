@@ -50,6 +50,7 @@ func TestAccessMonitoringRuleCRUD(t *testing.T) {
 
 	sampleAccessMonitoringRuleFn := func(t *testing.T, name string) *accessmonitoringrulev1.AccessMonitoringRule {
 		return &accessmonitoringrulev1.AccessMonitoringRule{
+			Kind:     types.KindAccessMonitoringRule,
 			Metadata: &v1.Metadata{Name: name},
 			Spec: &accessmonitoringrulev1.AccessMonitoringRuleSpec{
 				Subjects:  []string{"someSubject"},

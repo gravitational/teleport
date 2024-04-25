@@ -2720,7 +2720,6 @@ func (process *TeleportProcess) initSSH() error {
 			process.proxyPublicAddr(),
 			conn.Client,
 			regular.SetLimiter(limiter),
-			regular.SetShell(cfg.SSH.Shell),
 			regular.SetEmitter(&events.StreamerAndEmitter{Emitter: asyncEmitter, Streamer: conn.Client}),
 			regular.SetLabels(cfg.SSH.Labels, cfg.SSH.CmdLabels, process.cloudLabels),
 			regular.SetNamespace(namespace),
@@ -2744,7 +2743,6 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetInventoryControlHandle(process.inventoryHandle),
 			regular.SetTracerProvider(process.TracingProvider),
 			regular.SetSessionController(sessionController),
-			regular.SetCAGetter(authClient.GetCertAuthority),
 			regular.SetPublicAddrs(cfg.SSH.PublicAddrs),
 		)
 		if err != nil {
@@ -4342,7 +4340,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		regular.SetOnHeartbeat(process.OnHeartbeat(teleport.ComponentProxy)),
 		regular.SetEmitter(streamEmitter),
 		regular.SetLockWatcher(lockWatcher),
-		regular.SetNodeWatcher(nodeWatcher),
 		// Allow Node-wide file copying checks to succeed so they can be
 		// accurately checked later when an SCP/SFTP request hits the
 		// destination Node.
@@ -5912,7 +5909,8 @@ func readOrGenerateHostID(ctx context.Context, cfg *servicecfg.Config, kubeBacke
 				types.JoinMethodGitHub,
 				types.JoinMethodGitLab,
 				types.JoinMethodAzure,
-				types.JoinMethodGCP:
+				types.JoinMethodGCP,
+				types.JoinMethodTPM:
 				// Checking error instead of the usual uuid.New() in case uuid generation
 				// fails due to not enough randomness. It's been known to happen happen when
 				// Teleport starts very early in the node initialization cycle and /dev/urandom
@@ -6197,13 +6195,13 @@ func (process *TeleportProcess) newExternalAuditStorageConfigurator() (*external
 	// watcher initialized.
 	watcher.WaitInit(process.GracefulExitContext())
 
-	ecaSvc := local.NewExternalAuditStorageService(process.backend)
+	easSvc := local.NewExternalAuditStorageService(process.backend)
 	integrationSvc, err := local.NewIntegrationsService(process.backend)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	statusService := local.NewStatusService(process.backend)
-	return externalauditstorage.NewConfigurator(process.ExitContext(), ecaSvc, integrationSvc, statusService)
+	return externalauditstorage.NewConfigurator(process.ExitContext(), easSvc, integrationSvc, statusService)
 }
 
 // createLockedPIDFile creates a PID file in the path specified by pidFile
