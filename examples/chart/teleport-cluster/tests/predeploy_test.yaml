@@ -109,3 +109,82 @@ tests:
           value: myRegistryKeySecretName
       - matchSnapshot:
           path: spec.template.spec.imagePullSecrets
+
+  - it: should set extraLabels on auth predeploy job when set in values
+    template: auth/predeploy_job.yaml
+    set:
+      clusterName: helm-lint
+      extraLabels:
+        job:
+          foo: bar
+          baz: override-me
+      auth:
+        extraLabels:
+          job:
+            baz: overridden
+    asserts:
+      - equal:
+          path: metadata.labels.foo
+          value: bar
+      - equal:
+          path: metadata.labels.baz
+          value: overridden
+
+  - it: should set extraLabels on auth predeploy config when set in values
+    template: auth/predeploy_config.yaml
+    set:
+      clusterName: helm-lint
+      extraLabels:
+        config:
+          foo: bar
+          baz: override-me
+      auth:
+        extraLabels:
+          config:
+            baz: overridden
+    asserts:
+      - equal:
+          path: metadata.labels.foo
+          value: bar
+      - equal:
+          path: metadata.labels.baz
+          value: overridden
+  - it: should set extraLabels on proxy predeploy job when set in values
+    template: proxy/predeploy_job.yaml
+    set:
+      clusterName: helm-lint
+      extraLabels:
+        job:
+          foo: bar
+          baz: override-me
+      proxy:
+        extraLabels:
+          job:
+            baz: overridden
+    asserts:
+      - equal:
+          path: metadata.labels.foo
+          value: bar
+      - equal:
+          path: metadata.labels.baz
+          value: overridden
+
+  - it: should set extraLabels on proxy predeploy config when set in values
+    template: proxy/predeploy_config.yaml
+    set:
+      clusterName: helm-lint
+      extraLabels:
+        config:
+          foo: bar
+          baz: override-me
+      proxy:
+        extraLabels:
+          config:
+            baz: overridden
+    asserts:
+      - equal:
+          path: metadata.labels.foo
+          value: bar
+      - equal:
+          path: metadata.labels.baz
+          value: overridden
