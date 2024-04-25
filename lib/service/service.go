@@ -1979,9 +1979,11 @@ func (process *TeleportProcess) initAuthService() error {
 		err = events.StartNewUploadCompleter(process.ExitContext(), events.UploadCompleterConfig{
 			Uploader:       uploadHandler,
 			Component:      teleport.ComponentAuth,
+			ClusterName:    clusterName,
 			AuditLog:       process.auditLog,
 			SessionTracker: authServer.Services,
-			ClusterName:    clusterName,
+			Semaphores:     authServer.Services,
+			ServerID:       cfg.HostUUID,
 		})
 		if err != nil {
 			return trace.Wrap(err)
