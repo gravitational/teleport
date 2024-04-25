@@ -918,27 +918,21 @@ func (c *kubeServerCollection) writeJSON(w io.Writer) error {
 }
 
 type crownJewelCollection struct {
-	clusters []*crownjewel.CrownJewel
+	items []*crownjewel.CrownJewel
 }
 
 func (c *crownJewelCollection) resources() (r []types.Resource) {
-	for _, resource := range c.clusters {
+	for _, resource := range c.items {
 		r = append(r, resource)
 	}
 	return r
 }
 
-// writeText formats the dynamic kube clusters into a table and writes them into w.
-// Name          Labels
-// ------------- ----------------------------------------------------------------------------------------------------------
-// cluster1      region=eastus,resource-group=cluster1,subscription-id=subID
-// cluster2      region=westeurope,resource-group=cluster2,subscription-id=subID
-// cluster3      region=northcentralus,resource-group=cluster3,subscription-id=subID
-// cluster4      owner=cluster4,region=southcentralus,resource-group=cluster4,subscription-id=subID
+// writeText formats the crown jewels into a table and writes them into w.
 // If verbose is disabled, labels column can be truncated to fit into the console.
 func (c *crownJewelCollection) writeText(w io.Writer, verbose bool) error {
 	var rows [][]string
-	for _, cluster := range c.clusters {
+	for _, cluster := range c.items {
 		labels := common.FormatLabels(cluster.GetAllLabels(), verbose)
 		rows = append(rows, []string{
 			common.FormatResourceName(cluster, verbose),

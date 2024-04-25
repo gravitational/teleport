@@ -41,7 +41,7 @@ const (
 	crownJewelsKey = "crown_jewels"
 )
 
-func (s *CrownJewelsService) GetCrownJewels(ctx context.Context) ([]*crownjewel.CrownJewel, error) {
+func (s *CrownJewelsService) ListCrownJewels(ctx context.Context, pagesize int64, lastKey string) ([]*crownjewel.CrownJewel, error) {
 	startKey := backend.ExactKey(crownJewelsKey)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {

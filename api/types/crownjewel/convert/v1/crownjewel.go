@@ -10,6 +10,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/types/header/convert/v1"
 )
 
+// ToProto converts CrownJewel to its protobuf representation.
 func ToProto(crownJewel *crownjewel.CrownJewel) *crownjewelv1.CrownJewel {
 	teleportMatchers := make([]*crownjewelv1.TeleportMatcher, 0, len(crownJewel.Spec.TeleportMatchers))
 	for _, matcher := range crownJewel.Spec.TeleportMatchers {
@@ -26,7 +27,9 @@ func ToProto(crownJewel *crownjewel.CrownJewel) *crownjewelv1.CrownJewel {
 		for _, tag := range matcher.Tags {
 			values := make([]*wrapperspb.StringValue, 0, len(tag.Values))
 			for _, value := range tag.Values {
-				// todo *string thing
+				if value == nil {
+					continue
+				}
 				values = append(values, wrapperspb.String(*value))
 			}
 
@@ -54,17 +57,7 @@ func ToProto(crownJewel *crownjewel.CrownJewel) *crownjewelv1.CrownJewel {
 	}
 }
 
-func toProtoLabels(labels map[string][]string) []*labelv1.Label {
-	protoLabels := make([]*labelv1.Label, 0, len(labels))
-	for key, values := range labels {
-		protoLabels = append(protoLabels, &labelv1.Label{
-			Name:   key,
-			Values: values,
-		})
-	}
-	return protoLabels
-}
-
+// FromProto converts CrownJewel from its protobuf representation.
 func FromProto(crownJewel *crownjewelv1.CrownJewel) *crownjewel.CrownJewel {
 	teleportMatchers := make([]crownjewel.TeleportMatcher, 0, len(crownJewel.Spec.TeleportMatchers))
 	for _, matcher := range crownJewel.Spec.TeleportMatchers {
@@ -108,6 +101,17 @@ func FromProto(crownJewel *crownjewelv1.CrownJewel) *crownjewel.CrownJewel {
 			AWSMatchers:      awsMatchers,
 		},
 	}
+}
+
+func toProtoLabels(labels map[string][]string) []*labelv1.Label {
+	protoLabels := make([]*labelv1.Label, 0, len(labels))
+	for key, values := range labels {
+		protoLabels = append(protoLabels, &labelv1.Label{
+			Name:   key,
+			Values: values,
+		})
+	}
+	return protoLabels
 }
 
 func fromProtoLabels(labels []*labelv1.Label) map[string][]string {

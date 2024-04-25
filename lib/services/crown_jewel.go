@@ -13,8 +13,8 @@ import (
 var _ CrownJewels = (*crownjewelclient.Client)(nil)
 
 type CrownJewels interface {
-	// GetCrownJewels returns the crown jewel of the company
-	GetCrownJewels(context.Context) ([]*crownjewel.CrownJewel, error)
+	// ListCrownJewels returns the crown jewel of the company
+	ListCrownJewels(ctx context.Context, pageSize int64, nextToken string) ([]*crownjewel.CrownJewel, error)
 	CreateCrownJewel(context.Context, *crownjewel.CrownJewel) (*crownjewel.CrownJewel, error)
 	UpdateCrownJewel(context.Context, *crownjewel.CrownJewel) (*crownjewel.CrownJewel, error)
 	DeleteCrownJewel(context.Context, string) error

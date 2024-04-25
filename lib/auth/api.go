@@ -1158,12 +1158,13 @@ type Cache interface {
 	// ListAccessListReviews will list access list reviews for a particular access list.
 	ListAccessListReviews(ctx context.Context, accessList string, pageSize int, pageToken string) (reviews []*accesslist.Review, nextToken string, err error)
 
-	GetCrownJewels(ctx context.Context) ([]*crownjewel.CrownJewel, error)
+	// ListCrownJewels returns a paginated list of crown jewels.
+	ListCrownJewels(ctx context.Context, pageSize int64, nextToken string) ([]*crownjewel.CrownJewel, error)
 
 	// IntegrationsGetter defines read/list methods for integrations.
 	services.IntegrationsGetter
 
-	// NotificationsGetter defines list methods for notifications.
+	// NotificationGetter defines list methods for notifications.
 	services.NotificationGetter
 
 	// ListAccessMonitoringRules returns a paginated list of access monitoring rules.

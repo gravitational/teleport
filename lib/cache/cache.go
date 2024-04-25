@@ -684,7 +684,8 @@ type Config struct {
 	// Apps is an apps service.
 	Apps services.Apps
 	// Kubernetes is an kubernetes service.
-	Kubernetes  services.Kubernetes
+	Kubernetes services.Kubernetes
+	// CrownJewels is a CrownJewels service.
 	CrownJewels services.CrownJewels
 	// DatabaseServices is a DatabaseService service.
 	DatabaseServices services.DatabaseServices
@@ -2816,9 +2817,9 @@ func (c *Cache) GetDiscoveryConfig(ctx context.Context, name string) (*discovery
 	return rg.reader.GetDiscoveryConfig(ctx, name)
 }
 
-// /
-func (c *Cache) GetCrownJewels(ctx context.Context) ([]*crownjewel.CrownJewel, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetCrownJewels")
+// ListCrownJewels returns a list of CrownJewel resources.
+func (c *Cache) ListCrownJewels(ctx context.Context, pageSize int64, nextKey string) ([]*crownjewel.CrownJewel, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListCrownJewels")
 	defer span.End()
 
 	rg, err := readCollectionCache(c, c.collections.crownJewels)
@@ -2826,7 +2827,7 @@ func (c *Cache) GetCrownJewels(ctx context.Context) ([]*crownjewel.CrownJewel, e
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.reader.GetCrownJewels(ctx)
+	return rg.reader.ListCrownJewels(ctx, pageSize, nextKey)
 }
 
 // GetSecurityAuditQuery returns the specified audit query resource.

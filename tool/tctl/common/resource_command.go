@@ -1561,13 +1561,13 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *auth.Client) (err
 		}
 		fmt.Printf("%s %q has been deleted\n", resDesc, name)
 	case types.KindCrownJewel:
-		clusters, err := client.CrownJewelsClient().GetCrownJewels(ctx)
+		crownJewels, err := client.CrownJewelsClient().ListCrownJewels(ctx, 0 /* default size */, "") // TODO
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		resDesc := "Crown Jewel cluster"
-		clusters = filterByNameOrDiscoveredName(clusters, rc.ref.Name)
-		name, err := getOneResourceNameToDelete(clusters, rc.ref, resDesc)
+		resDesc := "crown jewel"
+		crownJewels = filterByNameOrDiscoveredName(crownJewels, rc.ref.Name)
+		name, err := getOneResourceNameToDelete(crownJewels, rc.ref, resDesc)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -2278,18 +2278,18 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *auth.Clien
 		}
 		return &kubeClusterCollection{clusters: clusters}, nil
 	case types.KindCrownJewel:
-		clusters, err := client.CrownJewelsClient().GetCrownJewels(ctx)
+		crownJewels, err := client.CrownJewelsClient().ListCrownJewels(ctx, 0 /* default size */, "") // TODO
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		if rc.ref.Name == "" {
-			return &crownJewelCollection{clusters: clusters}, nil
+			return &crownJewelCollection{items: crownJewels}, nil
 		}
-		clusters = filterByNameOrDiscoveredName(clusters, rc.ref.Name)
-		if len(clusters) == 0 {
+		crownJewels = filterByNameOrDiscoveredName(crownJewels, rc.ref.Name)
+		if len(crownJewels) == 0 {
 			return nil, trace.NotFound("crown jewel %q not found", rc.ref.Name)
 		}
-		return &crownJewelCollection{clusters: clusters}, nil
+		return &crownJewelCollection{items: crownJewels}, nil
 	case types.KindWindowsDesktopService:
 		services, err := client.GetWindowsDesktopServices(ctx)
 		if err != nil {

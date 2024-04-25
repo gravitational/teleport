@@ -10,6 +10,7 @@ import (
 	crownjewelv1conv "github.com/gravitational/teleport/api/types/crownjewel/convert/v1"
 )
 
+// Client is a client for the Crown Jewel API.
 type Client struct {
 	grpcClient crownjewelv1.CrownJewelServiceClient
 }
@@ -21,8 +22,12 @@ func NewClient(grpcClient crownjewelv1.CrownJewelServiceClient) *Client {
 	}
 }
 
-func (c *Client) GetCrownJewels(ctx context.Context) ([]*crownjewel.CrownJewel, error) {
-	resp, err := c.grpcClient.ListCrownJewels(ctx, &crownjewelv1.ListCrownJewelsRequest{})
+// ListCrownJewels returns a list of Crown Jewels.
+func (c *Client) ListCrownJewels(ctx context.Context, pageSize int64, nextToken string) ([]*crownjewel.CrownJewel, error) {
+	resp, err := c.grpcClient.ListCrownJewels(ctx, &crownjewelv1.ListCrownJewelsRequest{
+		PageSize:  pageSize,
+		PageToken: nextToken,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -35,6 +40,7 @@ func (c *Client) GetCrownJewels(ctx context.Context) ([]*crownjewel.CrownJewel, 
 	return cjs, nil
 }
 
+// CreateCrownJewel creates a new Crown Jewel.
 func (c *Client) CreateCrownJewel(ctx context.Context, req *crownjewel.CrownJewel) (*crownjewel.CrownJewel, error) {
 	rsp, err := c.grpcClient.CreateCrownJewel(ctx, &crownjewelv1.CreateCrownJewelRequest{
 		CrownJewels: crownjewelv1conv.ToProto(req),
@@ -45,6 +51,7 @@ func (c *Client) CreateCrownJewel(ctx context.Context, req *crownjewel.CrownJewe
 	return crownjewelv1conv.FromProto(rsp), trace.Wrap(err)
 }
 
+// UpdateCrownJewel updates an existing Crown Jewel.
 func (c *Client) UpdateCrownJewel(ctx context.Context, req *crownjewel.CrownJewel) (*crownjewel.CrownJewel, error) {
 	rsp, err := c.grpcClient.UpdateCrownJewel(ctx, &crownjewelv1.UpdateCrownJewelRequest{
 		CrownJewels: crownjewelv1conv.ToProto(req),
@@ -55,6 +62,7 @@ func (c *Client) UpdateCrownJewel(ctx context.Context, req *crownjewel.CrownJewe
 	return crownjewelv1conv.FromProto(rsp), trace.Wrap(err)
 }
 
+// DeleteCrownJewel deletes a Crown Jewel.
 func (c *Client) DeleteCrownJewel(ctx context.Context, name string) error {
 	_, err := c.grpcClient.DeleteCrownJewel(ctx, &crownjewelv1.DeleteCrownJewelRequest{
 		Name: name,
@@ -62,6 +70,8 @@ func (c *Client) DeleteCrownJewel(ctx context.Context, name string) error {
 	return trace.Wrap(err)
 }
 
-func (c *Client) DeleteAllCrownJewels(ctx context.Context) error {
+// DeleteAllCrownJewels deletes all Crown Jewels.
+// Not implemented. Added to satisfy the interface.
+func (c *Client) DeleteAllCrownJewels(_ context.Context) error {
 	return trace.NotImplemented("DeleteAllCrownJewels is not implemented")
 }

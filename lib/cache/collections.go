@@ -185,7 +185,7 @@ func (c *genericCollection[T, R, _]) getReader(cacheOK bool) R {
 var _ collectionReader[any] = (*genericCollection[types.Resource, any, executor[types.Resource, any]])(nil)
 
 type crownjewelsGetter interface {
-	GetCrownJewels(context.Context) ([]*crownjewel.CrownJewel, error)
+	ListCrownJewels(ctx context.Context, pageSize int64, nextToken string) ([]*crownjewel.CrownJewel, error)
 }
 
 // cacheCollections is a registry of resource collections used by Cache.
@@ -2249,7 +2249,7 @@ var _ executor[*kubewaitingcontainerpb.KubernetesWaitingContainer, kubernetesWai
 type crownJewelsExecutor struct{}
 
 func (crownJewelsExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*crownjewel.CrownJewel, error) {
-	return cache.CrownJewels.GetCrownJewels(ctx)
+	return cache.CrownJewels.ListCrownJewels(ctx, 0, "")
 }
 
 func (crownJewelsExecutor) upsert(ctx context.Context, cache *Cache, resource *crownjewel.CrownJewel) error {

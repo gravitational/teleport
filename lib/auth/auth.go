@@ -246,9 +246,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 
 	if cfg.CrownJewels == nil {
 		cfg.CrownJewels = local.NewCrownJewelsService(cfg.Backend)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
 	}
 	if cfg.ConnectionsDiagnostic == nil {
 		cfg.ConnectionsDiagnostic = local.NewConnectionsDiagnosticService(cfg.Backend)

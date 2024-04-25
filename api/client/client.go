@@ -4787,6 +4787,10 @@ func (c *Client) DiscoveryConfigClient() *discoveryconfig.Client {
 	return discoveryconfig.NewClient(discoveryconfigv1.NewDiscoveryConfigServiceClient(c.conn))
 }
 
+// CrownJewelServiceClient returns a CrownJewel client.
+// Clients connecting to older Teleport versions, still get a CrownJewel client
+// when calling this method, but all RPCs will return "not implemented" errors
+// (as per the default gRPC behavior).
 func (c *Client) CrownJewelServiceClient() *crownjewelapi.Client {
 	return crownjewel.NewClient(crownjewelv1.NewCrownJewelServiceClient(c.conn))
 }

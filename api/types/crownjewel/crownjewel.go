@@ -9,12 +9,12 @@ import (
 
 var _ types.Resource = &CrownJewel{}
 
-// CrownJewel ...
+// CrownJewel is a resource that represents the crown jewel resource.
 type CrownJewel struct {
 	// ResourceHeader is the common resource header for all resources.
 	header.ResourceHeader
 
-	// Spec is the specification for ...
+	// Spec is the specification for the crown jewel.
 	Spec Spec `json:"spec" yaml:"spec"`
 }
 
@@ -23,7 +23,7 @@ func (c *CrownJewel) MatchSearch(searchValues []string) bool {
 	return types.MatchSearch(fieldVals, searchValues, nil)
 }
 
-// Spec is the specification for a discovery config.
+// Spec is the specification for the crown jewel.
 type Spec struct {
 	// TeleportMatchers is a list of teleport matchers.
 	TeleportMatchers []TeleportMatcher `json:"teleport_matchers" yaml:"teleport_matchers"`
@@ -53,11 +53,13 @@ type AWSMatcher struct {
 	Tags []AWSTag `json:"labels" yaml:"labels"`
 }
 
+// AWSTag represents an AWS tag.
 type AWSTag struct {
 	Key    string    `json:"key" yaml:"key"`
 	Values []*string `json:"value" yaml:"value"`
 }
 
+// GetMetadata returns the resource metadata.
 func (c *CrownJewel) GetMetadata() types.Metadata {
 	return legacy.FromHeaderMetadata(c.Metadata)
 }

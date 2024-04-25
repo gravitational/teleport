@@ -77,7 +77,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}, nil
 }
 
-// CreateCrownJewel ...
+// CreateCrownJewel creates crown jewel resource.
 func (s *Service) CreateCrownJewel(ctx context.Context, crownJewel *crownjewelv1.CreateCrownJewelRequest) (*crownjewelv1.CrownJewel, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
@@ -96,7 +96,8 @@ func (s *Service) CreateCrownJewel(ctx context.Context, crownJewel *crownjewelv1
 	return conv.ToProto(rsp), nil
 }
 
-func (s *Service) GetCrownJewels(ctx context.Context, req *crownjewelv1.ListCrownJewelsRequest) (*crownjewelv1.ListCrownJewelsResponse, error) {
+// ListCrownJewels returns a list of crown jewels.
+func (s *Service) ListCrownJewels(ctx context.Context, req *crownjewelv1.ListCrownJewelsRequest) (*crownjewelv1.ListCrownJewelsResponse, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -106,8 +107,7 @@ func (s *Service) GetCrownJewels(ctx context.Context, req *crownjewelv1.ListCrow
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(jakule): Use request
-	rsp, err := s.backend.GetCrownJewels(ctx)
+	rsp, err := s.backend.ListCrownJewels(ctx, req.PageSize, req.PageToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -122,6 +122,7 @@ func (s *Service) GetCrownJewels(ctx context.Context, req *crownjewelv1.ListCrow
 	}, nil
 }
 
+// UpdateCrownJewel updates crown jewel resource.
 func (s *Service) UpdateCrownJewel(ctx context.Context, req *crownjewelv1.UpdateCrownJewelRequest) (*crownjewelv1.CrownJewel, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
@@ -140,6 +141,7 @@ func (s *Service) UpdateCrownJewel(ctx context.Context, req *crownjewelv1.Update
 	return conv.ToProto(rsp), nil
 }
 
+// DeleteCrownJewel deletes crown jewel resource.
 func (s *Service) DeleteCrownJewel(ctx context.Context, req *crownjewelv1.DeleteCrownJewelRequest) (*emptypb.Empty, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
