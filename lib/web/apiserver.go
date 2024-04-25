@@ -1694,6 +1694,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		h.log.WithError(err).Error("Cannot read target version")
 	}
 
+	// TODO(mcbattirola): remove isTeam when it is no longer used
 	isTeam := clusterFeatures.GetProductType() == proto.ProductType_PRODUCT_TYPE_TEAM
 
 	webCfg := webclient.WebConfig{
@@ -1726,7 +1727,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		SAML:                   clusterFeatures.GetSAML(),
 		MobileDeviceManagement: clusterFeatures.GetMobileDeviceManagement(),
 		JoinActiveSessions:     clusterFeatures.GetJoinActiveSessions(),
-		// TODO(mcbattirola): remove isTeam when it is no longer used in the web app
+		// TODO(mcbattirola): remove isTeam when it is no longer used
 		IsTeam: isTeam,
 	}
 

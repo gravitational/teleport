@@ -58,6 +58,7 @@ const cfg = {
   /**
    * isTeam is true if [Features.ProductType] == Team
    * @deprecated use other flags do determine cluster features istead of relying on isTeam
+   * TODO(mcbattirola): remove isTeam when it is no longer used
    */
   isTeam: false,
   isStripeManaged: false,

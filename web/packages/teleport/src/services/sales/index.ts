@@ -44,7 +44,7 @@ export function getSalesURL(
 ) {
   let url = UPGRADE_COMMUNITY_URL;
   if (isEnterprise) {
-    // TODO(mcbattirola): use a different field to set the URL or add new URLs for new products
+    // TODO(mcbattirola): remove isTeam when it is no longer used
     url = cfg.isTeam ? UPGRADE_TEAM_URL : UPGRADE_IGS_URL;
   }
   const params = getParams(version, isEnterprise, event);
