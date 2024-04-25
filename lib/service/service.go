@@ -146,6 +146,7 @@ import (
 	"github.com/gravitational/teleport/lib/system"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/gravitational/teleport/lib/utils/cert"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
@@ -5464,14 +5465,29 @@ func (process *TeleportProcess) initApps() {
 			return trace.Wrap(err)
 		}
 
+		connectionsHandler, err := app.NewConnectionsHandler(process.ExitContext(), &app.ConnectionsHandlerConfig{
+			Clock:              process.Config.Clock,
+			DataDir:            process.Config.DataDir,
+			AuthClient:         conn.Client,
+			AccessPoint:        accessPoint,
+			Authorizer:         authorizer,
+			TLSConfig:          tlsConfig,
+			CipherSuites:       process.Config.CipherSuites,
+			HostID:             process.Config.HostUUID,
+			Emitter:            asyncEmitter,
+			ConnectionMonitor:  connMonitor,
+			ServiceComponent:   teleport.ComponentApp,
+			Logger:             logger,
+			AWSSessionProvider: awsutils.SessionProviderUsingAmbientCredentials(),
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		appServer, err := app.New(process.ExitContext(), &app.Config{
 			Clock:                process.Config.Clock,
-			DataDir:              process.Config.DataDir,
 			AuthClient:           conn.Client,
 			AccessPoint:          accessPoint,
-			Authorizer:           authorizer,
-			TLSConfig:            tlsConfig,
-			CipherSuites:         process.Config.CipherSuites,
 			HostID:               process.Config.HostUUID,
 			Hostname:             process.Config.Hostname,
 			GetRotation:          process.GetRotation,
@@ -5480,9 +5496,7 @@ func (process *TeleportProcess) initApps() {
 			ResourceMatchers:     process.Config.Apps.ResourceMatchers,
 			OnHeartbeat:          process.OnHeartbeat(teleport.ComponentApp),
 			ConnectedProxyGetter: proxyGetter,
-			Emitter:              asyncEmitter,
-			ConnectionMonitor:    connMonitor,
-			Logger:               logger,
+			ConnectionsHandler:   connectionsHandler,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -6187,13 +6201,13 @@ func (process *TeleportProcess) newExternalAuditStorageConfigurator() (*external
 	// watcher initialized.
 	watcher.WaitInit(process.GracefulExitContext())
 
-	ecaSvc := local.NewExternalAuditStorageService(process.backend)
+	easSvc := local.NewExternalAuditStorageService(process.backend)
 	integrationSvc, err := local.NewIntegrationsService(process.backend)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	statusService := local.NewStatusService(process.backend)
-	return externalauditstorage.NewConfigurator(process.ExitContext(), ecaSvc, integrationSvc, statusService)
+	return externalauditstorage.NewConfigurator(process.ExitContext(), easSvc, integrationSvc, statusService)
 }
 
 // createLockedPIDFile creates a PID file in the path specified by pidFile

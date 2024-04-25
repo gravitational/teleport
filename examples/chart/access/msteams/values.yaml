@@ -1,0 +1,69 @@
+# Default values for slack.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+#
+# Plugin specific options
+#
+teleport:
+  address: ""
+  identitySecretName: ""
+  identitySecretPath: "auth_id"
+
+msTeams:
+  appID: ""
+  tenantID: ""
+  teamsAppID: ""
+  # Use this value if you're passing the appSecret in the chart's values
+  appSecret: ""
+  # Use this value if you're passing the appSecret through an existing Kubernetes secret
+  appSecretFromSecret: ""
+  appSecretFromSecretKey: "appSecret"
+
+roleToRecipients: {}
+
+log:
+  output: stdout
+  severity: INFO
+
+secretVolumeName: "password-file"
+
+#
+# Deployment
+#
+image:
+  repository: public.ecr.aws/gravitational/teleport-plugin-msteams
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+podAnnotations: {}
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+resources: {}
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
