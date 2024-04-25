@@ -28,7 +28,8 @@ const (
 	timeBeforeFailedRetry time.Duration = 5 * time.Minute
 
 	// Any assignment left in timeout for this amount of time will be marked as failed.
-	processingTimeout time.Duration = 5 * time.Minute
+	// TODO measure and document max number of group/app
+	processingTimeout time.Duration = 15 * time.Minute
 
 	// processAssignmentTimeout is the amount of time before canceling the context of a process assignment call
 	// in the loop.
