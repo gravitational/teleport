@@ -197,10 +197,10 @@ export default class Client extends EventEmitterWebAuthnSender {
           this.handlePng2Frame(buffer);
           break;
         case MessageType.RDP_CONNECTION_ACTIVATED:
-          this.handleRDPConnectionActivated(buffer);
+          this.handleRdpConnectionActivated(buffer);
           break;
         case MessageType.RDP_FASTPATH_PDU:
-          this.handleRDPFastPathPDU(buffer);
+          this.handleRdpFastPathPDU(buffer);
           break;
         case MessageType.CLIENT_SCREEN_SPEC:
           this.handleClientScreenSpec(buffer);
@@ -325,7 +325,7 @@ export default class Client extends EventEmitterWebAuthnSender {
     );
   }
 
-  handleRDPConnectionActivated(buffer: ArrayBuffer) {
+  handleRdpConnectionActivated(buffer: ArrayBuffer) {
     const { ioChannelId, userChannelId, screenWidth, screenHeight } =
       this.codec.decodeRDPConnectionActivated(buffer);
     const spec = { width: screenWidth, height: screenHeight };
@@ -343,7 +343,7 @@ export default class Client extends EventEmitterWebAuthnSender {
     this.emit(TdpClientEvent.TDP_CLIENT_SCREEN_SPEC, spec);
   }
 
-  handleRDPFastPathPDU(buffer: ArrayBuffer) {
+  handleRdpFastPathPDU(buffer: ArrayBuffer) {
     let rdpFastPathPDU = this.codec.decodeRDPFastPathPDU(buffer);
 
     // This should never happen but let's catch it with an error in case it does.

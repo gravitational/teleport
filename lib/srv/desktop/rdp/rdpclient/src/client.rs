@@ -74,8 +74,11 @@ use tokio_boring::{HandshakeError, SslStream};
 
 const RDP_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 
-struct ResizeWithholder {
-    withheld_resize: Option<(u32, u32)>,
+/// The "Microsoft::Windows::RDS::DisplayControl" DVC is opened
+/// by the server. Until it does so, we withhold the latest screen
+/// resize, and only send it once we're notified that the DVC is open.
+struct PendingResize {
+    pending_resize: Option<(u32, u32)>,
 }
 
 /// The RDP client on the Rust side of things. Each `Client`
@@ -87,7 +90,7 @@ pub struct Client {
     write_stream: Option<RdpWriteStream>,
     function_receiver: Option<FunctionReceiver>,
     x224_processor: Arc<Mutex<x224::Processor>>,
-    resize_withholder: Arc<Mutex<ResizeWithholder>>,
+    pending_resize: Arc<Mutex<PendingResize>>,
 }
 
 impl Client {
@@ -164,21 +167,21 @@ impl Client {
             debug!("creating rdpdr client with directory sharing disabled")
         }
 
-        let resize_withholder = Arc::new(Mutex::new(ResizeWithholder {
-            withheld_resize: None,
+        let pending_resize = Arc::new(Mutex::new(PendingResize {
+            pending_resize: None,
         }));
 
-        let resize_manager_clone = resize_withholder.clone();
+        let pending_resize_clone = pending_resize.clone();
         let display_control = DisplayControlClient::new(move |_| {
-            Self::on_display_ctl_capabilities_received(&resize_manager_clone)
+            Self::on_display_ctl_capabilities_received(&pending_resize_clone)
         });
         let drdynvc_client = DrdynvcClient::new().with_dynamic_channel(display_control);
 
         let mut connector = ironrdp_connector::ClientConnector::new(connector_config.clone())
             .with_server_addr(server_socket_addr)
-            .with_static_channel(drdynvc_client)
+            .with_static_channel(drdynvc_client) // require for resizing
             .with_static_channel(Rdpsnd::new()) // required for rdpdr to work
-            .with_static_channel(rdpdr);
+            .with_static_channel(rdpdr); // required for smart card + directory sharing
 
         if params.allow_clipboard {
             connector = connector.with_static_channel(Cliprdr::new(Box::new(
@@ -240,7 +243,7 @@ impl Client {
             write_stream,
             function_receiver,
             x224_processor,
-            resize_withholder,
+            pending_resize,
         })
     }
 
@@ -290,7 +293,7 @@ impl Client {
             write_stream,
             function_receiver,
             self.x224_processor.clone(),
-            self.resize_withholder.clone(),
+            self.pending_resize.clone(),
         );
 
         // Wait for either loop to finish. When one does, abort the other and return the result.
@@ -399,7 +402,7 @@ impl Client {
         mut write_stream: RdpWriteStream,
         mut write_receiver: FunctionReceiver,
         x224_processor: Arc<Mutex<x224::Processor>>,
-        resize_withholder: Arc<Mutex<ResizeWithholder>>,
+        pending_resize: Arc<Mutex<PendingResize>>,
     ) -> tokio::task::JoinHandle<ClientResult<()>> {
         global::TOKIO_RT.spawn(async move {
             loop {
@@ -427,7 +430,7 @@ impl Client {
                                 height,
                                 x224_processor.clone(),
                                 &mut write_stream,
-                                resize_withholder.clone(),
+                                pending_resize.clone(),
                             )
                             .await?;
                         }
@@ -495,17 +498,17 @@ impl Client {
     }
 
     fn on_display_ctl_capabilities_received(
-        resize_withholder: &Arc<Mutex<ResizeWithholder>>,
+        pending_resize: &Arc<Mutex<PendingResize>>,
     ) -> PduResult<Vec<DvcMessage>> {
         debug!("DisplayControlClient channel opened");
         // We've been notified that the DisplayControl dvc channel has been opened:
-        let mut resize_withholder =
-            Self::resize_manager_lock(resize_withholder).map_err(|err| custom_err!(err))?;
-        let withheld_resize = resize_withholder.withheld_resize.take();
-        if let Some((width, height)) = withheld_resize {
-            // If there was a resize withheld, perform it now.
+        let mut pending_resize =
+            Self::resize_manager_lock(pending_resize).map_err(|err| custom_err!(err))?;
+        let pending_resize = pending_resize.pending_resize.take();
+        if let Some((width, height)) = pending_resize {
+            // If there was a resize pending, perform it now.
             debug!(
-                "Withheld resize for size [{:?}x{:?}] found, sending now",
+                "Pending resize for size [{:?}x{:?}] found, sending now",
                 width, height
             );
             let pdu: DisplayControlPdu = DisplayControlMonitorLayout::new_single_primary_monitor(
@@ -518,7 +521,7 @@ impl Client {
             return Ok(vec![Box::new(pdu)]);
         }
 
-        // No resize was withheld, nothing to do.
+        // No resize was pending, nothing to do.
         Ok(vec![])
     }
 
@@ -699,7 +702,7 @@ impl Client {
         height: u32,
         x224_processor: Arc<Mutex<x224::Processor>>,
         write_stream: &mut RdpWriteStream,
-        resize_withholder: Arc<Mutex<ResizeWithholder>>,
+        pending_resize: Arc<Mutex<PendingResize>>,
     ) -> ClientResult<()> {
         // Adjust the screen size to the nearest supported resolution (per the RDP spec).
         let init_width = width;
@@ -728,8 +731,8 @@ impl Client {
                 // Sending the resize now would cause an RDP error and end the session; instead we withhold
                 // it until the DisplayControl channel is ready.
                 debug!("DisplayControl channel not ready, withholding resize");
-                let mut resize_withholder = Self::resize_manager_lock(&resize_withholder)?;
-                resize_withholder.withheld_resize = Some((width, height));
+                let mut pending_resize = Self::resize_manager_lock(&pending_resize)?;
+                pending_resize.pending_resize = Some((width, height));
                 None // No immediate action required.
             }
         }; // Drop the x224 lock here to avoid holding it over the await below.
@@ -982,9 +985,9 @@ impl Client {
     }
 
     fn resize_manager_lock(
-        resize_withholder: &Arc<Mutex<ResizeWithholder>>,
-    ) -> Result<MutexGuard<ResizeWithholder>, SessionError> {
-        resize_withholder
+        pending_resize: &Arc<Mutex<PendingResize>>,
+    ) -> Result<MutexGuard<PendingResize>, SessionError> {
+        pending_resize
             .lock()
             .map_err(|err| reason_err!(function!(), "PoisonError: {:?}", err))
     }

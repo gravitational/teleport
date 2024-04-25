@@ -20,7 +20,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { NotificationItem } from 'shared/components/Notification';
-import { throttle } from 'shared/utils/highbar';
+import { debounce } from 'shared/utils/highbar';
 
 import { TdpClient, ButtonState, ScrollAxis } from 'teleport/lib/tdp';
 import {
@@ -272,10 +272,14 @@ export default function useTdpClientCanvas(props: Props) {
   // on the remote machine.
   const canvasOnContextMenu = () => false;
 
-  const windowOnResize = throttle((cli: TdpClient) => {
-    const spec = getDisplaySize();
-    cli.resize(spec);
-  }, 250);
+  const windowOnResize = debounce(
+    (cli: TdpClient) => {
+      const spec = getDisplaySize();
+      cli.resize(spec);
+    },
+    250,
+    { trailing: true }
+  );
 
   const sendLocalClipboardToRemote = async (cli: TdpClient) => {
     if (await sysClipboardGuard(clipboardSharingState, 'read')) {
