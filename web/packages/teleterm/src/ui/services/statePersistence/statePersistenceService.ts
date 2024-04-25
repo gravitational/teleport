@@ -31,7 +31,10 @@ interface UsageReportingState {
   askedForUserJobRole: boolean;
 }
 
-export type WorkspacesPersistedState = Omit<WorkspacesState, 'workspaces'> & {
+export type WorkspacesPersistedState = Omit<
+  WorkspacesState,
+  'workspaces' | 'isInitialized'
+> & {
   workspaces: Record<string, Omit<Workspace, 'accessRequests'>>;
 };
 
