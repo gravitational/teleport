@@ -127,9 +127,9 @@ with `kubectl`.
 ## GitOps
 
 Automatic updates are incompatible with some GitOps tools used for continuous deployment.
-The Teleport Helm chart owns the version of the `teleport-agent` resource, so when
-the `teleport-agent-updater` modifies the image version of the `teleport-agent` resource,
-the GitOps tool will detect a drift or a diff in the `teleport-agent` resource.
+The `teleport-kube-agent` Helm chart owns the version of the `teleport-agent` resource,
+so when the `teleport-agent-updater` modifies the image version of the `teleport-agent`
+resource, the GitOps tool will detect a drift or a diff in the `teleport-agent` resource.
 
 ### ArgoCD deployments
 
