@@ -13,6 +13,39 @@ adds a proxy token by default:
         kubernetes:
           allow:
             - service_account: "NAMESPACE:RELEASE-NAME-proxy"
+keeps the second factor type even when it's "off":
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: "off"
+          type: local
+        cluster_name: helm-lint
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: helm-lint
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        auth_server: 127.0.0.1:3025
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+      version: v3
 keeps the session_recording type even when it's "off":
   1: |
     |-
