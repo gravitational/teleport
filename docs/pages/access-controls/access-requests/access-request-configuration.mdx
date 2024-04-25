@@ -37,10 +37,10 @@ access to these roles.
 ### Restrict role requests
 
 When a user submits an Access Request, they can specify the roles they would
-like to request access to. 
+like to request access to.
 
 You can allow a user to request access to certain roles—and deny access to other
-roles—by using the following configuration options: 
+roles—by using the following configuration options:
 
 - `allow.request.roles`
 - `allow.request.claims_to_roles`
@@ -78,7 +78,7 @@ The Teleport Auth Service combines the values of these fields for all of a
 user's roles into two lists of role matchers:
 
 - **Deny:** If the requested role matches any of these, Teleport denies the
-  request. 
+  request.
 - **Allow:** If the requested role matches any of these, and no deny matcher
   also matches the role, Teleport allows the request.
 
@@ -139,7 +139,7 @@ As with [configuring role requests](#restrict-role-requests), the
 literal role names, wildcards, and regular expressions.
 
 The Teleport Auth Service combines the values of these fields for all of a
-user's Teleport roles in order to validate the user's Access Requests. 
+user's Teleport roles in order to validate the user's Access Requests.
 
 When a user attempts to list Teleport resources (such as servers and databases)
 or Kubernetes resources (such as pods and deployments), the Auth Service checks
@@ -152,7 +152,7 @@ following:
 
 1. Collects all the roles named in `allow.request.search_as_roles`, filtering
    these to exclude roles specified in `deny.request.search_as_roles` or
-   `deny.request.roles`. 
+   `deny.request.roles`.
 1. Determines which of the remaining roles can access the requested resource.
    For a Resource Access Request to be valid, one of the role matchers listed in
    a user's `search_as_roles` configuration must match a role that permits
@@ -166,7 +166,7 @@ privileges for an approved Access Request.
 ### Calculating the duration of elevated privileges
 
 Teleport uses the following logic to calculate how long a user has elevated
-privileges: 
+privileges:
 
 1. Calculate the maximum duration of elevated privileges if the Access Request
    were granted. This is the lowest value of:
@@ -174,10 +174,10 @@ privileges:
      create`](../../reference/cli/tsh.mdx#tsh-request-create) command (if the
      user creating the request provides this flag).
    - The lowest value of the `request.max_duration` field included in one of
-     the user's requested roles. 
+     the user's requested roles.
 1. Calculate the session TTL of the certificate the user would receive if
    Teleport were to grant the Access Request. This calculation chooses the
-   lowest value of: 
+   lowest value of:
    - The requested session expiration time, which is the value of the
      `--session-ttl` flag of [`tsh request
      create`](../../reference/cli/tsh.mdx#tsh-request-create).
@@ -208,7 +208,7 @@ override will be chosen.
 The `max_duration` option indicates the maximum length of time that a user is
 allowed to have elevated privileges for particular roles. After a user makes a
 successful Access Request, the user can authenticate to Teleport with the
-elevated access until the maximum duration has elapsed. 
+elevated access until the maximum duration has elapsed.
 
 Each time the user authenticates to Teleport, Teleport calculates the TTL of the
 user's Teleport session using a formula that we describe in the [previous
@@ -302,7 +302,7 @@ user:
 
 You can configure a user's roles to specify the criteria that an Access Request
 must meet before Teleport approves or denies it. To do so, configure the
-`allow.request.thresholds` field. 
+`allow.request.thresholds` field.
 
 ### The `allow.request.thresholds` field
 
@@ -351,12 +351,12 @@ the request is approved is denied:
 
 When Teleport processes an Access Request for a specific role, it checks whether
 the request has met the criteria specified in one of the thresholds in
-`allow.request.thresholds` associated with that role. 
+`allow.request.thresholds` associated with that role.
 
 The value of `filter` is an expression that uses the Teleport [predicate
 language](../../reference/predicate-language.mdx).
 
-For example, the following configuration includes three thresholds, two of which
+For example, the following configuration includes four thresholds, three of which
 have filters:
 
 ```yaml
@@ -373,12 +373,19 @@ spec:
         - filter: '!equals(request.reason, "") && contains(reviewer.roles, "super-approver")'
           approve: 1
           deny: 1
+        - filter: 'regexp.match(request.reason, "^Ticket [0-9]+.*$") && !equals(review.reason, "")'
+          approve: 1
+          deny: 1
 ```
 
 The first threshold requires three users to approve and one user to deny.
 However, if each reviewer has the `super-approver` role, the request only needs
-two approvals. And if the request has a non-empty reason, it only needs a single
-approval from a user with the `super-approver` role.
+two approvals.
+If the request has a non-empty reason, it only needs a single approval from a
+user with the `super-approver` role.
+If the request has a reason matching the regex `^Ticket [0-9]+.*$`, it only
+needs a single approval from any reviewer, as long as the reviewer provides a
+non-empty reason.
 
 Filter expressions can draw on the following data associated with each Access
 Request review: the request, the reviewer, and the review itself:
@@ -399,10 +406,21 @@ functions:
 |Operator/Function|Description|
 |---|---|
 |`equals(val1,val2)`|Returns `true` if `val1` is equal to `val2` and `false` otherwise|
-|`contains([]string, val)`|Returns `true` if the list of strings in the first argument contains the element in the second argument and `false` otherwise.|
+|`contains(list, item)`|Returns `true` if `list` contains an exact match for `item`.|
+|`regexp.match(list, re)`|Returns `true` if `list` contains a match for `re`.|
 |`expr1 && expr2`|Evaluates to `true` if both `expr1` and `expr2` evaluate to `true`.|
 |`expr1 \|\| expr2`|Evaluates to `true` if `expr1`, `expr2`, or both evaluate to `true`.|
 |`!expr`|Negates `expr`.|
+
+Above, any argument named `list` can accept a list of values (like
+`request.roles`) or a single value (like `request.reason`).
+
+The `re` argument to `regexp.match` supports both glob-style wildcards (the `*`
+character) and [Go-style regular expressions](https://pkg.go.dev/regexp).
+If an expression begins with the `^` character and ends with the `$` character,
+Teleport will evaluate it as a regular expression.
+Otherwise, it will evaluate it as a wildcard expression.
+Wildcards match any sequence of zero or more characters.
 
 ## Suggested reviewers
 
@@ -442,7 +460,7 @@ While Teleport will accept a role with a nonempty
 Teleport users must be authorized to review Access Requests for a particular
 role. You can configure a user's Teleport roles to allow the user to review Access
 Requests for some Teleport roles, and deny the user the ability to review
-requests for other roles. 
+requests for other roles.
 
 ### Allowing and denying reviews for specific roles
 
@@ -517,12 +535,23 @@ functions:
 |Operator/Function|Description|
 |---|---|
 |`equals(val1,val2)`|Returns `true` if `val1` is equal to `val2` and `false` otherwise|
-|`contains([]string, val)`|Returns `true` if the list of strings in the first argument contains the element in the second argument and `false` otherwise.|
+|`contains(list, item)`|Returns `true` if `list` contains an exact match for `item`.|
+|`regexp.match(list, re)`|Returns `true` if `list` contains a match for `re`.|
 |`expr1 && expr2`|Evaluates to `true` if both `expr1` and `expr2` evaluate to `true`.|
 |`expr1 \|\| expr2`|Evaluates to `true` if `expr1`, `expr2`, or both evaluate to `true`.|
 |`!expr`|Evaluates to the opposite of `expr`.|
 
-## Inspecting requested resources  
+Above, any argument named `list` can accept a list of values (like
+`request.roles`) or a single value (like `request.reason`).
+
+The `re` argument to `regexp.match` supports both glob-style wildcards (the `*`
+character) and [Go-style regular expressions](https://pkg.go.dev/regexp).
+If an expression begins with the `^` character and ends with the `$` character,
+Teleport will evaluate it as a regular expression.
+Otherwise, it will evaluate it as a wildcard expression.
+Wildcards match any sequence of zero or more characters.
+
+## Inspecting requested resources
 
 A Teleport user can view information about a resource without having access to
 that resource. This is useful for inspecting a resource before granting another

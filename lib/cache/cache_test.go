@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
@@ -117,6 +118,7 @@ type testPack struct {
 	accessLists             services.AccessLists
 	kubeWaitingContainers   services.KubeWaitingContainer
 	notifications           services.Notifications
+	accessMonitoringRules   services.AccessMonitoringRules
 }
 
 // testFuncs are functions to support testing an object in a cache.
@@ -275,7 +277,7 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	}
 	p.okta = oktaSvc
 
-	igSvc, err := local.NewIntegrationsService(p.backend)
+	igSvc, err := local.NewIntegrationsService(p.backend, local.WithIntegrationsServiceCacheMode(true))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -304,6 +306,11 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 	p.accessLists = accessListsSvc
+	accessMonitoringRuleService, err := local.NewAccessMonitoringRulesService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.accessMonitoringRules = accessMonitoringRuleService
 
 	kubeWaitingContSvc, err := local.NewKubeWaitingContainerService(p.backend)
 	if err != nil {
@@ -359,6 +366,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		AccessLists:             p.accessLists,
 		KubeWaitingContainers:   p.kubeWaitingContainers,
 		Notifications:           p.notifications,
+		AccessMonitoringRules:   p.accessMonitoringRules,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -759,6 +767,7 @@ func TestCompletenessInit(t *testing.T) {
 			AccessLists:             p.accessLists,
 			KubeWaitingContainers:   p.kubeWaitingContainers,
 			Notifications:           p.notifications,
+			AccessMonitoringRules:   p.accessMonitoringRules,
 			MaxRetryPeriod:          200 * time.Millisecond,
 			EventsC:                 p.eventsC,
 		}))
@@ -833,6 +842,7 @@ func TestCompletenessReset(t *testing.T) {
 		AccessLists:             p.accessLists,
 		KubeWaitingContainers:   p.kubeWaitingContainers,
 		Notifications:           p.notifications,
+		AccessMonitoringRules:   p.accessMonitoringRules,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -1019,6 +1029,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		AccessLists:             p.accessLists,
 		KubeWaitingContainers:   p.kubeWaitingContainers,
 		Notifications:           p.notifications,
+		AccessMonitoringRules:   p.accessMonitoringRules,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		neverOK:                 true, // ensure reads are never healthy
@@ -1104,6 +1115,7 @@ func initStrategy(t *testing.T) {
 		AccessLists:             p.accessLists,
 		KubeWaitingContainers:   p.kubeWaitingContainers,
 		Notifications:           p.notifications,
+		AccessMonitoringRules:   p.accessMonitoringRules,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -3099,6 +3111,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindKubeWaitingContainer:    newKubeWaitingContainer(t),
 		types.KindNotification:            types.Resource153ToLegacy(newUserNotification(t, "test")),
 		types.KindGlobalNotification:      types.Resource153ToLegacy(newGlobalNotification(t, "test")),
+		types.KindAccessMonitoringRule:    types.Resource153ToLegacy(newAccessMonitoringRule(t)),
 	}
 
 	for name, cfg := range cases {
@@ -3584,6 +3597,16 @@ func newGlobalNotification(t *testing.T, description string) *notificationsv1.Gl
 		},
 	}
 
+	return notification
+}
+
+func newAccessMonitoringRule(t *testing.T) *accessmonitoringrulesv1.AccessMonitoringRule {
+	t.Helper()
+	notification := &accessmonitoringrulesv1.AccessMonitoringRule{
+		Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
+			Notification: &accessmonitoringrulesv1.Notification{},
+		},
+	}
 	return notification
 }
 

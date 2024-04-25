@@ -777,8 +777,12 @@ export const formatters: Formatters = {
   [eventCodes.CREATE_MFA_AUTH_CHALLENGE]: {
     type: 'mfa_auth_challenge.create',
     desc: 'MFA Authentication Attempt',
-    format: ({ user }) =>
-      `User [${user}] requested an MFA authentication challenge`,
+    format: ({ user }) => {
+      if (user) {
+        return `User [${user}] requested an MFA authentication challenge`;
+      }
+      return `Passwordless user requested an MFA authentication challenge`;
+    },
   },
   [eventCodes.VALIDATE_MFA_AUTH_RESPONSE]: {
     type: 'mfa_auth_challenge.validate',
@@ -1473,11 +1477,25 @@ export const formatters: Formatters = {
       return `Bot [${bot_name}] joined the cluster using the [${method}] join method`;
     },
   },
+  [eventCodes.BOT_JOIN_FAILURE]: {
+    type: 'bot.join',
+    desc: 'Bot Join Failed',
+    format: ({ bot_name }) => {
+      return `Bot [${bot_name || 'unknown'}] failed to join the cluster`;
+    },
+  },
   [eventCodes.INSTANCE_JOIN]: {
     type: 'instance.join',
     desc: 'Instance Joined',
     format: ({ node_name, role, method }) => {
       return `Instance [${node_name}] joined the cluster with the [${role}] role using the [${method}] join method`;
+    },
+  },
+  [eventCodes.INSTANCE_JOIN_FAILURE]: {
+    type: 'instance.join',
+    desc: 'Instance Join Failed',
+    format: ({ node_name }) => {
+      return `Instance [${node_name || 'unknown'}] failed to join the cluster`;
     },
   },
   [eventCodes.BOT_CREATED]: {

@@ -59,6 +59,7 @@ type IntegrationServiceClient interface {
 	// DeleteIntegration removes the specified Integration resource.
 	DeleteIntegration(ctx context.Context, in *DeleteIntegrationRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteAllIntegrations removes all Integrations.
+	// DEPRECATED: Can't delete all integrations over gRPC.
 	DeleteAllIntegrations(ctx context.Context, in *DeleteAllIntegrationsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action.
 	GenerateAWSOIDCToken(ctx context.Context, in *GenerateAWSOIDCTokenRequest, opts ...grpc.CallOption) (*GenerateAWSOIDCTokenResponse, error)
@@ -150,6 +151,7 @@ type IntegrationServiceServer interface {
 	// DeleteIntegration removes the specified Integration resource.
 	DeleteIntegration(context.Context, *DeleteIntegrationRequest) (*emptypb.Empty, error)
 	// DeleteAllIntegrations removes all Integrations.
+	// DEPRECATED: Can't delete all integrations over gRPC.
 	DeleteAllIntegrations(context.Context, *DeleteAllIntegrationsRequest) (*emptypb.Empty, error)
 	// GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action.
 	GenerateAWSOIDCToken(context.Context, *GenerateAWSOIDCTokenRequest) (*GenerateAWSOIDCTokenResponse, error)

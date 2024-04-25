@@ -236,18 +236,18 @@ func AttestWithTPM(ctx context.Context, log *slog.Logger, tpm *attest.TPM) (
 // specified io.Writer.
 func PrintQuery(data *QueryRes, debug bool, w io.Writer) {
 	_, _ = fmt.Fprintf(w, "TPM Information\n")
-	_, _ = fmt.Fprintf(w, "EKPub Hash: %s\n", data.EKPubHash)
-	_, _ = fmt.Fprintf(w, "EKCert Detected: %t\n", data.EKCert != nil)
+	_, _ = fmt.Fprintf(w, "EK Public Hash: %s\n", data.EKPubHash)
+	_, _ = fmt.Fprintf(w, "EK Certificate Detected: %t\n", data.EKCert != nil)
 	if data.EKCert != nil {
-		_, _ = fmt.Fprintf(w, "EKCert Serial: %s\n", data.EKCert.SerialNumber)
+		_, _ = fmt.Fprintf(w, "EK Certificate Serial: %s\n", data.EKCert.SerialNumber)
 	}
 	if debug {
-		_, _ = fmt.Fprintf(w, "EKPub:\n%s", pem.EncodeToMemory(&pem.Block{
+		_, _ = fmt.Fprintf(w, "EK Public:\n%s", pem.EncodeToMemory(&pem.Block{
 			Type:  "PUBLIC KEY",
 			Bytes: data.EKPub,
 		}))
 		if data.EKCert != nil {
-			_, _ = fmt.Fprintf(w, "EKCert:\n%s", pem.EncodeToMemory(&pem.Block{
+			_, _ = fmt.Fprintf(w, "EK Certificate:\n%s", pem.EncodeToMemory(&pem.Block{
 				Type:  "CERTIFICATE",
 				Bytes: data.EKCert.Raw,
 			}))

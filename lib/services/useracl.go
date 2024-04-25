@@ -106,6 +106,8 @@ type UserACL struct {
 	AccessGraph ResourceAccess `json:"accessGraph"`
 	// Bots defines access to manage Bots.
 	Bots ResourceAccess `json:"bots"`
+	// AccessMonitoringRule defines access to manage access monitoring rule resources.
+	AccessMonitoringRule ResourceAccess `json:"accessMonitoringRule"`
 }
 
 func hasAccess(roleSet RoleSet, ctx *Context, kind string, verbs ...string) bool {
@@ -190,9 +192,11 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 
 	var auditQuery ResourceAccess
 	var securityReports ResourceAccess
+	var accessMonitoringRules ResourceAccess
 	if accessMonitoringEnabled {
 		auditQuery = newAccess(userRoles, ctx, types.KindAuditQuery)
 		securityReports = newAccess(userRoles, ctx, types.KindSecurityReport)
+		accessMonitoringRules = newAccess(userRoles, ctx, types.KindAccessMonitoringRule)
 	}
 
 	return UserACL{
@@ -231,5 +235,6 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		ExternalAuditStorage:    externalAuditStorage,
 		AccessGraph:             accessGraphAccess,
 		Bots:                    bots,
+		AccessMonitoringRule:    accessMonitoringRules,
 	}
 }

@@ -119,6 +119,7 @@ const cfg = {
     accountMfaDevices: '/web/account/twofactor',
     roles: '/web/roles',
     deviceTrust: `/web/devices`,
+    deviceTrustAuthorize: '/web/device/authorize/:id?/:token?',
     sso: '/web/sso',
     cluster: '/web/cluster/:clusterId/',
     clusters: '/web/clusters',
@@ -422,6 +423,10 @@ const cfg = {
 
   getAuthType() {
     return cfg.auth.authType;
+  },
+
+  getDeviceTrustAuthorizeRoute(id: string, token: string) {
+    return generatePath(cfg.routes.deviceTrustAuthorize, { id, token });
   },
 
   getSsoUrl(providerUrl, providerName, redirect) {

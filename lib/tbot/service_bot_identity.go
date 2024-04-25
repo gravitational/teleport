@@ -23,12 +23,12 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"log/slog"
 	"math"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -53,7 +53,7 @@ const botIdentityRenewalRetryLimit = 7
 // It does not offer a [bot.OneShotService] implementation as the Bot's identity
 // is renewed automatically during initialization.
 type identityService struct {
-	log               logrus.FieldLogger
+	log               *slog.Logger
 	reloadBroadcaster *channelBroadcaster
 	cfg               *config.BotConfig
 	resolver          reversetunnelclient.Resolver
@@ -97,12 +97,12 @@ func hasTokenChanged(configTokenBytes, identityBytes []byte) bool {
 func (s *identityService) loadIdentityFromStore(ctx context.Context, store bot.Destination) (*identity.Identity, error) {
 	ctx, span := tracer.Start(ctx, "identityService/loadIdentityFromStore")
 	defer span.End()
-	s.log.WithField("store", store).Info("Loading existing bot identity from store.")
+	s.log.InfoContext(ctx, "Loading existing bot identity from store.", "store", store)
 
 	loadedIdent, err := identity.LoadIdentity(ctx, store, identity.BotKinds()...)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			s.log.Info("No existing bot identity found in store. Bot will join using configured token.")
+			s.log.InfoContext(ctx, "No existing bot identity found in store. Bot will join using configured token.")
 			return nil, nil
 		} else {
 			return nil, trace.Wrap(err)
@@ -116,7 +116,7 @@ func (s *identityService) loadIdentityFromStore(ctx context.Context, store bot.D
 			sha := sha256.Sum256([]byte(token))
 			configTokenHashBytes := []byte(hex.EncodeToString(sha[:]))
 			if hasTokenChanged(loadedIdent.TokenHashBytes, configTokenHashBytes) {
-				s.log.Info("Bot identity loaded from store does not match configured token. Bot will fetch identity using configured token.")
+				s.log.InfoContext(ctx, "Bot identity loaded from store does not match configured token. Bot will fetch identity using configured token.")
 				// If the token has changed, do not return the loaded
 				// identity.
 				return nil, nil
@@ -125,12 +125,10 @@ func (s *identityService) loadIdentityFromStore(ctx context.Context, store bot.D
 			// we failed to get the newly configured token to compare to,
 			// we'll assume the last good credentials written to disk should
 			// still be used.
-			s.log.
-				WithError(err).
-				Error("There was an error loading the configured token. Bot identity loaded from store will be tried.")
+			s.log.ErrorContext(ctx, "There was an error loading the configured token. Bot identity loaded from store will be tried.", "error", err)
 		}
 	}
-	s.log.WithField("identity", describeTLSIdentity(s.log, loadedIdent)).Info("Loaded existing bot identity from store.")
+	s.log.InfoContext(ctx, "Loaded existing bot identity from store.", "identity", describeTLSIdentity(ctx, s.log, loadedIdent))
 
 	return loadedIdent, nil
 }
@@ -145,7 +143,7 @@ func (s *identityService) Initialize(ctx context.Context) error {
 	ctx, span := tracer.Start(ctx, "identityService/Initialize")
 	defer span.End()
 
-	s.log.Info("Initializing bot identity.")
+	s.log.InfoContext(ctx, "Initializing bot identity.")
 	var loadedIdent *identity.Identity
 	var err error
 	if s.cfg.Onboarding.RenewableJoinMethod() {
@@ -162,7 +160,7 @@ func (s *identityService) Initialize(ctx context.Context) error {
 		// If using a renewable join method and we loaded an identity, let's
 		// immediately renew it so we know that after initialisation we have the
 		// full certificate TTL.
-		if err := checkIdentity(s.log, loadedIdent); err != nil {
+		if err := checkIdentity(ctx, s.log, loadedIdent); err != nil {
 			return trace.Wrap(err)
 		}
 		facade := identity.NewFacade(s.cfg.FIPS, s.cfg.Insecure, loadedIdent)
@@ -191,7 +189,7 @@ func (s *identityService) Initialize(ctx context.Context) error {
 		return trace.BadParameter("no existing identity found on disk or join token configured")
 	}
 
-	s.log.WithField("identity", describeTLSIdentity(s.log, newIdentity)).Info("Fetched new bot identity.")
+	s.log.InfoContext(ctx, "Fetched new bot identity", "identity", describeTLSIdentity(ctx, s.log, newIdentity))
 	if err := identity.SaveIdentity(ctx, newIdentity, s.cfg.Storage.Destination, identity.BotKinds()...); err != nil {
 		return trace.Wrap(err)
 	}
@@ -207,7 +205,7 @@ func (s *identityService) Initialize(ctx context.Context) error {
 	s.facade = facade
 	s.mu.Unlock()
 
-	s.log.Info("Identity initialized successfully")
+	s.log.InfoContext(ctx, "Identity initialized successfully")
 	return nil
 }
 
@@ -225,10 +223,11 @@ func (s *identityService) Run(ctx context.Context) error {
 	reloadCh, unsubscribe := s.reloadBroadcaster.subscribe()
 	defer unsubscribe()
 
-	s.log.Infof(
-		"Beginning bot identity renewal loop: ttl=%s interval=%s",
-		s.cfg.CertificateTTL,
-		s.cfg.RenewalInterval,
+	s.log.InfoContext(
+		ctx,
+		"Beginning bot identity renewal loop",
+		"ttl", s.cfg.CertificateTTL,
+		"interval", s.cfg.RenewalInterval,
 	)
 
 	// Determine where the bot should write its internal data (renewable cert
@@ -248,10 +247,11 @@ func (s *identityService) Run(ctx context.Context) error {
 
 		var err error
 		for attempt := 1; attempt <= botIdentityRenewalRetryLimit; attempt++ {
-			s.log.Infof(
-				"Renewing bot identity. Attempt %d of %d.",
-				attempt,
-				botIdentityRenewalRetryLimit,
+			s.log.InfoContext(
+				ctx,
+				"Attempting to renewing bot identity",
+				"attempt", attempt,
+				"retry_limit", botIdentityRenewalRetryLimit,
 			)
 			err = s.renew(
 				ctx, storageDestination,
@@ -264,11 +264,13 @@ func (s *identityService) Run(ctx context.Context) error {
 				// exponentially back off with jitter, starting at 1 second.
 				backoffTime := time.Second * time.Duration(math.Pow(2, float64(attempt-1)))
 				backoffTime = jitter(backoffTime)
-				s.log.WithError(err).Errorf(
-					"Bot identity renewal attempt %d of %d failed. Retrying after %s.",
-					attempt,
-					botIdentityRenewalRetryLimit,
-					backoffTime,
+				s.log.ErrorContext(
+					ctx,
+					"Bot identity renewal attempt failed. Waiting to retry.",
+					"error", err,
+					"attempt", attempt,
+					"retry_limit", botIdentityRenewalRetryLimit,
+					"backoff", backoffTime,
 				)
 				select {
 				case <-ctx.Done():
@@ -278,10 +280,15 @@ func (s *identityService) Run(ctx context.Context) error {
 			}
 		}
 		if err != nil {
-			s.log.WithError(err).Errorf("%d bot identity renewals failed. All retry attempts exhausted. Exiting.", botIdentityRenewalRetryLimit)
+			s.log.ErrorContext(
+				ctx,
+				"All bot identity renewal attempts exhausted. Exiting",
+				"error", err,
+				"retry_limit", botIdentityRenewalRetryLimit,
+			)
 			return trace.Wrap(err)
 		}
-		s.log.Infof("Renewed bot identity. Next bot identity renewal in approximately %s.", s.cfg.RenewalInterval)
+		s.log.InfoContext(ctx, "Renewed bot identity. Waiting to renew again", "wait", s.cfg.RenewalInterval)
 	}
 }
 
@@ -326,13 +333,13 @@ func (s *identityService) renew(
 		}
 	}
 
-	s.log.WithField("identity", describeTLSIdentity(s.log, newIdentity)).Info("Fetched new bot identity.")
+	s.log.InfoContext(ctx, "Fetched new bot identity", "identity", describeTLSIdentity(ctx, s.log, newIdentity))
 	s.facade.Set(newIdentity)
 
 	if err := identity.SaveIdentity(ctx, newIdentity, botDestination, identity.BotKinds()...); err != nil {
 		return trace.Wrap(err, "saving new identity")
 	}
-	s.log.WithField("identity", describeTLSIdentity(s.log, newIdentity)).Debug("Bot identity persisted.")
+	s.log.DebugContext(ctx, "Bot identity persisted", "identity", describeTLSIdentity(ctx, s.log, newIdentity))
 
 	return nil
 }
@@ -341,14 +348,14 @@ func (s *identityService) renew(
 // server using GenerateUserCerts. This only works for renewable join types.
 func botIdentityFromAuth(
 	ctx context.Context,
-	log logrus.FieldLogger,
+	log *slog.Logger,
 	ident *identity.Identity,
 	client *auth.Client,
 	ttl time.Duration,
 ) (*identity.Identity, error) {
 	ctx, span := tracer.Start(ctx, "botIdentityFromAuth")
 	defer span.End()
-	log.Info("Fetching bot identity using existing bot identity.")
+	log.InfoContext(ctx, "Fetching bot identity using existing bot identity")
 
 	if ident == nil || client == nil {
 		return nil, trace.BadParameter("renewIdentityWithAuth must be called with non-nil client and identity")
@@ -377,11 +384,11 @@ func botIdentityFromAuth(
 
 // botIdentityFromToken uses a join token to request a bot identity from an auth
 // server using auth.Register.
-func botIdentityFromToken(ctx context.Context, log logrus.FieldLogger, cfg *config.BotConfig) (*identity.Identity, error) {
+func botIdentityFromToken(ctx context.Context, log *slog.Logger, cfg *config.BotConfig) (*identity.Identity, error) {
 	_, span := tracer.Start(ctx, "botIdentityFromToken")
 	defer span.End()
 
-	log.Info("Fetching bot identity using token.")
+	log.InfoContext(ctx, "Fetching bot identity using token")
 
 	tlsPrivateKey, sshPublicKey, tlsPublicKey, err := generateKeys()
 	if err != nil {
@@ -435,7 +442,7 @@ func botIdentityFromToken(ctx context.Context, log logrus.FieldLogger, cfg *conf
 		}
 	}
 
-	certs, err := auth.Register(params)
+	certs, err := auth.Register(ctx, params)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

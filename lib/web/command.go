@@ -191,7 +191,7 @@ func (h *Handler) executeCommand(
 	})
 
 	// Wrap the raw websocket connection in a syncRWWSConn so that we can
-	// safely read and write to the the single websocket connection from
+	// safely read and write to the single websocket connection from
 	// multiple goroutines/execution nodes.
 	ws := &syncRWWSConn{WSConn: rawWS}
 

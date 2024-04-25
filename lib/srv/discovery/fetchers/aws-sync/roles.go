@@ -49,7 +49,7 @@ func (a *awsFetcher) pollAWSRoles(ctx context.Context, result *Resources, collec
 		// These goroutines are fetching inline and attached policies for each group.
 		// We also have other goroutines fetching inline and attached policies for users
 		// and roles.
-		eG.SetLimit(10)
+		eG.SetLimit(5)
 		roleMu := sync.Mutex{}
 		for _, role := range result.Roles {
 			role := role

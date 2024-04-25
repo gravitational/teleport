@@ -259,6 +259,7 @@ export type TshdRpcError = Pick<
    * It is taken from the error metadata.
    */
   isResolvableWithRelogin: boolean;
+  toString: () => string;
 };
 
 /**
@@ -313,6 +314,7 @@ function cloneError(error: unknown): TshdRpcError | Error | unknown {
       cause: error.cause,
       code: error.code,
       isResolvableWithRelogin: error.meta['is-resolvable-with-relogin'] === '1',
+      toString: () => error.toString(),
     } satisfies TshdRpcError;
   }
 
@@ -322,7 +324,8 @@ function cloneError(error: unknown): TshdRpcError | Error | unknown {
       message: error.message,
       stack: error.stack,
       cause: error.cause,
-    } satisfies Error;
+      toString: () => error.toString(),
+    };
   }
 
   return error;

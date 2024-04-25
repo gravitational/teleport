@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
@@ -45,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/auth/integration/integrationv1"
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
@@ -261,137 +259,6 @@ func HasRemoteBuiltinRole(authContext authz.Context, name string) bool {
 // name matches.
 func (a *ServerWithRoles) hasRemoteBuiltinRole(name string) bool {
 	return HasRemoteBuiltinRole(a.context, name)
-}
-
-// integrationsService returns an Integrations Service.
-func (a *ServerWithRoles) integrationsService() (*integrationv1.Service, error) {
-	igSvc, err := integrationv1.NewService(&integrationv1.ServiceConfig{
-		Authorizer: authz.AuthorizerFunc(func(context.Context) (*authz.Context, error) {
-			return &a.context, nil
-		}),
-		Cache:   a.authServer,
-		Backend: a.authServer.Services,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return igSvc, nil
-}
-
-// CreateIntegration creates an Integration.
-func (a *ServerWithRoles) CreateIntegration(ctx context.Context, ig types.Integration) (types.Integration, error) {
-	igSvc, err := a.integrationsService()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	igv1, ok := ig.(*types.IntegrationV1)
-	if !ok {
-		return nil, trace.BadParameter("unexpected integration type %T", ig)
-	}
-
-	ig, err = igSvc.CreateIntegration(ctx, &integrationpb.CreateIntegrationRequest{Integration: igv1})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return ig, nil
-}
-
-// GetIntegration returns an Integration by its name.
-func (a *ServerWithRoles) GetIntegration(ctx context.Context, name string) (types.Integration, error) {
-	igSvc, err := a.integrationsService()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	ig, err := igSvc.GetIntegration(ctx, &integrationpb.GetIntegrationRequest{Name: name})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return ig, nil
-}
-
-// ListIntegrations returns a list of Integrations.
-// A next page can be retreived by calling ListIntegrations again and passing the nextKey from the previous response.
-func (a *ServerWithRoles) ListIntegrations(ctx context.Context, pageSize int, nextKey string) ([]types.Integration, string, error) {
-	igSvc, err := a.integrationsService()
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	resp, err := igSvc.ListIntegrations(ctx, &integrationpb.ListIntegrationsRequest{
-		Limit:   int32(pageSize),
-		NextKey: nextKey,
-	})
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	integrations := make([]types.Integration, 0, len(resp.GetIntegrations()))
-	for _, ig := range resp.GetIntegrations() {
-		integrations = append(integrations, ig)
-	}
-
-	return integrations, resp.GetNextKey(), nil
-}
-
-// UpdateIntegration updates an Integration.
-func (a *ServerWithRoles) UpdateIntegration(ctx context.Context, ig types.Integration) (types.Integration, error) {
-	igSvc, err := a.integrationsService()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	igv1, ok := ig.(*types.IntegrationV1)
-	if !ok {
-		return nil, trace.BadParameter("unexpected integration type %T", ig)
-	}
-
-	ig, err = igSvc.UpdateIntegration(ctx, &integrationpb.UpdateIntegrationRequest{Integration: igv1})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return ig, nil
-}
-
-// DeleteAllIntegrations deletes all integrations.
-func (a *ServerWithRoles) DeleteAllIntegrations(ctx context.Context) error {
-	igSvc, err := a.integrationsService()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	_, err = igSvc.DeleteAllIntegrations(ctx, &integrationpb.DeleteAllIntegrationsRequest{})
-	return trace.Wrap(err)
-}
-
-// DeleteIntegration deletes an integration integrations.
-func (a *ServerWithRoles) DeleteIntegration(ctx context.Context, name string) error {
-	igSvc, err := a.integrationsService()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	_, err = igSvc.DeleteIntegration(ctx, &integrationpb.DeleteIntegrationRequest{Name: name})
-	return trace.Wrap(err)
-}
-
-// GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action.
-func (a *ServerWithRoles) GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error) {
-	igSvc, err := a.integrationsService()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	resp, err := igSvc.GenerateAWSOIDCToken(ctx, &integrationpb.GenerateAWSOIDCTokenRequest{
-		Integration: integration,
-	})
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	return resp.Token, nil
 }
 
 // CreateSessionTracker creates a tracker resource for an active session.
@@ -761,6 +628,24 @@ func (a *ServerWithRoles) RegisterUsingIAMMethod(ctx context.Context, challengeR
 // its own authz mechanism.
 func (a *ServerWithRoles) RegisterUsingAzureMethod(ctx context.Context, challengeResponse client.RegisterAzureChallengeResponseFunc) (*proto.Certs, error) {
 	certs, err := a.authServer.RegisterUsingAzureMethod(ctx, challengeResponse)
+	return certs, trace.Wrap(err)
+}
+
+// RegisterUsingTPMMethod registers the caller using the TPM join method and
+// returns signed certs to join the cluster.
+//
+// See (*Server).RegisterUsingTPMMethod for further documentation.
+//
+// This wrapper does not do any extra authz checks, as the register method has
+// its own authz mechanism.
+func (a *ServerWithRoles) RegisterUsingTPMMethod(
+	ctx context.Context,
+	initReq *proto.RegisterUsingTPMMethodInitialRequest,
+	solveChallenge client.RegisterTPMChallengeResponseFunc,
+) (*proto.Certs, error) {
+	certs, err := a.authServer.registerUsingTPMMethod(
+		ctx, initReq, solveChallenge,
+	)
 	return certs, trace.Wrap(err)
 }
 
@@ -1241,9 +1126,19 @@ func (a *ServerWithRoles) hasWatchPermissionForKind(kind types.WatchKind) error 
 			return nil
 		}
 	case types.KindWebSession:
+		if !kind.LoadSecrets {
+			verb = types.VerbReadNoSecrets
+		}
+
 		var filter types.WebSessionFilter
 		if err := filter.FromMap(kind.Filter); err != nil {
 			return trace.Wrap(err)
+		}
+
+		// TODO (Joerger): DELETE IN 17.0.0
+		// Set LoadSecrets to true for requests from old proxies.
+		if a.hasBuiltinRole(types.RoleProxy) {
+			kind.LoadSecrets = true
 		}
 
 		// Allow reading Snowflake sessions to DB service.
@@ -1251,8 +1146,8 @@ func (a *ServerWithRoles) hasWatchPermissionForKind(kind types.WatchKind) error 
 			return nil
 		}
 
-		// Users can watch their own web sessions.
-		if filter.User != "" && a.currentUserAction(filter.User) == nil {
+		// Users can watch their own web sessions without secrets.
+		if filter.User != "" && !kind.LoadSecrets && a.currentUserAction(filter.User) == nil {
 			return nil
 		}
 	case types.KindHeadlessAuthentication:
@@ -2202,15 +2097,20 @@ func enforceEnterpriseJoinMethodCreation(token types.ProvisionToken) error {
 	switch v.Spec.JoinMethod {
 	case types.JoinMethodGitHub:
 		if v.Spec.GitHub != nil && v.Spec.GitHub.EnterpriseServerHost != "" {
-			return fmt.Errorf(
-				"github enterprise server joining: %w",
+			return trace.Wrap(
 				ErrRequiresEnterprise,
+				"github enterprise server joining",
 			)
 		}
 	case types.JoinMethodSpacelift:
-		return fmt.Errorf(
-			"spacelift joining: %w",
+		return trace.Wrap(
 			ErrRequiresEnterprise,
+			"spacelift joining",
+		)
+	case types.JoinMethodTPM:
+		return trace.Wrap(
+			ErrRequiresEnterprise,
+			"tpm joining",
 		)
 	}
 
@@ -3153,6 +3053,59 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		}
 	}
 
+	appSessionID := req.RouteToApp.SessionID
+	if req.RouteToApp.Name != "" {
+		// Create a new app session using the same cert request. The user certs
+		// generated below will be linked to this session by the session ID.
+		if req.RouteToApp.SessionID == "" {
+			ws, err := a.authServer.CreateAppSessionFromReq(ctx, NewAppSessionRequest{
+				NewWebSessionRequest: NewWebSessionRequest{
+					User:           req.Username,
+					LoginIP:        a.context.Identity.GetIdentity().LoginIP,
+					SessionTTL:     req.Expires.Sub(a.authServer.GetClock().Now()),
+					Traits:         accessInfo.Traits,
+					Roles:          accessInfo.Roles,
+					AccessRequests: req.AccessRequests,
+				},
+				PublicAddr:        req.RouteToApp.PublicAddr,
+				ClusterName:       req.RouteToApp.ClusterName,
+				AWSRoleARN:        req.RouteToApp.AWSRoleARN,
+				AzureIdentity:     req.RouteToApp.AzureIdentity,
+				GCPServiceAccount: req.RouteToApp.GCPServiceAccount,
+				MFAVerified:       verifiedMFADeviceID,
+				DeviceExtensions:  DeviceExtensions(a.context.Identity.GetIdentity().DeviceExtensions),
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			appSessionID = ws.GetName()
+		} else {
+			// TODO (Joerger): DELETE IN 17.0.0
+			// Old clients will pass a session ID of an existing App session instead of a
+			// single GenerateUserCerts call. This is allowed, but ensure new clients cannot
+			// generate certs for MFA verified app sessions without an additional MFA check.
+			ws, err := a.GetAppSession(ctx, types.GetAppSessionRequest{
+				SessionID: req.RouteToApp.SessionID,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			// If the app session is MFA verified and this request is not MFA verified, deny the request.
+			x509Cert, err := tlsca.ParseCertificatePEM(ws.GetTLSCert())
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			wsIdentity, err := tlsca.FromSubject(x509Cert.Subject, x509Cert.NotAfter)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if wsIdentity.IsMFAVerified() && verifiedMFADeviceID == "" {
+				return nil, trace.BadParameter("mfa verification required to sign app certs for mfa-verified session")
+			}
+		}
+	}
+
 	// Generate certificate, note that the roles TTL will be ignored because
 	// the request is coming from "tctl auth sign" itself.
 	certReq := certRequest{
@@ -3169,8 +3122,8 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		dbUser:            req.RouteToDatabase.Username,
 		dbName:            req.RouteToDatabase.Database,
 		dbRoles:           req.RouteToDatabase.Roles,
+		appSessionID:      appSessionID,
 		appName:           req.RouteToApp.Name,
-		appSessionID:      req.RouteToApp.SessionID,
 		appPublicAddr:     req.RouteToApp.PublicAddr,
 		appClusterName:    req.RouteToApp.ClusterName,
 		awsRoleARN:        req.RouteToApp.AWSRoleARN,
@@ -4947,7 +4900,7 @@ func (a *ServerWithRoles) GetRemoteCluster(ctx context.Context, clusterName stri
 	}
 	cluster, err := a.authServer.GetRemoteCluster(ctx, clusterName)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, utils.OpaqueAccessDenied(err)
 	}
 	if err := a.context.Checker.CheckAccessToRemoteCluster(cluster); err != nil {
 		return nil, utils.OpaqueAccessDenied(err)
@@ -5451,12 +5404,7 @@ func (a *ServerWithRoles) CreateAppSession(ctx context.Context, req *proto.Creat
 		return nil, trace.Wrap(err)
 	}
 
-	uls, err := a.authServer.GetUserOrLoginState(ctx, a.context.User.GetName())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	session, err := a.authServer.CreateAppSession(ctx, req, uls, a.context.Identity.GetIdentity(), a.context.Checker)
+	session, err := a.authServer.CreateAppSession(ctx, req, a.context.Identity.GetIdentity(), a.context.Checker)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
