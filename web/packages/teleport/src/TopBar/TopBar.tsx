@@ -210,31 +210,33 @@ export function TopBar({ CustomLogo, assistProps }: TopBarProps) {
           <ArrowLeft size="medium" />
         </ButtonIconContainer>
       )}
-      <Flex height="100%" alignItems="center">
-        {assistProps?.assistEnabled && (
-          <HoverTooltip
-            anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-            transformOrigin={{ vertical: 'top', horizontal: 'center' }}
-            tipContent="Teleport Assist"
-            css={`
-              height: 100%;
-            `}
-          >
-            <ButtonIconContainer
-              onClick={() =>
-                assistProps?.setShowAssist(!assistProps?.showAssist)
-              }
+      {!feature?.logoOnlyTopbar && (
+        <Flex height="100%" alignItems="center">
+          {assistProps?.assistEnabled && (
+            <HoverTooltip
+              anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+              transformOrigin={{ vertical: 'top', horizontal: 'center' }}
+              tipContent="Teleport Assist"
+              css={`
+                height: 100%;
+              `}
             >
-              <ChatCircleSparkle
-                color={assistProps?.showAssist ? 'text.main' : 'text.muted'}
-                size={iconSize}
-              />
-            </ButtonIconContainer>
-          </HoverTooltip>
-        )}
-        <Notifications iconSize={iconSize} />
-        <UserMenuNav username={ctx.storeUser.state.username} />
-      </Flex>
+              <ButtonIconContainer
+                onClick={() =>
+                  assistProps?.setShowAssist(!assistProps?.showAssist)
+                }
+              >
+                <ChatCircleSparkle
+                  color={assistProps?.showAssist ? 'text.main' : 'text.muted'}
+                  size={iconSize}
+                />
+              </ButtonIconContainer>
+            </HoverTooltip>
+          )}
+          <Notifications iconSize={iconSize} />
+          <UserMenuNav username={ctx.storeUser.state.username} />
+        </Flex>
+      )}
     </TopBarContainer>
   );
 }
