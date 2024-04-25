@@ -1,7 +1,7 @@
 # TODO(hugoShaka): uncomment the additional targets as we start sync-ing
 # the reference and the values.yaml
 .PHONY: render-chart-ref
-render-chart-ref: render-chart-ref-example render-chart-ref-teleport-operator render-chart-ref-teleport-kube-agent # render-chart-ref-teleport-cluster
+render-chart-ref: render-chart-ref-example render-chart-ref-teleport-operator render-chart-ref-teleport-kube-agent render-chart-ref-access-slack # render-chart-ref-teleport-cluster
 
 .PHONY: render-chart-ref-example
 render-chart-ref-example:

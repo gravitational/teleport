@@ -121,7 +121,7 @@ image:
   repository: public.ecr.aws/gravitational/teleport-plugin-slack
   # image.pullPolicy(string) -- is the [Kubernetes image pull policy](https://kubernetes.io/docs/concepts/containers/images/#image-pull-policy).
   pullPolicy: IfNotPresent
-  # Overrides the image tag whose default is the chart appVersion.
+  # image.tag(string) -- Overrides the image tag whose default is the chart appVersion.
   #
   # Normally, the version of the Teleport plugin matches the
   # version of the chart. If you install chart version 15.0.0, you'll use
