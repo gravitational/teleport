@@ -92,10 +92,10 @@ func (a *assignmentClient) userAssignedToGroup(ctx context.Context, username, gr
 		a.groupsMu.Lock()
 		a.groups[groupID] = map[string]bool{}
 		for _, member := range members {
-			a.log.Debugf("Found user %s assigned to group %s", member, groupID)
 			a.groups[groupID][member] = true
 		}
 		a.groupsMu.Unlock()
+		a.log.WithFields(logrus.Fields{"members": members, "groupID": groupID}).Debugf("Found users assigned to group")
 	}
 
 	a.groupsMu.RLock()
@@ -222,10 +222,10 @@ func (a *assignmentClient) userAssignedToApp(ctx context.Context, username, appI
 		a.appsMu.Lock()
 		a.apps[appID] = map[appAssignment]bool{}
 		for _, member := range members {
-			a.log.Debugf("Found user %s assigned to app %s", member, appID)
 			a.apps[appID][member] = true
 		}
 		a.appsMu.Unlock()
+		a.log.WithFields(logrus.Fields{"members": members, "appID": appID}).Debugf("Found users assigned to app")
 	}
 
 	a.appsMu.RLock()
