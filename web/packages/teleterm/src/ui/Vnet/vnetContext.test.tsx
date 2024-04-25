@@ -29,6 +29,9 @@ import { VnetContextProvider, useVnetContext } from './vnetContext';
 describe('autostart', () => {
   it('starts VNet if turned on', async () => {
     const appContext = new MockAppContext();
+    appContext.workspacesService.setState(draft => {
+      draft.isInitialized = true;
+    });
     appContext.statePersistenceService.putState({
       ...appContext.statePersistenceService.getState(),
       vnet: { autoStart: true },
@@ -44,8 +47,36 @@ describe('autostart', () => {
     );
   });
 
+  it('waits for workspace state to be initialized', async () => {
+    const appContext = new MockAppContext();
+    appContext.statePersistenceService.putState({
+      ...appContext.statePersistenceService.getState(),
+      vnet: { autoStart: true },
+    });
+
+    const { result } = renderHook(() => useVnetContext(), {
+      wrapper: createWrapper(Wrapper, { appContext }),
+    });
+
+    expect(result.current.startAttempt.status).toEqual('');
+
+    act(() => {
+      appContext.workspacesService.setState(draft => {
+        draft.isInitialized = true;
+      });
+    });
+
+    await waitFor(
+      () => expect(result.current.startAttempt.status).toEqual('success'),
+      { interval: 5 }
+    );
+  });
+
   it('does not start VNet if turned off', async () => {
     const appContext = new MockAppContext();
+    appContext.workspacesService.setState(draft => {
+      draft.isInitialized = true;
+    });
     appContext.statePersistenceService.putState({
       ...appContext.statePersistenceService.getState(),
       vnet: { autoStart: false },
@@ -60,6 +91,9 @@ describe('autostart', () => {
 
   it('switches off if start fails', async () => {
     const appContext = new MockAppContext();
+    appContext.workspacesService.setState(draft => {
+      draft.isInitialized = true;
+    });
     const { statePersistenceService } = appContext;
     statePersistenceService.putState({
       ...statePersistenceService.getState(),
@@ -83,6 +117,9 @@ describe('autostart', () => {
 
   test('starting and stopping VNet toggles autostart', async () => {
     const appContext = new MockAppContext();
+    appContext.workspacesService.setState(draft => {
+      draft.isInitialized = true;
+    });
     const { statePersistenceService } = appContext;
     const { result } = renderHook(() => useVnetContext(), {
       wrapper: createWrapper(Wrapper, { appContext }),

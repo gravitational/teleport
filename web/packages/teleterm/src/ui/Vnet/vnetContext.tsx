@@ -30,6 +30,7 @@ import { useAsync, Attempt } from 'shared/hooks/useAsync';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useAppState } from 'teleterm/ui/hooks/useAppState';
+import { useImmutableStore } from 'teleterm/ui/hooks/useImmutableStore';
 
 /**
  * VnetContext manages the VNet instance.
@@ -55,6 +56,10 @@ export const VnetContext = createContext<VnetContext>(null);
 export const VnetContextProvider: FC<PropsWithChildren> = props => {
   const [status, setStatus] = useState<VnetStatus>('stopped');
   const { vnet, mainProcessClient, configService } = useAppContext();
+  const isWorkspaceStateInitialized = useImmutableStore(
+    'workspacesService',
+    useCallback(state => state.isInitialized, [])
+  );
   const [{ autoStart }, setAppState] = useAppState('vnet', {
     autoStart: false,
   });
@@ -88,7 +93,12 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
 
   useEffect(() => {
     const handleAutoStart = async () => {
-      if (isSupported && autoStart && startAttempt.status === '') {
+      if (
+        isSupported &&
+        autoStart &&
+        isWorkspaceStateInitialized &&
+        startAttempt.status === ''
+      ) {
         const [, error] = await start();
 
         // Turn off autostart if starting fails. Otherwise the user wouldn't be able to turn off
@@ -100,7 +110,7 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
     };
 
     handleAutoStart();
-  }, []);
+  }, [isWorkspaceStateInitialized]);
 
   return (
     <VnetContext.Provider
