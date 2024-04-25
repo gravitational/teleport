@@ -126,7 +126,7 @@ with `kubectl`.
 
 ## GitOps
 
-Automatic updates is incompatible with some GitOps tools used for continuous deployment.
+Automatic updates are incompatible with some GitOps tools used for continuous deployment.
 The Teleport Helm chart owns the version of the `teleport-agent` resource, so when
 the `teleport-agent-updater` modifies the image version of the `teleport-agent` resource,
 the GitOps tool will detect a drift or a diff in the `teleport-agent` resource.
@@ -158,7 +158,7 @@ spec
 ### FluxCD deployments
 
 After an automatic update, FluxCD reports a `DriftDetected` event. As a workaround
-to this problem modify the [Drift detection](https://fluxcd.io/flux/components/helm/helmreleases/#drift-detection)
+to this problem modify the [drift detection](https://fluxcd.io/flux/components/helm/helmreleases/#drift-detection)
 configuration to ignore the difference in image version. Here is an example deployment
 using the name `teleport-agent` and namespace `teleport`.
 
