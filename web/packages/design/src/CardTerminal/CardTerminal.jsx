@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -17,26 +17,33 @@
  */
 
 import React from 'react';
+import { useLocation } from 'react-router';
 
 import CardIcon from 'design/CardIcon';
-import { CircleCheck } from 'design/Icon';
+import { Terminal } from 'design/Icon';
 
-export default function CardSuccess({ title, children }) {
+export default function CardTerminal({ title, children }) {
   return (
     <CardIcon
       title={title}
-      icon={<CircleCheck mb={3} size={64} color="success.main" />}
+      icon={<Terminal mb={3} size={64} color="accent.main" />}
     >
       {children}
     </CardIcon>
   );
 }
 
-export function CardSuccessLogin() {
+export function CardTerminalLogin() {
+  const { search } = useLocation();
+  const queryParams = new URLSearchParams(search);
+  let provider = '';
+  if (queryParams.has('auth')) {
+    provider = ` by ${queryParams.get('auth')}`;
+  }
   return (
-    <CardSuccess title="Login Successful">
-      You have successfully signed into your account. <br /> You can close this
-      window and continue using the product.
-    </CardSuccess>
+    <CardTerminal title="Continue in Terminal">
+      You have been authenticated{provider}.<br />
+      You can close this window and finish logging in at your terminal.
+    </CardTerminal>
   );
 }
