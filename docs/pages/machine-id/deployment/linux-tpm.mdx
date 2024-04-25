@@ -116,8 +116,9 @@ EKCert Detected: true
 EKCert Serial: 5e:cd:5f:8e
 ```
 
-Copy down the long hexadecimal string after `EKPub Hash`. This uniquely
-identifies this TPM and will be used in the join token.
+Take the long hexadecimal string after `EKPub Hash` and assign it to
+<Var name="ek-public-hash" />. This uniquely identifies this TPM and will be
+used in the join token.
 
 ### Obtaining the manufacturer CA
 
@@ -176,15 +177,13 @@ spec:
         # and encoded in hexadecimal. This value will also be checked when a TPM
         # has submitted an EKCert, and the public key in the EKCert will be used
         # for this check.
-        ek_public_hash: "6c5aada1c5abee6d869369a0example2fd2beb41c850d3f0227f029c4fffc4ba"
+        ek_public_hash: "<Var name="ek-public-hash" />"
 ```
 
 Replace the following:
 
 - `example-bot` with a unique name for the token.
 - `example` with the name of the Bot that you created in step 2.
-- `6c5aada1c5abee6d869369a0example2fd2beb41c850d3f0227f029c4fffc4ba` with the
-   EKPub hash of your TPM.
 - `example-server-100` with a human-readable description of the host that the
    TPM resides in.
 
