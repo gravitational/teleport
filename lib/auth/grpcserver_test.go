@@ -937,16 +937,12 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 			assertErr:          assertSuccess,
 		},
 		{
-			// Tracked here because, if this changes, then the scenario should be the
-			// same as the one above.
-			name:              "single user cert does not allow App usage",
+			name:              "mode=required ignores App Access requests",
 			clusterDeviceMode: constants.DeviceTrustModeRequired,
 			client:            clientWithoutDevice,
 			req:               appReq,
 			skipLoginCerts:    true,
-			assertErr: func(t *testing.T, err error) {
-				assert.ErrorContains(t, err, "app access", "single-use certs expected to fail for usage=App")
-			},
+			assertErr:         assertSuccess,
 		},
 		{
 			name:              "mode=required ignores Desktop Access requests",
@@ -1176,6 +1172,20 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 
 	require.NoError(t, srv.Auth().CreateWindowsDesktop(ctx, desktop))
 
+	app, err := types.NewAppV3(
+		types.Metadata{
+			Name: "app-a",
+		},
+		types.AppSpecV3{
+			URI: "localhost",
+		},
+	)
+	require.NoError(t, err)
+	appServer, err := types.NewAppServerV3FromApp(app, "app-a", "app-a")
+	require.NoError(t, err)
+	_, err = srv.Auth().UpsertApplicationServer(ctx, appServer)
+	require.NoError(t, err)
+
 	leaf, err := types.NewRemoteCluster("leaf")
 	require.NoError(t, err)
 
@@ -1365,6 +1375,45 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
 					require.Equal(t, []string{teleport.UsageDatabaseOnly}, identity.Usage)
 					require.Equal(t, "db-a", identity.RouteToDatabase.ServiceName)
+				},
+			},
+		},
+		{
+			desc: "app",
+			opts: generateUserSingleUseCertsTestOpts{
+				initReq: &proto.UserCertsRequest{
+					PublicKey: pub,
+					Username:  user.GetName(),
+					// This expiry is longer than allowed, should be
+					// automatically adjusted.
+					Expires: clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
+					Usage:   proto.UserCertsRequest_App,
+					RouteToApp: proto.RouteToApp{
+						Name: "app-a",
+					},
+				},
+				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
+					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
+				},
+				authnHandler: registered.webAuthHandler,
+				verifyErr:    require.NoError,
+				verifyCert: func(t *testing.T, c *proto.Certs) {
+					crt := c.TLS
+					require.NotEmpty(t, crt)
+
+					cert, err := tlsca.ParseCertificatePEM(crt)
+					require.NoError(t, err)
+					require.Equal(t, cert.NotAfter, clock.Now().Add(teleport.UserSingleUseCertTTL))
+
+					identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+					require.NoError(t, err)
+					require.Equal(t, webDevID, identity.MFAVerified)
+					require.Equal(t, userCertExpires, identity.PreviousIdentityExpires)
+					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
+					require.Equal(t, []string{teleport.UsageAppsOnly}, identity.Usage)
+					require.Equal(t, "app-a", identity.RouteToApp.Name)
+					// session ID should be set to a random UUID, corresponding to an app session.
+					require.NotZero(t, identity.RouteToApp.SessionID)
 				},
 			},
 		},
@@ -1712,6 +1761,46 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 			},
 		},
 		{
+			desc: "app in leaf cluster",
+			opts: generateUserSingleUseCertsTestOpts{
+				initReq: &proto.UserCertsRequest{
+					PublicKey: pub,
+					Username:  user.GetName(),
+					// This expiry is longer than allowed, should be
+					// automatically adjusted.
+					Expires: clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
+					Usage:   proto.UserCertsRequest_App,
+					RouteToApp: proto.RouteToApp{
+						Name: "app-b",
+					},
+					RouteToCluster: "leaf",
+				},
+				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
+					require.Equal(t, proto.MFARequired_MFA_REQUIRED_UNSPECIFIED, required)
+				},
+				authnHandler: registered.webAuthHandler,
+				verifyErr:    require.NoError,
+				verifyCert: func(t *testing.T, c *proto.Certs) {
+					crt := c.TLS
+					require.NotEmpty(t, crt)
+
+					cert, err := tlsca.ParseCertificatePEM(crt)
+					require.NoError(t, err)
+					require.Equal(t, cert.NotAfter, clock.Now().Add(teleport.UserSingleUseCertTTL))
+
+					identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+					require.NoError(t, err)
+					require.Equal(t, webDevID, identity.MFAVerified)
+					require.Equal(t, userCertExpires, identity.PreviousIdentityExpires)
+					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
+					require.Equal(t, []string{teleport.UsageAppsOnly}, identity.Usage)
+					require.Equal(t, "app-b", identity.RouteToApp.Name)
+					// session ID should be set to a random UUID, corresponding to an app session.
+					require.NotZero(t, identity.RouteToApp.SessionID)
+				},
+			},
+		},
+		{
 			desc: "ssh in leaf node",
 			opts: generateUserSingleUseCertsTestOpts{
 				initReq: &proto.UserCertsRequest{
@@ -1741,20 +1830,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					require.Equal(t, userCertExpires.Format(time.RFC3339), cert.Extensions[teleport.CertExtensionPreviousIdentityExpires])
 					require.True(t, net.ParseIP(cert.Extensions[teleport.CertExtensionLoginIP]).IsLoopback())
 					require.Equal(t, uint64(clock.Now().Add(teleport.UserSingleUseCertTTL).Unix()), cert.ValidBefore)
-				},
-			},
-		},
-		{
-			desc: "fail - app access not supported",
-			opts: generateUserSingleUseCertsTestOpts{
-				initReq: &proto.UserCertsRequest{
-					PublicKey: pub,
-					Username:  user.GetName(),
-					Expires:   clock.Now().Add(teleport.UserSingleUseCertTTL),
-					Usage:     proto.UserCertsRequest_App,
-				},
-				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
-					require.ErrorContains(t, err, "app access")
 				},
 			},
 		},
