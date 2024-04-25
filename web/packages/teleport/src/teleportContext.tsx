@@ -72,15 +72,10 @@ class TeleportContext implements types.Context {
 
   // lockedFeatures are the features disabled in the user's cluster.
   // Mainly used to hide features and/or show CTAs when the user cluster doesn't support it.
-  // TODO(mcbattirola): use cluster features instead of only using `isTeam`
-  // to determine which feature is locked
   lockedFeatures: types.LockedFeatures = {
     authConnectors: !(cfg.oidc && cfg.saml),
-    premiumSupport: !cfg.premiumSupport,
-    activeSessions: cfg.joinActiveSessions,
-    externalCloudAudit: cfg.externalAuditStorage,
     // Below should be locked for the following cases:
-    //  1) is team
+    //  1) feature disabled in the cluster features
     //  2) is not a legacy and igs is not enabled. legacies should have unlimited access.
     accessRequests:
       !cfg.accessRequests || (!cfg.isLegacyEnterprise() && !cfg.isIgsEnabled),
