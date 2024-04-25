@@ -140,7 +140,7 @@ accordingly to grant the user appropriate database permissions.
   additional trusted CA by concatenating it with your CA's certificate:
   
   ```code
-  $ tctl auth export --type=db_client > db-client-ca.crt
+  $ tctl auth export --type=db-client > db-client-ca.crt
   $ cat <Var name="/path/to/your/ca.crt" /> db-client-ca.crt > /etc/certs/mongo.cas
   ```
 
