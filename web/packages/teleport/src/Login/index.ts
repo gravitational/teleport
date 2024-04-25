@@ -17,6 +17,8 @@ limitations under the License.
 import Login from './Login';
 import LoginFailed from './LoginFailed';
 import LoginSuccess from './LoginSuccess';
+import { LoginTerminalRedirect } from './LoginTerminalRedirect';
+import { LoginClose } from './LoginClose';
 
 export default Login;
-export { LoginFailed, LoginSuccess };
+export { LoginFailed, LoginSuccess, LoginTerminalRedirect, LoginClose };

@@ -15,11 +15,16 @@ limitations under the License.
 */
 
 import React from 'react';
+import { MemoryRouter } from 'react-router';
+
+import { Route } from 'teleport/components/Router';
+import cfg from 'teleport/config';
 
 import LoginSuccess from './LoginSuccess';
 import { LoginFailed } from './LoginFailed';
 import { Login } from './Login';
 import { State } from './useLogin';
+import { LoginTerminalRedirect } from './LoginTerminalRedirect';
 
 export default {
   title: 'Teleport/Login',
@@ -31,6 +36,13 @@ export const Webauthn = () => <Login {...sample} auth2faType="webauthn" />;
 export const Optional = () => <Login {...sample} auth2faType="optional" />;
 export const On = () => <Login {...sample} auth2faType="on" />;
 export const Success = () => <LoginSuccess />;
+export const TerminalRedirect = () => (
+  <MemoryRouter initialEntries={[cfg.routes.loginTerminalRedirect]}>
+    <Route path={cfg.routes.loginTerminalRedirect + '?auth=MyAuth'}>
+      <LoginTerminalRedirect />
+    </Route>
+  </MemoryRouter>
+);
 export const FailedDefault = () => <LoginFailed />;
 export const FailedCustom = () => <LoginFailed message="custom message" />;
 

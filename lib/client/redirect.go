@@ -27,6 +27,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/utils"
@@ -35,6 +36,11 @@ import (
 const (
 	// LoginSuccessRedirectURL is a redirect URL when login was successful without errors.
 	LoginSuccessRedirectURL = "/web/msg/info/login_success"
+
+	// LoginTerminalRedirectURL is a redirect URL when login requires extra
+	// action in the terminal, but was otherwise successful in the browser (ex.
+	// need a hardware key tap).
+	LoginTerminalRedirectURL = "/web/msg/info/login_terminal"
 
 	// LoginFailedRedirectURL is the default redirect URL when an SSO error was encountered.
 	LoginFailedRedirectURL = "/web/msg/error/login"
@@ -46,6 +52,12 @@ const (
 	// LoginFailedUnauthorizedRedirectURL is a redirect URL for when an SSO authenticates successfully,
 	// but the user has no matching roles in Teleport.
 	LoginFailedUnauthorizedRedirectURL = "/web/msg/error/login/auth"
+
+	// LoginClose is a redirect URL that will close the tab performing the SSO
+	// login. It's used when a second tab will be opened due to the first
+	// failing (such as an unmet hardware key policy) and the first should be
+	// ignored.
+	LoginClose = "/web/msg/info/login_close"
 )
 
 // Redirector handles SSH redirect flow with the Teleport server
@@ -269,11 +281,24 @@ func (rd *Redirector) Close() error {
 // wrapCallback is a helper wrapper method that wraps callback HTTP handler
 // and sends a result to the channel and redirect users to error page
 func (rd *Redirector) wrapCallback(fn func(http.ResponseWriter, *http.Request) (*auth.SSHLoginResponse, error)) http.Handler {
+	// Generate possible redirect URLs from the proxy URL.
 	clone := *rd.proxyURL
 	clone.Path = LoginFailedRedirectURL
 	errorURL := clone.String()
 	clone.Path = LoginSuccessRedirectURL
 	successURL := clone.String()
+	clone.Path = LoginClose
+	closeURL := clone.String()
+	clone.Path = LoginTerminalRedirectURL
+
+	connectorName := rd.ConnectorName
+	if connectorName == "" {
+		connectorName = rd.ConnectorID
+	}
+	query := clone.Query()
+	query.Set("auth", connectorName)
+	clone.RawQuery = query.Encode()
+	terminalRedirectURL := clone.String()
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Allow", "GET, OPTIONS, POST")
@@ -304,12 +329,30 @@ func (rd *Redirector) wrapCallback(fn func(http.ResponseWriter, *http.Request) (
 			case rd.errorC <- err:
 			case <-rd.context.Done():
 			}
-			http.Redirect(w, r, errorURL, http.StatusFound)
-			return
+			redirectURL := errorURL
+			// A second SSO login attempt will be initiated if a key policy requirement was not satisfied.
+			if requiredPolicy, err := keys.ParsePrivateKeyPolicyError(err); err == nil && rd.ProxySupportsKeyPolicyMessage {
+				switch requiredPolicy {
+				case keys.PrivateKeyPolicyHardwareKey, keys.PrivateKeyPolicyHardwareKeyTouch:
+					// No user interaction required.
+					redirectURL = closeURL
+				}
+				http.Redirect(w, r, redirectURL, http.StatusFound)
+				return
+			}
 		}
 		select {
 		case rd.responseC <- response:
-			http.Redirect(w, r, successURL, http.StatusFound)
+			redirectURL := successURL
+			switch rd.PrivateKeyPolicy {
+			case keys.PrivateKeyPolicyHardwareKey:
+				// login should complete without user interaction, success.
+			case keys.PrivateKeyPolicyHardwareKeyTouch:
+				// The user is prompted to touch their hardware key after
+				// this redirect, so display the terminal redirect screen.
+				redirectURL = terminalRedirectURL
+			}
+			http.Redirect(w, r, redirectURL, http.StatusFound)
 		case <-rd.context.Done():
 			http.Redirect(w, r, errorURL, http.StatusFound)
 		}
