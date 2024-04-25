@@ -272,7 +272,6 @@ func (w *WatcherResponseWriter) watchDecoder(contentType string, writer io.Write
 				}
 			case <-w.closeChan:
 				return nil
-
 			}
 		}
 	})

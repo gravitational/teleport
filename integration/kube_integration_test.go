@@ -1350,7 +1350,7 @@ func testKubeEphemeralContainers(t *testing.T, suite *KubeSuite) {
 	})
 
 	username := suite.me.Username
-	kubeUsers := []string{"alice@example.com"}
+	kubeUsers := []string{username}
 	kubeGroups := []string{kube.TestImpersonationGroup}
 	kubeAccessRole, err := types.NewRole("kubemaster", types.RoleSpecV6{
 		Allow: types.RoleConditions{
@@ -1362,7 +1362,10 @@ func testKubeEphemeralContainers(t *testing.T, suite *KubeSuite) {
 			},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
+					Kind:      types.KindKubePod,
+					Name:      types.Wildcard,
+					Namespace: types.Wildcard,
+					Verbs:     []string{types.Wildcard},
 				},
 			},
 		},
@@ -1414,6 +1417,7 @@ func testKubeEphemeralContainers(t *testing.T, suite *KubeSuite) {
 	proxyClient, kubeConfig, err := kube.ProxyClient(kube.ProxyConfig{
 		T:          teleport,
 		Username:   username,
+		KubeUsers:  kubeUsers,
 		KubeGroups: kubeGroups,
 	})
 	require.NoError(t, err)
@@ -1427,11 +1431,13 @@ func testKubeEphemeralContainers(t *testing.T, suite *KubeSuite) {
 	podJS, err := json.Marshal(pod)
 	require.NoError(t, err)
 
+	// create an ephemeral container and attach to it just like kubectl would
+	contName := "ephemeral-container"
+	sessCreatorTerm := NewTerminal(250)
 	group := &errgroup.Group{}
 	group.Go(func() error {
-		name := "debug-1"
-		cmd := []string{"/bin/sh", "echo", "hello from a debug container"}
-		debugPod, _, err := generateDebugContainer(name, cmd, pod)
+		cmd := []string{"/bin/sh", "echo", "hello from an ephemeral container"}
+		debugPod, _, err := generateDebugContainer(contName, cmd, pod)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1449,7 +1455,7 @@ func testKubeEphemeralContainers(t *testing.T, suite *KubeSuite) {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		_, err = waitForContainer(ctx, podsClient, pod.Name, name)
+		_, err = waitForContainer(ctx, podsClient, pod.Name, contName)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1457,8 +1463,11 @@ func testKubeEphemeralContainers(t *testing.T, suite *KubeSuite) {
 		err = kubeExec(kubeConfig, attachToContainer, kubeExecArgs{
 			podName:      pod.Name,
 			podNamespace: testNamespace,
-			container:    name,
+			container:    contName,
 			command:      cmd,
+			stdout:       sessCreatorTerm,
+			stderr:       sessCreatorTerm,
+			stdin:        sessCreatorTerm,
 			tty:          true,
 		})
 		if err != nil {
@@ -1482,11 +1491,30 @@ func testKubeEphemeralContainers(t *testing.T, suite *KubeSuite) {
 		session = sessions[0]
 	}, 10*time.Second, 100*time.Millisecond)
 
+	// join the created session as a moderator
 	group.Go(func() error {
+		// verify that the ephemeral container hasn't actually been created yet
+		proxyClient, _, err := kube.ProxyClient(kube.ProxyConfig{
+			T:          teleport,
+			Username:   moderatorUser,
+			KubeUsers:  kubeUsers,
+			KubeGroups: kubeGroups,
+		})
+		require.NoError(t, err)
+
+		podsClient := proxyClient.CoreV1().Pods(testNamespace)
+		pod, err := podsClient.Get(ctx, testPod, metav1.GetOptions{})
+		require.NoError(t, err)
+		for _, status := range pod.Status.EphemeralContainerStatuses {
+			if !assert.NotEqual(t, status.Name, contName) {
+				return trace.AlreadyExists("ephemeral container already started")
+			}
+		}
+
 		tc, err := teleport.NewClient(helpers.ClientConfig{
-			Login:   moderatorUser,
-			Cluster: helpers.Site,
-			Host:    Host,
+			TeleportUser: moderatorUser,
+			Cluster:      helpers.Site,
+			Host:         Host,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -1494,15 +1522,16 @@ func testKubeEphemeralContainers(t *testing.T, suite *KubeSuite) {
 
 		stream, err := kubeJoin(kube.ProxyConfig{
 			T:          teleport,
-			Username:   username,
+			Username:   moderatorUser,
 			KubeUsers:  kubeUsers,
 			KubeGroups: kubeGroups,
-		}, tc, session, types.SessionPeerMode)
+		}, tc, session, types.SessionModeratorMode)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		return trace.Wrap(stream.Close())
+		stream.Wait()
+		return trace.Wrap(stream.Detach())
 	})
 
 	require.NoError(t, group.Wait())
