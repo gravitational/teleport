@@ -4497,11 +4497,12 @@ func TestGetWebConfig(t *testing.T) {
 			PrivateKeyPolicy:   keys.PrivateKeyPolicyNone,
 			MOTD:               MOTD,
 		},
-		CanJoinSessions:   true,
-		ProxyClusterName:  env.server.ClusterName(),
-		IsCloud:           false,
-		AssistEnabled:     false,
-		AutomaticUpgrades: false,
+		CanJoinSessions:    true,
+		ProxyClusterName:   env.server.ClusterName(),
+		IsCloud:            false,
+		AssistEnabled:      false,
+		AutomaticUpgrades:  false,
+		JoinActiveSessions: true,
 	}
 
 	// Make a request.
@@ -4551,6 +4552,7 @@ func TestGetWebConfig(t *testing.T) {
 	expectedCfg.AutomaticUpgrades = true
 	expectedCfg.AutomaticUpgradesTargetVersion = "v" + teleport.Version
 	expectedCfg.AssistEnabled = false
+	expectedCfg.JoinActiveSessions = false
 
 	// request and verify enabled features are enabled.
 	re, err = clt.Get(ctx, endpoint, nil)

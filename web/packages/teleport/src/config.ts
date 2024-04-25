@@ -49,8 +49,9 @@ const cfg = {
   // IsUsageBasedBilling determines if the user subscription is usage-based (pay-as-you-go).
   // Historically, this flag used to refer to "Cloud Team" product,
   // but with the new EUB (Enterprise Usage Based) product, it can mean either EUB or Team.
-  // Use the `isTeam` config flag to determine if product used is Team.
-  // EUB can be determined from a combination of existing config flags eg: `isCloud && !isTeam`.
+  // Prefer using feature flags to determine if something should be enabled or not.
+  // If you have no other options, use the `isStripeManaged` config flag to determine if product used is Team.
+  // EUB can be determined from a combination of existing config flags eg: `isUsageBasedBilling && !isStripeManaged`.
   isUsageBasedBilling: false,
   hideInaccessibleFeatures: false,
   customTheme: '',
