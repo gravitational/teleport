@@ -29,10 +29,8 @@ $ curl https://<Var name="teleport.example.com" />/webapi/automaticupgrades/chan
 v15.2.1
 ```
 
-To list the agents that are upgradable, use the `tctl inventory ls` command to list
-the inventory of connected agents. The agents are listed along with their current
-version. Additional flags are available to filter by service `--services=node,kube,db,...`,
-or to filter by version `--older-than=v15.2.1`.
+Use the `tctl inventory ls` command to list connected agents along with their current
+version. Use the `--older-than` flag to list agents that are upgradable.
 
 ```code
 $ tctl inventory ls --older-than=v15.2.1

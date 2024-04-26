@@ -17,9 +17,10 @@ Kubernetes.
 
 ## Step 1/2. Find agents to enroll in automatic updates
 
-To identify the agents that are not enrolled in automatic updates, use the `tctl inventory ls`
-command again. The command accepts an additional `--upgrader=none` flag that can
-be used to filter only the agents that are not enrolled in automatic updates.
+Use the `tctl inventory ls` command to list connected agents along with their current
+version. Use the `--upgrader=none` flag to list agents that are not enrolled in automatic
+updates.
+
 ```code
 $ tctl inventory ls --upgrader=none
 Server ID                            Hostname       Services       Version Upgrader
