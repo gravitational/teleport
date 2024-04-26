@@ -3053,6 +3053,59 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		}
 	}
 
+	appSessionID := req.RouteToApp.SessionID
+	if req.RouteToApp.Name != "" {
+		// Create a new app session using the same cert request. The user certs
+		// generated below will be linked to this session by the session ID.
+		if req.RouteToApp.SessionID == "" {
+			ws, err := a.authServer.CreateAppSessionFromReq(ctx, NewAppSessionRequest{
+				NewWebSessionRequest: NewWebSessionRequest{
+					User:           req.Username,
+					LoginIP:        a.context.Identity.GetIdentity().LoginIP,
+					SessionTTL:     req.Expires.Sub(a.authServer.GetClock().Now()),
+					Traits:         accessInfo.Traits,
+					Roles:          accessInfo.Roles,
+					AccessRequests: req.AccessRequests,
+				},
+				PublicAddr:        req.RouteToApp.PublicAddr,
+				ClusterName:       req.RouteToApp.ClusterName,
+				AWSRoleARN:        req.RouteToApp.AWSRoleARN,
+				AzureIdentity:     req.RouteToApp.AzureIdentity,
+				GCPServiceAccount: req.RouteToApp.GCPServiceAccount,
+				MFAVerified:       verifiedMFADeviceID,
+				DeviceExtensions:  DeviceExtensions(a.context.Identity.GetIdentity().DeviceExtensions),
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			appSessionID = ws.GetName()
+		} else {
+			// TODO (Joerger): DELETE IN 17.0.0
+			// Old clients will pass a session ID of an existing App session instead of a
+			// single GenerateUserCerts call. This is allowed, but ensure new clients cannot
+			// generate certs for MFA verified app sessions without an additional MFA check.
+			ws, err := a.GetAppSession(ctx, types.GetAppSessionRequest{
+				SessionID: req.RouteToApp.SessionID,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			// If the app session is MFA verified and this request is not MFA verified, deny the request.
+			x509Cert, err := tlsca.ParseCertificatePEM(ws.GetTLSCert())
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			wsIdentity, err := tlsca.FromSubject(x509Cert.Subject, x509Cert.NotAfter)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if wsIdentity.IsMFAVerified() && verifiedMFADeviceID == "" {
+				return nil, trace.BadParameter("mfa verification required to sign app certs for mfa-verified session")
+			}
+		}
+	}
+
 	// Generate certificate, note that the roles TTL will be ignored because
 	// the request is coming from "tctl auth sign" itself.
 	certReq := certRequest{
@@ -3069,8 +3122,8 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		dbUser:            req.RouteToDatabase.Username,
 		dbName:            req.RouteToDatabase.Database,
 		dbRoles:           req.RouteToDatabase.Roles,
+		appSessionID:      appSessionID,
 		appName:           req.RouteToApp.Name,
-		appSessionID:      req.RouteToApp.SessionID,
 		appPublicAddr:     req.RouteToApp.PublicAddr,
 		appClusterName:    req.RouteToApp.ClusterName,
 		awsRoleARN:        req.RouteToApp.AWSRoleARN,
@@ -5351,12 +5404,7 @@ func (a *ServerWithRoles) CreateAppSession(ctx context.Context, req *proto.Creat
 		return nil, trace.Wrap(err)
 	}
 
-	uls, err := a.authServer.GetUserOrLoginState(ctx, a.context.User.GetName())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	session, err := a.authServer.CreateAppSession(ctx, req, uls, a.context.Identity.GetIdentity(), a.context.Checker)
+	session, err := a.authServer.CreateAppSession(ctx, req, a.context.Identity.GetIdentity(), a.context.Checker)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

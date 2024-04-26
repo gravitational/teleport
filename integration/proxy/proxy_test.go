@@ -1238,14 +1238,14 @@ func TestALPNSNIProxyAppAccess(t *testing.T) {
 	})
 
 	t.Run("root cluster", func(t *testing.T) {
-		cookies := pack.CreateAppSession(t, pack.RootAppPublicAddr(), pack.RootAppClusterName())
+		cookies := pack.CreateAppSessionCookies(t, pack.RootAppPublicAddr(), pack.RootAppClusterName())
 		status, _, err := pack.MakeRequest(cookies, http.MethodGet, "/")
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, status)
 	})
 
 	t.Run("leaf cluster", func(t *testing.T) {
-		cookies := pack.CreateAppSession(t, pack.LeafAppPublicAddr(), pack.LeafAppClusterName())
+		cookies := pack.CreateAppSessionCookies(t, pack.LeafAppPublicAddr(), pack.LeafAppClusterName())
 		status, _, err := pack.MakeRequest(cookies, http.MethodGet, "/")
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, status)
