@@ -245,9 +245,9 @@ func (h *Handler) appForPublicEndpoint(ctx context.Context, publicAddr string) (
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	publicAddressMatcher := MatchPublicAddr(publicAddr)
+	publicAddressMatches := MatchPublicAddr(publicAddr)
 	for _, a := range allAppServers {
-		if publicAddressMatcher(ctx, a) {
+		if publicAddressMatches(ctx, a) {
 			return a.GetApp(), nil
 		}
 	}
