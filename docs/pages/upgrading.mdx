@@ -15,20 +15,21 @@ Before starting one of the following guides, please read the [Upgrading Compatib
 to understand how to upgrade components in your Teleport cluster while ensuring ensuring
 compatibility between all components.
 
-The Teleport upgrade process is different for Teleport Cloud and self-hosted deployments.
-Choose the guide that matches your Teleport edition and the platform where you run Teleport
-services:
+The Teleport upgrade process is different for cloud-hosted and self-hosted deployments.
+Choose the guide that matches your Teleport edition and the platform where you run
+Teleport services:
 
-## Teleport Cloud
+## Cloud-hosted deployments:
 
-Automatic updates is the recommended method for updating Teleport Cloud agents.
+Automatic updates is the recommended method for updating Teleport agents.
 
 - [Linux Servers](./upgrading/cloud-linux-automatic.mdx) (automatic updates)
 - [Kubernetes](./upgrading/cloud-kubernetes-automatic.mdx) (automatic updates)
 
 Manual updates are not recommended. If you opt out of automatic updates, you must
 ensure that your Teleport agents are routinely updated, and you must ensure that
-your Teleport agents maintain compatibility with the Teleport Auth and Proxy Services.
+your Teleport agents maintain compatibility with the Teleport Auth Service and Proxy
+Service.
 
 - [Linux Server](./upgrading/cloud-linux.mdx)
 - [Kubernetes](./upgrading/cloud-kubernetes.mdx)

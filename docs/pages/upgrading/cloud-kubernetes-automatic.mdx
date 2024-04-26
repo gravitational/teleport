@@ -1,10 +1,9 @@
 ---
-title: Enable Automatic Updates for Cloud Agents on Kubernetes
-description: Provides instructions for enabling automatic updates for Teleport Cloud agents that run on Kubernetes. 
+title: Enable Automatic Updates for Cloud-Hosted Teleport Agents on Kubernetes
+description: Provides instructions for enabling automatic updates for cloud-hosted Teleport agents that run on Kubernetes.
 ---
 
-This guide explains how to enable Automatic Updates for Teleport Cloud agents on
-Kubernetes.
+This guide explains how to enable Automatic Updates for Teleport agents on Kubernetes.
 
 ## Prerequisites
 
@@ -30,8 +29,8 @@ Server ID                            Hostname       Services       Version Upgra
 ```
 
 Note that the `inventory ls` command will also list `teleport-auth` and `teleport-proxy`
-services. These services are managed by the Teleport Cloud team and updates will
-be performed automatically.
+services. These services are managed by the Teleport team, and updates will be performed
+automatically.
 
 ## Step 2/2. Enroll agents in automatic updates
 
@@ -112,10 +111,10 @@ spec
 ...
 ```
 
-## Automatic updates with Teleport OSS
+## Automatic updates with Teleport Community Edition
 
-Automatic updates is not currently supported with OSS editions of Teleport. Ensure
-that you are using the Teleport Enterprise edition of the `teleport-kube-agent`
+Automatic updates is not currently supported with the community editions of Teleport.
+Ensure that you are using the Teleport Enterprise edition of the `teleport-kube-agent`
 chart. You should see the following when you query your `teleport-kube-agent` release:
 
 ```code

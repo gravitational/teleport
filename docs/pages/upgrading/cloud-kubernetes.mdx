@@ -1,9 +1,9 @@
 ---
-title: Manually Upgrade Teleport Cloud Agents on Kubernetes
-description: Provides instructions for upgrading Teleport Cloud agents that run on Kubernetes. 
+title: Manually Upgrade Cloud-Hosted Teleport Agents on Kubernetes
+description: Provides instructions for upgrading cloud-hosted Teleport agents that run on Kubernetes.
 ---
 
-This guide explains how to upgrade Teleport Cloud agents running on Kubernetes.
+This guide explains how to upgrade Teleport agents running on Kubernetes.
 
 [Automatic updates](./cloud-kubernetes-automatic.mdx) is the recommended update method
 for Teleport agents. If you choose to opt out of automatic updates, you will need
@@ -43,8 +43,8 @@ Server ID                            Hostname       Services       Version Upgra
 ```
 
 Note that the `inventory ls` command will also list `teleport-auth` and `teleport-proxy`
-services. These services are managed by the Teleport Cloud team and updates will
-be performed automatically.
+services. These services are managed by the Teleport team, and updates will be performed
+automatically.
 
 ## Step 2/2. Perform manual updates
 
