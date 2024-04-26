@@ -4,7 +4,8 @@ method. Instead of using a shared secret, the unique identity of the host's
 Trusted Platform Module (TPM) and public key cryptography is used to
 authenticate the host.
 
-This is the most secure way of joining on-prem hosts to a Teleport cluster.
+In environments where there is no other form of identity available to machines,
+e.g on-prem, this is the most secure method for joining.
 
 A Trusted Platform Module (TPM) is a secure, physical, cryptoprocessor that is
 installed on a host. TPMs can store cryptographic material and perform a number
