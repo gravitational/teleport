@@ -35,6 +35,9 @@ import (
 type tcpAppHandler struct {
 	tc  *client.TeleportClient
 	app types.Application
+	// middleware is optional, it is used when the outside world wants to know
+	// about new connections.
+	middleware Middleware
 }
 
 func (h *tcpAppHandler) handleTCP(ctx context.Context, connector tcpConnector) error {
@@ -51,16 +54,22 @@ func (h *tcpAppHandler) handleTCP(ctx context.Context, connector tcpConnector) e
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	if h.middleware != nil {
+		h.middleware.OnNewConnection(ctx, h.tc, h.app)
+	}
+
 	return trace.Wrap(utils.ProxyConn(ctx, conn, appConn))
 }
 
-func newAppHandler(tc *client.TeleportClient, app types.Application) (tcpHandler, error) {
+func newAppHandler(tc *client.TeleportClient, middleware Middleware, app types.Application) (tcpHandler, error) {
 	if !app.IsTCP() {
 		return nil, trace.BadParameter("only TCP apps are supported")
 	}
 	return &tcpAppHandler{
-		tc:  tc,
-		app: app,
+		tc:         tc,
+		app:        app,
+		middleware: middleware,
 	}, nil
 }
 

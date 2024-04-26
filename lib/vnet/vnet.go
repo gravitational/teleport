@@ -115,7 +115,16 @@ type Config struct {
 	TUNDevice      tun.Device
 	DNSAddress     tcpip.Address
 	IPv6Prefix     tcpip.Address
+	Middleware     Middleware
 	customDNSZones []string
+}
+
+// Middleware lets outside callsites plug into some of the actions happening within VNet.
+type Middleware interface {
+	// OnNewConnection gets triggered whenever a new connection is established through VNet.
+	// It is called only after the app was successfully dialed and VNet is about to proxy the
+	// connection from the client to the app.
+	OnNewConnection(ctx context.Context, tc *client.TeleportClient, app types.Application)
 }
 
 // CheckAndSetDefaults checks the config and sets defaults.
@@ -160,6 +169,7 @@ func newState() state {
 type Manager struct {
 	tc            *client.TeleportClient
 	tun           tun.Device
+	middleware    Middleware
 	dnsAddress    tcpip.Address
 	stack         *stack.Stack
 	rootCtx       context.Context
@@ -187,6 +197,7 @@ func NewManager(ctx context.Context, cfg *Config) (*Manager, error) {
 	m := &Manager{
 		tc:                   cfg.Client,
 		tun:                  cfg.TUNDevice,
+		middleware:           cfg.Middleware,
 		dnsAddress:           cfg.DNSAddress,
 		stack:                stack,
 		rootCtx:              ctx,
@@ -393,7 +404,7 @@ func (m *Manager) apiClient(ctx context.Context, profileName string) (*apiclient
 }
 
 func (m *Manager) assignIPsToApp(fqdn string, app types.Application) (ipv4 tcpip.Address, ipv6 tcpip.Address, err error) {
-	appHandler, err := newAppHandler(m.tc, app)
+	appHandler, err := newAppHandler(m.tc, m.middleware, app)
 	if err != nil {
 		return ipv4, ipv6, trace.Wrap(err)
 	}
