@@ -21,10 +21,10 @@ syntax = "proto3";
 package accessgraph.v1alpha;
 
 import "accessgraph/v1alpha/aws.proto";
+import "accessgraph/v1alpha/events.proto";
 import "accessgraph/v1alpha/gitlab.proto";
 import "accessgraph/v1alpha/graph.proto";
 import "accessgraph/v1alpha/resources.proto";
-import "teleport/legacy/types/events/events.proto";
 
 option go_package = "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha;accessgraphv1alpha";
 
@@ -182,7 +182,7 @@ message EventsStreamV2Response {
 message AuditEvent {
   oneof event {
     // access_path_changed is an event that should be logged when the access path changes.
-    events.AccessPathChanged access_path_changed = 1;
+    AccessPathChanged access_path_changed = 1;
   }
 }
 
