@@ -33,6 +33,10 @@ cluster. If you have a large number of hosts, it may make sense to use
 automation tooling such as ansible to query the TPMs across your fleet and then
 generate join tokens.
 
+<Admonition type="warning">
+The `tpm` join method is currently not compatible with FIPS 140-2 compliance.
+</Admonition>
+
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
