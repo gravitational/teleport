@@ -3,12 +3,12 @@ title: Database Access AWS IAM Reference
 description: AWS IAM policies for Teleport database access.
 ---
 
-Teleport Database Service requires IAM permissions for various tasks depending
-on the database type and setup, such as discovering endpoints and metadata of
-the database servers, generating IAM authentication tokens, and assuming IAM
-roles.
+The Teleport Database Service requires IAM permissions for various tasks
+depending on the database type and setup, such as discovering endpoints and
+metadata of the database servers, generating IAM authentication tokens, and
+assuming IAM roles.
 
-You can generate the IAM permissions with the [`teleport db configure aws
+You can generate IAM permissions with the [`teleport db configure aws
 print-iam`](../../database-access/reference/cli.mdx#teleport-db-configure--awsprint-iam)
 command. For example, the following command would generate and print the IAM
 policies:
@@ -17,8 +17,7 @@ policies:
 $ teleport db configure aws print-iam --types rds,redshift --role db-service-role
 ```
 
-To learn more about a specific database, please refer to the related section
-below.
+To learn more about a specific database, refer to the related section below.
 
 ## RDS
 
@@ -54,14 +53,14 @@ performs auto-discovery:
 
 ### RDS Access
 
-Teleport Database Service can automatically manage IAM policies of the attached
-IAM identity for RDS access. To use this feature, Teleport requires
+The Teleport Database Service can automatically manage IAM policies of the
+attached IAM identity for RDS access. To use this feature, Teleport requires
 `iam:PutRolePolicy` or `iam:PutUserPolicy` permissions to grant itself
 necessary IAM permissions for each registered database.
 
-If you prefer to manage IAM identities manually, please refer to the [manage
-IAM identities yourself](#manage-iam-identities-yourself-for-rds-access)
-section which outlines the required IAM permissions.
+If you prefer to manage IAM identities manually, refer to the [manage IAM
+identities yourself](#manage-iam-identities-yourself-for-rds-access) section
+which outlines the required IAM permissions.
 
 #### Teleport-managed IAM identities for RDS access
 
@@ -282,17 +281,17 @@ guide](../guides/postgres-redshift.mdx#step-36-create-an-iam-role-for-user-acces
 Teleport supports IAM authentication as either an existing database user or an IAM
 role for Redshift.
 
-When authenticating as an existing database user, Teleport Database Service can
-automatically manage IAM policies of the attached IAM identity for Redshift
+When authenticating as an existing database user, the Teleport Database Service
+can automatically manage IAM policies of the attached IAM identity for Redshift
 access. To use this feature, Teleport requires `iam:PutRolePolicy` or
 `iam:PutUserPolicy` permissions to grant itself neccessary IAM permissions for
 each registered database. If you prefer to manage IAM identities manually,
-please refer to the [manage IAM identities
+refer to the [manage IAM identities
 yourself](#manage-iam-identities-yourself-for-redshift-access) section which
 outlines the required IAM permissions.
 
-When authenticating as an IAM role, please use the IAM permissions outlined in
-the [IAM authentication as IAM
+When authenticating as an IAM role, use the IAM permissions outlined in the
+[IAM authentication as IAM
 role](#iam-authentication-as-iam-role-for-redshift-access) section.
 
 #### Teleport-managed IAM identities for Redshift access
@@ -460,8 +459,8 @@ for more information.
 
 ### IAM authentication as IAM role for Redshift access
 
-When authenticating Redshift as an IAM role, Teleport Database Service must be
-able to assume this IAM role.
+When authenticating Redshift as an IAM role, the Teleport Database Service must
+be able to assume this IAM role.
 
 (!docs/pages/includes/database-access/iam_role_trust_relationship.mdx role1="db-service-role" role2="redshift-access-role"!)
 
@@ -523,8 +522,8 @@ performs auto-discovery:
 
 ### Redshift Serverless Access
 
-Redshift Serverless maps IAM roles to database users. Teleport Database Service
-must be able to assume these "access" IAM roles which are granted IAM
+Redshift Serverless maps IAM roles to database users. The Teleport Database
+Service must be able to assume these "access" IAM roles which are granted IAM
 permissions to generate IAM authentication tokens.
 
 (!docs/pages/includes/database-access/iam_role_trust_relationship.mdx role1="db-service-role" role2="redshift-serverless-access-role"!)
@@ -620,12 +619,12 @@ performs auto-discovery:
 ### ElastiCache/MemoryDB Access
 
 ElastiCache and MemoryDB supports IAM authentication for Redis engine version
-7.0 or above. Teleport Database Service can automatically manage IAM policies
-of the attached IAM identity for ElastiCache and MemoryDB that use IAM
+7.0 or above. The Teleport Database Service can automatically manage IAM
+policies of the attached IAM identity for ElastiCache and MemoryDB that use IAM
 authentication. To use this feature, Teleport requires `iam:PutRolePolicy` or
 `iam:PutUserPolicy` permissions to grant itself neccessary IAM permissions for
 each registered database. If you prefer to manage IAM identities on your own,
-please refer to the [manage IAM identities
+refer to the [manage IAM identities
 yourself](#manage-iam-identities-yourself-for-elasticachememorydb-access)
 section which outlines the required IAM permissions.
 
@@ -994,7 +993,7 @@ Database Service to gather information about the registered OpenSearch domains:
 Note that auto-discovery is not available for DynamoDB.
 
 DynamoDB access is provided by IAM roles with corresponding DynamoDB-related
-IAM permissions. Teleport Database Service must be able to assume these
+IAM permissions. The Teleport Database Service must be able to assume these
 "access" IAM roles.
 
 (!docs/pages/includes/database-access/iam_role_trust_relationship.mdx role1="db-service-role" role2="dynamodb-access-role"!)
@@ -1027,7 +1026,7 @@ also required:
 Note that auto-discovery is not available for Keyspaces.
 
 Keyspaces access is provided by IAM roles with corresponding Keyspaces-related
-IAM permissions. Teleport Database Service must be able to assume these
+IAM permissions. The Teleport Database Service must be able to assume these
 "access" IAM roles.
 
 (!docs/pages/includes/database-access/iam_role_trust_relationship.mdx role1="db-service-role" role2="keyspaces-access-role"!)
