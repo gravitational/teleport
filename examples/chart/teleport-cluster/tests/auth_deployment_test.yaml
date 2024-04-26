@@ -126,6 +126,35 @@ tests:
       - matchSnapshot:
           path: spec.template.spec
 
+  - it: should set podSecurityContext when set in values
+    template: auth/deployment.yaml
+    values:
+      - ../.lint/pod-security-context.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 99
+      - equal:
+          path: spec.template.spec.securityContext.fsGroupChangePolicy
+          value: OnRootMismatch
+      - equal:
+          path: spec.template.spec.securityContext.runAsGroup
+          value: 99
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 99
+
+  - it: should not set podSecurityContext when is empty object (default value)
+    template: auth/deployment.yaml
+    values:
+      - ../.lint/pod-security-context-empty.yaml
+    asserts:
+      - isNull:
+          path: spec.template.spec.securityContext
+
   - it: should set securityContext when set in values
     template: auth/deployment.yaml
     values:
