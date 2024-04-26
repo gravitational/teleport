@@ -56,7 +56,7 @@ func Run(ctx context.Context) error {
 func AdminSubcommand(ctx context.Context, socketPath, ipv6Prefix string) error {
 	tun, tunName, err := createAndSetupTUNDeviceAsRoot(ctx, ipv6Prefix)
 	if err != nil {
-		return trace.Wrap(err, "doing admin setup")
+		return trace.Wrap(err, "performing admin setup")
 	}
 	if err := sendTUNNameAndFd(socketPath, tunName, tun.File().Fd()); err != nil {
 		return trace.Wrap(err)
