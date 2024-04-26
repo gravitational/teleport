@@ -40,7 +40,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
-	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -303,9 +302,10 @@ func (p *Pack) GenerateAndSetupUserCreds(t *testing.T, tc *client.TeleportClient
 	require.NoError(t, err)
 }
 
-// CreateAppSession creates an application session with the root cluster. The
-// application that the user connects to may be running in a leaf cluster.
-func (p *Pack) CreateAppSession(t *testing.T, publicAddr, clusterName string) []*http.Cookie {
+// CreateAppSessionCookies creates an application session with the root cluster through the web
+// API and returns the app session cookies. The application that the user connects to may be
+// running in a leaf cluster.
+func (p *Pack) CreateAppSessionCookies(t *testing.T, publicAddr, clusterName string) []*http.Cookie {
 	require.NotEmpty(t, p.webCookie)
 	require.NotEmpty(t, p.webToken)
 
@@ -341,14 +341,30 @@ func (p *Pack) CreateAppSession(t *testing.T, publicAddr, clusterName string) []
 // cluster and returns the client cert that can be used for an application
 // request.
 func (p *Pack) CreateAppSessionWithClientCert(t *testing.T) []tls.Certificate {
-	session, err := p.tc.CreateAppSession(context.Background(), &proto.CreateAppSessionRequest{
-		Username:    p.username,
-		PublicAddr:  p.rootAppPublicAddr,
-		ClusterName: p.rootAppClusterName,
-	})
-	require.NoError(t, err)
+	session := p.CreateAppSession(t, p.username, p.rootAppClusterName, p.rootAppPublicAddr)
 	config := p.makeTLSConfig(t, session.GetName(), session.GetUser(), p.rootAppPublicAddr, p.rootAppClusterName, "")
 	return config.Certificates
+}
+
+func (p *Pack) CreateAppSession(t *testing.T, username, clusterName, appPublicAddr string) types.WebSession {
+	ctx := context.Background()
+	userState, err := p.rootCluster.Process.GetAuthServer().GetUserOrLoginState(ctx, username)
+	require.NoError(t, err)
+	accessInfo := services.AccessInfoFromUserState(userState)
+
+	ws, err := p.rootCluster.Process.GetAuthServer().CreateAppSessionFromReq(ctx, auth.NewAppSessionRequest{
+		NewWebSessionRequest: auth.NewWebSessionRequest{
+			User:       username,
+			Roles:      accessInfo.Roles,
+			Traits:     accessInfo.Traits,
+			SessionTTL: time.Hour,
+		},
+		PublicAddr:  appPublicAddr,
+		ClusterName: clusterName,
+	})
+	require.NoError(t, err)
+
+	return ws
 }
 
 // LockUser will lock the configured user for this pack.

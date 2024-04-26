@@ -22,6 +22,7 @@
 package botfs
 
 import (
+	"context"
 	"errors"
 	"io"
 	"io/fs"
@@ -101,7 +102,11 @@ func openSymlinksMode(path string, mode OpenMode, symlinksMode SymlinksMode) (*o
 		file, err = openSecure(path, mode)
 		if errors.Is(err, unix.ENOSYS) {
 			missingSyscallWarning.Do(func() {
-				log.Warnf("Failed to open file securely due to missing syscall; falling back to regular file handling. Configure `symlinks: insecure` for %q to disable this warning.", path)
+				log.DebugContext(
+					context.TODO(),
+					"Failed to open file securely due to missing syscall; falling back to regular file handling. Configure `symlinks: insecure` to disable this warning",
+					"path", path,
+				)
 			})
 
 			file, err = openStandard(path, mode)
@@ -148,7 +153,12 @@ func createSecure(path string, isDir bool) error {
 
 	// No writing to do, just close it.
 	if err := f.Close(); err != nil {
-		log.Warnf("Failed to close file at %q: %+v", path, err)
+		log.WarnContext(
+			context.TODO(),
+			"Failed to close file",
+			"path", path,
+			"error", err,
+		)
 	}
 
 	return nil
@@ -187,7 +197,11 @@ func Create(path string, isDir bool, symlinksMode SymlinksMode) error {
 		// It's a bit gross to stuff this sync.Once into a global, but
 		// hopefully that's forgivable since it just manages a log message.
 		missingSyscallWarning.Do(func() {
-			log.Warnf("Failed to create file securely due to missing syscall; falling back to regular file handling. Configure `symlinks: insecure` for %q to disable this warning.", path)
+			log.WarnContext(
+				context.TODO(),
+				"Failed to create file securely due to missing syscall; falling back to regular file handling. Configure `symlinks: insecure` to disable this warning",
+				"path", path,
+			)
 		})
 
 		return trace.Wrap(createStandard(path, isDir))
@@ -354,10 +368,11 @@ func VerifyACL(path string, opts *ACLOptions) error {
 func ConfigureACL(path string, owner *user.User, opts *ACLOptions) error {
 	if owner.Uid == opts.BotUser.Uid && owner.Uid == opts.ReaderUser.Uid {
 		// We'll end up with an empty ACL. This isn't technically a problem
-		log.Warnf("The owner, bot, and reader all appear to be the same "+
-			"user (%+v). This is an unusual configuration: consider setting "+
-			"`acls: off` in the destination config to remove this warning.",
-			owner.Username)
+		log.WarnContext(
+			context.TODO(),
+			"The owner, bot, and reader all appear to be the same user. This is an unusual configuration: consider setting `acls: off` in the destination config to remove this warning",
+			"username", owner.Username,
+		)
 	}
 
 	// We fully specify the ACL here to ensure the correct permissions are
@@ -420,7 +435,12 @@ func ConfigureACL(path string, owner *user.User, opts *ACLOptions) error {
 	// the files being writable to the reader is (maybe arguably) not a
 	// security issue.
 
-	log.Debugf("Configuring ACL on path %q: %v", path, desiredACL)
+	log.DebugContext(
+		context.TODO(),
+		"Configuring ACL on path",
+		"path", path,
+		"acl", desiredACL,
+	)
 	return trace.ConvertSystemError(trace.Wrap(acl.Set(path, desiredACL)))
 }
 
@@ -441,7 +461,11 @@ func HasSecureWriteSupport() bool {
 	minKernel := semver.New(Openat2MinKernel)
 	version, err := utils.KernelVersion()
 	if err != nil {
-		log.WithError(err).Info("Failed to determine kernel version. It will be assumed secure write support is not available.")
+		log.InfoContext(
+			context.TODO(),
+			"Failed to determine kernel version. It will be assumed secure write support is not available",
+			"error", err,
+		)
 		return false
 	}
 	if version.LessThan(*minKernel) {

@@ -20,11 +20,11 @@ package tbot
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -139,10 +139,11 @@ func Test_filterCAEvent(t *testing.T) {
 		},
 	}
 
-	log := utils.NewLoggerForTests()
+	ctx := context.Background()
+	log := utils.NewSlogLoggerForTests()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ignoreReason := filterCAEvent(log, tt.event, clusterName)
+			ignoreReason := filterCAEvent(ctx, log, tt.event, clusterName)
 			require.Equal(t, tt.expectedIgnoreReason, ignoreReason)
 		})
 	}
@@ -180,10 +181,10 @@ func TestChannelBroadcaster(t *testing.T) {
 }
 
 func rotate( //nolint:unused // used in skipped test
-	ctx context.Context, t *testing.T, log logrus.FieldLogger, svc *service.TeleportProcess, phase string,
+	ctx context.Context, t *testing.T, log *slog.Logger, svc *service.TeleportProcess, phase string,
 ) {
 	t.Helper()
-	log.Infof("Triggering rotation: %s", phase)
+	log.InfoContext(ctx, "Triggering rotation", "phase", phase)
 	err := svc.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 		// only rotate Host CA as to avoid race condition serverside when
 		// multiple CAs are rotated at once and the database closes off.
@@ -192,20 +193,30 @@ func rotate( //nolint:unused // used in skipped test
 		TargetPhase: phase,
 	})
 	if err != nil {
-		log.WithError(err).Infof("Error occurred during triggering rotation: %s", phase)
+		log.InfoContext(
+			ctx,
+			"Error occurred during triggering rotation",
+			"phase", phase,
+			"error", err,
+		)
 	}
 	require.NoError(t, err)
-	log.Infof("Triggered rotation: %s", phase)
+	log.InfoContext(ctx, "Triggered rotation: %s", "phase", phase)
 }
 
-func setupServerForCARotationTest(ctx context.Context, log utils.Logger, t *testing.T, wg *sync.WaitGroup, //nolint:unused // used in skipped test
+func setupServerForCARotationTest(
+	ctx context.Context,
+	log *slog.Logger,
+	t *testing.T,
+	wg *sync.WaitGroup,
+	//nolint:unused // used in skipped test
 ) (*auth.Client, func() *service.TeleportProcess, *config.FileConfig) {
 	fc, fds := testhelpers.DefaultConfig(t)
 
 	cfg := servicecfg.MakeDefaultConfig()
 	require.NoError(t, config.ApplyFileConfig(fc, cfg))
 	cfg.FileDescriptors = fds
-	cfg.Log = log
+	cfg.Logger = log
 	cfg.CachePolicy.Enabled = false
 	cfg.Proxy.DisableWebInterface = true
 	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
@@ -257,7 +268,7 @@ func setupServerForCARotationTest(ctx context.Context, log utils.Logger, t *test
 		}
 	}()
 
-	return testhelpers.MakeDefaultAuthClient(t, log, fc), func() *service.TeleportProcess {
+	return testhelpers.MakeDefaultAuthClient(t, fc), func() *service.TeleportProcess {
 		activeSvcMu.Lock()
 		defer activeSvcMu.Unlock()
 		return activeSvc
@@ -277,11 +288,11 @@ func TestBot_Run_CARotation(t *testing.T) {
 
 	// wg and context manage the cancellation of long running processes e.g
 	// teleport and tbot in the test.
-	log := utils.NewLoggerForTests()
+	log := utils.NewSlogLoggerForTests()
 	wg := &sync.WaitGroup{}
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(func() {
-		log.Infof("Shutting down long running test processes..")
+		log.InfoContext(ctx, "Shutting down long running test processes..")
 		cancel()
 		wg.Wait()
 	})

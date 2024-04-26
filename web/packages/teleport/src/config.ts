@@ -119,6 +119,7 @@ const cfg = {
     accountMfaDevices: '/web/account/twofactor',
     roles: '/web/roles',
     deviceTrust: `/web/devices`,
+    deviceTrustAuthorize: '/web/device/authorize/:id?/:token?',
     sso: '/web/sso',
     cluster: '/web/cluster/:clusterId/',
     clusters: '/web/clusters',
@@ -141,6 +142,8 @@ const cfg = {
     player: '/web/cluster/:clusterId/session/:sid', // ?recordingType=ssh|desktop|k8s&durationMs=1234
     login: '/web/login',
     loginSuccess: '/web/msg/info/login_success',
+    loginTerminalRedirect: '/web/msg/info/login_terminal',
+    loginClose: '/web/msg/info/login_close',
     loginErrorLegacy: '/web/msg/error/login_failed',
     loginError: '/web/msg/error/login',
     loginErrorCallback: '/web/msg/error/login/callback',
@@ -422,6 +425,10 @@ const cfg = {
 
   getAuthType() {
     return cfg.auth.authType;
+  },
+
+  getDeviceTrustAuthorizeRoute(id: string, token: string) {
+    return generatePath(cfg.routes.deviceTrustAuthorize, { id, token });
   },
 
   getSsoUrl(providerUrl, providerName, redirect) {

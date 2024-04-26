@@ -46,6 +46,18 @@ export default function useLogin() {
     setShowMotd(false);
   }
 
+  // onSuccess can receive a device webtoken. If so, it will
+  // enable a prompt to allow users to authorize the current
+  function onSuccess({ deviceWebToken }: LoginResponse) {
+    // deviceWebToken will only exist on a login response
+    // from enterprise but just in case there is a version mismatch
+    // between the webclient and proxy
+    if (deviceWebToken && cfg.isEnterprise) {
+      return authorizeWithDeviceTrust(deviceWebToken);
+    }
+    return loginSuccess();
+  }
+
   useEffect(() => {
     if (session.isValid()) {
       history.replace(cfg.routes.root);
@@ -100,7 +112,21 @@ export default function useLogin() {
   };
 }
 
-function onSuccess() {
+type DeviceWebToken = {
+  id: string;
+  token: string;
+};
+
+type LoginResponse = {
+  deviceWebToken?: DeviceWebToken;
+};
+
+function authorizeWithDeviceTrust(token: DeviceWebToken) {
+  const authorize = cfg.getDeviceTrustAuthorizeRoute(token.id, token.token);
+  history.push(authorize, true);
+}
+
+function loginSuccess() {
   const redirect = getEntryRoute();
   const withPageRefresh = true;
   history.push(redirect, withPageRefresh);

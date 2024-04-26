@@ -38,6 +38,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
@@ -93,7 +94,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/agentconn"
-	"github.com/gravitational/teleport/lib/utils/proxy"
 )
 
 const (
@@ -2493,35 +2493,6 @@ func (tc *TeleportClient) ListApps(ctx context.Context, customFilter *proto.List
 	return types.DeduplicateApps(apps), nil
 }
 
-// CreateAppSession creates a new application access session.
-func (tc *TeleportClient) CreateAppSession(ctx context.Context, req *proto.CreateAppSessionRequest) (types.WebSession, error) {
-	ctx, span := tc.Tracer.Start(
-		ctx,
-		"teleportClient/CreateAppSession",
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-	)
-	defer span.End()
-
-	clusterClient, err := tc.ConnectToCluster(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer clusterClient.Close()
-
-	rootAuthClient, err := clusterClient.ConnectToRootCluster(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rootAuthClient.Close()
-
-	ws, err := rootAuthClient.CreateAppSession(ctx, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return ws, nil
-}
-
 // DeleteAppSession removes the specified application access session.
 func (tc *TeleportClient) DeleteAppSession(ctx context.Context, sessionID string) error {
 	ctx, span := tc.Tracer.Start(
@@ -2997,156 +2968,6 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 	}, nil
 }
 
-// ConnectToProxy will dial to the proxy server and return a ProxyClient when
-// successful. If the passed in context is canceled, this function will return
-// a trace.ConnectionProblem right away.
-//
-// Deprecated: Use ConnectToCluster instead, it connects to the cluster via
-// gRPC instead of SSH to reduce latency.
-func (tc *TeleportClient) ConnectToProxy(ctx context.Context) (*ProxyClient, error) {
-	ctx, span := tc.Tracer.Start(
-		ctx,
-		"teleportClient/ConnectToProxy",
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-		oteltrace.WithAttributes(
-			attribute.String("proxy_web", tc.Config.WebProxyAddr),
-			attribute.String("proxy_ssh", tc.Config.SSHProxyAddr),
-		),
-	)
-	defer span.End()
-
-	type result struct {
-		proxyClient *ProxyClient
-		err         error
-	}
-	done := make(chan result)
-
-	// Use connectContext and the cancel function to signal when a response is
-	// returned from connectToProxy.
-	connectContext, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	go func() {
-		proxyClient, err := tc.connectToProxy(connectContext)
-		done <- result{proxyClient, err}
-	}()
-
-	select {
-	// connectToProxy returned a result, return that back to the caller.
-	case r := <-done:
-		return r.proxyClient, trace.Wrap(formatConnectToProxyErr(r.err))
-	// The passed in context timed out. This is often due to the network being
-	// down and the user hitting Ctrl-C.
-	case <-ctx.Done():
-		return nil, trace.ConnectionProblem(ctx.Err(), "connection canceled")
-	}
-}
-
-// connectToProxy will dial to the proxy server and return a ProxyClient when
-// successful.
-func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, error) {
-	cfg, err := tc.generateClientConfig(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	sshClient, err := makeProxySSHClient(ctx, tc, cfg.ClientConfig)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	pc := &ProxyClient{
-		teleportClient:  tc,
-		Client:          sshClient,
-		proxyAddress:    cfg.proxyAddress,
-		proxyPrincipal:  cfg.User,
-		hostKeyCallback: cfg.HostKeyCallback,
-		authMethods:     cfg.Auth,
-		hostLogin:       tc.HostLogin,
-		siteName:        cfg.clusterName(),
-		clientAddr:      tc.ClientAddr,
-		Tracer:          tc.Tracer,
-	}
-
-	// Create the auth.ClientI for the local auth server
-	// once per ProxyClient. This is an inexpensive
-	// operation since the actual dialing of the auth
-	// server is lazy - meaning it won't happen until the
-	// first use of the auth.ClientI. By establishing
-	// the auth.ClientI here we can ensure that any connections
-	// to the local cluster will end up reusing this auth.ClientI
-	// for the lifespan of the ProxyClient.
-	clt, err := pc.ConnectToCluster(ctx, pc.siteName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	pc.currentCluster = clt
-
-	return pc, nil
-}
-
-// confirmSSHConnectivityErrorMsg returns the error message for Proxy SSH
-// connectivity errors.
-func confirmSSHConnectivityErrorMsg(proxyAddress string) string {
-	return fmt.Sprintf("Unable to connect to ssh proxy at %v. "+
-		"Confirm connectivity and availability.", proxyAddress)
-}
-
-// makeProxySSHClient creates an SSH client by following steps:
-//  1. If the current proxy supports TLS Routing and JumpHost address was not provided use TLSWrapper.
-//  2. Check JumpHost raw SSH port or Teleport proxy address.
-//     In case of proxy web address check if the proxy supports TLS Routing and connect to the proxy with TLSWrapper
-//  3. Dial sshProxyAddr with raw SSH Dialer where sshProxyAddress is proxy ssh address or JumpHost address if
-//     JumpHost address was provided.
-func makeProxySSHClient(ctx context.Context, tc *TeleportClient, sshConfig *ssh.ClientConfig) (*tracessh.Client, error) {
-	// Use TLS Routing dialer only if proxy support TLS Routing and JumpHost was not set.
-	if tc.Config.TLSRoutingEnabled && len(tc.JumpHosts) == 0 {
-		log.Infof("Connecting to proxy=%v login=%q using TLS Routing", tc.Config.WebProxyAddr, sshConfig.User)
-		c, err := makeProxySSHClientWithTLSWrapper(ctx, tc, sshConfig, tc.Config.WebProxyAddr)
-		if err != nil {
-			return nil, trace.Wrap(err, confirmSSHConnectivityErrorMsg(tc.Config.WebProxyAddr))
-		}
-		log.Infof("Successful auth with proxy %v.", tc.Config.WebProxyAddr)
-		return c, nil
-	}
-
-	sshProxyAddr := tc.Config.SSHProxyAddr
-
-	// Handle situation where a Jump Host was set to proxy web address and Teleport supports TLS Routing.
-	if len(tc.JumpHosts) > 0 {
-		sshProxyAddr = tc.JumpHosts[0].Addr.Addr
-		// Check if JumpHost address is a proxy web address.
-		resp, err := webclient.Find(&webclient.Config{
-			Context:      ctx,
-			ProxyAddr:    sshProxyAddr,
-			Insecure:     tc.InsecureSkipVerify,
-			ExtraHeaders: tc.ExtraProxyHeaders,
-		})
-		// If JumpHost address is a proxy web port and proxy supports TLSRouting dial proxy with TLSWrapper.
-		if err == nil && resp.Proxy.TLSRoutingEnabled {
-			log.Infof("Connecting to proxy=%v login=%q using TLS Routing JumpHost", sshProxyAddr, sshConfig.User)
-			c, err := makeProxySSHClientWithTLSWrapper(ctx, tc, sshConfig, sshProxyAddr)
-			if err != nil {
-				return nil, trace.Wrap(err, confirmSSHConnectivityErrorMsg(tc.Config.WebProxyAddr))
-			}
-			log.Infof("Successful auth with proxy %v.", sshProxyAddr)
-			return c, nil
-		}
-	}
-
-	log.Infof("Connecting to proxy=%v login=%q", sshProxyAddr, sshConfig.User)
-	client, err := makeProxySSHClientDirect(ctx, tc, sshConfig, sshProxyAddr)
-	if err != nil {
-		if utils.IsHandshakeFailedError(err) {
-			return nil, trace.AccessDenied(confirmSSHConnectivityErrorMsg(sshProxyAddr)+" Error: %v", err)
-		}
-		return nil, trace.Wrap(err, confirmSSHConnectivityErrorMsg(sshProxyAddr))
-	}
-	log.Infof("Successful auth with proxy %v.", sshProxyAddr)
-	return client, nil
-}
-
 // CreatePROXYHeaderGetter returns PROXY headers signer with embedded client source/destination IP addresses,
 // which are taken from the context.
 func CreatePROXYHeaderGetter(ctx context.Context, proxySigner multiplexer.PROXYHeaderSigner) client.PROXYHeaderGetter {
@@ -3162,29 +2983,6 @@ func CreatePROXYHeaderGetter(ctx context.Context, proxySigner multiplexer.PROXYH
 	}
 
 	return nil
-}
-
-func makeProxySSHClientDirect(ctx context.Context, tc *TeleportClient, sshConfig *ssh.ClientConfig, proxyAddr string) (*tracessh.Client, error) {
-	dialer := proxy.DialerFromEnvironment(tc.Config.SSHProxyAddr, proxy.WithPROXYHeaderGetter(CreatePROXYHeaderGetter(ctx, tc.PROXYSigner)))
-	return dialer.Dial(ctx, "tcp", proxyAddr, sshConfig)
-}
-
-func makeProxySSHClientWithTLSWrapper(ctx context.Context, tc *TeleportClient, sshConfig *ssh.ClientConfig, proxyAddr string) (*tracessh.Client, error) {
-	tlsConfig, err := tc.LoadTLSConfig()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	headerGetter := CreatePROXYHeaderGetter(ctx, tc.PROXYSigner)
-
-	tlsConfig.NextProtos = []string{string(alpncommon.ProtocolProxySSH)}
-	dialer := proxy.DialerFromEnvironment(tc.Config.WebProxyAddr, proxy.WithALPNDialer(client.ALPNDialerConfig{
-		TLSConfig:               tlsConfig,
-		ALPNConnUpgradeRequired: tc.TLSRoutingConnUpgradeRequired,
-		DialTimeout:             sshConfig.Timeout,
-		PROXYHeaderGetter:       headerGetter,
-	}), proxy.WithPROXYHeaderGetter(headerGetter))
-	return dialer.Dial(ctx, "tcp", proxyAddr, sshConfig)
 }
 
 func (tc *TeleportClient) rootClusterName() (string, error) {
@@ -3623,16 +3421,19 @@ func (tc *TeleportClient) getSSHLoginFunc(pr *webclient.PingResponse) (SSHLoginF
 			return nil, trace.BadParameter("unsupported authentication connector type: %q", pr.Auth.Local.Name)
 		}
 	case constants.OIDC:
+		oidc := pr.Auth.OIDC
 		return func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
-			return tc.ssoLogin(ctx, priv, pr.Auth.OIDC.Name, constants.OIDC)
+			return tc.ssoLogin(ctx, priv, oidc.Name, oidc.Display, constants.OIDC)
 		}, nil
 	case constants.SAML:
+		saml := pr.Auth.SAML
 		return func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
-			return tc.ssoLogin(ctx, priv, pr.Auth.SAML.Name, constants.SAML)
+			return tc.ssoLogin(ctx, priv, saml.Name, saml.Display, constants.SAML)
 		}, nil
 	case constants.Github:
+		github := pr.Auth.Github
 		return func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
-			return tc.ssoLogin(ctx, priv, pr.Auth.Github.Name, constants.Github)
+			return tc.ssoLogin(ctx, priv, github.Name, github.Display, constants.Github)
 		}, nil
 	default:
 		return nil, trace.BadParameter("unsupported authentication type: %q", pr.Auth.Type)
@@ -4105,8 +3906,22 @@ func (tc *TeleportClient) headlessLogin(ctx context.Context, priv *keys.PrivateK
 // SSOLoginFunc is a function used in tests to mock SSO logins.
 type SSOLoginFunc func(ctx context.Context, connectorID string, priv *keys.PrivateKey, protocol string) (*auth.SSHLoginResponse, error)
 
+// TODO(atburke): DELETE in v17.0.0
+func versionSupportsKeyPolicyMessage(proxyVersion *semver.Version) bool {
+	switch proxyVersion.Major {
+	case 15:
+		return !proxyVersion.LessThan(*semver.New("15.2.5"))
+	case 14:
+		return !proxyVersion.LessThan(*semver.New("14.3.17"))
+	case 13:
+		return !proxyVersion.LessThan(*semver.New("13.4.22"))
+	default:
+		return proxyVersion.Major > 15
+	}
+}
+
 // samlLogin opens browser window and uses OIDC or SAML redirect cycle with browser
-func (tc *TeleportClient) ssoLogin(ctx context.Context, priv *keys.PrivateKey, connectorID string, protocol string) (*auth.SSHLoginResponse, error) {
+func (tc *TeleportClient) ssoLogin(ctx context.Context, priv *keys.PrivateKey, connectorID, connectorName, protocol string) (*auth.SSHLoginResponse, error) {
 	if tc.MockSSOLogin != nil {
 		// sso login response is being mocked for testing purposes
 		return tc.MockSSOLogin(ctx, connectorID, priv, protocol)
@@ -4117,14 +3932,23 @@ func (tc *TeleportClient) ssoLogin(ctx context.Context, priv *keys.PrivateKey, c
 		return nil, trace.Wrap(err)
 	}
 
+	pr, err := tc.Ping(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	proxyVersion := semver.New(pr.ServerVersion)
+
 	// ask the CA (via proxy) to sign our public key:
 	response, err := SSHAgentSSOLogin(ctx, SSHLoginSSO{
-		SSHLogin:     sshLogin,
-		ConnectorID:  connectorID,
-		Protocol:     protocol,
-		BindAddr:     tc.BindAddr,
-		CallbackAddr: tc.CallbackAddr,
-		Browser:      tc.Browser,
+		SSHLogin:                      sshLogin,
+		ConnectorID:                   connectorID,
+		ConnectorName:                 connectorName,
+		Protocol:                      protocol,
+		BindAddr:                      tc.BindAddr,
+		CallbackAddr:                  tc.CallbackAddr,
+		Browser:                       tc.Browser,
+		PrivateKeyPolicy:              tc.PrivateKeyPolicy,
+		ProxySupportsKeyPolicyMessage: versionSupportsKeyPolicyMessage(proxyVersion),
 	}, nil)
 	return response, trace.Wrap(err)
 }

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef } from 'react';
 import Popover from 'design/Popover';
 import { Box, StepSlider } from 'design';
 
@@ -26,33 +26,26 @@ import { useAppContext } from 'teleterm/ui/appContextProvider';
 
 import { ConnectionsIcon } from './ConnectionsIcon/ConnectionsIcon';
 import { ConnectionsSliderStep } from './ConnectionsSliderStep';
+import { Step, useConnectionsContext } from './connectionsContext';
 
 export function Connections() {
   const { connectionTracker } = useAppContext();
   connectionTracker.useState();
   const iconRef = useRef();
-  const [isPopoverOpened, setIsPopoverOpened] = useState(false);
+  const { isOpen, toggle, close, stepToOpen } = useConnectionsContext();
   const { status: vnetStatus } = useVnetContext();
   const isAnyConnectionActive =
     connectionTracker.getConnections().some(c => c.connected) ||
     vnetStatus === 'running';
 
-  const togglePopover = useCallback(() => {
-    setIsPopoverOpened(wasOpened => !wasOpened);
-  }, []);
-
   useKeyboardShortcuts(
     useMemo(
       () => ({
-        openConnections: togglePopover,
+        openConnections: toggle,
       }),
-      [togglePopover]
+      [toggle]
     )
   );
-
-  function closeConnectionList(): void {
-    setIsPopoverOpened(false);
-  }
 
   // TODO(ravicious): Investigate the problem with height getting temporarily reduced when switching
   // from a shorter step 1 to a taller step 2, particularly when there's an error rendered in step 2
@@ -67,14 +60,14 @@ export function Connections() {
     <>
       <ConnectionsIcon
         isAnyConnectionActive={isAnyConnectionActive}
-        onClick={togglePopover}
+        onClick={toggle}
         ref={iconRef}
       />
       <Popover
-        open={isPopoverOpened}
+        open={isOpen}
         anchorEl={iconRef.current}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-        onClose={() => setIsPopoverOpened(false)}
+        onClose={close}
       >
         {/*
           324px matches the total width when the outer div inside Popover used to have 12px of
@@ -84,8 +77,7 @@ export function Connections() {
           <StepSlider
             currFlow="default"
             flows={stepSliderFlows}
-            // The rest of the props is spread to each individual step component.
-            closeConnectionList={closeConnectionList}
+            defaultStepIndex={stepToIndex(stepToOpen)}
           />
         </Box>
       </Popover>
@@ -94,3 +86,15 @@ export function Connections() {
 }
 
 const stepSliderFlows = { default: [ConnectionsSliderStep, VnetSliderStep] };
+
+const stepToIndex = (step: Step): number => {
+  switch (step) {
+    case 'connections':
+      return 0;
+    case 'vnet':
+      return 1;
+    default:
+      step satisfies never;
+      return 0;
+  }
+};
