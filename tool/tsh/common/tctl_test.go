@@ -52,12 +52,8 @@ func TestLoadConfigFromProfile(t *testing.T) {
 		"login",
 		"--insecure",
 		"--debug",
-		"--auth", connector.GetName(),
 		"--proxy", proxyAddr.String(),
-	}, setHomePath(tmpHomePath), CliOption(func(cf *CLIConf) error {
-		cf.MockSSOLogin = mockSSOLogin(t, authServer, alice)
-		return nil
-	}))
+	}, setHomePath(tmpHomePath), setMockSSOLogin(authServer, alice, connector.GetName()))
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -114,12 +110,8 @@ func TestRemoteTctlWithProfile(t *testing.T) {
 		"login",
 		"--insecure",
 		"--debug",
-		"--auth", connector.GetName(),
 		"--proxy", proxyAddr.String(),
-	}, setHomePath(tmpHomePath), CliOption(func(cf *CLIConf) error {
-		cf.MockSSOLogin = mockSSOLogin(t, authServer, alice)
-		return nil
-	}))
+	}, setHomePath(tmpHomePath), setMockSSOLogin(authServer, alice, connector.GetName()))
 	require.NoError(t, err)
 
 	t.Setenv(types.HomeEnvVar, tmpHomePath)
@@ -180,12 +172,8 @@ func TestSetAuthServerFlagWhileLoggedIn(t *testing.T) {
 		"login",
 		"--insecure",
 		"--debug",
-		"--auth", connector.GetName(),
 		"--proxy", proxyAddr.String(),
-	}, setHomePath(tmpHomePath), CliOption(func(cf *CLIConf) error {
-		cf.MockSSOLogin = mockSSOLogin(t, authServer, alice)
-		return nil
-	}))
+	}, setHomePath(tmpHomePath), setMockSSOLogin(authServer, alice, connector.GetName()))
 	require.NoError(t, err)
 	// we're now logged in with a profile in tmpHomePath.
 

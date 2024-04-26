@@ -162,12 +162,12 @@ TOUCHID_MESSAGE := with-Touch-ID
 TOUCHID_TAG := touchid
 endif
 
-# Enable PIV for testing?
-# Eagerly enable if we detect the dynamic libpcsclite library, we want to test as much as possible.
-ifeq ("$(shell pkg-config libpcsclite 2>/dev/null; echo $$?)", "0")
-# This test tag should not be used for builds/releases, only tests.
-PIV_TEST_TAG := piv
-endif
+# Enable PIV test packages for testing.
+# This test tag should never be used for builds/releases, only tests.
+PIV_TEST_TAG := pivtest
+
+# enable PIV package for linting.
+PIV_LINT_TAG := piv
 
 # Build teleport/api with PIV? This requires the libpcsclite library for linux.
 #

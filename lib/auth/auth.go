@@ -1960,12 +1960,33 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 	}
 	checker := services.NewAccessCheckerWithRoleSet(accessInfo, clusterName.GetClusterName(), roleSet)
 
+	sessionTTL := time.Duration(req.TTL)
+
+	// OpenSSH certs and their corresponding keys are held strictly by the proxy,
+	// so we can attest them as "web_session" to bypass Hardware Key support
+	// requirements that are unattainable from the Proxy.
+	sshPublicKey, _, _, _, err := ssh.ParseAuthorizedKey(req.PublicKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cryptoPublicKey, ok := sshPublicKey.(ssh.CryptoPublicKey)
+	if !ok {
+		return nil, trace.BadParameter("unsupported SSH public key type %q", sshPublicKey.Type())
+	}
+	webAttData, err := services.NewWebSessionAttestationData(cryptoPublicKey.CryptoPublicKey())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err = a.UpsertKeyAttestationData(ctx, webAttData, sessionTTL); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	certs, err := a.generateOpenSSHCert(ctx, certRequest{
 		user:            req.User,
 		publicKey:       req.PublicKey,
 		compatibility:   constants.CertificateFormatStandard,
 		checker:         checker,
-		ttl:             time.Duration(req.TTL),
+		ttl:             sessionTTL,
 		traits:          req.User.GetTraits(),
 		routeToCluster:  req.Cluster,
 		disallowReissue: true,
@@ -1981,13 +2002,14 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 
 // GenerateUserTestCertsRequest is a request to generate test certificates.
 type GenerateUserTestCertsRequest struct {
-	Key            []byte
-	Username       string
-	TTL            time.Duration
-	Compatibility  string
-	RouteToCluster string
-	PinnedIP       string
-	MFAVerified    string
+	Key                  []byte
+	Username             string
+	TTL                  time.Duration
+	Compatibility        string
+	RouteToCluster       string
+	PinnedIP             string
+	MFAVerified          string
+	AttestationStatement *keys.AttestationStatement
 }
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
@@ -2007,16 +2029,17 @@ func (a *Server) GenerateUserTestCerts(req GenerateUserTestCertsRequest) ([]byte
 		return nil, nil, trace.Wrap(err)
 	}
 	certs, err := a.generateUserCert(ctx, certRequest{
-		user:           userState,
-		ttl:            req.TTL,
-		compatibility:  req.Compatibility,
-		publicKey:      req.Key,
-		routeToCluster: req.RouteToCluster,
-		checker:        checker,
-		traits:         userState.GetTraits(),
-		loginIP:        req.PinnedIP,
-		pinIP:          req.PinnedIP != "",
-		mfaVerified:    req.MFAVerified,
+		user:                 userState,
+		ttl:                  req.TTL,
+		compatibility:        req.Compatibility,
+		publicKey:            req.Key,
+		routeToCluster:       req.RouteToCluster,
+		checker:              checker,
+		traits:               userState.GetTraits(),
+		loginIP:              req.PinnedIP,
+		pinIP:                req.PinnedIP != "",
+		mfaVerified:          req.MFAVerified,
+		attestationStatement: req.AttestationStatement,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
