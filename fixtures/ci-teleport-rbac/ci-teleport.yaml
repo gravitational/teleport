@@ -48,6 +48,14 @@ rules:
   resources: ["pods/portforward"]
   verbs: ["create"]
   resourceNames: ["test-pod"]
+- apiGroups: [""]
+  resources: ["pods/ephemeralcontainers"]
+  verbs: ["patch"]
+  resourceNames: ["test-pod"]
+- apiGroups: [""]
+  resources: ["pods/log"]
+  verbs: ["get"]
+  resourceNames: ["test-pod"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding

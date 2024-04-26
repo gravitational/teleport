@@ -449,22 +449,19 @@ func (s *outputsService) getRouteToApp(ctx context.Context, botIdentity *identit
 		return proto.RouteToApp{}, trace.Wrap(err)
 	}
 
-	// TODO: AWS?
-	ws, err := client.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
-		ClusterName: botIdentity.ClusterName,
-		Username:    botIdentity.X509Cert.Subject.CommonName,
+	routeToApp := proto.RouteToApp{
+		Name:        app.GetName(),
 		PublicAddr:  app.GetPublicAddr(),
-	})
+		ClusterName: botIdentity.ClusterName,
+	}
+
+	// TODO (Joerger): DELETE IN v17.0.0
+	routeToApp.SessionID, err = auth.TryCreateAppSessionForClientCertV15(ctx, client, botIdentity.X509Cert.Subject.CommonName, routeToApp)
 	if err != nil {
 		return proto.RouteToApp{}, trace.Wrap(err)
 	}
 
-	return proto.RouteToApp{
-		Name:        app.GetName(),
-		SessionID:   ws.GetName(),
-		PublicAddr:  app.GetPublicAddr(),
-		ClusterName: botIdentity.ClusterName,
-	}, nil
+	return routeToApp, nil
 }
 
 // generateImpersonatedIdentity generates an impersonated identity for a given

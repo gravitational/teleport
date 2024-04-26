@@ -157,6 +157,12 @@ export interface AWSRole {
      * @generated from protobuf field: string arn = 3;
      */
     arn: string;
+    /**
+     * AccountID is the AWS Account ID this role refers to.
+     *
+     * @generated from protobuf field: string account_id = 4;
+     */
+    accountId: string;
 }
 // @generated message type with reflection information, may provide speed optimized methods
 class App$Type extends MessageType<App> {
@@ -291,7 +297,8 @@ class AWSRole$Type extends MessageType<AWSRole> {
         super("teleport.lib.teleterm.v1.AWSRole", [
             { no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "display", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 3, name: "arn", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 3, name: "arn", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "account_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<AWSRole>): AWSRole {
@@ -299,6 +306,7 @@ class AWSRole$Type extends MessageType<AWSRole> {
         message.name = "";
         message.display = "";
         message.arn = "";
+        message.accountId = "";
         if (value !== undefined)
             reflectionMergePartial<AWSRole>(this, message, value);
         return message;
@@ -316,6 +324,9 @@ class AWSRole$Type extends MessageType<AWSRole> {
                     break;
                 case /* string arn */ 3:
                     message.arn = reader.string();
+                    break;
+                case /* string account_id */ 4:
+                    message.accountId = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -338,6 +349,9 @@ class AWSRole$Type extends MessageType<AWSRole> {
         /* string arn = 3; */
         if (message.arn !== "")
             writer.tag(3, WireType.LengthDelimited).string(message.arn);
+        /* string account_id = 4; */
+        if (message.accountId !== "")
+            writer.tag(4, WireType.LengthDelimited).string(message.accountId);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
