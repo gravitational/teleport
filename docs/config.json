@@ -29,6 +29,16 @@
               "slug": "/upgrading/overview/"
             },
             {
+                "title": "Teleport Cloud Automatic Updates (Linux)",
+                "slug": "/upgrading/cloud-linux-automatic/",
+                "forScopes": ["cloud"]
+            },
+            {
+                "title": "Teleport Cloud Automatic Updates (Kubernetes)",
+                "slug": "/upgrading/cloud-kubernetes-automatic/",
+                "forScopes": ["cloud"]
+            },
+            {
               "title": "Teleport Cloud Agents (Linux)",
               "slug": "/upgrading/cloud-linux/",
               "forScopes": ["cloud"]

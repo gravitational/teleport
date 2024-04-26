@@ -1,12 +1,14 @@
 ---
-title: Upgrade Teleport Cloud Agents on Linux
+title: Manually Upgrade Teleport Cloud Agents on Linux
 description: Provides instructions for upgrading Teleport Cloud agents that run on Linux servers. 
 ---
 
 This guide explains how to upgrade Teleport Cloud agents running on Linux servers.
-To keep agents up to date, you can either perform:
-- [Automatic updates](#automatic-updates) (recommended)
-- [Manual updates](#manual-updates)
+
+[Automatic updates](./cloud-linux-automatic.mdx) is the recommended update method
+for Teleport agents. If you choose to opt out of automatic updates, you will need
+to be responsible for keeping your Teleport agents up to date with the version of
+Teleport Cloud.
 
 ## Prerequisites
 
@@ -17,10 +19,11 @@ To keep agents up to date, you can either perform:
 
 - (!docs/pages/includes/tctl.mdx!)
 
-## Check for agent updates
+## Step 1/2. Check for agent updates
 
 The latest compatible Teleport agent version is served by the Teleport Proxy. To
 identify what that version is, you can query the `webapi` endpoint.
+
 ```code
 $ curl https://<Var name="teleport.example.com" />/webapi/automaticupgrades/channel/stable/cloud/version
 v15.2.1
@@ -30,6 +33,7 @@ To list the agents that are upgradable, use the `tctl inventory ls` command to l
 the inventory of connected agents. The agents are listed along with their current
 version. Additional flags are available to filter by service `--services=node,kube,db,...`,
 or to filter by version `--older-than=v15.2.1`.
+
 ```code
 $ tctl inventory ls --older-than=v15.2.1
 Server ID                            Hostname       Services       Version Upgrader
@@ -39,34 +43,12 @@ Server ID                            Hostname       Services       Version Upgra
 00000000-0000-0000-0000-000000000002 teleport-auth  Auth,Discovery v15.2.0 none
 ...
 ```
+
 Note that the `inventory ls` command will also list `teleport-auth` and `teleport-proxy`
 services. These services are managed by the Teleport Cloud team and updates will
 be performed automatically.
 
-## Automatic updates
-
-Agents enrolled in automatic updates will automatically be kept up to date with the
-latest compatible version of Teleport. You can find more information regarding the
-automatic updates architecture in the [Agent Update Management](../architecture/agent-update-management.mdx)
-page.
-
-New Teleport agents are installed with automatic updates enabled by default. Agents
-that have existed prior to the release of Teleport 13, however, are not automatically
-enrolled in automatic updates. These agents must be manually enrolled in automatic
-updates.
-
-### Find agents to enroll in automatic updates
-
-To identify the agents that are not enrolled in automatic updates, use the `tctl inventory ls`
-command again. The command accepts an additional `--upgrader=none` flag that can
-be used to filter only the agents that are not enrolled in automatic updates.
-```code
-$ tctl inventory ls --upgrader=none
-Server ID                            Hostname      Services Version Upgrader
------------------------------------- ------------- -------- ------- --------
-00000000-0000-0000-0000-000000000000 ip-10-1-6-130 Node     v14.4.5 none
-...
-```
+## Step 2/2. Perform manual updates
 
 For each agent ID returned by the `tctl inventory ls` command, copy the ID and
 run the following `tctl` command to access the host via `tsh`:
@@ -77,173 +59,6 @@ $ USER=root
 $ tsh ssh "${USER?}@${HOST?}"
 ```
 
-### Enroll agents in automatic updates
-
-Ensure that the Teleport repository is properly configured to use the `stable/cloud`
-channel, and install the `teleport-ent-updater` package. This must be completed on
-each agent you would like to enroll into automatic updates.
-
-(!docs/pages/includes/cloud/install-linux-cloud.mdx!)
-
-### Run as non-root (optional)
-
-If you changed the agent user to run as non-root, create `/etc/teleport-upgrade.d/schedule`
-and grant ownership to your Teleport user. Otherwise, you can skip this step:
-
-```code
-$ sudo mkdir -p /etc/teleport-upgrade.d/
-$ sudo touch /etc/teleport-upgrade.d/schedule
-$ sudo chown <your-teleport-user> /etc/teleport-upgrade.d/schedule
-```
-
-## Manual updates
-
-[Automatic updates](#automatic-updates) is the recommended update method for Teleport
-agents. If you choose to opt out of automatic updates, you will need to be responsible
-for keeping your Teleport agents up to date with the version of Teleport Cloud.
-
 (!docs/pages/includes/install-linux-ent-self-hosted.mdx!)
 
 (!docs/pages/includes/repo-channels.mdx!)
-
-## FAQ
-
-### Version locking
-
-As of Teleport `15.1.10`, a version locking mechanism is enabled by the updater.
-This mechanism locks the version of Teleport and prevents manual updates of the Teleport
-package. This prevents unintentional updates during routine system maintenance, or
-an accidental update by a user. The updater still has the capability to update the
-Teleport package, and all updates of Teleport are expected to be performed by the
-updater.
-
-The version locking mechanism is implemented using the features of the package managers.
-In case a user would like to manually update the Teleport version, this can be done
-with the following commands.
-
-With the `apt` package manager CLI, the `--allow-change-held-packages` flag must be provided
-to bypass the version lock.
-```code
-$ apt-get install --allow-change-held-packages "teleport-ent=<target-version>"
-```
-
-With the `yum` package manager CLI, the `--disableexcludes="teleport"` flag must be provided
-to bypass the version lock.
-```code
-$ yum install --disablerepo="*" --enablerepo="teleport" --disableexcludes="teleport" "teleport-ent-<target-version>"
-```
-
-With the `zypper` package manager CLI, the lock must be disabled and then re-enabled
-after the update.
-```code
-$ zypper removelock "teleport-ent"
-$ zypper install --repo="teleport" "teleport-ent-<target-version>"
-$ zypper addlock "teleport-ent"
-```
-
-### Automatic updates with direct binary installation
-
-Automatic updates is not currently supported with the direct binary installation method.
-Automatic updates is only supported with installations via the `apt`, `yum`, and
-`zypper` package managers.
-
-### Updating the updater
-
-The updater is designed to be minimal and relatively stable, but the updater will
-receive updates on occasion. Currently, the updater does not have the capability
-to update itself. Updates to the `teleport-ent-updater` package must be done manually.
-
-The `teleport-ent-updater` will be backwards compatible with older versions of Teleport,
-so you can always update the `teleport-ent-updater` package to the latest available
-version.
-
-### Automatic updates with Teleport OSS
-
-Automatic updates is not currently supported with OSS editions of Teleport. Ensure
-that you are using the `teleport-ent` package, which is the Teleport Enterprise edition
-of Teleport.
-
-## Troubleshooting
-
-The `teleport-upgrade` tool provides some basic commands to verify and perform an
-update of the Teleport agent.
-
-```code
-$ teleport-upgrade help
-USAGE: /usr/sbin/teleport-upgrade <command>
-
-Tool for automatic upgrades of Teleport agents.
-
-Commands:
-  run           check for and potentially apply a teleport upgrade.
-  dry-run       check for new teleport version but do not upgrade.
-  force         performs an upgrade if an upgrade is available.
-  version       print the current version of /usr/sbin/teleport-upgrade.
-  help          show this help text.
-```
-
-The `dry-run` command can be used to check for an available update without performing
-an update.
-```code
-# Example output when teleport is already on the latest compatible version.
-$ teleport-upgrade dry-run
-[i] no upgrades available (14.3.14 == 14.3.14) [ 582 ]
-
-# Example output when an update is available.
-$ teleport-upgrade dry-run
-[i] an upgrade is available (13.4.14 -> 14.3.14) [ 585 ]
-[i] within maintenance window, upgrade will be attempted. [ 596 ]
-```
-
-The `run` command performs an update if available.
-```code
-# Successful teleport update from 13.4.14 to 14.3.14.
-$ teleport-upgrade run
-[i] an upgrade is available (13.4.14 -> 14.3.14) [ 585 ]
-[i] within maintenance window, upgrade will be attempted. [ 596 ]
-[i] attempting apt install teleport-ent=14.3.14... [ 480 ]
-[...]
-[i] gracefully restarting Teleport (if already running) [ 449 ]
-
-# Teleport updates are not attempted when outside the maintenance window.
-$ teleport-upgrade run
-[i] an upgrade is available (13.4.14 -> 14.3.14) [ 585 ]
-[i] upgrade is non-critical and we are outside of maintenance window, not attempting. [ 618 ]
-```
-
-The `force` command performs an update immediately even when outside the maintenance
-window.
-```code
-$ teleport-upgrade force
-[i] an upgrade is available (13.4.14 -> 14.3.14) [ 585 ]
-[i] attempting apt install teleport-ent=14.3.14... [ 480 ]
-[...]
-[i] gracefully restarting Teleport (if already running) [ 449 ]
-```
-
-Teleport agents are not updated immediately when a new version of Teleport is released,
-and agent updates can lag behind the cluster by a few days.
-
-If the Teleport agent has not been automatically updating for several weeks, you
-can view the logs of the `teleport-upgrade.service` to help troubleshoot the problem.
-
-```code
-$ journalctl -t teleport-upgrade
-Apr 16 16:44:32 example teleport-upgrade[168983]: [i] upgrade is non-critical and we are outside of maintenance window, not attempting. [ 618 ]
-Apr 16 16:50:32 example teleport-upgrade[169084]: [i] an upgrade is available (13.4.14 -> 14.3.14) [ 585 ]
-Apr 16 16:50:33 example teleport-upgrade[169084]: [i] upgrade is non-critical and we are outside of maintenance window, not attempting. [ 618 ]
-Apr 16 16:56:32 example teleport-upgrade[169187]: [i] an upgrade is available (13.4.14 -> 14.3.14) [ 585 ]
-...
-```
-
-To suspend automatic updates, disable the `teleport.upgrade.timer` systemd timer:
-
-```code
-$ sudo systemctl disable --now teleport-upgrade.timer
-```
-
-To enable and start the systemd timer after suspending:
-
-```code
-$ sudo systemctl enable --now teleport-upgrade.timer
-```
