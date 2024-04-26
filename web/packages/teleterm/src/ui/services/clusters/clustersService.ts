@@ -146,6 +146,31 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     this.usageService.captureUserLogin(params.clusterUri, params.providerType);
   }
 
+  async authenticateWebDevice(
+    rootClusterUri: uri.RootClusterUri,
+    {
+      id,
+      token,
+    }: {
+      id: string;
+      token: string;
+    }
+  ) {
+    return await this.client.authenticateWebDevice({
+      rootClusterUri,
+      deviceWebToken: {
+        id,
+        token,
+        // empty fields, ignore
+        webSessionId: '',
+        browserIp: '',
+        browserUserAgent: '',
+        user: '',
+        expectedDeviceIds: [],
+      },
+    });
+  }
+
   async loginPasswordless(
     params: types.LoginPasswordlessParams,
     abortSignal: CloneableAbortSignal

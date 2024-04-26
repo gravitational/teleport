@@ -213,26 +213,6 @@ describe('parseDeepLink followed by makeDeepLinkWithSafeInput gives the same res
     'teleport://cluster.example.com/connect_my_computer',
     'teleport://alice@cluster.example.com/connect_my_computer',
     'teleport://alice.bobson%40example.com@cluster.example.com:1337/connect_my_computer',
-  ];
-
-  test.each(inputs)('%s', input => {
-    const parseResult = parseDeepLink(input);
-    expect(parseResult).toMatchObject({ status: 'success' });
-    const { url } = parseResult as DeepLinkParseResultSuccess;
-    const deepLink = makeDeepLinkWithSafeInput({
-      proxyHost: url.host,
-      path: url.pathname,
-      username: url.username,
-      searchParams: {},
-    });
-    expect(deepLink).toEqual(input);
-  });
-});
-
-describe('"parseDeepLink followed by makeDeepLinkWithSafeInput gives the same result"', () => {
-  const inputs: string[] = [
-    'teleport://cluster.example.com/connect_my_computer',
-    'teleport://alice@cluster.example.com/connect_my_computer',
     'teleport://alice@cluster.example.com/authenticate_web_device?id=123&token=234',
   ];
 

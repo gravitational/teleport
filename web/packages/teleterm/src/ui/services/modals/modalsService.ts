@@ -165,6 +165,13 @@ export interface DialogDocumentsReopen {
   onCancel?(): void;
 }
 
+export interface DialogDeviceTrustAuthorize {
+  kind: 'device-trust-authorize';
+  rootClusterUri: RootClusterUri;
+  onAuthorize(): Promise<void>;
+  onCancel(): void;
+}
+
 export interface DialogUsageData {
   kind: 'usage-data';
   onAllow(): void;
@@ -206,6 +213,7 @@ export type Dialog =
   | DialogClusterConnect
   | DialogClusterLogout
   | DialogDocumentsReopen
+  | DialogDeviceTrustAuthorize
   | DialogUsageData
   | DialogUserJobRole
   | DialogResourceSearchErrors

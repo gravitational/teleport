@@ -56,11 +56,14 @@ export const PassthroughPage = () => {
   useEffect(() => {
     window.open(deviceTrustAuthorize);
 
-    // the deviceWebToken is only valid for 60 seconds, so we can forward
+    // the deviceWebToken is only valid for 5 minutes, so we can forward
     // to the dashboard
-    const id = window.setTimeout(() => {
-      history.push(cfg.routes.root, true);
-    }, 1000 * 60 /* 1 minute */);
+    const id = window.setTimeout(
+      () => {
+        history.push(cfg.routes.root, true);
+      },
+      1000 * 60 * 5 /* 5 minutes */
+    );
 
     return () => window.clearTimeout(id);
   }, [deviceTrustAuthorize]);
