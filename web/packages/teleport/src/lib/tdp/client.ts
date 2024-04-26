@@ -327,7 +327,7 @@ export default class Client extends EventEmitterWebAuthnSender {
 
   handleRdpConnectionActivated(buffer: ArrayBuffer) {
     const { ioChannelId, userChannelId, screenWidth, screenHeight } =
-      this.codec.decodeRDPConnectionActivated(buffer);
+      this.codec.decodeRdpConnectionActivated(buffer);
     const spec = { width: screenWidth, height: screenHeight };
     this.logger.info(
       `screen spec received from server ${spec.width} x ${spec.height}`
@@ -344,7 +344,7 @@ export default class Client extends EventEmitterWebAuthnSender {
   }
 
   handleRdpFastPathPDU(buffer: ArrayBuffer) {
-    let rdpFastPathPDU = this.codec.decodeRDPFastPathPDU(buffer);
+    let rdpFastPathPDU = this.codec.decodeRdpFastPathPDU(buffer);
 
     // This should never happen but let's catch it with an error in case it does.
     if (!this.fastPathProcessor)
@@ -361,7 +361,7 @@ export default class Client extends EventEmitterWebAuthnSender {
           this.emit(TdpClientEvent.TDP_BMP_FRAME, bmpFrame);
         },
         (responseFrame: ArrayBuffer) => {
-          this.sendRDPResponsePDU(responseFrame);
+          this.sendRdpResponsePDU(responseFrame);
         },
         (data: ImageData | boolean, hotspot_x?: number, hotspot_y?: number) => {
           this.emit(TdpClientEvent.POINTER, { data, hotspot_x, hotspot_y });
@@ -711,8 +711,8 @@ export default class Client extends EventEmitterWebAuthnSender {
     this.sendClientScreenSpec(spec);
   }
 
-  sendRDPResponsePDU(responseFrame: ArrayBuffer) {
-    this.send(this.codec.encodeRDPResponsePDU(responseFrame));
+  sendRdpResponsePDU(responseFrame: ArrayBuffer) {
+    this.send(this.codec.encodeRdpResponsePDU(responseFrame));
   }
 
   // Emits an errType event, closing the socket if the error was fatal.

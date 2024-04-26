@@ -108,7 +108,7 @@ export type ClipboardData = {
 };
 
 // | message type (31) | io_channel_id uint16 | user_channel_id uint16 | screen_width uint16 | screen_height uint16 |
-export type RDPConnectionActivated = {
+export type RdpConnectionActivated = {
   ioChannelId: number;
   userChannelId: number;
   screenWidth: number;
@@ -716,7 +716,7 @@ export default class Codec {
   }
 
   // | message type (30) | data_length uint32 | data []byte |
-  encodeRDPResponsePDU(responseFrame: ArrayBuffer): Message {
+  encodeRdpResponsePDU(responseFrame: ArrayBuffer): Message {
     const bufLen = BYTE_LEN + UINT_32_LEN + responseFrame.byteLength;
     const buffer = new ArrayBuffer(bufLen);
     const view = new DataView(buffer);
@@ -865,7 +865,7 @@ export default class Codec {
   }
 
   // | message type (29) | data_length uint32 | data []byte |
-  decodeRDPFastPathPDU(buffer: ArrayBuffer): RdpFastPathPdu {
+  decodeRdpFastPathPDU(buffer: ArrayBuffer): RdpFastPathPdu {
     const dv = new DataView(buffer);
     let offset = 0;
     offset += BYTE_LEN; // eat message type
@@ -875,7 +875,7 @@ export default class Codec {
   }
 
   // | message type (31) | io_channel_id uint16 | user_channel_id uint16 | screen_width uint16 | screen_height uint16 |
-  decodeRDPConnectionActivated(buffer: ArrayBuffer): RDPConnectionActivated {
+  decodeRdpConnectionActivated(buffer: ArrayBuffer): RdpConnectionActivated {
     const dv = new DataView(buffer);
     let offset = 0;
     offset += BYTE_LEN; // eat message type
