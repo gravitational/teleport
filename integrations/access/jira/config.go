@@ -21,12 +21,12 @@ package jira
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"github.com/pelletier/go-toml"
 	"io"
 	"os"
 	"strings"
 
 	"github.com/gravitational/trace"
+	"github.com/pelletier/go-toml"
 
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"

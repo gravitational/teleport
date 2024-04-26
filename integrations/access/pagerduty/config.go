@@ -19,9 +19,10 @@
 package pagerduty
 
 import (
+	"strings"
+
 	"github.com/gravitational/trace"
 	"github.com/pelletier/go-toml"
-	"strings"
 
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
