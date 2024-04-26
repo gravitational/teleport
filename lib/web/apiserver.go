@@ -951,35 +951,8 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	h.GET("/webapi/sites/:site/user-groups", h.WithClusterAuth(h.getUserGroups))
 
-	// WebSocket endpoint for the chat conversation
-	// Deprecated: The connect/ws variant should be used instead.
-	// TODO(lxea): DELETE in v16
-	h.GET("/webapi/sites/:site/assistant", h.WithClusterAuthWebSocket(false, h.assistant))
 	// WebSocket endpoint for the chat conversation, websocket auth
 	h.GET("/webapi/sites/:site/assistant/ws", h.WithClusterAuthWebSocket(true, h.assistant))
-
-	// Sets the title for the conversation.
-	h.POST("/webapi/assistant/conversations/:conversation_id/title", h.WithAuth(h.setAssistantTitle))
-	h.POST("/webapi/assistant/title/summary", h.WithAuth(h.generateAssistantTitle))
-
-	// Creates a new conversation - the conversation ID is returned in the response.
-	h.POST("/webapi/assistant/conversations", h.WithAuth(h.createAssistantConversation))
-
-	// Deletes the given conversation.
-	h.DELETE("/webapi/assistant/conversations/:conversation_id", h.WithAuth(h.deleteAssistantConversation))
-
-	// Returns all conversations for the given user.
-	h.GET("/webapi/assistant/conversations", h.WithAuth(h.getAssistantConversations))
-
-	// Returns all messages in the given conversation.
-	h.GET("/webapi/assistant/conversations/:conversation_id", h.WithAuth(h.getAssistantConversationByID))
-
-	// Allows executing an arbitrary command on multiple nodes.
-	// Deprecated: The execute/ws variant should be used instead.
-	// TODO(lxea): DELETE in v16
-	h.GET("/webapi/command/:site/execute", h.WithClusterAuthWebSocket(false, h.executeCommand))
-	// Allows executing an arbitrary command on multiple nodes, websocket auth.
-	h.GET("/webapi/command/:site/execute/ws", h.WithClusterAuthWebSocket(true, h.executeCommand))
 
 	// Fetches the user's preferences
 	h.GET("/webapi/user/preferences", h.WithAuth(h.getUserPreferences))
@@ -3262,55 +3235,6 @@ func (h *Handler) generateSession(req *TerminalRequest, clusterName string, scx 
 		Namespace:      apidefaults.Namespace,
 		Owner:          owner,
 	}, nil
-}
-
-func (h *Handler) generateCommandSession(host *hostInfo, login, clusterName, owner string) (session.Session, error) {
-	h.log.Infof("Generating new session for %s in %s\n", host.hostName, clusterName)
-
-	return session.Session{
-		Login:          login,
-		ServerID:       host.id,
-		ClusterName:    clusterName,
-		ServerHostname: host.hostName,
-		ServerHostPort: host.port,
-		ID:             session.NewID(),
-		Created:        time.Now().UTC(),
-		LastActive:     time.Now().UTC(),
-		Namespace:      apidefaults.Namespace,
-		Owner:          owner,
-	}, nil
-}
-
-// hostInfo is a helper struct used to store host information.
-type hostInfo struct {
-	id       string
-	hostName string
-	port     int
-}
-
-// findByQuery returns all hosts matching the given query/predicate.
-// The query is a predicate expression that can be used to filter hosts.
-func findByQuery(ctx context.Context, clt auth.ClientI, query string) ([]hostInfo, error) {
-	servers, err := apiclient.GetAllResources[types.Server](ctx, clt, &proto.ListResourcesRequest{
-		ResourceType:        types.KindNode,
-		Namespace:           apidefaults.Namespace,
-		PredicateExpression: query,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	hosts := make([]hostInfo, 0, len(servers))
-	for _, server := range servers {
-		h := hostInfo{
-			hostName: server.GetHostname(),
-			id:       server.GetName(),
-			port:     defaultPort,
-		}
-		hosts = append(hosts, h)
-	}
-
-	return hosts, nil
 }
 
 // fetchExistingSession fetches an active or pending SSH session by the SessionID passed in the TerminalRequest.

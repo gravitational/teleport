@@ -18,12 +18,12 @@
 
 import { formatDuration } from 'date-fns';
 
-import { AccessRequestResource } from 'teleport/Assist/types';
 import { ResourceIdKind } from 'teleport/services/agents';
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 import {
   AccessRequest,
+  AccessRequestResource,
   CreateAccessRequest,
   DurationOption,
 } from 'teleport/AccessRequests/types';

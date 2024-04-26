@@ -22,8 +22,8 @@ import { Flex, Text } from 'design';
 import AppContextProvider from 'teleterm/ui/appContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { VnetContextProvider } from 'teleterm/ui/Vnet';
-
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
+import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 
 import { Connections } from './Connections';
 import { ConnectionsContextProvider } from './connectionsContext';
@@ -86,9 +86,11 @@ export function MultipleClusters() {
 
   return (
     <AppContextProvider value={appContext}>
-      <VnetContextProvider>
-        <Connections />
-      </VnetContextProvider>
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <Connections />
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
     </AppContextProvider>
   );
 }
@@ -97,6 +99,31 @@ export function JustVnet() {
   const appContext = new MockAppContext();
   prepareAppContext(appContext);
   appContext.connectionTracker.getConnections = () => [];
+
+  return (
+    <AppContextProvider value={appContext}>
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <Connections />
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
+    </AppContextProvider>
+  );
+}
+
+export function VnetError() {
+  const appContext = new MockAppContext();
+  prepareAppContext(appContext);
+
+  appContext.statePersistenceService.putState({
+    ...appContext.statePersistenceService.getState(),
+    vnet: { autoStart: true },
+  });
+  appContext.workspacesService.setState(draft => {
+    draft.isInitialized = true;
+  });
+  appContext.vnet.start = () =>
+    new MockedUnaryCall({}, new Error('something went wrong'));
 
   return (
     <AppContextProvider value={appContext}>
@@ -242,5 +269,5 @@ const useOpenConnections = () => {
     ) as HTMLButtonElement;
 
     button?.click();
-  });
+  }, []);
 };
