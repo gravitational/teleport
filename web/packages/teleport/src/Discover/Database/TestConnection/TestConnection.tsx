@@ -131,6 +131,7 @@ export function TestConnection() {
             <Box width="500px" mb={4}>
               <LabelInput htmlFor={'select'}>Database User</LabelInput>
               <Select
+                data-testid="select-db-user"
                 placeholder={
                   userOpts.length === 0
                     ? 'No database users defined'
@@ -160,6 +161,7 @@ export function TestConnection() {
             <Box width="500px" mb={3}>
               <LabelInput htmlFor={'select'}>Database Name</LabelInput>
               <Select
+                data-testid="select-db-name"
                 label="Database Name"
                 placeholder={
                   nameOpts.length === 0

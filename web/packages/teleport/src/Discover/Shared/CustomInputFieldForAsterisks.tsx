@@ -20,6 +20,7 @@ import React from 'react';
 import FieldInput from 'shared/components/FieldInput';
 import { requiredField } from 'shared/components/Validation/rules';
 import { Option } from 'shared/components/Select';
+import { capitalizeFirstLetter } from 'shared/utils/text';
 
 import { WILD_CARD } from './const';
 
@@ -45,12 +46,14 @@ export function CustomInputFieldForAsterisks({
       mt={2}
       mb={0}
       autoFocus={true}
-      label={`Enter a custom ${nameKind} name`}
+      label={`Enter a custom ${nameKind} name:`}
       value={value}
       onChange={e => onValueChange(e.target.value)}
       isDisabled={disabled}
-      placeholder="name"
-      rule={requiredField('Name is required')}
+      placeholder={`custom-${nameKind.replace(' ', '-')}-name`}
+      rule={requiredField(
+        `${capitalizeFirstLetter(nameKind)} name is required`
+      )}
     />
   );
 }
