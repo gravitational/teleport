@@ -7,11 +7,14 @@ import React, {
   useState,
 } from 'react';
 
-import { ServerMessage, ServerMessageType } from 'teleport/Assist/types';
 import { getAccessToken, getHostName } from 'teleport/services/api';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import cfg from 'teleport/config';
 import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
+import {
+  ServerMessage,
+  ServerMessageType,
+} from 'teleport/Console/DocumentSsh/TerminalAssist/types';
 
 interface QueryAssistContextValue {
   close: () => void;
