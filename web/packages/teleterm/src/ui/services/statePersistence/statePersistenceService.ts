@@ -46,7 +46,7 @@ export interface StatePersistenceState {
   vnet: { autoStart: boolean };
 }
 
-// Before adding new methods to this service, consider using useAppState instead.
+// Before adding new methods to this service, consider using usePersistedState instead.
 export class StatePersistenceService {
   constructor(private _fileStorage: FileStorage) {}
 
@@ -100,8 +100,8 @@ export class StatePersistenceService {
 
   getState(): StatePersistenceState {
     // Some legacy callsites expected StatePersistenceService to manage the default state for them,
-    // but with the move towards useAppState, we should put the default state close to where it's
-    // going to be used. Hence the use of Partial<StatePersistenceState> here.
+    // but with the move towards usePersistedState, we should put the default state close to where
+    // it's going to be used. Hence the use of Partial<StatePersistenceState> here.
     const defaultState: Partial<StatePersistenceState> = {
       connectionTracker: {
         connections: [],

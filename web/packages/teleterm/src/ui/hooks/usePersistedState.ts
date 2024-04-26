@@ -22,16 +22,17 @@ import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { StatePersistenceState } from 'teleterm/ui/services/statePersistence';
 
 /**
- * useAppState is like useState, but it persists the state to app_state.json under the given key.
+ * usePersistedState is like useState, but it persists the state to app_state.json under the given
+ * key.
  *
- * IMPORTANT: Currently, useAppState doesn't propagate changes across several callsites. That is, if
- * two callsites use the same key, calling setState in one component will not cause the other
+ * IMPORTANT: Currently, usePersistedState doesn't propagate changes across several callsites. That
+ * is, if two callsites use the same key, calling setState in one component will not cause the other
  * component to update.
  *
  * This will _not_ work as expected:
  *
  * const Counter = () => {
- *   const [count, setCount] = useAppState('count', 0);
+ *   const [count, setCount] = usePersistedState('count', 0);
  *
  *   return (
  *     <div>
@@ -63,7 +64,7 @@ import { StatePersistenceState } from 'teleterm/ui/services/statePersistence';
  * }
  *
  * () => {
- *   const [count, setCount] = useAppState('count', 0);
+ *   const [count, setCount] = usePersistedState('count', 0);
  *
  *   return (
  *     <>
@@ -73,7 +74,7 @@ import { StatePersistenceState } from 'teleterm/ui/services/statePersistence';
  *   );
  * }
  */
-export function useAppState<
+export function usePersistedState<
   // key could've been any string, but in lieu of avoiding typos, it's better to take it
   // from one central definition.
   Key extends keyof WholeState,
@@ -86,9 +87,10 @@ export function useAppState<
   const { statePersistenceService } = useAppContext();
   const wholeState = statePersistenceService.getState() as WholeState;
   const state = Object.hasOwn(wholeState, key) ? wholeState[key] : initialState;
-  // TODO(ravicious): useAppState currently doesn't propagate changes across several callsites.
+  // TODO(ravicious): usePersistedState currently doesn't propagate changes across several
+  // callsites.
   //
-  // useAppState should either use useSyncExternalStore or some other solution to register a
+  // usePersistedState should either use useSyncExternalStore or some other solution to register a
   // listener in statePersistenceService that gets called whenever the given key gets updated.
   const [, rerender] = useState<object>();
 

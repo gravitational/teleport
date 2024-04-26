@@ -21,9 +21,9 @@ import { render, screen, act } from 'design/utils/testing';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 
-import { useAppState } from './useAppState';
+import { usePersistedState } from './usePersistedState';
 
-it('propagates changes coming from the same useAppState invocation', () => {
+it('propagates changes coming from the same usePersistedState invocation', () => {
   const appContext = new MockAppContext();
   render(
     <MockAppContextProvider appContext={appContext}>
@@ -70,9 +70,9 @@ it('updates only the given key', () => {
   expect(appContext.statePersistenceService.getState()['foo']).toEqual('bar');
 });
 
-// TODO(ravicious): Change the behavior of useAppState so it actually does propagate changes across
-// callsites.
-it('does not propagate changes across different useAppState invocations', () => {
+// TODO(ravicious): Change the behavior of usePersistedState so it actually does propagate changes
+// across callsites.
+it('does not propagate changes across different usePersistedState invocations', () => {
   const appContext = new MockAppContext();
   render(
     <MockAppContextProvider appContext={appContext}>
@@ -93,7 +93,10 @@ it('does not propagate changes across different useAppState invocations', () => 
 type TestState = { counter: number; boolean: boolean };
 
 const Counter = () => {
-  const [counter, setCounter] = useAppState<'counter', TestState>('counter', 0);
+  const [counter, setCounter] = usePersistedState<'counter', TestState>(
+    'counter',
+    0
+  );
 
   return (
     <div>
@@ -104,7 +107,7 @@ const Counter = () => {
 };
 
 const Boolean = () => {
-  const [boolean, setBoolean] = useAppState<'boolean', TestState>(
+  const [boolean, setBoolean] = usePersistedState<'boolean', TestState>(
     'boolean',
     true
   );

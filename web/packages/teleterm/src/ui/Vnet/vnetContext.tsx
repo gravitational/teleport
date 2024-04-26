@@ -29,7 +29,7 @@ import {
 import { useAsync, Attempt } from 'shared/hooks/useAsync';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { useAppState } from 'teleterm/ui/hooks/useAppState';
+import { usePersistedState } from 'teleterm/ui/hooks/usePersistedState';
 import { useImmutableStore } from 'teleterm/ui/hooks/useImmutableStore';
 
 /**
@@ -60,7 +60,7 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
     'workspacesService',
     useCallback(state => state.isInitialized, [])
   );
-  const [{ autoStart }, setAppState] = useAppState('vnet', {
+  const [{ autoStart }, setAppState] = usePersistedState('vnet', {
     autoStart: false,
   });
 
