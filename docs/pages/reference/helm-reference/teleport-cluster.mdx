@@ -1046,6 +1046,37 @@ Whether Teleport should configure DynamoDB's autoscaling. Defaults to `false`.
   demand" DynamoDB billing, which has more reliable performance.
 </Admonition>
 
+### `aws.accessMonitoring`
+
+`aws.accessMonitoring` configures the [Access Monitoring](../../access-controls/access-monitoring.mdx)
+feature of the Auth Service.
+
+Using this features requires setting up specific AWS infrastructure as described
+in [the AccessMonitoring configuration section](../../access-controls/access-monitoring.mdx#configuration).
+The [Terraform example](https://github.com/gravitational/teleport/tree/v(=teleport.version=)/examples/athena)
+code will output the chart values for this section.
+
+#### `aws.accessMonitoring.enabled`
+`aws.accessMonitoring.enabled` enables Access Monitoring. This requires
+`aws.athenaURL` to be set.
+
+#### `aws.accessMonitoring.reportResults`
+
+`aws.accessMonitoring.reportResults` is the bucket uri where the query results
+are reported.
+
+For example: `s3://example-athena-long-term/report_results`.
+
+#### `aws.accessMonitoring.roleARN`
+
+`aws.accessMonitoring.roleARN` is the ARN of the role that is assumed to run the
+reports.
+
+#### `aws.accessMonitoring.workgroup`
+
+`aws.accessMonitoring.workgroup` is the Athena workgroup in which Teleport runs
+queries.
+
 ## `gcp`
 
 `gcp` settings are described in the GCP guide: [Running an HA Teleport cluster using a Google Cloud GKE cluster](../../deploy-a-cluster/helm-deployments/gcp.mdx)
