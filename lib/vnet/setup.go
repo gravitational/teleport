@@ -26,11 +26,13 @@ import (
 )
 
 // Run is a blocking call to create and start Teleport VNet.
-func Run(ctx context.Context) error {
+func Run(ctx context.Context, tcpHandlerResolver TCPHandlerResolver) error {
 	ipv6Prefix, err := IPv6Prefix()
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	dnsIPv6 := ipv6WithSuffix(ipv6Prefix, []byte{2})
 
 	tun, err := CreateAndSetupTUNDevice(ctx, ipv6Prefix.String())
 	if err != nil {
@@ -38,8 +40,10 @@ func Run(ctx context.Context) error {
 	}
 
 	manager, err := NewManager(&Config{
-		TUNDevice:  tun,
-		IPv6Prefix: ipv6Prefix,
+		TUNDevice:          tun,
+		IPv6Prefix:         ipv6Prefix,
+		DNSIPv6:            dnsIPv6,
+		TCPHandlerResolver: tcpHandlerResolver,
 	})
 	if err != nil {
 		return trace.Wrap(err)

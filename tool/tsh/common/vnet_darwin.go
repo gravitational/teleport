@@ -40,7 +40,8 @@ func newVnetCommand(app *kingpin.Application) *vnetCommand {
 }
 
 func (c *vnetCommand) run(cf *CLIConf) error {
-	return trace.Wrap(vnet.Run(cf.Context))
+	tcpHandlerResolver := newTCPAppResolver(cf)
+	return trace.Wrap(vnet.Run(cf.Context, tcpHandlerResolver))
 }
 
 type vnetAdminSetupCommand struct {
