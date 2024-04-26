@@ -184,9 +184,10 @@ func (ws *WebSessionV2) GetIdleTimeout() time.Duration {
 
 // WithoutSecrets returns copy of the object but without secrets
 func (ws *WebSessionV2) WithoutSecrets() WebSession {
-	ws.Spec.Priv = nil
-	ws.Spec.SAMLSession = nil
-	return ws
+	cp := *ws
+	cp.Spec.Priv = nil
+	cp.Spec.SAMLSession = nil
+	return &cp
 }
 
 // SetConsumedAccessRequestID sets the ID of the access request from which additional roles to assume were obtained.

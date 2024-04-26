@@ -35,6 +35,8 @@ import cfg from './config';
 import { AppLauncher } from './AppLauncher';
 import { LoginFailedComponent as LoginFailed } from './Login/LoginFailed';
 import { LoginSuccess } from './Login/LoginSuccess';
+import { LoginTerminalRedirect } from './Login/LoginTerminalRedirect';
+import { LoginClose } from './Login/LoginClose';
 import { Login } from './Login';
 import { Welcome } from './Welcome';
 
@@ -116,6 +118,18 @@ export function getSharedPublicRoutes() {
       title="Success"
       path={cfg.routes.loginSuccess}
       component={LoginSuccess}
+    />,
+    <Route
+      key="terminal"
+      title="Finish Login in Terminal"
+      path={cfg.routes.loginTerminalRedirect}
+      component={LoginTerminalRedirect}
+    />,
+    <Route
+      key="autoclose"
+      title="Working on SSO login"
+      path={cfg.routes.loginClose}
+      component={LoginClose}
     />,
     <Route
       key="invite"
