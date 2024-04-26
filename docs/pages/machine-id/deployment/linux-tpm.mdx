@@ -72,8 +72,11 @@ https://github.com/tpm2-software/tpm2-tss/blob/ede63dd1ac1f0a46029d457304edcac21
 ## Step 2/5. Create a Bot
 
 Next, we need to create a Bot in the Teleport cluster. A Bot is an identity
-for a machine or group of machines, and like a user, its access is controlled
-by roles.
+for a machine or group of machines. Just like a User, a Bot can have roles and
+traits.
+
+If multiple machines complete similar tasks, and therefore require the same
+access, it is recommended that they share a single Bot identity.
 
 Create `bot.yaml`:
 
@@ -82,7 +85,7 @@ kind: bot
 version: v1
 metadata:
   # name is a unique identifier for the Bot in the cluster.
-  name: example
+  name: <Var name="my-bot" />
 spec:
   # roles is a list of Roles to grant to the Bot.
   #
@@ -144,8 +147,8 @@ Create a file named `bot-token.yaml`:
 kind: token
 version: v2
 metadata:
-  # name identifies the token.
-  name: example-bot
+  # name identifies the token. Try to ensure that this is descriptive.
+  name: <Var name="my-bot-token" />
 spec:
   # For Machine ID and TPM joining, roles will always be "Bot" and
   # join_method will always be "tpm".
@@ -154,7 +157,7 @@ spec:
 
   # bot_name specifies the name of the bot that this token will grant access to
   # when it is used.
-  bot_name: example
+  bot_name: <Var name="my-bot" />
 
   # tpm specifies the TPM join method specific configuration for this token.
   tpm:
@@ -184,13 +187,6 @@ spec:
         ek_public_hash: "<Var name="ek-public-hash" />"
 ```
 
-Replace the following:
-
-- `example-bot` with a unique name for the token.
-- `example` with the name of the Bot that you created in step 2.
-- `example-server-100` with a human-readable description of the host that the
-   TPM resides in.
-
 If your TPM includes an EKCert and you have obtained the manufacturer's CA,
 replace the `ekcert_allowed_cas` section with the PEM wrapped CA certificate.
 Otherwise, remove this section.
@@ -213,7 +209,7 @@ version: v2
 proxy_server: example.teleport.sh:443
 onboarding:
   join_method: tpm
-  token: example-bot
+  token: <Var name="my-bot-token" />
 storage:
   type: directory
   path: /var/lib/teleport/bot
@@ -224,7 +220,6 @@ outputs: []
 Replace:
 
 - `example.teleport.sh:443` with the address of your Teleport Proxy.
-- `example-bot` with the name of the token that you created in step 2.
 
 ### Prepare the storage directory
 
