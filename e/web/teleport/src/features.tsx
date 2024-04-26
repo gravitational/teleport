@@ -416,7 +416,7 @@ class FeatureAccount extends OSS.FeatureAccount {
 
 export class FeatureDeviceTrustWeb implements TeleportFeature {
   route = {
-    title: 'DeviceTrustWeb',
+    title: 'Authorize Web Session',
     path: cfg.oss.routes.deviceTrustAuthorize,
     component: PassthroughPage,
   };
