@@ -20,6 +20,7 @@ package local
 
 import (
 	"context"
+	"slices"
 
 	"github.com/gravitational/trace"
 
@@ -34,7 +35,8 @@ const accessMonitoringRulesPrefix = "access_monitoring_rule"
 
 // AccessMonitoringRulesService manages AccessMonitoringRules in the Backend.
 type AccessMonitoringRulesService struct {
-	svc *generic.ServiceWrapper[*accessmonitoringrulesv1.AccessMonitoringRule]
+	backend backend.Backend
+	svc     *generic.ServiceWrapper[*accessmonitoringrulesv1.AccessMonitoringRule]
 }
 
 // NewAccessMonitoringRulesService creates a new AccessMonitoringRulesService.
@@ -110,4 +112,62 @@ func (s *AccessMonitoringRulesService) DeleteAccessMonitoringRule(ctx context.Co
 // DeleteAllAccessMonitoringRules removes all AccessMonitoringRule resources.
 func (s *AccessMonitoringRulesService) DeleteAllAccessMonitoringRules(ctx context.Context) error {
 	return trace.Wrap(s.svc.DeleteAllResources(ctx))
+}
+
+func (s *AccessMonitoringRulesService) listResourcesListAccessMonitoringRulesWithFilter(ctx context.Context, pageSize int, pageToken string, subjects []string, notificationName string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error) {
+
+	var keyPrefix []string
+	var unmarshalItemFunc backendItemToResourceFunc
+
+	rangeStart := backend.Key(accessMonitoringRulesPrefix, pageToken)
+	rangeEnd := backend.RangeEnd(backend.ExactKey(keyPrefix...))
+
+	// Get most limit+1 results to determine if there will be a next key.
+	maxLimit := pageSize + 1
+	var resources []*accessmonitoringrulesv1.AccessMonitoringRule
+	if err := backend.IterateRange(ctx, s.backend, rangeStart, rangeEnd, maxLimit, func(items []backend.Item) (stop bool, err error) {
+		for _, item := range items {
+			if len(resources) == maxLimit {
+				break
+			}
+
+			resource, err := unmarshalItemFunc(item)
+			if err != nil {
+				return false, trace.Wrap(err)
+			}
+			accessMonitoringRule := types.LegacyToResource153(resource).(*accessmonitoringrulesv1.AccessMonitoringRule)
+			if ok := match(accessMonitoringRule, subjects, notificationName); ok {
+				resources = append(resources, accessMonitoringRule)
+			}
+		}
+
+		return len(resources) == maxLimit, nil
+	}); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	var nextKey string
+	if len(resources) > pageSize {
+		nextKey = resources[len(resources)-1].Metadata.Name
+		// Truncate the last item that was used to determine next row existence.
+		resources = resources[:pageSize]
+	}
+
+	return resources, nextKey, nil
+}
+
+func match(rule *accessmonitoringrulesv1.AccessMonitoringRule, subjects []string, notificationName string) bool {
+	for _, subject := range subjects {
+		if ok := slices.ContainsFunc(rule.Spec.Subjects, func(s string) bool {
+			return s == subject
+		}); !ok {
+			return false
+		}
+	}
+	if notificationName != "" {
+		if rule.Spec.Notification == nil || rule.Spec.Notification.Name != notificationName {
+			return false
+		}
+	}
+	return true
 }

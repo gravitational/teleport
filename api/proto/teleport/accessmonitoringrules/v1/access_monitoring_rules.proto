@@ -85,13 +85,26 @@ message DeleteAccessMonitoringRuleRequest {
   string name = 1;
 }
 
-// ListAccessMonitoringRulesResponse is the request for ListAccessMonitoringRules.
+// ListAccessMonitoringRulesRequest is the request for ListAccessMonitoringRules.
 message ListAccessMonitoringRulesRequest {
   // page_size is the maximum number of items to return.
   // The server may impose a different page size at its discretion.
   int64 page_size = 1;
   // page_token is the next_page_token value returned from a previous List request, if any.
   string page_token = 2;
+}
+
+// ListAccessMonitoringRulesWithFilterRequest is the request for ListAccessMonitoringRulesWithFilter.
+message ListAccessMonitoringRulesWithFilterRequest {
+  // page_size is the maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int64 page_size = 1;
+  // page_token is the next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+  // subjects are the subjects the access monitoring rules must have.
+  repeated string subjects = 3;
+  // notification_name is the value of the notification name field the rule must have.
+  string notification_name = 4;
 }
 
 // ListAccessMonitoringRulesResponse is the response from ListAccessMonitoringRules.
