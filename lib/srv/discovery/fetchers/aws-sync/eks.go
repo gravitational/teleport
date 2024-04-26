@@ -188,6 +188,9 @@ func (a *awsFetcher) fetchAccessEntries(ctx context.Context, eksClient eksiface.
 		},
 		func(output *eks.ListAccessEntriesOutput, lastPage bool) bool {
 			for _, accessEntry := range output.AccessEntries {
+				if aws.StringValue(accessEntry) == "" {
+					continue
+				}
 				accessEntries = append(accessEntries, aws.StringValue(accessEntry))
 			}
 			return !lastPage
@@ -254,7 +257,8 @@ func (a *awsFetcher) fetchAssociatedPolicies(ctx context.Context, eksClient eksi
 		err := eksClient.ListAssociatedAccessPoliciesPagesWithContext(
 			ctx,
 			&eks.ListAssociatedAccessPoliciesInput{
-				ClusterName: aws.String(cluster.Name),
+				ClusterName:  aws.String(cluster.Name),
+				PrincipalArn: aws.String(arn),
 			},
 			func(output *eks.ListAssociatedAccessPoliciesOutput, lastPage bool) bool {
 				for _, policy := range output.AssociatedAccessPolicies {
