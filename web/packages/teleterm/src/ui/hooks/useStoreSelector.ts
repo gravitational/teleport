@@ -23,11 +23,16 @@ import { IAppContext } from 'teleterm/ui/types';
 import { ImmutableStore } from 'teleterm/ui/services/immutableStore';
 
 /**
- * useImmutableStore selects a value out of a store and triggers component update whenever that
- * value changes. The selector needs to have stable identity.
+ * useStoreSelector selects a value out of a store and triggers a component update whenever that
+ * value changes.
+ *
+ * The selector needs to have stable identity, i.e., the selector needs to return a piece of the
+ * store state instead of creating a new object or an array on each invocation. For example, if you
+ * need two separate pieces from the same store, call useStoreSelector twice with different
+ * selectors instead of combining two pieces of state into a new object.
  *
  * @example
- * const isInitialized = useImmutableStore(
+ * const isInitialized = useStoreSelector(
  *   'workspacesService',
  *   useCallback(state => state.isInitialized, [])
  * );
@@ -38,10 +43,10 @@ import { ImmutableStore } from 'teleterm/ui/services/immutableStore';
  *
  * // Defined inside a React component.
  * () => {
- *   const isInitialized = useImmutableStore('workspacesService', getIsInitialized);
+ *   const isInitialized = useStoreSelector('workspacesService', getIsInitialized);
  * }
  */
-export const useImmutableStore = <
+export const useStoreSelector = <
   SelectedState,
   StoreKey extends ImmutableStoreKeys<IAppContext>,
 >(

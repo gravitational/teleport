@@ -30,7 +30,7 @@ import { useAsync, Attempt } from 'shared/hooks/useAsync';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { usePersistedState } from 'teleterm/ui/hooks/usePersistedState';
-import { useImmutableStore } from 'teleterm/ui/hooks/useImmutableStore';
+import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
 
 /**
  * VnetContext manages the VNet instance.
@@ -56,7 +56,7 @@ export const VnetContext = createContext<VnetContext>(null);
 export const VnetContextProvider: FC<PropsWithChildren> = props => {
   const [status, setStatus] = useState<VnetStatus>('stopped');
   const { vnet, mainProcessClient, configService } = useAppContext();
-  const isWorkspaceStateInitialized = useImmutableStore(
+  const isWorkspaceStateInitialized = useStoreSelector(
     'workspacesService',
     useCallback(state => state.isInitialized, [])
   );
