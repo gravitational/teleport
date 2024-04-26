@@ -138,10 +138,10 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindAccessRequest},
 		{Kind: types.KindAppServer},
 		{Kind: types.KindApp},
-		{Kind: types.KindWebSession, SubKind: types.KindSAMLIdPSession},
-		{Kind: types.KindWebSession, SubKind: types.KindSnowflakeSession},
-		{Kind: types.KindWebSession, SubKind: types.KindAppSession},
-		{Kind: types.KindWebSession, SubKind: types.KindWebSession},
+		{Kind: types.KindWebSession, SubKind: types.KindSAMLIdPSession, LoadSecrets: true},
+		{Kind: types.KindWebSession, SubKind: types.KindSnowflakeSession, LoadSecrets: true},
+		{Kind: types.KindWebSession, SubKind: types.KindAppSession, LoadSecrets: true},
+		{Kind: types.KindWebSession, SubKind: types.KindWebSession, LoadSecrets: true},
 		{Kind: types.KindWebToken},
 		{Kind: types.KindRemoteCluster},
 		{Kind: types.KindDatabaseServer},
@@ -200,10 +200,10 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindTunnelConnection},
 		{Kind: types.KindAppServer},
 		{Kind: types.KindApp},
-		{Kind: types.KindWebSession, SubKind: types.KindSAMLIdPSession},
-		{Kind: types.KindWebSession, SubKind: types.KindSnowflakeSession},
-		{Kind: types.KindWebSession, SubKind: types.KindAppSession},
-		{Kind: types.KindWebSession, SubKind: types.KindWebSession},
+		{Kind: types.KindWebSession, SubKind: types.KindSAMLIdPSession, LoadSecrets: true},
+		{Kind: types.KindWebSession, SubKind: types.KindSnowflakeSession, LoadSecrets: true},
+		{Kind: types.KindWebSession, SubKind: types.KindAppSession, LoadSecrets: true},
+		{Kind: types.KindWebSession, SubKind: types.KindWebSession, LoadSecrets: true},
 		{Kind: types.KindWebToken},
 		{Kind: types.KindRemoteCluster},
 		{Kind: types.KindDatabaseServer},
@@ -878,7 +878,7 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	integrationsCache, err := local.NewIntegrationsService(config.Backend)
+	integrationsCache, err := local.NewIntegrationsService(config.Backend, local.WithIntegrationsServiceCacheMode(true))
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)

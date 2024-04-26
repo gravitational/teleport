@@ -132,10 +132,12 @@ func TestAccessListCRUD(t *testing.T) {
 
 	// Try to create an access list with duplicate owners.
 	accessListDuplicateOwners := newAccessList(t, "accessListDuplicateOwners", clock)
+	expectedAccessList := accessListDuplicateOwners.Spec.Owners
 	accessListDuplicateOwners.Spec.Owners = append(accessListDuplicateOwners.Spec.Owners, accessListDuplicateOwners.Spec.Owners[0])
 
-	_, err = service.UpsertAccessList(ctx, accessListDuplicateOwners)
-	require.True(t, trace.IsAlreadyExists(err))
+	created, err := service.UpsertAccessList(ctx, accessListDuplicateOwners)
+	require.NoError(t, err)
+	require.ElementsMatch(t, expectedAccessList, created.Spec.Owners)
 }
 
 // TestAccessListCreate_UpsertAccessList_WithoutLimit tests creating access list

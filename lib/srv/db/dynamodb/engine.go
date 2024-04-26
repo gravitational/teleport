@@ -147,7 +147,7 @@ func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error 
 	}
 	signer, err := libaws.NewSigningService(libaws.SigningServiceConfig{
 		Clock:             e.Clock,
-		Session:           awsSession,
+		SessionProvider:   libaws.StaticAWSSessionProvider(awsSession),
 		CredentialsGetter: e.CredentialsGetter,
 	})
 	if err != nil {

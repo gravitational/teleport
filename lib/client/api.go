@@ -38,6 +38,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
@@ -3803,16 +3804,19 @@ func (tc *TeleportClient) getSSHLoginFunc(pr *webclient.PingResponse) (SSHLoginF
 			return nil, trace.BadParameter("unsupported authentication connector type: %q", pr.Auth.Local.Name)
 		}
 	case constants.OIDC:
+		oidc := pr.Auth.OIDC
 		return func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
-			return tc.ssoLogin(ctx, priv, pr.Auth.OIDC.Name, constants.OIDC)
+			return tc.ssoLogin(ctx, priv, oidc.Name, oidc.Display, constants.OIDC)
 		}, nil
 	case constants.SAML:
+		saml := pr.Auth.SAML
 		return func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
-			return tc.ssoLogin(ctx, priv, pr.Auth.SAML.Name, constants.SAML)
+			return tc.ssoLogin(ctx, priv, saml.Name, saml.Display, constants.SAML)
 		}, nil
 	case constants.Github:
+		github := pr.Auth.Github
 		return func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
-			return tc.ssoLogin(ctx, priv, pr.Auth.Github.Name, constants.Github)
+			return tc.ssoLogin(ctx, priv, github.Name, github.Display, constants.Github)
 		}, nil
 	default:
 		return nil, trace.BadParameter("unsupported authentication type: %q", pr.Auth.Type)
@@ -4285,8 +4289,22 @@ func (tc *TeleportClient) headlessLogin(ctx context.Context, priv *keys.PrivateK
 // SSOLoginFunc is a function used in tests to mock SSO logins.
 type SSOLoginFunc func(ctx context.Context, connectorID string, priv *keys.PrivateKey, protocol string) (*auth.SSHLoginResponse, error)
 
+// TODO(atburke): DELETE in v17.0.0
+func versionSupportsKeyPolicyMessage(proxyVersion *semver.Version) bool {
+	switch proxyVersion.Major {
+	case 15:
+		return !proxyVersion.LessThan(*semver.New("15.2.5"))
+	case 14:
+		return !proxyVersion.LessThan(*semver.New("14.3.17"))
+	case 13:
+		return !proxyVersion.LessThan(*semver.New("13.4.22"))
+	default:
+		return proxyVersion.Major > 15
+	}
+}
+
 // samlLogin opens browser window and uses OIDC or SAML redirect cycle with browser
-func (tc *TeleportClient) ssoLogin(ctx context.Context, priv *keys.PrivateKey, connectorID string, protocol string) (*auth.SSHLoginResponse, error) {
+func (tc *TeleportClient) ssoLogin(ctx context.Context, priv *keys.PrivateKey, connectorID, connectorName, protocol string) (*auth.SSHLoginResponse, error) {
 	if tc.MockSSOLogin != nil {
 		// sso login response is being mocked for testing purposes
 		return tc.MockSSOLogin(ctx, connectorID, priv, protocol)
@@ -4297,14 +4315,23 @@ func (tc *TeleportClient) ssoLogin(ctx context.Context, priv *keys.PrivateKey, c
 		return nil, trace.Wrap(err)
 	}
 
+	pr, err := tc.Ping(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	proxyVersion := semver.New(pr.ServerVersion)
+
 	// ask the CA (via proxy) to sign our public key:
 	response, err := SSHAgentSSOLogin(ctx, SSHLoginSSO{
-		SSHLogin:     sshLogin,
-		ConnectorID:  connectorID,
-		Protocol:     protocol,
-		BindAddr:     tc.BindAddr,
-		CallbackAddr: tc.CallbackAddr,
-		Browser:      tc.Browser,
+		SSHLogin:                      sshLogin,
+		ConnectorID:                   connectorID,
+		ConnectorName:                 connectorName,
+		Protocol:                      protocol,
+		BindAddr:                      tc.BindAddr,
+		CallbackAddr:                  tc.CallbackAddr,
+		Browser:                       tc.Browser,
+		PrivateKeyPolicy:              tc.PrivateKeyPolicy,
+		ProxySupportsKeyPolicyMessage: versionSupportsKeyPolicyMessage(proxyVersion),
 	}, nil)
 	return response, trace.Wrap(err)
 }
