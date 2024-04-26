@@ -34,6 +34,7 @@ test('loaded', () => {
 });
 
 test('active sessions CTA', () => {
+  cfg.isTeam = true;
   cfg.isEnterprise = true;
   const { container } = render(<ActiveSessionsCTA />);
   expect(container.firstChild).toMatchSnapshot();
