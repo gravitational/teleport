@@ -17,10 +17,14 @@
  */
 
 import React, { useState } from 'react';
-import { Box, Text, Toggle } from 'design';
+import { Box, Link as ExternalLink, Text, Toggle } from 'design';
+import { Link as InternalLink } from 'react-router-dom';
+import styled from 'styled-components';
 import { FetchStatus } from 'design/DataTable/types';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { Danger } from 'design/Alert';
+import { OutlineInfo } from 'design/Alert/Alert';
+import { Info } from 'design/Icon';
 
 import { getErrMessage } from 'shared/utils/errorType';
 import { ToolTipInfo } from 'shared/components/ToolTip';
@@ -489,6 +493,35 @@ export function EnrollEc2Instance() {
                   your infrastructure.
                 </ToolTipInfo>
               </Toggle>
+              {wantAutoDiscover && (
+                <OutlineInfo mt={3} linkColor="buttons.link.default">
+                  <Box>
+                    <InfoIcon />
+                  </Box>
+                  <Box>
+                    AWS enforces{' '}
+                    <ExternalLink
+                      target="_blank"
+                      href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/eice-quotas.html"
+                    >
+                      strict quotas
+                    </ExternalLink>{' '}
+                    on auto-enrolled EC2 instances, particularly for the maximum
+                    number of allowed concurrent connections per EC2 Instance
+                    Connect Endpoint. If these quotas restrict your needs,
+                    consider following the{' '}
+                    <InternalLink
+                      to={{
+                        pathname: cfg.routes.discover,
+                        state: { searchKeywords: 'linux' },
+                      }}
+                    >
+                      Teleport service installation
+                    </InternalLink>{' '}
+                    flow instead.
+                  </Box>
+                </OutlineInfo>
+              )}
               {!cfg.isCloud && wantAutoDiscover && (
                 <SelfHostedAutoDiscoverDirections
                   clusterPublicUrl={storeUser.state.cluster.publicURL}
@@ -543,3 +576,12 @@ export function EnrollEc2Instance() {
     </Box>
   );
 }
+
+const InfoIcon = styled(Info)`
+  background-color: ${p => p.theme.colors.link};
+  border-radius: 100px;
+  height: 32px;
+  width: 32px;
+  color: ${p => p.theme.colors.text.primaryInverse};
+  margin-right: ${p => p.theme.space[2]}px;
+`;
