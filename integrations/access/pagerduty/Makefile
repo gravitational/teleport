@@ -3,29 +3,29 @@ include ../../../build.assets/images.mk
 
 VERSION ?= $(shell go run ../../hack/get-version/get-version.go)
 BUILDDIR ?= build
-BINARY = $(BUILDDIR)/teleport-discord
+BINARY = $(BUILDDIR)/teleport-pagerduty
 ADDFLAGS ?=
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags "-w -s"
 CGOFLAG ?= CGO_ENABLED=0
 
 OS ?= $(shell go env GOOS)
 ARCH ?= $(shell go env GOARCH)
-RELEASE_NAME=teleport-access-discord
+RELEASE_NAME=teleport-access-pagerduty
 RELEASE=$(RELEASE_NAME)-$(VERSION)-$(OS)-$(ARCH)-bin
 
 RELEASE_MESSAGE = "Building with GOOS=$(OS) GOARCH=$(ARCH)."
 
 DOCKER_VERSION = $(subst +,_,$(VERSION))
-DOCKER_NAME = teleport-plugin-discord
+DOCKER_NAME = teleport-plugin-pagerduty
 DOCKER_PRIVATE_REGISTRY = 146628656107.dkr.ecr.us-west-2.amazonaws.com
 DOCKER_IMAGE = $(DOCKER_PRIVATE_REGISTRY)/gravitational/$(DOCKER_NAME):$(DOCKER_VERSION)
 DOCKER_ECR_PUBLIC_REGISTRY = public.ecr.aws/gravitational
 DOCKER_IMAGE_ECR_PUBLIC = $(DOCKER_ECR_PUBLIC_REGISTRY)/$(DOCKER_NAME):$(DOCKER_VERSION)
-DOCKER_BUILD_ARGS = --load --platform="$(OS)/$(ARCH)" --build-arg ACCESS_PLUGIN=discord --build-arg BUILDBOX=$(BUILDBOX)
+DOCKER_BUILD_ARGS = --load --platform="$(OS)/$(ARCH)" --build-arg ACCESS_PLUGIN=pagerduty --build-arg BUILDBOX=$(BUILDBOX)
 
 .PHONY: $(BINARY)
 $(BINARY):
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -o $(BINARY) $(BUILDFLAGS) github.com/gravitational/teleport/integrations/access/discord/cmd/teleport-discord
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -o $(BINARY) $(BUILDFLAGS) github.com/gravitational/teleport/integrations/access/pagerduty/cmd/teleport-pagerduty
 
 .PHONY: test
 test: FLAGS ?= '-race'
@@ -44,7 +44,7 @@ release: clean $(BINARY)
 	mkdir build/$(RELEASE_NAME)
 	cp -rf $(BINARY) \
 		README.md \
-		cmd/teleport-discord/install \
+		cmd/teleport-pagerduty/install \
 		build/$(RELEASE_NAME)/
 	echo $(VERSION) > build/$(RELEASE_NAME)/VERSION
 	tar -czf build/$(RELEASE).tar.gz build/$(RELEASE_NAME)

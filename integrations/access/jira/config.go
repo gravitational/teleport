@@ -21,6 +21,7 @@ package jira
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"github.com/pelletier/go-toml"
 	"io"
 	"os"
 	"strings"
@@ -133,4 +134,25 @@ func (c *Config) LoadTLSConfig() (*tls.Config, error) {
 	}
 	tc.RootCAs = pool
 	return &tc, nil
+}
+
+func LoadConfig(filepath string) (*Config, error) {
+	t, err := toml.LoadFile(filepath)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	conf := &Config{}
+	if err := t.Unmarshal(conf); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if strings.HasPrefix(conf.Jira.APIToken, "/") {
+		conf.Jira.APIToken, err = lib.ReadPassword(conf.Jira.APIToken)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	if err := conf.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return conf, nil
 }
