@@ -261,7 +261,10 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	idService := local.NewTestIdentityService(p.backend)
+	idService, err := local.NewTestIdentityService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	p.trustS = local.NewCAService(p.backend)
 	p.clusterConfigS = clusterConfig
