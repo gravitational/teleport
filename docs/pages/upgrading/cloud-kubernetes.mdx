@@ -21,8 +21,8 @@ Teleport Cloud.
 
 ## Step 1/2. Check for agent updates
 
-The latest compatible Teleport agent version is served by the Teleport Proxy. To
-identify what that version is, you can query the `webapi` endpoint.
+To identify the latest compatible Teleport agent version, you can query the `webapi`
+endpoint of the Teleport Proxy Service:
 
 ```code
 $ curl https://<Var name="teleport.example.com" />/webapi/automaticupgrades/channel/stable/cloud/version
