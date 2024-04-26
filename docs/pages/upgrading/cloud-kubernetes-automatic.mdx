@@ -5,6 +5,14 @@ description: Provides instructions for enabling automatic updates for cloud-host
 
 This guide explains how to enable Automatic Updates for Teleport agents on Kubernetes.
 
+## How it works
+
+When automatic updates is enabled, a Teleport updater is deployed along side the
+Teleport agent. The updater communicates with the Teleport Proxy Service to determine
+when an update is available. When an update is available, the updater will update
+the Teleport agent during the next maintenance window. However, if a critical update
+is availble, the Teleport agent will be updated outside the regular maintenance window.
+
 ## Prerequisites
 
 - Familiarity with the [Upgrading Compatibility Overview](./overview.mdx) guide,
