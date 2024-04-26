@@ -52,7 +52,7 @@ auth_service:
   {{- end }}
 {{- end }}
 {{- if .Values.sessionRecording }}
-  session_recording: {{ .Values.sessionRecording }}
+  session_recording: {{ .Values.sessionRecording | squote }}
 {{- end }}
 {{- if .Values.proxyListenerMode }}
   proxy_listener_mode: {{ .Values.proxyListenerMode }}

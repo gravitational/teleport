@@ -9,7 +9,11 @@ kind: Service
 metadata:
   name: {{ .Release.Name }}
   namespace: {{ .Release.Namespace }}
-  labels: {{- include "teleport-cluster.proxy.labels" . | nindent 4 }}
+  labels:
+    {{- include "teleport-cluster.proxy.labels" . | nindent 4 }}
+    {{- if $proxy.extraLabels.service }}
+    {{- toYaml $proxy.extraLabels.service | nindent 4 }}
+    {{- end }}
   {{- if (or ($proxy.annotations.service) (eq $proxy.chartMode "aws")) }}
   annotations:
     {{- if and (eq $proxy.chartMode "aws") (not $proxy.ingress.enabled) }}
