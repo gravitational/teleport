@@ -67,14 +67,14 @@ func (a *assignmentProcessor) authorizeApp(ctx context.Context, name string) (bo
 }
 
 // getOktaAppIDFromAppServer returns the Okta app ID from the app server.
-func (a *assignmentProcessor) getOktaAppIDFromAppServer(ctx context.Context, name string) (string, error) {
+func (a *assignmentProcessor) getOktaAppIDFromAppServer(ctx context.Context, name string) (oktaAppID, error) {
 	appServer, err := a.getAppServer(ctx, name)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 
-	if oktaAppID, ok := appServer.GetLabel(teleport.OktaAppIDLabel); ok && oktaAppID != "" {
-		return oktaAppID, nil
+	if appID, ok := appServer.GetLabel(teleport.OktaAppIDLabel); ok && appID != "" {
+		return oktaAppID(appID), nil
 	}
 
 	return "", trace.BadParameter(`app_server %q does not have an Okta App ID`, name)

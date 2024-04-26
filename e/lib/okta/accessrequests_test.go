@@ -53,11 +53,11 @@ func TestAccessRequestReconciler(t *testing.T) {
 	require.Empty(t, reconciler.getAccessRequests())
 	require.Empty(t, reconciler.getNewAccessRequests())
 
-	user := "test-user"
+	user := userName("test-user")
 	roles := []string{"test-role"}
 
 	// This access request should be ignored.
-	accessRequest, err := types.NewAccessRequestWithResources(uuid.NewString(), user, roles,
+	accessRequest, err := types.NewAccessRequestWithResources(uuid.NewString(), string(user), roles,
 		[]types.ResourceID{{ClusterName: testClusterName, Kind: types.KindRole, Name: "role-request"}})
 	require.NoError(t, err)
 
@@ -80,7 +80,7 @@ func TestAccessRequestReconciler(t *testing.T) {
 	require.NoError(t, err)
 
 	// This access request should not be registered by the reconciler
-	accessRequest, err = types.NewAccessRequestWithResources(uuid.NewString(), user, roles,
+	accessRequest, err = types.NewAccessRequestWithResources(uuid.NewString(), string(user), roles,
 		[]types.ResourceID{{ClusterName: testClusterName, Kind: types.KindApp, Name: appServer.GetApp().GetName()}})
 	require.NoError(t, err)
 	accessRequest.SetState(types.RequestState_DENIED)
@@ -97,7 +97,7 @@ func TestAccessRequestReconciler(t *testing.T) {
 	waitForResult(t, onReconcileCh, struct{}{}, 1)
 
 	// This access request should also not be registered by the reconciler
-	accessRequest, err = types.NewAccessRequestWithResources(uuid.NewString(), user, roles,
+	accessRequest, err = types.NewAccessRequestWithResources(uuid.NewString(), string(user), roles,
 		[]types.ResourceID{{ClusterName: "other-cluster-name", Kind: types.KindApp, Name: appServer.GetApp().GetName()}})
 	require.NoError(t, err)
 	accessRequest.SetState(types.RequestState_APPROVED)
@@ -122,7 +122,7 @@ func TestAccessRequestReconciler(t *testing.T) {
 		waitForResult(t, onServiceDisconnectedCh, struct{}{}, 1)
 	}
 
-	accessRequest, err = types.NewAccessRequestWithResources(uuid.NewString(), user, roles,
+	accessRequest, err = types.NewAccessRequestWithResources(uuid.NewString(), string(user), roles,
 		[]types.ResourceID{{ClusterName: testClusterName, Kind: types.KindApp, Name: appServer.GetApp().GetName()}})
 	require.NoError(t, err)
 	accessRequest.SetState(types.RequestState_APPROVED)
@@ -177,7 +177,7 @@ func TestAccessRequestReconciler(t *testing.T) {
 	userGroup := group(t, "group1", types.OriginOkta, testOrgURL)
 	require.NoError(t, ap.CreateUserGroup(ctx, userGroup))
 
-	accessRequest, err = types.NewAccessRequestWithResources(uuid.NewString(), user, roles,
+	accessRequest, err = types.NewAccessRequestWithResources(uuid.NewString(), string(user), roles,
 		[]types.ResourceID{{ClusterName: testClusterName, Kind: types.KindUserGroup, Name: userGroup.GetName()}})
 	accessRequest.SetState(types.RequestState_APPROVED)
 	require.NoError(t, err)
@@ -389,17 +389,17 @@ func TestOnLogin(t *testing.T) {
 					resourceID(types.KindUserGroup, "group2")),
 			},
 			expected: []types.OktaAssignment{
-				assignment(t, arNames[0], user1.GetName(), now.Add(time.Hour), constants.OktaAssignmentStatusPending,
+				assignment(t, arNames[0], userName(user1.GetName()), now.Add(time.Hour), constants.OktaAssignmentStatusPending,
 					now, false, target(types.OktaAssignmentTargetV1_GROUP, "group1")),
-				assignment(t, arNames[1], user2.GetName(), now.Add(time.Hour), constants.OktaAssignmentStatusPending,
+				assignment(t, arNames[1], userName(user2.GetName()), now.Add(time.Hour), constants.OktaAssignmentStatusPending,
 					now, false, target(types.OktaAssignmentTargetV1_GROUP, "group2")),
 			},
 			cycles: []lockAndOnLoginCycle{
 				{
 					expected: []types.OktaAssignment{
-						assignment(t, arNames[0], user1.GetName(), now.Add(time.Hour), constants.OktaAssignmentStatusPending,
+						assignment(t, arNames[0], userName(user1.GetName()), now.Add(time.Hour), constants.OktaAssignmentStatusPending,
 							now, false, target(types.OktaAssignmentTargetV1_GROUP, "group1")),
-						assignment(t, arNames[1], user2.GetName(), now.Add(time.Hour), constants.OktaAssignmentStatusPending,
+						assignment(t, arNames[1], userName(user2.GetName()), now.Add(time.Hour), constants.OktaAssignmentStatusPending,
 							now, false, target(types.OktaAssignmentTargetV1_GROUP, "group2")),
 					},
 				},
@@ -415,9 +415,9 @@ func TestOnLogin(t *testing.T) {
 					resourceID(types.KindUserGroup, "group2")),
 			},
 			expected: []types.OktaAssignment{
-				assignment(t, arNames[0], user1.GetName(), now.Add(time.Hour), constants.OktaAssignmentStatusPending,
+				assignment(t, arNames[0], userName(user1.GetName()), now.Add(time.Hour), constants.OktaAssignmentStatusPending,
 					now, false, target(types.OktaAssignmentTargetV1_GROUP, "group1")),
-				assignment(t, arNames[1], user2.GetName(), now.Add(time.Hour), constants.OktaAssignmentStatusPending,
+				assignment(t, arNames[1], userName(user2.GetName()), now.Add(time.Hour), constants.OktaAssignmentStatusPending,
 					now, false, target(types.OktaAssignmentTargetV1_GROUP, "group2")),
 			},
 			cycles: []lockAndOnLoginCycle{
@@ -427,9 +427,9 @@ func TestOnLogin(t *testing.T) {
 						lock(t, "lock2", types.LockTarget{AccessRequest: arNames[1]}),
 					},
 					expected: []types.OktaAssignment{
-						assignment(t, arNames[0], user1.GetName(), now, constants.OktaAssignmentStatusPending,
+						assignment(t, arNames[0], userName(user1.GetName()), now, constants.OktaAssignmentStatusPending,
 							now, false, target(types.OktaAssignmentTargetV1_GROUP, "group1")),
-						assignment(t, arNames[1], user2.GetName(), now, constants.OktaAssignmentStatusPending,
+						assignment(t, arNames[1], userName(user2.GetName()), now, constants.OktaAssignmentStatusPending,
 							now, false, target(types.OktaAssignmentTargetV1_GROUP, "group2")),
 					},
 				},
@@ -445,9 +445,9 @@ func TestOnLogin(t *testing.T) {
 					resourceID(types.KindUserGroup, "group2")),
 			},
 			expected: []types.OktaAssignment{
-				assignment(t, arNames[0], user1.GetName(), now.Add(time.Hour), constants.OktaAssignmentStatusPending,
+				assignment(t, arNames[0], userName(user1.GetName()), now.Add(time.Hour), constants.OktaAssignmentStatusPending,
 					now, false, target(types.OktaAssignmentTargetV1_GROUP, "group1")),
-				assignment(t, arNames[1], user2.GetName(), now.Add(time.Hour), constants.OktaAssignmentStatusPending,
+				assignment(t, arNames[1], userName(user2.GetName()), now.Add(time.Hour), constants.OktaAssignmentStatusPending,
 					now, false, target(types.OktaAssignmentTargetV1_GROUP, "group2")),
 			},
 			cycles: []lockAndOnLoginCycle{
@@ -457,9 +457,9 @@ func TestOnLogin(t *testing.T) {
 						lock(t, "lock2", types.LockTarget{AccessRequest: arNames[1]}),
 					},
 					expected: []types.OktaAssignment{
-						assignment(t, arNames[0], user1.GetName(), now.Add(time.Hour), constants.OktaAssignmentStatusPending,
+						assignment(t, arNames[0], userName(user1.GetName()), now.Add(time.Hour), constants.OktaAssignmentStatusPending,
 							now, false, target(types.OktaAssignmentTargetV1_GROUP, "group1")),
-						assignment(t, arNames[1], user2.GetName(), now.Add(time.Hour), constants.OktaAssignmentStatusPending,
+						assignment(t, arNames[1], userName(user2.GetName()), now.Add(time.Hour), constants.OktaAssignmentStatusPending,
 							now, false, target(types.OktaAssignmentTargetV1_GROUP, "group2")),
 					},
 				},
@@ -475,9 +475,9 @@ func TestOnLogin(t *testing.T) {
 					resourceID(types.KindUserGroup, "group2")),
 			},
 			expected: []types.OktaAssignment{
-				assignment(t, arNames[0], user1.GetName(), now.Add(time.Hour), constants.OktaAssignmentStatusPending,
+				assignment(t, arNames[0], userName(user1.GetName()), now.Add(time.Hour), constants.OktaAssignmentStatusPending,
 					now, false, target(types.OktaAssignmentTargetV1_GROUP, "group1")),
-				assignment(t, arNames[1], user2.GetName(), now.Add(time.Hour), constants.OktaAssignmentStatusPending,
+				assignment(t, arNames[1], userName(user2.GetName()), now.Add(time.Hour), constants.OktaAssignmentStatusPending,
 					now, false, target(types.OktaAssignmentTargetV1_GROUP, "group2")),
 			},
 			cycles: []lockAndOnLoginCycle{
@@ -487,17 +487,17 @@ func TestOnLogin(t *testing.T) {
 						lock(t, "lock2", types.LockTarget{AccessRequest: arNames[1]}),
 					},
 					expected: []types.OktaAssignment{
-						assignment(t, arNames[0], user1.GetName(), now, constants.OktaAssignmentStatusPending,
+						assignment(t, arNames[0], userName(user1.GetName()), now, constants.OktaAssignmentStatusPending,
 							now, false, target(types.OktaAssignmentTargetV1_GROUP, "group1")),
-						assignment(t, arNames[1], user2.GetName(), now, constants.OktaAssignmentStatusPending,
+						assignment(t, arNames[1], userName(user2.GetName()), now, constants.OktaAssignmentStatusPending,
 							now, false, target(types.OktaAssignmentTargetV1_GROUP, "group2")),
 					},
 				},
 				{
 					expected: []types.OktaAssignment{
-						assignment(t, arNames[0], user1.GetName(), now.Add(time.Hour), constants.OktaAssignmentStatusPending,
+						assignment(t, arNames[0], userName(user1.GetName()), now.Add(time.Hour), constants.OktaAssignmentStatusPending,
 							now, false, target(types.OktaAssignmentTargetV1_GROUP, "group1")),
-						assignment(t, arNames[1], user2.GetName(), now.Add(time.Hour), constants.OktaAssignmentStatusPending,
+						assignment(t, arNames[1], userName(user2.GetName()), now.Add(time.Hour), constants.OktaAssignmentStatusPending,
 							now, false, target(types.OktaAssignmentTargetV1_GROUP, "group2")),
 					},
 				},

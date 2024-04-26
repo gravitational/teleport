@@ -31,8 +31,8 @@ func TestProcessAssignments(t *testing.T) {
 	startTime := time.Now().UTC()
 	zero := time.Time{}
 	timeout := startTime.Add(processingTimeout)
-	testUser := "test-user@test.user"
-	oktaUserID := "okta-user-id"
+	testUser := userName("test-user@test.user")
+	testOktaUserID := oktaUserID("okta-user-id")
 
 	type auditEventInfo struct {
 		name           string
@@ -54,18 +54,16 @@ func TestProcessAssignments(t *testing.T) {
 		expected               types.OktaAssignments
 		incrementTimeDuration  time.Duration
 		skipAssignmentCreation bool
-		oktaClientGroupMapping map[string]map[string]bool
-		oktaClientAppMapping   map[string]map[appAssignment]bool
+		oktaClientGroupMapping map[oktaGroupID]set[oktaUserID]
+		oktaClientAppMapping   map[oktaAppID]set[appAssignment]
 		expectedAuditEvents    []auditEventInfo
 		errAssertionFunc       require.ErrorAssertionFunc
 	}{
 		{
-			name:                   "empty",
-			assignments:            types.OktaAssignments{},
-			expected:               types.OktaAssignments{},
-			oktaClientGroupMapping: map[string]map[string]bool{},
-			oktaClientAppMapping:   map[string]map[appAssignment]bool{},
-			errAssertionFunc:       require.NoError,
+			name:             "empty",
+			assignments:      types.OktaAssignments{},
+			expected:         types.OktaAssignments{},
+			errAssertionFunc: require.NoError,
 		},
 		{
 			name: "fail to process app, skip pending app for different org, skip successful group",
@@ -91,12 +89,9 @@ func TestProcessAssignments(t *testing.T) {
 				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
 			)},
 			incrementTimeDuration: time.Minute,
-			oktaClientGroupMapping: map[string]map[string]bool{
-				"group1": {
-					oktaUserID: true,
-				},
+			oktaClientGroupMapping: map[oktaGroupID]set[oktaUserID]{
+				"group1": newSet(testOktaUserID),
 			},
-			oktaClientAppMapping: map[string]map[appAssignment]bool{},
 			expectedAuditEvents: []auditEventInfo{
 				{
 					name:           "assignment1",
@@ -131,15 +126,10 @@ func TestProcessAssignments(t *testing.T) {
 				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app2")),
 				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
 			)},
-			incrementTimeDuration:  10 * time.Minute,
-			oktaClientGroupMapping: map[string]map[string]bool{},
-			oktaClientAppMapping: map[string]map[appAssignment]bool{
-				"app1": {
-					appAssignment{userID: oktaUserID, scope: userScope}: true,
-				},
-				"app2": {
-					appAssignment{userID: oktaUserID, scope: userScope}: true,
-				},
+			incrementTimeDuration: 10 * time.Minute,
+			oktaClientAppMapping: map[oktaAppID]set[appAssignment]{
+				"app1": newSet(appAssignment{userID: string(testOktaUserID), scope: userScope}),
+				"app2": newSet(appAssignment{userID: string(testOktaUserID), scope: userScope}),
 			},
 			expectedAuditEvents: []auditEventInfo{
 				{
@@ -166,12 +156,9 @@ func TestProcessAssignments(t *testing.T) {
 				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
 			)},
 			incrementTimeDuration: time.Minute,
-			oktaClientGroupMapping: map[string]map[string]bool{
-				"group1": {
-					oktaUserID: true,
-				},
+			oktaClientGroupMapping: map[oktaGroupID]set[oktaUserID]{
+				"group1": newSet(testOktaUserID),
 			},
-			oktaClientAppMapping: map[string]map[appAssignment]bool{},
 			expectedAuditEvents: []auditEventInfo{
 				{
 					name:           "assignment1",
@@ -194,10 +181,9 @@ func TestProcessAssignments(t *testing.T) {
 			expected:               types.OktaAssignments{},
 			incrementTimeDuration:  time.Minute,
 			skipAssignmentCreation: true,
-			oktaClientGroupMapping: map[string]map[string]bool{
-				"group1": {},
+			oktaClientGroupMapping: map[oktaGroupID]set[oktaUserID]{
+				"group1": newSet[oktaUserID](),
 			},
-			oktaClientAppMapping: map[string]map[appAssignment]bool{},
 			errAssertionFunc: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, `"assignment1" doesn't exist`)
 			},
@@ -220,9 +206,7 @@ func TestProcessAssignments(t *testing.T) {
 				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
 				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
 			)},
-			incrementTimeDuration:  time.Minute,
-			oktaClientGroupMapping: map[string]map[string]bool{},
-			oktaClientAppMapping:   map[string]map[appAssignment]bool{},
+			incrementTimeDuration: time.Minute,
 			expectedAuditEvents: []auditEventInfo{
 				{
 					name:           "assignment1",
@@ -254,11 +238,11 @@ func TestProcessAssignments(t *testing.T) {
 				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
 			)},
 			incrementTimeDuration: time.Minute,
-			oktaClientGroupMapping: map[string]map[string]bool{
-				"group1": {},
+			oktaClientGroupMapping: map[oktaGroupID]set[oktaUserID]{
+				"group1": newSet[oktaUserID](),
 			},
-			oktaClientAppMapping: map[string]map[appAssignment]bool{
-				"app1": {},
+			oktaClientAppMapping: map[oktaAppID]set[appAssignment]{
+				"app1": newSet[appAssignment](),
 			},
 			expectedAuditEvents: []auditEventInfo{
 				{
@@ -285,11 +269,11 @@ func TestProcessAssignments(t *testing.T) {
 			)},
 			expected:              types.OktaAssignments{},
 			incrementTimeDuration: time.Minute,
-			oktaClientGroupMapping: map[string]map[string]bool{
-				"group1": {},
+			oktaClientGroupMapping: map[oktaGroupID]set[oktaUserID]{
+				"group1": newSet[oktaUserID](),
 			},
-			oktaClientAppMapping: map[string]map[appAssignment]bool{
-				"app1": {},
+			oktaClientAppMapping: map[oktaAppID]set[appAssignment]{
+				"app1": newSet[appAssignment](),
 			},
 			errAssertionFunc: require.NoError,
 		},
@@ -310,12 +294,11 @@ func TestProcessAssignments(t *testing.T) {
 				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
 			)},
 			incrementTimeDuration: time.Minute,
-			oktaClientGroupMapping: map[string]map[string]bool{
-				"group1": {"okta-user-id": true},
+			oktaClientGroupMapping: map[oktaGroupID]set[oktaUserID]{
+				"group1": newSet(testOktaUserID),
 			},
-			oktaClientAppMapping: map[string]map[appAssignment]bool{
-				"app1": {
-					appAssignment{userID: "okta-user-id", scope: userScope}: true},
+			oktaClientAppMapping: map[oktaAppID]set[appAssignment]{
+				"app1": newSet(appAssignment{userID: "okta-user-id", scope: userScope}),
 			},
 			errAssertionFunc: require.NoError,
 		},
@@ -337,15 +320,11 @@ func TestProcessAssignments(t *testing.T) {
 				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
 			)},
 			incrementTimeDuration: processingTimeout,
-			oktaClientGroupMapping: map[string]map[string]bool{
-				"group1": {
-					oktaUserID: true,
-				},
+			oktaClientGroupMapping: map[oktaGroupID]set[oktaUserID]{
+				"group1": newSet(testOktaUserID),
 			},
-			oktaClientAppMapping: map[string]map[appAssignment]bool{
-				"app1": {
-					appAssignment{userID: oktaUserID, scope: userScope}: true,
-				},
+			oktaClientAppMapping: map[oktaAppID]set[appAssignment]{
+				"app1": newSet(appAssignment{userID: string(testOktaUserID), scope: userScope}),
 			},
 			expectedAuditEvents: []auditEventInfo{
 				{
@@ -378,11 +357,11 @@ func TestProcessAssignments(t *testing.T) {
 				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
 				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
 			)},
-			oktaClientGroupMapping: map[string]map[string]bool{
-				"group1": {},
+			oktaClientGroupMapping: map[oktaGroupID]set[oktaUserID]{
+				"group1": newSet[oktaUserID](),
 			},
-			oktaClientAppMapping: map[string]map[appAssignment]bool{
-				"app1": {},
+			oktaClientAppMapping: map[oktaAppID]set[appAssignment]{
+				"app1": newSet[appAssignment](),
 			},
 			// 6 minutes pass from the start time, which should trigger an immediate cleanup.
 			incrementTimeDuration: processingTimeout + time.Minute,
@@ -413,11 +392,11 @@ func TestProcessAssignments(t *testing.T) {
 				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
 				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
 			)},
-			oktaClientGroupMapping: map[string]map[string]bool{
-				"group1": {},
+			oktaClientGroupMapping: map[oktaGroupID]set[oktaUserID]{
+				"group1": newSet[oktaUserID](),
 			},
-			oktaClientAppMapping: map[string]map[appAssignment]bool{
-				"app1": {},
+			oktaClientAppMapping: map[oktaAppID]set[appAssignment]{
+				"app1": newSet[appAssignment](),
 			},
 			incrementTimeDuration: processingTimeout + 10*time.Minute,
 			expectedAuditEvents: []auditEventInfo{
@@ -451,11 +430,8 @@ func TestProcessAssignments(t *testing.T) {
 				assignment(t, "assignment2", testUser, timeout, constants.OktaAssignmentStatusSuccessful, startTime.Add(processingTimeout+5*time.Minute), true,
 					target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
 				)},
-			oktaClientGroupMapping: map[string]map[string]bool{},
-			oktaClientAppMapping: map[string]map[appAssignment]bool{
-				"app1": {
-					appAssignment{userID: oktaUserID, scope: userScope}: true,
-				},
+			oktaClientAppMapping: map[oktaAppID]set[appAssignment]{
+				"app1": newSet(appAssignment{userID: string(testOktaUserID), scope: userScope}),
 			},
 			incrementTimeDuration: processingTimeout + 5*time.Minute,
 			expectedAuditEvents: []auditEventInfo{
@@ -489,11 +465,8 @@ func TestProcessAssignments(t *testing.T) {
 				assignment(t, "assignment2", testUser, zero, constants.OktaAssignmentStatusSuccessful, startTime.Add(processingTimeout+5*time.Minute), false,
 					target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
 				)},
-			oktaClientGroupMapping: map[string]map[string]bool{},
-			oktaClientAppMapping: map[string]map[appAssignment]bool{
-				"app1": {
-					appAssignment{userID: oktaUserID, scope: userScope}: true,
-				},
+			oktaClientAppMapping: map[oktaAppID]set[appAssignment]{
+				"app1": newSet(appAssignment{userID: string(testOktaUserID), scope: userScope}),
 			},
 			incrementTimeDuration: processingTimeout + 5*time.Minute,
 			expectedAuditEvents: []auditEventInfo{
@@ -524,7 +497,7 @@ func TestProcessAssignments(t *testing.T) {
 				return test.assignments
 			})
 
-			oktaClient.addUserID(testUser, oktaUserID)
+			oktaClient.addUserID(testUser, testOktaUserID)
 
 			// Make sure the rate limit is not in effect here.
 			a.rateLimiter = rate.NewLimiter(rate.Inf, 1)
@@ -572,8 +545,13 @@ func TestProcessAssignments(t *testing.T) {
 			require.Empty(t, cmp.Diff(test.expected, types.OktaAssignments(actual),
 				cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
-			require.Empty(t, cmp.Diff(test.oktaClientGroupMapping, oktaClient.groupsToUsers))
-			require.Empty(t, cmp.Diff(test.oktaClientAppMapping, oktaClient.appsToUsers))
+			oktaClient.groupsToUsers.Read(func(m map[oktaGroupID]set[oktaUserID]) {
+				require.Empty(t, cmp.Diff(test.oktaClientGroupMapping, m))
+			})
+
+			oktaClient.appsToUsers.Read(func(m map[oktaAppID]set[appAssignment]) {
+				require.Empty(t, cmp.Diff(test.oktaClientAppMapping, m))
+			})
 
 			for _, expectedEvent := range test.expectedAuditEvents {
 				expectAuditEvent(t, emitter, func(event *apievents.OktaAssignmentResult) {

@@ -352,7 +352,7 @@ func (a *assignmentProcessor) processTargets(ctx context.Context, assignment typ
 	a.log.Infof("Provisioning assignment %s for user %s", assignment.GetName(), assignment.GetUser())
 
 	// If we can't find the user in Okta, skip trying to process any of the targets.
-	if _, err := assignmentClient.userID(ctx, assignment.GetUser()); err != nil {
+	if _, err := assignmentClient.userID(ctx, userName(assignment.GetUser())); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -374,15 +374,15 @@ func (a *assignmentProcessor) processTargets(ctx context.Context, assignment typ
 
 		switch target.GetTargetType() {
 		case constants.OktaAssignmentTargetGroup:
-			err = assignmentClient.registerUserToGroup(ctx, assignment.GetUser(), target.GetID())
+			err = assignmentClient.registerUserToGroup(ctx, userName(assignment.GetUser()), oktaGroupID(target.GetID()))
 		case constants.OktaAssignmentTargetApplication:
-			var oktaAppID string
-			oktaAppID, err = a.getOktaAppIDFromAppServer(ctx, target.GetID())
+			var appID oktaAppID
+			appID, err = a.getOktaAppIDFromAppServer(ctx, target.GetID())
 			if err != nil {
 				break
 			}
 
-			err = assignmentClient.registerUserToApp(ctx, assignment.GetUser(), oktaAppID)
+			err = assignmentClient.registerUserToApp(ctx, userName(assignment.GetUser()), appID)
 		}
 
 		if err == nil {
@@ -405,7 +405,7 @@ func (a *assignmentProcessor) cleanupTargets(ctx context.Context, assignment typ
 	a.log.Infof("Cleaning up assignment %s for user %s", assignment.GetName(), assignment.GetUser())
 
 	// If we can't find the user in Okta, skip trying to process any of the targets.
-	if _, err := assignmentClient.userID(ctx, assignment.GetUser()); err != nil {
+	if _, err := assignmentClient.userID(ctx, userName(assignment.GetUser())); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -434,15 +434,15 @@ func (a *assignmentProcessor) cleanupTargets(ctx context.Context, assignment typ
 
 		switch target.GetTargetType() {
 		case constants.OktaAssignmentTargetGroup:
-			err = assignmentClient.unregisterUserFromGroup(ctx, assignment.GetUser(), target.GetID())
+			err = assignmentClient.unregisterUserFromGroup(ctx, userName(assignment.GetUser()), oktaGroupID(target.GetID()))
 		case constants.OktaAssignmentTargetApplication:
-			var oktaAppID string
-			oktaAppID, err = a.getOktaAppIDFromAppServer(ctx, target.GetID())
+			var appID oktaAppID
+			appID, err = a.getOktaAppIDFromAppServer(ctx, target.GetID())
 			if err != nil {
 				break
 			}
 
-			err = assignmentClient.unregisterUserFromApp(ctx, assignment.GetUser(), oktaAppID)
+			err = assignmentClient.unregisterUserFromApp(ctx, userName(assignment.GetUser()), appID)
 		}
 
 		if err != nil {

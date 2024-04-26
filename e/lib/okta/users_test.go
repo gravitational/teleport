@@ -195,7 +195,7 @@ func mustUpsertApplicationServer(t *testing.T, ctx context.Context, ap *testUACA
 func TestAssignmentDiff(t *testing.T) {
 	t.Parallel()
 
-	testUser := "test-user@test.user"
+	testUser := userName("test-user@test.user")
 
 	tests := []struct {
 		name                  string

@@ -8,7 +8,10 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/maps"
 	"golang.org/x/sync/singleflight"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // assignmentClient is a caching Okta client that will keep track of of Okta
@@ -20,17 +23,19 @@ type assignmentClient struct {
 	log        *logrus.Entry
 	oktaClient OktaClient
 
-	// Mapping of usernames to user IDs.
-	usersMu sync.Mutex
-	users   map[string]string
+	// Mapping of usernames to user IDs. Initialized once on first read and then
+	// only ever read from, so locking isn't an issue.
+	users map[userName]oktaUserID
+
+	// Guard for initializing the `users` map
+	initUsersOnce sync.Once
 
 	// Group membership.
-	groupsMu sync.RWMutex
-	groups   map[string]map[string]bool
+	groups utils.SyncMap[oktaGroupID, set[oktaUserID]]
 
 	// Apps membership.
-	appsMu sync.RWMutex
-	apps   map[string]map[appAssignment]bool
+	apps utils.SyncMap[oktaAppID, set[appAssignment]]
+
 	// syncSingleFlight is used to prevent multiple requests during listing user apps groups
 	// assignments. Parallel calls will be collapsed in to one and all receive the same result.
 	// Assumed that Okta GroupID and AppID  are exclusive uniq (Okta Group ID != Okta App ID)
@@ -42,12 +47,10 @@ func newAssignmentClient(log *logrus.Entry, oktaClient OktaClient) *assignmentCl
 	return &assignmentClient{
 		log:        log,
 		oktaClient: oktaClient,
-		groups:     map[string]map[string]bool{},
-		apps:       map[string]map[appAssignment]bool{},
 	}
 }
 
-func (a *assignmentClient) getGroupAssignments(ctx context.Context, groupID string) ([]string, error) {
+func (a *assignmentClient) getGroupAssignments(ctx context.Context, groupID oktaGroupID) ([]oktaUserID, error) {
 	// syncSingleFlight is used to prevent multiple requests during listing user groups assignments.
 	// assignments are processed in parallel (See processAssignments function)
 	// We need to make sure that we don't make multiple requests to Okta for the same group.
@@ -55,16 +58,23 @@ func (a *assignmentClient) getGroupAssignments(ctx context.Context, groupID stri
 	key := fmt.Sprintf("group:%s", groupID)
 	items, err, _ := a.syncSingleFlight.Do(key, func() (interface{}, error) {
 		a.log.Debugf("Refreshing assignments for group %s", groupID)
-		members, err := a.oktaClient.getGroupAssignments(ctx, groupID)
+		members, err := a.oktaClient.getGroupAssignments(ctx, string(groupID))
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
-		return members, nil
+
+		result := make([]oktaUserID, len(members))
+		for i, m := range members {
+			result[i] = oktaUserID(m)
+		}
+
+		return result, nil
 	})
+
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	members, ok := items.([]string)
+	members, ok := items.([]oktaUserID)
 	if !ok {
 		return nil, trace.BadParameter("unexpected type %T returned", items)
 	}
@@ -72,41 +82,50 @@ func (a *assignmentClient) getGroupAssignments(ctx context.Context, groupID stri
 }
 
 // userAssignedToGroup will return true if the user is assigned to the group.
-func (a *assignmentClient) userAssignedToGroup(ctx context.Context, username, groupID string) (bool, error) {
+func (a *assignmentClient) userAssignedToGroup(ctx context.Context, username userName, groupID oktaGroupID) (bool, error) {
 	userID, err := a.userID(ctx, username)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
 
 	// If the group entry hasn't yet been populated, populate it.
-	a.groupsMu.Lock()
-	assignments := a.groups[groupID]
-	a.groupsMu.Unlock()
-
-	if assignments == nil {
-		members, err := a.getGroupAssignments(ctx, groupID)
+	members, populated := a.groups.Load(groupID)
+	if !populated {
+		a.log.Debugf("Refreshing members for group %s", groupID)
+		assignments, err := a.getGroupAssignments(ctx, groupID)
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
 
-		a.groupsMu.Lock()
-		a.groups[groupID] = map[string]bool{}
-		for _, member := range members {
-			a.groups[groupID][member] = true
+		members = newSet[oktaUserID]()
+		for _, member := range assignments {
+			members.add(member)
 		}
-		a.groupsMu.Unlock()
-		a.log.WithFields(logrus.Fields{"members": members, "groupID": groupID}).Debugf("Found users assigned to group")
+		a.groups.Store(groupID, members)
+
+		a.log.
+			WithFields(logrus.Fields{
+				"members": maps.Keys(members),
+				"groupID": groupID,
+			}).
+			Debugf("Found users assigned to group")
 	}
 
-	a.groupsMu.RLock()
-	ok := a.groups[groupID][userID]
-	a.groupsMu.RUnlock()
+	// We check for group membership under the group map read lock. It's possible
+	// Someone *may* have changed the membership set behind our back in the time
+	// since we fetched it, but at least this way no on can change it while
+	// we're in the middle of a read.
+
+	ok := false
+	a.groups.Read(func(_ map[oktaGroupID]set[oktaUserID]) {
+		ok = members.has(userID)
+	})
 
 	return ok, nil
 }
 
 // registerUserToGroup will register the user to the group.
-func (a *assignmentClient) registerUserToGroup(ctx context.Context, username, groupID string) error {
+func (a *assignmentClient) registerUserToGroup(ctx context.Context, username userName, groupID oktaGroupID) error {
 	ok, err := a.userAssignedToGroup(ctx, username, groupID)
 	if err != nil {
 		return trace.Wrap(err)
@@ -123,21 +142,23 @@ func (a *assignmentClient) registerUserToGroup(ctx context.Context, username, gr
 		return nil
 	}
 
-	if err := a.oktaClient.assignUserToGroup(ctx, userID, groupID); err != nil {
+	if err := a.oktaClient.assignUserToGroup(ctx, string(userID), string(groupID)); err != nil {
 		return trace.Wrap(err)
 	}
 
 	a.log.Debugf("User %s has been assigned to group %s", userID, groupID)
 
-	a.groupsMu.Lock()
-	a.groups[groupID][userID] = true
-	a.groupsMu.Unlock()
+	// update our local cache to reflect the new assignment in the upstream
+	// Okta org
+	a.groups.Write(func(groups map[oktaGroupID]set[oktaUserID]) {
+		groups[groupID].add(userID)
+	})
 
 	return nil
 }
 
 // unregisterUserFromGroup will unregister the user from the group.
-func (a *assignmentClient) unregisterUserFromGroup(ctx context.Context, username, groupID string) error {
+func (a *assignmentClient) unregisterUserFromGroup(ctx context.Context, username userName, groupID oktaGroupID) error {
 	ok, err := a.userAssignedToGroup(ctx, username, groupID)
 	if err != nil {
 		return trace.Wrap(err)
@@ -156,7 +177,7 @@ func (a *assignmentClient) unregisterUserFromGroup(ctx context.Context, username
 		return nil
 	}
 
-	if err := a.oktaClient.unassignUserFromGroup(ctx, userID, groupID); err != nil {
+	if err := a.oktaClient.unassignUserFromGroup(ctx, string(userID), string(groupID)); err != nil {
 		if oErr := (*oktaAPIValidationError)(nil); errors.As(err, &oErr) {
 			// This is referring to Okta group rules:
 			// https://help.okta.com/en-us/Content/Topics/users-groups-profiles/usgp-about-group-rules.htm
@@ -170,14 +191,15 @@ func (a *assignmentClient) unregisterUserFromGroup(ctx context.Context, username
 		log.Debug("User has been unassigned from groups")
 	}
 
-	a.groupsMu.Lock()
-	delete(a.groups[groupID], userID)
-	a.groupsMu.Unlock()
+	// Update the local group cache to match the upstream Okta organization
+	a.groups.Write(func(groups map[oktaGroupID]set[oktaUserID]) {
+		groups[groupID].remove(userID)
+	})
 
 	return nil
 }
 
-func (a *assignmentClient) getUserAssignedToApp(ctx context.Context, appID string) ([]appAssignment, error) {
+func (a *assignmentClient) getUserAssignedToApp(ctx context.Context, appID oktaAppID) ([]appAssignment, error) {
 	// syncSingleFlight is used to prevent multiple requests during listing user apps assignments.
 	// assignments are processed in parallel (See processAssignments function)
 	// We need to make sure that we don't make multiple requests to Okta for the same app.
@@ -185,7 +207,7 @@ func (a *assignmentClient) getUserAssignedToApp(ctx context.Context, appID strin
 	key := fmt.Sprintf("app:%s", appID)
 	items, err, _ := a.syncSingleFlight.Do(key, func() (interface{}, error) {
 		a.log.Debugf("Refreshing assignments for app %s", appID)
-		items, err := a.oktaClient.getAppAssignments(ctx, appID)
+		items, err := a.oktaClient.getAppAssignments(ctx, string(appID))
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
@@ -202,42 +224,52 @@ func (a *assignmentClient) getUserAssignedToApp(ctx context.Context, appID strin
 }
 
 // userAssignedToApp will return true if the user is assigned to the app.
-func (a *assignmentClient) userAssignedToApp(ctx context.Context, username, appID string) (bool, error) {
+func (a *assignmentClient) userAssignedToApp(ctx context.Context, username userName, appID oktaAppID) (bool, error) {
 	userID, err := a.userID(ctx, username)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
 
 	// If the app entry hasn't yet been populated, populate it.
-	a.appsMu.RLock()
-	assignments := a.apps[appID]
-	a.appsMu.RUnlock()
-
-	if assignments == nil {
+	assignments, populated := a.apps.Load(appID)
+	if !populated {
 		members, err := a.getUserAssignedToApp(ctx, appID)
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
 
-		a.appsMu.Lock()
-		a.apps[appID] = map[appAssignment]bool{}
+		assignments = newSet[appAssignment]()
 		for _, member := range members {
-			a.apps[appID][member] = true
+			assignments.add(member)
 		}
-		a.appsMu.Unlock()
-		a.log.WithFields(logrus.Fields{"members": members, "appID": appID}).Debugf("Found users assigned to app")
+
+		a.log.
+			WithFields(logrus.Fields{
+				"members": maps.Keys(assignments),
+				"appID":   appID,
+			}).
+			Debugf("Found users assigned to app")
+
+		a.apps.Store(appID, assignments)
 	}
 
-	a.appsMu.RLock()
-	_, assignedToGroup := a.apps[appID][appAssignment{userID: userID, scope: groupScope}]
-	_, assignedToApp := a.apps[appID][appAssignment{userID: userID, scope: userScope}]
-	a.appsMu.RUnlock()
+	// We check for app assignment under the application map read lock. It's
+	// possible someone *may* have changed the assignment set behind our back
+	// in the time since we fetched it, but at least this way no on can change
+	// it while we're in the middle of a read.
+
+	assignedToGroup := false
+	assignedToApp := false
+	a.apps.Read(func(_ map[oktaAppID]set[appAssignment]) {
+		assignedToGroup = assignments.has(appAssignment{userID: string(userID), scope: groupScope})
+		assignedToApp = assignments.has(appAssignment{userID: string(userID), scope: userScope})
+	})
 
 	return assignedToGroup || assignedToApp, nil
 }
 
 // registerUserToApp will register the user to the app.
-func (a *assignmentClient) registerUserToApp(ctx context.Context, username, appID string) error {
+func (a *assignmentClient) registerUserToApp(ctx context.Context, username userName, appID oktaAppID) error {
 	ok, err := a.userAssignedToApp(ctx, username, appID)
 	if err != nil {
 		return trace.Wrap(err)
@@ -254,21 +286,22 @@ func (a *assignmentClient) registerUserToApp(ctx context.Context, username, appI
 		return nil
 	}
 
-	if err := a.oktaClient.assignUserToApplication(ctx, userID, appID); err != nil {
+	// Make update to upstream Okta
+	if err := a.oktaClient.assignUserToApplication(ctx, string(userID), string(appID)); err != nil {
 		return trace.Wrap(err)
 	}
 
+	// Update local cache
 	a.log.Debugf("User %s has been assigned to app %s", userID, appID)
-
-	a.appsMu.Lock()
-	a.apps[appID][appAssignment{userID: userID, scope: userScope}] = true
-	a.appsMu.Unlock()
+	a.apps.Write(func(apps map[oktaAppID]set[appAssignment]) {
+		apps[appID].add(appAssignment{userID: string(userID), scope: userScope})
+	})
 
 	return nil
 }
 
 // unregisterUserFromGroup will unregister the user from the app.
-func (a *assignmentClient) unregisterUserFromApp(ctx context.Context, username, appID string) error {
+func (a *assignmentClient) unregisterUserFromApp(ctx context.Context, username userName, appID oktaAppID) error {
 	ok, err := a.userAssignedToApp(ctx, username, appID)
 	if err != nil {
 		return trace.Wrap(err)
@@ -287,7 +320,7 @@ func (a *assignmentClient) unregisterUserFromApp(ctx context.Context, username, 
 		return nil
 	}
 
-	if err := a.oktaClient.unassignUserFromApplication(ctx, userID, appID); err != nil {
+	if err := a.oktaClient.unassignUserFromApplication(ctx, string(userID), string(appID)); err != nil {
 		if oErr := (*oktaAPIValidationError)(nil); errors.As(err, &oErr) {
 			// This is referring to Okta group rules:
 			// https://help.okta.com/en-us/Content/Topics/users-groups-profiles/usgp-about-group-rules.htm
@@ -301,31 +334,43 @@ func (a *assignmentClient) unregisterUserFromApp(ctx context.Context, username, 
 		log.Debug("User has been unassigned from app")
 	}
 
-	a.appsMu.Lock()
-	delete(a.apps[appID], appAssignment{userID: userID, scope: userScope})
-	a.appsMu.Unlock()
+	// Update local cache
+	a.apps.Write(func(apps map[oktaAppID]set[appAssignment]) {
+		apps[appID].remove(appAssignment{userID: string(userID), scope: userScope})
+	})
 
 	return nil
 }
 
-// userID will return the userID for the username.
-func (a *assignmentClient) userID(ctx context.Context, username string) (string, error) {
-	a.usersMu.Lock()
-	if a.users == nil {
-		var err error
-		a.users, err = a.oktaClient.listUsers(ctx)
+// userID will return the Okta userID for the username.
+func (a *assignmentClient) userID(ctx context.Context, username userName) (oktaUserID, error) {
+	var err error
+
+	a.initUsersOnce.Do(func() {
+		var users map[string]string
+
+		a.log.Debugf("Refreshing organization user list")
+		users, err = a.oktaClient.listUsers(ctx)
 		if err != nil {
-			a.usersMu.Unlock()
-			return "", trace.Wrap(err)
+			err = trace.Wrap(err)
+			return
 		}
+
+		userMap := make(map[userName]oktaUserID, len(users))
+		for un, uid := range users {
+			userMap[userName(un)] = oktaUserID(uid)
+		}
+		a.users = userMap
+	})
+
+	if err != nil {
+		return "", trace.Wrap(err)
 	}
-	a.usersMu.Unlock()
 
-	user, ok := a.users[username]
-
-	if ok {
-		return user, nil
+	uid, ok := a.users[username]
+	if !ok {
+		return "", trace.NotFound("unable to find ID for user %s", username)
 	}
 
-	return "", trace.NotFound("unable to find ID for user %s", username)
+	return uid, nil
 }

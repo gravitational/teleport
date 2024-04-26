@@ -22,41 +22,33 @@ import (
 // purgeCache clears the assignmentClient caches, forcing the client to reload
 // everything from the upstream Okta service. Used only in tests.
 func (a *assignmentClient) purgeCache() {
-	a.usersMu.Lock()
-	a.users = nil
-	a.usersMu.Unlock()
+	clear(a.users)
+	a.initUsersOnce = sync.Once{}
+	a.apps.Clear()
+	a.groups.Clear()
+}
 
-	a.appsMu.Lock()
-	clear(a.apps)
-	a.appsMu.Unlock()
-
-	a.groupsMu.Lock()
-	clear(a.groups)
-	a.groupsMu.Unlock()
+func firstVal[T, U any](t T, _ U) T {
+	return t
 }
 
 func TestAssignmentClient(t *testing.T) {
 	ctx := context.Background()
 	log := logrus.WithField(teleport.ComponentKey, eteleport.ComponentOkta)
-	testGroup := "test-group"
-	testApp := "test-app"
-	testUser := "test-user@test.user"
-	testOktaUserID := "okta-user-id"
+	testGroup := oktaGroupID("test-group")
+	testApp := oktaAppID("test-app")
+	testUser := userName("test-user@test.user")
+	testOktaUserID := oktaUserID("okta-user-id")
 
 	// Factory for creating an assignment client backed by a test Okta client
 	// pre-configured with a user and some group and app memberships.
 	testClientWithAssignments := func() (*testOktaClient, *assignmentClient) {
 		oktaClient := newTestClient()
-		oktaClient.usernamesToUserIDs = map[string]string{
-			testUser: testOktaUserID,
-		}
-		oktaClient.appsToUsers = map[string]map[appAssignment]bool{
-			testApp: {appAssignment{userID: testOktaUserID, scope: userScope}: true},
-		}
-		oktaClient.groupsToUsers = map[string]map[string]bool{
-			testGroup: {testOktaUserID: true},
-		}
-		oktaClient.appsToGroups = map[string][]string{
+
+		oktaClient.usernamesToUserIDs.Store(testUser, testOktaUserID)
+		oktaClient.appsToUsers.Store(testApp, newSet(appAssignment{userID: string(testOktaUserID), scope: userScope}))
+		oktaClient.groupsToUsers.Store(testGroup, newSet(testOktaUserID))
+		oktaClient.appsToGroups = map[oktaAppID][]oktaGroupID{
 			testApp: {testGroup},
 		}
 		assignmentClient := newAssignmentClient(log, oktaClient)
@@ -72,19 +64,17 @@ func TestAssignmentClient(t *testing.T) {
 		// user to exist, those operations will fail
 
 		_, err := assignmentClient.userAssignedToApp(ctx, testUser, testApp)
-		require.ErrorIs(t, trace.NotFound("unable to find ID for user %s", testUser), err)
+		require.ErrorIs(t, err, trace.NotFound("unable to find ID for user %s", testUser))
 
 		_, err = assignmentClient.userAssignedToGroup(ctx, testUser, testGroup)
-		require.ErrorIs(t, trace.NotFound("unable to find ID for user %s", testUser), err)
+		require.ErrorIs(t, err, trace.NotFound("unable to find ID for user %s", testUser))
 	})
 
 	t.Run("user with no apps no groups", func(t *testing.T) {
 		// Given an assignmentClient backed by an Okta system with one user and
 		// no apps or groups configured...
 		oktaClient := newTestClient()
-		oktaClient.usernamesToUserIDs = map[string]string{
-			testUser: testOktaUserID,
-		}
+		oktaClient.usernamesToUserIDs.Store(testUser, testOktaUserID)
 		assignmentClient := newAssignmentClient(log, oktaClient)
 
 		// When I test that user's group and app memberships, the tests all
@@ -101,15 +91,10 @@ func TestAssignmentClient(t *testing.T) {
 		// Given an assignmentClient backed by an Okta system with one user, one
 		// group and one app configured, but the user is not assigned to either...
 		oktaClient := newTestClient()
-		oktaClient.usernamesToUserIDs = map[string]string{
-			testUser: testOktaUserID,
-		}
-		oktaClient.appsToUsers = map[string]map[appAssignment]bool{
-			testApp: {},
-		}
-		oktaClient.groupsToUsers = map[string]map[string]bool{
-			testGroup: {},
-		}
+		oktaClient.usernamesToUserIDs.Store(testUser, testOktaUserID)
+		oktaClient.appsToUsers.Store(testApp, newSet[appAssignment]())
+		oktaClient.groupsToUsers.Store(testGroup, newSet[oktaUserID]())
+
 		assignmentClient := newAssignmentClient(log, oktaClient)
 
 		// When we test for membership, the operations succeed and return `false`.
@@ -125,8 +110,12 @@ func TestAssignmentClient(t *testing.T) {
 		// test client and re-test the membership, expect that the
 		// assignmentClient uses cached data rather than re-querying the back
 		// end, and so still reports `false`.
-		oktaClient.appsToUsers[testApp][appAssignment{userID: testOktaUserID, scope: userScope}] = true
-		oktaClient.groupsToUsers[testGroup][testOktaUserID] = true
+		oktaClient.appsToUsers.Write(func(m map[oktaAppID]set[appAssignment]) {
+			m[testApp].add(appAssignment{userID: string(testOktaUserID), scope: userScope})
+		})
+		oktaClient.groupsToUsers.Write(func(m map[oktaGroupID]set[oktaUserID]) {
+			m[testGroup].add(testOktaUserID)
+		})
 
 		isAssigned, err = assignmentClient.userAssignedToApp(ctx, testUser, testApp)
 		require.NoError(t, err)
@@ -170,8 +159,8 @@ func TestAssignmentClient(t *testing.T) {
 
 		// Also expect that the change has been passed through to the okta
 		// client
-		require.Empty(t, oktaClient.groupsToUsers[testGroup])
-		require.Empty(t, oktaClient.appsToUsers[testApp])
+		require.Empty(t, firstVal(oktaClient.groupsToUsers.Load(testGroup)))
+		require.Empty(t, firstVal(oktaClient.appsToUsers.Load(testApp)))
 
 		// When I attempt to re-associate a user to an app or group,
 		// expect the operations to succeed and subsequent membership
@@ -255,62 +244,85 @@ func TestAssignmentClient(t *testing.T) {
 	})
 }
 
-func TestClientGetAssignedAppsGroups(t *testing.T) {
-	ctx := context.Background()
-	var appsCallsCount atomic.Int64
-	var group1CallsCount atomic.Int64
-	var group2CallsCount atomic.Int64
-	const numOfParallelCalls = 20
+// testAssignmentOktaServer is a fixture for testing parallel calls to the Okta
+// server. Creating
+type testAssignmentOktaServer struct {
+	t                *testing.T
+	httpServer       *httptest.Server
+	appsCallsCount   atomic.Int64
+	group1CallsCount atomic.Int64
+	group2CallsCount atomic.Int64
+}
 
-	httpServer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var payload any
-		switch r.URL.Path {
-		case "/api/v1/users":
-			payload = []*okta.User{
-				{Id: "username1", Profile: &okta.UserProfile{oktaUserProfileLogin: "username1"}},
-				{Id: "username2", Profile: &okta.UserProfile{oktaUserProfileLogin: "username2"}},
-			}
-		case "/api/v1/apps/testApp/users":
-			appsCallsCount.Add(1)
-			payload = []*okta.AppUser{
-				{Id: "username1", Scope: "GROUP"},
-			}
-		case "/api/v1/groups/testGroup1/users":
-			group1CallsCount.Add(1)
-			payload = []*okta.User{
-				{Id: "username1"},
-			}
-		case "/api/v1/groups/testGroup2/users":
-			group2CallsCount.Add(1)
-			payload = []*okta.User{
-				{Id: "username1"},
-			}
+func newTestAssignmentOktaServer(t *testing.T) *testAssignmentOktaServer {
+	fixture := &testAssignmentOktaServer{t: t}
+	fixture.httpServer = httptest.NewTLSServer(fixture)
+	t.Cleanup(func() { fixture.httpServer.Close() })
 
-		default:
-			t.Fatalf("unexpected URL %s", r.URL.Path)
-		}
+	return fixture
+}
 
-		w.Header().Add("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(payload); err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		w.WriteHeader(http.StatusOK)
-	}))
-
+func (ts *testAssignmentOktaServer) client(t *testing.T, ctx context.Context) OktaClient {
 	_, oktaClient, err := okta.NewClient(ctx,
-		okta.WithHttpClientPtr(httpServer.Client()),
+		okta.WithHttpClientPtr(ts.httpServer.Client()),
 		okta.WithCache(false),
-		okta.WithOrgUrl(httpServer.URL),
+		okta.WithOrgUrl(ts.httpServer.URL),
 		okta.WithToken("test"),
 	)
 	require.NoError(t, err)
-	client := wrappedClient{
+
+	client := &wrappedClient{
 		client: oktaClient,
 	}
+
+	return client
+}
+
+func (ts *testAssignmentOktaServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	var payload any
+	switch r.URL.Path {
+	case "/api/v1/users":
+		payload = []*okta.User{
+			{Id: "userid1", Profile: &okta.UserProfile{oktaUserProfileLogin: "username1"}},
+			{Id: "userid2", Profile: &okta.UserProfile{oktaUserProfileLogin: "username2"}},
+		}
+	case "/api/v1/apps/testApp/users":
+		ts.appsCallsCount.Add(1)
+		payload = []*okta.AppUser{
+			{Id: "userid1", Scope: "GROUP"},
+		}
+	case "/api/v1/groups/testGroup1/users":
+		ts.group1CallsCount.Add(1)
+		payload = []*okta.User{
+			{Id: "userid1"},
+		}
+	case "/api/v1/groups/testGroup2/users":
+		ts.group2CallsCount.Add(1)
+		payload = []*okta.User{
+			{Id: "userid1"},
+		}
+
+	default:
+		ts.t.Fatalf("unexpected URL %s", r.URL.Path)
+	}
+
+	w.Header().Add("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(payload); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+}
+
+func TestClientGetAssignedAppsGroups(t *testing.T) {
+	ctx := context.Background()
+	const numOfParallelCalls = 20
+
 	log := logrus.WithField(teleport.ComponentKey, eteleport.ComponentOkta)
-	assignmentClient := newAssignmentClient(log, &client)
+
 	t.Run("get assigned app for user concurrent calls", func(t *testing.T) {
+		testServer := newTestAssignmentOktaServer(t)
+		assignmentClient := newAssignmentClient(log, testServer.client(t, ctx))
+
 		// Test the OKTA API is called only once for the same user and app
 		// when multiple concurrent calls are made to the assignmentClient
 		// for the same user and app.
@@ -325,10 +337,27 @@ func TestClientGetAssignedAppsGroups(t *testing.T) {
 			}()
 		}
 		wg.Wait()
-		require.Equal(t, int64(1), appsCallsCount.Load())
+
+		// Because there is a window in `userAssignedToApp()` where the app
+		// cache map is unlocked, it's possible for the multiple concurrent calls
+		// to the backend API to be collected into *several* non-overlapping
+		// `singleflight` calls rather than the single batch you might expect.
+		//
+		// Expecting an *exact* nonzero hit-count on the server is always going
+		// result in a flaky test. Rather than add a bunch of artificial interlocks
+		// between the test call site and server to try and force an exact hit count,
+		// we simply assert that the single-flight mechanism significantly reduces
+		// the number of round trips to the server.
+
+		require.Less(t, testServer.appsCallsCount.Load(), int64(numOfParallelCalls/4))
+		require.Equal(t, int64(0), testServer.group1CallsCount.Load())
+		require.Equal(t, int64(0), testServer.group2CallsCount.Load())
 	})
 
 	t.Run("get assigned groups for user concurrent calls", func(t *testing.T) {
+		testServer := newTestAssignmentOktaServer(t)
+		assignmentClient := newAssignmentClient(log, testServer.client(t, ctx))
+
 		// Test the OKTA API is called only once for the same user and group
 		// when multiple concurrent calls are made to the assignmentClient
 		// for the same user and app.
@@ -349,11 +378,27 @@ func TestClientGetAssignedAppsGroups(t *testing.T) {
 			}()
 		}
 		wg.Wait()
-		require.Equal(t, int64(1), group1CallsCount.Load())
-		require.Equal(t, int64(1), group2CallsCount.Load())
+
+		// Because there is a window in `userAssignedToGroup()` where the group
+		// cache map is unlocked, it's possible for the multiple concurrent calls
+		// to the backend API to be collected into *several* non-overlapping
+		// `singleflight` calls rather than the single batch you might expect.
+		//
+		// Expecting an *exact* nonzero hit-count on the server is always going
+		// result in a flaky test. Rather than add a bunch of artificial interlocks
+		// between the test call site and server to try and force an exact hit count,
+		// we simply assert that the single-flight mechanism significantly reduces
+		// the number of round trips to the server.
+
+		require.Equal(t, int64(0), testServer.appsCallsCount.Load())
+		require.Less(t, testServer.group1CallsCount.Load(), int64(numOfParallelCalls/4))
+		require.Less(t, testServer.group2CallsCount.Load(), int64(numOfParallelCalls/4))
 	})
 
 	t.Run("get assigned for username2", func(t *testing.T) {
+		testServer := newTestAssignmentOktaServer(t)
+		assignmentClient := newAssignmentClient(log, testServer.client(t, ctx))
+
 		// Check if for other user the OKTA API will not be called again and cached value will be used.
 		ok, err := assignmentClient.userAssignedToGroup(ctx, "username2", "testGroup1")
 		require.NoError(t, err)
@@ -362,8 +407,9 @@ func TestClientGetAssignedAppsGroups(t *testing.T) {
 		ok, err = assignmentClient.userAssignedToApp(ctx, "username2", "testApp")
 		require.NoError(t, err)
 		require.False(t, ok)
-		require.Equal(t, int64(1), group1CallsCount.Load())
-		require.Equal(t, int64(1), group2CallsCount.Load())
-		require.Equal(t, int64(1), appsCallsCount.Load())
+
+		require.Equal(t, int64(1), testServer.group1CallsCount.Load())
+		require.Equal(t, int64(0), testServer.group2CallsCount.Load())
+		require.Equal(t, int64(1), testServer.appsCallsCount.Load())
 	})
 }

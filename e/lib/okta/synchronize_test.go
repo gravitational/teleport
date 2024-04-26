@@ -3,6 +3,7 @@ package okta
 import (
 	"context"
 	"fmt"
+	"maps"
 	"testing"
 	"time"
 
@@ -20,6 +21,18 @@ import (
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
+// stopAllHeartbeats cleans up any active heartbeats at the end of a test,
+// preventing the test from leaking heartbeat processes that eventually crash.
+func (svc *Service) stopAllHeartbeats() {
+	svc.heartbeatsMu.Lock()
+	heartbeats := maps.Clone(svc.heartbeats)
+	svc.heartbeatsMu.Unlock()
+
+	for app := range heartbeats {
+		svc.stopHeartbeat(app)
+	}
+}
+
 func TestSynchronizeGroups(t *testing.T) {
 	t.Parallel()
 
@@ -27,6 +40,7 @@ func TestSynchronizeGroups(t *testing.T) {
 	ap := newTestAccessPoint(t, clockwork.NewRealClock())
 	svc, client, emitter := newTestService(t, ap)
 	svc.leadershipAcquired.Store(true)
+	t.Cleanup(svc.stopAllHeartbeats)
 
 	// Add in one app to get a group to app mapping from
 	client.oktaApps = []okta.App{
@@ -46,7 +60,7 @@ func TestSynchronizeGroups(t *testing.T) {
 			},
 		},
 	}
-	client.appsToGroups["app1"] = []string{"group4"}
+	client.appsToGroups["app1"] = []oktaGroupID{"group4"}
 
 	// Add a few groups to ignore since they don't have an origin of Okta.
 	addGroup(t, "ignored1", types.OriginConfigFile, "", ap)
@@ -139,7 +153,7 @@ func TestSynchronizeGroups(t *testing.T) {
 	})
 
 	// App1 is now assigned to group3 as well.
-	client.appsToGroups["app1"] = []string{"group3", "group4"}
+	client.appsToGroups["app1"] = []oktaGroupID{"group3", "group4"}
 
 	require.NoError(t, svc.synchronize(ctx))
 
@@ -230,6 +244,7 @@ func TestSynchronizeApplications(t *testing.T) {
 	ap := newTestAccessPoint(t, clockwork.NewRealClock())
 	svc, client, emitter := newTestService(t, ap)
 	require.NoError(t, svc.startSynchronizerReconcilers(ctx))
+	t.Cleanup(svc.stopAllHeartbeats)
 
 	// Add a few apps that should be deleted since they're not present in the client.
 	addApp(t, "app1", types.OriginOkta, svc.orgURL, svc)
@@ -286,7 +301,7 @@ func TestSynchronizeApplications(t *testing.T) {
 		// This app should fail but not interrupt the sync.
 		&dummyOktaApp{},
 	}
-	client.appsToGroups["app4"] = []string{"group4"}
+	client.appsToGroups["app4"] = []oktaGroupID{"group4"}
 
 	apps := mapOfAllApps(t, svc)
 	require.Len(t, apps, 3)

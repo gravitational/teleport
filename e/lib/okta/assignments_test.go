@@ -27,8 +27,8 @@ func TestAssignmentReconciler(t *testing.T) {
 	svc.SetLeader(true)
 	svc.clock = clock
 	onReconcileCh := make(chan struct{}, 1)
-	testUser := "test-user@test.user"
-	testOktaUserID := "okta-user-id"
+	testUser := userName("test-user@test.user")
+	testOktaUserID := oktaUserID("okta-user-id")
 
 	oktaClient.addUserID(testUser, testOktaUserID)
 
