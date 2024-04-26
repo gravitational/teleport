@@ -12,21 +12,31 @@ and releases.
 ## Upgrading guides
 
 Before starting one of the following guides, please read the [Upgrading Compatibility Overview](./upgrading/overview.mdx)
-to understand how to upgrade components in your Teleport cluster while maintaining
-version compatibility between all components.
+to understand how to upgrade components in your Teleport cluster while ensuring ensuring
+compatibility between all components.
 
 The Teleport upgrade process is different for Teleport Cloud and self-hosted deployments.
 Choose the guide that matches your Teleport edition and the platform where you run Teleport
 services:
 
-Teleport Cloud:
+## Teleport Cloud
 
-- [Linux Servers Automatic Update](./upgrading/cloud-linux-automatic.mdx) (recommended)
-- [Linux Servers Manual Update](./upgrading/cloud-linux.mdx)
-- [Kubernetes Automatic Update](./upgrading/cloud-kubernetes-automatic.mdx) (recommneded)
-- [Kubernetes Manual Update](./upgrading/cloud-kubernetes.mdx)
+Automatic updates is the recommended method for updating Teleport Cloud agents.
 
-Self-hosted deployments:
+- [Linux Servers](./upgrading/cloud-linux-automatic.mdx) (automatic updates)
+- [Kubernetes](./upgrading/cloud-kubernetes-automatic.mdx) (automatic updates)
+
+Manual updates are not recommended. If you opt out of automatic updates, you must
+ensure that your Teleport agents are routinely updated, and you must ensure that
+your Teleport agents maintain compatibility with the Teleport Auth and Proxy Services.
+
+- [Linux Server](./upgrading/cloud-linux.mdx)
+- [Kubernetes](./upgrading/cloud-kubernetes.mdx)
+
+You can find more information regarding the automatic updates architecture in the
+[Agent Update Management](./architecture/agent-update-management.mdx) page.
+
+## Self-hosted deployments:
 
 - [Linux Servers](./upgrading/self-hosted-linux.mdx)
 - [Linux Servers](./upgrading/self-hosted-automatic-agent-updates.mdx) (automatic updates)
