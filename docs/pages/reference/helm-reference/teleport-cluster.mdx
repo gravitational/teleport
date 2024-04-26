@@ -2051,6 +2051,23 @@ See [the GitHub PR](https://github.com/gravitational/teleport/pull/36251) for te
       memory: 2Gi
   ```
 
+## `podSecurityContext`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/security/pod-security-standards/)
+
+The `podSecurityContext` applies to the main Teleport pods.
+
+`values.yaml` example:
+
+  ```yaml
+  podSecurityContext:
+    fsGroup: 65532
+  ```
+
 ## `securityContext`
 
 | Type     | Default value |
