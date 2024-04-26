@@ -333,6 +333,7 @@ func StatementAccessGraphAWSSync() *Statement {
 			"eks:ListAccessEntries",
 			"eks:ListAccessPolicies",
 			"eks:ListAssociatedAccessPolicies",
+			"eks:DescribeAccessEntry",
 
 			// RDS IAM
 			"rds:DescribeDBInstances",
