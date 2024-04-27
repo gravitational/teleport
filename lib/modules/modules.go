@@ -331,17 +331,20 @@ func GetModules() Modules {
 
 // ValidateResource performs additional resource checks.
 func ValidateResource(res types.Resource) error {
+	switch r := res.(type) {
+	case types.AuthPreference:
+		switch r.GetSecondFactor() {
+		case constants.SecondFactorOff, constants.SecondFactorOptional:
+			return trace.BadParameter("cannot disable two-factor authentication")
+		}
+	}
+
 	// All checks below are Cloud-specific.
 	if !GetModules().Features().Cloud {
 		return nil
 	}
 
 	switch r := res.(type) {
-	case types.AuthPreference:
-		switch r.GetSecondFactor() {
-		case constants.SecondFactorOff, constants.SecondFactorOptional:
-			return trace.BadParameter("cannot disable two-factor authentication on Cloud")
-		}
 	case types.SessionRecordingConfig:
 		switch r.GetMode() {
 		case types.RecordAtProxy, types.RecordAtProxySync:

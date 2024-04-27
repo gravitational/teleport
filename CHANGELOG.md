@@ -23,6 +23,11 @@ Teleport clusters using the dynamodb backend must now have the `dynamodb:Conditi
 permission. For a full list of all required permissions see the dynamo backend iam
 policy [example](docs/pages/includes/dynamodb-iam-policy.mdx).
 
+#### Disabling second factor authentication_type
+
+Support for disabling second factor authentication has been removed
+>>>>>>> f4a18b1ac7 (dont allow disabling second factor)
+
 ## 15.0.0 (xx/xx/24)
 
 ### New features

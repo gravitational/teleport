@@ -728,7 +728,7 @@ func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref typ
 		}
 
 		if !shouldReplace {
-			return nil
+			return trace.Wrap(modules.ValidateResource(storedAuthPref))
 		}
 
 		if storedAuthPref == nil {

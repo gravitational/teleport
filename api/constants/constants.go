@@ -195,7 +195,7 @@ type SecondFactorType string
 
 const (
 	// SecondFactorOff means no second factor.
-	SecondFactorOff = SecondFactorType("off")
+	SecondFactorOff = SecondFactorType("off") // todo(amk): remove in 17
 	// SecondFactorOTP means that only OTP is supported for 2FA and 2FA is
 	// required for all users.
 	SecondFactorOTP = SecondFactorType("otp")
@@ -212,7 +212,7 @@ const (
 	SecondFactorOn = SecondFactorType("on")
 	// SecondFactorOptional means that all 2FA protocols are supported and 2FA
 	// is required only for users that have MFA devices registered.
-	SecondFactorOptional = SecondFactorType("optional")
+	SecondFactorOptional = SecondFactorType("optional") // todo(amk): remove in 17
 )
 
 // UnmarshalYAML supports parsing off|on into string on SecondFactorType.
