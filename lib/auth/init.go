@@ -24,6 +24,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -728,7 +729,10 @@ func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref typ
 		}
 
 		if !shouldReplace {
-			return trace.Wrap(modules.ValidateResource(storedAuthPref))
+			if os.Getenv(teleport.EnvVarAllowNoSecondFactor) != "true" {
+				return trace.Wrap(modules.ValidateResource(storedAuthPref))
+			}
+			return nil
 		}
 
 		if storedAuthPref == nil {
