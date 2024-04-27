@@ -332,7 +332,8 @@ func GetModules() Modules {
 
 // ValidateResource performs additional resource checks.
 func ValidateResource(res types.Resource) error {
-	if os.Getenv(teleport.EnvVarAllowNoSecondFactor) != "true" {
+	// todo(lxea): remove condition in 17
+	if GetModules().Features().Cloud || os.Getenv(teleport.EnvVarAllowNoSecondFactor) != "true" {
 		switch r := res.(type) {
 		case types.AuthPreference:
 			switch r.GetSecondFactor() {
@@ -348,11 +349,6 @@ func ValidateResource(res types.Resource) error {
 	}
 
 	switch r := res.(type) {
-	case types.AuthPreference:
-		switch r.GetSecondFactor() {
-		case constants.SecondFactorOff, constants.SecondFactorOptional:
-			return trace.BadParameter("cannot disable two-factor authentication")
-		}
 	case types.SessionRecordingConfig:
 		switch r.GetMode() {
 		case types.RecordAtProxy, types.RecordAtProxySync:
