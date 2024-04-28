@@ -19,9 +19,9 @@
 package common
 
 import (
+	"context"
 	"crypto"
 	"fmt"
-	"net"
 	"os"
 	"os/exec"
 	"path"
@@ -31,6 +31,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
@@ -69,26 +70,44 @@ func onAzure(cf *CLIConf) error {
 
 // azureApp is an Azure app that can start local proxies to serve Azure APIs.
 type azureApp struct {
+	*localProxyApp
+
 	cf        *CLIConf
 	profile   *client.ProfileStatus
-	app       tlsca.RouteToApp
+	signer    crypto.Signer
 	msiSecret string
-
-	localALPNProxy    *alpnproxy.LocalProxy
-	localForwardProxy *alpnproxy.ForwardProxy
 }
 
 // newAzureApp creates a new Azure app.
-func newAzureApp(cf *CLIConf, profile *client.ProfileStatus, app tlsca.RouteToApp) (*azureApp, error) {
+func newAzureApp(cf *CLIConf, profile *client.ProfileStatus, route tlsca.RouteToApp) (*azureApp, error) {
+	tc, err := makeClient(cf)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	key, err := tc.LocalAgent().GetCoreKey()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	msiSecret, err := getMSISecret()
 	if err != nil {
 		return nil, err
 	}
+
+	routeToApp := proto.RouteToApp{
+		Name:          route.Name,
+		PublicAddr:    route.PublicAddr,
+		ClusterName:   route.ClusterName,
+		AzureIdentity: route.AzureIdentity,
+	}
+
 	return &azureApp{
-		cf:        cf,
-		profile:   profile,
-		app:       app,
-		msiSecret: msiSecret,
+		localProxyApp: newLocalProxyApp(tc, routeToApp, cf.LocalProxyPort, cf.InsecureSkipVerify),
+		cf:            cf,
+		profile:       profile,
+		signer:        key.PrivateKey,
+		msiSecret:     msiSecret,
 	}, nil
 }
 
@@ -128,26 +147,21 @@ func getMSISecret() (string, error) {
 // We intercept calls to https://azure-msi.teleport.dev using alpnproxy.AzureMSIMiddleware.
 // These calls are served entirely locally, which helps the overall performance experienced by the user.
 func (a *azureApp) StartLocalProxies() error {
-	// HTTPS proxy mode
-	if err := a.startLocalALPNProxy(""); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := a.startLocalForwardProxy(a.cf.LocalProxyPort); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
+	ctx := context.TODO()
 
-// Close makes all necessary close calls.
-func (a *azureApp) Close() error {
-	var errs []error
-	if a.localALPNProxy != nil {
-		errs = append(errs, a.localALPNProxy.Close())
+	azureMiddleware := &alpnproxy.AzureMSIMiddleware{
+		Key:    a.signer,
+		Secret: a.msiSecret,
+		// we could, in principle, get the actual TenantID either from live data or from static configuration,
+		// but at this moment there is no clear advantage over simply issuing a new random identifier.
+		TenantID: uuid.New().String(),
+		ClientID: uuid.New().String(),
+		Identity: a.routeToApp.AzureIdentity,
 	}
-	if a.localForwardProxy != nil {
-		errs = append(errs, a.localForwardProxy.Close())
-	}
-	return trace.NewAggregate(errs...)
+
+	// HTTPS proxy mode
+	err := a.StartLocalProxyWithForwarder(ctx, alpnproxy.MatchAzureRequests, alpnproxy.WithHTTPMiddleware(azureMiddleware))
+	return trace.Wrap(err)
 }
 
 // GetEnvVars returns required environment variables to configure the
@@ -158,7 +172,7 @@ func (a *azureApp) GetEnvVars() (map[string]string, error) {
 		// 1. `tsh az login` in one console
 		// 2. `az ...` in another console
 		// without custom config dir the second invocation will hang, attempting to connect to (inaccessible without configuration) MSI.
-		"AZURE_CONFIG_DIR": path.Join(profile.FullProfilePath(a.cf.HomePath), "azure", a.app.ClusterName, a.app.Name),
+		"AZURE_CONFIG_DIR": path.Join(profile.FullProfilePath(a.cf.HomePath), "azure", a.routeToApp.ClusterName, a.routeToApp.Name),
 		// setting MSI_ENDPOINT instructs Azure CLI to make managed identity calls on this address.
 		// the requests will be handled by tsh proxy.
 		"MSI_ENDPOINT": "https://" + types.TeleportAzureMSIEndpoint + "/" + a.msiSecret,
@@ -167,7 +181,7 @@ func (a *azureApp) GetEnvVars() (map[string]string, error) {
 		// This isn't portable and applications other than az CLI may have to set different env variables,
 		// add the application cert to system root store (not recommended, ultimate fallback)
 		// or use equivalent of --insecure flag.
-		"REQUESTS_CA_BUNDLE": a.profile.AppLocalCAPath(a.cf.SiteName, a.app.Name),
+		"REQUESTS_CA_BUNDLE": a.profile.AppLocalCAPath(a.cf.SiteName, a.routeToApp.Name),
 	}
 
 	// Set proxy settings.
@@ -197,120 +211,6 @@ func (a *azureApp) RunCommand(cmd *exec.Cmd) error {
 	if err := a.cf.RunCommand(cmd); err != nil {
 		return trace.Wrap(err)
 	}
-	return nil
-}
-
-// startLocalALPNProxy starts the local ALPN proxy.
-func (a *azureApp) startLocalALPNProxy(port string) error {
-	tc, err := makeClient(a.cf)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	appCert, err := loadAppCertificateWithAppLogin(a.cf, tc, a.app.Name)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	localCA, err := loadAppSelfSignedCA(tc, a.app.Name)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	listenAddr := "localhost:0"
-	if port != "" {
-		listenAddr = fmt.Sprintf("localhost:%s", port)
-	}
-
-	// Create a listener that is able to sign certificates when receiving Azure
-	// requests tunneled from the local forward proxy.
-	listener, err := alpnproxy.NewCertGenListener(alpnproxy.CertGenListenerConfig{
-		ListenAddr: listenAddr,
-		CA:         localCA,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	signer, ok := appCert.PrivateKey.(crypto.Signer)
-	if !ok {
-		return trace.BadParameter("private key type %T does not implement crypto.Signer (this is a bug)", appCert.PrivateKey)
-	}
-
-	a.localALPNProxy, err = alpnproxy.NewLocalProxy(
-		makeBasicLocalProxyConfig(a.cf.Context, tc, listener, a.cf.InsecureSkipVerify),
-		alpnproxy.WithClientCert(appCert),
-		alpnproxy.WithClusterCAsIfConnUpgrade(a.cf.Context, tc.RootClusterCACertPool),
-		alpnproxy.WithHTTPMiddleware(&alpnproxy.AzureMSIMiddleware{
-			Key:    signer,
-			Secret: a.msiSecret,
-			// we could, in principle, get the actual TenantID either from live data or from static configuration,
-			// but at this moment there is no clear advantage over simply issuing a new random identifier.
-			TenantID: uuid.New().String(),
-			ClientID: uuid.New().String(),
-			Identity: a.app.AzureIdentity,
-		}),
-	)
-	if err != nil {
-		if cerr := listener.Close(); cerr != nil {
-			return trace.NewAggregate(err, cerr)
-		}
-		return trace.Wrap(err)
-	}
-
-	go func() {
-		if err := a.localALPNProxy.StartHTTPAccessProxy(a.cf.Context); err != nil {
-			log.WithError(err).Errorf("Failed to start local ALPN proxy.")
-		}
-	}()
-	return nil
-}
-
-// startLocalForwardProxy starts the local forward proxy.
-func (a *azureApp) startLocalForwardProxy(port string) error {
-	listenAddr := "localhost:0"
-	if port != "" {
-		listenAddr = fmt.Sprintf("localhost:%s", port)
-	}
-
-	// Note that the created forward proxy serves HTTP instead of HTTPS, to
-	// eliminate the need to install temporary CA for various Azure clients.
-	listener, err := net.Listen("tcp", listenAddr)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	a.localForwardProxy, err = alpnproxy.NewForwardProxy(alpnproxy.ForwardProxyConfig{
-		Listener:     listener,
-		CloseContext: a.cf.Context,
-		Handlers: []alpnproxy.ConnectRequestHandler{
-			// Forward Azure requests to ALPN proxy.
-			alpnproxy.NewForwardToHostHandler(alpnproxy.ForwardToHostHandlerConfig{
-				MatchFunc: alpnproxy.MatchAzureRequests,
-				Host:      a.localALPNProxy.GetAddr(),
-			}),
-
-			// Forward non-Azure requests to user's system proxy, if configured.
-			alpnproxy.NewForwardToSystemProxyHandler(alpnproxy.ForwardToSystemProxyHandlerConfig{
-				InsecureSystemProxy: a.cf.InsecureSkipVerify,
-			}),
-
-			// Forward non-Azure requests to their original hosts.
-			alpnproxy.NewForwardToOriginalHostHandler(),
-		},
-	})
-	if err != nil {
-		if cerr := listener.Close(); cerr != nil {
-			return trace.NewAggregate(err, cerr)
-		}
-		return trace.Wrap(err)
-	}
-
-	go func() {
-		if err := a.localForwardProxy.Start(); err != nil {
-			log.WithError(err).Errorf("Failed to start local forward proxy.")
-		}
-	}()
 	return nil
 }
 
