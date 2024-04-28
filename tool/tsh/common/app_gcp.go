@@ -33,7 +33,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/profile"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -108,12 +107,7 @@ type gcpApp struct {
 }
 
 // newGCPApp creates a new GCP app.
-func newGCPApp(cf *CLIConf, profile *client.ProfileStatus, route tlsca.RouteToApp) (*gcpApp, error) {
-	tc, err := makeClient(cf)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+func newGCPApp(tc *client.TeleportClient, profile *client.ProfileStatus, cf *CLIConf, routeToApp proto.RouteToApp) (*gcpApp, error) {
 	secret, err := getGCPSecret()
 	if err != nil {
 		return nil, err
@@ -122,13 +116,6 @@ func newGCPApp(cf *CLIConf, profile *client.ProfileStatus, route tlsca.RouteToAp
 	h := fnv.New32a()
 	_, _ = h.Write([]byte(secret))
 	prefix := fmt.Sprintf("%x", h.Sum32())
-
-	routeToApp := proto.RouteToApp{
-		Name:              route.Name,
-		PublicAddr:        route.PublicAddr,
-		ClusterName:       route.ClusterName,
-		GCPServiceAccount: route.GCPServiceAccount,
-	}
 
 	return &gcpApp{
 		localProxyApp: newLocalProxyApp(tc, routeToApp, cf.LocalProxyPort, cf.InsecureSkipVerify),
@@ -382,6 +369,20 @@ func matchGCPApp(app tlsca.RouteToApp) bool {
 }
 
 func pickGCPApp(cf *CLIConf) (*gcpApp, error) {
-	app, err := pickCloudApp(cf, types.CloudGCP, matchGCPApp, newGCPApp)
-	return app, trace.Wrap(err)
+	tc, err := makeClient(cf)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	profile, err := tc.ProfileStatus()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	appInfo, err := getAppInfo(cf, tc, profile, matchGCPApp)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return newGCPApp(tc, profile, cf, appInfo.RouteToApp)
 }

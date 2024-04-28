@@ -141,19 +141,7 @@ type awsApp struct {
 }
 
 // newAWSApp creates a new AWS app.
-func newAWSApp(cf *CLIConf, profile *client.ProfileStatus, route tlsca.RouteToApp) (*awsApp, error) {
-	tc, err := makeClient(cf)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	routeToApp := proto.RouteToApp{
-		Name:        route.Name,
-		PublicAddr:  route.PublicAddr,
-		ClusterName: route.ClusterName,
-		AWSRoleARN:  route.AWSRoleARN,
-	}
-
+func newAWSApp(tc *client.TeleportClient, profile *client.ProfileStatus, cf *CLIConf, routeToApp proto.RouteToApp) (*awsApp, error) {
 	return &awsApp{
 		localProxyApp: newLocalProxyApp(tc, routeToApp, cf.LocalProxyPort, cf.InsecureSkipVerify),
 		cf:            cf,
@@ -362,6 +350,20 @@ func matchAWSApp(app tlsca.RouteToApp) bool {
 }
 
 func pickAWSApp(cf *CLIConf) (*awsApp, error) {
-	app, err := pickCloudApp(cf, types.CloudAWS, matchAWSApp, newAWSApp)
-	return app, trace.Wrap(err)
+	tc, err := makeClient(cf)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	profile, err := tc.ProfileStatus()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	appInfo, err := getAppInfo(cf, tc, profile, matchAWSApp)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return newAWSApp(tc, profile, cf, appInfo.RouteToApp)
 }

@@ -79,12 +79,7 @@ type azureApp struct {
 }
 
 // newAzureApp creates a new Azure app.
-func newAzureApp(cf *CLIConf, profile *client.ProfileStatus, route tlsca.RouteToApp) (*azureApp, error) {
-	tc, err := makeClient(cf)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+func newAzureApp(tc *client.TeleportClient, profile *client.ProfileStatus, cf *CLIConf, routeToApp proto.RouteToApp) (*azureApp, error) {
 	key, err := tc.LocalAgent().GetCoreKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -93,13 +88,6 @@ func newAzureApp(cf *CLIConf, profile *client.ProfileStatus, route tlsca.RouteTo
 	msiSecret, err := getMSISecret()
 	if err != nil {
 		return nil, err
-	}
-
-	routeToApp := proto.RouteToApp{
-		Name:          route.Name,
-		PublicAddr:    route.PublicAddr,
-		ClusterName:   route.ClusterName,
-		AzureIdentity: route.AzureIdentity,
 	}
 
 	return &azureApp{
@@ -286,6 +274,20 @@ func matchAzureApp(app tlsca.RouteToApp) bool {
 }
 
 func pickAzureApp(cf *CLIConf) (*azureApp, error) {
-	app, err := pickCloudApp(cf, types.CloudAzure, matchAzureApp, newAzureApp)
-	return app, trace.Wrap(err)
+	tc, err := makeClient(cf)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	profile, err := tc.ProfileStatus()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	appInfo, err := getAppInfo(cf, tc, profile, matchAzureApp)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return newAzureApp(tc, profile, cf, appInfo.RouteToApp)
 }
