@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -130,6 +131,35 @@ func (h *Handler) abortUpload(ctx context.Context, upload events.StreamUpload) e
 	return nil
 }
 
+// abortIfPresent checks if the bucket already contains a completed upload
+// for the specified session. If the session has already been uploaded to S3
+// then it aborts the current upload.
+func (h *Handler) abortIfPresent(ctx context.Context, upload events.StreamUpload) error {
+	uploadKey := h.path(upload.SessionID)
+	log := h.WithFields(logrus.Fields{
+		"upload":  upload.ID,
+		"session": upload.SessionID,
+		"key":     uploadKey,
+	})
+
+	// TODO(zmb3): use ListObjects instead?
+	obj, err := h.client.GetObjectWithContext(ctx, &s3.GetObjectInput{
+		Bucket:     aws.String(h.Bucket),
+		Key:        aws.String(uploadKey),
+		PartNumber: aws.Int64(1), // we don't actually need to download the whole object
+	})
+	if err != nil {
+		log.WithError(err).Debug("couldn't find existing session in S3")
+		return nil
+	}
+	log.WithField("last_modified", obj.LastModified).Infof("Session is already present in S3, aborting upload")
+	// TODO(zmb3): remove the env var after we're comfortable with this code
+	if os.Getenv("TELEPORT_ABORT_COMPLETED_UPLOADS") == "yes" {
+		return trace.Wrap(h.abortUpload(ctx, upload))
+	}
+	return nil
+}
+
 // maxPartsPerUpload is the maximum number of parts for a single multipart upload.
 // See https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html
 const maxPartsPerUpload = 10000
@@ -173,9 +203,16 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 		MultipartUpload: &s3.CompletedMultipartUpload{Parts: completedParts},
 	}
 	_, err := h.client.CompleteMultipartUploadWithContext(ctx, params)
+	err = awsutils.ConvertS3Error(err, "CompleteMultipartUpload(upload %v) session(%v)", upload.ID, upload.SessionID)
 	if err != nil {
-		return trace.Wrap(awsutils.ConvertS3Error(err),
-			"CompleteMultipartUpload(upload %v) session(%v)", upload.ID, upload.SessionID)
+		if trace.IsNotFound(err) {
+			if err := h.abortIfPresent(ctx, upload); err != nil {
+				log.WithError(err).Warn("Failed to abort upload")
+			} else {
+				return nil
+			}
+		}
+		return trace.Wrap(err)
 	}
 
 	log.Infof("Completed upload in %v", time.Since(start))
@@ -201,11 +238,23 @@ func (h *Handler) ListParts(ctx context.Context, upload events.StreamUpload) ([]
 			UploadId:         aws.String(upload.ID),
 			PartNumberMarker: partNumberMarker,
 		})
-		if err != nil {
-			return nil, awsutils.ConvertS3Error(err)
+		err = awsutils.ConvertS3Error(err)
+		// We could get a not found error in the case where multiple Teleport
+		// Auth Servers started separate uploads for the same file. In this case,
+		// we check if the completed upload is present in the bucket, and abort
+		// the current upload if so.
+		if trace.IsNotFound(err) && len(parts) == 0 {
+			if err := h.abortIfPresent(ctx, upload); err != nil {
+				log.WithError(err).Warn("Failed to abort upload")
+			}
+			// we still want to return the original not found error,
+			// but since we've aborted the upload we don't expect to
+			// encounter it again
+			return nil, trace.Wrap(err)
+		} else if err != nil {
+			return nil, trace.Wrap(err)
 		}
 		for _, part := range re.Parts {
-
 			parts = append(parts, events.StreamPart{
 				Number: aws.Int64Value(part.PartNumber),
 				ETag:   aws.StringValue(part.ETag),
@@ -217,9 +266,7 @@ func (h *Handler) ListParts(ctx context.Context, upload events.StreamUpload) ([]
 		partNumberMarker = re.PartNumberMarker
 	}
 	// Parts must be sorted in PartNumber order.
-	sort.Slice(parts, func(i, j int) bool {
-		return parts[i].Number < parts[j].Number
-	})
+	sort.Slice(parts, func(i, j int) bool { return parts[i].Number < parts[j].Number })
 	return parts, nil
 }
 

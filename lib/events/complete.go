@@ -85,7 +85,7 @@ var incompleteSessionUploads = prometheus.NewGauge(
 	prometheus.GaugeOpts{
 		Namespace: "teleport",
 		Name:      teleport.MetricIncompleteSessionUploads,
-		Help:      "Number of sessions not yet uploaded to auth",
+		Help:      "Number of uploads not completed",
 	},
 )
 
@@ -196,7 +196,6 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 		if err != nil {
 			if trace.IsNotFound(err) {
 				log.WithError(err).Warn("Missing parts, moving on to next upload")
-				incompleteSessionUploads.Dec()
 				continue
 			}
 			return trace.Wrap(err, "listing parts")
@@ -212,7 +211,6 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 		}
 		log.Debug("Completed upload")
 		completed++
-		incompleteSessionUploads.Dec()
 
 		if len(parts) == 0 {
 			continue

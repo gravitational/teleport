@@ -338,7 +338,7 @@ func (h *Handler) getOldestVersion(ctx context.Context, bucket string, prefix st
 	return versions[0].ID, nil
 }
 
-// delete bucket deletes bucket and all it's contents and is used in tests
+// delete bucket deletes bucket and all its contents and is used in tests
 func (h *Handler) deleteBucket(ctx context.Context) error {
 	// first, list and delete all the objects in the bucket
 	out, err := h.client.ListObjectVersionsWithContext(ctx, &s3.ListObjectVersionsInput{
