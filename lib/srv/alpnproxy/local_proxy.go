@@ -23,6 +23,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -99,7 +100,7 @@ type LocalProxyMiddleware interface {
 	// OnNewConnection is a callback triggered when a new downstream connection is
 	// accepted by the local proxy. If an error is returned, the connection will be closed
 	// by the local proxy.
-	OnNewConnection(ctx context.Context, lp *LocalProxy, conn net.Conn) error
+	OnNewConnection(ctx context.Context, lp *LocalProxy) error
 	// OnStart is a callback triggered when the local proxy starts.
 	OnStart(ctx context.Context, lp *LocalProxy) error
 }
@@ -179,6 +180,7 @@ func (l *LocalProxy) start(ctx context.Context) error {
 			return trace.Wrap(err)
 		}
 	}
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -197,7 +199,7 @@ func (l *LocalProxy) start(ctx context.Context) error {
 		l.cfg.Log.Debug("Accepted downstream connection.")
 
 		if l.cfg.Middleware != nil {
-			if err := l.cfg.Middleware.OnNewConnection(ctx, l, conn); err != nil {
+			if err := l.cfg.Middleware.OnNewConnection(ctx, l); err != nil {
 				l.cfg.Log.WithError(err).Error("Middleware failed to handle client connection.")
 				if err := conn.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
 					l.cfg.Log.WithError(err).Debug("Failed to close client connection.")
@@ -314,13 +316,27 @@ func (l *LocalProxy) StartHTTPAccessProxy(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
+	if l.cfg.Middleware != nil {
+		err := l.cfg.Middleware.OnStart(ctx, l)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	l.cfg.Log.Info("Starting HTTP access proxy")
 	defer l.cfg.Log.Info("HTTP access proxy stopped")
-	defaultProxy := l.makeHTTPReverseProxy(l.GetCert())
 
 	server := &http.Server{
 		ReadHeaderTimeout: defaults.ReadHeadersTimeout,
 		Handler: http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			if l.cfg.Middleware != nil {
+				if err := l.cfg.Middleware.OnNewConnection(ctx, l); err != nil {
+					l.cfg.Log.WithError(err).Error("Middleware failed to handle client request.")
+					trace.WriteError(rw, trace.Wrap(err))
+					return
+				}
+			}
+
 			if l.cfg.HTTPMiddleware.HandleRequest(rw, req) {
 				return
 			}
@@ -333,7 +349,7 @@ func (l *LocalProxy) StartHTTPAccessProxy(ctx context.Context) error {
 				req.Header.Del("X-Forwarded-Host")
 			}
 
-			proxy, err := l.getHTTPReverseProxyForReq(req, defaultProxy)
+			proxy, err := l.getHTTPReverseProxyForReq(req)
 			if err != nil {
 				l.cfg.Log.Warnf("Failed to get reverse proxy: %v.", err)
 				trace.WriteError(rw, trace.Wrap(err))
@@ -358,14 +374,15 @@ func (l *LocalProxy) StartHTTPAccessProxy(ctx context.Context) error {
 	return nil
 }
 
-func (l *LocalProxy) getHTTPReverseProxyForReq(req *http.Request, defaultProxy *httputil.ReverseProxy) (*httputil.ReverseProxy, error) {
+func (l *LocalProxy) getHTTPReverseProxyForReq(req *http.Request) (*httputil.ReverseProxy, error) {
 	certs, err := l.cfg.HTTPMiddleware.OverwriteClientCerts(req)
-	if err != nil {
-		if trace.IsNotImplemented(err) {
-			return defaultProxy, nil
-		}
+	if trace.IsNotImplemented(err) {
+		return l.makeHTTPReverseProxy(l.GetCert()), nil
+	} else if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	fmt.Println("overwriting certs")
 	return l.makeHTTPReverseProxy(certs...), nil
 }
 
