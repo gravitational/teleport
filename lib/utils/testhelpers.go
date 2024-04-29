@@ -77,10 +77,13 @@ func RunTestBackgroundTask(ctx context.Context, t *testing.T, task *TestBackgrou
 		}
 		ticker := time.NewTicker(2 * time.Second)
 		defer ticker.Stop()
-		select {
-		case <-ticker.C:
-			t.Logf("Waiting for test background task %q to terminate.", task.Name)
-		case <-done:
+		for {
+			select {
+			case <-ticker.C:
+				t.Logf("Waiting for test background task %q to terminate.", task.Name)
+			case <-done:
+				return
+			}
 		}
 	})
 }

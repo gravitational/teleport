@@ -100,7 +100,7 @@ func newTestPack(t *testing.T, ctx context.Context) *testPack {
 	}})
 
 	// Create the VNet and connect it to the other side of the TUN.
-	manager, err := NewManager(ctx, &Config{
+	manager, err := NewManager(&Config{
 		TUNDevice:  tun2,
 		IPv6Prefix: vnetIPv6Prefix,
 	})
@@ -109,13 +109,13 @@ func newTestPack(t *testing.T, ctx context.Context) *testPack {
 	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
 		Name: "VNet",
 		Task: func(ctx context.Context) error {
-			if err := manager.Run(); !errIsOK(err) {
+			if err := manager.Run(ctx); !errIsOK(err) {
 				return trace.Wrap(err)
 			}
 			return nil
 		},
 		Terminate: func() error {
-			return trace.Wrap(manager.Destroy())
+			return trace.Wrap(tun2.Close(), manager.Destroy())
 		},
 	})
 

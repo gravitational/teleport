@@ -114,14 +114,14 @@ type TUNDevice interface {
 
 // Manager holds configuration and state for the VNet.
 type Manager struct {
-	tun           TUNDevice
-	stack         *stack.Stack
-	linkEndpoint  *channel.Endpoint
-	ipv6Prefix    tcpip.Address
-	rootCtx       context.Context
-	rootCtxCancel context.CancelFunc
-	state         state
-	slog          *slog.Logger
+	tun          TUNDevice
+	stack        *stack.Stack
+	linkEndpoint *channel.Endpoint
+	ipv6Prefix   tcpip.Address
+	destroyed    chan struct{}
+	wg           sync.WaitGroup
+	state        state
+	slog         *slog.Logger
 }
 
 type state struct {
@@ -146,7 +146,7 @@ type tcpHandler interface {
 
 // NewManager creates a new VNet manager with the given configuration and root
 // context. Call Run() on the returned manager to start the VNet.
-func NewManager(ctx context.Context, cfg *Config) (*Manager, error) {
+func NewManager(cfg *Config) (*Manager, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -161,16 +161,14 @@ func NewManager(ctx context.Context, cfg *Config) (*Manager, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
 	m := &Manager{
-		tun:           cfg.TUNDevice,
-		stack:         stack,
-		linkEndpoint:  linkEndpoint,
-		ipv6Prefix:    cfg.IPv6Prefix,
-		rootCtx:       ctx,
-		rootCtxCancel: cancel,
-		state:         newState(),
-		slog:          slog,
+		tun:          cfg.TUNDevice,
+		stack:        stack,
+		linkEndpoint: linkEndpoint,
+		ipv6Prefix:   cfg.IPv6Prefix,
+		destroyed:    make(chan struct{}),
+		state:        newState(),
+		slog:         slog,
 	}
 
 	const (
@@ -215,9 +213,9 @@ func installVnetRoutes(stack *stack.Stack) error {
 }
 
 // Run starts the VNet.
-func (m *Manager) Run() error {
-	m.slog.With("ipv6_prefix", m.ipv6Prefix).InfoContext(m.rootCtx, "Running Teleport VNet.")
-	g, ctx := errgroup.WithContext(m.rootCtx)
+func (m *Manager) Run(ctx context.Context) error {
+	m.slog.With("ipv6_prefix", m.ipv6Prefix).InfoContext(ctx, "Running Teleport VNet.")
+	g, ctx := errgroup.WithContext(ctx)
 	g.Go(func() error { return m.statsHandler(ctx) })
 	g.Go(func() error {
 		return forwardBetweenTunAndNetstack(ctx, m.tun, m.linkEndpoint)
@@ -225,17 +223,20 @@ func (m *Manager) Run() error {
 	return trace.Wrap(g.Wait())
 }
 
-// Destroy cancels the root context, destroys the networking stack, and closes the TUN device.
+// Destroy closes the link endpoint, waits for all goroutines to terminate, and destroys the networking stack.
 func (m *Manager) Destroy() error {
-	m.rootCtxCancel()
+	close(m.destroyed)
 	m.linkEndpoint.Close()
-	err := m.tun.Close()
+	m.wg.Wait()
 	m.stack.Destroy()
-	return trace.Wrap(err)
+	return nil
 }
 
 func (m *Manager) handleTCP(req *tcp.ForwarderRequest) {
-	ctx, cancel := context.WithCancel(m.rootCtx)
+	m.wg.Add(1)
+	defer m.wg.Done()
+
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	// Clients of *tcp.ForwarderRequest must eventually call Complete on it exactly once.
@@ -257,29 +258,37 @@ func (m *Manager) handleTCP(req *tcp.ForwarderRequest) {
 		return
 	}
 
-	var wq waiter.Queue
-	waitEntry, notifyCh := waiter.NewChannelEntry(waiter.EventErr | waiter.EventHUp)
-	wq.EventRegister(&waitEntry)
-	defer wq.EventUnregister(&waitEntry)
-	go func() {
-		select {
-		case <-notifyCh:
-			slog.DebugContext(ctx, "Got HUP, canceling context.")
-			cancel()
-		case <-ctx.Done():
-		}
-	}()
-
 	connector := func() (io.ReadWriteCloser, error) {
+		var wq waiter.Queue
+		waitEntry, notifyCh := waiter.NewChannelEntry(waiter.EventErr | waiter.EventHUp)
+		wq.EventRegister(&waitEntry)
+		defer wq.EventUnregister(&waitEntry)
+
 		endpoint, err := req.CreateEndpoint(&wq)
 		if err != nil {
 			// This err doesn't actually implement [error]
 			return nil, trace.Errorf("creating TCP endpoint: %s", err)
 		}
+
 		completed = true
 		req.Complete(false /*don't send TCP reset*/)
+
 		endpoint.SocketOptions().SetKeepAlive(true)
+
 		conn := gonet.NewTCPConn(&wq, endpoint)
+		m.wg.Add(1)
+		go func() {
+			defer m.wg.Done()
+			select {
+			case <-notifyCh:
+				slog.DebugContext(ctx, "Got HUP or ERR, closing TCP conn.")
+			case <-m.destroyed:
+				slog.DebugContext(ctx, "VNet is being destroyed, closing TCP conn.")
+			}
+			cancel()
+			conn.Close()
+		}()
+
 		return conn, nil
 	}
 
