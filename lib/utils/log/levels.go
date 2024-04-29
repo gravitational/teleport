@@ -24,7 +24,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// SupportedLevelsText list of the supported log levels in their text
+// SupportedLevelsText lists the supported log levels in their text
 // representation. All strings are in uppercase.
 var SupportedLevelsText = []string{
 	TraceLevelText,

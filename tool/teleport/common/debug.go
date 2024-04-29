@@ -286,9 +286,5 @@ func createProfilesArchive(ctx context.Context, clt *debugServiceClient, buf io.
 		}
 	}
 
-	if err := trace.NewAggregate(tw.Close(), gw.Close()); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
+	return trace.NewAggregate(tw.Close(), gw.Close())
 }

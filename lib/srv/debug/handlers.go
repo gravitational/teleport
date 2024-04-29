@@ -82,9 +82,9 @@ func handleSetLog(logger *slog.Logger, leveler LogLeveler) http.HandlerFunc {
 		currLevel := leveler.GetLogLevel()
 		message := fmt.Sprintf("Log level already set to %q.", level)
 		if level != currLevel {
-			message = fmt.Sprintf("Changed log level from %q to %q.", currLevel, level)
+			message = fmt.Sprintf("Changed log level from %q to %q.", marshalLogLevel(currLevel), marshalLogLevel(level))
 			leveler.SetLogLevel(level)
-			logger.InfoContext(r.Context(), "Changed log level.", "old", currLevel, "new", string(rawLevel))
+			logger.InfoContext(r.Context(), "Changed log level.", "old", marshalLogLevel(currLevel), "new", marshalLogLevel(level))
 		}
 
 		w.Write([]byte(message))

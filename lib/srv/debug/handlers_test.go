@@ -25,20 +25,30 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
+type mockLeveler struct {
+	currentLevel slog.Level
+}
+
+func (m *mockLeveler) GetLogLevel() slog.Level {
+	return m.currentLevel
+}
+
+func (m *mockLeveler) SetLogLevel(level slog.Level) {
+	m.currentLevel = level
+}
+
 func TestLogLevel(t *testing.T) {
-	cfg, ts := makeServer()
+	leveler, ts := makeServer()
 	defer ts.Close()
 
 	statusCode, logLevel := makeRequest(t, ts, http.MethodGet, LogLevelEndpoint, "")
 	require.Equal(t, http.StatusOK, statusCode)
-	require.Equal(t, cfg.LoggerLevel.Level().String(), logLevel)
+	require.Equal(t, leveler.GetLogLevel().String(), logLevel)
 
 	// Invalid log level
 	statusCode, _ = makeRequest(t, ts, http.MethodPut, LogLevelEndpoint, "RANDOM")
@@ -74,15 +84,9 @@ func TestCollectProfiles(t *testing.T) {
 	require.NotEmpty(t, body)
 }
 
-func makeServer() (*servicecfg.Config, *httptest.Server) {
-	cfg := servicecfg.MakeDefaultConfig()
-	cfg.DebugService.Enabled = true
-
-	// Define the logger to avoid modifying global loggers.
-	cfg.Log = logrus.New()
-	cfg.Logger = slog.New(logutils.NewSlogTextHandler(io.Discard, logutils.SlogTextHandlerConfig{}))
-
-	return cfg, httptest.NewServer(NewServeMux(cfg.Logger, cfg))
+func makeServer() (*mockLeveler, *httptest.Server) {
+	leveler := &mockLeveler{}
+	return leveler, httptest.NewServer(NewServeMux(slog.New(logutils.NewSlogTextHandler(io.Discard, logutils.SlogTextHandlerConfig{})), leveler))
 }
 
 func makeRequest(t *testing.T, ts *httptest.Server, method, path, body string) (int, string) {

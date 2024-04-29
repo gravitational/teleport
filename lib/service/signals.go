@@ -317,7 +317,9 @@ func (process *TeleportProcess) createListener(typ ListenerType, address string)
 	// already in use", delete the file before starting the listener.
 	if typ.Network() == "unix" {
 		process.logger.DebugContext(process.ExitContext(), "Deleting socket file", "path", address)
-		warnOnErr(process.ExitContext(), os.Remove(address), process.logger)
+		if err := trace.ConvertSystemError(os.Remove(address)); !trace.IsNotFound(err) {
+			warnOnErr(process.ExitContext(), err, process.logger)
+		}
 	}
 
 	listener, err := net.Listen(typ.Network(), address)
