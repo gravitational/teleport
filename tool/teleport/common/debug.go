@@ -99,7 +99,7 @@ var supportedProfiles = map[string]struct{}{
 // none is provided.
 var defaultCollectProfiles = []string{"goroutine", "heap", "profile"}
 
-func onCollectProfile(configPath string, rawProfiles string, seconds int, out io.Writer) error {
+func onCollectProfiles(configPath string, rawProfiles string, seconds int) error {
 	ctx := context.Background()
 	clt, dataDir, socketPath, err := newDebugClient(configPath)
 	if err != nil {
@@ -111,7 +111,7 @@ func onCollectProfile(configPath string, rawProfiles string, seconds int, out io
 		return convertToReadableErr(err, dataDir, socketPath)
 	}
 
-	fmt.Fprint(out, output.String())
+	fmt.Print(output.String())
 	return nil
 }
 

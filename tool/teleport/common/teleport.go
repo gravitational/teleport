@@ -643,7 +643,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	case getLogLevelCmd.FullCommand():
 		err = onGetLogLevel(ccf.ConfigFile)
 	case collectProfilesCmd.FullCommand():
-		err = onCollectProfile(ccf.ConfigFile, ccf.Profiles, ccf.ProfileSeconds, os.Stdout)
+		err = onCollectProfiles(ccf.ConfigFile, ccf.Profiles, ccf.ProfileSeconds)
 	}
 	if err != nil {
 		utils.FatalError(err)

@@ -43,9 +43,7 @@ func (m *mockLeveler) SetLogLevel(level slog.Level) {
 }
 
 func TestLogLevel(t *testing.T) {
-	leveler, ts := makeServer()
-	defer ts.Close()
-
+	leveler, ts := makeServer(t)
 	statusCode, logLevel := makeRequest(t, ts, http.MethodGet, LogLevelEndpoint, "")
 	require.Equal(t, http.StatusOK, statusCode)
 	require.Equal(t, leveler.GetLogLevel().String(), logLevel)
@@ -76,17 +74,17 @@ func TestLogLevel(t *testing.T) {
 }
 
 func TestCollectProfiles(t *testing.T) {
-	_, ts := makeServer()
-	defer ts.Close()
-
+	_, ts := makeServer(t)
 	statusCode, body := makeRequest(t, ts, http.MethodGet, "/debug/pprof/goroutine", "")
 	require.Equal(t, http.StatusOK, statusCode)
 	require.NotEmpty(t, body)
 }
 
-func makeServer() (*mockLeveler, *httptest.Server) {
+func makeServer(t *testing.T) (*mockLeveler, *httptest.Server) {
 	leveler := &mockLeveler{}
-	return leveler, httptest.NewServer(NewServeMux(slog.New(logutils.NewSlogTextHandler(io.Discard, logutils.SlogTextHandlerConfig{})), leveler))
+	ts := httptest.NewServer(NewServeMux(slog.New(logutils.NewSlogTextHandler(io.Discard, logutils.SlogTextHandlerConfig{})), leveler))
+	t.Cleanup(func() { ts.Close() })
+	return leveler, ts
 }
 
 func makeRequest(t *testing.T, ts *httptest.Server, method, path, body string) (int, string) {
