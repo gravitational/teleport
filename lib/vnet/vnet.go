@@ -157,7 +157,7 @@ func NewManager(ctx context.Context, cfg *Config) (*Manager, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := installVnetRoutes(stack, linkEndpoint); err != nil {
+	if err := installVnetRoutes(stack); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -201,22 +201,16 @@ func createStack() (*stack.Stack, *channel.Endpoint, error) {
 	return netStack, linkEndpoint, nil
 }
 
-func installVnetRoutes(netStack *stack.Stack, linkEndpoint *channel.Endpoint) error {
-	// Make the NIC accept all IP packets on the VNet, regardless of destination address.
-	if err := netStack.SetPromiscuousMode(nicID, true); err != nil {
-		return trace.Errorf("putting NIC in promiscuous mode: %s", err)
-	}
-	// Route everything to the one NIC.
+func installVnetRoutes(stack *stack.Stack) error {
+	// Make the network stack pass all outbound IP packets to the NIC, regardless of destination IP address.
 	ipv6Subnet, err := tcpip.NewSubnet(tcpip.AddrFrom16([16]byte{}), tcpip.MaskFromBytes(make([]byte, 16)))
 	if err != nil {
 		return trace.Wrap(err, "creating VNet IPv6 subnet")
 	}
-	netStack.SetRouteTable([]tcpip.Route{
-		{
-			Destination: ipv6Subnet,
-			NIC:         nicID,
-		},
-	})
+	stack.SetRouteTable([]tcpip.Route{{
+		Destination: ipv6Subnet,
+		NIC:         nicID,
+	}})
 	return nil
 }
 
