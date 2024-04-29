@@ -1012,8 +1012,16 @@ func (h *Handler) Close() error {
 	return h.auth.Close()
 }
 
+type userStatusResponse struct {
+	HasDeviceExtensions bool   `json:"hasDeviceExtensions,omitempty"`
+	Message             string `json:"message"` // Always set to "ok"
+}
+
 func (h *Handler) getUserStatus(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *SessionContext) (interface{}, error) {
-	return OK(), nil
+	return userStatusResponse{
+		HasDeviceExtensions: c.cfg.Session.GetHasDeviceExtensions(),
+		Message:             "ok",
+	}, nil
 }
 
 // handleGetUserOrResetToken has two handlers:
