@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"reflect"
 	"runtime"
 	"slices"
 	"strconv"
@@ -622,4 +623,22 @@ func StringerAttr(s fmt.Stringer) slog.LogValuer {
 
 func (s stringerAttr) LogValue() slog.Value {
 	return slog.StringValue(s.Stringer.String())
+}
+
+type typeAttr struct {
+	val any
+}
+
+// TypeAttr creates a lazily evaluated log value that presents the pretty type name of a value
+// as a string. It is roughly equivalent to the '%T' format option, and should only perform
+// reflection in the event that logs are actually being generated.
+func TypeAttr(val any) slog.LogValuer {
+	return typeAttr{val}
+}
+
+func (a typeAttr) LogValue() slog.Value {
+	if t := reflect.TypeOf(a.val); t != nil {
+		return slog.StringValue(t.String())
+	}
+	return slog.StringValue("nil")
 }

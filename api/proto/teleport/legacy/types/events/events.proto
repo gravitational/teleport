@@ -4071,6 +4071,7 @@ message OneOf {
     events.ClusterNetworkingConfigUpdate ClusterNetworkingConfigUpdate = 154;
     events.DatabaseUserCreate DatabaseUserCreate = 155;
     events.DatabaseUserDeactivate DatabaseUserDeactivate = 156;
+    events.AccessPathChanged AccessPathChanged = 157;
   }
 }
 
@@ -6158,4 +6159,23 @@ message SessionRecordingConfigUpdate {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+}
+
+// AccessPathChanged is emitted when access graph detects a change in a access path.
+message AccessPathChanged {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ChangeID is the id of the change.
+  string ChangeID = 2 [(gogoproto.jsontag) = "change_id"];
+
+  // AffectedResourceID is the name of the affected resource.
+  string AffectedResourceName = 3 [(gogoproto.jsontag) = "affected_resource_name"];
+
+  // AffectedResourceSource is the source of the affected resource, ex: Teleport, AWS, GitLab, etc.
+  string AffectedResourceSource = 4 [(gogoproto.jsontag) = "affected_resource_source"];
 }

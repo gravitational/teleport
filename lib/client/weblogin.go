@@ -245,6 +245,8 @@ type SSHLoginSSO struct {
 	SSHLogin
 	// ConnectorID is the OIDC or SAML connector ID to use
 	ConnectorID string
+	// ConnectorName is the display name of the connector.
+	ConnectorName string
 	// Protocol is an optional protocol selection
 	Protocol string
 	// BindAddr is an optional host:port address to bind
@@ -257,6 +259,12 @@ type SSHLoginSSO struct {
 	// default (not currently implemented), or set to 'none' to suppress
 	// browser opening entirely.
 	Browser string
+	// PrivateKeyPolicy is a key policy to follow during login.
+	PrivateKeyPolicy keys.PrivateKeyPolicy
+	// ProxySupportsKeyPolicyMessage lets the tsh redirector give users more
+	// useful messages in the web UI if the proxy supports them.
+	// TODO(atburke): DELETE in v17.0.0
+	ProxySupportsKeyPolicyMessage bool
 }
 
 // SSHLoginDirect contains SSH login parameters for direct (user/pass/OTP)
