@@ -1,21 +1,21 @@
 ---
-title: Migrating from self-hosted to Teleport Enterprise (cloud-hosted)
+title: Migrating from Teleport Enterprise (self-hosted) to Teleport Enterprise (cloud-hosted)
 description: How to migrate from Teleport Enterprise (self-hosted) to Teleport Enterprise (cloud-hosted).
 h1: Migrate to Teleport Enterprise (cloud-hosted)
 ---
 
-This guide outlines the steps required to migrate your Teleport deployment from a Teleport Enterprise (self-hosted) cluster to Teleport Enterprise (cloud-hosted). 
+This guide outlines the steps required to migrate your Teleport deployment from a Teleport Enterprise (self-hosted) Cluster to Teleport Enterprise (cloud-hosted). 
 The migration process involves transferring configurations, migrating Teleport agents, and ensuring a successful transition with good performance on Teleport Enterprise (cloud-hosted).
 
 
 ## Prerequisites
 
-- An existing Teleport Enterprise (self-hosted) cluster
+- An existing Teleport Enterprise (self-hosted) Cluster
 
 
 ## Next Steps
 
-### Deploy your Teleport Enterprise (cloud-hosted) cluster
+### Deploy your Teleport Enterprise (cloud-hosted) Cluster
 
 - Determine the `teleport.sh` subdomain you would like to use for your new Teleport Enterprise (cloud-hosted) tenant. 
   - If your existing Teleport Enterprise (self-hosted) license dashboard is already using your desired subdomain, you can contact Teleport Support to free up the domain for re-use.
@@ -29,8 +29,8 @@ The migration process involves transferring configurations, migrating Teleport a
 tctl inventory ls --older-than=<version>
 ```
 
-- Validate connectivity to both the newly deployed Teleport Enterprise Cloud tenant and your existing self-hosted Cluster. You should be able to connect to both Teleport clusters and execute `tctl` commands using your current credentials. To verify connectivity, follow these steps:
-  - Sign in to your Teleport cluster using `tsh login`.
+- Validate connectivity to both the newly deployed Teleport Enterprise (cloud-hosted) Cluster and your existing Teleport Enterprise (self-hosted) Cluster. You should be able to connect to both Teleport Clusters and execute `tctl` commands using your current credentials. To verify connectivity, follow these steps:
+  - Sign in to your Teleport Cluster using `tsh login`.
   - Verify connectivity by running `tctl status`
 
 </Details>
@@ -56,12 +56,12 @@ $ tsh login --proxy=example.teleport.sh --user=admin@example.com
 $ tsh status && tctl status
 ```
 
-If you can connect to the cluster and run the `tctl status` command, you can use your current credentials to run subsequent `tctl` commands from your workstation.
+If you can connect to the Cluster and run the `tctl status` command, you can use your current credentials to run subsequent `tctl` commands from your workstation.
 
 
 ### Migrate Teleport Configurations.
 
-Migrating to Teleport Enterprise (cloud-hosted) involves transferring essential resource configurations from your Teleport Enterprise (self-hosted) cluster to Teleport Enterprise (cloud-hosted). Teleport uses YAML configuration for these resources, hence, it is required to grab a backup of the dynamic resource configurations from the existing Teleport Enterprise (self-hosted) cluster and restore the resource on Teleport Enterprise (cloud-hosted). These resources include:   
+Migrating to Teleport Enterprise (cloud-hosted) involves transferring essential resource configurations from your Teleport Enterprise (self-hosted) Cluster to Teleport Enterprise (cloud-hosted). Teleport uses YAML configuration for these resources, hence, it is required to grab a backup of the dynamic resource configurations from the existing Teleport Enterprise (self-hosted) Cluster and restore the resource on Teleport Enterprise (cloud-hosted). These resources include:   
 
 - Roles
 - Local users
@@ -80,13 +80,13 @@ Review the [dynamic resources](https://goteleport.com/docs/reference/resources/)
   title="Note"
 >
 
-  Trusted Clusters are not supported on Teleport Enterprise (cloud-hosted).  You will not be able to migrate trusted cluster resources.
+  Trusted Clusters are not supported on Teleport Enterprise (cloud-hosted).  You will not be able to migrate trusted Cluster resources.
 
 </Admonition>
 
 
 To achieve this:
-- Log in to your existing Teleport Enterprise (self-hosted) cluster and export a collection of the above-mentioned dynamic resource configuration using the `tctl` administrative tool.  An example is shown below:
+- Log in to your existing Teleport Enterprise (self-hosted) Cluster and export a collection of the above-mentioned dynamic resource configuration using the `tctl` administrative tool.  An example is shown below:
 
 ```code
 $ tsh login --proxy=teleport.example.com --user=admin@example.com
@@ -94,7 +94,7 @@ $ tctl get roles > roles.yaml
 $ tctl get users > users.yaml 
 ```
 
-- Once you have the resource configuration file from the above, proceed to log in to your Teleport Cloud tenant with an admin user and create the resources from the exported files:
+- Once you have the resource configuration file from the above, proceed to log in to your Teleport Enterprise (cloud-hosted) tenant with an admin user and create the resources from the exported files:
 
 ```code
 $ tsh login --proxy=example.teleport.sh --user=admin@example.com
@@ -102,7 +102,7 @@ $ tctl create -f roles.yaml
 $ tctl create -f user.yaml
 ```
 
-For your SSO auth connector, most SSO integrations only work for a single configured endpoint. It is recommended to create a separate SSO connector in your Identity Provider specifically for the Teleport Cloud endpoint, and configure a new Auth Connector in the Teleport Cloud tenant.
+For your SSO auth connector, most SSO integrations only work for a single configured endpoint. It is recommended to create a separate SSO connector in your Identity Provider specifically for the Teleport Enterprise (cloud-hosted) endpoint, and configure a new Auth Connector in the Teleport Enterprise (cloud-hosted) tenant.
 
 
 ### Migrate Teleport Agents
@@ -119,7 +119,7 @@ The following procedure is required to successfully migrate your Teleport agents
 
 - Obtain a valid join token: We recommend using a [Delegated Join Method](https://goteleport.com/docs/reference/join-methods/#delegated-join-methods)
 
-If using ephemeral tokens, ensure you specify the appropriate token type to match the Teleport services. Token types can include `node`, `app`, `kube`, `db`, `windowsdesktop` and others depending on the service you wish to join to your Teleport cluster.
+If using ephemeral tokens, ensure you specify the appropriate token type to match the Teleport services. Token types can include `node`, `app`, `kube`, `db`, `windowsdesktop` and others depending on the service you wish to join to your Teleport Cluster.
 
 In the following example, a new token is created with the TTL of fifteen minutes:
 
@@ -133,7 +133,7 @@ Copy the token so you can use it later in this guide.
 
 - Stop the Teleport service on the agent (if applicable)
 
-- Update the `proxy_server` or `auth_servers` field in the agent configuration file to point to the address of your Teleport Enterprise (cloud-hosted) cluster. By default, the configuration is located in the `/etc/teleport.yaml` directory.
+- Update the `proxy_server` or `auth_servers` field in the agent configuration file to point to the address of your Teleport Enterprise (cloud-hosted) Cluster. By default, the configuration is located in the `/etc/teleport.yaml` directory.
 
 ```yaml
 version: v3
@@ -150,23 +150,23 @@ teleport:
     token_name: new-token-goes-here
 ```
 
-- Delete the local agent cache to force the agent to rejoin the new Teleport Cloud cluster. By default, the data is located in the  `/var/lib/teleport` directory:
+- Delete the local agent cache to force the agent to rejoin the new Teleport Enterprise (cloud-hosted) Cluster. By default, the data is located in the  `/var/lib/teleport` directory:
 
 ```code
 rm -rf /var/lib/teleport
 ```
 
-- Start the Teleport process on each agent or recycle the pod to apply the new configuration. This will cause the agents to re-register with the Teleport Enterprise (cloud-hosted) cluster and obtain new certificates signed by the Teleport Enterprise (cloud-hosted) cluster's certificate authority.
+- Start the Teleport process on each agent or recycle the pod to apply the new configuration. This will cause the agents to re-register with the Teleport Enterprise (cloud-hosted) Cluster and obtain new certificates signed by the Teleport Enterprise (cloud-hosted) Cluster's certificate authority.
 
-As new services come online, they start sending heartbeat requests every few seconds to the Auth Service. This allows users to explore cluster membership. 
+As new services come online, they start sending heartbeat requests every few seconds to the Auth Service. This allows users to explore Cluster membership. 
 
 Note: ​​Migration of agents can be done all at once or gradually, depending on your business requirements. If running Teleport at scale, you'll generally want to leverage the use of a configuration management tool to automate and streamline the process of carrying out the actions involved in migrating agent configurations. 
 
 ### Verify end User Access and performance
 
-Once the migration is complete, validate that the resources are present in the Teleport cluster and verify their status and connectivity to ensure they are properly registered and available for connections. You can either check via the Web UI, or use `tctl` to get a list of all resources and verify their registration and status. 
+Once the migration is complete, validate that the resources are present in the Teleport Cluster and verify their status and connectivity to ensure they are properly registered and available for connections. You can either check via the Web UI, or use `tctl` to get a list of all resources and verify their registration and status. 
 
-For example, to list all nodes registered with the Teleport cluster, you can run the command below
+For example, to list all nodes registered with the Teleport Cluster, you can run the command below
 
 ```
 tctl nodes ls
@@ -174,7 +174,7 @@ tctl nodes ls
 
 Similarly, to list all other registred resources, you can run the command below:
 
-list all registered Kubernetes clusters
+list all registered Kubernetes Clusters
 ```
 tctl kube ls
 ```
@@ -197,12 +197,12 @@ List all registred Windows Desktops
 tctl get windoes_desktop
 ```
 
-These `tctl` commands will show you the resources registered within your Teleport cluster, and you can verify their availability for connections.
+These `tctl` commands will show you the resources registered within your Teleport Cluster, and you can verify their availability for connections.
 
 - Ensure that end users have the expected SSO access to your infrastructure and workflow.
 
-Additionally, establish break glass access procedures to ensure access to infrastructure in case of Teleport Cloud unavailability.
+Additionally, establish break glass access procedures to ensure access to infrastructure in case of Teleport Enterprise (cloud-hosted) unavailability.
 
 ### Conclusion
 
-Migrating from a self-hosted Teleport deployment to Teleport Cloud offers scalability, reliability, and ease of management. By following the steps outlined in this guide, you can transition your Teleport self-hosted deployment to Teleport Cloud successfully while ensuring minimal disruption to your operations.
+Migrating from a Teleport Enterprise (self-hosted) deployment to Teleport Enterprise (cloud-hosted) offers scalability, reliability, and ease of management. By following the steps outlined in this guide, you can transition your Teleport Enterprise (self-hosted) deployment to Teleport Enterprise (cloud-hosted) successfully while ensuring minimal disruption to your operations.
