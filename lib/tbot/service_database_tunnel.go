@@ -24,6 +24,8 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"os"
+	"path/filepath"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -172,19 +174,46 @@ func (s *DatabaseTunnelService) buildLocalProxyConfig(ctx context.Context) (lpCf
 	return lpConfig, nil
 }
 
+func createListener(log logrus.FieldLogger, addr string) (net.Listener, error) {
+	parsed, err := url.Parse(addr)
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing %q", addr)
+	}
+
+	switch parsed.Scheme {
+	// If no scheme is provided, default to TCP.
+	case "tcp", "":
+		return net.Listen("tcp", parsed.Host)
+	case "unix":
+		absPath, err := filepath.Abs(parsed.Path)
+		if err != nil {
+			return nil, trace.Wrap(err, "resolving absolute path for %q", parsed.Path)
+		}
+
+		// Remove the file if it already exists. This is necessary to handle
+		// unclean exits.
+		if err := os.Remove(absPath); err != nil && !os.IsNotExist(err) {
+			log.WithError(err).Warn("Failed to remove existing socket file")
+		}
+
+		return net.ListenUnix("unix", &net.UnixAddr{
+			Net:  "unix",
+			Name: absPath,
+		})
+	default:
+		return nil, trace.BadParameter("unsupported scheme %q", parsed.Scheme)
+	}
+}
+
 func (s *DatabaseTunnelService) Run(ctx context.Context) error {
 	ctx, span := tracer.Start(ctx, "DatabaseTunnelService/Run")
 	defer span.End()
 
 	l := s.cfg.Listener
 	if l == nil {
-		listenUrl, err := url.Parse(s.cfg.Listen)
-		if err != nil {
-			return trace.Wrap(err, "parsing listen url")
-		}
-
-		s.log.WithField("address", listenUrl.String()).Debug("Opening listener for database tunnel.")
-		l, err = net.Listen("tcp", listenUrl.Host)
+		s.log.WithField("address", s.cfg.Listen).Debug("Opening listener for database tunnel.")
+		var err error
+		l, err = createListener(s.log, s.cfg.Listen)
 		if err != nil {
 			return trace.Wrap(err, "opening listener")
 		}
