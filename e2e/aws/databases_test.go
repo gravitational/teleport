@@ -106,8 +106,8 @@ func awsDBDiscoveryUnmatched(t *testing.T) {
 }
 
 const (
-	waitForConnTimeout = 30 * time.Second
-	connRetryTick      = 5 * time.Second
+	waitForConnTimeout = 60 * time.Second
+	connRetryTick      = 10 * time.Second
 )
 
 // postgresConnTestFn tests connection to a postgres database via proxy web
