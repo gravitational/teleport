@@ -18,6 +18,12 @@ import cfg from 'teleport/config';
 
 import Ctx from 'e-teleport/teleportContextE';
 
+import {
+  ResourceKind,
+  ResourceMap,
+  getEmptyResourceState,
+} from 'e-teleport/AccessRequests/NewRequest';
+
 import type {
   ResourceLabel,
   ResourceFilter,
@@ -25,6 +31,11 @@ import type {
   ResourceIdKind,
   UnifiedResource,
 } from 'teleport/services/agents';
+
+export type {
+  /** @deprecated Import `ResourceKind` directly. */
+  ResourceKind,
+};
 
 const pageSize = 10;
 
@@ -55,6 +66,7 @@ export function useNewRequest(ctx: Ctx) {
   useEffect(() => {
     setResourceRequestsDisabled(false);
     const signal = new AbortController();
+
     async function createDryRunAccessRequest() {
       try {
         await ctx.workflowService.createAccessRequest(
@@ -104,6 +116,7 @@ export function useNewRequest(ctx: Ctx) {
         setDryRunAttempt({ status: 'success' });
       }
     }
+
     createDryRunAccessRequest();
 
     return () => {
@@ -789,18 +802,6 @@ export function useNewRequest(ctx: Ctx) {
   };
 }
 
-export function getEmptyResourceState() {
-  return {
-    node: {},
-    db: {},
-    app: {},
-    kube_cluster: {},
-    user_group: {},
-    windows_desktop: {},
-    role: {},
-  };
-}
-
 function getEmptyFetchedDataState() {
   return {
     agents: [],
@@ -829,14 +830,6 @@ function getDefaultAddedAll(): AddedAll {
 
 type AddedAll = {
   [K in ResourceIdKind]: boolean;
-};
-
-// ResourceKind describes resource kind's for both a search based access
-// request and "role" based access request.
-export type ResourceKind = ResourceIdKind | 'role' | 'resource';
-
-export type ResourceMap = {
-  [K in ResourceIdKind | 'role']: Record<string, string>;
 };
 
 export type State = ReturnType<typeof useNewRequest>;

@@ -6,7 +6,7 @@ import {
   SuggestedAccessListTimestamp,
   Timeline,
   TimelineCommentAndReviewsContainer,
-} from 'e-teleport/Workflow/ReviewRequests/RequestView/RequestView';
+} from 'e-teleport/AccessRequests/ReviewRequests';
 
 import { Description, Feature, FeatureProps, Title } from './Shared';
 import { mockAccessLists } from './fixtures';

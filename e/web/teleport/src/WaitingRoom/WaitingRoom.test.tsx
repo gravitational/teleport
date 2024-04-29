@@ -7,7 +7,10 @@ import { render, screen, waitFor, fireEvent } from 'design/utils/testing';
 import historyService from 'teleport/services/history';
 
 import TeleportContextE from 'e-teleport/teleportContextE';
-import { AccessRequest, makeAccessRequest } from 'e-teleport/services/workflow';
+import {
+  AccessRequest,
+  makeAccessRequest,
+} from 'e-teleport/services/accessRequests';
 
 import { Container as WaitingRoom } from './WaitingRoom';
 

@@ -54,14 +54,13 @@ import cfg from 'teleport/config';
 
 import useTeleportE from 'e-teleport/useTeleportE';
 
-import { ResourceList } from './ResourceList';
-import { RequestCheckout } from './RequestCheckout';
 import {
-  useNewRequest,
-  State,
-  getResourceId,
+  ResourceList,
   ResourceKind,
-} from './useNewRequest';
+} from 'e-teleport/AccessRequests/NewRequest';
+
+import { RequestCheckout } from './RequestCheckout';
+import { useNewRequest, State, getResourceId } from './useNewRequest';
 import { AppRequestButton, RequestButton } from './RequestButton';
 
 import type { TransitionStatus } from 'react-transition-group';
@@ -117,7 +116,7 @@ const availableKinds: FilterKind[] = [
   },
 ];
 
-export function NewRequest(props: State) {
+function NewRequest(props: State) {
   const {
     isLeafCluster,
     clusterId,
@@ -759,6 +758,7 @@ const StyledSelectAllPanel = styled(StyledPanel)`
       padding-top 100ms ease-out,
       padding-bottom 100ms ease-out;
   }
+
   &.entered {
     height: 24px;
     padding-top: 16px;
@@ -775,6 +775,7 @@ const StyledSelectAllPanel = styled(StyledPanel)`
       padding-top 50ms linear,
       padding-bottom 50ms linear;
   }
+
   &.exited {
     height: 0px;
     padding-top: 0px;
@@ -786,6 +787,7 @@ const StyledSelectAllPanel = styled(StyledPanel)`
 const StyledSelectAllPanelContent = styled(Flex)`
   align-items: center;
   justify-content: center;
+
   &.exiting,
   &.exited {
     display: none;
@@ -797,6 +799,7 @@ const ButtonPrimaryStyles = theme => ({ ...kinds({ kind: 'primary', theme }) });
 
 const AnimatedButton = styled(Button)`
   white-space: nowrap;
+
   &.primary {
     width: 224px;
     transition: all 50ms ease-in;

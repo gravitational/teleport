@@ -5,8 +5,12 @@ import { useKeyBasedPagination } from 'shared/hooks/useInfiniteScroll';
 import { AccessRequestScope, SortType } from 'teleport/services/agents';
 
 import TeleportContextE from 'e-teleport/teleportContextE';
-import { AccessRequest, makeAccessRequest } from 'e-teleport/services/workflow';
-import { getBaseRequestFlags } from 'e-teleport/Workflow/Shared/Shared';
+import {
+  AccessRequest,
+  makeAccessRequest,
+} from 'e-teleport/services/accessRequests';
+
+import { getBaseRequestFlags } from '../requestFlags';
 
 export default function useRequestList(ctx: TeleportContextE) {
   const { attempt, setAttempt } = useAttempt('success');

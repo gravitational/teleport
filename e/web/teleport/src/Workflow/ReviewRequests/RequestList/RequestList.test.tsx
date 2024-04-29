@@ -2,7 +2,7 @@ import React from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { fireEvent, render, screen } from 'design/utils/testing';
 
-import { requestRoleApproved } from 'e-teleport/Workflow/fixtures';
+import { requestRoleApproved } from 'e-teleport/AccessRequests/fixtures';
 
 import { RequestList } from './RequestList';
 import { AccessRequestWithFlags } from './useRequestList';

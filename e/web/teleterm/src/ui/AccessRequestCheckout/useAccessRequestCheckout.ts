@@ -5,20 +5,22 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { PendingAccessRequest } from 'teleterm/ui/services/workspacesService';
 import { retryWithRelogin } from 'teleterm/ui/utils';
-import { ReviewerOption } from 'e-teleport/Workflow/NewRequest/RequestCheckout/types';
+import {
+  ReviewerOption,
+  getDryRunMaxDuration,
+} from 'e-teleport/AccessRequests/NewRequest';
 import {
   CreateAccessRequestRequest,
   AccessRequest as TeletermAccessRequest,
 } from 'teleterm/services/tshd/types';
-import { CreateRequest } from 'e-teleport/Workflow/Shared/types';
+import { CreateRequest } from 'e-teleport/AccessRequests/Shared/types';
 import { Option } from 'shared/components/Select';
-import { getDryRunMaxDuration } from 'e-teleport/Workflow/NewRequest/RequestCheckout/utils';
 
 import { ResourceKind } from 'e-teleterm/ui/DocumentAccessRequests/NewRequest/useNewRequest';
 
 import { makeUiAccessRequest } from '../DocumentAccessRequests/useAccessRequests';
 
-import type { AccessRequest } from 'e-teleport/services/workflow';
+import type { AccessRequest } from 'e-teleport/services/accessRequests';
 
 export default function useAccessRequestCheckout() {
   const ctx = useAppContext();

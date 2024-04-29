@@ -4,7 +4,8 @@ import { ResourcesResponse } from 'teleport/services/agents';
 
 import cfg from 'e-teleport/config';
 
-import makeAccessRequest from './makeAccessRequest';
+import { makeAccessRequest } from 'e-teleport/services/accessRequests';
+
 import {
   AccessRequestFilter,
   CreateAccessRequest,

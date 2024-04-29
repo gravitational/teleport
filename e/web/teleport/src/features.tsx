@@ -25,9 +25,10 @@ import { PassthroughPage } from 'shared/components/AuthorizeDeviceWeb/AuthorizeD
 
 import { storageService } from 'teleport/services/storageService';
 
-import cfg from 'e-teleport/config';
+import NewRequest from 'e-teleport/Workflow/NewRequest/NewRequest';
+import ReviewRequests from 'e-teleport/Workflow/ReviewRequests/ReviewRequests';
 
-import { NewRequest, ReviewRequests } from 'e-teleport/Workflow';
+import cfg from 'e-teleport/config';
 
 import { Downloads } from 'e-teleport/Downloads';
 import { AuthConnectors } from 'e-teleport/AuthConnectors';

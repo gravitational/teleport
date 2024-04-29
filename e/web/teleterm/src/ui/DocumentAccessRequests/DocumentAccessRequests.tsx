@@ -6,6 +6,9 @@ import Document from 'teleterm/ui/Document';
 
 import { Attempt } from 'shared/hooks/useAsync';
 
+import { AccessRequest } from 'e-teleport/services/accessRequests';
+import { RequestFlags } from 'e-teleport/AccessRequests/ReviewRequests';
+
 import { useAssumeAccess } from 'e-teleterm/ui/DocumentAccessRequests/useAssumeAccess';
 
 import useAccessRequests from './useAccessRequests';
@@ -38,10 +41,12 @@ export function DocumentAccessRequestsViews({
   goBack,
   onViewRequest,
   assumeAccessList,
+  getFlags,
 }: DocumentAccessRequestsProps & {
   assumeRole(requestId: string): void;
   assumeRoleAttempt: Attempt<void>;
   assumeAccessList(): void;
+  getFlags(accessRequest: AccessRequest): RequestFlags;
 }) {
   if (doc.state === 'creating') {
     return <NewRequest />;
@@ -56,6 +61,7 @@ export function DocumentAccessRequestsViews({
       assumeRole={accessRequest => assumeRole(accessRequest.id)}
       attempt={attempt}
       requests={accessRequests}
+      getFlags={getFlags}
       getRequests={getRequests}
       viewRequest={(id: string) => onViewRequest(id)}
       assumeRoleAttempt={assumeRoleAttempt}

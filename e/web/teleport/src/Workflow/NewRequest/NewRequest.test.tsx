@@ -17,7 +17,10 @@ import * as Main from 'teleport/Main/Main';
 import ecfg from 'e-teleport/config';
 import TeleportContextE from 'e-teleport/teleportContextE';
 
-import { AccessRequest, makeAccessRequest } from 'e-teleport/services/workflow';
+import {
+  AccessRequest,
+  makeAccessRequest,
+} from 'e-teleport/services/accessRequests';
 
 import NewRequest from './NewRequest';
 

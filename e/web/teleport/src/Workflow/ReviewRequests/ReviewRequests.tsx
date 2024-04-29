@@ -12,8 +12,8 @@ import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import cfg from 'e-teleport/config';
 
-import RequestList from './RequestList';
-import RequestView from './RequestView';
+import RequestList from './RequestList/RequestList';
+import { RequestView } from './RequestView/RequestView';
 
 const NewRequestButton = ({ clusterId }: { clusterId: string }) => {
   return (
@@ -69,7 +69,7 @@ export default function Workflow() {
           </Flex>
         </FeatureHeaderTitle>
       </FeatureHeader>
-      <RequestView />
+      <RequestView requestId={requestId} />
     </FeatureBox>
   );
 }

@@ -1,5 +1,5 @@
 import { AccessRequest as TshdAccessRequest } from 'teleterm/services/tshd/types';
-import { AccessRequest } from 'e-teleport/services/workflow';
+import { AccessRequest } from 'e-teleport/services/accessRequests';
 
 import { makeUiAccessRequest } from './useAccessRequests';
 

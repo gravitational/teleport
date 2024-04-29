@@ -1,6 +1,9 @@
 import { Store } from 'shared/libs/stores';
 
-import { AccessRequest, makeAccessRequest } from 'e-teleport/services/workflow';
+import {
+  AccessRequest,
+  makeAccessRequest,
+} from 'e-teleport/services/accessRequests';
 
 const ACCESS_REQUESTS_STORE = 'grv_teleport_access_requests_store';
 

@@ -1,9 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Text,
   Label,
-  LabelState,
   ButtonBorder,
   ButtonPrimary,
   Alert,
@@ -11,24 +9,32 @@ import {
   Indicator,
 } from 'design';
 import Table, { Cell } from 'design/DataTable';
-import { ArrowFatLinesUp } from 'design/Icon';
 import InputSearch from 'design/DataTable/InputSearch';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { useInfiniteScroll } from 'shared/hooks';
 import { AccessRequestScope } from 'teleport/services/agents';
 import { ResourceTab } from 'shared/components/UnifiedResources/ResourceTab';
 
+import session from 'teleport/services/websession';
+
 import useTeleportE from 'e-teleport/useTeleportE';
 import cfg from 'e-teleport/config';
-import { AccessRequest, Resource } from 'e-teleport/services/workflow';
+import {
+  canAssumeNow,
+  AccessRequest,
+  Resource,
+} from 'e-teleport/services/accessRequests';
 import {
   BlockedByStartTimeButton,
   ButtonPromotedInfo,
-} from 'e-teleport/Workflow/Shared/Shared';
-import { canAssumeNow } from 'e-teleport/services/workflow/makeAccessRequest';
-import { reloginWebUi } from 'e-teleport/Workflow/Shared/utils';
+} from 'e-teleport/AccessRequests/Shared/Shared';
 
-import { formattedName } from '../formattedName';
+import {
+  formattedName,
+  renderIdCell,
+  renderStatusCell,
+  renderUserCell,
+} from 'e-teleport/AccessRequests/ReviewRequests';
 
 import useRequestList, {
   State,
@@ -202,89 +208,6 @@ export function requestdMatcher(
   }
 }
 
-export const renderUserCell = ({ user }: AccessRequestWithFlags) => {
-  return (
-    <Cell
-      style={{
-        maxWidth: '100px',
-        whiteSpace: 'nowrap',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-      }}
-      title={user}
-    >
-      {user}
-    </Cell>
-  );
-};
-
-export const renderIdCell = ({ id }: AccessRequestWithFlags) => {
-  return (
-    <Cell
-      style={{
-        maxWidth: '100px',
-        whiteSpace: 'nowrap',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-      }}
-      title={id}
-    >
-      {id.slice(-5)}
-    </Cell>
-  );
-};
-
-export const renderReasonCell = ({ requestReason }: AccessRequestWithFlags) => {
-  return (
-    <Cell
-      style={{
-        maxWidth: '150px',
-        whiteSpace: 'nowrap',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-      }}
-      title={requestReason}
-    >
-      {requestReason}
-    </Cell>
-  );
-};
-
-export const renderStatusCell = ({ state }: AccessRequestWithFlags) => {
-  if (state === 'PROMOTED') {
-    return (
-      <Cell>
-        <Flex alignItems="center">
-          <ArrowFatLinesUp size={17} color="success.main" mr={1} ml="-3px" />
-          <Text typography="body2">{state}</Text>
-        </Flex>
-      </Cell>
-    );
-  }
-
-  let kind = 'warning';
-  if (state === 'APPROVED') {
-    kind = 'success';
-  } else if (state === 'DENIED') {
-    kind = 'danger';
-  }
-
-  return (
-    <Cell>
-      <Flex alignItems="center">
-        <LabelState
-          kind={kind}
-          mr={2}
-          width="10px"
-          p={0}
-          style={{ minHeight: '10px' }}
-        />
-        <Text typography="body2">{state}</Text>
-      </Flex>
-    </Cell>
-  );
-};
-
 const renderActionCell = (
   request: AccessRequestWithFlags,
   assumeRole: (request: AccessRequestWithFlags) => void,
@@ -318,7 +241,7 @@ const renderActionCell = (
           <ButtonPromotedInfo
             request={request}
             ownRequest={request.ownRequest}
-            assumeAccessList={reloginWebUi}
+            assumeAccessList={session.logout}
           />
         )}
         <ButtonBorder

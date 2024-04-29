@@ -6,7 +6,10 @@ import { components } from 'react-select';
 import Select, { Option as BaseOption } from 'shared/components/Select';
 import { App } from 'teleport/services/apps';
 
-import { ResourceKind, ResourceMap } from './useNewRequest';
+import {
+  ResourceKind,
+  ResourceMap,
+} from 'e-teleport/AccessRequests/NewRequest';
 
 type Option = BaseOption & {
   isAdded?: boolean;

@@ -4,13 +4,18 @@ import { useParams } from 'react-router';
 import { useAsync } from 'shared/hooks/useAsync';
 import history from 'teleport/services/history';
 
+import session from 'teleport/services/websession';
+
 import TeleportContextE from 'e-teleport/teleportContextE';
 import { AccessRequest } from 'e-teleport/services/workflow';
 import { accessManagementService } from 'e-teleport/services/accessmanagement';
-import { getBaseRequestFlags } from 'e-teleport/Workflow/Shared/Shared';
-import { reloginWebUi } from 'e-teleport/Workflow/Shared/utils';
 
-import type { SubmitReview, RequestFlags } from './types';
+import { getBaseRequestFlags } from '../requestFlags';
+
+import type {
+  SubmitReview,
+  RequestFlags,
+} from 'e-teleport/AccessRequests/ReviewRequests';
 
 export default function useRequestView(ctx: TeleportContextE) {
   const { requestId } = useParams<{ requestId: string }>();
@@ -95,7 +100,7 @@ export default function useRequestView(ctx: TeleportContextE) {
     assumeRole: runAssumeRole,
     assumeRoleAttempt,
     fetchSuggestedAccessListsAttempt,
-    assumeAccessList: reloginWebUi,
+    assumeAccessList: session.logout,
   };
 }
 

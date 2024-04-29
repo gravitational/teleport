@@ -7,11 +7,13 @@ import {
 
 import { AccessRequest } from 'e-teleport/services/workflow';
 import {
-  RequestedCell,
   renderStatusCell,
-  renderReasonCell,
   renderIdCell,
   renderUserCell,
+} from 'e-teleport/AccessRequests/ReviewRequests';
+import { AccessRequestWithFlags } from 'e-teleport/Workflow/ReviewRequests/RequestList/useRequestList';
+import {
+  RequestedCell,
   requestdMatcher,
 } from 'e-teleport/Workflow/ReviewRequests/RequestList/RequestList';
 
@@ -95,3 +97,19 @@ export function AccessRequests(
     />
   );
 }
+
+const renderReasonCell = ({ requestReason }: AccessRequestWithFlags) => {
+  return (
+    <Cell
+      style={{
+        maxWidth: '150px',
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+      }}
+      title={requestReason}
+    >
+      {requestReason}
+    </Cell>
+  );
+};

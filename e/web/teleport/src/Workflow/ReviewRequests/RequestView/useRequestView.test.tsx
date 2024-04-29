@@ -4,7 +4,7 @@ import { waitFor, renderHook, act } from '@testing-library/react';
 import makeUserContext from 'teleport/services/user/makeUserContext';
 
 import TeleportContextE from 'e-teleport/teleportContextE';
-import { requestRolePending } from 'e-teleport/Workflow/fixtures';
+import { requestRolePending } from 'e-teleport/AccessRequests/fixtures';
 import { accessManagementService } from 'e-teleport/services/accessmanagement';
 
 import useRequestView from './useRequestView';

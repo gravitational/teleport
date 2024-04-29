@@ -6,26 +6,26 @@ import Table, { Cell } from 'design/DataTable';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { Attempt as AsyncAttempt } from 'shared/hooks/useAsync';
 
-import { AccessRequest } from 'e-teleport/services/workflow';
-import { formattedName } from 'e-teleport/Workflow/ReviewRequests/formattedName';
 import {
-  BlockedByStartTimeButton,
-  ButtonPromotedInfo,
-} from 'e-teleport/Workflow/Shared/Shared';
+  AccessRequest,
+  canAssumeNow,
+} from 'e-teleport/services/accessRequests';
 import {
   renderIdCell,
   renderStatusCell,
   renderUserCell,
-} from 'e-teleport/Workflow/ReviewRequests/RequestList/RequestList';
-import { canAssumeNow } from 'e-teleport/services/workflow/makeAccessRequest';
-
-import { makeRow } from '../useAccessRequests';
-
-type Row = ReturnType<typeof makeRow>;
+  formattedName,
+  RequestFlags,
+} from 'e-teleport/AccessRequests/ReviewRequests';
+import {
+  BlockedByStartTimeButton,
+  ButtonPromotedInfo,
+} from 'e-teleport/AccessRequests/Shared/Shared';
 
 export function RequestList({
   attempt,
   requests,
+  getFlags,
   viewRequest,
   assumeRoleAttempt,
   assumeRole,
@@ -108,7 +108,8 @@ export function RequestList({
             altKey: 'view-btn',
             render: request =>
               renderActionCell(
-                request as Row,
+                request,
+                getFlags(request),
                 assumeRole,
                 assumeRoleAttempt,
                 viewRequest,
@@ -145,25 +146,26 @@ function requestMatcher(
 }
 
 const renderActionCell = (
-  request: Row,
-  assumeRole: (request: Row) => void,
+  request: AccessRequest,
+  flags: RequestFlags,
+  assumeRole: (request: AccessRequest) => void,
   assumeRoleAttempt: AsyncAttempt<void>,
   viewRequest: (id: string) => void,
   assumeAccessList: () => void
 ) => {
   let assumeBtn;
-  if (request.canAssume) {
+  if (flags.canAssume) {
     if (canAssumeNow(request.assumeStartTime)) {
       assumeBtn = (
         <ButtonPrimary
           size="small"
           disabled={
-            request.isAssumed || assumeRoleAttempt.status === 'processing'
+            flags.isAssumed || assumeRoleAttempt.status === 'processing'
           }
           onClick={() => assumeRole(request)}
           width="108px"
         >
-          {request.isAssumed ? 'assumed' : 'assume roles'}
+          {flags.isAssumed ? 'assumed' : 'assume roles'}
         </ButtonPrimary>
       );
     } else {
@@ -177,10 +179,10 @@ const renderActionCell = (
     <Cell align="right" style={{ whiteSpace: 'nowrap' }}>
       <Flex alignItems="center" justifyContent="right" width="184px">
         {assumeBtn}
-        {request.isPromoted && (
+        {flags.isPromoted && (
           <ButtonPromotedInfo
             request={request}
-            ownRequest={request.ownRequest}
+            ownRequest={flags.ownRequest}
             assumeAccessList={assumeAccessList}
           />
         )}
@@ -244,6 +246,7 @@ const Layout = styled(Box)`
 type Props = {
   attempt: Attempt;
   requests: AccessRequest[];
+  getFlags: (accessRequest: AccessRequest) => RequestFlags;
   assumeRole: (request: AccessRequest) => void;
   assumeRoleAttempt: AsyncAttempt<void>;
   getRequests: () => void;

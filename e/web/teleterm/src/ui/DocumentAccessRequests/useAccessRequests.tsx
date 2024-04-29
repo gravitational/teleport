@@ -7,7 +7,11 @@ import {
   LoggedInUser,
   AccessRequest as TshdAccessRequest,
 } from 'teleterm/services/tshd/types';
-import { makeAccessRequest, AccessRequest } from 'e-teleport/services/workflow';
+import {
+  makeAccessRequest,
+  AccessRequest,
+} from 'e-teleport/services/accessRequests';
+import { RequestFlags } from 'e-teleport/AccessRequests/ReviewRequests';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { retryWithRelogin } from 'teleterm/ui/utils';
@@ -53,9 +57,7 @@ export default function useAccessRequests(doc: types.DocumentAccessRequests) {
       );
       setAttempt({ status: 'success' });
       // transform tshd access request to the webui access request and add flags
-      const requests = response.map(r =>
-        makeRow(makeUiAccessRequest(r), assumed, loggedInUser)
-      );
+      const requests = response.map(r => makeUiAccessRequest(r));
       setAccessRequests(requests);
     } catch (err) {
       setAttempt({
@@ -90,6 +92,8 @@ export default function useAccessRequests(doc: types.DocumentAccessRequests) {
     onViewRequest,
     doc,
     getRequests,
+    getFlags: (accessRequest: AccessRequest) =>
+      makeFlags(accessRequest, assumed, loggedInUser),
     goBack,
   };
 }
@@ -119,22 +123,30 @@ export function makeUiAccessRequest(request: TshdAccessRequest) {
 
 // transform tsdh Access Request type into the web's Access Request
 // to promote code reuse
-export function makeRow(
+// TODO(gzdunek): Replace with a function from `DocumentAccessRequests/useReviewAccessRequest`.
+export function makeFlags(
   request: AccessRequest,
   assumed: Record<string, AssumedRequest>,
   loggedInUser: LoggedInUser
-) {
+): RequestFlags {
   const ownRequest = request.user === loggedInUser?.name;
   const canAssume = ownRequest && request.state === 'APPROVED';
-  const isAssumed = assumed[request.id];
+  const isAssumed = !!assumed[request.id];
 
   const isPromoted =
     request.state === 'PROMOTED' && !!request.promotedAccessListTitle;
+
+  const reviewed = request.reviews.find(r => r.author === loggedInUser?.name);
+  const isPendingState = reviewed
+    ? reviewed.state === 'PENDING'
+    : request.state === 'PENDING';
 
   return {
     ...request,
     canAssume,
     isAssumed,
+    canReview: !ownRequest && isPendingState,
+    canDelete: true,
     ownRequest,
     isPromoted,
   };

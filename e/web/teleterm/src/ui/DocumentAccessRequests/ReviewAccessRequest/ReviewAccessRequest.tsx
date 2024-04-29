@@ -1,12 +1,13 @@
-import React from 'react';
-
 import styled from 'styled-components';
 
 import { Text, Flex, Box, Alert } from 'design';
 import { ArrowBack } from 'design/Icon';
+import { makeEmptyAttempt } from 'shared/hooks/useAsync';
 
-import { RequestDelete } from 'e-teleport/Workflow/ReviewRequests/RequestView/RequestDelete/RequestDelete';
-import { RequestView } from 'e-teleport/Workflow/ReviewRequests/RequestView/RequestView';
+import {
+  RequestDelete,
+  RequestView,
+} from 'e-teleport/AccessRequests/ReviewRequests';
 
 import { useAssumeAccess } from '../useAssumeAccess';
 
@@ -86,6 +87,9 @@ export function ReviewAccessRequest(props: {
         submitReviewAttempt={submitReviewAttempt}
         fetchSuggestedAccessListsAttempt={fetchSuggestedAccessListsAttempt}
         assumeAccessList={assumeAccessList}
+        //TODO(gzdunek): Remove our custom dialog and instead fill the props here.
+        deleteRequestAttempt={makeEmptyAttempt()}
+        deleteRequest={() => undefined}
       />
       {getDialogDelete()}
     </Layout>

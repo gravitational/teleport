@@ -2,8 +2,9 @@ import React from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { fireEvent, render, screen } from 'design/utils/testing';
 
-import { requestRoleApproved } from 'e-teleport/Workflow/fixtures';
-import { AccessRequestWithFlags } from 'e-teleport/Workflow/ReviewRequests/RequestList/useRequestList';
+import { requestRoleApproved } from 'e-teleport/AccessRequests/fixtures';
+import { AccessRequest } from 'e-teleport/services/accessRequests';
+import { RequestFlags } from 'e-teleport/AccessRequests/ReviewRequests';
 
 import { RequestList } from './RequestList';
 
@@ -20,6 +21,7 @@ test('disabled assume button with assume start date', async () => {
         getRequests={() => null}
         viewRequest={() => null}
         assumeAccessList={() => null}
+        getFlags={() => flags}
         requests={[request]}
       />
     </MemoryRouter>
@@ -48,6 +50,7 @@ test('enabled assume button with assume start date', () => {
         getRequests={() => null}
         viewRequest={() => null}
         assumeAccessList={() => null}
+        getFlags={() => flags}
         requests={[request]}
       />
     </MemoryRouter>
@@ -67,6 +70,7 @@ test('enabled assume button with no assume start date', () => {
         getRequests={() => null}
         viewRequest={() => null}
         assumeAccessList={() => null}
+        getFlags={() => flags}
         requests={[
           { ...request, assumeStartTime: null, assumeStartTimeDuration: '' },
         ]}
@@ -78,12 +82,17 @@ test('enabled assume button with no assume start date', () => {
   expect(assumeBtn).toBeEnabled();
 });
 
-const request: AccessRequestWithFlags = {
+const request: AccessRequest = {
   ...requestRoleApproved,
   assumeStartTime: new Date('2024-02-17T02:51:12.70087Z'),
   assumeStartTimeDuration: '24 hours from now',
+};
+
+const flags: RequestFlags = {
   canAssume: true,
   isAssumed: false,
   ownRequest: true,
   isPromoted: false,
+  canReview: true,
+  canDelete: true,
 };
