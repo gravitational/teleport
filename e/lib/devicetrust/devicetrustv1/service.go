@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"strconv"
 	"sync"
 	"time"
 
@@ -67,7 +68,23 @@ var (
 		Namespace: teleport.MetricNamespace,
 		Subsystem: deviceTrustSubsystem,
 		Name:      "authenticate_device_seconds",
-		Help:      "AuthenticateDevice RPC histogram labeled by grpc_code",
+		Help:      "AuthenticateDevice RPC histogram labeled by grpc_code and web_authentication",
+		Buckets:   prometheus.DefBuckets,
+	}, []string{"grpc_code", "web_authentication"})
+
+	createDeviceWebTokenHist = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: teleport.MetricNamespace,
+		Subsystem: deviceTrustSubsystem,
+		Name:      "create_device_web_token_seconds",
+		Help:      "CreateDeviceWebToken method histogram labeled by grpc_code",
+		Buckets:   prometheus.DefBuckets,
+	}, []string{"grpc_code"}) // Technically not an RPC, but grpc_code is a good way to record outcome.
+
+	confirmDeviceWebAuthenticationHist = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: teleport.MetricNamespace,
+		Subsystem: deviceTrustSubsystem,
+		Name:      "confirm_device_web_authentication_seconds",
+		Help:      "ConfirmDeviceWebAuthentication RPC histogram labeled by grpc_code",
 		Buckets:   prometheus.DefBuckets,
 	}, []string{"grpc_code"})
 
@@ -82,6 +99,8 @@ var (
 		createEnrollTokenHist,
 		enrollHist,
 		authnHist,
+		createDeviceWebTokenHist,
+		confirmDeviceWebAuthenticationHist,
 		syncOperationsTotal,
 	}
 )
@@ -567,7 +586,7 @@ func (s *Service) CreateDeviceEnrollToken(ctx context.Context, req *devicepb.Cre
 	start := time.Now()
 	defer func() {
 		createEnrollTokenHist.
-			WithLabelValues(status.Code(err).String()).
+			WithLabelValues(toGRPCCode(err)).
 			Observe(time.Since(start).Seconds())
 	}()
 
@@ -687,7 +706,7 @@ func (s *Service) EnrollDevice(stream devicepb.DeviceTrustService_EnrollDeviceSe
 		}
 
 		enrollHist.
-			WithLabelValues(status.Code(err).String()).
+			WithLabelValues(toGRPCCode(err)).
 			Observe(time.Since(start).Seconds())
 	}()
 
@@ -752,6 +771,7 @@ var authnDisabledLogOnce sync.Once
 func (s *Service) AuthenticateDevice(stream devicepb.DeviceTrustService_AuthenticateDeviceServer) (err error) {
 	start := time.Now()
 	ctx := stream.Context()
+	var isWebAuthentication bool // Set in the audit step.
 	defer func() {
 		if err != nil {
 			s.logger.DebugContext(ctx,
@@ -762,7 +782,10 @@ func (s *Service) AuthenticateDevice(stream devicepb.DeviceTrustService_Authenti
 		}
 
 		authnHist.
-			WithLabelValues(status.Code(err).String()).
+			WithLabelValues(
+				toGRPCCode(err),
+				strconv.FormatBool(isWebAuthentication),
+			).
 			Observe(time.Since(start).Seconds())
 	}()
 
@@ -809,7 +832,8 @@ func (s *Service) AuthenticateDevice(stream devicepb.DeviceTrustService_Authenti
 
 			// Assign web authentication fields.
 			if devMetadata != nil && auditData != nil {
-				devMetadata.WebAuthentication = auditData.HasDeviceWebToken
+				isWebAuthentication = auditData.HasDeviceWebToken // written to authnHist
+				devMetadata.WebAuthentication = isWebAuthentication
 				devMetadata.WebSessionId = auditData.WebSessionID
 			}
 
@@ -852,7 +876,14 @@ func (s *Service) isDeviceAuthnAllowed(dt *types.DeviceTrust, userRoles []types.
 	return trace.BadParameter("device trust disabled by cluster settings")
 }
 
-func (s *Service) ConfirmDeviceWebAuthentication(ctx context.Context, req *devicepb.ConfirmDeviceWebAuthenticationRequest) (*devicepb.ConfirmDeviceWebAuthenticationResponse, error) {
+func (s *Service) ConfirmDeviceWebAuthentication(ctx context.Context, req *devicepb.ConfirmDeviceWebAuthenticationRequest) (_ *devicepb.ConfirmDeviceWebAuthenticationResponse, err error) {
+	start := time.Now()
+	defer func() {
+		confirmDeviceWebAuthenticationHist.
+			WithLabelValues(toGRPCCode(err)).
+			Observe(time.Since(start).Seconds())
+	}()
+
 	switch {
 	case req.ConfirmationToken == nil:
 		return nil, trace.BadParameter("confirmation token required")
@@ -1067,7 +1098,14 @@ func (s *Service) GetDevicesUsage(_ context.Context, _ *devicepb.GetDevicesUsage
 //
 // CreateDeviceWebToken is not an RPC. Instead, it is called directly by the
 // Auth Server's web login logic.
-func (s *Service) CreateDeviceWebToken(ctx context.Context, token *devicepb.DeviceWebToken) (*devicepb.DeviceWebToken, error) {
+func (s *Service) CreateDeviceWebToken(ctx context.Context, token *devicepb.DeviceWebToken) (_ *devicepb.DeviceWebToken, err error) {
+	start := time.Now()
+	defer func() {
+		createDeviceWebTokenHist.
+			WithLabelValues(toGRPCCode(err)).
+			Observe(time.Since(start).Seconds())
+	}()
+
 	switch {
 	case token == nil:
 		return nil, trace.BadParameter("device web token required")
@@ -1315,6 +1353,10 @@ func (s *Service) emitDeviceLimitEvent(l prehogv1alpha.LicenseLimit) {
 
 func (s *Service) rateLimitByUser(user string) error {
 	return s.limiter.RegisterRequest(user, nil /* customRate */)
+}
+
+func toGRPCCode(err error) string {
+	return status.Code(trail.ToGRPC(err)).String()
 }
 
 func getDeviceMetadata(dev *devicepb.Device) *apievents.DeviceMetadata {
