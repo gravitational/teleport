@@ -7,57 +7,48 @@ The Teleport team delivers a new major release roughly every 4 months.
 
 ## Teleport
 
-| Version | Date            |
-|---------|-----------------|
-| 15.1.5  | March 15, 2024  |
-| 15.2.0  | March 29, 2024  |
-| 16.0.0  | May 31, 2024    |
+| Version | Date           |
+| ------- | -------------- |
+| 15.3.0  | April 30, 2024 |
+| 15.4.0  | May 31, 2024   |
+| 16.0.0  | May 31, 2024   |
 
-### 15.1.5
+### 15.3.0
 
-#### SSH remote port forwarding
+#### Improved Roles UI
 
-In Teleport 15.1, we will expose remote port forwarding via the `tsh ssh -R`
-command. Remote port forwarding will be supported for both Teleport and OpenSSH
-nodes.
-
-*Delayed from Teleport 15.1.0*
-
-### 15.2.0
-
-#### New paginated APIs
-
-Teleport's gRPC server will expose new paginated APIs for listing roles and
-access requests, which will improve performance on clusters with large numbers
-of these resources.
+The Roles page of the web UI will be backed by a paginated API, ensuring fast
+load times even on clusters with large numbers of roles.
 
 *Delayed from Teleport 15.1.0*
 
-#### Zero-downtime web asset rollout
+#### Database access for Spanner
 
-Teleport 15.2 changes the way that web assets are served and cached, which
-will allow multiple compatible versions of the Teleport Proxy to run behind
-the same load balancer.
+Database access users will be able to connect to GCP Spanner.
 
-#### Workload Identity MVP
+#### Resizing for Windows desktop sessions
 
-With Teleport 15.2, Machine ID can bootstrap and issue identity to services
-across multiple computing environments and organizational boundaries. Workload
-Identity issues [SPIFFE](https://spiffe.io/)-compatible x509 certificates that
-can be used for mTLS between services.
+Windows desktop sessions will automatically resize as the size of the browser
+window changes.
 
-#### Support for Kubernetes 1.29+
+#### Hardware key support for agentless nodes
 
-The Kubernetes project is deprecating the SPDY protocol for streaming commands
-(`kubectl exec`, `kubectl port-forward`, etc) and replacing it with a new
-websocket-based subprotocol. Teleport 15.2.0 will support the new protocol to
-ensure compatibility with newer Kubernetes clusters.
+Teleport will support connecting to agentless OpenSSH nodes even when Teleport
+is configured to require hardware key MFA checks.
 
-#### Automatic database access requests
+#### TPM joining
 
-Both `tsh db connect` and `tsh proxy db` will offer the option to submit an
-access request if the user attempts to connect to a database that they don't
-already have access to.
+The new TPM join method will enable secure joining for agents and Machine ID bots that
+run on-premise. Based on the secure properties of the host's hardware trusted platform module,
+this join method removes the need to create and distribute secret tokens, significantly
+reducing the risk of exfiltration.
+
+### 15.4.0
+
+#### Access requests notification routing rules
+
+Hosted Slack plugin users will be able to configure notification routing rules
+for role-based access requests.
 
 ### 16.0.0
 
@@ -71,13 +62,25 @@ This will allow scripts and software applications to connect to any
 Teleport-protected application as if they were connected to a VPN, without the
 need to manage local tunnels.
 
+#### Per-session MFA for applications
+
+Teleport 16 will support per-session MFA checks when accessing web and TCP applications.
+
+#### Device Trust support for the Web UI
+
+With Teleport 16, Device Trust checks can be enforced for workflows that require the Web UI.
+This includes access to web applications and Windows desktops.
+
+Teleport Connect must be installed on user workstations in order to satisfy device checks.
+
 ## Teleport Cloud
 
 The key deliverables for Teleport Cloud in the next quarter:
 
-| Week of       | Description                                |
-|---------------|--------------------------------------------|
-| April 1, 2024 | Teleport 15.2 will begin rollout on Cloud. |
+| Week of     | Description                                                  |
+| ----------- | ------------------------------------------------------------ |
+| May 6, 2024 | Teleport 15.3 will begin rollout on Cloud.                   |
+| May 6, 2024 | Teleport 15.3 agents will begin rollout to eligible tenants. |
 
 ## Production readiness
 

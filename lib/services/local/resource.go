@@ -185,7 +185,7 @@ func itemFromUser(user types.User) (*backend.Item, error) {
 
 // itemToUser attempts to decode the supplied `backend.Item` as
 // a user resource.
-func itemToUser(item backend.Item) (types.User, error) {
+func itemToUser(item backend.Item) (*types.UserV2, error) {
 	user, err := services.UnmarshalUser(
 		item.Value,
 		services.WithResourceID(item.ID),
@@ -346,7 +346,7 @@ func itemFromSAMLConnector(connector types.SAMLConnector) (*backend.Item, error)
 // userFromUserItems is an extended variant of itemToUser which can be used
 // with the `userItems` collector to include additional backend.Item values
 // such as password hash or MFA devices.
-func userFromUserItems(name string, items userItems) (types.User, error) {
+func userFromUserItems(name string, items userItems) (*types.UserV2, error) {
 	if items.params == nil {
 		return nil, trace.BadParameter("cannot itemTo user %q without primary item %q", name, paramsPrefix)
 	}

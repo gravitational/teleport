@@ -9,7 +9,11 @@ kind: PodDisruptionBudget
 metadata:
   name: {{ .Release.Name }}-auth
   namespace: {{ .Release.Namespace }}
-  labels: {{- include "teleport-cluster.auth.labels" . | nindent 4 }}
+  labels:
+    {{- include "teleport-cluster.auth.labels" . | nindent 4 }}
+    {{- if $auth.extraLabels.podDisruptionBudget }}
+    {{- toYaml $auth.extraLabels.podDisruptionBudget | nindent 4 }}
+    {{- end }}
 spec:
   minAvailable: {{ $auth.highAvailability.podDisruptionBudget.minAvailable }}
   selector:

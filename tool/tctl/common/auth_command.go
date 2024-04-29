@@ -192,6 +192,7 @@ var allowedCertificateTypes = []string{
 	"tls-host",
 	"tls-user",
 	"tls-user-der",
+	"tls-spiffe",
 	"windows",
 	"db",
 	"db-der",

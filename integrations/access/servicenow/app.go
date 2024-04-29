@@ -316,7 +316,7 @@ func (a *App) onDeletedRequest(ctx context.Context, reqID string) error {
 }
 
 func (a *App) getOnCallServiceNames(req types.AccessRequest) ([]string, error) {
-	services, ok := req.GetSystemAnnotations()[types.TeleportNamespace+types.ReqAnnotationSchedulesLabel]
+	services, ok := req.GetSystemAnnotations()[types.TeleportNamespace+types.ReqAnnotationApproveSchedulesLabel]
 	if !ok {
 		return nil, trace.NotFound("on-call schedules not specified")
 	}
@@ -402,15 +402,19 @@ func (a *App) tryApproveRequest(ctx context.Context, req types.AccessRequest) er
 		logger.Get(ctx).Debugf("Skipping the approval: %s", err)
 		return nil
 	}
+	log.Debugf("Checking the following shifts to see if the requester is on-call: %s", serviceNames)
 
 	onCallUsers, err := a.getOnCallUsers(ctx, serviceNames)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	log.Debugf("Users on-call are: %s", onCallUsers)
 
 	if userIsOnCall := slices.Contains(onCallUsers, req.GetUser()); !userIsOnCall {
+		log.Debugf("User %q is not on-call, not approving the request %q.", req.GetUser(), req.GetName())
 		return nil
 	}
+	log.Debugf("User %q is on-call. Auto-approving the request %q.", req.GetUser(), req.GetName())
 	if _, err := a.teleport.SubmitAccessReview(ctx, types.AccessReviewSubmission{
 		RequestID: req.GetName(),
 		Review: types.AccessReview{

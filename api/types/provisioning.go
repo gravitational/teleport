@@ -17,6 +17,8 @@ limitations under the License.
 package types
 
 import (
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"slices"
 	"strings"
@@ -66,6 +68,9 @@ const (
 	// method. Documentation regarding implementation of this can be found in
 	// lib/spacelift.
 	JoinMethodSpacelift JoinMethod = "spacelift"
+	// JoinMethodTPM indicates that the node will join with the TPM join method.
+	// The core implementation of this join method can be found in lib/tpm.
+	JoinMethodTPM JoinMethod = "tpm"
 )
 
 var JoinMethods = []JoinMethod{
@@ -79,6 +84,7 @@ var JoinMethods = []JoinMethod{
 	JoinMethodKubernetes,
 	JoinMethodSpacelift,
 	JoinMethodToken,
+	JoinMethodTPM,
 }
 
 func ValidateJoinMethod(method JoinMethod) error {
@@ -327,6 +333,17 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 		}
 		if err := providerCfg.checkAndSetDefaults(); err != nil {
 			return trace.Wrap(err, "spec.spacelift: failed validation")
+		}
+	case JoinMethodTPM:
+		providerCfg := p.Spec.TPM
+		if providerCfg == nil {
+			return trace.BadParameter(
+				`spec.tpm: must be configured for the join method %q`,
+				JoinMethodTPM,
+			)
+		}
+		if err := providerCfg.validate(); err != nil {
+			return trace.Wrap(err, "spec.tpm: failed validation")
 		}
 	default:
 		return trace.BadParameter("unknown join method %q", p.Spec.JoinMethod)
@@ -748,6 +765,47 @@ func (a *ProvisionTokenSpecV2Spacelift) checkAndSetDefaults() error {
 		if allowRule.SpaceID == "" && allowRule.CallerID == "" {
 			return trace.BadParameter(
 				"allow[%d]: at least one of ['space_id', 'caller_id'] must be set",
+				i,
+			)
+		}
+	}
+	return nil
+}
+
+func (a *ProvisionTokenSpecV2TPM) validate() error {
+	for i, caData := range a.EKCertAllowedCAs {
+		p, _ := pem.Decode([]byte(caData))
+		if p == nil {
+			return trace.BadParameter(
+				"ekcert_allowed_cas[%d]: no pem block found",
+				i,
+			)
+		}
+		if p.Type != "CERTIFICATE" {
+			return trace.BadParameter(
+				"ekcert_allowed_cas[%d]: pem block is not 'CERTIFICATE' type",
+				i,
+			)
+		}
+		if _, err := x509.ParseCertificate(p.Bytes); err != nil {
+			return trace.Wrap(
+				err,
+				"ekcert_allowed_cas[%d]: parsing certificate",
+				i,
+			)
+
+		}
+	}
+
+	if len(a.Allow) == 0 {
+		return trace.BadParameter(
+			"allow: at least one rule must be set",
+		)
+	}
+	for i, allowRule := range a.Allow {
+		if len(allowRule.EKPublicHash) == 0 && len(allowRule.EKCertificateSerial) == 0 {
+			return trace.BadParameter(
+				"allow[%d]: at least one of ['ek_public_hash', 'ek_certificate_serial'] must be set",
 				i,
 			)
 		}

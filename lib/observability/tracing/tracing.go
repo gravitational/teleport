@@ -100,7 +100,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 
 	if c.Logger == nil {
-		c.Logger = logrus.WithField(trace.Component, teleport.ComponentTracing)
+		c.Logger = logrus.WithField(teleport.ComponentKey, teleport.ComponentTracing)
 	}
 
 	if c.Client != nil {
@@ -201,7 +201,6 @@ func NewTraceProvider(ctx context.Context, cfg Config) (*Provider, error) {
 	attrs = append(attrs, cfg.Attributes...)
 
 	res, err := resource.New(ctx,
-		resource.WithSchemaURL(semconv.SchemaURL),
 		resource.WithFromEnv(),
 		resource.WithProcessExecutableName(),
 		resource.WithProcessRuntimeName(),

@@ -31,7 +31,6 @@ import (
 	tp "github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/backoff"
@@ -45,9 +44,9 @@ const (
 	// minServerVersion is the minimal teleport version the plugin supports.
 	minServerVersion = "6.1.0"
 	// initTimeout is used to bound execution time of health check and teleport version check.
-	initTimeout = time.Second * 10
+	initTimeout = time.Second * 30
 	// handlerTimeout is used to bound the execution time of watcher event handler.
-	handlerTimeout = time.Second * 5
+	handlerTimeout = time.Second * 30
 	// modifyPluginDataBackoffBase is an initial (minimum) backoff value.
 	modifyPluginDataBackoffBase = time.Millisecond
 	// modifyPluginDataBackoffMax is a backoff threshold
@@ -141,10 +140,9 @@ func (a *App) init(ctx context.Context) error {
 	defer cancel()
 
 	var err error
-	if a.teleport == nil {
-		if a.teleport, err = common.GetTeleportClient(ctx, a.conf.Teleport); err != nil {
-			return trace.Wrap(err)
-		}
+	a.teleport, err = a.conf.GetTeleportClient(ctx)
+	if err != nil {
+		return trace.Wrap(err, "getting teleport client")
 	}
 
 	if _, err = a.checkTeleportVersion(ctx); err != nil {
@@ -155,6 +153,13 @@ func (a *App) init(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	log := logger.Get(ctx)
+	log.Debug("Starting API health check...")
+	if err = a.opsgenie.CheckHealth(ctx); err != nil {
+		return trace.Wrap(err, "API health check failed")
+	}
+	log.Debug("API health check finished ok")
 	return nil
 }
 
@@ -269,7 +274,7 @@ func (a *App) onDeletedRequest(ctx context.Context, reqID string) error {
 }
 
 func (a *App) getNotifyServiceNames(req types.AccessRequest) ([]string, error) {
-	services, ok := req.GetSystemAnnotations()[types.TeleportNamespace+types.ReqAnnotationNotifyServicesLabel]
+	services, ok := req.GetSystemAnnotations()[types.TeleportNamespace+types.ReqAnnotationNotifySchedulesLabel]
 	if !ok {
 		return nil, trace.NotFound("notify services not specified")
 	}
@@ -277,7 +282,7 @@ func (a *App) getNotifyServiceNames(req types.AccessRequest) ([]string, error) {
 }
 
 func (a *App) getOnCallServiceNames(req types.AccessRequest) ([]string, error) {
-	services, ok := req.GetSystemAnnotations()[types.TeleportNamespace+types.ReqAnnotationSchedulesLabel]
+	services, ok := req.GetSystemAnnotations()[types.TeleportNamespace+types.ReqAnnotationApproveSchedulesLabel]
 	if !ok {
 		return nil, trace.NotFound("on-call schedules not specified")
 	}
@@ -294,11 +299,16 @@ func (a *App) tryNotifyService(ctx context.Context, req types.AccessRequest) (bo
 	}
 
 	reqID := req.GetName()
+	annotations := types.Labels{}
+	for k, v := range req.GetSystemAnnotations() {
+		annotations[k] = v
+	}
 	reqData := RequestData{
-		User:          req.GetUser(),
-		Roles:         req.GetRoles(),
-		Created:       req.GetCreationTime(),
-		RequestReason: req.GetRequestReason(),
+		User:              req.GetUser(),
+		Roles:             req.GetRoles(),
+		Created:           req.GetCreationTime(),
+		RequestReason:     req.GetRequestReason(),
+		SystemAnnotations: annotations,
 	}
 
 	// Create plugin data if it didn't exist before.
@@ -429,7 +439,7 @@ func (a *App) tryApproveRequest(ctx context.Context, req types.AccessRequest) er
 		if _, err := a.teleport.SubmitAccessReview(ctx, types.AccessReviewSubmission{
 			RequestID: req.GetName(),
 			Review: types.AccessReview{
-				Author:        tp.SystemAccessApproverUserName,
+				Author:        a.conf.TeleportUserName,
 				ProposedState: types.RequestState_APPROVED,
 				Reason: fmt.Sprintf("Access requested by user %s who is on call on service(s) %s",
 					tp.SystemAccessApproverUserName,

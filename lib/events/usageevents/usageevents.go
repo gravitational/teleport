@@ -21,7 +21,6 @@ package usageevents
 import (
 	"context"
 
-	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
@@ -84,7 +83,7 @@ func New(reporter usagereporter.UsageReporter, log logrus.FieldLogger, inner api
 
 	return &UsageLogger{
 		Entry: log.WithField(
-			trace.Component,
+			teleport.ComponentKey,
 			teleport.Component(teleport.ComponentUsageReporting),
 		),
 		reporter: reporter,

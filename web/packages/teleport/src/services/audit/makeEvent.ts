@@ -186,19 +186,19 @@ export const formatters: Formatters = {
   },
   [eventCodes.GITHUB_CONNECTOR_CREATED]: {
     type: 'github.created',
-    desc: 'GITHUB Auth Connector Created',
+    desc: 'GitHub Auth Connector Created',
     format: ({ user, name }) =>
       `User [${user}] created GitHub connector [${name}]`,
   },
   [eventCodes.GITHUB_CONNECTOR_DELETED]: {
     type: 'github.deleted',
-    desc: 'GITHUB Auth Connector Deleted',
+    desc: 'GitHub Auth Connector Deleted',
     format: ({ user, name }) =>
       `User [${user}] deleted GitHub connector [${name}]`,
   },
   [eventCodes.GITHUB_CONNECTOR_UPDATED]: {
     type: 'github.updated',
-    desc: 'GITHUB Auth Connector Updated',
+    desc: 'GitHub Auth Connector Updated',
     format: ({ user, name }) =>
       `User [${user}] updated GitHub connector [${name}]`,
   },
@@ -777,8 +777,12 @@ export const formatters: Formatters = {
   [eventCodes.CREATE_MFA_AUTH_CHALLENGE]: {
     type: 'mfa_auth_challenge.create',
     desc: 'MFA Authentication Attempt',
-    format: ({ user }) =>
-      `User [${user}] requested an MFA authentication challenge`,
+    format: ({ user }) => {
+      if (user) {
+        return `User [${user}] requested an MFA authentication challenge`;
+      }
+      return `Passwordless user requested an MFA authentication challenge`;
+    },
   },
   [eventCodes.VALIDATE_MFA_AUTH_RESPONSE]: {
     type: 'mfa_auth_challenge.validate',
@@ -901,10 +905,12 @@ export const formatters: Formatters = {
       `Received malformed packet from [${user}] in [${db_name}] on database [${db_service}]`,
   },
   [eventCodes.DATABASE_SESSION_PERMISSIONS_UPDATE]: {
-    type: ' db.session.permissions.update',
-    desc: 'Database Permissions Update',
+    type: 'db.session.permissions.update',
+    desc: 'Database User Permissions Updated',
     format: ({ user, db_service, db_name, permission_summary }) => {
-      console.log(permission_summary);
+      if (!permission_summary) {
+        return `Database user [${user}] permissions updated for database [${db_name}] on [${db_service}]`;
+      }
       const summary = permission_summary
         .map(p => {
           const details = Object.entries(p.counts)
@@ -913,7 +919,41 @@ export const formatters: Formatters = {
           return `${p.permission}:${details}`;
         })
         .join('; ');
-      return `User permissions [${user}] in [${db_name}] on database [${db_service}]: ${summary}`;
+      return `Database user [${user}] permissions updated for database [${db_name}] on [${db_service}]: ${summary}`;
+    },
+  },
+  [eventCodes.DATABASE_SESSION_USER_CREATE]: {
+    type: 'db.session.user.create',
+    desc: 'Database User Created',
+    format: ev => {
+      if (!ev.roles) {
+        return `Database user [${ev.user}] created in database [${ev.db_service}]`;
+      }
+      return `Database user [${ev.user}] created in database [${ev.db_service}], roles: [${ev.roles}]`;
+    },
+  },
+  [eventCodes.DATABASE_SESSION_USER_CREATE_FAILURE]: {
+    type: 'db.session.user.create',
+    desc: 'Database User Creation Failed',
+    format: ev => {
+      return `Failed to create database user [${ev.user}] in database [${ev.db_service}], error: [${ev.error}]`;
+    },
+  },
+  [eventCodes.DATABASE_SESSION_USER_DEACTIVATE]: {
+    type: 'db.session.user.deactivate',
+    desc: 'Database User Deactivated',
+    format: ev => {
+      if (!ev.delete) {
+        return `Database user [${ev.user}] disabled in database [${ev.db_service}]`;
+      }
+      return `Database user [${ev.user}] deleted in database [${ev.db_service}]`;
+    },
+  },
+  [eventCodes.DATABASE_SESSION_USER_DEACTIVATE_FAILURE]: {
+    type: 'db.session.user.deactivate',
+    desc: 'Database User Deactivate Failure',
+    format: ev => {
+      return `Failed to disable database user [${ev.user}] in database [${ev.db_service}], error: [${ev.error}]`;
     },
   },
   [eventCodes.DATABASE_CREATED]: {
@@ -1421,11 +1461,25 @@ export const formatters: Formatters = {
       return `Bot [${bot_name}] joined the cluster using the [${method}] join method`;
     },
   },
+  [eventCodes.BOT_JOIN_FAILURE]: {
+    type: 'bot.join',
+    desc: 'Bot Join Failed',
+    format: ({ bot_name }) => {
+      return `Bot [${bot_name || 'unknown'}] failed to join the cluster`;
+    },
+  },
   [eventCodes.INSTANCE_JOIN]: {
     type: 'instance.join',
     desc: 'Instance Joined',
     format: ({ node_name, role, method }) => {
       return `Instance [${node_name}] joined the cluster with the [${role}] role using the [${method}] join method`;
+    },
+  },
+  [eventCodes.INSTANCE_JOIN_FAILURE]: {
+    type: 'instance.join',
+    desc: 'Instance Join Failed',
+    format: ({ node_name }) => {
+      return `Instance [${node_name || 'unknown'}] failed to join the cluster`;
     },
   },
   [eventCodes.BOT_CREATED]: {
@@ -1623,7 +1677,7 @@ export const formatters: Formatters = {
     type: 'access_list.review',
     desc: 'Access list review failed',
     format: ({ name, updated_by }) =>
-      `User [${updated_by}] failed to to review access list [${name}]]`,
+      `User [${updated_by}] failed to to review access list [${name}]`,
   },
   [eventCodes.ACCESS_LIST_MEMBER_CREATE]: {
     type: 'access_list.member.create',

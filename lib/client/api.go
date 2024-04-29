@@ -38,10 +38,10 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
@@ -131,7 +131,7 @@ const (
 const remoteForwardUnsupportedMessage = "ssh: tcpip-forward request denied by peer"
 
 var log = logrus.WithFields(logrus.Fields{
-	trace.Component: teleport.ComponentClient,
+	teleport.ComponentKey: teleport.ComponentClient,
 })
 
 // ForwardedPort specifies local tunnel to remote
@@ -1570,7 +1570,12 @@ func (tc *TeleportClient) NewTracingClient(ctx context.Context) (*apitracing.Cli
 		return nil, trace.Wrap(err)
 	}
 
-	tracingClient, err := client.NewTracingClient(ctx, clusterClient.ProxyClient.ClientConfig(ctx, clusterClient.ClusterName()))
+	cfg, err := clusterClient.ProxyClient.ClientConfig(ctx, clusterClient.ClusterName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tracingClient, err := client.NewTracingClient(ctx, cfg)
 	return tracingClient, trace.Wrap(err)
 }
 
@@ -1653,15 +1658,7 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 			attribute.String("node", node),
 		),
 	)
-	defer func() {
-		if err != nil {
-			// The error is unwrapped here so that the error reported is any underlying
-			// error and not a trace.TraceErr.
-			span.RecordError(trace.Unwrap(err))
-			span.SetStatus(codes.Error, err.Error())
-		}
-		span.End()
-	}()
+	defer func() { apitracing.EndSpan(span, err) }()
 
 	// if per-session mfa is required, perform the mfa ceremony to get
 	// new certificates and use them to connect.
@@ -2409,13 +2406,13 @@ func (tc *TeleportClient) ListNodesWithFilters(ctx context.Context) ([]types.Ser
 
 	var servers []types.Server
 	for {
-		page, err := client.ListUnifiedResourcePage(ctx, clt.AuthClient, &req)
+		page, next, err := client.GetUnifiedResourcePage(ctx, clt.AuthClient, &req)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		for _, r := range page.Resources {
-			srv, ok := r.(types.Server)
+		for _, r := range page {
+			srv, ok := r.ResourceWithLabels.(types.Server)
 			if !ok {
 				log.Warnf("expected types.Server but received unexpected type %T", r)
 				continue
@@ -2424,7 +2421,7 @@ func (tc *TeleportClient) ListNodesWithFilters(ctx context.Context) ([]types.Ser
 			servers = append(servers, srv)
 		}
 
-		req.StartKey = page.NextKey
+		req.StartKey = next
 		if req.StartKey == "" {
 			break
 		}
@@ -3044,30 +3041,25 @@ func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (_ *ClusterClien
 			attribute.String("proxy_ssh", tc.Config.SSHProxyAddr),
 		),
 	)
-	defer func() {
-		if err != nil {
-			// The error is unwrapped here so that the error reported is any underlying
-			// error and not a trace.TraceErr.
-			span.RecordError(trace.Unwrap(err))
-			span.SetStatus(codes.Error, err.Error())
-		}
-		span.End()
-	}()
+	defer func() { apitracing.EndSpan(span, err) }()
 
 	cfg, err := tc.generateClientConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	tlsConfig, err := tc.LoadTLSConfig()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	pclt, err := proxyclient.NewClient(ctx, proxyclient.ClientConfig{
-		ProxyAddress:       cfg.proxyAddress,
-		TLSRoutingEnabled:  tc.TLSRoutingEnabled,
-		TLSConfig:          tlsConfig,
+		ProxyAddress:      cfg.proxyAddress,
+		TLSRoutingEnabled: tc.TLSRoutingEnabled,
+		TLSConfigFunc: func(cluster string) (*tls.Config, error) {
+			if cluster == "" {
+				tlsCfg, err := tc.LoadTLSConfig()
+				return tlsCfg, trace.Wrap(err)
+			}
+
+			tlsCfg, err := tc.LoadTLSConfigForClusters([]string{cluster})
+			return tlsCfg, trace.Wrap(err)
+		},
 		DialOpts:           tc.Config.DialOpts,
 		UnaryInterceptors:  []grpc.UnaryClientInterceptor{interceptors.GRPCClientUnaryErrorInterceptor},
 		StreamInterceptors: []grpc.StreamClientInterceptor{interceptors.GRPCClientStreamErrorInterceptor},
@@ -3090,7 +3082,10 @@ func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (_ *ClusterClien
 		cluster = connected
 	}
 
-	authClientCfg := pclt.ClientConfig(ctx, cluster)
+	authClientCfg, err := pclt.ClientConfig(ctx, cluster)
+	if err != nil {
+		return nil, trace.NewAggregate(err, pclt.Close())
+	}
 	authClientCfg.MFAPromptConstructor = tc.NewMFAPrompt
 	authClient, err := auth.NewClient(authClientCfg)
 	if err != nil {
@@ -3809,16 +3804,19 @@ func (tc *TeleportClient) getSSHLoginFunc(pr *webclient.PingResponse) (SSHLoginF
 			return nil, trace.BadParameter("unsupported authentication connector type: %q", pr.Auth.Local.Name)
 		}
 	case constants.OIDC:
+		oidc := pr.Auth.OIDC
 		return func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
-			return tc.ssoLogin(ctx, priv, pr.Auth.OIDC.Name, constants.OIDC)
+			return tc.ssoLogin(ctx, priv, oidc.Name, oidc.Display, constants.OIDC)
 		}, nil
 	case constants.SAML:
+		saml := pr.Auth.SAML
 		return func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
-			return tc.ssoLogin(ctx, priv, pr.Auth.SAML.Name, constants.SAML)
+			return tc.ssoLogin(ctx, priv, saml.Name, saml.Display, constants.SAML)
 		}, nil
 	case constants.Github:
+		github := pr.Auth.Github
 		return func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
-			return tc.ssoLogin(ctx, priv, pr.Auth.Github.Name, constants.Github)
+			return tc.ssoLogin(ctx, priv, github.Name, github.Display, constants.Github)
 		}, nil
 	default:
 		return nil, trace.BadParameter("unsupported authentication type: %q", pr.Auth.Type)
@@ -4291,8 +4289,22 @@ func (tc *TeleportClient) headlessLogin(ctx context.Context, priv *keys.PrivateK
 // SSOLoginFunc is a function used in tests to mock SSO logins.
 type SSOLoginFunc func(ctx context.Context, connectorID string, priv *keys.PrivateKey, protocol string) (*auth.SSHLoginResponse, error)
 
+// TODO(atburke): DELETE in v17.0.0
+func versionSupportsKeyPolicyMessage(proxyVersion *semver.Version) bool {
+	switch proxyVersion.Major {
+	case 15:
+		return !proxyVersion.LessThan(*semver.New("15.2.5"))
+	case 14:
+		return !proxyVersion.LessThan(*semver.New("14.3.17"))
+	case 13:
+		return !proxyVersion.LessThan(*semver.New("13.4.22"))
+	default:
+		return proxyVersion.Major > 15
+	}
+}
+
 // samlLogin opens browser window and uses OIDC or SAML redirect cycle with browser
-func (tc *TeleportClient) ssoLogin(ctx context.Context, priv *keys.PrivateKey, connectorID string, protocol string) (*auth.SSHLoginResponse, error) {
+func (tc *TeleportClient) ssoLogin(ctx context.Context, priv *keys.PrivateKey, connectorID, connectorName, protocol string) (*auth.SSHLoginResponse, error) {
 	if tc.MockSSOLogin != nil {
 		// sso login response is being mocked for testing purposes
 		return tc.MockSSOLogin(ctx, connectorID, priv, protocol)
@@ -4303,14 +4315,23 @@ func (tc *TeleportClient) ssoLogin(ctx context.Context, priv *keys.PrivateKey, c
 		return nil, trace.Wrap(err)
 	}
 
+	pr, err := tc.Ping(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	proxyVersion := semver.New(pr.ServerVersion)
+
 	// ask the CA (via proxy) to sign our public key:
 	response, err := SSHAgentSSOLogin(ctx, SSHLoginSSO{
-		SSHLogin:     sshLogin,
-		ConnectorID:  connectorID,
-		Protocol:     protocol,
-		BindAddr:     tc.BindAddr,
-		CallbackAddr: tc.CallbackAddr,
-		Browser:      tc.Browser,
+		SSHLogin:                      sshLogin,
+		ConnectorID:                   connectorID,
+		ConnectorName:                 connectorName,
+		Protocol:                      protocol,
+		BindAddr:                      tc.BindAddr,
+		CallbackAddr:                  tc.CallbackAddr,
+		Browser:                       tc.Browser,
+		PrivateKeyPolicy:              tc.PrivateKeyPolicy,
+		ProxySupportsKeyPolicyMessage: versionSupportsKeyPolicyMessage(proxyVersion),
 	}, nil)
 	return response, trace.Wrap(err)
 }

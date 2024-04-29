@@ -127,6 +127,14 @@ outputs:
     destination:
       type: directory
       path: /opt/machine-id
+
+# services specify which `tbot` sub-services should be enabled and how they
+# should be configured.
+#
+# See the full list of supported services and their configuration options
+# under the Services section of this reference page.
+services:
+  - type: example
 ```
 
 If no configuration file is provided, a simple configuration is used based
@@ -302,6 +310,85 @@ principals:
 (!docs/pages/includes/machine-id/common-output-config.yaml!)
 ```
 
+#### `spiffe-svid`
+
+The `spiffe-svid` output is used to generate a SPIFFE X509 SVID and write this
+to a configured destination.
+
+The output generates the following artifacts:
+- `svid.pem`: the X509 SVID.
+- `svid.key`: the private key associated with the X509 SVID.
+- `bundle.pem`: the X509 bundle that contains the trust domain CAs.
+
+See [Workload Identity](../workload-identity.mdx) for more information on how
+to use SPIFFE SVIDs.
+
+```yaml
+# type specifies the type of the output. For the SPIFFE SVID output, this will
+# always be `spiffe-svid`.
+type: spiffe-svid
+# svid specifies the properties of the SPIFFE SVID that should be requested.
+svid:
+  # path specifies what the path element should be requested for the SPIFFE ID.
+  path: /svc/foo
+  # sans specifies optional Subject Alternative Names (SANs) to include in the
+  # generated X509 SVID. If omitted, no SANs are included.
+  sans:
+    # dns specifies the DNS SANs. If omitted, no DNS SANs are included.
+    dns:
+      - foo.svc.example.com
+    # ip specifies the IP SANs. If omitted, no IP SANs are included.
+    ip:
+      - 10.0.0.1
+(!docs/pages/includes/machine-id/common-output-config.yaml!)
+```
+
+### Services
+
+Services are configurable long-lived components that run within `tbot`. Unlike
+Outputs, they may not necessarily generate artifacts. Typically, services
+provide supporting functionality for machine to machine access, for example,
+opening tunnels or providing APIs.
+
+#### `spiffe-workload-api`
+
+The `spiffe-workload-api` service opens a listener for a service that implements
+the SPIFFE Workload API. This service is used to provide SPIFFE SVIDs to
+workloads.
+
+See [Workload Identity](../workload-identity.mdx) for more information on the
+SPIFFE Workload API.
+
+```yaml
+# type specifies the type of the service. For the SPIFFE Workload API service,
+# this will always be `spiffe-workload-api`.
+type: spiffe-workload-api
+# listen specifies the address that the service should listen on.
+#
+# Two types of listener are supported:
+# - TCP: `tcp://<address>:<port>`
+# - Unix socket: `unix:///<path>`
+listen: unix:///opt/machine-id/workload.sock
+# svids specifies the SPIFFE SVIDs that the Workload API should provide.
+svids:
+    # path specifies what the path element should be requested for the SPIFFE
+    # ID.
+  - path: /svc/foo
+    # hint is a free-form string which can be used to help workloads determine
+    # which SVID to select when multiple are available. If omitted, no hint is
+    # included.
+    hint: my-hint
+    # sans specifies optional Subject Alternative Names (SANs) to include in the
+    # generated X509 SVID. If omitted, no SANs are included.
+    sans:
+      # dns specifies the DNS SANs. If omitted, no DNS SANs are included.
+      dns:
+        - foo.svc.example.com
+      # ip specifies the IP SANs. If omitted, no IP SANs are included.
+      ip:
+        - 10.0.0.1
+```
+
 ### Destinations
 
 A destination is somewhere that `tbot` can read and write artifacts.
@@ -407,4 +494,4 @@ the access that is granted to a Bot.
 (!docs/pages/includes/machine-id/bot-spec.mdx!)
 
 You can apply a file containing YAML that defines a `bot` resource using
-`tctl apply -f ./bot.yaml`.
+`tctl create -f ./bot.yaml`.

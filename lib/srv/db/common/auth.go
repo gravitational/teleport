@@ -46,6 +46,7 @@ import (
 	"github.com/sirupsen/logrus"
 	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
@@ -139,7 +140,7 @@ func (c *AuthConfig) CheckAndSetDefaults() error {
 		c.Clock = clockwork.NewRealClock()
 	}
 	if c.Log == nil {
-		c.Log = logrus.WithField(trace.Component, "db:auth")
+		c.Log = logrus.WithField(teleport.ComponentKey, "db:auth")
 	}
 	return nil
 }

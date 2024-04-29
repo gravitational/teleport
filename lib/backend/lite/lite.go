@@ -38,6 +38,7 @@ import (
 	"github.com/mattn/go-sqlite3"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
@@ -249,7 +250,7 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 	l := &Backend{
 		Config: cfg,
 		db:     db,
-		Entry:  log.WithFields(log.Fields{trace.Component: BackendName}),
+		Entry:  log.WithFields(log.Fields{teleport.ComponentKey: BackendName}),
 		clock:  cfg.Clock,
 		buf:    buf,
 		ctx:    closeCtx,

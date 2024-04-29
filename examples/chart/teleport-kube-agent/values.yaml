@@ -384,6 +384,10 @@ databaseResources: []
 # documentation](../../../auto-discovery/kubernetes-applications/architecture.mdx)
 # for more details.
 #
+# <Admonition type="note">
+# The Discovery mechanism ignores Kubernetes services running in the `kube-system` and
+# `kube-public` namespaces.
+# </Admonition>
 # The default value will try to discover all apps running in Kubernetes.
 # The discovery can be restricted through this value. For example:
 #
@@ -591,6 +595,33 @@ updater:
   # updater.extraArgs(list) -- contains additional arguments to pass to the updater
   # binary.
   extraArgs: []
+
+  # updater.extraVolumes(list) -- contains extra volumes to mount into the Updater pods.
+  # See [the Kubernetes volume documentation](https://kubernetes.io/docs/concepts/storage/volumes/)
+  # for more details.
+  #
+  # For example:
+  # ```yaml
+  # updater:
+  #   extraVolumes:
+  #   - name: myvolume
+  #     secret:
+  #       secretName: testSecret
+  # ```
+  extraVolumes: []
+
+  # updater.extraVolumeMounts(list) -- contains extra volumes mounts for the updater.
+  # See [the Kubernetes volume documentation](https://kubernetes.io/docs/concepts/storage/volumes/)
+  # for more details.
+  #
+  # For example:
+  # ```yaml
+  # updater:
+  #   extraVolumesMounts:
+  #   - name: myvolume
+  #     mountPath: /path/on/host
+  # ```
+  extraVolumeMounts: []
 
 # existingDataVolume(string) -- is the name of an existing Kubernetes Persistent
 # Volume that should be mounted at `/var/lib/teleport`.

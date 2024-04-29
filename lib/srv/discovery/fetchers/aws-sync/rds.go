@@ -54,10 +54,10 @@ func (a *awsFetcher) fetchAWSRDSDatabases(ctx context.Context) (
 		errs    []error
 	)
 	eG, ctx := errgroup.WithContext(ctx)
-	// Set the limit to 10 to avoid too many concurrent requests.
+	// Set the limit to 5 to avoid too many concurrent requests.
 	// This is a temporary solution until we have a better way to limit the
 	// number of concurrent requests.
-	eG.SetLimit(10)
+	eG.SetLimit(5)
 	collectDBs := func(db *accessgraphv1alpha.AWSRDSDatabaseV1, err error) {
 		hostsMu.Lock()
 		defer hostsMu.Unlock()
@@ -129,7 +129,7 @@ func awsRDSInstanceToRDS(instance *rds.DBInstance, region, accountID string) *ac
 	}
 
 	return &accessgraphv1alpha.AWSRDSDatabaseV1{
-		Name:      aws.StringValue(instance.DBName),
+		Name:      aws.StringValue(instance.DBInstanceIdentifier),
 		Arn:       aws.StringValue(instance.DBInstanceArn),
 		CreatedAt: awsTimeToProtoTime(instance.InstanceCreateTime),
 		Status:    aws.StringValue(instance.DBInstanceStatus),
@@ -156,7 +156,7 @@ func awsRDSClusterToRDS(instance *rds.DBCluster, region, accountID string) *acce
 	}
 
 	return &accessgraphv1alpha.AWSRDSDatabaseV1{
-		Name:      aws.StringValue(instance.DatabaseName),
+		Name:      aws.StringValue(instance.DBClusterIdentifier),
 		Arn:       aws.StringValue(instance.DBClusterArn),
 		CreatedAt: awsTimeToProtoTime(instance.ClusterCreateTime),
 		Status:    aws.StringValue(instance.Status),

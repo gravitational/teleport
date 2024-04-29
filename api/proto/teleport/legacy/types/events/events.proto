@@ -3097,6 +3097,88 @@ message DatabasePermissionEntry {
   map<string, int32> Counts = 2 [(gogoproto.jsontag) = "counts"];
 }
 
+// DatabaseUserCreate is emitted when a database user is provisioned.
+message DatabaseUserCreate {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // SessionMetadata is a common event session metadata.
+  SessionMetadata Session = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Database contains database related metadata.
+  DatabaseMetadata Database = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Status indicates whether the operation was successful.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Username is the username chosen for the database user. Due to database limitations (e.g. username length, allowed charset)
+  // it may differ from Teleport username.
+  string Username = 6 [(gogoproto.jsontag) = "username"];
+
+  // Roles is an optional list of granted database roles.
+  repeated string Roles = 7 [(gogoproto.jsontag) = "roles"];
+}
+
+// DatabaseUserDeactivate is emitted when a database user is disabled or deleted.
+message DatabaseUserDeactivate {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // SessionMetadata is a common event session metadata.
+  SessionMetadata Session = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Database contains database related metadata.
+  DatabaseMetadata Database = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Status indicates whether the operation was successful.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Username is the username chosen for the database user. Due to database limitations (e.g. username length, allowed charset)
+  // it may differ from Teleport username.
+  string Username = 6 [(gogoproto.jsontag) = "username"];
+
+  // Delete indicates if the user was deleted entirely or merely disabled.
+  bool Delete = 7 [(gogoproto.jsontag) = "delete"];
+}
+
 // PostgresParse is emitted when a Postgres client creates a prepared statement
 // using extended query protocol.
 message PostgresParse {
@@ -3977,6 +4059,8 @@ message OneOf {
     events.AuthPreferenceUpdate AuthPreferenceUpdate = 152;
     events.SessionRecordingConfigUpdate SessionRecordingConfigUpdate = 153;
     events.ClusterNetworkingConfigUpdate ClusterNetworkingConfigUpdate = 154;
+    events.DatabaseUserCreate DatabaseUserCreate = 155;
+    events.DatabaseUserDeactivate DatabaseUserDeactivate = 156;
   }
 }
 
@@ -4104,6 +4188,9 @@ message Identity {
   // BotName indicates the name of the Machine ID bot this identity was issued
   // to, if any.
   string BotName = 27 [(gogoproto.jsontag) = "bot_name,omitempty"];
+  // DeviceExtensions holds the device trust device extensions for the identity,
+  // if any.
+  DeviceExtensions DeviceExtensions = 28 [(gogoproto.jsontag) = "device_extensions,omitempty"];
 }
 
 // RouteToApp contains parameters for application access certificate requests.
@@ -4136,6 +4223,20 @@ message RouteToDatabase {
   string Database = 4 [(gogoproto.jsontag) = "database,omitempty"];
   // Roles is an optional list of database roles to embed.
   repeated string Roles = 5 [(gogoproto.jsontag) = "roles,omitempty"];
+}
+
+// DeviceExtensions holds certificate extensions (X.509 and SSH) for device
+// trust.
+//
+// Mimics tlsca.DeviceExtensions.
+message DeviceExtensions {
+  // DeviceID is the trusted device identifier.
+  string device_id = 1 [(gogoproto.jsontag) = "device_id,omitempty"];
+  // AssetTag is the device inventory identifier.
+  string asset_tag = 2 [(gogoproto.jsontag) = "asset_tag,omitempty"];
+  // CredentialID is the identifier for the credential used by the device to
+  // authenticate itself.
+  string credential_id = 3 [(gogoproto.jsontag) = "credential_id,omitempty"];
 }
 
 // AccessRequestResourceSearch is emitted when a user searches for resources as

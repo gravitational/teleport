@@ -612,7 +612,8 @@ enum DatabaseTLSMode {
 
 // DatabaseTLS contains TLS configuration options.
 message DatabaseTLS {
-  // Mode is a TLS connection mode. See DatabaseTLSMode for details.
+  // Mode is a TLS connection mode.
+  // 0 is "verify-full"; 1 is "verify-ca", 2 is "insecure".
   DatabaseTLSMode Mode = 1 [(gogoproto.jsontag) = "mode"];
   // CACert is an optional user provided CA certificate used for verifying
   // database TLS connection.
@@ -942,6 +943,10 @@ message AppSpecV3 {
   string Cloud = 7 [(gogoproto.jsontag) = "cloud,omitempty"];
   // UserGroups are a list of user group IDs that this app is associated with.
   repeated string UserGroups = 8;
+  // Integration is the integration name that must be used to access this Application.
+  // Only applicable to AWS App Access.
+  // If present, the Application must use the Integration's credentials instead of ambient credentials to access Cloud APIs.
+  string Integration = 9 [(gogoproto.jsontag) = "integration,omitempty"];
 }
 
 // AppServerOrSAMLIdPServiceProviderV1 holds either an AppServerV3 or a SAMLIdPServiceProviderV1 resource (never both).
@@ -1260,6 +1265,45 @@ message ProvisionTokenSpecV2 {
   ProvisionTokenSpecV2GCP GCP = 13 [(gogoproto.jsontag) = "gcp,omitempty"];
   // Spacelift allows the configuration of options specific to the "spacelift" join method.
   ProvisionTokenSpecV2Spacelift Spacelift = 14 [(gogoproto.jsontag) = "spacelift,omitempty"];
+  // TPM allows the configuration of options specific to the "tpm" join method.
+  ProvisionTokenSpecV2TPM TPM = 15 [(gogoproto.jsontag) = "tpm,omitempty"];
+}
+
+// ProvisionTokenSpecV2TPM contains the TPM-specific part of the
+// ProvisionTokenSpecV2
+message ProvisionTokenSpecV2TPM {
+  message Rule {
+    reserved 2, 3;
+    reserved "EKPubHash", "EKCertSerial";
+    // Description is a human-readable description of the rule. It has no
+    // bearing on whether or not a TPM is allowed to join, but can be used
+    // to associate a rule with a specific host (e.g the asset tag of the server
+    // in which the TPM resides).
+    // Example: "build-server-100"
+    string Description = 1 [(gogoproto.jsontag) = "description,omitempty"];
+    // EKPublicHash is the SHA256 hash of the EKPub marshaled in PKIX format
+    // and encoded in hexadecimal. This value will also be checked when a TPM
+    // has submitted an EKCert, and the public key in the EKCert will be used
+    // for this check.
+    // Example: d4b45864d9d6fabfc568d74f26c35ababde2105337d7af9a6605e1c56c891aa6
+    string EKPublicHash = 4 [(gogoproto.jsontag) = "ek_public_hash,omitempty"];
+    // EKCertificateSerial is the serial number of the EKCert in hexadecimal
+    // with colon separated nibbles. This value will not be checked when a TPM
+    // does not have an EKCert configured.
+    // Example: 73:df:dc:bd:af:ef:8a:d8:15:2e:96:71:7a:3e:7f:a4
+    string EKCertificateSerial = 5 [(gogoproto.jsontag) = "ek_certificate_serial,omitempty"];
+  }
+  // Allow is a list of Rules, the presented delegated identity must match one
+  // allow rule to permit joining.
+  repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+  // EKCertAllowedCAs is a list of CA certificates that will be used to validate
+  // TPM EKCerts.
+  // When specified, joining TPMs must present an EKCert signed by one of the
+  // specified CAs. TPMs that do not present an EKCert will be not permitted to
+  // join.
+  // When unspecified, TPMs will be allowed to join with either an EKCert or an
+  // EKPubHash.
+  repeated string EKCertAllowedCAs = 2 [(gogoproto.jsontag) = "ekcert_allowed_cas,omitempty"];
 }
 
 // ProvisionTokenSpecV2Github contains the GitHub-specific part of the
@@ -1712,9 +1756,11 @@ message ClusterNetworkingConfigSpecV2 {
   ];
 
   // ProxyListenerMode is proxy listener mode used by Teleport Proxies.
+  // 0 is "separate"; 1 is "multiplex".
   ProxyListenerMode ProxyListenerMode = 7 [(gogoproto.jsontag) = "proxy_listener_mode,omitempty"];
 
   // RoutingStrategy determines the strategy used to route to nodes.
+  // 0 is "unambiguous_match"; 1 is "most_recent".
   RoutingStrategy RoutingStrategy = 8 [(gogoproto.jsontag) = "routing_strategy,omitempty"];
 
   // TunnelStrategyV1 determines the tunnel strategy used in the cluster.
@@ -1892,6 +1938,8 @@ message AuthPreferenceSpecV2 {
   ];
 
   // RequireMFAType is the type of MFA requirement enforced for this cluster.
+  // 0 is "OFF", 1 is "SESSION", 2 is "SESSION_AND_HARDWARE_KEY", 3 is "HARDWARE_KEY_TOUCH",
+  // 4 is "HARDWARE_KEY_PIN", 5 is "HARDWARE_KEY_TOUCH_AND_PIN".
   RequireMFAType RequireMFAType = 12 [(gogoproto.jsontag) = "require_session_mfa,omitempty"];
 
   // DeviceTrust holds settings related to trusted device verification.
@@ -2417,6 +2465,20 @@ message AccessRequestSpecV3 {
   ];
 }
 
+enum AccessRequestScope {
+  // DEFAULT allows all requests to be viewed
+  DEFAULT = 0;
+  // MY_REQUESTS will return only requests created by the requester
+  MY_REQUESTS = 1;
+  // NEEDS_REVIEW will return only requests that were not created by
+  // the requester and do not include a review made by the requester
+  NEEDS_REVIEW = 2;
+  // REVIEWED will return only requests that were not created by
+  // the requester and have a review submitted by the requester. This
+  // can include requests that have no yet been completely approved/denied.
+  REVIEWED = 3;
+}
+
 // AccessRequestFilter encodes filter params for access requests.
 message AccessRequestFilter {
   // ID specifies a request ID if set.
@@ -2425,6 +2487,17 @@ message AccessRequestFilter {
   string User = 2 [(gogoproto.jsontag) = "user,omitempty"];
   // RequestState filters for requests in a specific state.
   RequestState State = 3 [(gogoproto.jsontag) = "state,omitempty"];
+  // SearchKeywords is a list of search keywords to match against resource field values.
+  // The matcher goes through select field values from a resource
+  // and tries to match against the list of search values, ignoring case and order.
+  // Returns true if all search vals were matched (or if nil search vals).
+  // Returns false if no or partial match (or nil field values).
+  repeated string SearchKeywords = 4 [(gogoproto.jsontag) = "search,omitempty"];
+  // Scope is an aditional filter to view requests based on needs review, reviewed, my requests
+  AccessRequestScope Scope = 5 [(gogoproto.jsontag) = "scope,omitempty"];
+  // Requester is the requester of the api call. This is set by the auth server
+  // Use User for the requester of the request.
+  string Requester = 6 [(gogoproto.jsontag) = "requester,omitempty"];
 }
 
 // AccessCapabilities is a summary of capabilities that a user
@@ -2464,6 +2537,12 @@ message AccessCapabilitiesRequest {
     (gogoproto.jsontag) = "resource_ids,omitempty",
     (gogoproto.nullable) = false
   ];
+  // Login is the host login the user is requesting access for.
+  string Login = 5 [(gogoproto.jsontag) = "login,omitempty"];
+  // FilterRequestableRolesByResource is a flag indicating that the returned
+  // list of roles that the user can request should be filtered to only include
+  // roles that allow access to the provided ResourceIDs.
+  bool FilterRequestableRolesByResource = 6 [(gogoproto.jsontag) = "filter_requestable_roles_by_resource,omitempty"];
 }
 
 // ResourceID is a unique identifier for a teleport resource.
@@ -2547,6 +2626,14 @@ message PluginDataUpdateParams {
   map<string, string> Set = 4 [(gogoproto.jsontag) = "set,omitempty"];
   // Expect optionally indicates the expected state of fields prior to this update.
   map<string, string> Expect = 5 [(gogoproto.jsontag) = "expect,omitempty"];
+}
+
+// RoleFilter matches role resources.
+message RoleFilter {
+  // SearchKeywords is a list of search keywords to match against resource field values.
+  repeated string SearchKeywords = 1 [(gogoproto.jsontag) = "search_keywords,omitempty"];
+  // SkipSystemRoles filters out teleport system roles from the results.
+  bool SkipSystemRoles = 2 [(gogoproto.jsontag) = "skip_system_roles,omitempty"];
 }
 
 // RoleV6 represents role resource specification
@@ -2755,6 +2842,8 @@ message RoleOptions {
   ];
 
   // RequireMFAType is the type of MFA requirement enforced for this user.
+  // 0 is "OFF", 1 is "SESSION", 2 is "SESSION_AND_HARDWARE_KEY", 3 is "HARDWARE_KEY_TOUCH",
+  // 4 is "HARDWARE_KEY_PIN", 5 is "HARDWARE_KEY_TOUCH_AND_PIN".
   RequireMFAType RequireMFAType = 23 [(gogoproto.jsontag) = "require_session_mfa,omitempty"];
 
   // DeviceTrustMode is the device authorization mode used for the resources
@@ -2782,11 +2871,14 @@ message RoleOptions {
   ];
 
   // CreateHostUserMode allows users to be automatically created on a
-  // host when not set to off
+  // host when not set to off.
+  // 0 is "unspecified"; 1 is "off"; 2 is "drop" (removed for v15 and above),
+  // 3 is "keep"; 4 is "insecure-drop".
   CreateHostUserMode CreateHostUserMode = 28 [(gogoproto.jsontag) = "create_host_user_mode,omitempty"];
 
   // CreateDatabaseUserMode allows users to be automatically created on a
   // database when not set to off.
+  // 0 is "unspecified", 1 is "off", 2 is "keep", 3 is "best_effort_drop".
   CreateDatabaseUserMode CreateDatabaseUserMode = 29 [(gogoproto.jsontag) = "create_db_user_mode,omitempty"];
 }
 
@@ -2830,9 +2922,11 @@ enum CertExtensionType {
 message CertExtension {
   // Type represents the certificate type being extended, only ssh
   // is supported at this time.
+  // 0 is "ssh".
   CertExtensionType Type = 1 [(gogoproto.jsontag) = "type"];
   // Mode is the type of extension to be used -- currently
-  // critical-option is not supported
+  // critical-option is not supported.
+  // 0 is "extension".
   CertExtensionMode Mode = 2 [(gogoproto.jsontag) = "mode"];
   // Name specifies the key to be used in the cert extension.
   string Name = 3 [(gogoproto.jsontag) = "name"];
@@ -3249,6 +3343,12 @@ message BoolValue {
   bool Value = 1;
 }
 
+// UserFilter matches user resources.
+message UserFilter {
+  // SearchKeywords is a list of search keywords to match against resource field values.
+  repeated string SearchKeywords = 1 [(gogoproto.jsontag) = "search_keywords,omitempty"];
+}
+
 // UserV2 is version 2 resource spec of the user
 message UserV2 {
   option (gogoproto.goproto_stringer) = false;
@@ -3271,6 +3371,30 @@ message UserV2 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "spec"
   ];
+  UserStatusV2 Status = 6 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "status,omitempty"
+  ];
+}
+
+// UserStatusV2 is a dynamic state of UserV2.
+message UserStatusV2 {
+  // password_state reflects what the system knows about the user's password.
+  // Note that this is a "best effort" property, in that it can be UNSPECIFIED
+  // for users who were created before this property was introduced and didn't
+  // perform any password-related activity since then. See RFD 0159 for
+  // details. Do NOT use this value for authentication purposes!
+  PasswordState password_state = 1 [(gogoproto.jsontag) = "password_state,omitempty"];
+}
+
+// PasswordState indicates what is known about existence of user's password.
+enum PasswordState {
+  // Unable to tell whether the password has been configured.
+  PASSWORD_STATE_UNSPECIFIED = 0;
+  // Password is known to be not configured.
+  PASSWORD_STATE_UNSET = 1;
+  // Password is known to be configured.
+  PASSWORD_STATE_SET = 2;
 }
 
 // UserSpecV2 is a specification for V2 user
@@ -6457,6 +6581,9 @@ message JamfInventoryEntry {
   // Must be either "NOOP" or "DELETE".
   // Defaults to "NOOP".
   string on_missing = 4 [(gogoproto.jsontag) = "on_missing,omitempty"];
+  // Custom page size for inventory queries.
+  // A server default is used if zeroed or negative.
+  int32 page_size = 5 [(gogoproto.jsontag) = "page_size,omitempty"];
 }
 
 // MessageWithHeader is a message with a resource header. This is used primarily

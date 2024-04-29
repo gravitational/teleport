@@ -63,6 +63,7 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/aws"
 )
 
 func TestMain(m *testing.M) {
@@ -172,7 +173,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	t.Cleanup(func() { s.authServer.Close() })
 
 	if config.ServerStreamer != nil {
-		err = s.authServer.AuthServer.SetSessionRecordingConfig(s.closeContext, &types.SessionRecordingConfigV2{
+		_, err = s.authServer.AuthServer.UpsertSessionRecordingConfig(s.closeContext, &types.SessionRecordingConfigV2{
 			Spec: types.SessionRecordingConfigSpecV2{Mode: types.RecordAtNodeSync},
 		})
 		require.NoError(t, err)
@@ -330,25 +331,36 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		apps = config.Apps
 	}
 
+	connectionsHandler, err := NewConnectionsHandler(s.closeContext, &ConnectionsHandlerConfig{
+		Clock:              s.clock,
+		DataDir:            s.dataDir,
+		Emitter:            s.authClient,
+		Authorizer:         authorizer,
+		HostID:             s.hostUUID,
+		AuthClient:         s.authClient,
+		AccessPoint:        s.authClient,
+		Cloud:              &testCloud{},
+		TLSConfig:          tlsConfig,
+		ConnectionMonitor:  fakeConnMonitor{},
+		CipherSuites:       utils.DefaultCipherSuites(),
+		ServiceComponent:   teleport.ComponentApp,
+		AWSSessionProvider: aws.SessionProviderUsingAmbientCredentials(),
+	})
+	require.NoError(t, err)
+
 	s.appServer, err = New(s.closeContext, &Config{
-		Clock:             s.clock,
-		DataDir:           s.dataDir,
-		AccessPoint:       s.authClient,
-		AuthClient:        s.authClient,
-		TLSConfig:         tlsConfig,
-		CipherSuites:      utils.DefaultCipherSuites(),
-		HostID:            s.hostUUID,
-		Hostname:          "test",
-		Authorizer:        authorizer,
-		GetRotation:       testRotationGetter,
-		Apps:              apps,
-		OnHeartbeat:       func(err error) {},
-		Cloud:             &testCloud{},
-		ResourceMatchers:  config.ResourceMatchers,
-		OnReconcile:       config.OnReconcile,
-		Emitter:           s.authClient,
-		CloudLabels:       config.CloudImporter,
-		ConnectionMonitor: fakeConnMonitor{},
+		Clock:              s.clock,
+		AccessPoint:        s.authClient,
+		AuthClient:         s.authClient,
+		HostID:             s.hostUUID,
+		Hostname:           "test",
+		GetRotation:        testRotationGetter,
+		Apps:               apps,
+		OnHeartbeat:        func(err error) {},
+		ResourceMatchers:   config.ResourceMatchers,
+		OnReconcile:        config.OnReconcile,
+		CloudLabels:        config.CloudImporter,
+		ConnectionsHandler: connectionsHandler,
 	})
 	require.NoError(t, err)
 
@@ -1222,7 +1234,7 @@ func testRotationGetter(role types.SystemRole) (*types.Rotation, error) {
 
 type testCloud struct{}
 
-func (c *testCloud) GetAWSSigninURL(_ AWSSigninRequest) (*AWSSigninResponse, error) {
+func (c *testCloud) GetAWSSigninURL(_ context.Context, _ AWSSigninRequest) (*AWSSigninResponse, error) {
 	return &AWSSigninResponse{
 		SigninURL: "https://signin.aws.amazon.com",
 	}, nil

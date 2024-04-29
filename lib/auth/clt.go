@@ -34,6 +34,8 @@ import (
 	"github.com/gravitational/teleport/api/client/secreport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	assistpb "github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
+	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
@@ -42,6 +44,7 @@ import (
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
+	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
@@ -154,30 +157,17 @@ func (c *Client) Close() error {
 	return c.APIClient.Close()
 }
 
+// CreateAuthPreference not implemented: can only be called locally.
 func (c *Client) CreateAuthPreference(context.Context, types.AuthPreference) (types.AuthPreference, error) {
 	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
-func (c *Client) UpdateAuthPreference(context.Context, types.AuthPreference) (types.AuthPreference, error) {
-	return nil, trace.NotImplemented(notImplementedMessage)
-}
-
-func (c *Client) UpsertAuthPreference(context.Context, types.AuthPreference) (types.AuthPreference, error) {
-	return nil, trace.NotImplemented(notImplementedMessage)
-}
-
+// CreateSessionRecordingConfig not implemented: can only be called locally.
 func (c *Client) CreateSessionRecordingConfig(context.Context, types.SessionRecordingConfig) (types.SessionRecordingConfig, error) {
 	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
-func (c *Client) UpdateSessionRecordingConfig(context.Context, types.SessionRecordingConfig) (types.SessionRecordingConfig, error) {
-	return nil, trace.NotImplemented(notImplementedMessage)
-}
-
-func (c *Client) UpsertSessionRecordingConfig(context.Context, types.SessionRecordingConfig) (types.SessionRecordingConfig, error) {
-	return nil, trace.NotImplemented(notImplementedMessage)
-}
-
+// CreateClusterAuditConfig not implemented: can only be called locally.
 func (c *Client) CreateClusterAuditConfig(context.Context, types.ClusterAuditConfig) (types.ClusterAuditConfig, error) {
 	return nil, trace.NotImplemented(notImplementedMessage)
 }
@@ -191,14 +181,6 @@ func (c *Client) UpsertClusterAuditConfig(context.Context, types.ClusterAuditCon
 }
 
 func (c *Client) CreateClusterNetworkingConfig(context.Context, types.ClusterNetworkingConfig) (types.ClusterNetworkingConfig, error) {
-	return nil, trace.NotImplemented(notImplementedMessage)
-}
-
-func (c *Client) UpdateClusterNetworkingConfig(ctx context.Context, preference types.ClusterNetworkingConfig) (types.ClusterNetworkingConfig, error) {
-	return nil, trace.NotImplemented(notImplementedMessage)
-}
-
-func (c *Client) UpsertClusterNetworkingConfig(ctx context.Context, preference types.ClusterNetworkingConfig) (types.ClusterNetworkingConfig, error) {
 	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
@@ -508,6 +490,11 @@ func (c *Client) AccessListClient() services.AccessLists {
 	return c.APIClient.AccessListClient()
 }
 
+// AccessMonitoringRuleClient returns the access monitoring rules client.
+func (c *Client) AccessMonitoringRuleClient() services.AccessMonitoringRules {
+	return c.APIClient.AccessMonitoringRulesClient()
+}
+
 func (c *Client) ExternalAuditStorageClient() *externalauditstorage.Client {
 	return c.APIClient.ExternalAuditStorageClient()
 }
@@ -550,7 +537,7 @@ func (c *Client) UpsertUser(ctx context.Context, user types.User) (types.User, e
 }
 
 // DiscoveryConfigClient returns a client for managing the DiscoveryConfig resource.
-func (c *Client) DiscoveryConfigClient() services.DiscoveryConfigs {
+func (c *Client) DiscoveryConfigClient() services.DiscoveryConfigWithStatusUpdater {
 	return c.APIClient.DiscoveryConfigClient()
 }
 
@@ -685,6 +672,9 @@ type IdentityService interface {
 
 	// ListUsers returns a page of users.
 	ListUsers(ctx context.Context, pageSize int, pageToken string, withSecrets bool) ([]types.User, string, error)
+
+	// ListUsersExt is equivalent to ListUsers except it supports additional parameters.
+	ListUsersExt(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
 
 	// ChangePassword changes user password
 	ChangePassword(ctx context.Context, req *proto.ChangePasswordRequest) error
@@ -836,6 +826,7 @@ type ClientI interface {
 	services.ConnectionsDiagnostic
 	services.SAMLIdPSession
 	services.Integrations
+	services.KubeWaitingContainer
 	types.Events
 
 	types.WebSessionsGetter
@@ -993,8 +984,17 @@ type ClientI interface {
 	// (as per the default gRPC behavior).
 	AccessListClient() services.AccessLists
 
+	// AccessMonitoringRuleClient returns an access monitoring rule client.
+	// Clients connecting to older Teleport versions still get an access list client
+	// when calling this method, but all RPCs will return "not implemented" errors
+	// (as per the default gRPC behavior).
+	AccessMonitoringRuleClient() services.AccessMonitoringRules
+
 	// DatabaseObjectImportRuleClient returns a database import rule client.
 	DatabaseObjectImportRuleClient() dbobjectimportrulev1.DatabaseObjectImportRuleServiceClient
+
+	// DatabaseObjectClient returns a database object client.
+	DatabaseObjectClient() dbobjectv1.DatabaseObjectServiceClient
 
 	// SecReportsClient returns a client for security reports.
 	// Clients connecting to  older Teleport versions, still get an access list client
@@ -1018,7 +1018,7 @@ type ClientI interface {
 	// Clients connecting to older Teleport versions, still get an DiscoveryConfig client
 	// when calling this method, but all RPCs will return "not implemented" errors
 	// (as per the default gRPC behavior).
-	DiscoveryConfigClient() services.DiscoveryConfigs
+	DiscoveryConfigClient() services.DiscoveryConfigWithStatusUpdater
 
 	// ResourceUsageClient returns a resource usage service client.
 	// Clients connecting to non-Enterprise clusters, or older Teleport versions,
@@ -1038,6 +1038,12 @@ type ClientI interface {
 	// (as per the default gRPC behavior).
 	WorkloadIdentityServiceClient() machineidv1pb.WorkloadIdentityServiceClient
 
+	// ClusterConfigClient returns a Cluster Configuration client.
+	// Clients connecting to non-Enterprise clusters, or older Teleport versions,
+	// still get a client when calling this method, but all RPCs will return
+	// "not implemented" errors (as per the default gRPC behavior).
+	ClusterConfigClient() clusterconfigpb.ClusterConfigServiceClient
+
 	// CloneHTTPClient creates a new HTTP client with the same configuration.
 	CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error)
 
@@ -1049,6 +1055,11 @@ type ClientI interface {
 
 	// UpsertUserPreferences creates or updates user preferences for a given username.
 	UpsertUserPreferences(ctx context.Context, req *userpreferencesv1.UpsertUserPreferencesRequest) error
+
+	// ListAllAccessRequests is a helper for using the ListAccessRequests API's additional sort order/index features without
+	// mucking about with pagination. It also implements backwards-comatibility with older control planes that only
+	// support GetAccessRequests.
+	ListAllAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest) ([]*types.AccessRequestV3, error)
 
 	// ListUnifiedResources returns a paginated list of unified resources.
 	ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error)
@@ -1063,4 +1074,10 @@ type ClientI interface {
 	// and prompts the user to answer the challenge with the given promptOpts, and ultimately returning
 	// an MFA challenge response for the user.
 	PerformMFACeremony(ctx context.Context, challengeRequest *proto.CreateAuthenticateChallengeRequest, promptOpts ...mfa.PromptOpt) (*proto.MFAAuthenticateResponse, error)
+
+	// GetClusterAccessGraphConfig retrieves the cluster Access Graph configuration from Auth server.
+	GetClusterAccessGraphConfig(ctx context.Context) (*clusterconfigpb.AccessGraphConfig, error)
+
+	// GenerateAppToken creates a JWT token with application access.
+	GenerateAppToken(ctx context.Context, req types.GenerateAppTokenRequest) (string, error)
 }

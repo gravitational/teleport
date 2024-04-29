@@ -23,6 +23,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -60,7 +61,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 
 	if c.Log == nil {
-		c.Log = logrus.WithField(trace.Component, "conn:apiserver")
+		c.Log = logrus.WithField(teleport.ComponentKey, "conn:apiserver")
 	}
 
 	return nil

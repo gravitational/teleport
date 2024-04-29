@@ -30,6 +30,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 
+	"github.com/gravitational/teleport"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -51,6 +52,7 @@ var SupportedJoinMethods = []types.JoinMethod{
 	types.JoinMethodKubernetes,
 	types.JoinMethodSpacelift,
 	types.JoinMethodToken,
+	types.JoinMethodTPM,
 }
 
 // BotResourceName returns the default name for resources associated with the
@@ -125,7 +127,7 @@ func NewBotService(cfg BotServiceConfig) (*BotService, error) {
 	}
 
 	if cfg.Logger == nil {
-		cfg.Logger = logrus.WithField(trace.Component, "bot.service")
+		cfg.Logger = logrus.WithField(teleport.ComponentKey, "bot.service")
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()

@@ -36,6 +36,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"google.golang.org/api/iterator"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/keystore/internal/faketime"
 )
@@ -122,7 +123,7 @@ func newGCPKMSKeyStore(ctx context.Context, cfg *GCPKMSConfig, logger logrus.Fie
 		clock = cfg.clockOverride
 	}
 
-	logger = logger.WithFields(logrus.Fields{trace.Component: "GCPKMSKeyStore"})
+	logger = logger.WithFields(logrus.Fields{teleport.ComponentKey: "GCPKMSKeyStore"})
 
 	return &gcpKMSKeyStore{
 		hostUUID:        cfg.HostUUID,

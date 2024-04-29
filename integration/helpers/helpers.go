@@ -30,6 +30,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
@@ -470,4 +471,19 @@ func FindNodeWithLabel(t *testing.T, ctx context.Context, cl apiclient.ListResou
 		assert.NoError(t, err)
 		return len(servers.Resources) >= 1
 	}
+}
+
+// UpsertAuthPrefAndWaitForCache upserts the authentication preference and waits
+// until the auth server's cache contains the new value. This is needed since
+// the cache doesn't always catch up before we need to use the preference value.
+func UpsertAuthPrefAndWaitForCache(
+	t *testing.T, ctx context.Context, srv *auth.Server, pref types.AuthPreference,
+) {
+	_, err := srv.UpsertAuthPreference(ctx, pref)
+	require.NoError(t, err)
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		p, err := srv.GetAuthPreference(ctx)
+		require.NoError(t, err)
+		assert.Empty(t, cmp.Diff(&pref, &p))
+	}, 5*time.Second, 100*time.Millisecond)
 }

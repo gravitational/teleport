@@ -212,7 +212,7 @@ func TestCredentialsCache(t *testing.T) {
 	require.True(t, c.IsUsed())
 
 	// Set the GenerateOIDCTokenFn to a dumb faked function.
-	c.SetGenerateOIDCTokenFn(func(ctx context.Context) (string, error) {
+	c.SetGenerateOIDCTokenFn(func(ctx context.Context, integration string) (string, error) {
 		return uuid.NewString(), nil
 	})
 
@@ -348,7 +348,7 @@ func TestDraftConfigurator(t *testing.T) {
 	require.True(t, c.IsUsed())
 
 	// Set the GenerateOIDCTokenFn to a faked function for the test.
-	c.SetGenerateOIDCTokenFn(func(ctx context.Context) (string, error) {
+	c.SetGenerateOIDCTokenFn(func(ctx context.Context, integration string) (string, error) {
 		// Can sleep here to confirm that WaitForFirstCredentials works.
 		// time.Sleep(time.Second)
 		return uuid.NewString(), nil

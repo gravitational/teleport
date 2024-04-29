@@ -210,7 +210,7 @@ func NewTLSServer(ctx context.Context, cfg TLSServerConfig) (*TLSServer, error) 
 			},
 		},
 		log: logrus.WithFields(logrus.Fields{
-			trace.Component: cfg.Component,
+			teleport.ComponentKey: cfg.Component,
 		}),
 	}
 	server.cfg.TLS.GetConfigForClient = server.GetConfigForClient
@@ -538,6 +538,7 @@ func (a *Middleware) UnaryInterceptors() []grpc.UnaryServerInterceptor {
 
 	return append(is,
 		interceptors.GRPCServerUnaryErrorInterceptor,
+		metadata.UnaryServerInterceptor,
 		a.Limiter.UnaryServerInterceptorWithCustomRate(getCustomRate),
 		a.withAuthenticatedUserUnaryInterceptor,
 	)
@@ -557,6 +558,7 @@ func (a *Middleware) StreamInterceptors() []grpc.StreamServerInterceptor {
 
 	return append(is,
 		interceptors.GRPCServerStreamErrorInterceptor,
+		metadata.StreamServerInterceptor,
 		a.Limiter.StreamServerInterceptor,
 		a.withAuthenticatedUserStreamInterceptor,
 	)
@@ -923,6 +925,8 @@ func NewImpersonatorRoundTripper(rt http.RoundTripper) *ImpersonatorRoundTripper
 // RoundTrip implements http.RoundTripper interface to include the identity
 // in the request header.
 func (r *ImpersonatorRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	req = req.Clone(req.Context())
+
 	identity, err := authz.UserFromContext(req.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -932,7 +936,6 @@ func (r *ImpersonatorRoundTripper) RoundTrip(req *http.Request) (*http.Response,
 		return nil, trace.Wrap(err)
 	}
 	req.Header.Set(TeleportImpersonateUserHeader, string(b))
-	defer req.Header.Del(TeleportImpersonateUserHeader)
 
 	clientSrcAddr, err := authz.ClientSrcAddrFromContext(req.Context())
 	if err != nil {
@@ -940,7 +943,6 @@ func (r *ImpersonatorRoundTripper) RoundTrip(req *http.Request) (*http.Response,
 	}
 
 	req.Header.Set(TeleportImpersonateIPHeader, clientSrcAddr.String())
-	defer req.Header.Del(TeleportImpersonateIPHeader)
 
 	return r.RoundTripper.RoundTrip(req)
 }

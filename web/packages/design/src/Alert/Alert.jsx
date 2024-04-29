@@ -18,10 +18,17 @@
 
 import React from 'react';
 import styled from 'styled-components';
+import { style } from 'styled-system';
 import PropTypes from 'prop-types';
 
 import { space, color, width } from 'design/system';
 import { fade } from 'design/theme/utils/colorManipulator';
+
+const linkColor = style({
+  prop: 'linkColor',
+  cssProperty: 'color',
+  key: 'colors',
+});
 
 const kind = props => {
   const { kind, theme } = props;
@@ -49,15 +56,23 @@ const kind = props => {
     case 'outline-danger':
       return {
         background: fade(theme.colors.error.main, 0.1),
-        border: `${theme.radii[1]}px solid ${theme.colors.error.main}`,
+        border: `${theme.borders[2]} ${theme.colors.error.main}`,
         borderRadius: `${theme.radii[3]}px`,
         boxShadow: 'none',
         justifyContent: 'normal',
       };
     case 'outline-info':
       return {
-        background: fade(theme.colors.link, 0.1),
-        border: `${theme.radii[1]}px solid ${theme.colors.link}`,
+        background: fade(theme.colors.accent.main, 0.1),
+        border: `${theme.borders[2]} ${theme.colors.accent.main}`,
+        borderRadius: `${theme.radii[3]}px`,
+        boxShadow: 'none',
+        justifyContent: 'normal',
+      };
+    case 'outline-warn':
+      return {
+        background: fade(theme.colors.warning.main, 0.1),
+        border: `${theme.borders[2]} ${theme.colors.warning.main}`,
         borderRadius: `${theme.radii[3]}px`,
         boxShadow: 'none',
         justifyContent: 'normal',
@@ -89,6 +104,7 @@ const Alert = styled.div`
 
   a {
     color: ${({ theme }) => theme.colors.light};
+    ${linkColor}
   }
 `;
 
@@ -100,6 +116,7 @@ Alert.propTypes = {
     'success',
     'outline-danger',
     'outline-info',
+    'outline-warn',
   ]),
   ...color.propTypes,
   ...space.propTypes,
@@ -121,3 +138,4 @@ export const OutlineDanger = props => (
   <Alert kind="outline-danger" {...props} />
 );
 export const OutlineInfo = props => <Alert kind="outline-info" {...props} />;
+export const OutlineWarn = props => <Alert kind="outline-warn" {...props} />;

@@ -15,6 +15,12 @@ or database sessions without MFA) and provides users with recommendations on sug
 
 Users are able to write their own custom access monitoring queries by querying the audit log.
 
+<Admonition type="notice">
+  Access Monitoring is not currently supported with External Audit Storage
+  in Teleport Enterprise (cloud-hosted). This functionality will be
+  enabled in a future Teleport release.
+</Admonition>
+
 ## Prerequisites
 - Teleport v14 or later.
 - For self-hosted Teleport the [AWS Athena Backend](../reference/backends.mdx#athena) is required.
@@ -23,6 +29,11 @@ Users are able to write their own custom access monitoring queries by querying t
 ### Configuration
 
 <Tabs>
+<TabItem scope={["cloud","team"]} label="Teleport Enterprise (cloud-hosted)">
+
+Teleport Access Monitoring is enabled by default for all Teleport Enterprise (cloud-hosted) accounts.
+
+</TabItem>
 <TabItem scope={["enterprise", "oss"]} label="Self-Hosted">
 
 To enable Access Monitoring you need to update the Teleport Auth Service configuration:
@@ -31,19 +42,119 @@ auth_service:
   access_monitoring:
     enabled: true
     # AWS role ARN that Teleport will assume to execute Athena SQL queries.
-    role_arn: arn:aws:iam::111111111111:role/access-monitoring-role
+    # The Teleport role should be configured with a trust relationship and should be able to assume this role.
+    role_arn: arn:aws:iam::123456789012:role/AccessMonitoringRole
     # S3 bucket where Access Monitoring reports will be stored.
-    report_results: s3://audit-log-example/report_results
+    report_results: s3://audit-long-term/report_results
+    # (Optional) Athena workgroup used by Access Monitoring
+    # queries (if not set, the default primary workgroup will be used).
+    workgroup: access_monitoring_workgroup
+```
+
+
+Access Monitoring executes Athena SQL queries using a different AWS role than the one used by the Auth Service to access the Athena Audit Events backend.
+This role should have a trusted relationship with the Teleport role and the following IAM permissions.
+Ensure that the IAM role used by Access Monitoring is configured with sufficient access to Athena.
+Below, you can find the IAM permissions that allow the Auth Service to execute Athena queries and store the results in an S3 bucket.
+
+| Placeholder value | Replace with                                             |
+|-------------------|----------------------------------------------------------|
+| `eu-central-1`    | AWS region                                               |
+| `1234567890`      | AWS account ID                                           |
+| `audit-long-term` | S3 bucket used for long-term storage                     |
+| `audit-transient` | S3 bucket used for transient storage                     |
+| `kms_id`          | KMS key ID used for server-side encryption of S3         |
+| `audit_db`        | Glue database used for audit logs                        |
+| `audit_table`     | Glue table used for audit logs                           |
+| `audit_workgroup` | Athena workgroup used for Access Monitoring queries      |
+
+<Details title="IAM Policy" closed>
+```json
+{
+  "Statement": [
+    {
+      "Action": [
+        "s3:ListBucketVersions",
+        "s3:ListBucketMultipartUploads",
+        "s3:ListBucket",
+        "s3:GetBucketLocation"
+      ],
+      "Effect": "Allow",
+      "Resource": [
+        "arn:aws:s3:::audit-transient",
+        "arn:aws:s3:::audit-long-term"
+      ]
+    },
+    {
+      "Action": [
+        "s3:PutObject",
+        "s3:GetObjectVersion",
+        "s3:GetObject"
+      ],
+      "Effect": "Allow",
+      "Resource": [
+        "arn:aws:s3::::audit-transient/results/*",
+        "arn:aws:s3:::audit-long-term/report_results/*"
+      ]
+    },
+    {
+      "Action": [
+        "s3:ListMultipartUploadParts",
+        "s3:GetObjectVersion",
+        "s3:GetObject",
+        "s3:AbortMultipartUpload"
+      ],
+      "Effect": "Allow",
+      "Resource": [
+        "arn:aws:s3:::audit-transient/results/*",
+        "arn:aws:s3:::audit-long-term/report_results/*",
+        "arn:aws:s3:::audit-long-term/events/*"
+      ]
+    },
+    {
+      "Action": [
+        "glue:GetTable",
+        "athena:StartQueryExecution",
+        "athena:GetQueryResults",
+        "athena:GetQueryExecution"
+      ],
+      "Effect": "Allow",
+      "Resource": [
+        "arn:aws:glue:eu-central-1:1234567890:table/audit_db/audit_table",
+        "arn:aws:glue:eu-central-1:1234567890:database/audit_db",
+        "arn:aws:glue:eu-central-1:1234567890:catalog",
+        "arn:aws:athena:eu-central-1:1234567890:workgroup/audit_workgroup"
+      ]
+    },
+    {
+      "Action": [
+        "kms:GenerateDataKey",
+        "kms:Decrypt"
+      ],
+      "Effect": "Allow",
+      "Resource": "arn:aws:kms:eu-central-1:1234567890:key/kms_id"
+    }
+  ],
+  "Version": "2012-10-17"
+}
+```
+</Details>
+
+You can use our [Terraform Example](https://github.com/gravitational/teleport/tree/v(=teleport.version=)/examples/athena)
+to set up Athena and Access Monitoring AWS resources and generate Athena Backend and Access Monitoring Teleport configuration:
+
+```bash
+$ terraform apply
+...
+ access_monitoring:
+   enabled: true
+   report_results: s3://long-term/report_results
+   role_arn: arn:aws:iam::123456789012:role/AccessMonitoringRole
+   workgroup: access_monitoring_workgroup
 ```
 
 </TabItem>
-<TabItem scope={["cloud","team"]} label="Teleport Cloud">
-
-Teleport Access Monitoring is enabled by default for all Teleport Cloud users.
-
-</TabItem>
 </Tabs>
-
 
 ## Access Monitoring RBAC Permissions
 
@@ -193,7 +304,7 @@ WHERE
 
 ### Query Examples with Assist AI
 
-The query editor also integrates with Teleport Assist, making it easy to generate queries with a human-readable description of the data you want to retrieve.
+The query editor also integrates with Teleport Assist, allowing you to to generate queries with a human-readable description of the data you want to retrieve.
 
 ![assist query](../../img/access-monitoring/assist_query_1.png)
 

@@ -90,6 +90,9 @@ type TestAuthServerConfig struct {
 	Embedder embedding.Embedder
 	// CacheEnabled enables the primary auth server cache.
 	CacheEnabled bool
+	// RunWhileLockedRetryInterval is the interval to retry the run while locked
+	// operation.
+	RunWhileLockedRetryInterval time.Duration
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -268,12 +271,17 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	}
 
 	access := local.NewAccessService(srv.Backend)
-	identity := local.NewIdentityService(srv.Backend)
+	identity := local.NewTestIdentityService(srv.Backend)
 
 	emitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{
 		Inner: srv.AuditLog,
 		Clock: cfg.Clock,
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessLists, err := local.NewAccessListService(srv.Backend, cfg.Clock, local.WithRunWhileLockedRetryInterval(cfg.RunWhileLockedRetryInterval))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -294,6 +302,8 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 			},
 		},
 		EmbeddingRetriever: ai.NewSimpleRetriever(),
+		HostUUID:           uuid.New().String(),
+		AccessLists:        accessLists,
 	},
 		WithClock(cfg.Clock),
 		WithEmbedder(cfg.Embedder),
@@ -326,12 +336,12 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		clusterNetworkingCfg = types.DefaultClusterNetworkingConfig()
 	}
 
-	err = srv.AuthServer.SetClusterNetworkingConfig(ctx, clusterNetworkingCfg)
+	_, err = srv.AuthServer.UpsertClusterNetworkingConfig(ctx, clusterNetworkingCfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	err = srv.AuthServer.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
+	_, err = srv.AuthServer.UpsertSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -351,7 +361,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = srv.AuthServer.SetAuthPreference(ctx, authPreference)
+	_, err = srv.AuthServer.UpsertAuthPreference(ctx, authPreference)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -412,6 +422,16 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 
 	srv.AuthServer.SetUnifiedResourcesCache(unifiedResourcesCache)
 
+	accessRequestCache, err := services.NewAccessRequestCache(services.AccessRequestCacheConfig{
+		Events: srv.AuthServer.Services,
+		Getter: srv.AuthServer.Services,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	srv.AuthServer.SetAccessRequestCache(accessRequestCache)
+
 	headlessAuthenticationWatcher, err := local.NewHeadlessAuthenticationWatcher(srv.AuthServer.CloseContext(), local.HeadlessAuthenticationWatcherConfig{
 		Backend: b,
 	})
@@ -436,6 +456,26 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	userNotificationCache, err := services.NewUserNotificationCache(services.NotificationCacheConfig{
+		Events: srv.AuthServer.Services,
+		Getter: srv.AuthServer.Services,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	srv.AuthServer.SetUserNotificationCache(userNotificationCache)
+
+	globalNotificationCache, err := services.NewGlobalNotificationCache(services.NotificationCacheConfig{
+		Events: srv.AuthServer.Services,
+		Getter: srv.AuthServer.Services,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	srv.AuthServer.SetGlobalNotificationCache(globalNotificationCache)
 
 	// Auth initialization is done (including creation/updating of all singleton
 	// configuration resources) so now we can start the cache.
@@ -699,6 +739,13 @@ type TestTLSServerOption func(*TestTLSServerConfig)
 func WithLimiterConfig(config *limiter.Config) TestTLSServerOption {
 	return func(cfg *TestTLSServerConfig) {
 		cfg.Limiter = config
+	}
+}
+
+// WithAccessGraphConfig sets the access graph configuration.
+func WithAccessGraphConfig(config AccessGraphConfig) TestTLSServerOption {
+	return func(cfg *TestTLSServerConfig) {
+		cfg.APIConfig.AccessGraph = config
 	}
 }
 

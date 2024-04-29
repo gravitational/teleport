@@ -220,8 +220,8 @@ func (c *Config) setDefaults() {
 		logger = log.StandardLogger()
 	}
 	c.Log = logger.WithFields(log.Fields{
-		trace.Component: "SFTP",
-		trace.ComponentFields: log.Fields{
+		teleport.ComponentKey: "SFTP",
+		teleport.ComponentFields: log.Fields{
 			"SrcPaths":      c.srcPaths,
 			"DstPath":       c.dstPath,
 			"Recursive":     c.opts.Recursive,

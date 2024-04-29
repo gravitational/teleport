@@ -3,7 +3,11 @@ title: Database Access with Self-Hosted PostgreSQL
 description: How to configure Teleport database access with self-hosted PostgreSQL.
 ---
 
-(!docs/pages/includes/database-access/db-introduction.mdx  dbType="PostgreSQL" dbConfigure="PostgreSQL database with mutual TLS authentication" dbName="PostgreSQL" !)
+(!docs/pages/includes/database-access/db-introduction.mdx  dbType="PostgreSQL" dbConfigure="PostgreSQL database" dbName="PostgreSQL" !)
+
+## How it works
+
+(!docs/pages/includes/database-access/how-it-works/mtls.mdx db="PostgreSQL"!)
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
@@ -41,7 +45,7 @@ Create the secrets:
 
 ```code
 # Export Teleport's certificate authority and a generate certificate/key pair
-# for host db.example.com with a 1-year validity period.
+# for host db.example.com with a 3-month validity period.
 $ tctl auth sign --format=db --host=db.example.com --out=server --ttl=2190h
 ```
 
@@ -160,7 +164,10 @@ $ tsh db logout
 
 (!docs/pages/includes/database-access/pg-cancel-request-limitation.mdx!)
 
+(!docs/pages/includes/database-access/psql-ssl-syscall-error.mdx!)
+
 ## Next steps
 
 - Set up [automatic database user provisioning](../auto-user-provisioning/postgres.mdx).
+
 (!docs/pages/includes/database-access/guides-next-steps.mdx!)

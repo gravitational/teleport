@@ -101,7 +101,7 @@ func New(cfg Config) (*Memory, error) {
 	m := &Memory{
 		Mutex: &sync.Mutex{},
 		Entry: log.WithFields(log.Fields{
-			trace.Component: teleport.ComponentMemory,
+			teleport.ComponentKey: teleport.ComponentMemory,
 		}),
 		Config: cfg,
 		tree: btree.NewG(cfg.BTreeDegree, func(a, b *btreeItem) bool {

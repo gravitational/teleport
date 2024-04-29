@@ -647,6 +647,14 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_SessionRecordingConfigUpdate{
 			SessionRecordingConfigUpdate: e,
 		}
+	case *DatabaseUserCreate:
+		out.Event = &OneOf_DatabaseUserCreate{
+			DatabaseUserCreate: e,
+		}
+	case *DatabaseUserDeactivate:
+		out.Event = &OneOf_DatabaseUserDeactivate{
+			DatabaseUserDeactivate: e,
+		}
 
 	default:
 		log.Errorf("Attempted to convert dynamic event of unknown type \"%v\" into protobuf event.", in.GetType())

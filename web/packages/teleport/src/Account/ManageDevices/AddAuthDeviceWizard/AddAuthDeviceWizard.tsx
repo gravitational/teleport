@@ -17,11 +17,9 @@
  */
 
 import { OutlineDanger } from 'design/Alert/Alert';
-import Box from 'design/Box';
 import { ButtonPrimary, ButtonSecondary } from 'design/Button';
 import Dialog from 'design/Dialog';
 import Flex from 'design/Flex';
-import * as Icon from 'design/Icon';
 import Image from 'design/Image';
 import Indicator from 'design/Indicator';
 import Link from 'design/Link';
@@ -36,13 +34,16 @@ import { useAsync } from 'shared/hooks/useAsync';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { Auth2faType } from 'shared/services';
 import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
-import styled from 'styled-components';
+
+import Box from 'design/Box';
 
 import { DialogHeader } from 'teleport/Account/DialogHeader';
 import useReAuthenticate from 'teleport/components/ReAuthenticate/useReAuthenticate';
-import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
-import { DeviceUsage } from 'teleport/services/mfa';
+import auth from 'teleport/services/auth/auth';
+import { DeviceUsage } from 'teleport/services/auth';
 import useTeleport from 'teleport/useTeleport';
+
+import { PasskeyBlurb } from '../../../components/Passkeys/PasskeyBlurb';
 
 interface AddAuthDeviceWizardProps {
   /** Indicates usage of the device to be added: MFA or a passkey. */
@@ -126,7 +127,6 @@ export function ReauthenticateStep({
   onClose,
   onAuthenticated: onAuthenticatedProp,
 }: ReauthenticateStepProps) {
-  const challengeScope = MfaChallengeScope.MANAGE_DEVICES;
   const onAuthenticated = (privilegeToken: string) => {
     onAuthenticatedProp(privilegeToken);
     next();
@@ -134,7 +134,6 @@ export function ReauthenticateStep({
   const { attempt, clearAttempt, submitWithTotp, submitWithWebauthn } =
     useReAuthenticate({
       onAuthenticated,
-      challengeScope,
     });
   const mfaOptions = createMfaOptions({
     auth2faType,
@@ -155,7 +154,7 @@ export function ReauthenticateStep({
     e.preventDefault();
     if (!validator.validate()) return;
     if (mfaOption === 'webauthn') {
-      submitWithWebauthn(challengeScope);
+      submitWithWebauthn();
     }
     if (mfaOption === 'otp') {
       submitWithTotp(authCode);
@@ -247,12 +246,11 @@ export function CreateDeviceStep({
   onClose,
   onDeviceCreated,
 }: CreateDeviceStepProps) {
-  const ctx = useTeleport();
   const createPasskeyAttempt = useAttempt();
   const onCreate = () => {
     if (usage === 'passwordless' || newMfaDeviceType === 'webauthn') {
       createPasskeyAttempt.run(async () => {
-        const credential = await ctx.mfaService.createNewWebAuthnDevice({
+        const credential = await auth.createNewWebAuthnDevice({
           tokenId: privilegeToken,
           deviceUsage: usage,
         });
@@ -277,7 +275,11 @@ export function CreateDeviceStep({
       {createPasskeyAttempt.attempt.status === 'failed' && (
         <OutlineDanger>{createPasskeyAttempt.attempt.statusText}</OutlineDanger>
       )}
-      {usage === 'passwordless' && <PasskeyBlurb />}
+      {usage === 'passwordless' && (
+        <Box mb={4}>
+          <PasskeyBlurb />
+        </Box>
+      )}
       {usage === 'mfa' && (
         <CreateMfaBox
           auth2faType={auth2faType}
@@ -514,45 +516,3 @@ export function SaveDeviceStep({
     </div>
   );
 }
-
-function PasskeyBlurb() {
-  return (
-    <Box
-      mb={4}
-      border={1}
-      borderColor="interactive.tonal.neutral.2"
-      borderRadius={3}
-      p={3}
-    >
-      <OverlappingChip>
-        <Icon.FingerprintSimple p={2} />
-      </OverlappingChip>
-      <OverlappingChip>
-        <Icon.UsbDrive p={2} />
-      </OverlappingChip>
-      <OverlappingChip>
-        <Icon.UserFocus p={2} />
-      </OverlappingChip>
-      <OverlappingChip>
-        <Icon.DeviceMobileCamera p={2} />
-      </OverlappingChip>
-      <p>
-        Teleport supports passkeys, a password replacement that validates your
-        identity using touch, facial recognition, a device password, or a PIN.
-      </p>
-      <p style={{ marginBottom: 0 }}>
-        Passkeys can be used to sign in as a simple and secure alternative to
-        your password and multi-factor credentials.
-      </p>
-    </Box>
-  );
-}
-
-const OverlappingChip = styled.span`
-  display: inline-block;
-  background: ${props => props.theme.colors.levels.surface};
-  border: ${props => props.theme.borders[1]};
-  border-color: ${props => props.theme.colors.interactive.tonal.neutral[2]};
-  border-radius: 50%;
-  margin-right: -6px;
-`;

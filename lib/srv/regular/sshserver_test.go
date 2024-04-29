@@ -134,7 +134,7 @@ func newFixtureWithoutDiskBasedLogging(t *testing.T, sshOpts ...ServerOption) *s
 	// that runs in the background introduces races with test cleanup
 	recConfig := types.DefaultSessionRecordingConfig()
 	recConfig.SetMode(types.RecordAtNodeSync)
-	err := f.testSrv.Auth().SetSessionRecordingConfig(context.Background(), recConfig)
+	_, err := f.testSrv.Auth().UpsertSessionRecordingConfig(context.Background(), recConfig)
 	require.NoError(t, err)
 
 	return f
@@ -1511,7 +1511,7 @@ func TestProxyRoundRobin(t *testing.T) {
 
 	router, err := libproxy.NewRouter(libproxy.RouterConfig{
 		ClusterName:         f.testSrv.ClusterName(),
-		Log:                 utils.NewLoggerForTests().WithField(trace.Component, "test"),
+		Log:                 utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
 		RemoteClusterGetter: proxyClient,
 		SiteGetter:          reverseTunnelServer,
 		TracerProvider:      tracing.NoopProvider(),
@@ -1651,7 +1651,7 @@ func TestProxyDirectAccess(t *testing.T) {
 
 	router, err := libproxy.NewRouter(libproxy.RouterConfig{
 		ClusterName:         f.testSrv.ClusterName(),
-		Log:                 utils.NewLoggerForTests().WithField(trace.Component, "test"),
+		Log:                 utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
 		RemoteClusterGetter: proxyClient,
 		SiteGetter:          reverseTunnelServer,
 		TracerProvider:      tracing.NoopProvider(),
@@ -2066,7 +2066,7 @@ func TestGlobalRequestClusterDetails(t *testing.T) {
 			recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{Mode: tt.mode})
 			require.NoError(t, err)
 
-			err = f.testSrv.Auth().SetSessionRecordingConfig(ctx, recConfig)
+			_, err = f.testSrv.Auth().UpsertSessionRecordingConfig(ctx, recConfig)
 			require.NoError(t, err)
 
 			ok, responseBytes, err := f.ssh.clt.SendRequest(ctx, teleport.ClusterDetailsReqType, true, nil)
@@ -2369,7 +2369,7 @@ func TestParseSubsystemRequest(t *testing.T) {
 
 		router, err := libproxy.NewRouter(libproxy.RouterConfig{
 			ClusterName:         f.testSrv.ClusterName(),
-			Log:                 utils.NewLoggerForTests().WithField(trace.Component, "test"),
+			Log:                 utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
 			RemoteClusterGetter: proxyClient,
 			SiteGetter:          reverseTunnelServer,
 			TracerProvider:      tracing.NoopProvider(),
@@ -2506,7 +2506,7 @@ func TestX11ProxySupport(t *testing.T) {
 		Mode: types.RecordAtProxy,
 	})
 	require.NoError(t, err)
-	err = f.testSrv.Auth().SetSessionRecordingConfig(ctx, recConfig)
+	_, err = f.testSrv.Auth().UpsertSessionRecordingConfig(ctx, recConfig)
 	require.NoError(t, err)
 
 	// verify that the proxy is in recording mode
@@ -2630,7 +2630,7 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 
 	router, err := libproxy.NewRouter(libproxy.RouterConfig{
 		ClusterName:         f.testSrv.ClusterName(),
-		Log:                 utils.NewLoggerForTests().WithField(trace.Component, "test"),
+		Log:                 utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
 		RemoteClusterGetter: proxyClient,
 		SiteGetter:          reverseTunnelServer,
 		TracerProvider:      tracing.NoopProvider(),
