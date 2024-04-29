@@ -16,37 +16,35 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Text } from 'design';
 import React from 'react';
 import styled, { css } from 'styled-components';
 
 /** State of an authentication method (password, MFA method, or passkey). */
 type State = 'active' | 'inactive';
 
+export interface StatePillProps {
+  state: State;
+}
+
 /**
  * Renders a pill component that represents a state of an authentication method.
  * The `state` property is both an enum value, as well as the UI text.
  */
-export function StatePill({ state }: { state: State }) {
-  return (
-    <StatePillBody state={state}>
-      <StatePillText typography="body1">{state}</StatePillText>
-    </StatePillBody>
-  );
+export function StatePill({ state }: StatePillProps) {
+  return <StatePillBody state={state}>{state}</StatePillBody>;
 }
 
-const StatePillBody = styled.span<{ backgroundColor: string; color: string }>`
+const StatePillBody = styled.span<StatePillProps>`
+  font-size: 14px;
   display: inline-block;
-  vertical-align: baseline;
   margin: 0 ${props => props.theme.space[2]}px;
   padding: 0 ${props => props.theme.space[3]}px;
   border-radius: 1000px;
-  background-color: ${props => props.backgroundColor};
 
   ${statePillStyles}
 `;
 
-function statePillStyles({ state }: { state: State }): string {
+function statePillStyles({ state }: StatePillProps): string {
   switch (state) {
     case 'active':
       return css`
@@ -62,7 +60,3 @@ function statePillStyles({ state }: { state: State }): string {
       `;
   }
 }
-
-const StatePillText = styled(Text)`
-  display: inline;
-`;
