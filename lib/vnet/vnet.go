@@ -221,15 +221,19 @@ func installVnetRoutes(netStack *stack.Stack, linkEndpoint *channel.Endpoint) er
 
 // Run starts the VNet.
 func (m *Manager) Run() error {
-	defer m.rootCtxCancel()
-	go m.statsHandler()
-	m.slog.With("ipv6", m.ipv6Prefix).InfoContext(m.rootCtx, "Running Teleport VNet.")
-	return trace.Wrap(ignoreCancel(forwardBetweenTunAndNetstack(m.rootCtx, m.tun, m.linkEndpoint)))
+	m.slog.With("ipv6_prefix", m.ipv6Prefix).InfoContext(m.rootCtx, "Running Teleport VNet.")
+	g, ctx := errgroup.WithContext(m.rootCtx)
+	g.Go(func() error { return m.statsHandler(ctx) })
+	g.Go(func() error {
+		return forwardBetweenTunAndNetstack(ctx, m.tun, m.linkEndpoint)
+	})
+	return trace.Wrap(g.Wait())
 }
 
 // Destroy cancels the root context, destroys the networking stack, and closes the TUN device.
 func (m *Manager) Destroy() error {
 	m.rootCtxCancel()
+	m.linkEndpoint.Close()
 	err := m.tun.Close()
 	m.stack.Destroy()
 	return trace.Wrap(err)
@@ -320,13 +324,13 @@ func (m *Manager) assignTCPHandler(handler tcpHandler) (tcpip.Address, error) {
 	return addr, nil
 }
 
-func (m *Manager) statsHandler() {
+func (m *Manager) statsHandler(ctx context.Context) error {
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, syscall.SIGUSR1)
 	for {
 		select {
-		case <-m.rootCtx.Done():
-			return
+		case <-ctx.Done():
+			return ctx.Err()
 		case <-ch:
 		}
 		stats := m.stack.Stats()
@@ -339,12 +343,6 @@ func forwardBetweenTunAndNetstack(ctx context.Context, tun TUNDevice, linkEndpoi
 	g, ctx := errgroup.WithContext(ctx)
 	g.Go(func() error { return forwardNetstackToTUN(ctx, linkEndpoint, tun) })
 	g.Go(func() error { return forwardTUNtoNetstack(tun, linkEndpoint) })
-	g.Go(func() error {
-		<-ctx.Done()
-		linkEndpoint.Close()
-		tun.Close()
-		return ctx.Err()
-	})
 	return trace.Wrap(g.Wait())
 }
 
@@ -431,11 +429,4 @@ func protocolVersion(b byte) (tcpip.NetworkProtocolNumber, bool) {
 		return header.IPv6ProtocolNumber, true
 	}
 	return 0, false
-}
-
-func ignoreCancel(err error) error {
-	if err == nil || errors.Is(err, context.Canceled) {
-		return nil
-	}
-	return err
 }

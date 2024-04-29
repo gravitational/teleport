@@ -54,8 +54,6 @@ type testPack struct {
 }
 
 func newTestPack(t *testing.T, ctx context.Context) *testPack {
-	ctx, cancel := context.WithCancel(ctx)
-
 	// Create two sides of an emulated TUN interface: writes to one can be read on the other, and vice versa.
 	tun1, tun2 := newSplitTUN()
 
@@ -63,6 +61,24 @@ func newTestPack(t *testing.T, ctx context.Context) *testPack {
 	// connected to the VNet over the TUN interface. This emulates the host networking stack.
 	testStack, linkEndpoint, err := createStack()
 	require.NoError(t, err)
+
+	errIsOK := func(err error) bool {
+		return err == nil || errors.Is(err, context.Canceled) || utils.IsOKNetworkError(err) || errors.Is(err, fakeTUNClosedErr)
+	}
+
+	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
+		Name: "test network stack",
+		Task: func(ctx context.Context) error {
+			if err := forwardBetweenTunAndNetstack(ctx, tun1, linkEndpoint); !errIsOK(err) {
+				return trace.Wrap(err)
+			}
+			return nil
+		},
+		Terminate: func() error {
+			linkEndpoint.Close()
+			return trace.Wrap(tun1.Close())
+		},
+	})
 
 	// Assign a local IP address to the test stack.
 	localAddress, err := randomULAAddress()
@@ -82,14 +98,6 @@ func newTestPack(t *testing.T, ctx context.Context) *testPack {
 		NIC:         nicID,
 	}})
 
-	go func() {
-		err := forwardBetweenTunAndNetstack(ctx, tun1, linkEndpoint)
-		if ignoreCancel(err) != nil {
-			slog.With("error", err).DebugContext(ctx, "Forwarding to test netstack failed, canceling context.")
-			cancel()
-		}
-	}()
-
 	// Create the VNet and connect it to the other side of the TUN.
 	manager, err := NewManager(ctx, &Config{
 		TUNDevice:  tun2,
@@ -97,18 +105,17 @@ func newTestPack(t *testing.T, ctx context.Context) *testPack {
 	})
 	require.NoError(t, err)
 
-	// Run the VNet in the background.
-	go func() {
-		err := manager.Run()
-		if ignoreCancel(err) != nil {
-			slog.With("error", err).DebugContext(ctx, "Running VNet failed, canceling context.")
-			cancel()
-		}
-	}()
-
-	t.Cleanup(func() {
-		cancel()
-		manager.Destroy()
+	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
+		Name: "VNet",
+		Task: func(ctx context.Context) error {
+			if err := manager.Run(); !errIsOK(err) {
+				return trace.Wrap(err)
+			}
+			return nil
+		},
+		Terminate: func() error {
+			return trace.Wrap(manager.Destroy())
+		},
 	})
 
 	return &testPack{
