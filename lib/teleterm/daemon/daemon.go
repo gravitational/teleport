@@ -280,7 +280,7 @@ func (s *Service) ResolveClusterWithDetails(ctx context.Context, uri string) (*c
 		return nil, nil, trace.Wrap(err)
 	}
 
-	withDetails, err := cluster.GetWithDetails(ctx, proxyClient.CurrentCluster())
+	withDetails, err := cluster.GetWithDetails(ctx, proxyClient.CurrentCluster(), s.cfg.ClusterIDCache)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
