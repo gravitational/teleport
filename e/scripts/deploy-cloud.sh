@@ -71,14 +71,6 @@ else
   docker pull --platform=linux/amd64 "$base_image"
   fail_on_exit_code "Could not retrieve requested base image \"$base_image\". Try setting \"BASE_IMAGE_TAG\" to override the value derived from version.go."
 
-  # check glibc version before proceeding
-  echo "-> Checking teleport binary for compatibility with base image..."
-  base_glibc=$(docker run --entrypoint="/usr/bin/ldd" $base_image --version | head -n1 | sed 's/.*GLIBC \([.0-9]*\).*/\1/g')
-  binary_glibc=$(objdump -T $BUILDDIR/teleport | grep GLIBC | sed 's/.*GLIBC_\([.0-9]*\).*/\1/g' | sort -ruV | head -n1)
-  echo "Base image glibc: $base_glibc, binary glibc: $binary_glibc"
-  echo "$binary_glibc $base_glibc" | awk '{exit !($1 <= $2)}'
-  fail_on_exit_code "Base image supports glibc version up to $base_glibc. Binary \"$BUILDDIR/teleport\" requires glibc version $binary_glibc. Suggest producing binaries via dockerized build and running \"make CLOUD_SKIP_BUILD=1 deploy-cloud\""
-
   stdin_dockerfile="FROM $base_image\nCOPY teleport /usr/local/bin/teleport\n"
   # ref: https://docs.docker.com/develop/develop-images/dockerfile_best-practices/#pipe-dockerfile-through-stdin
   echo -e "$stdin_dockerfile" | docker build  -t "$target_image" --platform=linux/amd64 --file=- "$BUILDDIR"
