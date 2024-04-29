@@ -75,4 +75,6 @@ message AWSRole {
   string display = 2;
   // ARN is the full role ARN.
   string arn = 3;
+  // AccountID is the AWS Account ID this role refers to.
+  string account_id = 4;
 }
