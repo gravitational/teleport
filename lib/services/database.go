@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
+	gcputils "github.com/gravitational/teleport/api/utils/gcp"
 	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -176,6 +177,11 @@ func ValidateDatabase(db types.Database) error {
 	} else if db.GetProtocol() == defaults.ProtocolSQLServer {
 		if err := ValidateSQLServerURI(db.GetURI()); err != nil {
 			return trace.BadParameter("invalid SQL Server address: %v", err)
+		}
+	} else if db.GetProtocol() == defaults.ProtocolSpanner {
+		if !gcputils.IsSpannerEndpoint(db.GetURI()) {
+			return trace.BadParameter("GCP Spanner database %q address should be %q",
+				db.GetName(), gcputils.SpannerEndpoint)
 		}
 	} else if needsURIValidation(db) {
 		if _, _, err := net.SplitHostPort(db.GetURI()); err != nil {

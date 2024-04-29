@@ -11,6 +11,7 @@ require (
 	cloud.google.com/go/firestore v1.15.0
 	cloud.google.com/go/iam v1.1.8
 	cloud.google.com/go/kms v1.15.9
+	cloud.google.com/go/spanner v1.60.0
 	cloud.google.com/go/storage v1.40.0
 	connectrpc.com/connect v1.16.1
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.11.1
@@ -286,10 +287,12 @@ require (
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/boombuler/barcode v1.0.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
+	github.com/census-instrumentation/opencensus-proto v0.4.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/chai2010/gettext-go v1.0.2 // indirect
 	github.com/cjlapao/common-go v0.0.39 // indirect
 	github.com/cloudflare/cfssl v1.6.4 // indirect
+	github.com/cncf/xds/go v0.0.0-20231128003011-0fa0005c9caa // indirect
 	github.com/containerd/containerd v1.7.12 // indirect
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/containerd/stargz-snapshotter/estargz v0.14.3 // indirect
@@ -316,6 +319,8 @@ require (
 	github.com/dvsekhvalnov/jose2go v1.6.0 // indirect
 	github.com/elastic/elastic-transport-go/v8 v8.5.0 // indirect
 	github.com/emicklei/go-restful/v3 v3.11.3 // indirect
+	github.com/envoyproxy/go-control-plane v0.12.0 // indirect
+	github.com/envoyproxy/protoc-gen-validate v1.0.4 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/evanphx/json-patch/v5 v5.9.0 // indirect
 	github.com/exponent-io/jsonpath v0.0.0-20151013193312-d6023ce2651d // indirect
