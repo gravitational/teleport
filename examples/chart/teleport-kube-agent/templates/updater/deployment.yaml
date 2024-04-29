@@ -56,9 +56,6 @@ spec:
   {{- if $updater.tls.existingCASecretName }}
         - name: SSL_CERT_FILE
           value: /etc/teleport-tls-ca/ca.pem
-        # Used to track whether a Teleport agent was installed using this method.
-        - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
-          value: "true"
   {{- end }}
 {{- end }}
         args:
@@ -102,15 +99,27 @@ spec:
 {{- if $updater.resources }}
         resources: {{- toYaml $updater.resources | nindent 10 }}
 {{- end }}
-{{- if $updater.tls.existingCASecretName }}
+{{- if or $updater.tls.existingCASecretName .Values.updater.extraVolumeMounts }}
         volumeMounts:
-        - mountPath: /etc/teleport-tls-ca
-          name: "teleport-tls-ca"
-          readOnly: true
+  {{- if $updater.tls.existingCASecretName }}
+          - mountPath: /etc/teleport-tls-ca
+            name: "teleport-tls-ca"
+            readOnly: true
+  {{- end }}
+  {{- if .Values.updater.extraVolumeMounts }}
+          {{- toYaml .Values.updater.extraVolumeMounts | nindent 10 }}
+  {{- end }}
+{{- end }}
+{{- if or $updater.tls.existingCASecretName .Values.updater.extraVolumes }}
       volumes:
-      - name: "teleport-tls-ca"
-        secret:
-          secretName: {{ $updater.tls.existingCASecretName }}
+  {{- if .Values.updater.extraVolumes }}
+        {{- toYaml $updater.extraVolumes | nindent 8 }}
+  {{- end }}
+  {{- if $updater.tls.existingCASecretName }}
+        - name: "teleport-tls-ca"
+          secret:
+            secretName: {{ $updater.tls.existingCASecretName }}
+  {{- end }}
 {{- end }}
 {{- if $updater.priorityClassName }}
       priorityClassName: {{ $updater.priorityClassName }}
