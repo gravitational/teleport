@@ -21,14 +21,22 @@
 package uds
 
 import (
+	"context"
 	"net"
 	"os"
 	"path/filepath"
 	"sync"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/peer"
+
+	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestGetCreds(t *testing.T) {
@@ -65,4 +73,68 @@ func TestGetCreds(t *testing.T) {
 	assert.Equal(t, os.Getpid(), creds.PID)
 	assert.Equal(t, os.Getuid(), creds.UID)
 	assert.Equal(t, os.Getgid(), creds.GID)
+}
+
+type service struct {
+	*machineidv1.UnimplementedBotServiceServer
+	lastCalledCreds *Creds
+}
+
+func (s *service) GetBot(
+	ctx context.Context, _ *machineidv1.GetBotRequest,
+) (*machineidv1.Bot, error) {
+	p, ok := peer.FromContext(ctx)
+	if !ok {
+		return nil, trace.BadParameter("peer not found in context")
+	}
+	authInfo, ok := p.AuthInfo.(AuthInfo)
+	if !ok {
+		return nil, trace.BadParameter("auth info not found in peer")
+	}
+
+	s.lastCalledCreds = authInfo.Creds
+	return &machineidv1.Bot{}, nil
+}
+
+func TestTransportCredentials(t *testing.T) {
+	dir := t.TempDir()
+	sockPath := filepath.Join(dir, "test.sock")
+
+	l, err := net.Listen("unix", sockPath)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		err := l.Close()
+		if err != nil && !utils.IsUseOfClosedNetworkError(err) {
+			assert.NoError(t, err)
+		}
+	})
+
+	svc := &service{}
+	grpcSrv := grpc.NewServer(grpc.Creds(NewTransportCredentials(insecure.NewCredentials())))
+	machineidv1.RegisterBotServiceServer(grpcSrv, svc)
+	t.Cleanup(func() {
+		grpcSrv.Stop()
+	})
+
+	go func() {
+		assert.NoError(t, grpcSrv.Serve(l))
+	}()
+
+	grpcConn, err := grpc.Dial(
+		"unix:///"+sockPath,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		assert.NoError(t, grpcConn.Close())
+	})
+
+	client := machineidv1.NewBotServiceClient(grpcConn)
+	_, err = client.GetBot(context.Background(), &machineidv1.GetBotRequest{})
+	require.NoError(t, err)
+
+	assert.NotNil(t, svc.lastCalledCreds)
+	assert.Equal(t, os.Getpid(), svc.lastCalledCreds.PID)
+	assert.Equal(t, os.Getuid(), svc.lastCalledCreds.UID)
+	assert.Equal(t, os.Getgid(), svc.lastCalledCreds.GID)
 }
