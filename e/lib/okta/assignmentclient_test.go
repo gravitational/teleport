@@ -338,18 +338,7 @@ func TestClientGetAssignedAppsGroups(t *testing.T) {
 		}
 		wg.Wait()
 
-		// Because there is a window in `userAssignedToApp()` where the app
-		// cache map is unlocked, it's possible for the multiple concurrent calls
-		// to the backend API to be collected into *several* non-overlapping
-		// `singleflight` calls rather than the single batch you might expect.
-		//
-		// Expecting an *exact* nonzero hit-count on the server is always going
-		// result in a flaky test. Rather than add a bunch of artificial interlocks
-		// between the test call site and server to try and force an exact hit count,
-		// we simply assert that the single-flight mechanism significantly reduces
-		// the number of round trips to the server.
-
-		require.Less(t, testServer.appsCallsCount.Load(), int64(numOfParallelCalls/4))
+		require.Equal(t, int64(1), testServer.appsCallsCount.Load())
 		require.Equal(t, int64(0), testServer.group1CallsCount.Load())
 		require.Equal(t, int64(0), testServer.group2CallsCount.Load())
 	})
@@ -379,20 +368,9 @@ func TestClientGetAssignedAppsGroups(t *testing.T) {
 		}
 		wg.Wait()
 
-		// Because there is a window in `userAssignedToGroup()` where the group
-		// cache map is unlocked, it's possible for the multiple concurrent calls
-		// to the backend API to be collected into *several* non-overlapping
-		// `singleflight` calls rather than the single batch you might expect.
-		//
-		// Expecting an *exact* nonzero hit-count on the server is always going
-		// result in a flaky test. Rather than add a bunch of artificial interlocks
-		// between the test call site and server to try and force an exact hit count,
-		// we simply assert that the single-flight mechanism significantly reduces
-		// the number of round trips to the server.
-
 		require.Equal(t, int64(0), testServer.appsCallsCount.Load())
-		require.Less(t, testServer.group1CallsCount.Load(), int64(numOfParallelCalls/4))
-		require.Less(t, testServer.group2CallsCount.Load(), int64(numOfParallelCalls/4))
+		require.Equal(t, int64(1), testServer.group1CallsCount.Load())
+		require.Equal(t, int64(1), testServer.group2CallsCount.Load())
 	})
 
 	t.Run("get assigned for username2", func(t *testing.T) {

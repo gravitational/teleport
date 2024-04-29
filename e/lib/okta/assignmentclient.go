@@ -50,31 +50,40 @@ func newAssignmentClient(log *logrus.Entry, oktaClient OktaClient) *assignmentCl
 	}
 }
 
-func (a *assignmentClient) getGroupAssignments(ctx context.Context, groupID oktaGroupID) ([]oktaUserID, error) {
+func (a *assignmentClient) getGroupAssignments(ctx context.Context, groupID oktaGroupID) (set[oktaUserID], error) {
 	// syncSingleFlight is used to prevent multiple requests during listing user groups assignments.
 	// assignments are processed in parallel (See processAssignments function)
 	// We need to make sure that we don't make multiple requests to Okta for the same group.
 	// After the first request, the result is cached and returned for subsequent requests.
 	key := fmt.Sprintf("group:%s", groupID)
 	items, err, _ := a.syncSingleFlight.Do(key, func() (interface{}, error) {
+		cachedMembers, populated := a.groups.Load(groupID)
+		if populated {
+			return cachedMembers, nil
+		}
 		a.log.Debugf("Refreshing assignments for group %s", groupID)
 		members, err := a.oktaClient.getGroupAssignments(ctx, string(groupID))
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
-
-		result := make([]oktaUserID, len(members))
-		for i, m := range members {
-			result[i] = oktaUserID(m)
+		cachedMembers = newSet[oktaUserID]()
+		for _, member := range members {
+			cachedMembers.add(oktaUserID(member))
 		}
-
-		return result, nil
+		a.log.
+			WithFields(logrus.Fields{
+				"members": members,
+				"groupID": groupID,
+			}).
+			Debugf("Found users assigned to group")
+		a.groups.Store(groupID, cachedMembers)
+		return cachedMembers, nil
 	})
 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	members, ok := items.([]oktaUserID)
+	members, ok := items.(set[oktaUserID])
 	if !ok {
 		return nil, trace.BadParameter("unexpected type %T returned", items)
 	}
@@ -88,27 +97,9 @@ func (a *assignmentClient) userAssignedToGroup(ctx context.Context, username use
 		return false, trace.Wrap(err)
 	}
 
-	// If the group entry hasn't yet been populated, populate it.
-	members, populated := a.groups.Load(groupID)
-	if !populated {
-		a.log.Debugf("Refreshing members for group %s", groupID)
-		assignments, err := a.getGroupAssignments(ctx, groupID)
-		if err != nil {
-			return false, trace.Wrap(err)
-		}
-
-		members = newSet[oktaUserID]()
-		for _, member := range assignments {
-			members.add(member)
-		}
-		a.groups.Store(groupID, members)
-
-		a.log.
-			WithFields(logrus.Fields{
-				"members": maps.Keys(members),
-				"groupID": groupID,
-			}).
-			Debugf("Found users assigned to group")
+	members, err := a.getGroupAssignments(ctx, groupID)
+	if err != nil {
+		return false, trace.Wrap(err)
 	}
 
 	// We check for group membership under the group map read lock. It's possible
@@ -199,24 +190,40 @@ func (a *assignmentClient) unregisterUserFromGroup(ctx context.Context, username
 	return nil
 }
 
-func (a *assignmentClient) getUserAssignedToApp(ctx context.Context, appID oktaAppID) ([]appAssignment, error) {
+func (a *assignmentClient) getUserAssignedToApp(ctx context.Context, appID oktaAppID) (set[appAssignment], error) {
 	// syncSingleFlight is used to prevent multiple requests during listing user apps assignments.
 	// assignments are processed in parallel (See processAssignments function)
 	// We need to make sure that we don't make multiple requests to Okta for the same app.
 	// After the first request, the result is cached and returned for subsequent requests.
 	key := fmt.Sprintf("app:%s", appID)
 	items, err, _ := a.syncSingleFlight.Do(key, func() (interface{}, error) {
+		cached, populated := a.apps.Load(appID)
+		if populated {
+			return cached, nil
+		}
 		a.log.Debugf("Refreshing assignments for app %s", appID)
 		items, err := a.oktaClient.getAppAssignments(ctx, string(appID))
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
-		return items, nil
+		cached = newSet[appAssignment]()
+		for _, member := range items {
+			cached.add(member)
+		}
+		a.log.
+			WithFields(logrus.Fields{
+				"members": maps.Keys(cached),
+				"appID":   appID,
+			}).
+			Debugf("Found users assigned to app")
+
+		a.apps.Store(appID, cached)
+		return cached, nil
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	members, ok := items.([]appAssignment)
+	members, ok := items.(set[appAssignment])
 	if !ok {
 		return nil, trace.BadParameter("unexpected type %T returned", items)
 	}
@@ -231,26 +238,9 @@ func (a *assignmentClient) userAssignedToApp(ctx context.Context, username userN
 	}
 
 	// If the app entry hasn't yet been populated, populate it.
-	assignments, populated := a.apps.Load(appID)
-	if !populated {
-		members, err := a.getUserAssignedToApp(ctx, appID)
-		if err != nil {
-			return false, trace.Wrap(err)
-		}
-
-		assignments = newSet[appAssignment]()
-		for _, member := range members {
-			assignments.add(member)
-		}
-
-		a.log.
-			WithFields(logrus.Fields{
-				"members": maps.Keys(assignments),
-				"appID":   appID,
-			}).
-			Debugf("Found users assigned to app")
-
-		a.apps.Store(appID, assignments)
+	assignments, err := a.getUserAssignedToApp(ctx, appID)
+	if err != nil {
+		return false, trace.Wrap(err)
 	}
 
 	// We check for app assignment under the application map read lock. It's
