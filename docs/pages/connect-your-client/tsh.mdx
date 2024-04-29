@@ -1090,7 +1090,24 @@ proxy_templates:
   # Optional host server address to connect to (`%h:%p`).
   #
   # Port defaults to 3022 if not explicitly provided with `--port`.
+  # If provided, it will take precedence over host resolution via
+  # query or search.
   host: "$1:$3"
+
+  # Optional predicate expression to resolve the target host with.
+  #
+  # Query by predicate expression similar to tsh ls --query.
+  # Has priority over search but will be ignored if a host is provided.
+  #
+  # See https://goteleport.com/docs/reference/predicate-language/#resource-filtering for
+  # predicate expression examples.
+  query: "labels.env == $1"
+
+  # Optional fuzzy search terms to resolve the target host with.
+  #
+  # Search by a list of comma separated keywords similar to tsh ls --search.
+  # Only applied if host and search are not provided.
+  search: "$1"
 
 # Multiple templates can be provided. They are evaluated in order and the first
 # match takes effect.

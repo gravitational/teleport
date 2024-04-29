@@ -358,6 +358,7 @@ func (x *DeleteIntegrationRequest) GetName() string {
 }
 
 // DeleteAllIntegrationsRequest is the request for deleting all integrations.
+// DEPRECATED: Can't delete all integrations over gRPC.
 type DeleteAllIntegrationsRequest struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache

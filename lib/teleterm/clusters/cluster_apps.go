@@ -148,12 +148,12 @@ func (c *Cluster) getApp(ctx context.Context, authClient auth.ClientI, appName s
 }
 
 // reissueAppCert issue new certificates for the app and saves them to disk.
-func (c *Cluster) reissueAppCert(ctx context.Context, proxyClient *client.ProxyClient, app types.Application) (tls.Certificate, error) {
+func (c *Cluster) reissueAppCert(ctx context.Context, clusterClient *client.ClusterClient, app types.Application) (tls.Certificate, error) {
 	if app.IsAWSConsole() || app.IsGCP() || app.IsAzureCloud() {
 		return tls.Certificate{}, trace.BadParameter("cloud applications are not supported")
 	}
 	// Refresh the certs to account for clusterClient.SiteName pointing at a leaf cluster.
-	err := proxyClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
+	err := clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
 		RouteToCluster: c.clusterClient.SiteName,
 		AccessRequests: c.status.ActiveRequests.AccessRequests,
 	})
@@ -161,8 +161,8 @@ func (c *Cluster) reissueAppCert(ctx context.Context, proxyClient *client.ProxyC
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	request := &proto.CreateAppSessionRequest{
-		Username:          c.status.Username,
+	routeToApp := proto.RouteToApp{
+		Name:              app.GetName(),
 		PublicAddr:        app.GetPublicAddr(),
 		ClusterName:       c.clusterClient.SiteName,
 		AWSRoleARN:        "",
@@ -170,22 +170,20 @@ func (c *Cluster) reissueAppCert(ctx context.Context, proxyClient *client.ProxyC
 		GCPServiceAccount: "",
 	}
 
-	ws, err := proxyClient.CreateAppSession(ctx, request)
+	// TODO (Joerger): DELETE IN v17.0.0
+	rootClient, err := clusterClient.ConnectToRootCluster(ctx)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	defer rootClient.Close()
+	routeToApp.SessionID, err = auth.TryCreateAppSessionForClientCertV15(ctx, rootClient, c.status.Username, routeToApp)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	err = proxyClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
+	err = clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
 		RouteToCluster: c.clusterClient.SiteName,
-		RouteToApp: proto.RouteToApp{
-			Name:              app.GetName(),
-			SessionID:         ws.GetName(),
-			PublicAddr:        app.GetPublicAddr(),
-			ClusterName:       c.clusterClient.SiteName,
-			AWSRoleARN:        "",
-			AzureIdentity:     "",
-			GCPServiceAccount: "",
-		},
+		RouteToApp:     routeToApp,
 		AccessRequests: c.status.ActiveRequests.AccessRequests,
 	})
 	if err != nil {

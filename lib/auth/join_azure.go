@@ -340,7 +340,22 @@ func generateAzureChallenge() (string, error) {
 // The caller must provide a ChallengeResponseFunc which returns a
 // *proto.RegisterUsingAzureMethodRequest with a signed attested data document
 // including the challenge as a nonce.
-func (a *Server) RegisterUsingAzureMethod(ctx context.Context, challengeResponse client.RegisterAzureChallengeResponseFunc, opts ...azureRegisterOption) (*proto.Certs, error) {
+func (a *Server) RegisterUsingAzureMethod(
+	ctx context.Context,
+	challengeResponse client.RegisterAzureChallengeResponseFunc,
+	opts ...azureRegisterOption,
+) (certs *proto.Certs, err error) {
+	var provisionToken types.ProvisionToken
+	var joinRequest *types.RegisterUsingTokenRequest
+	defer func() {
+		// Emit a log message and audit event on join failure.
+		if err != nil {
+			a.handleJoinFailure(
+				err, provisionToken, nil, joinRequest,
+			)
+		}
+	}()
+
 	cfg := &azureRegisterConfig{}
 	for _, opt := range opts {
 		opt(cfg)
@@ -362,7 +377,7 @@ func (a *Server) RegisterUsingAzureMethod(ctx context.Context, challengeResponse
 		return nil, trace.Wrap(err)
 	}
 
-	provisionToken, err := a.checkTokenJoinRequestCommon(ctx, req.RegisterUsingTokenRequest)
+	provisionToken, err = a.checkTokenJoinRequestCommon(ctx, req.RegisterUsingTokenRequest)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -380,7 +395,7 @@ func (a *Server) RegisterUsingAzureMethod(ctx context.Context, challengeResponse
 		)
 		return certs, trace.Wrap(err)
 	}
-	certs, err := a.generateCerts(
+	certs, err = a.generateCerts(
 		ctx,
 		provisionToken,
 		req.RegisterUsingTokenRequest,

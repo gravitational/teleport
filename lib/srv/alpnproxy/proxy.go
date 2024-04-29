@@ -367,7 +367,7 @@ type HandlerFuncWithInfo func(ctx context.Context, conn net.Conn, info Connectio
 //     was set if yes forward to the generic TLS DB handler.
 //  6. Forward connection to the handler obtained in step 2.
 func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, defaultOverride *tls.Config) error {
-	hello, conn, err := p.readHelloMessageWithoutTLSTermination(clientConn)
+	hello, conn, err := p.readHelloMessageWithoutTLSTermination(ctx, clientConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -391,7 +391,7 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, defaultOver
 	if err := tlsConn.SetReadDeadline(p.cfg.Clock.Now().Add(p.cfg.ReadDeadline)); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := tlsConn.Handshake(); err != nil {
+	if err := tlsConn.HandshakeContext(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := tlsConn.SetReadDeadline(time.Time{}); err != nil {
@@ -497,7 +497,7 @@ func (p *Proxy) getTLSConfig(desc *HandlerDecs, defaultOverride *tls.Config) *tl
 // readHelloMessageWithoutTLSTermination allows reading a ClientHelloInfo message without termination of
 // incoming TLS connection. After calling readHelloMessageWithoutTLSTermination function a returned
 // net.Conn should be used for further operation.
-func (p *Proxy) readHelloMessageWithoutTLSTermination(conn net.Conn) (*tls.ClientHelloInfo, net.Conn, error) {
+func (p *Proxy) readHelloMessageWithoutTLSTermination(ctx context.Context, conn net.Conn) (*tls.ClientHelloInfo, net.Conn, error) {
 	buff := new(bytes.Buffer)
 	var hello *tls.ClientHelloInfo
 	tlsConn := tls.Server(readOnlyConn{reader: io.TeeReader(conn, buff)}, &tls.Config{
@@ -513,7 +513,7 @@ func (p *Proxy) readHelloMessageWithoutTLSTermination(conn net.Conn) (*tls.Clien
 	// Following TLS handshake fails on the server side with error: "no certificates configured" after server
 	// receives a TLS hello message from the client. If handshake was able to read hello message it indicates successful
 	// flow otherwise TLS handshake error is returned.
-	err := tlsConn.Handshake()
+	err := tlsConn.HandshakeContext(ctx)
 	if hello == nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -545,7 +545,7 @@ func (p *Proxy) databaseHandlerWithTLSTermination(ctx context.Context, conn net.
 		}
 		return trace.Wrap(err)
 	}
-	if err := tlsConn.Handshake(); err != nil {
+	if err := tlsConn.HandshakeContext(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := tlsConn.SetReadDeadline(time.Time{}); err != nil {

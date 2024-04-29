@@ -52,6 +52,7 @@ export function StepSlider<Flows>(props: Props<Flows>) {
     currFlow,
     onSwitchFlow,
     newFlow,
+    defaultStepIndex = 0,
     tDuration = 500,
     // extraProps are the props required by our step components defined in our flows.
     ...extraProps
@@ -60,7 +61,7 @@ export function StepSlider<Flows>(props: Props<Flows>) {
   const [hasTransitionEnded, setHasTransitionEnded] = useState<boolean>(false);
 
   // step defines the current step we are in the current flow.
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(defaultStepIndex);
   // animationDirectionPrefix defines the prefix of the class name that contains
   // the animations to apply when transitioning.
   const [animationDirectionPrefix, setAnimationDirectionPrefix] = useState<
@@ -328,6 +329,14 @@ type Props<Flows> =
          * Optional if there is only one flow.
          */
         onSwitchFlow?(flow: keyof Flows): void;
+        /**
+         * defaultStepIndex is the step that will be shown on the first render, similar to
+         * defaultValue passed to the input tag.
+         *
+         * Since this value is used only for the initial render, it won't be persisted when
+         * switching flows – this will result in the current step index being reset to 0.
+         */
+        defaultStepIndex?: number;
       } & ExtraProps // Extra props that are passed to each step component. Each step of each flow needs to accept the same set of extra props.
     : never;
 

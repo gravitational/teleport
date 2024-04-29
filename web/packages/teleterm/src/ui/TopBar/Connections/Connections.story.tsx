@@ -22,10 +22,11 @@ import { Flex, Text } from 'design';
 import AppContextProvider from 'teleterm/ui/appContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { VnetContextProvider } from 'teleterm/ui/Vnet';
-
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
+import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 
 import { Connections } from './Connections';
+import { ConnectionsContextProvider } from './connectionsContext';
 
 export default {
   title: 'Teleterm/TopBar/Connections',
@@ -46,9 +47,11 @@ export function Story() {
 
   return (
     <AppContextProvider value={appContext}>
-      <VnetContextProvider>
-        <Connections />
-      </VnetContextProvider>
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <Connections />
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
     </AppContextProvider>
   );
 }
@@ -83,9 +86,11 @@ export function MultipleClusters() {
 
   return (
     <AppContextProvider value={appContext}>
-      <VnetContextProvider>
-        <Connections />
-      </VnetContextProvider>
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <Connections />
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
     </AppContextProvider>
   );
 }
@@ -97,9 +102,36 @@ export function JustVnet() {
 
   return (
     <AppContextProvider value={appContext}>
-      <VnetContextProvider>
-        <Connections />
-      </VnetContextProvider>
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <Connections />
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
+    </AppContextProvider>
+  );
+}
+
+export function VnetError() {
+  const appContext = new MockAppContext();
+  prepareAppContext(appContext);
+
+  appContext.statePersistenceService.putState({
+    ...appContext.statePersistenceService.getState(),
+    vnet: { autoStart: true },
+  });
+  appContext.workspacesService.setState(draft => {
+    draft.isInitialized = true;
+  });
+  appContext.vnet.start = () =>
+    new MockedUnaryCall({}, new Error('something went wrong'));
+
+  return (
+    <AppContextProvider value={appContext}>
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <Connections />
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
     </AppContextProvider>
   );
 }
@@ -131,9 +163,11 @@ export function WithScroll() {
       maxWidth="600px"
     >
       <AppContextProvider value={appContext}>
-        <VnetContextProvider>
-          <Connections />
-        </VnetContextProvider>
+        <ConnectionsContextProvider>
+          <VnetContextProvider>
+            <Connections />
+          </VnetContextProvider>
+        </ConnectionsContextProvider>
       </AppContextProvider>
       <Text
         css={`
@@ -152,9 +186,11 @@ export function WithoutVnet() {
 
   return (
     <AppContextProvider value={appContext}>
-      <VnetContextProvider>
-        <Connections />
-      </VnetContextProvider>
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <Connections />
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
     </AppContextProvider>
   );
 }
@@ -164,9 +200,11 @@ export function EmptyWithoutVnet() {
 
   return (
     <AppContextProvider value={appContext}>
-      <VnetContextProvider>
-        <Connections />
-      </VnetContextProvider>
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <Connections />
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
     </AppContextProvider>
   );
 }
@@ -231,5 +269,5 @@ const useOpenConnections = () => {
     ) as HTMLButtonElement;
 
     button?.click();
-  });
+  }, []);
 };

@@ -1504,17 +1504,6 @@ Assist test plan is in the core section instead of WebUI as most functionality i
   - [ ] Assist is enabled by default in the Cloud Team plan.
   - [ ] Assist is always disabled when etcd is used as a backend.
 
-- Conversations
-  - [ ] A new conversation can be started.
-  - [ ] SSH command can be executed on one server.
-  - [ ] SSH command can be executed on multiple servers.
-  - [ ] SSH command can be executed on a node with per session MFA enabled.
-  - [ ] Execution output is explained when it fits the context window.
-  - [ ] Assist can list all nodes/execute a command on all nodes (using embeddings).
-  - [ ] Access request can be created.
-  - [ ] Access request is created when approved.
-  - [ ] Conversation title is set after the first message.
-
 - SSH integration
   - [ ] Assist icon is visible in WebUI's Terminal
   - [ ] A Bash command can be generated in the above window.

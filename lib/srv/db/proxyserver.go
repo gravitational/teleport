@@ -276,7 +276,7 @@ func (s *ProxyServer) serveGenericTLS(listener net.Listener, tlsConfig *tls.Conf
 		go func() {
 			defer clientConn.Close()
 			tlsConn := tls.Server(clientConn, tlsConfig)
-			if err := tlsConn.Handshake(); err != nil {
+			if err := tlsConn.HandshakeContext(s.closeCtx); err != nil {
 				if !utils.IsOKNetworkError(err) {
 					s.log.WithError(err).Errorf("%s TLS handshake failed.", dbName)
 				}

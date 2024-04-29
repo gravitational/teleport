@@ -124,10 +124,12 @@ func (a *Server) newWebSession(
 		// TODO(antonam): consider turning this into error after all use cases are covered (before v14.0 testplan)
 		log.Debug("Creating new web session without login IP specified.")
 	}
+
 	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	checker, err := services.NewAccessChecker(&services.AccessInfo{
 		Roles:              req.Roles,
 		Traits:             req.Traits,
@@ -239,11 +241,31 @@ func (a *Server) upsertWebSession(ctx context.Context, session types.WebSession)
 	return nil
 }
 
+// NewAppSessionRequest defines a request to create a new user app session.
+type NewAppSessionRequest struct {
+	NewWebSessionRequest
+
+	// PublicAddr is the public address the application.
+	PublicAddr string
+	// ClusterName is cluster within which the application is running.
+	ClusterName string
+	// AWSRoleARN is AWS role the user wants to assume.
+	AWSRoleARN string
+	// AzureIdentity is Azure identity the user wants to assume.
+	AzureIdentity string
+	// GCPServiceAccount is the GCP service account the user wants to assume.
+	GCPServiceAccount string
+	// MFAVerified is the UUID of an MFA device used to verify this request.
+	MFAVerified string
+	// DeviceExtensions holds device-aware user certificate extensions.
+	DeviceExtensions DeviceExtensions
+}
+
 // CreateAppSession creates and inserts a services.WebSession into the
 // backend with the identity of the caller used to generate the certificate.
 // The certificate is used for all access requests, which is where access
 // control is enforced.
-func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessionRequest, user services.UserState, identity tlsca.Identity, checker services.AccessChecker) (types.WebSession, error) {
+func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessionRequest, identity tlsca.Identity, checker services.AccessChecker) (types.WebSession, error) {
 	if !modules.GetModules().Features().App {
 		return nil, trace.AccessDenied(
 			"this Teleport cluster is not licensed for application access, please contact the cluster administrator")
@@ -260,7 +282,7 @@ func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 
 	// Encode user traits in the app access certificate. This will allow to
 	// pass user traits when talking to app servers in leaf clusters.
-	_, traits, err := services.ExtractFromIdentity(ctx, a, identity)
+	roles, traits, err := services.ExtractFromIdentity(ctx, a, identity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -273,6 +295,56 @@ func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 			return nil, trace.Wrap(err)
 		}
 		verifiedMFADeviceID = mfaData.Device.Id
+	}
+
+	sess, err := a.CreateAppSessionFromReq(ctx, NewAppSessionRequest{
+		NewWebSessionRequest: NewWebSessionRequest{
+			User:           req.Username,
+			LoginIP:        identity.LoginIP,
+			SessionTTL:     ttl,
+			Roles:          roles,
+			Traits:         traits,
+			AccessRequests: identity.ActiveRequests,
+		},
+		PublicAddr:        req.PublicAddr,
+		ClusterName:       req.ClusterName,
+		AWSRoleARN:        req.AWSRoleARN,
+		AzureIdentity:     req.AzureIdentity,
+		GCPServiceAccount: req.GCPServiceAccount,
+		MFAVerified:       verifiedMFADeviceID,
+		DeviceExtensions:  DeviceExtensions(identity.DeviceExtensions),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return sess, nil
+}
+
+func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionRequest) (types.WebSession, error) {
+	if !modules.GetModules().Features().App {
+		return nil, trace.AccessDenied(
+			"this Teleport cluster is not licensed for application access, please contact the cluster administrator")
+	}
+
+	user, err := a.GetUserOrLoginState(ctx, req.User)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clusterName, err := a.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	checker, err := services.NewAccessChecker(&services.AccessInfo{
+		Username:           req.User,
+		Roles:              req.Roles,
+		Traits:             req.Traits,
+		AllowedResourceIDs: req.RequestedResourceIDs,
+	}, clusterName.GetClusterName(), a)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// Create services.WebSession for this session.
@@ -288,12 +360,12 @@ func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 	}
 	certs, err := a.generateUserCert(ctx, certRequest{
 		user:           user,
-		loginIP:        identity.LoginIP,
+		loginIP:        req.LoginIP,
 		publicKey:      publicKey,
 		checker:        checker,
-		ttl:            ttl,
-		traits:         traits,
-		activeRequests: services.RequestIDs{AccessRequests: identity.ActiveRequests},
+		ttl:            req.SessionTTL,
+		traits:         req.Traits,
+		activeRequests: services.RequestIDs{AccessRequests: req.AccessRequests},
 		// Set the app session ID in the certificate - used in auditing from the App Service.
 		appSessionID: sessionID,
 		// Only allow this certificate to be used for applications.
@@ -307,8 +379,8 @@ func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 		// we need to skip attestation.
 		skipAttestation: true,
 		// Pass along device extensions from the user.
-		deviceExtensions: DeviceExtensions(identity.DeviceExtensions),
-		mfaVerified:      verifiedMFADeviceID,
+		deviceExtensions: req.DeviceExtensions,
+		mfaVerified:      req.MFAVerified,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -319,12 +391,12 @@ func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 		return nil, trace.Wrap(err)
 	}
 	session, err := types.NewWebSession(sessionID, types.KindAppSession, types.WebSessionSpecV2{
-		User:        req.Username,
+		User:        req.User,
 		Priv:        privateKey,
 		Pub:         certs.SSH,
 		TLSCert:     certs.TLS,
 		LoginTime:   a.clock.Now().UTC(),
-		Expires:     a.clock.Now().UTC().Add(ttl),
+		Expires:     a.clock.Now().UTC().Add(req.SessionTTL),
 		BearerToken: bearer,
 	})
 	if err != nil {
@@ -333,7 +405,7 @@ func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 	if err = a.UpsertAppSession(ctx, session); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log.Debugf("Generated application web session for %v with TTL %v.", req.Username, ttl)
+	log.Debugf("Generated application web session for %v with TTL %v.", req.User, req.SessionTTL)
 	UserLoginCount.Inc()
 	return session, nil
 }
@@ -490,4 +562,40 @@ func (a *Server) CreateSAMLIdPSession(ctx context.Context, req types.CreateSAMLI
 	log.Debugf("Generated SAML IdP web session for %v.", req.Username)
 
 	return session, nil
+}
+
+type CreateAppSessionForV15Client interface {
+	Ping(ctx context.Context) (proto.PingResponse, error)
+	CreateAppSession(ctx context.Context, req *proto.CreateAppSessionRequest) (types.WebSession, error)
+}
+
+// TryCreateAppSessionForClientCertV15 creates an app session if the auth
+// server is pre-v16 and returns the app session ID. This app session ID
+// is needed for user app certs requests before v16.
+// TODO (Joerger): DELETE IN v17.0.0
+func TryCreateAppSessionForClientCertV15(ctx context.Context, client CreateAppSessionForV15Client, username string, routeToApp proto.RouteToApp) (string, error) {
+	pingResp, err := client.Ping(ctx)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	// If the auth server is v16+, the client does not need to provide a pre-created app session.
+	const minServerVersion = "16.0.0-aa" // "-aa" matches all development versions
+	if utils.MeetsVersion(pingResp.ServerVersion, minServerVersion) {
+		return "", nil
+	}
+
+	ws, err := client.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
+		Username:          username,
+		PublicAddr:        routeToApp.PublicAddr,
+		ClusterName:       routeToApp.ClusterName,
+		AWSRoleARN:        routeToApp.AWSRoleARN,
+		AzureIdentity:     routeToApp.AzureIdentity,
+		GCPServiceAccount: routeToApp.GCPServiceAccount,
+	})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return ws.GetName(), nil
 }

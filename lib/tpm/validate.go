@@ -184,6 +184,8 @@ func verifyEKCert(
 		return trace.BadParameter("tpm did not provide an EKCert to validate against allowed CAs")
 	}
 
+	StripSANExtensionOIDs(ekCert)
+
 	// Validate EKCert against CA pool
 	_, err := ekCert.Verify(x509.VerifyOptions{
 		Roots: allowedCAs,
@@ -198,4 +200,29 @@ func verifyEKCert(
 		return trace.Wrap(err, "verifying EK cert")
 	}
 	return nil
+}
+
+var sanExtensionOID = []int{2, 5, 29, 17}
+
+// StripSANExtensionOIDs removes the SAN Extension OID from the specified
+// cert. This method may re-assign the remaining extensions out of order.
+//
+// This is necessary because the EKCert may contain additional data
+// bundled within the SAN extension. This ext is also sometimes marked
+// critical. This causes the Verify() to reject the cert because not all data
+// within a critical extension has been handled. We mark this as OK here by
+// stripping the SAN Extension OID out of UnhandledCriticalExtensions.
+func StripSANExtensionOIDs(cert *x509.Certificate) {
+	for i := 0; i < len(cert.UnhandledCriticalExtensions); i++ {
+		ext := cert.UnhandledCriticalExtensions[i]
+		if !ext.Equal(sanExtensionOID) {
+			continue
+		}
+		// Swap ext with the last index and remove it.
+		last := len(cert.UnhandledCriticalExtensions) - 1
+		cert.UnhandledCriticalExtensions[i] = cert.UnhandledCriticalExtensions[last]
+		cert.UnhandledCriticalExtensions[last] = nil // "Release" extension
+		cert.UnhandledCriticalExtensions = cert.UnhandledCriticalExtensions[:last]
+		i--
+	}
 }
