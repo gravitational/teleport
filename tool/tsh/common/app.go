@@ -118,11 +118,11 @@ func onAppLogin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	key, err := tc.IssueUserCertsWithMFA(cf.Context, client.ReissueParams{
+	key, _, err := clusterClient.IssueUserCertsWithMFA(cf.Context, client.ReissueParams{
 		RouteToCluster: tc.SiteName,
 		RouteToApp:     routeToApp,
 		AccessRequests: profile.ActiveRequests.AccessRequests,
-	}, mfa.WithPromptReasonSessionMFA("Application", app.GetName()))
+	}, tc.NewMFAPrompt(mfa.WithPromptReasonSessionMFA("Application", app.GetName())))
 	if err != nil {
 		return trace.Wrap(err)
 	}
