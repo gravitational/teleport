@@ -129,14 +129,14 @@ func TestCheckPassswordWOToken(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, s.a.UpsertPassword("user1", []byte("supersecret123")))
 
-	assert.NoError(t, s.a.checkPasswordWOToken("user1", []byte("supersecret123")))
+	assert.NoError(t, s.a.checkPasswordWOToken(ctx, "user1", []byte("supersecret123")))
 
-	err = s.a.checkPasswordWOToken("user1", []byte("wrongpassword"))
+	err = s.a.checkPasswordWOToken(ctx, "user1", []byte("wrongpassword"))
 	assert.Error(t, err)
 	assert.True(t, trace.IsBadParameter(err))
 }
 
-func TestCheckPassswordWOToken_legacyUser(t *testing.T) {
+func TestCheckPassswordWOToken_previousPasswordStateUnspecified(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -147,8 +147,8 @@ func TestCheckPassswordWOToken_legacyUser(t *testing.T) {
 	u, err = s.a.CreateUser(ctx, u)
 	require.NoError(t, err)
 
-	// Create a legacy user. Deliberately avoid using UpsertPassword; we don't
-	// want the password state to be known.
+	// Create a new user. Deliberately avoid using UpsertPassword; we don't want
+	// the password state to be known.
 	hash, err := bcrypt.GenerateFromPassword([]byte("supersecret123"), bcrypt.MinCost)
 	require.NoError(t, err)
 	u.SetLocalAuth(&types.LocalAuthSecrets{PasswordHash: hash})
@@ -162,7 +162,7 @@ func TestCheckPassswordWOToken_legacyUser(t *testing.T) {
 	require.Equal(t, types.PasswordState_PASSWORD_STATE_UNSPECIFIED, u.GetPasswordState())
 
 	// Failed login attempt.
-	err = s.a.checkPasswordWOToken("user1", []byte("wrongpassword"))
+	err = s.a.checkPasswordWOToken(ctx, "user1", []byte("wrongpassword"))
 	assert.Error(t, err)
 	assert.True(t, trace.IsBadParameter(err))
 
@@ -172,7 +172,7 @@ func TestCheckPassswordWOToken_legacyUser(t *testing.T) {
 	assert.Equal(t, types.PasswordState_PASSWORD_STATE_UNSPECIFIED, u.GetPasswordState())
 
 	// Successful login attempt.
-	assert.NoError(t, s.a.checkPasswordWOToken("user1", []byte("supersecret123")))
+	assert.NoError(t, s.a.checkPasswordWOToken(ctx, "user1", []byte("supersecret123")))
 
 	// Password state should now be known.
 	u, err = s.a.GetUser(ctx, "user1", false /* withSecrets */)
@@ -190,7 +190,7 @@ func TestCheckPasswordWOToken_userNotFound(t *testing.T) {
 	u, err = s.a.CreateUser(ctx, u)
 	require.NoError(t, err)
 
-	err = s.a.checkPasswordWOToken("user1", []byte("whatever"))
+	err = s.a.checkPasswordWOToken(ctx, "user1", []byte("whatever"))
 	assert.Error(t, err)
 	// Make sure the error is not a NotFound. Otherwise, we would leak user's
 	// authentication method.
@@ -200,11 +200,12 @@ func TestCheckPasswordWOToken_userNotFound(t *testing.T) {
 func TestCheckPasswordWOToken_passwordless(t *testing.T) {
 	t.Parallel()
 
+	ctx := context.Background()
 	s := setupPasswordSuite(t)
 	username := "unknown-user"
 	password := "feefiefoefum"
 
-	err := s.a.checkPasswordWOToken(username, []byte(password))
+	err := s.a.checkPasswordWOToken(ctx, username, []byte(password))
 	require.Error(t, err)
 	// Make sure the error is not a NotFound. That would be a username oracle.
 	require.True(t, trace.IsBadParameter(err))
@@ -239,7 +240,7 @@ func TestPasswordLengthChange(t *testing.T) {
 	require.NoError(t, err)
 
 	// Ensure that a shorter password still works for auth
-	err = authServer.checkPasswordWOToken(username, password)
+	err = authServer.checkPasswordWOToken(ctx, username, password)
 	require.NoError(t, err)
 }
 
@@ -437,7 +438,7 @@ func TestServer_ChangePassword(t *testing.T) {
 			require.NoError(t, userClient.ChangePassword(ctx, req), "changing password")
 
 			// Did the password change take effect?
-			require.NoError(t, authServer.checkPasswordWOToken(username, newPass), "password change didn't take effect")
+			require.NoError(t, authServer.checkPasswordWOToken(ctx, username, newPass), "password change didn't take effect")
 		})
 	}
 }
@@ -557,7 +558,7 @@ func TestServer_ChangePassword_Fails(t *testing.T) {
 				err, trace.Unwrap(err))
 
 			// Did the password change take effect?
-			assert.Error(t, authServer.checkPasswordWOToken(username, newPass), "password was changed")
+			assert.Error(t, authServer.checkPasswordWOToken(ctx, username, newPass), "password was changed")
 		})
 	}
 }
@@ -804,7 +805,7 @@ func TestChangeUserAuthentication(t *testing.T) {
 
 			// Test password is updated.
 			if len(validReq.NewPassword) != 0 {
-				err := authServer.checkPasswordWOToken(username, validReq.NewPassword)
+				err := authServer.checkPasswordWOToken(ctx, username, validReq.NewPassword)
 				require.NoError(t, err)
 			}
 

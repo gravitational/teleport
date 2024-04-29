@@ -76,7 +76,7 @@ func TestCreateResetPasswordToken(t *testing.T) {
 	require.Empty(t, devs)
 
 	// verify that password was reset
-	err = srv.Auth().checkPasswordWOToken(username, []byte(pass))
+	err = srv.Auth().checkPasswordWOToken(ctx, username, []byte(pass))
 	require.Error(t, err)
 
 	// create another reset token for the same user
