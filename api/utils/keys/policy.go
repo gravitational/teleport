@@ -194,5 +194,8 @@ func ParsePrivateKeyPolicyError(err error) (PrivateKeyPolicy, error) {
 
 // IsPrivateKeyPolicyError returns true if the given error is a private key policy error.
 func IsPrivateKeyPolicyError(err error) bool {
+	if err == nil {
+		return false
+	}
 	return privateKeyPolicyErrRegex.MatchString(err.Error())
 }
