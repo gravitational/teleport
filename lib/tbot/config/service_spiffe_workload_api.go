@@ -25,6 +25,21 @@ import (
 
 const SPIFFEWorkloadAPIServiceType = "spiffe-workload-api"
 
+type WorkloadAttestationRuleUnix struct {
+	PID int `yaml:"pid,omitempty"`
+	UID int `yaml:"uid,omitempty"`
+	GID int `yaml:"gid,omitempty"`
+}
+
+type WorkloadAttestationRule struct {
+	Unix WorkloadAttestationRuleUnix `yaml:"unix,omitempty"`
+}
+
+type SVIDRequestWithRules struct {
+	SVIDRequest `yaml:",inline"`
+	Allow       []WorkloadAttestationRule `yaml:"allow,omitempty"`
+}
+
 // SPIFFEWorkloadAPIService is the configuration for the SPIFFE Workload API
 // service.
 type SPIFFEWorkloadAPIService struct {
@@ -33,7 +48,7 @@ type SPIFFEWorkloadAPIService struct {
 	Listen string `yaml:"listen"`
 	// SVIDs is the list of SVIDs that the SPIFFE Workload API server should
 	// provide.
-	SVIDs []SVIDRequest `yaml:"svids"`
+	SVIDs []SVIDRequestWithRules `yaml:"svids"`
 }
 
 func (s *SPIFFEWorkloadAPIService) Type() string {

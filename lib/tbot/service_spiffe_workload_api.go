@@ -328,13 +328,20 @@ func (s *SPIFFEWorkloadAPIService) fetchX509SVIDs(
 	// contention on the mutex and to ensure that all SVIDs are using the
 	// same trust bundle.
 	trustBundle := s.getTrustBundle()
+
+	svidRequests := make([]config.SVIDRequest, 0)
+	for _, req := range s.cfg.SVIDs {
+		// TODO: Evaluate rules for the SVID request.
+		svidRequests = append(svidRequests, req.SVIDRequest)
+	}
+
 	// TODO(noah): We should probably take inspiration from SPIRE agent's
 	// behavior of pre-fetching the SVIDs rather than doing this for
 	// every request.
 	res, privateKey, err := config.GenerateSVID(
 		ctx,
 		s.client.WorkloadIdentityServiceClient(),
-		s.cfg.SVIDs,
+		svidRequests,
 		// For TTL, we use the one globally configured.
 		s.botCfg.CertificateTTL,
 	)
