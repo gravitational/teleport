@@ -202,6 +202,10 @@ These `tctl` commands will show you the resources registered within your Telepor
 - Ensure that end users have the expected SSO access to your infrastructure and workflow.
 
 Additionally, establish break glass access procedures to ensure access to infrastructure in case of Teleport Enterprise (cloud-hosted) unavailability.
+An example break-glass option for infrastructure admins for temporary access in case of an outage:
+
+- Run OpenSSH with a limited key following our best practices on [How to SSH properly](https://goteleport.com/blog/how-to-ssh-properly/).
+  - We recommend configuring systemd to start OpenSSH for 5 minutes at boot, then shut it down. The master keys should be stored in a secure vault. To break the glass, obtain the master key, reboot the server, and connect using an OpenSSH client within 5 minutes.
 
 ### Conclusion
 
