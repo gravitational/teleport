@@ -834,6 +834,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	appConfig.Flag("format", fmt.Sprintf("Optional print format, one of: %q to print app address, %q to print CA cert path, %q to print cert path, %q print key path, %q to print example curl command, %q or %q to print everything as JSON or YAML.",
 		appFormatURI, appFormatCA, appFormatCert, appFormatKey, appFormatCURL, appFormatJSON, appFormatYAML),
 	).Short('f').StringVar(&cf.Format)
+	appConfig.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 
 	// Recordings.
 	recordings := app.Command("recordings", "View and control session recordings.").Alias("recording")

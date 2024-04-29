@@ -581,11 +581,7 @@ func loadAppCertificateWithAppLogin(cf *CLIConf, tc *libclient.TeleportClient, a
 // Returns tuple (certificate, needLogin, err).
 // The boolean `needLogin` will be true if the error returned should go away with successful `tsh app login <appName>`.
 func loadAppCertificate(tc *libclient.TeleportClient, appName string) (certificate tls.Certificate, needLogin bool, err error) {
-	profile, err := tc.ProfileStatus()
-	if err != nil {
-		return tls.Certificate{}, false, trace.Wrap(err)
-	}
-	key, err := tc.LocalAgent().GetKey(profile.Cluster, libclient.WithAppCerts{})
+	key, err := tc.LocalAgent().GetKey(tc.SiteName, libclient.WithAppCerts{})
 	if err != nil {
 		return tls.Certificate{}, false, trace.Wrap(err)
 	}

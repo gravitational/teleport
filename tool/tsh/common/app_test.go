@@ -161,7 +161,7 @@ func TestAppCommands(t *testing.T) {
 	// Used to login to a cluster through the root proxy.
 	loginToCluster := func(t *testing.T, cluster string) string {
 		loginPath := t.TempDir()
-		err = Run(context.Background(), []string{
+		err = Run(ctx, []string{
 			"login",
 			"--insecure",
 			"--proxy", rootProxyAddr.String(),
@@ -221,7 +221,7 @@ func TestAppCommands(t *testing.T) {
 							// List the apps in the app's cluster to ensure the app is listed.
 							t.Run("tsh app ls", func(t *testing.T) {
 								lsOut := new(bytes.Buffer)
-								err = Run(context.Background(), []string{
+								err = Run(ctx, []string{
 									"app",
 									"ls",
 									"-v",
@@ -234,7 +234,7 @@ func TestAppCommands(t *testing.T) {
 
 							// Test logging into the app and connecting.
 							t.Run("tsh app login", func(t *testing.T) {
-								err = Run(context.Background(), []string{
+								err = Run(ctx, []string{
 									"app",
 									"login",
 									app.name,
@@ -244,10 +244,11 @@ func TestAppCommands(t *testing.T) {
 
 								// Retrieve the app login config (private key, ca, and cert).
 								confOut := new(bytes.Buffer)
-								err = Run(context.Background(), []string{
+								err = Run(ctx, []string{
 									"app",
 									"config",
 									app.name,
+									"--cluster", app.cluster,
 									"--format", "json",
 								}, setHomePath(loginPath), setOverrideStdout(confOut))
 								require.NoError(t, err)
@@ -262,7 +263,7 @@ func TestAppCommands(t *testing.T) {
 								testDummyAppConn(t, app.name, fmt.Sprintf("https://%v", rootProxyAddr.Addr), clientCert)
 
 								// app logout.
-								err = Run(context.Background(), []string{
+								err = Run(ctx, []string{
 									"app",
 									"logout",
 								}, setHomePath(loginPath))
@@ -271,7 +272,7 @@ func TestAppCommands(t *testing.T) {
 
 							// Test connecting to the app through a local proxy.
 							t.Run("tsh proxy app", func(t *testing.T) {
-								proxyCtx, proxyCancel := context.WithTimeout(context.Background(), time.Second)
+								proxyCtx, proxyCancel := context.WithTimeout(ctx, time.Second)
 								defer proxyCancel()
 
 								go func() {
