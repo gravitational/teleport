@@ -39,31 +39,33 @@ func TestMarshalJWK(t *testing.T) {
 	require.Equal(t, "sig", jwk.Use)
 }
 
-func TestKeyID(t *testing.T) {
-	t.Run("deterministic", func(t *testing.T) {
-		privateKey, err := rsa.GenerateKey(rand.Reader, 1024)
-		require.NoError(t, err)
-		publicKey := privateKey.Public().(*rsa.PublicKey)
-		id1 := KeyID(publicKey)
-		id2 := KeyID(publicKey)
-		require.NotEmpty(t, id1)
-		require.Equal(t, id1, id2)
+func TestKeyIDHasConsistentOutputForAnInput(t *testing.T) {
+	t.Parallel()
 
-		expectedLength := base64.RawURLEncoding.EncodedLen(sha256.Size)
-		require.Len(t, id1, expectedLength, "expected key id to always be %d characters long", expectedLength)
-	})
+	privateKey, err := rsa.GenerateKey(rand.Reader, 1024)
+	require.NoError(t, err)
+	publicKey := privateKey.Public().(*rsa.PublicKey)
+	id1 := KeyID(publicKey)
+	id2 := KeyID(publicKey)
+	require.NotEmpty(t, id1)
+	require.Equal(t, id1, id2)
 
-	t.Run("different inputs give different results", func(t *testing.T) {
-		privateKey1, err := rsa.GenerateKey(rand.Reader, 1024)
-		require.NoError(t, err)
-		privateKey2, err := rsa.GenerateKey(rand.Reader, 1024)
-		require.NoError(t, err)
-		publicKey1 := privateKey1.Public().(*rsa.PublicKey)
-		publicKey2 := privateKey2.Public().(*rsa.PublicKey)
-		id1 := KeyID(publicKey1)
-		id2 := KeyID(publicKey2)
-		require.NotEmpty(t, id1)
-		require.NotEmpty(t, id2)
-		require.NotEqual(t, id1, id2)
-	})
+	expectedLength := base64.RawURLEncoding.EncodedLen(sha256.Size)
+	require.Len(t, id1, expectedLength, "expected key id to always be %d characters long", expectedLength)
+}
+
+func TestKeyIDHasDistinctOutputForDifferingInputs(t *testing.T) {
+	t.Parallel()
+
+	privateKey1, err := rsa.GenerateKey(rand.Reader, 1024)
+	require.NoError(t, err)
+	privateKey2, err := rsa.GenerateKey(rand.Reader, 1024)
+	require.NoError(t, err)
+	publicKey1 := privateKey1.Public().(*rsa.PublicKey)
+	publicKey2 := privateKey2.Public().(*rsa.PublicKey)
+	id1 := KeyID(publicKey1)
+	id2 := KeyID(publicKey2)
+	require.NotEmpty(t, id1)
+	require.NotEmpty(t, id2)
+	require.NotEqual(t, id1, id2)
 }

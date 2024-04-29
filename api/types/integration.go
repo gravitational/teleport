@@ -354,8 +354,8 @@ func (ig *IntegrationV1) MarshalJSON() ([]byte, error) {
 	d := struct {
 		ResourceHeader `json:""`
 		Spec           struct {
-			AWSOIDC   AWSOIDCIntegrationSpecV1   `json:"aws_oidc"`
-			AzureOIDC AzureOIDCIntegrationSpecV1 `json:"azure_oidc"`
+			AWSOIDC   AWSOIDCIntegrationSpecV1   `json:"aws_oidc,omitempty"`
+			AzureOIDC AzureOIDCIntegrationSpecV1 `json:"azure_oidc,omitempty"`
 		} `json:"spec"`
 	}{}
 
