@@ -52,6 +52,7 @@ func NewAptRunner() (*AptRunner, error) {
 				"kinetic",  // 22.10 (EOL)
 				"lunar",    // 23.04
 				"mantic",   // 23.10
+				"noble",    // 24.04 LTS
 			},
 		},
 	}
