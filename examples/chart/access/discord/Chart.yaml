@@ -1,4 +1,4 @@
-.version: &version "15.2.5"
+.version: &version "15.2.6-dev.cloud01"
 
 apiVersion: v2
 name: teleport-plugin-discord
