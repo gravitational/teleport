@@ -139,6 +139,10 @@ type EnrichedResource struct {
 	ResourceWithLabels
 	// Logins that the user is allowed to access the above resource with.
 	Logins []string
+	// RequiresRequest is true if a resource is being returned to the user but requires
+	// an access request to access. This is done during `ListUnifiedResources` when
+	// searchAsRoles is true
+	RequiresRequest bool
 }
 
 // ResourcesWithLabels is a list of labeled resources.

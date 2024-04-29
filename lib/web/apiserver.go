@@ -2644,6 +2644,7 @@ func makeUnifiedResourceRequest(r *http.Request) (*proto.ListUnifiedResourcesReq
 		SearchKeywords:      client.ParseSearchKeywords(values.Get("search"), ' '),
 		UseSearchAsRoles:    values.Get("searchAsRoles") == "yes",
 		IncludeLogins:       true,
+		IncludeRequestable:  values.Get("includeRequestable") == "true",
 	}, nil
 }
 
