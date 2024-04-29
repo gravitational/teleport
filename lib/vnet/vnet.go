@@ -338,7 +338,7 @@ func forwardBetweenTunAndNetstack(ctx context.Context, tun TUNDevice, linkEndpoi
 	slog.DebugContext(ctx, "Forwarding IP packets between OS and VNet.")
 	g, ctx := errgroup.WithContext(ctx)
 	g.Go(func() error { return forwardNetstackToTUN(ctx, linkEndpoint, tun) })
-	g.Go(func() error { return forwardTUNtoNetstack(ctx, tun, linkEndpoint) })
+	g.Go(func() error { return forwardTUNtoNetstack(tun, linkEndpoint) })
 	g.Go(func() error {
 		<-ctx.Done()
 		linkEndpoint.Close()
@@ -369,7 +369,7 @@ func forwardNetstackToTUN(ctx context.Context, linkEndpoint *channel.Endpoint, t
 	}
 }
 
-func forwardTUNtoNetstack(ctx context.Context, tun TUNDevice, linkEndpoint *channel.Endpoint) error {
+func forwardTUNtoNetstack(tun TUNDevice, linkEndpoint *channel.Endpoint) error {
 	const readOffset = device.MessageTransportHeaderSize
 	bufs := make([][]byte, tun.BatchSize())
 	for i := range bufs {
