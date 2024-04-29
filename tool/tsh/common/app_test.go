@@ -105,7 +105,6 @@ func TestAppCommands(t *testing.T) {
 	connector := mockConnector(t)
 
 	rootServerOpts := []testserver.TestServerOptFunc{
-		testserver.WithTestDefaults(t),
 		testserver.WithBootstrap(connector, accessUser),
 		testserver.WithClusterName(t, "root"),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
@@ -125,7 +124,6 @@ func TestAppCommands(t *testing.T) {
 	require.NoError(t, err)
 
 	leafServerOpts := []testserver.TestServerOptFunc{
-		testserver.WithTestDefaults(t),
 		testserver.WithBootstrap(accessUser),
 		testserver.WithClusterName(t, "leaf"),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {

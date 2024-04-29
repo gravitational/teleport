@@ -161,6 +161,11 @@ func MakeTestServer(t *testing.T, opts ...TestServerOptFunc) (process *service.T
 	require.NoError(t, err)
 	cfg.Auth.StaticTokens = staticToken
 
+	// Disable session recording to prevent writing to disk after the test concludes.
+	cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
+	// Speeds up tests considerably.
+	cfg.Auth.StorageConfig.Params["poll_stream_period"] = 50 * time.Millisecond
+
 	cfg.Proxy.WebAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: NewTCPListener(t, service.ListenerProxyWeb, &cfg.FileDescriptors)}
 	cfg.Proxy.SSHAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: NewTCPListener(t, service.ListenerProxySSH, &cfg.FileDescriptors)}
 	cfg.Proxy.ReverseTunnelListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: NewTCPListener(t, service.ListenerProxyTunnel, &cfg.FileDescriptors)}
@@ -287,16 +292,6 @@ type TestServersOpts struct {
 
 type TestServerOptFunc func(o *TestServersOpts)
 
-// TODO(Joerger): consider applying these defaults in MakeTestServer by default.
-func WithTestDefaults(t *testing.T) TestServerOptFunc {
-	return WithAuthConfig(func(cfg *servicecfg.AuthConfig) {
-		// Disable session recording to prevent writing to disk after the test concludes.
-		cfg.SessionRecordingConfig.SetMode(types.RecordOff)
-		// Speeds up tests considerably.
-		cfg.StorageConfig.Params["poll_stream_period"] = 50 * time.Millisecond
-	})
-}
-
 func WithBootstrap(bootstrap ...types.Resource) TestServerOptFunc {
 	return func(o *TestServersOpts) {
 		o.Bootstrap = append(o.Bootstrap, bootstrap...)
@@ -381,12 +376,6 @@ func SetupTrustedCluster(ctx context.Context, t *testing.T, rootServer, leafServ
 		assert.NoError(t, err)
 		assert.Len(t, rt, 1)
 	}, time.Second*10, time.Second)
-}
-
-func WithoutSessionRecording() TestServerOptFunc {
-	return WithConfig(func(cfg *servicecfg.Config) {
-		cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
-	})
 }
 
 type cliModules struct{}
