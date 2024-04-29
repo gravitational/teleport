@@ -22,6 +22,7 @@ import (
 	"os"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/sync/errgroup"
 	"golang.zx2c4.com/wireguard/tun"
 )
 
@@ -45,9 +46,13 @@ func Run(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	runErr := ignoreCancel(manager.Run())
-	destroyErr := ignoreCancel(manager.Destroy())
-	return trace.NewAggregate(runErr, destroyErr)
+	g, ctx := errgroup.WithContext(ctx)
+	g.Go(manager.Run)
+	g.Go(func() error {
+		<-ctx.Done()
+		return trace.Wrap(manager.Destroy())
+	})
+	return trace.Wrap(g.Wait())
 }
 
 // AdminSubcommand is the tsh subcommand that should run as root that will
