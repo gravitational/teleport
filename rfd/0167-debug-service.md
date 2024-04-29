@@ -48,7 +48,7 @@ integrations, such as the usage of
 Teleport will start listening using a Unix socket located at
 `<data_dir>/debug.sock`.
 
-Having the the socket placed at the instan data directory will also cover
+Having the socket placed at the instan data directory will also cover
 scenarios where multiple instances of running on the same machine exist. In
 this case, the consumers can rely on the Teleport configuration to locate the
 data directory.

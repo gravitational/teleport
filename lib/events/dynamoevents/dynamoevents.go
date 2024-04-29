@@ -112,6 +112,9 @@ type Config struct {
 	UIDGenerator utils.UID
 	// Endpoint is an optional non-AWS endpoint
 	Endpoint string
+	// DisableConflictCheck disables conflict checks when emitting an event.
+	// Disabling it can cause events to be lost due to them being overwritten.
+	DisableConflictCheck bool
 
 	// ReadMaxCapacity is the maximum provisioned read capacity.
 	ReadMaxCapacity int64
@@ -144,6 +147,10 @@ type Config struct {
 func (cfg *Config) SetFromURL(in *url.URL) error {
 	if endpoint := in.Query().Get(teleport.Endpoint); endpoint != "" {
 		cfg.Endpoint = endpoint
+	}
+
+	if disableConflictCheck := in.Query().Get("disable_conflict_check"); disableConflictCheck != "" {
+		cfg.DisableConflictCheck = true
 	}
 
 	const boolErrorTemplate = "failed to parse URI %q flag %q - %q, supported values are 'true', 'false', or any other" +
@@ -366,29 +373,40 @@ const (
 func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error {
 	ctx = context.WithoutCancel(ctx)
 	sessionID := getSessionID(in)
-	if err := l.putAuditEvent(ctx, sessionID, in); err != nil {
-		switch {
-		case isAWSValidationError(err):
-			// In case of ValidationException: Item size has exceeded the maximum allowed size
-			// sanitize event length and retry upload operation.
-			return trace.Wrap(l.handleAWSValidationError(ctx, err, sessionID, in))
-		}
-		return trace.Wrap(err)
-	}
-	return nil
+	return trace.Wrap(l.putAuditEvent(ctx, sessionID, in))
 }
 
 func (l *Log) handleAWSValidationError(ctx context.Context, err error, sessionID string, in apievents.AuditEvent) error {
+	if alreadyTrimmed := ctx.Value(largeEventHandledContextKey); alreadyTrimmed != nil {
+		return err
+	}
+
 	se, ok := trimEventSize(in)
 	if !ok {
 		return trace.BadParameter(err.Error())
 	}
-	if err := l.putAuditEvent(ctx, sessionID, se); err != nil {
+	if err := l.putAuditEvent(context.WithValue(ctx, largeEventHandledContextKey, true), sessionID, se); err != nil {
 		return trace.BadParameter(err.Error())
 	}
 	fields := log.Fields{"event_id": in.GetID(), "event_type": in.GetType()}
 	l.WithFields(fields).Info("Uploaded trimmed event to DynamoDB backend.")
 	events.MetricStoredTrimmedEvents.Inc()
+	return nil
+}
+
+func (l *Log) handleConditionError(ctx context.Context, err error, sessionID string, in apievents.AuditEvent) error {
+	if alreadyUpdated := ctx.Value(conflictHandledContextKey); alreadyUpdated != nil {
+		return err
+	}
+
+	// Update index using the current system time instead of event time to
+	// ensure the value is always set.
+	in.SetIndex(l.Clock.Now().UnixNano())
+
+	if err := l.putAuditEvent(context.WithValue(ctx, conflictHandledContextKey, true), sessionID, in); err != nil {
+		return trace.Wrap(err)
+	}
+	l.WithFields(log.Fields{"event_id": in.GetID(), "event_type": in.GetType()}).Debug("Event index overwritten")
 	return nil
 }
 
@@ -415,13 +433,48 @@ func trimEventSize(event apievents.AuditEvent) (apievents.AuditEvent, bool) {
 	return m.TrimToMaxSize(maxItemSize), true
 }
 
+// putAuditEventContextKey represents context keys of putAuditEvent.
+type putAuditEventContextKey int
+
+const (
+	// conflictHandledContextKey if present on the context, the conflict error
+	// was already handled.
+	conflictHandledContextKey putAuditEventContextKey = iota
+	// largeEventHandledContextKey if present on the context, the large event
+	// error was already handled.
+	largeEventHandledContextKey
+)
+
 func (l *Log) putAuditEvent(ctx context.Context, sessionID string, in apievents.AuditEvent) error {
 	input, err := l.createPutItem(sessionID, in)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = l.svc.PutItemWithContext(ctx, input)
-	return convertError(err)
+
+	if _, err = l.svc.PutItemWithContext(ctx, input); err != nil {
+		err = convertError(err)
+
+		switch {
+		case isAWSValidationError(err):
+			// In case of ValidationException: Item size has exceeded the maximum allowed size
+			// sanitize event length and retry upload operation.
+			return trace.Wrap(l.handleAWSValidationError(ctx, err, sessionID, in))
+		case trace.IsAlreadyExists(err):
+			// Condition errors are directly related to the uniqueness of the
+			// item event index/session id. Since we can't change the session
+			// id, update the event index with a new value and retry the put
+			// item.
+			l.
+				WithError(err).
+				WithFields(log.Fields{"event_type": in.GetType(), "session_id": sessionID, "event_index": in.GetIndex()}).
+				Error("Conflict on event session_id and event_index")
+			return trace.Wrap(l.handleConditionError(ctx, err, sessionID, in))
+		}
+
+		return err
+	}
+
+	return nil
 }
 
 func (l *Log) createPutItem(sessionID string, in apievents.AuditEvent) (*dynamodb.PutItemInput, error) {
@@ -443,11 +496,17 @@ func (l *Log) createPutItem(sessionID string, in apievents.AuditEvent) (*dynamod
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &dynamodb.PutItemInput{
-		Item:                av,
-		TableName:           aws.String(l.Tablename),
-		ConditionExpression: aws.String("attribute_not_exists(SessionID) AND attribute_not_exists(EventIndex)"),
-	}, nil
+
+	input := &dynamodb.PutItemInput{
+		Item:      av,
+		TableName: aws.String(l.Tablename),
+	}
+
+	if !l.Config.DisableConflictCheck {
+		input.ConditionExpression = aws.String("attribute_not_exists(SessionID) AND attribute_not_exists(EventIndex)")
+	}
+
+	return input, nil
 }
 
 type messageSizeTrimmer interface {

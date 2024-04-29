@@ -744,6 +744,9 @@ func TestGenerateUserCerts_deviceExtensions(t *testing.T) {
 func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise, // required for Device Trust.
+		TestFeatures: modules.Features{
+			App: true,
+		},
 	})
 
 	testServer := newTestTLSServer(t)
@@ -844,7 +847,6 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 		Usage:          proto.UserCertsRequest_App,
 		RouteToApp: proto.RouteToApp{
 			Name:        "hello",
-			SessionID:   "mysessionid",
 			PublicAddr:  "hello.cluster.dev",
 			ClusterName: clusterName,
 		},

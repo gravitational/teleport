@@ -937,7 +937,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	// Perform the handshake explicitly, normally it should be performed
 	// on the first read/write but when the connection is passed over
 	// reverse tunnel it doesn't happen for some reason.
-	err := tlsConn.Handshake()
+	err := tlsConn.HandshakeContext(s.closeContext)
 	if err != nil {
 		log.WithError(err).Error("Failed to perform TLS handshake.")
 		return

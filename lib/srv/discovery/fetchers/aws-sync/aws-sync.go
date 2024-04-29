@@ -22,8 +22,10 @@ import (
 	"context"
 	"reflect"
 	"sync"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
@@ -249,14 +251,28 @@ func (a *awsFetcher) poll(ctx context.Context, features Features) (*Resources, e
 
 // getAWSOptions returns a list of AWSAssumeRoleOptionFn to be used when
 // creating AWS clients.
-func (a *awsFetcher) getAWSOptions() []cloud.AWSAssumeRoleOptionFn {
-	opts := []cloud.AWSAssumeRoleOptionFn{
+func (a *awsFetcher) getAWSOptions() []cloud.AWSOptionsFn {
+	opts := []cloud.AWSOptionsFn{
 		cloud.WithCredentialsMaybeIntegration(a.Config.Integration),
 	}
 
 	if a.Config.AssumeRole != nil {
 		opts = append(opts, cloud.WithAssumeRole(a.Config.AssumeRole.RoleARN, a.Config.AssumeRole.ExternalID))
 	}
+	const maxRetries = 10
+	opts = append(opts,
+		cloud.WithMaxRetries(maxRetries),
+		cloud.WithRetryer(
+			client.DefaultRetryer{
+				NumMaxRetries:    maxRetries,
+				MinRetryDelay:    time.Second,
+				MinThrottleDelay: time.Second,
+				MaxRetryDelay:    300 * time.Second,
+				MaxThrottleDelay: 300 * time.Second,
+			},
+		),
+	)
+
 	return opts
 }
 
