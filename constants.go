@@ -418,7 +418,7 @@ const (
 	MinimumEtcdVersion = "3.3.0"
 
 	// EnvVarAllowNoSecondFactor is used to allow disabling second factor auth
-	// todo(amk): remove in 17
+	// todo(lxea): DELETE IN 17
 	EnvVarAllowNoSecondFactor = "TELEPORT_ALLOW_NO_SECOND_FACTOR"
 )
 

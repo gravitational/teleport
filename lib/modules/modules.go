@@ -332,8 +332,8 @@ func GetModules() Modules {
 
 // ValidateResource performs additional resource checks.
 func ValidateResource(res types.Resource) error {
-	// todo(lxea): remove condition in 17
-	if GetModules().Features().Cloud || os.Getenv(teleport.EnvVarAllowNoSecondFactor) != "true" {
+	// todo(lxea): DELETE IN 17
+	if GetModules().Features().Cloud || os.Getenv(teleport.EnvVarAllowNoSecondFactor) != "yes" {
 		switch r := res.(type) {
 		case types.AuthPreference:
 			switch r.GetSecondFactor() {
