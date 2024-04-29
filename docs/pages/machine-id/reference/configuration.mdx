@@ -389,6 +389,38 @@ svids:
         - 10.0.0.1
 ```
 
+#### `database-tunnel`
+
+The `database-tunnel` service opens a listener for a service that tunnels
+connections to a database server.
+
+The tunnel authenticates connections for the client, meaning that any
+application which can connect to the listener will be able to connect to the
+database as the specified user. For this reason, we heavily recommend using the
+unix socket listener type and configuring the permissions of the socket to
+ensure that only the intended applications can connect.
+
+```yaml
+# type specifies the type of the service. For the database tunnel service, this
+# will always be `database-tunnel`.
+type: database-tunnel
+# listen specifies the address that the service should listen on.
+#
+# Two types of listener are supported:
+# - TCP: `tcp://<address>:<port>`
+# - Unix socket: `unix:///<path>`
+listen: tcp://127.0.0.1:25432
+# service is the name of the database server, as configured in Teleport, that
+# the service should open a tunnel to.
+service: postgres-docker
+# database is the name of the specific database on the specified database
+# service.
+database: postgres
+# username is the name of the user on the specified database server to open a
+# tunnel for.
+username: postgres
+```
+
 ### Destinations
 
 A destination is somewhere that `tbot` can read and write artifacts.
