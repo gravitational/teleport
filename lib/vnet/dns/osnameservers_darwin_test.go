@@ -24,6 +24,7 @@ import (
 	"net"
 	"testing"
 
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
@@ -45,12 +46,16 @@ func TestOSUpstreamNameservers(t *testing.T) {
 	conn, err := net.ListenUDP("udp", udpLocalhost)
 	require.NoError(t, err)
 
-	runInBackground(ctx, t, "nameserver", func(ctx context.Context) error {
-		return trace.Wrap(server.ListenAndServeUDP(ctx, conn))
-	})
-	t.Cleanup(func() {
-		cancel()
-		conn.Close()
+	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
+		Name: "nameserver",
+		Task: func(ctx context.Context) error {
+			err := server.ListenAndServeUDP(ctx, conn)
+			if err == nil || utils.IsOKNetworkError(err) {
+				return nil
+			}
+			return trace.Wrap(err)
+		},
+		Terminate: conn.Close,
 	})
 
 	netResolver := &net.Resolver{

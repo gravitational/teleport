@@ -18,11 +18,11 @@ package dns
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -40,35 +40,11 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func runInBackground(ctx context.Context, t *testing.T, name string, task func(context.Context) error) {
-	ctx, cancel := context.WithCancel(ctx)
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		err := trace.Wrap(task(ctx))
-		// Only care about the error if the task exited early, which we know is true if the context hasn't
-		// been canceled.
-		if ctx.Err() == nil {
-			t.Errorf("%s exited early with error: %v", name, err)
-		}
-	}()
-	t.Cleanup(func() {
-		cancel()
-		select {
-		case <-done:
-		case <-time.After(2 * time.Second):
-			t.Errorf("%s didn't exit after 2 seconds", name)
-		}
-	})
-}
-
 // TestServer sets up a main DNS server and two upstream DNS servers, all using real UDP sockets, and tests
 // that net.Resolver can successfully use the stack to lookup hosts.
 func TestServer(t *testing.T) {
 	t.Parallel()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
+	ctx := context.Background()
 
 	defaultIP4 := tcpip.AddrFrom4([4]byte{1, 2, 3, 4})
 	defaultIP6 := tcpip.AddrFrom16([16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16})
@@ -87,11 +63,16 @@ func TestServer(t *testing.T) {
 		conn, err := net.ListenUDP("udp", udpLocalhost)
 		require.NoError(t, err)
 
-		runInBackground(ctx, t, "upstream nameserver", func(ctx context.Context) error {
-			return trace.Wrap(upstreamServer.ListenAndServeUDP(ctx, conn))
-		})
-		t.Cleanup(func() {
-			conn.Close()
+		utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
+			Name: fmt.Sprintf("upstream nameserver %d", i),
+			Task: func(ctx context.Context) error {
+				err := upstreamServer.ListenAndServeUDP(ctx, conn)
+				if err == nil || utils.IsOKNetworkError(err) {
+					return nil
+				}
+				return trace.Wrap(err)
+			},
+			Terminate: conn.Close,
 		})
 
 		upstreamAddrs = append(upstreamAddrs, conn.LocalAddr().String())
@@ -132,12 +113,16 @@ func TestServer(t *testing.T) {
 	conn, err := net.ListenUDP("udp", udpLocalhost)
 	require.NoError(t, err)
 
-	runInBackground(ctx, t, "nameserver under test", func(ctx context.Context) error {
-		return trace.Wrap(server.ListenAndServeUDP(ctx, conn))
-	})
-	t.Cleanup(func() {
-		cancel()
-		conn.Close()
+	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
+		Name: "nameserver under test",
+		Task: func(ctx context.Context) error {
+			err := server.ListenAndServeUDP(ctx, conn)
+			if err == nil || utils.IsOKNetworkError(err) {
+				return nil
+			}
+			return trace.Wrap(err)
+		},
+		Terminate: conn.Close,
 	})
 
 	netResolver := &net.Resolver{
