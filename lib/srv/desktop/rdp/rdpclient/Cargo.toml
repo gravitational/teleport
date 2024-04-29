@@ -21,6 +21,8 @@ ironrdp-rdpdr.workspace = true
 ironrdp-rdpsnd.workspace = true
 ironrdp-session.workspace = true
 ironrdp-svc.workspace = true
+ironrdp-dvc.workspace = true
+ironrdp-displaycontrol.workspace = true
 ironrdp-tls.workspace = true
 ironrdp-tokio.workspace = true
 iso7816 = "0.1.2"
@@ -35,7 +37,7 @@ static_init = "1.0.3"
 tokio = { version = "1.36", features = ["full"] }
 tokio-boring = { git = "https://github.com/gravitational/boring", rev="605253d99d5e363e178bcf97e1d4622e33844cd5", optional = true }
 utf16string = "0.2.0"
-uuid = { version = "1.6.1", features = ["v4"] }
+uuid = { version = "1.8.0", features = ["v4"] }
 
 [build-dependencies]
 cbindgen = "0.26.0"
