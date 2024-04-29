@@ -3490,8 +3490,7 @@ func TestListResources_SearchAsRoles(t *testing.T) {
 		},
 		{
 			// this tests the case where the request includes UseSearchAsRoles
-			// and UsePreviewAsRoles, but the user has none, so there should be
-			// no audit event.
+			// and UsePreviewAsRoles, but the user has none
 			desc: "no extra roles",
 			clt:  adminClt,
 			requestOpt: func(req *proto.ListResourcesRequest) {
@@ -3502,11 +3501,6 @@ func TestListResources_SearchAsRoles(t *testing.T) {
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			// Overwrite the auth server emitter to capture all events emitted
-			// during this test case.
-			emitter := eventstest.NewChannelEmitter(1)
-			srv.AuthServer.AuthServer.emitter = emitter
-
 			req := proto.ListResourcesRequest{
 				ResourceType: types.KindNode,
 				Limit:        int32(len(testNodes)),
@@ -3522,14 +3516,6 @@ func TestListResources_SearchAsRoles(t *testing.T) {
 				gotNodes = append(gotNodes, node.GetName())
 			}
 			require.ElementsMatch(t, tc.expectNodes, gotNodes)
-
-			if len(tc.expectSearchEventRoles) > 0 {
-				searchEvent := <-emitter.C()
-				require.ElementsMatch(t, tc.expectSearchEventRoles, searchEvent.(*apievents.AccessRequestResourceSearch).SearchAsRoles)
-			} else {
-				// expect no event to have been emitted
-				require.Empty(t, emitter.C())
-			}
 		})
 	}
 }
@@ -4613,6 +4599,113 @@ func TestListUnifiedResources_WithLogins(t *testing.T) {
 		}
 
 		require.Empty(t, resource.Logins)
+	}
+}
+
+func TestListUnifiedResources_IncludeRequestable(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// Create test nodes.
+	const numTestNodes = 3
+	for i := 0; i < numTestNodes; i++ {
+		name := fmt.Sprintf("node%d", i)
+		node, err := types.NewServerWithLabels(
+			name,
+			types.KindNode,
+			types.ServerSpecV2{},
+			map[string]string{"name": name},
+		)
+		require.NoError(t, err)
+
+		_, err = srv.Auth().UpsertNode(ctx, node)
+		require.NoError(t, err)
+	}
+
+	testNodes, err := srv.Auth().GetNodes(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Len(t, testNodes, numTestNodes)
+
+	// create user and client
+	requester, role, err := CreateUserAndRole(srv.Auth(), "requester", []string{"requester"}, nil)
+	require.NoError(t, err)
+
+	// only allow user to see first node
+	role.SetNodeLabels(types.Allow, types.Labels{"name": {testNodes[0].GetName()}})
+
+	// create a new role which can see second node
+	searchAsRole := services.RoleForUser(requester)
+	searchAsRole.SetName("test_search_role")
+	searchAsRole.SetNodeLabels(types.Allow, types.Labels{"name": {testNodes[1].GetName()}})
+	searchAsRole.SetLogins(types.Allow, []string{"requester"})
+	_, err = srv.Auth().UpsertRole(ctx, searchAsRole)
+	require.NoError(t, err)
+
+	role.SetSearchAsRoles(types.Allow, []string{searchAsRole.GetName()})
+	_, err = srv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	requesterClt, err := srv.NewClient(TestUser(requester.GetName()))
+	require.NoError(t, err)
+
+	type expected struct {
+		name        string
+		requestable bool
+	}
+
+	for _, tc := range []struct {
+		desc              string
+		clt               *Client
+		requestOpt        func(*proto.ListUnifiedResourcesRequest)
+		expectedResources []expected
+	}{
+		{
+			desc:              "no search",
+			clt:               requesterClt,
+			expectedResources: []expected{{name: testNodes[0].GetName(), requestable: false}},
+		},
+		{
+			desc: "search as roles without requestable",
+			clt:  requesterClt,
+			requestOpt: func(req *proto.ListUnifiedResourcesRequest) {
+				req.UseSearchAsRoles = true
+			},
+			expectedResources: []expected{
+				{name: testNodes[0].GetName(), requestable: false},
+				{name: testNodes[1].GetName(), requestable: false},
+			},
+		},
+		{
+			desc: "search as roles with requestable",
+			clt:  requesterClt,
+			requestOpt: func(req *proto.ListUnifiedResourcesRequest) {
+				req.IncludeRequestable = true
+				req.UseSearchAsRoles = true
+			},
+			expectedResources: []expected{
+				{name: testNodes[0].GetName(), requestable: false},
+				{name: testNodes[1].GetName(), requestable: true},
+			},
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			req := proto.ListUnifiedResourcesRequest{
+				SortBy: types.SortBy{Field: "name", IsDesc: false},
+				Limit:  int32(len(testNodes)),
+			}
+			if tc.requestOpt != nil {
+				tc.requestOpt(&req)
+			}
+			resp, err := tc.clt.ListUnifiedResources(ctx, &req)
+			require.NoError(t, err)
+			require.Len(t, resp.Resources, len(tc.expectedResources))
+			var resources []expected
+			for _, resource := range resp.Resources {
+				resources = append(resources, expected{name: resource.GetNode().GetName(), requestable: resource.RequiresRequest})
+			}
+			require.ElementsMatch(t, tc.expectedResources, resources)
+		})
 	}
 }
 
