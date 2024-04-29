@@ -19,10 +19,86 @@
 package uds
 
 import (
+	"context"
 	"net"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/grpc/credentials"
 )
+
+type transportCredentials struct {
+	wrapped credentials.TransportCredentials
+}
+
+// AuthInfo is a wrapper around the credentials.AuthInfo interface that also
+// includes information about the peer connected to the UDS.
+type AuthInfo struct {
+	// Wrapped contains the wrapped credentials.AuthInfo.
+	Wrapped credentials.AuthInfo
+	// Creds contains information about the peer connected to the UDS.
+	// It is nil if the peer is not connected via UDS.
+	Creds *Creds
+}
+
+// AuthType implements the credentials.AuthInfo interface.
+func (a AuthInfo) AuthType() string {
+	return a.Wrapped.AuthType()
+}
+
+// NewTransportCredentials returns a new credentials.TransportCredentials that
+// wraps the provided credentials.TransportCredentials. This wrapper adds
+// information about the peer connected to the AuthInfo via UDS if available.
+func NewTransportCredentials(
+	wrapped credentials.TransportCredentials,
+) credentials.TransportCredentials {
+	return &transportCredentials{
+		wrapped: wrapped,
+	}
+}
+
+// ClientHandshake implements the credentials.TransportCredentials interface.
+func (c *transportCredentials) ClientHandshake(
+	ctx context.Context, authority string, conn net.Conn,
+) (net.Conn, credentials.AuthInfo, error) {
+	return c.wrapped.ClientHandshake(ctx, authority, conn)
+}
+
+// ServerHandshake implements the credentials.TransportCredentials interface.
+func (c *transportCredentials) ServerHandshake(
+	conn net.Conn,
+) (net.Conn, credentials.AuthInfo, error) {
+	wrappedConn, wrappedAuthInfo, err := c.wrapped.ServerHandshake(conn)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	var creds *Creds
+	if udsConn, ok := conn.(*net.UnixConn); ok {
+		creds, err = getCreds(udsConn)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+	}
+
+	return wrappedConn, AuthInfo{
+		Wrapped: wrappedAuthInfo,
+		Creds:   creds,
+	}, nil
+}
+
+func (c *transportCredentials) Info() credentials.ProtocolInfo {
+	return c.wrapped.Info()
+}
+
+func (c *transportCredentials) Clone() credentials.TransportCredentials {
+	return &transportCredentials{
+		wrapped: c.wrapped.Clone(),
+	}
+}
+
+func (c *transportCredentials) OverrideServerName(sn string) error {
+	return c.wrapped.OverrideServerName(sn)
+}
 
 // Creds contains information about the peer connected to the UDS.
 type Creds struct {
