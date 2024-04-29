@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
+	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -303,16 +304,29 @@ func TestFormatAppConfig(t *testing.T) {
 
 	defaultTc := &client.TeleportClient{
 		Config: client.Config{
-			WebProxyAddr: "test-tp.teleport:8443",
+			SiteName:     "root",
+			WebProxyAddr: "root.example.com:8443",
 		},
 	}
 	testProfile := &client.ProfileStatus{
-		Username: "test-user",
+		Username: "alice",
 		Dir:      "/test/dir",
 	}
-	testAppName := "test-tp"
-	testAppPublicAddr := "test-tp.teleport"
-	testCluster := "test-tp"
+
+	testAppName := "test-app"
+	testAppPublicAddr := "test-app.example.com"
+
+	asciiRows := [][]string{
+		{"Name:     ", testAppName},
+		{"URI:", "https://test-app.example.com:8443"},
+		{"CA:", "/test/dir/keys/cas/root.pem"},
+		{"Cert:", "/test/dir/keys/alice-app/root/test-app-x509.pem"},
+		{"Key:", "/test/dir/keys/alice"},
+	}
+
+	defaultFormatTable := asciitable.MakeTable(make([]string, 2), asciiRows...)
+	defaultFormatTableAzure := asciitable.MakeTable(make([]string, 2), append(asciiRows, []string{"Azure Id:", "/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/my-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure"})...)
+	defaultFormatTableGCP := asciitable.MakeTable(make([]string, 2), append(asciiRows, []string{"GCP Service Account:", "dev@example-123456.iam.gserviceaccount.com"})...)
 
 	tests := []struct {
 		name              string
@@ -329,44 +343,45 @@ func TestFormatAppConfig(t *testing.T) {
 			name: "format URI standard HTTPS port",
 			tc: &client.TeleportClient{
 				Config: client.Config{
-					WebProxyAddr: "test-tp.teleport:443",
+					SiteName:     "root",
+					WebProxyAddr: "https://root.example.com:443",
 				},
 			},
 			format:   appFormatURI,
-			expected: "https://test-tp.teleport",
+			expected: "https://test-app.example.com",
 		},
 		{
 			name:     "format URI standard non-standard HTTPS port",
 			tc:       defaultTc,
 			format:   appFormatURI,
-			expected: "https://test-tp.teleport:8443",
+			expected: "https://test-app.example.com:8443",
 		},
 		{
 			name:     "format CA",
 			tc:       defaultTc,
 			format:   appFormatCA,
-			expected: "/test/dir/keys/cas/test-tp.pem",
+			expected: "/test/dir/keys/cas/root.pem",
 		},
 		{
 			name:     "format cert",
 			tc:       defaultTc,
 			format:   appFormatCert,
-			expected: "/test/dir/keys/test-user-app/test-tp-x509.pem",
+			expected: "/test/dir/keys/alice-app/root/test-app-x509.pem",
 		},
 		{
 			name:     "format key",
 			tc:       defaultTc,
 			format:   appFormatKey,
-			expected: "/test/dir/keys/test-user",
+			expected: "/test/dir/keys/alice",
 		},
 		{
 			name:   "format curl standard non-standard HTTPS port",
 			tc:     defaultTc,
 			format: appFormatCURL,
 			expected: `curl \
-  --cert /test/dir/keys/test-user-app/test-tp-x509.pem \
-  --key /test/dir/keys/test-user \
-  https://test-tp.teleport:8443`,
+  --cert /test/dir/keys/alice-app/root/test-app-x509.pem \
+  --key /test/dir/keys/alice \
+  https://test-app.example.com:8443`,
 		},
 		{
 			name:     "format insecure curl standard non-standard HTTPS port",
@@ -374,21 +389,21 @@ func TestFormatAppConfig(t *testing.T) {
 			format:   appFormatCURL,
 			insecure: true,
 			expected: `curl --insecure \
-  --cert /test/dir/keys/test-user-app/test-tp-x509.pem \
-  --key /test/dir/keys/test-user \
-  https://test-tp.teleport:8443`,
+  --cert /test/dir/keys/alice-app/root/test-app-x509.pem \
+  --key /test/dir/keys/alice \
+  https://test-app.example.com:8443`,
 		},
 		{
 			name:   "format JSON",
 			tc:     defaultTc,
 			format: appFormatJSON,
 			expected: `{
-  "name": "test-tp",
-  "uri": "https://test-tp.teleport:8443",
-  "ca": "/test/dir/keys/cas/test-tp.pem",
-  "cert": "/test/dir/keys/test-user-app/test-tp-x509.pem",
-  "key": "/test/dir/keys/test-user",
-  "curl": "curl \\\n  --cert /test/dir/keys/test-user-app/test-tp-x509.pem \\\n  --key /test/dir/keys/test-user \\\n  https://test-tp.teleport:8443"
+  "name": "test-app",
+  "uri": "https://test-app.example.com:8443",
+  "ca": "/test/dir/keys/cas/root.pem",
+  "cert": "/test/dir/keys/alice-app/root/test-app-x509.pem",
+  "key": "/test/dir/keys/alice",
+  "curl": "curl \\\n  --cert /test/dir/keys/alice-app/root/test-app-x509.pem \\\n  --key /test/dir/keys/alice \\\n  https://test-app.example.com:8443"
 }
 `,
 		},
@@ -396,39 +411,29 @@ func TestFormatAppConfig(t *testing.T) {
 			name:   "format YAML",
 			tc:     defaultTc,
 			format: appFormatYAML,
-			expected: `ca: /test/dir/keys/cas/test-tp.pem
-cert: /test/dir/keys/test-user-app/test-tp-x509.pem
+			expected: `ca: /test/dir/keys/cas/root.pem
+cert: /test/dir/keys/alice-app/root/test-app-x509.pem
 curl: |-
   curl \
-    --cert /test/dir/keys/test-user-app/test-tp-x509.pem \
-    --key /test/dir/keys/test-user \
-    https://test-tp.teleport:8443
-key: /test/dir/keys/test-user
-name: test-tp
-uri: https://test-tp.teleport:8443
+    --cert /test/dir/keys/alice-app/root/test-app-x509.pem \
+    --key /test/dir/keys/alice \
+    https://test-app.example.com:8443
+key: /test/dir/keys/alice
+name: test-app
+uri: https://test-app.example.com:8443
 `,
 		},
 		{
-			name:   "format default",
-			tc:     defaultTc,
-			format: "default",
-			expected: `Name:      test-tp                                       
-URI:       https://test-tp.teleport:8443                 
-CA:        /test/dir/keys/cas/test-tp.pem                
-Cert:      /test/dir/keys/test-user-app/test-tp-x509.pem 
-Key:       /test/dir/keys/test-user                      
-`,
+			name:     "format default",
+			tc:       defaultTc,
+			format:   "default",
+			expected: defaultFormatTable.AsBuffer().String(),
 		},
 		{
-			name:   "empty format means default",
-			tc:     defaultTc,
-			format: "",
-			expected: `Name:      test-tp                                       
-URI:       https://test-tp.teleport:8443                 
-CA:        /test/dir/keys/cas/test-tp.pem                
-Cert:      /test/dir/keys/test-user-app/test-tp-x509.pem 
-Key:       /test/dir/keys/test-user                      
-`,
+			name:     "empty format means default",
+			tc:       defaultTc,
+			format:   "",
+			expected: defaultFormatTable.AsBuffer().String(),
 		},
 		{
 			name:    "reject invalid format",
@@ -442,13 +447,7 @@ Key:       /test/dir/keys/test-user
 			tc:            defaultTc,
 			azureIdentity: "/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/my-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure",
 			format:        "default",
-			expected: `Name:      test-tp                                                                                                                                                        
-URI:       https://test-tp.teleport:8443                                                                                                                                  
-CA:        /test/dir/keys/cas/test-tp.pem                                                                                                                                 
-Cert:      /test/dir/keys/test-user-app/test-tp-x509.pem                                                                                                                  
-Key:       /test/dir/keys/test-user                                                                                                                                       
-Azure Id:  /subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/my-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure 
-`,
+			expected:      defaultFormatTableAzure.AsBuffer().String(),
 		},
 		{
 			name:          "azure JSON format",
@@ -456,12 +455,12 @@ Azure Id:  /subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/my
 			azureIdentity: "/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/my-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure",
 			format:        appFormatJSON,
 			expected: `{
-  "name": "test-tp",
-  "uri": "https://test-tp.teleport:8443",
-  "ca": "/test/dir/keys/cas/test-tp.pem",
-  "cert": "/test/dir/keys/test-user-app/test-tp-x509.pem",
-  "key": "/test/dir/keys/test-user",
-  "curl": "curl \\\n  --cert /test/dir/keys/test-user-app/test-tp-x509.pem \\\n  --key /test/dir/keys/test-user \\\n  https://test-tp.teleport:8443",
+  "name": "test-app",
+  "uri": "https://test-app.example.com:8443",
+  "ca": "/test/dir/keys/cas/root.pem",
+  "cert": "/test/dir/keys/alice-app/root/test-app-x509.pem",
+  "key": "/test/dir/keys/alice",
+  "curl": "curl \\\n  --cert /test/dir/keys/alice-app/root/test-app-x509.pem \\\n  --key /test/dir/keys/alice \\\n  https://test-app.example.com:8443",
   "azure_identity": "/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/my-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure"
 }
 `,
@@ -472,16 +471,16 @@ Azure Id:  /subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/my
 			azureIdentity: "/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/my-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure",
 			format:        appFormatYAML,
 			expected: `azure_identity: /subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/my-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure
-ca: /test/dir/keys/cas/test-tp.pem
-cert: /test/dir/keys/test-user-app/test-tp-x509.pem
+ca: /test/dir/keys/cas/root.pem
+cert: /test/dir/keys/alice-app/root/test-app-x509.pem
 curl: |-
   curl \
-    --cert /test/dir/keys/test-user-app/test-tp-x509.pem \
-    --key /test/dir/keys/test-user \
-    https://test-tp.teleport:8443
-key: /test/dir/keys/test-user
-name: test-tp
-uri: https://test-tp.teleport:8443
+    --cert /test/dir/keys/alice-app/root/test-app-x509.pem \
+    --key /test/dir/keys/alice \
+    https://test-app.example.com:8443
+key: /test/dir/keys/alice
+name: test-app
+uri: https://test-app.example.com:8443
 `,
 		},
 		// GCP
@@ -490,13 +489,7 @@ uri: https://test-tp.teleport:8443
 			tc:                defaultTc,
 			gcpServiceAccount: "dev@example-123456.iam.gserviceaccount.com",
 			format:            "default",
-			expected: `Name:                test-tp                                       
-URI:                 https://test-tp.teleport:8443                 
-CA:                  /test/dir/keys/cas/test-tp.pem                
-Cert:                /test/dir/keys/test-user-app/test-tp-x509.pem 
-Key:                 /test/dir/keys/test-user                      
-GCP Service Account: dev@example-123456.iam.gserviceaccount.com    
-`,
+			expected:          defaultFormatTableGCP.AsBuffer().String(),
 		},
 		{
 			name:              "gcp JSON format",
@@ -504,12 +497,12 @@ GCP Service Account: dev@example-123456.iam.gserviceaccount.com
 			gcpServiceAccount: "dev@example-123456.iam.gserviceaccount.com",
 			format:            appFormatJSON,
 			expected: `{
-  "name": "test-tp",
-  "uri": "https://test-tp.teleport:8443",
-  "ca": "/test/dir/keys/cas/test-tp.pem",
-  "cert": "/test/dir/keys/test-user-app/test-tp-x509.pem",
-  "key": "/test/dir/keys/test-user",
-  "curl": "curl \\\n  --cert /test/dir/keys/test-user-app/test-tp-x509.pem \\\n  --key /test/dir/keys/test-user \\\n  https://test-tp.teleport:8443",
+  "name": "test-app",
+  "uri": "https://test-app.example.com:8443",
+  "ca": "/test/dir/keys/cas/root.pem",
+  "cert": "/test/dir/keys/alice-app/root/test-app-x509.pem",
+  "key": "/test/dir/keys/alice",
+  "curl": "curl \\\n  --cert /test/dir/keys/alice-app/root/test-app-x509.pem \\\n  --key /test/dir/keys/alice \\\n  https://test-app.example.com:8443",
   "gcp_service_account": "dev@example-123456.iam.gserviceaccount.com"
 }
 `,
@@ -519,17 +512,17 @@ GCP Service Account: dev@example-123456.iam.gserviceaccount.com
 			tc:                defaultTc,
 			gcpServiceAccount: "dev@example-123456.iam.gserviceaccount.com",
 			format:            appFormatYAML,
-			expected: `ca: /test/dir/keys/cas/test-tp.pem
-cert: /test/dir/keys/test-user-app/test-tp-x509.pem
+			expected: `ca: /test/dir/keys/cas/root.pem
+cert: /test/dir/keys/alice-app/root/test-app-x509.pem
 curl: |-
   curl \
-    --cert /test/dir/keys/test-user-app/test-tp-x509.pem \
-    --key /test/dir/keys/test-user \
-    https://test-tp.teleport:8443
+    --cert /test/dir/keys/alice-app/root/test-app-x509.pem \
+    --key /test/dir/keys/alice \
+    https://test-app.example.com:8443
 gcp_service_account: dev@example-123456.iam.gserviceaccount.com
-key: /test/dir/keys/test-user
-name: test-tp
-uri: https://test-tp.teleport:8443
+key: /test/dir/keys/alice
+name: test-app
+uri: https://test-app.example.com:8443
 `,
 		},
 	}
@@ -537,7 +530,7 @@ uri: https://test-tp.teleport:8443
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			test.tc.InsecureSkipVerify = test.insecure
-			result, err := formatAppConfig(test.tc, testProfile, testAppName, testAppPublicAddr, test.format, testCluster, test.awsArn, test.azureIdentity, test.gcpServiceAccount)
+			result, err := formatAppConfig(test.tc, testProfile, testAppName, testAppPublicAddr, test.format, "root", test.awsArn, test.azureIdentity, test.gcpServiceAccount)
 			if test.wantErr {
 				assert.Error(t, err)
 			} else {
