@@ -466,9 +466,15 @@ func TestRoleFilterMatch(t *testing.T) {
 			shouldMatch: true,
 		},
 		{
-			name:        "correct search keyword should match the role",
+			name:        "correct search keyword should match the regular role",
 			role:        &regularRole,
 			filter:      &RoleFilter{SearchKeywords: []string{"appr"}},
+			shouldMatch: true,
+		},
+		{
+			name:        "correct search keyword should match the system role",
+			role:        &systemRole,
+			filter:      &RoleFilter{SearchKeywords: []string{"bot"}},
 			shouldMatch: true,
 		},
 		{
@@ -487,6 +493,24 @@ func TestRoleFilterMatch(t *testing.T) {
 			name:        "skip system roles filter should match the regular role",
 			role:        &regularRole,
 			filter:      &RoleFilter{SkipSystemRoles: true},
+			shouldMatch: true,
+		},
+		{
+			name:        "skip system roles filter and incorrect search keywords shouldn't match the regular role",
+			role:        &regularRole,
+			filter:      &RoleFilter{SkipSystemRoles: true, SearchKeywords: []string{"xyz"}},
+			shouldMatch: false,
+		},
+		{
+			name:        "skip system roles filter and correct search keywords shouldn't match the system role",
+			role:        &systemRole,
+			filter:      &RoleFilter{SkipSystemRoles: true, SearchKeywords: []string{"bot"}},
+			shouldMatch: false,
+		},
+		{
+			name:        "skip system roles filter and correct search keywords should match the regular role",
+			role:        &regularRole,
+			filter:      &RoleFilter{SkipSystemRoles: true, SearchKeywords: []string{"appr"}},
 			shouldMatch: true,
 		},
 	}
