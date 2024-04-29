@@ -41,6 +41,7 @@ type AuthInfo struct {
 }
 
 // AuthType implements the credentials.AuthInfo interface.
+// The call is delegated to the wrapped credentials.AuthInfo.
 func (a AuthInfo) AuthType() string {
 	return a.Wrapped.AuthType()
 }
@@ -57,6 +58,7 @@ func NewTransportCredentials(
 }
 
 // ClientHandshake implements the credentials.TransportCredentials interface.
+// The call is delegated to the wrapped credentials.TransportCredentials.
 func (c *transportCredentials) ClientHandshake(
 	ctx context.Context, authority string, conn net.Conn,
 ) (net.Conn, credentials.AuthInfo, error) {
@@ -64,6 +66,9 @@ func (c *transportCredentials) ClientHandshake(
 }
 
 // ServerHandshake implements the credentials.TransportCredentials interface.
+// The call is first delegated to the wrapped credentials.TransportCredentials,
+// if this succeeds, the credentials of the peer connected via UDS are extracted
+// and returned in a wrapped AuthInfo.
 func (c *transportCredentials) ServerHandshake(
 	conn net.Conn,
 ) (net.Conn, credentials.AuthInfo, error) {
@@ -86,16 +91,22 @@ func (c *transportCredentials) ServerHandshake(
 	}, nil
 }
 
+// Info implements the credentials.TransportCredentials interface. This call
+// is delegated to the wrapped credentials.TransportCredentials.
 func (c *transportCredentials) Info() credentials.ProtocolInfo {
 	return c.wrapped.Info()
 }
 
+// Clone implements the credentials.TransportCredentials interface. It returns
+// a copy of the TransportCredentials.
 func (c *transportCredentials) Clone() credentials.TransportCredentials {
 	return &transportCredentials{
 		wrapped: c.wrapped.Clone(),
 	}
 }
 
+// OverrideServerName implements the credentials.TransportCredentials interface.
+// This call is delegated to the wrapped credentials.TransportCredentials.
 func (c *transportCredentials) OverrideServerName(sn string) error {
 	return c.wrapped.OverrideServerName(sn)
 }
