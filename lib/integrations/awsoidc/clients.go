@@ -64,8 +64,10 @@ func (req *AWSClientRequest) CheckAndSetDefaults() error {
 		return trace.BadParameter("role arn is required")
 	}
 
-	if err := awsutils.IsValidRegion(req.Region); err != nil {
-		return trace.Wrap(err)
+	if req.Region != "" {
+		if err := awsutils.IsValidRegion(req.Region); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return nil

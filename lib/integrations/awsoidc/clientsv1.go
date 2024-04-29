@@ -50,10 +50,11 @@ type IntegrationTokenGenerator interface {
 // NewSessionV1 creates a new AWS Session for the region using the integration as source of credentials.
 // This session is usable for AWS SDK Go V1.
 func NewSessionV1(ctx context.Context, client IntegrationTokenGenerator, region string, integrationName string) (*session.Session, error) {
-	if err := utilsaws.IsValidRegion(region); err != nil {
-		return nil, trace.Wrap(err)
+	if region != "" {
+		if err := utilsaws.IsValidRegion(region); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
-
 	integration, err := client.GetIntegration(ctx, integrationName)
 	if err != nil {
 		return nil, trace.Wrap(err)
