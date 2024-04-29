@@ -23,17 +23,15 @@ codegen-units = 1
 [workspace.dependencies]
 # Note: To use a local IronRDP repository as a crate (for example, ironrdp-cliprdr), define the dependency as follows:
 # ironrdp-cliprdr = { path = "/path/to/local/IronRDP/crates/ironrdp-cliprdr" }
-# This rev hash is for testing purposes only. It should NOT be merged, and should be updated to IronRDP master once
-# https://github.com/Devolutions/IronRDP/pull/430 and https://github.com/Devolutions/IronRDP/pull/436 are merged.
-ironrdp-cliprdr = { git = "https://github.com/Devolutions/IronRDP", rev = "a40adbbe542033e7561722067fc705704783e66b" }
-ironrdp-connector = { git = "https://github.com/Devolutions/IronRDP", rev = "a40adbbe542033e7561722067fc705704783e66b" }
-ironrdp-displaycontrol = { git = "https://github.com/Devolutions/IronRDP", rev = "a40adbbe542033e7561722067fc705704783e66b" }
-ironrdp-dvc = { git = "https://github.com/Devolutions/IronRDP", rev = "a40adbbe542033e7561722067fc705704783e66b" }
-ironrdp-graphics = { git = "https://github.com/Devolutions/IronRDP", rev = "a40adbbe542033e7561722067fc705704783e66b" }
-ironrdp-pdu = { git = "https://github.com/Devolutions/IronRDP", rev = "a40adbbe542033e7561722067fc705704783e66b" }
-ironrdp-rdpdr = { git = "https://github.com/Devolutions/IronRDP", rev = "a40adbbe542033e7561722067fc705704783e66b" }
-ironrdp-rdpsnd = { git = "https://github.com/Devolutions/IronRDP", rev = "a40adbbe542033e7561722067fc705704783e66b" }
-ironrdp-session = { git = "https://github.com/Devolutions/IronRDP", rev = "a40adbbe542033e7561722067fc705704783e66b" }
-ironrdp-svc = { git = "https://github.com/Devolutions/IronRDP", rev = "a40adbbe542033e7561722067fc705704783e66b" }
-ironrdp-tls = { git = "https://github.com/Devolutions/IronRDP", rev = "a40adbbe542033e7561722067fc705704783e66b", features = ["rustls"]}
-ironrdp-tokio = { git = "https://github.com/Devolutions/IronRDP", rev = "a40adbbe542033e7561722067fc705704783e66b" }
+ironrdp-cliprdr = { git = "https://github.com/Devolutions/IronRDP", rev = "fd105e4b56647ab2f54aa23954aec4aaeef118e2" }
+ironrdp-connector = { git = "https://github.com/Devolutions/IronRDP", rev = "fd105e4b56647ab2f54aa23954aec4aaeef118e2" }
+ironrdp-displaycontrol = { git = "https://github.com/Devolutions/IronRDP", rev = "fd105e4b56647ab2f54aa23954aec4aaeef118e2" }
+ironrdp-dvc = { git = "https://github.com/Devolutions/IronRDP", rev = "fd105e4b56647ab2f54aa23954aec4aaeef118e2" }
+ironrdp-graphics = { git = "https://github.com/Devolutions/IronRDP", rev = "fd105e4b56647ab2f54aa23954aec4aaeef118e2" }
+ironrdp-pdu = { git = "https://github.com/Devolutions/IronRDP", rev = "fd105e4b56647ab2f54aa23954aec4aaeef118e2" }
+ironrdp-rdpdr = { git = "https://github.com/Devolutions/IronRDP", rev = "fd105e4b56647ab2f54aa23954aec4aaeef118e2" }
+ironrdp-rdpsnd = { git = "https://github.com/Devolutions/IronRDP", rev = "fd105e4b56647ab2f54aa23954aec4aaeef118e2" }
+ironrdp-session = { git = "https://github.com/Devolutions/IronRDP", rev = "fd105e4b56647ab2f54aa23954aec4aaeef118e2" }
+ironrdp-svc = { git = "https://github.com/Devolutions/IronRDP", rev = "fd105e4b56647ab2f54aa23954aec4aaeef118e2" }
+ironrdp-tls = { git = "https://github.com/Devolutions/IronRDP", rev = "fd105e4b56647ab2f54aa23954aec4aaeef118e2", features = ["rustls"]}
+ironrdp-tokio = { git = "https://github.com/Devolutions/IronRDP", rev = "fd105e4b56647ab2f54aa23954aec4aaeef118e2" }
