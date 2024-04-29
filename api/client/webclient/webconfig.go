@@ -88,7 +88,7 @@ type WebConfig struct {
 	FeatureLimits FeatureLimits `json:"featureLimits"`
 	// Questionnaire indicates whether cluster users should get an onboarding questionnaire
 	Questionnaire bool `json:"questionnaire"`
-	// indicates if the cluster billing & lifecycle is managed via Stripe
+	// IsStripeManaged indicates if the cluster billing & lifecycle is managed via Stripe
 	IsStripeManaged bool `json:"isStripeManaged"`
 	// ExternalAuditStorage indicates whether the EAS feature is enabled in the cluster.
 	ExternalAuditStorage bool `json:"externalAuditStorage"`
