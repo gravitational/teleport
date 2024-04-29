@@ -22,83 +22,49 @@ import (
 	"compress/gzip"
 	"context"
 	"io"
-	"net"
-	"net/http"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib/config"
-	"github.com/gravitational/teleport/lib/srv/debug"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
+	debugclient "github.com/gravitational/teleport/lib/client/debug"
 )
 
-func TestSetLogLevel(t *testing.T) {
-	socketDir, closeFn := newSocketMockService(t, []byte{})
-	configFilePath := newConfigWithDataDir(t, socketDir)
-	defer closeFn()
-
-	// All supported log levels should be accepted here.
-	for _, level := range logutils.SupportedLevelsText {
-		t.Run("Set"+level, func(t *testing.T) {
-			require.NoError(t, onSetLogLevel(configFilePath, level))
-		})
-
-		t.Run("SetLower"+level, func(t *testing.T) {
-			require.NoError(t, onSetLogLevel(configFilePath, strings.ToLower(level)))
-		})
-	}
-
-	// Random or any other slog format should be rejected.
-	for _, level := range []string{"RANDOM", "DEBUG-1", "INFO+1", "INVALID"} {
-		t.Run("Set"+level, func(t *testing.T) {
-			require.Error(t, onSetLogLevel(configFilePath, level))
-		})
-
-		t.Run("SetLower"+level, func(t *testing.T) {
-			require.Error(t, onSetLogLevel(configFilePath, strings.ToLower(level)))
-		})
-	}
-}
-
 func TestCollectProfiles(t *testing.T) {
+	ctx := context.Background()
+
 	for _, test := range []struct {
-		desc                      string
-		profilesInput             string
-		seconds                   int
-		expectErr                 bool
-		collectedProfilesExpected []string
-		expectedArgs              string
+		desc             string
+		profilesInput    string
+		seconds          int
+		expectErr        bool
+		expectedProfiles []string
 	}{
 		{
-			desc:                      "default profiles",
-			profilesInput:             "",
-			collectedProfilesExpected: defaultCollectProfiles,
+			desc:             "default profiles",
+			profilesInput:    "",
+			expectedProfiles: defaultCollectProfiles,
 		},
 		{
-			desc:                      "single profile",
-			profilesInput:             "goroutine",
-			collectedProfilesExpected: []string{"goroutine"},
+			desc:             "single profile",
+			profilesInput:    "goroutine",
+			expectedProfiles: []string{"goroutine"},
 		},
 		{
-			desc:                      "profile with seconds flag",
-			profilesInput:             "block",
-			seconds:                   10,
-			collectedProfilesExpected: []string{"block"},
-			expectedArgs:              "seconds=10",
+			desc:             "profile with seconds flag",
+			profilesInput:    "block",
+			seconds:          10,
+			expectedProfiles: []string{"block"},
 		},
 		{
-			desc:                      "multiple profiles",
-			profilesInput:             "allocs,goroutine",
-			collectedProfilesExpected: []string{"allocs", "goroutine"},
+			desc:             "multiple profiles",
+			profilesInput:    "allocs,goroutine",
+			expectedProfiles: []string{"allocs", "goroutine"},
 		},
 		{
-			desc:                      "all valid profiles",
-			profilesInput:             "allocs,block,cmdline,goroutine,heap,mutex,profile,threadcreate,trace",
-			collectedProfilesExpected: []string{"allocs", "block", "cmdline", "goroutine", "heap", "mutex", "profile", "threadcreate", "trace"},
+			desc:             "all valid profiles",
+			profilesInput:    "allocs,block,cmdline,goroutine,heap,mutex,profile,threadcreate,trace",
+			expectedProfiles: []string{"allocs", "block", "cmdline", "goroutine", "heap", "mutex", "profile", "threadcreate", "trace"},
 		},
 		{
 			desc:          "invalid profile",
@@ -117,28 +83,22 @@ func TestCollectProfiles(t *testing.T) {
 		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
-			socketDir, closeFn := newSocketMockService(t, []byte("collected profile"))
-			configFilePath := newConfigWithDataDir(t, socketDir)
-			defer closeFn()
-
+			clt := &mockDebugClient{profileContents: make([]byte, 0)}
 			var out bytes.Buffer
-			err := onCollectProfile(configFilePath, test.profilesInput, test.seconds, &out)
+			err := collectProfiles(ctx, clt, &out, test.profilesInput, test.seconds)
 			if test.expectErr {
 				require.Error(t, err)
 				return
 			}
 			require.NoError(t, err)
 
+			require.Len(t, clt.collectedProfiles, len(test.expectedProfiles))
 			var requestedProfiles []string
-			requestedPaths := closeFn()
-			for _, uri := range requestedPaths {
-				path, args, _ := strings.Cut(uri, "?")
-				require.True(t, strings.HasPrefix(path, debug.PProfEndpointsPrefix), "expected %q request but got %q", debug.PProfEndpointsPrefix, path)
-				require.Equal(t, test.expectedArgs, args)
-
-				requestedProfiles = append(requestedProfiles, strings.TrimPrefix(path, debug.PProfEndpointsPrefix))
+			for _, profile := range clt.collectedProfiles {
+				require.Equal(t, test.seconds, profile.seconds)
+				requestedProfiles = append(requestedProfiles, profile.name)
 			}
-			require.ElementsMatch(t, test.collectedProfilesExpected, requestedProfiles)
+			require.ElementsMatch(t, test.expectedProfiles, requestedProfiles)
 
 			reader, err := gzip.NewReader(&out)
 			require.NoError(t, err)
@@ -154,64 +114,30 @@ func TestCollectProfiles(t *testing.T) {
 			}
 
 			// We should have one file per profile collected.
-			require.ElementsMatch(t, test.collectedProfilesExpected, files)
+			require.ElementsMatch(t, test.expectedProfiles, files)
 		})
 	}
 }
 
-// newConfigWithDataDir creates a temporary directory with a configuration file.
-func newConfigWithDataDir(t *testing.T, dataDir string) string {
-	t.Helper()
-
-	cfg, err := config.MakeSampleFileConfig(config.SampleFlags{
-		DataDir: dataDir,
-	})
-	require.NoError(t, err)
-
-	configFilePath := filepath.Join(dataDir, "config.yaml")
-	_, err = dumpConfigFile("file://"+configFilePath, cfg.DebugDumpToYAML(), "")
-	require.NoError(t, err)
-
-	return configFilePath
+type collectedProfile struct {
+	name    string
+	seconds int
 }
 
-// newSocketMockService creates a unix socket that access HTTP requests and
-// always replies with success. Returns the path to the socket and `closeFn`,
-// which when called closes the socket and returns the requested paths.
-func newSocketMockService(t *testing.T, contents []byte) (string, func() []string) {
-	t.Helper()
+type mockDebugClient struct {
+	debugclient.Client
 
-	// We cannot simply use the `t.TempDir()` due to the size limit of UDS.
-	// Here, we place it inside the temporary directory, which will most likely
-	// give a smaller path.
-	// https://github.com/golang/go/issues/62614
-	socketDir, err := os.MkdirTemp("", "*")
-	require.NoError(t, err)
-	t.Cleanup(func() { os.RemoveAll(socketDir) })
+	profileContents   []byte
+	collectProfileErr error
+	collectedProfiles []collectedProfile
+}
 
-	socketPath := filepath.Join(socketDir, debug.ServiceSocketName)
-	require.Greater(t, 100, len(socketPath), "expected socket name to be smaller (less than 100 characters)"+
-		" due to Unix domain socket size limitation but got %q (%d).", socketPath, len(socketPath))
-
-	l, err := net.Listen("unix", socketPath)
-	require.NoError(t, err)
-
-	var requests []string
-	srv := &http.Server{
-		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			requests = append(requests, r.URL.RequestURI())
-			w.Write(contents)
-		}),
+// CollectProfile implements debug.Client.
+func (m *mockDebugClient) CollectProfile(_ context.Context, name string, seconds int) ([]byte, error) {
+	if m.collectedProfiles == nil {
+		m.collectedProfiles = make([]collectedProfile, 0)
 	}
 
-	go func() {
-		err := srv.Serve(l)
-		if err != nil && err != http.ErrServerClosed {
-		}
-	}()
-
-	return socketDir, func() []string {
-		srv.Shutdown(context.Background())
-		return requests
-	}
+	m.collectedProfiles = append(m.collectedProfiles, collectedProfile{name, seconds})
+	return m.profileContents, m.collectProfileErr
 }

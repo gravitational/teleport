@@ -23,194 +23,62 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net"
-	"net/http"
-	"net/url"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
+	debugclient "github.com/gravitational/teleport/lib/client/debug"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/debug"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-// debugServiceClient debug service client.
-type debugServiceClient struct {
-	clt        *http.Client
-	dataDir    string
-	socketPath string
-}
-
-// newDebugServiceClient generates a new debug service client.
-func newDebugServiceClient(configPath string) (*debugServiceClient, error) {
-	cfg, err := config.ReadConfigFile(configPath)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// ReadConfigFile returns nil configuration if the file doesn't exists.
-	// In that case, fallback to default data dir path.
-	dataDir := defaults.DataDir
-	if cfg != nil {
-		dataDir = cfg.DataDir
-	}
-
-	socketPath := filepath.Join(dataDir, debug.ServiceSocketName)
-	return &debugServiceClient{
-		dataDir:    dataDir,
-		socketPath: socketPath,
-		clt: &http.Client{
-			Timeout: apidefaults.DefaultIOTimeout,
-			Transport: &http.Transport{
-				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-					return net.Dial("unix", socketPath)
-				},
-			},
-		},
-	}, nil
-}
-
-// SetLogLevel changes the application's log level and a change status message.
-func (c *debugServiceClient) SetLogLevel(ctx context.Context, level string) (string, error) {
-	resp, err := c.do(ctx, http.MethodPut, url.URL{Path: debug.LogLevelEndpoint}, []byte(level))
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 1024))
-	defer resp.Body.Close()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return "", trace.BadParameter("Unable to change log level: %s", respBody)
-	}
-
-	return string(respBody), nil
-}
-
-// GetLogLevel fetches the current log level.
-func (c *debugServiceClient) GetLogLevel(ctx context.Context) (string, error) {
-	resp, err := c.do(ctx, http.MethodGet, url.URL{Path: debug.LogLevelEndpoint}, nil)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 1024))
-	defer resp.Body.Close()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return "", trace.BadParameter("Unable to fetch log level: %s", respBody)
-	}
-
-	return string(respBody), nil
-}
-
-// CollectProfile collects a pprof profile.
-func (c *debugServiceClient) CollectProfile(ctx context.Context, profileName string, seconds int) ([]byte, error) {
-	u := url.URL{
-		Path: debug.PProfEndpointsPrefix + profileName,
-	}
-
-	if seconds > 0 {
-		qs := url.Values{}
-		qs.Add("seconds", strconv.Itoa(seconds))
-		u.RawQuery = qs.Encode()
-	}
-
-	resp, err := c.do(ctx, http.MethodGet, u, nil)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	result, err := io.ReadAll(resp.Body)
-	defer resp.Body.Close()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, trace.BadParameter("Unable to collect profile %q: %s", profileName, result)
-	}
-
-	return result, nil
-}
-
-func (c *debugServiceClient) do(ctx context.Context, method string, u url.URL, body []byte) (*http.Response, error) {
-	u.Scheme = "http"
-	u.Host = "debug"
-
-	var bodyReader io.Reader
-	if body != nil {
-		bodyReader = bytes.NewBuffer(body)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, method, u.String(), bodyReader)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	resp, err := c.clt.Do(req)
-	if err != nil {
-		if trace.IsConnectionProblem(trace.ConvertSystemError(err)) {
-			return nil, trace.BadParameter("Unable to reach debug service socket at %q."+
-				"\n\nVerify if you have enough permissions to open the socket and if the path"+
-				" to your data directory (%q) is correct. The command assumes the data"+
-				" directory from your configuration file, you can provide the path to it using the --config flag.", c.socketPath, c.dataDir)
-		}
-
-		return nil, trace.Wrap(err)
-	}
-
-	return resp, nil
-}
-
 func onSetLogLevel(configPath string, level string) error {
 	ctx := context.Background()
-
-	if contains := slices.Contains(logutils.SupportedLevelsText, strings.ToUpper(level)); !contains {
-		return trace.BadParameter("%q log level not supported", level)
-	}
-
-	clt, err := newDebugServiceClient(configPath)
+	clt, dataDir, socketPath, err := newDebugClient(configPath)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	setMessage, err := clt.SetLogLevel(ctx, level)
+	setMessage, err := setLogLevel(ctx, clt, level)
 	if err != nil {
-		return trace.Wrap(err)
+		return convertToReadableErr(err, dataDir, socketPath)
 	}
 
 	fmt.Println(setMessage)
 	return nil
 }
 
+func setLogLevel(ctx context.Context, clt debugclient.Client, level string) (string, error) {
+	if contains := slices.Contains(logutils.SupportedLevelsText, strings.ToUpper(level)); !contains {
+		return "", trace.BadParameter("%q log level not supported", level)
+	}
+
+	return clt.SetLogLevel(ctx, level)
+}
+
 func onGetLogLevel(configPath string) error {
 	ctx := context.Background()
-	clt, err := newDebugServiceClient(configPath)
+	clt, dataDir, socketPath, err := newDebugClient(configPath)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	level, err := clt.GetLogLevel(ctx)
+	currentLogLevel, err := getLogLevel(ctx, clt)
 	if err != nil {
-		return trace.Wrap(err)
+		return convertToReadableErr(err, dataDir, socketPath)
 	}
 
-	fmt.Printf("Current log level %q\n", level)
+	fmt.Printf("Current log level %q\n", currentLogLevel)
 	return nil
+}
+
+func getLogLevel(ctx context.Context, clt debugclient.Client) (string, error) {
+	return clt.GetLogLevel(ctx)
 }
 
 // supportedProfiles list of supported pprof profiles that can be collected.
@@ -233,7 +101,23 @@ var defaultCollectProfiles = []string{"goroutine", "heap", "profile"}
 
 func onCollectProfile(configPath string, rawProfiles string, seconds int, out io.Writer) error {
 	ctx := context.Background()
+	clt, dataDir, socketPath, err := newDebugClient(configPath)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
+	var output bytes.Buffer
+	if err := collectProfiles(ctx, clt, &output, rawProfiles, seconds); err != nil {
+		return convertToReadableErr(err, dataDir, socketPath)
+	}
+
+	fmt.Fprint(out, output.String())
+	return nil
+}
+
+// collectProfiles collects the profiles and generate a compressed tarball
+// file.
+func collectProfiles(ctx context.Context, clt debugclient.Client, buf io.Writer, rawProfiles string, seconds int) error {
 	profiles := defaultCollectProfiles
 	if rawProfiles != "" {
 		profiles = strings.Split(rawProfiles, ",")
@@ -245,23 +129,6 @@ func onCollectProfile(configPath string, rawProfiles string, seconds int, out io
 		}
 	}
 
-	clt, err := newDebugServiceClient(configPath)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	var output bytes.Buffer
-	if err := createProfilesArchive(ctx, clt, &output, profiles, seconds); err != nil {
-		return trace.Wrap(err)
-	}
-
-	fmt.Fprint(out, output.String())
-	return nil
-}
-
-// createProfileArchive collects the profiles and generate a compressed tarball
-// file.
-func createProfilesArchive(ctx context.Context, clt *debugServiceClient, buf io.Writer, profiles []string, seconds int) error {
 	fileTime := time.Now()
 	gw := gzip.NewWriter(buf)
 	tw := tar.NewWriter(gw)
@@ -287,4 +154,40 @@ func createProfilesArchive(ctx context.Context, clt *debugServiceClient, buf io.
 	}
 
 	return trace.NewAggregate(tw.Close(), gw.Close())
+}
+
+// newDebugClient initializes the debug client based on the Teleport
+// configuration. It also returns the data dir and socket path used.
+func newDebugClient(configPath string) (debugclient.Client, string, string, error) {
+	cfg, err := config.ReadConfigFile(configPath)
+	if err != nil {
+		return nil, "", "", trace.Wrap(err)
+	}
+
+	// ReadConfigFile returns nil configuration if the file doesn't exists.
+	// In that case, fallback to default data dir path.
+	dataDir := defaults.DataDir
+	if cfg != nil {
+		dataDir = cfg.DataDir
+	}
+
+	socketPath := filepath.Join(dataDir, debug.ServiceSocketName)
+	return debugclient.NewClient(socketPath), dataDir, socketPath, nil
+}
+
+// convertToReadableErr converts debug service client error into a more friendly
+// messages.
+func convertToReadableErr(err error, dataDir, socketPath string) error {
+	if err == nil {
+		return nil
+	}
+
+	if !trace.IsConnectionProblem(err) {
+		return err
+	}
+
+	return trace.BadParameter("Unable to reach debug service socket at %q."+
+		"\n\nVerify if you have enough permissions to open the socket and if the path"+
+		" to your data directory (%q) is correct. The command assumes the data"+
+		" directory from your configuration file, you can provide the path to it using the --config flag.", socketPath, dataDir)
 }
