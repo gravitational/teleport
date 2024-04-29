@@ -63,6 +63,11 @@ service AWSOIDCService {
   // https://docs.aws.amazon.com/eks/latest/APIReference/API_ListClusters.html
   // https://docs.aws.amazon.com/eks/latest/APIReference/API_DescribeCluster.html
   rpc ListEKSClusters(ListEKSClustersRequest) returns (ListEKSClustersResponse);
+
+  // ListSSMInstances retrieves a paginated list of SSM Instance Information in the specified AWS region for a specific account.
+  // It uses the following APIs:
+  // https://docs.aws.amazon.com/systems-manager/latest/APIReference/API_DescribeInstanceInformation.html
+  rpc ListSSMInstances(ListSSMInstancesRequest) returns (ListSSMInstancesResponse);
 }
 
 // ListEICERequest is a request for a paginated list of AWS EC2 Instance Connect Endpoints.
@@ -424,6 +429,44 @@ message EKSCluster {
 message ListEKSClustersResponse {
   // Clusters contains the page of EKS Clusters.
   repeated EKSCluster clusters = 1;
+  // NextToken is used for pagination.
+  // If non-empty, it can be used to request the next page.
+  string next_token = 2;
+}
+
+// ListSSMInstancesRequest is a request for a paginated list of AWS SSM Instances Information.
+// Only PlatforType=Linux instances are returned.
+message ListSSMInstancesRequest {
+  // Integration is the AWS OIDC Integration name.
+  // Required.
+  string integration = 1;
+  // Region is the AWS Region
+  // Required.
+  string region = 2;
+  // NextToken is the token to be used to fetch the next page.
+  // If empty, the first page is fetched.
+  string next_token = 3;
+}
+
+// SSMInstanceInformation represents an Amazon SSM Instance Information.
+message SSMInstanceInformation {
+  // InstanceID is the EC2 instance ID where the SSM agent is running.
+  string instance_id = 1;
+  // IPAddress is the IP Address of the managed node.
+  string ip_address = 2;
+  // PingStatus is the connection status of the SSM agent.
+  // Known values:
+  // Online | ConnectionLost | Inactive
+  // The status Inactive has been deprecated and is no longer in use.
+  string ping_status = 3;
+  // ComputerName is the the fully qualified host name of the managed node.
+  string computer_name = 4;
+}
+
+// ListSSMInstancesResponse contains a page of SSM Instance Information.
+message ListSSMInstancesResponse {
+  // SSMInstances is a list of SSM Instance Information.
+  repeated SSMInstanceInformation ssm_instances = 1;
   // NextToken is used for pagination.
   // If non-empty, it can be used to request the next page.
   string next_token = 2;

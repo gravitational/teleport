@@ -42,6 +42,7 @@ const (
 	AWSOIDCService_EnrollEKSClusters_FullMethodName     = "/teleport.integration.v1.AWSOIDCService/EnrollEKSClusters"
 	AWSOIDCService_ListEC2_FullMethodName               = "/teleport.integration.v1.AWSOIDCService/ListEC2"
 	AWSOIDCService_ListEKSClusters_FullMethodName       = "/teleport.integration.v1.AWSOIDCService/ListEKSClusters"
+	AWSOIDCService_ListSSMInstances_FullMethodName      = "/teleport.integration.v1.AWSOIDCService/ListSSMInstances"
 )
 
 // AWSOIDCServiceClient is the client API for AWSOIDCService service.
@@ -81,6 +82,10 @@ type AWSOIDCServiceClient interface {
 	// https://docs.aws.amazon.com/eks/latest/APIReference/API_ListClusters.html
 	// https://docs.aws.amazon.com/eks/latest/APIReference/API_DescribeCluster.html
 	ListEKSClusters(ctx context.Context, in *ListEKSClustersRequest, opts ...grpc.CallOption) (*ListEKSClustersResponse, error)
+	// ListSSMInstances retrieves a paginated list of SSM Instance Information in the specified AWS region for a specific account.
+	// It uses the following APIs:
+	// https://docs.aws.amazon.com/systems-manager/latest/APIReference/API_DescribeInstanceInformation.html
+	ListSSMInstances(ctx context.Context, in *ListSSMInstancesRequest, opts ...grpc.CallOption) (*ListSSMInstancesResponse, error)
 }
 
 type aWSOIDCServiceClient struct {
@@ -172,6 +177,15 @@ func (c *aWSOIDCServiceClient) ListEKSClusters(ctx context.Context, in *ListEKSC
 	return out, nil
 }
 
+func (c *aWSOIDCServiceClient) ListSSMInstances(ctx context.Context, in *ListSSMInstancesRequest, opts ...grpc.CallOption) (*ListSSMInstancesResponse, error) {
+	out := new(ListSSMInstancesResponse)
+	err := c.cc.Invoke(ctx, AWSOIDCService_ListSSMInstances_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AWSOIDCServiceServer is the server API for AWSOIDCService service.
 // All implementations must embed UnimplementedAWSOIDCServiceServer
 // for forward compatibility
@@ -209,6 +223,10 @@ type AWSOIDCServiceServer interface {
 	// https://docs.aws.amazon.com/eks/latest/APIReference/API_ListClusters.html
 	// https://docs.aws.amazon.com/eks/latest/APIReference/API_DescribeCluster.html
 	ListEKSClusters(context.Context, *ListEKSClustersRequest) (*ListEKSClustersResponse, error)
+	// ListSSMInstances retrieves a paginated list of SSM Instance Information in the specified AWS region for a specific account.
+	// It uses the following APIs:
+	// https://docs.aws.amazon.com/systems-manager/latest/APIReference/API_DescribeInstanceInformation.html
+	ListSSMInstances(context.Context, *ListSSMInstancesRequest) (*ListSSMInstancesResponse, error)
 	mustEmbedUnimplementedAWSOIDCServiceServer()
 }
 
@@ -242,6 +260,9 @@ func (UnimplementedAWSOIDCServiceServer) ListEC2(context.Context, *ListEC2Reques
 }
 func (UnimplementedAWSOIDCServiceServer) ListEKSClusters(context.Context, *ListEKSClustersRequest) (*ListEKSClustersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListEKSClusters not implemented")
+}
+func (UnimplementedAWSOIDCServiceServer) ListSSMInstances(context.Context, *ListSSMInstancesRequest) (*ListSSMInstancesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListSSMInstances not implemented")
 }
 func (UnimplementedAWSOIDCServiceServer) mustEmbedUnimplementedAWSOIDCServiceServer() {}
 
@@ -418,6 +439,24 @@ func _AWSOIDCService_ListEKSClusters_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AWSOIDCService_ListSSMInstances_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListSSMInstancesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AWSOIDCServiceServer).ListSSMInstances(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AWSOIDCService_ListSSMInstances_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AWSOIDCServiceServer).ListSSMInstances(ctx, req.(*ListSSMInstancesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AWSOIDCService_ServiceDesc is the grpc.ServiceDesc for AWSOIDCService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -460,6 +499,10 @@ var AWSOIDCService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListEKSClusters",
 			Handler:    _AWSOIDCService_ListEKSClusters_Handler,
+		},
+		{
+			MethodName: "ListSSMInstances",
+			Handler:    _AWSOIDCService_ListSSMInstances_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
