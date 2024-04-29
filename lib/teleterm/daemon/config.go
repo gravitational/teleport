@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
+	"github.com/gravitational/teleport/lib/teleterm/clusteridcache"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/services/clientcache"
 	"github.com/gravitational/teleport/lib/teleterm/services/connectmycomputer"
@@ -73,6 +74,10 @@ type Config struct {
 	ConnectMyComputerNodeName         *connectmycomputer.NodeName
 
 	ClientCache ClientCache
+	// ClusterIDCache gets updated whenever daemon.Service.ResolveClusterWithDetails gets called.
+	// Since that method is called by the Electron app only for root clusters and typically only once
+	// after a successful login, this cache doesn't have to be cleared.
+	ClusterIDCache *clusteridcache.Cache
 }
 
 // ClientCache stores clients keyed by cluster URI.
@@ -162,6 +167,10 @@ func (c *Config) CheckAndSetDefaults() error {
 			Log:      c.Log,
 			Resolver: c.Storage,
 		})
+	}
+
+	if c.ClusterIDCache == nil {
+		c.ClusterIDCache = &clusteridcache.Cache{}
 	}
 
 	return nil

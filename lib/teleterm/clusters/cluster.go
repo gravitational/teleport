@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
+	"github.com/gravitational/teleport/lib/teleterm/clusteridcache"
 )
 
 // Cluster describes user settings and access to various resources.
@@ -85,7 +86,7 @@ func (c *Cluster) Connected() bool {
 // GetWithDetails makes requests to the auth server to return details of the current
 // Cluster that cannot be found on the disk only, including details about the user
 // and enabled enterprise features. This method requires a valid cert.
-func (c *Cluster) GetWithDetails(ctx context.Context, authClient auth.ClientI) (*ClusterWithDetails, error) {
+func (c *Cluster) GetWithDetails(ctx context.Context, authClient auth.ClientI, clusterIDCache *clusteridcache.Cache) (*ClusterWithDetails, error) {
 	var (
 		clusterPingResponse *webclient.PingResponse
 		authPingResponse    proto.PingResponse
@@ -132,6 +133,7 @@ func (c *Cluster) GetWithDetails(ctx context.Context, authClient auth.ClientI) (
 				return trace.Wrap(err)
 			}
 			authClusterID = clusterName.GetClusterID()
+			clusterIDCache.Store(c.URI, authClusterID)
 			return nil
 		})
 		return trace.Wrap(err)
