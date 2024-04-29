@@ -38,7 +38,7 @@ func Run(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	manager, err := NewManager(ctx, &Config{
+	manager, err := NewManager(&Config{
 		TUNDevice:  tun,
 		IPv6Prefix: ipv6Prefix,
 	})
@@ -47,10 +47,12 @@ func Run(ctx context.Context) error {
 	}
 
 	g, ctx := errgroup.WithContext(ctx)
-	g.Go(manager.Run)
+	g.Go(func() error { return trace.Wrap(manager.Run(ctx)) })
 	g.Go(func() error {
 		<-ctx.Done()
-		return trace.Wrap(manager.Destroy())
+		tunErr := tun.Close()
+		destroyErr := manager.Destroy()
+		return trace.NewAggregate(tunErr, destroyErr)
 	})
 	return trace.Wrap(g.Wait())
 }
