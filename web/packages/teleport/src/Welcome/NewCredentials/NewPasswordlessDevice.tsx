@@ -26,11 +26,15 @@ import { useRefAutoFocus } from 'shared/hooks';
 
 import { OnboardCard } from 'design/Onboard/OnboardCard';
 
+import { PasskeyBlurb } from 'teleport/components/Passkeys/PasskeyBlurb';
+
 import { SliderProps, UseTokenState } from './types';
 
 export function NewPasswordlessDevice(props: UseTokenState & SliderProps) {
   const {
     submitAttempt,
+    credential,
+    createNewWebAuthnDevice,
     onSubmitWithWebauthn,
     primaryAuthType,
     isPasswordlessEnabled,
@@ -38,6 +42,7 @@ export function NewPasswordlessDevice(props: UseTokenState & SliderProps) {
     refCallback,
     hasTransitionEnded,
     clearSubmitAttempt,
+    resetToken,
   } = props;
   const [deviceName, setDeviceName] = useState('passwordless-device');
 
@@ -55,7 +60,11 @@ export function NewPasswordlessDevice(props: UseTokenState & SliderProps) {
       return;
     }
 
-    onSubmitWithWebauthn('', deviceName);
+    if (!credential) {
+      createNewWebAuthnDevice('passwordless');
+    } else {
+      onSubmitWithWebauthn('', deviceName);
+    }
   }
 
   function switchToLocalFlow(e, applyNextAnimation = false) {
@@ -78,7 +87,7 @@ export function NewPasswordlessDevice(props: UseTokenState & SliderProps) {
       {({ validator }) => (
         <OnboardCard ref={refCallback} data-testid="passwordless">
           <Text typography="h4" mb={3} color="text.main" bold>
-            Set A Passwordless Device
+            Set up Passwordless Authentication
           </Text>
           {submitAttempt.status === 'failed' && (
             <Danger children={submitAttempt.statusText} />
@@ -89,25 +98,30 @@ export function NewPasswordlessDevice(props: UseTokenState & SliderProps) {
               or Safari.
             </Info>
           )}
-          <FieldInput
-            rule={requiredField('Device name is required')}
-            label="Device Name"
-            placeholder="Name"
-            width="100%"
-            ref={deviceNameInputRef}
-            value={deviceName}
-            type="text"
-            onChange={e => setDeviceName(e.target.value)}
-            readonly={submitAttempt.status === 'processing'}
-          />
+          Setting up account for: {resetToken.user}
+          <Box mb={3}>
+            <PasskeyBlurb />
+          </Box>
+          {!!credential && (
+            <FieldInput
+              rule={requiredField('Passkey nickname is required')}
+              label="Passkey Nickname"
+              placeholder="Name"
+              width="100%"
+              ref={deviceNameInputRef}
+              value={deviceName}
+              type="text"
+              onChange={e => setDeviceName(e.target.value)}
+              readonly={submitAttempt.status === 'processing'}
+            />
+          )}
           <ButtonPrimary
             width="100%"
-            mt={1}
             size="large"
             onClick={e => handleOnSubmit(e, validator)}
             disabled={submitAttempt.status === 'processing'}
           >
-            Submit
+            {credential ? 'Submit' : 'Create a passkey'}
           </ButtonPrimary>
           {primaryAuthType !== 'passwordless' && isPasswordlessEnabled && (
             <Box mt={3} textAlign="center">

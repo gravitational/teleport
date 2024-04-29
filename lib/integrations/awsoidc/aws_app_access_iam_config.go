@@ -98,7 +98,7 @@ func NewAWSAppAccessConfigureClient(ctx context.Context) (AWSAppAccessConfigureC
 //
 // The following actions must be allowed by the IAM Role assigned in the Client.
 //   - iam:PutRolePolicy
-func ConfigureAWSAppAccess(ctx context.Context, awsClient AWSAppAccessConfigureClient, req *AWSAppAccessConfigureRequest) error {
+func ConfigureAWSAppAccess(ctx context.Context, awsClient AWSAppAccessConfigureClient, req AWSAppAccessConfigureRequest) error {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}

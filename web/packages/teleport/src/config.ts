@@ -138,6 +138,8 @@ const cfg = {
     player: '/web/cluster/:clusterId/session/:sid', // ?recordingType=ssh|desktop|k8s&durationMs=1234
     login: '/web/login',
     loginSuccess: '/web/msg/info/login_success',
+    loginTerminalRedirect: '/web/msg/info/login_terminal',
+    loginClose: '/web/msg/info/login_close',
     loginErrorLegacy: '/web/msg/error/login_failed',
     loginError: '/web/msg/error/login',
     loginErrorCallback: '/web/msg/error/login/callback',

@@ -42,7 +42,14 @@ const (
 	DateTimeFormat = "2006-01-02 15:04:05"
 )
 
-// Client is a wrapper around resty.Client.
+// Client is a wrapper around resty.Client that implements a few ServiceNow
+// incident methods to create incidents, update them, and check who is on-call.
+//
+// The on_call_rota API is not publicly documented, but you can access
+// swagger-like interface by registering a dev SNow account and requesting a dev
+// instance.
+// When the dev instance is created, you can open the "ALL" tab and search for
+// the REST API explorer.
 type Client struct {
 	ClientConfig
 
@@ -137,7 +144,7 @@ func (snc *Client) CreateIncident(ctx context.Context, reqID string, reqData Req
 		body.AssignedTo = reqData.SuggestedReviewers[0]
 	}
 
-	var result incidentResult
+	var result IncidentResult
 	resp, err := snc.client.NewRequest().
 		SetContext(ctx).
 		SetBody(body).
@@ -207,7 +214,7 @@ func (snc *Client) ResolveIncident(ctx context.Context, incidentID string, resol
 // GetOnCall returns the current users on-call for the given rota ID.
 func (snc *Client) GetOnCall(ctx context.Context, rotaID string) ([]string, error) {
 	formattedTime := time.Now().Format(DateTimeFormat)
-	var result onCallResult
+	var result OnCallResult
 	resp, err := snc.client.NewRequest().
 		SetContext(ctx).
 		SetQueryParams(map[string]string{
@@ -274,7 +281,7 @@ func (snc *Client) CheckHealth(ctx context.Context) error {
 
 // GetUserName returns the name for the given user ID
 func (snc *Client) GetUserName(ctx context.Context, userID string) (string, error) {
-	var result userResult
+	var result UserResult
 	resp, err := snc.client.NewRequest().
 		SetContext(ctx).
 		SetQueryParams(map[string]string{

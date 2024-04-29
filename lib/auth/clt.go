@@ -1077,4 +1077,7 @@ type ClientI interface {
 
 	// GetClusterAccessGraphConfig retrieves the cluster Access Graph configuration from Auth server.
 	GetClusterAccessGraphConfig(ctx context.Context) (*clusterconfigpb.AccessGraphConfig, error)
+
+	// GenerateAppToken creates a JWT token with application access.
+	GenerateAppToken(ctx context.Context, req types.GenerateAppTokenRequest) (string, error)
 }

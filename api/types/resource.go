@@ -77,6 +77,12 @@ func IsSystemResource(r Resource) bool {
 	return false
 }
 
+// GetName fetches the name of the supplied resource. Useful when sorting lists
+// of resources or building maps, etc.
+func GetName[R Resource](r R) string {
+	return r.GetName()
+}
+
 // ResourceDetails includes details about the resource
 type ResourceDetails struct {
 	Hostname     string

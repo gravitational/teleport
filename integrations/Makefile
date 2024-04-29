@@ -17,7 +17,7 @@ update-test-version:
 	)
 
 .PHONY: test
-test: test-access test-lib
+test: test-access test-lib test-event-handler
 
 .PHONY: test-access
 test-access:
@@ -26,3 +26,7 @@ test-access:
 .PHONY: test-lib
 test-lib:
 	go test ./lib/...
+
+.PHONY: test-event-handler
+test-event-handler:
+	make -C event-handler test

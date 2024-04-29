@@ -5,7 +5,11 @@ description: How to configure Teleport database access with Redis Cluster.
 
 If you want to configure Redis Standalone, please read [Database Access with Redis](redis.mdx).
 
-(!docs/pages/includes/database-access/db-introduction.mdx  dbType="Redis cluster" dbConfigure="Redis cluster database with mutual TLS authentication" dbName="Redis cluster" !)
+(!docs/pages/includes/database-access/db-introduction.mdx  dbType="Redis cluster" dbConfigure="Redis cluster database" dbName="Redis cluster" !)
+
+## How it works
+
+(!docs/pages/includes/database-access/how-it-works/mtls.mdx db="Redis cluster"!)
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
@@ -76,7 +80,7 @@ Install and configure Teleport where you will run the Teleport Database Service:
 Export your Teleport cluster's `db_client` CA cert and concatenate it with your Redis 
 Cluster's CA cert (in PEM format):
 ```code
-$ tctl auth export --type=db_client > db-client-ca.crt
+$ tctl auth export --type=db-client > db-client-ca.crt
 $ cat <Var name="/path/to/your/ca.crt" /> db-client-ca.crt > pem-bundle.cas
 ```
 

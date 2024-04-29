@@ -282,7 +282,6 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 	}
 
 	router := httprouter.New()
-
 	router.UseRawPath = true
 
 	router.GET("/version", fwd.withAuth(
@@ -303,6 +302,9 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 	router.GET("/api/:ver/namespaces/:podNamespace/pods/:podName/portforward", fwd.withAuth(fwd.portForward))
 
 	router.POST("/apis/authorization.k8s.io/:ver/selfsubjectaccessreviews", fwd.withAuth(fwd.selfSubjectAccessReviews))
+
+	router.PATCH("/api/:ver/namespaces/:podNamespace/pods/:podName/ephemeralcontainers", fwd.withAuth(fwd.ephemeralContainers))
+	router.PUT("/api/:ver/namespaces/:podNamespace/pods/:podName/ephemeralcontainers", fwd.withAuth(fwd.ephemeralContainers))
 
 	router.GET("/api/:ver/teleport/join/:session", fwd.withAuthPassthrough(fwd.join))
 
@@ -1417,19 +1419,7 @@ func (f *Forwarder) acquireConnectionLock(ctx context.Context, user string, role
 
 // execNonInteractive handles all exec sessions without a TTY.
 func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params, request remoteCommandRequest, proxy *remoteCommandProxy, sess *clusterSession) error {
-	roles, err := getRolesByName(f, ctx.Context.Identity.GetIdentity().Groups)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	var policySets []*types.SessionTrackerPolicySet
-	for _, role := range roles {
-		policySet := role.GetSessionPolicySet()
-		policySets = append(policySets, &policySet)
-	}
-
-	authorizer := auth.NewSessionAccessEvaluator(policySets, types.KubernetesSessionKind, ctx.User.GetName())
-	canStart, _, err := authorizer.FulfilledFor(nil)
+	canStart, err := f.canStartSessionAlone(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1545,6 +1535,19 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 	execEvent.Code = events.ExecCode
 
 	return nil
+}
+
+// canStartSessionAlone returns true if the user associated with authCtx
+// is allowed to start a session without moderation.
+func (f *Forwarder) canStartSessionAlone(authCtx *authContext) (bool, error) {
+	policySets := authCtx.Checker.SessionPolicySets()
+	authorizer := auth.NewSessionAccessEvaluator(policySets, types.KubernetesSessionKind, authCtx.User.GetName())
+	canStart, _, err := authorizer.FulfilledFor(nil)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	return canStart, nil
 }
 
 func exitCode(err error) (errMsg, code string) {
