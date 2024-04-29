@@ -125,15 +125,16 @@ type Manager struct {
 }
 
 type state struct {
-	mu               sync.RWMutex
-	tcpHandlers      map[tcpip.Address]tcpHandler
-	nextFreeIPSuffix uint32
+	mu                   sync.RWMutex
+	tcpHandlers          map[tcpip.Address]tcpHandler
+	lastAssignedIPSuffix uint32
 }
 
 func newState() state {
 	return state{
-		tcpHandlers:      make(map[tcpip.Address]tcpHandler),
-		nextFreeIPSuffix: 100<<24 + 64<<16 + 0<<8 + 2<<0,
+		tcpHandlers: make(map[tcpip.Address]tcpHandler),
+		// Suffix 0 is reserved, suffix 1 is assigned to the NIC.
+		lastAssignedIPSuffix: 1,
 	}
 }
 
@@ -306,15 +307,10 @@ func (m *Manager) assignTCPHandler(handler tcpHandler) (tcpip.Address, error) {
 	m.state.mu.Lock()
 	defer m.state.mu.Unlock()
 
-	ipSuffix := m.state.nextFreeIPSuffix
-	m.state.nextFreeIPSuffix++
+	m.state.lastAssignedIPSuffix++
+	ipSuffix := m.state.lastAssignedIPSuffix
 
-	addrBytes := m.ipv6Prefix.As16()
-	addrBytes[12] = byte(ipSuffix >> 24)
-	addrBytes[13] = byte(ipSuffix >> 16)
-	addrBytes[14] = byte(ipSuffix >> 8)
-	addrBytes[15] = byte(ipSuffix >> 0)
-	addr := tcpip.AddrFrom16(addrBytes)
+	addr := ipv6WithSuffix(m.ipv6Prefix, u32ToBytes(ipSuffix))
 
 	m.state.tcpHandlers[addr] = handler
 	if err := m.addProtocolAddress(addr); err != nil {
@@ -429,4 +425,22 @@ func protocolVersion(b byte) (tcpip.NetworkProtocolNumber, bool) {
 		return header.IPv6ProtocolNumber, true
 	}
 	return 0, false
+}
+
+func ipv6WithSuffix(prefix tcpip.Address, suffix []byte) tcpip.Address {
+	addrBytes := prefix.As16()
+	offset := len(addrBytes) - len(suffix)
+	for i, b := range suffix {
+		addrBytes[offset+i] = b
+	}
+	return tcpip.AddrFrom16(addrBytes)
+}
+
+func u32ToBytes(i uint32) []byte {
+	bytes := make([]byte, 4)
+	bytes[0] = byte(i >> 24)
+	bytes[1] = byte(i >> 16)
+	bytes[2] = byte(i >> 8)
+	bytes[3] = byte(i >> 0)
+	return bytes
 }
