@@ -108,6 +108,7 @@ func (c *transportCredentials) Clone() credentials.TransportCredentials {
 // OverrideServerName implements the credentials.TransportCredentials interface.
 // This call is delegated to the wrapped credentials.TransportCredentials.
 func (c *transportCredentials) OverrideServerName(sn string) error {
+	//nolint:staticcheck // SA1019. Kept for backward compatibility.
 	return c.wrapped.OverrideServerName(sn)
 }
 
