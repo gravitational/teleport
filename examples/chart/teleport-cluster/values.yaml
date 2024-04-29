@@ -403,6 +403,20 @@ aws:
   writeMaxCapacity: null     # Integer
   writeTargetValue: null     # Float
 
+  # accessMonitoring configures the Access Monitoring feature of the Auth Service.
+  # Using this features requires setting up specific AWS infrastructure as described
+  # in https://goteleport.com/docs/access-controls/access-monitoring/#configuration
+  # The Terraform example code will output the chart values for this section.
+  accessMonitoring:
+    enabled: false
+    # reportResults is the bucket uri where query results are reported.
+    # Example: "s3://example-athena-long-term/report_results"
+    reportResults: ""
+    # roleARN is the ARN of the role that is assumed to run the reports.
+    roleARN: ""
+    # workgroup is the Athena workgroup in which Teleport runs queries.
+    workgroup: ""
+
 ##################################################
 # GCP-specific settings (only used in "gcp" mode)
 ##################################################
@@ -745,6 +759,10 @@ resources: {}
 #    memory: "2Gi"
 #  limits:
 #    memory: "2Gi"
+
+# Pod security context for any pods created by the chart
+podSecurityContext: {}
+  # fsGroup: 65532
 
 # Security context to add to the container
 securityContext: {}

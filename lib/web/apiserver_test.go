@@ -2155,7 +2155,7 @@ func mustStartWindowsDesktopMock(t *testing.T, authClient *auth.Server) *windows
 			return
 		}
 		tlsConn := tls.Server(conn, tlsConfig)
-		if err := tlsConn.Handshake(); err != nil {
+		if err := tlsConn.HandshakeContext(context.Background()); err != nil {
 			t.Errorf("Unexpected error %v", err)
 			return
 		}
