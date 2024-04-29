@@ -45,4 +45,14 @@ func TestCheckAndSetDefaults(t *testing.T) {
 		}).CheckAndSetDefaults()
 		require.NoError(t, err)
 	})
+
+	t.Run("empty region", func(t *testing.T) {
+		err := (&AWSClientRequest{
+			IntegrationName: "my-integration",
+			Token:           "token",
+			RoleARN:         "some-arn",
+			Region:          "",
+		}).CheckAndSetDefaults()
+		require.NoError(t, err)
+	})
 }
