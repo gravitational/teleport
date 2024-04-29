@@ -238,6 +238,14 @@ func (m *Manager) handleTCP(req *tcp.ForwarderRequest) {
 	ctx, cancel := context.WithCancel(m.rootCtx)
 	defer cancel()
 
+	// Clients of *tcp.ForwarderRequest must eventually call Complete on it exactly once.
+	var completed bool
+	defer func() {
+		if !completed {
+			req.Complete(true /*send TCP reset*/)
+		}
+	}()
+
 	id := req.ID()
 	slog := m.slog.With("request", id)
 	slog.DebugContext(ctx, "Handling TCP connection.")
@@ -246,12 +254,11 @@ func (m *Manager) handleTCP(req *tcp.ForwarderRequest) {
 	handler, ok := m.getTCPHandler(id.LocalAddress)
 	if !ok {
 		slog.With("addr", id.LocalAddress).DebugContext(ctx, "No handler for address.")
-		req.Complete(true) // Send TCP reset.
 		return
 	}
 
 	var wq waiter.Queue
-	waitEntry, notifyCh := waiter.NewChannelEntry(waiter.EventHUp)
+	waitEntry, notifyCh := waiter.NewChannelEntry(waiter.EventErr | waiter.EventHUp)
 	wq.EventRegister(&waitEntry)
 	defer wq.EventUnregister(&waitEntry)
 	go func() {
@@ -263,15 +270,14 @@ func (m *Manager) handleTCP(req *tcp.ForwarderRequest) {
 		}
 	}()
 
-	completed := false
 	connector := func() (io.ReadWriteCloser, error) {
 		endpoint, err := req.CreateEndpoint(&wq)
 		if err != nil {
 			// This err doesn't actually implement [error]
 			return nil, trace.Errorf("creating TCP endpoint: %s", err)
 		}
-		req.Complete(false) // Don't send TCP reset.
 		completed = true
+		req.Complete(false /*don't send TCP reset*/)
 		endpoint.SocketOptions().SetKeepAlive(true)
 		conn := gonet.NewTCPConn(&wq, endpoint)
 		return conn, nil
@@ -283,10 +289,6 @@ func (m *Manager) handleTCP(req *tcp.ForwarderRequest) {
 		} else {
 			slog.DebugContext(ctx, "Error handling TCP connection.", "err", err)
 		}
-	}
-	if !completed {
-		// Handler did not consume the connector.
-		req.Complete(true) // Send TCP reset.
 	}
 }
 

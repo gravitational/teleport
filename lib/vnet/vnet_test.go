@@ -24,6 +24,7 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -148,30 +149,34 @@ func (p *testPack) dial(ctx context.Context, addr tcpip.Address) (*gonet.TCPConn
 	return conn, trace.Wrap(err)
 }
 
-// TestVnetEcho is a preliminary VNet test that manually stalls an echo handler on a specific IP, TCP dials
+// TestVnetEcho is a preliminary VNet test that manually installs an echo handler on a specific IP, TCP dials
 // it, and makes sure writes are echoed back to the TCP conn.
 func TestVnetEcho(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
+	ctx := context.Background()
 	p := newTestPack(t, ctx)
 
 	dialAddress, err := p.manager.assignTCPHandler(echoHandler{})
 	require.NoError(t, err)
 
-	conn, err := p.dial(ctx, dialAddress)
-	require.NoError(t, err)
-	defer conn.Close()
+	for i := 0; i < 10; i++ {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			t.Parallel()
 
-	testString := "Hello, World!\n"
-	_, err = conn.Write([]byte(testString))
-	require.NoError(t, err)
-	defer func() { require.NoError(t, conn.Close()) }()
+			conn, err := p.dial(ctx, dialAddress)
+			require.NoError(t, err)
+			defer conn.Close()
 
-	scanner := bufio.NewScanner(conn)
-	require.True(t, scanner.Scan(), "scan failed: %v", scanner.Err())
-	line := scanner.Text()
-	require.Equal(t, strings.TrimSuffix(testString, "\n"), line)
+			testString := "Hello, World!\n"
+			_, err = conn.Write([]byte(testString))
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, conn.Close()) })
+
+			scanner := bufio.NewScanner(conn)
+			require.True(t, scanner.Scan(), "scan failed: %v", scanner.Err())
+			line := scanner.Text()
+			require.Equal(t, strings.TrimSuffix(testString, "\n"), line)
+		})
+	}
 }
 
 type echoHandler struct{}
@@ -200,7 +205,7 @@ var fakeTUNClosedErr = errors.New("TUN closed")
 
 type fakeTUN struct {
 	name                            string
-	readPacketsFrom, writePacketsTo chan []byte
+	writePacketsTo, readPacketsFrom chan []byte
 	closed                          chan struct{}
 	closeOnce                       func()
 }
@@ -208,22 +213,22 @@ type fakeTUN struct {
 // newSplitTUN returns two fake TUN devices that are tied together: writes to one can be read on the other,
 // and vice versa.
 func newSplitTUN() (*fakeTUN, *fakeTUN) {
-	closed := make(chan struct{})
-	closeOnce := sync.OnceFunc(func() { close(closed) })
+	aClosed := make(chan struct{})
+	bClosed := make(chan struct{})
 	ab := make(chan []byte)
 	ba := make(chan []byte)
 	return &fakeTUN{
 			name:            "tun1",
-			readPacketsFrom: ab,
-			writePacketsTo:  ba,
-			closed:          closed,
-			closeOnce:       closeOnce,
+			writePacketsTo:  ab,
+			readPacketsFrom: ba,
+			closed:          aClosed,
+			closeOnce:       sync.OnceFunc(func() { close(aClosed) }),
 		}, &fakeTUN{
 			name:            "tun2",
-			readPacketsFrom: ba,
-			writePacketsTo:  ab,
-			closed:          closed,
-			closeOnce:       closeOnce,
+			writePacketsTo:  ba,
+			readPacketsFrom: ab,
+			closed:          bClosed,
+			closeOnce:       sync.OnceFunc(func() { close(bClosed) }),
 		}
 }
 
