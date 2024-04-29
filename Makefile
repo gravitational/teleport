@@ -319,8 +319,26 @@ teleport-hot-reload:
 		--exclude-dir="node_modules" \
 		--exclude-dir="target" \
 		--exclude-dir="web/packages/*/node_modules" \
+		--color \
+		--log-prefix=false \
 		--build="make $(BUILDDIR)/teleport" \
 		--command="$(BUILDDIR)/teleport $(TELEPORT_ARGS)"
+
+.PHONY: teleport-hot-reload-ent
+teleport-hot-reload-ent:
+	CompileDaemon \
+		--graceful-kill=true \
+		--exclude-dir=".git" \
+		--exclude-dir="build" \
+		--exclude-dir="e/build" \
+		--exclude-dir="e/web/*/node_modules" \
+		--exclude-dir="node_modules" \
+		--exclude-dir="target" \
+		--exclude-dir="web/packages/*/node_modules" \
+		--color \
+		--log-prefix=false \
+		--build="make -C e build/teleport" \
+		--command="e/build/teleport $(TELEPORT_ARGS)"
 
 #
 # BPF support (IF ENABLED)
