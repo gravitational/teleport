@@ -45,9 +45,43 @@ func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
+	reqUserPassword := func(user, pass string) *proto.CreateAuthenticateChallengeRequest {
+		return &proto.CreateAuthenticateChallengeRequest{
+			Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{
+				UserCredentials: &proto.UserCredentials{
+					Username: user,
+					Password: []byte(pass),
+				},
+			},
+		}
+	}
+
+	reqPasswordless := func(_, _ string) *proto.CreateAuthenticateChallengeRequest {
+		return &proto.CreateAuthenticateChallengeRequest{
+			Request: &proto.CreateAuthenticateChallengeRequest_Passwordless{
+				Passwordless: &proto.Passwordless{},
+			},
+			ChallengeExtensions: &mfav1.ChallengeExtensions{
+				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN,
+			},
+		}
+	}
+
+	makeWebauthnSpec := func() *types.AuthPreferenceSpecV2 {
+		return &types.AuthPreferenceSpecV2{
+			Type:         constants.Local,
+			SecondFactor: constants.SecondFactorWebauthn,
+			Webauthn: &types.Webauthn{
+				RPID: "localhost",
+			},
+		}
+	}
+
 	tests := []struct {
 		name            string
 		spec            *types.AuthPreferenceSpecV2
+		createReq       func(user, pass string) *proto.CreateAuthenticateChallengeRequest
+		wantErr         error
 		assertChallenge func(*proto.MFAAuthenticateChallenge)
 	}{
 		{
@@ -56,6 +90,7 @@ func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 				Type:         constants.Local,
 				SecondFactor: constants.SecondFactorOff,
 			},
+			createReq: reqUserPassword,
 			assertChallenge: func(challenge *proto.MFAAuthenticateChallenge) {
 				require.Empty(t, challenge.GetTOTP())
 				require.Empty(t, challenge.GetWebauthnChallenge())
@@ -67,6 +102,7 @@ func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 				Type:         constants.Local,
 				SecondFactor: constants.SecondFactorOTP,
 			},
+			createReq: reqUserPassword,
 			assertChallenge: func(challenge *proto.MFAAuthenticateChallenge) {
 				require.NotNil(t, challenge.GetTOTP())
 				require.Empty(t, challenge.GetWebauthnChallenge())
@@ -81,20 +117,16 @@ func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 					AppID: "https://localhost",
 				},
 			},
+			createReq: reqUserPassword,
 			assertChallenge: func(challenge *proto.MFAAuthenticateChallenge) {
 				require.Empty(t, challenge.GetTOTP())
 				require.NotEmpty(t, challenge.GetWebauthnChallenge())
 			},
 		},
 		{
-			name: "OK second_factor:webauthn (standalone)",
-			spec: &types.AuthPreferenceSpecV2{
-				Type:         constants.Local,
-				SecondFactor: constants.SecondFactorWebauthn,
-				Webauthn: &types.Webauthn{
-					RPID: "localhost",
-				},
-			},
+			name:      "OK second_factor:webauthn (standalone)",
+			spec:      makeWebauthnSpec(),
+			createReq: reqUserPassword,
 			assertChallenge: func(challenge *proto.MFAAuthenticateChallenge) {
 				require.Empty(t, challenge.GetTOTP())
 				require.NotEmpty(t, challenge.GetWebauthnChallenge())
@@ -112,6 +144,7 @@ func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 					RPID: "localhost",
 				},
 			},
+			createReq: reqUserPassword,
 			assertChallenge: func(challenge *proto.MFAAuthenticateChallenge) {
 				require.Empty(t, challenge.GetTOTP())
 				require.NotEmpty(t, challenge.GetWebauthnChallenge())
@@ -127,6 +160,7 @@ func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 					RPID: "localhost",
 				},
 			},
+			createReq: reqUserPassword,
 			assertChallenge: func(challenge *proto.MFAAuthenticateChallenge) {
 				require.NotNil(t, challenge.GetTOTP())
 				require.NotEmpty(t, challenge.GetWebauthnChallenge())
@@ -141,10 +175,21 @@ func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 					RPID: "localhost",
 				},
 			},
+			createReq: reqUserPassword,
 			assertChallenge: func(challenge *proto.MFAAuthenticateChallenge) {
 				require.NotNil(t, challenge.GetTOTP())
 				require.NotEmpty(t, challenge.GetWebauthnChallenge())
 			},
+		},
+		{
+			name: "allow_passwordless=false and passwordless challenge",
+			spec: func() *types.AuthPreferenceSpecV2 {
+				spec := makeWebauthnSpec()
+				spec.AllowPasswordless = &types.BoolOption{Value: false}
+				return spec
+			}(),
+			createReq: reqPasswordless,
+			wantErr:   types.ErrPasswordlessDisabledBySettings,
 		},
 	}
 	for _, test := range tests {
@@ -155,23 +200,20 @@ func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 			svr := newTestTLSServer(t)
 			authServer := svr.Auth()
 			mfa := configureForMFA(t, svr)
-			username := mfa.User
-			password := mfa.Password
+			user := mfa.User
+			pass := mfa.Password
 
 			authPreference, err := types.NewAuthPreference(*test.spec)
 			require.NoError(t, err)
 			_, err = authServer.UpsertAuthPreference(ctx, authPreference)
 			require.NoError(t, err)
 
-			challenge, err := authServer.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
-				Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{
-					UserCredentials: &proto.UserCredentials{
-						Username: username,
-						Password: []byte(password),
-					},
-				},
-			})
-			require.NoError(t, err)
+			challenge, err := authServer.CreateAuthenticateChallenge(ctx, test.createReq(user, pass))
+			if test.wantErr != nil {
+				assert.ErrorIs(t, err, test.wantErr, "CreateAuthenticateChallenge error mismatch")
+				return
+			}
+			require.NoError(t, err, "CreateAuthenticateChallenge errored unexpectedly")
 			test.assertChallenge(challenge)
 		})
 	}
