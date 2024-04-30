@@ -64,7 +64,7 @@ func newTestPack(t *testing.T, ctx context.Context) *testPack {
 	require.NoError(t, err)
 
 	errIsOK := func(err error) bool {
-		return err == nil || errors.Is(err, context.Canceled) || utils.IsOKNetworkError(err) || errors.Is(err, fakeTUNClosedErr)
+		return err == nil || errors.Is(err, context.Canceled) || utils.IsOKNetworkError(err) || errors.Is(err, errFakeTUNClosed)
 	}
 
 	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
@@ -203,7 +203,7 @@ func randomULAAddress() (tcpip.Address, error) {
 	return tcpip.AddrFrom16(bytes), nil
 }
 
-var fakeTUNClosedErr = errors.New("TUN closed")
+var errFakeTUNClosed = errors.New("TUN closed")
 
 type fakeTUN struct {
 	name                            string
@@ -250,7 +250,7 @@ func (f *fakeTUN) Write(bufs [][]byte, offset int) (int, error) {
 	copy(packet, bufs[0][offset:])
 	select {
 	case <-f.closed:
-		return 0, fakeTUNClosedErr
+		return 0, errFakeTUNClosed
 	case f.writePacketsTo <- packet:
 	}
 	return 1, nil
@@ -268,7 +268,7 @@ func (f *fakeTUN) Read(bufs [][]byte, sizes []int, offset int) (n int, err error
 	var packet []byte
 	select {
 	case <-f.closed:
-		return 0, fakeTUNClosedErr
+		return 0, errFakeTUNClosed
 	case packet = <-f.readPacketsFrom:
 	}
 	sizes[0] = copy(bufs[0][offset:], packet)
