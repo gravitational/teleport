@@ -156,7 +156,6 @@ export const makeRuntimeSettings = (
     requestedNetworkAddress: '',
     binaryPath: '',
     homeDir: '',
-    flags: [],
   },
   sharedProcess: {
     requestedNetworkAddress: '',
