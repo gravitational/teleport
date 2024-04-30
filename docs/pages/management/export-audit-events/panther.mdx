@@ -47,8 +47,6 @@ from Teleport's events API, and forwards them to Fluentd.
 
 (!docs/pages/includes/plugins/event-handler-role-user.mdx!)
 
-panther-ingest.png
-
 ## Step 4/7. Create teleport-event-handler credentials
 
 In order for the Event Handler plugin to forward events from your Teleport cluster, 
@@ -221,7 +219,7 @@ Once logs are being sent to S3, you can configure Panther to ingest them. Follow
 the [Panther documentation](https://docs.panther.com/data-onboarding/supported-logs/teleport) to set
 up the S3 bucket as a data source.
 
-![Example ](../../../img/management/fluentd-diagram.png)
+![Panther Dashboard Example](../../../img/management/panther-ingest.png)
 
 ## Troubleshooting connection issues
 
