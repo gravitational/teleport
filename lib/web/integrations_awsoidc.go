@@ -527,7 +527,7 @@ func (h *Handler) awsOIDCListEC2(w http.ResponseWriter, r *http.Request, p httpr
 			return nil, trace.Wrap(err)
 		}
 
-		servers = append(servers, ui.MakeServer(h.auth.clusterName, s, logins))
+		servers = append(servers, ui.MakeServer(h.auth.clusterName, s, logins, false /* requiresRequest */))
 	}
 
 	return ui.AWSOIDCListEC2Response{
