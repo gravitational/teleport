@@ -5781,6 +5781,8 @@ message PluginSpecV1 {
     PluginServiceNowSettings serviceNow = 10;
     // Settings for the Gitlab plugin.
     PluginGitlabSettings gitlab = 12;
+
+    PluginSCIMSettings scim = 13;
   }
 
   // generation contains a unique ID that should:
@@ -5964,6 +5966,11 @@ message PluginDiscordSettings {
   // channel IDs that will receive notifications and requests regarding that
   // that Role.
   map<string, DiscordChannels> role_to_recipients = 1;
+}
+
+message PluginSCIMSettings {
+  option (gogoproto.equal) = true;
+  string sso_connector_id = 1;
 }
 
 message PluginBootstrapCredentialsV1 {

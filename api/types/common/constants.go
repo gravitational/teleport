@@ -54,6 +54,8 @@ const (
 	// created from the Okta service.
 	OriginOkta = "okta"
 
+	OriginSCIM = "scim"
+
 	// OriginIntegrationAWSOIDC is an origin value indicating that the resource was
 	// created from the AWS OIDC Integration.
 	OriginIntegrationAWSOIDC = "integration_awsoidc"
@@ -71,5 +73,6 @@ var OriginValues = []string{
 	OriginCloud,
 	OriginKubernetes,
 	OriginOkta,
+	OriginSCIM,
 	OriginDiscoveryKubernetes,
 }
