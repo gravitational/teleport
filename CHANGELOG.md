@@ -12,6 +12,11 @@ Opsgenie plugin users, role annotations must now contain
 See [the Opsgenie plugin documentation](docs/pages/access-controls/access-request-plugins/opsgenie.mdx)
 for setup instructions.
 
+#### Teleport Assist chat has been remove.
+
+Teleport Assist chat has been removed from Teleport 16. Assist is still available
+in the SSH Web Terminal and Audit Monitoring.
+
 ## 15.0.0 (xx/xx/24)
 
 ### New features

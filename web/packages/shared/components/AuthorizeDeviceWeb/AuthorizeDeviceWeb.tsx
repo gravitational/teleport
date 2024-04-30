@@ -16,16 +16,65 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { useEffect } from 'react';
 import styled from 'styled-components';
 import { Box, Flex, ButtonPrimary, Text, ButtonLink } from 'design';
 import { Link } from 'react-router-dom';
+import { useParams } from 'react-router';
 
 import cfg from 'teleport/config';
+import useTeleport from 'teleport/useTeleport';
+import { getPlatform } from 'design/platform';
+import history from 'teleport/services/history/history';
 
 import {
   DownloadConnect,
   DownloadLink,
+  getConnectDownloadLinks,
 } from 'shared/components/DownloadConnect/DownloadConnect';
+import { makeDeepLinkWithSafeInput } from 'shared/deepLinks';
+
+export const PassthroughPage = () => {
+  const ctx = useTeleport();
+  const { id, token } = useParams<{
+    id: string;
+    token: string;
+  }>();
+  const { cluster, username } = ctx.storeUser.state;
+  const deviceTrustAuthorize = makeDeepLinkWithSafeInput({
+    proxyHost: cluster?.publicURL,
+    username: username,
+    path: '/authenticate_web_device',
+    searchParams: {
+      id,
+      token,
+    },
+  });
+  const platform = getPlatform();
+  const downloadLinks = getConnectDownloadLinks(platform, cluster.proxyVersion);
+
+  useEffect(() => {
+    window.open(deviceTrustAuthorize);
+
+    // the deviceWebToken is only valid for 5 minutes, so we can forward
+    // to the dashboard
+    const id = window.setTimeout(
+      () => {
+        history.push(cfg.routes.root, true);
+      },
+      1000 * 60 * 5 /* 5 minutes */
+    );
+
+    return () => window.clearTimeout(id);
+  }, [deviceTrustAuthorize]);
+
+  return (
+    <DeviceTrustConnectPassthrough
+      downloadLinks={downloadLinks}
+      authorizeWebDeviceDeepLink={deviceTrustAuthorize}
+    />
+  );
+};
 
 export const DeviceTrustConnectPassthrough = ({
   authorizeWebDeviceDeepLink,
@@ -107,4 +156,5 @@ const BoldText = styled.span`
 const Wrapper = styled(Box)`
   text-align: center;
   line-height: 32px;
+  padding-top: 200px;
 `;

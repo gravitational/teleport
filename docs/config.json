@@ -997,6 +997,10 @@
             {
               "title": "Azure CLI Access",
               "slug": "/application-access/cloud-apis/azure/"
+            },
+            {
+              "title": "Azure CLI Access on AKS",
+              "slug": "/application-access/cloud-apis/azure-aks-workload-id/"
             }
           ]
         },

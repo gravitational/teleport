@@ -283,11 +283,12 @@ Some messages passed to the TDP client via a FastPath Frame warrant a response, 
 At the time of writing this message is used to send responses to RemoteFX frames, which occasionally demand such, but in theory it can be used to carry
 any raw RDP response message intended to be written directly into the TDP server-side's RDP connection.
 
-#### 31 - RDP Connection Initialized
+#### 31 - RDP Connection Activated
 
 This message is sent from the server to the browser when a connection
-is initialized. It contains data that the browser needs in order to
-correctly handle the session.
+is initialized, or after executing a [Deactivation-Reactivation Sequence](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/dfc234ce-481a-4674-9a5d-2a7bafb14432).
+It contains data that the browser needs in order to correctly handle the
+session.
 
 ```
 | message type (31) | io_channel_id uint16 | user_channel_id uint16 | screen_width uint16 | screen_height uint16 |

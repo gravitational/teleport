@@ -686,9 +686,12 @@ var (
 		prometheus.GaugeOpts{
 			Namespace: teleport.MetricNamespace,
 			Name:      teleport.MetricRegisteredServers,
-			Help:      "The number of Teleport services that are connected to an auth server by version.",
+			Help:      "The number of Teleport services that are connected to an auth server.",
 		},
-		[]string{teleport.TagVersion},
+		[]string{
+			teleport.TagVersion,
+			teleport.TagAutomaticUpdates,
+		},
 	)
 
 	registeredAgentsInstallMethod = prometheus.NewGaugeVec(
@@ -1304,8 +1307,7 @@ func (a *Server) runPeriodicOperations() {
 			// Update prometheus gauge
 			heartbeatsMissedByAuth.Set(float64(missedKeepAliveCount))
 		case <-promTicker.Next():
-			a.updateVersionMetrics()
-			a.updateInstallMethodsMetrics()
+			a.updateAgentMetrics()
 		case <-releaseCheck.Next():
 			a.syncReleaseAlerts(ctx, true)
 		case <-localReleaseCheck.Next():
@@ -1375,8 +1377,6 @@ func (a *Server) doInstancePeriodics(ctx context.Context) {
 		log.Warnf("Failed stream instances for periodics: %v", err)
 		return
 	}
-
-	a.updateUpdaterVersionMetrics()
 
 	// create/delete upgrade enroll prompt as appropriate
 	enrollMsg, shouldPrompt := uep.GenerateEnrollPrompt()
@@ -1563,75 +1563,38 @@ func (a *Server) doReleaseAlertSync(ctx context.Context, current vc.Target, visi
 	}
 }
 
-// updateUpdaterVersionMetrics leverages the inventory control stream to report the
-// number of teleport updaters installed and their versions. To get an accurate representation
-// of versions in an entire cluster the metric must be aggregated with all auth instances.
-func (a *Server) updateUpdaterVersionMetrics() {
+func (a *Server) updateAgentMetrics() {
 	imp := newInstanceMetricsPeriodic()
 
-	// record versions for all connected resources
 	a.inventory.Iter(func(handle inventory.UpstreamHandle) {
-		imp.VisitInstance(handle.Hello())
+		imp.VisitInstance(handle.Hello(), handle.AgentMetadata())
 	})
 
 	totalInstancesMetric.Set(float64(imp.TotalInstances()))
 	enrolledInUpgradesMetric.Set(float64(imp.TotalEnrolledInUpgrades()))
 
 	// reset the gauges so that any versions that fall off are removed from exported metrics
-	upgraderCountsMetric.Reset()
-	for upgraderType, upgraderVersions := range imp.upgraderCounts {
-		for version, count := range upgraderVersions {
-			upgraderCountsMetric.With(prometheus.Labels{
-				teleport.TagUpgrader: upgraderType,
-				teleport.TagVersion:  version,
-			}).Set(float64(count))
-		}
-	}
-}
-
-// updateVersionMetrics leverages the inventory control stream to report the versions of
-// all instances that are connected to a single auth server via prometheus metrics. To
-// get an accurate representation of versions in an entire cluster the metric must be aggregated
-// with all auth instances.
-func (a *Server) updateVersionMetrics() {
-	versionCount := make(map[string]int)
-
-	// record versions for all connected resources
-	a.inventory.Iter(func(handle inventory.UpstreamHandle) {
-		versionCount[handle.Hello().Version]++
-	})
-
-	// reset the gauges so that any versions that fall off are removed from exported metrics
 	registeredAgents.Reset()
-	for version, count := range versionCount {
-		registeredAgents.WithLabelValues(version).Set(float64(count))
+	for agent, count := range imp.RegisteredAgentsCount() {
+		registeredAgents.With(prometheus.Labels{
+			teleport.TagVersion:          agent.version,
+			teleport.TagAutomaticUpdates: agent.automaticUpdates,
+		}).Set(float64(count))
 	}
-}
-
-// updateInstallMethodsMetrics leverages the inventory control stream to report the install methods
-// of all instances that are connected to a single auth server via prometheus metrics.
-// To get an accurate representation of install methods in an entire cluster the metric must be aggregated
-// with all auth instances.
-func (a *Server) updateInstallMethodsMetrics() {
-	installMethodCount := make(map[string]int)
-
-	// record install methods for all connected resources
-	a.inventory.Iter(func(handle inventory.UpstreamHandle) {
-		installMethod := "unknown"
-		installMethods := append([]string{}, handle.AgentMetadata().InstallMethods...)
-
-		if len(installMethods) > 0 {
-			slices.Sort(installMethods)
-			installMethod = strings.Join(installMethods, ",")
-		}
-
-		installMethodCount[installMethod]++
-	})
 
 	// reset the gauges so that any versions that fall off are removed from exported metrics
 	registeredAgentsInstallMethod.Reset()
-	for installMethod, count := range installMethodCount {
+	for installMethod, count := range imp.InstallMethodCounts() {
 		registeredAgentsInstallMethod.WithLabelValues(installMethod).Set(float64(count))
+	}
+
+	// reset the gauges so that any type+version that fall off are removed from exported metrics
+	upgraderCountsMetric.Reset()
+	for metadata, count := range imp.UpgraderCounts() {
+		upgraderCountsMetric.With(prometheus.Labels{
+			teleport.TagUpgrader: metadata.upgraderType,
+			teleport.TagVersion:  metadata.version,
+		}).Set(float64(count))
 	}
 }
 
@@ -2085,12 +2048,33 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 	}
 	checker := services.NewAccessCheckerWithRoleSet(accessInfo, clusterName.GetClusterName(), roleSet)
 
+	sessionTTL := time.Duration(req.TTL)
+
+	// OpenSSH certs and their corresponding keys are held strictly by the proxy,
+	// so we can attest them as "web_session" to bypass Hardware Key support
+	// requirements that are unattainable from the Proxy.
+	sshPublicKey, _, _, _, err := ssh.ParseAuthorizedKey(req.PublicKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cryptoPublicKey, ok := sshPublicKey.(ssh.CryptoPublicKey)
+	if !ok {
+		return nil, trace.BadParameter("unsupported SSH public key type %q", sshPublicKey.Type())
+	}
+	webAttData, err := services.NewWebSessionAttestationData(cryptoPublicKey.CryptoPublicKey())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err = a.UpsertKeyAttestationData(ctx, webAttData, sessionTTL); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	certs, err := a.generateOpenSSHCert(ctx, certRequest{
 		user:            req.User,
 		publicKey:       req.PublicKey,
 		compatibility:   constants.CertificateFormatStandard,
 		checker:         checker,
-		ttl:             time.Duration(req.TTL),
+		ttl:             sessionTTL,
 		traits:          req.User.GetTraits(),
 		routeToCluster:  req.Cluster,
 		disallowReissue: true,
@@ -2605,12 +2589,13 @@ func (a *Server) augmentUserCertificates(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	notAfter := x509Cert.NotAfter
 	newTLSCert, err := tlsCA.GenerateCertificate(tlsca.CertificateRequest{
 		Clock:     a.clock,
 		PublicKey: x509Cert.PublicKey,
 		Subject:   subj,
 		// Use the same expiration as the original cert.
-		NotAfter: x509Cert.NotAfter,
+		NotAfter: notAfter,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2628,7 +2613,7 @@ func (a *Server) augmentUserCertificates(
 			ValidPrincipals: sshCert.ValidPrincipals,
 			ValidAfter:      uint64(validAfter.Unix()),
 			// Use the same expiration as the x509 cert.
-			ValidBefore: uint64(x509Cert.NotAfter.Unix()),
+			ValidBefore: uint64(notAfter.Unix()),
 			Permissions: sshCert.Permissions,
 		}
 		newSSHCert.Extensions[teleport.CertExtensionDeviceID] = dev.DeviceID
@@ -2639,6 +2624,9 @@ func (a *Server) augmentUserCertificates(
 		}
 		newAuthorizedKey = ssh.MarshalAuthorizedKey(newSSHCert)
 	}
+
+	// Issue audit event on success, same as [Server.generateCert].
+	a.emitCertCreateEvent(ctx, newIdentity, notAfter)
 
 	return &proto.Certs{
 		SSH: newAuthorizedKey,
@@ -3052,23 +3040,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		}
 	}
 
-	eventIdentity := identity.GetEventIdentity()
-	eventIdentity.Expires = notAfter
-	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.CertificateCreate{
-		Metadata: apievents.Metadata{
-			Type: events.CertificateCreateEvent,
-			Code: events.CertificateCreateCode,
-		},
-		CertificateType: events.CertificateTypeUser,
-		Identity:        &eventIdentity,
-		ClientMetadata: apievents.ClientMetadata{
-			// TODO(greedy52) currently only user-agent from GRPC clients are
-			// fetched. Need to propagate user-agent from HTTP calls.
-			UserAgent: trimUserAgent(metadata.UserAgentFromContext(ctx)),
-		},
-	}); err != nil {
-		log.WithError(err).Warn("Failed to emit certificate create event.")
-	}
+	a.emitCertCreateEvent(ctx, &identity, notAfter)
 
 	// create certs struct to return to user
 	certs := &proto.Certs{
@@ -3170,6 +3142,26 @@ func (a *Server) getSigningCAs(ctx context.Context, domainName string, caType ty
 	}
 
 	return tlsCA, sshSigner, ca, nil
+}
+
+func (a *Server) emitCertCreateEvent(ctx context.Context, identity *tlsca.Identity, notAfter time.Time) {
+	eventIdentity := identity.GetEventIdentity()
+	eventIdentity.Expires = notAfter
+	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.CertificateCreate{
+		Metadata: apievents.Metadata{
+			Type: events.CertificateCreateEvent,
+			Code: events.CertificateCreateCode,
+		},
+		CertificateType: events.CertificateTypeUser,
+		Identity:        &eventIdentity,
+		ClientMetadata: apievents.ClientMetadata{
+			// TODO(greedy52) currently only user-agent from GRPC clients are
+			// fetched. Need to propagate user-agent from HTTP calls.
+			UserAgent: trimUserAgent(metadata.UserAgentFromContext(ctx)),
+		},
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit certificate create event.")
+	}
 }
 
 // WithUserLock executes function authenticateFn that performs user authentication

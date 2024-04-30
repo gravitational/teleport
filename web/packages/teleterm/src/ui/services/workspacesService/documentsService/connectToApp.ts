@@ -193,7 +193,12 @@ export function captureAppLaunchInBrowser(
   target: Pick<App, 'uri'>,
   telemetry: { origin: DocumentOrigin }
 ) {
-  ctx.usageService.captureProtocolUse(target.uri, 'app', telemetry.origin);
+  ctx.usageService.captureProtocolUse({
+    uri: target.uri,
+    protocol: 'app',
+    origin: telemetry.origin,
+    accessThrough: 'proxy_service',
+  });
 }
 
 function launchAppInBrowser(
