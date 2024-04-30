@@ -30,7 +30,7 @@ import { getEmptyResourceState } from '../resource';
 import { ResourceList, ResourceListProps } from './ResourceList';
 
 export default {
-  title: 'TeleportE/AccessRequests/ResourceList',
+  title: 'Shared/AccessRequests/ResourceList',
 };
 
 export const Apps = () => <ResourceList {...props} agents={apps} />;

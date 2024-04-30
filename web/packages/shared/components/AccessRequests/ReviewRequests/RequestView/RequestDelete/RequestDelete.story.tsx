@@ -27,7 +27,7 @@ import {
 import { RequestDelete } from './RequestDelete';
 
 export default {
-  title: 'TeleportE/AccessRequests/RequestDelete',
+  title: 'Shared/AccessRequests/RequestDelete',
 };
 
 export const Loaded = () => {

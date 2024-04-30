@@ -28,7 +28,7 @@ import { dryRunResponse } from '../../fixtures';
 import { RequestCheckout, RequestCheckoutProps } from './RequestCheckout';
 
 export default {
-  title: 'TeleportE/AccessRequests/Checkout',
+  title: 'Shared/AccessRequests/Checkout',
 };
 
 function SuccessActionComponent({ reset, onClose }) {

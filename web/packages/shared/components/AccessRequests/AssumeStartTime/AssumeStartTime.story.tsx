@@ -28,7 +28,7 @@ import { AccessDurationRequest, AccessDurationReview } from '../AccessDuration';
 import { AssumeStartTime } from './AssumeStartTime';
 
 export default {
-  title: 'TeleportE/AccessRequests/AssumeStartTime',
+  title: 'Shared/AccessRequests/AssumeStartTime',
 };
 
 export const NewRequest = () => {
