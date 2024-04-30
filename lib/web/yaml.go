@@ -98,7 +98,7 @@ func (h *Handler) yamlStringify(w http.ResponseWriter, r *http.Request, params h
 }
 
 func ConvertYAMLToAccessMonitoringRuleResource(yaml string) (*accessmonitoringrulesv1.AccessMonitoringRule, error) {
-	extractedRes, err := ExtractResourceAndValidate(yaml)
+	extractedRes, err := extractResource(yaml)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
