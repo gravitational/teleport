@@ -1,10 +1,10 @@
 ---
-title: Terraform Provider
+title: Set up the Teleport Terraform Provider
 description: How to manage dynamic resources using the Teleport Terraform provider.
 videoBanner: YgNHD4SS8dg
 ---
 
-This guide demonstrates how to: Set up the Terraform provider for Teleport on
+This guide demonstrates how to set up the Terraform provider for Teleport on
 Linux and macOS.
 
 Terraform is intended to be used with Machine ID, Teleport's feature for providing identities to
@@ -29,9 +29,12 @@ and Machine ID](../../machine-id/deployment/spacelift.mdx).
   # Terraform v(=terraform.version=)
   ```
 
+  To import existing Teleport resources as Terraform resources, you must have
+  Terraform version `v1.5.0` or above.
+
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/3. Create Teleport credentials for Terraform
+## Step 1/4. Create Teleport credentials for Terraform
 
 Terraform needs a signed identity file from the Teleport cluster certificate
 authority to manage resources in the cluster. To prepare credentials using a local Teleport bot:
@@ -43,11 +46,10 @@ authority to manage resources in the cluster. To prepare credentials using a loc
    $ cd teleport-terraform
    ```
 
-1. Create a new file called `terraform.yaml` and open it in an editor.
-
-1. Terraform needs a role giving it permission to manage our Cluster's resources. The bot will
-   create identity certificates that have this role. Configure the necessary role by pasting
-   the following content into a `terraform_role.yaml` file:
+1. Terraform needs a Teleport role that gives it permission to manage your
+   cluster's resources. The bot creates identity documents that have this role.
+   Configure the necessary role by pasting the following content into a
+   `terraform_role.yaml` file:
 
    ```yaml
    kind: role
@@ -90,13 +92,14 @@ authority to manage resources in the cluster. To prepare credentials using a loc
 1. Create the `terraform` role by running the following command:
 
    ```code
-   $ tctl create -f terraform_role.yaml
+   $ tctl create terraform_role.yaml
    role 'terraform' has been created
    ```
 
-1. We're going to create two scripts that will let us quickly and repeatably create and destroy
-   our local Terraform bot. First, create a new file called `create_and_run_terraform_bot.sh`,
-   open it in an editor, and paste in the following content:
+1. Create two scripts that let you quickly and repeatably create and destroy our
+   local Terraform bot. First, create a new file called
+   `create_and_run_terraform_bot.sh`, open it in an editor, and paste in the
+   following content:
 
    ```shell
    #! /usr/bin/env bash
@@ -117,6 +120,12 @@ authority to manage resources in the cluster. To prepare credentials using a loc
    created in any way other than adding a bot, so for local development work, you must manually
    manage the bot and its token.
 
+   The bot manages its state data in a folder called `tbot-data` in the current
+   working directory.
+
+1. Edit `create_and_run_terraform_bot.sh` to replace `tele.example.com:443` with
+   the domain name and port of the Teleport Proxy Service in your cluster.
+
 1. Create another file called `remove_terraform_bot.sh`, open it in an editor, and
 paste in the following content:
 
@@ -124,7 +133,8 @@ paste in the following content:
    #! /usr/bin/env bash
 
    tctl bots rm terraform-test
-   rm -rf ./terraform-identity
+   rm -rfv ./terraform-identity
+   rm -rfv ./tbot-data
    ```
 
    This script will be used later to clean up our bot in between runs and when we're done.
@@ -137,7 +147,7 @@ paste in the following content:
    $ ./create_and_run_terraform_bot.sh
    ```
 
-## Step 2/3. Prepare a Terraform configuration file
+## Step 2/4. Prepare a Terraform configuration file
 
 To prepare a Terraform configuration file:
 
@@ -159,7 +169,7 @@ To prepare a Terraform configuration file:
    </TabItem>
    </Tabs>
 
-## Step 3/3. Validate the configuration
+## Step 3/4. Validate the configuration
 
 To apply the configuration:
 
@@ -193,9 +203,88 @@ To apply the configuration:
 
    If you need to start the bot back up, you can run the two bot scripts as many times as necessary.
 
+## Step 4/4. [Optional] Import existing resources
+
+This section shows you how to import existing dynamic Teleport resources as
+Terraform resources. 
+
+If you already created Teleport resources using another client tool like `tctl`
+or the Kubernetes Operator, and want to manage all Teleport resources using your
+Terraform configuration, follow these steps to generate a `.tf` file that
+contains `resource` blocks that represent your existing Teleport resources.
+
+By defining all Teleport resources in one place, you can help ensure that your
+cluster configuration matches your expectations.
+
+### Add an `import` block
+
+1. On your workstation, navigate to your root Teleport Terraform module.
+
+1. Open a file in your text editor to configure Terraform imports. To keep your
+   configuration tidy, open a new file called `imports.tf`.
+
+1. Add an `import` block to `imports.tf`. Use the `to` field to indicate the
+   name of the resource you want to generate configuration for in Terraform. The
+   following example imports a Teleport role called `myrole`:
+
+   ```hcl
+   import {
+     to = teleport_role.myrole
+   }
+   ```
+
+### Retrieve the ID of your resource
+
+1. Retrieve the ID of the resource. The method to use depends on the resource
+   type. Use the following rules to do so:
+
+   If the resource is `teleport_provision_token`, the ID is the `metadata.id` of
+   the resource.
+
+   If the resource can only have one instance, use the name of the resource type
+   without the `teleport` prefix. For example:
+
+   | Resource                              | ID                           |
+   |---------------------------------------|------------------------------|
+   | `teleport_cluster_maintenance_config` | `cluster_maintenance_config` |
+   | `teleport_cluster_networking_config`  | `cluster_networking_config`  |
+
+   For all other resources, the ID is always the `metadata.name` of the resource.
+
+   For example, the `teleport_role` resource uses the role's `metadata.name`
+   field for its ID. To find all possible role IDs, run the following command:
+
+   ```code
+   $ tctl get roles --format json | jq '.[].metadata.name'
+   ```
+
+1. In the `import` block, assign the `id` field to the resource ID you retrieved
+   earlier. For example, to import a Teleport role with a `metadata.name` of
+   `myrole`, add the following:
+
+   ```diff
+     import {
+       to = teleport_role.myrole
+   +   id = "myrole"
+     }
+   ```
+
+### Generate a configuration file
+
+1. Generate a resource configuration
+
+   ```code
+   $ terraform plan -generate-config-out=imported-resources.tf
+   ```
+
+1. Inspect the resulting file, `imported-resources.tf`. If the new `resource`
+   block looks correct, you can check the file into source control.
+
 ## Next steps
 
 - Follow [the user and role IaC guide](./user-and-role.mdx) to use the Terraform
   Provider to create Teleport users and grant them roles.
-- Explore the full list of supported [Terraform provider resources](../../reference/terraform-provider.mdx).
-- See how to use Machine ID with Terraform in [production](../../machine-id/access-guides/terraform.mdx).
+- Explore the full list of supported [Terraform provider
+  resources](../../reference/terraform-provider.mdx).
+- See how to use Machine ID with Terraform in
+  [production](../../machine-id/access-guides/terraform.mdx).
