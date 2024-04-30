@@ -47,6 +47,12 @@ var (
 	ErrPasswordlessDisabledBySettings = &trace.BadParameterError{
 		Message: "passwordless disabled by cluster settings",
 	}
+
+	// ErrPassswordlessLoginBySSOUser is issued if an SSO user tries to login
+	// using passwordless.
+	ErrPassswordlessLoginBySSOUser = &trace.AccessDeniedError{
+		Message: "SSO user cannot login using passwordless",
+	}
 )
 
 // AuthPreference defines the authentication preferences for a specific

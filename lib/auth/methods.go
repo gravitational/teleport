@@ -430,7 +430,11 @@ func (a *Server) authenticatePasswordless(ctx context.Context, req AuthenticateU
 		},
 	}
 	dev, user, err := a.validateMFAAuthResponse(ctx, mfaResponse, "", true /* passwordless */)
-	if err != nil {
+	switch {
+	// Don't obfuscate the SSO error.
+	case errors.Is(err, types.ErrPassswordlessLoginBySSOUser):
+		return nil, "", trace.Wrap(err)
+	case err != nil:
 		log.Debugf("Passwordless authentication failed: %v", err)
 		return nil, "", trace.Wrap(authenticateWebauthnError)
 	}
