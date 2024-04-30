@@ -69,6 +69,7 @@ type Config struct {
 	ClusterIDCache *clusteridcache.Cache
 	// InstallationID used for event reporting.
 	InstallationID string
+	ReportUsage    bool
 }
 
 // CheckAndSetDefaults checks and sets the defaults
@@ -138,19 +139,24 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO: Should NewManager take context?
-	manager, err := vnet.NewManager(context.TODO(), &vnet.Config{
+	config := &vnet.Config{
 		Client:     client,
 		TUNDevice:  tun,
 		IPv6Prefix: ipv6Prefix,
-		Middleware: &UsageReportingMiddleware{
+	}
+
+	if s.cfg.ReportUsage {
+		config.Middleware = &UsageReportingMiddleware{
 			daemonService:  s.cfg.DaemonService,
 			log:            s.log,
 			clusterIDCache: s.cfg.ClusterIDCache,
 			reportedApps:   make(map[string]struct{}),
 			installationID: s.cfg.InstallationID,
-		},
-	})
+		}
+	}
+
+	// TODO: Should NewManager take context?
+	manager, err := vnet.NewManager(context.TODO(), config)
 	if err != nil {
 		cancelAdminSubcmdCtx()
 		cleanup()

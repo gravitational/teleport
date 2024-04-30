@@ -46,6 +46,8 @@ type Config struct {
 	AgentsDir string
 	// InstallationID is a unique ID identifying a specific Teleport Connect installation.
 	InstallationID string
+	// ReportUsage controls whether usage events are going to be collected.
+	ReportUsage bool
 }
 
 // CheckAndSetDefaults checks and sets default config values.

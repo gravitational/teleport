@@ -37,6 +37,7 @@ type Config struct {
 	Daemon         *daemon.Service
 	ClusterIDCache *clusteridcache.Cache
 	InstallationID string
+	ReportUsage    bool
 	// Log is a component logger
 	Log             logrus.FieldLogger
 	TshdServerCreds grpc.ServerOption

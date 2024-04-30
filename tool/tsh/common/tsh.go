@@ -206,6 +206,8 @@ type CLIConf struct {
 	DaemonPid int
 	// DaemonInstallationID is a unique ID identifying a specific Teleport Connect installation.
 	DaemonInstallationID string
+	// DaemonReportUsage controls whether usage events are going to be collected.
+	DaemonReportUsage bool
 
 	// DatabaseService specifies the database proxy server to log into.
 	DatabaseService string
@@ -768,6 +770,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	daemonStart.Flag("kubeconfigs-dir", "Directory containing kubeconfig for Kubernetes Access").StringVar(&cf.DaemonKubeconfigsDir)
 	daemonStart.Flag("agents-dir", "Directory containing agent config files and data directories for Connect My Computer").StringVar(&cf.DaemonAgentsDir)
 	daemonStart.Flag("installation-id", "Unique ID identifying a specific Teleport Connect installation").StringVar(&cf.DaemonInstallationID)
+	daemonStart.Flag("report-usage", "Turns on usage reporting").BoolVar(&cf.DaemonReportUsage)
 	daemonStop := daemon.Command("stop", "Gracefully stops a process on Windows by sending Ctrl-Break to it.").Hidden()
 	daemonStop.Flag("pid", "PID to be stopped").IntVar(&cf.DaemonPid)
 

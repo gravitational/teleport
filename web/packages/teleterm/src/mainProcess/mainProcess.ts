@@ -203,6 +203,9 @@ export default class MainProcess {
   private getTshdFlags(): string[] {
     const settings = this.settings;
     const agentsDir = getAgentsDir(settings.userDataDir);
+    const isUsageReportingEnabled = this.configService.get(
+      'usageReporting.enabled'
+    ).value;
 
     const flags = [
       'daemon',
@@ -222,6 +225,9 @@ export default class MainProcess {
     }
     if (settings.debug) {
       flags.unshift('--debug');
+    }
+    if (isUsageReportingEnabled) {
+      flags.unshift('--report-usage');
     }
 
     return flags;
