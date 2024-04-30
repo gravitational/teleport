@@ -25,7 +25,7 @@ import { makeEmptyAttempt } from 'shared/hooks/useAsync';
 import {
   RequestDelete,
   RequestView,
-} from 'e-teleport/AccessRequests/ReviewRequests';
+} from 'shared/components/AccessRequests/ReviewRequests';
 
 import { useAssumeAccess } from '../useAssumeAccess';
 

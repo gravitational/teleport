@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { AccessRequest } from 'e-teleport/services/accessRequests';
+import { AccessRequest } from 'shared/services/accessRequests';
 
 import { getTimeOptions } from './timeOptions';
 

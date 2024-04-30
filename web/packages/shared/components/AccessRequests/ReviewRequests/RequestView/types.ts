@@ -18,7 +18,7 @@
 
 import { AllUserTraits } from 'teleport/services/user';
 
-import { RequestState } from 'e-teleport/services/accessRequests';
+import { RequestState } from 'shared/services/accessRequests';
 
 export type RequestFlags = {
   /** Describes request is own request and request is approved */

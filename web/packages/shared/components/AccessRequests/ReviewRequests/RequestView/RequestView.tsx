@@ -49,7 +49,7 @@ import {
   RequestState,
   Resource,
   AccessRequest,
-} from 'e-teleport/services/accessRequests';
+} from 'shared/services/accessRequests';
 
 import {
   PromotedMessage,

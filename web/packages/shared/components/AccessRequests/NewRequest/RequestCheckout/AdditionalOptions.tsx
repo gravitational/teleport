@@ -20,7 +20,7 @@ import * as Icon from 'design/Icon';
 import Select, { Option } from 'shared/components/Select';
 import { ToolTipInfo } from 'shared/components/ToolTip';
 
-import { AccessRequest } from 'e-teleport/services/accessRequests';
+import { AccessRequest } from 'shared/services/accessRequests';
 
 import { getFormattedDurationTxt } from '../../Shared/utils';
 import { getDurationOptionIndexClosestToOneWeek } from '../../AccessDuration/durationOptions';

@@ -31,7 +31,7 @@ import { Attempt } from 'shared/hooks/useAsync';
 
 import RolesRequested from '../RolesRequested';
 
-import type { RequestState } from 'e-teleport/services/accessRequests';
+import type { RequestState } from 'shared/services/accessRequests';
 
 export interface RequestDeleteProps {
   requestId: string;

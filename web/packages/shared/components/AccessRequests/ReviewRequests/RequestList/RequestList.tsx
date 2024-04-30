@@ -20,7 +20,7 @@ import { Text, LabelState, Flex } from 'design';
 import { Cell } from 'design/DataTable';
 import { ArrowFatLinesUp } from 'design/Icon';
 
-import { AccessRequest } from 'e-teleport/services/accessRequests';
+import { AccessRequest } from 'shared/services/accessRequests';
 
 export const renderUserCell = ({ user }: AccessRequest) => {
   return (

@@ -20,7 +20,7 @@ import React from 'react';
 import { Flex, Text } from 'design';
 import { ToolTipInfo } from 'shared/components/ToolTip';
 
-import { AccessRequest } from 'e-teleport/services/accessRequests';
+import { AccessRequest } from 'shared/services/accessRequests';
 
 import { getFormattedDurationTxt } from '../Shared/utils';
 

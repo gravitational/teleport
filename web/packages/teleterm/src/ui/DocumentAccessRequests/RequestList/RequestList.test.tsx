@@ -20,9 +20,9 @@ import React from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { fireEvent, render, screen } from 'design/utils/testing';
 
-import { requestRoleApproved } from 'e-teleport/AccessRequests/fixtures';
-import { AccessRequest } from 'e-teleport/services/accessRequests';
-import { RequestFlags } from 'e-teleport/AccessRequests/ReviewRequests';
+import { requestRoleApproved } from 'shared/components/AccessRequests/fixtures';
+import { AccessRequest } from 'shared/services/accessRequests';
+import { RequestFlags } from 'shared/components/AccessRequests/ReviewRequests';
 
 import { RequestList } from './RequestList';
 

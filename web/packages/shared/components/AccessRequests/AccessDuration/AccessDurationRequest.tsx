@@ -21,7 +21,7 @@ import { Flex, LabelInput, Text } from 'design';
 import Select, { Option } from 'shared/components/Select';
 import { ToolTipInfo } from 'shared/components/ToolTip';
 
-import { AccessRequest } from 'e-teleport/services/accessRequests';
+import { AccessRequest } from 'shared/services/accessRequests';
 
 import {
   getDurationOptionIndexClosestToOneWeek,

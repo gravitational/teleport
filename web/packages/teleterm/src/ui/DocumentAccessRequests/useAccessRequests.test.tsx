@@ -17,7 +17,7 @@
  */
 
 import { AccessRequest as TshdAccessRequest } from 'teleterm/services/tshd/types';
-import { AccessRequest } from 'e-teleport/services/accessRequests';
+import { AccessRequest } from 'shared/services/accessRequests';
 
 import { makeUiAccessRequest } from './useAccessRequests';
 

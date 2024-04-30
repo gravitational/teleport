@@ -19,12 +19,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 
-import { AccessRequest } from 'e-teleport/services/accessRequests';
+import { AccessRequest } from 'shared/services/accessRequests';
 import {
   SubmitReview,
   SuggestedAccessList,
   RequestFlags,
-} from 'e-teleport/AccessRequests/ReviewRequests';
+} from 'shared/components/AccessRequests/ReviewRequests';
 
 import * as tsh from 'teleterm/services/tshd/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';

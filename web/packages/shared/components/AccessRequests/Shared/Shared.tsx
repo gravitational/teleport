@@ -23,7 +23,7 @@ import { format } from 'date-fns';
 import { HoverTooltip } from 'shared/components/ToolTip';
 import cfg from 'shared/config';
 
-import { AccessRequest } from 'e-teleport/services/accessRequests';
+import { AccessRequest } from 'shared/services/accessRequests';
 
 export function PromotedMessage({
   request,

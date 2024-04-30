@@ -26,19 +26,19 @@ import { retryWithRelogin } from 'teleterm/ui/utils';
 import {
   ReviewerOption,
   getDryRunMaxDuration,
-} from 'e-teleport/AccessRequests/NewRequest';
+} from 'shared/components/AccessRequests/NewRequest';
 import {
   CreateAccessRequestRequest,
   AccessRequest as TeletermAccessRequest,
 } from 'teleterm/services/tshd/types';
-import { CreateRequest } from 'e-teleport/AccessRequests/Shared/types';
+import { CreateRequest } from 'shared/components/AccessRequests/Shared/types';
 import { Option } from 'shared/components/Select';
 
-import { ResourceKind } from 'e-teleterm/ui/DocumentAccessRequests/NewRequest/useNewRequest';
+import { ResourceKind } from '../DocumentAccessRequests/NewRequest/useNewRequest';
 
 import { makeUiAccessRequest } from '../DocumentAccessRequests/useAccessRequests';
 
-import type { AccessRequest } from 'e-teleport/services/accessRequests';
+import type { AccessRequest } from 'shared/services/accessRequests';
 
 export default function useAccessRequestCheckout() {
   const ctx = useAppContext();
