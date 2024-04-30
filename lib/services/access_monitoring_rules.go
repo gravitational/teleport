@@ -71,6 +71,9 @@ func ValidateAccessMonitoringRule(accessMonitoringRule *accessmonitoringrulesv1.
 	if accessMonitoringRule.Metadata == nil {
 		return trace.BadParameter("accessMonitoringRule metadata is missing")
 	}
+	if accessMonitoringRule.Version != types.V1 {
+		return trace.BadParameter("accessMonitoringRule %q is not supported", accessMonitoringRule.Version)
+	}
 	if accessMonitoringRule.Spec == nil {
 		return trace.BadParameter("accessMonitoringRule spec is missing")
 	}
