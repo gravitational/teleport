@@ -319,6 +319,8 @@ teleport-hot-reload:
 		--exclude-dir="node_modules" \
 		--exclude-dir="target" \
 		--exclude-dir="web/packages/*/node_modules" \
+		--color \
+		--log-prefix=false \
 		--build="make $(BUILDDIR)/teleport" \
 		--command="$(BUILDDIR)/teleport $(TELEPORT_ARGS)"
 
