@@ -142,7 +142,7 @@ func (s *Server) ListenAndServeUDP(ctx context.Context, conn *net.UDPConn) error
 			remoteAddr: remoteAddr,
 		}
 		if err := s.handleDNSMessage(ctx, remoteAddr.String(), buf, responseWriter); err != nil {
-			s.slog.With("error", err).DebugContext(ctx, "Error handling DNS message.")
+			s.slog.DebugContext(ctx, "Error handling DNS message.", "error", err)
 		}
 	}
 }
@@ -170,7 +170,7 @@ func (s *Server) handleDNSMessage(ctx context.Context, remoteAddr string, buf []
 		return trace.Wrap(err, "parsing DNS message")
 	}
 	if requestHeader.OpCode != 0 {
-		slog.With("opcode", requestHeader.OpCode).DebugContext(ctx, "OpCode is not QUERY (0), forwarding.")
+		slog.DebugContext(ctx, "OpCode is not QUERY (0), forwarding.", "opcode", requestHeader.OpCode)
 		return trace.Wrap(s.forward(ctx, slog, buf, responseWriter), "forwarding non-Query DNS message")
 	}
 	question, err := parser.Question()
@@ -181,7 +181,7 @@ func (s *Server) handleDNSMessage(ctx context.Context, remoteAddr string, buf []
 	slog = slog.With("fqdn", fqdn, "type", question.Type.String())
 	slog.DebugContext(ctx, "Received DNS question.", "question", question)
 	if question.Class != dnsmessage.ClassINET {
-		slog.With("class", question.Class).DebugContext(ctx, "Query class is not INET, forwarding.")
+		slog.DebugContext(ctx, "Query class is not INET, forwarding.", "class", question.Class)
 		return trace.Wrap(s.forward(ctx, slog, buf, responseWriter), "forwarding non-INET DNS query")
 	}
 
@@ -209,10 +209,10 @@ func (s *Server) handleDNSMessage(ctx context.Context, remoteAddr string, buf []
 		slog.DebugContext(ctx, "Name matched but no record, responding with authoritative non-answer.")
 		response, err = buildEmptyResponse(buf, &requestHeader, &question)
 	case question.Type == dnsmessage.TypeA && result.A != ([4]byte{}):
-		slog.With("a", tcpip.AddrFrom4(result.A)).DebugContext(ctx, "Matched DNS A.")
+		slog.DebugContext(ctx, "Matched DNS A.", "a", tcpip.AddrFrom4(result.A))
 		response, err = buildAResponse(buf, &requestHeader, &question, result.A)
 	case question.Type == dnsmessage.TypeAAAA && result.AAAA != ([16]byte{}):
-		slog.With("aaaa", tcpip.AddrFrom16(result.AAAA)).DebugContext(ctx, "Matched DNS AAAA.")
+		slog.DebugContext(ctx, "Matched DNS AAAA.", "aaaa", tcpip.AddrFrom16(result.AAAA))
 		response, err = buildAAAAResponse(buf, &requestHeader, &question, result.AAAA)
 	default:
 		slog.DebugContext(ctx, "Forwarding unmatched query.")

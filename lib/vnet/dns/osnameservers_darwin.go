@@ -79,7 +79,7 @@ func (s *OSUpstreamNameserverSource) upstreamNameservers(ctx context.Context) ([
 
 		ip := net.ParseIP(address)
 		if ip == nil {
-			slog.With("ip", address).DebugContext(ctx, "Skipping invalid IP")
+			slog.DebugContext(ctx, "Skipping invalid IP", "ip", address)
 			continue
 		}
 
@@ -96,6 +96,6 @@ func (s *OSUpstreamNameserverSource) upstreamNameservers(ctx context.Context) ([
 		nameservers = append(nameservers, nameserver)
 	}
 
-	slog.With("nameservers", nameservers, "source", confFilePath).DebugContext(ctx, "Loaded host upstream nameservers.")
+	slog.DebugContext(ctx, "Loaded host upstream nameservers.", "nameservers", nameservers, "source", confFilePath)
 	return nameservers, nil
 }
