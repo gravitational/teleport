@@ -315,10 +315,10 @@ func TestAuthenticate_passwordless(t *testing.T) {
 	})
 }
 
-// TestAuthenticate_passwordlessSSO is rather similar to
-// TestServer_Authenticate_passwordlessSSO, but here our main concern is that
+// TestPasswordlessProhibitedForSSO is rather similar to
+// lib/auth.TestPasswordlessProhibitedForSSO, but here our main concern is that
 // error messages aren't obfuscated along the way.
-func TestAuthenticate_passwordlessSSO(t *testing.T) {
+func TestPasswordlessProhibitedForSSO(t *testing.T) {
 	env := newWebPack(t, 1)
 
 	testServer := env.server
