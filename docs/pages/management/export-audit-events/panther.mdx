@@ -53,9 +53,9 @@ panther-ingest.png
 
 In order for the Event Handler plugin to forward events from your Teleport cluster, 
 it needs signed credentials from the cluster's certificate authority. The teleport-event-handler 
-user cannot request this itself, and should use Teleport Machine ID to obain the credentials.
+user cannot request this itself, and should use Teleport Machine ID to obtain the credentials.
 
-Teleport Machine ID bot should leveage the `teleport-event-handler` role to request the credentials.
+Teleport Machine ID bot should leverage the `teleport-event-handler` role to request the credentials.
 Machine ID already impersonates roles when requesting credentials from the Teleport cluster.  
 
 ### Export an identity file for the Event Handler plugin user
@@ -104,7 +104,7 @@ $(pwd)/fluent.conf:/fluentd/etc/fluent.conf --entrypoint=/bin/sh -i --tty  fluen
 
 </Admonition>
 
-### Configure Fluentd for Panter
+### Configure Fluentd for Panther
 
 When you run the Teleport Event Handler, it will create a `fluent.conf` file.  This file needs to be updated
 to send logs to Panther. This means adding a `<filter>` and `<match>` section to the file. These sections
@@ -213,7 +213,7 @@ Next, modify the configuration file as follows:
 
 (!docs/pages/includes/start-event-handler.mdx!)
 
-The Logs view in Panter should now report your Teleport cluster events. 
+The Logs view in Panther should now report your Teleport cluster events. 
 
 ## Step 7/7. Configure Panther to ingest logs from S3
 
