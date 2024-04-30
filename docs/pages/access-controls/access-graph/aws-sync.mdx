@@ -1,0 +1,198 @@
+---
+title: Discover AWS Access Patterns with Teleport Access Graph
+description: Describes how to import and visualize AWS accounts access patterns using Teleport Access Graph.
+---
+
+Teleport Access Graph offers insights into access patterns within
+your AWS account. By scanning IAM permissions, users, groups, resources, and 
+identities, it provides a visual representation and aids in enhancing the 
+permission model within your AWS environment. This functionality enables you
+to address queries such as:
+
+- What resources are accessible to AWS users and roles?
+- Which resources can be reached via identities associated with EC2 instances?
+- What AWS resources can Teleport users access when connecting to EC2 nodes?
+
+Utilizing the Access Graph to analyze IAM permissions within an AWS
+account necessitates the setup of the Teleport Access Graph (TAG)
+service, a Discovery Service, and integration with your AWS account.
+
+Teleport Access Graph is a feature of the [Teleport
+Policy](https://goteleport.com/platform/policy/) product that is only available
+to Teleport Enterprise customers.
+
+After logging in to the Teleport UI, go to the Management tab. If enabled, 
+Access Graph options can be found under the Permission Management section.
+
+## How TAG discovers AWS access patterns
+
+Teleport Access Graph synchronizes various AWS resources,
+including IAM Policies, Groups, Users, User Groups, EC2 instances, 
+EKS clusters, and RDS databases. These resources are then visualized
+using the graph representation detailed in the
+[Access Graph page](../access-graph.mdx).
+
+The importing process involves two primary steps:
+
+### Polling Cloud APIs
+
+The Teleport Discovery Service continuously scans the configured AWS accounts. 
+At intervals of 15 minutes, it retrieves the following resources from your
+AWS account:
+
+- Users
+- Groups
+- User Groups
+- IAM Roles
+- IAM Policies
+- EKS Clusters
+- RDS Databases
+- S3 Buckets
+
+Once all the necessary resources are fetched, the Teleport Discovery
+Service pushes them to the Teleport Access Graph (TAG) service, 
+ensuring that the Access Graph remains updated with the latest
+information from your AWS environment.
+
+### Importing resources
+
+Teleport Access Graph delves into the IAM policies, identities,
+and resources retrieved from your AWS account, crafting a 
+graphical representation thereof.
+
+
+## Prerequisites
+
+- A running Teleport Enterprise cluster v14.3.9/v15.2.0 or later.
+- For self-hosted clusters, an updated `license.pem` with Teleport Policy enabled.
+- For self-hosted clusters, a running Teleport Access Graph node v1.17.0 or later. 
+Check [Access Graph page](../access-graph.mdx) for details on
+how to setup Teleport Access Graph.
+- The node running the Access Graph service must be reachable
+from Teleport Auth Service and Discovery Service. 
+
+## Step 1/2. Configure Discovery Service (Self-hosted only)
+
+<Notice type="warning">
+
+If you have a Teleport Cloud cluster, you can disregard
+this step, as Teleport Cloud already operates a properly configured 
+Discovery Service within your cluster.
+</Notice>
+
+To activate the Teleport Discovery Service,
+add the provided snippet to your Auth Service configuration. 
+This service monitors dynamic `discovery_config` resources
+that are set up with the `discovery_group` matching 
+<Var name="access-graph-disc" />.
+
+
+```yaml
+discovery_service:
+  enabled: true
+  discovery_group: <Var name="access-graph-disc" />
+
+```
+
+Notice that if you already operate a Discovery Service within your cluster,
+it's possible to reuse it as long as the following requirements are met:
+
+- On step 2, you match the `discovery_group` with the existing Discovery Service's
+`discovery_group`.
+- Access Graph service is reachable from the machine where Discovery Service runs.
+
+## Step 2/2. Set up Access Graph AWS Sync
+
+To initiate the setup wizard for configuring AWS Sync, access the Teleport UI,
+navigate to the Management tab, and choose the Access Graph option within the
+Permission Management section.
+
+If both Teleport and Access Graph support AWS sync, you'll notice a new button
+adjacent to the Access Graph navigation bar labeled `Analyze AWS IAM policies with Access Graph`.
+
+You'll be prompted to create a new Teleport AWS integration if you haven't configured
+one already. Alternatively, you can opt for a previously established integration.
+
+Upon selecting or creating the integration, you'll be instructed to execute a
+bash script within your AWS Cloud Shell to configure the necessary permissions.
+
+<Details title="List of IAM Policies required for AWS Sync" closed>
+
+The policy is designed with a set of read-only actions, enabling Teleport
+to access and retrieve information from resources within your AWS Account.
+
+The IAM policy includes the following directives:
+
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DescribeInstances",
+        "ec2:DescribeImages",
+        "ec2:DescribeTags",
+        "ec2:DescribeSnapshots",
+        "ec2:DescribeKeyPairs",
+
+        "eks:ListClusters",
+        "eks:DescribeCluster",
+        "eks:ListAccessEntries",
+        "eks:ListAccessPolicies",
+        "eks:ListAssociatedAccessPolicies",
+
+        "rds:DescribeDBInstances",
+        "rds:DescribeDBClusters",
+        "rds:ListTagsForResource",
+        "rds:DescribeDBProxies",
+
+        "dynamodb:ListTables",
+        "dynamodb:DescribeTable",
+
+        "redshift:DescribeClusters",
+        "redshift:Describe*",
+
+        "s3:ListAllMyBuckets",
+        "s3:GetBucketPolicy",
+        "s3:ListBucket",
+        "s3:GetBucketLocation",
+
+        "iam:ListUsers",
+        "iam:GetUser",
+        "iam:ListRoles",
+        "iam:ListGroups",
+        "iam:ListPolicies",
+        "iam:ListGroupsForUser",
+        "iam:ListInstanceProfiles",
+        "iam:ListUserPolicies",
+        "iam:GetUserPolicy",
+        "iam:ListAttachedUserPolicies",
+        "iam:ListGroupPolicies",
+        "iam:GetGroupPolicy",
+        "iam:ListAttachedGroupPolicies",
+        "iam:GetPolicy",
+        "iam:GetPolicyVersion",
+        "iam:ListRolePolicies",
+        "iam:ListAttachedRolePolicies",
+        "iam:GetRolePolicy"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+
+```
+</Details>
+
+
+Once the IAM Policy has been successfully linked to the IAM role
+utilized by Teleport, you'll be prompted to specify the regions from
+which Teleport should import resources. This selection solely pertains
+to regional resources and does not impact global resources such as S3
+Buckets, IAM Policies, or IAM Users.
+
+If you're operating a self-hosted cluster, you'll additionally need to
+provide input for the `discovery_group` configured during Step 1.
+

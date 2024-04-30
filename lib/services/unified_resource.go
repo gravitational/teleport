@@ -285,7 +285,7 @@ func getStartKey(req *proto.ListUnifiedResourcesRequest) []byte {
 	if req.StartKey != "" {
 		return []byte(req.StartKey)
 	}
-	// if startkey doesnt exist, we check the the sort direction.
+	// if startkey doesnt exist, we check the sort direction.
 	// If sort is descending, startkey is end of the list
 	if req.SortBy.IsDesc {
 		return backend.RangeEnd(backend.Key(prefix))
@@ -741,122 +741,132 @@ const (
 	sortByKind string = "kind"
 )
 
+// MakePaginatedResource converts a resource into a paginated proto representation.
+func MakePaginatedResource(requestType string, r types.ResourceWithLabels, requiresRequest bool) (*proto.PaginatedResource, error) {
+	var protoResource *proto.PaginatedResource
+	resourceKind := requestType
+	if requestType == types.KindUnifiedResource {
+		resourceKind = r.GetKind()
+	}
+
+	var logins []string
+	resource := r
+	if enriched, ok := r.(*types.EnrichedResource); ok {
+		resource = enriched.ResourceWithLabels
+		logins = enriched.Logins
+	}
+
+	switch resourceKind {
+	case types.KindDatabaseServer:
+		database, ok := resource.(*types.DatabaseServerV3)
+		if !ok {
+			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+		}
+
+		protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_DatabaseServer{DatabaseServer: database}, RequiresRequest: requiresRequest}
+	case types.KindDatabaseService:
+		databaseService, ok := resource.(*types.DatabaseServiceV1)
+		if !ok {
+			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+		}
+
+		protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_DatabaseService{DatabaseService: databaseService}, RequiresRequest: requiresRequest}
+	case types.KindAppServer:
+		app, ok := resource.(*types.AppServerV3)
+		if !ok {
+			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+		}
+
+		protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_AppServer{AppServer: app}, RequiresRequest: requiresRequest}
+	case types.KindNode:
+		srv, ok := resource.(*types.ServerV2)
+		if !ok {
+			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+		}
+
+		protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_Node{Node: srv}, Logins: logins, RequiresRequest: requiresRequest}
+	case types.KindKubeServer:
+		srv, ok := resource.(*types.KubernetesServerV3)
+		if !ok {
+			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+		}
+
+		protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_KubernetesServer{KubernetesServer: srv}, RequiresRequest: requiresRequest}
+	case types.KindWindowsDesktop:
+		desktop, ok := resource.(*types.WindowsDesktopV3)
+		if !ok {
+			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+		}
+
+		protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_WindowsDesktop{WindowsDesktop: desktop}, Logins: logins, RequiresRequest: requiresRequest}
+	case types.KindWindowsDesktopService:
+		desktopService, ok := resource.(*types.WindowsDesktopServiceV3)
+		if !ok {
+			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+		}
+
+		protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_WindowsDesktopService{WindowsDesktopService: desktopService}, RequiresRequest: requiresRequest}
+	case types.KindKubernetesCluster:
+		cluster, ok := resource.(*types.KubernetesClusterV3)
+		if !ok {
+			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+		}
+
+		protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_KubeCluster{KubeCluster: cluster}, RequiresRequest: requiresRequest}
+	case types.KindUserGroup:
+		userGroup, ok := resource.(*types.UserGroupV1)
+		if !ok {
+			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+		}
+
+		protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_UserGroup{UserGroup: userGroup}, RequiresRequest: requiresRequest}
+	case types.KindAppOrSAMLIdPServiceProvider:
+		//nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
+		switch appOrSP := resource.(type) {
+		case *types.AppServerV3:
+			protoResource = &proto.PaginatedResource{
+				Resource: &proto.PaginatedResource_AppServerOrSAMLIdPServiceProvider{
+					AppServerOrSAMLIdPServiceProvider: &types.AppServerOrSAMLIdPServiceProviderV1{
+						Resource: &types.AppServerOrSAMLIdPServiceProviderV1_AppServer{
+							AppServer: appOrSP,
+						},
+					},
+				}, RequiresRequest: requiresRequest}
+		case *types.SAMLIdPServiceProviderV1:
+			protoResource = &proto.PaginatedResource{
+				Resource: &proto.PaginatedResource_AppServerOrSAMLIdPServiceProvider{
+					AppServerOrSAMLIdPServiceProvider: &types.AppServerOrSAMLIdPServiceProviderV1{
+						Resource: &types.AppServerOrSAMLIdPServiceProviderV1_SAMLIdPServiceProvider{
+							SAMLIdPServiceProvider: appOrSP,
+						},
+					},
+				}, RequiresRequest: requiresRequest}
+		default:
+			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+		}
+	case types.KindSAMLIdPServiceProvider:
+		serviceProvider, ok := resource.(*types.SAMLIdPServiceProviderV1)
+		if !ok {
+			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+		}
+
+		protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_SAMLIdPServiceProvider{SAMLIdPServiceProvider: serviceProvider}, RequiresRequest: requiresRequest}
+	default:
+		return nil, trace.NotImplemented("resource type %s doesn't support pagination", resource.GetKind())
+	}
+
+	return protoResource, nil
+}
+
 // MakePaginatedResources converts a list of resources into a list of paginated proto representations.
-func MakePaginatedResources(requestType string, resources []types.ResourceWithLabels) ([]*proto.PaginatedResource, error) {
+func MakePaginatedResources(requestType string, resources []types.ResourceWithLabels, requestableMap map[string]struct{}) ([]*proto.PaginatedResource, error) {
 	paginatedResources := make([]*proto.PaginatedResource, 0, len(resources))
 	for _, r := range resources {
-		var protoResource *proto.PaginatedResource
-		resourceKind := requestType
-		if requestType == types.KindUnifiedResource {
-			resourceKind = r.GetKind()
+		_, requiresRequest := requestableMap[r.GetName()]
+		protoResource, err := MakePaginatedResource(requestType, r, requiresRequest)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
-
-		var logins []string
-		resource := r
-		if enriched, ok := r.(*types.EnrichedResource); ok {
-			resource = enriched.ResourceWithLabels
-			logins = enriched.Logins
-		}
-
-		switch resourceKind {
-		case types.KindDatabaseServer:
-			database, ok := resource.(*types.DatabaseServerV3)
-			if !ok {
-				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
-			}
-
-			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_DatabaseServer{DatabaseServer: database}}
-		case types.KindDatabaseService:
-			databaseService, ok := resource.(*types.DatabaseServiceV1)
-			if !ok {
-				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
-			}
-
-			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_DatabaseService{DatabaseService: databaseService}}
-		case types.KindAppServer:
-			app, ok := resource.(*types.AppServerV3)
-			if !ok {
-				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
-			}
-
-			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_AppServer{AppServer: app}}
-		case types.KindNode:
-			srv, ok := resource.(*types.ServerV2)
-			if !ok {
-				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
-			}
-
-			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_Node{Node: srv}, Logins: logins}
-		case types.KindKubeServer:
-			srv, ok := resource.(*types.KubernetesServerV3)
-			if !ok {
-				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
-			}
-
-			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_KubernetesServer{KubernetesServer: srv}}
-		case types.KindWindowsDesktop:
-			desktop, ok := resource.(*types.WindowsDesktopV3)
-			if !ok {
-				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
-			}
-
-			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_WindowsDesktop{WindowsDesktop: desktop}, Logins: logins}
-		case types.KindWindowsDesktopService:
-			desktopService, ok := resource.(*types.WindowsDesktopServiceV3)
-			if !ok {
-				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
-			}
-
-			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_WindowsDesktopService{WindowsDesktopService: desktopService}}
-		case types.KindKubernetesCluster:
-			cluster, ok := resource.(*types.KubernetesClusterV3)
-			if !ok {
-				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
-			}
-
-			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_KubeCluster{KubeCluster: cluster}}
-		case types.KindUserGroup:
-			userGroup, ok := resource.(*types.UserGroupV1)
-			if !ok {
-				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
-			}
-
-			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_UserGroup{UserGroup: userGroup}}
-		case types.KindAppOrSAMLIdPServiceProvider:
-			//nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
-			switch appOrSP := resource.(type) {
-			case *types.AppServerV3:
-				protoResource = &proto.PaginatedResource{
-					Resource: &proto.PaginatedResource_AppServerOrSAMLIdPServiceProvider{
-						AppServerOrSAMLIdPServiceProvider: &types.AppServerOrSAMLIdPServiceProviderV1{
-							Resource: &types.AppServerOrSAMLIdPServiceProviderV1_AppServer{
-								AppServer: appOrSP,
-							},
-						},
-					}}
-			case *types.SAMLIdPServiceProviderV1:
-				protoResource = &proto.PaginatedResource{
-					Resource: &proto.PaginatedResource_AppServerOrSAMLIdPServiceProvider{
-						AppServerOrSAMLIdPServiceProvider: &types.AppServerOrSAMLIdPServiceProviderV1{
-							Resource: &types.AppServerOrSAMLIdPServiceProviderV1_SAMLIdPServiceProvider{
-								SAMLIdPServiceProvider: appOrSP,
-							},
-						},
-					}}
-			default:
-				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
-			}
-		case types.KindSAMLIdPServiceProvider:
-			serviceProvider, ok := resource.(*types.SAMLIdPServiceProviderV1)
-			if !ok {
-				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
-			}
-
-			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_SAMLIdPServiceProvider{SAMLIdPServiceProvider: serviceProvider}}
-		default:
-			return nil, trace.NotImplemented("resource type %s doesn't support pagination", resource.GetKind())
-		}
-
 		paginatedResources = append(paginatedResources, protoResource)
 	}
 	return paginatedResources, nil

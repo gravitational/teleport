@@ -17,26 +17,30 @@
  */
 
 import React, { useState } from 'react';
-import { Box } from 'design';
-import styled from 'styled-components';
+import { Box, Flex, Text } from 'design';
+import styled, { useTheme } from 'styled-components';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import * as Icon from 'design/Icon';
 import { Notification, NotificationItem } from 'shared/components/Notification';
 
 import useTeleport from 'teleport/useTeleport';
-import { FeatureBox } from 'teleport/components/Layout';
+import {
+  FeatureBox,
+  FeatureHeader,
+  FeatureHeaderTitle,
+} from 'teleport/components/Layout';
 import ReAuthenticate from 'teleport/components/ReAuthenticate';
 import { RemoveDialog } from 'teleport/components/MfaDeviceList';
 
-import { MfaChallengeScope } from 'teleport/services/auth/auth';
-
 import cfg from 'teleport/config';
+
+import { DeviceUsage } from 'teleport/services/auth';
 
 import { AuthDeviceList } from './ManageDevices/AuthDeviceList/AuthDeviceList';
 import useManageDevices, {
   State as ManageDevicesState,
 } from './ManageDevices/useManageDevices';
-import { ActionButton, Header } from './Header';
+import { ActionButtonPrimary, ActionButtonSecondary, Header } from './Header';
 import { PasswordBox } from './PasswordBox';
 import { AddAuthDeviceWizard } from './ManageDevices/AddAuthDeviceWizard';
 
@@ -161,89 +165,77 @@ export function Account({
 
   return (
     <Relative>
-      <FeatureBox gap={4} mt={4}>
-        <Box>
-          <AuthDeviceList
-            header={
-              <Header
-                title="Passkeys"
-                description="Enable secure passwordless sign-in using
-                fingerprint or facial recognition, a one-time code, or
-                a device password."
-                icon={<Icon.Key />}
-                showIndicator={fetchDevicesAttempt.status === 'processing'}
-                actions={
-                  <ActionButton
-                    disabled={disableAddPasskey}
-                    title={
-                      disableAddPasskey
-                        ? 'Passwordless authentication is disabled'
-                        : ''
-                    }
-                    onClick={() => onAddDevice('passwordless')}
-                  >
-                    <Icon.Add size={20} />
-                    Add a Passkey
-                  </ActionButton>
-                }
-              />
-            }
-            deviceTypeColumnName="Passkey Type"
-            devices={passkeys}
-            onRemove={onRemoveDevice}
-          />
-        </Box>
-        {!isSso && (
-          <PasswordBox
-            changeDisabled={
-              createRestrictedTokenAttempt.status === 'processing'
-            }
-            devices={devices}
-            onPasswordChange={onPasswordChange}
-          />
-        )}
-        <Box>
-          <AuthDeviceList
-            header={
-              <Header
-                title="Multi-factor Authentication"
-                description="Provide secondary authentication when signing in
+      <FeatureBox>
+        <FeatureHeader>
+          <FeatureHeaderTitle>Account Settings</FeatureHeaderTitle>
+        </FeatureHeader>
+        <Flex flexDirection="column" gap={4}>
+          <Box>
+            <AuthDeviceList
+              header={
+                <PasskeysHeader
+                  empty={devices.length === 0}
+                  disableAddPasskey={disableAddPasskey}
+                  fetchDevicesAttempt={fetchDevicesAttempt}
+                  onAddDevice={onAddDevice}
+                />
+              }
+              deviceTypeColumnName="Passkey Type"
+              devices={passkeys}
+              onRemove={onRemoveDevice}
+            />
+          </Box>
+          {!isSso && (
+            <PasswordBox
+              changeDisabled={
+                createRestrictedTokenAttempt.status === 'processing'
+              }
+              devices={devices}
+              onPasswordChange={onPasswordChange}
+            />
+          )}
+          <Box>
+            <AuthDeviceList
+              header={
+                <Header
+                  title="Multi-factor Authentication"
+                  description="Provide secondary authentication when signing in
                 with a password. Unlike passkeys, multi-factor methods do not
                 enable passwordless sign-in."
-                icon={<Icon.ShieldCheck />}
-                showIndicator={fetchDevicesAttempt.status === 'processing'}
-                actions={
-                  <ActionButton
-                    disabled={disableAddMfa}
-                    title={
-                      disableAddMfa
-                        ? 'Multi-factor authentication is disabled'
-                        : ''
-                    }
-                    onClick={() => onAddDevice('mfa')}
-                  >
-                    <Icon.Add size={20} />
-                    Add MFA
-                  </ActionButton>
-                }
-              />
-            }
-            deviceTypeColumnName="MFA Type"
-            devices={mfaDevices}
-            onRemove={onRemoveDevice}
-          />
-        </Box>
-        {isReAuthenticateVisible && (
-          <ReAuthenticate
-            onAuthenticated={setToken}
-            onClose={hideReAuthenticate}
-            actionText="registering a new device"
-            challengeScope={MfaChallengeScope.MANAGE_DEVICES}
-          />
-        )}
-        {EnterpriseComponent && (
-          <EnterpriseComponent addNotification={addNotification} />
-        )}
+                  icon={<Icon.ShieldCheck />}
+                  showIndicator={fetchDevicesAttempt.status === 'processing'}
+                  actions={
+                    <ActionButtonSecondary
+                      disabled={disableAddMfa}
+                      title={
+                        disableAddMfa
+                          ? 'Multi-factor authentication is disabled'
+                          : ''
+                      }
+                      onClick={() => onAddDevice('mfa')}
+                    >
+                      <Icon.Add size={20} />
+                      Add MFA
+                    </ActionButtonSecondary>
+                  }
+                />
+              }
+              deviceTypeColumnName="MFA Type"
+              devices={mfaDevices}
+              onRemove={onRemoveDevice}
+            />
+          </Box>
+          {isReAuthenticateVisible && (
+            <ReAuthenticate
+              onAuthenticated={setToken}
+              onClose={hideReAuthenticate}
+              actionText="registering a new device"
+            />
+          )}
+          {EnterpriseComponent && (
+            <EnterpriseComponent addNotification={addNotification} />
+          )}
+        </Flex>
       </FeatureBox>
 
       {isRemoveDeviceVisible && (
@@ -284,6 +276,75 @@ export function Account({
         ))}
       </NotificationContainer>
     </Relative>
+  );
+}
+
+/**
+ * Renders a simple header for non-empty list of passkeys, and a more
+ * encouraging CTA if there are no passkeys.
+ */
+function PasskeysHeader({
+  empty,
+  fetchDevicesAttempt,
+  disableAddPasskey,
+  onAddDevice,
+}: {
+  empty: boolean;
+  fetchDevicesAttempt: Attempt;
+  disableAddPasskey: boolean;
+  onAddDevice: (usage: DeviceUsage) => void;
+}) {
+  const theme = useTheme();
+
+  const ActionButton = empty ? ActionButtonPrimary : ActionButtonSecondary;
+  const button = (
+    <ActionButton
+      disabled={disableAddPasskey}
+      title={disableAddPasskey ? 'Passwordless authentication is disabled' : ''}
+      onClick={() => onAddDevice('passwordless')}
+    >
+      <Icon.Add size={20} />
+      Add a Passkey
+    </ActionButton>
+  );
+
+  if (empty) {
+    return (
+      <Flex flexDirection="column" alignItems="center">
+        <Box
+          bg={theme.colors.interactive.tonal.neutral[0]}
+          lineHeight={0}
+          p={2}
+          borderRadius={3}
+          mb={3}
+        >
+          <Icon.Key />
+        </Box>
+        <Text typography="h4">Passwordless sign-in using Passkeys</Text>
+        <Text
+          typography="body1"
+          color={theme.colors.text.slightlyMuted}
+          textAlign="center"
+          mb={3}
+        >
+          Passkeys are a password replacement that validates your identity using
+          touch, facial recognition, a device password, or a PIN.
+        </Text>
+        {button}
+      </Flex>
+    );
+  }
+
+  return (
+    <Header
+      title="Passkeys"
+      description="Enable secure passwordless sign-in using
+                fingerprint or facial recognition, a one-time code, or
+                a device password."
+      icon={<Icon.Key />}
+      showIndicator={fetchDevicesAttempt.status === 'processing'}
+      actions={button}
+    />
   );
 }
 

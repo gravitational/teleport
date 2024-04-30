@@ -193,6 +193,7 @@ var allowedCertificateTypes = []string{
 	"tls-host",
 	"tls-user",
 	"tls-user-der",
+	"tls-spiffe",
 	"windows",
 	"db",
 	"db-der",
@@ -241,7 +242,6 @@ func (a *AuthCommand) ExportAuthorities(ctx context.Context, clt *auth.Client) e
 // GenerateKeys generates a new keypair
 func (a *AuthCommand) GenerateKeys(ctx context.Context) error {
 	keygen := keygen.New(ctx)
-	defer keygen.Close()
 	privBytes, pubBytes, err := keygen.GenerateKeyPair()
 	if err != nil {
 		return trace.Wrap(err)
@@ -264,7 +264,6 @@ func (a *AuthCommand) GenerateKeys(ctx context.Context) error {
 // to sign certificates using the Auth Server.
 type certificateSigner interface {
 	kubeutils.KubeServicesPresence
-	CreateAppSession(ctx context.Context, req *proto.CreateAppSessionRequest) (types.WebSession, error)
 	GenerateDatabaseCert(context.Context, *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error)
 	GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error)
 	GenerateWindowsDesktopCert(context.Context, *proto.WindowsDesktopCertRequest) (*proto.WindowsDesktopCertResponse, error)
@@ -277,6 +276,8 @@ type certificateSigner interface {
 	GetProxies() ([]types.Server, error)
 	GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error)
 	TrustClient() trustpb.TrustServiceClient
+	// TODO (Joerger): DELETE IN 17.0.0
+	auth.CreateAppSessionForV15Client
 }
 
 // GenerateAndSignKeys generates a new keypair and signs it for role
@@ -875,21 +876,18 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI certifica
 			return trace.Wrap(err)
 		}
 
-		appSession, err := clusterAPI.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
-			Username:    a.genUser,
-			PublicAddr:  server.GetApp().GetPublicAddr(),
-			ClusterName: a.leafCluster,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
 		routeToApp = proto.RouteToApp{
 			Name:        a.appName,
 			PublicAddr:  server.GetApp().GetPublicAddr(),
 			ClusterName: a.leafCluster,
-			SessionID:   appSession.GetName(),
 		}
+
+		// TODO (Joerger): DELETE IN v17.0.0
+		routeToApp.SessionID, err = auth.TryCreateAppSessionForClientCertV15(ctx, clusterAPI, a.genUser, routeToApp)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		certUsage = proto.UserCertsRequest_App
 	case a.dbService != "":
 		server, err := getDatabaseServer(ctx, clusterAPI, a.dbService)

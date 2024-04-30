@@ -25,8 +25,11 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types/compare"
 	"github.com/gravitational/teleport/api/utils"
 )
+
+var _ compare.IsEqual[KubeCluster] = (*KubernetesClusterV3)(nil)
 
 // KubeCluster represents a kubernetes cluster.
 type KubeCluster interface {
@@ -402,6 +405,14 @@ func (k *KubernetesClusterV3) CheckAndSetDefaults() error {
 	}
 
 	return nil
+}
+
+// IsEqual determines if two user resources are equivalent to one another.
+func (k *KubernetesClusterV3) IsEqual(i KubeCluster) bool {
+	if other, ok := i.(*KubernetesClusterV3); ok {
+		return deriveTeleportEqualKubernetesClusterV3(k, other)
+	}
+	return false
 }
 
 func (k KubeAzure) CheckAndSetDefaults() error {

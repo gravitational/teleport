@@ -16,9 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
+
 import cfg from 'teleport/config';
 
-import { StoreNav, StoreUserContext, StoreNotifications } from './stores';
+import { StoreNav, StoreNotifications, StoreUserContext } from './stores';
 import * as types from './types';
 import AuditService from './services/audit';
 import RecordingsService from './services/recordings';
@@ -65,23 +67,20 @@ class TeleportContext implements types.Context {
   automaticUpgradesTargetVersion = cfg.automaticUpgradesTargetVersion;
   assistEnabled = cfg.assistEnabled;
   agentService = agentService;
+  // redirectUrl is used to redirect the user to a specific page after init.
+  redirectUrl: string | null = null;
 
   // lockedFeatures are the features disabled in the user's cluster.
   // Mainly used to hide features and/or show CTAs when the user cluster doesn't support it.
-  // TODO(mcbattirola): use cluster features instead of only using `isTeam`
-  // to determine which feature is locked
   lockedFeatures: types.LockedFeatures = {
-    authConnectors: cfg.isTeam,
-    activeSessions: cfg.isTeam,
-    premiumSupport: cfg.isTeam,
-    externalCloudAudit: cfg.isTeam,
+    authConnectors: !(cfg.oidc && cfg.saml),
     // Below should be locked for the following cases:
-    //  1) is team
+    //  1) feature disabled in the cluster features
     //  2) is not a legacy and igs is not enabled. legacies should have unlimited access.
     accessRequests:
-      cfg.isTeam || (!cfg.isLegacyEnterprise() && !cfg.isIgsEnabled),
+      !cfg.accessRequests || (!cfg.isLegacyEnterprise() && !cfg.isIgsEnabled),
     trustedDevices:
-      cfg.isTeam || (!cfg.isLegacyEnterprise() && !cfg.isIgsEnabled),
+      !cfg.trustedDevices || (!cfg.isLegacyEnterprise() && !cfg.isIgsEnabled),
   };
 
   // hasExternalAuditStorage indicates if an account has set up external audit storage. It is used to show or hide the External Audit Storage CTAs.
@@ -90,7 +89,9 @@ class TeleportContext implements types.Context {
   // init fetches data required for initial rendering of components.
   // The caller of this function provides the try/catch
   // block.
-  async init() {
+  // preferences are needed in TeleportContextE, but not in TeleportContext.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async init(preferences: UserPreferences) {
     const user = await userService.fetchUserContext();
     this.storeUser.setState(user);
 

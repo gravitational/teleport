@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client"
+	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
@@ -55,6 +56,11 @@ type wrappedClient struct {
 
 func (w *wrappedClient) ListAccessLists(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessList, string, error) {
 	return w.Client.AccessListClient().ListAccessLists(ctx, pageSize, pageToken)
+}
+
+// ListAccessMonitoringRules lists current access monitoring rules.
+func (w *wrappedClient) ListAccessMonitoringRules(ctx context.Context, limit int, startKey string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error) {
+	return w.Client.AccessMonitoringRulesClient().ListAccessMonitoringRules(ctx, limit, startKey)
 }
 
 // wrapAPIClient will wrap the API client such that it conforms to the Teleport plugin client interface.

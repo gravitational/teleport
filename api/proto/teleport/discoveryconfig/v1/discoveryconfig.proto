@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package teleport.discoveryconfig.v1;
 
+import "google/protobuf/timestamp.proto";
 import "teleport/header/v1/resourceheader.proto";
 import "teleport/legacy/types/types.proto";
 
@@ -30,6 +31,9 @@ message DiscoveryConfig {
 
   // Spec is an DiscoveryConfig specification.
   DiscoveryConfigSpec spec = 2;
+
+  // Status is the resource Status
+  DiscoveryConfigStatus status = 3;
 }
 
 // DiscoveryConfigSpec contains properties required to create matchers to be used by discovery_service.
@@ -49,4 +53,30 @@ message DiscoveryConfigSpec {
   repeated types.KubernetesMatcher kube = 5;
   // AccessGraph is the configurations for syncing Cloud accounts into Access Graph.
   types.AccessGraphSync access_graph = 6;
+}
+
+// DiscoveryConfigStatus holds dynamic information about the discovery configuration
+// running status such as errors, state and count of the resources.
+message DiscoveryConfigStatus {
+  // State reports the Discovery config state.
+  DiscoveryConfigState state = 1;
+  // error_message holds the error message when state is DISCOVERY_CONFIG_STATE_ERROR.
+  optional string error_message = 2;
+  // discovered_resources holds the count of the discovered resources in the previous iteration.
+  uint64 discovered_resources = 3;
+  // last_sync_time is the timestamp when the Discovery Config was last sync.
+  google.protobuf.Timestamp last_sync_time = 4;
+}
+
+// DiscoveryConfigState is the state of the discovery config resource.
+enum DiscoveryConfigState {
+  DISCOVERY_CONFIG_STATE_UNSPECIFIED = 0;
+  // DISCOVERY_CONFIG_STATE_RUNNING is used when the operation doesn't report
+  // incidents.
+  DISCOVERY_CONFIG_STATE_RUNNING = 1;
+  // DISCOVERY_CONFIG_STATE_ERROR is used when the operation reports
+  // incidents.
+  DISCOVERY_CONFIG_STATE_ERROR = 2;
+  // DISCOVERY_CONFIG_STATE_SYNCING is used when the discovery process has started but didn't finished yet.
+  DISCOVERY_CONFIG_STATE_SYNCING = 3;
 }

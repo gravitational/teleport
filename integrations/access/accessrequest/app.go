@@ -352,16 +352,19 @@ func (a *App) getMessageRecipients(ctx context.Context, req types.AccessRequest)
 		recipientSet.Add(common.Recipient{})
 		return recipientSet.ToSlice()
 	case types.PluginTypeOpsgenie:
-		if recipients, ok := req.GetSystemAnnotations()[types.TeleportNamespace+types.ReqAnnotationSchedulesLabel]; ok {
-			for _, recipient := range recipients {
-				rec, err := a.bot.FetchRecipient(ctx, recipient)
-				if err != nil {
-					log.Warning(err)
-				}
-				recipientSet.Add(*rec)
-			}
+		recipients, ok := req.GetSystemAnnotations()[types.TeleportNamespace+types.ReqAnnotationNotifySchedulesLabel]
+		if !ok {
 			return recipientSet.ToSlice()
 		}
+		for _, recipient := range recipients {
+			rec, err := a.bot.FetchRecipient(ctx, recipient)
+			if err != nil {
+				log.Warningf("Failed to fetch Opsgenie recipient: %v", err)
+				continue
+			}
+			recipientSet.Add(*rec)
+		}
+		return recipientSet.ToSlice()
 	}
 
 	validEmailSuggReviewers := []string{}
@@ -427,8 +430,13 @@ func (a *App) updateMessages(ctx context.Context, reqID string, tag pd.Resolutio
 	if err := a.bot.UpdateMessages(ctx, reqID, reqData, sentMessages, reviews); err != nil {
 		return trace.Wrap(err)
 	}
-
 	log.Infof("Successfully marked request as %s in all messages", tag)
+
+	if err := a.bot.NotifyUser(ctx, reqID, reqData); err != nil && !trace.IsNotImplemented(err) {
+		return trace.Wrap(err)
+	}
+
+	log.Infof("Successfully notified user %s request marked as %s", reqData.User, tag)
 
 	return nil
 }

@@ -132,10 +132,17 @@ func (g *GithubConverter) UpdateGithubConnector(ctx context.Context, connector t
 
 // CreateGithubAuthRequest creates a new request for Github OAuth2 flow
 func (a *Server) CreateGithubAuthRequest(ctx context.Context, req types.GithubAuthRequest) (*types.GithubAuthRequest, error) {
-	_, client, err := a.getGithubConnectorAndClient(ctx, req)
+	connector, client, err := a.getGithubConnectorAndClient(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if hook := GithubAuthRequestHook; hook != nil {
+		if err := hook(ctx, &req, connector); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	req.StateToken, err = utils.CryptoRandomHex(defaults.TokenLenBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -225,7 +232,7 @@ func (a *Server) updateGithubConnector(ctx context.Context, connector types.Gith
 		},
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit GitHub connector create event.")
+		log.WithError(err).Warn("Failed to emit GitHub connector update event.")
 	}
 
 	return updated, nil
@@ -264,7 +271,8 @@ func checkGithubOrgSSOSupport(ctx context.Context, conn types.GithubConnector, u
 	}
 
 	// Check each organization only once
-	// DELETE IN 12 (zmb3)
+	// TODO: this can be removed as of Teleport 12, but we should create cluster
+	// alerts for anyone using the old teams_to_logins field to avoid breaking anyone
 	for _, mapping := range conn.GetTeamsToLogins() {
 		addOrg(mapping.Organization)
 	}
@@ -727,7 +735,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 
 	// If the request is coming from a browser, create a web session.
 	if req.CreateWebSession {
-		session, err := a.CreateWebSessionFromReq(ctx, types.NewWebSessionRequest{
+		session, err := a.CreateWebSessionFromReq(ctx, NewWebSessionRequest{
 			User:             userState.GetName(),
 			Roles:            userState.GetRoles(),
 			Traits:           userState.GetTraits(),
@@ -1114,3 +1122,10 @@ var GithubScopes = []string{
 	// read:org grants read-only access to user's team memberships
 	"read:org",
 }
+
+// Hooks for future use in Enterprise-only code.
+var (
+	GithubAuthRequestHook func(context.Context, *types.GithubAuthRequest, types.GithubConnector) error
+	OIDCAuthRequestHook   func(context.Context, *types.OIDCAuthRequest, types.OIDCConnector) error
+	SAMLAuthRequestHook   func(context.Context, *types.SAMLAuthRequest, types.SAMLConnector) error
+)

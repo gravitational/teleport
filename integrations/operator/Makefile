@@ -98,10 +98,8 @@ manifests: crdgen controller-gen ## Generate WebhookConfiguration, ClusterRole a
 			"$${proto}"; \
 	done
 
-# Some comments have `{{xyz}}` which triggers the golang templating engine when installing the chart.
-# We don't want that, so we escape them.
-	$(foreach file, $(wildcard $(CURDIR)/config/crd/bases/*), \
-		$(shell sed 's/`{{/{{ `{{/g;s/}}`/}}` }}/g' $(file) > $(CURDIR)/../../examples/chart/teleport-cluster/charts/teleport-operator/templates/$(notdir $(file))))
+	rm -r ../../examples/chart/teleport-cluster/charts/teleport-operator/operator-crds/
+	cp -r ./config/crd/bases/ ../../examples/chart/teleport-cluster/charts/teleport-operator/operator-crds
 
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.

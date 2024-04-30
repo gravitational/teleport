@@ -30,9 +30,9 @@ import { createTeleportContext } from 'teleport/mocks/contexts';
 import {
   DiscoverProvider,
   DiscoverContextState,
-  NodeMeta,
 } from 'teleport/Discover/useDiscover';
 import {
+  Ec2InstanceConnectEndpoint,
   IntegrationKind,
   IntegrationStatusCode,
 } from 'teleport/services/integrations';
@@ -45,6 +45,56 @@ export default {
 };
 
 initialize();
+
+const mockedCreatedEc2Ice: Ec2InstanceConnectEndpoint = {
+  name: 'test-eice',
+  state: 'create-complete',
+  stateMessage: '',
+  dashboardLink: 'goteleport.com',
+  subnetId: 'test-subnetid',
+  vpcId: 'test',
+};
+
+const deployEndpointSuccess = rest.post(
+  cfg.getDeployEc2InstanceConnectEndpointUrl('test-oidc'),
+  (req, res, ctx) => res(ctx.json({ name: 'test-eice' }))
+);
+
+let tick = 0;
+const ec2IceEndpointWithTick = rest.post(
+  cfg.getListEc2InstanceConnectEndpointsUrl('test-oidc'),
+  (req, res, ctx) => {
+    if (tick == 1) {
+      tick = 0; // reset, the polling will be finished by this point.
+      return res(
+        ctx.json({
+          ec2Ices: [mockedCreatedEc2Ice],
+        })
+      );
+    }
+    tick += 1;
+    return res(
+      ctx.json({
+        ec2Ices: [{ ...mockedCreatedEc2Ice, state: 'create-in-progress' }],
+      })
+    );
+  }
+);
+
+export const AutoDiscoverEnabled = () => (
+  <>
+    <Info>
+      Devs: after clicking next, wait 10 seconds for in progress to change to
+      created
+    </Info>
+    <Component autoDiscover={true} />
+  </>
+);
+AutoDiscoverEnabled.parameters = {
+  msw: {
+    handlers: [deployEndpointSuccess, ec2IceEndpointWithTick],
+  },
+};
 
 export const ListSecurityGroupsLoading = () => <Component />;
 
@@ -133,10 +183,7 @@ CreatingInProgress.parameters = {
             })
           )
       ),
-      rest.post(
-        cfg.getDeployEc2InstanceConnectEndpointUrl('test-oidc'),
-        (req, res, ctx) => res(ctx.json({ name: 'test-eice' }))
-      ),
+      deployEndpointSuccess,
     ],
   },
 };
@@ -175,10 +222,7 @@ CreatingFailed.parameters = {
             })
           )
       ),
-      rest.post(
-        cfg.getDeployEc2InstanceConnectEndpointUrl('test-oidc'),
-        (req, res, ctx) => res(ctx.json({ name: 'test-eice' }))
-      ),
+      deployEndpointSuccess,
     ],
   },
 };
@@ -248,14 +292,13 @@ CreatingComplete.parameters = {
   },
 };
 
-const Component = () => {
+const Component = ({ autoDiscover = false }: { autoDiscover?: boolean }) => {
   const ctx = createTeleportContext();
   const discoverCtx: DiscoverContextState = {
     agentMeta: {
+      awsRegion: 'us-east-1',
       resourceName: 'node-name',
       agentMatcherLabels: [],
-      db: {} as any,
-      selectedAwsRdsDb: {} as any,
       node: {
         kind: 'node',
         subKind: 'openssh-ec2-ice',
@@ -286,7 +329,16 @@ const Component = () => {
         },
         statusCode: IntegrationStatusCode.Running,
       },
-    } as NodeMeta,
+      autoDiscovery: autoDiscover
+        ? {
+            config: { name: '', discoveryGroup: '', aws: [] },
+            requiredVpcsAndSubnets: {
+              'vpc-1': ['subnet-1'],
+              'vpc-2': ['subnet-2'],
+            },
+          }
+        : undefined,
+    },
     updateAgentMeta: agentMeta => {
       discoverCtx.agentMeta = agentMeta;
     },

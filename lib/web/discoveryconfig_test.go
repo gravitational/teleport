@@ -27,9 +27,14 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/discoveryconfig"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
@@ -118,6 +123,33 @@ func TestDiscoveryConfig(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, "dg01", discoveryConfigResp.DiscoveryGroup)
 			require.Equal(t, "dc01", discoveryConfigResp.Name)
+		})
+
+		t.Run("Read status after an update", func(t *testing.T) {
+			client, err := env.server.NewClient(auth.TestIdentity{
+				I: authz.BuiltinRole{
+					Role:     types.RoleDiscovery,
+					Username: "disc",
+				},
+			})
+			require.NoError(t, err)
+			status := discoveryconfig.Status{
+				State:               discoveryconfigv1.DiscoveryConfigState_DISCOVERY_CONFIG_STATE_RUNNING.String(),
+				DiscoveredResources: 1,
+				LastSyncTime:        env.clock.Now().UTC(),
+			}
+			_, err = client.DiscoveryConfigClient().UpdateDiscoveryConfigStatus(ctx, "dc01", status)
+			require.NoError(t, err)
+			resp, err := pack.clt.Get(ctx, getDC01Endpoint, nil)
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, resp.Code())
+
+			var discoveryConfigResp ui.DiscoveryConfig
+			err = json.Unmarshal(resp.Bytes(), &discoveryConfigResp)
+			require.NoError(t, err)
+			assert.Equal(t, "dg01", discoveryConfigResp.DiscoveryGroup)
+			assert.Equal(t, "dc01", discoveryConfigResp.Name)
+			assert.Equal(t, status, discoveryConfigResp.Status)
 		})
 
 		t.Run("Update discovery config", func(t *testing.T) {

@@ -363,6 +363,15 @@ func TestConfigReading(t *testing.T) {
 					AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
 					ExternalID:    "externalID123",
 				},
+				{
+					Types:   []string{"eks"},
+					Regions: []string{"us-west-1", "us-east-1"},
+					Tags: map[string]apiutils.Strings{
+						"a": {"b"},
+					},
+					Integration:      "integration1",
+					KubeAppDiscovery: true,
+				},
 			},
 			AzureMatchers: []AzureMatcher{
 				{
@@ -1488,6 +1497,13 @@ func makeConfigFixture() string {
 			Tags:          map[string]apiutils.Strings{"a": {"b"}},
 			AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
 			ExternalID:    "externalID123",
+		},
+		{
+			Types:            []string{"eks"},
+			Regions:          []string{"us-west-1", "us-east-1"},
+			Tags:             map[string]apiutils.Strings{"a": {"b"}},
+			Integration:      "integration1",
+			KubeAppDiscovery: true,
 		},
 	}
 
@@ -3474,6 +3490,7 @@ jamf_service:
     sync_period_partial: 4h
     sync_period_full: 48h
     on_missing: NOOP
+    page_size: 10
   - {}`,
 			want: servicecfg.JamfConfig{
 				Spec: &types.JamfSpecV1{
@@ -3489,6 +3506,7 @@ jamf_service:
 							SyncPeriodPartial: types.Duration(4 * time.Hour),
 							SyncPeriodFull:    types.Duration(48 * time.Hour),
 							OnMissing:         "NOOP",
+							PageSize:          10,
 						},
 						{},
 					},

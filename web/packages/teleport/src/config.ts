@@ -49,16 +49,29 @@ const cfg = {
   // IsUsageBasedBilling determines if the user subscription is usage-based (pay-as-you-go).
   // Historically, this flag used to refer to "Cloud Team" product,
   // but with the new EUB (Enterprise Usage Based) product, it can mean either EUB or Team.
-  // Use the `isTeam` config flag to determine if product used is Team.
-  // EUB can be determined from a combination of existing config flags eg: `isCloud && !isTeam`.
+  // Prefer using feature flags to determine if something should be enabled or not.
+  // If you have no other options, use the `isStripeManaged` config flag to determine if product used is Team.
+  // EUB can be determined from a combination of existing config flags eg: `isUsageBasedBilling && !isStripeManaged`.
   isUsageBasedBilling: false,
   hideInaccessibleFeatures: false,
   customTheme: '',
   /**
    * isTeam is true if [Features.ProductType] == Team
    * @deprecated use other flags do determine cluster features istead of relying on isTeam
+   * TODO(mcbattirola): remove isTeam when it is no longer used
    */
   isTeam: false,
+  isStripeManaged: false,
+  hasQuestionnaire: false,
+  externalAuditStorage: false,
+  premiumSupport: false,
+  accessRequests: false,
+  trustedDevices: false,
+  oidc: false,
+  saml: false,
+  joinActiveSessions: false,
+  mobileDeviceManagement: false,
+
   // isIgsEnabled refers to Identity Governance & Security product.
   // It refers to a group of features: access request, device trust,
   // access list, and access monitoring.
@@ -119,6 +132,7 @@ const cfg = {
     accountMfaDevices: '/web/account/twofactor',
     roles: '/web/roles',
     deviceTrust: `/web/devices`,
+    deviceTrustAuthorize: '/web/device/authorize/:id?/:token?',
     sso: '/web/sso',
     cluster: '/web/cluster/:clusterId/',
     clusters: '/web/clusters',
@@ -141,6 +155,8 @@ const cfg = {
     player: '/web/cluster/:clusterId/session/:sid', // ?recordingType=ssh|desktop|k8s&durationMs=1234
     login: '/web/login',
     loginSuccess: '/web/msg/info/login_success',
+    loginTerminalRedirect: '/web/msg/info/login_terminal',
+    loginClose: '/web/msg/info/login_close',
     loginErrorLegacy: '/web/msg/error/login_failed',
     loginError: '/web/msg/error/login',
     loginErrorCallback: '/web/msg/error/login/callback',
@@ -211,7 +227,7 @@ const cfg = {
       'wss://:fqdn/v1/webapi/sites/:clusterId/ttyplayback/:sid?access_token=:token', // TODO(zmb3): get token out of URL
     activeAndPendingSessionsPath: '/v1/webapi/sites/:clusterId/sessions',
 
-    // TODO(zmb3): remove this for v15
+    // TODO(zmb3): remove this when Assist is no longer using it
     sshPlaybackPrefix: '/v1/webapi/sites/:clusterId/sessions/:sid', // prefix because this is eventually concatenated with "/stream" or "/events"
     kubernetesPath:
       '/v1/webapi/sites/:clusterId/kubernetes?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
@@ -220,7 +236,9 @@ const cfg = {
     userWithUsernamePath: '/v1/webapi/users/:username',
     createPrivilegeTokenPath: '/v1/webapi/users/privilege/token',
 
-    rolesPath: '/v1/webapi/roles/:name?',
+    listRolesPath:
+      '/v1/webapi/roles?startKey=:startKey?&search=:search?&limit=:limit?',
+    rolePath: '/v1/webapi/roles/:name?',
     presetRolesPath: '/v1/webapi/presetroles',
     githubConnectorsPath: '/v1/webapi/github/:name?',
     trustedClustersPath: '/v1/webapi/trustedcluster/:name?',
@@ -273,7 +291,7 @@ const cfg = {
     thumbprintPath: '/v1/webapi/thumbprint',
 
     awsConfigureIamScriptOidcIdpPath:
-      '/webapi/scripts/integrations/configure/awsoidc-idp.sh?integrationName=:integrationName&role=:roleName&s3Bucket=:s3Bucket&s3Prefix=:s3Prefix',
+      '/webapi/scripts/integrations/configure/awsoidc-idp.sh?integrationName=:integrationName&role=:roleName',
     awsConfigureIamScriptDeployServicePath:
       '/webapi/scripts/integrations/configure/deployservice-iam.sh?integrationName=:integrationName&awsRegion=:region&role=:awsOidcRoleArn&taskRole=:taskRoleArn',
     awsConfigureIamScriptListDatabasesPath:
@@ -330,6 +348,9 @@ const cfg = {
 
     botsPath: '/v1/webapi/sites/:clusterId/machine-id/bot/:name?',
     botsTokenPath: '/v1/webapi/sites/:clusterId/machine-id/token',
+
+    gcpWorkforceConfigurePath:
+      '/webapi/scripts/integrations/configure/gcp-workforce-saml.sh?orgId=:orgId&poolName=:poolName&poolProviderName=:poolProviderName',
   },
 
   getUserClusterPreferencesUrl(clusterId: string) {
@@ -419,6 +440,10 @@ const cfg = {
     return cfg.auth.authType;
   },
 
+  getDeviceTrustAuthorizeRoute(id: string, token: string) {
+    return generatePath(cfg.routes.deviceTrustAuthorize, { id, token });
+  },
+
   getSsoUrl(providerUrl, providerName, redirect) {
     return cfg.baseUrl + generatePath(providerUrl, { redirect, providerName });
   },
@@ -465,10 +490,11 @@ const cfg = {
   },
 
   getAwsOidcConfigureIdpScriptUrl(p: UrlAwsOidcConfigureIdp) {
-    return (
-      cfg.baseUrl +
-      generatePath(cfg.api.awsConfigureIamScriptOidcIdpPath, { ...p })
-    );
+    let path = cfg.api.awsConfigureIamScriptOidcIdpPath;
+    if (p.s3Bucket && p.s3Prefix) {
+      path += '&s3Bucket=:s3Bucket&s3Prefix=:s3Prefix';
+    }
+    return cfg.baseUrl + generatePath(path, { ...p });
   },
 
   getDbScriptUrl(token: string) {
@@ -635,7 +661,7 @@ const cfg = {
   },
 
   getSshPlaybackPrefixUrl({ clusterId, sid }: UrlParams) {
-    // TODO(zmb3): remove
+    // TODO(zmb3): remove this when Assist is no longer using it
     return generatePath(cfg.api.sshPlaybackPrefix, { clusterId, sid });
   },
 
@@ -769,8 +795,16 @@ const cfg = {
     return generatePath(cfg.api.trustedClustersPath, { name });
   },
 
-  getRolesUrl(name?: string) {
-    return generatePath(cfg.api.rolesPath, { name });
+  getListRolesUrl(params?: UrlListRolesParams) {
+    return generatePath(cfg.api.listRolesPath, {
+      search: params?.search || undefined,
+      startKey: params?.startKey || undefined,
+      limit: params?.limit || undefined,
+    });
+  },
+
+  getRoleUrl(name?: string) {
+    return generatePath(cfg.api.rolePath, { name });
   },
 
   getDiscoveryConfigUrl(clusterId: string) {
@@ -1047,6 +1081,12 @@ const cfg = {
     return generatePath(cfg.api.botsPath, { clusterId, name });
   },
 
+  getGcpWorkforceConfigScriptUrl(p: UrlGcpWorkforceConfigParam) {
+    return (
+      cfg.baseUrl + generatePath(cfg.api.gcpWorkforceConfigurePath, { ...p })
+    );
+  },
+
   init(backendConfig = {}) {
     mergeDeep(this, backendConfig);
   },
@@ -1124,6 +1164,12 @@ export interface UrlDesktopParams {
   clusterId: string;
 }
 
+export interface UrlListRolesParams {
+  search?: string;
+  limit?: number;
+  startKey?: string;
+}
+
 export interface UrlResourcesParams {
   query?: string;
   search?: string;
@@ -1136,14 +1182,6 @@ export interface UrlResourcesParams {
   kinds?: string[];
 }
 
-export interface UrlIntegrationExecuteRequestParams {
-  // name is the name of integration to execute (use).
-  name: string;
-  // action is the expected backend string value
-  // used to describe what to use the integration for.
-  action: 'aws-oidc/list_databases';
-}
-
 export interface UrlDeployServiceIamConfigureScriptParams {
   integrationName: string;
   region: Regions;
@@ -1154,13 +1192,19 @@ export interface UrlDeployServiceIamConfigureScriptParams {
 export interface UrlAwsOidcConfigureIdp {
   integrationName: string;
   roleName: string;
-  s3Bucket: string;
-  s3Prefix: string;
+  s3Bucket?: string;
+  s3Prefix?: string;
 }
 
 export interface UrlAwsConfigureIamScriptParams {
   region: Regions;
   iamRoleName: string;
+}
+
+export interface UrlGcpWorkforceConfigParam {
+  orgId: string;
+  poolName: string;
+  poolProviderName: string;
 }
 
 export default cfg;

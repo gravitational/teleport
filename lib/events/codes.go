@@ -358,7 +358,7 @@ const (
 	// SessionNetworkCode is a session network code.
 	SessionNetworkCode = "T4002I"
 
-	// AccessRequestCreateCode is the the access request creation code.
+	// AccessRequestCreateCode is the access request creation code.
 	AccessRequestCreateCode = "T5000I"
 	// AccessRequestUpdateCode is the access request state update code.
 	AccessRequestUpdateCode = "T5001I"
@@ -420,8 +420,12 @@ const (
 
 	// BotJoinCode is the 'bot.join' event code.
 	BotJoinCode = "TJ001I"
+	// BotJoinFailureCode is the 'bot.join' event code for failures.
+	BotJoinFailureCode = "TJ001E"
 	// InstanceJoinCode is the 'node.join' event code.
 	InstanceJoinCode = "TJ002I"
+	// InstanceJoinFailureCode is the 'node.join' event code for failures.
+	InstanceJoinFailureCode = "TJ002E"
 
 	// BotCreateCode is the `bot.create` event code.
 	BotCreateCode = "TB001I"
@@ -466,6 +470,8 @@ const (
 	DeviceUpdateCode = "TV007I"
 	// DeviceWebTokenCreateCode is the device web token creation code.
 	DeviceWebTokenCreateCode = "TV008I"
+	// DeviceAuthenticateConfirmCode is the device authentication confirm code.
+	DeviceAuthenticateConfirmCode = "TV009I"
 
 	// LoginRuleCreateCode is the login rule create code.
 	LoginRuleCreateCode = "TLR00I"
@@ -530,7 +536,7 @@ const (
 	OktaUserSyncSuccessCode = "TOK007I"
 
 	// OktaUserSyncSuccessCode is the Okta user sync failure code.
-	OktUserSyncFailureCode = "TOK007E"
+	OktaUserSyncFailureCode = "TOK007E"
 
 	// AccessListCreateSuccessCode is the access list create success code.
 	AccessListCreateSuccessCode = "TAL001I"

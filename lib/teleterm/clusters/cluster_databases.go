@@ -117,7 +117,7 @@ func (c *Cluster) GetDatabases(ctx context.Context, authClient auth.ClientI, r *
 }
 
 // reissueDBCerts issues new certificates for specific DB access and saves them to disk.
-func (c *Cluster) reissueDBCerts(ctx context.Context, proxyClient *client.ProxyClient, routeToDatabase tlsca.RouteToDatabase) error {
+func (c *Cluster) reissueDBCerts(ctx context.Context, clusterClient *client.ClusterClient, routeToDatabase tlsca.RouteToDatabase) error {
 	// When generating certificate for MongoDB access, database username must
 	// be encoded into it. This is required to be able to tell which database
 	// user to authenticate the connection as.
@@ -126,7 +126,7 @@ func (c *Cluster) reissueDBCerts(ctx context.Context, proxyClient *client.ProxyC
 	}
 
 	// Refresh the certs to account for clusterClient.SiteName pointing at a leaf cluster.
-	err := proxyClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
+	err := clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
 		RouteToCluster: c.clusterClient.SiteName,
 		AccessRequests: c.status.ActiveRequests.AccessRequests,
 	})
@@ -135,7 +135,7 @@ func (c *Cluster) reissueDBCerts(ctx context.Context, proxyClient *client.ProxyC
 	}
 
 	// Fetch the certs for the database.
-	err = proxyClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
+	err = clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
 		RouteToCluster: c.clusterClient.SiteName,
 		RouteToDatabase: proto.RouteToDatabase{
 			ServiceName: routeToDatabase.ServiceName,

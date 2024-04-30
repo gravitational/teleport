@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"reflect"
 	"runtime"
 	"slices"
 	"strconv"
@@ -32,6 +33,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport"
 )
@@ -256,6 +258,8 @@ func writeTimeRFC3339(buf *buffer, t time.Time) {
 func (s *SlogTextHandler) Handle(ctx context.Context, r slog.Record) error {
 	buf := newBuffer()
 	defer buf.Free()
+
+	addTracingContextToRecord(ctx, &r)
 
 	if s.withTimestamp && !r.Time.IsZero() {
 		if s.cfg.ReplaceAttr != nil {
@@ -533,10 +537,50 @@ func NewSlogJSONHandler(w io.Writer, cfg SlogJSONHandlerConfig) *SlogJSONHandler
 					a = slog.String(CallerField, fmt.Sprintf("%s:%d", file, line))
 				}
 
+				// Convert [slog.KindAny] values that are backed by an [error] or [fmt.Stringer]
+				// to strings so that only the message is output instead of a json object. The kind is
+				// first checked to avoid allocating an interface for the values stored inline
+				// in [slog.Attr].
+				if a.Value.Kind() == slog.KindAny {
+					if err, ok := a.Value.Any().(error); ok {
+						a.Value = slog.StringValue(err.Error())
+					}
+
+					if stringer, ok := a.Value.Any().(fmt.Stringer); ok {
+						a.Value = slog.StringValue(stringer.String())
+					}
+				}
+
 				return a
 			},
 		}),
 	}
+}
+
+const (
+	traceID = "trace_id"
+	spanID  = "span_id"
+)
+
+func addTracingContextToRecord(ctx context.Context, r *slog.Record) {
+	span := oteltrace.SpanFromContext(ctx)
+	if span == nil {
+		return
+	}
+
+	spanContext := span.SpanContext()
+	if spanContext.HasTraceID() {
+		r.AddAttrs(slog.String(traceID, spanContext.TraceID().String()))
+	}
+
+	if spanContext.HasSpanID() {
+		r.AddAttrs(slog.String(spanID, spanContext.SpanID().String()))
+	}
+}
+
+func (j *SlogJSONHandler) Handle(ctx context.Context, r slog.Record) error {
+	addTracingContextToRecord(ctx, &r)
+	return j.JSONHandler.Handle(ctx, r)
 }
 
 // getCaller retrieves source information from the attribute
@@ -579,4 +623,22 @@ func StringerAttr(s fmt.Stringer) slog.LogValuer {
 
 func (s stringerAttr) LogValue() slog.Value {
 	return slog.StringValue(s.Stringer.String())
+}
+
+type typeAttr struct {
+	val any
+}
+
+// TypeAttr creates a lazily evaluated log value that presents the pretty type name of a value
+// as a string. It is roughly equivalent to the '%T' format option, and should only perform
+// reflection in the event that logs are actually being generated.
+func TypeAttr(val any) slog.LogValuer {
+	return typeAttr{val}
+}
+
+func (a typeAttr) LogValue() slog.Value {
+	if t := reflect.TypeOf(a.val); t != nil {
+		return slog.StringValue(t.String())
+	}
+	return slog.StringValue("nil")
 }

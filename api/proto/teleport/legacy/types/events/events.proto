@@ -3860,7 +3860,7 @@ message DeviceMetadata {
   // Only present in "device.authenticate" type events.
   bool web_authentication = 6 [(gogoproto.jsontag) = "web_authentication,omitempty"];
   // Web Session ID associated with the device.
-  // Only present if web_authentication is true.
+  // Present in events related to device web authentication.
   string web_session_id = 7 [(gogoproto.jsontag) = "web_session_id,omitempty"];
 }
 
@@ -4076,6 +4076,7 @@ message OneOf {
     events.ClusterNetworkingConfigUpdate ClusterNetworkingConfigUpdate = 154;
     events.DatabaseUserCreate DatabaseUserCreate = 155;
     events.DatabaseUserDeactivate DatabaseUserDeactivate = 156;
+    events.AccessPathChanged AccessPathChanged = 157;
   }
 }
 
@@ -4203,6 +4204,9 @@ message Identity {
   // BotName indicates the name of the Machine ID bot this identity was issued
   // to, if any.
   string BotName = 27 [(gogoproto.jsontag) = "bot_name,omitempty"];
+  // DeviceExtensions holds the device trust device extensions for the identity,
+  // if any.
+  DeviceExtensions DeviceExtensions = 28 [(gogoproto.jsontag) = "device_extensions,omitempty"];
 }
 
 // RouteToApp contains parameters for application access certificate requests.
@@ -4235,6 +4239,20 @@ message RouteToDatabase {
   string Database = 4 [(gogoproto.jsontag) = "database,omitempty"];
   // Roles is an optional list of database roles to embed.
   repeated string Roles = 5 [(gogoproto.jsontag) = "roles,omitempty"];
+}
+
+// DeviceExtensions holds certificate extensions (X.509 and SSH) for device
+// trust.
+//
+// Mimics tlsca.DeviceExtensions.
+message DeviceExtensions {
+  // DeviceID is the trusted device identifier.
+  string device_id = 1 [(gogoproto.jsontag) = "device_id,omitempty"];
+  // AssetTag is the device inventory identifier.
+  string asset_tag = 2 [(gogoproto.jsontag) = "asset_tag,omitempty"];
+  // CredentialID is the identifier for the credential used by the device to
+  // authenticate itself.
+  string credential_id = 3 [(gogoproto.jsontag) = "credential_id,omitempty"];
 }
 
 // AccessRequestResourceSearch is emitted when a user searches for resources as
@@ -6003,19 +6021,19 @@ message OktaUserSync {
 
   // NumUsersCreated is the number of Teleport users created in this
   // synchronization pass.
-  int32 num_users_created = 5;
+  int32 num_users_created = 5 [(gogoproto.jsontag) = "num_users_created"];
 
   // NumUsersDeleted is the number of Teleport users deleted in this
   // synchronization pass.
-  int32 num_users_deleted = 6;
+  int32 num_users_deleted = 6 [(gogoproto.jsontag) = "num_users_deleted"];
 
   // NumUserModified is the number of Teleport users modified in this
   // synchronization pass.
-  int32 num_users_modified = 7;
+  int32 num_users_modified = 7 [(gogoproto.jsontag) = "num_users_modified"];
 
   // NumUsersTotal is the total number of Teleport users managed by the Okta
   // integration at the end of the synchronzaton pass.
-  int32 num_users_total = 8;
+  int32 num_users_total = 8 [(gogoproto.jsontag) = "num_users_total"];
 }
 
 // SPIFFESVIDIssued is an event recorded when a SPIFFE SVID is issued.
@@ -6146,4 +6164,23 @@ message SessionRecordingConfigUpdate {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+}
+
+// AccessPathChanged is emitted when access graph detects a change in a access path.
+message AccessPathChanged {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ChangeID is the id of the change.
+  string ChangeID = 2 [(gogoproto.jsontag) = "change_id"];
+
+  // AffectedResourceID is the name of the affected resource.
+  string AffectedResourceName = 3 [(gogoproto.jsontag) = "affected_resource_name"];
+
+  // AffectedResourceSource is the source of the affected resource, ex: Teleport, AWS, GitLab, etc.
+  string AffectedResourceSource = 4 [(gogoproto.jsontag) = "affected_resource_source"];
 }

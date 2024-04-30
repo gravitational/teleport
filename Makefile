@@ -1,6 +1,6 @@
 # Make targets:
 #
-#  all    : builds all binaries in development mode, without web assets (default)
+#  all    : builds all binaries in development mode
 #  full   : builds all binaries for PRODUCTION use
 #  release: prepares a release tarball
 #  clean  : removes all build artifacts
@@ -14,8 +14,6 @@
 VERSION=16.0.0-dev
 
 DOCKER_IMAGE ?= teleport
-
-GOPATH ?= $(shell go env GOPATH)
 
 # This directory will be the real path of the directory of the first Makefile in the list.
 MAKE_DIR := $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
@@ -32,7 +30,6 @@ BINDIR ?= /usr/local/bin
 DATADIR ?= /usr/local/share/teleport
 ADDFLAGS ?=
 PWD ?= `pwd`
-GIT ?= git
 TELEPORT_DEBUG ?= false
 GITTAG=v$(VERSION)
 CGOFLAG ?= CGO_ENABLED=1
@@ -197,7 +194,7 @@ endif
 # On Windows only build tsh. On all other platforms build teleport, tctl,
 # and tsh.
 BINS_default = teleport tctl tsh tbot
-BINS_windows = tsh
+BINS_windows = tsh tctl
 BINS = $(or $(BINS_$(OS)),$(BINS_default))
 BINARIES = $(addprefix $(BUILDDIR)/,$(BINS))
 
@@ -209,7 +206,6 @@ SPACE := $(EMPTY) $(EMPTY)
 join-with = $(subst $(SPACE),$1,$(strip $2))
 
 # Separate TAG messages into comma-separated WITH and WITHOUT lists for readability.
-
 COMMA := ,
 MESSAGES := $(PAM_MESSAGE) $(FIPS_MESSAGE) $(BPF_MESSAGE) $(RDPCLIENT_MESSAGE) $(LIBFIDO2_MESSAGE) $(TOUCHID_MESSAGE) $(PIV_MESSAGE)
 WITH := $(subst -," ",$(call join-with,$(COMMA) ,$(subst with-,,$(filter with-%,$(MESSAGES)))))
@@ -288,6 +284,9 @@ binaries:
 # * Build will rely on go build internal caching https://golang.org/doc/go1.10 at all times
 # * Manual change detection was broken on a large dependency tree
 # If you are considering changing this behavior, please consult with dev team first
+#
+# NOTE: Any changes to the `tctl` build here must be copied to `build.assets/windows/build.ps1`
+# until we can use this Makefile for native Windows builds.
 .PHONY: $(BUILDDIR)/tctl
 $(BUILDDIR)/tctl:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(PIV_BUILD_TAG)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
@@ -295,6 +294,18 @@ $(BUILDDIR)/tctl:
 .PHONY: $(BUILDDIR)/teleport
 $(BUILDDIR)/teleport: ensure-webassets bpf-bytecode rdpclient
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "webassets_embed $(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG) $(RDPCLIENT_TAG) $(PIV_BUILD_TAG)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
+
+# NOTE: Any changes to the `tsh` build here must be copied to `build.assets/windows/build.ps1`
+# until we can use this Makefile for native Windows builds.
+.PHONY: $(BUILDDIR)/tsh
+$(BUILDDIR)/tsh: KUBECTL_VERSION ?= $(shell go run ./build.assets/kubectl-version/main.go)
+$(BUILDDIR)/tsh: KUBECTL_SETVERSION ?= -X k8s.io/component-base/version.gitVersion=$(KUBECTL_VERSION)
+$(BUILDDIR)/tsh:
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG_TSH) go build -tags "$(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(TOUCHID_TAG) $(PIV_BUILD_TAG)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) ./tool/tsh
+
+.PHONY: $(BUILDDIR)/tbot
+$(BUILDDIR)/tbot:
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(FIPS_TAG)" -o $(BUILDDIR)/tbot $(BUILDFLAGS) ./tool/tbot
 
 TELEPORT_ARGS ?= start
 .PHONY: teleport-hot-reload
@@ -310,18 +321,6 @@ teleport-hot-reload:
 		--exclude-dir="web/packages/*/node_modules" \
 		--build="make $(BUILDDIR)/teleport" \
 		--command="$(BUILDDIR)/teleport $(TELEPORT_ARGS)"
-
-# NOTE: Any changes to the `tsh` build here must be copied to `build.assets/windows/build.ps1`
-# until we can use this Makefile for native Windows builds.
-.PHONY: $(BUILDDIR)/tsh
-$(BUILDDIR)/tsh: KUBECTL_VERSION ?= $(shell go run ./build.assets/kubectl-version/main.go)
-$(BUILDDIR)/tsh: KUBECTL_SETVERSION ?= -X k8s.io/component-base/version.gitVersion=$(KUBECTL_VERSION)
-$(BUILDDIR)/tsh:
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG_TSH) go build -tags "$(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(TOUCHID_TAG) $(PIV_BUILD_TAG)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) ./tool/tsh
-
-.PHONY: $(BUILDDIR)/tbot
-$(BUILDDIR)/tbot:
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(FIPS_TAG)" -o $(BUILDDIR)/tbot $(BUILDFLAGS) ./tool/tbot
 
 #
 # BPF support (IF ENABLED)
@@ -377,7 +376,7 @@ print-fido2-pkg-path:
 #
 # make full - Builds Teleport binaries with the built-in web assets and
 # places them into $(BUILDDIR). On Windows, this target is skipped because
-# only tsh is built.
+# only tsh and tctl are built.
 #
 .PHONY:full
 full: WEBASSETS_SKIP_BUILD = 0
@@ -425,14 +424,13 @@ clean-ui:
 	rm -rf web/packages/teleterm/build
 	find . -type d -name node_modules -prune -exec rm -rf {} \;
 
-#
-# make release - Produces a binary release tarball.
-#
-
 # RELEASE_DIR is where release artifact files are put, such as tarballs, packages, etc.
 $(RELEASE_DIR):
 	mkdir -p $@
 
+#
+# make release - Produces a binary release tarball.
+#
 .PHONY:
 export
 release:
@@ -508,7 +506,6 @@ release-darwin-unsigned: full build-archive
 
 .PHONY: release-darwin
 ifneq ($(ARCH),universal)
-release-darwin: ABSOLUTE_BINARY_PATHS:=$(addprefix $(CURDIR)/,$(BINARIES))
 release-darwin: release-darwin-unsigned
 	$(NOTARIZE_BINARIES)
 	$(MAKE) build-archive
@@ -541,7 +538,7 @@ release-darwin: $(RELEASE_darwin_arm64) $(RELEASE_darwin_amd64)
 endif
 
 #
-# make release-windows-unsigned - Produces a binary release archive containing only tsh.
+# make release-windows-unsigned - Produces a binary release archive containing tsh and tctl.
 #
 .PHONY: release-windows-unsigned
 release-windows-unsigned: clean all
@@ -552,6 +549,7 @@ release-windows-unsigned: clean all
 		CHANGELOG.md \
 		teleport/
 	mv teleport/tsh teleport/tsh-unsigned.exe
+	mv teleport/tctl teleport/tctl-unsigned.exe
 	echo $(GITTAG) > teleport/VERSION
 	zip -9 -y -r -q $(RELEASE)-unsigned.zip teleport/
 	rm -rf teleport/
@@ -559,7 +557,7 @@ release-windows-unsigned: clean all
 
 #
 # make release-windows - Produces an archive containing a signed release of
-# tsh.exe
+# tsh.exe and tctl.exe
 #
 .PHONY: release-windows
 release-windows: release-windows-unsigned
@@ -572,7 +570,7 @@ release-windows: release-windows-unsigned
 	@echo "---> Extracting $(RELEASE)-unsigned.zip"
 	unzip $(RELEASE)-unsigned.zip
 
-	@echo "---> Signing Windows binary."
+	@echo "---> Signing Windows tsh binary."
 	@osslsigncode sign \
 		-pkcs12 "windows-signing-cert.pfx" \
 		-n "Teleport" \
@@ -588,6 +586,22 @@ release-windows: release-windows-unsigned
 		exit 1; \
 	fi
 
+	echo "---> Signing Windows tctl binary."
+	@osslsigncode sign \
+		-pkcs12 "windows-signing-cert.pfx" \
+		-n "Teleport" \
+		-i https://goteleport.com \
+		-t http://timestamp.digicert.com \
+		-h sha2 \
+		-in teleport/tctl-unsigned.exe \
+		-out teleport/tctl.exe; \
+	success=$$?; \
+	rm -f teleport/tctl-unsigned.exe; \
+	if [ "$${success}" -ne 0 ]; then \
+		echo "Failed to sign tctl.exe, aborting."; \
+		exit 1; \
+	fi
+
 	zip -9 -y -r -q $(RELEASE).zip teleport/
 	rm -rf teleport/
 	@echo "---> Created $(RELEASE).zip."
@@ -597,19 +611,14 @@ release-windows: release-windows-unsigned
 # It is used only for MacOS releases. Windows releases do not use this
 # Makefile. Linux uses the `teleterm` target in build.assets/Makefile.
 #
-# Only export the CSC_NAME (developer key ID) when the recipe is run, so
-# that we do not shell out and run the `security` command if not necessary.
-#
 # Either CONNECT_TSH_BIN_PATH or CONNECT_TSH_APP_PATH environment variable
 # should be defined for the `yarn package-term` command to succeed. CI sets
 # this appropriately depending on whether a push build is running, or a
 # proper release (a proper release needs the APP_PATH as that points to
 # the complete signed package). See web/packages/teleterm/README.md for
 # details.
-
 .PHONY: release-connect
 release-connect: | $(RELEASE_DIR)
-	$(eval export CSC_NAME)
 	yarn install --frozen-lockfile
 	yarn build-term
 	yarn package-term -c.extraMetadata.version=$(VERSION) --$(ELECTRON_BUILDER_ARCH)
@@ -685,7 +694,7 @@ tooling: ensure-gotestsum $(DIFF_TEST)
 # Runs all Go/shell tests, called by CI/CD.
 #
 .PHONY: test
-test: test-helm test-sh test-api test-go test-rust test-operator
+test: test-helm test-sh test-api test-go test-rust test-operator test-terraform-provider
 
 $(TEST_LOG_DIR):
 	mkdir $(TEST_LOG_DIR)
@@ -708,12 +717,16 @@ test-helm: helmunit/installed
 	helm unittest -3 --with-subchart=false examples/chart/teleport-cluster
 	helm unittest -3 examples/chart/teleport-kube-agent
 	helm unittest -3 examples/chart/teleport-cluster/charts/teleport-operator
+	helm unittest -3 examples/chart/access/*
+	helm unittest -3 examples/chart/event-handler
 
 .PHONY: test-helm-update-snapshots
 test-helm-update-snapshots: helmunit/installed
 	helm unittest -3 -u --with-subchart=false examples/chart/teleport-cluster
 	helm unittest -3 -u examples/chart/teleport-kube-agent
 	helm unittest -3 -u examples/chart/teleport-cluster/charts/teleport-operator
+	helm unittest -3 -u examples/chart/access/*
+	helm unittest -3 -u examples/chart/event-handler
 
 #
 # Runs all Go tests except integration, called by CI/CD.
@@ -826,6 +839,12 @@ test-api:
 test-operator:
 	make -C integrations/operator test
 #
+# Runs Teleport Terraform provider tests.
+#
+.PHONY: test-terraform-provider
+test-terraform-provider:
+	make -C integrations test-terraform-provider
+#
 # Runs Go tests on the integrations/kube-agent-updater module. These have to be run separately as the package name is different.
 #
 .PHONY: test-kube-agent-updater
@@ -840,6 +859,10 @@ test-kube-agent-updater:
 .PHONY: test-access-integrations
 test-access-integrations:
 	make -C integrations test-access
+
+.PHONY: test-event-handler-integrations
+test-event-handler-integrations:
+	make -C integrations test-event-handler
 
 .PHONY: test-integrations-lib
 test-integrations-lib:
@@ -974,13 +997,13 @@ lint: lint-api lint-go lint-kube-agent-updater lint-tools lint-protos lint-no-ac
 # Similar to lint.
 #
 .PHONY: lint-no-actions
-lint-no-actions: lint-sh lint-helm lint-license lint-rust
+lint-no-actions: lint-sh lint-helm lint-license
 
 .PHONY: lint-tools
 lint-tools: lint-build-tooling lint-backport
 
 #
-# Runs the clippy linter on our rust modules
+# Runs the clippy linter and rustfmt on our rust modules
 # (a no-op if cargo and rustc are not installed)
 #
 ifneq ($(CHECK_RUST),)
@@ -999,6 +1022,8 @@ endif
 lint-go: GO_LINT_FLAGS ?=
 lint-go:
 	golangci-lint run -c .golangci.yml --build-tags='$(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_LINT_TAG)' $(GO_LINT_FLAGS)
+	$(MAKE) -C integrations/terraform lint
+	$(MAKE) -C integrations/event-handler lint
 
 .PHONY: fix-imports
 fix-imports:
@@ -1014,9 +1039,8 @@ fix-imports/host:
 		echo 'gci is not installed or is missing from PATH, consider installing it ("go install github.com/daixiang0/gci@latest") or use "make -C build.assets/ fix-imports"';\
 		exit 1;\
 	fi
-	gci write -s standard -s default -s 'prefix(github.com/gravitational/teleport)' --skip-generated .
+	gci write -s standard -s default  -s 'prefix(github.com/gravitational/teleport)' -s 'prefix(github.com/gravitational/teleport/integrations/terraform,github.com/gravitational/teleport/integrations/event-handler)' --skip-generated .
 
-.PHONY: lint-build-tooling
 lint-build-tooling: GO_LINT_FLAGS ?=
 lint-build-tooling:
 	cd build.assets/tooling && golangci-lint run -c ../../.golangci.yml $(GO_LINT_FLAGS)
@@ -1087,7 +1111,6 @@ lint-helm:
 	done
 	$(MAKE) -C examples/chart check-chart-ref
 
-ADDLICENSE := $(GOPATH)/bin/addlicense
 ADDLICENSE_COMMON_ARGS := -c 'Gravitational, Inc.' \
 		-ignore '**/*.c' \
 		-ignore '**/*.h' \
@@ -1119,18 +1142,17 @@ ADDLICENSE_AGPL3_ARGS := $(ADDLICENSE_COMMON_ARGS) \
 ADDLICENSE_APACHE2_ARGS := $(ADDLICENSE_COMMON_ARGS) \
 		-l apache
 
+ADDLICENSE = go run github.com/google/addlicense@v1.0.0
+
 .PHONY: lint-license
-lint-license: $(ADDLICENSE)
+lint-license:
 	$(ADDLICENSE) $(ADDLICENSE_AGPL3_ARGS) -check * 2>/dev/null
 	$(ADDLICENSE) $(ADDLICENSE_APACHE2_ARGS) -check api/* 2>/dev/null
 
 .PHONY: fix-license
-fix-license: $(ADDLICENSE)
+fix-license:
 	$(ADDLICENSE) $(ADDLICENSE_AGPL3_ARGS) * 2>/dev/null
 	$(ADDLICENSE) $(ADDLICENSE_APACHE2_ARGS) api/* 2>/dev/null
-
-$(ADDLICENSE):
-	cd && go install github.com/google/addlicense@v1.0.0
 
 # This rule updates version files and Helm snapshots based on the Makefile
 # VERSION variable.
@@ -1174,30 +1196,44 @@ update-tag:
 	(cd e && git tag $(GITTAG) && git push origin $(GITTAG))
 	git push $(TAG_REMOTE) $(GITTAG) && git push $(TAG_REMOTE) api/$(GITTAG)
 
+# HAS_CLOUD_SEMVER is non-empty if $(VERSION) contains a cloud-only pre-release tag,
+# and is empty if not.
+HAS_CLOUD_SEMVER = $(findstring -cloud.,$(VERSION))$(findstring -dev.cloud.,$(VERSION))
+
 # Builds a tag build on GitHub Actions.
 # Starts a tag publish run using e/.github/workflows/tag-build.yaml
 # for the tag v$(VERSION).
+# If the $(VERSION) variable contains a cloud pre-release component, -cloud. or
+# -dev.cloud., then the tag-build workflow is run with `cloud-only=true`. This can be
+# specified explicitly with `make tag-build CLOUD_ONLY=<true|false>`.
 .PHONY: tag-build
+tag-build: CLOUD_ONLY = $(if $(HAS_CLOUD_SEMVER),true,false)
 tag-build:
 	@which gh >/dev/null 2>&1 || { echo 'gh command needed. https://github.com/cli/cli'; exit 1; }
 	gh workflow run tag-build.yaml \
 		--repo gravitational/teleport.e \
 		--ref "v$(VERSION)" \
 		-f "oss-teleport-repo=$(shell gh repo view --json nameWithOwner --jq .nameWithOwner)" \
-		-f "oss-teleport-ref=v$(VERSION)"
+		-f "oss-teleport-ref=v$(VERSION)" \
+		-f "cloud-only=$(CLOUD_ONLY)"
 	@echo See runs at: https://github.com/gravitational/teleport.e/actions/workflows/tag-build.yaml
 
 # Publishes a tag build.
 # Starts a tag publish run using e/.github/workflows/tag-publish.yaml
 # for the tag v$(VERSION).
+# If the $(VERSION) variable contains a cloud pre-release component, -cloud. or
+# -dev.cloud., then the tag-publish workflow is run with `cloud-only=true`. This can be
+# specified explicitly with `make tag-publish CLOUD_ONLY=<true|false>`.
 .PHONY: tag-publish
+tag-publish: CLOUD_ONLY = $(if $(HAS_CLOUD_SEMVER),true,false)
 tag-publish:
 	@which gh >/dev/null 2>&1 || { echo 'gh command needed. https://github.com/cli/cli'; exit 1; }
 	gh workflow run tag-publish.yaml \
 		--repo gravitational/teleport.e \
 		--ref "v$(VERSION)" \
 		-f "oss-teleport-repo=$(shell gh repo view --json nameWithOwner --jq .nameWithOwner)" \
-		-f "oss-teleport-ref=v$(VERSION)"
+		-f "oss-teleport-ref=v$(VERSION)" \
+		-f "cloud-only=$(CLOUD_ONLY)"
 	@echo See runs at: https://github.com/gravitational/teleport.e/actions/workflows/tag-publish.yaml
 
 .PHONY: test-package
@@ -1221,10 +1257,6 @@ profile:
 sloccount:
 	find . -o -name "*.go" -print0 | xargs -0 wc -l
 
-.PHONY: remove-temp-files
-remove-temp-files:
-	find . -name flymake_* -delete
-
 #
 # print-go-version outputs Go version as a semver without "go" prefix
 #
@@ -1232,7 +1264,7 @@ remove-temp-files:
 print-go-version:
 	@$(MAKE) -C build.assets print-go-version | sed "s/go//"
 
-# Dockerized build: useful for making Linux releases on OSX
+# Dockerized build: useful for making Linux releases on macOS
 .PHONY:docker
 docker:
 	make -C build.assets build
@@ -1313,15 +1345,19 @@ buf/installed:
 		exit 1; \
 	fi
 
+GODERIVE := $(TOOLINGDIR)/bin/goderive
 # derive will generate derived functions for our API.
+# we need to build goderive first otherwise it will not be able to resolve dependencies
+# in the api/types/discoveryconfig package
 .PHONY: derive
 derive:
-	cd $(TOOLINGDIR) && go run ./cmd/goderive/main.go ../../api/types
+	cd $(TOOLINGDIR) && go build -o $(GODERIVE) ./cmd/goderive/main.go
+	$(GODERIVE) ./api/types ./api/types/discoveryconfig
 
 # derive-up-to-date checks if the generated derived functions are up to date.
 .PHONY: derive-up-to-date
 derive-up-to-date: must-start-clean/host derive
-	@if ! $(GIT) diff --quiet; then \
+	@if ! git diff --quiet; then \
 		echo 'Please run make derive.'; \
 		exit 1; \
 	fi
@@ -1356,14 +1392,14 @@ endif
 # Unlike protos-up-to-date, this target runs locally.
 .PHONY: protos-up-to-date/host
 protos-up-to-date/host: must-start-clean/host grpc/host
-	@if ! $(GIT) diff --quiet; then \
+	@if ! git diff --quiet; then \
 		echo 'Please run make grpc.'; \
 		exit 1; \
 	fi
 
 .PHONY: must-start-clean/host
 must-start-clean/host:
-	@if ! $(GIT) diff --quiet; then \
+	@if ! git diff --quiet; then \
 		echo 'This must be run from a repo with no unstaged commits.'; \
 		exit 1; \
 	fi
@@ -1372,21 +1408,13 @@ must-start-clean/host:
 .PHONY: crds-up-to-date
 crds-up-to-date: must-start-clean/host
 	$(MAKE) -C integrations/operator manifests
-	@if ! $(GIT) diff --quiet; then \
+	@if ! git diff --quiet; then \
 		echo 'Please run make -C integrations/operator manifests.'; \
 		exit 1; \
 	fi
 
 print/env:
 	env
-
-.PHONY: goinstall
-goinstall:
-	go install $(BUILDFLAGS) \
-		github.com/gravitational/teleport/tool/tsh \
-		github.com/gravitational/teleport/tool/teleport \
-		github.com/gravitational/teleport/tool/tctl \
-		github.com/gravitational/teleport/tool/tbot
 
 # make install will installs system-wide teleport
 .PHONY: install
@@ -1430,7 +1458,6 @@ endif
 # build .pkg
 .PHONY: pkg
 pkg: | $(RELEASE_DIR)
-	$(eval export DEVELOPER_ID_APPLICATION DEVELOPER_ID_INSTALLER)
 	mkdir -p $(BUILDDIR)/
 	cp ./build.assets/build-package.sh ./build.assets/build-common.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
@@ -1443,7 +1470,6 @@ pkg: | $(RELEASE_DIR)
 # build tsh client-only .pkg
 .PHONY: pkg-tsh
 pkg-tsh: | $(RELEASE_DIR)
-	$(eval export DEVELOPER_ID_APPLICATION DEVELOPER_ID_INSTALLER)
 	./build.assets/build-pkg-tsh.sh -t oss -v $(VERSION) -b $(TSH_BUNDLEID) -a $(ARCH) $(TARBALL_PATH_SECTION)
 	mkdir -p $(BUILDDIR)/
 	mv tsh*.pkg* $(BUILDDIR)/

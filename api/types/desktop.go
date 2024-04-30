@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types/compare"
 	"github.com/gravitational/teleport/api/utils"
 )
 
@@ -29,6 +30,8 @@ const (
 	MaxRDPScreenWidth  = 8192
 	MaxRDPScreenHeight = 8192
 )
+
+var _ compare.IsEqual[WindowsDesktop] = (*WindowsDesktopV3)(nil)
 
 // WindowsDesktopService represents a Windows desktop service instance.
 type WindowsDesktopService interface {
@@ -240,6 +243,14 @@ func (d *WindowsDesktopV3) Copy() *WindowsDesktopV3 {
 
 func (d *WindowsDesktopV3) CloneResource() ResourceWithLabels {
 	return d.Copy()
+}
+
+// IsEqual determines if two windows desktop resources are equivalent to one another.
+func (d *WindowsDesktopV3) IsEqual(i WindowsDesktop) bool {
+	if other, ok := i.(*WindowsDesktopV3); ok {
+		return deriveTeleportEqualWindowsDesktopV3(d, other)
+	}
+	return false
 }
 
 // Match checks if a given desktop request matches this filter.

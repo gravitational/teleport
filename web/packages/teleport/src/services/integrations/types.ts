@@ -239,7 +239,7 @@ export type AwsOidcListDatabasesRequest = {
 export type AwsRdsDatabase = {
   // engine of the database. eg. aurora-mysql
   engine: RdsEngine;
-  // name is the the Database's name.
+  // name is the Database's name.
   name: string;
   // uri contains the endpoint with port for connecting to this Database.
   uri: string;
@@ -377,8 +377,8 @@ export type ListEc2InstancesResponse = {
 
 export type ListEc2InstanceConnectEndpointsRequest = {
   region: Regions;
-  // vpcId is the VPC to filter EC2 Instance Connect Endpoints.
-  vpcId: string;
+  // VPCIDs is a list of VPCs to filter EC2 Instance Connect Endpoints.
+  vpcIds: string[];
   nextToken?: string;
 };
 
@@ -386,6 +386,9 @@ export type ListEc2InstanceConnectEndpointsResponse = {
   // endpoints is the list of EC2 Instance Connect Endpoints.
   endpoints: Ec2InstanceConnectEndpoint[];
   nextToken?: string;
+  // DashboardLink is the URL for AWS Web Console that
+  // lists all the Endpoints for the queries VPCs.
+  dashboardLink: string;
 };
 
 export type Ec2InstanceConnectEndpoint = {
@@ -398,6 +401,8 @@ export type Ec2InstanceConnectEndpoint = {
   dashboardLink: string;
   // subnetID is the subnet used by the Endpoint. Please note that the Endpoint should be able to reach any subnet within the VPC.
   subnetId: string;
+  // VPCID is the VPC ID where the Endpoint is created.
+  vpcId: string;
 };
 
 export type Ec2InstanceConnectEndpointState =
@@ -408,17 +413,30 @@ export type Ec2InstanceConnectEndpointState =
   | 'delete-complete'
   | 'delete-failed';
 
-export type DeployEc2InstanceConnectEndpointRequest = {
-  region: Regions;
-  // subnetID is the subnet id for the EC2 Instance Connect Endpoint.
+export type AwsOidcDeployEc2InstanceConnectEndpointRequest = {
+  // SubnetID is the subnet id for the EC2 Instance Connect Endpoint.
   subnetId: string;
-  // securityGroupIDs is the list of SecurityGroups to apply to the Endpoint. If not specified, the Endpoint will receive the default SG for the subnet's VPC.
+  // SecurityGroupIDs is the list of SecurityGroups to apply to the Endpoint.
+  // If not specified, the Endpoint will receive the default SG for the Subnet's VPC.
   securityGroupIds?: string[];
 };
 
-export type DeployEc2InstanceConnectEndpointResponse = {
-  // name is the name of the EC2 Instance Connect Endpoint that was created.
+export type DeployEc2InstanceConnectEndpointRequest = {
+  region: Regions;
+  // Endpoints is a list of endpoinst to create.
+  endpoints: AwsOidcDeployEc2InstanceConnectEndpointRequest[];
+};
+
+export type AwsEc2InstanceConnectEndpoint = {
+  // Name is the EC2 Instance Connect Endpoint name.
   name: string;
+  // SubnetID is the subnet where this endpoint was created.
+  subnetId: string;
+};
+
+export type DeployEc2InstanceConnectEndpointResponse = {
+  // Endpoints is a list of created endpoints
+  endpoints: AwsEc2InstanceConnectEndpoint[];
 };
 
 export type ListAwsSecurityGroupsRequest = {

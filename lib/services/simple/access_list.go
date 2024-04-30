@@ -183,3 +183,9 @@ func (a *AccessListService) DeleteAccessListReview(ctx context.Context, accessLi
 func (a *AccessListService) DeleteAllAccessListReviews(ctx context.Context) error {
 	return trace.Wrap(a.reviewService.DeleteAllResources(ctx))
 }
+
+// ListAllAccessListMembers returns a paginated list of all access list members for all access lists.
+func (a *AccessListService) ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error) {
+	members, nextToken, err := a.memberService.ListResources(ctx, pageSize, pageToken)
+	return members, nextToken, trace.Wrap(err)
+}
