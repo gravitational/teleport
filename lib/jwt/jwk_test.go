@@ -23,6 +23,7 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"encoding/base64"
+	"math/big"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -68,4 +69,17 @@ func TestKeyIDHasDistinctOutputForDifferingInputs(t *testing.T) {
 	require.NotEmpty(t, id1)
 	require.NotEmpty(t, id2)
 	require.NotEqual(t, id1, id2)
+}
+
+// TestKeyIDCompatibility ensures we do not introduce a change in the KeyID algorithm for existing keys.
+// It does so by ensuring that a pre-generated public key results in the expected value.
+func TestKeyIDCompatibility(t *testing.T) {
+	n, ok := new(big.Int).
+		SetString("10804584566601725083798733714540307814537881454603593919227265169397611763416631197061041949793088023127406259586903197568870611092333639226643589004457719", 10)
+	require.True(t, ok, "failed to create a bigint")
+	publicKey := &rsa.PublicKey{
+		E: 65537,
+		N: n,
+	}
+	require.Equal(t, "GDLHLDvPUYmNLVU3WgshDX7bAw8xEmML8ypeE9KRAEQ", KeyID(publicKey))
 }
