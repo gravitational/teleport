@@ -1562,21 +1562,10 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *auth.Client) (err
 		}
 		fmt.Printf("%s %q has been deleted\n", resDesc, name)
 	case types.KindCrownJewel:
-		return trace.NotImplemented("deleting crown jewels is not supported yet")
-		//crownJewels, _, err := client.CrownJewelsClient().ListCrownJewels(ctx, 0 /* default size */, "") // TODO
-		//if err != nil {
-		//	return trace.Wrap(err)
-		//}
-		//resDesc := "crown jewel"
-		//crownJewels = filterByNameOrDiscoveredName(crownJewels, rc.ref.Name)
-		//name, err := getOneResourceNameToDelete(crownJewels, rc.ref, resDesc)
-		//if err != nil {
-		//	return trace.Wrap(err)
-		//}
-		//if err := client.CrownJewelsClient().DeleteCrownJewel(ctx, name); err != nil {
-		//	return trace.Wrap(err)
-		//}
-		//fmt.Printf("%s %q has been deleted\n", resDesc, name)
+		if err := client.CrownJewelsClient().DeleteCrownJewel(ctx, rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("crown_jewel %q has been deleted\n", rc.ref.Name)
 	case types.KindWindowsDesktopService:
 		if err = client.DeleteWindowsDesktopService(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
