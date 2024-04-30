@@ -887,7 +887,7 @@
               "slug": "/management/dynamic-resources/teleport-operator-standalone/"
             },
             {
-              "title": "Terraform Provider",
+              "title": "Set up the Terraform Provider",
               "slug": "/management/dynamic-resources/terraform-provider/"
             }
           ]

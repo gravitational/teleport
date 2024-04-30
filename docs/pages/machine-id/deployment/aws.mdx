@@ -32,7 +32,7 @@ guidance on deploying Machine ID as a workload on Kubernetes.
 - An AWS EC2 virtual machine that you wish to install Machine ID onto configured
   with the IAM role attached.
 
-## Step 1/4. Install `tbot`
+## Step 1/5. Install `tbot`
 
 **This step is completed on the AWS EC2 instance.**
 
@@ -43,7 +43,13 @@ Download and install the appropriate Teleport package for your platform:
 
 (!docs/pages/includes/install-linux.mdx!)
 
-## Step 2/4. Create the bot
+## Step 2/5. Create a Bot
+
+**This step is completed on your local machine.**
+
+(!docs/pages/includes/machine-id/create-a-bot.mdx!)
+
+## Step 3/5. Create a join token
 
 **This step is completed on your local machine.**
 
@@ -57,7 +63,7 @@ metadata:
   name: example-bot
 spec:
   roles: [Bot]
-  # bot_name will match the name of the bot created later in this guide.
+  # bot_name should match the name of the bot created earlier in this guide.
   bot_name: example
   join_method: iam
   # Restrict the AWS account and (optionally) ARN that can use this token.
@@ -73,6 +79,7 @@ Replace:
 - `111111111111` with the ID of your AWS account.
 - `teleport-bot-role` with the name of the AWS IAM role you created and assigned
   to the EC2 instance.
+- `example` with the name of the bot you created in the second step.
 - `i-*` indicates that any instance with the specified role can use the join
   method. If you wish to restrict this to an individual instance, replace `i-*`
   with the full instance ID.
@@ -83,13 +90,7 @@ Use `tctl` to apply this file:
 $ tctl create -f bot-token.yaml
 ```
 
-Create the bot, specifying the token that you have created:
-
-```code
-$ tctl bots add example --token example-bot
-```
-
-## Step 3/4. Configure `tbot`
+## Step 4/5. Configure `tbot`
 
 **This step is completed on the AWS EC2 instance.**
 
@@ -115,7 +116,7 @@ Replace:
 
 (!docs/pages/includes/machine-id/daemon-or-oneshot.mdx!)
 
-## Step 4/4. Configure outputs
+## Step 5/5. Configure outputs
 
 (!docs/pages/includes/machine-id/configure-outputs.mdx!)
 
