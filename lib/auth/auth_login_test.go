@@ -955,9 +955,6 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 	})
 	require.NoError(t, err, "Failed to register passwordless device")
 
-	// userWebID is what identifies the user for usernameless/passwordless.
-	userWebID := registerChallenge.GetWebauthn().PublicKey.User.Id
-
 	// Use a proxy client for now on; the user's identity isn't established yet.
 	proxyClient, err := svr.NewClient(TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
@@ -1067,7 +1064,6 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 			// Sign challenge (mocks user interaction).
 			assertionResp, err := pwdKey.SignAssertion(origin, wantypes.CredentialAssertionFromProto(mfaChallenge.GetWebauthnChallenge()))
 			require.NoError(t, err)
-			assertionResp.AssertionResponse.UserHandle = userWebID // identify user, a real device would set this
 
 			// Complete login procedure (SSH or Web).
 			test.authenticate(t, assertionResp)
@@ -1079,6 +1075,94 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 			require.Empty(t, attempts, "Login attempts not reset")
 
 			require.Len(t, test.loginHooks, int(loginHookCounter.Load()))
+		})
+	}
+}
+
+// TestPasswordlessProhibitedForSSO tests a scenario where an SSO user bypasses
+// SSO by using a passwordless login.
+func TestPasswordlessProhibitedForSSO(t *testing.T) {
+	t.Parallel()
+
+	testServer := newTestTLSServer(t)
+	authServer := testServer.Auth()
+	clock := testServer.Clock()
+
+	mfa := configureForMFA(t, testServer)
+	ctx := context.Background()
+
+	// Register a passwordless device.
+	userClient, err := testServer.NewClient(TestUser(mfa.User))
+	require.NoError(t, err, "NewClient failed")
+	pwdlessDev, err := RegisterTestDevice(ctx, userClient, "pwdless", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, mfa.WebDev, WithPasswordless())
+	require.NoError(t, err, "RegisterTestDevice failed")
+
+	// Edit the configured user so it looks like an SSO user attempting local
+	// logins. This isn't exactly like an SSO user, but it's close enough.
+	_, err = authServer.UpdateAndSwapUser(ctx, mfa.User, true /* withSecrets */, func(user types.User) (changed bool, err error) {
+		user.SetCreatedBy(types.CreatedBy{
+			Connector: &types.ConnectorRef{
+				Type:     constants.Github,
+				ID:       "github",
+				Identity: mfa.User,
+			},
+			Time: clock.Now(),
+			User: types.UserRef{
+				Name: teleport.UserSystem,
+			},
+		})
+		return true, nil
+	})
+	require.NoError(t, err, "UpdateAndSwapUser failed")
+
+	// Authentication happens through the Proxy identity.
+	proxyClient, err := testServer.NewClient(TestBuiltin(types.RoleProxy))
+	require.NoError(t, err)
+
+	tests := []struct {
+		name         string
+		authenticate func(*wantypes.CredentialAssertionResponse) error
+	}{
+		{
+			name: "web not allowed",
+			authenticate: func(car *wantypes.CredentialAssertionResponse) error {
+				_, err := proxyClient.AuthenticateWebUser(ctx, AuthenticateUserRequest{
+					Webauthn: car,
+				})
+				return err
+			},
+		},
+		{
+			name: "ssh not allowed",
+			authenticate: func(car *wantypes.CredentialAssertionResponse) error {
+				_, err := proxyClient.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
+					AuthenticateUserRequest: AuthenticateUserRequest{
+						PublicKey: []byte(sshPubKey),
+						Webauthn:  car,
+					},
+					TTL: 12 * time.Hour,
+				})
+				return err
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			chal, err := proxyClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+				Request: &proto.CreateAuthenticateChallengeRequest_Passwordless{
+					Passwordless: &proto.Passwordless{},
+				},
+				ChallengeExtensions: &mfav1.ChallengeExtensions{
+					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN,
+				},
+			})
+			require.NoError(t, err, "CreateAuthenticateChallenge failed")
+
+			chalResp, err := pwdlessDev.SolveAuthn(chal)
+			require.NoError(t, err, "SolveAuthn failed")
+
+			err = test.authenticate(wantypes.CredentialAssertionResponseFromProto(chalResp.GetWebauthn()))
+			assert.ErrorIs(t, err, types.ErrPassswordlessLoginBySSOUser, "authentication error mismatch")
 		})
 	}
 }
