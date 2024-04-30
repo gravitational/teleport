@@ -37,6 +37,7 @@ type Config struct {
 	// Daemon is the terminal daemon service
 	Daemon         *daemon.Service
 	ClusterIDCache *clusteridcache.Cache
+	InstallationID string
 	// Log is a component logger
 	Log             logrus.FieldLogger
 	TshdServerCreds grpc.ServerOption
@@ -65,6 +66,10 @@ func (c *Config) CheckAndSetDefaults() error {
 
 	if c.Log == nil {
 		c.Log = logrus.WithField(teleport.ComponentKey, "conn:apiserver")
+	}
+
+	if c.InstallationID == "" {
+		return trace.BadParameter("missing installation ID")
 	}
 
 	if c.ClusterIDCache == nil {

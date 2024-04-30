@@ -77,6 +77,7 @@ func Serve(ctx context.Context, cfg Config) error {
 		TshdServerCreds:    grpcCredentials.tshd,
 		ListeningC:         cfg.ListeningC,
 		ClusterIDCache:     clusterIDCache,
+		InstallationID:     cfg.InstallationID,
 	})
 	if err != nil {
 		return trace.Wrap(err)
