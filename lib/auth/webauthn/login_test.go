@@ -452,11 +452,6 @@ func TestPasswordlessFlow_BeginAndFinish(t *testing.T) {
 			// User interaction would happen here.
 			assertionResp, err := test.key.SignAssertion(test.origin, assertion)
 			require.NoError(t, err)
-			// Fetch the stored user handle; in a real-world the scenario the
-			// authenticator knows it, as passwordless requires a resident credential.
-			wla, err := identity.GetWebauthnLocalAuth(ctx, test.user)
-			require.NoError(t, err)
-			assertionResp.AssertionResponse.UserHandle = wla.UserID
 
 			// 2nd and last step of the login ceremony.
 			loginData, err := webLogin.Finish(ctx, assertionResp)

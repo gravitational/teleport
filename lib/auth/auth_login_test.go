@@ -955,9 +955,6 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 	})
 	require.NoError(t, err, "Failed to register passwordless device")
 
-	// userWebID is what identifies the user for usernameless/passwordless.
-	userWebID := registerChallenge.GetWebauthn().PublicKey.User.Id
-
 	// Use a proxy client for now on; the user's identity isn't established yet.
 	proxyClient, err := svr.NewClient(TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
@@ -1067,7 +1064,6 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 			// Sign challenge (mocks user interaction).
 			assertionResp, err := pwdKey.SignAssertion(origin, wantypes.CredentialAssertionFromProto(mfaChallenge.GetWebauthnChallenge()))
 			require.NoError(t, err)
-			assertionResp.AssertionResponse.UserHandle = userWebID // identify user, a real device would set this
 
 			// Complete login procedure (SSH or Web).
 			test.authenticate(t, assertionResp)
