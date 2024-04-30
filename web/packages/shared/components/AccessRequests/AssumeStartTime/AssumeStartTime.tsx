@@ -30,7 +30,7 @@ import { ButtonSecondary } from 'design/Button';
 import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
 import cfg from 'shared/config';
 
-import { AccessRequest } from 'e-teleport/services/accessRequests';
+import { AccessRequest } from 'shared/services/accessRequests';
 
 import { TimeOption } from '../Shared/types';
 

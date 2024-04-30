@@ -23,7 +23,7 @@ import { Box, Flex, ButtonPrimary, ButtonText, Text, ButtonIcon } from 'design';
 import { ChevronDown } from 'design/Icon';
 import { pluralize } from 'shared/utils/text';
 
-import { RequestCheckout } from 'e-teleport/AccessRequests/NewRequest';
+import { RequestCheckout } from 'shared/components/AccessRequests/NewRequest';
 
 import useAccessRequestCheckout from './useAccessRequestCheckout';
 import { AssumedRolesBar } from './AssumedRolesBar';

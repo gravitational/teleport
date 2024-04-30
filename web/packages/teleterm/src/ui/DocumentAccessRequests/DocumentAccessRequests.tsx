@@ -24,10 +24,10 @@ import Document from 'teleterm/ui/Document';
 
 import { Attempt } from 'shared/hooks/useAsync';
 
-import { AccessRequest } from 'e-teleport/services/accessRequests';
-import { RequestFlags } from 'e-teleport/AccessRequests/ReviewRequests';
+import { AccessRequest } from 'shared/services/accessRequests';
+import { RequestFlags } from 'shared/components/AccessRequests/ReviewRequests';
 
-import { useAssumeAccess } from 'e-teleterm/ui/DocumentAccessRequests/useAssumeAccess';
+import { useAssumeAccess } from './useAssumeAccess';
 
 import useAccessRequests from './useAccessRequests';
 import { RequestList } from './RequestList/RequestList';

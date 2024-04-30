@@ -24,21 +24,18 @@ import Table, { Cell } from 'design/DataTable';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { Attempt as AsyncAttempt } from 'shared/hooks/useAsync';
 
-import {
-  AccessRequest,
-  canAssumeNow,
-} from 'e-teleport/services/accessRequests';
+import { AccessRequest, canAssumeNow } from 'shared/services/accessRequests';
 import {
   renderIdCell,
   renderStatusCell,
   renderUserCell,
   formattedName,
   RequestFlags,
-} from 'e-teleport/AccessRequests/ReviewRequests';
+} from 'shared/components/AccessRequests/ReviewRequests';
 import {
   BlockedByStartTimeButton,
   ButtonPromotedInfo,
-} from 'e-teleport/AccessRequests/Shared/Shared';
+} from 'shared/components/AccessRequests/Shared/Shared';
 
 export function RequestList({
   attempt,

@@ -56,7 +56,7 @@ import { AdditionalOptions } from './AdditionalOptions';
 
 import type { TransitionStatus } from 'react-transition-group';
 
-import type { AccessRequest } from 'e-teleport/services/accessRequests';
+import type { AccessRequest } from 'shared/services/accessRequests';
 import type { ResourceKind } from '../resource';
 
 export function RequestCheckout({

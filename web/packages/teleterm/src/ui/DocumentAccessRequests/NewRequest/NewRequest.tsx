@@ -24,7 +24,7 @@ import { Alert, Box, Flex } from 'design';
 import { space, width } from 'design/system';
 
 import { SearchPagination, SearchPanel } from 'shared/components/Search';
-import { ResourceList } from 'e-teleport/AccessRequests/NewRequest';
+import { ResourceList } from 'shared/components/AccessRequests/NewRequest';
 
 import useNewRequest, { ResourceKind } from './useNewRequest';
 import ChangeResourceDialog from './ChangeResourceDialog';

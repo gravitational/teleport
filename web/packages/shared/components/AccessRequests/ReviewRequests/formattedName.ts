@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Resource } from 'e-teleport/services/accessRequests';
+import { Resource } from 'shared/services/accessRequests';
 
 export function formattedName(resource: Resource) {
   const id = resource.id;

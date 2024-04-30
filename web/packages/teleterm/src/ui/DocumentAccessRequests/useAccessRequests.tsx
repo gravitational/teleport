@@ -28,8 +28,8 @@ import {
 import {
   makeAccessRequest,
   AccessRequest,
-} from 'e-teleport/services/accessRequests';
-import { RequestFlags } from 'e-teleport/AccessRequests/ReviewRequests';
+} from 'shared/services/accessRequests';
+import { RequestFlags } from 'shared/components/AccessRequests/ReviewRequests';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { retryWithRelogin } from 'teleterm/ui/utils';

@@ -29,10 +29,7 @@ import { requiredField } from 'shared/components/Validation/rules';
 import { HoverTooltip } from 'shared/components/ToolTip';
 import { FieldTextArea } from 'shared/components/FieldTextArea';
 
-import {
-  AccessRequest,
-  RequestState,
-} from 'e-teleport/services/accessRequests';
+import { AccessRequest, RequestState } from 'shared/services/accessRequests';
 
 import { AssumeStartTime } from '../../../AssumeStartTime/AssumeStartTime';
 import { AccessDurationReview } from '../../../AccessDuration';
