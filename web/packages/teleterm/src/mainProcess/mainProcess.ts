@@ -50,23 +50,26 @@ import Logger from 'teleterm/logger';
 import * as grpcCreds from 'teleterm/services/grpcCredentials';
 import { createTshdClient } from 'teleterm/services/tshd/createClient';
 import { TshdClient } from 'teleterm/services/tshd/types';
+import { staticConfig } from 'teleterm/staticConfig';
 
 import {
   ConfigService,
   subscribeToConfigServiceEvents,
 } from '../services/config';
 
-import { subscribeToTerminalContextMenuEvent } from './contextMenus/terminalContextMenu';
-import { subscribeToTabContextMenuEvent } from './contextMenus/tabContextMenu';
-import { resolveNetworkAddress, ResolveError } from './resolveNetworkAddress';
-import { WindowsManager } from './windowsManager';
-import { downloadAgent, verifyAgent, FileDownloader } from './agentDownloader';
 import {
+  getAgentsDir,
   createAgentConfigFile,
   isAgentConfigFileCreated,
   removeAgentDirectory,
   generateAgentConfigPaths,
 } from './createAgentConfigFile';
+
+import { subscribeToTerminalContextMenuEvent } from './contextMenus/terminalContextMenu';
+import { subscribeToTabContextMenuEvent } from './contextMenus/tabContextMenu';
+import { resolveNetworkAddress, ResolveError } from './resolveNetworkAddress';
+import { WindowsManager } from './windowsManager';
+import { downloadAgent, verifyAgent, FileDownloader } from './agentDownloader';
 import { AgentRunner } from './agentRunner';
 import { terminateWithTimeout } from './terminateWithTimeout';
 
@@ -168,10 +171,10 @@ export default class MainProcess {
   }
 
   private initTshd() {
-    const { binaryPath, flags, homeDir } = this.settings.tshd;
+    const { binaryPath, homeDir } = this.settings.tshd;
     this.logger.info(`Starting tsh daemon from ${binaryPath}`);
 
-    this.tshdProcess = spawn(binaryPath, flags, {
+    this.tshdProcess = spawn(binaryPath, this.getTshdFlags(), {
       stdio: 'pipe', // stdio must be set to `pipe` as the gRPC server address is read from stdout
       windowsHide: true,
       env: {
@@ -195,6 +198,33 @@ export default class MainProcess {
       this.tshdProcess,
       this.tshdProcessLastLogs
     );
+  }
+
+  private getTshdFlags(): string[] {
+    const settings = this.settings;
+    const agentsDir = getAgentsDir(settings.userDataDir);
+
+    const flags = [
+      'daemon',
+      'start',
+      // grpc-js requires us to pass localhost:port for TCP connections,
+      // for tshd we have to specify the protocol as well.
+      `--addr=${settings.tshd.requestedNetworkAddress}`,
+      `--certs-dir=${settings.certsDir}`,
+      `--prehog-addr=${staticConfig.prehogAddress}`,
+      `--kubeconfigs-dir=${settings.kubeConfigsDir}`,
+      `--agents-dir=${agentsDir}`,
+      `--installation-id=${settings.installationId}`,
+    ];
+
+    if (settings.insecure) {
+      flags.unshift('--insecure');
+    }
+    if (settings.debug) {
+      flags.unshift('--debug');
+    }
+
+    return flags;
   }
 
   private initSharedProcess() {
