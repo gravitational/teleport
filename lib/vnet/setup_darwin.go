@@ -238,7 +238,7 @@ func recvTUNNameAndFd(ctx context.Context, socket *net.UnixListener) (string, ui
 
 func configureOS(ctx context.Context, cfg *osConfig) error {
 	if cfg.tunIPv6 != "" && cfg.tunName != "" {
-		slog.With("device", cfg.tunName, "address", cfg.tunIPv6).InfoContext(ctx, "Setting IPv6 address for the TUN device.")
+		slog.InfoContext(ctx, "Setting IPv6 address for the TUN device.", "device", cfg.tunName, "address", cfg.tunIPv6)
 		cmd := exec.CommandContext(ctx, "ifconfig", cfg.tunName, "inet6", cfg.tunIPv6, "prefixlen", "64")
 		if err := cmd.Run(); err != nil {
 			return trace.Wrap(err, "running %v", cmd.Args)

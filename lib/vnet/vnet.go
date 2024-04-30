@@ -214,7 +214,7 @@ func installVnetRoutes(stack *stack.Stack) error {
 
 // Run starts the VNet.
 func (m *Manager) Run(ctx context.Context) error {
-	m.slog.With("ipv6_prefix", m.ipv6Prefix).InfoContext(ctx, "Running Teleport VNet.")
+	m.slog.InfoContext(ctx, "Running Teleport VNet.", "ipv6_prefix", m.ipv6Prefix)
 	g, ctx := errgroup.WithContext(ctx)
 	g.Go(func() error { return m.statsHandler(ctx) })
 	g.Go(func() error {
@@ -254,7 +254,7 @@ func (m *Manager) handleTCP(req *tcp.ForwarderRequest) {
 
 	handler, ok := m.getTCPHandler(id.LocalAddress)
 	if !ok {
-		slog.With("addr", id.LocalAddress).DebugContext(ctx, "No handler for address.")
+		slog.DebugContext(ctx, "No handler for address.", "addr", id.LocalAddress)
 		return
 	}
 

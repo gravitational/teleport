@@ -89,7 +89,7 @@ func CreateAndSetupTUNDevice(ctx context.Context, ipv6Prefix string) (tun.Device
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	slog.With("device", name).InfoContext(ctx, "Created TUN device.")
+	slog.InfoContext(ctx, "Created TUN device.", "device", name)
 	return device, nil
 }
 
