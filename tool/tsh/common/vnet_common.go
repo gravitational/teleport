@@ -18,11 +18,11 @@ package common
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"strings"
 
 	"github.com/gravitational/trace"
-	"github.com/vulcand/predicate/builder"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -63,11 +63,8 @@ func (r *tcpAppResolver) ResolveTCPHandler(ctx context.Context, fqdn string) (ha
 		}
 
 		appServers, err := tc.ListAppServersWithFilters(ctx, &proto.ListResourcesRequest{
-			ResourceType: types.KindAppServer,
-			PredicateExpression: builder.Equals(
-				builder.Identifier("resource.spec.public_addr"),
-				builder.String(appPublicAddr),
-			).String(),
+			ResourceType:        types.KindAppServer,
+			PredicateExpression: fmt.Sprintf(`resource.spec.public_addr == "%s" && hasPrefix(resource.spec.uri, "tcp://")`, appPublicAddr),
 		})
 		if err != nil {
 			return nil, false, trace.Wrap(err, "listing application servers")
