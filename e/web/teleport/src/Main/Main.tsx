@@ -58,10 +58,10 @@ export function MainE() {
     );
   }
 
-  const isTeam = cfg.oss.isTeam;
+  const isStripeManaged = cfg.oss.isStripeManaged;
 
   const teamUpgradeBanner = useMemo(() => {
-    if (!isTeam) {
+    if (!isStripeManaged) {
       return;
     }
 
@@ -76,16 +76,16 @@ export function MainE() {
         )}
       />
     );
-  }, [isTeam]);
+  }, [isStripeManaged]);
 
   const billingBanners = [];
-  if (isTeam) {
+  if (isStripeManaged) {
     billingBanners.push(teamUpgradeBanner);
   }
 
   const requiresOnboardingSurvey = surveyUnanswered();
   const questionnaire =
-    (isTeam && requiresOnboardingSurvey && Questionnaire) || null;
+    (isStripeManaged && requiresOnboardingSurvey && Questionnaire) || null;
 
   const CustomLogos = {
     bblp: BblpLogo,

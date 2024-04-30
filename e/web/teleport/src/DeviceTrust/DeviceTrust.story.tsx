@@ -12,7 +12,7 @@ import { DeviceTrust } from './DeviceTrust';
 
 import type { TrustedDevice } from 'teleport/DeviceTrust/types';
 
-const defaultIsTeamFlag = cfg.isTeam;
+const defaultTrustedDevicesFlag = cfg.trustedDevices;
 const defaultIsEnterpriseFlag = cfg.isEnterprise;
 const defaultIsUsageBasedBillingFlag = cfg.isUsageBasedBilling;
 const defaultIgsFlag = cfg.isIgsEnabled;
@@ -26,7 +26,7 @@ export default {
       useEffect(() => {
         // Clean up
         return () => {
-          cfg.isTeam = defaultIsTeamFlag;
+          cfg.trustedDevices = defaultTrustedDevicesFlag;
           cfg.isEnterprise = defaultIsEnterpriseFlag;
           cfg.isUsageBasedBilling = defaultIsUsageBasedBillingFlag;
           cfg.isIgsEnabled = defaultIgsFlag;
@@ -58,8 +58,8 @@ Empty.parameters = {
   },
 };
 
-export function EmptyTeamCta() {
-  cfg.isTeam = true;
+export function EmptyCta() {
+  cfg.trustedDevices = false;
   const ctx = createTeleportContextE();
 
   return (
@@ -68,7 +68,7 @@ export function EmptyTeamCta() {
     </ContextProvider>
   );
 }
-EmptyTeamCta.parameters = {
+EmptyCta.parameters = {
   msw: {
     handlers: [
       rest.get(ecfg.api.devices, (req, res, ctx) =>
@@ -79,7 +79,7 @@ EmptyTeamCta.parameters = {
 };
 
 export function EmptyEubCta() {
-  cfg.isTeam = false;
+  cfg.trustedDevices = true;
   cfg.isUsageBasedBilling = true;
   const ctx = createTeleportContextE();
 
@@ -117,7 +117,7 @@ Processing.parameters = {
 };
 
 export function LoadedLegacy() {
-  cfg.isTeam = false;
+  cfg.trustedDevices = true;
   cfg.isUsageBasedBilling = false;
   const ctx = createTeleportContextE();
 
@@ -138,7 +138,7 @@ LoadedLegacy.parameters = {
 };
 
 export function LoadedEubWithIgs() {
-  cfg.isTeam = false;
+  cfg.trustedDevices = true;
   cfg.isUsageBasedBilling = true;
   cfg.isIgsEnabled = true;
   const ctx = createTeleportContextE();
@@ -159,8 +159,8 @@ LoadedEubWithIgs.parameters = {
   },
 };
 
-export function LoadedTeamCta() {
-  cfg.isTeam = true;
+export function LoadedCta() {
+  cfg.trustedDevices = false;
   const ctx = createTeleportContextE();
 
   return (
@@ -169,7 +169,7 @@ export function LoadedTeamCta() {
     </ContextProvider>
   );
 }
-LoadedTeamCta.parameters = {
+LoadedCta.parameters = {
   msw: {
     handlers: [
       rest.get(ecfg.api.devices, (req, res, ctx) =>
@@ -180,7 +180,7 @@ LoadedTeamCta.parameters = {
 };
 
 export function LoadedEubCta() {
-  cfg.isTeam = false;
+  cfg.trustedDevices = true;
   cfg.isUsageBasedBilling = true;
   const ctx = createTeleportContextE();
 

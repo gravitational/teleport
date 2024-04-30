@@ -11,7 +11,7 @@ import { DeviceTrust } from './DeviceTrust';
 import type { TrustedDevice } from 'teleport/DeviceTrust/types';
 
 describe('test DeviceTrust.tsx', () => {
-  const defaultIsTeamFlag = cfg.isTeam;
+  const defaultTrustedDevicesFlag = cfg.trustedDevices;
   const defaultIsEnterpriseFlag = cfg.isEnterprise;
   const defaultIsUsageBasedBillingFlag = cfg.isUsageBasedBilling;
   const defaultIgsFlag = cfg.isIgsEnabled;
@@ -21,15 +21,15 @@ describe('test DeviceTrust.tsx', () => {
   });
 
   afterEach(() => {
-    cfg.isTeam = defaultIsTeamFlag;
+    cfg.trustedDevices = defaultTrustedDevicesFlag;
     cfg.isEnterprise = defaultIsEnterpriseFlag;
     cfg.isUsageBasedBilling = defaultIsUsageBasedBillingFlag;
     cfg.isIgsEnabled = defaultIgsFlag;
     jest.clearAllMocks();
   });
 
-  test('empty team cta', async () => {
-    cfg.isTeam = true;
+  test('empty cta', async () => {
+    cfg.trustedDevices = false;
     jest
       .spyOn(deviceService, 'fetchDevices')
       .mockResolvedValue({ items: [], startKey: '' });
@@ -41,7 +41,6 @@ describe('test DeviceTrust.tsx', () => {
   });
 
   test('empty EUB cta', async () => {
-    cfg.isTeam = false;
     cfg.isUsageBasedBilling = true;
     jest
       .spyOn(deviceService, 'fetchDevices')
@@ -54,7 +53,7 @@ describe('test DeviceTrust.tsx', () => {
   });
 
   test('loaded legacy (no CTA)', async () => {
-    cfg.isTeam = false;
+    cfg.trustedDevices = true;
     cfg.isUsageBasedBilling = false;
     jest
       .spyOn(deviceService, 'fetchDevices')
@@ -67,7 +66,7 @@ describe('test DeviceTrust.tsx', () => {
   });
 
   test('loaded EUB with IGS (no CTA)', async () => {
-    cfg.isTeam = false;
+    cfg.trustedDevices = true;
     cfg.isUsageBasedBilling = true;
     cfg.isIgsEnabled = true;
     jest
@@ -81,20 +80,8 @@ describe('test DeviceTrust.tsx', () => {
   });
 
   test('loaded EUB without IGS renders CTA', async () => {
-    cfg.isTeam = false;
+    cfg.trustedDevices = true;
     cfg.isUsageBasedBilling = true;
-    jest
-      .spyOn(deviceService, 'fetchDevices')
-      .mockResolvedValue({ items: devices, startKey: '' });
-
-    const { container } = renderComponent();
-    await screen.findByText(/register trusted device/i);
-
-    expect(container.firstChild).toMatchSnapshot();
-  });
-
-  test('loaded team renders CTA', async () => {
-    cfg.isTeam = true;
     jest
       .spyOn(deviceService, 'fetchDevices')
       .mockResolvedValue({ items: devices, startKey: '' });

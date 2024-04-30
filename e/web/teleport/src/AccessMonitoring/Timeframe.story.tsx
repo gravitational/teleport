@@ -22,7 +22,6 @@ import { Timeframe } from './Timeframe';
 
 const ctx = createTeleportContext();
 
-const defaultIsTeam = cfg.isTeam;
 const defaultIsIgsEnabled = cfg.isIgsEnabled;
 const defaultIsEnterprise = cfg.isEnterprise;
 const defaultIsUsageBased = cfg.isUsageBasedBilling;
@@ -35,7 +34,6 @@ export default {
         cfg.isEnterprise = true;
         // Clean up
         return () => {
-          cfg.isTeam = defaultIsTeam;
           cfg.isIgsEnabled = defaultIsIgsEnabled;
           cfg.isEnterprise = defaultIsEnterprise;
           cfg.isUsageBasedBilling = defaultIsUsageBased;
@@ -57,16 +55,6 @@ export const TimeframeDropdown = () => {
 
 export const TimeframeDropdownWithIgs = () => {
   cfg.isIgsEnabled = true;
-  cfg.isUsageBasedBilling = true;
-  return (
-    <ContextProvider ctx={ctx}>
-      <Timeframe onChange={() => null} days={30} />
-    </ContextProvider>
-  );
-};
-
-export const TimeframeDropdownTeamCta = () => {
-  cfg.isTeam = true;
   cfg.isUsageBasedBilling = true;
   return (
     <ContextProvider ctx={ctx}>

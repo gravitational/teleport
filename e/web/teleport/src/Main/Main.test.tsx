@@ -68,6 +68,10 @@ jest.mock('shared/hooks', () => ({
 }));
 
 cfg.oss.isTeam = true;
+cfg.oss.isStripeManaged = true;
+cfg.oss.trustedDevices = false;
+cfg.oss.hasQuestionnaire = true;
+cfg.oss.mobileDeviceManagement = false;
 
 test('displays questionnaire if unanswered in both survey and preferences', async () => {
   mockUserContextProviderWith(makeTestUserContext());

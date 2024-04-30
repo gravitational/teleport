@@ -276,10 +276,8 @@ function NewRequest(props: State) {
             <Box>
               <ButtonLockedFeature event={CtaEvent.CTA_ACCESS_REQUESTS}>
                 <Text color="buttons.primary.text">
-                  Unlock Unlimited Access Requests{' '}
-                  {cfg.isTeam
-                    ? 'with Teleport Enterprise'
-                    : 'with Identity Governance & Security'}
+                  Unlock Unlimited Access Requests with Identity Governance &
+                  Security
                 </Text>
               </ButtonLockedFeature>
             </Box>
@@ -693,11 +691,8 @@ function UsageInfo(usage: { limit: number; used: number }) {
             Your cluster has reached its allocation of {usage.used} access
             requests per month, but{' '}
             <Link href={getSalesLink()} target="_blank">
-              you can get unlimited access requests{' '}
-              {cfg.isTeam
-                ? 'with Teleport Enterprise'
-                : 'with Identity Governance & Security'}
-              .
+              you can get unlimited access requests with Identity Governance &
+              Security.
             </Link>
           </>
         ) : (

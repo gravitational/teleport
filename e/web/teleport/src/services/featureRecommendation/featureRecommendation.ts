@@ -12,7 +12,7 @@ import CloudService from 'e-teleport/services/cloud';
 /**
  * setAndEmitFeatureRecommendationStatus sets feature recommendation state in local storage and
  * emits featureRecommendationEvent. setAndEmitFeatureRecommendationStatus should only be called
- * in Team Plan (cfg.isTeam) and for users with billing role (getFeatureFlags().billing).
+ * in Stripe managed plans (cfg.isStripeManaged) and for users with billing role (getFeatureFlags().billing).
  * @param {CloudService} cloudService - is the cloud service used to fetch fetchNonBillableSummaryInformation.
  */
 export async function setAndEmitFeatureRecommendationStatus(

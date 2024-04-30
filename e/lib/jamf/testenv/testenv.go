@@ -96,6 +96,7 @@ func NewUsingT(t *testing.T, opts *Opts) *E {
 				DeviceTrust: modules.DeviceTrustFeature{
 					Enabled: true,
 				},
+				MobileDeviceManagement: true,
 			},
 		})
 	}

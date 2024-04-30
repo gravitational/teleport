@@ -23,7 +23,8 @@ const onboardSupportPluginKinds: PluginKind[] = [
 ];
 
 const defaultIsCloudFlag = cfg.oss.isCloud;
-const defaultIsTeam = cfg.oss.isTeam;
+const defaultMdmFlag = cfg.oss.mobileDeviceManagement;
+const defaultEasFlag = cfg.oss.externalAuditStorage;
 const defaultIsEnterprise = cfg.oss.isEnterprise;
 
 export default {
@@ -36,7 +37,8 @@ export default {
         // Clean up
         return () => {
           cfg.oss.isCloud = defaultIsCloudFlag;
-          cfg.oss.isTeam = defaultIsTeam;
+          cfg.oss.mobileDeviceManagement = defaultMdmFlag;
+          cfg.oss.externalAuditStorage = defaultEasFlag;
           cfg.oss.isEnterprise = defaultIsEnterprise;
         };
       }, []);
@@ -106,7 +108,8 @@ export const NoAccess = () => {
 };
 
 export const RequiresEnterprise = () => {
-  cfg.oss.isTeam = true;
+  cfg.oss.mobileDeviceManagement = false;
+  cfg.oss.externalAuditStorage = false;
   worker.use(
     rest.get(cfg.api.pluginTypesPath, (req, res, ctx) => {
       return res(ctx.json(onboardSupportPluginKinds));

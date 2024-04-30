@@ -53,7 +53,9 @@ export function useIntegrations() {
     const hasPluginAccess = ctx.getFeatureFlags().plugins;
     const hasIntegrationAccess = ctx.getFeatureFlags().integrations;
     const hasExternalAuditStorageAccess =
-      cfg.isCloud && !cfg.isTeam && ctx.getFeatureFlags().externalAuditStorage;
+      cfg.isCloud &&
+      cfg.externalAuditStorage &&
+      ctx.getFeatureFlags().externalAuditStorage;
 
     // There can be two failure points:
     //   1) network error

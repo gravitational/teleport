@@ -99,9 +99,6 @@ const OptionComponent = props => {
 };
 
 const MenuListComponent = props => {
-  let plan = cfg.isTeam
-    ? 'Teleport Enterprise'
-    : 'Identity Governance & Security';
   return (
     <>
       <components.MenuList {...props}>{props.children}</components.MenuList>
@@ -116,7 +113,7 @@ const MenuListComponent = props => {
             event={CtaEvent.CTA_ACCESS_MONITORING}
             noIcon={true}
           >
-            Unlock higher range with {plan}
+            Unlock higher range with Identity Governance & Security
           </ButtonLockedFeature>
         </Box>
       )}

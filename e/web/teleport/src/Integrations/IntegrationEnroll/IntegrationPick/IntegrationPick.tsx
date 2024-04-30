@@ -192,7 +192,7 @@ function PluginTile({
   const hostedButNoAccess = !hasAccess && plugin.cloudHostable;
 
   const pluginAccess: PluginAccess =
-    plugin.disableForTeam && cfg.isTeam
+    plugin.disabledIfNoMdmSupport && !cfg.mobileDeviceManagement
       ? 'requires-enterprise'
       : hostedButNoAccess
         ? 'denied'

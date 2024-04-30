@@ -124,7 +124,7 @@ class TeleportEContext extends TeleportContext {
 
     // fetchNonBillableSummaryInformation will do an auth check on the backend for the billing role,
     // we should only fetch if the user has the correct permissions.
-    if (cfg.isTeam && this.getFeatureFlags().billing) {
+    if (cfg.isStripeManaged && this.getFeatureFlags().billing) {
       try {
         await setAndEmitFeatureRecommendationStatus(this.cloudService);
       } catch (err) {
@@ -136,10 +136,10 @@ class TeleportEContext extends TeleportContext {
     // check if there's already a external audit storage configured
     // so we don't show the feature's CTAs
     const isDismissed = storageService.getExternalAuditStorageCtaDisabled();
-    const isCloudEnterprise = this.isCloud && !cfg.isTeam;
     if (
       !isDismissed &&
-      isCloudEnterprise &&
+      this.isCloud &&
+      cfg.externalAuditStorage &&
       this.storeUser.getExternalAuditStorageAccess().read
     ) {
       try {

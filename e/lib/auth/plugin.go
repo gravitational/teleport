@@ -193,7 +193,7 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server interface{}) e
 		return trace.Wrap(err)
 	}
 
-	if modules.GetModules().Features().Cloud && !modules.GetModules().Features().IsTeam() {
+	if modules.GetModules().Features().Cloud && modules.GetModules().Features().ExternalAuditStorage {
 		if err := p.registerExternalAuditStorageService(ctx); err != nil {
 			return trace.Wrap(err)
 		}

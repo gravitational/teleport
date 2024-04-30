@@ -49,7 +49,8 @@ func TestGenerateDraftExternalAuditStorage(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
-			Cloud: true,
+			Cloud:                true,
+			ExternalAuditStorage: true,
 		},
 	})
 
@@ -84,7 +85,8 @@ func TestBuildExternalAuditStorageBootstrapScript(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
-			Cloud: true,
+			Cloud:                true,
+			ExternalAuditStorage: true,
 		},
 	})
 
@@ -236,7 +238,8 @@ func TestExternalAuditStoragePromote(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
-			Cloud: true,
+			Cloud:                true,
+			ExternalAuditStorage: true,
 		},
 	})
 
@@ -272,7 +275,8 @@ func TestExternalAuditStorageGetCluster(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
-			Cloud: true,
+			Cloud:                true,
+			ExternalAuditStorage: true,
 		},
 	})
 
@@ -315,7 +319,8 @@ func TestExternalAuditStorageGetDraft(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
-			Cloud: true,
+			Cloud:                true,
+			ExternalAuditStorage: true,
 		},
 	})
 
@@ -356,7 +361,8 @@ func TestExternalAuditStorageDeleteCluster(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
-			Cloud: true,
+			Cloud:                true,
+			ExternalAuditStorage: true,
 		},
 	})
 
@@ -399,7 +405,8 @@ func TestExternalAuditStorageDeleteDraft(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
-			Cloud: true,
+			Cloud:                true,
+			ExternalAuditStorage: true,
 		},
 	})
 

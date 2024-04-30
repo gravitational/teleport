@@ -12,7 +12,6 @@ import { AccessLists } from './AccessLists';
 
 const { worker, rest } = window.msw;
 
-const defaultIsTeamFlag = cfg.oss.isTeam;
 const defaultIsEnterprise = cfg.oss.isEnterprise;
 const defaultIsIgsEnabled = cfg.oss.isIgsEnabled;
 
@@ -26,7 +25,6 @@ export default {
       useEffect(() => {
         // Clean up
         return () => {
-          cfg.oss.isTeam = defaultIsTeamFlag;
           cfg.oss.isEnterprise = defaultIsEnterprise;
           cfg.oss.isIgsEnabled = defaultIsIgsEnabled;
         };
@@ -77,7 +75,6 @@ export const EmptyWithIgs = () => {
 };
 
 export const EmptyWithCta = () => {
-  cfg.oss.isTeam = true;
   worker.use(
     rest.get(cfg.getAccessManagementListUrl(), (req, res, ctx) => {
       return res.once(ctx.json({ accessLists: [] }));
@@ -93,20 +90,6 @@ export const EmptyWithCta = () => {
 export const ListWithIgs = () => {
   cfg.oss.isIgsEnabled = true;
 
-  worker.use(
-    rest.get(cfg.getAccessManagementListUrl(), (req, res, ctx) => {
-      return res.once(ctx.json({ accessLists: mockAccessLists }));
-    })
-  );
-  return (
-    <Provider>
-      <AccessLists />
-    </Provider>
-  );
-};
-
-export const ListWithCta = () => {
-  cfg.oss.isTeam = true;
   worker.use(
     rest.get(cfg.getAccessManagementListUrl(), (req, res, ctx) => {
       return res.once(ctx.json({ accessLists: mockAccessLists }));

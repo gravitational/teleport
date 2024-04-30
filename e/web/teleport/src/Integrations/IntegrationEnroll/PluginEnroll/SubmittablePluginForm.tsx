@@ -99,9 +99,10 @@ export function SubmittablePluginForm({
     // Else let the default form submission event occur (eg: slack)
   }
 
-  const pluginRequiresEnterprise = plugin.disableForTeam && cfg.oss.isTeam;
+  const pluginRequiresPermission =
+    plugin.disabledIfNoMdmSupport && !cfg.oss.mobileDeviceManagement;
   let wrapperStyle;
-  if (pluginRequiresEnterprise) {
+  if (pluginRequiresPermission) {
     // blurs the form
     wrapperStyle = {
       filter: 'blur(2px)',
@@ -221,7 +222,7 @@ export function SubmittablePluginForm({
           </Validation>
         </Box>
       </Box>
-      {pluginRequiresEnterprise && (
+      {pluginRequiresPermission && (
         <StyledMessageContainer>
           Unlock {plugin.name} plugin with Teleport Enterprise{' '}
           <ButtonLockedFeature

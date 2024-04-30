@@ -53,10 +53,12 @@ func FetchFromCloud(ctx context.Context, cloudClient cloud.Client) (*modules.Fea
 			DeviceTrust: modules.DeviceTrustFeature{
 				Enabled: true,
 			},
-			Questionnaire:          resp.Questionnaire,
-			IsStripeManaged:        resp.StripeManaged,
-			ExternalAuditStorage:   resp.ExternalAuditStorage,
-			SupportType:            proto.SupportType(resp.SupportType),
+			Questionnaire:        resp.Questionnaire,
+			IsStripeManaged:      resp.StripeManaged,
+			ExternalAuditStorage: resp.ExternalAuditStorage,
+			// TODO(mcbattirola): read SupportType from response when
+			// Cloud subscriptions are updated to include this flag
+			SupportType:            proto.SupportType_SUPPORT_TYPE_PREMIUM,
 			JoinActiveSessions:     resp.JoinActiveSessions,
 			MobileDeviceManagement: resp.MobileDeviceManagement,
 			Policy: modules.PolicyFeature{

@@ -1004,8 +1004,7 @@ func (s *Service) SyncInventory(stream devicepb.DeviceTrustService_SyncInventory
 		return trace.Wrap(err)
 	}
 
-	// MDMs are disallowed for Teleport Team.
-	if f := modules.GetModules().Features(); f.IsTeam() {
+	if f := modules.GetModules().Features(); !f.MobileDeviceManagement {
 		// TODO(sshah): update event type once Intune integration is supported.
 		s.emitDeviceLimitEvent(prehogv1alpha.LicenseLimit_LICENSE_LIMIT_DEVICE_TRUST_TEAM_JAMF)
 		return trace.AccessDenied(

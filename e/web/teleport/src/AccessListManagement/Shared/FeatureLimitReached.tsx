@@ -3,13 +3,8 @@ import styled from 'styled-components';
 import { Box, Card, Flex, Text } from 'design';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import { CtaEvent } from 'teleport/services/userEvent';
-import cfg from 'teleport/config';
 
 export function FeatureLimitReached() {
-  let cta = 'Identity Governance & Security';
-  if (cfg.isTeam) {
-    cta = 'Teleport Enterprise';
-  }
   return (
     // to horizontally center an absolutely positioned element
     <Flex
@@ -21,7 +16,7 @@ export function FeatureLimitReached() {
       <FeatureLimitReachedCard>
         <Text mb={3}>
           This cluster has reached its limit for creating access lists. <br />
-          Unlock Access List with {cta}
+          Unlock Access List with Identity Governance & Security
         </Text>
         <ButtonLockedFeature width="200px" event={CtaEvent.CTA_ACCESS_LIST}>
           Contact Sales

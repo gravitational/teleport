@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/e/api/cloud"
 	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
 	"github.com/gravitational/teleport/lib/backend"
@@ -340,6 +341,7 @@ func TestRun_Legacy_NonUsageBased(t *testing.T) {
 		},
 		AccessList:       GetUsageBasedAccessListFeatureLimits(),
 		AccessMonitoring: GetUsageBasedAccessMonitoringFeatureLimits(false),
+		SupportType:      proto.SupportType_SUPPORT_TYPE_PREMIUM,
 	})
 }
 
@@ -377,6 +379,7 @@ func TestRun_Legacy_NonUsageBased_WithIGS(t *testing.T) {
 				CustomTheme:   "llama-theme",
 				// IGS is enabled for a subset of non-usage based products
 				IdentityGovernanceSecurity: true,
+				SupportType:                cloudapi.SUPPORT_TYPE_PREMIUM,
 			}, nil
 		},
 	)
@@ -404,6 +407,7 @@ func TestRun_Legacy_NonUsageBased_WithIGS(t *testing.T) {
 			Enabled: true,
 		},
 		IdentityGovernanceSecurity: true,
+		SupportType:                proto.SupportType_SUPPORT_TYPE_PREMIUM,
 	})
 }
 

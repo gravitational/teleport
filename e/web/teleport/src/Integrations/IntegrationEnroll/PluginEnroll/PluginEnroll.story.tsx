@@ -10,7 +10,7 @@ import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 
 import { PluginEnroll } from './PluginEnroll';
 
-const defaultIsTeamFlag = cfg.isTeam;
+const defaultMdmFlag = cfg.mobileDeviceManagement;
 const defaultIsEnterprise = cfg.isEnterprise;
 const defaultIgs = cfg.isIgsEnabled;
 
@@ -21,7 +21,7 @@ export default {
       useEffect(() => {
         // Clean up
         return () => {
-          cfg.isTeam = defaultIsTeamFlag;
+          cfg.mobileDeviceManagement = defaultMdmFlag;
           cfg.isEnterprise = defaultIsEnterprise;
           cfg.isIgsEnabled = defaultIgs;
         };
@@ -37,13 +37,13 @@ export const EnrollMattermost = () =>
   renderPluginEnroll('', cfg.getIntegrationEnrollRoute('mattermost'));
 
 export const EnrollJamf = () => {
-  cfg.isTeam = false;
+  cfg.mobileDeviceManagement = true;
   const ctx = createTeleportContextE();
   return renderPluginEnroll('', cfg.getIntegrationEnrollRoute('jamf'), ctx);
 };
 
-export const EnrollJamfDisableInTeam = () => {
-  cfg.isTeam = true;
+export const EnrollJamfDisabled = () => {
+  cfg.mobileDeviceManagement = false;
   cfg.isEnterprise = true;
   const ctx = createTeleportContextE();
   return renderPluginEnroll('', cfg.getIntegrationEnrollRoute('jamf'), ctx);

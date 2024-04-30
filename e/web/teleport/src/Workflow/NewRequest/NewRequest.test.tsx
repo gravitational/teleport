@@ -24,7 +24,7 @@ import {
 
 import NewRequest from './NewRequest';
 
-const defaultIsTeamFlag = cfg.isTeam;
+const defaultIsStripeManaged = cfg.isStripeManaged;
 const defaultIsEnterpriseFlag = cfg.isEnterprise;
 const defaultIsUsageBasedBillingFlag = cfg.isUsageBasedBilling;
 const defaultIgsFlag = cfg.isIgsEnabled;
@@ -105,7 +105,7 @@ describe('new request behavior', () => {
     cleanup();
     jest.resetAllMocks();
 
-    cfg.isTeam = defaultIsTeamFlag;
+    cfg.isStripeManaged = defaultIsStripeManaged;
     cfg.isEnterprise = defaultIsEnterpriseFlag;
     cfg.isUsageBasedBilling = defaultIsUsageBasedBillingFlag;
     cfg.isIgsEnabled = defaultIgsFlag;
@@ -281,7 +281,7 @@ describe('new request behavior', () => {
   test('eub with igs enabled renders no usage info', async () => {
     ecfg.oss.isEnterprise = true;
     ecfg.oss.isUsageBasedBilling = true;
-    ecfg.oss.isTeam = false;
+    ecfg.oss.isStripeManaged = false;
     ecfg.oss.isIgsEnabled = true;
     jest
       .spyOn(ctx.cloudService, 'fetchNonBillableSummaryInformation')
@@ -293,10 +293,10 @@ describe('new request behavior', () => {
     });
   });
 
-  test('team renders usage info', async () => {
+  test('Stripe managed renders usage info', async () => {
     ecfg.oss.isEnterprise = true;
     ecfg.oss.isUsageBasedBilling = true;
-    ecfg.oss.isTeam = true;
+    ecfg.oss.isStripeManaged = true;
     ecfg.oss.isIgsEnabled = false;
     jest
       .spyOn(ctx.cloudService, 'fetchNonBillableSummaryInformation')
@@ -317,7 +317,7 @@ describe('new request behavior', () => {
   test('eub WITHOUT igs enabled renders usage info', async () => {
     ecfg.oss.isEnterprise = true;
     ecfg.oss.isUsageBasedBilling = true;
-    ecfg.oss.isTeam = false;
+    ecfg.oss.isStripeManaged = false;
     ecfg.oss.isIgsEnabled = false;
     jest
       .spyOn(ctx.cloudService, 'fetchNonBillableSummaryInformation')
@@ -335,11 +335,11 @@ describe('new request behavior', () => {
     );
   });
 
-  test('team: displays upsell link and button when access request limit is reached', async () => {
+  test('Stripe managed: displays upsell link and button when access request limit is reached', async () => {
     ecfg.oss.isEnterprise = true;
     ecfg.oss.isUsageBasedBilling = true;
     ecfg.oss.isIgsEnabled = false;
-    ecfg.oss.isTeam = true;
+    ecfg.oss.isStripeManaged = true;
     jest
       .spyOn(ctx.cloudService, 'fetchNonBillableSummaryInformation')
       .mockResolvedValueOnce({
@@ -358,18 +358,15 @@ describe('new request behavior', () => {
       expect(screen.getByTestId('usage-info')).toBeInTheDocument();
     });
 
-    let ctaTexts = screen.getAllByText(/with teleport enterprise/i);
+    let ctaTexts = screen.getAllByText(/with identity governance/i);
     expect(ctaTexts).toHaveLength(2);
-    expect(
-      screen.queryByText(/with identity governance/i)
-    ).not.toBeInTheDocument();
 
     let upsellLinks = await screen.findAllByRole('link');
     expect(upsellLinks).toHaveLength(2);
     for (const link of upsellLinks) {
       expect(link).toHaveAttribute(
         'href',
-        expect.stringMatching(/upgrade-team/i)
+        expect.stringMatching(/upgrade-igs/i)
       );
     }
   });
@@ -378,7 +375,7 @@ describe('new request behavior', () => {
     ecfg.oss.isEnterprise = true;
     ecfg.oss.isUsageBasedBilling = true;
     ecfg.oss.isIgsEnabled = false;
-    ecfg.oss.isTeam = false;
+    ecfg.oss.isStripeManaged = false;
     jest
       .spyOn(ctx.cloudService, 'fetchNonBillableSummaryInformation')
       .mockResolvedValueOnce({

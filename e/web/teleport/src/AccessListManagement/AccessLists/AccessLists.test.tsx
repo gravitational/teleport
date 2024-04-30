@@ -29,7 +29,6 @@ import TeleportEContext from 'e-teleport/teleportContextE';
 
 import { AccessLists } from './AccessLists';
 
-const defaultIsTeamFlag = cfg.isTeam;
 const defaultIsEnterpriseFlag = cfg.isEnterprise;
 const defaultIgsFlag = cfg.isIgsEnabled;
 
@@ -47,7 +46,6 @@ describe('upsell links', () => {
   afterEach(() => {
     jest.resetAllMocks();
 
-    cfg.isTeam = defaultIsTeamFlag;
     cfg.isEnterprise = defaultIsEnterpriseFlag;
     cfg.isIgsEnabled = defaultIgsFlag;
   });
@@ -60,7 +58,6 @@ describe('upsell links', () => {
       .mockRejectedValue(error);
 
     ecfg.oss.isIgsEnabled = true;
-    ecfg.oss.isTeam = false;
 
     const ctx = createTeleportContextE({
       customAcl: getAcl({ noAccess: true }),
@@ -79,7 +76,6 @@ describe('upsell links', () => {
 
   test('eub with igs enabled renders no cta', async () => {
     ecfg.oss.isIgsEnabled = true;
-    ecfg.oss.isTeam = false;
 
     renderComponent(ctx);
 
@@ -87,23 +83,8 @@ describe('upsell links', () => {
     expect(screen.queryByText('contact sales')).not.toBeInTheDocument();
   });
 
-  test('team renders cta', async () => {
-    ecfg.oss.isIgsEnabled = false;
-    ecfg.oss.isTeam = true;
-
-    renderComponent(ctx);
-
-    await screen.findByText(/create your first access list/i);
-    const link = screen.getByText(/contact sales/i);
-    expect(link).toHaveAttribute(
-      'href',
-      expect.stringMatching(/upgrade-team/i)
-    );
-  });
-
   test('eub WITHOUT igs renders cta', async () => {
     ecfg.oss.isIgsEnabled = false;
-    ecfg.oss.isTeam = false;
 
     renderComponent(ctx);
 

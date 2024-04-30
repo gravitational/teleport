@@ -88,7 +88,7 @@ export type PluginBase = {
    * Describes whether the plugin can be self hosted.
    */
   selfHostable: boolean;
-  disableForTeam?: boolean;
+  disabledIfNoMdmSupport?: boolean;
   /**
    * views represents all the views for each step
    * in a multi step plugin enrollment eg: okta.
@@ -103,7 +103,7 @@ export type PluginBase = {
 export type SelfHostedPlugin = PluginBase & {
   cloudHostable: false;
   selfHostable: true;
-  disableForTeam?: true;
+  disabledIfNoMdmSupport?: true;
 };
 
 /**
@@ -123,7 +123,7 @@ export type CloudHostablePlugin = PluginBase & {
   FormMixin?: () => JSX.Element;
   NextSteps?: (props: { successData?: EnrollSuccessResponse }) => JSX.Element;
   permissions?: CategoryPermissions[];
-  disableForTeam?: boolean;
+  disabledIfNoMdmSupport?: boolean;
 };
 
 export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
@@ -250,10 +250,6 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
       return [];
     },
     Description: () => {
-      let cta = 'Identity Governance & Security';
-      if (cfg.oss.isTeam) {
-        cta = 'Teleport Enterprise';
-      }
       return (
         <Box mb={3}>
           <Text>
@@ -299,11 +295,11 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
           {!cfg.oss.isIgsEnabled && (
             <ButtonLockedFeature
               event={CtaEvent.CTA_OKTA_USER_SYNC}
-              width={cfg.oss.isTeam ? '390px' : '460px'}
+              width={'460px'}
               mt={2}
               mb={3}
             >
-              Unlock User Synchronization with {cta}
+              Unlock User Synchronization with Identity Governance & Security
             </ButtonLockedFeature>
           )}
         </Box>
@@ -557,7 +553,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     url: 'https://goteleport.com/docs/access-controls/device-trust/jamf-integration/?scope=enterprise',
     cloudHostable: true,
     selfHostable: false,
-    disableForTeam: true,
+    disabledIfNoMdmSupport: true,
     fullName: 'Jamf Integration for Device Trust',
     Description: () => (
       <Text>

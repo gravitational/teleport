@@ -52,6 +52,7 @@ func BenchmarkSyncInventory_jamf(b *testing.B) {
 			DeviceTrust: modules.DeviceTrustFeature{
 				Enabled: true,
 			},
+			MobileDeviceManagement: true,
 		},
 	})
 	b.Cleanup(func() { modules.SetModules(beforeModules) })

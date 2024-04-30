@@ -27,7 +27,6 @@ initialize();
 
 const oktaPlugin = pluginMap['okta'] as CloudHostablePlugin;
 
-const defaultIsTeamFlag = cfg.isTeam;
 const defaultIsEnterprise = cfg.isEnterprise;
 const defaultIgs = cfg.isIgsEnabled;
 
@@ -39,7 +38,6 @@ export default {
       useEffect(() => {
         // Clean up
         return () => {
-          cfg.isTeam = defaultIsTeamFlag;
           cfg.isEnterprise = defaultIsEnterprise;
           cfg.isIgsEnabled = defaultIgs;
         };
@@ -49,15 +47,15 @@ export default {
   ],
 };
 
-export const EnrollOktaIsTeam = () => {
-  cfg.isTeam = true;
+export const EnrollOktaEnterprise = () => {
+  cfg.mobileDeviceManagement = false;
   cfg.isEnterprise = true;
   const ctx = createTeleportContextE();
   return renderPluginEnroll('', cfg.getIntegrationEnrollRoute('okta'), ctx);
 };
 
 export const EnrollOktaEnterpriseWithCleanUp = () => {
-  cfg.isTeam = false;
+  cfg.mobileDeviceManagement = true;
   cfg.isEnterprise = true;
   const ctx = createTeleportContextE();
   return renderPluginEnroll('', cfg.getIntegrationEnrollRoute('okta'), ctx);
