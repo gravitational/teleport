@@ -16,8 +16,10 @@
 
 import React, { useState } from 'react';
 import { format } from 'date-fns';
-import { Option } from 'shared/components/Select';
+
 import { Box, Text } from 'design';
+
+import { Option } from 'shared/components/Select';
 import cfg from 'shared/config';
 
 import { dryRunResponse } from '../fixtures';

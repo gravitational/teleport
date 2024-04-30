@@ -24,11 +24,14 @@ import {
   formatDuration,
   Duration,
 } from 'date-fns';
+
+import { useAsync } from 'shared/hooks/useAsync';
+
+import { useInterval } from 'shared/hooks';
+
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 import { AssumedRequest } from 'teleterm/services/tshd/types';
-import { useAsync } from 'shared/hooks/useAsync';
-import { useInterval } from 'shared/hooks';
 
 export function useAssumedRolesBar(assumedRequest: AssumedRequest) {
   const ctx = useAppContext();

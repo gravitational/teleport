@@ -26,14 +26,14 @@ import {
   RequestFlags,
 } from 'shared/components/AccessRequests/ReviewRequests';
 
+import { useAsync } from 'shared/hooks/useAsync';
+
 import * as tsh from 'teleterm/services/tshd/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
 import { isUnimplementedError } from 'teleterm/services/tshd/errors';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
-
-import { useAsync } from 'shared/hooks/useAsync';
 
 import { makeUiAccessRequest } from '../useAccessRequests';
 

@@ -20,19 +20,23 @@ import { useState, useEffect } from 'react';
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 
 import useAttempt from 'shared/hooks/useAttemptNext';
-import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { PendingAccessRequest } from 'teleterm/ui/services/workspacesService';
-import { retryWithRelogin } from 'teleterm/ui/utils';
+
 import {
   ReviewerOption,
   getDryRunMaxDuration,
 } from 'shared/components/AccessRequests/NewRequest';
+
+import { CreateRequest } from 'shared/components/AccessRequests/Shared/types';
+
+import { Option } from 'shared/components/Select';
+
+import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { PendingAccessRequest } from 'teleterm/ui/services/workspacesService';
+import { retryWithRelogin } from 'teleterm/ui/utils';
 import {
   CreateAccessRequestRequest,
   AccessRequest as TeletermAccessRequest,
 } from 'teleterm/services/tshd/types';
-import { CreateRequest } from 'shared/components/AccessRequests/Shared/types';
-import { Option } from 'shared/components/Select';
 
 import { ResourceKind } from '../DocumentAccessRequests/NewRequest/useNewRequest';
 

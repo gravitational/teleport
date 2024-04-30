@@ -18,8 +18,10 @@
 
 import React, { useState } from 'react';
 import { MemoryRouter, Link } from 'react-router-dom';
-import { Option } from 'shared/components/Select';
+
 import { Box, ButtonPrimary, ButtonText } from 'design';
+
+import { Option } from 'shared/components/Select';
 
 import { dryRunResponse } from '../../fixtures';
 

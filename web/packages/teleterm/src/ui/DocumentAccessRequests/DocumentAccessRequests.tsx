@@ -18,14 +18,13 @@
 
 import React from 'react';
 
-import * as types from 'teleterm/ui/services/workspacesService';
-
-import Document from 'teleterm/ui/Document';
-
 import { Attempt } from 'shared/hooks/useAsync';
 
 import { AccessRequest } from 'shared/services/accessRequests';
 import { RequestFlags } from 'shared/components/AccessRequests/ReviewRequests';
+
+import Document from 'teleterm/ui/Document';
+import * as types from 'teleterm/ui/services/workspacesService';
 
 import { useAssumeAccess } from './useAssumeAccess';
 
