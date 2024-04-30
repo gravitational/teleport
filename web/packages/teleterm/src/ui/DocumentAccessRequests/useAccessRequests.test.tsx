@@ -16,8 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { AccessRequest as TshdAccessRequest } from 'teleterm/services/tshd/types';
 import { AccessRequest } from 'shared/services/accessRequests';
+
+import { AccessRequest as TshdAccessRequest } from 'teleterm/services/tshd/types';
 
 import { makeUiAccessRequest } from './useAccessRequests';
 

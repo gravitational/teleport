@@ -15,6 +15,7 @@
  */
 
 import { addHours, addDays, isAfter } from 'date-fns';
+
 import { Option } from 'shared/components/Select';
 
 import { getFormattedDurationTxt } from '../../Shared/utils';

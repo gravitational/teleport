@@ -20,6 +20,7 @@ import React, { useState } from 'react';
 import { ButtonPrimary, Text, Box, ButtonIcon, Menu } from 'design';
 import { Info } from 'design/Icon';
 import { format } from 'date-fns';
+
 import { HoverTooltip } from 'shared/components/ToolTip';
 import cfg from 'shared/config';
 

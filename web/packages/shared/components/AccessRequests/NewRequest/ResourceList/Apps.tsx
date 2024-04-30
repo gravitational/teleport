@@ -21,13 +21,15 @@ import styled from 'styled-components';
 import { components } from 'react-select';
 import { Flex, Text, ButtonBorder, ButtonPrimary } from 'design';
 import { ClickableLabelCell, Cell } from 'design/DataTable';
+
+import { App } from 'teleport/services/apps';
+
 import Select, {
   Option as BaseOption,
   CustomSelectComponentProps,
 } from 'shared/components/Select';
 import { StyledSelect as BaseStyledSelect } from 'shared/components/Select/Select';
 import { ToolTipInfo } from 'shared/components/ToolTip';
-import { App } from 'teleport/services/apps';
 
 import { ResourceMap, ResourceKind } from '../resource';
 

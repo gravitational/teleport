@@ -18,6 +18,7 @@
 
 import { useState } from 'react';
 import { render, screen, userEvent, fireEvent } from 'design/utils/testing';
+
 import { Option } from 'shared/components/Select';
 
 import { dryRunResponse } from '../../fixtures';

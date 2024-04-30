@@ -18,24 +18,28 @@
 
 import { useState, useEffect } from 'react';
 
-import * as types from 'teleterm/ui/services/workspacesService';
 import useAttempt from 'shared/hooks/useAttemptNext';
+
+import {
+  makeAccessRequest,
+  AccessRequest,
+} from 'shared/services/accessRequests';
+
+import { RequestFlags } from 'shared/components/AccessRequests/ReviewRequests';
+
+import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
+
+import * as types from 'teleterm/ui/services/workspacesService';
 import {
   AssumedRequest,
   LoggedInUser,
   AccessRequest as TshdAccessRequest,
 } from 'teleterm/services/tshd/types';
-import {
-  makeAccessRequest,
-  AccessRequest,
-} from 'shared/services/accessRequests';
-import { RequestFlags } from 'shared/components/AccessRequests/ReviewRequests';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
-import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 
 export default function useAccessRequests(doc: types.DocumentAccessRequests) {
   const ctx = useAppContext();

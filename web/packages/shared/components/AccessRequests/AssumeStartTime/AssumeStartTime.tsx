@@ -21,12 +21,14 @@ import styled from 'styled-components';
 import { DayPicker } from 'react-day-picker';
 import 'react-day-picker/dist/style.css';
 import { addMonths, format } from 'date-fns';
-import FieldSelect from 'shared/components/FieldSelect';
-import Validation from 'shared/components/Validation';
+
 import { Flex, Box, LabelInput, ButtonIcon } from 'design';
 import { Calendar as CalendarIcon, Refresh as RefreshIcon } from 'design/Icon';
 import { StyledDateRange } from 'teleport/components/DayPicker/Shared';
 import { ButtonSecondary } from 'design/Button';
+
+import Validation from 'shared/components/Validation';
+import FieldSelect from 'shared/components/FieldSelect';
 import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
 import cfg from 'shared/config';
 

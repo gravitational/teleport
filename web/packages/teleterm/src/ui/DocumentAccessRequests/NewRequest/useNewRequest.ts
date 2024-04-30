@@ -22,6 +22,7 @@ import { FetchStatus, SortType } from 'design/DataTable/types';
 
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { makeAdvancedSearchQueryForLabel } from 'shared/utils/advancedSearchLabelQuery';
+
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
   makeDatabase,
