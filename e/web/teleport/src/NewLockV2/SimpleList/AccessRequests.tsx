@@ -5,12 +5,13 @@ import {
   SimpleListProps,
 } from 'teleport/LocksV2/NewLock/ResourceList/common';
 
-import { AccessRequest } from 'e-teleport/services/workflow';
+import { AccessRequest } from 'shared/services/accessRequests';
 import {
   renderStatusCell,
   renderIdCell,
   renderUserCell,
-} from 'e-teleport/AccessRequests/ReviewRequests';
+} from 'shared/components/AccessRequests/ReviewRequests';
+
 import { AccessRequestWithFlags } from 'e-teleport/Workflow/ReviewRequests/RequestList/useRequestList';
 import {
   RequestedCell,

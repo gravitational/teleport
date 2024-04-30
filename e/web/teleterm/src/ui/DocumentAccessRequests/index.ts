@@ -1,1 +1,0 @@
-export { DocumentAccessRequests } from './DocumentAccessRequests';

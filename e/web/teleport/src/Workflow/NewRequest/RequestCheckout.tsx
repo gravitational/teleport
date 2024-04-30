@@ -1,14 +1,15 @@
 import { Link } from 'react-router-dom';
 import { Box, ButtonPrimary, ButtonText } from 'design';
 
-import cfg from 'e-teleport/config';
-import useTeleportE from 'e-teleport/useTeleportE';
 import {
   RequestCheckout as SharedRequestCheckout,
   RequestCheckoutProps as SharedRequestCheckoutProps,
   ResourceMap,
   ResourceKind,
-} from 'e-teleport/AccessRequests/NewRequest';
+} from 'shared/components/AccessRequests/NewRequest';
+
+import cfg from 'e-teleport/config';
+import useTeleportE from 'e-teleport/useTeleportE';
 
 import { useRequestCheckout } from './useRequestCheckout';
 

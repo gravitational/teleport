@@ -17,24 +17,25 @@ import { ResourceTab } from 'shared/components/UnifiedResources/ResourceTab';
 
 import session from 'teleport/services/websession';
 
-import useTeleportE from 'e-teleport/useTeleportE';
-import cfg from 'e-teleport/config';
 import {
   canAssumeNow,
   AccessRequest,
   Resource,
-} from 'e-teleport/services/accessRequests';
+} from 'shared/services/accessRequests';
 import {
   BlockedByStartTimeButton,
   ButtonPromotedInfo,
-} from 'e-teleport/AccessRequests/Shared/Shared';
+} from 'shared/components/AccessRequests/Shared/Shared';
 
 import {
   formattedName,
   renderIdCell,
   renderStatusCell,
   renderUserCell,
-} from 'e-teleport/AccessRequests/ReviewRequests';
+} from 'shared/components/AccessRequests/ReviewRequests';
+
+import cfg from 'e-teleport/config';
+import useTeleportE from 'e-teleport/useTeleportE';
 
 import useRequestList, {
   State,

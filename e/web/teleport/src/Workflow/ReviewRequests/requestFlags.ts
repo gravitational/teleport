@@ -1,4 +1,5 @@
-import { AccessRequest } from 'e-teleport/services/accessRequests';
+import { AccessRequest } from 'shared/services/accessRequests';
+
 import TeleportContextE from 'e-teleport/teleportContextE';
 
 export function getBaseRequestFlags(

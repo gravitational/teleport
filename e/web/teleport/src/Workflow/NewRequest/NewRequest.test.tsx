@@ -14,13 +14,13 @@ import cfg from 'teleport/config';
 
 import * as Main from 'teleport/Main/Main';
 
-import ecfg from 'e-teleport/config';
-import TeleportContextE from 'e-teleport/teleportContextE';
-
 import {
   AccessRequest,
   makeAccessRequest,
-} from 'e-teleport/services/accessRequests';
+} from 'shared/services/accessRequests';
+
+import ecfg from 'e-teleport/config';
+import TeleportContextE from 'e-teleport/teleportContextE';
 
 import NewRequest from './NewRequest';
 
@@ -86,9 +86,12 @@ describe('new request behavior', () => {
 
     class ResizeObserver {
       observe() {}
+
       unobserve() {}
+
       disconnect() {}
     }
+
     // eslint-disable-next-line jest/prefer-spy-on
     global.ResizeObserver = ResizeObserver;
 

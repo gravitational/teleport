@@ -9,7 +9,7 @@ import { App } from 'teleport/services/apps';
 import {
   ResourceKind,
   ResourceMap,
-} from 'e-teleport/AccessRequests/NewRequest';
+} from 'shared/components/AccessRequests/NewRequest';
 
 type Option = BaseOption & {
   isAdded?: boolean;

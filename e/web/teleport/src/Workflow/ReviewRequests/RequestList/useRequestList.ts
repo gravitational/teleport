@@ -4,11 +4,12 @@ import history from 'teleport/services/history';
 import { useKeyBasedPagination } from 'shared/hooks/useInfiniteScroll';
 import { AccessRequestScope, SortType } from 'teleport/services/agents';
 
-import TeleportContextE from 'e-teleport/teleportContextE';
 import {
   AccessRequest,
   makeAccessRequest,
-} from 'e-teleport/services/accessRequests';
+} from 'shared/services/accessRequests';
+
+import TeleportContextE from 'e-teleport/teleportContextE';
 
 import { getBaseRequestFlags } from '../requestFlags';
 

@@ -2,9 +2,9 @@ import api from 'teleport/services/api';
 import session, { RenewSessionRequest } from 'teleport/services/websession';
 import { ResourcesResponse } from 'teleport/services/agents';
 
-import cfg from 'e-teleport/config';
+import { makeAccessRequest } from 'shared/services/accessRequests';
 
-import { makeAccessRequest } from 'e-teleport/services/accessRequests';
+import cfg from 'e-teleport/config';
 
 import {
   AccessRequestFilter,

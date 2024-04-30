@@ -8,7 +8,7 @@ import {
   requestSearchPending,
   requestRolePromoted,
   requestRoleApprovedWithStartTime,
-} from 'e-teleport/AccessRequests/fixtures';
+} from 'shared/components/AccessRequests/fixtures';
 
 import { RequestList } from './RequestList';
 import { State } from './useRequestList';

@@ -52,12 +52,12 @@ import { useContentMinWidthContext } from 'teleport/Main';
 import { getSalesURL } from 'teleport/services/sales';
 import cfg from 'teleport/config';
 
-import useTeleportE from 'e-teleport/useTeleportE';
-
 import {
   ResourceList,
   ResourceKind,
-} from 'e-teleport/AccessRequests/NewRequest';
+} from 'shared/components/AccessRequests/NewRequest';
+
+import useTeleportE from 'e-teleport/useTeleportE';
 
 import { RequestCheckout } from './RequestCheckout';
 import { useNewRequest, State, getResourceId } from './useNewRequest';

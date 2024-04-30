@@ -4,14 +4,15 @@ import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import { Option } from 'shared/components/Select';
 
-import Ctx from 'e-teleport/teleportContextE';
-import { CreateRequest } from 'e-teleport/AccessRequests/Shared/types';
+import { CreateRequest } from 'shared/components/AccessRequests/Shared/types';
 
 import {
   ReviewerOption,
   getDryRunMaxDuration,
   ResourceKind,
-} from 'e-teleport/AccessRequests/NewRequest';
+} from 'shared/components/AccessRequests/NewRequest';
+
+import Ctx from 'e-teleport/teleportContextE';
 
 import { State as NewRequestState } from './useNewRequest';
 

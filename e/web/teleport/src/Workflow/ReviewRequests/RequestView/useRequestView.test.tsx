@@ -3,8 +3,9 @@ import { MemoryRouter, Route } from 'react-router';
 import { waitFor, renderHook, act } from '@testing-library/react';
 import makeUserContext from 'teleport/services/user/makeUserContext';
 
+import { requestRolePending } from 'shared/components/AccessRequests/fixtures';
+
 import TeleportContextE from 'e-teleport/teleportContextE';
-import { requestRolePending } from 'e-teleport/AccessRequests/fixtures';
 import { accessManagementService } from 'e-teleport/services/accessmanagement';
 
 import useRequestView from './useRequestView';

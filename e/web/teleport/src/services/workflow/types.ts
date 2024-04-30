@@ -1,8 +1,5 @@
 import type { AccessRequestScope } from 'teleport/services/agents';
-import type {
-  ResourceId,
-  RequestState,
-} from 'e-teleport/services/accessRequests';
+import type { ResourceId, RequestState } from 'shared/services/accessRequests';
 
 export interface CreateAccessRequest {
   reason?: string;
@@ -42,4 +39,4 @@ export type {
   AccessRequest,
   /** @depreacted Import `ResourceId` directly. */
   ResourceId,
-} from 'e-teleport/services/accessRequests';
+} from 'shared/services/accessRequests';

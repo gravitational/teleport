@@ -6,11 +6,12 @@ import { makeUserContext } from 'teleport/services/user';
 import { render, screen, waitFor, fireEvent } from 'design/utils/testing';
 import historyService from 'teleport/services/history';
 
-import TeleportContextE from 'e-teleport/teleportContextE';
 import {
   AccessRequest,
   makeAccessRequest,
-} from 'e-teleport/services/accessRequests';
+} from 'shared/services/accessRequests';
+
+import TeleportContextE from 'e-teleport/teleportContextE';
 
 import { Container as WaitingRoom } from './WaitingRoom';
 

@@ -16,13 +16,13 @@ import { UserGroup } from 'teleport/services/userGroups';
 
 import cfg from 'teleport/config';
 
-import Ctx from 'e-teleport/teleportContextE';
-
 import {
   ResourceKind,
   ResourceMap,
   getEmptyResourceState,
-} from 'e-teleport/AccessRequests/NewRequest';
+} from 'shared/components/AccessRequests/NewRequest';
+
+import Ctx from 'e-teleport/teleportContextE';
 
 import type {
   ResourceLabel,

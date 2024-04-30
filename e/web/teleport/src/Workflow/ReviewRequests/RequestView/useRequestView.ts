@@ -15,7 +15,7 @@ import { getBaseRequestFlags } from '../requestFlags';
 import type {
   SubmitReview,
   RequestFlags,
-} from 'e-teleport/AccessRequests/ReviewRequests';
+} from 'shared/components/AccessRequests/ReviewRequests';
 
 export default function useRequestView(ctx: TeleportContextE) {
   const { requestId } = useParams<{ requestId: string }>();
