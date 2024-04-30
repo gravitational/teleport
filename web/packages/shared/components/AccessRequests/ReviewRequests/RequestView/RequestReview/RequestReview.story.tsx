@@ -30,7 +30,7 @@ import { requestRolePending } from '../../../fixtures';
 import RequestReview, { RequestReviewProps } from './RequestReview';
 
 export default {
-  title: 'TeleportE/AccessRequests/RequestReview',
+  title: 'Shared/AccessRequests/RequestReview',
   decorators: [
     Story => (
       <div style={{ backgroundColor: '#222C59', padding: '40px' }}>

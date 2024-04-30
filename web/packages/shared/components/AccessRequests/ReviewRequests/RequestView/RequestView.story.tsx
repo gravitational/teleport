@@ -39,7 +39,7 @@ import { RequestView, RequestViewProps } from './RequestView';
 import { RequestFlags, SuggestedAccessList } from './types';
 
 export default {
-  title: 'TeleportE/AccessRequests/RequestView',
+  title: 'Shared/AccessRequests/RequestView',
 };
 
 export const LoadedSearchPending = () => {
