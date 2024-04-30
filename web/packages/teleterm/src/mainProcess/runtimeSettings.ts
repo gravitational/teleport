@@ -78,6 +78,9 @@ export function getRuntimeSettings(): RuntimeSettings {
   const logsDir = path.join(userDataDir, 'logs');
   // DO NOT expose agentsDir through RuntimeSettings. See the comment in getAgentsDir.
   const agentsDir = getAgentsDir(userDataDir);
+  const installationId = loadInstallationId(
+    path.resolve(app.getPath('userData'), 'installation_id')
+  );
 
   const tshd = {
     binaryPath: tshBinPath,
@@ -93,6 +96,7 @@ export function getRuntimeSettings(): RuntimeSettings {
       `--prehog-addr=${staticConfig.prehogAddress}`,
       `--kubeconfigs-dir=${kubeConfigsDir}`,
       `--agents-dir=${agentsDir}`,
+      `--installation-id=${installationId}`,
     ],
   };
   const sharedProcess = {
@@ -135,9 +139,7 @@ export function getRuntimeSettings(): RuntimeSettings {
     kubeConfigsDir,
     logsDir,
     platform: process.platform,
-    installationId: loadInstallationId(
-      path.resolve(app.getPath('userData'), 'installation_id')
-    ),
+    installationId,
     arch: os.arch(),
     osVersion: os.release(),
     appVersion,

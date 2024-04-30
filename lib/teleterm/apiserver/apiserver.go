@@ -66,6 +66,7 @@ func New(cfg Config) (*APIServer, error) {
 	vnetService, err := vnet.New(vnet.Config{
 		DaemonService:      cfg.Daemon,
 		InsecureSkipVerify: cfg.InsecureSkipVerify,
+		InstallationID:     cfg.InstallationID,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

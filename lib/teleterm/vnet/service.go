@@ -70,12 +70,18 @@ func New(cfg Config) (*Service, error) {
 type Config struct {
 	DaemonService      *daemon.Service
 	InsecureSkipVerify bool
+	// InstallationID used for event reporting.
+	InstallationID string
 }
 
 // CheckAndSetDefaults checks and sets the defaults
 func (c *Config) CheckAndSetDefaults() error {
 	if c.DaemonService == nil {
 		return trace.BadParameter("missing DaemonService")
+	}
+
+	if c.InstallationID == "" {
+		return trace.BadParameter("missing InstallationID")
 	}
 
 	return nil
