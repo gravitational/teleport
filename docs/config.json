@@ -1841,7 +1841,7 @@
             },
             {
               "title": "Linux Server (TPM)",
-              "slug": "/machine-id/deployment/linux-tpm/",
+              "slug": "/machine-id/deployment/linux-tpm/"
             },
             {
               "title": "Kubernetes",
