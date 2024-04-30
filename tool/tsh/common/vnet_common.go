@@ -96,8 +96,8 @@ type tcpAppHandler struct {
 	app types.Application
 }
 
-// HandleTCP handles a TCP connection from VNet and proxies it to the application.
-func (h *tcpAppHandler) HandleTCP(ctx context.Context, connector func() (net.Conn, error)) error {
+// HandleTCPConnector handles a TCP connection from VNet and proxies it to the application.
+func (h *tcpAppHandler) HandleTCPConnector(ctx context.Context, connector func() (net.Conn, error)) error {
 	return trace.NotImplemented("HandleTCP is not implemented for TCP app handler")
 }
 

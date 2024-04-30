@@ -226,7 +226,7 @@ func (f *echoAppResolver) ResolveTCPHandler(ctx context.Context, fqdn string) (h
 
 type echoHandler struct{}
 
-func (echoHandler) HandleTCP(ctx context.Context, connector func() (net.Conn, error)) error {
+func (echoHandler) HandleTCPConnector(ctx context.Context, connector func() (net.Conn, error)) error {
 	conn, err := connector()
 	if err != nil {
 		return trace.Wrap(err)
