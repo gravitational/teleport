@@ -111,7 +111,7 @@ to send logs to Panther. This means adding a `<filter>` and `<match>` section to
 will filter and format the logs before sending them to S3, The record_transformer is important to send the 
 right date and time format for Panther. 
 
-```code
+```xml
 <!--
 fluent.conf 
 This is a sample configuration file for Fluentd to send logs to S3. 
@@ -164,9 +164,9 @@ Add the <filter> and <match> sections to the file.
 </filter>
 <match test.log>
   @type s3
-  aws_key_id  (=clusterDefaults.aws.aws_access_key=)
-  aws_sec_key  (=clusterDefaults.aws.aws_secret_access_key=)
-  s3_bucket  (=clusterDefaults.clusterName=)
+  aws_key_id  REPLACE_aws_access_key
+  aws_sec_key  REPLACE_aws_secret_access_key
+  s3_bucket  REPLACE_s3_bucket
   s3_region us-west-2
   path teleport/logs
   <buffer>
