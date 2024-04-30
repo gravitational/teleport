@@ -1240,11 +1240,15 @@ func (p *crownJewelParser) parse(event backend.Event) (types.Resource, error) {
 	case types.OpDelete:
 		return resourceHeader(event, types.KindCrownJewel, types.V1, 0)
 	case types.OpPut:
-		return services.UnmarshalCrownJewel(event.Item.Value,
+		r, err := services.UnmarshalCrownJewel(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(r), nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}

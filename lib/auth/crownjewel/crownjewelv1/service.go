@@ -11,7 +11,6 @@ import (
 	"github.com/gravitational/teleport"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	"github.com/gravitational/teleport/api/types"
-	conv "github.com/gravitational/teleport/api/types/crownjewel/convert/v1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -43,7 +42,7 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 	}
 
 	if s.Logger == nil {
-		s.Logger = logrus.New().WithField(teleport.ComponentKey, "discoveryconfig_crud_service")
+		s.Logger = logrus.New().WithField(teleport.ComponentKey, "crownjewel_crud_service")
 	}
 
 	if s.Clock == nil {
@@ -88,12 +87,12 @@ func (s *Service) CreateCrownJewel(ctx context.Context, crownJewel *crownjewelv1
 		return nil, trace.Wrap(err)
 	}
 
-	rsp, err := s.backend.CreateCrownJewel(ctx, conv.FromProto(crownJewel.CrownJewels))
+	rsp, err := s.backend.CreateCrownJewel(ctx, crownJewel.CrownJewels)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return conv.ToProto(rsp), nil
+	return rsp, nil
 }
 
 // ListCrownJewels returns a list of crown jewels.
@@ -107,18 +106,19 @@ func (s *Service) ListCrownJewels(ctx context.Context, req *crownjewelv1.ListCro
 		return nil, trace.Wrap(err)
 	}
 
-	rsp, err := s.backend.ListCrownJewels(ctx, req.PageSize, req.PageToken)
+	rsp, nextToken, err := s.backend.ListCrownJewels(ctx, req.PageSize, req.PageToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	var elems []*crownjewelv1.CrownJewel
 	for _, elem := range rsp {
-		elems = append(elems, conv.ToProto(elem))
+		elems = append(elems, elem)
 	}
 
 	return &crownjewelv1.ListCrownJewelsResponse{
-		CrownJewels: elems,
+		CrownJewels:   elems,
+		NextPageToken: nextToken,
 	}, nil
 }
 
@@ -133,12 +133,12 @@ func (s *Service) UpdateCrownJewel(ctx context.Context, req *crownjewelv1.Update
 		return nil, trace.Wrap(err)
 	}
 
-	rsp, err := s.backend.UpdateCrownJewel(ctx, conv.FromProto(req.CrownJewels))
+	rsp, err := s.backend.UpdateCrownJewel(ctx, req.CrownJewels)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return conv.ToProto(rsp), nil
+	return rsp, nil
 }
 
 // DeleteCrownJewel deletes crown jewel resource.

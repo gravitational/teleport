@@ -42,6 +42,7 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -936,17 +937,17 @@ func (rc *ResourceCommand) createCrownJewel(ctx context.Context, client *auth.Cl
 	if _, err := client.CrownJewelsClient().CreateCrownJewel(ctx, crownJewel); err != nil {
 		if trace.IsAlreadyExists(err) {
 			if !rc.force {
-				return trace.AlreadyExists("crown jewel %q already exists", crownJewel.GetName())
+				return trace.AlreadyExists("crown jewel %q already exists", crownJewel.GetMetadata().GetName())
 			}
 			if _, err := client.CrownJewelsClient().UpdateCrownJewel(ctx, crownJewel); err != nil {
 				return trace.Wrap(err)
 			}
-			fmt.Printf("crown jewel %q has been updated\n", crownJewel.GetName())
+			fmt.Printf("crown jewel %q has been updated\n", crownJewel.GetMetadata().GetName())
 			return nil
 		}
 		return trace.Wrap(err)
 	}
-	fmt.Printf("crown jewel %q has been created\n", crownJewel.GetName())
+	fmt.Printf("crown jewel %q has been created\n", crownJewel.GetMetadata().GetName())
 	return nil
 }
 
@@ -1561,20 +1562,21 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *auth.Client) (err
 		}
 		fmt.Printf("%s %q has been deleted\n", resDesc, name)
 	case types.KindCrownJewel:
-		crownJewels, err := client.CrownJewelsClient().ListCrownJewels(ctx, 0 /* default size */, "") // TODO
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		resDesc := "crown jewel"
-		crownJewels = filterByNameOrDiscoveredName(crownJewels, rc.ref.Name)
-		name, err := getOneResourceNameToDelete(crownJewels, rc.ref, resDesc)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if err := client.CrownJewelsClient().DeleteCrownJewel(ctx, name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("%s %q has been deleted\n", resDesc, name)
+		return trace.NotImplemented("deleting crown jewels is not supported yet")
+		//crownJewels, _, err := client.CrownJewelsClient().ListCrownJewels(ctx, 0 /* default size */, "") // TODO
+		//if err != nil {
+		//	return trace.Wrap(err)
+		//}
+		//resDesc := "crown jewel"
+		//crownJewels = filterByNameOrDiscoveredName(crownJewels, rc.ref.Name)
+		//name, err := getOneResourceNameToDelete(crownJewels, rc.ref, resDesc)
+		//if err != nil {
+		//	return trace.Wrap(err)
+		//}
+		//if err := client.CrownJewelsClient().DeleteCrownJewel(ctx, name); err != nil {
+		//	return trace.Wrap(err)
+		//}
+		//fmt.Printf("%s %q has been deleted\n", resDesc, name)
 	case types.KindWindowsDesktopService:
 		if err = client.DeleteWindowsDesktopService(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
@@ -2278,18 +2280,23 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *auth.Clien
 		}
 		return &kubeClusterCollection{clusters: clusters}, nil
 	case types.KindCrownJewel:
-		crownJewels, err := client.CrownJewelsClient().ListCrownJewels(ctx, 0 /* default size */, "") // TODO
-		if err != nil {
-			return nil, trace.Wrap(err)
+		cjCLient := client.CrownJewelsClient()
+		var rules []*crownjewelv1.CrownJewel
+		nextToken := ""
+		for {
+			resp, token, err := cjCLient.ListCrownJewels(ctx, 0 /* default size */, nextToken)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			rules = append(rules, resp...)
+
+			if token == "" {
+				break
+			}
+			nextToken = token
 		}
-		if rc.ref.Name == "" {
-			return &crownJewelCollection{items: crownJewels}, nil
-		}
-		crownJewels = filterByNameOrDiscoveredName(crownJewels, rc.ref.Name)
-		if len(crownJewels) == 0 {
-			return nil, trace.NotFound("crown jewel %q not found", rc.ref.Name)
-		}
-		return &crownJewelCollection{items: crownJewels}, nil
+		return &crownJewelCollection{items: rules}, nil
 	case types.KindWindowsDesktopService:
 		services, err := client.GetWindowsDesktopServices(ctx)
 		if err != nil {

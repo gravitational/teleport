@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
+	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -36,7 +37,6 @@ import (
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
-	"github.com/gravitational/teleport/api/types/crownjewel"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/api/types/secreports"
@@ -918,12 +918,12 @@ func (c *kubeServerCollection) writeJSON(w io.Writer) error {
 }
 
 type crownJewelCollection struct {
-	items []*crownjewel.CrownJewel
+	items []*crownjewelv1.CrownJewel
 }
 
 func (c *crownJewelCollection) resources() (r []types.Resource) {
 	for _, resource := range c.items {
-		r = append(r, resource)
+		r = append(r, types.Resource153ToLegacy(resource))
 	}
 	return r
 }
@@ -932,14 +932,11 @@ func (c *crownJewelCollection) resources() (r []types.Resource) {
 // If verbose is disabled, labels column can be truncated to fit into the console.
 func (c *crownJewelCollection) writeText(w io.Writer, verbose bool) error {
 	var rows [][]string
-	for _, cluster := range c.items {
-		labels := common.FormatLabels(cluster.GetAllLabels(), verbose)
-		rows = append(rows, []string{
-			common.FormatResourceName(cluster, verbose),
-			labels,
-		})
+	for _, item := range c.items {
+		labels := common.FormatLabels(item.GetMetadata().GetLabels(), verbose)
+		rows = append(rows, []string{item.Metadata.GetName(), item.GetSpec().String(), labels})
 	}
-	headers := []string{"Name", "Labels"}
+	headers := []string{"Name", "Spec", "Labels"} // TODO: check if this is correct
 	var t asciitable.Table
 	if verbose {
 		t = asciitable.MakeTable(headers, rows...)

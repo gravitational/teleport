@@ -21,110 +21,104 @@ package local
 import (
 	"context"
 
+	"github.com/golang/protobuf/proto"
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/gravitational/teleport/api/types/crownjewel"
+	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local/generic"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type CrownJewelsService struct {
-	backend.Backend
-}
-
-// NewCrownJewelsService creates a new CrownJewelsService.
-func NewCrownJewelsService(backend backend.Backend) *CrownJewelsService {
-	return &CrownJewelsService{Backend: backend}
+	service *generic.ServiceWrapper[*crownjewelv1.CrownJewel]
 }
 
 const (
 	crownJewelsKey = "crown_jewels"
 )
 
-func (s *CrownJewelsService) ListCrownJewels(ctx context.Context, pagesize int64, lastKey string) ([]*crownjewel.CrownJewel, error) {
-	startKey := backend.ExactKey(crownJewelsKey)
-	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+// NewCrownJewelsService creates a new CrownJewelsService.
+func NewCrownJewelsService(backend backend.Backend) (*CrownJewelsService, error) {
+	service, err := generic.NewServiceWrapper(backend,
+		types.KindCrownJewel,
+		crownJewelsKey,
+		MarshalCrownJewel,
+		UnmarshalCrownJewel)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	crownJewels := make([]*crownjewel.CrownJewel, len(result.Items))
-	for i, item := range result.Items {
-		cluster, err := services.UnmarshalCrownJewel(item.Value,
-			services.WithResourceID(item.ID),
-			services.WithExpires(item.Expires),
-			services.WithRevision(item.Revision))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		crownJewels[i] = cluster
-	}
-	return crownJewels, nil
+	return &CrownJewelsService{service: service}, nil
 }
 
-func (s *CrownJewelsService) CreateCrownJewel(ctx context.Context, crownJewel *crownjewel.CrownJewel) (*crownjewel.CrownJewel, error) {
-	if err := services.CheckAndSetDefaults(crownJewel); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	value, err := services.MarshalCrownJewel(crownJewel)
+func MarshalCrownJewel(object *crownjewelv1.CrownJewel, opts ...services.MarshalOption) ([]byte, error) {
+	cfg, err := services.CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	item := backend.Item{
-		Key:     backend.Key(crownJewelsKey, crownJewel.GetName()),
-		Value:   value,
-		Expires: crownJewel.Expiry(),
-		ID:      crownJewel.GetResourceID(),
+	if !cfg.PreserveResourceID {
+		object = proto.Clone(object).(*crownjewelv1.CrownJewel)
+		//nolint:staticcheck // SA1019. Deprecated, but still needed.
+		object.Metadata.Id = 0
+		object.Metadata.Revision = ""
 	}
-	lease, err := s.Create(ctx, item)
+	data, err := utils.FastMarshal(object)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	crownJewel.SetResourceID(lease.ID)
-	crownJewel.SetRevision(lease.Revision)
-	return crownJewel, nil
+	return data, nil
 }
 
-func (s *CrownJewelsService) UpdateCrownJewel(ctx context.Context, crownJewel *crownjewel.CrownJewel) (*crownjewel.CrownJewel, error) {
-	if err := services.CheckAndSetDefaults(crownJewel); err != nil {
-		return nil, trace.Wrap(err)
+func UnmarshalCrownJewel(data []byte, opts ...services.MarshalOption) (*crownjewelv1.CrownJewel, error) {
+	if len(data) == 0 {
+		return nil, trace.BadParameter("missing DatabaseObject data")
 	}
-	value, err := services.MarshalCrownJewel(crownJewel)
+	cfg, err := services.CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	item := backend.Item{
-		Key:      backend.Key(crownJewelsKey, crownJewel.GetName()),
-		Value:    value,
-		Expires:  crownJewel.Expiry(),
-		ID:       crownJewel.GetResourceID(),
-		Revision: crownJewel.GetRevision(),
-	}
-	// TODO: check if the item exists before updating???
-	lease, err := s.Update(ctx, item)
+	var obj crownjewelv1.CrownJewel
+	err = utils.FastUnmarshal(data, &obj)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	crownJewel.SetResourceID(lease.ID)
-	crownJewel.SetRevision(lease.Revision)
-	return crownJewel, nil
+	if cfg.ID != 0 {
+		//nolint:staticcheck // SA1019. Id is deprecated, but still needed.
+		obj.Metadata.Id = cfg.ID
+	}
+	if cfg.Revision != "" {
+		obj.Metadata.Revision = cfg.Revision
+	}
+	if !cfg.Expires.IsZero() {
+		obj.Metadata.Expires = timestamppb.New(cfg.Expires)
+	}
+	return &obj, nil
+}
+
+func (s *CrownJewelsService) ListCrownJewels(ctx context.Context, pagesize int64, lastKey string) ([]*crownjewelv1.CrownJewel, string, error) {
+	r, nextToken, err := s.service.ListResources(ctx, int(pagesize), lastKey)
+	return r, nextToken, trace.Wrap(err)
+}
+
+func (s *CrownJewelsService) CreateCrownJewel(ctx context.Context, crownJewel *crownjewelv1.CrownJewel) (*crownjewelv1.CrownJewel, error) {
+	r, err := s.service.CreateResource(ctx, crownJewel)
+	return r, trace.Wrap(err)
+}
+
+func (s *CrownJewelsService) UpdateCrownJewel(ctx context.Context, crownJewel *crownjewelv1.CrownJewel) (*crownjewelv1.CrownJewel, error) {
+	r, err := s.service.UpdateResource(ctx, crownJewel)
+	return r, trace.Wrap(err)
 }
 
 func (s *CrownJewelsService) DeleteCrownJewel(ctx context.Context, name string) error {
-	err := s.Delete(ctx, backend.Key(crownJewelsKey, name))
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return trace.NotFound("crown jewel %q doesn't exist", name)
-		}
-		return trace.Wrap(err)
-	}
-	return nil
+	err := s.service.DeleteResource(ctx, name)
+	return trace.Wrap(err)
 }
 
 func (s *CrownJewelsService) DeleteAllCrownJewels(ctx context.Context) error {
-	startKey := backend.ExactKey(crownJewelsKey)
-	err := s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	err := s.service.DeleteAllResources(ctx)
+	return trace.Wrap(err)
 }

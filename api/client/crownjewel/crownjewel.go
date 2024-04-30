@@ -6,8 +6,6 @@ import (
 	"github.com/gravitational/trace"
 
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
-	"github.com/gravitational/teleport/api/types/crownjewel"
-	crownjewelv1conv "github.com/gravitational/teleport/api/types/crownjewel/convert/v1"
 )
 
 // Client is a client for the Crown Jewel API.
@@ -23,43 +21,43 @@ func NewClient(grpcClient crownjewelv1.CrownJewelServiceClient) *Client {
 }
 
 // ListCrownJewels returns a list of Crown Jewels.
-func (c *Client) ListCrownJewels(ctx context.Context, pageSize int64, nextToken string) ([]*crownjewel.CrownJewel, error) {
+func (c *Client) ListCrownJewels(ctx context.Context, pageSize int64, nextToken string) ([]*crownjewelv1.CrownJewel, string, error) {
 	resp, err := c.grpcClient.ListCrownJewels(ctx, &crownjewelv1.ListCrownJewelsRequest{
 		PageSize:  pageSize,
 		PageToken: nextToken,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, "", trace.Wrap(err)
 	}
 
-	cjs := make([]*crownjewel.CrownJewel, 0, len(resp.CrownJewels))
+	cjs := make([]*crownjewelv1.CrownJewel, 0, len(resp.CrownJewels))
 	for _, cj := range resp.CrownJewels {
-		cjs = append(cjs, crownjewelv1conv.FromProto(cj))
+		cjs = append(cjs, cj)
 	}
 
-	return cjs, nil
+	return cjs, resp.NextPageToken, nil
 }
 
 // CreateCrownJewel creates a new Crown Jewel.
-func (c *Client) CreateCrownJewel(ctx context.Context, req *crownjewel.CrownJewel) (*crownjewel.CrownJewel, error) {
+func (c *Client) CreateCrownJewel(ctx context.Context, req *crownjewelv1.CrownJewel) (*crownjewelv1.CrownJewel, error) {
 	rsp, err := c.grpcClient.CreateCrownJewel(ctx, &crownjewelv1.CreateCrownJewelRequest{
-		CrownJewels: crownjewelv1conv.ToProto(req),
+		CrownJewels: req,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return crownjewelv1conv.FromProto(rsp), trace.Wrap(err)
+	return rsp, trace.Wrap(err)
 }
 
 // UpdateCrownJewel updates an existing Crown Jewel.
-func (c *Client) UpdateCrownJewel(ctx context.Context, req *crownjewel.CrownJewel) (*crownjewel.CrownJewel, error) {
+func (c *Client) UpdateCrownJewel(ctx context.Context, req *crownjewelv1.CrownJewel) (*crownjewelv1.CrownJewel, error) {
 	rsp, err := c.grpcClient.UpdateCrownJewel(ctx, &crownjewelv1.UpdateCrownJewelRequest{
-		CrownJewels: crownjewelv1conv.ToProto(req),
+		CrownJewels: req,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return crownjewelv1conv.FromProto(rsp), trace.Wrap(err)
+	return rsp, trace.Wrap(err)
 }
 
 // DeleteCrownJewel deletes a Crown Jewel.

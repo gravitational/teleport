@@ -29,12 +29,12 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
-	"github.com/gravitational/teleport/api/types/crownjewel"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/api/types/userloginstate"
@@ -185,7 +185,7 @@ func (c *genericCollection[T, R, _]) getReader(cacheOK bool) R {
 var _ collectionReader[any] = (*genericCollection[types.Resource, any, executor[types.Resource, any]])(nil)
 
 type crownjewelsGetter interface {
-	ListCrownJewels(ctx context.Context, pageSize int64, nextToken string) ([]*crownjewel.CrownJewel, error)
+	ListCrownJewels(ctx context.Context, pageSize int64, nextToken string) ([]*crownjewelv1.CrownJewel, string, error)
 }
 
 // cacheCollections is a registry of resource collections used by Cache.
@@ -549,7 +549,7 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 			if c.CrownJewels == nil {
 				return nil, trace.BadParameter("missing parameter crownjewels")
 			}
-			collections.crownJewels = &genericCollection[*crownjewel.CrownJewel, crownjewelsGetter, crownJewelsExecutor]{
+			collections.crownJewels = &genericCollection[*crownjewelv1.CrownJewel, crownjewelsGetter, crownJewelsExecutor]{
 				cache: c,
 				watch: watch,
 			}
@@ -2248,11 +2248,26 @@ var _ executor[*kubewaitingcontainerpb.KubernetesWaitingContainer, kubernetesWai
 
 type crownJewelsExecutor struct{}
 
-func (crownJewelsExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*crownjewel.CrownJewel, error) {
-	return cache.CrownJewels.ListCrownJewels(ctx, 0, "")
+func (crownJewelsExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*crownjewelv1.CrownJewel, error) {
+	var resources []*crownjewelv1.CrownJewel
+	var nextToken string
+	for {
+		var page []*crownjewelv1.CrownJewel
+		var err error
+		page, nextToken, err = cache.CrownJewels.ListCrownJewels(ctx, 0 /* page size */, nextToken)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resources = append(resources, page...)
+
+		if nextToken == "" {
+			break
+		}
+	}
+	return resources, nil
 }
 
-func (crownJewelsExecutor) upsert(ctx context.Context, cache *Cache, resource *crownjewel.CrownJewel) error {
+func (crownJewelsExecutor) upsert(ctx context.Context, cache *Cache, resource *crownjewelv1.CrownJewel) error {
 	if _, err := cache.crownJewelsCache.CreateCrownJewel(ctx, resource); err != nil {
 		if !trace.IsAlreadyExists(err) {
 			return trace.Wrap(err)
@@ -2279,7 +2294,7 @@ func (crownJewelsExecutor) getReader(cache *Cache, cacheOK bool) crownjewelsGett
 	return cache.Config.CrownJewels
 }
 
-var _ executor[*crownjewel.CrownJewel, crownjewelsGetter] = crownJewelsExecutor{}
+var _ executor[*crownjewelv1.CrownJewel, crownjewelsGetter] = crownJewelsExecutor{}
 
 //nolint:revive // Because we want this to be IdP.
 type samlIdPServiceProvidersExecutor struct{}
