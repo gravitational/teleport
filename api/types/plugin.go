@@ -39,6 +39,7 @@ var AllPluginTypes = []PluginType{
 	PluginTypePagerDuty,
 	PluginTypeMattermost,
 	PluginTypeDiscord,
+	PluginTypeSCIM,
 }
 
 const (
@@ -66,6 +67,8 @@ const (
 	PluginTypeDiscord = "discord"
 	// PluginTypeGitlab indicates the Gitlab access plugin
 	PluginTypeGitlab = "gitlab"
+	// PluginTypeSCIM indicates a generic SCIM integration
+	PluginTypeSCIM = "scim"
 )
 
 // PluginSubkind represents the type of the plugin, e.g., access request, MDM etc.
@@ -80,6 +83,9 @@ const (
 	PluginSubkindAccess = "access"
 	// PluginSubkindAccessGraph represents access graph plugins collectively
 	PluginSubkindAccessGraph = "accessgraph"
+	// PluginSubkindProvisioning represents plugins that create and manage
+	// Teleport users and/or other resources from an external source
+	PluginSubkindProvisioning = "provisioning"
 )
 
 // Plugin represents a plugin instance
@@ -293,6 +299,10 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if staticCreds == nil {
 			return trace.BadParameter("Gitlab plugin must be used with the static credentials ref type")
 		}
+	case *PluginSpecV1_Scim:
+		if settings.Scim == nil {
+			return trace.BadParameter("Must be used with SCIM settings")
+		}
 	default:
 		return trace.BadParameter("settings are not set or have an unknown type")
 	}
@@ -453,6 +463,9 @@ func (p *PluginV1) GetType() PluginType {
 		return PluginTypeServiceNow
 	case *PluginSpecV1_Gitlab:
 		return PluginTypeGitlab
+	case *PluginSpecV1_Scim:
+		return PluginTypeSCIM
+
 	default:
 		return PluginTypeUnknown
 	}
