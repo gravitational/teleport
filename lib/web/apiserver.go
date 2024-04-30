@@ -2517,13 +2517,18 @@ func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, 
 
 	clientMeta := clientMetaFromReq(r)
 	session, err := h.auth.AuthenticateWebUser(r.Context(), req, clientMeta)
-	if err != nil {
-		// Since checking for private key policy meant that they passed authn,
-		// return policy error as is to help direct user.
-		if keys.IsPrivateKeyPolicyError(err) {
-			return nil, trace.Wrap(err)
-		}
-		// Obscure all other errors.
+	switch {
+	// Since checking for private key policy meant that they passed authn,
+	// return policy error as is to help direct user.
+	case keys.IsPrivateKeyPolicyError(err):
+		return nil, trace.Wrap(err)
+
+	// Return a friendlier error if an SSO user tried to do passwordless.
+	case errors.Is(err, types.ErrPassswordlessLoginBySSOUser):
+		return nil, trace.Wrap(err)
+
+	// Obscure all other errors.
+	case err != nil:
 		return nil, trace.AccessDenied("invalid credentials")
 	}
 
