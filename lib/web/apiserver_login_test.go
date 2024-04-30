@@ -272,6 +272,46 @@ func TestAuthenticate_passwordless(t *testing.T) {
 			test.login(t, assertionResp)
 		})
 	}
+
+	// Test a couple of config-mismatch scenarios.
+	// They progressively alter the cluster's auth preference.
+
+	t.Run("allow_passwordless=false", func(t *testing.T) {
+		// Set allow_passwordless=false
+		authPref, err := authServer.GetAuthPreference(ctx)
+		require.NoError(t, err, "GetAuthPreference failed")
+		authPref.SetAllowPasswordless(false)
+		require.NoError(t,
+			authServer.SetAuthPreference(ctx, authPref),
+			"UpsertAuthPreference failed",
+		)
+
+		// GET /webapi/mfa/login/begin.
+		ep := clt.Endpoint("webapi", "mfa", "login", "begin")
+		_, err = clt.PostJSON(ctx, ep, &client.MFAChallengeRequest{
+			Passwordless: true, // no username and password
+		})
+		assert.ErrorIs(t, err, types.ErrPasswordlessDisabledBySettings, "/webapi/mfa/login/begin error mismatch")
+	})
+
+	t.Run("webauthn disabled", func(t *testing.T) {
+		authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+			Type:         constants.Local,
+			SecondFactor: constants.SecondFactorOTP, // disable webauthn
+		})
+		require.NoError(t, err, "NewAuthPreference failed")
+		require.NoError(t,
+			authServer.SetAuthPreference(ctx, authPref),
+			"UpsertAuthPreference failed",
+		)
+
+		// GET /webapi/mfa/login/begin.
+		ep := clt.Endpoint("webapi", "mfa", "login", "begin")
+		_, err = clt.PostJSON(ctx, ep, &client.MFAChallengeRequest{
+			Passwordless: true, // no username and password
+		})
+		assert.ErrorIs(t, err, types.ErrPasswordlessRequiresWebauthn, "/webapi/mfa/login/begin error mismatch")
+	})
 }
 
 func TestAuthenticate_rateLimiting(t *testing.T) {

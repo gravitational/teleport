@@ -34,6 +34,21 @@ import (
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 )
 
+var (
+	// ErrPasswordlessRequiresWebauthn is issued if a passwordless challenge is
+	// requested but WebAuthn isn't enabled.
+	ErrPasswordlessRequiresWebauthn = &trace.BadParameterError{
+		Message: "passwordless requires WebAuthn",
+	}
+
+	// ErrPasswordlessDisabledBySettings is issued if a passwordless challenge is
+	// requested but passwordless is disabled by cluster settings.
+	// See AuthPreferenceV2.AuthPreferenceV2.
+	ErrPasswordlessDisabledBySettings = &trace.BadParameterError{
+		Message: "passwordless disabled by cluster settings",
+	}
+)
+
 // AuthPreference defines the authentication preferences for a specific
 // cluster. It defines the type (local, oidc) and second factor (off, otp, oidc).
 // AuthPreference is a configuration resource, never create more than one instance
