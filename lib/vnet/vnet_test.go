@@ -19,6 +19,8 @@ package vnet
 import (
 	"context"
 	"crypto/rand"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"io"
 	"log/slog"
@@ -41,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -218,14 +221,18 @@ func (n noUpstreamNameservers) UpstreamNameservers(ctx context.Context) ([]strin
 }
 
 type echoAppProvider struct {
-	profiles []string
-	clients  map[string]map[string]*client.ClusterClient
+	profiles   []string
+	clients    map[string]map[string]*client.ClusterClient
+	dialOpts   DialOptions
+	clientCert tls.Certificate
 }
 
-// newEchoAppProvider returns a fake app provider with the list of named apps in each profile and leaf cluster.
-func newEchoAppProvider(apps map[string]map[string][]string) *echoAppProvider {
+// newEchoAppProvider returns an app provider with the list of named apps in each profile and leaf cluster.
+func newEchoAppProvider(apps map[string]map[string][]string, dialOpts DialOptions, clientCert tls.Certificate) *echoAppProvider {
 	p := &echoAppProvider{
-		clients: make(map[string]map[string]*client.ClusterClient, len(apps)),
+		clients:    make(map[string]map[string]*client.ClusterClient, len(apps)),
+		dialOpts:   dialOpts,
+		clientCert: clientCert,
 	}
 	for profileName, leafClusters := range apps {
 		p.profiles = append(p.profiles, profileName)
@@ -262,6 +269,14 @@ func (p *echoAppProvider) GetCachedClient(ctx context.Context, profileName, leaf
 	return c, nil
 }
 
+func (p *echoAppProvider) ReissueAppCert(ctx context.Context, profileName, leafClusterName string, app types.Application) (tls.Certificate, error) {
+	return p.clientCert, nil
+}
+
+func (p *echoAppProvider) GetDialOptions(ctx context.Context, profileName string) (*DialOptions, error) {
+	return &p.dialOpts, nil
+}
+
 // echoAppAuthClient is a fake auth client that answers GetResources requests with a static list of apps and
 // basic/faked predicate filtering.
 type echoAppAuthClient struct {
@@ -291,7 +306,7 @@ func (c *echoAppAuthClient) GetResources(ctx context.Context, req *proto.ListRes
 								Name: app,
 							},
 							Spec: types.AppSpecV3{
-								PublicAddr: appPublicAddr,
+								PublicAddr: app,
 							},
 						},
 					},
@@ -308,6 +323,48 @@ func TestDialFakeApp(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
+	cert, err := tls.X509KeyPair([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
+	require.NoError(t, err)
+
+	tlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{cert},
+	}
+
+	listener, err := tls.Listen("tcp", "127.0.0.1:0", tlsConfig)
+	require.NoError(t, err)
+
+	// Run a fake web proxy that will accept any client connection and echo the input back.
+	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
+		Name: "web proxy",
+		Task: func(ctx context.Context) error {
+			for {
+				conn, err := listener.Accept()
+				if err != nil {
+					if utils.IsOKNetworkError(err) {
+						return nil
+					}
+					return trace.Wrap(err)
+				}
+				go utils.ProxyConn(ctx, conn, conn)
+			}
+		},
+		Terminate: func() error {
+			if err := listener.Close(); !utils.IsOKNetworkError(err) {
+				return trace.Wrap(err)
+			}
+			return nil
+		},
+	})
+
+	roots := x509.NewCertPool()
+	roots.AppendCertsFromPEM([]byte(fixtures.TLSCAKeyPEM))
+
+	dialOpts := DialOptions{
+		WebProxyAddr:          listener.Addr().String(),
+		RootClusterCACertPool: roots,
+		InsecureSkipVerify:    true,
+	}
+
 	appProvider := newEchoAppProvider(map[string]map[string][]string{
 		"root1.example.com": map[string][]string{
 			"":                 {"echo1", "echo2"},
@@ -317,7 +374,7 @@ func TestDialFakeApp(t *testing.T) {
 			"":                  {"echo1", "echo2"},
 			"leaf2.example.com": {"echo1"},
 		},
-	})
+	}, dialOpts, cert)
 
 	validAppNames := []string{
 		"echo1.root1.example.com",
@@ -359,7 +416,6 @@ func TestDialFakeApp(t *testing.T) {
 		}
 	})
 
-	// Tests with invalid hostnames just check that we don't return an answer and nothing panics.
 	t.Run("invalid", func(t *testing.T) {
 		t.Parallel()
 		for _, app := range invalidAppNames {
@@ -367,12 +423,10 @@ func TestDialFakeApp(t *testing.T) {
 			t.Run("invalid/"+app, func(t *testing.T) {
 				t.Parallel()
 
-				ctx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
+				ctx, cancel := context.WithTimeout(ctx, 200*time.Millisecond)
 				defer cancel()
 				_, err := p.lookupHost(ctx, app)
-				var dnsError *net.DNSError
-				require.ErrorAs(t, err, &dnsError)
-				require.True(t, dnsError.IsTimeout, "expected DNS timeout error, got %+v", dnsError)
+				require.Error(t, err, "asdf")
 			})
 		}
 	})

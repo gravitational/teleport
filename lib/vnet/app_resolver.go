@@ -18,19 +18,23 @@ package vnet
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"log/slog"
 	"net"
 	"strings"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/sync/singleflight"
 
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy"
+	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 )
 
 // AppProvider is an interface providing the necessary methods to log in to apps and get clients able to list
@@ -44,6 +48,26 @@ type AppProvider interface {
 	// [leafClusterName] may be empty when requesting a client for the root cluster. Returned clients are
 	// expected to be cached, as this may be called frequently.
 	GetCachedClient(ctx context.Context, profileName, leafClusterName string) (*client.ClusterClient, error)
+
+	// ReissueAppCert returns a new app certificate for the given app in the named profile and leaf cluster.
+	// Implementations may trigger a re-login to the cluster, but if they do, they MUST clear all cached
+	// clients for that cluster so that new working clients will be returned from [GetCachedClient].
+	ReissueAppCert(ctx context.Context, profileName, leafClusterName string, app types.Application) (tls.Certificate, error)
+
+	// GetDialOptions returns ALPN dial options for the profile.
+	GetDialOptions(ctx context.Context, profileName string) (*DialOptions, error)
+}
+
+// DialOptions holds ALPN dial options for dialing apps.
+type DialOptions struct {
+	// WebProxyAddr is the address to dial.
+	WebProxyAddr string
+	// ALPNConnUpgradeRequired specifies if ALPN connection upgrade is required.
+	ALPNConnUpgradeRequired bool
+	// RootClusterCACertPool overrides the x509 certificate pool used to verify the server.
+	RootClusterCACertPool *x509.CertPool
+	// InsecureSkipTLSVerify turns off verification for x509 upstream ALPN proxy service certificate.
+	InsecureSkipVerify bool
 }
 
 // TCPAppResolver implements [TCPHandlerResolver] for Teleport TCP apps.
@@ -118,7 +142,8 @@ func (r *TCPAppResolver) resolveTCPHandlerForCluster(
 		Limit:               1,
 	})
 	if err != nil {
-		// Don't return an error so we can try to find the app in different clusters or forward the request upstream.
+		// Don't return an error so we can try to find the app in different clusters or forward the request
+		// upstream.
 		slog.InfoContext(ctx, "Failed to list application servers.", "error", err)
 		return nil, false, nil
 	}
@@ -138,6 +163,7 @@ type tcpAppHandler struct {
 	profileName     string
 	leafClusterName string
 	app             types.Application
+	lp              *alpnproxy.LocalProxy
 }
 
 func newTCPAppHandler(
@@ -147,20 +173,67 @@ func newTCPAppHandler(
 	leafClusterName string,
 	app types.Application,
 ) (*tcpAppHandler, error) {
+	dialOpts, err := appProvider.GetDialOptions(ctx, profileName)
+	if err != nil {
+		return nil, trace.Wrap(err, "getting dial options for profile %q", profileName)
+	}
+
+	appCertIssuer := &appCertIssuer{
+		appProvider:     appProvider,
+		profileName:     profileName,
+		leafClusterName: leafClusterName,
+		app:             app,
+	}
+	middleware := client.NewCertChecker(appCertIssuer, nil /*clock*/)
+
+	localProxyConfig := alpnproxy.LocalProxyConfig{
+		RemoteProxyAddr:         dialOpts.WebProxyAddr,
+		Protocols:               []alpncommon.Protocol{alpncommon.ProtocolTCP},
+		ParentContext:           ctx,
+		RootCAs:                 dialOpts.RootClusterCACertPool,
+		ALPNConnUpgradeRequired: dialOpts.ALPNConnUpgradeRequired,
+		Middleware:              middleware,
+		InsecureSkipVerify:      dialOpts.InsecureSkipVerify,
+	}
+
+	lp, err := alpnproxy.NewLocalProxy(localProxyConfig)
+	if err != nil {
+		return nil, trace.Wrap(err, "creating local proxy")
+	}
+
 	return &tcpAppHandler{
 		profileName:     profileName,
 		leafClusterName: leafClusterName,
 		app:             app,
+		lp:              lp,
 	}, nil
 }
 
+// HandleTCPConnector handles an incoming TCP connection from VNet by passing it to the local alpn proxy,
+// which is set up with middleware to automatically handler certificate renewal and re-logins.
 func (h *tcpAppHandler) HandleTCPConnector(ctx context.Context, connector func() (net.Conn, error)) error {
-	conn, err := connector()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	// HandleTCPConnector not implemented yet - just echo input back to output.
-	return trace.Wrap(utils.ProxyConn(ctx, conn, conn))
+	return trace.Wrap(h.lp.HandleTCPConnector(ctx, connector), "handling TCP connector")
+}
+
+// appCertIssuer implements [client.CertIssuer].
+type appCertIssuer struct {
+	appProvider     AppProvider
+	profileName     string
+	leafClusterName string
+	app             types.Application
+	group           singleflight.Group
+}
+
+func (i *appCertIssuer) CheckCert(cert *x509.Certificate) error {
+	// appCertIssuer does not perform any additional certificate checks.
+	return nil
+}
+
+func (i *appCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) {
+	cert, err, _ := i.group.Do("", func() (any, error) {
+		return i.appProvider.ReissueAppCert(ctx, i.profileName, i.leafClusterName, i.app)
+	})
+	return cert.(tls.Certificate), trace.Wrap(err)
 }
 
 func isSubdomain(appFQDN, proxyAddress string) bool {
