@@ -45,36 +45,7 @@ https://github.com/tpm2-software/tpm2-tss/blob/ede63dd1ac1f0a46029d457304edcac21
 
 ## Step 2/5. Create a Bot
 
-Next, we need to create a Bot in the Teleport cluster. A Bot is an identity
-for a machine or group of machines. Just like a User, a Bot can have roles and
-traits.
-
-If multiple machines complete similar tasks, and therefore require the same
-access, it is recommended that they share a single Bot identity.
-
-Create `bot.yaml`:
-
-```yaml
-kind: bot
-version: v1
-metadata:
-  # name is a unique identifier for the Bot in the cluster.
-  name: <Var name="my-bot" />
-spec:
-  # roles is a list of Roles to grant to the Bot.
-  #
-  # If you don't know what roles your Bot will need yet, don't worry, the
-  # access guides will help you determine this.
-  roles: []
-```
-
-Ensure that you replace `example` with a unique descriptive name for your Bot.
-
-Apply this to your Teleport cluster using `tctl`:
-
-```code
-$ tctl create -f bot.yaml
-```
+(!docs/pages/includes/machine-id/create-a-bot.mdx!)
 
 ## Step 3/5. Create a `tpm` join token
 
