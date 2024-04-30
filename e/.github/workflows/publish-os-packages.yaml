@@ -55,9 +55,19 @@ jobs:
             package-name-filter: teleport-ent-updater-*
     name: ${{ matrix.repo-type }} ${{ matrix.deployment-config.name }} ${{ matrix.deployment-config.version-channel }}
     steps:
+      - name: Parse version
+        id: version
+        uses: gravitational/teleport.e/.github/actions/parse-version@master
+        with:
+          version: ${{ inputs.artifact-version }}
       - name: Checkout repo
+        if: ${{ steps.version.outputs.pre-release == '' || !contains(inputs.environment, 'prod') }}
         uses: actions/checkout@v4
       - name: Deploy package to `stable/${{ matrix.deployment-config.version-channel }}` ${{ matrix.deployment-config.name }} repos
+        # ************* This is a critical issue ***************
+        # Don't allow sending prerelease artifacts to production environment(s), as this will cause customer
+        # APT/YUM to upgrade to the prerelease.
+        if: ${{ steps.version.outputs.pre-release == '' || !contains(inputs.environment, 'prod') }}
         uses: ./.github/actions/deploy-os-package
         with:
           environment: ${{ inputs.environment }}

@@ -1,5 +1,4 @@
-# Publish a build of the Teleport release artifacts.
-
+---
 name: Publish Tag Build
 run-name: Publish ${{ inputs.cloud-only && 'Cloud ' || '' }}Tag Build of ${{ inputs.oss-teleport-repo }}@${{ inputs.oss-teleport-ref }}${{ inputs.teleport-version && format(' ({0})', inputs.teleport-version) }}
 on:
@@ -28,7 +27,7 @@ on:
 
       environment:
         description: GitHub environment to publish to.
-        type: string
+        type: environment
         default: publish-prod
 
 jobs:
@@ -47,21 +46,19 @@ jobs:
 
   publish-distroless-oci:
     name: Publish distroless OCI images
-    # TODO(camscale): Update called workflow to use environments
-    if: ${{ inputs.environment == 'publish-prod' }} # no publish-stage available
     needs: setup
     secrets: inherit
     permissions:
       contents: read
       id-token: write
-    uses: ./.github/workflows/promote-teleport-oci-distroless.yml
+    uses: ./.github/workflows/publish-teleport-oci-distroless.yml
     with:
       release-source-tag: ${{ needs.setup.outputs.version }}
+      environment: ${{ inputs.environment }}
 
   publish-tbot-distroless-oci:
     name: Publish Tbot distroless OCI images
-    # TODO(camscale): Update called workflow to use environments
-    if: ${{ !inputs.cloud-only && inputs.environment == 'publish-prod' }} # no publish-stage available
+    if: ${{ !inputs.cloud-only }}
     needs: setup
     secrets: inherit
     permissions:
@@ -70,17 +67,17 @@ jobs:
     uses: ./.github/workflows/publish-tbot-distroless-oci.yml
     with:
       release-source-tag: ${{ needs.setup.outputs.version }}
+      environment: ${{ inputs.environment }}
 
   publish-hardened-amis:
     name: Publish hardened AMIs
-    # TODO(camscale): Update called workflow to use environments
-    if: ${{ !inputs.cloud-only && inputs.environment == 'publish-prod' }} # no publish-stage available
+    if: ${{ !inputs.cloud-only }}
     needs: setup
     secrets: inherit
     permissions:
       contents: read
       id-token: write
-    uses: ./.github/workflows/promote-teleport-hardened-amis.yaml
+    uses: ./.github/workflows/publish-teleport-hardened-amis.yaml
     with:
       oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
       oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
@@ -102,8 +99,9 @@ jobs:
 
   publish-to-houston:
     name: Publish to Houston
-    # TODO(camscale): Update called workflow to use environments
-    if: ${{ !inputs.cloud-only && inputs.environment == 'publish-prod' }} # no publish-stage available
+    # No staging version of Houston is available, and Houston will be
+    # terminated soon.
+    if: ${{ !inputs.cloud-only && inputs.environment == 'publish-prod' }}
     needs: setup
     secrets: inherit
     permissions:
@@ -115,16 +113,16 @@ jobs:
 
   publish-kube-agent-updater-oci:
     name: Publish kube agent updater OCI images
-    # TODO(camscale): Update called workflow to use environments
-    if: ${{ !inputs.cloud-only && inputs.environment == 'publish-prod' }} # no publish-stage available
+    if: ${{ !inputs.cloud-only }}
     needs: setup
     secrets: inherit
     permissions:
       contents: read
       id-token: write
-    uses: ./.github/workflows/promote-teleport-kube-agent-updater-oci.yml
+    uses: ./.github/workflows/publish-teleport-kube-agent-updater-oci.yml
     with:
       release-source-tag: ${{ needs.setup.outputs.version }}
+      environment: ${{ inputs.environment }}
 
   publish-operator-oci:
     name: Publish operator OCIs
@@ -150,26 +148,38 @@ jobs:
     uses: ./.github/workflows/publish-os-packages.yaml
     with:
       artifact-version: ${{ needs.setup.outputs.version }}
-      # TODO(camscale): Update called workflow to use publish-prod/stage environments
-      environment: ${{ needs.setup.outputs.pre-release && 'development' || 'production' }}
+      environment: ${{ inputs.environment }}
 
   publish-spacelift-runner:
     name: Publish spacelift runner OCI image
-    # TODO(camscale): Update called workflow to use environments
-    if: ${{ !inputs.cloud-only && inputs.environment == 'publish-prod' }} # no publish-stage available
+    if: ${{ !inputs.cloud-only }}
     needs: setup
     secrets: inherit
     permissions:
       contents: read
       id-token: write
-    uses: ./.github/workflows/promote-teleport-spacelift-runner-oci.yml
+    uses: ./.github/workflows/publish-teleport-spacelift-runner-oci.yml
     with:
       release-source-tag: ${{ needs.setup.outputs.version }}
+      environment: ${{ inputs.environment }}
 
   publish-release:
     name: Publish release
-    # TODO(camscale): Update called workflow to use environments
-    if: ${{ !inputs.cloud-only && inputs.environment == 'publish-prod' }} # no publish-stage available
+    # This janky logic is because `needs` does not support conditionals.
+    # Instead, all the `needs` logic must be packed into `if`.
+    # This can, and should be removed once the publish-to-houston step is removed
+    if: |
+      always()
+      && !inputs.cloud-only
+      && needs.setup.result == 'success'
+      && needs.publish-distroless-oci.result == 'success'
+      && needs.publish-hardened-amis.result == 'success'
+      && needs.publish-helm.result == 'success'
+      && needs.publish-kube-agent-updater-oci.result == 'success'
+      && needs.publish-operator-oci.result == 'success'
+      && needs.publish-os-packages.result == 'success'
+      && needs.publish-spacelift-runner.result == 'success'
+      && contains(fromJSON('["success", "skipped"]'), needs.publish-to-houston.result)
     needs:
       - setup
       - publish-distroless-oci
@@ -187,3 +197,4 @@ jobs:
     with:
       oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
       version: "v${{ needs.setup.outputs.version }}"
+      environment: ${{ inputs.environment }}

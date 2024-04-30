@@ -1,3 +1,4 @@
+---
 name: Publish Operator OCI images
 on:
   workflow_call:
@@ -46,13 +47,13 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@d70bba72b1f3fd22344832f00baa16ece964efeb # v3.3.0
 
-      - name: Assume AWS Promotion Role
+      - name: Assume AWS Publishing Role
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
           aws-region:  us-west-2
           role-to-assume: ${{ vars.PUBLISH_OPERATOR_OCI_AWS_ROLE }}
           role-session-name: "gha-publish-operator-oci-${{ github.run_attempt }}"
-          # Promotion should take roughly a minute, so 15 mins gives us plenty
+          # Publishing should take roughly a minute, so 15 mins gives us plenty
           # of leeway (and is the miminum value we can ask for).
           role-duration-seconds: 900
 

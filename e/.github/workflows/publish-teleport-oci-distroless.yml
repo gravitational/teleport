@@ -1,34 +1,17 @@
-name: Promote Distroless Teleport Images
+---
+name: Publish Distroless Teleport Images
 on:
   workflow_call:
     inputs:
-      pending-registry:
-        description: |
-          Registry and namespace prefix for the repository holding the
-          pending release images, formatted for use with Docker (that is,
-          like an URI, not the AWS ARN). 
-        type: string
-        default: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational
-
       release-source-tag:
         description: The semver version tag of the Teleport revision that we're building.
         type: string
         required: true
 
-      promotion-role-arn:
-        description: ARN of the role that grants promotion rights.
+      environment:
+        description: GitHub environment to publish to.
         type: string
-        default: arn:aws:iam::146628656107:role/teleport-oci-promotion-gha
-
-      validation-key-url:
-        description: URL of the key used to validate internal Teleport images.
-        type: string
-        default: awskms:///arn:aws:kms:us-west-2:146628656107:alias/teleport-oci-pending-build-signing
-
-      production-signing-key-url:
-        description: URL of the key used to sign the production images as Official Teleport images.
-        type: string
-        default: awskms:///arn:aws:kms:us-west-2:146628656107:alias/teleport-oci-production-signing
+        default: publish-prod
 
       workflow-tag:
         description: Tag used to identify workflow runs spawned by this event.
@@ -37,25 +20,16 @@ on:
   # The workflow_dispatch event duplicates the workflow_call input parameters, without descriptions.
   workflow_dispatch:
     inputs:
-      pending-registry:
-        type: string
-        default: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational
       release-source-tag:
         type: string
         required: true
-      promotion-role-arn:
-        type: string
-        default: arn:aws:iam::146628656107:role/teleport-oci-promotion-gha
-      validation-key-url:
-        type: string
-        default: awskms:///arn:aws:kms:us-west-2:146628656107:alias/teleport-oci-pending-build-signing
-      production-signing-key-url:
-        type: string
-        default: awskms:///arn:aws:kms:us-west-2:146628656107:alias/teleport-oci-production-signing
+      environment:
+        type: environment
+        default: publish-prod
       workflow-tag:
         type: string
 
-run-name: 'Promote OCI images for Teleport ${{ inputs.release-source-tag }}'
+run-name: 'Publish OCI images for Teleport ${{ inputs.release-source-tag }}'
 
 jobs:
   identity:
@@ -76,13 +50,13 @@ jobs:
       teleport-version-prerelease: ${{ steps.version.outputs.prerelease }}
       dest-image-tags: ${{ steps.version.outputs.image_tags }}
     steps:
-      # Generates a list of tags that will be applied to the promoted image. In the
+      # Generates a list of tags that will be applied to the published image. In the
       # case of a "normal" release (identified by a version tag with no pre-release
-      # suffix) the promoted image is assumed to take over all of the more-significant
+      # suffix) the published image is assumed to take over all of the more-significant
       # release numbers, as well as its own (e.g 11.2.3 implies tags of 11 and 11.2).
       #
-      # A version tag with a pre-release sufffix will only be promoted as itself, in
-      # order to allow things like RCs and Betas to be promoted without overriding any
+      # A version tag with a pre-release sufffix will only be published as itself, in
+      # order to allow things like RCs and Betas to be published without overriding any
       # existing release.
       - name: Generate Tags
         id: version
@@ -106,7 +80,7 @@ jobs:
           echo prerelease=$4 >> $GITHUB_OUTPUT
           echo image_tags=${tags} >> $GITHUB_OUTPUT
 
-  promote-images:
+  publish-images:
     needs: configure
     permissions:
       id-token: write  # required for aws-actions/configure-aws-credentials
@@ -126,17 +100,9 @@ jobs:
             repo-enterprise-infix: '-ent'
           - release: 'fips'
             repo-enterprise-infix: '-ent-fips'
-    uses: ./.github/workflows/oci-image-promote.yml
+    uses: ./.github/workflows/oci-image-publish.yml
     with:
-      pending-registry: ${{ inputs.pending-registry }}
-      pending-repository: teleport${{ matrix.repo-enterprise-infix }}-distroless${{ matrix.repo-debug-suffix }}
+      repository: teleport${{ matrix.repo-enterprise-infix }}-distroless${{ matrix.repo-debug-suffix }}
       pending-tag: ${{ needs.configure.outputs.teleport-version }}
-      validation-key-url: ${{ inputs.validation-key-url }}
-      production-registry: public.ecr.aws
-      production-registry-region: us-east-1
-      production-repository: gravitational/teleport${{ matrix.repo-enterprise-infix }}-distroless${{ matrix.repo-debug-suffix }}
-      production-tags: "${{ needs.configure.outputs.dest-image-tags }}"
-      production-signing-key-url: ${{ inputs.production-signing-key-url }}
-      promotion-role-arn: ${{ inputs.promotion-role-arn }}
-      
-
+      production-tags: ${{ needs.configure.outputs.dest-image-tags }}
+      environment: ${{ inputs.environment }}

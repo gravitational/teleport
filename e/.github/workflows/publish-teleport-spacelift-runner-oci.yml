@@ -1,5 +1,5 @@
 ---
-name: Publish Distroless Tbot Images
+name: Publish Teleport Spacelift Runner Images
 on:
   workflow_call:
     inputs:
@@ -29,46 +29,65 @@ on:
       workflow-tag:
         type: string
 
-run-name: 'Publish Tbot OCI images for ${{ inputs.release-source-tag }}'
+run-name: 'Publish OCI images for Teleport Spacelift Runner ${{ inputs.release-source-tag }}'
 
 jobs:
+  identity:
+    runs-on: ubuntu-latest
+    if: inputs.workflow-tag != ''
+    steps:
+      - name: ${{ inputs.workflow-tag }}
+        run: echo ${{ inputs.workflow-tag }}
+
   configure:
     name: Configure Build
     runs-on: ubuntu-latest
     outputs:
       teleport-version: ${{ steps.version.outputs.full }}
-      dest-image-tags: ${{ steps.version.outputs.labels }}
+      teleport-version-major: ${{ steps.version.outputs.major }}
+      teleport-version-minor: ${{ steps.version.outputs.minor }}
+      teleport-version-patch: ${{ steps.version.outputs.patch }}
+      teleport-version-prerelease: ${{ steps.version.outputs.prerelease }}
+      dest-image-tags: ${{ steps.version.outputs.image_tags }}
     steps:
-      - name: ${{ inputs.workflow-tag }}
-        if: inputs.workflow-tag != ''
-        run: echo ${{ inputs.workflow-tag }}
       # Generates a list of tags that will be applied to the published image. In the
       # case of a "normal" release (identified by a version tag with no pre-release
       # suffix) the published image is assumed to take over all of the more-significant
       # release numbers, as well as its own (e.g 11.2.3 implies tags of 11 and 11.2).
       #
-      # A version tag with a pre-release sufffix will only be published as itself, in
+      # A version tag with a pre-release suffix will only be published as itself, in
       # order to allow things like RCs and Betas to be published without overriding any
       # existing release.
-      - name: Parse version
+      - name: Generate Tags
         id: version
-        uses: gravitational/teleport.e/.github/actions/parse-version@master
-        with:
-          version: ${{ inputs.release-source-tag }}
+        run: |
+          version=${{ inputs.release-source-tag }}
+          version="${version#v}"
+
+          if ! [[ "${version}" =~ [^0-9]*([0-9]+)\.([0-9]+)\.([0-9]+)(-[0-9A-Za-z.+-]+)? ]]; then
+                  echo bad version
+                  exit 1
+          fi
+
+          set -- "${BASH_REMATCH[@]:1}" # get regex groups as $1, $2, ... etc
+          tags="${version}"
+          [[ -z "$4" ]] && tags+=" $1.$2 $1" # add major.minor and major tags if not prerelease
+
+          echo full=${version} >> $GITHUB_OUTPUT
+          echo major=$1 >> $GITHUB_OUTPUT
+          echo minor=$2 >> $GITHUB_OUTPUT
+          echo patch=$3 >> $GITHUB_OUTPUT
+          echo prerelease=$4 >> $GITHUB_OUTPUT
+          echo image_tags=${tags} >> $GITHUB_OUTPUT
+
   publish-images:
     needs: configure
     permissions:
-      contents: read
       id-token: write  # required for aws-actions/configure-aws-credentials
-    strategy:
-      matrix:
-        release: ['oss', 'fips']
-        include:
-          - release: 'fips'
-            repo-infix: '-fips'
+      contents: read
     uses: ./.github/workflows/oci-image-publish.yml
     with:
-      repository: tbot${{ matrix.repo-infix }}-distroless
+      repository: teleport-spacelift-runner
       pending-tag: ${{ needs.configure.outputs.teleport-version }}
       production-tags: ${{ needs.configure.outputs.dest-image-tags }}
       environment: ${{ inputs.environment }}

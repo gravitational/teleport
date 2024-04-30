@@ -337,7 +337,7 @@ jobs:
       - name: Sign image using signing key and GitHub OIDC Token
         if: steps.check.outputs.build_image == 'true'
         env:
-          SIGNING_KEY_ARN: ${{ vars.OCI_SIGNING_KEY_ARN }}
+          SIGNING_KEY_ARN: ${{ vars.OCI_PENDING_SIGNING_KEY_ARN }}
           DST_IMAGE: "${{ vars.ECR_PENDING_REPO_BASE }}/${{ inputs.dest-image-repo }}@${{ steps.build.outputs.digest }}"
         run: |
           cosign sign --yes --key awskms:///${SIGNING_KEY_ARN} --recursive ${DST_IMAGE}
