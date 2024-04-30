@@ -159,7 +159,7 @@ Teleport Proxy Service or Enterprise Cloud site. Assign <Var name="us-west-1" />
 to the region associated with the RDS database.
 
 Run the following command to proxy an AWS Aurora cluster, assigning <Var
-name="RDS_URI" /> to your cluster's domain name and port and <Var
+name="RDS_URI" /> to your cluster's domain name, port, AWS <Var name="RDS_REGION" /> region and <Var
 name="protocol" /> to either `postgres` or `mysql`, depending on the database
 you want to proxy:
 
@@ -170,11 +170,12 @@ $ sudo teleport db configure create \
    --proxy=<Var name="example.teleport.sh:443" />  \
    --protocol=<Var name="protocol" /> \
    --uri=<Var name="RDS_URI" /> \
+   --aws-region=<Var name="RDS_REGION" /> \
    --token=/tmp/token
 ```
 
 Run the following command to proxy an AWS RDS instance, assigning <Var
-name="RDS_URI" /> to your instance's domain name and port and <Var
+name="RDS_URI" /> to your instance's domain name, port, AWS <Var name="RDS_REGION" /> region and <Var
 name="protocol" /> to either `postgres` or `mysql`, depending on the database
 you want to proxy:
 
@@ -185,6 +186,7 @@ $ sudo teleport db configure create \
    --proxy=<Var name="example.teleport.sh:443" />  \
    --protocol=<Var name="protocol" /> \
    --uri=<Var name="RDS_URI" /> \
+   --aws-region=<Var name="RDS_REGION" /> \   
    --token=/tmp/token
 ```
 
