@@ -29,4 +29,7 @@ const (
 
 	// ComponentUserMonitor is a user monitor component.
 	ComponentUserMonitor = "usermonitor"
+
+	// ComponentGitlab is the Gitlab service component.
+	ComponentGitlab = "gitlab"
 )

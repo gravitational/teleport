@@ -92,6 +92,7 @@ var defaultPluginDescriptors map[types.PluginType]pluginDescriptor = map[types.P
 	types.PluginTypeMattermost: pluginInstallerFn(installMattermostPlugin),
 	types.PluginTypeServiceNow: pluginInstallerFn(installServiceNowPlugin),
 	types.PluginTypeSlack:      slackDescriptor{},
+	types.PluginTypeGitlab:     pluginInstallerFn(installGitlabPlugin),
 }
 
 func installDiscordPlugin(ctx context.Context, sessCtx *web.SessionContext, w http.ResponseWriter, r *http.Request, p *Plugin) (*ui.Plugin, error) {
@@ -206,6 +207,55 @@ func installOpsgeniePlugin(ctx context.Context, sessCtx *web.SessionContext, w h
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	return ui, nil
+}
+
+func installGitlabPlugin(ctx context.Context, sessCtx *web.SessionContext, w http.ResponseWriter, r *http.Request, p *Plugin) (*ui.Plugin, error) {
+	apiKey := r.FormValue("apiKey")
+	if apiKey == "" {
+		return nil, trace.BadParameter("missing API key")
+	}
+	apiEndpoint := r.FormValue("apiEndpoint")
+	if apiEndpoint == "" {
+		return nil, trace.BadParameter("missing API endpoint")
+	}
+
+	req := &pluginspb.CreatePluginRequest{
+		Plugin: &types.PluginV1{
+			SubKind: types.PluginSubkindAccessGraph,
+			Metadata: types.Metadata{
+				Labels: map[string]string{
+					plugins.HostedPluginLabel: "true",
+				},
+				Name: types.PluginTypeGitlab,
+			},
+			Spec: types.PluginSpecV1{
+				Settings: &types.PluginSpecV1_Gitlab{
+					Gitlab: &types.PluginGitlabSettings{
+						ApiEndpoint: apiEndpoint,
+					},
+				},
+			},
+		},
+		StaticCredentials: &types.PluginStaticCredentialsV1{
+			ResourceHeader: types.ResourceHeader{
+				Metadata: types.Metadata{
+					Name: types.PluginTypeGitlab,
+				},
+			},
+			Spec: &types.PluginStaticCredentialsSpecV1{
+				Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
+					APIToken: apiKey,
+				},
+			},
+		},
+	}
+
+	ui, err := installPlugin(ctx, sessCtx, req, p)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return ui, nil
 }
 

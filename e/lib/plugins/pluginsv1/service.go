@@ -45,6 +45,7 @@ func getStaticPlugins() []types.PluginType {
 		types.PluginTypeJira,
 		types.PluginTypeMattermost,
 		types.PluginTypeServiceNow,
+		types.PluginTypeGitlab,
 	}
 }
 

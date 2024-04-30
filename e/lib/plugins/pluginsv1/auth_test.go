@@ -377,5 +377,8 @@ func TestGetAvailablePluginTypes(t *testing.T) {
 		{
 			Type: types.PluginTypeDiscord,
 		},
+		{
+			Type: types.PluginTypeGitlab,
+		},
 	}, resp.PluginTypes)
 }

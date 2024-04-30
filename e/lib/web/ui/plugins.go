@@ -156,6 +156,8 @@ func pluginDetails(p types.Plugin) string {
 		return fmt.Sprintf(`Messages will be sent to Discord channel%s %s`, suffix, combinedChannels)
 	case *types.PluginSpecV1_ServiceNow:
 		return fmt.Sprintf(`Incidents will be created at %q`, settings.ServiceNow.ApiEndpoint)
+	case *types.PluginSpecV1_Gitlab:
+		return fmt.Sprintf(`Gitlab users, projects and groups will be imported from %q`, settings.Gitlab.ApiEndpoint)
 	default:
 		return ""
 	}

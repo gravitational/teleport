@@ -38,14 +38,29 @@ func NewAccessGraphClient(ctx context.Context, config ServiceClientConfig, creds
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	conn, err := dial(ctx, config.Addr, append(opts, opt)...)
+	return conn, trace.Wrap(err)
 
+}
+
+func dial(ctx context.Context, addr string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
 	opts = append(opts,
-		opt,
 		grpc.WithUnaryInterceptor(metadata.UnaryClientInterceptor),
 		grpc.WithStreamInterceptor(metadata.StreamClientInterceptor),
 	)
 
-	conn, err := grpc.DialContext(ctx, config.Addr, opts...)
+	conn, err := grpc.DialContext(ctx, addr, opts...)
+	return conn, trace.Wrap(err)
+}
+
+// NewAccessGraphClientWithCert returns a new access graph service client.
+func NewAccessGraphClientWithCert(ctx context.Context, config ServiceClientConfig, creds tls.Certificate, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+	opt, err := grpcCredentialsWithCert(config, creds)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	conn, err := dial(ctx, config.Addr, append(opts, opt)...)
 	return conn, trace.Wrap(err)
 }
 
@@ -58,7 +73,10 @@ func grpcCredentials(config ServiceClientConfig, creds ClientCredentials) (grpc.
 	if err != nil {
 		return nil, trace.Wrap(err, "cannot parse keypair")
 	}
+	return grpcCredentialsWithCert(config, cert)
+}
 
+func grpcCredentialsWithCert(config ServiceClientConfig, cert tls.Certificate) (grpc.DialOption, error) {
 	var pool *x509.CertPool
 	if config.CA != "" {
 		pool = x509.NewCertPool()
