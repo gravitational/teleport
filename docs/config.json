@@ -1840,6 +1840,10 @@
               "slug": "/machine-id/deployment/linux/"
             },
             {
+              "title": "Linux Server (TPM)",
+              "slug": "/machine-id/deployment/linux-tpm/"
+            },
+            {
               "title": "Kubernetes",
               "slug": "/machine-id/deployment/kubernetes/"
             },
