@@ -1667,6 +1667,9 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		h.log.WithError(err).Error("Cannot read target version")
 	}
 
+	// TODO(mcbattirola): remove isTeam when it is no longer used
+	isTeam := clusterFeatures.GetProductType() == proto.ProductType_PRODUCT_TYPE_TEAM
+
 	webCfg := webclient.WebConfig{
 		Auth:                           authSettings,
 		CanJoinSessions:                canJoinSessions,
@@ -1681,13 +1684,24 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		AssistEnabled:                  assistEnabled,
 		HideInaccessibleFeatures:       clusterFeatures.GetFeatureHiding(),
 		CustomTheme:                    clusterFeatures.GetCustomTheme(),
-		IsTeam:                         clusterFeatures.GetProductType() == proto.ProductType_PRODUCT_TYPE_TEAM,
 		IsIGSEnabled:                   clusterFeatures.GetIdentityGovernance(),
 		FeatureLimits: webclient.FeatureLimits{
 			AccessListCreateLimit:               int(clusterFeatures.GetAccessList().GetCreateLimit()),
 			AccessMonitoringMaxReportRangeLimit: int(clusterFeatures.GetAccessMonitoring().GetMaxReportRangeLimit()),
 			AccessRequestMonthlyRequestLimit:    int(clusterFeatures.GetAccessRequests().GetMonthlyRequestLimit()),
 		},
+		Questionnaire:          clusterFeatures.GetQuestionnaire(),
+		IsStripeManaged:        clusterFeatures.GetIsStripeManaged(),
+		ExternalAuditStorage:   clusterFeatures.GetExternalAuditStorage(),
+		PremiumSupport:         clusterFeatures.GetSupportType() == proto.SupportType_SUPPORT_TYPE_PREMIUM,
+		AccessRequests:         clusterFeatures.GetAccessRequests().MonthlyRequestLimit > 0,
+		TrustedDevices:         clusterFeatures.GetDeviceTrust().GetEnabled(),
+		OIDC:                   clusterFeatures.GetOIDC(),
+		SAML:                   clusterFeatures.GetSAML(),
+		MobileDeviceManagement: clusterFeatures.GetMobileDeviceManagement(),
+		JoinActiveSessions:     clusterFeatures.GetJoinActiveSessions(),
+		// TODO(mcbattirola): remove isTeam when it is no longer used
+		IsTeam: isTeam,
 	}
 
 	resource, err := h.cfg.ProxyClient.GetClusterName()

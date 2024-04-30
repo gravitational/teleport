@@ -474,7 +474,8 @@ func TestAthenaAuditLogSetup(t *testing.T) {
 	ctx := context.Background()
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			Cloud: true,
+			Cloud:                true,
+			ExternalAuditStorage: true,
 		},
 	})
 
