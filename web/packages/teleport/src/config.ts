@@ -93,6 +93,7 @@ const cfg = {
 
   ui: {
     scrollbackLines: 1000,
+    showResources: 'requestable',
   },
 
   auth: {

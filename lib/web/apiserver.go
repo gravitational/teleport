@@ -1744,6 +1744,7 @@ func (h *Handler) getUIConfig(ctx context.Context) webclient.UIConfig {
 	if uiConfig, err := h.cfg.AccessPoint.GetUIConfig(ctx); err == nil && uiConfig != nil {
 		return webclient.UIConfig{
 			ScrollbackLines: int(uiConfig.GetScrollbackLines()),
+			ShowResources:   uiConfig.GetShowResources(),
 		}
 	}
 	return h.cfg.UI

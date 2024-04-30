@@ -1690,6 +1690,7 @@ func TestNewTerminalHandler(t *testing.T) {
 func TestUIConfig(t *testing.T) {
 	uiConfig := webclient.UIConfig{
 		ScrollbackLines: 555,
+		ShowResources:   constants.ShowResourcesaccessibleOnly,
 	}
 	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
