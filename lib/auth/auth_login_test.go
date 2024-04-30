@@ -55,9 +55,6 @@ func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 			Request: &proto.CreateAuthenticateChallengeRequest_Passwordless{
 				Passwordless: &proto.Passwordless{},
 			},
-			ChallengeExtensions: &mfav1.ChallengeExtensions{
-				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN,
-			},
 		}
 	}
 

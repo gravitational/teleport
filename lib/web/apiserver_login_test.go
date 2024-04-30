@@ -280,8 +280,10 @@ func TestAuthenticate_passwordless(t *testing.T) {
 		authPref, err := authServer.GetAuthPreference(ctx)
 		require.NoError(t, err, "GetAuthPreference failed")
 		authPref.SetAllowPasswordless(false)
-		_, err = authServer.UpsertAuthPreference(ctx, authPref)
-		require.NoError(t, err, "UpsertAuthPreference failed")
+		require.NoError(t,
+			authServer.SetAuthPreference(ctx, authPref),
+			"UpsertAuthPreference failed",
+		)
 
 		// GET /webapi/mfa/login/begin.
 		ep := clt.Endpoint("webapi", "mfa", "login", "begin")
@@ -297,8 +299,10 @@ func TestAuthenticate_passwordless(t *testing.T) {
 			SecondFactor: constants.SecondFactorOTP, // disable webauthn
 		})
 		require.NoError(t, err, "NewAuthPreference failed")
-		_, err = authServer.UpsertAuthPreference(ctx, authPref)
-		require.NoError(t, err, "UpsertAuthPreference failed")
+		require.NoError(t,
+			authServer.SetAuthPreference(ctx, authPref),
+			"UpsertAuthPreference failed",
+		)
 
 		// GET /webapi/mfa/login/begin.
 		ep := clt.Endpoint("webapi", "mfa", "login", "begin")
