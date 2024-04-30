@@ -1,4 +1,4 @@
-.version: &version "14.3.16"
+.version: &version "14.3.16-dev-kube-proxy"
 
 name: teleport-operator
 apiVersion: v2
