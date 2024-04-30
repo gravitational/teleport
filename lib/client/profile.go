@@ -503,8 +503,11 @@ func (p *ProfileStatus) AppCertPath(cluster, name string) string {
 // this profile.
 //
 // It's kept in <profile-dir>/keys/<proxy>/<user>-app/<cluster>/<name>-localca.pem
-func (p *ProfileStatus) AppLocalCAPath(name string) string {
-	return keypaths.AppLocalCAPath(p.Dir, p.Name, p.Username, p.Cluster, name)
+func (p *ProfileStatus) AppLocalCAPath(cluster, name string) string {
+	if cluster == "" {
+		cluster = p.Cluster
+	}
+	return keypaths.AppLocalCAPath(p.Dir, p.Name, p.Username, cluster, name)
 }
 
 // KubeConfigPath returns path to the specified kubeconfig for this profile.

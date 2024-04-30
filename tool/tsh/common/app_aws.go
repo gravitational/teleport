@@ -248,7 +248,7 @@ func (a *awsApp) GetEnvVars() (map[string]string, error) {
 		// https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-envvars.html
 		"AWS_ACCESS_KEY_ID":     credValues.AccessKeyID,
 		"AWS_SECRET_ACCESS_KEY": credValues.SecretAccessKey,
-		"AWS_CA_BUNDLE":         a.profile.AppLocalCAPath(a.appName),
+		"AWS_CA_BUNDLE":         a.profile.AppLocalCAPath(a.cf.SiteName, a.appName),
 	}
 
 	// Set proxy settings.

@@ -328,21 +328,28 @@ func onAppLogout(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	activeRoutes, err := profile.AppsForCluster(tc.SiteName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// If a specific app name was specified, just log out of that app.
+	// Otherwise, log out of all apps.
 	var logout []tlsca.RouteToApp
-	// If app name wasn't given on the command line, log out of all.
-	if cf.AppName == "" {
-		logout = profile.Apps
-	} else {
-		for _, app := range profile.Apps {
+	if cf.AppName != "" {
+		for _, app := range activeRoutes {
 			if app.Name == cf.AppName {
 				logout = append(logout, app)
 			}
 		}
+
 		if len(logout) == 0 {
-			return trace.BadParameter("not logged into app %q",
-				cf.AppName)
+			return trace.BadParameter("not logged into app %q", cf.AppName)
 		}
+	} else {
+		logout = activeRoutes
 	}
+
 	for _, app := range logout {
 		err = tc.DeleteAppSession(cf.Context, app.SessionID)
 		if err != nil && !trace.IsNotFound(err) {
@@ -353,7 +360,11 @@ func onAppLogout(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 
-		removeAppLocalFiles(profile, app.Name)
+		// remove generated local files for the provided app.
+		err := utils.RemoveFileIfExist(profile.AppLocalCAPath(tc.SiteName, app.Name))
+		if err != nil {
+			log.WithError(err).Warnf("Failed to remove %v", profile.AppLocalCAPath(tc.SiteName, app.Name))
+		}
 	}
 	if len(logout) == 1 {
 		fmt.Printf("Logged out of app %q\n", logout[0].Name)
@@ -537,14 +548,6 @@ func pickActiveApp(cf *CLIConf, activeRoutes []tlsca.RouteToApp) (*tlsca.RouteTo
 	return nil, trace.NotFound("not logged into app %q", cf.AppName)
 }
 
-// removeAppLocalFiles removes generated local files for the provided app.
-func removeAppLocalFiles(profile *client.ProfileStatus, appName string) {
-	err := utils.RemoveFileIfExist(profile.AppLocalCAPath(appName))
-	if err != nil {
-		log.WithError(err).Warnf("Failed to remove %v", profile.AppLocalCAPath(appName))
-	}
-}
-
 // loadAppSelfSignedCA loads self-signed CA for provided app, or tries to
 // generate a new CA if first load fails.
 func loadAppSelfSignedCA(profile *client.ProfileStatus, tc *client.TeleportClient, appName string) (tls.Certificate, error) {
@@ -557,7 +560,7 @@ func loadAppSelfSignedCA(profile *client.ProfileStatus, tc *client.TeleportClien
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	cert, err := loadSelfSignedCA(profile.AppLocalCAPath(appName), profile.KeyPath(), appCertsExpireAt, "localhost")
+	cert, err := loadSelfSignedCA(profile.AppLocalCAPath(tc.SiteName, appName), profile.KeyPath(), appCertsExpireAt, "localhost")
 	return cert, trace.Wrap(err)
 }
 
