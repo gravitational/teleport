@@ -251,7 +251,7 @@ func NewManager(cfg *Config) (*Manager, error) {
 		if err := m.assignUDPHandler(cfg.DNSIPv6, dnsServer); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		slog.With("dns_addr", cfg.DNSIPv6).DebugContext(context.Background(), "Serving DNS on IPv6.")
+		slog.DebugContext(context.Background(), "Serving DNS on IPv6.", "dns_addr", cfg.DNSIPv6)
 	}
 
 	return m, nil
@@ -453,7 +453,7 @@ func (m *Manager) handleUDPConcurrent(req *udp.ForwarderRequest) {
 
 	handler, ok := m.getUDPHandler(id.LocalAddress)
 	if !ok {
-		slog.With("addr", id.LocalAddress).DebugContext(ctx, "No handler for address.")
+		slog.DebugContext(ctx, "No handler for address.", "addr", id.LocalAddress)
 		return
 	}
 
@@ -468,7 +468,7 @@ func (m *Manager) handleUDPConcurrent(req *udp.ForwarderRequest) {
 	defer conn.Close()
 
 	if err := handler.HandleUDP(ctx, conn); err != nil {
-		slog.With("error", err).DebugContext(ctx, "Error handling UDP conn.")
+		slog.DebugContext(ctx, "Error handling UDP conn.", "error", err)
 	}
 }
 
