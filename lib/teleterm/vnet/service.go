@@ -18,13 +18,23 @@ package service
 
 import (
 	"context"
+	"errors"
+	"log/slog"
 	"slices"
 	"sync"
 	"sync/atomic"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
+	prehogv1alpha "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
+	teletermv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/vnet/v1"
+	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/teleterm/api/uri"
+	"github.com/gravitational/teleport/lib/teleterm/clusteridcache"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
 	"github.com/gravitational/teleport/lib/vnet"
@@ -35,6 +45,7 @@ type Service struct {
 	api.UnimplementedVnetServiceServer
 
 	cfg    Config
+	log    *slog.Logger
 	vnet   *vnet.Manager
 	mu     sync.Mutex
 	closed atomic.Bool
@@ -48,17 +59,30 @@ func New(cfg Config) (*Service, error) {
 
 	return &Service{
 		cfg: cfg,
+		// TODO: Replace with logutils.NewPackageLogger after rebasing on top of master.
+		log: slog.With(teleport.ComponentKey, "term:vnet"),
 	}, nil
 }
 
 type Config struct {
-	DaemonService *daemon.Service
+	DaemonService  *daemon.Service
+	ClusterIDCache *clusteridcache.Cache
+	// InstallationID used for event reporting.
+	InstallationID string
 }
 
 // CheckAndSetDefaults checks and sets the defaults
 func (c *Config) CheckAndSetDefaults() error {
 	if c.DaemonService == nil {
 		return trace.BadParameter("missing DaemonService")
+	}
+
+	if c.ClusterIDCache == nil {
+		return trace.BadParameter("missing cluster ID cache")
+	}
+
+	if c.InstallationID == "" {
+		return trace.BadParameter("missing installation ID")
 	}
 
 	return nil
@@ -103,6 +127,7 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 
 	ipv6Prefix, err := vnet.IPv6Prefix()
 	if err != nil {
+		cancelAdminSubcmdCtx()
 		return nil, trace.Wrap(err)
 	}
 
@@ -118,6 +143,13 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 		Client:     client,
 		TUNDevice:  tun,
 		IPv6Prefix: ipv6Prefix,
+		Middleware: &UsageReportingMiddleware{
+			daemonService:  s.cfg.DaemonService,
+			log:            s.log,
+			clusterIDCache: s.cfg.ClusterIDCache,
+			reportedApps:   make(map[string]struct{}),
+			installationID: s.cfg.InstallationID,
+		},
 	})
 	if err != nil {
 		cancelAdminSubcmdCtx()
@@ -130,8 +162,10 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 	go func() {
 		defer cleanup()
 		defer cancelAdminSubcmdCtx()
-		s.vnet.Run()
-		// TODO: Log error.
+		err := s.vnet.Run()
+		if err != nil && !errors.Is(err, context.Canceled) {
+			s.log.ErrorContext(ctx, "VNet manager did not exit successfully", "error", err)
+		}
 	}()
 
 	return &api.StartResponse{}, nil
@@ -182,4 +216,94 @@ func (s *Service) Close() error {
 	s.vnet = nil
 
 	return nil
+}
+
+type UsageReportingMiddleware struct {
+	daemonService *daemon.Service
+	// reportedApps contains a set of URIs for apps which usage has been already reported.
+	// App gateways (local proxies) in Connect report a single event per gateway created per app. VNet
+	// needs to replicate this behavior, hence why it keeps track of reported apps to report only one
+	// event per app per VNet's lifespan.
+	reportedApps map[string]struct{}
+	// mu protects access to reportedApps.
+	mu sync.Mutex
+	// clusterIDCache stores cluster ID that needs to be included with each usage event. It's updated
+	// outside of UsageReportingMiddleware – the middleware merely reads data from it. If the cache
+	// does not contain the given cluster ID, the middleware drops the event.
+	clusterIDCache *clusteridcache.Cache
+	log            *slog.Logger
+	installationID string
+}
+
+func (m *UsageReportingMiddleware) OnNewConnection(ctx context.Context, tc *client.TeleportClient, app types.Application) {
+	go func() {
+		err := m.onNewConnection(ctx, tc, app)
+		if err != nil {
+			m.log.ErrorContext(ctx, "Failed to submit usage event", "error", err, "app", app.GetName())
+		}
+	}()
+}
+
+func (m *UsageReportingMiddleware) onNewConnection(ctx context.Context, tc *client.TeleportClient, app types.Application) error {
+	clusterURI, rootClusterName, err := getClusterURIAndRootClusterName(ctx, tc)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	rootClusterURI := clusterURI.GetRootClusterURI()
+	appURI := clusterURI.AppendApp(app.GetName())
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, hasAppBeenReported := m.reportedApps[appURI.String()]; hasAppBeenReported {
+		m.log.DebugContext(ctx, "App was already reported", "app", appURI.String())
+		return nil
+	}
+
+	clusterID, ok := m.clusterIDCache.Load(rootClusterURI)
+	if !ok {
+		return trace.Errorf("cluster ID for %q not found", rootClusterURI)
+	}
+
+	m.log.DebugContext(ctx, "Reporting usage event", "app", appURI.String())
+
+	err = m.daemonService.ReportUsageEvent(&teletermv1.ReportUsageEventRequest{
+		AuthClusterId: clusterID,
+		PrehogReq: &prehogv1alpha.SubmitConnectEventRequest{
+			DistinctId: m.installationID,
+			Timestamp:  timestamppb.Now(),
+			Event: &prehogv1alpha.SubmitConnectEventRequest_ProtocolUse{
+				ProtocolUse: &prehogv1alpha.ConnectProtocolUseEvent{
+					ClusterName: rootClusterName,
+					UserName:    tc.Username,
+					Protocol:    "app",
+					Origin:      "vnet",
+					// TODO: Add AccessThrough: "vnet"
+				},
+			},
+		},
+	})
+	if err != nil {
+		return trace.Wrap(err, "adding event to queue")
+	}
+
+	m.reportedApps[appURI.String()] = struct{}{}
+
+	return nil
+}
+
+func getClusterURIAndRootClusterName(ctx context.Context, tc *client.TeleportClient) (uri.ResourceURI, string, error) {
+	profileName := tc.Profile().Name()
+	siteName := tc.SiteName
+	rootClusterName, err := tc.RootClusterName(ctx)
+	if err != nil {
+		return uri.ResourceURI{}, "", trace.Wrap(err)
+	}
+	clusterURI := uri.NewClusterURI(profileName)
+
+	if siteName != "" && siteName != rootClusterName {
+		clusterURI = clusterURI.AppendLeafCluster(siteName)
+	}
+
+	return clusterURI, rootClusterName, nil
 }

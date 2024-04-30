@@ -67,6 +67,7 @@ func New(cfg Config) (*APIServer, error) {
 		vnet.Config{
 			DaemonService:  cfg.Daemon,
 			InstallationID: cfg.InstallationID,
+			ClusterIDCache: cfg.ClusterIDCache,
 		},
 	)
 	if err != nil {
