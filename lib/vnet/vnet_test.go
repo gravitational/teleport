@@ -60,6 +60,9 @@ func newTestPack(t *testing.T, ctx context.Context) *testPack {
 
 	// Create an isolated userspace networking stack that can be manipulated from test code. It will be
 	// connected to the VNet over the TUN interface. This emulates the host networking stack.
+	// This is a completely separate gvisor network stack than the one that will be created in NewManager -
+	// the two will be connected over a fake TUN interface. This exists so that the test can setup IP routes
+	// without affecting the host running the Test.
 	testStack, linkEndpoint, err := createStack()
 	require.NoError(t, err)
 
@@ -168,6 +171,7 @@ func TestVnetEcho(t *testing.T) {
 			require.NoError(t, err)
 			defer conn.Close()
 
+			// The newline is necessary so that the bufio.Scanner can read a line.
 			testString := "Hello, World!\n"
 			_, err = conn.Write([]byte(testString))
 			require.NoError(t, err)
