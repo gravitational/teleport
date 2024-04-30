@@ -40,6 +40,7 @@ var AllPluginTypes = []PluginType{
 	PluginTypeMattermost,
 	PluginTypeDiscord,
 	PluginTypeEntraID,
+	PluginTypeSCIM,
 }
 
 const (
@@ -69,6 +70,8 @@ const (
 	PluginTypeGitlab = "gitlab"
 	// PluginTypeEntraID indicates the Entra ID sync plugin
 	PluginTypeEntraID = "entra-id"
+	// PluginTypeSCIM indicates a generic SCIM integration
+	PluginTypeSCIM = "scim"
 )
 
 // PluginSubkind represents the type of the plugin, e.g., access request, MDM etc.
@@ -83,6 +86,9 @@ const (
 	PluginSubkindAccess = "access"
 	// PluginSubkindAccessGraph represents access graph plugins collectively
 	PluginSubkindAccessGraph = "accessgraph"
+	// PluginSubkindProvisioning represents plugins that create and manage
+	// Teleport users and/or other resources from an external source
+	PluginSubkindProvisioning = "provisioning"
 )
 
 // Plugin represents a plugin instance
@@ -304,6 +310,10 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if err := settings.EntraId.Validate(); err != nil {
 			return trace.Wrap(err)
 		}
+	case *PluginSpecV1_Scim:
+		if settings.Scim == nil {
+			return trace.BadParameter("Must be used with SCIM settings")
+		}
 	default:
 		return trace.BadParameter("settings are not set or have an unknown type")
 	}
@@ -471,6 +481,9 @@ func (p *PluginV1) GetType() PluginType {
 		return PluginTypeGitlab
 	case *PluginSpecV1_EntraId:
 		return PluginTypeEntraID
+	case *PluginSpecV1_Scim:
+		return PluginTypeSCIM
+
 	default:
 		return PluginTypeUnknown
 	}
