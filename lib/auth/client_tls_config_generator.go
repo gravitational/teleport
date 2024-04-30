@@ -68,7 +68,7 @@ func (cfg *ClientTLSConfigGeneratorConfig) CheckAndSetDefaults() error {
 }
 
 // ClientTLSConfigGenerator is a helper type used to implement fast & efficient client tls config specialization based upon
-// the target cluster specified in the client tls hello. this type keeps per-cluster client tls configs pre-generated and
+// the target cluster specified in the client TLS hello. This type keeps per-cluster client TLS configs pre-generated and
 // refreshes them periodically and/or when ca modification events are observed. The GetConfigForClient method of this type
 // is intended to be slotted into the GetConfigForClient field of tls.Config.
 type ClientTLSConfigGenerator struct {
