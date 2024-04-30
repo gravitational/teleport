@@ -1226,6 +1226,7 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 
 // TestALPNSNIProxyAppAccess tests application access via ALPN SNI proxy service.
 func TestALPNSNIProxyAppAccess(t *testing.T) {
+	ctx := context.Background()
 	pack := appaccess.SetupWithOptions(t, appaccess.AppTestOptions{
 		RootClusterListeners: helpers.SingleProxyPortSetup,
 		LeafClusterListeners: helpers.SingleProxyPortSetup,
@@ -1277,7 +1278,19 @@ func TestALPNSNIProxyAppAccess(t *testing.T) {
 	})
 
 	t.Run("teleterm app gateways cert renewal", func(t *testing.T) {
-		testTeletermAppGateway(t, pack)
+		user, _ := pack.CreateUser(t)
+		tc := pack.MakeTeleportClient(t, user.GetName())
+
+		// test without per session MFA.
+		testTeletermAppGateway(t, pack, tc)
+
+		t.Run("per session MFA", func(t *testing.T) {
+			// They update user's authentication to Webauthn so they must run after tests which do not use MFA.
+			requireSessionMFAAuthPref(ctx, t, pack.RootAuthServer(), "127.0.0.1")
+			requireSessionMFAAuthPref(ctx, t, pack.LeafAuthServer(), "127.0.0.1")
+			tc.WebauthnLogin = setupUserMFA(ctx, t, pack.RootAuthServer(), user.GetName(), "127.0.0.1")
+			testTeletermAppGateway(t, pack, tc)
+		})
 	})
 }
 

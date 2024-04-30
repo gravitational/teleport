@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
+	"github.com/gravitational/teleport/lib/client"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
@@ -578,6 +579,14 @@ func setupUserMFA(ctx context.Context, t *testing.T, authServer *auth.Server, us
 }
 
 func requireSessionMFAAuthPref(ctx context.Context, t *testing.T, authServer *auth.Server, rpid string) {
+	t.Helper()
+
+	oldAuthPref, err := authServer.GetAuthPreference(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		helpers.UpsertAuthPrefAndWaitForCache(t, ctx, authServer, oldAuthPref)
+	})
+
 	// Enable optional MFA with per session MFA enabled.
 	helpers.UpsertAuthPrefAndWaitForCache(t, ctx, authServer, &types.AuthPreferenceV2{
 		Spec: types.AuthPreferenceSpecV2{
@@ -592,6 +601,8 @@ func requireSessionMFAAuthPref(ctx context.Context, t *testing.T, authServer *au
 }
 
 func requireSessionMFARole(ctx context.Context, t *testing.T, authServer *auth.Server, rpid string, role types.Role) {
+	t.Helper()
+
 	// Enable optional MFA.
 	helpers.UpsertAuthPrefAndWaitForCache(t, ctx, authServer, &types.AuthPreferenceV2{
 		Spec: types.AuthPreferenceSpecV2{
@@ -611,35 +622,10 @@ func requireSessionMFARole(ctx context.Context, t *testing.T, authServer *auth.S
 	require.NoError(t, err)
 }
 
-func testTeletermAppGateway(t *testing.T, pack *appaccess.Pack) {
+func testTeletermAppGateway(t *testing.T, pack *appaccess.Pack, tc *client.TeleportClient) {
 	ctx := context.Background()
 
-	user, _ := pack.CreateUser(t)
-	tc := pack.MakeTeleportClient(t, user.GetName())
-
 	t.Run("root cluster", func(t *testing.T) {
-		profileName := mustGetProfileName(t, pack.RootWebAddr())
-		appURI := uri.NewClusterURI(profileName).AppendApp(pack.RootAppName())
-
-		testAppGatewayCertRenewal(ctx, t, pack, tc, appURI)
-	})
-
-	t.Run("leaf cluster", func(t *testing.T) {
-		profileName := mustGetProfileName(t, pack.RootWebAddr())
-		appURI := uri.NewClusterURI(profileName).
-			AppendLeafCluster(pack.LeafAppClusterName()).
-			AppendApp(pack.LeafAppName())
-
-		testAppGatewayCertRenewal(ctx, t, pack, tc, appURI)
-	})
-
-	// MFA tests.
-	// They update user's authentication to Webauthn so they must run after tests which do not use MFA.
-	requireSessionMFAAuthPref(ctx, t, pack.RootAuthServer(), "127.0.0.1")
-	requireSessionMFAAuthPref(ctx, t, pack.LeafAuthServer(), "127.0.0.1")
-	tc.WebauthnLogin = setupUserMFA(ctx, t, pack.RootAuthServer(), user.GetName(), "127.0.0.1")
-
-	t.Run("root with per-session MFA", func(t *testing.T) {
 		profileName := mustGetProfileName(t, pack.RootWebAddr())
 		appURI := uri.NewClusterURI(profileName).AppendApp(pack.RootAppName())
 
@@ -649,13 +635,13 @@ func testTeletermAppGateway(t *testing.T, pack *appaccess.Pack) {
 		testAppGatewayCertRenewal(ctx, t, pack, tc, appURI)
 	})
 
-	t.Run("leaf with per-session MFA", func(t *testing.T) {
+	t.Run("leaf cluster", func(t *testing.T) {
 		profileName := mustGetProfileName(t, pack.RootWebAddr())
 		appURI := uri.NewClusterURI(profileName).
 			AppendLeafCluster(pack.LeafAppClusterName()).
 			AppendApp(pack.LeafAppName())
 
-		// The test can potentially hang forever if something is wrong with the MFA prompt, add a timeout.
+			// The test can potentially hang forever if something is wrong with the MFA prompt, add a timeout.
 		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		t.Cleanup(cancel)
 		testAppGatewayCertRenewal(ctx, t, pack, tc, appURI)
