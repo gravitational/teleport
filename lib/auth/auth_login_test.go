@@ -1079,9 +1079,9 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 	}
 }
 
-// TestServer_Authenticate_passwordlessSSO tests a scenario where an SSO user
-// bypasses SSO by using a passwordless login.
-func TestServer_Authenticate_passwordlessSSO(t *testing.T) {
+// TestPasswordlessProhibitedForSSO tests a scenario where an SSO user bypasses
+// SSO by using a passwordless login.
+func TestPasswordlessProhibitedForSSO(t *testing.T) {
 	t.Parallel()
 
 	testServer := newTestTLSServer(t)
