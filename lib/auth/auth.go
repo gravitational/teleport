@@ -6414,6 +6414,18 @@ func (a *Server) validateMFAAuthResponseInternal(
 				Identity: a.Services,
 			}
 			loginData, err = webLogin.Finish(ctx, assertionResp)
+
+			// Disallow non-local users from logging in with passwordless.
+			if err == nil {
+				u, getErr := a.GetUser(ctx, loginData.User, false /* withSecrets */)
+				if getErr != nil {
+					err = trace.Wrap(getErr)
+				} else if u.GetUserType() != types.UserTypeLocal {
+					// Return the error unmodified, without the "MFA response validation
+					// failed" prefix.
+					return nil, trace.Wrap(types.ErrPassswordlessLoginBySSOUser)
+				}
+			}
 		} else {
 			webLogin := &wanlib.LoginFlow{
 				U2F:      u2f,
