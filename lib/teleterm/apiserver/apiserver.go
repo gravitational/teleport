@@ -65,7 +65,8 @@ func New(cfg Config) (*APIServer, error) {
 
 	vnetService, err := vnet.New(
 		vnet.Config{
-			DaemonService: cfg.Daemon,
+			DaemonService:  cfg.Daemon,
+			InstallationID: cfg.InstallationID,
 		},
 	)
 	if err != nil {
