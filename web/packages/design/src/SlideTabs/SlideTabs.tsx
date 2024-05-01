@@ -70,21 +70,37 @@ export function SlideTabs({
 }
 
 type props = {
-  // The style to render the selector in.
+  /**
+   * The style to render the selector in.
+   */
   appearance?: 'square' | 'round';
-  // The index that you'd like to select on the initial render.
+  /**
+   * The index that you'd like to select on the initial render.
+   */
   activeIndex: number;
-  // The name you'd like to use for the form if using multiple tabs on the page.
-  // Default: "slide-tab"
+  /**
+   * The name you'd like to use for the form if using multiple tabs on the page.
+   * Default: "slide-tab"
+   */
   name?: string;
-  // To be notified when the selected tab changes supply it with this fn.
+  /**
+   * To be notified when the selected tab changes supply it with this fn.
+   */
   onChange: (selectedTab: number) => void;
-  // The size to render the selector in.
+  /**
+   * The size to render the selector in.
+   */
   size?: 'xlarge' | 'medium';
-  // A list of tab names that you'd like displayed in the list of tabs.
+  /**
+   * A list of tab names that you'd like displayed in the list of tabs.
+   */
   tabs: string[];
   /**
    * If true, renders a spinner and disables clicking on the tabs.
+   *
+   * Currently, a spinner is used in absolute positioning which can render
+   * outside of the given tab when browser width is narrow enough.
+   * Look into horizontal progress bar (connect has one in LinearProgress.tsx)
    */
   isProcessing?: boolean;
 };

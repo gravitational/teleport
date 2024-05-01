@@ -56,8 +56,9 @@ export function Default() {
             isMulti
             loadOptions={async input => {
               await wait(400);
-              return OPTIONS.filter(o => o.label.includes(input));
+              return OPTIONS.filter(o => o.label.toLowerCase().includes(input));
             }}
+            defaultOptions={true}
             noOptionsMessage={() => 'No options'}
           />
           <FieldSelectCreatableAsync
