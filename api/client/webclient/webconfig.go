@@ -77,7 +77,8 @@ type WebConfig struct {
 	HideInaccessibleFeatures bool `json:"hideInaccessibleFeatures"`
 	// CustomTheme is a string that represents the name of the custom theme that the WebUI should use.
 	CustomTheme string `json:"customTheme"`
-	// IsTeam is true if [Features.ProductType] = Team
+	// Deprecated: IsTeam is true if [Features.ProductType] = Team
+	// Prefer checking the cluster features over this flag, as this will be removed.
 	IsTeam bool `json:"isTeam"`
 	// IsIGSEnabled is true if [Features.IdentityGovernance] = true
 	IsIGSEnabled bool `json:"isIgsEnabled"`
@@ -85,6 +86,26 @@ type WebConfig struct {
 	// Typically used with feature teasers if feature is not enabled for the
 	// product type eg: Team product contains teasers to upgrade to Enterprise.
 	FeatureLimits FeatureLimits `json:"featureLimits"`
+	// Questionnaire indicates whether cluster users should get an onboarding questionnaire
+	Questionnaire bool `json:"questionnaire"`
+	// IsStripeManaged indicates if the cluster billing & lifecycle is managed via Stripe
+	IsStripeManaged bool `json:"isStripeManaged"`
+	// ExternalAuditStorage indicates whether the EAS feature is enabled in the cluster.
+	ExternalAuditStorage bool `json:"externalAuditStorage"`
+	// PremiumSupport indicates whether the customer has premium support
+	PremiumSupport bool `json:"premiumSupport"`
+	// JoinActiveSessions indicates whether joining active sessions via web UI is enabled
+	JoinActiveSessions bool `json:"joinActiveSessions"`
+	// AccessRequests indicates whether access requests are enabled
+	AccessRequests bool `json:"accessRequests"`
+	// TrustedDevices indicates whether trusted devices page is enabled
+	TrustedDevices bool `json:"trustedDevices"`
+	// OIDC indicates whether the OIDC integration flow is enabled
+	OIDC bool `json:"oidc"`
+	// SAML indicates whether the SAML integration flow is enabled
+	SAML bool `json:"saml"`
+	// MobileDeviceManagement indicates whether adding Jamf plugin is enabled
+	MobileDeviceManagement bool `json:"mobileDeviceManagement"`
 }
 
 // featureLimits define limits for features.

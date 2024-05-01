@@ -28,7 +28,6 @@ import { Label } from 'teleport/types';
 
 export function notificationContentFactory({
   subKind,
-  description,
   labels,
   ...notification
 }: NotificationType): NotificationContent {
@@ -36,49 +35,35 @@ export function notificationContentFactory({
 
   switch (subKind) {
     case NotificationSubKind.DefaultInformational:
-    case NotificationSubKind.UserCreatedInformational:
+    case NotificationSubKind.UserCreatedInformational: {
+      const textContent = getLabelValue(labels, 'content');
       notificationContent = {
         kind: 'text',
         title: notification.title,
-        textContent: description,
+        textContent,
         type: 'informational',
         icon: Icons.Notification,
       };
       break;
+    }
 
     case NotificationSubKind.DefaultWarning:
-    case NotificationSubKind.UserCreatedWarning:
+    case NotificationSubKind.UserCreatedWarning: {
+      const textContent = getLabelValue(labels, 'content');
       notificationContent = {
         kind: 'text',
         title: notification.title,
-        textContent: description,
+        textContent,
         type: 'warning',
         icon: Icons.Notification,
       };
       break;
+    }
 
     case NotificationSubKind.AccessRequestApproved: {
-      let title;
-
-      const reviewer = getLabelValue(labels, 'reviewer');
-      const requestedResources = getLabelValue(labels, 'requested-resources');
-      const numRequestedResources = requestedResources.length
-        ? requestedResources.split(',').length
-        : 0;
-
-      // Check if it is a resource request or a role request.
-      if (numRequestedResources) {
-        title = `${reviewer} approved your access request for ${numRequestedResources} resource${
-          numRequestedResources > 1 ? 's' : ''
-        }.`;
-      } else {
-        const requestedRole = getLabelValue(labels, 'requested-role');
-        title = `${reviewer} approved your access request for the '${requestedRole}' role.`;
-      }
-
       notificationContent = {
         kind: 'redirect',
-        title,
+        title: notification.title,
         type: 'success',
         icon: Icons.Users,
         redirectRoute: '/', //TODO: rudream - handle enterprise routes
@@ -91,27 +76,9 @@ export function notificationContentFactory({
     }
 
     case NotificationSubKind.AccessRequestDenied: {
-      let title;
-
-      const reviewer = getLabelValue(labels, 'reviewer');
-      const requestedResources = getLabelValue(labels, 'requested-resources');
-      const numRequestedResources = requestedResources.length
-        ? requestedResources.split(',').length
-        : 0;
-
-      // Check if it is a resource request or a role request.
-      if (numRequestedResources) {
-        title = `${reviewer} denied your access request for ${numRequestedResources} resource${
-          numRequestedResources > 1 ? 's' : ''
-        }.`;
-      } else {
-        const requestedRole = getLabelValue(labels, 'requested-role');
-        title = `${reviewer} denied your access request for the '${requestedRole}' role.`;
-      }
-
       notificationContent = {
         kind: 'redirect',
-        title,
+        title: notification.title,
         type: 'failure',
         icon: Icons.Users,
         redirectRoute: '/', //TODO: rudream - handle enterprise routes
@@ -120,27 +87,9 @@ export function notificationContentFactory({
     }
 
     case NotificationSubKind.AccessRequestPending: {
-      let title;
-
-      const requester = getLabelValue(labels, 'requester');
-      const requestedResources = getLabelValue(labels, 'requested-resources');
-      const numRequestedResources = requestedResources.length
-        ? requestedResources.split(',').length
-        : 0;
-
-      // Check if it is a resource request or a role request.
-      if (numRequestedResources) {
-        title = `${requester} requested access to ${numRequestedResources} resource${
-          numRequestedResources > 1 ? 's' : ''
-        }.`;
-      } else {
-        const requestedRole = getLabelValue(labels, 'requested-role');
-        title = `${requester} requested access to the '${requestedRole}' role.`;
-      }
-
       notificationContent = {
         kind: 'redirect',
-        title,
+        title: notification.title,
         type: 'informational',
         icon: Icons.UserList,
         redirectRoute: '/', //TODO: rudream - handle enterprise routes
@@ -149,31 +98,19 @@ export function notificationContentFactory({
     }
 
     case NotificationSubKind.AccessRequestNowAssumable: {
-      let title;
       let buttonText;
 
-      const requestedResources = getLabelValue(labels, 'requested-resources');
-      const numRequestedResources = requestedResources.length
-        ? requestedResources.split(',').length
-        : 0;
+      const accessRequestType = getLabelValue(labels, 'request-type');
 
-      // Check if it is a resource request or a role request.
-      if (numRequestedResources) {
-        if (numRequestedResources === 1) {
-          title = `"${requestedResources}" is now available to access.`;
-        } else {
-          title = `${numRequestedResources} resources are now available to access.`;
-        }
+      if (accessRequestType === 'resource') {
         buttonText = 'Access Now';
       } else {
-        const requestedRole = getLabelValue(labels, 'requested-role');
-        title = `"${requestedRole}" is now ready to assume.`;
         buttonText = 'Assume Role';
       }
 
       notificationContent = {
         kind: 'redirect',
-        title,
+        title: notification.title,
         type: 'success-alt',
         icon: Icons.Users,
         redirectRoute: '/', //TODO: rudream - handle enterprise routes

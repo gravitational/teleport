@@ -33,6 +33,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -274,6 +275,151 @@ func TestAuthenticate_passwordless(t *testing.T) {
 
 			// Complete passwordless login.
 			test.login(t, assertionResp)
+		})
+	}
+
+	// Test a couple of config-mismatch scenarios.
+	// They progressively alter the cluster's auth preference.
+
+	t.Run("allow_passwordless=false", func(t *testing.T) {
+		// Set allow_passwordless=false
+		authPref, err := authServer.GetAuthPreference(ctx)
+		require.NoError(t, err, "GetAuthPreference failed")
+		authPref.SetAllowPasswordless(false)
+		_, err = authServer.UpsertAuthPreference(ctx, authPref)
+		require.NoError(t, err, "UpsertAuthPreference failed")
+
+		// GET /webapi/mfa/login/begin.
+		ep := clt.Endpoint("webapi", "mfa", "login", "begin")
+		_, err = clt.PostJSON(ctx, ep, &client.MFAChallengeRequest{
+			Passwordless: true, // no username and password
+		})
+		assert.ErrorIs(t, err, types.ErrPasswordlessDisabledBySettings, "/webapi/mfa/login/begin error mismatch")
+	})
+
+	t.Run("webauthn disabled", func(t *testing.T) {
+		authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+			Type:         constants.Local,
+			SecondFactor: constants.SecondFactorOTP, // disable webauthn
+		})
+		require.NoError(t, err, "NewAuthPreference failed")
+		_, err = authServer.UpsertAuthPreference(ctx, authPref)
+		require.NoError(t, err, "UpsertAuthPreference failed")
+
+		// GET /webapi/mfa/login/begin.
+		ep := clt.Endpoint("webapi", "mfa", "login", "begin")
+		_, err = clt.PostJSON(ctx, ep, &client.MFAChallengeRequest{
+			Passwordless: true, // no username and password
+		})
+		assert.ErrorIs(t, err, types.ErrPasswordlessRequiresWebauthn, "/webapi/mfa/login/begin error mismatch")
+	})
+}
+
+// TestPasswordlessProhibitedForSSO is rather similar to
+// lib/auth.TestPasswordlessProhibitedForSSO, but here our main concern is that
+// error messages aren't obfuscated along the way.
+func TestPasswordlessProhibitedForSSO(t *testing.T) {
+	env := newWebPack(t, 1)
+
+	testServer := env.server
+	authServer := testServer.Auth()
+	proxyServer := env.proxies[0]
+	clock := env.clock
+
+	// Prepare user and default devices.
+	mfa := configureClusterForMFA(t, env, &types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOn,
+		Webauthn: &types.Webauthn{
+			RPID: testServer.ClusterName(),
+		},
+	})
+	user := mfa.User
+	ctx := context.Background()
+
+	// Register a passwordless device.
+	userClient, err := testServer.NewClient(auth.TestUser(user))
+	require.NoError(t, err, "NewClient failed")
+	pwdlessDev, err := auth.RegisterTestDevice(
+		ctx, userClient, "pwdless", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, mfa.WebDev, auth.WithPasswordless())
+	require.NoError(t, err, "RegisterTestDevice failed")
+
+	// Update the user so it looks like an SSO user.
+	_, err = authServer.UpdateAndSwapUser(ctx, user, false /* withSecrets */, func(u types.User) (changed bool, err error) {
+		u.SetCreatedBy(types.CreatedBy{
+			Connector: &types.ConnectorRef{
+				Type:     constants.Github,
+				ID:       "github",
+				Identity: user,
+			},
+			Time: clock.Now(),
+			User: types.UserRef{
+				Name: teleport.UserSystem,
+			},
+		})
+		return true, nil
+	})
+	require.NoError(t, err, "UpdateAndSwapUser failed")
+
+	// Prepare SSH key to be signed.
+	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err, "GenerateKey failed")
+	pub, err := ssh.NewPublicKey(&priv.PublicKey)
+	require.NoError(t, err, "NewPublicKey failed")
+	pubBytes := ssh.MarshalAuthorizedKey(pub)
+
+	webClient, err := client.NewWebClient(
+		proxyServer.webURL.String(),
+		roundtrip.HTTPClient(client.NewInsecureWebClient()),
+	)
+	require.NoError(t, err, "NewWebClient failed")
+
+	tests := []struct {
+		name  string
+		login func(chalResp *wantypes.CredentialAssertionResponse) error
+	}{
+		{
+			name: "web",
+			login: func(chalResp *wantypes.CredentialAssertionResponse) error {
+				ep := webClient.Endpoint("webapi", "mfa", "login", "finishsession")
+				_, err := webClient.PostJSON(ctx, ep, &client.AuthenticateWebUserRequest{
+					WebauthnAssertionResponse: chalResp,
+				})
+				return err
+			},
+		},
+		{
+			name: "ssh",
+			login: func(chalResp *wantypes.CredentialAssertionResponse) error {
+				ep := webClient.Endpoint("webapi", "mfa", "login", "finish")
+				_, err := webClient.PostJSON(ctx, ep, &client.AuthenticateSSHUserRequest{
+					WebauthnChallengeResponse: chalResp,
+					PubKey:                    pubBytes,
+					TTL:                       12 * time.Hour,
+				})
+				return err
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Issue passwordless challenge.
+			ep := webClient.Endpoint("webapi", "mfa", "login", "begin")
+			beginResp, err := webClient.PostJSON(ctx, ep, &client.MFAChallengeRequest{
+				Passwordless: true,
+			})
+			require.NoError(t, err, "POST /webapi/mfa/login/begin")
+			mfaChallenge := &client.MFAAuthenticateChallenge{}
+			require.NoError(t, json.Unmarshal(beginResp.Bytes(), mfaChallenge), "Unmarshal MFA challenge failed")
+
+			// Sign it.
+			origin := "https://" + testServer.ClusterName()
+			chalResp, err := pwdlessDev.Key.SignAssertion(origin, mfaChallenge.WebauthnChallenge)
+			require.NoError(t, err, "SignAssertion failed")
+
+			// Login and verify that the passwordless/SSO error was not obfuscated.
+			err = test.login(chalResp)
+			assert.ErrorIs(t, err, types.ErrPassswordlessLoginBySSOUser, "Login error mismatch")
 		})
 	}
 }

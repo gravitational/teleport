@@ -49,16 +49,29 @@ const cfg = {
   // IsUsageBasedBilling determines if the user subscription is usage-based (pay-as-you-go).
   // Historically, this flag used to refer to "Cloud Team" product,
   // but with the new EUB (Enterprise Usage Based) product, it can mean either EUB or Team.
-  // Use the `isTeam` config flag to determine if product used is Team.
-  // EUB can be determined from a combination of existing config flags eg: `isCloud && !isTeam`.
+  // Prefer using feature flags to determine if something should be enabled or not.
+  // If you have no other options, use the `isStripeManaged` config flag to determine if product used is Team.
+  // EUB can be determined from a combination of existing config flags eg: `isUsageBasedBilling && !isStripeManaged`.
   isUsageBasedBilling: false,
   hideInaccessibleFeatures: false,
   customTheme: '',
   /**
    * isTeam is true if [Features.ProductType] == Team
    * @deprecated use other flags do determine cluster features istead of relying on isTeam
+   * TODO(mcbattirola): remove isTeam when it is no longer used
    */
   isTeam: false,
+  isStripeManaged: false,
+  hasQuestionnaire: false,
+  externalAuditStorage: false,
+  premiumSupport: false,
+  accessRequests: false,
+  trustedDevices: false,
+  oidc: false,
+  saml: false,
+  joinActiveSessions: false,
+  mobileDeviceManagement: false,
+
   // isIgsEnabled refers to Identity Governance & Security product.
   // It refers to a group of features: access request, device trust,
   // access list, and access monitoring.
@@ -338,6 +351,9 @@ const cfg = {
 
     gcpWorkforceConfigurePath:
       '/webapi/scripts/integrations/configure/gcp-workforce-saml.sh?orgId=:orgId&poolName=:poolName&poolProviderName=:poolProviderName',
+
+    notificationsPath:
+      '/v1/webapi/sites/:clusterId/notifications?limit=:limit?&userNotificationsStartKey=:userNotificationsStartKey?&globalNotificationsStartKey=:globalNotificationsStartKey?',
   },
 
   getUserClusterPreferencesUrl(clusterId: string) {
@@ -1074,6 +1090,10 @@ const cfg = {
     );
   },
 
+  getNotificationsUrl(params: UrlNotificationParams) {
+    return generatePath(cfg.api.notificationsPath, { ...params });
+  },
+
   init(backendConfig = {}) {
     mergeDeep(this, backendConfig);
   },
@@ -1192,6 +1212,13 @@ export interface UrlGcpWorkforceConfigParam {
   orgId: string;
   poolName: string;
   poolProviderName: string;
+}
+
+export interface UrlNotificationParams {
+  clusterId: string;
+  limit?: number;
+  userNotificationsStartKey?: string;
+  globalNotificationsStartKey?: string;
 }
 
 export default cfg;

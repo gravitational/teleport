@@ -182,7 +182,7 @@ func NewDraftConfigurator(ctx context.Context, ecaSvc ExternalAuditStorageGetter
 
 func newConfigurator(ctx context.Context, spec *externalauditstorage.ExternalAuditStorageSpec, integrationSvc services.IntegrationsGetter, alertService ClusterAlertService, optFns ...func(*Options)) (*Configurator, error) {
 	// ExternalAuditStorage is only available in Cloud Enterprise
-	if !modules.GetModules().Features().Cloud || modules.GetModules().Features().IsTeam() {
+	if !modules.GetModules().Features().Cloud || !modules.GetModules().Features().ExternalAuditStorage {
 		return &Configurator{isUsed: false}, nil
 	}
 

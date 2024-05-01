@@ -1871,6 +1871,9 @@ message PaginatedResource {
 
   // Logins allowed for the included resource. Only to be populated for SSH and Desktops.
   repeated string Logins = 13 [(gogoproto.jsontag) = "logins,omitempty"];
+  // RequiresRequest indicates if a resource requires an access request to access. Only populated with requests
+  // that IncludeRequestable.
+  bool RequiresRequest = 14 [(gogoproto.jsontag) = "requires_request,omitempty"];
 
   reserved 4;
   reserved "KubeService";
@@ -1915,6 +1918,8 @@ message ListUnifiedResourcesRequest {
   // IncludeLogins indicates that the response should include a users allowed logins
   // for all returned resources.
   bool IncludeLogins = 12 [(gogoproto.jsontag) = "include_logins,omitempty"];
+  // IncludeRequestable indicates that the response should include resources that the user must request access to.
+  bool IncludeRequestable = 14 [(gogoproto.jsontag) = "include_proto,omitempty"];
 }
 
 // ListUnifiedResourceResponse response of ListUnifiedResources.
