@@ -77,7 +77,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 }
 
 // CreateCrownJewel creates crown jewel resource.
-func (s *Service) CreateCrownJewel(ctx context.Context, crownJewel *crownjewelv1.CreateCrownJewelRequest) (*crownjewelv1.CrownJewel, error) {
+func (s *Service) CreateCrownJewel(ctx context.Context, req *crownjewelv1.CreateCrownJewelRequest) (*crownjewelv1.CrownJewel, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -87,7 +87,15 @@ func (s *Service) CreateCrownJewel(ctx context.Context, crownJewel *crownjewelv1
 		return nil, trace.Wrap(err)
 	}
 
-	rsp, err := s.backend.CreateCrownJewel(ctx, crownJewel.CrownJewels)
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := validateCrownJewel(req.CrownJewels); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rsp, err := s.backend.CreateCrownJewel(ctx, req.CrownJewels)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -133,6 +141,14 @@ func (s *Service) UpdateCrownJewel(ctx context.Context, req *crownjewelv1.Update
 		return nil, trace.Wrap(err)
 	}
 
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := validateCrownJewel(req.CrownJewels); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	rsp, err := s.backend.UpdateCrownJewel(ctx, req.CrownJewels)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -152,9 +168,30 @@ func (s *Service) DeleteCrownJewel(ctx context.Context, req *crownjewelv1.Delete
 		return nil, trace.Wrap(err)
 	}
 
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := s.backend.DeleteCrownJewel(ctx, req.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &emptypb.Empty{}, nil
+}
+
+func validateCrownJewel(jewel *crownjewelv1.CrownJewel) error {
+	switch {
+	case jewel == nil:
+		return trace.BadParameter("crown jewel is nil")
+	case jewel.Metadata == nil:
+		return trace.BadParameter("crown jewel metadata is nil")
+	case jewel.Metadata.Name == "":
+		return trace.BadParameter("crown jewel name is empty")
+	case jewel.Spec == nil:
+		return trace.BadParameter("crown jewel spec is nil")
+	case len(jewel.Spec.TeleportMatchers) == 0 && len(jewel.Spec.AwsMatchers) == 0:
+		return trace.BadParameter("crown jewel must have at least one matcher")
+	}
+
+	return nil
 }
