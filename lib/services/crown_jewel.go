@@ -22,14 +22,12 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	crownjewelclient "github.com/gravitational/teleport/api/client/crownjewel"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	"github.com/gravitational/teleport/lib/utils"
 )
-
-var _ CrownJewels = (*crownjewelclient.Client)(nil)
 
 type CrownJewels interface {
 	// ListCrownJewels returns the crown jewel of the company
@@ -40,8 +38,22 @@ type CrownJewels interface {
 	DeleteAllCrownJewels(context.Context) error
 }
 
-func MarshalCrownJewel(crown *crownjewelv1.CrownJewel, opts ...MarshalOption) ([]byte, error) {
-	return utils.FastMarshal(crown)
+func MarshalCrownJewel(object *crownjewelv1.CrownJewel, opts ...MarshalOption) ([]byte, error) {
+	cfg, err := CollectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !cfg.PreserveResourceID {
+		object = proto.Clone(object).(*crownjewelv1.CrownJewel)
+		//nolint:staticcheck // SA1019. Deprecated, but still needed.
+		object.Metadata.Id = 0
+		object.Metadata.Revision = ""
+	}
+	data, err := utils.FastMarshal(object)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return data, nil
 }
 
 func UnmarshalCrownJewel(data []byte, opts ...MarshalOption) (*crownjewelv1.CrownJewel, error) {
@@ -52,15 +64,15 @@ func UnmarshalCrownJewel(data []byte, opts ...MarshalOption) (*crownjewelv1.Crow
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var s crownjewelv1.CrownJewel
-	if err := utils.FastUnmarshal(data, &s); err != nil {
+	var obj crownjewelv1.CrownJewel
+	if err := utils.FastUnmarshal(data, &obj); err != nil {
 		return nil, trace.BadParameter(err.Error())
 	}
 	if cfg.Revision != "" {
-		s.Metadata.Revision = cfg.Revision
+		obj.Metadata.Revision = cfg.Revision
 	}
 	if !cfg.Expires.IsZero() {
-		s.Metadata.Expires = timestamppb.New(cfg.Expires)
+		obj.Metadata.Expires = timestamppb.New(cfg.Expires)
 	}
-	return &s, nil
+	return &obj, nil
 }

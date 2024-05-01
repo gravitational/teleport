@@ -22,11 +22,9 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 
-	"github.com/gravitational/teleport"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
@@ -43,9 +41,6 @@ type ServiceConfig struct {
 
 	// Backend is the backend for storing DiscoveryConfigs.
 	Backend services.CrownJewels
-
-	// Clock is the clock.
-	Clock clockwork.Clock
 }
 
 // CheckAndSetDefaults checks the ServiceConfig fields and returns an error if
@@ -59,14 +54,6 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("backend is required")
 	}
 
-	if s.Logger == nil {
-		s.Logger = logrus.New().WithField(teleport.ComponentKey, "crownjewel_crud_service")
-	}
-
-	if s.Clock == nil {
-		s.Clock = clockwork.NewRealClock()
-	}
-
 	return nil
 }
 
@@ -74,10 +61,8 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 type Service struct {
 	crownjewelv1.UnimplementedCrownJewelServiceServer
 
-	log        logrus.FieldLogger
 	authorizer authz.Authorizer
 	backend    services.CrownJewels
-	clock      clockwork.Clock
 }
 
 // NewService returns a new CrownJewel gRPC service.
@@ -87,10 +72,8 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}
 
 	return &Service{
-		log:        cfg.Logger,
 		authorizer: cfg.Authorizer,
 		backend:    cfg.Backend,
-		clock:      cfg.Clock,
 	}, nil
 }
 

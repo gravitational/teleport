@@ -22,80 +22,31 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 type CrownJewelsService struct {
 	service *generic.ServiceWrapper[*crownjewelv1.CrownJewel]
 }
 
-const (
-	crownJewelsKey = "crown_jewels"
-)
+const crownJewelsKey = "crown_jewels"
 
 // NewCrownJewelsService creates a new CrownJewelsService.
 func NewCrownJewelsService(backend backend.Backend) (*CrownJewelsService, error) {
 	service, err := generic.NewServiceWrapper(backend,
 		types.KindCrownJewel,
 		crownJewelsKey,
-		MarshalCrownJewel,
-		UnmarshalCrownJewel)
+		services.MarshalCrownJewel,
+		services.UnmarshalCrownJewel)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &CrownJewelsService{service: service}, nil
-}
-
-func MarshalCrownJewel(object *crownjewelv1.CrownJewel, opts ...services.MarshalOption) ([]byte, error) {
-	cfg, err := services.CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if !cfg.PreserveResourceID {
-		object = proto.Clone(object).(*crownjewelv1.CrownJewel)
-		//nolint:staticcheck // SA1019. Deprecated, but still needed.
-		object.Metadata.Id = 0
-		object.Metadata.Revision = ""
-	}
-	data, err := utils.FastMarshal(object)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return data, nil
-}
-
-func UnmarshalCrownJewel(data []byte, opts ...services.MarshalOption) (*crownjewelv1.CrownJewel, error) {
-	if len(data) == 0 {
-		return nil, trace.BadParameter("missing crown jewel data")
-	}
-	cfg, err := services.CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var obj crownjewelv1.CrownJewel
-	err = utils.FastUnmarshal(data, &obj)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if cfg.ID != 0 {
-		//nolint:staticcheck // SA1019. Id is deprecated, but still needed.
-		obj.Metadata.Id = cfg.ID
-	}
-	if cfg.Revision != "" {
-		obj.Metadata.Revision = cfg.Revision
-	}
-	if !cfg.Expires.IsZero() {
-		obj.Metadata.Expires = timestamppb.New(cfg.Expires)
-	}
-	return &obj, nil
 }
 
 func (s *CrownJewelsService) ListCrownJewels(ctx context.Context, pagesize int64, lastKey string) ([]*crownjewelv1.CrownJewel, string, error) {
