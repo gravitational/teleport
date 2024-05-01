@@ -21,8 +21,8 @@ package local
 import (
 	"context"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
