@@ -17,3 +17,4 @@
  */
 
 export { Notifications } from './Notifications';
+export { notificationContentFactory } from './notificationContentFactory';
