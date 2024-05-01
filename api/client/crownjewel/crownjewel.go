@@ -44,12 +44,7 @@ func (c *Client) ListCrownJewels(ctx context.Context, pageSize int64, nextToken 
 		return nil, "", trace.Wrap(err)
 	}
 
-	cjs := make([]*crownjewelv1.CrownJewel, 0, len(resp.CrownJewels))
-	for _, cj := range resp.CrownJewels {
-		cjs = append(cjs, cj)
-	}
-
-	return cjs, resp.NextPageToken, nil
+	return resp.CrownJewels, resp.NextPageToken, nil
 }
 
 // CreateCrownJewel creates a new Crown Jewel.
