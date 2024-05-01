@@ -3153,6 +3153,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindNotification:            types.Resource153ToLegacy(newUserNotification(t, "test")),
 		types.KindGlobalNotification:      types.Resource153ToLegacy(newGlobalNotification(t, "test")),
 		types.KindAccessMonitoringRule:    types.Resource153ToLegacy(newAccessMonitoringRule(t)),
+		types.KindCrownJewel:              types.Resource153ToLegacy(newCrownJewel(t, "test")),
 	}
 
 	for name, cfg := range cases {
