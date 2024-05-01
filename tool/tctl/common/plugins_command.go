@@ -26,27 +26,29 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-	"k8s.io/utils/io"
-	"os"
+	"golang.org/x/crypto/bcrypt"
 )
+
+type installArgs struct {
+	cmd  *kingpin.CmdClause
+	name string
+	scim scimArgs
+}
+
+type scimArgs struct {
+	cmd           *kingpin.CmdClause
+	samlConnector string
+	token         string
+}
 
 // PluginsCommand allows for management of plugins.
 type PluginsCommand struct {
 	config     *servicecfg.Config
 	cleanupCmd *kingpin.CmdClause
-	installCmd *kingpin.CmdClause
 	pluginType string
 	dryRun     bool
-
-	install struct {
-		definitionFile string
-		token          string
-		bcryptToken    bool
-	}
+	install    installArgs
 }
 
 // Initialize creates the plugins command and subcommands
@@ -60,15 +62,22 @@ func (p *PluginsCommand) Initialize(app *kingpin.Application, config *servicecfg
 	p.cleanupCmd.Arg("type", "The type of plugin to cleanup. Only supports okta at present.").Required().EnumVar(&p.pluginType, string(types.PluginTypeOkta))
 	p.cleanupCmd.Flag("dry-run", "Dry run the cleanup command. Dry run defaults to on.").Default("true").BoolVar(&p.dryRun)
 
-	p.installCmd = pluginsCommand.Command("install", "Install new plugin instance")
-	p.installCmd.Arg("filename", "File containing the plugin definition").
+	p.install.cmd = pluginsCommand.Command("install", "Install new plugin instance")
+
+	p.install.scim.cmd = p.install.cmd.Command("scim", "Install a new SCIM integration")
+	p.install.scim.cmd.
+		Flag("name", "The name of the SCIM plugin resource to create").
+		Default("scim").
+		StringVar(&p.install.name)
+	p.install.scim.cmd.
+		Flag("saml-connector", "The name of the Teleport SAML connector users wil log in with.").
 		Required().
-		ExistingFileVar(&p.install.definitionFile)
-	p.installCmd.Flag("api-token", "API token to install with plugin").
-		StringVar(&p.install.token)
-	p.installCmd.Flag("hash-token", "Hash the token before storage.").
-		Default("false").
-		BoolVar(&p.install.bcryptToken)
+		StringVar(&p.install.scim.samlConnector)
+	p.install.scim.cmd.
+		Flag("token", "The bearer token used by the SCIM client to authentcate").
+		Required().
+		Envar("SCIM_BEARER_TOKEN").
+		StringVar(&p.install.scim.token)
 }
 
 // Cleanup cleans up the given plugin.
@@ -116,40 +125,50 @@ func (p *PluginsCommand) Cleanup(ctx context.Context, clusterAPI *auth.Client) e
 	return nil
 }
 
-func (p *PluginsCommand) Install(ctx context.Context, client *auth.Client) error {
-	loadPlugin(p.install.definitionFile)
+func (p *PluginsCommand) InstallSCIM(ctx context.Context, client *auth.Client) error {
+	scimTokenHash, err := bcrypt.GenerateFromPassword([]byte(p.install.scim.token), bcrypt.DefaultCost)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
+	request := &pluginsv1.CreatePluginRequest{
+		Plugin: &types.PluginV1{
+			SubKind: types.PluginSubkindAccess,
+			Metadata: types.Metadata{
+				Labels: map[string]string{
+					types.HostedPluginLabel: "true",
+				},
+				Name: p.install.name,
+			},
+			Spec: types.PluginSpecV1{
+				Settings: &types.PluginSpecV1_Scim{
+					Scim: &types.PluginSCIMSettings{
+						SsoConnectorId: p.install.scim.samlConnector,
+					},
+				},
+			},
+		},
+		StaticCredentials: &types.PluginStaticCredentialsV1{
+			ResourceHeader: types.ResourceHeader{
+				Metadata: types.Metadata{
+					Name: p.install.name,
+				},
+			},
+			Spec: &types.PluginStaticCredentialsSpecV1{
+				Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
+					APIToken: string(scimTokenHash),
+				},
+			},
+		},
+	}
+
+	if _, err := client.PluginsClient().CreatePlugin(ctx, request); err != nil {
+		fmt.Println("Failed to create SCIM itegration: %v", err)
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf("Successfully created SCIM plugin %q\n", p.install.name)
 	return nil
-}
-
-func loadPlugin(filename string) (types.Plugin, err) {
-	var src io.Reader
-	if filename == "" {
-		src = os.Stdin
-	} else {
-		f, err := utils.OpenFileAllowingUnsafeLinks(filename)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		defer func() {
-			if err := f.Close(); err != nil {
-				logrus.Debugf("Failed closing plugin definition file: %v", err)
-			}
-		}()
-		src = f
-	}
-
-	text, err := io.ReadAtMost(src, 1024)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	plugin, err := services.UnmarshalPlugin(text)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return plugin, nil
 }
 
 // TryRun runs the plugins command
@@ -157,8 +176,8 @@ func (p *PluginsCommand) TryRun(ctx context.Context, cmd string, client *auth.Cl
 	switch cmd {
 	case p.cleanupCmd.FullCommand():
 		err = p.Cleanup(ctx, client)
-	case p.installCmd.FullCommand():
-		err = p.Install(ctx, client)
+	case p.install.scim.cmd.FullCommand():
+		err = p.InstallSCIM(ctx, client)
 	default:
 		return false, nil
 	}

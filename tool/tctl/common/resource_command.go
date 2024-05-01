@@ -22,7 +22,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"io"
 	"math"
 	"os"
@@ -156,8 +155,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindDatabaseObjectImportRule: rc.createDatabaseObjectImportRule,
 		types.KindDatabaseObject:           rc.createDatabaseObject,
 		types.KindAccessMonitoringRule:     rc.createAccessMonitoringRule,
-		types.KindPlugin:                   rc.createPlugin,
-		types.KindPluginStaticCredentials:  rc.createPluginStaticCredentials,
 	}
 	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
 		types.KindUser:                    rc.updateUser,
@@ -2962,57 +2959,4 @@ func (rc *ResourceCommand) updateAccessMonitoringRule(ctx context.Context, clien
 	}
 	fmt.Printf("access monitoring rule %q has been updated\n", in.GetMetadata().GetName())
 	return nil
-}
-
-// createPlugin implements `tctl create plugin.yaml` command.
-func (rc *ResourceCommand) createPlugin(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
-	plugin, err := services.UnmarshalPlugin(raw.Raw)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	pluginv1, ok := plugin.(*types.PluginV1)
-	if ok {
-		return trace.BadParameter("invalid plugin version: %", plugin.GetVersion())
-	}
-
-	plugins := client.PluginsClient()
-
-	_, err = plugins.CreatePlugin(ctx, &pluginspb.CreatePluginRequest{Plugin: pluginv1})
-	if err != nil {
-		return nil
-	}
-
-	if trace.IsAlreadyExists(err) && rc.force {
-		fmt.Printf("Force create unsupported on plugins")
-	}
-
-	return trace.Wrap(err)
-}
-
-func (rc *ResourceCommand) createPluginStaticCredential(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
-	pluginCred, err := services.UnmarshalPluginStaticCredentials(raw.Raw)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	pluginCredv1, ok := pluginCred.(*types.PluginStaticCredentialsV1)
-	if ok {
-		return trace.BadParameter("invalid plugin version: %", plugin.GetVersion())
-	}
-
-	plugins := client.PluginsClient()
-
-	plugins.SetPluginCredentials(ctx, pluginspb.SetPluginCredentialsRequest{})
-
-	_, err = plugins.CreatePlugin(ctx, &pluginspb.CreatePluginRequest{Plugin: pluginv1})
-	if err != nil {
-		return nil
-	}
-
-	if trace.IsAlreadyExists(err) && rc.force {
-		fmt.Printf("Force create unsupported on plugins")
-	}
-
-	return trace.Wrap(err)
 }
