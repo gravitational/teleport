@@ -20,23 +20,39 @@ package eventstest
 
 import (
 	"context"
+	"sync"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/trace"
 )
 
 type MockAuditLog struct {
 	*events.DiscardAuditLog
 
-	Emitter       *MockRecorderEmitter
-	SessionEvents []apievents.AuditEvent
+	Emitter                *MockRecorderEmitter
+	SessionEvents          []apievents.AuditEvent
+	streamSessionEventsErr error
+	mu                     sync.Mutex
+}
+
+func (m *MockAuditLog) SetStreamSessionEventsErr(err error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.streamSessionEventsErr = err
 }
 
 func (m *MockAuditLog) StreamSessionEvents(ctx context.Context, sid session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
 	errors := make(chan error, 1)
 	events := make(chan apievents.AuditEvent)
-
+	m.mu.Lock()
+	err := m.streamSessionEventsErr
+	m.mu.Unlock()
+	if err != nil {
+		errors <- trace.Wrap(err)
+		return events, errors
+	}
 	go func() {
 		defer close(events)
 

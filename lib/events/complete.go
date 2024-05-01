@@ -20,8 +20,10 @@ package events
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/google/uuid"
@@ -37,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
@@ -63,6 +66,10 @@ type UploadCompleterConfig struct {
 	Clock clockwork.Clock
 	// ClusterName identifies the originating teleport cluster
 	ClusterName string
+	// UnconfirmedSessionEndDir is the directory where the upload completer stores
+	// the session ids for sessions where it wasn't possible to ensure
+	// the session.end event because Audit Logs storage wasn't available.
+	UnconfirmedSessionEndDir string
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -87,6 +94,9 @@ func (cfg *UploadCompleterConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
+	}
+	if cfg.UnconfirmedSessionEndDir == "" {
+		return trace.BadParameter("missing parameter UnconfirmedSessionEndDir")
 	}
 	return nil
 }
@@ -209,6 +219,8 @@ func (u *UploadCompleter) PerformPeriodicCheck(ctx context.Context) {
 
 // CheckUploads fetches uploads and completes any abandoned uploads
 func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
+	u.ensureAllPendingsessionsHaveEndEvts(ctx)
+
 	uploads, err := u.cfg.Uploader.ListUploads(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -288,8 +300,15 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 				return
 			case <-u.cfg.Clock.After(2 * time.Minute):
 				log.Debug("checking for session end event")
-				if err := u.ensureSessionEndEvent(ctx, uploadData); err != nil {
+				switch err := u.ensureSessionEndEvent(ctx, uploadData.SessionID); {
+				case trace.IsNotFound(err), errors.Is(err, errEmptySession):
 					log.WithError(err).Warning("failed to ensure session end event")
+				case err != nil:
+					log.WithError(err).Warning("failed to ensure session end event. Retrying later.")
+					if err := u.createIncompleteSession(uploadData.SessionID); err != nil {
+						log.WithError(err).Warning("failed to create pivot file")
+					}
+
 				}
 			}
 		}()
@@ -315,7 +334,24 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 	return nil
 }
 
-func (u *UploadCompleter) ensureSessionEndEvent(ctx context.Context, uploadData UploadMetadata) error {
+func (u *UploadCompleter) ensureAllPendingsessionsHaveEndEvts(ctx context.Context) {
+	pendingSessionIDs, err := u.scanDirectoryForIncompleteSessions()
+	if err != nil {
+		u.log.WithError(err).Warn("Failed to list directory objects")
+	}
+
+	for _, pendingSessionID := range pendingSessionIDs {
+		if err := u.ensureSessionEndEvent(ctx, pendingSessionID); err == nil {
+			u.removeIncompleteSession(pendingSessionID)
+		} else {
+			u.log.WithError(err).Warning("failed to ensure session end event. Retrying later.")
+		}
+	}
+}
+
+var errEmptySession = errors.New("empty session")
+
+func (u *UploadCompleter) ensureSessionEndEvent(ctx context.Context, sessionID session.ID) error {
 	// at this point, we don't know whether we'll need to emit a session.end or a
 	// windows.desktop.session.end, but as soon as we see the session start we'll
 	// be able to start filling in the details
@@ -326,7 +362,7 @@ func (u *UploadCompleter) ensureSessionEndEvent(ctx context.Context, uploadData 
 	// for both Desktop and SSH sessions, where as the GetSessionEvents API relies on downloading
 	// a copy of the session and using the SSH-specific index to iterate through events.
 	var lastEvent events.AuditEvent
-	evts, errors := u.cfg.AuditLog.StreamSessionEvents(ctx, uploadData.SessionID, 0)
+	evts, errors := u.cfg.AuditLog.StreamSessionEvents(ctx, sessionID, 0)
 
 loop:
 	for {
@@ -386,7 +422,7 @@ loop:
 	}
 
 	if lastEvent == nil {
-		return trace.Errorf("could not find any events for session %v", uploadData.SessionID)
+		return trace.Wrap(errEmptySession, "could not find any events for session %v", sessionID)
 	}
 
 	sshSessionEnd.Participants = apiutils.Deduplicate(sshSessionEnd.Participants)
@@ -403,7 +439,7 @@ loop:
 		return trace.BadParameter("invalid session, could not find session start")
 	}
 
-	u.log.Infof("emitting %T event for completed session %v", sessionEndEvent, uploadData.SessionID)
+	u.log.Infof("emitting %T event for completed session %v", sessionEndEvent, sessionID)
 
 	sessionEndEvent.SetTime(lastEvent.GetTime())
 
@@ -415,4 +451,39 @@ loop:
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+func (u *UploadCompleter) createIncompleteSession(sessionID session.ID) error {
+	path := filepath.Join(u.cfg.UnconfirmedSessionEndDir, sessionID.String())
+	f, err := os.Create(path)
+	if os.IsExist(err) {
+		return nil
+	} else if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	f.Close()
+	return nil
+}
+
+func (u *UploadCompleter) removeIncompleteSession(sessionID session.ID) {
+	path := filepath.Join(u.cfg.UnconfirmedSessionEndDir, sessionID.String())
+	os.Remove(path)
+}
+
+func (u *UploadCompleter) scanDirectoryForIncompleteSessions() ([]session.ID, error) {
+	entries, err := os.ReadDir(u.cfg.UnconfirmedSessionEndDir)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var sessionIDs []session.ID
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		sessID := session.ID(entry.Name())
+		if sessID.Check() == nil {
+			sessionIDs = append(sessionIDs, sessID)
+		}
+	}
+	return sessionIDs, nil
 }

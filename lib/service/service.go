@@ -2019,14 +2019,19 @@ func (process *TeleportProcess) initAuthService() error {
 	// (In async recording modes, auth only ever sees completed uploads, as the node's upload completer
 	// packages up the parts into a single upload before sending to auth)
 	if uploadHandler != nil {
+		path := filepath.Join(cfg.DataDir, events.SessionsWithUnconfirmedSessionEnd)
+		if err := os.MkdirAll(path, teleport.SharedDirMode); err != nil {
+			return trace.Wrap(err)
+		}
 		err = events.StartNewUploadCompleter(process.ExitContext(), events.UploadCompleterConfig{
-			Uploader:       uploadHandler,
-			Component:      teleport.ComponentAuth,
-			ClusterName:    clusterName,
-			AuditLog:       process.auditLog,
-			SessionTracker: authServer.Services,
-			Semaphores:     authServer.Services,
-			ServerID:       cfg.HostUUID,
+			Uploader:                 uploadHandler,
+			Component:                teleport.ComponentAuth,
+			ClusterName:              clusterName,
+			AuditLog:                 process.auditLog,
+			SessionTracker:           authServer.Services,
+			Semaphores:               authServer.Services,
+			ServerID:                 cfg.HostUUID,
+			UnconfirmedSessionEndDir: path,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -2989,6 +2994,7 @@ func (process *TeleportProcess) initUploaderService() error {
 	paths := [][]string{
 		{process.Config.DataDir, teleport.LogsDir, teleport.ComponentUpload, events.StreamingSessionsDir, apidefaults.Namespace},
 		{process.Config.DataDir, teleport.LogsDir, teleport.ComponentUpload, events.CorruptedSessionsDir, apidefaults.Namespace},
+		{process.Config.DataDir, teleport.LogsDir, teleport.ComponentUpload, events.SessionsWithUnconfirmedSessionEnd, apidefaults.Namespace},
 	}
 	for _, path := range paths {
 		for i := 1; i < len(path); i++ {
@@ -3046,11 +3052,12 @@ func (process *TeleportProcess) initUploaderService() error {
 	}
 
 	uploadCompleter, err := events.NewUploadCompleter(events.UploadCompleterConfig{
-		Component:      component,
-		Uploader:       handler,
-		AuditLog:       uploaderClient,
-		SessionTracker: uploaderClient,
-		ClusterName:    clusterName,
+		Component:                component,
+		Uploader:                 handler,
+		AuditLog:                 uploaderClient,
+		SessionTracker:           uploaderClient,
+		ClusterName:              clusterName,
+		UnconfirmedSessionEndDir: filepath.Join(paths[2]...),
 	})
 	if err != nil {
 		return trace.Wrap(err)
