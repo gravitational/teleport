@@ -20,7 +20,6 @@ package crownjewelv1
 
 import (
 	"context"
-
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -204,6 +203,46 @@ func validateCrownJewel(jewel *crownjewelv1.CrownJewel) error {
 		return trace.BadParameter("crown jewel spec is nil")
 	case len(jewel.Spec.TeleportMatchers) == 0 && len(jewel.Spec.AwsMatchers) == 0:
 		return trace.BadParameter("crown jewel must have at least one matcher")
+	}
+
+	if len(jewel.Spec.TeleportMatchers) > 0 {
+		for _, matcher := range jewel.Spec.TeleportMatchers {
+			if len(matcher.GetKinds()) == 0 {
+				return trace.BadParameter("teleport matcher kinds must be set")
+			}
+
+			if matcher.Name == "" && len(matcher.GetLabels()) == 0 {
+				return trace.BadParameter("teleport matcher name or labels must be set")
+			}
+
+			if len(matcher.GetLabels()) > 0 {
+				for _, label := range matcher.GetLabels() {
+					if label.Name == "" || len(label.Values) == 0 {
+						return trace.BadParameter("teleport matcher label name or value is empty")
+					}
+				}
+			}
+		}
+	}
+
+	if len(jewel.Spec.AwsMatchers) > 0 {
+		for _, matcher := range jewel.Spec.AwsMatchers {
+			if len(matcher.GetTypes()) == 0 {
+				return trace.BadParameter("aws matcher type must be set")
+			}
+
+			if matcher.GetArn() == "" && len(matcher.GetTags()) == 0 {
+				return trace.BadParameter("aws matcher arn or tags must be set")
+			}
+
+			if len(matcher.GetTypes()) > 0 {
+				for _, label := range matcher.GetTags() {
+					if label.Key == "" || len(label.Values) == 0 {
+						return trace.BadParameter("aws matcher tag key or value is empty")
+					}
+				}
+			}
+		}
 	}
 
 	return nil
