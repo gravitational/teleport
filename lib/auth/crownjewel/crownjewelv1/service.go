@@ -119,13 +119,8 @@ func (s *Service) ListCrownJewels(ctx context.Context, req *crownjewelv1.ListCro
 		return nil, trace.Wrap(err)
 	}
 
-	var elems []*crownjewelv1.CrownJewel
-	for _, elem := range rsp {
-		elems = append(elems, elem)
-	}
-
 	return &crownjewelv1.ListCrownJewelsResponse{
-		CrownJewels:   elems,
+		CrownJewels:   rsp,
 		NextPageToken: nextToken,
 	}, nil
 }
