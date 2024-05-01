@@ -31,9 +31,6 @@ import (
 
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/e/lib/okta"
-	"github.com/gravitational/teleport/e/lib/plugins"
-	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 )
 
 func TestPluginsInstallOkta(t *testing.T) {
@@ -111,7 +108,7 @@ func TestPluginsInstallOkta(t *testing.T) {
 					SubKind: types.PluginSubkindAccess,
 					Metadata: types.Metadata{
 						Labels: map[string]string{
-							plugins.HostedPluginLabel: "true",
+							types.HostedPluginLabel: "true",
 						},
 						Name: "okta-barebones-test",
 					},
@@ -130,7 +127,7 @@ func TestPluginsInstallOkta(t *testing.T) {
 							Metadata: types.Metadata{
 								Name: "okta-barebones-test",
 								Labels: map[string]string{
-									okta.CredPurposeLabel: okta.CredPurposeOktaAuth,
+									types.OktaCredPurposeLabel: types.OktaCredPurposeAuth,
 								},
 							},
 						},
@@ -142,7 +139,7 @@ func TestPluginsInstallOkta(t *testing.T) {
 					},
 				},
 				CredentialLabels: map[string]string{
-					eteleport.OktaOrgURLLabel: "https://example.okta.com",
+					types.OktaOrgURLLabel: "https://example.okta.com",
 				},
 			},
 			expectError: require.NoError,
@@ -168,7 +165,7 @@ func TestPluginsInstallOkta(t *testing.T) {
 					SubKind: types.PluginSubkindAccess,
 					Metadata: types.Metadata{
 						Labels: map[string]string{
-							plugins.HostedPluginLabel: "true",
+							types.HostedPluginLabel: "true",
 						},
 						Name: "okta-sync-service-test",
 					},
@@ -193,7 +190,7 @@ func TestPluginsInstallOkta(t *testing.T) {
 							Metadata: types.Metadata{
 								Name: "okta-sync-service-test",
 								Labels: map[string]string{
-									okta.CredPurposeLabel: okta.CredPurposeOktaAuth,
+									types.OktaCredPurposeLabel: types.OktaCredPurposeAuth,
 								},
 							},
 						},
@@ -205,7 +202,7 @@ func TestPluginsInstallOkta(t *testing.T) {
 					},
 				},
 				CredentialLabels: map[string]string{
-					eteleport.OktaOrgURLLabel: "https://example.okta.com",
+					types.OktaOrgURLLabel: "https://example.okta.com",
 				},
 			},
 			expectError: require.NoError,
@@ -235,7 +232,7 @@ func TestPluginsInstallOkta(t *testing.T) {
 					SubKind: types.PluginSubkindAccess,
 					Metadata: types.Metadata{
 						Labels: map[string]string{
-							plugins.HostedPluginLabel: "true",
+							types.HostedPluginLabel: "true",
 						},
 						Name: "okta-scim-test",
 					},
@@ -262,7 +259,7 @@ func TestPluginsInstallOkta(t *testing.T) {
 							Metadata: types.Metadata{
 								Name: "okta-scim-test",
 								Labels: map[string]string{
-									okta.CredPurposeLabel: okta.CredPurposeOktaAuth,
+									types.OktaCredPurposeLabel: types.OktaCredPurposeAuth,
 								},
 							},
 						},
@@ -277,7 +274,7 @@ func TestPluginsInstallOkta(t *testing.T) {
 							Metadata: types.Metadata{
 								Name: "okta-scim-test-scim-token",
 								Labels: map[string]string{
-									okta.CredPurposeLabel: okta.CredPurposeSCIMToken,
+									types.OktaCredPurposeLabel: types.OktaCredPurposeSCIMToken,
 								},
 							},
 						},
@@ -289,7 +286,7 @@ func TestPluginsInstallOkta(t *testing.T) {
 					},
 				},
 				CredentialLabels: map[string]string{
-					eteleport.OktaOrgURLLabel: "https://example.okta.com",
+					types.OktaOrgURLLabel: "https://example.okta.com",
 				},
 			},
 			expectError: require.NoError,
@@ -305,8 +302,8 @@ func TestPluginsInstallOkta(t *testing.T) {
 		// TODO: Find a way to only exclude the token hash from the comparison,
 		//       rather than the whole credential
 		cmpopts.IgnoreSliceElements(func(c *types.PluginStaticCredentialsV1) bool {
-			l, _ := c.GetLabel(okta.CredPurposeLabel)
-			return l == okta.CredPurposeSCIMToken
+			l, _ := c.GetLabel(types.OktaCredPurposeLabel)
+			return l == types.OktaCredPurposeSCIMToken
 		}),
 	}
 
@@ -350,7 +347,7 @@ func TestPluginsInstallOkta(t *testing.T) {
 	}
 }
 
-func requireBadParameter(t require.TestingT, err error, args ...interface{}) {
+func requireBadParameter(t require.TestingT, err error, _ ...interface{}) {
 	require.Error(t, err)
 	require.True(t, trace.IsBadParameter(err), "Expecting bad parameter, got %T: \"%v\"", err, err)
 }
