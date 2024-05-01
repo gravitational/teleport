@@ -74,7 +74,7 @@ func MarshalCrownJewel(object *crownjewelv1.CrownJewel, opts ...services.Marshal
 
 func UnmarshalCrownJewel(data []byte, opts ...services.MarshalOption) (*crownjewelv1.CrownJewel, error) {
 	if len(data) == 0 {
-		return nil, trace.BadParameter("missing DatabaseObject data")
+		return nil, trace.BadParameter("missing crown jewel data")
 	}
 	cfg, err := services.CollectOptions(opts)
 	if err != nil {

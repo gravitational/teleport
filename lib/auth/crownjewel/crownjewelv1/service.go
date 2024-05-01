@@ -70,7 +70,7 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// Service implements the teleport.DiscoveryConfig.v1.DiscoveryConfigService RPC service.
+// Service implements the teleport.CrownJewel.v1.CrownJewelService RPC service.
 type Service struct {
 	crownjewelv1.UnimplementedCrownJewelServiceServer
 
@@ -80,7 +80,7 @@ type Service struct {
 	clock      clockwork.Clock
 }
 
-// NewService returns a new DiscoveryConfigs gRPC service.
+// NewService returns a new CrownJewel gRPC service.
 func NewService(cfg ServiceConfig) (*Service, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)

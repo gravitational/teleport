@@ -2269,11 +2269,11 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *auth.Clien
 		}
 		return &kubeClusterCollection{clusters: clusters}, nil
 	case types.KindCrownJewel:
-		cjCLient := client.CrownJewelsClient()
+		cjClient := client.CrownJewelsClient()
 		var rules []*crownjewelv1.CrownJewel
 		nextToken := ""
 		for {
-			resp, token, err := cjCLient.ListCrownJewels(ctx, 0 /* default size */, nextToken)
+			resp, token, err := cjClient.ListCrownJewels(ctx, 0 /* default size */, nextToken)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

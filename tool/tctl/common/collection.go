@@ -936,7 +936,7 @@ func (c *crownJewelCollection) writeText(w io.Writer, verbose bool) error {
 		labels := common.FormatLabels(item.GetMetadata().GetLabels(), verbose)
 		rows = append(rows, []string{item.Metadata.GetName(), item.GetSpec().String(), labels})
 	}
-	headers := []string{"Name", "Spec", "Labels"} // TODO: check if this is correct
+	headers := []string{"Name", "Spec", "Labels"}
 	var t asciitable.Table
 	if verbose {
 		t = asciitable.MakeTable(headers, rows...)

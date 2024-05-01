@@ -46,7 +46,7 @@ func MarshalCrownJewel(crown *crownjewelv1.CrownJewel, opts ...MarshalOption) ([
 
 func UnmarshalCrownJewel(data []byte, opts ...MarshalOption) (*crownjewelv1.CrownJewel, error) {
 	if len(data) == 0 {
-		return nil, trace.BadParameter("missing kube cluster data")
+		return nil, trace.BadParameter("missing crown jewel data")
 	}
 	cfg, err := CollectOptions(opts)
 	if err != nil {
