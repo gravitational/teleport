@@ -840,13 +840,17 @@ func registerUsingTPMMethod(
 // in the cluster (rotating certificates for existing members)
 type ReRegisterParams struct {
 	// Client is an authenticated client using old credentials
-	Client authclient.ClientI
+	Client ReRegisterClient
 	// ID is identity ID
 	ID IdentityID
 	// AdditionalPrincipals is a list of additional principals to dial
 	AdditionalPrincipals []string
 	// DNSNames is a list of DNS Names to add to the x509 client certificate
 	DNSNames []string
+	// RemoteAddr overrides the RemoteAddr host cert generation option when
+	// performing re-registration locally (this value has no effect for remote
+	// registration and can be omitted).
+	RemoteAddr string
 	// PrivateKey is a PEM encoded private key (not passed to auth servers)
 	PrivateKey []byte
 	// PublicTLSKey is a server's public key to sign
@@ -857,6 +861,15 @@ type ReRegisterParams struct {
 	Rotation types.Rotation
 	// SystemRoles is a set of additional system roles held by the instance.
 	SystemRoles []types.SystemRole
+	// Used by older instances to requisition a multi-role cert by individually
+	// proving which system roles are held.
+	UnstableSystemRoleAssertionID string
+}
+
+// ReRegisterClient abstracts over local auth servers and remote clients when
+// performing a re-registration.
+type ReRegisterClient interface {
+	GenerateHostCerts(context.Context, *proto.HostCertsRequest) (*proto.Certs, error)
 }
 
 // ReRegister renews the certificates and private keys based on the client's existing identity.
@@ -870,15 +883,17 @@ func ReRegister(ctx context.Context, params ReRegisterParams) (*Identity, error)
 	}
 	certs, err := params.Client.GenerateHostCerts(ctx,
 		&proto.HostCertsRequest{
-			HostID:               params.ID.HostID(),
-			NodeName:             params.ID.NodeName,
-			Role:                 params.ID.Role,
-			AdditionalPrincipals: params.AdditionalPrincipals,
-			DNSNames:             params.DNSNames,
-			PublicTLSKey:         params.PublicTLSKey,
-			PublicSSHKey:         params.PublicSSHKey,
-			Rotation:             rotation,
-			SystemRoles:          params.SystemRoles,
+			HostID:                        params.ID.HostID(),
+			NodeName:                      params.ID.NodeName,
+			Role:                          params.ID.Role,
+			AdditionalPrincipals:          params.AdditionalPrincipals,
+			DNSNames:                      params.DNSNames,
+			RemoteAddr:                    params.RemoteAddr,
+			PublicTLSKey:                  params.PublicTLSKey,
+			PublicSSHKey:                  params.PublicSSHKey,
+			Rotation:                      rotation,
+			SystemRoles:                   params.SystemRoles,
+			UnstableSystemRoleAssertionID: params.UnstableSystemRoleAssertionID,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"strings"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -90,6 +91,15 @@ func (p *ProcessStorage) GetState(ctx context.Context, role types.SystemRole) (*
 	if err := utils.FastUnmarshal(item.Value, &res); err != nil {
 		return nil, trace.BadParameter(err.Error())
 	}
+
+	// an empty InitialLocalVersion is treated as an error by CheckAndSetDefaults, but if the field
+	// is missing in the underlying storage, that indicates the state was written by an older version of
+	// teleport that didn't record InitialLocalVersion. In that case, we set a sentinel value to indicate
+	// that the version is unknown rather than being erroneously omitted.
+	if res.Spec.InitialLocalVersion == "" {
+		res.Spec.InitialLocalVersion = unknownLocalVersion
+	}
+
 	if err := res.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -201,6 +211,12 @@ type StateV2 struct {
 	Spec StateSpecV2 `json:"spec"`
 }
 
+// GetInitialLocalVersion gets the initial local version string. If ok is false it indicates that
+// this state value was written by a teleport agent that was too old to record the initial local version.
+func (s *StateV2) GetInitialLocalVersion() (v string, ok bool) {
+	return s.Spec.InitialLocalVersion, s.Spec.InitialLocalVersion != unknownLocalVersion
+}
+
 // CheckAndSetDefaults checks and sets defaults values.
 func (s *StateV2) CheckAndSetDefaults() error {
 	s.Kind = types.KindState
@@ -212,13 +228,33 @@ func (s *StateV2) CheckAndSetDefaults() error {
 	if err := s.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+
+	if s.Spec.InitialLocalVersion == "" {
+		return trace.BadParameter("agent identity state must specify initial local version")
+	}
+
+	if v, ok := s.GetInitialLocalVersion(); ok {
+		if _, err := semver.NewVersion(v); err != nil {
+			return trace.BadParameter("malformed initial local version %q: %v", s.Spec.InitialLocalVersion, err)
+		}
+	}
+
 	return nil
 }
+
+// unknownVersion is a sentinel value used to distinguish between InitialLocalVersion being missing from
+// state due to malformed input and InitialLocalVersion being missing due to the state having been created before
+// teleport started recording InitialLocalVersion.
+const unknownLocalVersion = "unknown"
 
 // StateSpecV2 is a state spec.
 type StateSpecV2 struct {
 	// Rotation holds local process rotation state.
 	Rotation types.Rotation `json:"rotation"`
+
+	// InitialLocalVersion records the version of teleport that initially
+	// wrote this state to disk.
+	InitialLocalVersion string `json:"initial_local_version,omitempty"`
 }
 
 // IdentityV2 specifies local host identity.

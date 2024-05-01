@@ -1056,6 +1056,16 @@ func (c *Client) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 	return cert, nil
 }
 
+// UnstableAssertSystemRole is not a stable part of the public API.  Used by older
+// instances to prove that they hold a given system role.
+//
+// DELETE IN: 17.0 (server side method should continue to exist until 18.0 for back-compat reasons,
+// but v17 clients should no longer need this method)
+func (c *Client) UnstableAssertSystemRole(ctx context.Context, req proto.UnstableSystemRoleAssertion) error {
+	_, err := c.grpc.UnstableAssertSystemRole(ctx, &req)
+	return trace.Wrap(err)
+}
+
 // EmitAuditEvent sends an auditable event to the auth server.
 func (c *Client) EmitAuditEvent(ctx context.Context, event events.AuditEvent) error {
 	grpcEvent, err := events.ToOneOf(event)
