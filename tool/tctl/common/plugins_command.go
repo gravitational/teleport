@@ -21,34 +21,50 @@ package common
 import (
 	"context"
 	"fmt"
+	"net/url"
+
 	"github.com/alecthomas/kingpin/v2"
-	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"golang.org/x/crypto/bcrypt"
+	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/emptypb"
+
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/e/lib/teleport"
+	"github.com/gravitational/teleport/e/lib/okta"
+	"github.com/gravitational/teleport/e/lib/plugins"
+	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-	"io"
-	"os"
 )
+
+type installArgs struct {
+	cmd  *kingpin.CmdClause
+	name string
+	okta oktaArgs
+}
+
+type oktaArgs struct {
+	cmd            *kingpin.CmdClause
+	org            *url.URL
+	appID          string
+	samlConnector  string
+	apiToken       string
+	scimToken      string
+	userSync       bool
+	accessListSync bool
+	defaultOwners  []string
+	appFilters     []string
+	groupFilters   []string
+}
 
 // PluginsCommand allows for management of plugins.
 type PluginsCommand struct {
 	config     *servicecfg.Config
 	cleanupCmd *kingpin.CmdClause
-	installCmd *kingpin.CmdClause
 	pluginType string
 	dryRun     bool
-
-	install struct {
-		definitionFile string
-		token          string
-		bcryptToken    bool
-	}
+	install    installArgs
 }
 
 // Initialize creates the plugins command and subcommands
@@ -62,15 +78,50 @@ func (p *PluginsCommand) Initialize(app *kingpin.Application, config *servicecfg
 	p.cleanupCmd.Arg("type", "The type of plugin to cleanup. Only supports okta at present.").Required().EnumVar(&p.pluginType, string(types.PluginTypeOkta))
 	p.cleanupCmd.Flag("dry-run", "Dry run the cleanup command. Dry run defaults to on.").Default("true").BoolVar(&p.dryRun)
 
-	p.installCmd = pluginsCommand.Command("install", "Install new plugin instance")
-	p.installCmd.Arg("filename", "File containing the plugin definition").
+	p.install.cmd = pluginsCommand.Command("install", "Install new plugin instance")
+
+	p.install.okta.cmd = p.install.cmd.Command("okta", "install an okta integration")
+	p.install.okta.cmd.
+		Flag("name", "name of the plugin resource to create").
+		Default("okta").
+		StringVar(&p.install.name)
+	p.install.okta.cmd.
+		Flag("org", "URL of Okta organization").
 		Required().
-		ExistingFileVar(&p.install.definitionFile)
-	p.installCmd.Flag("api-token", "API token to install with plugin").
-		StringVar(&p.install.token)
-	p.installCmd.Flag("hash-token", "Hash the token before storage.").
-		Default("false").
-		BoolVar(&p.install.bcryptToken)
+		URLVar(&p.install.okta.org)
+	p.install.okta.cmd.
+		Flag("api-token", "API token to install with plugin").
+		Required().
+		StringVar(&p.install.okta.apiToken)
+	p.install.okta.cmd.
+		Flag("saml-connector", "SAML connector to link to plugin").
+		StringVar(&p.install.okta.samlConnector)
+	p.install.okta.cmd.
+		Flag("app-id", "Okta ID of the APP used for SSO via SAML").
+		StringVar(&p.install.okta.appID)
+	p.install.okta.cmd.
+		Flag("scim-token", "SCIM token to install with plugin").
+		StringVar(&p.install.okta.scimToken)
+	p.install.okta.cmd.
+		Flag("sync-users", "Enable user synchronization").
+		Default("true").
+		BoolVar(&p.install.okta.userSync)
+	p.install.okta.cmd.
+		Flag("owner", "Set default owners for synced AccessLists").
+		Short('o').
+		StringsVar(&p.install.okta.defaultOwners)
+	p.install.okta.cmd.
+		Flag("sync-groups", "Enable group to AccessList synchronization").
+		Default("true").
+		BoolVar(&p.install.okta.accessListSync)
+	p.install.okta.cmd.
+		Flag("group", "Add a group filter. Supports globbing by default. Enclose in `^pattern$` for full regex support.").
+		Short('g').
+		StringsVar(&p.install.okta.groupFilters)
+	p.install.okta.cmd.
+		Flag("app", "Add an app filter. Supports globbing by default. Enclose in `^pattern$` for full regex support.").
+		Short('a').
+		StringsVar(&p.install.okta.appFilters)
 }
 
 // Cleanup cleans up the given plugin.
@@ -118,61 +169,123 @@ func (p *PluginsCommand) Cleanup(ctx context.Context, clusterAPI *auth.Client) e
 	return nil
 }
 
-func (p *PluginsCommand) Install(ctx context.Context, client *auth.Client) error {
-	pi, err := loadPlugin(p.install.definitionFile)
-	if err != nil {
-		return trace.Wrap(err, "loading plugin")
-	}
+type samlConnectorsClient interface {
+	GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error)
+}
 
-	pluginName := pi.GetName()
-	plugin, ok := pi.(*types.PluginV1)
-	if !ok {
-		return trace.BadParameter("Plugin %q has invalid type %T", pluginName, p)
-	}
+type pluginsClient interface {
+	CreatePlugin(ctx context.Context, in *pluginsv1.CreatePluginRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+}
 
-	// The loaded plugin may have a credential ref merely to satisfy the plugin resource
-	// Validation. Delete it if its one we know will be overwritten anyway.
-	if plugin.Credentials != nil && plugin.Credentials.GetStaticCredentialsRef() != nil {
-		plugin.Credentials = nil
-	}
+type installPluginArgs struct {
+	samlConnectors samlConnectorsClient
+	plugins        pluginsClient
+}
 
-	var creds *types.PluginStaticCredentialsV1
-	var credLabels map[string]string
-	if p.install.token != "" {
-		// The Plugins service currently panics Teleport on an empty `CredentialsLabels`
-		// map in a CreatePluginRequest, which is not good. To get around this for
-		// unpatched Teleport servers we create a dummy PluginID label that we know the
-		// backend will overwrite.
-		pluginID := uuid.NewString()
+func (p *PluginsCommand) InstallOkta(ctx context.Context, args installPluginArgs) error {
+	oktaSettings := p.install.okta
 
-		if plugin.Metadata.Labels == nil {
-			plugin.Metadata.Labels = map[string]string{}
+	if oktaSettings.accessListSync {
+		if len(oktaSettings.defaultOwners) == 0 {
+			return trace.BadParameter("AccessList sync requires at least one default owner to be set")
 		}
-		plugin.Metadata.Labels[teleport.PluginLabel] = pluginID
-		credLabels = map[string]string{teleport.PluginLabel: pluginID}
+	}
 
-		creds = &types.PluginStaticCredentialsV1{
+	if oktaSettings.scimToken != "" {
+		if len(oktaSettings.defaultOwners) == 0 {
+			return trace.BadParameter("SCIM support requires at least one default owner to be set")
+		}
+
+		if oktaSettings.appID == "" {
+			return trace.BadParameter("SCIM support requires app-id to be set")
+		}
+
+		if oktaSettings.samlConnector == "" {
+			return trace.BadParameter("SCIM support requires saml-connector to be set")
+		}
+	}
+
+	if oktaSettings.samlConnector != "" {
+		if err := validateSAMLConnector(ctx, args.samlConnectors, oktaSettings.samlConnector); err != nil {
+			fmt.Printf("Failed validating SAML connector: %v", err)
+			return trace.Wrap(err)
+		}
+	}
+
+	creds := []*types.PluginStaticCredentialsV1{
+		{
 			ResourceHeader: types.ResourceHeader{
 				Metadata: types.Metadata{
-					Name: pluginName,
+					Name: p.install.name,
+					Labels: map[string]string{
+						okta.CredPurposeLabel: okta.CredPurposeOktaAuth,
+					},
 				},
 			},
 			Spec: &types.PluginStaticCredentialsSpecV1{
 				Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
-					APIToken: p.install.token,
+					APIToken: oktaSettings.apiToken,
 				},
 			},
-		}
+		},
 	}
 
-	plugins := client.PluginsClient()
-	_, err = plugins.CreatePlugin(ctx, &pluginsv1.CreatePluginRequest{
-		Plugin:            plugin,
-		StaticCredentials: creds,
-		CredentialLabels:  credLabels,
-	})
+	if oktaSettings.scimToken != "" {
+		scimTokenHash, err := bcrypt.GenerateFromPassword([]byte(oktaSettings.scimToken), bcrypt.DefaultCost)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
-	if err != nil {
+		creds = append(creds, &types.PluginStaticCredentialsV1{
+			ResourceHeader: types.ResourceHeader{
+				Metadata: types.Metadata{
+					Name: p.install.name + "-scim-token",
+					Labels: map[string]string{
+						okta.CredPurposeLabel: okta.CredPurposeSCIMToken,
+					},
+				},
+			},
+			Spec: &types.PluginStaticCredentialsSpecV1{
+				Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
+					APIToken: string(scimTokenHash),
+				},
+			},
+		})
+	}
+
+	req := &pluginsv1.CreatePluginRequest{
+		Plugin: &types.PluginV1{
+			SubKind: types.PluginSubkindAccess,
+			Metadata: types.Metadata{
+				Labels: map[string]string{
+					plugins.HostedPluginLabel: "true",
+				},
+				Name: p.install.name,
+			},
+			Spec: types.PluginSpecV1{
+				Settings: &types.PluginSpecV1_Okta{
+					Okta: &types.PluginOktaSettings{
+						OrgUrl: oktaSettings.org.String(),
+						SyncSettings: &types.PluginOktaSyncSettings{
+							SsoConnectorId:  oktaSettings.samlConnector,
+							AppId:           oktaSettings.appID,
+							SyncUsers:       oktaSettings.userSync,
+							SyncAccessLists: oktaSettings.accessListSync,
+							DefaultOwners:   oktaSettings.defaultOwners,
+							GroupFilters:    oktaSettings.groupFilters,
+							AppFilters:      oktaSettings.appFilters,
+						},
+					},
+				},
+			},
+		},
+		StaticCredentialsList: creds,
+		CredentialLabels: map[string]string{
+			eteleport.OktaOrgURLLabel: oktaSettings.org.String(),
+		},
+	}
+
+	if _, err := args.plugins.CreatePlugin(ctx, req); err != nil {
 		fmt.Printf("Plugin creation failed: %v", err)
 		return trace.Wrap(err)
 	}
@@ -180,34 +293,12 @@ func (p *PluginsCommand) Install(ctx context.Context, client *auth.Client) error
 	return nil
 }
 
-func loadPlugin(filename string) (types.Plugin, error) {
-	var src io.Reader
-	if filename == "" {
-		src = os.Stdin
-	} else {
-		f, err := utils.OpenFileAllowingUnsafeLinks(filename)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		defer func() {
-			if err := f.Close(); err != nil {
-				logrus.Debugf("Failed closing plugin definition file: %v", err)
-			}
-		}()
-		src = f
-	}
-
-	text, err := utils.ReadAtMost(src, 1024)
+func validateSAMLConnector(ctx context.Context, samlConnectors samlConnectorsClient, name string) error {
+	_, err := samlConnectors.GetSAMLConnector(ctx, name, false)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
-
-	plugin, err := services.UnmarshalPlugin(text)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return plugin, nil
+	return nil
 }
 
 // TryRun runs the plugins command
@@ -215,8 +306,9 @@ func (p *PluginsCommand) TryRun(ctx context.Context, cmd string, client *auth.Cl
 	switch cmd {
 	case p.cleanupCmd.FullCommand():
 		err = p.Cleanup(ctx, client)
-	case p.installCmd.FullCommand():
-		err = p.Install(ctx, client)
+	case p.install.okta.cmd.FullCommand():
+		args := installPluginArgs{samlConnectors: client, plugins: client.PluginsClient()}
+		err = p.InstallOkta(ctx, args)
 	default:
 		return false, nil
 	}
