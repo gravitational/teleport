@@ -53,7 +53,7 @@ choose:
 </TabItem>
 </Tabs>
 
-- Optional: a certificate authority that issues certificates and private keys for
+- Optional: a certificate authority that issues certificates for
   your self-hosted database.
 
 ## Step 1/5. Create a Teleport token and user
@@ -125,14 +125,14 @@ your terminal, and manually adjust `/etc/teleport.yaml`.
 
 Run the following command to generate a configuration file at
 `/etc/teleport.yaml` for the Database Service. Update 
-<Var name="example.teleport.sh" /> to use the host and port of the Teleport Proxy
+<Var name="teleport.example.com:443" /> to use the host and port of the Teleport Proxy
 Service:
 
 ```code
 $ sudo teleport db configure create \
    -o file \
    --token=/tmp/token \
-   --proxy=<Var name="example.teleport.sh" /> \
+   --proxy=<Var name="teleport.example.com:443" /> \
    --name=example-clickhouse \
    --protocol=<Var name="protocol" /> \
    --uri=clickhouse.example.com:8443 \
@@ -152,7 +152,7 @@ To configure the Teleport Database Service to trust a custom CA:
    $ sudo teleport db configure create \
       -o file \
       --token=/tmp/token \
-      --proxy=<Var name="example.teleport.sh:443" /> \
+      --proxy=<Var name="teleport.example.com:443" /> \
       --name=example-clickhouse \
       --protocol=<Var name="protocol" /> \
       --uri=clickhouse.example.com:8443 \
@@ -177,12 +177,12 @@ Install a Teleport agent into your Kubernetes Cluster with the Teleport Database
 Service configuration. 
 
 Create a file called `values.yaml` with the following content. Update <Var
-name="example.teleport.sh" /> to use the host and port of the Teleport Proxy
+name="teleport.example.com:443" /> to use the host and port of the Teleport Proxy
 Service and <Var name="JOIN_TOKEN" /> to the join token you created earlier:
 
 ```yaml
 roles: db
-proxyAddr: <Var name="example.teleport.sh" />
+proxyAddr: <Var name="teleport.example.com:443" />
 # Set to false if using Teleport Community Edition
 enterprise: true
 authToken: <Var name="JOIN_TOKEN" />
@@ -210,7 +210,7 @@ To configure the Teleport Database Service to trust a custom CA:
 
   ```diff
     roles: db
-    proxyAddr: <Var name="example.teleport.sh" />
+    proxyAddr: <Var name="teleport.example.com:443" />
     # Set to false if using Teleport Community Edition
     enterprise: true
     authToken: <Var name="JOIN_TOKEN" />

@@ -1,45 +1,48 @@
 {{ format="db" }}
 Teleport uses mutual TLS authentication with self-hosted databases. These
-databases must be configured with Teleport's certificate authority to be able to
-verify certificates presented by the Teleport Database Service. Self-hosted
-databases also need a certificate/key pair that Teleport can verify.
+databases must be able to verify certificates presented by the Teleport Database
+Service. Self-hosted databases also need a certificate/key pair that Teleport
+can verify.
 
-If you are using Teleport Cloud, your Teleport user must be allowed to
-impersonate the system role `Db` in order to be able to generate the database
-certificate.
+By default, the Teleport Database Service trusts certificates issued by a
+certificate authority managed by the Teleport Auth Service. You can either:
+- Configure your self-hosted database to trust this CA, and instruct Teleport to
+  issue a certificate for the database to present to the Teleport Database
+  Service.
+- Configure the Database Service to trust a custom CA.
 
-Include the following `allow` rule in in your Teleport Cloud user's role:
+To configure the database to trust the Teleport CA and issue a certificate for
+the database, follow these instructions on your workstation:
 
-```yaml
-allow:
-  impersonate:
-    users: ["Db"]
-    roles: ["Db"]
-```
+1. To use `tctl` from your workstation, your Teleport user must be allowed to
+   impersonate the system role `Db` in order to be able to generate the database
+   certificate. Include the following `allow` rule in in your Teleport user's
+   role:
 
-Generate TLS credentials for your self-hosted database.
+   ```yaml
+   allow:
+     impersonate:
+       users: ["Db"]
+       roles: ["Db"]
+   ```
 
-If the {{ dbname }} database does not have its own CA, it can present a TLS
-certificate signed by Teleport. Generate a certificate, along with a TLS private
-key and a CA certificate to use for verifying client certificates, by running
-the following command on your workstation:
+1. Export Teleport's certificate authority and a generate certificate/key pair.
+   This example generates a certificate with a 1-year validity period.
+   `db.example.com` is the hostname where the Teleport Database Service can
+   reach the {{ dbname }} server.
 
-```code
-# Export Teleport's certificate authority and a generate certificate/key pair
-# for host db.example.com with a 1-year validity period.
-$ tctl auth sign --format={{ format }} --host=db.example.com --out=server --ttl=2190h
-```
+   ```code
+   $ tctl auth sign --format={{ format }} --host=db.example.com --out=server --ttl=2190h
+   ```
 
-In this example, `db.example.com` is the hostname where the Teleport Database
-Service can reach the {{ dbname }} server.
+   (!docs/pages/includes/database-access/ttl-note.mdx!)
 
-(!docs/pages/includes/database-access/ttl-note.mdx!)
-
-The command creates 3 files: `server.cas`, `server.crt` and `server.key`.
+   The command creates 3 files: `server.cas`, `server.crt` and `server.key`.
 
 If the {{ dbname }} database already has a CA that it uses to sign certificates
-, you only need to export a Teleport CA certificate for {{ dbname }} to
-authenticate traffic from the Teleport Database Service.
+, you only need to export a Teleport CA certificate for the database to
+authenticate traffic from the Teleport Database Service. You do not need to
+enable `Db` impersonation privileges.
 
 1. Replace <Var name="example.teleport.sh:443" /> with the host and web port of
    the Teleport Proxy Service in your cluster. Run the following command on your
