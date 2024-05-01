@@ -6078,9 +6078,24 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			services.NewWindowsLoginMatcher(t.WindowsDesktop.GetLogin()))
 
 	case *proto.IsMFARequiredRequest_App:
-		app, err := a.GetApp(ctx, t.App.GetName())
+		notFoundErr = trace.NotFound("application service %q not found", t.App.Name)
+		if t.App.Name == "" {
+			return nil, trace.BadParameter("missing Name field in an app-only UserCertsRequest")
+		}
+
+		servers, err := a.GetApplicationServers(ctx, apidefaults.Namespace)
 		if err != nil {
 			return nil, trace.Wrap(err)
+		}
+		var app types.Application
+		for _, server := range servers {
+			if server.GetApp().GetName() == t.App.Name {
+				app = server.GetApp()
+				break
+			}
+		}
+		if app == nil {
+			return nil, trace.Wrap(notFoundErr)
 		}
 
 		noMFAAccessErr = checker.CheckAccess(app, services.AccessState{})
