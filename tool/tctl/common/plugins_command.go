@@ -31,9 +31,6 @@ import (
 
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/e/lib/okta"
-	"github.com/gravitational/teleport/e/lib/plugins"
-	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
@@ -80,7 +77,7 @@ func (p *PluginsCommand) Initialize(app *kingpin.Application, config *servicecfg
 
 	p.install.cmd = pluginsCommand.Command("install", "Install new plugin instance")
 
-	p.install.okta.cmd = p.install.cmd.Command("okta", "install an okta integration")
+	p.install.okta.cmd = p.install.cmd.Command("okta", "Install an okta integration")
 	p.install.okta.cmd.
 		Flag("name", "name of the plugin resource to create").
 		Default("okta").
@@ -218,7 +215,7 @@ func (p *PluginsCommand) InstallOkta(ctx context.Context, args installPluginArgs
 				Metadata: types.Metadata{
 					Name: p.install.name,
 					Labels: map[string]string{
-						okta.CredPurposeLabel: okta.CredPurposeOktaAuth,
+						types.OktaCredPurposeLabel: types.OktaCredPurposeAuth,
 					},
 				},
 			},
@@ -241,7 +238,7 @@ func (p *PluginsCommand) InstallOkta(ctx context.Context, args installPluginArgs
 				Metadata: types.Metadata{
 					Name: p.install.name + "-scim-token",
 					Labels: map[string]string{
-						okta.CredPurposeLabel: okta.CredPurposeSCIMToken,
+						types.OktaCredPurposeLabel: types.OktaCredPurposeSCIMToken,
 					},
 				},
 			},
@@ -258,7 +255,7 @@ func (p *PluginsCommand) InstallOkta(ctx context.Context, args installPluginArgs
 			SubKind: types.PluginSubkindAccess,
 			Metadata: types.Metadata{
 				Labels: map[string]string{
-					plugins.HostedPluginLabel: "true",
+					types.HostedPluginLabel: "true",
 				},
 				Name: p.install.name,
 			},
@@ -281,7 +278,7 @@ func (p *PluginsCommand) InstallOkta(ctx context.Context, args installPluginArgs
 		},
 		StaticCredentialsList: creds,
 		CredentialLabels: map[string]string{
-			eteleport.OktaOrgURLLabel: oktaSettings.org.String(),
+			types.OktaOrgURLLabel: oktaSettings.org.String(),
 		},
 	}
 

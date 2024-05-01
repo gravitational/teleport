@@ -1227,3 +1227,30 @@ const (
 	// ApplicationProtocolTCP is the TCP apps protocol.
 	ApplicationProtocolTCP = "TCP"
 )
+
+const (
+	// HostedPluginLabel defines the name for the hosted plugin label.
+	// When this label is set to "true" on a Plugin resource,
+	// it indicates that the Plugin should be run by the Cloud service,
+	// rather than self-hosted plugin services.
+	HostedPluginLabel = TeleportNamespace + "/hosted-plugin"
+)
+
+const (
+	// OktaOrgURLLabel is the label used by Okta-managed resources to indicate
+	// the upstream Okta organization that they come from.
+	OktaOrgURLLabel = "okta/org"
+
+	// OktaCredPurposeLabel is used by Okta-managed PluginStaticCredentials to
+	// indicate their purpose
+	OktaCredPurposeLabel = "okta/purpose"
+
+	// OktaCredPurposeAuth indicates that the credential is intended for
+	// authenticating with the Okta REST API
+	OktaCredPurposeAuth = "okta-auth"
+
+	// OktaCredPurposeSCIMToken indicates that theis to be used for authenticating
+	// SCIM requests from the upstream organization. The content of the credential
+	// is a bcrypt hash of actual token.
+	OktaCredPurposeSCIMToken = "scim-bearer-token"
+)
