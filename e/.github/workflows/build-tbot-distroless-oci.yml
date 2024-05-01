@@ -41,6 +41,9 @@ on:
         required: true
       source-tag:
         type: string
+      environment:
+        type: string
+        default: build-prod
       workflow-tag:
         type: string
 
