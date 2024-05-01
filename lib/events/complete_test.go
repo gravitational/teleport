@@ -20,6 +20,7 @@ package events_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -85,6 +86,77 @@ func TestUploadCompleterCompletesAbandonedUploads(t *testing.T) {
 	err = uc.CheckUploads(context.Background())
 	require.NoError(t, err)
 	require.True(t, mu.IsCompleted(upload.ID))
+}
+
+// TestUploadCompleterNeedsSemaphore verifies that the upload completer
+// does not complete uploads if it cannot acquire a semaphore.
+func TestUploadCompleterNeedsSemaphore(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	mu := eventstest.NewMemoryUploader()
+	mu.Clock = clock
+
+	log := &eventstest.MockAuditLog{}
+	sessionID := session.NewID()
+	sessionTrackerService := &mockSessionTrackerService{clock: clock}
+
+	uc, err := events.NewUploadCompleter(events.UploadCompleterConfig{
+		Uploader:       mu,
+		AuditLog:       log,
+		SessionTracker: sessionTrackerService,
+		Clock:          clock,
+		ClusterName:    "teleport-cluster",
+		CheckPeriod:    3 * time.Minute,
+		ServerID:       "abc123",
+		Semaphores: mockSemaphores{
+			acquireErr: errors.New("semaphore already taken"),
+		},
+	})
+	require.NoError(t, err)
+
+	upload, err := mu.CreateUpload(context.Background(), sessionID)
+	require.NoError(t, err)
+
+	uc.PerformPeriodicCheck(context.Background())
+
+	// upload should not have completed as the semaphore could not be acquired
+	require.False(t, mu.IsCompleted(upload.ID), "upload %v should not have completed", upload.ID)
+}
+
+// TestUploadCompleterAcquiresSemaphore verifies that the upload completer
+// successfully completes uploads after acquiring the required semaphore.
+func TestUploadCompleterAcquiresSemaphore(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	mu := eventstest.NewMemoryUploader()
+	mu.Clock = clock
+
+	log := &eventstest.MockAuditLog{}
+	sessionID := session.NewID()
+	sessionTrackerService := &mockSessionTrackerService{clock: clock}
+
+	uc, err := events.NewUploadCompleter(events.UploadCompleterConfig{
+		Uploader:       mu,
+		AuditLog:       log,
+		SessionTracker: sessionTrackerService,
+		Clock:          clock,
+		ClusterName:    "teleport-cluster",
+		CheckPeriod:    3 * time.Minute,
+		ServerID:       "abc123",
+		Semaphores: mockSemaphores{
+			lease: &types.SemaphoreLease{
+				Expires: clock.Now().Add(10 * time.Minute),
+			},
+			acquireErr: nil,
+		},
+	})
+	require.NoError(t, err)
+
+	upload, err := mu.CreateUpload(context.Background(), sessionID)
+	require.NoError(t, err)
+
+	uc.PerformPeriodicCheck(context.Background())
+
+	// upload should have completed as semaphore acquisition was successful
+	require.True(t, mu.IsCompleted(upload.ID), "upload %v should have completed", upload.ID)
 }
 
 // TestUploadCompleterEmitsSessionEnd verifies that the upload completer
@@ -267,4 +339,19 @@ func (m *mockSessionTrackerService) RemoveSessionTracker(ctx context.Context, se
 
 func (m *mockSessionTrackerService) UpdatePresence(ctx context.Context, sessionID, user string) error {
 	return trace.NotImplemented("UpdatePresence is not implemented")
+}
+
+type mockSemaphores struct {
+	types.Semaphores
+
+	lease      *types.SemaphoreLease
+	acquireErr error
+}
+
+func (m mockSemaphores) AcquireSemaphore(ctx context.Context, params types.AcquireSemaphoreRequest) (*types.SemaphoreLease, error) {
+	return m.lease, m.acquireErr
+}
+
+func (m mockSemaphores) CancelSemaphoreLease(ctx context.Context, lease types.SemaphoreLease) error {
+	return nil
 }
