@@ -954,35 +954,8 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	h.GET("/webapi/sites/:site/user-groups", h.WithClusterAuth(h.getUserGroups))
 
-	// WebSocket endpoint for the chat conversation
-	// Deprecated: The connect/ws variant should be used instead.
-	// TODO(lxea): DELETE in v16
-	h.GET("/webapi/sites/:site/assistant", h.WithClusterAuthWebSocket(false, h.assistant))
 	// WebSocket endpoint for the chat conversation, websocket auth
 	h.GET("/webapi/sites/:site/assistant/ws", h.WithClusterAuthWebSocket(true, h.assistant))
-
-	// Sets the title for the conversation.
-	h.POST("/webapi/assistant/conversations/:conversation_id/title", h.WithAuth(h.setAssistantTitle))
-	h.POST("/webapi/assistant/title/summary", h.WithAuth(h.generateAssistantTitle))
-
-	// Creates a new conversation - the conversation ID is returned in the response.
-	h.POST("/webapi/assistant/conversations", h.WithAuth(h.createAssistantConversation))
-
-	// Deletes the given conversation.
-	h.DELETE("/webapi/assistant/conversations/:conversation_id", h.WithAuth(h.deleteAssistantConversation))
-
-	// Returns all conversations for the given user.
-	h.GET("/webapi/assistant/conversations", h.WithAuth(h.getAssistantConversations))
-
-	// Returns all messages in the given conversation.
-	h.GET("/webapi/assistant/conversations/:conversation_id", h.WithAuth(h.getAssistantConversationByID))
-
-	// Allows executing an arbitrary command on multiple nodes.
-	// Deprecated: The execute/ws variant should be used instead.
-	// TODO(lxea): DELETE in v16
-	h.GET("/webapi/command/:site/execute", h.WithClusterAuthWebSocket(false, h.executeCommand))
-	// Allows executing an arbitrary command on multiple nodes, websocket auth.
-	h.GET("/webapi/command/:site/execute/ws", h.WithClusterAuthWebSocket(true, h.executeCommand))
 
 	// Fetches the user's preferences
 	h.GET("/webapi/user/preferences", h.WithAuth(h.getUserPreferences))
@@ -1042,8 +1015,16 @@ func (h *Handler) Close() error {
 	return h.auth.Close()
 }
 
+type userStatusResponse struct {
+	HasDeviceExtensions bool   `json:"hasDeviceExtensions,omitempty"`
+	Message             string `json:"message"` // Always set to "ok"
+}
+
 func (h *Handler) getUserStatus(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *SessionContext) (interface{}, error) {
-	return OK(), nil
+	return userStatusResponse{
+		HasDeviceExtensions: c.cfg.Session.GetHasDeviceExtensions(),
+		Message:             "ok",
+	}, nil
 }
 
 // handleGetUserOrResetToken has two handlers:
@@ -1697,6 +1678,9 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		h.log.WithError(err).Error("Cannot read target version")
 	}
 
+	// TODO(mcbattirola): remove isTeam when it is no longer used
+	isTeam := clusterFeatures.GetProductType() == proto.ProductType_PRODUCT_TYPE_TEAM
+
 	webCfg := webclient.WebConfig{
 		Auth:                           authSettings,
 		CanJoinSessions:                canJoinSessions,
@@ -1711,13 +1695,24 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		AssistEnabled:                  assistEnabled,
 		HideInaccessibleFeatures:       clusterFeatures.GetFeatureHiding(),
 		CustomTheme:                    clusterFeatures.GetCustomTheme(),
-		IsTeam:                         clusterFeatures.GetProductType() == proto.ProductType_PRODUCT_TYPE_TEAM,
 		IsIGSEnabled:                   clusterFeatures.GetIdentityGovernance(),
 		FeatureLimits: webclient.FeatureLimits{
 			AccessListCreateLimit:               int(clusterFeatures.GetAccessList().GetCreateLimit()),
 			AccessMonitoringMaxReportRangeLimit: int(clusterFeatures.GetAccessMonitoring().GetMaxReportRangeLimit()),
 			AccessRequestMonthlyRequestLimit:    int(clusterFeatures.GetAccessRequests().GetMonthlyRequestLimit()),
 		},
+		Questionnaire:          clusterFeatures.GetQuestionnaire(),
+		IsStripeManaged:        clusterFeatures.GetIsStripeManaged(),
+		ExternalAuditStorage:   clusterFeatures.GetExternalAuditStorage(),
+		PremiumSupport:         clusterFeatures.GetSupportType() == proto.SupportType_SUPPORT_TYPE_PREMIUM,
+		AccessRequests:         clusterFeatures.GetAccessRequests().MonthlyRequestLimit > 0,
+		TrustedDevices:         clusterFeatures.GetDeviceTrust().GetEnabled(),
+		OIDC:                   clusterFeatures.GetOIDC(),
+		SAML:                   clusterFeatures.GetSAML(),
+		MobileDeviceManagement: clusterFeatures.GetMobileDeviceManagement(),
+		JoinActiveSessions:     clusterFeatures.GetJoinActiveSessions(),
+		// TODO(mcbattirola): remove isTeam when it is no longer used
+		IsTeam: isTeam,
 	}
 
 	resource, err := h.cfg.ProxyClient.GetClusterName()
@@ -2499,6 +2494,10 @@ func (h *Handler) mfaLoginBegin(w http.ResponseWriter, r *http.Request, p httpro
 
 	mfaChallenge, err := h.auth.proxyClient.CreateAuthenticateChallenge(r.Context(), mfaReq)
 	if err != nil {
+		// Do not obfuscate config-related errors.
+		if errors.Is(err, types.ErrPasswordlessRequiresWebauthn) || errors.Is(err, types.ErrPasswordlessDisabledBySettings) {
+			return nil, trace.Wrap(err)
+		}
 		return nil, trace.AccessDenied("invalid credentials")
 	}
 
@@ -2548,13 +2547,18 @@ func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, 
 
 	clientMeta := clientMetaFromReq(r)
 	session, err := h.auth.AuthenticateWebUser(r.Context(), req, clientMeta)
-	if err != nil {
-		// Since checking for private key policy meant that they passed authn,
-		// return policy error as is to help direct user.
-		if keys.IsPrivateKeyPolicyError(err) {
-			return nil, trace.Wrap(err)
-		}
-		// Obscure all other errors.
+	switch {
+	// Since checking for private key policy meant that they passed authn,
+	// return policy error as is to help direct user.
+	case keys.IsPrivateKeyPolicyError(err):
+		return nil, trace.Wrap(err)
+
+	// Return a friendlier error if an SSO user tried to do passwordless.
+	case errors.Is(err, types.ErrPassswordlessLoginBySSOUser):
+		return nil, trace.Wrap(err)
+
+	// Obscure all other errors.
+	case err != nil:
 		return nil, trace.AccessDenied("invalid credentials")
 	}
 
@@ -2674,6 +2678,7 @@ func makeUnifiedResourceRequest(r *http.Request) (*proto.ListUnifiedResourcesReq
 		SearchKeywords:      client.ParseSearchKeywords(values.Get("search"), ' '),
 		UseSearchAsRoles:    values.Get("searchAsRoles") == "yes",
 		IncludeLogins:       true,
+		IncludeRequestable:  values.Get("includeRequestable") == "true",
 	}, nil
 }
 
@@ -2804,7 +2809,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 				return nil, trace.Wrap(err)
 			}
 
-			unifiedResources = append(unifiedResources, ui.MakeServer(site.GetName(), r, logins))
+			unifiedResources = append(unifiedResources, ui.MakeServer(site.GetName(), r, logins, enriched.RequiresRequest))
 		case types.DatabaseServer:
 			if !hasFetchedDBUsersAndNames {
 				dbNames, dbUsers, err = getDatabaseUsersAndNames(accessChecker)
@@ -2813,7 +2818,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 				}
 				hasFetchedDBUsersAndNames = true
 			}
-			db := ui.MakeDatabase(r.GetDatabase(), dbUsers, dbNames)
+			db := ui.MakeDatabase(r.GetDatabase(), dbUsers, dbNames, enriched.RequiresRequest)
 			unifiedResources = append(unifiedResources, db)
 		case types.AppServer:
 			app := ui.MakeApp(r.GetApp(), ui.MakeAppsConfig{
@@ -2823,6 +2828,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 				Identity:          identity,
 				UserGroupLookup:   getUserGroupLookup(),
 				Logger:            h.log,
+				RequiresRequest:   enriched.RequiresRequest,
 			})
 			unifiedResources = append(unifiedResources, app)
 		case types.AppServerOrSAMLIdPServiceProvider:
@@ -2835,6 +2841,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 					Identity:          identity,
 					UserGroupLookup:   getUserGroupLookup(),
 					Logger:            h.log,
+					RequiresRequest:   enriched.RequiresRequest,
 				})
 				unifiedResources = append(unifiedResources, app)
 			} else {
@@ -2843,6 +2850,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 					LocalProxyDNSName: h.proxyDNSName(),
 					AppClusterName:    site.GetName(),
 					Identity:          identity,
+					RequiresRequest:   enriched.RequiresRequest,
 				})
 				unifiedResources = append(unifiedResources, app)
 			}
@@ -2854,6 +2862,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 				LocalProxyDNSName: h.proxyDNSName(),
 				AppClusterName:    site.GetName(),
 				Identity:          identity,
+				RequiresRequest:   enriched.RequiresRequest,
 			})
 			unifiedResources = append(unifiedResources, app)
 		case types.WindowsDesktop:
@@ -2862,12 +2871,12 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 				return nil, trace.Wrap(err)
 			}
 
-			unifiedResources = append(unifiedResources, ui.MakeDesktop(r, logins))
+			unifiedResources = append(unifiedResources, ui.MakeDesktop(r, logins, enriched.RequiresRequest))
 		case types.KubeCluster:
-			kube := ui.MakeKubeCluster(r, accessChecker)
+			kube := ui.MakeKubeCluster(r, accessChecker, enriched.RequiresRequest)
 			unifiedResources = append(unifiedResources, kube)
 		case types.KubeServer:
-			kube := ui.MakeKubeCluster(r.GetCluster(), accessChecker)
+			kube := ui.MakeKubeCluster(r.GetCluster(), accessChecker, enriched.RequiresRequest)
 			unifiedResources = append(unifiedResources, kube)
 		default:
 			return nil, trace.Errorf("UI Resource has unknown type: %T", enriched)
@@ -2924,7 +2933,7 @@ func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p http
 			return nil, trace.Wrap(err)
 		}
 
-		uiServers = append(uiServers, ui.MakeServer(site.GetName(), server, logins))
+		uiServers = append(uiServers, ui.MakeServer(site.GetName(), server, logins, false /* requiresRequest */))
 	}
 
 	return listResourcesGetResponse{
@@ -3251,55 +3260,6 @@ func (h *Handler) generateSession(req *TerminalRequest, clusterName string, scx 
 		Namespace:      apidefaults.Namespace,
 		Owner:          owner,
 	}, nil
-}
-
-func (h *Handler) generateCommandSession(host *hostInfo, login, clusterName, owner string) (session.Session, error) {
-	h.log.Infof("Generating new session for %s in %s\n", host.hostName, clusterName)
-
-	return session.Session{
-		Login:          login,
-		ServerID:       host.id,
-		ClusterName:    clusterName,
-		ServerHostname: host.hostName,
-		ServerHostPort: host.port,
-		ID:             session.NewID(),
-		Created:        time.Now().UTC(),
-		LastActive:     time.Now().UTC(),
-		Namespace:      apidefaults.Namespace,
-		Owner:          owner,
-	}, nil
-}
-
-// hostInfo is a helper struct used to store host information.
-type hostInfo struct {
-	id       string
-	hostName string
-	port     int
-}
-
-// findByQuery returns all hosts matching the given query/predicate.
-// The query is a predicate expression that can be used to filter hosts.
-func findByQuery(ctx context.Context, clt auth.ClientI, query string) ([]hostInfo, error) {
-	servers, err := apiclient.GetAllResources[types.Server](ctx, clt, &proto.ListResourcesRequest{
-		ResourceType:        types.KindNode,
-		Namespace:           apidefaults.Namespace,
-		PredicateExpression: query,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	hosts := make([]hostInfo, 0, len(servers))
-	for _, server := range servers {
-		h := hostInfo{
-			hostName: server.GetHostname(),
-			id:       server.GetName(),
-			port:     defaultPort,
-		}
-		hosts = append(hosts, h)
-	}
-
-	return hosts, nil
 }
 
 // fetchExistingSession fetches an active or pending SSH session by the SessionID passed in the TerminalRequest.

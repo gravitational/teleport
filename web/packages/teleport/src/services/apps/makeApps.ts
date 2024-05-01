@@ -32,6 +32,7 @@ export default function makeApp(json: any): App {
     awsConsole = false,
     samlApp = false,
     friendlyName = '',
+    requiresRequest,
   } = json;
 
   const canCreateUrl = fqdn && clusterId && publicAddr;
@@ -81,5 +82,6 @@ export default function makeApp(json: any): App {
     userGroups,
     samlApp,
     samlAppSsoUrl,
+    requiresRequest,
   };
 }

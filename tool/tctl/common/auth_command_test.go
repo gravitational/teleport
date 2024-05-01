@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/fixtures"
@@ -402,6 +403,12 @@ type mockClient struct {
 
 func (c *mockClient) GetClusterName(...services.MarshalOption) (types.ClusterName, error) {
 	return c.clusterName, nil
+}
+
+func (c *mockClient) Ping(ctx context.Context) (proto.PingResponse, error) {
+	return proto.PingResponse{
+		ServerVersion: api.Version,
+	}, nil
 }
 
 func (c *mockClient) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
@@ -821,7 +828,6 @@ func TestGenerateAppCertificates(t *testing.T) {
 
 			expectedRouteToApp := proto.RouteToApp{
 				Name:        tc.appName,
-				SessionID:   sessionID,
 				PublicAddr:  publicAddr,
 				ClusterName: clusterNameStr,
 			}

@@ -21,6 +21,7 @@ package events
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/google/uuid"
@@ -30,6 +31,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -48,6 +50,11 @@ type UploadCompleterConfig struct {
 	// SessionTracker is used to discover the current state of a
 	// sesssions with active uploads.
 	SessionTracker services.SessionTrackerService
+	// Semaphores is used to optionally acquire a semaphore prior to completing
+	// uploads. When specified, ServerID must also be provided.
+	Semaphores types.Semaphores
+	// ServerID identifies the server running the upload completer.
+	ServerID string
 	// Component is a component used in logging
 	Component string
 	// CheckPeriod is a period for checking the upload
@@ -68,6 +75,9 @@ func (cfg *UploadCompleterConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.ClusterName == "" {
 		return trace.BadParameter("missing parameter ClusterName")
+	}
+	if cfg.Semaphores != nil && cfg.ServerID == "" {
+		return trace.BadParameter("a server ID must be specified in order to use semaphores")
 	}
 	if cfg.Component == "" {
 		cfg.Component = teleport.ComponentProcess
@@ -134,9 +144,15 @@ func (u *UploadCompleter) Close() {
 	close(u.closeC)
 }
 
+const (
+	semaphoreName      = "upload-completer"
+	semaphoreMaxLeases = 1 // allow one upload completer to operate at a time
+)
+
 // Serve runs the upload completer until closed or until ctx is canceled.
 func (u *UploadCompleter) Serve(ctx context.Context) error {
 	periodic := interval.New(interval.Config{
+		Clock:         u.cfg.Clock,
 		Duration:      u.cfg.CheckPeriod,
 		FirstDuration: utils.HalfJitter(u.cfg.CheckPeriod),
 		Jitter:        retryutils.NewSeventhJitter(),
@@ -147,17 +163,47 @@ func (u *UploadCompleter) Serve(ctx context.Context) error {
 	for {
 		select {
 		case <-periodic.Next():
-			if err := u.CheckUploads(ctx); trace.IsAccessDenied(err) {
-				u.log.Warn("Teleport does not have permission to list uploads. " +
-					"The upload completer will be unable to complete uploads of partial session recordings.")
-			} else if err != nil {
-				u.log.WithError(err).Warn("Failed to check uploads.")
-			}
+			u.PerformPeriodicCheck(ctx)
 		case <-u.closeC:
 			return nil
 		case <-ctx.Done():
 			return nil
 		}
+	}
+}
+
+func (u *UploadCompleter) PerformPeriodicCheck(ctx context.Context) {
+	// If configured with a server ID, then acquire a semaphore prior to completing uploads.
+	// This is used for auth's upload completer and ensures that multiple auth servers do not
+	// attempt to complete the same uploads at the same time.
+	// TODO(zmb3): remove the env var check once the semaphore is proven to be reliable
+	if u.cfg.Semaphores != nil && os.Getenv("TELEPORT_DISABLE_UPLOAD_COMPLETER_SEMAPHORE") == "" {
+		u.log.Debugf("%v: acquiring semaphore in order to complete uploads", u.cfg.ServerID)
+
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+
+		_, err := services.AcquireSemaphoreLock(ctx, services.SemaphoreLockConfig{
+			Service: u.cfg.Semaphores,
+			Clock:   u.cfg.Clock,
+			Expiry:  (u.cfg.CheckPeriod / 2) + 1,
+			Params: types.AcquireSemaphoreRequest{
+				SemaphoreKind: types.SemaphoreKindUploadCompleter,
+				SemaphoreName: semaphoreName,
+				MaxLeases:     semaphoreMaxLeases,
+				Holder:        u.cfg.ServerID,
+			},
+		})
+		if err != nil {
+			u.log.Debugf("%v did not acquire semaphore, will skip this round of uploads", u.cfg.ServerID)
+			return
+		}
+	}
+	if err := u.CheckUploads(ctx); trace.IsAccessDenied(err) {
+		u.log.Warn("Teleport does not have permission to list uploads. " +
+			"The upload completer will be unable to complete uploads of partial session recordings.")
+	} else if err != nil {
+		u.log.WithError(err).Warn("Failed to check uploads.")
 	}
 }
 

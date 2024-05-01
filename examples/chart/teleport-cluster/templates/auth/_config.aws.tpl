@@ -1,5 +1,9 @@
 {{- define "teleport-cluster.auth.config.aws" -}}
-{{ include "teleport-cluster.auth.config.common" . }}
+{{ mustMergeOverwrite (include "teleport-cluster.auth.config.common" . | fromYaml) (include "teleport-cluster.auth.config.aws.overrides" . | fromYaml) | toYaml }}
+{{- end -}}
+
+{{- define "teleport-cluster.auth.config.aws.overrides" -}}
+teleport:
   storage:
     type: dynamodb
     region: {{ required "aws.region is required in chart values" .Values.aws.region }}
@@ -7,7 +11,7 @@
     audit_events_uri: {{- include "teleport-cluster.auth.config.aws.audit" . | nindent 4 }}
     audit_sessions_uri: s3://{{ required "aws.sessionRecordingBucket is required in chart values" .Values.aws.sessionRecordingBucket }}
     continuous_backups: {{ required "aws.backups is required in chart values" .Values.aws.backups }}
-    {{- if .Values.aws.dynamoAutoScaling }}
+  {{- if .Values.aws.dynamoAutoScaling }}
     auto_scaling: true
     billing_mode: provisioned
     read_min_capacity: {{ required "aws.readMinCapacity is required when aws.dynamoAutoScaling is true" .Values.aws.readMinCapacity }}
@@ -16,9 +20,20 @@
     write_min_capacity: {{ required "aws.writeMinCapacity is required when aws.dynamoAutoScaling is true" .Values.aws.writeMinCapacity }}
     write_max_capacity: {{ required "aws.writeMaxCapacity is required when aws.dynamoAutoScaling is true" .Values.aws.writeMaxCapacity }}
     write_target_value: {{ required "aws.writeTargetValue is required when aws.dynamoAutoScaling is true" .Values.aws.writeTargetValue }}
-    {{- else }}
+  {{- else }}
     auto_scaling: false
+  {{- end }}
+  {{- if .Values.aws.accessMonitoring.enabled }}
+    {{- if not .Values.aws.athenaURL }}
+      {{- fail "AccessMonitoring requires an Athena Event backend" }}
     {{- end }}
+auth_service:
+  access_monitoring:
+    enabled: true
+    report_results: {{ .Values.aws.accessMonitoring.reportResults | quote }}
+    role_arn: {{ .Values.aws.accessMonitoring.roleARN | quote }}
+    workgroup: {{ .Values.aws.accessMonitoring.workgroup | quote }}
+  {{- end }}
 {{- end -}}
 
 {{- define "teleport-cluster.auth.config.aws.audit" -}}

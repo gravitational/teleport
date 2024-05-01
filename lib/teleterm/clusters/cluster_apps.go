@@ -161,8 +161,8 @@ func (c *Cluster) reissueAppCert(ctx context.Context, clusterClient *client.Clus
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	request := &proto.CreateAppSessionRequest{
-		Username:          c.status.Username,
+	routeToApp := proto.RouteToApp{
+		Name:              app.GetName(),
 		PublicAddr:        app.GetPublicAddr(),
 		ClusterName:       c.clusterClient.SiteName,
 		AWSRoleARN:        "",
@@ -170,28 +170,20 @@ func (c *Cluster) reissueAppCert(ctx context.Context, clusterClient *client.Clus
 		GCPServiceAccount: "",
 	}
 
+	// TODO (Joerger): DELETE IN v17.0.0
 	rootClient, err := clusterClient.ConnectToRootCluster(ctx)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 	defer rootClient.Close()
-
-	ws, err := rootClient.CreateAppSession(ctx, request)
+	routeToApp.SessionID, err = auth.TryCreateAppSessionForClientCertV15(ctx, rootClient, c.status.Username, routeToApp)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
 	err = clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
 		RouteToCluster: c.clusterClient.SiteName,
-		RouteToApp: proto.RouteToApp{
-			Name:              app.GetName(),
-			SessionID:         ws.GetName(),
-			PublicAddr:        app.GetPublicAddr(),
-			ClusterName:       c.clusterClient.SiteName,
-			AWSRoleARN:        "",
-			AzureIdentity:     "",
-			GCPServiceAccount: "",
-		},
+		RouteToApp:     routeToApp,
 		AccessRequests: c.status.ActiveRequests.AccessRequests,
 	})
 	if err != nil {
