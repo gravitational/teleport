@@ -1,5 +1,26 @@
 # Changelog
 
+## 14.3.17 (04/30/24)
+
+* Fixed user SSO bypass by performing a local passwordless login. [#41071](https://github.com/gravitational/teleport/pull/41071)
+* Enforce allow_passwordless server-side. [#41058](https://github.com/gravitational/teleport/pull/41058)
+* Fixed a memory leak caused by incorrectly passing the offset when paginating all Access Lists' members when there are more than the default pagesize (200) Access Lists. [#41044](https://github.com/gravitational/teleport/pull/41044)
+* Fixed a regression causing roles filtering to not work. [#41000](https://github.com/gravitational/teleport/pull/41000)
+* Allow AWS integration to be used for global services without specifying a valid region. [#40990](https://github.com/gravitational/teleport/pull/40990)
+* Fixed access requests lingering in the UI and tctl after expiry. [#40965](https://github.com/gravitational/teleport/pull/40965)
+* Made `podSecurityContext` configurable in the `teleport-cluster` Helm chart. [#40950](https://github.com/gravitational/teleport/pull/40950)
+* Allow mounting extra volumes in the updater pod deployed by the `teleport-kube-agent`chart. [#40949](https://github.com/gravitational/teleport/pull/40949)
+* Improved error message when performing an SSO login with a hardware key. [#40924](https://github.com/gravitational/teleport/pull/40924)
+* Fixed a bug in the `teleport-cluster` Helm chart that happened when `sessionRecording` was `off`. [#40920](https://github.com/gravitational/teleport/pull/40920)
+* Allows setting additional Kubernetes labels on resources created by the `teleport-cluster` Helm chart. [#40916](https://github.com/gravitational/teleport/pull/40916)
+* Fixed audit event failures when using DynamoDB event storage. [#40912](https://github.com/gravitational/teleport/pull/40912)
+* Properly enforce session moderation requirements when starting Kubernetes ephemeral containers. [#40907](https://github.com/gravitational/teleport/pull/40907)
+* Introduced the tpm join method, which allows for secure joining in on-prem environments without the need for a shared secret. [#40875](https://github.com/gravitational/teleport/pull/40875)
+* Issue cert.create events during device authentication. [#40873](https://github.com/gravitational/teleport/pull/40873)
+* Add the ability to control `ssh_config` generation in Machine ID's Identity Outputs. This allows the generation of the `ssh_config` to be disabled if unnecessary, improving performance and removing the dependency on the Proxy being online. [#40862](https://github.com/gravitational/teleport/pull/40862)
+* Prevented deleting AWS OIDC integration used by External Audit Storage. [#40853](https://github.com/gravitational/teleport/pull/40853)
+* Reduced parallelism when polling AWS resources to prevent API throttling when exporting them to Teleport Access Graph. [#40812](https://github.com/gravitational/teleport/pull/40812)
+
 ## 14.3.16 (04/23/24)
 
 * Fixed a deprecation warning being shown when `tbot` is used with OpenSSH. [#40838](https://github.com/gravitational/teleport/pull/40838)
