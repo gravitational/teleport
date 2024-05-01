@@ -331,7 +331,6 @@ exports[`list of all events 1`] = `
 }
 
 .c1 {
-  background: #0C143D;
   border-radius: 200px;
   width: 100%;
   height: 56px;
@@ -13299,7 +13298,6 @@ exports[`loaded audit log screen 1`] = `
 }
 
 .c11 {
-  background: #0C143D;
   border-radius: 200px;
   width: 100%;
   height: 56px;

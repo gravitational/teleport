@@ -112,21 +112,23 @@ export function FieldSelectCreatable({
   return (
     <Box mb="4" {...styles}>
       {label ? (
-        <LabelInput mb={0} htmlFor={inputId} hasError={hasError}>
-          {toolTipContent ? (
-            <Flex gap={1} alignItems="center">
-              {labelText}
-              {labelTip && <LabelTip text={labelTip} />}
-              <ToolTipInfo children={toolTipContent} />
-            </Flex>
-          ) : (
-            <>
-              {labelText}
-              {labelTip && <LabelTip text={labelTip} />}
-            </>
-          )}
+        <>
+          <LabelInput mb={0} htmlFor={inputId} hasError={hasError}>
+            {toolTipContent ? (
+              <Flex gap={1} alignItems="center">
+                {labelText}
+                {labelTip && <LabelTip text={labelTip} />}
+                <ToolTipInfo children={toolTipContent} />
+              </Flex>
+            ) : (
+              <>
+                {labelText}
+                {labelTip && <LabelTip text={labelTip} />}
+              </>
+            )}
+          </LabelInput>
           {$inputElement}
-        </LabelInput>
+        </>
       ) : (
         $inputElement
       )}
@@ -232,21 +234,23 @@ export function FieldSelectCreatableAsync({
   return (
     <Box mb="4" {...styles}>
       {label ? (
-        <LabelInput mb={0} htmlFor={inputId} hasError={hasError}>
-          {toolTipContent ? (
-            <Flex gap={1} alignItems="center">
-              {labelText}
-              {labelTip && <LabelTip text={labelTip} />}
-              <ToolTipInfo children={toolTipContent} />
-            </Flex>
-          ) : (
-            <>
-              {labelText}
-              {labelTip && <LabelTip text={labelTip} />}
-            </>
-          )}
+        <>
+          <LabelInput mb={0} htmlFor={inputId} hasError={hasError}>
+            {toolTipContent ? (
+              <Flex gap={1} alignItems="center">
+                {labelText}
+                {labelTip && <LabelTip text={labelTip} />}
+                <ToolTipInfo children={toolTipContent} />
+              </Flex>
+            ) : (
+              <>
+                {labelText}
+                {labelTip && <LabelTip text={labelTip} />}
+              </>
+            )}
+          </LabelInput>
           {$inputElement}
-        </LabelInput>
+        </>
       ) : (
         $inputElement
       )}
