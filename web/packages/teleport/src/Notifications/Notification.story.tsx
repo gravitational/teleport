@@ -18,30 +18,21 @@
 
 import React from 'react';
 import { MemoryRouter } from 'react-router';
-import {
-  subSeconds,
-  subMinutes,
-  subHours,
-  subDays,
-  subWeeks,
-  subMonths,
-} from 'date-fns';
+import { subSeconds, subMinutes, subHours, subDays } from 'date-fns';
 import { initialize, mswLoader } from 'msw-storybook-addon';
 import { rest } from 'msw';
 
 import { Flex } from 'design';
 
-import {
-  NotificationSubKind,
-  Notification as NotificationType,
-} from 'teleport/services/notifications';
+import { NotificationSubKind } from 'teleport/services/notifications';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import cfg from 'teleport/config';
 
 import { ContextProvider } from '..';
 
 import { Notification } from './Notification';
-import { Notifications as NotificationsComponent } from './Notifications';
+import { Notifications as NotificationsListComponent } from './Notifications';
+import { notifications as mockNotifications } from './fixtures';
 
 export default {
   title: 'Teleport/Notifications',
@@ -50,149 +41,33 @@ export default {
 
 initialize();
 
-export const Notifications = () => {
+export const NotificationTypes = () => {
+  const ctx = createTeleportContext();
+
   return (
-    <Flex
-      css={`
-        background: ${props => props.theme.colors.levels.surface};
-        padding: 24px;
-        width: fit-content;
-        height: fit-content;
-        flex-direction: column;
-        gap: 24px;
-      `}
-    >
-      {mockNotifications.map(notification => {
-        return (
-          <Notification notification={notification} key={notification.id} />
-        );
-      })}
-    </Flex>
+    <ContextProvider ctx={ctx}>
+      Enterprise notifications can be viewed in the
+      "TeleportE/Notifications/Notification Types E" story.
+      <Flex
+        mt={4}
+        p={4}
+        gap={4}
+        css={`
+          background: ${props => props.theme.colors.levels.surface};
+          width: fit-content;
+          height: fit-content;
+          flex-direction: column;
+        `}
+      >
+        {mockNotifications.map(notification => {
+          return (
+            <Notification notification={notification} key={notification.id} />
+          );
+        })}
+      </Flex>
+    </ContextProvider>
   );
 };
-
-const mockNotifications: NotificationType[] = [
-  {
-    id: '1',
-    title: 'joe approved your access request for 5 resources.',
-    subKind: NotificationSubKind.AccessRequestApproved,
-    createdDate: subSeconds(Date.now(), 30), // 30 seconds ago
-    clicked: false,
-    labels: [
-      {
-        name: 'request-id',
-        value: '3bd7d71f-64ad-588a-988c-22f3853910fa',
-      },
-    ],
-  },
-  {
-    id: '2',
-    title: `joe approved your access request for the 'auditor' role,`,
-    subKind: NotificationSubKind.AccessRequestApproved,
-    createdDate: subMinutes(Date.now(), 4), // 4 minutes ago
-    clicked: false,
-    labels: [
-      {
-        name: 'request-id',
-        value: '3bd7d71f-64ad-588a-988c-22f3853910fa',
-      },
-    ],
-  },
-  {
-    id: '3',
-    title: `joe denied your access request for the 'auditor' role,`,
-    subKind: NotificationSubKind.AccessRequestDenied,
-    createdDate: subMinutes(Date.now(), 15), // 15 minutes ago
-    clicked: false,
-    labels: [
-      {
-        name: 'request-id',
-        value: '3bd7d71f-64ad-588a-988c-22f3853910fa',
-      },
-    ],
-  },
-  {
-    id: '4',
-    title: 'bob requested access to 2 resources.',
-    subKind: NotificationSubKind.AccessRequestPending,
-    createdDate: subHours(Date.now(), 3), // 3 hours ago
-    clicked: true,
-    labels: [
-      {
-        name: 'request-id',
-        value: '3bd7d71f-64ad-588a-988c-22f3853910fa',
-      },
-    ],
-  },
-  {
-    id: '5',
-    title: `bob requested access to the 'intern' role.`,
-    subKind: NotificationSubKind.AccessRequestPending,
-    createdDate: subHours(Date.now(), 15), // 15 hours ago
-    clicked: true,
-    labels: [
-      {
-        name: 'request-id',
-        value: '3bd7d71f-64ad-588a-988c-22f3853910fa',
-      },
-    ],
-  },
-  {
-    id: '6',
-    title: `2 resources are now available to access.`,
-    subKind: NotificationSubKind.AccessRequestNowAssumable,
-    createdDate: subDays(Date.now(), 1), // 1 day ago
-    clicked: true,
-    labels: [
-      {
-        name: 'request-id',
-        value: '3bd7d71f-64ad-588a-988c-22f3853910fa',
-      },
-      { name: 'request-type', value: 'resource' },
-    ],
-  },
-  {
-    id: '7',
-    title: `"node-5" is now available to access.`,
-    subKind: NotificationSubKind.AccessRequestNowAssumable,
-    createdDate: subDays(Date.now(), 3), // 3 days ago
-    clicked: false,
-    labels: [
-      {
-        name: 'request-id',
-        value: '3bd7d71f-64ad-588a-988c-22f3853910fa',
-      },
-      { name: 'request-type', value: 'resource' },
-    ],
-  },
-  {
-    id: '8',
-    title: `"auditor" is now ready to assume.`,
-    subKind: NotificationSubKind.AccessRequestNowAssumable,
-    createdDate: subWeeks(Date.now(), 2), // 2 weeks ago
-    clicked: true,
-    labels: [
-      {
-        name: 'request-id',
-        value: '3bd7d71f-64ad-588a-988c-22f3853910fa',
-      },
-      { name: 'request-type', value: 'role' },
-    ],
-  },
-  {
-    id: '9',
-    title: 'This is an example user-created warning notification',
-    subKind: NotificationSubKind.UserCreatedWarning,
-    createdDate: subMonths(Date.now(), 3), // 3 months ago
-    clicked: true,
-    labels: [
-      {
-        name: 'text-content',
-        value: 'This is the text content of a warning notification.',
-      },
-    ],
-  },
-];
 
 export const NotificationsList = () => <ListComponent />;
 NotificationsList.parameters = {
@@ -255,7 +130,7 @@ const ListComponent = () => {
             height: ${p => p.theme.topBarHeight[2]}px;
           `}
         >
-          <NotificationsComponent />
+          <NotificationsListComponent />
         </Flex>
       </ContextProvider>
     </MemoryRouter>
