@@ -1624,7 +1624,7 @@ func (s *Service) AccessRequestPromote(ctx context.Context, req *accesslistv1.Ac
 
 // ListAccessListReviews will list access list reviews for a particular access list.
 func (s *Service) ListAccessListReviews(ctx context.Context, req *accesslistv1.ListAccessListReviewsRequest) (*accesslistv1.ListAccessListReviewsResponse, error) {
-	if _, err := s.authOrIsOwner(ctx, req.AccessList, types.VerbCreate, types.VerbUpdate); err != nil {
+	if _, err := s.authOrIsOwner(ctx, req.AccessList, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1867,7 +1867,7 @@ func (s *Service) GetSuggestedAccessLists(ctx context.Context, request *accessli
 
 // Check if the user is either authorized for the access list or owns this access list.
 // Returns early if user has RBAC access (skips the step for retrieving an access list).
-func (s *Service) authOrIsOwner(ctx context.Context, accessListName string, verb string, addtionalVerbs ...string) (*authz.Context, error) {
+func (s *Service) authOrIsOwner(ctx context.Context, accessListName string, verb string, additionalVerbs ...string) (*authz.Context, error) {
 	// Make sure the user is authorized within Teleport.
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
@@ -1880,7 +1880,7 @@ func (s *Service) authOrIsOwner(ctx context.Context, accessListName string, verb
 	accessList, getErr := s.accessLists.GetAccessList(ctx, accessListName)
 
 	// Exit early if user has RBAC access to access lists.
-	authErr := s.hasAccessListRBAC(ctx, authCtx, accessList, verb, addtionalVerbs...)
+	authErr := s.hasAccessListRBAC(ctx, authCtx, accessList, verb, additionalVerbs...)
 	if authErr == nil {
 		return authCtx, nil
 	} else if services.IsAccessExplicitlyDenied(authErr) {
