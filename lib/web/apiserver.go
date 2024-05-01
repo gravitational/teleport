@@ -873,6 +873,9 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/apps/:fqdnHint", h.WithAuth(h.getAppFQDN))
 	h.GET("/webapi/apps/:fqdnHint/:clusterName/:publicAddr", h.WithAuth(h.getAppFQDN))
 
+	h.POST("/webapi/yaml/parse/:kind", h.WithAuth(h.yamlParse))
+	h.POST("/webapi/yaml/stringify/:kind", h.WithAuth(h.yamlStringify))
+
 	// Desktop access endpoints.
 	h.GET("/webapi/sites/:site/desktops", h.WithClusterAuth(h.clusterDesktopsGet))
 	h.GET("/webapi/sites/:site/desktopservices", h.WithClusterAuth(h.clusterDesktopServicesGet))
