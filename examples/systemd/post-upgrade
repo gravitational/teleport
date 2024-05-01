@@ -1,0 +1,12 @@
+#!/bin/bash
+
+# this script is run each time the teleport upgrader package is itself upgraded
+
+set -eu
+
+# skip reload and restart when systemd is disabled. This is only relevant when
+# testing in a container.
+if systemctl status > /dev/null 2>&1; then
+    # reload systemd configuration and restart timer unit
+    systemctl daemon-reload
+fi
