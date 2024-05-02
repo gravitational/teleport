@@ -71,11 +71,19 @@ func TestOIDCIdPPublicEndpoints(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NotEmpty(t, jwksKeys.Keys)
-	key := jwksKeys.Keys[0]
-	require.Equal(t, "sig", key.Use)
-	require.Equal(t, "RSA", key.KeyType)
-	require.Equal(t, "RS256", key.Alg)
-	require.NotNil(t, key.KeyID) // AWS requires this to be present (even if empty string).
+	require.Len(t, jwksKeys.Keys, 2)
+
+	// Expect the same key twice, once with a synthesized Key ID, and once with an empty Key ID for compatibility.
+	key1 := jwksKeys.Keys[0]
+	key2 := jwksKeys.Keys[1]
+	require.Equal(t, "sig", key1.Use)
+	require.Equal(t, "RSA", key1.KeyType)
+	require.Equal(t, "RS256", key1.Alg)
+	require.Equal(t, key1.Use, key2.Use)
+	require.Equal(t, key1.KeyType, key2.KeyType)
+	require.Equal(t, key1.Alg, key2.Alg)
+	require.NotEmpty(t, *key1.KeyID)
+	require.Equal(t, "", *key2.KeyID)
 }
 
 func TestThumbprint(t *testing.T) {
