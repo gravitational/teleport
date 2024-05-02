@@ -186,6 +186,7 @@ var _ collectionReader[any] = (*genericCollection[types.Resource, any, executor[
 
 type crownjewelsGetter interface {
 	ListCrownJewels(ctx context.Context, pageSize int64, nextToken string) ([]*crownjewelv1.CrownJewel, string, error)
+	GetCrownJewel(ctx context.Context, name string) (*crownjewelv1.CrownJewel, error)
 }
 
 // cacheCollections is a registry of resource collections used by Cache.

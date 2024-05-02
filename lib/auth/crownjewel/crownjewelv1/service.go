@@ -31,13 +31,16 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-// ServiceConfig holds configuration options for the DiscoveryConfig gRPC service.
+// ServiceConfig holds configuration options for the CrownJewel gRPC service.
 type ServiceConfig struct {
 	// Authorizer is the authorizer to use.
 	Authorizer authz.Authorizer
 
-	// Backend is the backend for storing DiscoveryConfigs.
+	// Backend is the backend for storing CrownJewel.
 	Backend services.CrownJewels
+
+	// Cache is the cache for storing CrownJewel.
+	Cache Cache
 }
 
 // CheckAndSetDefaults checks the ServiceConfig fields and returns an error if
@@ -50,8 +53,16 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 	if s.Backend == nil {
 		return trace.BadParameter("backend is required")
 	}
+	if s.Cache == nil {
+		return trace.BadParameter("cache is required")
+	}
 
 	return nil
+}
+
+type Cache interface {
+	ListCrownJewels(ctx context.Context, pageSize int64, nextToken string) ([]*crownjewelv1.CrownJewel, string, error)
+	GetCrownJewel(ctx context.Context, name string) (*crownjewelv1.CrownJewel, error)
 }
 
 // Service implements the teleport.CrownJewel.v1.CrownJewelService RPC service.
@@ -60,6 +71,7 @@ type Service struct {
 
 	authorizer authz.Authorizer
 	backend    services.CrownJewels
+	cache      Cache
 }
 
 // NewService returns a new CrownJewel gRPC service.
@@ -71,6 +83,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	return &Service{
 		authorizer: cfg.Authorizer,
 		backend:    cfg.Backend,
+		cache:      cfg.Cache,
 	}, nil
 }
 
@@ -112,7 +125,7 @@ func (s *Service) ListCrownJewels(ctx context.Context, req *crownjewelv1.ListCro
 		return nil, trace.Wrap(err)
 	}
 
-	rsp, nextToken, err := s.backend.ListCrownJewels(ctx, req.PageSize, req.PageToken)
+	rsp, nextToken, err := s.cache.ListCrownJewels(ctx, req.PageSize, req.PageToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -134,7 +147,7 @@ func (s *Service) GetCrownJewel(ctx context.Context, req *crownjewelv1.GetCrownJ
 		return nil, trace.Wrap(err)
 	}
 
-	rsp, err := s.backend.GetCrownJewel(ctx, req.GetName())
+	rsp, err := s.cache.GetCrownJewel(ctx, req.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

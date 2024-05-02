@@ -2836,6 +2836,19 @@ func (c *Cache) ListCrownJewels(ctx context.Context, pageSize int64, nextKey str
 	return rg.reader.ListCrownJewels(ctx, pageSize, nextKey)
 }
 
+// GetCrownJewel returns the specified CrownJewel resource.
+func (c *Cache) GetCrownJewel(ctx context.Context, name string) (*crownjewelv1.CrownJewel, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetCrownJewel")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.crownJewels)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.GetCrownJewel(ctx, name)
+}
+
 // GetSecurityAuditQuery returns the specified audit query resource.
 func (c *Cache) GetSecurityAuditQuery(ctx context.Context, name string) (*secreports.AuditQuery, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetSecurityAuditQuery")

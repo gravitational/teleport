@@ -5399,6 +5399,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	crownJewel, err := crownjewelv1.NewService(crownjewelv1.ServiceConfig{
 		Authorizer: cfg.Authorizer,
 		Backend:    cfg.AuthServer.Services,
+		Cache:      cfg.AuthServer.Cache,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

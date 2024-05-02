@@ -1161,6 +1161,9 @@ type Cache interface {
 	// ListCrownJewels returns a paginated list of crown jewels.
 	ListCrownJewels(ctx context.Context, pageSize int64, nextToken string) ([]*crownjewelv1.CrownJewel, string, error)
 
+	// GetCrownJewel returns the specified crown jewel.
+	GetCrownJewel(ctx context.Context, name string) (*crownjewelv1.CrownJewel, error)
+
 	// IntegrationsGetter defines read/list methods for integrations.
 	services.IntegrationsGetter
 
