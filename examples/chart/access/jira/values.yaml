@@ -14,7 +14,7 @@ teleport:
   #   - joining a Proxy: `teleport.example.com:443` or `teleport.example.com:3080`
   #   - joining an Auth: `teleport-auth.example.com:3025`
   address: ""
-  # teleport.identitySecretName(string) -- is the name of the Kubernetes secret
+  # teleport.identityFromSecret(string) -- is the name of the Kubernetes secret
   # that contains the credentials for the connection to your Teleport cluster.
   #
   # The secret should be in the following format:
@@ -24,15 +24,15 @@ teleport:
   # kind: Secret
   # type: Opaque
   # metadata:
-  #   name: teleport-plugin-slack-identity
+  #   name: teleport-plugin-identity
   # data:
   #   auth_id: #...
   # ```
   #
   # Check out the [Access Requests with
-  # Slack](../../../access-controls/access-request-plugins/ssh-approval-slack.mdx) guide
+  # Jira](../../../access-controls/access-request-plugins/ssh-approval-jira.mdx) guide
   # for more information about how to acquire these credentials.
-  identitySecretName: ""
+  identityFromSecret: ""
   # teleport.identitySecretPath(string) -- is the key in the Kubernetes secret
   # specified by `teleport.identitySecretName` that holds the credentials for
   # the connection to your Teleport cluster. If the secret has the path,

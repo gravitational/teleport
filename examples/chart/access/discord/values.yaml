@@ -24,13 +24,13 @@ teleport:
   # kind: Secret
   # type: Opaque
   # metadata:
-  #   name: teleport-plugin-slack-identity
+  #   name: teleport-plugin-identity
   # data:
   #   auth_id: #...
   # ```
   #
   # Check out the [Access Requests with
-  # Slack](../../../access-controls/access-request-plugins/ssh-approval-slack.mdx) guide
+  # Discord](../../../access-controls/access-request-plugins/ssh-approval-discord.mdx) guide
   # for more information about how to acquire these credentials.
   identitySecretName: ""
   # teleport.identitySecretPath(string) -- is the key in the Kubernetes secret
