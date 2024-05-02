@@ -596,6 +596,33 @@ updater:
   # binary.
   extraArgs: []
 
+  # updater.extraVolumes(list) -- contains extra volumes to mount into the Updater pods.
+  # See [the Kubernetes volume documentation](https://kubernetes.io/docs/concepts/storage/volumes/)
+  # for more details.
+  #
+  # For example:
+  # ```yaml
+  # updater:
+  #   extraVolumes:
+  #   - name: myvolume
+  #     secret:
+  #       secretName: testSecret
+  # ```
+  extraVolumes: []
+
+  # updater.extraVolumeMounts(list) -- contains extra volumes mounts for the updater.
+  # See [the Kubernetes volume documentation](https://kubernetes.io/docs/concepts/storage/volumes/)
+  # for more details.
+  #
+  # For example:
+  # ```yaml
+  # updater:
+  #   extraVolumesMounts:
+  #   - name: myvolume
+  #     mountPath: /path/on/host
+  # ```
+  extraVolumeMounts: []
+
 # existingDataVolume(string) -- is the name of an existing Kubernetes Persistent
 # Volume that should be mounted at `/var/lib/teleport`.
 #

@@ -23,9 +23,6 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"net"
-	"os"
-	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -35,83 +32,17 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 	mysqlclient "github.com/go-mysql-org/go-mysql/client"
 	"github.com/go-mysql-org/go-mysql/mysql"
-	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/helpers"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/alpnproxy"
-	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
-	"github.com/gravitational/teleport/lib/srv/db/common"
-	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
-
-func TestDatabases(t *testing.T) {
-	t.Parallel()
-	testEnabled := os.Getenv(teleport.AWSRunDBTests)
-	if ok, _ := strconv.ParseBool(testEnabled); !ok {
-		t.Skip("Skipping AWS Databases test suite.")
-	}
-	// when adding a new type of AWS db e2e test, you should add to this
-	// unmatched discovery test and add a test for matched discovery/connection
-	// as well below.
-	t.Run("unmatched discovery", awsDBDiscoveryUnmatched)
-	t.Run("rds", testRDS)
-}
-
-func awsDBDiscoveryUnmatched(t *testing.T) {
-	t.Parallel()
-	// get test settings
-	awsRegion := mustGetEnv(t, awsRegionEnv)
-
-	// setup discovery matchers
-	var matchers []types.AWSMatcher
-	for matcherType, assumeRoleARN := range map[string]string{
-		// add a new matcher/role here to test that discovery properly
-		// does *not* that kind of database for some unmatched tag.
-		types.AWSMatcherRDS: mustGetEnv(t, rdsDiscoveryRoleEnv),
-	} {
-		matchers = append(matchers, types.AWSMatcher{
-			Types: []string{matcherType},
-			Tags: types.Labels{
-				// This label should not match.
-				"env": {"tag_not_found"},
-			},
-			Regions: []string{awsRegion},
-			AssumeRole: &types.AssumeRole{
-				RoleARN: assumeRoleARN,
-			},
-		})
-	}
-
-	cluster := createTeleportCluster(t,
-		withSingleProxyPort(t),
-		withDiscoveryService(t, "db-e2e-test", matchers...),
-	)
-
-	// Get the auth server.
-	authC := cluster.Process.GetAuthServer()
-	// Wait for the discovery service to not create a database resource
-	// because the database does not match the selectors.
-	require.Never(t, func() bool {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-
-		databases, err := authC.GetDatabases(ctx)
-		return err == nil && len(databases) != 0
-	}, 2*time.Minute, 10*time.Second, "discovery service incorrectly created a database")
-}
 
 // makeDBTestCluster is a test helper to set up a typical test cluster for
 // database e2e tests.
@@ -370,196 +301,129 @@ func testRDS(t *testing.T) {
 			})
 		}
 	})
-}
 
-const (
-	connTestTimeout       = 30 * time.Second
-	connTestRetryInterval = 3 * time.Second
-)
+	t.Run("mariadb", func(t *testing.T) {
+		t.Parallel()
 
-// postgresConnTestFn tests connection to a postgres database via proxy web
-// multiplexer.
-func postgresConnTest(t *testing.T, cluster *helpers.TeleInstance, user string, route tlsca.RouteToDatabase, query string) {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	t.Cleanup(cancel)
-	var pgConn *pgconn.PgConn
-	// retry for a while, the database service might need time to give
-	// itself IAM rds:connect permissions.
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		var err error
-		pgConn, err = postgres.MakeTestClient(ctx, common.TestClientConfig{
-			AuthClient:      cluster.GetSiteAPI(cluster.Secrets.SiteName),
-			AuthServer:      cluster.Process.GetAuthServer(),
-			Address:         cluster.Web,
-			Cluster:         cluster.Secrets.SiteName,
-			Username:        user,
-			RouteToDatabase: route,
+		// wait for the database to be discovered
+		mariaDBName := mustGetEnv(t, rdsMariaDBInstanceNameEnv)
+		waitForDatabases(t, cluster.Process, mariaDBName)
+		db, err := cluster.Process.GetAuthServer().GetDatabase(ctx, mariaDBName)
+		require.NoError(t, err)
+		adminUser := mustGetDBAdmin(t, db)
+
+		// connect as the RDS database admin user - not to be confused
+		// with Teleport's "db admin user".
+		conn := connectAsRDSMySQLAdmin(t, ctx, db.GetAWS().RDS.InstanceID)
+		provisionMariaDBAdminUser(t, ctx, conn, adminUser.Name)
+
+		// create a couple test tables to test role assignment with.
+		testTable1 := "teleport.test_" + randASCII(t, 4)
+		_, err = conn.Execute(fmt.Sprintf("CREATE TABLE %s (x int)", testTable1))
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_, _ = conn.Execute(fmt.Sprintf("DROP TABLE %s", testTable1))
 		})
-		assert.NoError(t, err)
-		assert.NotNil(t, pgConn)
-	}, connTestTimeout, connTestRetryInterval, "connecting to postgres")
+		testTable2 := "teleport.test_" + randASCII(t, 4)
+		_, err = conn.Execute(fmt.Sprintf("CREATE TABLE %s (x int)", testTable2))
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_, _ = conn.Execute(fmt.Sprintf("DROP TABLE %s", testTable2))
+		})
 
-	// Execute a query.
-	results, err := pgConn.Exec(ctx, query).ReadAll()
-	require.NoError(t, err)
-	for i, r := range results {
-		require.NoError(t, r.Err, "error in result %v", i)
-	}
+		// create the roles that Teleport will auto assign.
+		// role 1 only allows SELECT on test table 1.
+		// role 2 only allows SELECT on test table 2.
+		// a user needs to have both roles to select from a join of the tables.
+		_, err = conn.Execute(fmt.Sprintf("CREATE ROLE %q", autoRole1))
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_, _ = conn.Execute(fmt.Sprintf("DROP ROLE %q", autoRole1))
+		})
+		_, err = conn.Execute(fmt.Sprintf("CREATE ROLE %q", autoRole2))
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_, _ = conn.Execute(fmt.Sprintf("DROP ROLE %q", autoRole2))
+		})
+		_, err = conn.Execute(fmt.Sprintf("GRANT SELECT on %s TO %q", testTable1, autoRole1))
+		require.NoError(t, err)
+		_, err = conn.Execute(fmt.Sprintf("GRANT SELECT on %s TO %q", testTable2, autoRole2))
+		require.NoError(t, err)
 
-	// Disconnect.
-	err = pgConn.Close(ctx)
-	require.NoError(t, err)
-}
+		// db admin needs the admin option for a role to grant others that role.
+		_, err = conn.Execute(fmt.Sprintf("GRANT %q TO %q WITH ADMIN OPTION", autoRole1, adminUser.Name))
+		require.NoError(t, err)
+		_, err = conn.Execute(fmt.Sprintf("GRANT %q TO %q WITH ADMIN OPTION", autoRole2, adminUser.Name))
+		require.NoError(t, err)
+		autoRolesQuery := fmt.Sprintf("SELECT 1 FROM %s JOIN %s", testTable1, testTable2)
 
-// postgresLocalProxyConnTest tests connection to a postgres database via
-// local proxy tunnel.
-func postgresLocalProxyConnTest(t *testing.T, cluster *helpers.TeleInstance, user string, route tlsca.RouteToDatabase, query string) {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	t.Cleanup(cancel)
-	lp := startLocalALPNProxy(t, ctx, user, cluster, route)
-	defer lp.Close()
+		t.Cleanup(func() {
+			// best effort cleanup all the users created by the tests.
+			// don't cleanup the admin or test runs will interfere with
+			// each other.
+			_, _ = conn.Execute(fmt.Sprintf("DROP ROLE %q", "tp-role-"+autoUserKeep))
+			_, _ = conn.Execute(fmt.Sprintf("DROP ROLE %q", "tp-role-"+autoUserDrop))
+			_, _ = conn.Execute(fmt.Sprintf("DROP USER %q", autoUserKeep))
+			_, _ = conn.Execute(fmt.Sprintf("DROP USER %q", autoUserDrop))
+			_, _ = conn.Execute("DELETE FROM teleport.user_attributes WHERE USER=?", autoUserKeep)
+			_, _ = conn.Execute("DELETE FROM teleport.user_attributes WHERE USER=?", autoUserDrop)
+		})
 
-	connString := fmt.Sprintf("postgres://%s@%v/%s",
-		route.Username, lp.GetAddr(), route.Database)
-	var pgConn *pgconn.PgConn
-	// retry for a while, the database service might need time to give
-	// itself IAM rds:connect permissions.
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		var err error
-		pgConn, err = pgconn.Connect(ctx, connString)
-		assert.NoError(t, err)
-		assert.NotNil(t, pgConn)
-	}, connTestTimeout, connTestRetryInterval, "connecting to postgres")
-
-	// Execute a query.
-	results, err := pgConn.Exec(ctx, query).ReadAll()
-	require.NoError(t, err)
-	for i, r := range results {
-		require.NoError(t, r.Err, "error in result %v", i)
-	}
-
-	// Disconnect.
-	err = pgConn.Close(ctx)
-	require.NoError(t, err)
-}
-
-// mysqlLocalProxyConnTest tests connection to a MySQL database via
-// local proxy tunnel.
-func mysqlLocalProxyConnTest(t *testing.T, cluster *helpers.TeleInstance, user string, route tlsca.RouteToDatabase, query string) {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	t.Cleanup(cancel)
-
-	lp := startLocalALPNProxy(t, ctx, user, cluster, route)
-	defer lp.Close()
-
-	var conn *mysqlclient.Conn
-	// retry for a while, the database service might need time to give
-	// itself IAM rds:connect permissions.
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		var err error
-		conn, err = mysqlclient.Connect(lp.GetAddr(), route.Username, "" /*no password*/, route.Database)
-		assert.NoError(t, err)
-		assert.NotNil(t, conn)
-	}, connTestTimeout, connTestRetryInterval, "connecting to mysql")
-
-	// Execute a query.
-	_, err := conn.Execute(query)
-	require.NoError(t, err)
-
-	// Disconnect.
-	require.NoError(t, conn.Close())
-}
-
-// startLocalALPNProxy starts local ALPN proxy for the specified database.
-func startLocalALPNProxy(t *testing.T, ctx context.Context, user string, cluster *helpers.TeleInstance, route tlsca.RouteToDatabase) *alpnproxy.LocalProxy {
-	t.Helper()
-	proto, err := alpncommon.ToALPNProtocol(route.Protocol)
-	require.NoError(t, err)
-
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-
-	proxyNetAddr, err := cluster.Process.ProxyWebAddr()
-	require.NoError(t, err)
-
-	authSrv := cluster.Process.GetAuthServer()
-	tlsCert := generateClientDBCert(t, authSrv, user, route)
-
-	proxy, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
-		RemoteProxyAddr:    proxyNetAddr.String(),
-		Protocols:          []alpncommon.Protocol{proto},
-		InsecureSkipVerify: true,
-		Listener:           listener,
-		ParentContext:      ctx,
-		Certs:              []tls.Certificate{tlsCert},
+		for name, test := range map[string]struct {
+			user            string
+			dbUser          string
+			query           string
+			afterConnTestFn func(t *testing.T)
+		}{
+			"existing user": {
+				user:   hostUser,
+				dbUser: adminUser.Name,
+				query:  "select 1",
+			},
+			"auto user keep": {
+				user:   autoUserKeep,
+				dbUser: autoUserKeep,
+				query:  autoRolesQuery,
+				afterConnTestFn: func(t *testing.T) {
+					waitForMariaDBAutoUserDeactivate(t, conn, autoUserKeep)
+				},
+			},
+			"auto user drop": {
+				user:   autoUserDrop,
+				dbUser: autoUserDrop,
+				query:  autoRolesQuery,
+				afterConnTestFn: func(t *testing.T) {
+					waitForMariaDBAutoUserDrop(t, conn, autoUserDrop)
+				},
+			},
+		} {
+			test := test
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+				route := tlsca.RouteToDatabase{
+					ServiceName: mariaDBName,
+					Protocol:    defaults.ProtocolMySQL,
+					Username:    test.dbUser,
+					Database:    "", // not needed
+				}
+				t.Run("connect", func(t *testing.T) {
+					// run multiple conn tests in parallel to test parallel
+					// auto user connections.
+					t.Run("via local proxy 1", func(t *testing.T) {
+						t.Parallel()
+						mysqlLocalProxyConnTest(t, cluster, test.user, route, test.query)
+					})
+					t.Run("via local proxy 2", func(t *testing.T) {
+						t.Parallel()
+						mysqlLocalProxyConnTest(t, cluster, test.user, route, test.query)
+					})
+				})
+				if test.afterConnTestFn != nil {
+					test.afterConnTestFn(t)
+				}
+			})
+		}
 	})
-	require.NoError(t, err)
-
-	go proxy.Start(ctx)
-
-	return proxy
-}
-
-// generateClientDBCert creates a test db cert for the given user and database.
-func generateClientDBCert(t *testing.T, authSrv *auth.Server, user string, route tlsca.RouteToDatabase) tls.Certificate {
-	t.Helper()
-	key, err := client.GenerateRSAKey()
-	require.NoError(t, err)
-
-	clusterName, err := authSrv.GetClusterName()
-	require.NoError(t, err)
-
-	clientCert, err := authSrv.GenerateDatabaseTestCert(
-		auth.DatabaseTestCertRequest{
-			PublicKey:       key.MarshalSSHPublicKey(),
-			Cluster:         clusterName.GetClusterName(),
-			Username:        user,
-			RouteToDatabase: route,
-		})
-	require.NoError(t, err)
-
-	tlsCert, err := key.TLSCertificate(clientCert)
-	require.NoError(t, err)
-	return tlsCert
-}
-
-func waitForDatabases(t *testing.T, auth *service.TeleportProcess, wantNames ...string) {
-	t.Helper()
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-
-		databases, err := auth.GetAuthServer().GetDatabases(ctx)
-		assert.NoError(t, err)
-
-		// map the registered "db" resource names.
-		seen := map[string]struct{}{}
-		for _, db := range databases {
-			seen[db.GetName()] = struct{}{}
-		}
-		for _, name := range wantNames {
-			assert.Contains(t, seen, name)
-		}
-	}, 3*time.Minute, 3*time.Second, "waiting for the discovery service to create db resources")
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-
-		servers, err := auth.GetAuthServer().GetDatabaseServers(ctx, apidefaults.Namespace)
-		assert.NoError(t, err)
-
-		// map the registered "db_server" resource names.
-		seen := map[string]struct{}{}
-		for _, s := range servers {
-			seen[s.GetName()] = struct{}{}
-		}
-		for _, name := range wantNames {
-			assert.Contains(t, seen, name)
-		}
-	}, 1*time.Minute, time.Second, "waiting for the database service to heartbeat the databases")
 }
 
 // rdsAdminInfo contains common info needed to connect as an RDS admin user via
@@ -638,6 +502,11 @@ func getRDSAdminInfo(t *testing.T, ctx context.Context, instanceID string) rdsAd
 	require.NoError(t, err)
 	require.Len(t, result.DBInstances, 1)
 	dbInstance := result.DBInstances[0]
+	require.NotNil(t, dbInstance.MasterUsername)
+	require.NotNil(t, dbInstance.MasterUserSecret)
+	require.NotNil(t, dbInstance.MasterUserSecret.SecretArn)
+	require.NotEmpty(t, *dbInstance.MasterUsername)
+	require.NotEmpty(t, *dbInstance.MasterUserSecret.SecretArn)
 	return rdsAdminInfo{
 		address:  *dbInstance.Endpoint.Address,
 		port:     int(*dbInstance.Endpoint.Port),
@@ -658,6 +527,9 @@ func getRDSMasterUserPassword(t *testing.T, ctx context.Context, secretID string
 		// being paranoid. I don't want to leak the secret string in test error
 		// logs.
 		require.FailNow(t, "error unmarshaling secret string")
+	}
+	if len(secret.Pass) == 0 {
+		require.FailNow(t, "empty master user secret string")
 	}
 	return secret.Pass
 }
@@ -720,6 +592,34 @@ func provisionRDSMySQLAutoUsersAdmin(t *testing.T, ctx context.Context, conn *my
 	_, err = conn.Execute("CREATE DATABASE IF NOT EXISTS `teleport`")
 	require.NoError(t, err)
 	_, err = conn.Execute(fmt.Sprintf("GRANT ALTER ROUTINE, CREATE ROUTINE, EXECUTE ON `teleport`.* TO %q", adminUser))
+	require.NoError(t, err)
+}
+
+// provisionMariaDBAdminUser provisions an admin user suitable for auto-user
+// provisioning.
+func provisionMariaDBAdminUser(t *testing.T, ctx context.Context, conn *mySQLConn, adminUser string) {
+	t.Helper()
+	// provision the IAM user to test with.
+	// ignore errors from user creation. If the user doesn't exist
+	// later steps will catch it. The error we might get back when
+	// another test runner already created the admin is
+	// unpredictable: all we need to know is the user exists for
+	// test setup.
+	_, _ = conn.Execute(fmt.Sprintf("CREATE USER IF NOT EXISTS %q IDENTIFIED WITH AWSAuthenticationPlugin AS 'RDS'", adminUser))
+
+	// these statements are all idempotent - they should not return
+	// an error even if run in parallel by many test runners.
+	_, err := conn.Execute(fmt.Sprintf("GRANT PROCESS, CREATE USER ON *.* TO %q", adminUser))
+	require.NoError(t, err)
+	_, err = conn.Execute(fmt.Sprintf("GRANT SELECT ON mysql.roles_mapping to %q", adminUser))
+	require.NoError(t, err)
+	_, err = conn.Execute(fmt.Sprintf("GRANT UPDATE ON mysql.* TO %q", adminUser))
+	require.NoError(t, err)
+	_, err = conn.Execute(fmt.Sprintf("GRANT SELECT ON *.* TO %q", adminUser))
+	require.NoError(t, err)
+	_, err = conn.Execute("CREATE DATABASE IF NOT EXISTS `teleport`")
+	require.NoError(t, err)
+	_, err = conn.Execute(fmt.Sprintf("GRANT ALL ON `teleport`.* TO %q WITH GRANT OPTION", adminUser))
 	require.NoError(t, err)
 }
 
@@ -828,4 +728,45 @@ func waitForMySQLAutoUserDrop(t *testing.T, conn *mySQLConn, user string) {
 		assert.Equal(c, 0, result.RowNumber(), "user %q should have been dropped automatically after disconnecting", user)
 		result.Close()
 	}, autoUserWaitDur, autoUserWaitStep, "waiting for auto user %q to be dropped", user)
+}
+
+func waitForMariaDBAutoUserDeactivate(t *testing.T, conn *mySQLConn, user string) {
+	t.Helper()
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		result, err := conn.Execute("SELECT 1 FROM mysql.user AS u WHERE u.user = ?", user)
+		if !assert.NoError(c, err) {
+			return
+		}
+		if !assert.Equal(c, 1, result.RowNumber(), "user %q should not have been dropped after disconnecting", user) {
+			result.Close()
+			return
+		}
+		result.Close()
+
+		result, err = conn.Execute("SELECT 1 FROM mysql.global_priv AS u WHERE u.user = ? AND JSON_EXTRACT(u.priv, '$.account_locked') = true", user)
+		if !assert.NoError(c, err) {
+			return
+		}
+		if !assert.Equal(c, 1, result.RowNumber(), "user %q should not be able to login after deactivating", user) {
+			result.Close()
+			return
+		}
+		result.Close()
+
+		result, err = conn.Execute("SELECT 1 FROM mysql.roles_mapping AS u WHERE u.user = ? AND u.role != 'teleport-auto-user' AND u.ADMIN_OPTION='N'", user)
+		if !assert.NoError(c, err) {
+			return
+		}
+		if !assert.Equal(c, 0, result.RowNumber(), "user %q should have lost all additional roles after deactivating", user) {
+			result.Close()
+			return
+		}
+		result.Close()
+	}, autoUserWaitDur, autoUserWaitStep, "waiting for auto user %q to be deactivated", user)
+}
+
+func waitForMariaDBAutoUserDrop(t *testing.T, conn *mySQLConn, user string) {
+	t.Helper()
+	// run the same tests as mysql to check if the user was dropped.
+	waitForMySQLAutoUserDrop(t, conn, user)
 }

@@ -1,3 +1,7 @@
+## How it works
+
+(!docs/pages/includes/database-access/how-it-works/iam.mdx db="RDS Proxy" cloud="AWS"!)
+
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![Teleport Database Access RDS Proxy Self-Hosted](../../../img/database-access/guides/rds-proxy_selfhosted.png)
@@ -52,7 +56,7 @@ proxy:
 $ sudo teleport db configure create \
    -o file \
    --proxy=<Var name="teleport.example.com"/>:443 \
-   --uri=<Var name="DATABASE_URI" /> |
+   --uri=<Var name="DATABASE_URI" /> \
    --protocol={{ protocol }} \
    --token=/tmp/token
 ```

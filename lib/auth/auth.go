@@ -34,6 +34,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"math"
 	"math/big"
 	insecurerand "math/rand"
@@ -111,6 +112,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/tpm"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
@@ -494,6 +496,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 				ctx, as.clock, circleci.IssuerURLTemplate, organizationID, token,
 			)
 		}
+	}
+	if as.tpmValidator == nil {
+		as.tpmValidator = tpm.Validate
 	}
 	if as.k8sTokenReviewValidator == nil {
 		as.k8sTokenReviewValidator = &kubernetestoken.TokenReviewValidator{}
@@ -879,6 +884,12 @@ type Server struct {
 	// gitlabIDTokenValidator allows ID tokens from GitLab CI to be validated by
 	// the auth server. It can be overridden for the purpose of tests.
 	gitlabIDTokenValidator gitlabIDTokenValidator
+
+	// tpmValidator allows TPMs to be validated by the auth server. It can be
+	// overridden for the purpose of tests.
+	tpmValidator func(
+		ctx context.Context, log *slog.Logger, params tpm.ValidateParams,
+	) (*tpm.ValidatedTPM, error)
 
 	// circleCITokenValidate allows ID tokens from CircleCI to be validated by
 	// the auth server. It can be overridden for the purpose of tests.
@@ -2046,12 +2057,33 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 	}
 	checker := services.NewAccessCheckerWithRoleSet(accessInfo, clusterName.GetClusterName(), roleSet)
 
+	sessionTTL := time.Duration(req.TTL)
+
+	// OpenSSH certs and their corresponding keys are held strictly by the proxy,
+	// so we can attest them as "web_session" to bypass Hardware Key support
+	// requirements that are unattainable from the Proxy.
+	sshPublicKey, _, _, _, err := ssh.ParseAuthorizedKey(req.PublicKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cryptoPublicKey, ok := sshPublicKey.(ssh.CryptoPublicKey)
+	if !ok {
+		return nil, trace.BadParameter("unsupported SSH public key type %q", sshPublicKey.Type())
+	}
+	webAttData, err := services.NewWebSessionAttestationData(cryptoPublicKey.CryptoPublicKey())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err = a.UpsertKeyAttestationData(ctx, webAttData, sessionTTL); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	certs, err := a.generateOpenSSHCert(ctx, certRequest{
 		user:            req.User,
 		publicKey:       req.PublicKey,
 		compatibility:   constants.CertificateFormatStandard,
 		checker:         checker,
-		ttl:             time.Duration(req.TTL),
+		ttl:             sessionTTL,
 		traits:          req.User.GetTraits(),
 		routeToCluster:  req.Cluster,
 		disallowReissue: true,
@@ -2067,13 +2099,14 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 
 // GenerateUserTestCertsRequest is a request to generate test certificates.
 type GenerateUserTestCertsRequest struct {
-	Key            []byte
-	Username       string
-	TTL            time.Duration
-	Compatibility  string
-	RouteToCluster string
-	PinnedIP       string
-	MFAVerified    string
+	Key                  []byte
+	Username             string
+	TTL                  time.Duration
+	Compatibility        string
+	RouteToCluster       string
+	PinnedIP             string
+	MFAVerified          string
+	AttestationStatement *keys.AttestationStatement
 }
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
@@ -2093,16 +2126,17 @@ func (a *Server) GenerateUserTestCerts(req GenerateUserTestCertsRequest) ([]byte
 		return nil, nil, trace.Wrap(err)
 	}
 	certs, err := a.generateUserCert(ctx, certRequest{
-		user:           userState,
-		ttl:            req.TTL,
-		compatibility:  req.Compatibility,
-		publicKey:      req.Key,
-		routeToCluster: req.RouteToCluster,
-		checker:        checker,
-		traits:         userState.GetTraits(),
-		loginIP:        req.PinnedIP,
-		pinIP:          req.PinnedIP != "",
-		mfaVerified:    req.MFAVerified,
+		user:                 userState,
+		ttl:                  req.TTL,
+		compatibility:        req.Compatibility,
+		publicKey:            req.Key,
+		routeToCluster:       req.RouteToCluster,
+		checker:              checker,
+		traits:               userState.GetTraits(),
+		loginIP:              req.PinnedIP,
+		pinIP:                req.PinnedIP != "",
+		mfaVerified:          req.MFAVerified,
+		attestationStatement: req.AttestationStatement,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -2446,12 +2480,13 @@ func (a *Server) AugmentContextUserCertificates(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	notAfter := x509Cert.NotAfter
 	newTLSCert, err := tlsCA.GenerateCertificate(tlsca.CertificateRequest{
 		Clock:     a.clock,
 		PublicKey: x509Cert.PublicKey,
 		Subject:   subj,
 		// Use the same expiration as the original cert.
-		NotAfter: x509Cert.NotAfter,
+		NotAfter: notAfter,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2469,7 +2504,7 @@ func (a *Server) AugmentContextUserCertificates(
 			ValidPrincipals: sshCert.ValidPrincipals,
 			ValidAfter:      uint64(validAfter.Unix()),
 			// Use the same expiration as the x509 cert.
-			ValidBefore: uint64(x509Cert.NotAfter.Unix()),
+			ValidBefore: uint64(notAfter.Unix()),
 			Permissions: sshCert.Permissions,
 		}
 		newSSHCert.Extensions[teleport.CertExtensionDeviceID] = dev.DeviceID
@@ -2480,6 +2515,9 @@ func (a *Server) AugmentContextUserCertificates(
 		}
 		newAuthorizedKey = ssh.MarshalAuthorizedKey(newSSHCert)
 	}
+
+	// Issue audit event on success, same as [Server.generateCert].
+	a.emitCertCreateEvent(ctx, &newIdentity, notAfter)
 
 	return &proto.Certs{
 		SSH: newAuthorizedKey,
@@ -2893,23 +2931,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		}
 	}
 
-	eventIdentity := identity.GetEventIdentity()
-	eventIdentity.Expires = notAfter
-	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.CertificateCreate{
-		Metadata: apievents.Metadata{
-			Type: events.CertificateCreateEvent,
-			Code: events.CertificateCreateCode,
-		},
-		CertificateType: events.CertificateTypeUser,
-		Identity:        &eventIdentity,
-		ClientMetadata: apievents.ClientMetadata{
-			//TODO(greedy52) currently only user-agent from GRPC clients are
-			//fetched. Need to propagate user-agent from HTTP calls.
-			UserAgent: trimUserAgent(metadata.UserAgentFromContext(ctx)),
-		},
-	}); err != nil {
-		log.WithError(err).Warn("Failed to emit certificate create event.")
-	}
+	a.emitCertCreateEvent(ctx, &identity, notAfter)
 
 	// create certs struct to return to user
 	certs := &proto.Certs{
@@ -3011,6 +3033,26 @@ func (a *Server) getSigningCAs(ctx context.Context, domainName string, caType ty
 	}
 
 	return tlsCA, sshSigner, ca, nil
+}
+
+func (a *Server) emitCertCreateEvent(ctx context.Context, identity *tlsca.Identity, notAfter time.Time) {
+	eventIdentity := identity.GetEventIdentity()
+	eventIdentity.Expires = notAfter
+	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.CertificateCreate{
+		Metadata: apievents.Metadata{
+			Type: events.CertificateCreateEvent,
+			Code: events.CertificateCreateCode,
+		},
+		CertificateType: events.CertificateTypeUser,
+		Identity:        &eventIdentity,
+		ClientMetadata: apievents.ClientMetadata{
+			// TODO(greedy52) currently only user-agent from GRPC clients are
+			// fetched. Need to propagate user-agent from HTTP calls.
+			UserAgent: trimUserAgent(metadata.UserAgentFromContext(ctx)),
+		},
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit certificate create event.")
+	}
 }
 
 // WithUserLock executes function authenticateFn that performs user authentication
@@ -3177,9 +3219,15 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 
 	challenges, err := a.mfaAuthChallenge(ctx, username, challengeExtensions)
 	if err != nil {
+		// Do not obfuscate config-related errors.
+		if errors.Is(err, types.ErrPasswordlessRequiresWebauthn) || errors.Is(err, types.ErrPasswordlessDisabledBySettings) {
+			return nil, trace.Wrap(err)
+		}
+
 		log.Error(trace.DebugReport(err))
 		return nil, trace.AccessDenied("unable to create MFA challenges")
 	}
+
 	return challenges, nil
 }
 
@@ -5990,8 +6038,12 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, challengeExt
 	// Handle passwordless separately, it works differently from MFA.
 	if isPasswordless {
 		if !enableWebauthn {
-			return nil, trace.BadParameter("passwordless requires WebAuthn")
+			return nil, trace.Wrap(types.ErrPasswordlessRequiresWebauthn)
 		}
+		if !apref.GetAllowPasswordless() {
+			return nil, trace.Wrap(types.ErrPasswordlessDisabledBySettings)
+		}
+
 		webLogin := &wanlib.PasswordlessFlow{
 			Webauthn: webConfig,
 			Identity: a.Services,
@@ -6248,6 +6300,18 @@ func (a *Server) validateMFAAuthResponseInternal(
 				Identity: a.Services,
 			}
 			loginData, err = webLogin.Finish(ctx, assertionResp)
+
+			// Disallow non-local users from logging in with passwordless.
+			if err == nil {
+				u, getErr := a.GetUser(ctx, loginData.User, false /* withSecrets */)
+				if getErr != nil {
+					err = trace.Wrap(getErr)
+				} else if u.GetUserType() != types.UserTypeLocal {
+					// Return the error unmodified, without the "MFA response validation
+					// failed" prefix.
+					return nil, trace.Wrap(types.ErrPassswordlessLoginBySSOUser)
+				}
+			}
 		} else {
 			webLogin := &wanlib.LoginFlow{
 				U2F:      u2f,

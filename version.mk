@@ -28,7 +28,7 @@ setver: validate-semver helm-version tsh-version
 # The weird -i usage is to make the sed commands work the same on both Linux and Mac. Test on both platforms if you change it.
 .PHONY:helm-version
 helm-version:
-	for CHART in teleport-cluster teleport-kube-agent teleport-cluster/charts/teleport-operator; do \
+	for CHART in teleport-cluster teleport-kube-agent teleport-cluster/charts/teleport-operator event-handler access/discord access/email access/jira access/mattermost access/msteams access/pagerduty access/slack; do \
 		sed -i'.bak' -e "s_^\\.version:\ .*_.version: \\&version \"$${VERSION}\"_g" examples/chart/$${CHART}/Chart.yaml || exit 1; \
 		rm -f examples/chart/$${CHART}/Chart.yaml.bak; \
 	done

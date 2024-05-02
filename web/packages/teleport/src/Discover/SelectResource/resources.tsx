@@ -43,7 +43,7 @@ export const SERVERS: ResourceSpec[] = [
   {
     name: 'Ubuntu 14.04+',
     kind: ResourceKind.Server,
-    keywords: baseServerKeywords + 'ubuntu',
+    keywords: baseServerKeywords + 'ubuntu linux',
     icon: 'Linux',
     event: DiscoverEventResource.Server,
     platform: Platform.Linux,
@@ -51,7 +51,7 @@ export const SERVERS: ResourceSpec[] = [
   {
     name: 'Debian 8+',
     kind: ResourceKind.Server,
-    keywords: baseServerKeywords + 'debian',
+    keywords: baseServerKeywords + 'debian linux',
     icon: 'Linux',
     event: DiscoverEventResource.Server,
     platform: Platform.Linux,
@@ -59,7 +59,7 @@ export const SERVERS: ResourceSpec[] = [
   {
     name: 'RHEL/CentOS 7+',
     kind: ResourceKind.Server,
-    keywords: baseServerKeywords + 'rhel centos',
+    keywords: baseServerKeywords + 'rhel centos linux',
     icon: 'Linux',
     event: DiscoverEventResource.Server,
     platform: Platform.Linux,

@@ -75,12 +75,10 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/prompt"
-	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -105,6 +103,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
+	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 type integrationTestSuite struct {
@@ -1854,6 +1853,11 @@ func testShutdown(t *testing.T, suite *integrationTestSuite) {
 		{
 			name: "cli sessions",
 			createSession: func(t *testing.T, i *helpers.TeleInstance, term *Terminal, cfg helpers.ClientConfig) {
+				// TODO(espadolini): make the connection detach timeout (or the
+				// clock that it uses) configurable; in the meantime, disable
+				// connection resumption here, since it could occasionally make
+				// the server wait for a full minute before shutting down
+				cfg.DisableSSHResumption = true
 				tc, err := i.NewClient(cfg)
 				require.NoError(t, err)
 
@@ -2437,7 +2441,7 @@ func testInvalidLogins(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 
 	err = tc.SSH(context.Background(), cmd, false)
-	require.ErrorIs(t, err, trace.NotFound("failed to dial target host\n\tcluster \"wrong-site\" is not found"))
+	require.ErrorIs(t, err, trace.NotFound("failed to dial target host\n\tlooking up remote cluster \"wrong-site\"\n\t\tnot found"))
 }
 
 // TestTwoClustersTunnel creates two teleport clusters: "a" and "b" and creates a
@@ -3905,7 +3909,7 @@ func testTrustedClusterAgentless(t *testing.T, suite *integrationTestSuite) {
 		"Two clusters do not see each other: tunnels are not working.")
 
 	// create agentless node in leaf cluster
-	node := createAgentlessNode(t, leaf.Process.GetAuthServer(), clusterAux, "leaf-agentless-node")
+	node := testenv.CreateAgentlessNode(t, leaf.Process.GetAuthServer(), clusterAux, "leaf-agentless-node")
 
 	// connect to leaf agentless node
 	creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
@@ -8570,7 +8574,7 @@ func testAgentlessConnection(t *testing.T, suite *integrationTestSuite) {
 
 	// get OpenSSH CA public key and create host certs
 	authSrv := teleInst.Process.GetAuthServer()
-	node := createAgentlessNode(t, authSrv, helpers.Site, "agentless-node")
+	node := testenv.CreateAgentlessNode(t, authSrv, helpers.Site, "agentless-node")
 
 	// create client
 	tc, err := teleInst.NewClient(helpers.ClientConfig{
@@ -8581,171 +8585,6 @@ func testAgentlessConnection(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 
 	testAgentlessConn(t, tc, tc, node)
-}
-
-func createAgentlessNode(t *testing.T, authServer *auth.Server, clusterName, nodeHostname string) *types.ServerV2 {
-	t.Helper()
-
-	ctx := context.Background()
-	openSSHCA, err := authServer.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.OpenSSHCA,
-		DomainName: clusterName,
-	}, false)
-	require.NoError(t, err)
-
-	caCheckers, err := sshutils.GetCheckers(openSSHCA)
-	require.NoError(t, err)
-
-	key, err := native.GeneratePrivateKey()
-	require.NoError(t, err)
-
-	nodeUUID := uuid.New().String()
-	hostCertBytes, err := authServer.GenerateHostCert(
-		ctx,
-		key.MarshalSSHPublicKey(),
-		"",
-		"",
-		[]string{nodeUUID, nodeHostname, Loopback},
-		clusterName,
-		types.RoleNode,
-		0,
-	)
-	require.NoError(t, err)
-
-	hostCert, err := apisshutils.ParseCertificate(hostCertBytes)
-	require.NoError(t, err)
-	signer, err := ssh.NewSignerFromSigner(key.Signer)
-	require.NoError(t, err)
-	hostKeySigner, err := ssh.NewCertSigner(hostCert, signer)
-	require.NoError(t, err)
-
-	// start SSH server
-	sshAddr := startSSHServer(t, caCheckers, hostKeySigner)
-
-	// create node resource
-	node := &types.ServerV2{
-		Kind:    types.KindNode,
-		SubKind: types.SubKindOpenSSHNode,
-		Version: types.V2,
-		Metadata: types.Metadata{
-			Name: nodeUUID,
-		},
-		Spec: types.ServerSpecV2{
-			Addr:     sshAddr,
-			Hostname: nodeHostname,
-		},
-	}
-	_, err = authServer.UpsertNode(ctx, node)
-	require.NoError(t, err)
-
-	// wait for node resource to be written to the backend
-	timedCtx, cancel := context.WithTimeout(ctx, time.Second)
-	t.Cleanup(cancel)
-	w, err := authServer.NewWatcher(timedCtx, types.Watch{
-		Name: "node-create watcher",
-		Kinds: []types.WatchKind{
-			{
-				Kind: types.KindNode,
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	for nodeCreated := false; !nodeCreated; {
-		select {
-		case e := <-w.Events():
-			if e.Type == types.OpPut {
-				nodeCreated = true
-			}
-		case <-w.Done():
-			t.Fatal("Did not receive node create event")
-		}
-	}
-	require.NoError(t, w.Close())
-
-	return node
-}
-
-// startSSHServer starts a SSH server that roughly mimics an unregistered
-// OpenSSH (agentless) server. The SSH server started only handles a small
-// subset of SSH requests necessary for testing.
-func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer) string {
-	t.Helper()
-
-	sshCfg := ssh.ServerConfig{
-		PublicKeyCallback: func(_ ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
-			cert, ok := key.(*ssh.Certificate)
-			if !ok {
-				return nil, fmt.Errorf("expected *ssh.Certificate, got %T", key)
-			}
-
-			for _, pubKey := range caPubKeys {
-				if bytes.Equal(cert.SignatureKey.Marshal(), pubKey.Marshal()) {
-					return &ssh.Permissions{}, nil
-				}
-			}
-
-			return nil, fmt.Errorf("signature key %v does not match OpenSSH CA", cert.SignatureKey)
-		},
-	}
-	sshCfg.AddHostKey(hostKey)
-
-	lis, err := net.Listen("tcp", Loopback+":")
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, lis.Close())
-	})
-
-	go func() {
-		nConn, err := lis.Accept()
-		assert.NoError(t, err)
-		t.Cleanup(func() {
-			if nConn != nil {
-				// the error is ignored here to avoid failing on net.ErrClosed
-				_ = nConn.Close()
-			}
-		})
-
-		conn, channels, reqs, err := ssh.NewServerConn(nConn, &sshCfg)
-		assert.NoError(t, err)
-		t.Cleanup(func() {
-			if conn != nil {
-				// the error is ignored here to avoid failing on net.ErrClosed
-				_ = conn.Close()
-			}
-		})
-		go ssh.DiscardRequests(reqs)
-
-		var agentForwarded bool
-		var shellRequested bool
-		for channelReq := range channels {
-			assert.Equal(t, "session", channelReq.ChannelType())
-			channel, reqs, err := channelReq.Accept()
-			assert.NoError(t, err)
-			t.Cleanup(func() {
-				// the error is ignored here to avoid failing on net.ErrClosed
-				_ = channel.Close()
-			})
-
-			for req := range reqs {
-				if req.WantReply {
-					assert.NoError(t, req.Reply(true, nil))
-				}
-				if req.Type == sshutils.AgentForwardRequest {
-					agentForwarded = true
-				} else if req.Type == sshutils.ShellRequest {
-					assert.NoError(t, channel.Close())
-
-					shellRequested = true
-					break
-				}
-			}
-		}
-		assert.True(t, agentForwarded)
-		assert.True(t, shellRequested)
-	}()
-
-	return lis.Addr().String()
 }
 
 func testAgentlessConn(t *testing.T, tc, joinTC *client.TeleportClient, node *types.ServerV2) {

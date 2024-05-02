@@ -80,14 +80,10 @@ export function NewPassword(props: Props) {
     <Validation>
       {({ validator }) => (
         <OnboardCard ref={refCallback} data-testid="password">
-          <Text typography="h4" bold color="text.main">
-            Set A Password
+          {mfaEnabled && <Text color="text.slightlyMuted">Step 1 of 2</Text>}
+          <Text typography="h4" bold color="text.main" mb={3}>
+            Set a Password
           </Text>
-          {mfaEnabled && (
-            <Text color="text.slightlyMuted" mb={3}>
-              Step 1 of 2
-            </Text>
-          )}
           {submitAttempt.status === 'failed' && (
             <Danger children={submitAttempt.statusText} />
           )}

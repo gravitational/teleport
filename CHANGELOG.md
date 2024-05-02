@@ -1,5 +1,89 @@
 # Changelog
 
+## 15.3.0 (04/30/24)
+
+### Improved Roles UI
+
+The Roles page of the web UI is now backed by a paginated API, ensuring fast
+load times even on clusters with large numbers of roles.
+
+### Resizing for Windows desktop sessions
+
+Windows desktop sessions now automatically resize as the size of the browser
+window changes.
+
+### Hardware key support for agentless nodes
+
+Teleport now supports connecting to agentless OpenSSH nodes even when Teleport
+is configured to require hardware key MFA checks.
+
+### TPM joining
+
+The new TPM join method enables secure joining for agents and Machine ID bots
+that run on-premise. Based on the secure properties of the host's hardware
+trusted platform module, this join method removes the need to create and
+distribute secret tokens, significantly reducing the risk of exfiltration.
+
+### Other improvements and fixes
+
+* Fixed user SSO bypass by performing a local passwordless login. [#41067](https://github.com/gravitational/teleport/pull/41067)
+* Enforce allow_passwordless server-side. [#41057](https://github.com/gravitational/teleport/pull/41057)
+* Fixed a memory leak caused by incorrectly passing the offset when paginating all Access Lists' members when there are more than the default pagesize (200) Access Lists. [#41045](https://github.com/gravitational/teleport/pull/41045)
+* Added resize capability to windows desktop sessions. [#41025](https://github.com/gravitational/teleport/pull/41025)
+* Fixed a regression causing roles filtering to not work. [#40999](https://github.com/gravitational/teleport/pull/40999)
+* Allow AWS integration to be used for global services without specifying a valid region. [#40991](https://github.com/gravitational/teleport/pull/40991)
+* Made account id visible when selecting IAM Role for accessing the AWS Console. [#40987](https://github.com/gravitational/teleport/pull/40987)
+
+## 15.2.5 (04/26/24)
+
+* Extend proxy templates to allow the target host to be resolved via a predicate expression or fuzzy matching. [#40966](https://github.com/gravitational/teleport/pull/40966)
+* Fix an issue where access requests would linger in UI and tctl after expiry. [#40964](https://github.com/gravitational/teleport/pull/40964)
+* The `teleport-cluster` Helm chart can configure AccessMonitoring when running in `aws` mode. [#40957](https://github.com/gravitational/teleport/pull/40957)
+* Make `podSecurityContext` configurable in the `teleport-cluster` Helm chart. [#40951](https://github.com/gravitational/teleport/pull/40951)
+* Allow to mount extra volumes in the updater pod deployed by the `teleport-kube-agent`chart. [#40946](https://github.com/gravitational/teleport/pull/40946)
+* Improve error message when performing an SSO login with a hardware key. [#40923](https://github.com/gravitational/teleport/pull/40923)
+* Fix a bug in the `teleport-cluster` Helm chart that happened when `sessionRecording` was `off`. [#40919](https://github.com/gravitational/teleport/pull/40919)
+* Fix audit event failures when using DynamoDB event storage. [#40913](https://github.com/gravitational/teleport/pull/40913)
+* Allow setting additional Kubernetes labels on resources created by the `teleport-cluster` Helm chart. [#40909](https://github.com/gravitational/teleport/pull/40909)
+* Fix Windows cursor getting stuck. [#40890](https://github.com/gravitational/teleport/pull/40890)
+* Issue `cert.create` events during device authentication. [#40872](https://github.com/gravitational/teleport/pull/40872)
+* Add the ability to control `ssh_config` generation in Machine ID's Identity Outputs. This allows the generation of the `ssh_config` to be disabled if unnecessary, improving performance and removing the dependency on the Proxy being online. [#40861](https://github.com/gravitational/teleport/pull/40861)
+* Prevent deleting AWS OIDC integration used by External Audit Storage. [#40851](https://github.com/gravitational/teleport/pull/40851)
+* Introduce the `tpm` join method, which allows for secure joining in on-prem environments without the need for a shared secret. [#40823](https://github.com/gravitational/teleport/pull/40823)
+* Reduce parallelism when polling AWS resources to prevent API throttling when exporting them to Teleport Access Graph. [#40811](https://github.com/gravitational/teleport/pull/40811)
+* Fix spurious deletion of Access List Membership metadata during SCIM push or sync. [#40544](https://github.com/gravitational/teleport/pull/40544)
+* Properly enforce session moderation requirements when starting Kubernetes ephemeral containers. [#40906](https://github.com/gravitational/teleport/pull/40906)
+
+## 15.2.4 (04/23/24)
+
+* Fixed a deprecation warning being shown when `tbot` is used with OpenSSH. [#40837](https://github.com/gravitational/teleport/pull/40837)
+* Added a new Audit log event that is emitted when an Agent or Bot request to join the cluster is denied. [#40814](https://github.com/gravitational/teleport/pull/40814)
+* Fixed regenerating cloud account recovery codes. [#40786](https://github.com/gravitational/teleport/pull/40786)
+* Changed UI for the sign-up and authentication reset flows. [#40773](https://github.com/gravitational/teleport/pull/40773)
+* Added a new Prometheus metric to track requests initiated by Teleport against the control plane API. [#40754](https://github.com/gravitational/teleport/pull/40754)
+* Fixed an issue that prevented uploading a zip file larger than 10MiB when updating an AWS Lambda function via tsh app access. [#40737](https://github.com/gravitational/teleport/pull/40737)
+* Patched CVE-2024-32650. [#40735](https://github.com/gravitational/teleport/pull/40735)
+* Fixed possible data race that could lead to concurrent map read and map write while proxying Kubernetes requests. [#40720](https://github.com/gravitational/teleport/pull/40720)
+* Fixed access request promotion of windows_desktop resources. [#40712](https://github.com/gravitational/teleport/pull/40712)
+* Fixed spurious ambiguous host errors in ssh routing. [#40706](https://github.com/gravitational/teleport/pull/40706)
+* Patched CVE-2023-45288 and CVE-2024-32473. [#40695](https://github.com/gravitational/teleport/pull/40695)
+* generic "not found" errors are returned whether a remote cluster can't be found or access is denied. [#40681](https://github.com/gravitational/teleport/pull/40681)
+* Fixed a resource leak in the Teleport proxy server when using proxy peering. [#40672](https://github.com/gravitational/teleport/pull/40672)
+* Added Azure CLI access support on AKS with Entra Workload ID. [#40660](https://github.com/gravitational/teleport/pull/40660)
+* Allow other issue types when configuring JIRA plugin. [#40644](https://github.com/gravitational/teleport/pull/40644)
+* Added `regexp.match` to access request `filter` and `where` expressions. [#40642](https://github.com/gravitational/teleport/pull/40642)
+* Notify the requester in slack review request messages. [#40624](https://github.com/gravitational/teleport/pull/40624)
+* Handle passwordless in MFA audit events. [#40617](https://github.com/gravitational/teleport/pull/40617)
+* Added auto discover capability to EC2 enrollment in the web UI. [#40605](https://github.com/gravitational/teleport/pull/40605)
+* Fixes RDP licensing. [#40595](https://github.com/gravitational/teleport/pull/40595)
+* Added support for the ascii variants of smartcard calls. [#40566](https://github.com/gravitational/teleport/pull/40566)
+* Added the ability to configure labels that should be set on the Kubernetes secret when using the `kubernetes_secret` destination in `tbot`. [#40550](https://github.com/gravitational/teleport/pull/40550)
+* Updated cosign to address CVE-2024-29902 and CVE-2024-29903. [#40497](https://github.com/gravitational/teleport/pull/40497)
+* The Web UI now supports large number of roles by paginating them. [#40463](https://github.com/gravitational/teleport/pull/40463)
+* Improved the responsiveness of the session player during long periods of idle time. [#40442](https://github.com/gravitational/teleport/pull/40442)
+* Fixed incorrect format for database_object_import_rule resources with non-empty expiry. [#40203](https://github.com/gravitational/teleport/pull/40203)
+* Updated Opsgenie annotations so approve-schedules is used for both alert creation and auto approval if notify schedules is not set. [#40121](https://github.com/gravitational/teleport/pull/40121)
+
 ## 15.2.2 (04/11/24)
 
 * Updated the cluster selector in the UI to now only be visible when more than one cluster is available. [#40478](https://github.com/gravitational/teleport/pull/40478)
