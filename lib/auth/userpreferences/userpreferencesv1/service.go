@@ -20,10 +20,11 @@ package userpreferencesv1
 
 import (
 	"context"
-
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"slices"
 
 	"github.com/gravitational/teleport"
 	userpreferences "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
@@ -94,4 +95,25 @@ func (a *Service) UpsertUserPreferences(ctx context.Context, req *userpreference
 	username := authCtx.User.GetName()
 
 	return &emptypb.Empty{}, trace.Wrap(a.backend.UpsertUserPreferences(ctx, username, req.Preferences))
+}
+
+func (a *Service) GetKeyboardLayout(ctx context.Context, req *userpreferences.GetKeyboardLayoutRequest) (*userpreferences.GetKeyboardLayoutResponse, error) {
+	authCtx, err := a.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	identity := authCtx.Identity.GetIdentity()
+
+	if !slices.Contains(identity.SystemRoles, string(types.RoleWindowsDesktop)) && !slices.Contains(identity.Groups, string(types.RoleWindowsDesktop)) {
+		return nil, trace.AccessDenied("Only Windows Desktop Service can get keyboard layout")
+	}
+
+	prefs, err := a.backend.GetUserPreferences(ctx, req.GetUsername())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &userpreferences.GetKeyboardLayoutResponse{
+		KeyboardLayout: prefs.KeyboardLayout,
+	}, nil
 }

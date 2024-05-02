@@ -71,6 +71,7 @@ type UserPreferencesResponse struct {
 	Onboard                    OnboardUserPreferencesResponse     `json:"onboard"`
 	ClusterPreferences         ClusterUserPreferencesResponse     `json:"clusterPreferences,omitempty"`
 	AccessGraph                AccessGraphPreferencesResponse     `json:"accessGraph,omitempty"`
+	KeyboardLayout             int32                              `json:"keyboardLayout"`
 }
 
 func (h *Handler) getUserClusterPreferences(_ http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
@@ -127,7 +128,8 @@ func (h *Handler) getUserPreferences(_ http.ResponseWriter, r *http.Request, _ h
 func makePreferenceRequest(req UserPreferencesResponse) *userpreferencesv1.UpsertUserPreferencesRequest {
 	return &userpreferencesv1.UpsertUserPreferencesRequest{
 		Preferences: &userpreferencesv1.UserPreferences{
-			Theme: req.Theme,
+			KeyboardLayout: req.KeyboardLayout,
+			Theme:          req.Theme,
 			UnifiedResourcePreferences: &userpreferencesv1.UnifiedResourcePreferences{
 				DefaultTab:     req.UnifiedResourcePreferences.DefaultTab,
 				ViewMode:       req.UnifiedResourcePreferences.ViewMode,
@@ -188,6 +190,7 @@ func userPreferencesResponse(resp *userpreferencesv1.UserPreferences) *UserPrefe
 		ClusterPreferences:         clusterPreferencesResponse(resp.ClusterPreferences),
 		UnifiedResourcePreferences: unifiedResourcePreferencesResponse(resp.UnifiedResourcePreferences),
 		AccessGraph:                accessGraphPreferencesResponse(resp.AccessGraph),
+		KeyboardLayout:             resp.KeyboardLayout,
 	}
 
 	return jsonResp

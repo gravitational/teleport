@@ -36,6 +36,7 @@ const _ = grpc.SupportPackageIsVersion7
 const (
 	UserPreferencesService_GetUserPreferences_FullMethodName    = "/teleport.userpreferences.v1.UserPreferencesService/GetUserPreferences"
 	UserPreferencesService_UpsertUserPreferences_FullMethodName = "/teleport.userpreferences.v1.UserPreferencesService/UpsertUserPreferences"
+	UserPreferencesService_GetKeyboardLayout_FullMethodName     = "/teleport.userpreferences.v1.UserPreferencesService/GetKeyboardLayout"
 )
 
 // UserPreferencesServiceClient is the client API for UserPreferencesService service.
@@ -46,6 +47,8 @@ type UserPreferencesServiceClient interface {
 	GetUserPreferences(ctx context.Context, in *GetUserPreferencesRequest, opts ...grpc.CallOption) (*GetUserPreferencesResponse, error)
 	// UpsertUserPreferences creates or updates user preferences for a given username.
 	UpsertUserPreferences(ctx context.Context, in *UpsertUserPreferencesRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// GetUserPreferences returns the user preferences for a given user.
+	GetKeyboardLayout(ctx context.Context, in *GetKeyboardLayoutRequest, opts ...grpc.CallOption) (*GetKeyboardLayoutResponse, error)
 }
 
 type userPreferencesServiceClient struct {
@@ -74,6 +77,15 @@ func (c *userPreferencesServiceClient) UpsertUserPreferences(ctx context.Context
 	return out, nil
 }
 
+func (c *userPreferencesServiceClient) GetKeyboardLayout(ctx context.Context, in *GetKeyboardLayoutRequest, opts ...grpc.CallOption) (*GetKeyboardLayoutResponse, error) {
+	out := new(GetKeyboardLayoutResponse)
+	err := c.cc.Invoke(ctx, UserPreferencesService_GetKeyboardLayout_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // UserPreferencesServiceServer is the server API for UserPreferencesService service.
 // All implementations must embed UnimplementedUserPreferencesServiceServer
 // for forward compatibility
@@ -82,6 +94,8 @@ type UserPreferencesServiceServer interface {
 	GetUserPreferences(context.Context, *GetUserPreferencesRequest) (*GetUserPreferencesResponse, error)
 	// UpsertUserPreferences creates or updates user preferences for a given username.
 	UpsertUserPreferences(context.Context, *UpsertUserPreferencesRequest) (*emptypb.Empty, error)
+	// GetUserPreferences returns the user preferences for a given user.
+	GetKeyboardLayout(context.Context, *GetKeyboardLayoutRequest) (*GetKeyboardLayoutResponse, error)
 	mustEmbedUnimplementedUserPreferencesServiceServer()
 }
 
@@ -94,6 +108,9 @@ func (UnimplementedUserPreferencesServiceServer) GetUserPreferences(context.Cont
 }
 func (UnimplementedUserPreferencesServiceServer) UpsertUserPreferences(context.Context, *UpsertUserPreferencesRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertUserPreferences not implemented")
+}
+func (UnimplementedUserPreferencesServiceServer) GetKeyboardLayout(context.Context, *GetKeyboardLayoutRequest) (*GetKeyboardLayoutResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetKeyboardLayout not implemented")
 }
 func (UnimplementedUserPreferencesServiceServer) mustEmbedUnimplementedUserPreferencesServiceServer() {
 }
@@ -145,6 +162,24 @@ func _UserPreferencesService_UpsertUserPreferences_Handler(srv interface{}, ctx 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _UserPreferencesService_GetKeyboardLayout_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetKeyboardLayoutRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserPreferencesServiceServer).GetKeyboardLayout(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserPreferencesService_GetKeyboardLayout_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserPreferencesServiceServer).GetKeyboardLayout(ctx, req.(*GetKeyboardLayoutRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // UserPreferencesService_ServiceDesc is the grpc.ServiceDesc for UserPreferencesService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -159,6 +194,10 @@ var UserPreferencesService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpsertUserPreferences",
 			Handler:    _UserPreferencesService_UpsertUserPreferences_Handler,
+		},
+		{
+			MethodName: "GetKeyboardLayout",
+			Handler:    _UserPreferencesService_GetKeyboardLayout_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

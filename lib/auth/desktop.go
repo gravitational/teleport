@@ -75,6 +75,14 @@ func (a *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 		CRLDistributionPoints: []string{req.CRLEndpoint},
 	}
 
+	preferences, err := a.GetUserPreferences(ctx, csr.Subject.CommonName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	certReq.ExtraExtensions = append(certReq.ExtraExtensions, pkix.Extension{
+		Id:    tlsca.KeyboardLayoutExtensionOID,
+		Value: []byte(strconv.Itoa(int(preferences.KeyboardLayout))),
+	})
 	limitExceeded, err := a.desktopsLimitExceeded(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)

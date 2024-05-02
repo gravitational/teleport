@@ -18,6 +18,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
+import { GetKeyboardLayoutResponse } from "./userpreferences_pb";
+import { GetKeyboardLayoutRequest } from "./userpreferences_pb";
 import { Empty } from "../../../google/protobuf/empty_pb";
 import { UpsertUserPreferencesRequest } from "./userpreferences_pb";
 import { GetUserPreferencesResponse } from "./userpreferences_pb";
@@ -41,6 +43,12 @@ export interface IUserPreferencesService extends grpc.UntypedServiceImplementati
      * @generated from protobuf rpc: UpsertUserPreferences(teleport.userpreferences.v1.UpsertUserPreferencesRequest) returns (google.protobuf.Empty);
      */
     upsertUserPreferences: grpc.handleUnaryCall<UpsertUserPreferencesRequest, Empty>;
+    /**
+     * GetUserPreferences returns the user preferences for a given user.
+     *
+     * @generated from protobuf rpc: GetKeyboardLayout(teleport.userpreferences.v1.GetKeyboardLayoutRequest) returns (teleport.userpreferences.v1.GetKeyboardLayoutResponse);
+     */
+    getKeyboardLayout: grpc.handleUnaryCall<GetKeyboardLayoutRequest, GetKeyboardLayoutResponse>;
 }
 /**
  * @grpc/grpc-js definition for the protobuf service teleport.userpreferences.v1.UserPreferencesService.
@@ -73,5 +81,15 @@ export const userPreferencesServiceDefinition: grpc.ServiceDefinition<IUserPrefe
         requestDeserialize: bytes => UpsertUserPreferencesRequest.fromBinary(bytes),
         responseSerialize: value => Buffer.from(Empty.toBinary(value)),
         requestSerialize: value => Buffer.from(UpsertUserPreferencesRequest.toBinary(value))
+    },
+    getKeyboardLayout: {
+        path: "/teleport.userpreferences.v1.UserPreferencesService/GetKeyboardLayout",
+        originalName: "GetKeyboardLayout",
+        requestStream: false,
+        responseStream: false,
+        responseDeserialize: bytes => GetKeyboardLayoutResponse.fromBinary(bytes),
+        requestDeserialize: bytes => GetKeyboardLayoutRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(GetKeyboardLayoutResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(GetKeyboardLayoutRequest.toBinary(value))
     }
 };

@@ -101,6 +101,7 @@ pub unsafe extern "C" fn client_run(cgo_handle: CgoHandle, params: CGOConnectPar
             allow_clipboard: params.allow_clipboard,
             allow_directory_sharing: params.allow_directory_sharing,
             show_desktop_wallpaper: params.show_desktop_wallpaper,
+            keyboard_layout: params.keyboard_layout
         },
     ) {
         Ok(res) => CGOResult {
@@ -445,6 +446,7 @@ pub struct CGOConnectParams {
     allow_clipboard: bool,
     allow_directory_sharing: bool,
     show_desktop_wallpaper: bool,
+    keyboard_layout: u32
 }
 
 /// CGOKeyboardEvent is a CGO-compatible version of KeyboardEvent that we pass back to Go.

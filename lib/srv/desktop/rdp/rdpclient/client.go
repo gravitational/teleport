@@ -316,6 +316,7 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 			allow_clipboard:         C.bool(c.cfg.AllowClipboard),
 			allow_directory_sharing: C.bool(c.cfg.AllowDirectorySharing),
 			show_desktop_wallpaper:  C.bool(c.cfg.ShowDesktopWallpaper),
+			keyboard_layout:         C.uint32_t(c.cfg.KeyboardLayout),
 		},
 	)
 

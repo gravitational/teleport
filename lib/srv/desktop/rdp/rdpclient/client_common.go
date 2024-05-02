@@ -66,6 +66,8 @@ type Config struct {
 
 	// Logger is the logger for status messages.
 	Logger *slog.Logger
+
+	KeyboardLayout int32
 }
 
 // GenerateUserCertFn generates user certificates for RDP authentication.

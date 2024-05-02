@@ -25,6 +25,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"log/slog"
 	"net"
 	"strconv"
@@ -850,6 +851,11 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 	}
 	createUsers := err == nil
 
+	layout, err := s.cfg.AuthClient.GetKeyboardLayout(ctx, &userpreferencesv1.GetKeyboardLayoutRequest{Username: identity.Username})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// it's important that we set the OnSend and OnRecv handlers prior to
 	// initializing the client so that we capture all relevant data in the
 	// session recording
@@ -872,8 +878,9 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 		ShowDesktopWallpaper:  s.cfg.ShowDesktopWallpaper,
 		Width:                 width,
 		Height:                height,
+		KeyboardLayout:        layout.KeyboardLayout,
 	})
-	// before we check the error above, we grab the windows user so that
+	// before we check the error above, we grab the Windows user so that
 	// future audit events include the proper username
 	var windowsUser string
 	if rdpc != nil {

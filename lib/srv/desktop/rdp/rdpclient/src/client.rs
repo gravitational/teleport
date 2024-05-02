@@ -1155,6 +1155,7 @@ fn create_config(params: &ConnectParams, pin: String) -> Config {
         keyboard_type: ironrdp_pdu::gcc::KeyboardType::IbmEnhanced,
         keyboard_subtype: 0,
         keyboard_functional_keys_count: 12,
+        keyboard_layout: params.keyboard_layout,
         ime_file_name: "".to_string(),
         bitmap: Some(ironrdp_connector::BitmapConfig {
             lossy_compression: true,
@@ -1188,6 +1189,7 @@ pub struct ConnectParams {
     pub allow_clipboard: bool,
     pub allow_directory_sharing: bool,
     pub show_desktop_wallpaper: bool,
+    pub keyboard_layout: u32,
 }
 
 #[derive(Debug)]
