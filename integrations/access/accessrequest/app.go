@@ -231,7 +231,7 @@ func (a *App) handleAcessRequest(ctx context.Context, event types.Event) error {
 
 func (a *App) handleAccessMonitoringRule(ctx context.Context, event types.Event) error {
 	if kind := event.Resource.GetKind(); kind != types.KindAccessMonitoringRule {
-		return trace.Errorf("unexpected kind %s", kind)
+		return trace.BadParameter("expected %s resource kind, got %s", types.KindAccessMonitoringRule, kind)
 	}
 
 	req, ok := types.LegacyToResource153(event.Resource).(*accessmonitoringrulesv1.AccessMonitoringRule)
