@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package local
+package services
 
 import (
 	"testing"
@@ -26,6 +26,8 @@ import (
 
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestMarshalCrownJewelRoundTrip(t *testing.T) {
@@ -46,4 +48,52 @@ func TestMarshalCrownJewelRoundTrip(t *testing.T) {
 	require.True(t, proto.Equal(obj, newObj), "messages are not equal")
 }
 
-//TODO(jaku): add more tests
+func TestUnmarshalCrownJewel(t *testing.T) {
+	t.Parallel()
+
+	data, err := utils.ToJSON([]byte(correctCrownJewelYAML))
+	require.NoError(t, err)
+	obj, err := UnmarshalCrownJewel(data)
+	require.NoError(t, err)
+
+	require.Equal(t, &crownjewelv1.CrownJewel{
+		Version: "v1",
+		Kind:    "crown_jewel",
+		Metadata: &headerv1.Metadata{
+			Name: "example-crown-jewel",
+			Labels: map[string]string{
+				"env": "example",
+			},
+		},
+		Spec: &crownjewelv1.CrownJewelSpec{
+			TeleportMatchers: []*crownjewelv1.TeleportMatcher{
+				{
+					Kinds: []string{"node"},
+					Labels: []*labelv1.Label{
+						{
+							Name:   "abc",
+							Values: []string{"xyz"},
+						},
+					},
+				},
+			},
+		},
+	}, obj)
+}
+
+const correctCrownJewelYAML = `
+version: v1
+kind: crown_jewel
+metadata:
+  name: example-crown-jewel
+  labels:
+    env: example
+spec:
+  teleport_matchers:
+    - kinds:
+      - node
+      labels:
+         - name: abc
+           values:
+             - xyz
+`
