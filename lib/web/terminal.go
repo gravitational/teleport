@@ -310,6 +310,7 @@ type sshBaseHandler struct {
 type localAccessPoint interface {
 	GetUser(ctx context.Context, username string, withSecrets bool) (types.User, error)
 	GetRole(ctx context.Context, name string) (types.Role, error)
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 }
 
 // TerminalHandler connects together an SSH session with a web-based
@@ -487,7 +488,7 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	})
 
 	// Start sending ping frames through websocket to client.
-	go startPingLoop(ctx, ws, t.keepAliveInterval, t.log, t.Close)
+	go startWSPingLoop(ctx, ws, t.keepAliveInterval, t.log, t.Close)
 
 	// Pump raw terminal in/out and audit events into the websocket.
 	go t.streamEvents(ctx, tc)

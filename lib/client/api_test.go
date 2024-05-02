@@ -454,6 +454,11 @@ func TestGetKubeTLSServerName(t *testing.T) {
 			want:          "kube-teleport-proxy-alpn.teleport.cluster.local",
 		},
 		{
+			name:          "localhost, API domain should be used ",
+			kubeProxyAddr: "localhost",
+			want:          "kube-teleport-proxy-alpn.teleport.cluster.local",
+		},
+		{
 			name:          "valid hostname",
 			kubeProxyAddr: "example.com",
 			want:          "kube-teleport-proxy-alpn.example.com",
