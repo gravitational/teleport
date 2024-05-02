@@ -88,9 +88,9 @@ func TestCollectProfile(t *testing.T) {
 			require.Len(t, requestedPaths, 1)
 
 			path, args, _ := strings.Cut(requestedPaths[0], "?")
-			require.True(t, strings.HasPrefix(path, teleport.DebugPProfEndpointsPrefix), "expected %q request but got %q", teleport.DebugPProfEndpointsPrefix, path)
+			require.True(t, strings.HasPrefix(path, "/debug/pprof/"), "expected PProf request but got %q", path)
 			require.Equal(t, test.expectedArgs, args)
-			require.Equal(t, test.profile, strings.TrimPrefix(path, teleport.DebugPProfEndpointsPrefix))
+			require.Equal(t, test.profile, strings.TrimPrefix(path, "/debug/pprof/"))
 		})
 	}
 }

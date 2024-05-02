@@ -27,7 +27,6 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -42,15 +41,15 @@ type LogLeveler interface {
 // NewServeMux returns a http mux that handles all the debug service endpoints.
 func NewServeMux(logger *slog.Logger, leveler LogLeveler) *http.ServeMux {
 	mux := http.NewServeMux()
-	mux.HandleFunc(teleport.DebugPProfEndpointsPrefix+"cmdline", pprofMiddleware(logger, "cmdline", pprof.Cmdline))
-	mux.HandleFunc(teleport.DebugPProfEndpointsPrefix+"profile", pprofMiddleware(logger, "profile", pprof.Profile))
-	mux.HandleFunc(teleport.DebugPProfEndpointsPrefix+"symbol", pprofMiddleware(logger, "symbol", pprof.Symbol))
-	mux.HandleFunc(teleport.DebugPProfEndpointsPrefix+"trace", pprofMiddleware(logger, "trace", pprof.Trace))
-	mux.HandleFunc(teleport.DebugPProfEndpointsPrefix+"{profile}", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/debug/pprof/cmdline", pprofMiddleware(logger, "cmdline", pprof.Cmdline))
+	mux.HandleFunc("/debug/pprof/profile", pprofMiddleware(logger, "profile", pprof.Profile))
+	mux.HandleFunc("/debug/pprof/symbol", pprofMiddleware(logger, "symbol", pprof.Symbol))
+	mux.HandleFunc("/debug/pprof/trace", pprofMiddleware(logger, "trace", pprof.Trace))
+	mux.HandleFunc("/debug/pprof/{profile}", func(w http.ResponseWriter, r *http.Request) {
 		pprofMiddleware(logger, r.PathValue("profile"), pprof.Index)(w, r)
 	})
-	mux.Handle("GET "+teleport.DebugLogLevelEndpoint, handleGetLog(logger, leveler))
-	mux.Handle("PUT "+teleport.DebugLogLevelEndpoint, handleSetLog(logger, leveler))
+	mux.Handle("GET /log-level", handleGetLog(logger, leveler))
+	mux.Handle("PUT /log-level", handleSetLog(logger, leveler))
 	return mux
 }
 

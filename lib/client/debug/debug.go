@@ -25,7 +25,6 @@ import (
 	"net/url"
 	"strconv"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -51,7 +50,7 @@ func NewClient(socketPath string) *client {
 
 // SetLogLevel changes the application's log level and a change status message.
 func (c *client) SetLogLevel(ctx context.Context, level string) (string, error) {
-	resp, err := c.do(ctx, http.MethodPut, url.URL{Path: teleport.DebugLogLevelEndpoint}, []byte(level))
+	resp, err := c.do(ctx, http.MethodPut, url.URL{Path: "/log-level"}, []byte(level))
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -71,7 +70,7 @@ func (c *client) SetLogLevel(ctx context.Context, level string) (string, error) 
 
 // GetLogLevel fetches the current log level.
 func (c *client) GetLogLevel(ctx context.Context) (string, error) {
-	resp, err := c.do(ctx, http.MethodGet, url.URL{Path: teleport.DebugLogLevelEndpoint}, nil)
+	resp, err := c.do(ctx, http.MethodGet, url.URL{Path: "/log-level"}, nil)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -92,7 +91,7 @@ func (c *client) GetLogLevel(ctx context.Context) (string, error) {
 // CollectProfile collects a pprof profile.
 func (c *client) CollectProfile(ctx context.Context, profileName string, seconds int) ([]byte, error) {
 	u := url.URL{
-		Path: teleport.DebugPProfEndpointsPrefix + profileName,
+		Path: "/debug/pprof/" + profileName,
 	}
 
 	if seconds > 0 {
