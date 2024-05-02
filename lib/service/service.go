@@ -4326,7 +4326,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	// clientTLSConfigGenerator pre-generates specialized per-cluster client TLS config values
 	clientTLSConfigGenerator, err := auth.NewClientTLSConfigGenerator(auth.ClientTLSConfigGeneratorConfig{
-		TLS:                  tlscfg,
+		TLS:                  tlscfg.Clone(),
 		ClusterName:          clusterName,
 		PermitRemoteClusters: true,
 		AccessPoint:          accessPoint,
