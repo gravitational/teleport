@@ -5781,7 +5781,7 @@ message PluginSpecV1 {
     PluginServiceNowSettings serviceNow = 10;
     // Settings for the Gitlab plugin.
     PluginGitlabSettings gitlab = 12;
-
+    // Settings for the SCIM integration
     PluginSCIMSettings scim = 13;
   }
 
