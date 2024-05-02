@@ -68,6 +68,10 @@ const (
 	PluginTypeDiscord = "discord"
 	// PluginTypeGitlab indicates the Gitlab access plugin
 	PluginTypeGitlab = "gitlab"
+	// PluginTypeEntraID indicates the Entra ID sync plugin
+	PluginTypeEntraID = "entra-id"
+	// PluginTypeSCIM indicates a generic SCIM integration
+	PluginTypeSCIM = "scim"
 )
 
 // PluginSubkind represents the type of the plugin, e.g., access request, MDM etc.
@@ -302,6 +306,7 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		}
 		if err := settings.EntraId.Validate(); err != nil {
 			return trace.Wrap(err)
+		}
 	case *PluginSpecV1_Scim:
 		if settings.Scim == nil {
 			return trace.BadParameter("Must be used with SCIM settings")
