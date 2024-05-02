@@ -183,6 +183,16 @@ func TestGenericWrapperCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(r1, r, cmpopts.IgnoreFields(headerv1.Metadata{}, "Id"), ignoreUnexported))
 
+	// Conditionally updating a resource fails if revisions do not match
+	r.Metadata.Revision = "fake"
+	_, err = service.ConditionalUpdateResource(ctx, r)
+	require.True(t, trace.IsCompareFailed(err))
+
+	// Conditionally updating a resource is allowed when revisions match
+	r.Metadata.Revision = r1.Metadata.Revision
+	r1, err = service.ConditionalUpdateResource(ctx, r1)
+	require.NoError(t, err)
+
 	// Update a resource that doesn't exist.
 	doesNotExist := newTestResource153("doesnotexist")
 	_, err = service.UpdateResource(ctx, doesNotExist)
