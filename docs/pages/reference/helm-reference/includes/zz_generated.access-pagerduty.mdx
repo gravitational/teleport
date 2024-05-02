@@ -55,63 +55,51 @@ specified by `teleport.identitySecretName` that holds the credentials for
 the connection to your Teleport cluster. If the secret has the path,
 `"auth_id"`, you can omit this field.
 
-## `slack`
+## `pagerduty`
 
-`slack` contains the configuration used by the plugin to authenticate to Slack.
+`pagerduty` contains the configuration used by the plugin to authenticate to PagerDuty.
 
-You can pass the Slack token:
-- via the chart Values by setting `slack.token`
-- via an existing Kubernetes Secret by setting `slack.tokenFromSecret`
+You can pass the PagerDuty API key:
+- via the chart Values by setting `pagerduty.apiKey`
+- via an existing Kubernetes Secret by setting `pagerduty.apiKeyFromSecret`
 
-### `slack.token`
-
-| Type | Default |
-|------|---------|
-| `string` | `""` |
-
-`slack.token` is the Slack token used by the plugin to interact
-with Slack. When set, the Chart creates a Kubernetes Secret for you.
-
-This value has no effect if `slack.tokenFromSecret` is set.
-
-### `slack.tokenFromSecret`
+### `pagerduty.apiKey`
 
 | Type | Default |
 |------|---------|
 | `string` | `""` |
 
-`slack.tokenFromSecret` is the name of the Kubernetes Secret
-containing the Slack token. When this value is set, you must create the
+`pagerduty.apiKey` is the PagerDuty API key used by the plugin to interact
+with PagerDuty. When set, the Chart creates a Kubernetes Secret for you.
+
+This value has no effect if `pagerduty.apiKeyFromSecret` is set.
+
+### `pagerduty.apiKeyFromSecret`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`pagerduty.apiKeyFromSecret` is the name of the Kubernetes Secret
+containing the PagerDuty apiKey. When this value is set, you must create the
 Secret before creating the chart release.
 
-### `slack.tokenSecretPath`
+### `pagerduty.apiKeySecretPath`
 
 | Type | Default |
 |------|---------|
-| `string` | `"slackToken"` |
+| `string` | `"pagerdutyApiKey"` |
 
-`slack.tokenSecretPath` is the Kubernetes Secret key
-containing the Slack token. The secret name is set via `slack.tokenFromSecret`.
+`pagerduty.apiKeySecretPath` is the Kubernetes Secret key
+containing the PagerDuty API key. The secret name is set via `pagerduty.apiKeyFromSecret`.
 
-## `roleToRecipients`
+### `pagerduty.userEmail`
 
 | Type | Default |
 |------|---------|
-| `object` | `{}` |
+| `string` | `""` |
 
-`roleToRecipients` is mapping the requested role name to a list of
-recipients the plugin will notify.
-It must contain a mapping for `*` in case no matching roles are found.
-
-Example value:
-```yaml
-roleToRecipients:
- "*": "admin-slack-channel"
- dev:
-   - "dev-slack-channel"
-   - "admin-slack-channel"
- dba: "alex@example.com"
-```
+`pagerduty.userEmail` is the PagerDuty bot email.
 
 ## `log`
 
@@ -196,7 +184,7 @@ You can override this to use your own plugin image rather than a Teleport-publis
 
 | Type | Default |
 |------|---------|
-| `string` | `"public.ecr.aws/gravitational/teleport-plugin-slack"` |
+| `string` | `"public.ecr.aws/gravitational/teleport-plugin-pagerduty"` |
 
 `image.repository` is the image repository.
 

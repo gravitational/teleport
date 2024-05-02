@@ -55,43 +55,165 @@ specified by `teleport.identitySecretName` that holds the credentials for
 the connection to your Teleport cluster. If the secret has the path,
 `"auth_id"`, you can omit this field.
 
-## `slack`
+## `mailgun`
 
-`slack` contains the configuration used by the plugin to authenticate to Slack.
+`mailgun` configures the mailgun sending parameters.
+Either `mailgun` or `smtp` must be set.
 
-You can pass the Slack token:
-- via the chart Values by setting `slack.token`
-- via an existing Kubernetes Secret by setting `slack.tokenFromSecret`
+You can pass the Mailgun key:
+- via the chart Values by setting `mailgun.privateKey`
+- via an existing Kubernetes Secret by setting `mailgun.privateKeyFromSecret`
 
-### `slack.token`
+### `mailgun.enabled`
+
+| Type | Default |
+|------|---------|
+| `bool` | `false` |
+
+`mailgun.enabled` makes the plugin send emails via Mailgun.
+
+### `mailgun.domain`
 
 | Type | Default |
 |------|---------|
 | `string` | `""` |
 
-`slack.token` is the Slack token used by the plugin to interact
-with Slack. When set, the Chart creates a Kubernetes Secret for you.
+`mailgun.domain` configures the domain Mailgun will send the emails from.
+This is mandatory when mailgun is enabled.
 
-This value has no effect if `slack.tokenFromSecret` is set.
-
-### `slack.tokenFromSecret`
+### `mailgun.privateKey`
 
 | Type | Default |
 |------|---------|
 | `string` | `""` |
 
-`slack.tokenFromSecret` is the name of the Kubernetes Secret
-containing the Slack token. When this value is set, you must create the
+`mailgun.privateKey` is the Mailgun private key used by the plugin
+to interact with Mailgun. When set, the Chart creates a Kubernetes Secret
+for you.
+
+This value has no effect if `mailgun.privateKeyFromSecret` is set.
+
+### `mailgun.privateKeyFromSecret`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`mailgun.privateKeyFromSecret` is the name of the Kubernetes Secret
+containing the Mailgun key. When this value is set, you must create the
 Secret before creating the chart release.
 
-### `slack.tokenSecretPath`
+### `mailgun.privateKeySecretPath`
 
 | Type | Default |
 |------|---------|
-| `string` | `"slackToken"` |
+| `string` | `"mailgunPrivateKey"` |
 
-`slack.tokenSecretPath` is the Kubernetes Secret key
-containing the Slack token. The secret name is set via `slack.tokenFromSecret`.
+`mailgun.privateKeySecretPath` is the Kubernetes Secret key
+containing the Mailgun key. The secret name is set via `mailgun.privateKeyFromSecret`.
+
+## `smtp`
+
+`smtp` configures the SMTP sending parameters.
+Either `smtp` or `smtp` must be set.
+
+You can pass the SMTP password:
+- via the chart Values by setting `smtp.password`
+- via an existing Kubernetes Secret by setting `smtp.passwordFromSecret`
+
+### `smtp.enabled`
+
+| Type | Default |
+|------|---------|
+| `bool` | `false` |
+
+`smtp.enabled` makes the plugin send emails via SMTP.
+
+### `smtp.host`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`smtp.host` configures the SMTP host used by the plugin to send emails over SMTP.
+This is mandatory when SMTP is enabled.
+
+### `smtp.port`
+
+| Type | Default |
+|------|---------|
+| `integer` | `587` |
+
+`smtp.port` configures the SMTP port used by the plugin to send emails over SMTP.
+
+### `smtp.username`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`smtp.username` configures the SMTP user used by the plugin to send emails over SMTP.
+This is mandatory when SMTP is enabled.
+
+### `smtp.password`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`smtp.password` configures the SMTP password used by the plugin to send emails over SMTP.
+When set, the Chart creates a Kubernetes Secret for you.
+
+This value has no effect if `smtp.passwordFromSecret` is set.
+
+### `smtp.passwordFromSecret`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`smtp.passwordFromSecret` is the name of the Kubernetes Secret
+containing the SMTP password. When this value is set, you must create the
+Secret before creating the chart release.
+
+### `smtp.passwordSecretPath`
+
+| Type | Default |
+|------|---------|
+| `string` | `"smtpPassword"` |
+
+`smtp.passwordSecretPath` is the Kubernetes Secret key
+containing the SMTP password. The secret name is set via `smtp.passwordFromSecret`.
+
+### `smtp.starttlsPolicy`
+
+| Type | Default |
+|------|---------|
+| `string` | `"mandatory"` |
+
+`smtp.starttlsPolicy` configures the SMTP StartTLS policy used by
+the plugin to send emails over SMTP.
+
+## `delivery`
+
+`delivery` configures the email plugin delivery options.
+
+### `delivery.sender`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`delivery.sender` is the email sender.
+
+### `delivery.recipients`
+
+| Type | Default |
+|------|---------|
+| `list[string]` | `[]` |
+
+`delivery.recipients` is DEPRECATED.
+This is the list of email recipients. `roleToRecipients` should be used instead.
 
 ## `roleToRecipients`
 
@@ -100,17 +222,16 @@ containing the Slack token. The secret name is set via `slack.tokenFromSecret`.
 | `object` | `{}` |
 
 `roleToRecipients` is mapping the requested role name to a list of
-recipients the plugin will notify.
+email recipients the plugin will notify.
 It must contain a mapping for `*` in case no matching roles are found.
 
 Example value:
 ```yaml
 roleToRecipients:
- "*": "admin-slack-channel"
+ "*": "admin@example.com"
  dev:
-   - "dev-slack-channel"
-   - "admin-slack-channel"
- dba: "alex@example.com"
+   - "dev-team+accessrequest@example.com"
+   - "devops@example.com"
 ```
 
 ## `log`
@@ -196,7 +317,7 @@ You can override this to use your own plugin image rather than a Teleport-publis
 
 | Type | Default |
 |------|---------|
-| `string` | `"public.ecr.aws/gravitational/teleport-plugin-slack"` |
+| `string` | `"public.ecr.aws/gravitational/teleport-plugin-email"` |
 
 `image.repository` is the image repository.
 

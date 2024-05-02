@@ -563,7 +563,7 @@
             },
             {
               "title": "PagerDuty",
-              "slug": "/access-controls/access-request-plugins/ssh-approval-pagerduty/",
+              "slug": "/access-controls/access-request-plugins/ssh-approval-agerduty/",
               "forScopes": ["enterprise", "cloud"]
             },
             {
@@ -1798,16 +1798,28 @@
               "slug": "/reference/helm-reference/teleport-plugin-event-handler/"
             },
             {
+              "title": "teleport-plugin-discord",
+              "slug": "/reference/helm-reference/teleport-plugin-discord/"
+            },
+            {
+              "title": "teleport-plugin-email",
+              "slug": "/reference/helm-reference/teleport-plugin-email/"
+            },
+            {
               "title": "teleport-plugin-jira",
               "slug": "/reference/helm-reference/teleport-plugin-jira/"
             },
             {
-              "title": "teleport-plugin-pagerduty",
-              "slug": "/reference/helm-reference/teleport-plugin-pagerduty/"
-            },
-            {
               "title": "teleport-plugin-mattermost",
               "slug": "/reference/helm-reference/teleport-plugin-mattermost/"
+            },
+            {
+              "title": "teleport-plugin-msteams",
+              "slug": "/reference/helm-reference/teleport-plugin-msteams/"
+            },
+            {
+              "title": "teleport-plugin-pagerduty",
+              "slug": "/reference/helm-reference/teleport-plugin-pagerduty/"
             },
             {
               "title": "teleport-plugin-slack",

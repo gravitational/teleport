@@ -55,63 +55,60 @@ specified by `teleport.identitySecretName` that holds the credentials for
 the connection to your Teleport cluster. If the secret has the path,
 `"auth_id"`, you can omit this field.
 
-## `slack`
+## `mattermost`
 
-`slack` contains the configuration used by the plugin to authenticate to Slack.
+`mattermost` contains the configuration used by the plugin to authenticate to Mattermost.
 
-You can pass the Slack token:
-- via the chart Values by setting `slack.token`
-- via an existing Kubernetes Secret by setting `slack.tokenFromSecret`
+You can pass the Mattermost token:
+- via the chart Values by setting `mattermost.token`
+- via an existing Kubernetes Secret by setting `mattermost.tokenFromSecret`
 
-### `slack.token`
-
-| Type | Default |
-|------|---------|
-| `string` | `""` |
-
-`slack.token` is the Slack token used by the plugin to interact
-with Slack. When set, the Chart creates a Kubernetes Secret for you.
-
-This value has no effect if `slack.tokenFromSecret` is set.
-
-### `slack.tokenFromSecret`
+### `mattermost.url`
 
 | Type | Default |
 |------|---------|
 | `string` | `""` |
 
-`slack.tokenFromSecret` is the name of the Kubernetes Secret
-containing the Slack token. When this value is set, you must create the
+`mattermost.url` is the Jira URL. For example: `https://mattermost.example.com`.
+
+### `mattermost.token`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`mattermost.token` is the Mattermost token used by the plugin to interact
+with Mattermost. When set, the Chart creates a Kubernetes Secret for you.
+
+This value has no effect if `mattermost.tokenFromSecret` is set.
+
+### `mattermost.tokenFromSecret`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`mattermost.tokenFromSecret` is the name of the Kubernetes Secret
+containing the Mattermost token. When this value is set, you must create the
 Secret before creating the chart release.
 
-### `slack.tokenSecretPath`
+### `mattermost.tokenSecretPath`
 
 | Type | Default |
 |------|---------|
-| `string` | `"slackToken"` |
+| `string` | `"mattermostToken"` |
 
-`slack.tokenSecretPath` is the Kubernetes Secret key
-containing the Slack token. The secret name is set via `slack.tokenFromSecret`.
+`mattermost.tokenSecretPath` is the Kubernetes Secret key
+containing the Mattermost token. The secret name is set via `mattermost.tokenFromSecret`.
 
-## `roleToRecipients`
+### `mattermost.recipients`
 
 | Type | Default |
 |------|---------|
-| `object` | `{}` |
+| `list[string]` | `[]` |
 
-`roleToRecipients` is mapping the requested role name to a list of
-recipients the plugin will notify.
-It must contain a mapping for `*` in case no matching roles are found.
-
-Example value:
-```yaml
-roleToRecipients:
- "*": "admin-slack-channel"
- dev:
-   - "dev-slack-channel"
-   - "admin-slack-channel"
- dba: "alex@example.com"
-```
+`mattermost.recipients` is the list of recipients who should be
+notified for each access request.
 
 ## `log`
 
@@ -196,7 +193,7 @@ You can override this to use your own plugin image rather than a Teleport-publis
 
 | Type | Default |
 |------|---------|
-| `string` | `"public.ecr.aws/gravitational/teleport-plugin-slack"` |
+| `string` | `"public.ecr.aws/gravitational/teleport-plugin-mattermost"` |
 
 `image.repository` is the image repository.
 
