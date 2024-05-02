@@ -1187,8 +1187,6 @@ func setupWebAuthn(t *testing.T, authServer *auth.Server, username string) libcl
 	require.NoError(t, err)
 	cc := wantypes.CredentialCreationFromProto(res.GetWebauthn())
 
-	userWebID := res.GetWebauthn().PublicKey.User.Id
-
 	ccr, err := device.SignCredentialCreation(origin, cc)
 	require.NoError(t, err)
 	_, err = authServer.ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
@@ -1206,7 +1204,6 @@ func setupWebAuthn(t *testing.T, authServer *auth.Server, username string) libcl
 		if err != nil {
 			return nil, "", err
 		}
-		car.AssertionResponse.UserHandle = userWebID
 
 		return &proto.MFAAuthenticateResponse{
 			Response: &proto.MFAAuthenticateResponse_Webauthn{

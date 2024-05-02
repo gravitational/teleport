@@ -18,7 +18,7 @@
 
 import styled from 'styled-components';
 
-export const ButtonIconContainer = styled.div`
+export const ButtonIconContainer = styled.div<{ open: boolean }>`
   padding: 0 10px;
   height: 100%;
   display: flex;
@@ -34,6 +34,8 @@ export const ButtonIconContainer = styled.div`
   user-select: none;
   margin-right: 5px;
 
+  background: ${props =>
+    props.open ? props.theme.colors.spotBackground[0] : ''};
   &:hover {
     background: ${props => props.theme.colors.spotBackground[0]};
   }

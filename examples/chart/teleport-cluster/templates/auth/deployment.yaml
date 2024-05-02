@@ -9,6 +9,9 @@ metadata:
   labels:
     {{- include "teleport-cluster.auth.labels" . | nindent 4 }}
     app: {{ .Release.Name }}
+    {{- if $auth.extraLabels.deployment }}
+    {{- toYaml $auth.extraLabels.deployment | nindent 4 }}
+    {{- end }}
 {{- if $auth.annotations.deployment }}
   annotations: {{- toYaml $auth.annotations.deployment | nindent 4 }}
 {{- end }}
@@ -43,6 +46,9 @@ spec:
       labels:
         {{- include "teleport-cluster.auth.labels" . | nindent 8 }}
         app: {{ .Release.Name }}
+        {{- if $auth.extraLabels.pod }}
+        {{- toYaml $auth.extraLabels.pod | nindent 8 }}
+        {{- end }}
 {{- if eq $auth.chartMode "azure"}}
         azure.workload.identity/use: "true"
 {{- end }}
@@ -287,6 +293,9 @@ spec:
 {{- end }}
 {{- if $auth.priorityClassName }}
       priorityClassName: {{ $auth.priorityClassName }}
+{{- end }}
+{{- if $auth.podSecurityContext }}
+      securityContext: {{- toYaml $auth.podSecurityContext | nindent 8 }}
 {{- end }}
       serviceAccountName: {{ include "teleport-cluster.auth.serviceAccountName" . }}
       terminationGracePeriodSeconds: {{ $auth.terminationGracePeriodSeconds }}

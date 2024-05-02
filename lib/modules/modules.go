@@ -243,7 +243,7 @@ func (f Features) IGSEnabled() bool {
 	return f.IdentityGovernanceSecurity
 }
 
-// TODO(mcbattirola): Deprecate IsTeam once it's unused.
+// TODO(mcbattirola): remove isTeam when it is no longer used
 func (f Features) IsTeam() bool {
 	return f.ProductType == ProductTypeTeam
 }

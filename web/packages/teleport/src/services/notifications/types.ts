@@ -18,6 +18,25 @@
 
 import { Label } from 'teleport/types';
 
+export type FetchNotificationsResponse = {
+  /**
+   * notifications is the list of notification items.
+   */
+  notifications: Notification[];
+  /**
+   * userNotificationsNextKey is the nextKey for the user-specific notifications list.
+   */
+  userNotificationsNextKey: string;
+  /**
+   * globalNotificationsNextKey is the nextKey for the global notifications list.
+   */
+  globalNotificationsNextKey: string;
+  /**
+   * userLastSeenNotification is  the timestamp of the last notification the  user has seen.
+   */
+  userLastSeenNotification: Date;
+};
+
 export type Notification = {
   /** id is the uuid of this notification */
   id: string;
@@ -29,10 +48,8 @@ export type Notification = {
   clicked: boolean;
   /** labels are this notification's labels, this is where the notification's metadata is stored.*/
   labels: Label[];
-  /** title is the title of this notification. It is preferred to not use this and instead construct a title dynamically using metadata from the labels. */
+  /** title is the title of this notification. This can be overwritten in notificationContentFactory if needed. */
   title: string;
-  /** description is the description of this notification. It is preferred to not use this and instead construct a description dynamically using metadata from the labels. */
-  description: string;
 };
 
 /** NotificationSubKind is the subkind of notifications, these should be kept in sync with TBD (TODO: rudream - add backend counterpart location here) */

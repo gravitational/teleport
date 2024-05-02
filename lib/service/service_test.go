@@ -475,7 +475,8 @@ func TestAthenaAuditLogSetup(t *testing.T) {
 	ctx := context.Background()
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			Cloud: true,
+			Cloud:                true,
+			ExternalAuditStorage: true,
 		},
 	})
 
@@ -765,6 +766,11 @@ func TestDesktopAccessFIPS(t *testing.T) {
 
 type mockAccessPoint struct {
 	auth.ProxyAccessPoint
+}
+
+// NewWatcher needs to be defined so that we can test proxy TLS config setup without panicing.
+func (m *mockAccessPoint) NewWatcher(_ context.Context, _ types.Watch) (types.Watcher, error) {
+	return nil, trace.NotImplemented("mock access point does not produce events")
 }
 
 type mockReverseTunnelServer struct {
