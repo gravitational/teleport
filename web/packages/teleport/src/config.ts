@@ -54,7 +54,10 @@ const cfg = {
   isUsageBasedBilling: false,
   hideInaccessibleFeatures: false,
   customTheme: '',
-  // isTeam is true if [Features.ProductType] == Team
+  /**
+   * isTeam is true if [Features.ProductType] == Team
+   * @deprecated use other flags do determine cluster features istead of relying on isTeam
+   */
   isTeam: false,
   // isIgsEnabled refers to Identity Governance & Security product.
   // It refers to a group of features: access request, device trust,
@@ -334,6 +337,9 @@ const cfg = {
 
     gcpWorkforceConfigurePath:
       '/webapi/scripts/integrations/configure/gcp-workforce-saml.sh?orgId=:orgId&poolName=:poolName&poolProviderName=:poolProviderName',
+
+    notificationsPath:
+      '/v1/webapi/sites/:clusterId/notifications?limit=:limit?&userNotificationsStartKey=:userNotificationsStartKey?&globalNotificationsStartKey=:globalNotificationsStartKey?',
   },
 
   getUserClusterPreferencesUrl(clusterId: string) {
@@ -1066,6 +1072,10 @@ const cfg = {
     );
   },
 
+  getNotificationsUrl(params: UrlNotificationParams) {
+    return generatePath(cfg.api.notificationsPath, { ...params });
+  },
+
   init(backendConfig = {}) {
     mergeDeep(this, backendConfig);
   },
@@ -1184,6 +1194,13 @@ export interface UrlGcpWorkforceConfigParam {
   orgId: string;
   poolName: string;
   poolProviderName: string;
+}
+
+export interface UrlNotificationParams {
+  clusterId: string;
+  limit?: number;
+  userNotificationsStartKey?: string;
+  globalNotificationsStartKey?: string;
 }
 
 export default cfg;
