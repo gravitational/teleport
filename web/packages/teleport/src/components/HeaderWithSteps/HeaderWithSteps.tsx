@@ -20,7 +20,7 @@ import Box from 'design/Box';
 import Text from 'design/Text';
 import React from 'react';
 
-export function DialogHeader({
+export function HeaderWithSteps({
   stepIndex,
   flowLength,
   title,
@@ -30,9 +30,9 @@ export function DialogHeader({
   title: string;
 }) {
   return (
-    <Box mb={4}>
+    <Box>
       {flowLength > 1 && (
-        <Text typography="body1">
+        <Text typography="body1" color="text.slightlyMuted">
           Step {stepIndex + 1} of {flowLength}
         </Text>
       )}
