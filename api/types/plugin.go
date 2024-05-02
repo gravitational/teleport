@@ -40,6 +40,7 @@ var AllPluginTypes = []PluginType{
 	PluginTypeMattermost,
 	PluginTypeDiscord,
 	PluginTypeSCIM,
+	PluginTypeEntraID,
 }
 
 const (
@@ -69,6 +70,8 @@ const (
 	PluginTypeGitlab = "gitlab"
 	// PluginTypeSCIM indicates a generic SCIM integration
 	PluginTypeSCIM = "scim"
+	// PluginTypeEntraID indicates the Entra ID sync plugin
+	PluginTypeEntraID = "entra-id"
 )
 
 // PluginSubkind represents the type of the plugin, e.g., access request, MDM etc.
@@ -306,6 +309,13 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if err := settings.Scim.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
+	case *PluginSpecV1_EntraId:
+		if settings.EntraId == nil {
+			return trace.BadParameter("missing Entra ID settings")
+		}
+		if err := settings.EntraId.Validate(); err != nil {
+			return trace.Wrap(err)
+		}
 	default:
 		return nil
 	}
@@ -468,6 +478,8 @@ func (p *PluginV1) GetType() PluginType {
 		return PluginTypeGitlab
 	case *PluginSpecV1_Scim:
 		return PluginTypeSCIM
+	case *PluginSpecV1_EntraId:
+		return PluginTypeEntraID
 	default:
 		return PluginTypeUnknown
 	}
@@ -625,6 +637,18 @@ func (c *PluginSCIMSettings) CheckAndSetDefaults() error {
 
 	if c.SamlConnectorName == "" {
 		return trace.BadParameter("saml_connector_name must be set")
+
+	}
+
+	return nil
+}
+
+func (c *PluginEntraIDSettings) Validate() error {
+	if c.SyncSettings == nil {
+		return trace.BadParameter("sync_settings must be set")
+	}
+	if len(c.SyncSettings.DefaultOwners) == 0 {
+		return trace.BadParameter("sync_settings.default_owners must be set")
 	}
 
 	return nil

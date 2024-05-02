@@ -668,7 +668,7 @@ func requireBadParameterError(t require.TestingT, err error, args ...any) {
 	require.True(t, trace.IsBadParameter(err), args...)
 }
 
-func reqireNamedBadParameterError(name string) require.ErrorAssertionFunc {
+func requireNamedBadParameterError(name string) require.ErrorAssertionFunc {
 	return func(t require.TestingT, err error, args ...any) {
 		if tt, ok := t.(*testing.T); ok {
 			tt.Helper()
@@ -718,15 +718,15 @@ func TestPluginJiraValidation(t *testing.T) {
 		}, {
 			name:           "Missing Server URL",
 			mutateSettings: func(s *PluginSpecV1_Jira) { s.Jira.ServerUrl = "" },
-			assertErr:      reqireNamedBadParameterError("server URL"),
+			assertErr:      requireNamedBadParameterError("server URL"),
 		}, {
 			name:           "Missing Project Key",
 			mutateSettings: func(s *PluginSpecV1_Jira) { s.Jira.ProjectKey = "" },
-			assertErr:      reqireNamedBadParameterError("project key"),
+			assertErr:      requireNamedBadParameterError("project key"),
 		}, {
 			name:           "Missing Issue Type",
 			mutateSettings: func(s *PluginSpecV1_Jira) { s.Jira.IssueType = "" },
-			assertErr:      reqireNamedBadParameterError("issue type"),
+			assertErr:      requireNamedBadParameterError("issue type"),
 		}, {
 			name:        "Missing Credentials",
 			mutateCreds: func(c *PluginCredentialsV1) { c.Credentials = nil },
@@ -738,13 +738,13 @@ func TestPluginJiraValidation(t *testing.T) {
 					StaticCredentialsRef.
 					Labels = map[string]string{}
 			},
-			assertErr: reqireNamedBadParameterError("labels"),
+			assertErr: requireNamedBadParameterError("labels"),
 		}, {
 			name: "Invalid Credential Type",
 			mutateCreds: func(c *PluginCredentialsV1) {
 				c.Credentials = &PluginCredentialsV1_Oauth2AccessToken{}
 			},
-			assertErr: reqireNamedBadParameterError("static credentials"),
+			assertErr: requireNamedBadParameterError("static credentials"),
 		},
 	}
 
@@ -806,7 +806,7 @@ func TestPluginDiscordValidation(t *testing.T) {
 			mutateSettings: func(s *PluginSpecV1_Discord) {
 				s.Discord.RoleToRecipients = map[string]*DiscordChannels{}
 			},
-			assertErr: reqireNamedBadParameterError("role_to_recipients"),
+			assertErr: requireNamedBadParameterError("role_to_recipients"),
 		}, {
 			name: "Missing Default Mapping",
 			mutateSettings: func(s *PluginSpecV1_Discord) {
@@ -815,7 +815,7 @@ func TestPluginDiscordValidation(t *testing.T) {
 					ChannelIds: []string{"1234567890"},
 				}
 			},
-			assertErr: reqireNamedBadParameterError("default entry"),
+			assertErr: requireNamedBadParameterError("default entry"),
 		}, {
 			name:        "Missing Credentials",
 			mutateCreds: func(c *PluginCredentialsV1) { c.Credentials = nil },
@@ -825,7 +825,7 @@ func TestPluginDiscordValidation(t *testing.T) {
 			mutateCreds: func(c *PluginCredentialsV1) {
 				c.Credentials = &PluginCredentialsV1_Oauth2AccessToken{}
 			},
-			assertErr: reqireNamedBadParameterError("static credentials"),
+			assertErr: requireNamedBadParameterError("static credentials"),
 		},
 	}
 
@@ -845,6 +845,65 @@ func TestPluginDiscordValidation(t *testing.T) {
 				Metadata{Name: "uut"},
 				PluginSpecV1{Settings: settings},
 				creds)
+			tc.assertErr(t, plugin.CheckAndSetDefaults())
+		})
+	}
+}
+
+func TestPluginEntraIDValidation(t *testing.T) {
+	validSettings := func() *PluginSpecV1_EntraId {
+		return &PluginSpecV1_EntraId{
+			EntraId: &PluginEntraIDSettings{
+				SyncSettings: &PluginEntraIDSyncSettings{
+					DefaultOwners: []string{"admin"},
+				},
+			},
+		}
+	}
+	testCases := []struct {
+		name           string
+		mutateSettings func(*PluginSpecV1_EntraId)
+		assertErr      require.ErrorAssertionFunc
+	}{
+		{
+			name:           "valid",
+			mutateSettings: nil,
+			assertErr:      require.NoError,
+		},
+		{
+			name: "missing sync settings",
+			mutateSettings: func(s *PluginSpecV1_EntraId) {
+				s.EntraId.SyncSettings = nil
+			},
+			assertErr: requireNamedBadParameterError("sync_settings"),
+		},
+		{
+			name: "missing default owners",
+			mutateSettings: func(s *PluginSpecV1_EntraId) {
+				s.EntraId.SyncSettings.DefaultOwners = nil
+			},
+			assertErr: requireNamedBadParameterError("sync_settings.default_owners"),
+		},
+		{
+			name: "empty default owners",
+			mutateSettings: func(s *PluginSpecV1_EntraId) {
+				s.EntraId.SyncSettings.DefaultOwners = []string{}
+			},
+			assertErr: requireNamedBadParameterError("sync_settings.default_owners"),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			settings := validSettings()
+			if tc.mutateSettings != nil {
+				tc.mutateSettings(settings)
+			}
+
+			plugin := NewPluginV1(
+				Metadata{Name: "uut"},
+				PluginSpecV1{Settings: settings},
+				nil)
 			tc.assertErr(t, plugin.CheckAndSetDefaults())
 		})
 	}

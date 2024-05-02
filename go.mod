@@ -149,8 +149,7 @@ require (
 	github.com/mdlayher/netlink v1.7.2
 	github.com/microsoft/go-mssqldb v1.7.0 // replaced
 	github.com/microsoft/kiota-authentication-azure-go v1.0.2
-	github.com/microsoftgraph/msgraph-sdk-go v1.38.0
-	github.com/microsoftgraph/msgraph-sdk-go-core v1.1.0
+	github.com/microsoftgraph/msgraph-sdk-go v1.37.0
 	github.com/miekg/pkcs11 v1.1.1
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/moby/term v0.5.0
@@ -237,6 +236,8 @@ require (
 // Indirect mailgun dependencies.
 // Updating causes breaking changes.
 require github.com/mailgun/minheap v0.0.0-20170619185613-3dbe6c6bf55f // indirect
+
+require github.com/microsoftgraph/msgraph-sdk-go-core v1.1.0
 
 require (
 	cloud.google.com/go v0.112.2 // indirect
