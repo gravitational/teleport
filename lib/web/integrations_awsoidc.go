@@ -871,6 +871,54 @@ func (h *Handler) awsOIDCDeployEC2ICE(w http.ResponseWriter, r *http.Request, p 
 	}, nil
 }
 
+// awsOIDCDeployC2ICE creates an AppServer that uses an AWS OIDC Integration for proxying access.
+func (h *Handler) awsOIDCCreateAWSAppAccess(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+	ctx := r.Context()
+
+	integrationName := p.ByName("name")
+	if integrationName == "" {
+		return nil, trace.BadParameter("an integration name is required")
+	}
+
+	clt, err := sctx.GetUserClient(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ig, err := clt.GetIntegration(ctx, integrationName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if ig.GetSubKind() != types.IntegrationSubKindAWSOIDC {
+		return nil, trace.BadParameter("only aws oidc integrations are supported")
+	}
+
+	identity, err := sctx.GetIdentity()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	getUserGroupLookup := h.getUserGroupLookup(r.Context(), clt)
+
+	appServer, err := types.NewAppServerForAWSOIDCIntegration(integrationName, h.cfg.HostUUID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if _, err := clt.UpsertApplicationServer(ctx, appServer); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.MakeApp(appServer.GetApp(), ui.MakeAppsConfig{
+		LocalClusterName:  h.auth.clusterName,
+		LocalProxyDNSName: h.proxyDNSName(),
+		AppClusterName:    site.GetName(),
+		Identity:          identity,
+		UserGroupLookup:   getUserGroupLookup(),
+		Logger:            h.log,
+	}), nil
+}
+
 // awsOIDCConfigureIdP returns a script that configures AWS OIDC Integration
 // by creating an OIDC Identity Provider that trusts Teleport instance.
 func (h *Handler) awsOIDCConfigureIdP(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
