@@ -60,6 +60,17 @@ one of the licenses from the `fixtures` directory of this repo to
 the data directory of your Teleport cluster as `license.pem`. See
 [fixtures/README.md](fixtures/README.md) for more info.
 
+### Hot Reload Mode
+
+Similar to OSS, Teleport Enterprise can be run in a hot reload mode, rebuilding
+and restarting whenever the code changes. Follow [directions in the main README
+file](../README.md#running-teleport-in-a-hot-reload-mode), using the Make target
+from the `e` directory instead:
+
+```shell
+make -C e teleport-hot-reload TELEPORT_ARGS='start --config=/path/to/config.yaml'
+```
+
 ## Submodules
 
 Read these two articles and you'll be fine:

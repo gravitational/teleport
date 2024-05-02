@@ -215,6 +215,28 @@ $(BUILDDIR)/tsh:
 $(BUILDDIR)/tbot:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -buildvcs=false -tags "$(FIPS_TAG)" -o $(BUILDDIR)/tbot $(BUILDFLAGS) ../tool/tbot
 
+# A target that allows recompiling and restarting Teleport when Go sources
+# change. Note: contrary to what the CompileDaemon documentation says, the
+# teleport command is executed from within the current directory, and not the
+# watched directory.
+TELEPORT_ARGS ?= start
+.PHONY: teleport-hot-reload
+teleport-hot-reload:
+	CompileDaemon \
+	  --directory=".." \
+		--graceful-kill=true \
+		--exclude-dir="../.git" \
+		--exclude-dir="../build" \
+		--exclude-dir="../e/build" \
+		--exclude-dir="../e/web/*/node_modules" \
+		--exclude-dir="../node_modules" \
+		--exclude-dir="../target" \
+		--exclude-dir="../web/packages/*/node_modules" \
+		--color \
+		--log-prefix=false \
+		--build="make -C e build/teleport" \
+		--command="build/teleport $(TELEPORT_ARGS)"
+
 .PHONY: ensure-webassets-e
 ensure-webassets-e:
 	$(MAKE) -C ../ ensure-webassets-e
