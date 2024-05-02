@@ -145,7 +145,7 @@ func createUnixSocket() (*net.UnixListener, string, error) {
 	if err != nil {
 		return nil, "", trace.Wrap(err, "creating unix socket")
 	}
-	if err := os.Chmod(socketPath, 0600); err != nil {
+	if err := os.Chmod(socketPath, 0o600); err != nil {
 		return nil, "", trace.Wrap(err, "setting permissions on unix socket")
 	}
 	return l, socketPath, nil
@@ -174,7 +174,7 @@ func sendTUNNameAndFd(socketPath, tunName string, fd uintptr) error {
 	return nil
 }
 
-// sendTUNNameAndFd receives the name of a TUN device and its open file descriptor over a unix socket, meant
+// recvTUNNameAndFd receives the name of a TUN device and its open file descriptor over a unix socket, meant
 // for passing the TUN from the root process which must create it to the user process.
 func recvTUNNameAndFd(ctx context.Context, socket *net.UnixListener) (string, uintptr, error) {
 	ctx, cancel := context.WithTimeout(ctx, tunHandoverTimeout)

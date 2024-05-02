@@ -81,7 +81,8 @@ func CreateAndSetupTUNDevice(ctx context.Context, ipv6Prefix string) (tun.Device
 	)
 	if os.Getuid() == 0 {
 		// We can get here if the user runs `tsh vnet` as root, but it is not in the expected path when
-		// started as a regular user, AdminSubcommand directly calls createAndSetupTUNDeviceAsRoot.
+		// started as a regular user. Typically we expect `tsh vnet` to be run as a non-root user, and for
+		// AdminSubcommand to directly call createAndSetupTUNDeviceAsRoot.
 		device, name, err = createAndSetupTUNDeviceAsRoot(ctx, ipv6Prefix)
 	} else {
 		device, name, err = createAndSetupTUNDeviceWithoutRoot(ctx, ipv6Prefix)
