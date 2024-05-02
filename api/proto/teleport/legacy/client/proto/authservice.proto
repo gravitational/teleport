@@ -497,6 +497,15 @@ enum ProductType {
   PRODUCT_TYPE_EUB = 2;
 }
 
+// SupportType if the type of support offered.
+enum SupportType {
+  SUPPORT_TYPE_UNSPECIFIED = 0;
+  // SUPPORT_TYPE_FREE is the free tier support
+  SUPPORT_TYPE_FREE = 1;
+  // SUPPORT_TYPE_PREMIUM is the premium tier support
+  SUPPORT_TYPE_PREMIUM = 2;
+}
+
 // Features are auth server features.
 message Features {
   // Kubernetes enables Kubernetes Access product
@@ -568,6 +577,18 @@ message Features {
   // Policy enables the Teleport Policy feature set.
   // At the time of writing, this includes Teleport Access Graph (TAG).
   PolicyFeature Policy = 28 [(gogoproto.jsontag) = "policy,omitempty"];
+  // Questionnaire indicates whether cluster users should get an onboarding questionnaire
+  bool Questionnaire = 29 [(gogoproto.jsontag) = "questionnaire,omitempty"];
+  // IsStripeManaged indicates if the cluster billing is managed via Stripe
+  bool IsStripeManaged = 30 [(gogoproto.jsontag) = "is_stripe_managed,omitempty"];
+  // ExternalAuditStorage indicates whether the EAS feature is enabled in the cluster.
+  bool ExternalAuditStorage = 31 [(gogoproto.jsontag) = "external_audit_storage,omitempty"];
+  // SupportType indicates the type of the customer's support
+  SupportType SupportType = 32 [(gogoproto.jsontag) = "support_type,omitempty"];
+  // JoinActiveSessions indicates whether joining active sessions via web UI is enabled
+  bool JoinActiveSessions = 33 [(gogoproto.jsontag) = "join_active_sessions,omitempty"];
+  // MobileDeviceManagement indicates whether endpoint management (like Jamf Plugin) can be used in the cluster
+  bool MobileDeviceManagement = 34 [(gogoproto.jsontag) = "mobile_device_management,omitempty"];
 }
 
 // DeviceTrustFeature holds the Device Trust feature general and usage-based
