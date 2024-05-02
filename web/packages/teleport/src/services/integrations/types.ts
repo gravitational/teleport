@@ -134,6 +134,7 @@ export type PluginKind =
   | 'opsgenie'
   | 'okta'
   | 'servicenow'
+  | 'gitlab'
   | 'jamf';
 
 export type PluginOktaSpec = {

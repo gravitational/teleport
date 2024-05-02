@@ -33,6 +33,7 @@ import pagerdutyIcon from 'design/assets/images/icons/pagerduty.svg';
 import servicenowIcon from 'design/assets/images/icons/servicenow.svg';
 import discordIcon from 'design/assets/images/icons/discord.svg';
 import emailIcon from 'design/assets/images/icons/email.svg';
+import gitlabIcon from 'design/assets/images/icons/gitlab.svg';
 import msteamIcon from 'design/assets/images/icons/msteams.svg';
 import Table, { Cell } from 'design/DataTable';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
@@ -292,6 +293,10 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
       case 'okta':
         formattedText = 'Okta';
         icon = <IconContainer src={oktaIcon} />;
+        break;
+      case 'gitlab':
+        formattedText = 'Gitlab';
+        icon = <IconContainer src={gitlabIcon} />;
         break;
       case 'opsgenie':
         formattedText = 'Opsgenie';
