@@ -65,14 +65,7 @@ If the list is nonempty, proceed to the next step to enable automatic updates.
 This section assumes that the name of your `teleport-kube-agent` release is
 `teleport-agent`, and that you have installed it in the `teleport` namespace.
 
-1. Confirm you are using the Teleport Enterprise edition of the
-   `teleport-kube-agent` chart. You should see the following when you query your
-   `teleport-kube-agent` release:
-
-   ```code
-   $ helm -n <Var name="teleport" /> get values <Var name="teleport-agent" /> -o json | jq '.enterprise'
-   true   
-   ```
+(!docs/pages/includes/upgrading/helmenterprisecheck.mdx!)
 
 1. Add the following chart values to your existing agent `values.yaml` to enable
    the automatic updater:

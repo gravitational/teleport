@@ -1,0 +1,14 @@
+1. Confirm you are using the Teleport Enterprise edition of the
+   `teleport-kube-agent` chart. You should see the following when you query your
+   `teleport-kube-agent` release:
+
+   ```code
+   $ helm -n <Var name="teleport" /> get values <Var name="teleport-agent" /> -o json | jq '.enterprise'
+   true
+   ```
+   If another value such as `null` is returned update your existing agent `values.yaml` to use the enterprise
+   version:
+
+   ``yaml
+   enterprise: true
+   ```
