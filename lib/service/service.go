@@ -588,7 +588,8 @@ func (process *TeleportProcess) setClusterFeatures(features *proto.Features) {
 	}
 }
 
-func (process *TeleportProcess) getClusterFeatures() proto.Features {
+// GetClusterFeatures returns the cluster features.
+func (process *TeleportProcess) GetClusterFeatures() proto.Features {
 	process.Lock()
 	defer process.Unlock()
 
@@ -1788,7 +1789,7 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 
 	checkingEmitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{
-		Inner:       events.NewMultiEmitter(events.NewLoggingEmitter(process.getClusterFeatures().Cloud), emitter),
+		Inner:       events.NewMultiEmitter(events.NewLoggingEmitter(process.GetClusterFeatures().Cloud), emitter),
 		Clock:       process.Clock,
 		ClusterName: clusterName,
 	})
@@ -2514,7 +2515,7 @@ func (process *TeleportProcess) proxyPublicAddr() utils.NetAddr {
 // It is caller's responsibility to call Close on the emitter once done.
 func (process *TeleportProcess) NewAsyncEmitter(clt apievents.Emitter) (*events.AsyncEmitter, error) {
 	emitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{
-		Inner: events.NewMultiEmitter(events.NewLoggingEmitter(process.getClusterFeatures().Cloud), clt),
+		Inner: events.NewMultiEmitter(events.NewLoggingEmitter(process.GetClusterFeatures().Cloud), clt),
 		Clock: process.Clock,
 	})
 	if err != nil {
@@ -4174,7 +4175,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			HostUUID:         process.Config.HostUUID,
 			Context:          process.GracefulExitContext(),
 			StaticFS:         fs,
-			ClusterFeatures:  process.getClusterFeatures(),
+			ClusterFeatures:  process.GetClusterFeatures(),
 			GetProxyIdentity: func() (*auth.Identity, error) {
 				return process.GetIdentity(types.RoleProxy)
 			},
@@ -4571,7 +4572,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				// the provided connection certificate is from a proxy server and
 				// will impersonate the identity of the user that is making the request.
 				ConnTLSConfig:   tlsConfig.Clone(),
-				ClusterFeatures: process.getClusterFeatures,
+				ClusterFeatures: process.GetClusterFeatures,
 			},
 			TLS:                      tlsConfig.Clone(),
 			LimiterConfig:            cfg.Proxy.Limiter,
