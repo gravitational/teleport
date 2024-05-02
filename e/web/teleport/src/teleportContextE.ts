@@ -28,6 +28,7 @@ import { IdpService } from './services/idp';
 import { accessManagementService } from './services/accessmanagement';
 import { StoreNotificationsE } from './stores/storeNotificationsE';
 import { externalAuditStorageService } from './services/externalauditstorage';
+import { notificationContentFactoryE } from './Notifications';
 
 class TeleportEContext extends TeleportContext {
   // stores
@@ -46,6 +47,8 @@ class TeleportEContext extends TeleportContext {
   idpService = new IdpService();
   externalAuditStorageService = externalAuditStorageService;
   redirectUrl: string | null = null;
+
+  notificationContentFactory = notificationContentFactoryE;
 
   // init fetches data required for initial rendering of components.
   // The caller of this function provides the try/catch

@@ -1076,7 +1076,6 @@ exports[`test DeviceTrust.tsx loaded EUB with IGS (no CTA) 1`] = `
 }
 
 .c12 {
-  background: #0C143D;
   border-radius: 200px;
   width: 100%;
   height: 56px;
@@ -1761,7 +1760,6 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
 }
 
 .c12 {
-  background: #0C143D;
   border-radius: 200px;
   width: 100%;
   height: 56px;
@@ -2405,7 +2403,6 @@ exports[`test DeviceTrust.tsx loaded legacy (no CTA) 1`] = `
 }
 
 .c12 {
-  background: #0C143D;
   border-radius: 200px;
   width: 100%;
   height: 56px;
