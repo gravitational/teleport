@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Box } from 'design';
+import { Box, Flex } from 'design';
 import { SingleRowBox } from 'design/MultiRowBox';
 import React, { useState } from 'react';
 
@@ -30,7 +30,7 @@ import { PasswordState } from 'teleport/services/user';
 
 import { ActionButtonSecondary, Header } from './Header';
 import { ChangePasswordWizard } from './ChangePasswordWizard';
-import { StatePill } from './StatePill';
+import { StatePill, AuthMethodState } from './StatePill';
 
 export interface PasswordBoxProps {
   changeDisabled: boolean;
@@ -57,12 +57,13 @@ export function PasswordBox({
       <SingleRowBox>
         <Header
           title={
-            <>
+            <Flex gap={2}>
               Password
-              <span data-testid="password-state-pill">
-                <PasswordStatePill state={passwordState} />
-              </span>
-            </>
+              <StatePill
+                data-testid="password-state-pill"
+                state={passwordStateToPillState(passwordState)}
+              />
+            </Flex>
           }
           icon={<Icon.Password />}
           actions={
@@ -88,13 +89,16 @@ export function PasswordBox({
   );
 }
 
-function PasswordStatePill({ state }: { state: PasswordState }) {
+function passwordStateToPillState(
+  state: PasswordState
+): AuthMethodState | undefined {
   switch (state) {
     case PasswordState.PASSWORD_STATE_SET:
-      return <StatePill state="active" />;
+      return 'active';
     case PasswordState.PASSWORD_STATE_UNSET:
-      return <StatePill state="inactive" />;
+      return 'inactive';
     default:
-      return null;
+      state satisfies never | PasswordState.PASSWORD_STATE_UNSPECIFIED;
+      return undefined;
   }
 }
