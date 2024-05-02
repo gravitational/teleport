@@ -181,7 +181,7 @@ func (s *Service) UpsertCrownJewel(ctx context.Context, req *crownjewelv1.Upsert
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(types.KindCrownJewel, types.VerbUpdate); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindCrownJewel, types.VerbUpdate, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
