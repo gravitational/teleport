@@ -40,5 +40,5 @@ func (vnetNotSupported) FullCommand() string {
 	return ""
 }
 func (vnetNotSupported) run(*CLIConf) error {
-	return trace.Wrap(vnet.VnetNotImplemented)
+	return trace.Wrap(vnet.ErrVnetNotImplemented)
 }

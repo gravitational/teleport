@@ -28,18 +28,18 @@ import (
 )
 
 var (
-	// VnetNotImplemented is an error indicating that VNet is not implemented on the host OS.
-	VnetNotImplemented = &trace.NotImplementedError{Message: "VNet is not implemented on " + runtime.GOOS}
+	// ErrVnetNotImplemented is an error indicating that VNet is not implemented on the host OS.
+	ErrVnetNotImplemented = &trace.NotImplementedError{Message: "VNet is not implemented on " + runtime.GOOS}
 )
 
 func createAndSetupTUNDeviceWithoutRoot(ctx context.Context, ipv6Prefix string) (tun.Device, string, error) {
-	return nil, "", trace.Wrap(VnetNotImplemented)
+	return nil, "", trace.Wrap(ErrVnetNotImplemented)
 }
 
 func sendTUNNameAndFd(socketPath, tunName string, fd uintptr) error {
-	return trace.Wrap(VnetNotImplemented)
+	return trace.Wrap(ErrVnetNotImplemented)
 }
 
 func configureOS(ctx context.Context, cfg *osConfig) error {
-	return trace.Wrap(VnetNotImplemented)
+	return trace.Wrap(ErrVnetNotImplemented)
 }
