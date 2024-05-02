@@ -64,6 +64,11 @@ func (s *CrownJewelsService) UpdateCrownJewel(ctx context.Context, crownJewel *c
 	return r, trace.Wrap(err)
 }
 
+func (s *CrownJewelsService) UpsertCrownJewel(ctx context.Context, crownJewel *crownjewelv1.CrownJewel) (*crownjewelv1.CrownJewel, error) {
+	r, err := s.service.UpsertResource(ctx, crownJewel)
+	return r, trace.Wrap(err)
+}
+
 func (s *CrownJewelsService) DeleteCrownJewel(ctx context.Context, name string) error {
 	err := s.service.DeleteResource(ctx, name)
 	return trace.Wrap(err)

@@ -37,6 +37,7 @@ const (
 	CrownJewelService_CreateCrownJewel_FullMethodName = "/teleport.crownjewel.v1.CrownJewelService/CreateCrownJewel"
 	CrownJewelService_ListCrownJewels_FullMethodName  = "/teleport.crownjewel.v1.CrownJewelService/ListCrownJewels"
 	CrownJewelService_UpdateCrownJewel_FullMethodName = "/teleport.crownjewel.v1.CrownJewelService/UpdateCrownJewel"
+	CrownJewelService_UpsertCrownJewel_FullMethodName = "/teleport.crownjewel.v1.CrownJewelService/UpsertCrownJewel"
 	CrownJewelService_DeleteCrownJewel_FullMethodName = "/teleport.crownjewel.v1.CrownJewelService/DeleteCrownJewel"
 )
 
@@ -50,6 +51,8 @@ type CrownJewelServiceClient interface {
 	ListCrownJewels(ctx context.Context, in *ListCrownJewelsRequest, opts ...grpc.CallOption) (*ListCrownJewelsResponse, error)
 	// UpdateCrownJewel updates an existing CrownJewel.
 	UpdateCrownJewel(ctx context.Context, in *UpdateCrownJewelRequest, opts ...grpc.CallOption) (*CrownJewel, error)
+	// UpsertCrownJewel upserts a CrownJewel.
+	UpsertCrownJewel(ctx context.Context, in *UpsertCrownJewelRequest, opts ...grpc.CallOption) (*CrownJewel, error)
 	// DeleteCrownJewel deletes a CrownJewel.
 	DeleteCrownJewel(ctx context.Context, in *DeleteCrownJewelRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
@@ -89,6 +92,15 @@ func (c *crownJewelServiceClient) UpdateCrownJewel(ctx context.Context, in *Upda
 	return out, nil
 }
 
+func (c *crownJewelServiceClient) UpsertCrownJewel(ctx context.Context, in *UpsertCrownJewelRequest, opts ...grpc.CallOption) (*CrownJewel, error) {
+	out := new(CrownJewel)
+	err := c.cc.Invoke(ctx, CrownJewelService_UpsertCrownJewel_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *crownJewelServiceClient) DeleteCrownJewel(ctx context.Context, in *DeleteCrownJewelRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, CrownJewelService_DeleteCrownJewel_FullMethodName, in, out, opts...)
@@ -108,6 +120,8 @@ type CrownJewelServiceServer interface {
 	ListCrownJewels(context.Context, *ListCrownJewelsRequest) (*ListCrownJewelsResponse, error)
 	// UpdateCrownJewel updates an existing CrownJewel.
 	UpdateCrownJewel(context.Context, *UpdateCrownJewelRequest) (*CrownJewel, error)
+	// UpsertCrownJewel upserts a CrownJewel.
+	UpsertCrownJewel(context.Context, *UpsertCrownJewelRequest) (*CrownJewel, error)
 	// DeleteCrownJewel deletes a CrownJewel.
 	DeleteCrownJewel(context.Context, *DeleteCrownJewelRequest) (*emptypb.Empty, error)
 	mustEmbedUnimplementedCrownJewelServiceServer()
@@ -125,6 +139,9 @@ func (UnimplementedCrownJewelServiceServer) ListCrownJewels(context.Context, *Li
 }
 func (UnimplementedCrownJewelServiceServer) UpdateCrownJewel(context.Context, *UpdateCrownJewelRequest) (*CrownJewel, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateCrownJewel not implemented")
+}
+func (UnimplementedCrownJewelServiceServer) UpsertCrownJewel(context.Context, *UpsertCrownJewelRequest) (*CrownJewel, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpsertCrownJewel not implemented")
 }
 func (UnimplementedCrownJewelServiceServer) DeleteCrownJewel(context.Context, *DeleteCrownJewelRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteCrownJewel not implemented")
@@ -196,6 +213,24 @@ func _CrownJewelService_UpdateCrownJewel_Handler(srv interface{}, ctx context.Co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _CrownJewelService_UpsertCrownJewel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpsertCrownJewelRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CrownJewelServiceServer).UpsertCrownJewel(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CrownJewelService_UpsertCrownJewel_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CrownJewelServiceServer).UpsertCrownJewel(ctx, req.(*UpsertCrownJewelRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _CrownJewelService_DeleteCrownJewel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DeleteCrownJewelRequest)
 	if err := dec(in); err != nil {
@@ -232,6 +267,10 @@ var CrownJewelService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateCrownJewel",
 			Handler:    _CrownJewelService_UpdateCrownJewel_Handler,
+		},
+		{
+			MethodName: "UpsertCrownJewel",
+			Handler:    _CrownJewelService_UpsertCrownJewel_Handler,
 		},
 		{
 			MethodName: "DeleteCrownJewel",

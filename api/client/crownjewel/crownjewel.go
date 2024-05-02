@@ -69,6 +69,17 @@ func (c *Client) UpdateCrownJewel(ctx context.Context, req *crownjewelv1.CrownJe
 	return rsp, trace.Wrap(err)
 }
 
+// UpsertCrownJewel upserts a Crown Jewel.
+func (c *Client) UpsertCrownJewel(ctx context.Context, req *crownjewelv1.CrownJewel) (*crownjewelv1.CrownJewel, error) {
+	rsp, err := c.grpcClient.UpsertCrownJewel(ctx, &crownjewelv1.UpsertCrownJewelRequest{
+		CrownJewels: req,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return rsp, trace.Wrap(err)
+}
+
 // DeleteCrownJewel deletes a Crown Jewel.
 func (c *Client) DeleteCrownJewel(ctx context.Context, name string) error {
 	_, err := c.grpcClient.DeleteCrownJewel(ctx, &crownjewelv1.DeleteCrownJewelRequest{

@@ -153,6 +153,34 @@ func (s *Service) UpdateCrownJewel(ctx context.Context, req *crownjewelv1.Update
 	return rsp, nil
 }
 
+// UpsertCrownJewel upserts crown jewel resource.
+func (s *Service) UpsertCrownJewel(ctx context.Context, req *crownjewelv1.UpsertCrownJewelRequest) (*crownjewelv1.CrownJewel, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindCrownJewel, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := validateCrownJewel(req.CrownJewels); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rsp, err := s.backend.UpsertCrownJewel(ctx, req.CrownJewels)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return rsp, nil
+
+}
+
 // DeleteCrownJewel deletes crown jewel resource.
 func (s *Service) DeleteCrownJewel(ctx context.Context, req *crownjewelv1.DeleteCrownJewelRequest) (*emptypb.Empty, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)

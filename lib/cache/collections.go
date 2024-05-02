@@ -2268,13 +2268,8 @@ func (crownJewelsExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets
 }
 
 func (crownJewelsExecutor) upsert(ctx context.Context, cache *Cache, resource *crownjewelv1.CrownJewel) error {
-	if _, err := cache.crownJewelsCache.CreateCrownJewel(ctx, resource); err != nil {
-		if !trace.IsAlreadyExists(err) {
-			return trace.Wrap(err)
-		}
-	}
-
-	return nil
+	_, err := cache.crownJewelsCache.UpsertCrownJewel(ctx, resource)
+	return trace.Wrap(err)
 }
 
 func (crownJewelsExecutor) deleteAll(ctx context.Context, cache *Cache) error {

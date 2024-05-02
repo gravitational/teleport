@@ -29,6 +29,8 @@ service CrownJewelService {
   rpc ListCrownJewels(ListCrownJewelsRequest) returns (ListCrownJewelsResponse);
   // UpdateCrownJewel updates an existing CrownJewel.
   rpc UpdateCrownJewel(UpdateCrownJewelRequest) returns (CrownJewel);
+  // UpsertCrownJewel upserts a CrownJewel.
+  rpc UpsertCrownJewel(UpsertCrownJewelRequest) returns (CrownJewel);
   // DeleteCrownJewel deletes a CrownJewel.
   rpc DeleteCrownJewel(DeleteCrownJewelRequest) returns (google.protobuf.Empty);
 }
@@ -58,6 +60,11 @@ message ListCrownJewelsResponse {
 
 // UpdateCrownJewelRequest is a request to update an existing CrownJewel.
 message UpdateCrownJewelRequest {
+  teleport.crownjewel.v1.CrownJewel crown_jewels = 1;
+}
+
+// UpsertCrownJewelRequest is a request to upsert a CrownJewel.
+message UpsertCrownJewelRequest {
   teleport.crownjewel.v1.CrownJewel crown_jewels = 1;
 }
 
