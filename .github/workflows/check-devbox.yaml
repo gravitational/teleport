@@ -44,7 +44,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install devbox
-        uses: jetpack-io/devbox-install-action@e55980d19e8a14213735f6ebcbced49a1e507856 # v0.10.0
+        uses: jetify-com/devbox-install-action@e55980d19e8a14213735f6ebcbced49a1e507856 # v0.10.0
         with:
           enable-cache: true
           devbox-version: 0.9.1
