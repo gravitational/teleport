@@ -28,15 +28,16 @@ ARG TARGETOS
 ARG TARGETARCH
 ARG ACCESS_PLUGIN
 
-WORKDIR /go/src/github.com/gravitational/teleport/integrations/access/discord
+WORKDIR /go/src/github.com/gravitational/teleport/integrations/access/$ACCESS_PLUGIN
 
 # Build the program. We rely on golang's cross-compilation capabilities for multiarch building.
-RUN make build/teleport-discord
+RUN make build/teleport-$ACCESS_PLUGIN
 
 # Create the image with the build operator on the $TARGETPLATFORM
 # TARGETPLATFORM is provided by Docker/buildx
 FROM --platform=$TARGETPLATFORM $BASE_IMAGE
 WORKDIR /
-COPY --from=builder /go/src/github.com/gravitational/teleport/integrations/access/discord/build/teleport-discord /usr/local/bin/teleport-plugin
+ARG ACCESS_PLUGIN
+COPY --from=builder /go/src/github.com/gravitational/teleport/integrations/access/$ACCESS_PLUGIN/build/teleport-$ACCESS_PLUGIN /usr/local/bin/teleport-plugin
 
 ENTRYPOINT ["/usr/local/bin/teleport-plugin"]
