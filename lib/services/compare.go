@@ -45,6 +45,8 @@ func CompareResources[T any](resA, resB T) int {
 			cmpopts.IgnoreFields(accesslist.AccessList{}, "Status"),
 			cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision"),
 			cmpopts.IgnoreUnexported(headerv1.Metadata{}),
+			// Managed by IneligibleStatusReconciler, ignored by all others.
+			cmpopts.IgnoreFields(accesslist.AccessListMemberSpec{}, "IneligibleStatus"),
 			cmpopts.EquateEmpty(),
 		)
 	}

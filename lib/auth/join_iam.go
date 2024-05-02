@@ -35,7 +35,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
@@ -340,7 +339,22 @@ func withFips(fips bool) iamRegisterOption {
 // The caller must provide a ChallengeResponseFunc which returns a
 // *types.RegisterUsingTokenRequest with a signed sts:GetCallerIdentity request
 // including the challenge as a signed header.
-func (a *Server) RegisterUsingIAMMethod(ctx context.Context, challengeResponse client.RegisterIAMChallengeResponseFunc, opts ...iamRegisterOption) (_ *proto.Certs, err error) {
+func (a *Server) RegisterUsingIAMMethod(
+	ctx context.Context,
+	challengeResponse client.RegisterIAMChallengeResponseFunc,
+	opts ...iamRegisterOption,
+) (certs *proto.Certs, err error) {
+	var provisionToken types.ProvisionToken
+	var joinRequest *types.RegisterUsingTokenRequest
+	defer func() {
+		// Emit a log message and audit event on join failure.
+		if err != nil {
+			a.handleJoinFailure(
+				err, provisionToken, nil, joinRequest,
+			)
+		}
+	}()
+
 	cfg := defaultIAMRegisterConfig(a.fips)
 	for _, opt := range opts {
 		opt(cfg)
@@ -360,30 +374,11 @@ func (a *Server) RegisterUsingIAMMethod(ctx context.Context, challengeResponse c
 		return nil, trace.Wrap(err)
 	}
 
-	var method types.JoinMethod = "unknown"
-	defer func() {
-		if err == nil {
-			return
-		}
-		level := logrus.WarnLevel
-		if trace.IsAccessDenied(err) {
-			level = logrus.DebugLevel
-		}
-		log.WithFields(logrus.Fields{
-			"node_name":     req.RegisterUsingTokenRequest.NodeName,
-			"host_id":       req.RegisterUsingTokenRequest.HostID,
-			"role":          req.RegisterUsingTokenRequest.Role,
-			"method":        method,
-			logrus.ErrorKey: err,
-		}).Log(level, "Agent has failed to join the cluster.")
-	}()
-
 	// perform common token checks
-	provisionToken, err := a.checkTokenJoinRequestCommon(ctx, req.RegisterUsingTokenRequest)
+	provisionToken, err = a.checkTokenJoinRequestCommon(ctx, req.RegisterUsingTokenRequest)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	method = provisionToken.GetJoinMethod()
 
 	// check that the GetCallerIdentity request is valid and matches the token
 	if err := a.checkIAMRequest(ctx, challenge, req, cfg); err != nil {
@@ -394,7 +389,7 @@ func (a *Server) RegisterUsingIAMMethod(ctx context.Context, challengeResponse c
 		certs, err := a.generateCertsBot(ctx, provisionToken, req.RegisterUsingTokenRequest, nil)
 		return certs, trace.Wrap(err)
 	}
-	certs, err := a.generateCerts(ctx, provisionToken, req.RegisterUsingTokenRequest, nil)
+	certs, err = a.generateCerts(ctx, provisionToken, req.RegisterUsingTokenRequest, nil)
 	return certs, trace.Wrap(err)
 }
 

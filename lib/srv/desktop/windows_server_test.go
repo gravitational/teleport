@@ -23,11 +23,11 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"io"
+	"log/slog"
 	"testing"
 	"time"
 
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -37,6 +37,7 @@ import (
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 func TestConfigWildcardBaseDN(t *testing.T) {
@@ -233,8 +234,8 @@ func TestSkipsExtremelyLargePNGs(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	s := &WindowsService{
 		cfg: WindowsServiceConfig{
-			Clock: clock,
-			Log:   &logrus.Logger{Out: io.Discard},
+			Clock:  clock,
+			Logger: slog.New(logutils.NewSlogTextHandler(io.Discard, logutils.SlogTextHandlerConfig{})),
 		},
 	}
 	emitter := &eventstest.MockRecorderEmitter{}

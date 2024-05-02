@@ -997,6 +997,10 @@
             {
               "title": "Azure CLI Access",
               "slug": "/application-access/cloud-apis/azure/"
+            },
+            {
+              "title": "Azure CLI Access on AKS",
+              "slug": "/application-access/cloud-apis/azure-aks-workload-id/"
             }
           ]
         },
@@ -1054,22 +1058,12 @@
           "forScopes": ["enterprise", "cloud"],
           "entries": [
             {
-              "title": "Okta Service",
-              "slug": "/application-access/okta/guide/",
-              "forScopes": ["enterprise", "cloud"]
-            },
-            {
-              "title": "Okta Service Hosted Integration",
+              "title": "Okta Integration",
               "slug": "/application-access/okta/hosted-guide/",
               "forScopes": [
                 "enterprise",
                 "cloud"
               ]
-            },
-            {
-              "title": "Architecture",
-              "slug": "/application-access/okta/architecture/",
-              "forScopes": ["enterprise", "cloud"]
             },
             {
               "title": "Synchronization and SCIM",
@@ -1555,6 +1549,10 @@
             {
               "title": "Linux Server",
               "slug": "/machine-id/deployment/linux/"
+            },
+            {
+              "title": "Linux Server (TPM)",
+              "slug": "/machine-id/deployment/linux-tpm/"
             },
             {
               "title": "Kubernetes",

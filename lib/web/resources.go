@@ -465,12 +465,9 @@ func checkResourceUpdate(ctx context.Context, payloadResourceName, resourceName 
 
 // ExtractResourceAndValidate extracts resource information from given string and validates basic fields.
 func ExtractResourceAndValidate(yaml string) (*services.UnknownResource, error) {
-	var unknownRes services.UnknownResource
-	reader := strings.NewReader(yaml)
-	decoder := kyaml.NewYAMLOrJSONDecoder(reader, 32*1024)
-
-	if err := decoder.Decode(&unknownRes); err != nil {
-		return nil, trace.BadParameter("not a valid resource declaration")
+	unknownRes, err := extractResource(yaml)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	if err := unknownRes.Metadata.CheckAndSetDefaults(); err != nil {
@@ -478,6 +475,18 @@ func ExtractResourceAndValidate(yaml string) (*services.UnknownResource, error) 
 	}
 
 	return &unknownRes, nil
+}
+
+func extractResource(yaml string) (services.UnknownResource, error) {
+	var unknownRes services.UnknownResource
+	reader := strings.NewReader(yaml)
+	decoder := kyaml.NewYAMLOrJSONDecoder(reader, 32*1024)
+
+	if err := decoder.Decode(&unknownRes); err != nil {
+		return services.UnknownResource{}, trace.BadParameter("not a valid resource declaration")
+	}
+
+	return unknownRes, nil
 }
 
 func convertListResourcesRequest(r *http.Request, kind string) (*proto.ListResourcesRequest, error) {

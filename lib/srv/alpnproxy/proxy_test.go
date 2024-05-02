@@ -90,7 +90,7 @@ func TestProxyKubeHandler(t *testing.T) {
 				kubeCert,
 			},
 		})
-		err := tlsConn.Handshake()
+		err := tlsConn.HandshakeContext(ctx)
 		require.NoError(t, err)
 		_, err = fmt.Fprint(tlsConn, kubernetesHandlerResponse)
 		require.NoError(t, err)
@@ -398,7 +398,7 @@ func TestProxyMakeConnectionHandler(t *testing.T) {
 	})
 	defer clientTLSConn.Close()
 
-	require.NoError(t, clientTLSConn.Handshake())
+	require.NoError(t, clientTLSConn.HandshakeContext(context.Background()))
 	require.Equal(t, string(common.ProtocolHTTP), clientTLSConn.ConnectionState().NegotiatedProtocol)
 	require.NoError(t, req.Write(clientTLSConn))
 

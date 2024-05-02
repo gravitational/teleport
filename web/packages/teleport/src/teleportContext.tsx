@@ -38,6 +38,8 @@ import MfaService from './services/mfa';
 import { agentService } from './services/agents';
 import { storageService } from './services/storageService';
 import ClustersService from './services/clusters/clusters';
+import { NotificationService } from './services/notifications';
+import { notificationContentFactory } from './Notifications';
 
 class TeleportContext implements types.Context {
   // stores
@@ -60,6 +62,9 @@ class TeleportContext implements types.Context {
   desktopService = desktopService;
   userGroupService = userGroupService;
   mfaService = new MfaService();
+  notificationService = new NotificationService();
+
+  notificationContentFactory = notificationContentFactory;
 
   isEnterprise = cfg.isEnterprise;
   isCloud = cfg.isCloud;
@@ -72,20 +77,15 @@ class TeleportContext implements types.Context {
 
   // lockedFeatures are the features disabled in the user's cluster.
   // Mainly used to hide features and/or show CTAs when the user cluster doesn't support it.
-  // TODO(mcbattirola): use cluster features instead of only using `isTeam`
-  // to determine which feature is locked
   lockedFeatures: types.LockedFeatures = {
-    authConnectors: cfg.isTeam,
-    activeSessions: cfg.isTeam,
-    premiumSupport: cfg.isTeam,
-    externalCloudAudit: cfg.isTeam,
+    authConnectors: !(cfg.oidc && cfg.saml),
     // Below should be locked for the following cases:
-    //  1) is team
+    //  1) feature disabled in the cluster features
     //  2) is not a legacy and igs is not enabled. legacies should have unlimited access.
     accessRequests:
-      cfg.isTeam || (!cfg.isLegacyEnterprise() && !cfg.isIgsEnabled),
+      !cfg.accessRequests || (!cfg.isLegacyEnterprise() && !cfg.isIgsEnabled),
     trustedDevices:
-      cfg.isTeam || (!cfg.isLegacyEnterprise() && !cfg.isIgsEnabled),
+      !cfg.trustedDevices || (!cfg.isLegacyEnterprise() && !cfg.isIgsEnabled),
   };
 
   // hasExternalAuditStorage indicates if an account has set up external audit storage. It is used to show or hide the External Audit Storage CTAs.

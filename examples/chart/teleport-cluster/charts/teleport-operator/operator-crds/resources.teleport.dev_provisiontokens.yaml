@@ -70,8 +70,8 @@ spec:
                       type: array
                     aws_role:
                       description: AWSRole is used for the EC2 join method and is
-                        the the ARN of the AWS role that the auth server will assume
-                        in order to call the ec2 API.
+                        the ARN of the AWS role that the auth server will assume in
+                        order to call the ec2 API.
                       type: string
                   type: object
                 nullable: true

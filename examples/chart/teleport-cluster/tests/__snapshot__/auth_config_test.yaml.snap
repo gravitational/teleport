@@ -13,6 +13,124 @@ adds a proxy token by default:
         kubernetes:
           allow:
             - service_account: "NAMESPACE:RELEASE-NAME-proxy"
+configures access monitoring when its values are set:
+  1: |
+    |-
+      auth_service:
+        access_monitoring:
+          enabled: true
+          report_results: s3://example-athena-long-term/report_results
+          role_arn: arn:aws:iam::123456789012:role/example_AccessMonitoringRole
+          workgroup: example_access_monitoring_workgroup
+        authentication:
+          local_auth: true
+          second_factor: "on"
+          type: local
+          webauthn:
+            rp_id: test-aws-cluster
+        cluster_name: test-aws-cluster
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: test-aws-cluster
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        auth_server: 127.0.0.1:3025
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+        storage:
+          audit_events_uri:
+          - athena://db.table?topicArn=arn:aws:sns:region:account_id:topic_name
+          audit_sessions_uri: s3://test-s3-session-storage-bucket
+          auto_scaling: false
+          continuous_backups: false
+          region: us-west-2
+          table_name: test-dynamodb-backend-table
+          type: dynamodb
+      version: v3
+keeps the second factor type even when it's "off":
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: "off"
+          type: local
+        cluster_name: helm-lint
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: helm-lint
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        auth_server: 127.0.0.1:3025
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+      version: v3
+keeps the session_recording type even when it's "off":
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: "on"
+          type: local
+          webauthn:
+            rp_id: helm-lint
+        cluster_name: helm-lint
+        enabled: true
+        proxy_listener_mode: separate
+        session_recording: "off"
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: helm-lint
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        auth_server: 127.0.0.1:3025
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+      version: v3
 matches snapshot for acme-off.yaml:
   1: |
     |-
@@ -160,39 +278,6 @@ matches snapshot for auth-disable-local.yaml:
       auth_service:
         authentication:
           local_auth: false
-          second_factor: "off"
-          type: github
-        cluster_name: helm-lint
-        enabled: true
-        proxy_listener_mode: separate
-      kubernetes_service:
-        enabled: true
-        kube_cluster_name: helm-lint
-        listen_addr: 0.0.0.0:3026
-        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
-      proxy_service:
-        enabled: false
-      ssh_service:
-        enabled: false
-      teleport:
-        auth_server: 127.0.0.1:3025
-        log:
-          format:
-            extra_fields:
-            - timestamp
-            - level
-            - component
-            - caller
-            output: text
-          output: stderr
-          severity: INFO
-      version: v3
-matches snapshot for auth-disable-passwordless.yaml:
-  1: |
-    |-
-      auth_service:
-        authentication:
-          passwordless: false
           second_factor: "off"
           type: github
         cluster_name: helm-lint

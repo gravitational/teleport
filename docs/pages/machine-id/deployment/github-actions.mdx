@@ -20,7 +20,11 @@ Actions runners as well as GitHub Enterprise Server.
   `gravitational/example` repo, however this value should be replaced with
   your own unique repo.
 
-## Step 1/3. Create a join token for GitHub Actions
+## Step 1/3. Create a Bot
+
+(!docs/pages/includes/machine-id/create-a-bot.mdx!)
+
+## Step 2/3. Create a join token for GitHub Actions
 
 In order to allow your GitHub Actions workflow to authenticate with your
 Teleport cluster, you'll first need to create a join token. These tokens set out
@@ -47,7 +51,7 @@ spec:
   roles: [Bot]
   join_method: github
   # The bot_name indicates which bot user this token grants access to. This
-  # should match the name of the bot that you will create in the next step.
+  # should match the name of the bot that you created in the previous step.
   bot_name: example
   github:
     # allow specifies rules that control which GitHub Actions runs will be
@@ -94,7 +98,7 @@ spec:
     enterprise_slug: my-enterprise
 ```
 
-Read more about `include_enterprise_slug` on the the GitHub guide to
+Read more about `include_enterprise_slug` on the GitHub guide to
 [customizing the issuer value for an enterprise](https://docs.github.com/en/enterprise-cloud@latest/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect#customizing-the-issuer-value-for-an-enterprise).
 </Admonition>
 
@@ -112,14 +116,6 @@ $ tctl tokens ls
 Token       Type Labels Expiry Time (UTC)
 ----------- ---- ------ ----------------------------------------------
 example-bot Bot         01 Jan 00 00:00 UTC (2562047h47m16.854775807s)
-```
-
-## Step 2/3. Create a Machine ID bot
-
-Create the bot, specifying the token that you have created:
-
-```code
-$ tctl bots add example --roles=example-bot --token=example-bot
 ```
 
 ## Step 3/3. Configure a GitHub Actions Workflow

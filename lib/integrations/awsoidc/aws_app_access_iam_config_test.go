@@ -76,8 +76,8 @@ func TestAWSAppAccessConfigReqDefaults(t *testing.T) {
 
 func TestAWSAppAccessConfig(t *testing.T) {
 	ctx := context.Background()
-	baseReq := func() *AWSAppAccessConfigureRequest {
-		return &AWSAppAccessConfigureRequest{
+	baseReq := func() AWSAppAccessConfigureRequest {
+		return AWSAppAccessConfigureRequest{
 			IntegrationRole: "integrationrole",
 		}
 	}
@@ -85,7 +85,7 @@ func TestAWSAppAccessConfig(t *testing.T) {
 	for _, tt := range []struct {
 		name              string
 		mockExistingRoles []string
-		req               func() *AWSAppAccessConfigureRequest
+		req               func() AWSAppAccessConfigureRequest
 		errCheck          require.ErrorAssertionFunc
 	}{
 		{

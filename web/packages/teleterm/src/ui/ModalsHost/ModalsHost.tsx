@@ -32,6 +32,7 @@ import { assertUnreachable } from '../utils';
 import { UsageData } from './modals/UsageData';
 import { UserJobRole } from './modals/UserJobRole';
 import { ReAuthenticate } from './modals/ReAuthenticate';
+import { AuthenticateWebDevice } from './modals/AuthenticateWebDevice/AuthenticateWebDevice';
 
 export default function ModalsHost() {
   const { modalsService } = useAppContext();
@@ -51,6 +52,18 @@ export default function ModalsHost() {
 
 function renderDialog(dialog: Dialog, handleClose: () => void) {
   switch (dialog.kind) {
+    case 'device-trust-authorize': {
+      return (
+        <AuthenticateWebDevice
+          rootClusterUri={dialog.rootClusterUri}
+          onAuthorize={dialog.onAuthorize}
+          onClose={() => {
+            dialog.onCancel();
+            handleClose();
+          }}
+        />
+      );
+    }
     case 'cluster-connect': {
       return (
         <ClusterConnect

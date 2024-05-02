@@ -19,10 +19,13 @@
 package responsewriters
 
 import (
+	"context"
 	"errors"
 	"io"
+	"log/slog"
 	"mime"
 	"net/http"
+	"sync"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
@@ -34,8 +37,14 @@ import (
 )
 
 const (
-	ContentTypeHeader  = "Content-Type"
-	DefaultContentType = "application/json"
+	// DefaultContentTypeHeader is the default content type header used by the Kubernetes API
+	ContentTypeHeader = "Content-Type"
+	// JSONContentType is the JSON content type used by the Kubernetes API
+	JSONContentType = "application/json"
+	// YAMLContentType is the YAML content type used by the Kubernetes API
+	YAMLContentType = "application/yaml"
+	// DefaultContentType is the default content type used by the Kubernetes API
+	DefaultContentType = JSONContentType
 )
 
 // WatcherResponseWriter satisfies the http.ResponseWriter interface and
@@ -62,6 +71,12 @@ type WatcherResponseWriter struct {
 	negotiator runtime.ClientNegotiator
 	// filter hold the filtering rules to filter events.
 	filter FilterWrapper
+	// evtsChan is used to send fake events to target connection.
+	evtsChan chan *watch.Event
+	// closeChanGuard guards the closeChan close call
+	closeChanGuard sync.Once
+	// closeChan indicates if the watcher as been closed.
+	closeChan chan struct{}
 }
 
 // NewWatcherResponseWriter creates a new WatcherResponseWriter.
@@ -80,6 +95,8 @@ func NewWatcherResponseWriter(
 		pipeWriter: writer,
 		negotiator: negotiator,
 		filter:     filter,
+		closeChan:  make(chan struct{}),
+		evtsChan:   make(chan *watch.Event, 10),
 	}, nil
 }
 
@@ -103,6 +120,19 @@ func (w *WatcherResponseWriter) Write(buf []byte) (int, error) {
 // Header returns the target headers.
 func (w *WatcherResponseWriter) Header() http.Header {
 	return w.target.Header()
+}
+
+// PushVirtualEventToClient pushes a Teleport generated event to the target connection.
+// It's consumed by a goroutine spawn by watchDecoder.
+func (w *WatcherResponseWriter) PushVirtualEventToClient(ctx context.Context, evt *watch.Event) {
+	select {
+	case <-ctx.Done():
+		return
+	case <-w.closeChan:
+		return
+		// wait until we can push the evts
+	case w.evtsChan <- evt:
+	}
 }
 
 // WriteHeader writes the status code and headers into the target http.ResponseWriter
@@ -154,6 +184,9 @@ func (w *WatcherResponseWriter) getStatus() int {
 // the spinned goroutine terminates.
 // After closes the writer pipe and flushes the response into target.
 func (w *WatcherResponseWriter) Close() error {
+	w.closeChanGuard.Do(func() {
+		close(w.closeChan)
+	})
 	w.pipeReader.CloseWithError(io.EOF)
 	err := w.group.Wait()
 	w.pipeWriter.CloseWithError(io.EOF)
@@ -208,6 +241,44 @@ func (w *WatcherResponseWriter) watchDecoder(contentType string, writer io.Write
 			return trace.Wrap(err)
 		}
 	}
+
+	// watchEncoderGuard prevents multiple sources to push events at the same time.
+	// only one source is able to push and flush events to ensure proper json formatting.
+	var watchEncoderGuard sync.Mutex
+	writeEventAndFlush := func(evt *watch.Event) error {
+		watchEncoderGuard.Lock()
+		defer watchEncoderGuard.Unlock()
+		// encode the event into the target connection.
+		if err := watchEncoder.Encode(evt); err != nil {
+			return trace.Wrap(err)
+		}
+		// Stream the response into the target connection, as we are dealing with
+		// streaming events. However, the Kubernetes API does not include the
+		// content-type as chunked. As a result, the forwarder is unaware that
+		// the connection is chunked and delays the response writing by buffering
+		// to minimize the number of writes.
+		// In cases where the connection stream is busy with events, the user may
+		// not receive individual events as chunks, leading to incomplete data.
+		// This could result in the user receiving malformed JSON and triggering
+		// an abort.
+		// To avoid this, we flush the response after each event to ensure that
+		// the user receives the event as a chunk.
+		w.Flush()
+		return nil
+	}
+
+	w.group.Go(func() error {
+		for {
+			select {
+			case evt := <-w.evtsChan:
+				if err := writeEventAndFlush(evt); err != nil {
+					slog.WarnContext(context.Background(), "error pushing fake pod event", "err", err)
+				}
+			case <-w.closeChan:
+				return nil
+			}
+		}
+	})
 	// wait for events received from upstream until the connection is terminated.
 	for {
 		eventType, obj, err := w.decodeStreamingMessage(streamingDecoder, objectDecoder)
@@ -226,14 +297,12 @@ func (w *WatcherResponseWriter) watchDecoder(contentType string, writer io.Write
 				err = encoder.Encode(obj, writer)
 				return trace.Wrap(err)
 			}
-			// encode the event into the target connection.
-			err = watchEncoder.Encode(
+			err := writeEventAndFlush(
 				&watch.Event{
 					Type:   eventType,
 					Object: obj,
 				},
 			)
-
 			return trace.Wrap(err)
 		default:
 			if filter != nil {
@@ -247,28 +316,15 @@ func (w *WatcherResponseWriter) watchDecoder(contentType string, writer io.Write
 					continue
 				}
 			}
-			// encode the event into the target connection.
-			err = watchEncoder.Encode(
+
+			if err := writeEventAndFlush(
 				&watch.Event{
 					Type:   eventType,
 					Object: obj,
 				},
-			)
-			if err != nil {
+			); err != nil {
 				return trace.Wrap(err)
 			}
-			// Stream the response into the target connection, as we are dealing with
-			// streaming events. However, the Kubernetes API does not include the
-			// content-type as chunked. As a result, the forwarder is unaware that
-			// the connection is chunked and delays the response writing by buffering
-			// to minimize the number of writes.
-			// In cases where the connection stream is busy with events, the user may
-			// not receive individual events as chunks, leading to incomplete data.
-			// This could result in the user receiving malformed JSON and triggering
-			// an abort.
-			// To avoid this, we flush the response after each event to ensure that
-			// the user receives the event as a chunk.
-			w.Flush()
 		}
 	}
 }
