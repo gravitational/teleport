@@ -5,7 +5,7 @@ apiVersion: v2
 version: *version
 appVersion: *version
 description: Teleport is an access platform for your infrastructure
-icon: https://goteleport.com/images/logos/logo-teleport-square.svg
+icon: https://goteleport.com/static/teleport-symbol-bimi.svg
 keywords:
   - Teleport
 
