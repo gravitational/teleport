@@ -73,7 +73,7 @@ jira:
 
 # http -- contains the webhook configuration. When an issue is updated in Jira
 # (approved or denied), Jira contacts the plugin via webhook to trigger the
-# Teleport access request approval.
+# Teleport Access Request approval.
 http:
   # http.publicAddress(string) -- is the URL on which the callback server is
   # accessible externally, e.g. `[https://]teleport-proxy.example.com`.

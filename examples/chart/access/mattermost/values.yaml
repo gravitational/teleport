@@ -61,7 +61,7 @@ mattermost:
   tokenSecretPath: "mattermostToken"
   # TODO: move to roleToRecipients map
   # mattermost.recipients(list[string]) -- is the list of recipients who should be
-  # notified for each access request.
+  # notified for each Access Request.
   recipients: []
 
 # log -- controls the plugin logging.
