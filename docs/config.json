@@ -563,7 +563,7 @@
             },
             {
               "title": "PagerDuty",
-              "slug": "/access-controls/access-request-plugins/ssh-approval-agerduty/",
+              "slug": "/access-controls/access-request-plugins/ssh-approval-pagerduty/",
               "forScopes": ["enterprise", "cloud"]
             },
             {
