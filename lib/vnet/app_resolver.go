@@ -57,7 +57,7 @@ type TCPAppResolver struct {
 // TCPHandlers that will proxy TCP connection to Teleport TCP apps.
 //
 // It uses [appProvider] to list and retrieve cluster clients which are expected to be cached to avoid
-// repeated/unecessary dials to the cluster. These clients are then used to list TCP apps that should be
+// repeated/unnecessary dials to the cluster. These clients are then used to list TCP apps that should be
 // handled.
 //
 // [appProvider] is also used to get app certificates used to dial the apps.
