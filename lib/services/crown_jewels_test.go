@@ -23,6 +23,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -53,10 +54,8 @@ func TestUnmarshalCrownJewel(t *testing.T) {
 
 	data, err := utils.ToJSON([]byte(correctCrownJewelYAML))
 	require.NoError(t, err)
-	obj, err := UnmarshalCrownJewel(data)
-	require.NoError(t, err)
 
-	require.Equal(t, &crownjewelv1.CrownJewel{
+	expected := &crownjewelv1.CrownJewel{
 		Version: "v1",
 		Kind:    "crown_jewel",
 		Metadata: &headerv1.Metadata{
@@ -77,23 +76,50 @@ func TestUnmarshalCrownJewel(t *testing.T) {
 					},
 				},
 			},
+			AwsMatchers: []*crownjewelv1.AWSMatcher{
+				{
+					Types:   []string{"ec2"},
+					Regions: []string{"us-west-1"},
+					Tags: []*crownjewelv1.AWSTag{
+						{
+							Key: "env",
+							Values: []*wrapperspb.StringValue{
+								wrapperspb.String("prod"),
+							},
+						},
+					},
+				},
+			},
 		},
-	}, obj)
+	}
+
+	obj, err := UnmarshalCrownJewel(data)
+	require.NoError(t, err)
+	require.Equal(t, expected, obj)
 }
 
 const correctCrownJewelYAML = `
 version: v1
 kind: crown_jewel
 metadata:
-  name: example-crown-jewel
   labels:
     env: example
+  name: example-crown-jewel
 spec:
+  aws_matchers:
+    - regions:
+        - us-west-1
+      tags:
+        - key: env
+          values:
+            - value: prod
+      types:
+        - ec2
   teleport_matchers:
     - kinds:
-      - node
+        - node
       labels:
-         - name: abc
-           values:
-             - xyz
+        - name: abc
+          values:
+            - xyz
 `
