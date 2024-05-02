@@ -123,6 +123,14 @@ data:
               - read
               - update
               - delete
+          - resources:
+              - node
+            verbs:
+              - list
+              - create
+              - read
+              - update
+              - delete
       deny: {}
     version: v7
     ---

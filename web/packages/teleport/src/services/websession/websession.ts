@@ -162,6 +162,16 @@ const session = {
     return !!this._isRenewing;
   },
 
+  getIsDeviceTrusted() {
+    return !!this._isDeviceTrusted;
+  },
+
+  // a session will never be "downgraded" so we can just set to true
+  // if this method is called.
+  setIsDeviceTrusted() {
+    this._isDeviceTrusted = true;
+  },
+
   _timeLeft() {
     const token = this._getBearerToken();
     if (!token) {
