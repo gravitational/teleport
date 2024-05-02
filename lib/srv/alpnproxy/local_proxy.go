@@ -227,7 +227,7 @@ func (l *LocalProxy) GetAddr() string {
 func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamConn net.Conn) error {
 	defer downstreamConn.Close()
 
-	cert, downstreamConn, err := l.getCerForConn(downstreamConn)
+	cert, downstreamConn, err := l.getCertForConn(downstreamConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -468,11 +468,11 @@ func (l *LocalProxy) SetCert(cert tls.Certificate) {
 	l.cfg.Cert = cert
 }
 
-// getCerForConn determines if certificates should be used when dialing
+// getCertForConn determines if certificates should be used when dialing
 // upstream to proxy a new downstream connection.
-// After calling getCerForConn function, the returned
+// After calling getCertForConn function, the returned
 // net.Conn should be used for further operation.
-func (l *LocalProxy) getCerForConn(downstreamConn net.Conn) (tls.Certificate, net.Conn, error) {
+func (l *LocalProxy) getCertForConn(downstreamConn net.Conn) (tls.Certificate, net.Conn, error) {
 	if !l.cfg.CheckCertNeeded {
 		return l.getCert(), downstreamConn, nil
 	}

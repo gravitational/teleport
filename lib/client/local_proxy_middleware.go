@@ -180,7 +180,7 @@ func (c *AppCertIssuer) CheckCert(cert *x509.Certificate) error {
 func (c *AppCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) {
 	var accessRequests []string
 	if profile, err := c.Client.ProfileStatus(); err != nil {
-		log.WithError(err).Warn("unable to load profile, requesting database certs without access requests")
+		log.WithError(err).Warn("unable to load profile, requesting app certs without access requests")
 	} else {
 		accessRequests = profile.ActiveRequests.AccessRequests
 	}

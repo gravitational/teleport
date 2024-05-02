@@ -706,7 +706,7 @@ func TestGetCertsForConn(t *testing.T) {
 			})
 			require.NoError(t, err)
 			conn := &stubConn{buff: *bytes.NewBuffer(tt.stubConnBytes)}
-			gotCert, _, err := lp.getCerForConn(conn)
+			gotCert, _, err := lp.getCertForConn(conn)
 			require.NoError(t, err)
 			if tt.wantCerts {
 				require.Equal(t, tlsCert, gotCert)
