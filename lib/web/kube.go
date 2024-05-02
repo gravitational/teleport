@@ -187,7 +187,7 @@ func (p *podHandler) handler(r *http.Request) error {
 	if err != nil {
 		return trace.Wrap(err, "failed getting user private key from the session")
 	}
-	key := &client.Key{
+	userKey := &client.Key{
 		PrivateKey: pk,
 		Cert:       p.sctx.cfg.Session.GetPub(),
 		TLSCert:    p.sctx.cfg.Session.GetTLSCert(),
@@ -202,12 +202,6 @@ func (p *podHandler) handler(r *http.Request) error {
 	}
 
 	stream := NewTerminalStream(ctx, TerminalStreamConfig{WS: p.ws, Logger: p.log})
-
-	userKey := &client.Key{
-		PrivateKey: pk,
-		Cert:       p.sctx.cfg.Session.GetPub(),
-		TLSCert:    p.sctx.cfg.Session.GetTLSCert(),
-	}
 
 	certsReq := clientproto.UserCertsRequest{
 		PublicKey:         userKey.MarshalSSHPublicKey(),
@@ -234,7 +228,7 @@ func (p *podHandler) handler(r *http.Request) error {
 			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
 		},
 		CertsReq: &certsReq,
-		Key:      key,
+		Key:      userKey,
 	})
 	if err != nil && !errors.Is(err, services.ErrSessionMFANotRequired) {
 		return trace.Wrap(err, "failed performing mfa ceremony")
@@ -247,7 +241,7 @@ func (p *podHandler) handler(r *http.Request) error {
 		}
 	}
 
-	rsaKey, err := key.PrivateKey.RSAPrivateKeyPEM()
+	rsaKey, err := userKey.PrivateKey.RSAPrivateKeyPEM()
 	if err != nil {
 		return trace.Wrap(err, "failed getting rsa private key")
 	}
