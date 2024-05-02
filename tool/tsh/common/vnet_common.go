@@ -18,90 +18,55 @@ package common
 
 import (
 	"context"
-	"fmt"
-	"net"
-	"strings"
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/vnet"
 )
 
-type tcpAppResolver struct {
-	cf          *CLIConf
+// vnetAppProvider implement [vnet.AppProvider] in order to provide the necessary methods to log in to apps
+// and get clients able to list apps in all clusters in all current profiles.
+type vnetAppProvider struct {
 	clientStore *client.Store
 }
 
-func newTCPAppResolver(cf *CLIConf) *tcpAppResolver {
+func newVnetAppProvider(cf *CLIConf) (*vnetAppProvider, error) {
 	clientStore := client.NewFSClientStore(cf.HomePath)
-	return &tcpAppResolver{
-		cf:          cf,
+
+	return &vnetAppProvider{
 		clientStore: clientStore,
-	}
+	}, nil
 }
 
-// ResolveTCPHandler takes a fully-qualified domain name and, if it should be valid for a currently connected
-// app, returns a TCPHandler that should handle all future VNet TCP connections to that FQDN.
-func (r *tcpAppResolver) ResolveTCPHandler(ctx context.Context, fqdn string) (handler vnet.TCPHandler, match bool, err error) {
-	profileNames, err := r.clientStore.ListProfiles()
+// ListProfiles lists the names of all profiles saved for the user.
+func (p *vnetAppProvider) ListProfiles() ([]string, error) {
+	return p.clientStore.ListProfiles()
+}
+
+// GetProfile returns the named profile for the user.
+func (p *vnetAppProvider) GetProfile(profileName string) (*profile.Profile, error) {
+	return p.clientStore.GetProfile(profileName)
+}
+
+// GetCachedClient returns a [*client.ClusterClient] for the given profile and leaf cluster.
+// [leafClusterName] may be empty when requesting a client for the root cluster.
+// TODO: cache clients across calls.
+func (p *vnetAppProvider) GetCachedClient(ctx context.Context, profileName, leafClusterName string) (*client.ClusterClient, error) {
+	cfg := &client.Config{
+		ClientStore: p.clientStore,
+	}
+	if err := cfg.LoadProfile(p.clientStore, profileName); err != nil {
+		return nil, trace.Wrap(err, "loading client profile")
+	}
+	if leafClusterName != "" {
+		cfg.SiteName = leafClusterName
+	}
+	tc, err := client.NewClient(cfg)
 	if err != nil {
-		return nil, false, trace.Wrap(err, "listing profiles")
+		return nil, trace.Wrap(err, "creating new client")
 	}
-	appPublicAddr := strings.TrimSuffix(fqdn, ".")
-	for _, profileName := range profileNames {
-		if !isSubdomain(fqdn, profileName) {
-			// TODO(nklaassen): handle custom DNS zones and leaf clusters.
-			continue
-		}
 
-		tc, err := r.getTeleportClient(ctx, profileName)
-		if err != nil {
-			return nil, false, trace.Wrap(err, "getting Teleport client")
-		}
-
-		appServers, err := tc.ListAppServersWithFilters(ctx, &proto.ListResourcesRequest{
-			ResourceType:        types.KindAppServer,
-			PredicateExpression: fmt.Sprintf(`resource.spec.public_addr == "%s" && hasPrefix(resource.spec.uri, "tcp://")`, appPublicAddr),
-		})
-		if err != nil {
-			return nil, false, trace.Wrap(err, "listing application servers")
-		}
-
-		for _, appServer := range appServers {
-			app := appServer.GetApp()
-			if app.GetPublicAddr() == appPublicAddr && app.IsTCP() {
-				return &tcpAppHandler{
-					app: app,
-				}, true, nil
-			}
-		}
-	}
-	return nil, false, nil
-}
-
-func (r *tcpAppResolver) getTeleportClient(ctx context.Context, profileName string) (*client.TeleportClient, error) {
-	// TODO(nklaassen): handle leaf clusters.
-	// TODO(nklaassen/ravicious): cache clients and handle certificate expiry.
-	tc, err := makeClientForProxy(r.cf, profileName)
-	return tc, trace.Wrap(err)
-}
-
-type tcpAppHandler struct {
-	app types.Application
-}
-
-// HandleTCPConnector handles a TCP connection from VNet and proxies it to the application.
-func (h *tcpAppHandler) HandleTCPConnector(ctx context.Context, connector func() (net.Conn, error)) error {
-	return trace.NotImplemented("HandleTCP is not implemented for TCP app handler")
-}
-
-func isSubdomain(appFQDN, proxyAddress string) bool {
-	// Fully-qualify the proxy address
-	if !strings.HasSuffix(proxyAddress, ".") {
-		proxyAddress = proxyAddress + "."
-	}
-	return strings.HasSuffix(appFQDN, "."+proxyAddress)
+	clusterClient, err := tc.ConnectToCluster(ctx)
+	return clusterClient, trace.Wrap(err)
 }
