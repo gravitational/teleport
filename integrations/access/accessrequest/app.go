@@ -236,7 +236,7 @@ func (a *App) handleAccessMonitoringRule(ctx context.Context, event types.Event)
 
 	req, ok := types.LegacyToResource153(event.Resource).(*accessmonitoringrulesv1.AccessMonitoringRule)
 	if !ok {
-		return trace.Errorf("unexpected resource type %T", event.Resource)
+		return trace.BadParameter("expected AccessMonitoringRule resource type, got %T", event.Resource)
 	}
 
 	if !a.amrAppliesToThisPlugin(req) {
