@@ -2168,6 +2168,127 @@ func TestIsMFARequired_nodeMatch(t *testing.T) {
 	}
 }
 
+func TestIsMFARequired_App(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	appA, err := types.NewAppV3(types.Metadata{
+		Name: "app-a",
+		Labels: map[string]string{
+			"env": "dev",
+		},
+	}, types.AppSpecV3{
+		URI:        "app-a",
+		PublicAddr: "appa.example.com",
+	})
+	require.NoError(t, err)
+	appAServer, err := types.NewAppServerV3FromApp(appA, "host", "host-id")
+	require.NoError(t, err)
+	_, err = srv.Auth().UpsertApplicationServer(ctx, appAServer)
+	require.NoError(t, err)
+
+	accessDevApp, err := types.NewRole("access-a", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			AppLabels: types.Labels{
+				"env": []string{"dev"},
+			},
+		},
+	})
+	require.NoError(t, err)
+	_, err = srv.Auth().UpsertRole(ctx, accessDevApp)
+	require.NoError(t, err)
+
+	accessDevAppMFA, err := types.NewRole("access-a-mfa", types.RoleSpecV6{
+		Options: types.RoleOptions{
+			RequireMFAType: types.RequireMFAType_SESSION,
+		},
+		Allow: types.RoleConditions{
+			AppLabels: types.Labels{
+				"env": []string{"dev"},
+			},
+		},
+	})
+	require.NoError(t, err)
+	_, err = srv.Auth().UpsertRole(ctx, accessDevAppMFA)
+	require.NoError(t, err)
+
+	accessStagingAppMFA, err := types.NewRole("access-b-mfa", types.RoleSpecV6{
+		Options: types.RoleOptions{
+			RequireMFAType: types.RequireMFAType_SESSION,
+		},
+		Allow: types.RoleConditions{
+			AppLabels: types.Labels{
+				"env": []string{"staging"},
+			},
+		},
+	})
+	require.NoError(t, err)
+	_, err = srv.Auth().UpsertRole(ctx, accessStagingAppMFA)
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		name              string
+		authPrefMFAType   types.RequireMFAType
+		roles             []string
+		expectMFARequired proto.MFARequired
+	}{
+		{
+			name:              "mfa not required",
+			authPrefMFAType:   types.RequireMFAType_OFF,
+			roles:             []string{accessDevApp.GetName()},
+			expectMFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+		}, {
+			name:              "mfa required by role",
+			authPrefMFAType:   types.RequireMFAType_OFF,
+			roles:             []string{accessDevAppMFA.GetName()},
+			expectMFARequired: proto.MFARequired_MFA_REQUIRED_YES,
+		}, {
+			name:              "mfa required by cap",
+			authPrefMFAType:   types.RequireMFAType_SESSION,
+			roles:             []string{accessDevApp.GetName()},
+			expectMFARequired: proto.MFARequired_MFA_REQUIRED_YES,
+		}, {
+			name:              "mfa not required from unmatched role role",
+			authPrefMFAType:   types.RequireMFAType_OFF,
+			roles:             []string{accessDevApp.GetName(), accessStagingAppMFA.GetName()},
+			expectMFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+		},
+	} {
+		// Update auth pref mfa type
+		authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+			Type:           constants.Local,
+			SecondFactor:   constants.SecondFactorOptional,
+			RequireMFAType: tc.authPrefMFAType,
+			Webauthn: &types.Webauthn{
+				RPID: "teleport",
+			},
+		})
+		require.NoError(t, err)
+		_, err = srv.Auth().UpsertAuthPreference(ctx, authPref)
+		require.NoError(t, err)
+
+		// Create a user with test case roles.
+		user, err := types.NewUser("alice")
+		require.NoError(t, err)
+		user.SetRoles(tc.roles)
+		user, err = srv.Auth().UpsertUser(ctx, user)
+		require.NoError(t, err)
+
+		cl, err := srv.NewClient(TestUser(user.GetName()))
+		require.NoError(t, err)
+
+		resp, err := cl.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
+			Target: &proto.IsMFARequiredRequest_App{App: &proto.RouteToApp{
+				Name: "app-a",
+			}},
+		})
+		require.NoError(t, err)
+
+		assert.Equal(t, tc.expectMFARequired, resp.MFARequired, "IsMFARequired mismatch")
+		assert.Equal(t, tc.expectMFARequired == proto.MFARequired_MFA_REQUIRED_YES, resp.Required, "Required mismatch")
+	}
+}
+
 // testOriginDynamicStored tests setting a ResourceWithOrigin via the server
 // API always results in the resource being stored with OriginDynamic.
 func testOriginDynamicStored(t *testing.T, setWithOrigin func(*Client, string) error, getStored func(*Server) (types.ResourceWithOrigin, error)) {
