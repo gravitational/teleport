@@ -60,12 +60,25 @@ func TestServiceAccess(t *testing.T) {
 			allowedVerbs:  []string{types.VerbDelete},
 		},
 		{
+			name:          "UpsertCrownJewel",
+			allowedStates: []authz.AdminActionAuthState{authz.AdminActionAuthNotRequired, authz.AdminActionAuthMFAVerified},
+			allowedVerbs:  []string{types.VerbCreate, types.VerbUpdate},
+		},
+		{
 			name: "ListCrownJewels",
 			allowedStates: []authz.AdminActionAuthState{
 				authz.AdminActionAuthUnauthorized, authz.AdminActionAuthNotRequired,
 				authz.AdminActionAuthMFAVerified, authz.AdminActionAuthMFAVerifiedWithReuse,
 			},
 			allowedVerbs: []string{types.VerbRead, types.VerbList},
+		},
+		{
+			name: "GetCrownJewel",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthUnauthorized, authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified, authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			allowedVerbs: []string{types.VerbRead},
 		},
 	}
 
@@ -201,7 +214,6 @@ func newService(t *testing.T, authState authz.AdminActionAuthState, checker serv
 	service, err := NewService(ServiceConfig{
 		Authorizer: authorizer,
 		Backend:    backendService,
-		Logger:     nil,
 	})
 	require.NoError(t, err)
 	return service

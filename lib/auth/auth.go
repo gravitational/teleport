@@ -637,6 +637,7 @@ func (r *Services) DiscoveryConfigClient() services.DiscoveryConfigs {
 	return r
 }
 
+// CrownJewelClient returns the CrownJewels client.
 func (r *Services) CrownJewelClient() services.CrownJewels {
 	return r
 }

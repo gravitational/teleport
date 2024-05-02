@@ -29,17 +29,25 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+// CrownJewels is the interface for managing crown jewel resources.
 type CrownJewels interface {
-	// ListCrownJewels returns the crown jewel of the company
+	// ListCrownJewels returns the crown jewel resources.
 	ListCrownJewels(ctx context.Context, pageSize int64, nextToken string) ([]*crownjewelv1.CrownJewel, string, error)
+	// GetCrownJewel returns the crown jewel resource by name.
 	GetCrownJewel(ctx context.Context, name string) (*crownjewelv1.CrownJewel, error)
+	// CreateCrownJewel creates a new crown jewel resource.
 	CreateCrownJewel(context.Context, *crownjewelv1.CrownJewel) (*crownjewelv1.CrownJewel, error)
+	// UpdateCrownJewel updates the crown jewel resource.
 	UpdateCrownJewel(context.Context, *crownjewelv1.CrownJewel) (*crownjewelv1.CrownJewel, error)
+	// UpsertCrownJewel creates or updates the crown jewel resource.
 	UpsertCrownJewel(context.Context, *crownjewelv1.CrownJewel) (*crownjewelv1.CrownJewel, error)
+	// DeleteCrownJewel deletes the crown jewel resource by name.
 	DeleteCrownJewel(context.Context, string) error
+	// DeleteAllCrownJewels deletes all crown jewel resources.
 	DeleteAllCrownJewels(context.Context) error
 }
 
+// MarshalCrownJewel marshals the CrownJewel object into a JSON byte array.
 func MarshalCrownJewel(object *crownjewelv1.CrownJewel, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
@@ -47,8 +55,6 @@ func MarshalCrownJewel(object *crownjewelv1.CrownJewel, opts ...MarshalOption) (
 	}
 	if !cfg.PreserveResourceID {
 		object = proto.Clone(object).(*crownjewelv1.CrownJewel)
-		//nolint:staticcheck // SA1019. Deprecated, but still needed.
-		object.Metadata.Id = 0
 		object.Metadata.Revision = ""
 	}
 	data, err := utils.FastMarshal(object)
@@ -58,6 +64,7 @@ func MarshalCrownJewel(object *crownjewelv1.CrownJewel, opts ...MarshalOption) (
 	return data, nil
 }
 
+// UnmarshalCrownJewel unmarshals the CrownJewel object from a JSON byte array.
 func UnmarshalCrownJewel(data []byte, opts ...MarshalOption) (*crownjewelv1.CrownJewel, error) {
 	if len(data) == 0 {
 		return nil, trace.BadParameter("missing crown jewel data")

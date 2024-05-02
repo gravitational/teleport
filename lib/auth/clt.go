@@ -559,6 +559,7 @@ func (c *Client) DiscoveryConfigClient() services.DiscoveryConfigWithStatusUpdat
 	return c.APIClient.DiscoveryConfigClient()
 }
 
+// CrownJewelsClient returns a client for managing Crown Jewel resources.
 func (c *Client) CrownJewelsClient() services.CrownJewels {
 	return c.APIClient.CrownJewelServiceClient()
 }

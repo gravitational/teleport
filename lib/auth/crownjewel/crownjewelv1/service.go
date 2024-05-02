@@ -22,7 +22,6 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
@@ -34,9 +33,6 @@ import (
 
 // ServiceConfig holds configuration options for the DiscoveryConfig gRPC service.
 type ServiceConfig struct {
-	// Logger is the logger to use.
-	Logger logrus.FieldLogger
-
 	// Authorizer is the authorizer to use.
 	Authorizer authz.Authorizer
 

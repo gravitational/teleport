@@ -25,6 +25,8 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 )
 
+// NewCrownJewel creates a new CrownJewel object.
+// It validates the object before returning it.
 func NewCrownJewel(name string, spec *crownjewelv1.CrownJewelSpec) (*crownjewelv1.CrownJewel, error) {
 	cj := &crownjewelv1.CrownJewel{
 		Metadata: &headerv1.Metadata{
@@ -40,6 +42,11 @@ func NewCrownJewel(name string, spec *crownjewelv1.CrownJewelSpec) (*crownjewelv
 	return cj, nil
 }
 
+// ValidateCrownJewel validates the CrownJewel object.
+// Required fields:
+//   - Metadata.Name
+//   - Spec.TeleportMatchers or Spec.AwsMatchers
+//   - Matcher.Name or Matcher.Labels
 func ValidateCrownJewel(jewel *crownjewelv1.CrownJewel) error {
 	switch {
 	case jewel == nil:
