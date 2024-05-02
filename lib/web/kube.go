@@ -74,6 +74,8 @@ type podHandler struct {
 // PodExecRequest describes a request to create a web-based terminal
 // to exec into a pod.
 type PodExecRequest struct {
+	// KubeCluster specifies what Kubernetes cluster to connect to.
+	KubeCluster string `json:"kubeCluster"`
 	// Namespace is the namespace of the target pod
 	Namespace string `json:"namespace"`
 	// Pod is the target pod to connect to.
@@ -82,10 +84,8 @@ type PodExecRequest struct {
 	Container string `json:"container"`
 	// Command is the command to run at the target pod.
 	Command string `json:"command"`
-	// KubeCluster specifies what Kubernetes cluster to connect to.
-	KubeCluster string `json:"kube_cluster"`
 	// IsInteractive specifies whether exec request should have interactive TTY.
-	IsInteractive bool `json:"is_interactive"`
+	IsInteractive bool `json:"isInteractive"`
 	// Term is the initial PTY size.
 	Term session.TerminalParams `json:"term"`
 }
@@ -191,7 +191,11 @@ func (p *podHandler) handler(r *http.Request) error {
 		TLSCert:    p.sctx.cfg.Session.GetTLSCert(),
 	}
 
-	stream := NewTerminalStream(ctx, TerminalStreamConfig{WS: p.ws, Logger: p.log})
+	resizeQueue := newTermSizeQueue(ctx, remotecommand.TerminalSize{
+		Width:  p.req.Term.Winsize().Width,
+		Height: p.req.Term.Winsize().Height,
+	})
+	stream := NewTerminalStream(ctx, TerminalStreamConfig{WS: p.ws, Logger: p.log, Handlers: map[string]WSHandlerFunc{defaults.WebsocketResize: p.handleResize(resizeQueue)}})
 
 	certsReq := clientproto.UserCertsRequest{
 		PublicKey:         userKey.MarshalSSHPublicKey(),
@@ -266,13 +270,15 @@ func (p *podHandler) handler(r *http.Request) error {
 	}
 
 	streamOpts := remotecommand.StreamOptions{
-		Stdin:  stream,
-		Stdout: stream,
-		Tty:    p.req.IsInteractive,
+		Stdin:             stream,
+		Stdout:            stream,
+		Tty:               p.req.IsInteractive,
+		TerminalSizeQueue: resizeQueue,
 	}
 	if !p.req.IsInteractive {
 		streamOpts.Stderr = stderrWriter{stream: stream}
 	}
+
 	if err := wsExec.StreamWithContext(ctx, streamOpts); err != nil {
 		return trace.Wrap(err, "failed exec command streaming")
 	}
@@ -299,6 +305,69 @@ func (p *podHandler) handler(r *http.Request) error {
 	p.log.Debug("Sent close event to web client.")
 
 	return nil
+}
+
+func (p *podHandler) handleResize(termSizeQueue *termSizeQueue) func(context.Context, Envelope) {
+	return func(ctx context.Context, envelope Envelope) {
+		var e map[string]interface{}
+		err := json.Unmarshal([]byte(envelope.Payload), &e)
+		if err != nil {
+			p.log.Warnf("Failed to parse resize payload: %v", err)
+			return
+		}
+
+		size, ok := e["size"].(string)
+		if !ok {
+			p.log.Errorf("expected size to be of type string, got type %T instead", size)
+			return
+		}
+
+		params, err := session.UnmarshalTerminalParams(size)
+		if err != nil {
+			p.log.Warnf("Failed to retrieve terminal size: %v", err)
+			return
+		}
+
+		// nil params indicates the channel was closed
+		if params == nil {
+			return
+		}
+
+		termSizeQueue.AddSize(remotecommand.TerminalSize{
+			Width:  params.Winsize().Width,
+			Height: params.Winsize().Height,
+		})
+	}
+}
+
+type termSizeQueue struct {
+	incoming chan remotecommand.TerminalSize
+	ctx      context.Context
+}
+
+func newTermSizeQueue(ctx context.Context, initialSize remotecommand.TerminalSize) *termSizeQueue {
+	queue := &termSizeQueue{
+		incoming: make(chan remotecommand.TerminalSize, 1),
+		ctx:      ctx,
+	}
+	queue.AddSize(initialSize)
+	return queue
+}
+
+func (r *termSizeQueue) Next() *remotecommand.TerminalSize {
+	select {
+	case <-r.ctx.Done():
+		return nil
+	case size := <-r.incoming:
+		return &size
+	}
+}
+
+func (r *termSizeQueue) AddSize(term remotecommand.TerminalSize) {
+	select {
+	case <-r.ctx.Done():
+	case r.incoming <- term:
+	}
 }
 
 func createKubeRestConfig(serverAddr, tlsServerName string, ca types.CertAuthority, clientCert, rsaKey []byte) (*rest.Config, error) {

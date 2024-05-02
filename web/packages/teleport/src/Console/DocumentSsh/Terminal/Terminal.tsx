@@ -47,6 +47,9 @@ export interface TerminalProps {
   fontFamily: string;
   theme: ITheme;
   assistEnabled: boolean;
+  // convertEol when set to true cursor will be set to the beginning of the next line with every received new line symbol.
+  // This is equivalent to replacing each '\n' with '\r\n'.
+  convertEol?: boolean;
 }
 
 interface ActionBarState {
@@ -84,6 +87,7 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
       fontFamily: props.fontFamily,
       fontSize,
       theme: props.theme,
+      convertEol: props.convertEol,
     });
     termCtrlRef.current = termCtrl;
 

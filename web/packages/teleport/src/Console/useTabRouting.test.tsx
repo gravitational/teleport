@@ -65,6 +65,30 @@ test('handling of join ssh session route', async () => {
   expect(docs).toHaveLength(2);
 });
 
+test('handling of init kubeExec session route', async () => {
+  const ctx = new ConsoleContext();
+  const wrapper = makeWrapper(
+    '/web/cluster/localhost/console/kube/exec/kubeCluster/kubeNamespace/pod'
+  );
+  const { current } = renderHook(() => useTabRouting(ctx), { wrapper });
+  const docs = ctx.getDocuments();
+  expect(docs[1].kind).toBe('kubeExec');
+  expect(docs[1].id).toBe(current.activeDocId);
+  expect(docs).toHaveLength(2);
+});
+
+test('handling of init kubeExec session route with container', async () => {
+  const ctx = new ConsoleContext();
+  const wrapper = makeWrapper(
+    '/web/cluster/localhost/console/kube/exec/kubeCluster/kubeNamespace/pod/container'
+  );
+  const { current } = renderHook(() => useTabRouting(ctx), { wrapper });
+  const docs = ctx.getDocuments();
+  expect(docs[1].kind).toBe('kubeExec');
+  expect(docs[1].id).toBe(current.activeDocId);
+  expect(docs).toHaveLength(2);
+});
+
 test('active document id', async () => {
   const ctx = new ConsoleContext();
   const doc = ctx.addSshDocument({
@@ -75,6 +99,28 @@ test('active document id', async () => {
 
   const countBefore = ctx.getDocuments();
   const wrapper = makeWrapper('/web/cluster/two/console/node/server-123/root');
+  const { current } = renderHook(() => useTabRouting(ctx), { wrapper });
+  const countAfter = ctx.getDocuments();
+  expect(doc.id).toBe(current.activeDocId);
+  expect(countAfter).toBe(countBefore);
+});
+
+test('active document id, document url with query parameters', async () => {
+  const ctx = new ConsoleContext();
+  const doc = ctx.addKubeExecDocument(
+    {
+      clusterId: 'cluster1',
+      kubeId: 'kube1',
+      namespace: 'namespace1',
+      pod: 'pod1',
+    },
+    { isInteractive: false, command: 'ls -lah' }
+  );
+
+  const countBefore = ctx.getDocuments();
+  const wrapper = makeWrapper(
+    '/web/cluster/cluster1/console/kube/exec/kube1/namespace1/pod1'
+  );
   const { current } = renderHook(() => useTabRouting(ctx), { wrapper });
   const countAfter = ctx.getDocuments();
   expect(doc.id).toBe(current.activeDocId);

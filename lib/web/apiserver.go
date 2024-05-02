@@ -752,7 +752,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/connect/ws", h.WithClusterAuthWebSocket(true, h.siteNodeConnect))   // connect to an active session (via websocket, with auth over websocket)
 	h.GET("/webapi/sites/:site/sessions", h.WithClusterAuth(h.clusterActiveAndPendingSessionsGet)) // get list of active and pending sessions
 
-	h.GET("/webapi/sites/:site/kube/:clusterName/connect/ws", h.WithClusterAuthWebSocket(true, h.podConnect)) // connect to a pod with exec (via websocket, with auth over websocket)
+	h.GET("/webapi/sites/:site/kube/exec/ws", h.WithClusterAuthWebSocket(true, h.podConnect)) // connect to a pod with exec (via websocket, with auth over websocket)
 
 	// Audit events handlers.
 	h.GET("/webapi/sites/:site/events/search", h.WithClusterAuth(h.clusterSearchEvents))                 // search site events
@@ -3258,7 +3258,7 @@ func (h *Handler) podConnect(
 
 	sess := session.Session{
 		Kind:                  types.KubernetesSessionKind,
-		Login:                 sctx.GetUser(),
+		Login:                 strings.Join([]string{execReq.Namespace, execReq.Pod, execReq.Container}, "/"),
 		ClusterName:           clusterName,
 		KubernetesClusterName: execReq.KubeCluster,
 		Moderated:             accessEvaluator.IsModerated(),
@@ -3267,6 +3267,7 @@ func (h *Handler) podConnect(
 		LastActive:            h.clock.Now().UTC(),
 		Namespace:             apidefaults.Namespace,
 		Owner:                 sctx.GetUser(),
+		Command:               execReq.Command,
 	}
 
 	h.log.Debugf("New kube exec request for namespace=%s pod=%s container=%s, sid=%s, websid=%s.",

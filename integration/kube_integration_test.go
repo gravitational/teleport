@@ -1674,8 +1674,7 @@ func testKubeExecWeb(t *testing.T, suite *KubeSuite) {
 
 	// Login and run the tests.
 	webPack := helpers.LoginWebClient(t, proxyAddr.String(), testUser, userPassword)
-	endpoint, err := url.JoinPath("sites", "$site", "kube", kubeClusterName, "connect/ws") // :site/kube/:clusterName/connect/ws
-	require.NoError(t, err)
+	endpoint := "sites/$site/kube/exec/ws"
 
 	openWebsocketAndReadSession := func(t *testing.T, endpoint string, req web.PodExecRequest) *websocket.Conn {
 		ws, resp, err := webPack.OpenWebsocket(t, endpoint, req)
