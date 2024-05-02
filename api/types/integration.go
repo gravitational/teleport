@@ -156,7 +156,7 @@ func (s *IntegrationSpecV1) CheckAndSetDefaults() error {
 			return trace.Wrap(err)
 		}
 	case *IntegrationSpecV1_AzureOIDC:
-		err := integrationSubKind.CheckAndSetDefaults()
+		err := integrationSubKind.Validate()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -192,8 +192,8 @@ func (s *IntegrationSpecV1_AWSOIDC) CheckAndSetDefaults() error {
 	return nil
 }
 
-// CheckAndSetDefaults validates the configuration for Azure OIDC integration subkind.
-func (s *IntegrationSpecV1_AzureOIDC) CheckAndSetDefaults() error {
+// Validate validates the configuration for Azure OIDC integration subkind.
+func (s *IntegrationSpecV1_AzureOIDC) Validate() error {
 	if s == nil || s.AzureOIDC == nil {
 		return trace.BadParameter("azure_oidc is required for %q subkind", IntegrationSubKindAzureOIDC)
 	}

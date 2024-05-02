@@ -301,7 +301,7 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if settings.EntraId == nil {
 			return trace.BadParameter("missing Entra ID settings")
 		}
-		if err := settings.EntraId.CheckAndSetDefaults(); err != nil {
+		if err := settings.EntraId.Validate(); err != nil {
 			return trace.Wrap(err)
 		}
 	default:
@@ -621,7 +621,7 @@ func (c *PluginOAuth2AccessTokenCredentials) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (c *PluginEntraIDSettings) CheckAndSetDefaults() error {
+func (c *PluginEntraIDSettings) Validate() error {
 	if c.SyncSettings == nil {
 		return trace.BadParameter("sync_settings must be set")
 	}
