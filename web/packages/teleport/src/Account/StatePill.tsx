@@ -20,24 +20,32 @@ import React from 'react';
 import styled, { css } from 'styled-components';
 
 /** State of an authentication method (password, MFA method, or passkey). */
-type State = 'active' | 'inactive';
+export type AuthMethodState = 'active' | 'inactive';
 
-export interface StatePillProps {
-  state: State;
+interface StatePillProps {
+  state: AuthMethodState | undefined;
+  'data-testid'?: string;
 }
 
 /**
  * Renders a pill component that represents a state of an authentication method.
  * The `state` property is both an enum value, as well as the UI text.
  */
-export function StatePill({ state }: StatePillProps) {
-  return <StatePillBody state={state}>{state}</StatePillBody>;
+export function StatePill({ state, 'data-testid': testId }: StatePillProps) {
+  // Explicitly return an empty element to ensure that potential future changes
+  // to the pill body style won't result as an ugly element with no text. At the
+  // same time, retain the test ID to simplify testing.
+  if (!state) return <span data-testid={testId}></span>;
+  return (
+    <StatePillBody state={state} data-testid={testId}>
+      {state}
+    </StatePillBody>
+  );
 }
 
 const StatePillBody = styled.span<StatePillProps>`
   font-size: 14px;
   display: inline-block;
-  margin: 0 ${props => props.theme.space[2]}px;
   padding: 0 ${props => props.theme.space[3]}px;
   border-radius: 1000px;
 
@@ -58,5 +66,7 @@ function statePillStyles({ state }: StatePillProps): string {
           props.theme.colors.interactive.tonal.neutral[0]};
         color: ${props => props.theme.colors.text.disabled};
       `;
+    default:
+      state satisfies never;
   }
 }

@@ -218,18 +218,17 @@ export function Account({
               header={
                 <Header
                   title={
-                    <>
+                    <Flex gap={2}>
                       Multi-factor Authentication
-                      <span data-testid="mfa-state-pill">
-                        <StatePill
-                          state={
-                            canAddMfa && mfaDevices.length > 0
-                              ? 'active'
-                              : 'inactive'
-                          }
-                        />
-                      </span>
-                    </>
+                      <StatePill
+                        data-testid="mfa-state-pill"
+                        state={
+                          canAddMfa && mfaDevices.length > 0
+                            ? 'active'
+                            : 'inactive'
+                        }
+                      />
+                    </Flex>
                   }
                   description="Provide secondary authentication when signing in
                     with a password. Unlike passkeys, multi-factor methods do
@@ -372,12 +371,13 @@ function PasskeysHeader({
   return (
     <Header
       title={
-        <>
+        <Flex gap={2}>
           Passkeys
-          <span data-testid="passwordless-state-pill">
-            <StatePill state={passkeysEnabled ? 'active' : 'inactive'} />
-          </span>
-        </>
+          <StatePill
+            data-testid="passwordless-state-pill"
+            state={passkeysEnabled ? 'active' : 'inactive'}
+          />
+        </Flex>
       }
       description="Enable secure passwordless sign-in using
                 fingerprint or facial recognition, a one-time code, or
