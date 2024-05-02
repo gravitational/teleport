@@ -227,6 +227,9 @@ func (s *Service) updatePluginAndCreateStaticCredentials(ctx context.Context, pl
 	// both the static credentials and the static credentials reference to ensure
 	// that the plugin only reads the static credentials specified here.
 	pluginUUID := uuid.NewString()
+	if credLabels == nil {
+		credLabels = map[string]string{}
+	}
 	credLabels[eteleport.PluginLabel] = pluginUUID
 
 	// Update the plugin to contain the a CredentialsRef that will select all
