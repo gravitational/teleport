@@ -3307,7 +3307,7 @@ func (h *Handler) podConnect(
 		keepAliveInterval:   keepAliveInterval,
 		log:                 h.log.WithField(teleport.ComponentKey, "pod"),
 		userClient:          clt,
-		localAccessPoint:    clt,
+		localAccessPoint:    h.auth.accessPoint,
 		configServerAddr:    serverAddr,
 		configTLSServerName: tlsServerName,
 	}
