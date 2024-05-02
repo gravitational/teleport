@@ -83,7 +83,7 @@ func TestCollectProfiles(t *testing.T) {
 		t.Run(test.desc, func(t *testing.T) {
 			clt := &mockDebugClient{profileContents: make([]byte, 0)}
 			var out bytes.Buffer
-			err := collectProfiles(ctx, clt, &out, test.profilesInput, test.seconds, func(int) {})
+			err := collectProfiles(ctx, clt, &out, test.profilesInput, test.seconds)
 			if test.expectErr {
 				require.Error(t, err)
 				return

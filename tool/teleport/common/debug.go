@@ -24,18 +24,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/progress"
-	"github.com/charmbracelet/bubbles/stopwatch"
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravitational/trace"
-	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
 	debugclient "github.com/gravitational/teleport/lib/client/debug"
@@ -125,20 +119,8 @@ func onCollectProfiles(configPath string, rawProfiles string, seconds int) error
 		return trace.Wrap(err)
 	}
 
-	teaProgram := tea.NewProgram(newCollectModel(cancelFunc), tea.WithOutput(os.Stderr))
 	var output bytes.Buffer
-	errGroup, ctx := errgroup.WithContext(ctx)
-	errGroup.Go(func() error {
-		return collectProfiles(ctx, clt, &output, rawProfiles, seconds, func(rem int) {
-			teaProgram.Send(collectProgressMessage(rem))
-		})
-	})
-
-	if _, err := teaProgram.Run(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := errGroup.Wait(); err != nil {
+	if err := collectProfiles(ctx, clt, &output, rawProfiles, seconds); err != nil {
 		return convertToReadableErr(err, dataDir, socketPath)
 	}
 
@@ -146,97 +128,9 @@ func onCollectProfiles(configPath string, rawProfiles string, seconds int) error
 	return nil
 }
 
-const (
-	padding  = 2
-	maxWidth = 80
-)
-
-// progressFunc a function used to report collect profiles progress.
-type progressFunc func(int)
-
-// collectProgressMessage the collect progress message.
-type collectProgressMessage int
-
-// collectModel represents the progress TUI of collect profiles.
-type collectModel struct {
-	cancel         context.CancelFunc
-	quitKeyBinding key.Binding
-	progress       progress.Model
-	stopwatch      stopwatch.Model
-	percent        float64
-	total          float64
-	done           bool
-}
-
-func newCollectModel(cancelFunc context.CancelFunc) tea.Model {
-	return &collectModel{
-		cancel:    cancelFunc,
-		progress:  progress.New(),
-		stopwatch: stopwatch.NewWithInterval(time.Second),
-		total:     -1,
-		quitKeyBinding: key.NewBinding(
-			key.WithKeys("esc", "ctrl+c", "q"),
-		),
-	}
-}
-
-func (m *collectModel) Init() tea.Cmd {
-	return m.stopwatch.Init()
-}
-
-func (m *collectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
-	m.stopwatch, cmd = m.stopwatch.Update(msg)
-
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		if key.Matches(msg, m.quitKeyBinding) {
-			cmd = tea.Quit
-			m.cancel()
-		}
-	case tea.WindowSizeMsg:
-		m.progress.Width = msg.Width - padding*2 - 4
-		if m.progress.Width > maxWidth {
-			m.progress.Width = maxWidth
-		}
-	case collectProgressMessage:
-		if msg <= 0 {
-			m.done = true
-			cmd = tea.Quit
-			break
-		}
-
-		// First time receiving the progress, we set the total.
-		if m.total == -1 {
-			m.total = float64(msg + 1)
-		}
-
-		m.percent = float64(msg) / m.total
-	}
-
-	return m, cmd
-}
-
-func (m *collectModel) View() string {
-	if m.done {
-		return ""
-	}
-
-	pad := strings.Repeat(" ", padding)
-	return "\n" +
-		pad + m.progress.ViewAs(m.percent) + "\n" +
-		pad + m.stopwatch.View()
-}
-
 // collectProfiles collects the profiles and generate a compressed tarball
 // file.
-func collectProfiles(ctx context.Context, clt DebugClient, buf io.Writer, rawProfiles string, seconds int, progress progressFunc) (err error) {
-	defer func() {
-		if err != nil {
-			progress(-1)
-		}
-	}()
-
+func collectProfiles(ctx context.Context, clt DebugClient, buf io.Writer, rawProfiles string, seconds int) error {
 	profiles := defaultCollectProfiles
 	if rawProfiles != "" {
 		profiles = strings.Split(rawProfiles, ",")
@@ -248,7 +142,6 @@ func collectProfiles(ctx context.Context, clt DebugClient, buf io.Writer, rawPro
 		}
 	}
 
-	rem := len(profiles)
 	fileTime := time.Now()
 	gw := gzip.NewWriter(buf)
 	tw := tar.NewWriter(gw)
@@ -271,9 +164,6 @@ func collectProfiles(ctx context.Context, clt DebugClient, buf io.Writer, rawPro
 		if _, err := tw.Write(contents); err != nil {
 			return trace.Wrap(err)
 		}
-
-		rem--
-		progress(rem)
 	}
 
 	return trace.NewAggregate(tw.Close(), gw.Close())
