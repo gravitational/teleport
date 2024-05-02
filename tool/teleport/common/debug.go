@@ -44,6 +44,16 @@ import (
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
+// DebugClient specifies the debug service client.
+type DebugClient interface {
+	// SetLogLevel changes the application's log level and a change status message.
+	SetLogLevel(context.Context, string) (string, error)
+	// GetLogLevel fetches the current log level.
+	GetLogLevel(context.Context) (string, error)
+	// CollectProfile collects a pprof profile.
+	CollectProfile(context.Context, string, int) ([]byte, error)
+}
+
 func onSetLogLevel(configPath string, level string) error {
 	ctx := context.Background()
 	clt, dataDir, socketPath, err := newDebugClient(configPath)
@@ -60,7 +70,7 @@ func onSetLogLevel(configPath string, level string) error {
 	return nil
 }
 
-func setLogLevel(ctx context.Context, clt debugclient.Client, level string) (string, error) {
+func setLogLevel(ctx context.Context, clt DebugClient, level string) (string, error) {
 	if contains := slices.Contains(logutils.SupportedLevelsText, strings.ToUpper(level)); !contains {
 		return "", trace.BadParameter("%q log level not supported", level)
 	}
@@ -84,7 +94,7 @@ func onGetLogLevel(configPath string) error {
 	return nil
 }
 
-func getLogLevel(ctx context.Context, clt debugclient.Client) (string, error) {
+func getLogLevel(ctx context.Context, clt DebugClient) (string, error) {
 	return clt.GetLogLevel(ctx)
 }
 
@@ -220,7 +230,7 @@ func (m *collectModel) View() string {
 
 // collectProfiles collects the profiles and generate a compressed tarball
 // file.
-func collectProfiles(ctx context.Context, clt debugclient.Client, buf io.Writer, rawProfiles string, seconds int, progress progressFunc) (err error) {
+func collectProfiles(ctx context.Context, clt DebugClient, buf io.Writer, rawProfiles string, seconds int, progress progressFunc) (err error) {
 	defer func() {
 		if err != nil {
 			progress(-1)
@@ -271,7 +281,7 @@ func collectProfiles(ctx context.Context, clt debugclient.Client, buf io.Writer,
 
 // newDebugClient initializes the debug client based on the Teleport
 // configuration. It also returns the data dir and socket path used.
-func newDebugClient(configPath string) (debugclient.Client, string, string, error) {
+func newDebugClient(configPath string) (DebugClient, string, string, error) {
 	cfg, err := config.ReadConfigFile(configPath)
 	if err != nil {
 		return nil, "", "", trace.Wrap(err)

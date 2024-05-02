@@ -31,23 +31,13 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 )
 
-// Client specifies the debug service client.
-type Client interface {
-	// SetLogLevel changes the application's log level and a change status message.
-	SetLogLevel(context.Context, string) (string, error)
-	// GetLogLevel fetches the current log level.
-	GetLogLevel(context.Context) (string, error)
-	// CollectProfile collects a pprof profile.
-	CollectProfile(context.Context, string, int) ([]byte, error)
-}
-
-type clt struct {
+type client struct {
 	clt *http.Client
 }
 
 // NewClient generates a new debug service client.
-func NewClient(socketPath string) Client {
-	return &clt{
+func NewClient(socketPath string) *client {
+	return &client{
 		clt: &http.Client{
 			Timeout: apidefaults.DefaultIOTimeout,
 			Transport: &http.Transport{
@@ -60,7 +50,7 @@ func NewClient(socketPath string) Client {
 }
 
 // SetLogLevel changes the application's log level and a change status message.
-func (c *clt) SetLogLevel(ctx context.Context, level string) (string, error) {
+func (c *client) SetLogLevel(ctx context.Context, level string) (string, error) {
 	resp, err := c.do(ctx, http.MethodPut, url.URL{Path: teleport.DebugLogLevelEndpoint}, []byte(level))
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -80,7 +70,7 @@ func (c *clt) SetLogLevel(ctx context.Context, level string) (string, error) {
 }
 
 // GetLogLevel fetches the current log level.
-func (c *clt) GetLogLevel(ctx context.Context) (string, error) {
+func (c *client) GetLogLevel(ctx context.Context) (string, error) {
 	resp, err := c.do(ctx, http.MethodGet, url.URL{Path: teleport.DebugLogLevelEndpoint}, nil)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -100,7 +90,7 @@ func (c *clt) GetLogLevel(ctx context.Context) (string, error) {
 }
 
 // CollectProfile collects a pprof profile.
-func (c *clt) CollectProfile(ctx context.Context, profileName string, seconds int) ([]byte, error) {
+func (c *client) CollectProfile(ctx context.Context, profileName string, seconds int) ([]byte, error) {
 	u := url.URL{
 		Path: teleport.DebugPProfEndpointsPrefix + profileName,
 	}
@@ -129,7 +119,7 @@ func (c *clt) CollectProfile(ctx context.Context, profileName string, seconds in
 	return result, nil
 }
 
-func (c *clt) do(ctx context.Context, method string, u url.URL, body []byte) (*http.Response, error) {
+func (c *client) do(ctx context.Context, method string, u url.URL, body []byte) (*http.Response, error) {
 	u.Scheme = "http"
 	u.Host = "debug"
 

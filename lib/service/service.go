@@ -3311,7 +3311,7 @@ func (process *TeleportProcess) initDiagnosticService() error {
 func (process *TeleportProcess) initDebugService() error {
 	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentDebug, process.id))
 
-	listener, err := process.importOrCreateListener(ListenerDebug, filepath.Join(process.Config.DataDir, debug.ServiceSocketName))
+	listener, err := process.importOrCreateListener(ListenerDebug, filepath.Join(process.Config.DataDir, teleport.DebugServiceSocketName))
 	if err != nil {
 		return trace.Wrap(err)
 	}

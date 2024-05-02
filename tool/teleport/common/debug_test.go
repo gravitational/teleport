@@ -26,8 +26,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	debugclient "github.com/gravitational/teleport/lib/client/debug"
 )
 
 func TestCollectProfiles(t *testing.T) {
@@ -125,7 +123,7 @@ type collectedProfile struct {
 }
 
 type mockDebugClient struct {
-	debugclient.Client
+	DebugClient
 
 	profileContents   []byte
 	collectProfileErr error
