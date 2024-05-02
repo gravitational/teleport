@@ -104,6 +104,7 @@ import (
 	_ "github.com/stretchr/testify/mock"
 	_ "github.com/stretchr/testify/require"
 	_ "github.com/vulcand/predicate/builder"
+	_ "github.com/xanzy/go-gitlab"
 	_ "golang.org/x/crypto/bcrypt"
 	_ "golang.org/x/crypto/ssh/agent"
 	_ "golang.org/x/exp/maps"
