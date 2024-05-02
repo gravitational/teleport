@@ -27,9 +27,11 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"golang.org/x/sys/unix"
 	"golang.zx2c4.com/wireguard/tun"
@@ -128,18 +130,7 @@ do shell script quoted form of executableName & `+
 }
 
 func createUnixSocket() (*net.UnixListener, string, error) {
-	// Abuse CreateTemp to find an unused path.
-	f, err := os.CreateTemp("", "vnet*.sock")
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	socketPath := f.Name()
-	if err := f.Close(); err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	if err := os.Remove(socketPath); err != nil {
-		return nil, "", trace.Wrap(err)
-	}
+	socketPath := filepath.Join(os.TempDir(), "vnet"+uuid.NewString()+".sock")
 	socketAddr := &net.UnixAddr{Name: socketPath, Net: "unix"}
 	l, err := net.ListenUnix(socketAddr.Net, socketAddr)
 	if err != nil {
