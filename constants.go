@@ -926,3 +926,14 @@ const (
 	// generating their names Server names.
 	KubeLegacyProxySuffix = "-proxy_service"
 )
+
+const (
+	// DebugServiceSocketName represents the Unix domain socket name of the
+	// debug service.
+	DebugServiceSocketName = "debug.sock"
+	// DebugLogLevelEndpoint is the HTTP endpoint used for retrieving and
+	// changing log level.
+	DebugLogLevelEndpoint = "/log-level"
+	// DebugPProfEndpointsPrefix PProf endpoints path prefix.
+	DebugPProfEndpointsPrefix = "/debug/pprof/"
+)

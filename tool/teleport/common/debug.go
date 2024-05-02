@@ -37,10 +37,10 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/gravitational/teleport"
 	debugclient "github.com/gravitational/teleport/lib/client/debug"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/srv/debug"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -284,7 +284,7 @@ func newDebugClient(configPath string) (debugclient.Client, string, string, erro
 		dataDir = cfg.DataDir
 	}
 
-	socketPath := filepath.Join(dataDir, debug.ServiceSocketName)
+	socketPath := filepath.Join(dataDir, teleport.DebugServiceSocketName)
 	return debugclient.NewClient(socketPath), dataDir, socketPath, nil
 }
 

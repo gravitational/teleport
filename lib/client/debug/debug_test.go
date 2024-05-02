@@ -27,7 +27,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib/srv/debug"
+	"github.com/gravitational/teleport"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -96,9 +96,9 @@ func TestCollectProfile(t *testing.T) {
 			require.Len(t, requestedPaths, 1)
 
 			path, args, _ := strings.Cut(requestedPaths[0], "?")
-			require.True(t, strings.HasPrefix(path, debug.PProfEndpointsPrefix), "expected %q request but got %q", debug.PProfEndpointsPrefix, path)
+			require.True(t, strings.HasPrefix(path, teleport.DebugPProfEndpointsPrefix), "expected %q request but got %q", teleport.DebugPProfEndpointsPrefix, path)
 			require.Equal(t, test.expectedArgs, args)
-			require.Equal(t, test.profile, strings.TrimPrefix(path, debug.PProfEndpointsPrefix))
+			require.Equal(t, test.profile, strings.TrimPrefix(path, teleport.DebugPProfEndpointsPrefix))
 		})
 	}
 }
@@ -117,7 +117,7 @@ func newSocketMockService(t *testing.T, contents []byte) (string, func() []strin
 	require.NoError(t, err)
 	t.Cleanup(func() { os.RemoveAll(socketDir) })
 
-	socketPath := filepath.Join(socketDir, debug.ServiceSocketName)
+	socketPath := filepath.Join(socketDir, teleport.DebugServiceSocketName)
 	require.Greater(t, 100, len(socketPath), "expected socket name to be smaller (less than 100 characters)"+
 		" due to Unix domain socket size limitation but got %q (%d).", socketPath, len(socketPath))
 
@@ -138,8 +138,8 @@ func newSocketMockService(t *testing.T, contents []byte) (string, func() []strin
 		}
 	}()
 
+	t.Cleanup(func() { srv.Shutdown(context.Background()) })
 	return socketPath, func() []string {
-		srv.Shutdown(context.Background())
 		return requests
 	}
 }
