@@ -39,6 +39,7 @@ var AllPluginTypes = []PluginType{
 	PluginTypePagerDuty,
 	PluginTypeMattermost,
 	PluginTypeDiscord,
+	PluginTypeEntraID,
 	PluginTypeSCIM,
 }
 
@@ -67,8 +68,6 @@ const (
 	PluginTypeDiscord = "discord"
 	// PluginTypeGitlab indicates the Gitlab access plugin
 	PluginTypeGitlab = "gitlab"
-	// PluginTypeSCIM indicates a generic SCIM integration
-	PluginTypeSCIM = "scim"
 )
 
 // PluginSubkind represents the type of the plugin, e.g., access request, MDM etc.
@@ -297,6 +296,12 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if staticCreds == nil {
 			return trace.BadParameter("Gitlab plugin must be used with the static credentials ref type")
 		}
+	case *PluginSpecV1_EntraId:
+		if settings.EntraId == nil {
+			return trace.BadParameter("missing Entra ID settings")
+		}
+		if err := settings.EntraId.Validate(); err != nil {
+			return trace.Wrap(err)
 	case *PluginSpecV1_Scim:
 		if settings.Scim == nil {
 			return trace.BadParameter("Must be used with SCIM settings")
@@ -466,9 +471,10 @@ func (p *PluginV1) GetType() PluginType {
 		return PluginTypeServiceNow
 	case *PluginSpecV1_Gitlab:
 		return PluginTypeGitlab
+	case *PluginSpecV1_EntraId:
+		return PluginTypeEntraID
 	case *PluginSpecV1_Scim:
 		return PluginTypeSCIM
-
 	default:
 		return PluginTypeUnknown
 	}
@@ -615,6 +621,17 @@ func (c *PluginOAuth2AccessTokenCredentials) CheckAndSetDefaults() error {
 		return trace.BadParameter("refresh_token must be set")
 	}
 	c.Expires = c.Expires.UTC()
+
+	return nil
+}
+
+func (c *PluginEntraIDSettings) Validate() error {
+	if c.SyncSettings == nil {
+		return trace.BadParameter("sync_settings must be set")
+	}
+	if len(c.SyncSettings.DefaultOwners) == 0 {
+		return trace.BadParameter("sync_settings.default_owners must be set")
+	}
 
 	return nil
 }

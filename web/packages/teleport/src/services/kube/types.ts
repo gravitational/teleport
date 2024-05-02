@@ -23,4 +23,5 @@ export interface Kube {
   labels: ResourceLabel[];
   users?: string[];
   groups?: string[];
+  requiresRequest?: boolean;
 }

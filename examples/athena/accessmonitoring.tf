@@ -133,3 +133,16 @@ output "access_monitoring_configuration" {
     }
   }), "\"", "") : null
 }
+
+output "access_monitoring_chart_configuration" {
+  value = var.access_monitoring ? replace(yamlencode({
+    "aws" : {
+      "accessMonitoring" : {
+        enabled : true,
+        roleARN : aws_iam_role.access_monitoring_role[0].arn,
+        reportResults : format("s3://%s/report_results", aws_s3_bucket.long_term_storage.bucket),
+        workgroup : aws_athena_workgroup.access_monitoring_workgroup[0].name
+      }
+    }
+  }), "\"", "") : null
+}

@@ -20,9 +20,7 @@ import { z } from 'zod';
 import { useStore } from 'shared/libs/stores';
 import { arrayObjectIsEqual } from 'shared/utils/highbar';
 
-/* eslint-disable @typescript-eslint/ban-ts-comment*/
-// @ts-ignore
-import { ResourceKind } from 'e-teleport/Workflow/NewRequest/useNewRequest';
+import { ResourceKind } from 'shared/components/AccessRequests/NewRequest';
 
 import {
   DefaultTab,
@@ -65,6 +63,24 @@ import {
 export interface WorkspacesState {
   rootClusterUri?: RootClusterUri;
   workspaces: Record<RootClusterUri, Workspace>;
+  /**
+   * isInitialized signifies whether WorkspacesState has finished state restoration during the start
+   * of the app. It is useful in places that want to wait for the state to be restored before
+   * proceeding.
+   *
+   * If during the previous start of the app the user was logged into a workspace which cert has
+   * since expired, isInitialized will be set to true only _after_ the user logs in to that
+   * workspace (or closes the login modal).
+   *
+   * This field is not persisted to disk.
+   *
+   * Side note: Arguably, depending on the use case, the moment isInitialized is set to true could
+   * be changed to happen right before the modal is shown. Ultimately, the thing that interests us
+   * the most is whether the state from disk was loaded into memory. Maybe in the future we will
+   * need to separate values or an enum.
+   *
+   */
+  isInitialized: boolean;
 }
 
 export interface Workspace {
@@ -94,6 +110,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
   state: WorkspacesState = {
     rootClusterUri: undefined,
     workspaces: {},
+    isInitialized: false,
   };
 
   constructor(
@@ -403,6 +420,10 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     if (persistedState.rootClusterUri) {
       await this.setActiveWorkspace(persistedState.rootClusterUri);
     }
+
+    this.setState(draft => {
+      draft.isInitialized = true;
+    });
   }
 
   // TODO(gzdunek): Parse the entire workspace state read from disk like below.
