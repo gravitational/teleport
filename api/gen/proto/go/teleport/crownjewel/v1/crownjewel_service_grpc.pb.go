@@ -35,6 +35,7 @@ const _ = grpc.SupportPackageIsVersion7
 
 const (
 	CrownJewelService_CreateCrownJewel_FullMethodName = "/teleport.crownjewel.v1.CrownJewelService/CreateCrownJewel"
+	CrownJewelService_GetCrownJewel_FullMethodName    = "/teleport.crownjewel.v1.CrownJewelService/GetCrownJewel"
 	CrownJewelService_ListCrownJewels_FullMethodName  = "/teleport.crownjewel.v1.CrownJewelService/ListCrownJewels"
 	CrownJewelService_UpdateCrownJewel_FullMethodName = "/teleport.crownjewel.v1.CrownJewelService/UpdateCrownJewel"
 	CrownJewelService_UpsertCrownJewel_FullMethodName = "/teleport.crownjewel.v1.CrownJewelService/UpsertCrownJewel"
@@ -47,6 +48,8 @@ const (
 type CrownJewelServiceClient interface {
 	// CreateCrownJewel creates a new CrownJewel.
 	CreateCrownJewel(ctx context.Context, in *CreateCrownJewelRequest, opts ...grpc.CallOption) (*CrownJewel, error)
+	// GetCrownJewel gets a CrownJewel by name.
+	GetCrownJewel(ctx context.Context, in *GetCrownJewelRequest, opts ...grpc.CallOption) (*CrownJewel, error)
 	// ListCrownJewels returns a list of CrownJewels. It supports pagination.
 	ListCrownJewels(ctx context.Context, in *ListCrownJewelsRequest, opts ...grpc.CallOption) (*ListCrownJewelsResponse, error)
 	// UpdateCrownJewel updates an existing CrownJewel.
@@ -68,6 +71,15 @@ func NewCrownJewelServiceClient(cc grpc.ClientConnInterface) CrownJewelServiceCl
 func (c *crownJewelServiceClient) CreateCrownJewel(ctx context.Context, in *CreateCrownJewelRequest, opts ...grpc.CallOption) (*CrownJewel, error) {
 	out := new(CrownJewel)
 	err := c.cc.Invoke(ctx, CrownJewelService_CreateCrownJewel_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *crownJewelServiceClient) GetCrownJewel(ctx context.Context, in *GetCrownJewelRequest, opts ...grpc.CallOption) (*CrownJewel, error) {
+	out := new(CrownJewel)
+	err := c.cc.Invoke(ctx, CrownJewelService_GetCrownJewel_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -116,6 +128,8 @@ func (c *crownJewelServiceClient) DeleteCrownJewel(ctx context.Context, in *Dele
 type CrownJewelServiceServer interface {
 	// CreateCrownJewel creates a new CrownJewel.
 	CreateCrownJewel(context.Context, *CreateCrownJewelRequest) (*CrownJewel, error)
+	// GetCrownJewel gets a CrownJewel by name.
+	GetCrownJewel(context.Context, *GetCrownJewelRequest) (*CrownJewel, error)
 	// ListCrownJewels returns a list of CrownJewels. It supports pagination.
 	ListCrownJewels(context.Context, *ListCrownJewelsRequest) (*ListCrownJewelsResponse, error)
 	// UpdateCrownJewel updates an existing CrownJewel.
@@ -133,6 +147,9 @@ type UnimplementedCrownJewelServiceServer struct {
 
 func (UnimplementedCrownJewelServiceServer) CreateCrownJewel(context.Context, *CreateCrownJewelRequest) (*CrownJewel, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateCrownJewel not implemented")
+}
+func (UnimplementedCrownJewelServiceServer) GetCrownJewel(context.Context, *GetCrownJewelRequest) (*CrownJewel, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetCrownJewel not implemented")
 }
 func (UnimplementedCrownJewelServiceServer) ListCrownJewels(context.Context, *ListCrownJewelsRequest) (*ListCrownJewelsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListCrownJewels not implemented")
@@ -173,6 +190,24 @@ func _CrownJewelService_CreateCrownJewel_Handler(srv interface{}, ctx context.Co
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(CrownJewelServiceServer).CreateCrownJewel(ctx, req.(*CreateCrownJewelRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CrownJewelService_GetCrownJewel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetCrownJewelRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CrownJewelServiceServer).GetCrownJewel(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CrownJewelService_GetCrownJewel_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CrownJewelServiceServer).GetCrownJewel(ctx, req.(*GetCrownJewelRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -259,6 +294,10 @@ var CrownJewelService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CreateCrownJewel",
 			Handler:    _CrownJewelService_CreateCrownJewel_Handler,
+		},
+		{
+			MethodName: "GetCrownJewel",
+			Handler:    _CrownJewelService_GetCrownJewel_Handler,
 		},
 		{
 			MethodName: "ListCrownJewels",

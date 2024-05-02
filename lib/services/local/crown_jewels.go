@@ -54,6 +54,11 @@ func (s *CrownJewelsService) ListCrownJewels(ctx context.Context, pagesize int64
 	return r, nextToken, trace.Wrap(err)
 }
 
+func (s *CrownJewelsService) GetCrownJewel(ctx context.Context, name string) (*crownjewelv1.CrownJewel, error) {
+	r, err := s.service.GetResource(ctx, name)
+	return r, trace.Wrap(err)
+}
+
 func (s *CrownJewelsService) CreateCrownJewel(ctx context.Context, crownJewel *crownjewelv1.CrownJewel) (*crownjewelv1.CrownJewel, error) {
 	r, err := s.service.CreateResource(ctx, crownJewel)
 	return r, trace.Wrap(err)

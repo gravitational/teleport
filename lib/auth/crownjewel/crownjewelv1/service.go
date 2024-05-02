@@ -27,6 +27,7 @@ import (
 
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/crownjewel"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -92,7 +93,7 @@ func (s *Service) CreateCrownJewel(ctx context.Context, req *crownjewelv1.Create
 		return nil, trace.Wrap(err)
 	}
 
-	if err := validateCrownJewel(req.CrownJewels); err != nil {
+	if err := crownjewel.ValidateCrownJewel(req.CrownJewels); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -126,6 +127,26 @@ func (s *Service) ListCrownJewels(ctx context.Context, req *crownjewelv1.ListCro
 	}, nil
 }
 
+// GetCrownJewel returns crown jewel resource.
+func (s *Service) GetCrownJewel(ctx context.Context, req *crownjewelv1.GetCrownJewelRequest) (*crownjewelv1.CrownJewel, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindCrownJewel, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rsp, err := s.backend.GetCrownJewel(ctx, req.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return rsp, nil
+
+}
+
 // UpdateCrownJewel updates crown jewel resource.
 func (s *Service) UpdateCrownJewel(ctx context.Context, req *crownjewelv1.UpdateCrownJewelRequest) (*crownjewelv1.CrownJewel, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
@@ -141,7 +162,7 @@ func (s *Service) UpdateCrownJewel(ctx context.Context, req *crownjewelv1.Update
 		return nil, trace.Wrap(err)
 	}
 
-	if err := validateCrownJewel(req.CrownJewels); err != nil {
+	if err := crownjewel.ValidateCrownJewel(req.CrownJewels); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -168,7 +189,7 @@ func (s *Service) UpsertCrownJewel(ctx context.Context, req *crownjewelv1.Upsert
 		return nil, trace.Wrap(err)
 	}
 
-	if err := validateCrownJewel(req.CrownJewels); err != nil {
+	if err := crownjewel.ValidateCrownJewel(req.CrownJewels); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -201,61 +222,4 @@ func (s *Service) DeleteCrownJewel(ctx context.Context, req *crownjewelv1.Delete
 	}
 
 	return &emptypb.Empty{}, nil
-}
-
-func validateCrownJewel(jewel *crownjewelv1.CrownJewel) error {
-	switch {
-	case jewel == nil:
-		return trace.BadParameter("crown jewel is nil")
-	case jewel.Metadata == nil:
-		return trace.BadParameter("crown jewel metadata is nil")
-	case jewel.Metadata.Name == "":
-		return trace.BadParameter("crown jewel name is empty")
-	case jewel.Spec == nil:
-		return trace.BadParameter("crown jewel spec is nil")
-	case len(jewel.Spec.TeleportMatchers) == 0 && len(jewel.Spec.AwsMatchers) == 0:
-		return trace.BadParameter("crown jewel must have at least one matcher")
-	}
-
-	if len(jewel.Spec.TeleportMatchers) > 0 {
-		for _, matcher := range jewel.Spec.TeleportMatchers {
-			if len(matcher.GetKinds()) == 0 {
-				return trace.BadParameter("teleport matcher kinds must be set")
-			}
-
-			if matcher.Name == "" && len(matcher.GetLabels()) == 0 {
-				return trace.BadParameter("teleport matcher name or labels must be set")
-			}
-
-			if len(matcher.GetLabels()) > 0 {
-				for _, label := range matcher.GetLabels() {
-					if label.Name == "" || len(label.Values) == 0 {
-						return trace.BadParameter("teleport matcher label name or value is empty")
-					}
-				}
-			}
-		}
-	}
-
-	if len(jewel.Spec.AwsMatchers) > 0 {
-		for _, matcher := range jewel.Spec.AwsMatchers {
-			if len(matcher.GetTypes()) == 0 {
-				return trace.BadParameter("aws matcher type must be set")
-			}
-
-			if matcher.GetArn() == "" && len(matcher.GetTags()) == 0 {
-				return trace.BadParameter("aws matcher arn or tags must be set")
-			}
-
-			if len(matcher.GetTypes()) > 0 {
-				for _, label := range matcher.GetTags() {
-					if label.Key == "" || len(label.Values) == 0 {
-						return trace.BadParameter("aws matcher tag key or value is empty")
-					}
-				}
-			}
-		}
-	}
-
-	return nil
 }

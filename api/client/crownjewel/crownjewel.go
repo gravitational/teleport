@@ -58,6 +58,17 @@ func (c *Client) CreateCrownJewel(ctx context.Context, req *crownjewelv1.CrownJe
 	return rsp, trace.Wrap(err)
 }
 
+// GetCrownJewel returns a Crown Jewel by name.
+func (c *Client) GetCrownJewel(ctx context.Context, name string) (*crownjewelv1.CrownJewel, error) {
+	rsp, err := c.grpcClient.GetCrownJewel(ctx, &crownjewelv1.GetCrownJewelRequest{
+		Name: name,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return rsp, trace.Wrap(err)
+}
+
 // UpdateCrownJewel updates an existing Crown Jewel.
 func (c *Client) UpdateCrownJewel(ctx context.Context, req *crownjewelv1.CrownJewel) (*crownjewelv1.CrownJewel, error) {
 	rsp, err := c.grpcClient.UpdateCrownJewel(ctx, &crownjewelv1.UpdateCrownJewelRequest{
