@@ -6,116 +6,116 @@ This list is updated when new AMI versions are released.
 ### OSS
 
 ```
-# ap-northeast-1 v15.2.4 arm64 OSS: ami-0b6625c553ba98e91
-# ap-northeast-1 v15.2.4 x86_64 OSS: ami-0cbdc54957d175bb0
-# ap-northeast-2 v15.2.4 arm64 OSS: ami-078736259043b7ffc
-# ap-northeast-2 v15.2.4 x86_64 OSS: ami-0731958659d0950a0
-# ap-northeast-3 v15.2.4 arm64 OSS: ami-0cfe6636d3df41bfc
-# ap-northeast-3 v15.2.4 x86_64 OSS: ami-08f5106875c78a83f
-# ap-south-1 v15.2.4 arm64 OSS: ami-08df30f7aa914f2a5
-# ap-south-1 v15.2.4 x86_64 OSS: ami-0d2f66907516f1cc3
-# ap-southeast-1 v15.2.4 arm64 OSS: ami-087f03aecc48e4e6d
-# ap-southeast-1 v15.2.4 x86_64 OSS: ami-0a037b63ca290f267
-# ap-southeast-2 v15.2.4 arm64 OSS: ami-0a8cf108ce71be8a7
-# ap-southeast-2 v15.2.4 x86_64 OSS: ami-059e91ea9ac9f287a
-# ca-central-1 v15.2.4 arm64 OSS: ami-0c533a1fae04573f3
-# ca-central-1 v15.2.4 x86_64 OSS: ami-059de041b55ca4ec3
-# eu-central-1 v15.2.4 arm64 OSS: ami-0f0818a00d5440296
-# eu-central-1 v15.2.4 x86_64 OSS: ami-010989abf5d7c47be
-# eu-north-1 v15.2.4 arm64 OSS: ami-0d5e24748374ef733
-# eu-north-1 v15.2.4 x86_64 OSS: ami-0a01b3d7c48e194ed
-# eu-west-1 v15.2.4 arm64 OSS: ami-01a3c7567a834a497
-# eu-west-1 v15.2.4 x86_64 OSS: ami-00eb517474a4091d6
-# eu-west-2 v15.2.4 arm64 OSS: ami-05c4dc58684fadfb9
-# eu-west-2 v15.2.4 x86_64 OSS: ami-042e6e5eaf3b20dc9
-# eu-west-3 v15.2.4 arm64 OSS: ami-0b170a93438fb6ac6
-# eu-west-3 v15.2.4 x86_64 OSS: ami-097c519eddedf1605
-# sa-east-1 v15.2.4 arm64 OSS: ami-08d104d7b1fd0aa1c
-# sa-east-1 v15.2.4 x86_64 OSS: ami-055d389667cb47149
-# us-east-1 v15.2.4 arm64 OSS: ami-0923414423beec10d
-# us-east-1 v15.2.4 x86_64 OSS: ami-09ddbae38d46405ab
-# us-east-2 v15.2.4 arm64 OSS: ami-06569159602c2817e
-# us-east-2 v15.2.4 x86_64 OSS: ami-0f4cde1b3376aedd9
-# us-west-1 v15.2.4 arm64 OSS: ami-0b69e152cb8f0e6f3
-# us-west-1 v15.2.4 x86_64 OSS: ami-0b8b65cfef6b278c4
-# us-west-2 v15.2.4 arm64 OSS: ami-0458d44fd0ea03f25
-# us-west-2 v15.2.4 x86_64 OSS: ami-059243bd67d62fb48
+# ap-northeast-1 v15.3.0 arm64 OSS: ami-03568e6b74d2b3a55
+# ap-northeast-1 v15.3.0 x86_64 OSS: ami-0a28b821cc5c79929
+# ap-northeast-2 v15.3.0 arm64 OSS: ami-0f9ac9c6cdb275a3f
+# ap-northeast-2 v15.3.0 x86_64 OSS: ami-0e66160380ba82633
+# ap-northeast-3 v15.3.0 arm64 OSS: ami-00fb92a7dfeeff607
+# ap-northeast-3 v15.3.0 x86_64 OSS: ami-0351e471e82bf13f6
+# ap-south-1 v15.3.0 arm64 OSS: ami-0ce0cb789870696c9
+# ap-south-1 v15.3.0 x86_64 OSS: ami-073c64536085e4f0d
+# ap-southeast-1 v15.3.0 arm64 OSS: ami-0523c4d2c241951de
+# ap-southeast-1 v15.3.0 x86_64 OSS: ami-077997bd9d7a057ad
+# ap-southeast-2 v15.3.0 arm64 OSS: ami-0b4b0cf2d07b972d8
+# ap-southeast-2 v15.3.0 x86_64 OSS: ami-000f4b1e80aabca19
+# ca-central-1 v15.3.0 arm64 OSS: ami-0f6e7701103a8a1dc
+# ca-central-1 v15.3.0 x86_64 OSS: ami-0990bc6f452625a0a
+# eu-central-1 v15.3.0 arm64 OSS: ami-0ce62b4b13ed14554
+# eu-central-1 v15.3.0 x86_64 OSS: ami-05be9aa54fa83d72e
+# eu-north-1 v15.3.0 arm64 OSS: ami-0d896f4a29f28cd10
+# eu-north-1 v15.3.0 x86_64 OSS: ami-0a4a38dff2255fa9b
+# eu-west-1 v15.3.0 arm64 OSS: ami-04bfca13c2a9b1c81
+# eu-west-1 v15.3.0 x86_64 OSS: ami-0ea2e18eb627d7830
+# eu-west-2 v15.3.0 arm64 OSS: ami-0d82bb7ad9a22c0e3
+# eu-west-2 v15.3.0 x86_64 OSS: ami-0ee8480549ef1b338
+# eu-west-3 v15.3.0 arm64 OSS: ami-04c78b9beeda6f322
+# eu-west-3 v15.3.0 x86_64 OSS: ami-0149f659d82cf0d35
+# sa-east-1 v15.3.0 arm64 OSS: ami-0479bd42aae63e3c6
+# sa-east-1 v15.3.0 x86_64 OSS: ami-00015b5efba6acc44
+# us-east-1 v15.3.0 arm64 OSS: ami-0ed1cfeccfd70f67e
+# us-east-1 v15.3.0 x86_64 OSS: ami-0a9343dfc8f11b1ac
+# us-east-2 v15.3.0 arm64 OSS: ami-02a98f57fc96569e7
+# us-east-2 v15.3.0 x86_64 OSS: ami-03583c6ae4d6e9992
+# us-west-1 v15.3.0 arm64 OSS: ami-0cd2b9c8d406a132d
+# us-west-1 v15.3.0 x86_64 OSS: ami-0a78389a2105b9b2a
+# us-west-2 v15.3.0 arm64 OSS: ami-0a24d4a9b22dc5ab0
+# us-west-2 v15.3.0 x86_64 OSS: ami-0735f7c458e37a21c
 ```
 
 ### Enterprise
 
 ```
-# ap-northeast-1 v15.2.4 arm64 Enterprise: ami-08d0ecda658eae71a
-# ap-northeast-1 v15.2.4 x86_64 Enterprise: ami-062dce00448ba6c12
-# ap-northeast-2 v15.2.4 arm64 Enterprise: ami-040e180bdf869fffe
-# ap-northeast-2 v15.2.4 x86_64 Enterprise: ami-0fa3fd85c2c2f8641
-# ap-northeast-3 v15.2.4 arm64 Enterprise: ami-0a0264958b6f2ef0c
-# ap-northeast-3 v15.2.4 x86_64 Enterprise: ami-02aef57654b5d0925
-# ap-south-1 v15.2.4 arm64 Enterprise: ami-0e9919621fc597f02
-# ap-south-1 v15.2.4 x86_64 Enterprise: ami-04f1017e926afc045
-# ap-southeast-1 v15.2.4 arm64 Enterprise: ami-0cb79fa63e47980dc
-# ap-southeast-1 v15.2.4 x86_64 Enterprise: ami-022a0fe93f24a8523
-# ap-southeast-2 v15.2.4 arm64 Enterprise: ami-078a7a149d31cde02
-# ap-southeast-2 v15.2.4 x86_64 Enterprise: ami-0f47e698cf5eec8e7
-# ca-central-1 v15.2.4 arm64 Enterprise: ami-0398dff5e56bf5417
-# ca-central-1 v15.2.4 x86_64 Enterprise: ami-0257813bb4778917b
-# eu-central-1 v15.2.4 arm64 Enterprise: ami-00998ba92b0b585df
-# eu-central-1 v15.2.4 x86_64 Enterprise: ami-0e0005c53cea65056
-# eu-north-1 v15.2.4 arm64 Enterprise: ami-07970a710012a2077
-# eu-north-1 v15.2.4 x86_64 Enterprise: ami-0b53e773ef69f3508
-# eu-west-1 v15.2.4 arm64 Enterprise: ami-0431b48ff930c71a7
-# eu-west-1 v15.2.4 x86_64 Enterprise: ami-068fbbaacacceebd2
-# eu-west-2 v15.2.4 arm64 Enterprise: ami-06239c737e2f04f7a
-# eu-west-2 v15.2.4 x86_64 Enterprise: ami-027f6b16689139d09
-# eu-west-3 v15.2.4 arm64 Enterprise: ami-0f1c65e2768899d09
-# eu-west-3 v15.2.4 x86_64 Enterprise: ami-0cc503518a5523db6
-# sa-east-1 v15.2.4 arm64 Enterprise: ami-03d06c11efefb386b
-# sa-east-1 v15.2.4 x86_64 Enterprise: ami-09f775fcdee098db1
-# us-east-1 v15.2.4 arm64 Enterprise: ami-0b28f193af9684d2a
-# us-east-1 v15.2.4 x86_64 Enterprise: ami-0225eb8e810093d25
-# us-east-2 v15.2.4 arm64 Enterprise: ami-031f0adae33ffb512
-# us-east-2 v15.2.4 x86_64 Enterprise: ami-0f923100844d73229
-# us-west-1 v15.2.4 arm64 Enterprise: ami-0e87599b926eaa8f5
-# us-west-1 v15.2.4 x86_64 Enterprise: ami-04aaae9d3f1980c50
-# us-west-2 v15.2.4 arm64 Enterprise: ami-05810cd699507b106
-# us-west-2 v15.2.4 x86_64 Enterprise: ami-05f29ba96eab766de
+# ap-northeast-1 v15.3.0 arm64 Enterprise: ami-0cf48d0d8d6948ac9
+# ap-northeast-1 v15.3.0 x86_64 Enterprise: ami-0f30b4a22ee3909b0
+# ap-northeast-2 v15.3.0 arm64 Enterprise: ami-02b0e969fd56e46ed
+# ap-northeast-2 v15.3.0 x86_64 Enterprise: ami-096f03997d3b8a404
+# ap-northeast-3 v15.3.0 arm64 Enterprise: ami-014eb45038ffc7605
+# ap-northeast-3 v15.3.0 x86_64 Enterprise: ami-028e9d71cab859ac2
+# ap-south-1 v15.3.0 arm64 Enterprise: ami-0203c40525c27fd54
+# ap-south-1 v15.3.0 x86_64 Enterprise: ami-0e24be6da28ea2989
+# ap-southeast-1 v15.3.0 arm64 Enterprise: ami-0cc110d6ad2067431
+# ap-southeast-1 v15.3.0 x86_64 Enterprise: ami-04ea1dcd297fd57b1
+# ap-southeast-2 v15.3.0 arm64 Enterprise: ami-0d468844abf816dee
+# ap-southeast-2 v15.3.0 x86_64 Enterprise: ami-00a79abc96ce8e357
+# ca-central-1 v15.3.0 arm64 Enterprise: ami-07f435652148ac1fe
+# ca-central-1 v15.3.0 x86_64 Enterprise: ami-0065ca3e6f59c2fab
+# eu-central-1 v15.3.0 arm64 Enterprise: ami-0ba7f659da1949ff9
+# eu-central-1 v15.3.0 x86_64 Enterprise: ami-06b005cd0fda09e9c
+# eu-north-1 v15.3.0 arm64 Enterprise: ami-03b2190c75bedf9cf
+# eu-north-1 v15.3.0 x86_64 Enterprise: ami-0b240d96fe735e16b
+# eu-west-1 v15.3.0 arm64 Enterprise: ami-024a5f4533cd5eef6
+# eu-west-1 v15.3.0 x86_64 Enterprise: ami-021cb86dd0ffb93f0
+# eu-west-2 v15.3.0 arm64 Enterprise: ami-0d686db9fec675b3f
+# eu-west-2 v15.3.0 x86_64 Enterprise: ami-0629cbb638209ced5
+# eu-west-3 v15.3.0 arm64 Enterprise: ami-0feee638c85e84685
+# eu-west-3 v15.3.0 x86_64 Enterprise: ami-05820d08cf1891d00
+# sa-east-1 v15.3.0 arm64 Enterprise: ami-0db2eaacedaee97ce
+# sa-east-1 v15.3.0 x86_64 Enterprise: ami-099768795e49400c2
+# us-east-1 v15.3.0 arm64 Enterprise: ami-07fc96fc3b0daf92b
+# us-east-1 v15.3.0 x86_64 Enterprise: ami-0ce70e4b056810bba
+# us-east-2 v15.3.0 arm64 Enterprise: ami-008a1205498303a79
+# us-east-2 v15.3.0 x86_64 Enterprise: ami-0762382d41841e03e
+# us-west-1 v15.3.0 arm64 Enterprise: ami-0059376205543f183
+# us-west-1 v15.3.0 x86_64 Enterprise: ami-004646310a5b2f01d
+# us-west-2 v15.3.0 arm64 Enterprise: ami-059f15ba9cb010653
+# us-west-2 v15.3.0 x86_64 Enterprise: ami-01da08accfb951d26
 ```
 
 ### Enterprise FIPS
 
 ```
-# ap-northeast-1 v15.2.4 arm64 Enterprise FIPS: ami-01544195f1cd1c58a
-# ap-northeast-1 v15.2.4 x86_64 Enterprise FIPS: ami-0839013f5a4e0d19a
-# ap-northeast-2 v15.2.4 arm64 Enterprise FIPS: ami-02817bec35955ffbe
-# ap-northeast-2 v15.2.4 x86_64 Enterprise FIPS: ami-0054db132b961903b
-# ap-northeast-3 v15.2.4 arm64 Enterprise FIPS: ami-0cf2442ff1482ee1d
-# ap-northeast-3 v15.2.4 x86_64 Enterprise FIPS: ami-09dd3b10fa278bc4e
-# ap-south-1 v15.2.4 arm64 Enterprise FIPS: ami-0ca3b68476412d9fa
-# ap-south-1 v15.2.4 x86_64 Enterprise FIPS: ami-02ea3937a438b20b5
-# ap-southeast-1 v15.2.4 arm64 Enterprise FIPS: ami-00e908693135e8b00
-# ap-southeast-1 v15.2.4 x86_64 Enterprise FIPS: ami-07327014bccd3d57f
-# ap-southeast-2 v15.2.4 arm64 Enterprise FIPS: ami-02e270a465c4cfd41
-# ap-southeast-2 v15.2.4 x86_64 Enterprise FIPS: ami-0416e49dfd821b8c8
-# ca-central-1 v15.2.4 arm64 Enterprise FIPS: ami-0a432a6a687d3f62b
-# ca-central-1 v15.2.4 x86_64 Enterprise FIPS: ami-07ed8d3ef914c9001
-# eu-central-1 v15.2.4 arm64 Enterprise FIPS: ami-0313d8d67cba6d9cc
-# eu-central-1 v15.2.4 x86_64 Enterprise FIPS: ami-070b6cbcb20cc1bc7
-# eu-north-1 v15.2.4 arm64 Enterprise FIPS: ami-051f6ddf493366207
-# eu-north-1 v15.2.4 x86_64 Enterprise FIPS: ami-04d55327f1025196f
-# eu-west-1 v15.2.4 arm64 Enterprise FIPS: ami-0a7c965f6eedb9e75
-# eu-west-1 v15.2.4 x86_64 Enterprise FIPS: ami-0f46f6185730d3439
-# eu-west-2 v15.2.4 arm64 Enterprise FIPS: ami-0863a56bb3808da85
-# eu-west-2 v15.2.4 x86_64 Enterprise FIPS: ami-0fe0d9191d54c1590
-# eu-west-3 v15.2.4 arm64 Enterprise FIPS: ami-0558718ebd4f28df4
-# eu-west-3 v15.2.4 x86_64 Enterprise FIPS: ami-04d6413b8a01a89b5
-# sa-east-1 v15.2.4 arm64 Enterprise FIPS: ami-002d0f493a1173001
-# sa-east-1 v15.2.4 x86_64 Enterprise FIPS: ami-069acab8be2b2da90
-# us-east-1 v15.2.4 arm64 Enterprise FIPS: ami-0458283d2c5721cc1
-# us-east-1 v15.2.4 x86_64 Enterprise FIPS: ami-0d986caabecd03968
-# us-east-2 v15.2.4 arm64 Enterprise FIPS: ami-0de4d9eadd9c0ed84
-# us-east-2 v15.2.4 x86_64 Enterprise FIPS: ami-0e29bd38b0c94f0d2
-# us-west-1 v15.2.4 arm64 Enterprise FIPS: ami-0945b397884e585eb
-# us-west-1 v15.2.4 x86_64 Enterprise FIPS: ami-05c1f95cca5a38de9
-# us-west-2 v15.2.4 arm64 Enterprise FIPS: ami-0c02a735df4446b62
-# us-west-2 v15.2.4 x86_64 Enterprise FIPS: ami-004ca798345448298
+# ap-northeast-1 v15.3.0 arm64 Enterprise FIPS: ami-03d344b8c72f57e2e
+# ap-northeast-1 v15.3.0 x86_64 Enterprise FIPS: ami-0b635f22a4ff33523
+# ap-northeast-2 v15.3.0 arm64 Enterprise FIPS: ami-02b94ea507c36dd60
+# ap-northeast-2 v15.3.0 x86_64 Enterprise FIPS: ami-05464aea9550fac83
+# ap-northeast-3 v15.3.0 arm64 Enterprise FIPS: ami-01dff92b7a172bdef
+# ap-northeast-3 v15.3.0 x86_64 Enterprise FIPS: ami-05506524cbdfe57b9
+# ap-south-1 v15.3.0 arm64 Enterprise FIPS: ami-0d331415a198d9611
+# ap-south-1 v15.3.0 x86_64 Enterprise FIPS: ami-01cfb38857e2683b7
+# ap-southeast-1 v15.3.0 arm64 Enterprise FIPS: ami-0521dd4e69cca45a2
+# ap-southeast-1 v15.3.0 x86_64 Enterprise FIPS: ami-0a64d7be14e0dd544
+# ap-southeast-2 v15.3.0 arm64 Enterprise FIPS: ami-07ff08fad58f1011c
+# ap-southeast-2 v15.3.0 x86_64 Enterprise FIPS: ami-079dca0e1a623235c
+# ca-central-1 v15.3.0 arm64 Enterprise FIPS: ami-0a8b10681e482db92
+# ca-central-1 v15.3.0 x86_64 Enterprise FIPS: ami-0d803d27352e90ef6
+# eu-central-1 v15.3.0 arm64 Enterprise FIPS: ami-0ea9022892c08d187
+# eu-central-1 v15.3.0 x86_64 Enterprise FIPS: ami-0f6db3a3291a38b95
+# eu-north-1 v15.3.0 arm64 Enterprise FIPS: ami-0f5645544e1aa4a62
+# eu-north-1 v15.3.0 x86_64 Enterprise FIPS: ami-0761ee816eedeeae9
+# eu-west-1 v15.3.0 arm64 Enterprise FIPS: ami-0ffd8d149ffcd176a
+# eu-west-1 v15.3.0 x86_64 Enterprise FIPS: ami-01ea1cac51a475414
+# eu-west-2 v15.3.0 arm64 Enterprise FIPS: ami-05dc0e732c23296d3
+# eu-west-2 v15.3.0 x86_64 Enterprise FIPS: ami-03183a758eec58a86
+# eu-west-3 v15.3.0 arm64 Enterprise FIPS: ami-02a690b6573c0f228
+# eu-west-3 v15.3.0 x86_64 Enterprise FIPS: ami-021797fc46acc04b7
+# sa-east-1 v15.3.0 arm64 Enterprise FIPS: ami-0e0d02875d8327ac7
+# sa-east-1 v15.3.0 x86_64 Enterprise FIPS: ami-0bacd002bbfd0f1ea
+# us-east-1 v15.3.0 arm64 Enterprise FIPS: ami-0c889499b33d7834d
+# us-east-1 v15.3.0 x86_64 Enterprise FIPS: ami-02ba1a483504785cc
+# us-east-2 v15.3.0 arm64 Enterprise FIPS: ami-031bfe92d16a883ca
+# us-east-2 v15.3.0 x86_64 Enterprise FIPS: ami-06638b3875291ef0f
+# us-west-1 v15.3.0 arm64 Enterprise FIPS: ami-070c0e0fa38d583b6
+# us-west-1 v15.3.0 x86_64 Enterprise FIPS: ami-0e2a8d569d23d4578
+# us-west-2 v15.3.0 arm64 Enterprise FIPS: ami-056571632afa96337
+# us-west-2 v15.3.0 x86_64 Enterprise FIPS: ami-0152107371e78ee14
 ```

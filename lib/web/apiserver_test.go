@@ -2155,7 +2155,7 @@ func mustStartWindowsDesktopMock(t *testing.T, authClient *auth.Server) *windows
 			return
 		}
 		tlsConn := tls.Server(conn, tlsConfig)
-		if err := tlsConn.Handshake(); err != nil {
+		if err := tlsConn.HandshakeContext(context.Background()); err != nil {
 			t.Errorf("Unexpected error %v", err)
 			return
 		}
@@ -4497,11 +4497,12 @@ func TestGetWebConfig(t *testing.T) {
 			PrivateKeyPolicy:   keys.PrivateKeyPolicyNone,
 			MOTD:               MOTD,
 		},
-		CanJoinSessions:   true,
-		ProxyClusterName:  env.server.ClusterName(),
-		IsCloud:           false,
-		AssistEnabled:     false,
-		AutomaticUpgrades: false,
+		CanJoinSessions:    true,
+		ProxyClusterName:   env.server.ClusterName(),
+		IsCloud:            false,
+		AssistEnabled:      false,
+		AutomaticUpgrades:  false,
+		JoinActiveSessions: true,
 	}
 
 	// Make a request.
@@ -4551,6 +4552,7 @@ func TestGetWebConfig(t *testing.T) {
 	expectedCfg.AutomaticUpgrades = true
 	expectedCfg.AutomaticUpgradesTargetVersion = "v" + teleport.Version
 	expectedCfg.AssistEnabled = false
+	expectedCfg.JoinActiveSessions = false
 
 	// request and verify enabled features are enabled.
 	re, err = clt.Get(ctx, endpoint, nil)
@@ -4603,6 +4605,9 @@ func TestGetWebConfig_IGSFeatureLimits(t *testing.T) {
 			AccessMonitoring: modules.AccessMonitoringFeature{
 				MaxReportRangeLimit: 10,
 			},
+			IsUsageBasedBilling: true,
+			IsStripeManaged:     true,
+			Questionnaire:       true,
 		},
 	})
 
@@ -4619,8 +4624,11 @@ func TestGetWebConfig_IGSFeatureLimits(t *testing.T) {
 			AccessListCreateLimit:               5,
 			AccessMonitoringMaxReportRangeLimit: 10,
 		},
-		IsTeam:       true,
-		IsIGSEnabled: true,
+		IsTeam:              true,
+		IsIGSEnabled:        true,
+		IsStripeManaged:     true,
+		Questionnaire:       true,
+		IsUsageBasedBilling: true,
 	}
 
 	// Make a request.
