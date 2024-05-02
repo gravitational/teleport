@@ -27,6 +27,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -44,31 +45,44 @@ func (m *mockLeveler) SetLogLevel(level slog.Level) {
 
 func TestLogLevel(t *testing.T) {
 	leveler, ts := makeServer(t)
-	statusCode, logLevel := makeRequest(t, ts, http.MethodGet, LogLevelEndpoint, "")
+	statusCode, logLevel := makeRequest(t, ts, http.MethodGet, teleport.DebugLogLevelEndpoint, "")
 	require.Equal(t, http.StatusOK, statusCode)
 	require.Equal(t, leveler.GetLogLevel().String(), logLevel)
 
 	// Invalid log level
-	statusCode, _ = makeRequest(t, ts, http.MethodPut, LogLevelEndpoint, "RANDOM")
+	statusCode, _ = makeRequest(t, ts, http.MethodPut, teleport.DebugLogLevelEndpoint, "RANDOM")
 	require.Equal(t, http.StatusUnprocessableEntity, statusCode)
 
 	for _, logLevel := range logutils.SupportedLevelsText {
 		t.Run("Set"+logLevel, func(t *testing.T) {
-			statusCode, _ := makeRequest(t, ts, http.MethodPut, LogLevelEndpoint, logLevel)
+			statusCode, _ := makeRequest(t, ts, http.MethodPut, teleport.DebugLogLevelEndpoint, logLevel)
 			require.Equal(t, http.StatusOK, statusCode)
 
-			statusCode, retrievedLogLevel := makeRequest(t, ts, http.MethodGet, LogLevelEndpoint, "")
+			statusCode, retrievedLogLevel := makeRequest(t, ts, http.MethodGet, teleport.DebugLogLevelEndpoint, "")
 			require.Equal(t, http.StatusOK, statusCode)
 			require.Equal(t, logLevel, retrievedLogLevel)
 		})
 
 		t.Run("SetLower"+logLevel, func(t *testing.T) {
-			statusCode, _ := makeRequest(t, ts, http.MethodPut, LogLevelEndpoint, strings.ToLower(logLevel))
+			statusCode, _ := makeRequest(t, ts, http.MethodPut, teleport.DebugLogLevelEndpoint, strings.ToLower(logLevel))
 			require.Equal(t, http.StatusOK, statusCode)
 
-			statusCode, retrievedLogLevel := makeRequest(t, ts, http.MethodGet, LogLevelEndpoint, "")
+			statusCode, retrievedLogLevel := makeRequest(t, ts, http.MethodGet, teleport.DebugLogLevelEndpoint, "")
 			require.Equal(t, http.StatusOK, statusCode)
 			require.Equal(t, logLevel, retrievedLogLevel)
+		})
+	}
+
+	// Random or any other slog format should be rejected.
+	for _, level := range []string{"RANDOM", "DEBUG-1", "INFO+1", "INVALID"} {
+		t.Run("Set"+level, func(t *testing.T) {
+			statusCode, _ := makeRequest(t, ts, http.MethodPut, teleport.DebugLogLevelEndpoint, level)
+			require.Equal(t, http.StatusUnprocessableEntity, statusCode)
+		})
+
+		t.Run("SetLower"+level, func(t *testing.T) {
+			statusCode, _ := makeRequest(t, ts, http.MethodPut, teleport.DebugLogLevelEndpoint, strings.ToLower(level))
+			require.Equal(t, http.StatusUnprocessableEntity, statusCode)
 		})
 	}
 }

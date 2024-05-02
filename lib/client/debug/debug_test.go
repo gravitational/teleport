@@ -25,43 +25,35 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 func TestSetLogLevel(t *testing.T) {
 	ctx := context.Background()
-	socketPath, closeFn := newSocketMockService(t, []byte{})
-	defer closeFn()
-	clt := NewClient(socketPath)
 
-	// All supported log levels should be accepted here.
-	for _, level := range logutils.SupportedLevelsText {
-		t.Run("Set"+level, func(t *testing.T) {
-			_, err := clt.SetLogLevel(ctx, level)
-			require.NoError(t, err)
-		})
+	t.Run("Success", func(t *testing.T) {
+		socketPath, _ := newSocketMockService(t, http.StatusOK, []byte{})
+		clt := NewClient(socketPath)
 
-		t.Run("SetLower"+level, func(t *testing.T) {
-			_, err := clt.SetLogLevel(ctx, strings.ToLower(level))
-			require.NoError(t, err)
-		})
-	}
+		// The validation is done on the server side, here our server always
+		// return success.
+		_, err := clt.SetLogLevel(ctx, "INFO")
+		require.NoError(t, err)
+	})
 
-	// Random or any other slog format should be rejected.
-	for _, level := range []string{"RANDOM", "DEBUG-1", "INFO+1", "INVALID"} {
-		t.Run("Set"+level, func(t *testing.T) {
-			_, err := clt.SetLogLevel(ctx, level)
-			require.NoError(t, err)
-		})
+	t.Run("Failure", func(t *testing.T) {
+		socketPath, _ := newSocketMockService(t, http.StatusUnprocessableEntity, []byte{})
+		clt := NewClient(socketPath)
 
-		t.Run("SetLower"+level, func(t *testing.T) {
-			_, err := clt.SetLogLevel(ctx, strings.ToLower(level))
-			require.NoError(t, err)
-		})
-	}
+		// The validation is done on the server side, here our server always
+		// return failure.
+		_, err := clt.SetLogLevel(ctx, "RANDOM")
+		require.Error(t, err)
+		require.True(t, trace.IsBadParameter(err))
+	})
 }
 
 func TestCollectProfile(t *testing.T) {
@@ -85,7 +77,7 @@ func TestCollectProfile(t *testing.T) {
 		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
-			socketPath, closeFn := newSocketMockService(t, []byte("collected profile"))
+			socketPath, closeFn := newSocketMockService(t, http.StatusOK, []byte("collected profile"))
 			defer closeFn()
 			clt := NewClient(socketPath)
 
@@ -106,7 +98,7 @@ func TestCollectProfile(t *testing.T) {
 // newSocketMockService creates a unix socket that access HTTP requests and
 // always replies with success. Returns the path to the socket and `closeFn`,
 // which when called closes the socket and returns the requested paths.
-func newSocketMockService(t *testing.T, contents []byte) (string, func() []string) {
+func newSocketMockService(t *testing.T, status int, contents []byte) (string, func() []string) {
 	t.Helper()
 
 	// We cannot simply use the `t.TempDir()` due to the size limit of UDS.
@@ -128,6 +120,7 @@ func newSocketMockService(t *testing.T, contents []byte) (string, func() []strin
 	srv := &http.Server{
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			requests = append(requests, r.URL.RequestURI())
+			w.WriteHeader(status)
 			w.Write(contents)
 		}),
 	}
@@ -135,6 +128,7 @@ func newSocketMockService(t *testing.T, contents []byte) (string, func() []strin
 	go func() {
 		err := srv.Serve(l)
 		if err != nil && err != http.ErrServerClosed {
+			t.Log("Failed to start server", err)
 		}
 	}()
 

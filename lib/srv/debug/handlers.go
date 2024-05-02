@@ -22,6 +22,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/pprof"
+	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -114,11 +115,15 @@ func pprofMiddleware(logger *slog.Logger, profile string, next http.HandlerFunc)
 
 // unmarshalLogLevel unmarshals log level text representation to slog.Level.
 func unmarshalLogLevel(data []byte) (slog.Level, error) {
+	var level slog.Level
+	if contains := slices.Contains(logutils.SupportedLevelsText, strings.ToUpper(string(data))); !contains {
+		return level, trace.BadParameter("%q log level not supported", string(data))
+	}
+
 	if strings.EqualFold(string(data), logutils.TraceLevelText) {
 		return logutils.TraceLevel, nil
 	}
 
-	var level slog.Level
 	if err := level.UnmarshalText(data); err != nil {
 		return level, trace.Wrap(err)
 	}
