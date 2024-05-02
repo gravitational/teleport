@@ -21,6 +21,8 @@ package common
 import (
 	"context"
 	"fmt"
+	"github.com/sirupsen/logrus"
+
 	"github.com/alecthomas/kingpin/v2"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -126,7 +128,20 @@ func (p *PluginsCommand) Cleanup(ctx context.Context, clusterAPI *auth.Client) e
 }
 
 func (p *PluginsCommand) InstallSCIM(ctx context.Context, client *auth.Client) error {
+	logrus.Debug("Fetching cluster info...")
+	info, err := client.Ping(ctx)
+	if err != nil {
+		logrus.Errorf("Failed fetching cluster info %v", err)
+		return trace.Wrap(err)
+	}
+
 	scimTokenHash, err := bcrypt.GenerateFromPassword([]byte(p.install.scim.token), bcrypt.DefaultCost)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	logrus.Debug("Validating SAML Connector ID...")
+	connector, err := client.GetSAMLConnector(ctx, p.install.scim.samlConnector, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -162,12 +177,20 @@ func (p *PluginsCommand) InstallSCIM(ctx context.Context, client *auth.Client) e
 		},
 	}
 
+	logrus.Debugf("Creating SCIM Plugin %q...", p.install.name)
 	if _, err := client.PluginsClient().CreatePlugin(ctx, request); err != nil {
-		fmt.Println("Failed to create SCIM itegration: %v", err)
+		logrus.Errorf("Failed to create SCIM integration %q: %v", p.install.name, err)
 		return trace.Wrap(err)
 	}
 
 	fmt.Printf("Successfully created SCIM plugin %q\n", p.install.name)
+	fmt.Printf("SCIM base URL: https://%s/v1/webapi/scim/%s\n", info.ProxyPublicAddr, p.install.name)
+
+	switch connector.Origin() {
+	case types.OriginOkta:
+		fmt.Println("Okta SCIM provisioning guide: https://goteleport.com/docs/application-access/okta/hosted-guide/#configuring-scim-provisioning")
+	}
+
 	return nil
 }
 
