@@ -45,6 +45,6 @@ func (vnetNotSupported) run(*CLIConf) error {
 
 var (
 	// Satisfy unused linter.
-	_ = (*tcpAppResolver)(nil)
-	_ = newTCPAppResolver
+	_ = (*vnetAppProvider)(nil)
+	_ = newVnetAppProvider
 )
