@@ -275,7 +275,7 @@ func (p *podHandler) handler(r *http.Request) error {
 		return trace.Wrap(err, "failed creating websocket executor")
 	}
 
-	if err := wsExec.StreamWithContext(context.Background(), remotecommand.StreamOptions{
+	if err := wsExec.StreamWithContext(ctx, remotecommand.StreamOptions{
 		Stdin:  stream,
 		Stdout: stream,
 		Stderr: stderrWriter{stream: stream},
