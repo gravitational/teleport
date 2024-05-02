@@ -935,20 +935,20 @@ func (rc *ResourceCommand) createCrownJewel(ctx context.Context, client *auth.Cl
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if _, err := client.CrownJewelsClient().CreateCrownJewel(ctx, crownJewel); err != nil {
-		if trace.IsAlreadyExists(err) {
-			if !rc.force {
-				return trace.AlreadyExists("crown jewel %q already exists", crownJewel.GetMetadata().GetName())
-			}
-			if _, err := client.CrownJewelsClient().UpdateCrownJewel(ctx, crownJewel); err != nil {
-				return trace.Wrap(err)
-			}
-			fmt.Printf("crown jewel %q has been updated\n", crownJewel.GetMetadata().GetName())
-			return nil
+
+	c := client.CrownJewelsClient()
+	if rc.force {
+		if _, err := c.UpsertCrownJewel(ctx, crownJewel); err != nil {
+			return trace.Wrap(err)
 		}
-		return trace.Wrap(err)
+		fmt.Printf("crown jewel %q has been updated\n", crownJewel.GetMetadata().GetName())
+	} else {
+		if _, err := c.CreateCrownJewel(ctx, crownJewel); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("crown jewel %q has been created\n", crownJewel.GetMetadata().GetName())
 	}
-	fmt.Printf("crown jewel %q has been created\n", crownJewel.GetMetadata().GetName())
+
 	return nil
 }
 
