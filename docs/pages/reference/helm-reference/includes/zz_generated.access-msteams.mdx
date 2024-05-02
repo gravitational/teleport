@@ -35,13 +35,13 @@ apiVersion: v1
 kind: Secret
 type: Opaque
 metadata:
-  name: teleport-plugin-slack-identity
+  name: teleport-plugin-identity
 data:
   auth_id: #...
 ```
 
 Check out the [Access Requests with
-Slack](../../../access-controls/access-request-plugins/ssh-approval-slack.mdx) guide
+Microsoft Teams](../../../access-controls/access-request-plugins/ssh-approval-msteams.mdx) guide
 for more information about how to acquire these credentials.
 
 ### `teleport.identitySecretPath`
@@ -55,43 +55,76 @@ specified by `teleport.identitySecretName` that holds the credentials for
 the connection to your Teleport cluster. If the secret has the path,
 `"auth_id"`, you can omit this field.
 
-## `slack`
+## `msTeams`
 
-`slack` contains the configuration used by the plugin to authenticate to Slack.
+`msTeams` contains the configuration used by the plugin to authenticate to MsTeams.
 
-You can pass the Slack token:
-- via the chart Values by setting `slack.token`
-- via an existing Kubernetes Secret by setting `slack.tokenFromSecret`
+You can pass the MsTeams appSecret:
+- via the chart Values by setting `msTeams.appSecret`
+- via an existing Kubernetes Secret by setting `msTeams.appSecretFromSecret`
 
-### `slack.token`
-
-| Type | Default |
-|------|---------|
-| `string` | `""` |
-
-`slack.token` is the Slack token used by the plugin to interact
-with Slack. When set, the Chart creates a Kubernetes Secret for you.
-
-This value has no effect if `slack.tokenFromSecret` is set.
-
-### `slack.tokenFromSecret`
+### `msTeams.appID`
 
 | Type | Default |
 |------|---------|
 | `string` | `""` |
 
-`slack.tokenFromSecret` is the name of the Kubernetes Secret
-containing the Slack token. When this value is set, you must create the
+`msTeams.appID` is the Azure app ID used by the plugin.
+See [the MsTeams guide](../../../access-controls/access-request-plugins/ssh-approval-msteams.mdx) to know how to get this value.
+
+This value is mandatory.
+
+### `msTeams.tenantID`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`msTeams.tenantID` is the Azure tenant ID used by the plugin and Microsoft Teams.
+See [the MsTeams guide](../../../access-controls/access-request-plugins/ssh-approval-msteams.mdx) to know how to get this value.
+
+This value is mandatory.
+
+### `msTeams.teamsAppID`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`msTeams.teamsAppID` is the MsTeams app ID used by the plugin.
+See [the MsTeams guide](../../../access-controls/access-request-plugins/ssh-approval-msteams.mdx) to know how to get this value.
+
+This value is mandatory.
+
+### `msTeams.appSecret`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`msTeams.appSecret` is the MsTeams appSecret used by the plugin to interact
+with MsTeams. When set, the Chart creates a Kubernetes Secret for you.
+
+This value has no effect if `msTeams.appSecretFromSecret` is set.
+
+### `msTeams.appSecretFromSecret`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`msTeams.appSecretFromSecret` is the name of the Kubernetes Secret
+containing the MsTeams appSecret. When this value is set, you must create the
 Secret before creating the chart release.
 
-### `slack.tokenSecretPath`
+### `msTeams.appSecretFromSecretKey`
 
 | Type | Default |
 |------|---------|
-| `string` | `"slackToken"` |
+| `string` | `"appSecret"` |
 
-`slack.tokenSecretPath` is the Kubernetes Secret key
-containing the Slack token. The secret name is set via `slack.tokenFromSecret`.
+`msTeams.appSecretFromSecretKey` is the Kubernetes Secret key
+containing the MsTeams appSecret. The secret name is set via `msTeams.appSecretFromSecret`.
 
 ## `roleToRecipients`
 
@@ -100,17 +133,17 @@ containing the Slack token. The secret name is set via `slack.tokenFromSecret`.
 | `object` | `{}` |
 
 `roleToRecipients` is mapping the requested role name to a list of
-recipients the plugin will notify.
-It must contain a mapping for `*` in case no matching roles are found.
+recipients the plugin will notify. Recipients can be user IDs, user emails,
+and channel URLs.
+The map must contain a mapping for `*` in case no matching roles are found.
 
 Example value:
 ```yaml
 roleToRecipients:
- "*": "admin-slack-channel"
+ "*": "admin@example.com"
  dev:
-   - "dev-slack-channel"
-   - "admin-slack-channel"
- dba: "alex@example.com"
+   - "https://teams.microsoft.com/l/channel/19%3ae06a7383ed98468f90217a35fa1980d7%40thread.tacv2/Approval%2520Channel%25202?groupId=f2b3c8ed-5502-4449-b76f-dc3acea81f1c&tenantId=ff882432-09b0-437b-bd22-ca13c0037ded"
+   - "devops@example.com"
 ```
 
 ## `log`
@@ -196,7 +229,7 @@ You can override this to use your own plugin image rather than a Teleport-publis
 
 | Type | Default |
 |------|---------|
-| `string` | `"public.ecr.aws/gravitational/teleport-plugin-slack"` |
+| `string` | `"public.ecr.aws/gravitational/teleport-plugin-msteams"` |
 
 `image.repository` is the image repository.
 

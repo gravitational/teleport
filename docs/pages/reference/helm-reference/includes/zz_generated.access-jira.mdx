@@ -19,13 +19,13 @@ For example:
   - joining a Proxy: `teleport.example.com:443` or `teleport.example.com:3080`
   - joining an Auth: `teleport-auth.example.com:3025`
 
-### `teleport.identitySecretName`
+### `teleport.identityFromSecret`
 
 | Type | Default |
 |------|---------|
 | `string` | `""` |
 
-`teleport.identitySecretName` is the name of the Kubernetes secret
+`teleport.identityFromSecret` is the name of the Kubernetes secret
 that contains the credentials for the connection to your Teleport cluster.
 
 The secret should be in the following format:
@@ -35,13 +35,13 @@ apiVersion: v1
 kind: Secret
 type: Opaque
 metadata:
-  name: teleport-plugin-slack-identity
+  name: teleport-plugin-identity
 data:
   auth_id: #...
 ```
 
 Check out the [Access Requests with
-Slack](../../../access-controls/access-request-plugins/ssh-approval-slack.mdx) guide
+Jira](../../../access-controls/access-request-plugins/ssh-approval-jira.mdx) guide
 for more information about how to acquire these credentials.
 
 ### `teleport.identitySecretPath`
@@ -55,63 +55,132 @@ specified by `teleport.identitySecretName` that holds the credentials for
 the connection to your Teleport cluster. If the secret has the path,
 `"auth_id"`, you can omit this field.
 
-## `slack`
+## `jira`
 
-`slack` contains the configuration used by the plugin to authenticate to Slack.
+`jira` contains the configuration used by the plugin to authenticate to Jira
+and open issues.
 
-You can pass the Slack token:
-- via the chart Values by setting `slack.token`
-- via an existing Kubernetes Secret by setting `slack.tokenFromSecret`
+You can pass the Jira apiToken:
+- via the chart Values by setting `jira.apiToken`
+- via an existing Kubernetes Secret by setting `jira.apiTokenFromSecret`
 
-### `slack.token`
-
-| Type | Default |
-|------|---------|
-| `string` | `""` |
-
-`slack.token` is the Slack token used by the plugin to interact
-with Slack. When set, the Chart creates a Kubernetes Secret for you.
-
-This value has no effect if `slack.tokenFromSecret` is set.
-
-### `slack.tokenFromSecret`
+### `jira.url`
 
 | Type | Default |
 |------|---------|
 | `string` | `""` |
 
-`slack.tokenFromSecret` is the name of the Kubernetes Secret
-containing the Slack token. When this value is set, you must create the
+`jira.url` is the Jira URL.
+For example:
+- a self-hosted Jira instance URL would be `https://jira.example.com/`.
+- a Jira Cloud URL would be `https://[your-jira].atlassian.net`.
+
+### `jira.url`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`jira.url` is the Jira username or email address associated with the API token.
+
+### `jira.apiToken`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`jira.apiToken` is the Jira apiToken used by the plugin to interact
+with Jira. When set, the Chart creates a Kubernetes Secret for you.
+
+This value has no effect if `jira.apiTokenFromSecret` is set.
+
+### `jira.apiTokenFromSecret`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`jira.apiTokenFromSecret` is the name of the Kubernetes Secret
+containing the Jira apiToken. When this value is set, you must create the
 Secret before creating the chart release.
 
-### `slack.tokenSecretPath`
+### `jira.apiTokenSecretPath`
 
 | Type | Default |
 |------|---------|
-| `string` | `"slackToken"` |
+| `string` | `"jiraApiToken"` |
 
-`slack.tokenSecretPath` is the Kubernetes Secret key
-containing the Slack token. The secret name is set via `slack.tokenFromSecret`.
+`jira.apiTokenSecretPath` is the Kubernetes Secret key
+containing the Jira apiToken. The secret name is set via `jira.apiTokenFromSecret`.
 
-## `roleToRecipients`
+### `jira.project`
 
 | Type | Default |
 |------|---------|
-| `object` | `{}` |
+| `string` | `""` |
 
-`roleToRecipients` is mapping the requested role name to a list of
-recipients the plugin will notify.
-It must contain a mapping for `*` in case no matching roles are found.
+`jira.project` is the Jira project in which the issues are opened.
+This value is mandatory.
 
-Example value:
-```yaml
-roleToRecipients:
- "*": "admin-slack-channel"
- dev:
-   - "dev-slack-channel"
-   - "admin-slack-channel"
- dba: "alex@example.com"
-```
+### `jira.issueType`
+
+| Type | Default |
+|------|---------|
+| `string` | `"Task"` |
+
+`jira.issueType` is the issue type used when opening Jira issues.
+
+## `http`
+
+`http` contains the webhook configuration. When an issue is updated in Jira
+(approved or denied), Jira contacts the plugin via webhook to trigger the
+Teleport Access Request approval.
+
+### `http.publicAddress`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`http.publicAddress` is the URL on which the callback server is
+accessible externally, e.g. `[https://]teleport-proxy.example.com`.
+
+### `http.tlsFromSecret`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`http.tlsFromSecret` is the name of the Kubernetes Secret
+containing the TLS private key and certificate used by the webhook server.
+
+### `http.tlsKeySecretPath`
+
+| Type | Default |
+|------|---------|
+| `string` | `"tls.key"` |
+
+`http.tlsKeySecretPath` is the field of the Kubernetes Secret
+containing the TLS private key used by the webhook server.
+
+### `http.tlsCertSecretPath`
+
+| Type | Default |
+|------|---------|
+| `string` | `"tls.crt"` |
+
+`http.tlsCertSecretPath` is the field of the Kubernetes Secret
+containing the TLS certificate used by the webhook server.
+
+## `chartMode`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`chartMode` enables cloud-specific helpers. `aws` is the only
+supported value. When `chartMode` is `aws`, the created service wears the
+in-tree AWS LB controller annotations.
 
 ## `log`
 
@@ -186,6 +255,15 @@ put on the `Pod` resources created by the chart.
 put on the `Secret` resource created by the chart.
 This has no effect when `joinTokenSecret.create` is `false`.
 
+### `annotations.service`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`annotations.service` contains the Kubernetes annotations
+put on the `Service` resource created by the chart.
+
 ## `image`
 
 `image` sets the container image used for plugin pods created by the chart.
@@ -196,7 +274,7 @@ You can override this to use your own plugin image rather than a Teleport-publis
 
 | Type | Default |
 |------|---------|
-| `string` | `"public.ecr.aws/gravitational/teleport-plugin-slack"` |
+| `string` | `"public.ecr.aws/gravitational/teleport-plugin-jira"` |
 
 `image.repository` is the image repository.
 
@@ -304,3 +382,12 @@ for more details.
 `affinity` sets the affinities for any pods created by the chart.
 See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity)
 for more details.
+
+## `serviceType`
+
+| Type | Default |
+|------|---------|
+| `string` | `"LoadBalancer"` |
+
+`serviceType` sets the service type of the Kubernetes `Service`
+resource created by the chart.

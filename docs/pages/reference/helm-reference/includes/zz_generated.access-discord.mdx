@@ -35,13 +35,13 @@ apiVersion: v1
 kind: Secret
 type: Opaque
 metadata:
-  name: teleport-plugin-slack-identity
+  name: teleport-plugin-identity
 data:
   auth_id: #...
 ```
 
 Check out the [Access Requests with
-Slack](../../../access-controls/access-request-plugins/ssh-approval-slack.mdx) guide
+Discord](../../../access-controls/access-request-plugins/ssh-approval-discord.mdx) guide
 for more information about how to acquire these credentials.
 
 ### `teleport.identitySecretPath`
@@ -55,43 +55,43 @@ specified by `teleport.identitySecretName` that holds the credentials for
 the connection to your Teleport cluster. If the secret has the path,
 `"auth_id"`, you can omit this field.
 
-## `slack`
+## `discord`
 
-`slack` contains the configuration used by the plugin to authenticate to Slack.
+`discord` contains the configuration used by the plugin to authenticate to Discord.
 
-You can pass the Slack token:
-- via the chart Values by setting `slack.token`
-- via an existing Kubernetes Secret by setting `slack.tokenFromSecret`
+You can pass the Discord token:
+- via the chart Values by setting `discord.token`
+- via an existing Kubernetes Secret by setting `discord.tokenFromSecret`
 
-### `slack.token`
-
-| Type | Default |
-|------|---------|
-| `string` | `""` |
-
-`slack.token` is the Slack token used by the plugin to interact
-with Slack. When set, the Chart creates a Kubernetes Secret for you.
-
-This value has no effect if `slack.tokenFromSecret` is set.
-
-### `slack.tokenFromSecret`
+### `discord.token`
 
 | Type | Default |
 |------|---------|
 | `string` | `""` |
 
-`slack.tokenFromSecret` is the name of the Kubernetes Secret
-containing the Slack token. When this value is set, you must create the
+`discord.token` is the Discord token used by the plugin to interact
+with Discord. When set, the Chart creates a Kubernetes Secret for you.
+
+This value has no effect if `discord.tokenFromSecret` is set.
+
+### `discord.tokenFromSecret`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`discord.tokenFromSecret` is the name of the Kubernetes Secret
+containing the Discord token. When this value is set, you must create the
 Secret before creating the chart release.
 
-### `slack.tokenSecretPath`
+### `discord.tokenSecretPath`
 
 | Type | Default |
 |------|---------|
-| `string` | `"slackToken"` |
+| `string` | `"discordToken"` |
 
-`slack.tokenSecretPath` is the Kubernetes Secret key
-containing the Slack token. The secret name is set via `slack.tokenFromSecret`.
+`discord.tokenSecretPath` is the Kubernetes Secret key
+containing the Discord token. The secret name is set via `discord.tokenFromSecret`.
 
 ## `roleToRecipients`
 
@@ -100,17 +100,18 @@ containing the Slack token. The secret name is set via `slack.tokenFromSecret`.
 | `object` | `{}` |
 
 `roleToRecipients` is mapping the requested role name to a list of
-recipients the plugin will notify.
+recipients the plugin will notify. Recipients must be Discord recipient IDs
+(either a shared channel ID or the ID of the DM conversation between the
+Discord bot and a user)..
 It must contain a mapping for `*` in case no matching roles are found.
 
 Example value:
 ```yaml
 roleToRecipients:
- "*": "admin-slack-channel"
+ "*": "0987654321"
  dev:
-   - "dev-slack-channel"
-   - "admin-slack-channel"
- dba: "alex@example.com"
+   - "1234567890"
+   - "0987654321"
 ```
 
 ## `log`
@@ -196,7 +197,7 @@ You can override this to use your own plugin image rather than a Teleport-publis
 
 | Type | Default |
 |------|---------|
-| `string` | `"public.ecr.aws/gravitational/teleport-plugin-slack"` |
+| `string` | `"public.ecr.aws/gravitational/teleport-plugin-discord"` |
 
 `image.repository` is the image repository.
 
