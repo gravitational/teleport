@@ -347,7 +347,7 @@ func TestPluginsInstallOkta(t *testing.T) {
 	}
 }
 
-func requireBadParameter(t require.TestingT, err error, _ ...interface{}) {
+func requireBadParameter(t require.TestingT, err error, _ ...any) {
 	require.Error(t, err)
 	require.True(t, trace.IsBadParameter(err), "Expecting bad parameter, got %T: \"%v\"", err, err)
 }
@@ -380,4 +380,4 @@ func (m *mockSAMLConnectorsClient) GetSAMLConnector(ctx context.Context, id stri
 }
 
 // anyContext is an argument matcher for testify mocks that matches any context.
-var anyContext interface{} = mock.MatchedBy(func(context.Context) bool { return true })
+var anyContext any = mock.MatchedBy(func(context.Context) bool { return true })

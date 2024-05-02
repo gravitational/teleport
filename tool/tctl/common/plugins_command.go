@@ -87,7 +87,7 @@ func (p *PluginsCommand) Initialize(app *kingpin.Application, config *servicecfg
 		Required().
 		URLVar(&p.install.okta.org)
 	p.install.okta.cmd.
-		Flag("api-token", "API token to install with plugin").
+		Flag("api-token", "Okta API token for the plugin to use").
 		Required().
 		StringVar(&p.install.okta.apiToken)
 	p.install.okta.cmd.
@@ -97,18 +97,18 @@ func (p *PluginsCommand) Initialize(app *kingpin.Application, config *servicecfg
 		Flag("app-id", "Okta ID of the APP used for SSO via SAML").
 		StringVar(&p.install.okta.appID)
 	p.install.okta.cmd.
-		Flag("scim-token", "SCIM token to install with plugin").
+		Flag("scim-token", "Okta SCIM auth token for the plugin to use").
 		StringVar(&p.install.okta.scimToken)
 	p.install.okta.cmd.
 		Flag("sync-users", "Enable user synchronization").
 		Default("true").
 		BoolVar(&p.install.okta.userSync)
 	p.install.okta.cmd.
-		Flag("owner", "Set default owners for synced AccessLists").
+		Flag("owner", "Set default owners for synced Access Lists").
 		Short('o').
 		StringsVar(&p.install.okta.defaultOwners)
 	p.install.okta.cmd.
-		Flag("sync-groups", "Enable group to AccessList synchronization").
+		Flag("sync-groups", "Enable group to Access List synchronization").
 		Default("true").
 		BoolVar(&p.install.okta.accessListSync)
 	p.install.okta.cmd.
