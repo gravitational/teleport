@@ -152,6 +152,7 @@ export { Pencil } from './Icons/Pencil';
 export { Planet } from './Icons/Planet';
 export { Plus } from './Icons/Plus';
 export { PowerSwitch } from './Icons/PowerSwitch';
+export { Printer } from './Icons/Printer';
 export { Profile } from './Icons/Profile';
 export { PushPin } from './Icons/PushPin';
 export { PushPinFilled } from './Icons/PushPinFilled';
