@@ -65,7 +65,6 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/teleport/lib/srv/debug"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -1602,7 +1601,7 @@ func TestDebugServiceStartSocket(t *testing.T) {
 		Timeout: 10 * time.Second,
 		Transport: &http.Transport{
 			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-				return net.Dial("unix", filepath.Join(process.Config.DataDir, debug.ServiceSocketName))
+				return net.Dial("unix", filepath.Join(process.Config.DataDir, teleport.DebugServiceSocketName))
 			},
 		},
 	}
