@@ -34,6 +34,7 @@ import type { RecordingType } from 'teleport/services/recordings';
 import type { WebauthnAssertionResponse } from './services/auth';
 import type { Regions } from './services/integrations';
 import type { ParticipantMode } from 'teleport/services/session';
+import type { YamlSupportedResourceKind } from './services/yaml/types';
 
 const cfg = {
   isEnterprise: false,
@@ -354,6 +355,11 @@ const cfg = {
 
     notificationsPath:
       '/v1/webapi/sites/:clusterId/notifications?limit=:limit?&userNotificationsStartKey=:userNotificationsStartKey?&globalNotificationsStartKey=:globalNotificationsStartKey?',
+
+    yaml: {
+      parse: '/v1/webapi/yaml/parse/:kind',
+      stringify: '/v1/webapi/yaml/stringify/:kind',
+    },
   },
 
   getUserClusterPreferencesUrl(clusterId: string) {
@@ -715,6 +721,14 @@ const cfg = {
       clusterId,
       ...params,
     });
+  },
+
+  getYamlParseUrl(kind: YamlSupportedResourceKind) {
+    return generatePath(cfg.api.yaml.parse, { kind });
+  },
+
+  getYamlStringifyUrl(kind: YamlSupportedResourceKind) {
+    return generatePath(cfg.api.yaml.stringify, { kind });
   },
 
   getLocksRoute() {

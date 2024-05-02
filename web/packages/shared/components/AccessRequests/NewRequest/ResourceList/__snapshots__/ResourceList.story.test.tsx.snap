@@ -1709,7 +1709,6 @@ exports[`render Roles 1`] = `
 }
 
 .c3 {
-  background: #0C143D;
   border-radius: 200px;
   width: 100%;
   height: 56px;
