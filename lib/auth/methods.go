@@ -505,7 +505,11 @@ func (a *Server) authenticatePasswordless(ctx context.Context, req AuthenticateU
 
 	requiredExt := &mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN}
 	mfaData, err := a.ValidateMFAAuthResponse(ctx, mfaResponse, "" /* user */, requiredExt)
-	if err != nil {
+	switch {
+	// Don't obfuscate the SSO error.
+	case errors.Is(err, types.ErrPassswordlessLoginBySSOUser):
+		return nil, "", trace.Wrap(err)
+	case err != nil:
 		log.Debugf("Passwordless authentication failed: %v", err)
 		return nil, "", trace.Wrap(authenticateWebauthnError)
 	}

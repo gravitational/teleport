@@ -153,6 +153,10 @@ type Handler struct {
 	userConns atomic.Int32
 
 	// ClusterFeatures contain flags for supported and unsupported features.
+	// Note: This field can become stale since it's only set on initial proxy
+	// startup. To get the latest feature flags you'll need to ping from the
+	// auth server.
+	// https://github.com/gravitational/teleport/issues/39161
 	ClusterFeatures proto.Features
 
 	// nodeWatcher is a services.NodeWatcher used by Assist to lookup nodes from
@@ -1121,7 +1125,7 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 		accessMonitoringEnabled = pingResp.ServerFeatures != nil && pingResp.ServerFeatures.GetIdentityGovernance()
 	}
 
-	userContext, err := ui.NewUserContext(user, accessChecker.Roles(), h.ClusterFeatures, desktopRecordingEnabled, accessMonitoringEnabled)
+	userContext, err := ui.NewUserContext(user, accessChecker.Roles(), *pingResp.ServerFeatures, desktopRecordingEnabled, accessMonitoringEnabled)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1930,7 +1934,7 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 	// If the updater must be installed, then change the repo to stable/cloud
 	// It must also install the version specified in
 	// https://updates.releases.teleport.dev/v1/stable/cloud/version
-	installUpdater := automaticUpgrades(h.ClusterFeatures)
+	installUpdater := automaticUpgrades(*ping.ServerFeatures)
 	if installUpdater {
 		repoChannel = stableCloudChannelRepo
 	}
@@ -2535,13 +2539,18 @@ func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, 
 
 	clientMeta := clientMetaFromReq(r)
 	session, err := h.auth.AuthenticateWebUser(r.Context(), req, clientMeta)
-	if err != nil {
-		// Since checking for private key policy meant that they passed authn,
-		// return policy error as is to help direct user.
-		if keys.IsPrivateKeyPolicyError(err) {
-			return nil, trace.Wrap(err)
-		}
-		// Obscure all other errors.
+	switch {
+	// Since checking for private key policy meant that they passed authn,
+	// return policy error as is to help direct user.
+	case keys.IsPrivateKeyPolicyError(err):
+		return nil, trace.Wrap(err)
+
+	// Return a friendlier error if an SSO user tried to do passwordless.
+	case errors.Is(err, types.ErrPassswordlessLoginBySSOUser):
+		return nil, trace.Wrap(err)
+
+	// Obscure all other errors.
+	case err != nil:
 		return nil, trace.AccessDenied("invalid credentials")
 	}
 
@@ -3490,7 +3499,7 @@ func clusterEventsList(ctx context.Context, sctx *SessionContext, site reversetu
 		return nil, trace.Wrap(err)
 	}
 
-	limit, err := queryLimit(values, "limit", defaults.EventsIterationLimit)
+	limit, err := QueryLimit(values, "limit", defaults.EventsIterationLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3536,11 +3545,11 @@ func queryTime(query url.Values, name string, def time.Time) (time.Time, error) 
 	return parsed, nil
 }
 
-// queryLimit returns the limit parameter with the specified name from the
+// QueryLimit returns the limit parameter with the specified name from the
 // query string.
 //
 // If there's no such parameter, specified default limit is returned.
-func queryLimit(query url.Values, name string, def int) (int, error) {
+func QueryLimit(query url.Values, name string, def int) (int, error) {
 	str := query.Get(name)
 	if str == "" {
 		return def, nil

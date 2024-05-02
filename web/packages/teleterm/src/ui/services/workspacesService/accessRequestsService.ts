@@ -16,9 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* eslint-disable @typescript-eslint/ban-ts-comment*/
-// @ts-ignore
-import { ResourceKind } from 'e-teleterm/ui/DocumentAccessRequests/NewRequest/useNewRequest';
+import { ResourceKind } from 'shared/components/AccessRequests/NewRequest';
 
 import type { PendingAccessRequest } from '../workspacesService';
 
