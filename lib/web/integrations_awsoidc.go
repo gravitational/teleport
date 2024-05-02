@@ -880,11 +880,6 @@ func (h *Handler) awsOIDCCreateAWSAppAccess(w http.ResponseWriter, r *http.Reque
 		return nil, trace.BadParameter("an integration name is required")
 	}
 
-	appServer, err := types.NewAppServerForAWSOIDCIntegration(integrationName, h.cfg.HostUUID)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	clt, err := sctx.GetUserClient(ctx, site)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -904,6 +899,11 @@ func (h *Handler) awsOIDCCreateAWSAppAccess(w http.ResponseWriter, r *http.Reque
 	}
 
 	getUserGroupLookup := h.getUserGroupLookup(r.Context(), clt)
+
+	appServer, err := types.NewAppServerForAWSOIDCIntegration(integrationName, h.cfg.HostUUID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	if _, err := clt.UpsertApplicationServer(ctx, appServer); err != nil {
 		return nil, trace.Wrap(err)

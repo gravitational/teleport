@@ -2742,6 +2742,7 @@ func calculateDesktopLogins(loginGetter loginGetter, r types.ResourceWithLabels,
 
 // getUserGroupLookup is a generator to retrieve UserGroupLookup on first call and return it again in subsequent calls.
 // If we encounter an error, we log it once and return an empty UserGroupLookup for the current and subsequent calls.
+// The returned function is not thread safe.
 func (h *Handler) getUserGroupLookup(ctx context.Context, clt apiclient.GetResourcesClient) func() map[string]types.UserGroup {
 	userGroupLookup := make(map[string]types.UserGroup)
 	var gotUserGroupLookup bool
