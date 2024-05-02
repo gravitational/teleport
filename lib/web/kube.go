@@ -102,7 +102,7 @@ func (p *podHandler) ServeHTTP(_ http.ResponseWriter, r *http.Request) {
 
 	sessionMetadataResponse, err := json.Marshal(siteSessionGenerateResponse{Session: p.sess})
 	if err != nil {
-		p.sendError(err)
+		p.sendAndLogError(err)
 		return
 	}
 
@@ -114,19 +114,18 @@ func (p *podHandler) ServeHTTP(_ http.ResponseWriter, r *http.Request) {
 
 	envelopeBytes, err := proto.Marshal(envelope)
 	if err != nil {
-		p.sendError(err)
+		p.sendAndLogError(err)
 		return
 	}
 
 	err = p.ws.WriteMessage(websocket.BinaryMessage, envelopeBytes)
 	if err != nil {
-		p.sendError(err)
+		p.sendAndLogError(err)
 		return
 	}
 
 	if err := p.handler(r); err != nil {
-		p.log.Error(err)
-		p.sendError(err)
+		p.sendAndLogError(err)
 	}
 }
 
@@ -134,7 +133,9 @@ func (p *podHandler) Close() error {
 	return trace.Wrap(p.ws.Close())
 }
 
-func (p *podHandler) sendError(err error) {
+func (p *podHandler) sendAndLogError(err error) {
+	p.log.Error(err)
+
 	if p.closedByClient.Load() {
 		return
 	}
