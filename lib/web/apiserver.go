@@ -23,6 +23,7 @@ package web
 import (
 	"compress/gzip"
 	"context"
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -45,6 +46,7 @@ import (
 	"github.com/gravitational/oxy/ratelimit"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
+	"github.com/jackc/pgx/v5"
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
 	lemma_secret "github.com/mailgun/lemma/secret"
@@ -93,6 +95,8 @@ import (
 	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/app"
@@ -763,6 +767,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	// TODO(lxea): DELETE in v16
 	h.GET("/webapi/sites/:site/connect", h.WithClusterAuthWebSocket(false, h.siteNodeConnect))     // connect to an active session (via websocket)
 	h.GET("/webapi/sites/:site/connect/ws", h.WithClusterAuthWebSocket(true, h.siteNodeConnect))   // connect to an active session (via websocket, with auth over websocket)
+	h.POST("/webapi/sites/:site/dbshell", h.WithClusterAuth(h.dbShell))                            // connect to an active session (via websocket, with auth over websocket)
 	h.GET("/webapi/sites/:site/sessions", h.WithClusterAuth(h.clusterActiveAndPendingSessionsGet)) // get list of active and pending sessions
 
 	// Audit events handlers.
@@ -3342,6 +3347,144 @@ func trackerToLegacySession(tracker types.SessionTracker, clusterName string) se
 		Owner:                 tracker.GetHostUser(),
 		Command:               strings.Join(tracker.GetCommand(), " "),
 	}
+}
+
+type DbShellRequest struct {
+	DBService string `json:"db_service"`
+	DBName    string `json:"db_name"`
+	DBUser    string `json:"db_user"`
+
+	Query string `json:"query"`
+}
+
+type DbShellResult struct {
+	Headers     []string `json:"headers"`
+	QueryResult [][]any  `json:"query_result"`
+	Error       string   `json:"error"`
+}
+
+func (h *Handler) dbShell(w http.ResponseWriter, r *http.Request, p httprouter.Params, sessCtx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+	var req DbShellRequest
+
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		return err.Error(), trace.Wrap(err)
+	}
+
+	var result DbShellResult
+
+	// generate user CA issued db cert w/ db route info inside
+	pk, err := keys.ParsePrivateKey(sessCtx.cfg.Session.GetPriv())
+	if err != nil {
+		h.log.WithError(err).Debug("failed to parse sessCtx priv key")
+		return err.Error(), trace.Wrap(err)
+	}
+
+	key := &client.Key{
+		PrivateKey: pk,
+		Cert:       sessCtx.cfg.Session.GetPub(),
+		TLSCert:    sessCtx.cfg.Session.GetTLSCert(),
+	}
+
+	certs, err := sessCtx.cfg.RootClient.GenerateUserCerts(r.Context(), proto.UserCertsRequest{
+		PublicKey:      key.MarshalSSHPublicKey(),
+		Username:       sessCtx.GetUser(),
+		Expires:        time.Now().Add(30 * time.Minute),
+		RouteToCluster: site.GetName(),
+		RouteToDatabase: proto.RouteToDatabase{
+			ServiceName: req.DBService,
+			Protocol:    "postgres",
+			Username:    req.DBUser,
+			Database:    req.DBName,
+		},
+	})
+
+	if err != nil {
+		h.log.WithError(err).Error("failed to generate db user certs")
+		return err.Error(), trace.Wrap(err)
+	}
+
+	dbCert, err := keys.X509KeyPair(certs.TLS, key.PrivateKeyPEM())
+	if err != nil {
+		h.log.WithError(err).Error("failed to make an x509 keypair")
+		return err.Error(), trace.Wrap(err)
+	}
+
+	alpnProtocol, err := common.ToALPNProtocol("postgres")
+	if err != nil {
+		return err.Error(), trace.Wrap(err)
+	}
+
+	listener, err := net.Listen("tcp", "localhost:0")
+	if err != nil {
+		return err.Error(), trace.Wrap(err)
+	}
+	defer func() {
+		if err := listener.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
+			h.log.WithError(err).Error("Failed to close listener")
+		}
+	}()
+
+	lpConfig := alpnproxy.LocalProxyConfig{
+		RemoteProxyAddr:    "boson.tener.io:3080", // todo: don't hardcode
+		ParentContext:      r.Context(),
+		Protocols:          []common.Protocol{alpnProtocol},
+		Certs:              []tls.Certificate{dbCert},
+		InsecureSkipVerify: true,
+		Listener:           listener,
+	}
+
+	lp, err := alpnproxy.NewLocalProxy(lpConfig)
+	if err != nil {
+		return err.Error(), trace.Wrap(err)
+	}
+	defer func() {
+		if err := lp.Close(); err != nil {
+			h.log.WithError(err).Error("Failed to close local proxy")
+		}
+	}()
+
+	// lp.Start will block and continues to block until lp.Close() is called.
+	// Despite taking a context, it will not exit until the first connection is
+	// made after the context is canceled.
+	var errCh = make(chan error, 1)
+	go func() {
+		errCh <- lp.Start(r.Context())
+	}()
+	h.log.WithField("address", listener.Addr().String()).Info("Listening for connections.")
+
+	pgURL := fmt.Sprintf("postgres://%s@%s/%s?sslmode=disable", req.DBUser, listener.Addr(), req.DBName)
+
+	conn, err := pgx.Connect(r.Context(), pgURL)
+	if err != nil {
+		h.log.WithError(err).Error("connection failed")
+		return err.Error(), trace.Wrap(err)
+	}
+	defer conn.Close(r.Context())
+
+	rows, err := conn.Query(r.Context(), req.Query, pgx.QueryExecModeSimpleProtocol)
+	if err != nil {
+		h.log.WithError(err).Error("query failed")
+		return err.Error(), trace.Wrap(err)
+	}
+	parsedRows, err := pgx.CollectRows[[]any](rows, func(row pgx.CollectableRow) ([]any, error) {
+		return row.Values()
+	})
+	if err != nil {
+		h.log.WithError(err).Error("parsing rows failed")
+		return err.Error(), trace.Wrap(err)
+	}
+	for _, field := range rows.FieldDescriptions() {
+		result.Headers = append(result.Headers, field.Name)
+	}
+
+	result.QueryResult = parsedRows
+
+	lp.Close()
+
+	teleport.PrintAny(result)
+
+	return result, nil
 }
 
 // clusterActiveAndPendingSessionsGet gets the list of active and pending sessions for a site.

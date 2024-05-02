@@ -70,6 +70,8 @@ import { Bots } from './Bots';
 import { AddBots } from './Bots/Add';
 
 import type { FeatureFlags, TeleportFeature } from './types';
+import { DbShell } from 'teleport/DbShell';
+import {DatabasesIcon} from "design/SVGIcon";
 
 class AccessRequests implements TeleportFeature {
   category = NavigationCategory.Resources;
@@ -253,6 +255,60 @@ export class FeatureAddBots implements TeleportFeature {
   getRoute() {
     return this.route;
   }
+}
+
+export class FeatureDbShell implements TeleportFeature {
+  category = NavigationCategory.Management;
+  section = ManagementSection.Access;
+
+  route = {
+    title: 'DB Shell',
+    path: cfg.routes.dbshell,
+    exact: true,
+    component: () => <DbShell />,
+  };
+
+  hasAccess(flags: FeatureFlags): boolean {
+    return flags.users;
+  }
+
+  navigationItem = {
+    title: NavTitle.DbShell,
+    icon: DatabasesIcon,
+    exact: true,
+    getLink() {
+      return cfg.getDbShellRoute();
+    },
+  };
+
+  getRoute() {
+    return this.route;
+  }
+}
+
+export class FeatureDbShell_ implements TeleportFeature {
+  category = NavigationCategory.Management;
+  section = ManagementSection.Access;
+
+  route = {
+    title: 'DB Shell',
+    path: cfg.routes.dbshell,
+    exact: true,
+    component: () => <DbShell />,
+  };
+
+  hasAccess(flags: FeatureFlags) {
+    return flags.roles;
+  }
+
+  navigationItem = {
+    title: NavTitle.DbShell,
+    icon: ClipboardUser,
+    exact: true,
+    getLink() {
+      return cfg.routes.dbshell;
+    },
+  };
 }
 
 export class FeatureRoles implements TeleportFeature {
@@ -644,5 +700,7 @@ export function getOSSFeatures(): TeleportFeature[] {
     // Other
     new FeatureAccount(),
     new FeatureHelpAndSupport(),
+
+    new FeatureDbShell(),
   ];
 }

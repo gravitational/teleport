@@ -179,9 +179,13 @@ const cfg = {
     oidcHandler: '/v1/webapi/oidc/*',
     samlHandler: '/v1/webapi/saml/*',
     githubHandler: '/v1/webapi/github/*',
+
+    dbshell: '/web/cluster/:clusterId/dbshell',
   },
 
   api: {
+    dbshell: '/v1/webapi/sites/:clusterId/dbshell',
+
     appSession: '/v1/webapi/sessions/app',
     appFqdnPath: '/v1/webapi/apps/:fqdn/:clusterId?/:publicAddr?',
     applicationsPath:
@@ -528,6 +532,11 @@ const cfg = {
     return generatePath(cfg.routes.users, { clusterId });
   },
 
+  getDbShellRoute() {
+    const clusterId = cfg.proxyCluster;
+    return generatePath(cfg.routes.dbshell, { clusterId });
+  },
+
   getBotsRoute() {
     return generatePath(cfg.routes.bots);
   },
@@ -717,6 +726,12 @@ const cfg = {
     });
   },
 
+  getDBShellURL(clusterId: string) {
+    return generatePath(cfg.api.dbshell, {
+      clusterId,
+    });
+  },
+
   getLocksRoute() {
     return cfg.routes.locks;
   },
@@ -785,6 +800,8 @@ const cfg = {
       webauthnAssertionResponse: webauthn,
     })}`;
   },
+
+
 
   getRenewTokenUrl() {
     return cfg.api.webRenewTokenPath;
@@ -1122,6 +1139,10 @@ export interface UrlScpParams {
   moderatedSessionId?: string;
   fileTransferRequestId?: string;
   webauthn?: WebauthnAssertionResponse;
+}
+
+export interface UrlDbShellParams {
+  clusterId: string;
 }
 
 export interface UrlSshParams {
