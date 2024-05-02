@@ -46,15 +46,34 @@ func Run(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	allErrors := make(chan error, 3)
 	g, ctx := errgroup.WithContext(ctx)
-	g.Go(func() error { return trace.Wrap(manager.Run(ctx)) })
 	g.Go(func() error {
+		// Make sure to cancel the context if manager.Run terminates for any reason.
+		defer cancel()
+		err := trace.Wrap(manager.Run(ctx))
+		allErrors <- err
+		return err
+	})
+	g.Go(func() error {
+		// Wait until the context is canceled, either from receiving SIGTERM or from manager.Run terminating.
 		<-ctx.Done()
-		tunErr := tun.Close()
-		destroyErr := manager.Destroy()
+
+		tunErr := trace.Wrap(tun.Close())
+		allErrors <- tunErr
+
+		destroyErr := trace.Wrap(manager.Destroy())
+		allErrors <- destroyErr
+
 		return trace.NewAggregate(tunErr, destroyErr)
 	})
-	return trace.Wrap(g.Wait())
+	// Deliberately ignoring the error from g.Wait() to return an aggregate of all errors.
+	_ = g.Wait()
+	close(allErrors)
+	return trace.NewAggregateFromChannel(allErrors, context.Background())
 }
 
 // AdminSubcommand is the tsh subcommand that should run as root that will
