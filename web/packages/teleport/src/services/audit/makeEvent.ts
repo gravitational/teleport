@@ -1831,10 +1831,10 @@ export const formatters: Formatters = {
         return `User [${user}] executed query [${truncateStr(
           args.sql,
           80
-        )}] in database [${db_name}] on [${db_service}]`
+        )}] in database [${db_name}] on [${db_service}]`;
       }
-      return `User [${user}] called [${procedure}] in database [${db_name}] on [${db_service}]`
-    }
+      return `User [${user}] called [${procedure}] in database [${db_name}] on [${db_service}]`;
+    },
   },
   [eventCodes.SPANNER_RPC_DENIED]: {
     type: 'db.session.spanner.rpc',
@@ -1844,10 +1844,10 @@ export const formatters: Formatters = {
         return `User [${user}] attempted to execute query [${truncateStr(
           args.sql,
           80
-        )}] in database [${db_name}] on [${db_service}]`
+        )}] in database [${db_name}] on [${db_service}]`;
       }
-      return `User [${user}] attempted to call [${procedure}] in database [${db_name}] on [${db_service}]`
-    }
+      return `User [${user}] attempted to call [${procedure}] in database [${db_name}] on [${db_service}]`;
+    },
   },
   [eventCodes.UNKNOWN]: {
     type: 'unknown',

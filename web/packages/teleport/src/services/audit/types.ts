@@ -1651,9 +1651,7 @@ export type RawEvents = {
       user: string;
     }
   >;
-  [eventCodes.SPANNER_RPC]: RawSpannerRPCEvent<
-    typeof eventCodes.SPANNER_RPC
-  >;
+  [eventCodes.SPANNER_RPC]: RawSpannerRPCEvent<typeof eventCodes.SPANNER_RPC>;
   [eventCodes.SPANNER_RPC_DENIED]: RawSpannerRPCEvent<
     typeof eventCodes.SPANNER_RPC_DENIED
   >;
@@ -1847,16 +1845,15 @@ type RawDatabaseSessionEvent<T extends EventCode, K = unknown> = Merge<
   K
 >;
 
-type RawSpannerRPCEvent<T extends EventCode> =
-  RawEvent<
-    T,
-    {
-      procedure: string;
-      db_service: string;
-      db_name: string;
-      args: { sql?: string };
-    }
-  >;
+type RawSpannerRPCEvent<T extends EventCode> = RawEvent<
+  T,
+  {
+    procedure: string;
+    db_service: string;
+    db_name: string;
+    args: { sql?: string };
+  }
+>;
 
 /**
  * A map of event formatters that provide short and long description

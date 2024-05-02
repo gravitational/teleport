@@ -762,8 +762,8 @@ var dbProxySpannerAuthTpl = template.Must(template.New("").Parse(
 Use the following command to connect to the database or to the address above using other database GUI/CLI clients:
   $ {{.command}}
 
-Or use a JDBC connection string to connect with other GUI/CLI clients:
-jdbc:cloudspanner://{{.address}}/projects/{{.gcpProject}}/instances/{{.gcpInstance}}/databases/{{.databaseName}}
+Or use the following JDBC connection string to connect with other GUI/CLI clients:
+jdbc:cloudspanner://{{.address}}/projects/{{.gcpProject}}/instances/{{.gcpInstance}}/databases/{{.databaseName}};usePlainText=true
 `))
 
 // dbProxyOracleAuthTpl is the message that's printed for an authenticated db proxy.
