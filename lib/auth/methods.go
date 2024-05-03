@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -270,6 +271,12 @@ var (
 	// invalidUserpass2FError is the error for when either the provided username,
 	// password, or second factor is incorrect.
 	invalidUserPass2FError = trace.AccessDenied("invalid username, password or second factor")
+
+	// errSSOUserLocalAuth is issued for SSO users attempting local authentication
+	// or related actions (like trying to set a password)
+	// Kept purposefully vague, as such actions don't happen during normal
+	// utilization of the system.
+	errSSOUserLocalAuth = &trace.AccessDeniedError{Message: "invalid credentials"}
 )
 
 // IsInvalidLocalCredentialError checks if an error resulted from an incorrect username,
@@ -375,6 +382,22 @@ func (a *Server) authenticateUserInternal(
 				"passwordless authentication can only be used with the PASSWORDLESS scope")
 		}
 		return a.authenticatePasswordless(ctx, req)
+	}
+
+	// Disallow non-local users from local authentication.
+	// Passwordless does its own check, as the user is only known after the
+	// webauthn assertion is cleared.
+	switch u, err := a.GetUser(ctx, user, false /* withSecrets */); {
+	case trace.IsNotFound(err):
+		// Keep going if the user is not known.
+	case err != nil:
+		return nil, "", trace.Wrap(err)
+	case u.GetUserType() != types.UserTypeLocal:
+		log.WithFields(logrus.Fields{
+			"user":      user,
+			"user_type": u.GetUserType(),
+		}).Warn("Non-local user attempted local authentication")
+		return nil, "", trace.Wrap(errSSOUserLocalAuth)
 	}
 
 	// Try 2nd-factor-enabled authentication schemes first.
