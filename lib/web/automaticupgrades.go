@@ -19,6 +19,7 @@
 package web
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"net/http"
@@ -31,6 +32,8 @@ import (
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/automaticupgrades/constants"
 	"github.com/gravitational/teleport/lib/automaticupgrades/version"
+	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/web/scripts"
 )
 
 const defaultChannelTimeout = 5 * time.Second
@@ -116,4 +119,33 @@ func (h *Handler) automaticUpgradesCritical(w http.ResponseWriter, r *http.Reque
 	}
 	_, err = w.Write([]byte(response))
 	return nil, trace.Wrap(err)
+}
+
+// getTeleportInstallScriptHandle returns a teleport install script that installs
+// the latest compatible teleport agent version.
+func (h *Handler) getTeleportInstallScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
+	httplib.SetScriptHeaders(w.Header())
+
+	_, autoUpgradesVersion, err := h.getAutoUpgrades(r.Context())
+	if err != nil {
+		w.Write(scripts.ErrorBashScript)
+		return nil, nil
+	}
+
+	var buf bytes.Buffer
+	if err := scripts.InstallTeleportBashScript.Execute(&buf, map[string]interface{}{
+		"teleportVersion": strings.TrimPrefix(autoUpgradesVersion, "v"),
+	}); err != nil {
+		log.WithError(err).Info("Failed to return the teleport install script.")
+		w.Write(scripts.ErrorBashScript)
+		return nil, nil
+	}
+
+	w.WriteHeader(http.StatusOK)
+	if _, err := w.Write(buf.Bytes()); err != nil {
+		log.WithError(err).Debug("Failed to return the database install script.")
+		w.Write(scripts.ErrorBashScript)
+	}
+
+	return nil, nil
 }

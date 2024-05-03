@@ -796,6 +796,8 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/scripts/:token/install-node.sh", h.WithLimiter(h.getNodeJoinScriptHandle))
 	h.GET("/scripts/:token/install-app.sh", h.WithLimiter(h.getAppJoinScriptHandle))
 	h.GET("/scripts/:token/install-database.sh", h.WithLimiter(h.getDatabaseJoinScriptHandle))
+	// Teleport install script
+	h.GET("/webapi/scripts/install.sh", h.WithLimiter(h.getTeleportInstallScriptHandle))
 
 	// Discovery installation script requires a query param to define the DiscoveryGroup:
 	// ?discoveryGroup=<group name>

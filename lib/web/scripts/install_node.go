@@ -48,6 +48,13 @@ var installNodeBashScript string
 
 var InstallNodeBashScript = template.Must(template.New("nodejoin").Parse(installNodeBashScript))
 
+// InstallTeleportBashScript is the script that will run on user's machine to install
+// or update teleport. It does not automatically join the teleport cluster.
+//
+//go:embed oneoff/install.sh
+var installTeleportBashScript string
+var InstallTeleportBashScript = template.Must(template.New("teleportinstall").Parse(installTeleportBashScript))
+
 // MarshalLabelsYAML returns a list of strings, each one containing a
 // label key and list of value's pair.
 // This is used to create yaml sections within the join scripts.
