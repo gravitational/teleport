@@ -216,7 +216,7 @@ func NewTLSServer(ctx context.Context, cfg TLSServerConfig) (*TLSServer, error) 
 	}
 
 	server.clientTLSConfigGenerator, err = NewClientTLSConfigGenerator(ClientTLSConfigGeneratorConfig{
-		TLS:                  server.cfg.TLS,
+		TLS:                  server.cfg.TLS.Clone(),
 		ClusterName:          localClusterName.GetClusterName(),
 		PermitRemoteClusters: true,
 		AccessPoint:          server.cfg.AccessPoint,
