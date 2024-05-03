@@ -67,6 +67,11 @@ Access lists will need to be allowed to have empty grants so access
 lists can represent only users and permisisons can be assigned purely
 through membership in other lists.
 
+Access list periodic reviews will include in the member review page,
+the list of nested access lists and an indicator to suggest that its
+an access list not an individual member, but not the full list of
+users.
+
 # Examples
 
 
