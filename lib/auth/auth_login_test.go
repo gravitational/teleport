@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -1353,6 +1354,99 @@ func TestSSOPasswordBypass(t *testing.T) {
 			Type: UserTokenTypeResetPassword,
 		})
 		assert.ErrorContains(t, err, "only local", "CreateResetPasswordToken error mismatch")
+	})
+}
+
+// TestSSOAccountRecoveryProhibited tests that SSO users cannot perform account
+// recovery.
+func TestSSOAccountRecoveryProhibited(t *testing.T) {
+	// Can't t.Parallel because of modules.SetTestModules.
+
+	testServer := newTestTLSServer(t)
+	authServer := testServer.Auth()
+	clock := testServer.Clock()
+	ctx := context.Background()
+
+	// Enable RecoveryCodes feature.
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			RecoveryCodes: true,
+		},
+	})
+
+	// Make second factor mandatory.
+	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOn,
+		Webauthn: &types.Webauthn{
+			RPID: "localhost",
+		},
+	})
+	require.NoError(t, err, "NewAuthPreference failed")
+	_, err = authServer.UpsertAuthPreference(ctx, authPref)
+	require.NoError(t, err, "UpsertAuthPreference failed")
+
+	// Create a user that looks like an SSO user. The name must be an e-mail for
+	// account recovery to work.
+	const user = "llama@example.com"
+	_, _, err = CreateUserAndRole(authServer, user, []string{user}, nil /* allowRules */)
+	require.NoError(t, err, "CreateUserAndRole failed")
+	_, err = authServer.UpdateAndSwapUser(ctx, user, false /* withSecrets */, func(u types.User) (changed bool, err error) {
+		u.SetCreatedBy(types.CreatedBy{
+			Connector: &types.ConnectorRef{
+				Type:     constants.Github,
+				ID:       "github",
+				Identity: user,
+			},
+			Time: clock.Now(),
+			User: types.UserRef{
+				Name: teleport.UserSystem,
+			},
+		})
+		return true, nil
+	})
+	require.NoError(t, err, "UpdateAndSwapUser failed")
+
+	// Register an MFA device.
+	userClient, err := testServer.NewClient(TestUser(user))
+	require.NoError(t, err, "NewClient failed")
+	totpDev, err := RegisterTestDevice(ctx, userClient, "totp", proto.DeviceType_DEVICE_TYPE_TOTP, nil /* authenticator */, WithTestDeviceClock(clock))
+	require.NoError(t, err, "RegisterTestDevice failed")
+
+	t.Run("CreateAccountRecoveryCodes", func(t *testing.T) {
+		t.Parallel()
+
+		// Issue a privilege token
+		chal, err := userClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+			Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{},
+			ChallengeExtensions: &mfav1.ChallengeExtensions{
+				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES,
+			},
+		})
+		require.NoError(t, err, "CreateAuthenticateChallenge failed")
+		mfaResp, err := totpDev.SolveAuthn(chal)
+		require.NoError(t, err, "SolveAuthn failed")
+		privilegeToken, err := userClient.CreatePrivilegeToken(ctx, &proto.CreatePrivilegeTokenRequest{
+			ExistingMFAResponse: mfaResp,
+		})
+		require.NoError(t, err, "CreatePrivilegeToken failed")
+
+		_, err = userClient.CreateAccountRecoveryCodes(ctx, &proto.CreateAccountRecoveryCodesRequest{
+			TokenID: privilegeToken.GetName(),
+		})
+		assert.ErrorContains(t, err, "only local", "CreateAccountRecoveryCodes error mismatch")
+	})
+
+	t.Run("StartAccountRecovery", func(t *testing.T) {
+		t.Parallel()
+
+		// Verify that we cannot start account recovery.
+		_, err = userClient.StartAccountRecovery(ctx, &proto.StartAccountRecoveryRequest{
+			Username:     user,
+			RecoveryCode: []byte("tele-aardvark-adviser-accrue-aggregate-adrift-almighty-afflict-amusement"), // fake
+			RecoverType:  types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD,
+		})
+		assert.ErrorContains(t, err, "only local", "StartAccountRecovery error mismatch")
 	})
 }
 
