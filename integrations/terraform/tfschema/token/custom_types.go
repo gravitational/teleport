@@ -48,6 +48,7 @@ func CopyToBoolOptionNullable(diags diag.Diagnostics, o *apitypes.BoolOption, t 
 		return value
 	}
 
+	value.Null = false
 	value.Value = o.Value
 
 	return value
