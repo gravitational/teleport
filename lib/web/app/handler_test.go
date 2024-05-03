@@ -714,15 +714,12 @@ func TestHealthCheckAppServer(t *testing.T) {
 			}
 
 			appHandler, err := NewHandler(ctx, &HandlerConfig{
-				Clock:          fakeClock,
-				AuthClient:     authClient,
-				AccessPoint:    authClient,
-				ProxyClient:    tunnel,
-				CipherSuites:   utils.DefaultCipherSuites(),
-				DataDir:        t.TempDir(),
-				HostID:         uuid.NewString(),
-				Emitter:        authClient,
-				ProxyTLSConfig: utils.TLSConfig(utils.DefaultCipherSuites()),
+				Clock:                 fakeClock,
+				AuthClient:            authClient,
+				AccessPoint:           authClient,
+				ProxyClient:           tunnel,
+				CipherSuites:          utils.DefaultCipherSuites(),
+				IntegrationAppHandler: &mockIntegrationAppHandler{},
 			})
 			require.NoError(t, err)
 
@@ -739,16 +736,13 @@ type testServer struct {
 
 func setup(t *testing.T, clock clockwork.FakeClock, authClient auth.ClientI, proxyClient reversetunnelclient.Tunnel, proxyPublicAddrs []utils.NetAddr) *testServer {
 	appHandler, err := NewHandler(context.Background(), &HandlerConfig{
-		Clock:            clock,
-		AuthClient:       authClient,
-		AccessPoint:      authClient,
-		ProxyClient:      proxyClient,
-		CipherSuites:     utils.DefaultCipherSuites(),
-		ProxyPublicAddrs: proxyPublicAddrs,
-		DataDir:          t.TempDir(),
-		HostID:           uuid.NewString(),
-		Emitter:          authClient,
-		ProxyTLSConfig:   utils.TLSConfig(utils.DefaultCipherSuites()),
+		Clock:                 clock,
+		AuthClient:            authClient,
+		AccessPoint:           authClient,
+		ProxyClient:           proxyClient,
+		CipherSuites:          utils.DefaultCipherSuites(),
+		ProxyPublicAddrs:      proxyPublicAddrs,
+		IntegrationAppHandler: &mockIntegrationAppHandler{},
 	})
 	require.NoError(t, err)
 

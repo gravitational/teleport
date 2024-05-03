@@ -494,7 +494,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		GetProxyIdentity: func() (*auth.Identity, error) {
 			return proxyIdentity, nil
 		},
-		DataDir: t.TempDir(),
+		IntegrationAppHandler: &mockIntegrationAppHandler{},
 	}
 
 	if handlerConfig.HealthCheckAppServer == nil {
@@ -8069,7 +8069,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		GetProxyIdentity: func() (*auth.Identity, error) {
 			return proxyIdentity, nil
 		},
-		DataDir: t.TempDir(),
+		IntegrationAppHandler: &mockIntegrationAppHandler{},
 	}, SetSessionStreamPollPeriod(200*time.Millisecond), SetClock(clock))
 	require.NoError(t, err)
 
@@ -8116,6 +8116,10 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		webURL:  *url,
 	}
 }
+
+type mockIntegrationAppHandler struct{}
+
+func (m *mockIntegrationAppHandler) HandleConnection(_ net.Conn) {}
 
 // webPack represents the state of a single web test.
 // It replicates most of the WebSuite and serves to gradually

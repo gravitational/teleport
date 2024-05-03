@@ -30,28 +30,20 @@ import (
 	"net/url"
 	"path"
 
-	awssession "github.com/aws/aws-sdk-go/aws/session"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
-	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv"
-	srvapp "github.com/gravitational/teleport/lib/srv/app"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 // HandlerConfig is the configuration for an application handler.
@@ -71,14 +63,9 @@ type HandlerConfig struct {
 	CipherSuites []uint16
 	// WebPublicAddr
 	WebPublicAddr string
-	// Emitter is event emitter
-	Emitter apievents.Emitter
-	// DataDir is the path to the data directory for the server.
-	DataDir string
-	// HostID is the id of the host where this application agent is running.
-	HostID string
-	// ProxyTLSConfig contains the current proxy's TLS config.
-	ProxyTLSConfig *tls.Config
+	// IntegrationAppHandler handles App Access requests directly - not requiring an AppService.
+	// Only available for AWS OIDC Integrations.
+	IntegrationAppHandler ServerHandler
 }
 
 // CheckAndSetDefaults validates configuration.
@@ -96,17 +83,8 @@ func (c *HandlerConfig) CheckAndSetDefaults() error {
 	if len(c.CipherSuites) == 0 {
 		return trace.BadParameter("ciphersuites missing")
 	}
-	if c.Emitter == nil {
-		return trace.BadParameter("event emitter missing")
-	}
-	if c.DataDir == "" {
-		return trace.BadParameter("datadir missing")
-	}
-	if c.HostID == "" {
-		return trace.BadParameter("hostid missing")
-	}
-	if c.ProxyTLSConfig == nil {
-		return trace.BadParameter("proxy tls config missing")
+	if c.IntegrationAppHandler == nil {
+		return trace.BadParameter("integration app handler missing")
 	}
 
 	return nil
@@ -125,9 +103,6 @@ type Handler struct {
 	clusterName string
 
 	log *logrus.Entry
-
-	integrationsAppHandler *srvapp.ConnectionsHandler
-	awsSessionGetter       awsutils.AWSSessionProvider
 }
 
 // NewHandler returns a new application handler.
@@ -143,13 +118,6 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 		log: logrus.WithFields(logrus.Fields{
 			teleport.ComponentKey: teleport.ComponentAppProxy,
 		}),
-		awsSessionGetter: func(ctx context.Context, region, integration string) (*awssession.Session, error) {
-			if integration == "" {
-				return awsutils.SessionProviderUsingAmbientCredentials()(ctx, region, integration)
-			}
-
-			return awsoidc.NewSessionV1(ctx, c.AuthClient, region, integration)
-		},
 	}
 
 	// Create a new session cache, this holds sessions that can be used to
@@ -166,61 +134,6 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 	}
 	h.clusterName = cn.GetClusterName()
 
-	lockWatcher, err := services.NewLockWatcher(h.closeContext, services.LockWatcherConfig{
-		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: teleport.ComponentWebProxy,
-			Log:       h.log,
-			Client:    h.c.AuthClient,
-			Clock:     h.c.Clock,
-		},
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-		ClusterName: h.clusterName,
-		AccessPoint: h.c.AccessPoint,
-		LockWatcher: lockWatcher,
-		Logger:      h.log,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	connMonitor, err := srv.NewConnectionMonitor(srv.ConnectionMonitorConfig{
-		AccessPoint:    h.c.AccessPoint,
-		LockWatcher:    lockWatcher,
-		Clock:          h.c.Clock,
-		ServerID:       h.c.HostID,
-		Emitter:        h.c.Emitter,
-		EmitterContext: h.closeContext,
-		Logger:         h.log,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	connectionsHandler, err := srvapp.NewConnectionsHandler(h.closeContext, &srvapp.ConnectionsHandlerConfig{
-		Clock:              h.c.Clock,
-		DataDir:            h.c.DataDir,
-		Emitter:            h.c.Emitter,
-		Authorizer:         authorizer,
-		HostID:             h.c.HostID,
-		AuthClient:         h.c.AuthClient,
-		AccessPoint:        h.c.AccessPoint,
-		TLSConfig:          h.c.ProxyTLSConfig,
-		ConnectionMonitor:  connMonitor,
-		CipherSuites:       h.c.CipherSuites,
-		ServiceComponent:   teleport.ComponentWebProxy,
-		AWSSessionProvider: h.awsSessionGetter,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	connectionsHandler.SetApplicationsProvider(h.appForPublicEndpoint)
-	h.integrationsAppHandler = connectionsHandler
-
 	// Create the application routes.
 	h.router = httprouter.New()
 	h.router.UseRawPath = true
@@ -236,22 +149,6 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 	h.router.NotFound = h.withAuth(h.handleHttp)
 
 	return h, nil
-}
-
-// appForPublicEndpoint returns an App given a public endpoint.
-// If no app is found for the given public endpoint, trace.NotFound is returned.
-func (h *Handler) appForPublicEndpoint(ctx context.Context, publicAddr string) (types.Application, error) {
-	allAppServers, err := h.c.AccessPoint.GetApplicationServers(ctx, defaults.Namespace)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	publicAddressMatches := MatchPublicAddr(publicAddr)
-	for _, a := range allAppServers {
-		if publicAddressMatches(ctx, a) {
-			return a.GetApp(), nil
-		}
-	}
-	return nil, trace.NotFound("no app found for endpoint %q", publicAddr)
 }
 
 // ServeHTTP hands the request to the request router.

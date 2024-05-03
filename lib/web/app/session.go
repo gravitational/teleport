@@ -92,7 +92,7 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 		servers:               servers,
 		ws:                    ws,
 		clusterName:           h.clusterName,
-		integrationAppHandler: h.integrationsAppHandler,
+		integrationAppHandler: h.c.IntegrationAppHandler,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
