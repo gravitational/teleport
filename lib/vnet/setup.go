@@ -22,7 +22,6 @@ import (
 	"os"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/sync/errgroup"
 	"golang.zx2c4.com/wireguard/tun"
 )
 
@@ -46,34 +45,7 @@ func Run(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	allErrors := make(chan error, 3)
-	g, ctx := errgroup.WithContext(ctx)
-	g.Go(func() error {
-		// Make sure to cancel the context if manager.Run terminates for any reason.
-		defer cancel()
-		err := trace.Wrap(manager.Run(ctx))
-		allErrors <- err
-		return err
-	})
-	g.Go(func() error {
-		// Wait until the context is canceled, either from receiving SIGTERM or from manager.Run terminating.
-		<-ctx.Done()
-
-		tunErr := trace.Wrap(tun.Close())
-		allErrors <- tunErr
-
-		destroyErr := trace.Wrap(manager.Destroy())
-		allErrors <- destroyErr
-
-		return trace.NewAggregate(tunErr, destroyErr)
-	})
-	// Deliberately ignoring the error from g.Wait() to return an aggregate of all errors.
-	_ = g.Wait()
-	close(allErrors)
-	return trace.NewAggregateFromChannel(allErrors, context.Background())
+	return trace.Wrap(manager.Run(ctx))
 }
 
 // AdminSubcommand is the tsh subcommand that should run as root that will

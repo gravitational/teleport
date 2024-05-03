@@ -144,8 +144,9 @@ type tcpHandler interface {
 	handleTCP(context.Context, tcpConnector) error
 }
 
-// NewManager creates a new VNet manager with the given configuration and root
-// context. Call Run() on the returned manager to start the VNet.
+// NewManager creates a new VNet manager with the given configuration and root context. It takes ownership of
+// [cfg.TUNDevice] and will handle closing it before Run() returns. Call Run() on the returned manager to
+// start the VNet.
 func NewManager(cfg *Config) (*Manager, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -212,24 +213,45 @@ func installVnetRoutes(stack *stack.Stack) error {
 	return nil
 }
 
-// Run starts the VNet.
+// Run starts the VNet. It blocks until [ctx] is cancelled, at which point it closes the link endpoint, waits
+// for all goroutines to terminate, and destroys the networking stack.
 func (m *Manager) Run(ctx context.Context) error {
 	m.slog.InfoContext(ctx, "Running Teleport VNet.", "ipv6_prefix", m.ipv6Prefix)
-	g, ctx := errgroup.WithContext(ctx)
-	g.Go(func() error { return m.statsHandler(ctx) })
-	g.Go(func() error {
-		return forwardBetweenTunAndNetstack(ctx, m.tun, m.linkEndpoint)
-	})
-	return trace.Wrap(g.Wait())
-}
 
-// Destroy closes the link endpoint, waits for all goroutines to terminate, and destroys the networking stack.
-func (m *Manager) Destroy() error {
-	close(m.destroyed)
-	m.linkEndpoint.Close()
+	ctx, cancel := context.WithCancel(ctx)
+
+	allErrors := make(chan error, 3)
+	g, ctx := errgroup.WithContext(ctx)
+	g.Go(func() error {
+		defer cancel()
+		err := trace.Wrap(m.statsHandler(ctx))
+		allErrors <- err
+		return err
+	})
+	g.Go(func() error {
+		defer cancel()
+		err := forwardBetweenTunAndNetstack(ctx, m.tun, m.linkEndpoint)
+		allErrors <- err
+		return err
+	})
+	g.Go(func() error {
+		// When the context is cancelled for any reason, the caller may have cancelled it or one of the other
+		// concurrent tasks, destroy everything and quit.
+		<-ctx.Done()
+		close(m.destroyed)
+		m.linkEndpoint.Close()
+		err := trace.Wrap(m.tun.Close(), "closing TUN device")
+		allErrors <- err
+		return err
+	})
+
+	// Deliberately ignoring the error from g.Wait() to return an aggregate of all errors.
+	_ = g.Wait()
 	m.wg.Wait()
 	m.stack.Destroy()
-	return nil
+
+	close(allErrors)
+	return trace.NewAggregateFromChannel(allErrors, context.Background())
 }
 
 func (m *Manager) handleTCP(req *tcp.ForwarderRequest) {
