@@ -47,6 +47,7 @@ Teleport works with SSH, Kubernetes, databases, RDP, and web services.
 1. [Support and Contributing](#support-and-contributing)
 1. [Is Teleport Secure and Production Ready?](#is-teleport-secure-and-production-ready)
 1. [Who Built Teleport?](#who-built-teleport)
+1. [License](#license)
 
 ## Introduction
 
@@ -391,3 +392,17 @@ You can see the list of companies that use Teleport in production on the Telepor
 Teleport was created by [Gravitational, Inc.](https://goteleport.com). We have
 built Teleport by borrowing from our previous experiences at Rackspace. [Learn more
 about Teleport and our history](https://goteleport.com/about/).
+
+## License
+
+Teleport is distributed in multiple forms with different licensing implications.
+
+The Teleport API module (all code in this repository under `/api`) is available
+under the [Apache 2.0 license](./api/LICENSE).
+
+The remainder of the source code in this repository is available under the
+[GNU Affero General Public License](./LICENSE). Users compiling Teleport
+from source must comply with the terms of this license.
+
+Teleport Community Edition builds distributed on http://goteleport.com/download
+are available under a [modified Apache 2.0 license](./LICENSE-community).
