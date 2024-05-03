@@ -105,7 +105,7 @@ func (c *client) CollectProfile(ctx context.Context, profileName string, seconds
 		return nil, trace.Wrap(err)
 	}
 
-	result, err := io.ReadAll(io.LimitReader(resp.Body, 1024))
+	result, err := io.ReadAll(resp.Body)
 	defer resp.Body.Close()
 	if err != nil {
 		return nil, trace.Wrap(err)
