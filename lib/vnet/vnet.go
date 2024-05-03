@@ -213,7 +213,7 @@ func installVnetRoutes(stack *stack.Stack) error {
 	return nil
 }
 
-// Run starts the VNet. It blocks until [ctx] is cancelled, at which point it closes the link endpoint, waits
+// Run starts the VNet. It blocks until [ctx] is canceled, at which point it closes the link endpoint, waits
 // for all goroutines to terminate, and destroys the networking stack.
 func (m *Manager) Run(ctx context.Context) error {
 	m.slog.InfoContext(ctx, "Running Teleport VNet.", "ipv6_prefix", m.ipv6Prefix)
@@ -235,7 +235,7 @@ func (m *Manager) Run(ctx context.Context) error {
 		return err
 	})
 	g.Go(func() error {
-		// When the context is cancelled for any reason, the caller may have cancelled it or one of the other
+		// When the context is canceled for any reason, the caller may have canceled it or one of the other
 		// concurrent tasks, destroy everything and quit.
 		<-ctx.Done()
 		close(m.destroyed)

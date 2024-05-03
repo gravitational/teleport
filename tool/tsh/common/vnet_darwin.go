@@ -21,9 +21,9 @@ package common
 
 import (
 	"github.com/alecthomas/kingpin/v2"
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/vnet"
 )
 
