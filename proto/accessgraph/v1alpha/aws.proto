@@ -489,6 +489,8 @@ message AWSRDSDatabaseV1 {
   // account_id is the ID of the AWS account that the instance profile belongs
   // to.
   string account_id = 9;
+  // resource_id is the RDS unique resource id.
+  string resource_id = 10;
 }
 
 // AWSRDSEngineV1 defines the database engine details

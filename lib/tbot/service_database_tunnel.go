@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
-	"net/url"
 
 	"github.com/gravitational/trace"
 
@@ -180,13 +179,9 @@ func (s *DatabaseTunnelService) Run(ctx context.Context) error {
 
 	l := s.cfg.Listener
 	if l == nil {
-		listenUrl, err := url.Parse(s.cfg.Listen)
-		if err != nil {
-			return trace.Wrap(err, "parsing listen url")
-		}
-
-		s.log.DebugContext(ctx, "Opening listener for database tunnel.", "address", listenUrl.String())
-		l, err = net.Listen("tcp", listenUrl.Host)
+		s.log.DebugContext(ctx, "Opening listener for database tunnel.", "listen", s.cfg.Listen)
+		var err error
+		l, err = createListener(ctx, s.log, s.cfg.Listen)
 		if err != nil {
 			return trace.Wrap(err, "opening listener")
 		}

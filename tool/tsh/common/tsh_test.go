@@ -5534,9 +5534,6 @@ func TestListingResourcesAcrossClusters(t *testing.T) {
 		testserver.WithHostname("node01"),
 		testserver.WithClusterName(t, "root"),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
-			// Disable session recording to prevent writing to disk after the test concludes.
-			cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
-
 			// Enable DB
 			cfg.Databases.Enabled = true
 			cfg.Databases.Databases = []servicecfg.Database{
@@ -5558,9 +5555,6 @@ func TestListingResourcesAcrossClusters(t *testing.T) {
 		testserver.WithHostname("node02"),
 		testserver.WithClusterName(t, "leaf"),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
-			// Disable session recording to prevent writing to disk after the test concludes.
-			cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
-
 			// Enable DB
 			cfg.Databases.Enabled = true
 			cfg.Databases.Databases = []servicecfg.Database{

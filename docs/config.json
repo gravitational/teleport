@@ -1551,6 +1551,10 @@
               "slug": "/machine-id/deployment/linux/"
             },
             {
+              "title": "Linux Server (TPM)",
+              "slug": "/machine-id/deployment/linux-tpm/"
+            },
+            {
               "title": "Kubernetes",
               "slug": "/machine-id/deployment/kubernetes/"
             },
@@ -1794,16 +1798,28 @@
               "slug": "/reference/helm-reference/teleport-plugin-event-handler/"
             },
             {
+              "title": "teleport-plugin-discord",
+              "slug": "/reference/helm-reference/teleport-plugin-discord/"
+            },
+            {
+              "title": "teleport-plugin-email",
+              "slug": "/reference/helm-reference/teleport-plugin-email/"
+            },
+            {
               "title": "teleport-plugin-jira",
               "slug": "/reference/helm-reference/teleport-plugin-jira/"
             },
             {
-              "title": "teleport-plugin-pagerduty",
-              "slug": "/reference/helm-reference/teleport-plugin-pagerduty/"
-            },
-            {
               "title": "teleport-plugin-mattermost",
               "slug": "/reference/helm-reference/teleport-plugin-mattermost/"
+            },
+            {
+              "title": "teleport-plugin-msteams",
+              "slug": "/reference/helm-reference/teleport-plugin-msteams/"
+            },
+            {
+              "title": "teleport-plugin-pagerduty",
+              "slug": "/reference/helm-reference/teleport-plugin-pagerduty/"
             },
             {
               "title": "teleport-plugin-slack",
@@ -1879,7 +1895,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "15.2.2",
+      "version": "15.3.0",
       "major_version": "15",
       "sla": {
         "monthly_percentage": "99.9%",

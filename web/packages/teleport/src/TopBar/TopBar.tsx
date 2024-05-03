@@ -75,7 +75,6 @@ export function TopBar({ CustomLogo }: TopBarProps) {
   );
   const { currentWidth } = useLayout();
   const theme: Theme = useTheme();
-
   const [previousManagementRoute, setPreviousManagementRoute] = useState('');
 
   const handleLocationChange = useCallback(
@@ -207,7 +206,10 @@ export function TopBar({ CustomLogo }: TopBarProps) {
       {!feature?.logoOnlyTopbar && (
         <Flex height="100%" alignItems="center">
           <Notifications iconSize={iconSize} />
-          <UserMenuNav username={ctx.storeUser.state.username} />
+          <UserMenuNav
+            username={ctx.storeUser.state.username}
+            iconSize={iconSize}
+          />
         </Flex>
       )}
     </TopBarContainer>

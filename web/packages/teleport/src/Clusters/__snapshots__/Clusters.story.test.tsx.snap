@@ -1,21 +1,6 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`render clusters 1`] = `
-.c16 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.c19 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: rgba(255,255,255,0.72);
-  margin-left: 8px;
-  margin-right: -8px;
-}
-
 .c0 {
   box-sizing: border-box;
   padding-left: 40px;
@@ -68,6 +53,21 @@ exports[`render clusters 1`] = `
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
+}
+
+.c16 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c19 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255,255,255,0.72);
+  margin-left: 8px;
+  margin-right: -8px;
 }
 
 .c6 {
@@ -262,7 +262,6 @@ exports[`render clusters 1`] = `
 }
 
 .c9 {
-  background: #0C143D;
   border-radius: 200px;
   width: 100%;
   height: 56px;
