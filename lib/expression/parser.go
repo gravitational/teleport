@@ -151,7 +151,7 @@ func DefaultParserSpec[evaluationEnv any]() typical.ParserSpec[evaluationEnv] {
 					return t.After(first) && t.Before(second), nil
 				}),
 			"contains_any": typical.BinaryFunction[evaluationEnv](
-				func(s1 , s2 Set) (bool, error) {
+				func(s1, s2 Set) (bool, error) {
 					for _, v := range s2.items() {
 						if s1.contains(v) {
 							return true, nil

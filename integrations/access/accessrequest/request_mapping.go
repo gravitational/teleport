@@ -19,10 +19,11 @@ package accessrequest
 import (
 	"time"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/expression"
 	"github.com/gravitational/teleport/lib/utils/typical"
-	"github.com/gravitational/trace"
 )
 
 // accessRequestExpressionEnv holds user details that can be mapped in an
