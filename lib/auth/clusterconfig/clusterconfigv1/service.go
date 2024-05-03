@@ -440,7 +440,7 @@ func (s *Service) UpdateClusterNetworkingConfig(ctx context.Context, req *cluste
 
 	newCfg := req.GetClusterNetworkConfig()
 
-	if err := s.validateCloudNetworkConfigUpdate(authzCtx, newCfg, oldCfg); err != nil {
+	if err := ValidateCloudNetworkConfigUpdate(*authzCtx, newCfg, oldCfg); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -505,7 +505,7 @@ func (s *Service) UpsertClusterNetworkingConfig(ctx context.Context, req *cluste
 
 	newCfg := req.GetClusterNetworkConfig()
 
-	if err := s.validateCloudNetworkConfigUpdate(authzCtx, newCfg, oldCfg); err != nil {
+	if err := ValidateCloudNetworkConfigUpdate(*authzCtx, newCfg, oldCfg); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -559,7 +559,7 @@ func (s *Service) ResetClusterNetworkingConfig(ctx context.Context, _ *clusterco
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.validateCloudNetworkConfigUpdate(authzCtx, defaultConfig, oldCfg); err != nil {
+	if err := ValidateCloudNetworkConfigUpdate(*authzCtx, defaultConfig, oldCfg); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -610,8 +610,8 @@ func (s *Service) ResetClusterNetworkingConfig(ctx context.Context, _ *clusterco
 	return nil, trace.LimitExceeded("failed to reset networking config within %v iterations", iterationLimit)
 }
 
-func (s *Service) validateCloudNetworkConfigUpdate(authzCtx *authz.Context, newConfig, oldConfig types.ClusterNetworkingConfig) error {
-	if authz.HasBuiltinRole(*authzCtx, string(types.RoleAdmin)) {
+func ValidateCloudNetworkConfigUpdate(authzCtx authz.Context, newConfig, oldConfig types.ClusterNetworkingConfig) error {
+	if authz.HasBuiltinRole(authzCtx, string(types.RoleAdmin)) {
 		return nil
 	}
 
