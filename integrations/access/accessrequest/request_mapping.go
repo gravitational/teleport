@@ -25,10 +25,6 @@ import (
 	"github.com/gravitational/trace"
 )
 
-const (
-	timeFormat = time.RFC3339 // "2006-01-02T15:04:05Z07:00"
-)
-
 // accessRequestExpressionEnv holds user details that can be mapped in an
 // access request condition assertion.
 type accessRequestExpressionEnv struct {
@@ -107,7 +103,7 @@ func matchAccessRequest(expr string, req types.AccessRequest) (bool, error) {
 		Expiry:             req.Expiry(),
 	})
 	if err != nil {
-		return false, trace.Wrap(err, "evaluating label expression %q", expr)
+		return false, trace.Wrap(err, "evaluating access monitoring rule condition expression %q", expr)
 	}
 	if matched, ok := match.(bool); ok && matched {
 		return true, nil

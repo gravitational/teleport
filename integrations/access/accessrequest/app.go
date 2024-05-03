@@ -485,7 +485,8 @@ func (a *App) recipientsFromAccessMonitoringRules(ctx context.Context, req types
 	for _, rule := range a.accessMonitoringRules.rules {
 		match, err := matchAccessRequest(rule.Spec.Condition, req)
 		if err != nil {
-			log.WithError(err).Warn("Failed to parse access monitoring notification rule")
+			log.WithError(err).WithField("rule", rule.Metadata.Name).
+				Warn("Failed to parse access monitoring notification rule")
 		}
 		if !match {
 			continue
