@@ -23,14 +23,15 @@ import (
 	"net"
 	"strings"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/singleflight"
 
+	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // AppProvider is an interface providing the necessary methods to log in to apps and get clients able to list
@@ -167,7 +168,12 @@ func newTCPAppHandler(
 }
 
 func (h *tcpAppHandler) HandleTCPConnector(ctx context.Context, connector func() (net.Conn, error)) error {
-	return trace.NotImplemented("HandleTCPConnector not implemented. profile=%s leaf_cluster=%s app=%s", h.profileName, h.leafClusterName, h.app.GetName())
+	conn, err := connector()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// HandleTCPConnector not implemented yet - just echo input back to output.
+	return trace.Wrap(utils.ProxyConn(ctx, conn, conn))
 }
 
 func isSubdomain(appFQDN, proxyAddress string) bool {

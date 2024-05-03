@@ -20,15 +20,14 @@ import (
 	"context"
 	"crypto/rand"
 	"errors"
-	"fmt"
 	"io"
 	"log/slog"
 	"net"
 	"os"
-	"slices"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -38,6 +37,10 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv6"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -56,7 +59,7 @@ type testPack struct {
 	localAddress     tcpip.Address
 }
 
-func newTestPack(t *testing.T, ctx context.Context, tcpHandlerResolver TCPHandlerResolver) *testPack {
+func newTestPack(t *testing.T, ctx context.Context, appProvider AppProvider) *testPack {
 	// Create two sides of an emulated TUN interface: writes to one can be read on the other, and vice versa.
 	tun1, tun2 := newSplitTUN()
 
@@ -105,6 +108,8 @@ func newTestPack(t *testing.T, ctx context.Context, tcpHandlerResolver TCPHandle
 	}})
 
 	dnsIPv6 := ipv6WithSuffix(vnetIPv6Prefix, []byte{2})
+
+	tcpHandlerResolver := NewTCPAppResolver(appProvider)
 
 	// Create the VNet and connect it to the other side of the TUN.
 	manager, err := NewManager(&Config{
@@ -212,28 +217,88 @@ func (n noUpstreamNameservers) UpstreamNameservers(ctx context.Context) ([]strin
 	return nil, nil
 }
 
-type echoAppResolver struct {
-	apps []string
+type echoAppProvider struct {
+	profiles []string
+	clients  map[string]map[string]*client.ClusterClient
 }
 
-func (f *echoAppResolver) ResolveTCPHandler(ctx context.Context, fqdn string) (handler TCPHandler, match bool, err error) {
-	publicAddr := strings.TrimSuffix(fqdn, ".")
-	if !slices.Contains(f.apps, publicAddr) {
-		return nil, false, nil
+// newEchoAppProvider returns an app provider with the list of named apps in each profile and leaf cluster.
+func newEchoAppProvider(apps map[string]map[string][]string) *echoAppProvider {
+	p := &echoAppProvider{
+		clients: make(map[string]map[string]*client.ClusterClient, len(apps)),
 	}
-	return &echoHandler{}, true, nil
+	for profileName, leafClusters := range apps {
+		p.profiles = append(p.profiles, profileName)
+		p.clients[profileName] = make(map[string]*client.ClusterClient, len(leafClusters))
+		for leafClusterName, apps := range leafClusters {
+			clusterName := profileName
+			if leafClusterName != "" {
+				clusterName = leafClusterName
+			}
+			p.clients[profileName][leafClusterName] = &client.ClusterClient{
+				AuthClient: &echoAppAuthClient{
+					clusterName: clusterName,
+					apps:        apps,
+				},
+			}
+		}
+	}
+	return p
 }
 
-type echoHandler struct{}
+// ListProfiles lists the names of all profiles saved for the user.
+func (p *echoAppProvider) ListProfiles() ([]string, error) {
+	return p.profiles, nil
+}
 
-func (echoHandler) HandleTCPConnector(ctx context.Context, connector func() (net.Conn, error)) error {
-	conn, err := connector()
-	if err != nil {
-		return trace.Wrap(err)
+// GetCachedClient returns a [*client.ClusterClient] for the given profile and leaf cluster.
+// [leafClusterName] may be empty when requesting a client for the root cluster. Returned clients are
+// expected to be cached, as this may be called frequently.
+func (p *echoAppProvider) GetCachedClient(ctx context.Context, profileName, leafClusterName string) (*client.ClusterClient, error) {
+	c, ok := p.clients[profileName][leafClusterName]
+	if !ok {
+		return nil, trace.NotFound("no client for %s:%s", profileName, leafClusterName)
 	}
-	defer conn.Close()
-	_, err = io.Copy(conn, conn)
-	return trace.Wrap(err)
+	return c, nil
+}
+
+type echoAppAuthClient struct {
+	auth.ClientI
+	clusterName string
+	apps        []string
+}
+
+func (c *echoAppAuthClient) GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error) {
+	resp := &proto.ListResourcesResponse{}
+	for _, app := range c.apps {
+		// Poor-man's predicate expression filter.
+		appPublicAddr := app + "." + c.clusterName
+		if !strings.Contains(req.PredicateExpression, appPublicAddr) {
+			continue
+		}
+		resp.Resources = append(resp.Resources, &proto.PaginatedResource{
+			Resource: &proto.PaginatedResource_AppServer{
+				AppServer: &types.AppServerV3{
+					Kind: types.KindAppServer,
+					Metadata: types.Metadata{
+						Name: app,
+					},
+					Spec: types.AppServerSpecV3{
+						App: &types.AppV3{
+							Metadata: types.Metadata{
+								Name: app,
+							},
+							Spec: types.AppSpecV3{
+								PublicAddr: app,
+							},
+						},
+					},
+				},
+			},
+		})
+	}
+	resp.TotalCount = int32(len(resp.Resources))
+	return resp, nil
 }
 
 func TestDialFakeApp(t *testing.T) {
@@ -241,37 +306,71 @@ func TestDialFakeApp(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	var appNames []string
-	for i := 0; i < 10; i++ {
-		appNames = append(appNames, fmt.Sprintf("echo%d.example.com", i))
+	appProvider := newEchoAppProvider(map[string]map[string][]string{
+		"root1.example.com": map[string][]string{
+			"":                 {"echo1", "echo2"},
+			"leaf.example.com": {"echo1"},
+		},
+		"root2.example.com": map[string][]string{
+			"":                  {"echo1", "echo2"},
+			"leaf2.example.com": {"echo1"},
+		},
+	})
+
+	validAppNames := []string{
+		"echo1.root1.example.com",
+		"echo2.root1.example.com",
+		"echo1.root2.example.com",
+		"echo2.root2.example.com",
+		// Leaf clusters not yet supported.
 	}
 
-	appResolver := &echoAppResolver{
-		apps: appNames,
+	invalidAppNames := []string{
+		"not.an.app.example.com.",
+		"echo1.leaf1.example.com.",
+		"echo1.leaf2.example.com.",
 	}
 
-	p := newTestPack(t, ctx, appResolver)
+	p := newTestPack(t, ctx, appProvider)
 
-	for _, app := range appNames {
-		app := app
-		t.Run(app, func(t *testing.T) {
-			t.Parallel()
+	t.Run("valid", func(t *testing.T) {
+		t.Parallel()
+		for _, app := range validAppNames {
+			app := app
+			t.Run(app, func(t *testing.T) {
+				t.Parallel()
 
-			conn, err := p.dialHost(ctx, app)
-			require.NoError(t, err)
-			defer func() { require.NoError(t, conn.Close()) }()
+				conn, err := p.dialHost(ctx, app)
+				require.NoError(t, err)
+				t.Cleanup(func() { require.NoError(t, conn.Close()) })
 
-			testString := "Hello, World!"
-			writeBuf := []byte(testString)
-			_, err = conn.Write(writeBuf)
-			require.NoError(t, err)
+				testString := "Hello, World!"
+				writeBuf := []byte(testString)
+				_, err = conn.Write(writeBuf)
+				require.NoError(t, err)
 
-			readBuf := make([]byte, len(writeBuf))
-			_, err = io.ReadFull(conn, readBuf)
-			require.NoError(t, err)
-			require.Equal(t, string(writeBuf), string(readBuf))
-		})
-	}
+				readBuf := make([]byte, len(writeBuf))
+				_, err = io.ReadFull(conn, readBuf)
+				require.NoError(t, err)
+				require.Equal(t, string(writeBuf), string(readBuf))
+			})
+		}
+	})
+
+	t.Run("invalid", func(t *testing.T) {
+		t.Parallel()
+		for _, app := range invalidAppNames {
+			app := app
+			t.Run("invalid/"+app, func(t *testing.T) {
+				t.Parallel()
+
+				ctx, cancel := context.WithTimeout(ctx, 200*time.Millisecond)
+				defer cancel()
+				_, err := p.lookupHost(ctx, app)
+				require.Error(t, err, "asdf")
+			})
+		}
+	})
 }
 
 func randomULAAddress() (tcpip.Address, error) {
