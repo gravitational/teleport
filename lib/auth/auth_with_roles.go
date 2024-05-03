@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
@@ -4623,7 +4624,7 @@ func (a *ServerWithRoles) SetClusterNetworkingConfig(ctx context.Context, newNet
 		return trace.Wrap(err)
 	}
 
-	if err := a.validateCloudNetworkConfigUpdate(newNetConfig, oldNetConf); err != nil {
+	if err := clusterconfigv1.ValidateCloudNetworkConfigUpdate(a.context, newNetConfig, oldNetConf); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -4650,37 +4651,6 @@ func (a *ServerWithRoles) SetClusterNetworkingConfig(ctx context.Context, newNet
 	return trace.Wrap(err)
 }
 
-func (a *ServerWithRoles) validateCloudNetworkConfigUpdate(newConfig, oldConfig types.ClusterNetworkingConfig) error {
-	if a.hasBuiltinRole(types.RoleAdmin) {
-		return nil
-	}
-
-	if !modules.GetModules().Features().Cloud {
-		return nil
-	}
-
-	const cloudUpdateFailureMsg = "cloud tenants cannot update %q"
-
-	if newConfig.GetProxyListenerMode() != oldConfig.GetProxyListenerMode() {
-		return trace.BadParameter(cloudUpdateFailureMsg, "proxy_listener_mode")
-	}
-	newtst, _ := newConfig.GetTunnelStrategyType()
-	oldtst, _ := oldConfig.GetTunnelStrategyType()
-	if newtst != oldtst {
-		return trace.BadParameter(cloudUpdateFailureMsg, "tunnel_strategy")
-	}
-
-	if newConfig.GetKeepAliveInterval() != oldConfig.GetKeepAliveInterval() {
-		return trace.BadParameter(cloudUpdateFailureMsg, "keep_alive_interval")
-	}
-
-	if newConfig.GetKeepAliveCountMax() != oldConfig.GetKeepAliveCountMax() {
-		return trace.BadParameter(cloudUpdateFailureMsg, "keep_alive_count_max")
-	}
-
-	return nil
-}
-
 // ResetClusterNetworkingConfig resets cluster networking configuration to defaults.
 func (a *ServerWithRoles) ResetClusterNetworkingConfig(ctx context.Context) error {
 	storedNetConfig, err := a.authServer.GetClusterNetworkingConfig(ctx)
@@ -4701,7 +4671,7 @@ func (a *ServerWithRoles) ResetClusterNetworkingConfig(ctx context.Context) erro
 		return trace.Wrap(err)
 	}
 
-	if err := a.validateCloudNetworkConfigUpdate(types.DefaultClusterNetworkingConfig(), oldNetConf); err != nil {
+	if err := clusterconfigv1.ValidateCloudNetworkConfigUpdate(a.context, types.DefaultClusterNetworkingConfig(), oldNetConf); err != nil {
 		return trace.Wrap(err)
 	}
 
