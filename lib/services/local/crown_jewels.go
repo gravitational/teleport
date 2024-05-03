@@ -65,7 +65,7 @@ func (s *CrownJewelsService) CreateCrownJewel(ctx context.Context, crownJewel *c
 }
 
 func (s *CrownJewelsService) UpdateCrownJewel(ctx context.Context, crownJewel *crownjewelv1.CrownJewel) (*crownjewelv1.CrownJewel, error) {
-	r, err := s.service.UpdateResource(ctx, crownJewel)
+	r, err := s.service.ConditionalUpdateResource(ctx, crownJewel)
 	return r, trace.Wrap(err)
 }
 
