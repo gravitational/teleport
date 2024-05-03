@@ -142,11 +142,11 @@ func (a *App) run(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	a.accessMonitoringRules.Lock()
 	accessMonitoringRules, err := a.getAllAccessMonitoringRules(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	a.accessMonitoringRules.Lock()
 	for _, amr := range accessMonitoringRules {
 		if !a.amrAppliesToThisPlugin(amr) {
 			continue
