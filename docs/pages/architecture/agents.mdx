@@ -26,9 +26,15 @@ available:
 |-------|--------------------|
 | SSH Service | SSH traffic to the target SSH Service instance or remote OpenSSH servers.|
 | Teleport Kubernetes Service  | HTTPS traffic to Kubernetes API servers.|
-| Teleport Database Service    | Database-native wire protocols such as Redis, MySQL, plus HTTP-based database protocols such as DynamoDB.|
+| Teleport Database Service    | Database-native wire protocols such as Postgres and MySQL, plus HTTP-based database protocols such as DynamoDB.|
 | Teleport Application Service | HTTPS and TCP forwarding for internal web applications, with optional JSON web tokens. Signed HTTPS messages for cloud provider APIs.|
-| Teleport Desktop Service     | Remote Desktop Protocol traffic to remote servers. Converts incoming RDP traffic to Teleport Desktop Protocol traffic before returning itto the Teleport Web UI via the browser.|
+| Teleport Desktop Service     | Remote Desktop Protocol traffic to remote servers. Converts incoming RDP traffic to Teleport Desktop Protocol traffic before returning it to the Teleport Web UI via the browser.|
+
+Agents can also run the Teleport Discovery Service. The Discovery Service
+queries service discovery endpoints to list resources in your infrastructure,
+and configures your Teleport cluster to proxy these resources by creating
+dynamic configurations on the Auth Service backend. Agent services listed above
+can then proxy resources enrolled by the Discovery Service.
 
 ## Components
 
@@ -107,10 +113,10 @@ resources:
 
 |Resource kind|How users obtain certificates|
 |---|---|
-|Databases|The user retrieves a certificate for a database with `tsh db login`. The Teleport Database Service verifies the certificate when a user connects to a database.|
+|Databases|The user can retrieve a client certificate for before connecting to a database with `tsh db login`. The `tsh db connect` and `tsh proxy db` commands also retrieve certificates. The Teleport Database Service verifies the certificate when a user connects to a database.|
 |Kubernetes clusters|The user runs `tsh kube login`, which updates the local kubeconfig to contain a certificate signed by the Teleport user CA. The user can then execute `kubectl` commands against Teleport-protected Kubernetes clusters.|
 |Servers|After running `tsh login`, the user receives a certificate that contains authorization information for servers. The SSH Service checks the certificate when a user authenticates to a Teleport-protected server.|
-|Web applications|The user authenticates to the Teleport Web UI and visits a Teleport-protected application. The Teleport Proxy Service forwards traffic to the application along with Teleport-signed JSON web tokens that the application can verify. |
+|Web applications|The user authenticates to the Teleport Web UI and visits a Teleport-protected application. The Teleport Proxy Service forwards traffic to the application along with Teleport-signed JSON web tokens that the application can verify. For HTTP API applications, TCP applications, and cloud provider APIs, the user runs `tsh apps login` to retrieve a certificate.|
 |Windows desktops|Users authenticate to the Teleport Web UI. The Web UI initiates a WebSocket session with the Teleport Desktop Service and communicates with the service using Teleport Desktop Protocol (TDP). The Desktop Service converts TDP traffic to Remote Desktop Protocol traffic.|
 
 In most cases (except for some self-hosted clusters), the user will have
@@ -143,8 +149,12 @@ It is possible to join Teleport agents to a cluster [through the Teleport Auth
 Service](../agents/join-services-to-your-cluster/join-token.mdx#connecting-directly-to-the-auth-service.mdx).
 Once an agent joins a cluster through the Teleport Auth Service, the Teleport
 Proxy Service dials the agent directly, without creating a reverse tunnel. This
-mode supports the Teleport SSH Service, Teleport Desktop Service, and Teleport
-Kubernetes Service.
+mode supports the following services:
+
+- Teleport SSH Service
+- Teleport Desktop Service
+- Teleport Kubernetes Service
+- Teleport Discovery Service
 
 In direct mode, SSH Service instances act like OpenSSH servers that only accept
 client SSH certificates. Users can connect to SSH servers through the Teleport
@@ -224,7 +234,7 @@ CLI:
 
 |`tsh` command|Upstream infrastructure resource|
 |---|---|
-|`tsh proxy app`|[TCP applications](../application-access/guides/tcp.mdx)|
+|`tsh proxy app`|HTTP and [TCP](../application-access/guides/tcp.mdx) applications|
 |`tsh proxy aws`|[AWS SDK applications](../application-access/cloud-apis/aws.mdx)|
 |`tsh proxy azure`|[Azure SDK applications](../application-access/cloud-apis/azure.mdx)|
 |`tsh proxy gcloud`|[Google Cloud SDK applications](../application-access/cloud-apis/google-cloud.mdx)|
