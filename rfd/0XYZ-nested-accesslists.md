@@ -39,11 +39,9 @@ spec:
     - auditor
     traits: {}
   # list of references to other access lists, for users to include in this access list
-  member_access_lists:
+  access_lists:
   - name: ea4cbbc7-bee1-49b3-bf78-734b4b27ea38
   # list of references to other access lists, for owners to include in this access list
-  owner_access_lists:
-  - name: 3e9df1e7-0b8a-4984-b2e8-5bc0d7b356a9
   title: access-list-a
 version: v1
 ```
@@ -53,10 +51,19 @@ included in the access list.
 
 # Implementation considerations
 
-The implementation will not support looping within the heirarchy as
-this would introduce confusing options for configuration and will
-return an error if loops are introduced, as they dont have obvious
-real world use cases.
+The implementation will not support cycles within the heirarchy as
+this would introduce confusing options for configuration. Teleport
+will return an error if a cycle are introduced.
+
+Errors over cycles in the heirarchy will be detected and returned at
+access list insertion/update time.
+
+Access list heirarchys will only recurse up to 10 layers deep
+initially.
+
+Access lists will need to be allowed to have empty grants so access
+lists can represent only users and permisisons can be assigned purely
+through membership in other lists.
 
 # Examples
 
@@ -91,7 +98,7 @@ spec:
     - reviewer
     traits: {}
   # list of references to other access lists, for users to include in this access list
-  member_access_lists:
+  access_lists:
   - name: acl-c
   title: access-list-a
 version: v1
@@ -105,7 +112,7 @@ spec:
     - manager
     traits: {}
   # list of references to other access lists, for users to include in this access list
-  member_access_lists:
+  access_lists:
   - name: acl-a
   title: access-list-a
 version: v1
