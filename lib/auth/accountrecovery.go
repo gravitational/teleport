@@ -90,12 +90,15 @@ func (a *Server) StartAccountRecovery(ctx context.Context, req *proto.StartAccou
 
 // verifyRecoveryCode validates the recovery code for the user and will unlock their account if the code is valid.
 func (a *Server) verifyRecoveryCode(ctx context.Context, username string, recoveryCode []byte) (errResult error) {
-	_, err := a.Services.GetUser(ctx, username, false)
-	if err != nil && !trace.IsNotFound(err) {
+	switch user, err := a.Services.GetUser(ctx, username, false); {
+	case trace.IsNotFound(err):
 		// In the case of not found, we still want to perform the comparison.
 		// It will result in an error but this avoids timing attacks which expose account presence.
+	case err != nil:
 		log.Error(trace.DebugReport(err))
 		return trace.AccessDenied(startRecoveryGenericErrMsg)
+	case user.GetUserType() != types.UserTypeLocal:
+		return trace.AccessDenied("only local users may perform account recovery")
 	}
 	hasRecoveryCodes := false
 	defer func() { // check for result condition in defer func and send the appropriate audit event
@@ -349,6 +352,15 @@ func (a *Server) CreateAccountRecoveryCodes(ctx context.Context, req *proto.Crea
 	if _, err := mail.ParseAddress(token.GetUser()); err != nil {
 		log.Debugf("Failed to create new recovery codes, username %q is not a valid email: %v.", token.GetUser(), err)
 		return nil, trace.AccessDenied(unableToCreateCodesMsg)
+	}
+
+	// Verify if the user is local.
+	switch user, err := a.GetUser(ctx, token.GetUser(), false /* withSecrets */); {
+	case err != nil:
+		// err swallowed on purpose.
+		return nil, trace.AccessDenied(unableToCreateCodesMsg)
+	case user.GetUserType() != types.UserTypeLocal:
+		return nil, trace.AccessDenied("only local users may create recovery codes")
 	}
 
 	if err := a.verifyUserToken(token, UserTokenTypeRecoveryApproved, UserTokenTypePrivilege); err != nil {
