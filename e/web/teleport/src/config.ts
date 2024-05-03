@@ -5,6 +5,7 @@ import ossCfg, { UrlResourcesParams } from 'teleport/config';
 import generateResourcePath from 'teleport/generateResourcePath';
 
 import { AccessRequestFilter, ResourceId } from 'e-teleport/services/workflow';
+import { AccessMonitoringRuleFilter } from 'e-teleport/services/accessmonitoringrule/types';
 
 import type { PluginKind } from 'teleport/services/integrations/types';
 
@@ -126,6 +127,13 @@ const cfg = {
         '/v1/webapi/sites/:clusterId/audit/reports/:name/state/days/:timeframe',
       queryRun: '/v1/webapi/sites/:clusterId/audit/queries/run',
       result: '/v1/webapi/sites/:clusterId/audit/queries/result',
+    },
+
+    accessMonitoringRule: {
+      list: '/v1/webapi/sites/:clusterId/accessmonitoringrule?limit=:limit?&startKey=:startKey?&subject=:subject?',
+      create: '/v1/webapi/sites/:clusterId/accessmonitoringrule',
+      update: '/v1/webapi/sites/:clusterId/accessmonitoringrule/:name',
+      delete: '/v1/webapi/sites/:clusterId/accessmonitoringrule/:name',
     },
 
     externalAuditStorage: {
@@ -294,6 +302,36 @@ const cfg = {
       clusterId,
       name: reportName,
       timeframe,
+    });
+  },
+
+  getAccessMonitoringRulesUrl(
+    clusterId: string,
+    filter: AccessMonitoringRuleFilter
+  ) {
+    return generatePath(cfg.api.accessMonitoringRule.list, {
+      clusterId,
+      ...filter,
+    });
+  },
+
+  getAccessMonitoringRuleUpdateUrl(clusterId: string, name: string) {
+    return generatePath(cfg.api.accessMonitoringRule.update, {
+      clusterId,
+      name,
+    });
+  },
+
+  getAccessMonitoringRuleDeleteUrl(clusterId: string, name: string) {
+    return generatePath(cfg.api.accessMonitoringRule.delete, {
+      clusterId,
+      name,
+    });
+  },
+
+  getAccessMonitoringRuleCreateUrl(clusterId: string) {
+    return generatePath(cfg.api.accessMonitoringRule.create, {
+      clusterId,
     });
   },
 

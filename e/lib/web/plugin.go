@@ -330,6 +330,12 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 	h.GET("/webapi/sites/:site/audit/reports/:name/result/days/:days", h.WithClusterAuth(p.getSecurityReportResult))
 	h.GET("/webapi/sites/:site/audit/reports/:name/state/days/:days", h.WithClusterAuth(p.getSecurityReportState))
 
+	// Access monitoring rule API
+	h.GET("/webapi/sites/:site/accessmonitoringrule", h.WithClusterAuth(p.getAccessMonitoringRules))
+	h.POST("/webapi/sites/:site/accessmonitoringrule", h.WithClusterAuth(p.createAccessMonitoringRule))
+	h.PUT("/webapi/sites/:site/accessmonitoringrule/:name", h.WithClusterAuth(p.updateAccessMonitoringRule))
+	h.DELETE("/webapi/sites/:site/accessmonitoringrule/:name", h.WithClusterAuth(p.deleteAccessMonitoringRule))
+
 	h.POST("/webapi/sites/:site/integration/externalauditstorage/generate", h.WithClusterAuth(externalAuditStorageGenerate))
 	h.GET("/webapi/scripts/integration/externalauditstorage-bootstrap.sh", h.WithLimiter(getExternalAuditStorageBootstrapScript))
 	h.POST("/webapi/sites/:site/integration/externalauditstorage/promote", h.WithClusterAuth(p.externalAuditStoragePromote))
