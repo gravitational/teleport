@@ -30,13 +30,13 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 )
 
-type client struct {
+type Client struct {
 	clt *http.Client
 }
 
 // NewClient generates a new debug service client.
-func NewClient(socketPath string) *client {
-	return &client{
+func NewClient(socketPath string) *Client {
+	return &Client{
 		clt: &http.Client{
 			Timeout: apidefaults.DefaultIOTimeout,
 			Transport: &http.Transport{
@@ -49,7 +49,7 @@ func NewClient(socketPath string) *client {
 }
 
 // SetLogLevel changes the application's log level and a change status message.
-func (c *client) SetLogLevel(ctx context.Context, level string) (string, error) {
+func (c *Client) SetLogLevel(ctx context.Context, level string) (string, error) {
 	resp, err := c.do(ctx, http.MethodPut, url.URL{Path: "/log-level"}, []byte(level))
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -69,7 +69,7 @@ func (c *client) SetLogLevel(ctx context.Context, level string) (string, error) 
 }
 
 // GetLogLevel fetches the current log level.
-func (c *client) GetLogLevel(ctx context.Context) (string, error) {
+func (c *Client) GetLogLevel(ctx context.Context) (string, error) {
 	resp, err := c.do(ctx, http.MethodGet, url.URL{Path: "/log-level"}, nil)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -89,7 +89,7 @@ func (c *client) GetLogLevel(ctx context.Context) (string, error) {
 }
 
 // CollectProfile collects a pprof profile.
-func (c *client) CollectProfile(ctx context.Context, profileName string, seconds int) ([]byte, error) {
+func (c *Client) CollectProfile(ctx context.Context, profileName string, seconds int) ([]byte, error) {
 	u := url.URL{
 		Path: "/debug/pprof/" + profileName,
 	}
@@ -118,7 +118,7 @@ func (c *client) CollectProfile(ctx context.Context, profileName string, seconds
 	return result, nil
 }
 
-func (c *client) do(ctx context.Context, method string, u url.URL, body []byte) (*http.Response, error) {
+func (c *Client) do(ctx context.Context, method string, u url.URL, body []byte) (*http.Response, error) {
 	u.Scheme = "http"
 	u.Host = "debug"
 
