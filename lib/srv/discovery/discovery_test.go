@@ -2541,6 +2541,10 @@ func (m *mockGCPClient) GetInstance(_ context.Context, _ *gcp.InstanceRequest) (
 	return nil, trace.NotFound("disabled for test")
 }
 
+func (m *mockGCPClient) GetInstanceTags(_ context.Context, _ *gcp.InstanceRequest) (map[string]string, error) {
+	return nil, nil
+}
+
 func (m *mockGCPClient) AddSSHKey(_ context.Context, _ *gcp.SSHKeyRequest) error {
 	return nil
 }
