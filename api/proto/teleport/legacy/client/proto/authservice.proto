@@ -2676,6 +2676,8 @@ service AuthService {
   rpc GetResetPasswordToken(GetResetPasswordTokenRequest) returns (types.UserTokenV3);
   // CreateResetPasswordToken resets users current password and second factors and creates a reset
   // password token.
+  //
+  // Only local users may be reset.
   rpc CreateResetPasswordToken(CreateResetPasswordTokenRequest) returns (types.UserTokenV3);
 
   // GetUser gets a user resource by name.
@@ -2718,6 +2720,8 @@ service AuthService {
     option deprecated = true;
   }
   // ChangePassword allows a user to change their own password.
+  //
+  // Only local users may change their password.
   rpc ChangePassword(ChangePasswordRequest) returns (google.protobuf.Empty);
 
   // AcquireSemaphore acquires lease with requested resources from semaphore.
@@ -3187,6 +3191,8 @@ service AuthService {
   // also adds a new MFA device. After successful invocation, a new web session is created as well
   // as a new set of recovery codes (if user meets the requirements to receive them), invalidating
   // any existing codes the user previously had.
+  //
+  // Only local users may be targeted by this RPC.
   rpc ChangeUserAuthentication(ChangeUserAuthenticationRequest) returns (ChangeUserAuthenticationResponse);
 
   // StartAccountRecovery (exclusive to cloud users) is the first out of two step user
@@ -3200,6 +3206,8 @@ service AuthService {
   // user account gets temporarily locked from further recovery attempts and from logging in.
   //
   // Start tokens last RecoveryStartTokenTTL.
+  //
+  // Only local users may perform account recovery
   rpc StartAccountRecovery(StartAccountRecoveryRequest) returns (types.UserTokenV3);
   // VerifyAccountRecovery (exclusive to cloud users) is the second step of the two step
   // verification needed to allow a user to recover their account, after RPC StartAccountRecovery.
