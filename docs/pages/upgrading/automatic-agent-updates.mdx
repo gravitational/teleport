@@ -7,11 +7,12 @@ Teleport supports automatic agent updates for systemd-based Linux distributions
 using `apt`, `yum`, and `zypper` package managers, as well as Kubernetes
 clusters. 
 
-This guide explains how to enable automatic updates for Teleport agents.
+This guide explains how to enable automatic updates for Teleport agents on
+cloud-hosted Teleport Enterprise clusters.
 
 ## How it works
 
-When automatic updates is enabled, a Teleport updater is installed alongside
+When automatic updates are enabled, a Teleport updater is installed alongside
 each Teleport agent. The updater communicates with the Teleport Proxy Service to
 determine when an update is available. When an update is available, the updater
 will update the Teleport agent during the next maintenance window. However, if a
@@ -19,6 +20,11 @@ critical update is availble, the Teleport agent will be updated outside the
 regular maintenance window.
 
 ## Prerequisites
+
+- A cloud-hosted Teleport Enterprise cluster. If you do not have one, [sign
+  up](https://goteleport.com/signup) for a free trial or consult the [Update
+  Reference](./reference.mdx) to read about manual updates or automatic agent
+  updates for self-hosted clusters.
 
 - Familiarity with the [Upgrading Compatibility Overview](./overview.mdx) guide,
   which describes the sequence in which to upgrade components in your cluster.
@@ -117,7 +123,7 @@ $ sudo chown <your-teleport-user> /etc/teleport-upgrade.d/schedule
    schedule. This is expected immediately after install as the maintenance
    schedule might not be exported yet.
 
-## Step 3/4. Enroll Kubernetes agents in automatic updates
+## Step 3/3. Enroll Kubernetes agents in automatic updates
 
 This section assumes that the name of your `teleport-kube-agent` release is
 `teleport-agent`, and that you have installed it in the `teleport` namespace.
