@@ -21,7 +21,6 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/lib/client"
 )
 
@@ -42,11 +41,6 @@ func newVnetAppProvider(cf *CLIConf) (*vnetAppProvider, error) {
 // ListProfiles lists the names of all profiles saved for the user.
 func (p *vnetAppProvider) ListProfiles() ([]string, error) {
 	return p.clientStore.ListProfiles()
-}
-
-// GetProfile returns the named profile for the user.
-func (p *vnetAppProvider) GetProfile(profileName string) (*profile.Profile, error) {
-	return p.clientStore.GetProfile(profileName)
 }
 
 // GetCachedClient returns a [*client.ClusterClient] for the given profile and leaf cluster.
