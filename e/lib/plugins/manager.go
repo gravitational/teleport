@@ -75,6 +75,7 @@ func (cfg *ManagerConfig) checkAndSetDefaults() error {
 			types.PluginTypeJira:       jiraInstanceFactory,
 			types.PluginTypeMattermost: mattermostInstanceFactory,
 			types.PluginTypeGitlab:     gitlabInstanceFactory,
+			types.PluginTypeEntraID:    entraIDInstanceFactory,
 		}
 	}
 	if cfg.Clock == nil {
