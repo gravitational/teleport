@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,4 +16,24 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { SlideTabs } from './SlideTabs';
+import api from 'teleport/services/api';
+import cfg from 'teleport/config';
+
+import {
+  YamlParseRequest,
+  YamlStringifyRequest,
+  YamlSupportedResourceKind,
+} from './types';
+
+export const yamlService = {
+  parse<T>(kind: YamlSupportedResourceKind, req: YamlParseRequest): Promise<T> {
+    return api.post(cfg.getYamlParseUrl(kind), req).then(resp => resp.resource);
+  },
+
+  stringify<T>(
+    kind: YamlSupportedResourceKind,
+    req: YamlStringifyRequest<T>
+  ): Promise<string> {
+    return api.post(cfg.getYamlStringifyUrl(kind), req).then(resp => resp.yaml);
+  },
+};
