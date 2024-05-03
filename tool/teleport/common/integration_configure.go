@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
+	"github.com/gravitational/teleport/lib/integrations/azureoidc"
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage"
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage/easconfig"
 	"github.com/gravitational/teleport/lib/integrations/samlidp"
@@ -198,6 +199,15 @@ func onIntegrationConfAccessGraphAWSSync(ctx context.Context, params config.Inte
 		IntegrationRole: params.Role,
 	}
 	return trace.Wrap(awsoidc.ConfigureAccessGraphSyncIAM(ctx, iamClient, confReq))
+}
+
+func onIntegrationConfAzureOIDCCmd(ctx context.Context) error {
+	// Ensure we print output to the user. LogLevel at this point was set to Error.
+	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
+
+	slog.Info("Hello from Azure OIDC")
+
+	return trace.Wrap(azureoidc.RetrieveTAGInfo(ctx))
 }
 
 func onIntegrationConfSAMLIdPGCPWorkforce(ctx context.Context, params samlidpconfig.GCPWorkforceAPIParams) error {
