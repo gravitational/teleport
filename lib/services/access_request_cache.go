@@ -20,17 +20,18 @@ package services
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/sortcache"
 )
 
@@ -209,7 +210,15 @@ func (c *AccessRequestCache) ListMatchingAccessRequests(ctx context.Context, req
 
 	// perform the traversal until we've seen all items or fill the page
 	var rsp proto.ListAccessRequestsResponse
+	now := time.Now()
+	var expired int
 	traverse(index, req.StartKey, "", func(r *types.AccessRequestV3) (continueTraversal bool) {
+		if !r.Expiry().IsZero() && now.After(r.Expiry()) {
+			expired++
+			// skip requests that appear expired. some backends can take up to 48 hours to expired items
+			// and access requests showing up past their expiry time is particularly confusing.
+			return true
+		}
 		if !req.Filter.Match(r) || !match(r) {
 			return true
 		}
@@ -217,7 +226,7 @@ func (c *AccessRequestCache) ListMatchingAccessRequests(ctx context.Context, req
 		c := r.Copy()
 		cr, ok := c.(*types.AccessRequestV3)
 		if !ok {
-			log.Warnf("%T.Clone returned unexpected type %T (this is a bug).", r, c)
+			slog.WarnContext(ctx, "clone returned unexpected type (this is a bug)", "expected", logutils.TypeAttr(r), "got", logutils.TypeAttr(c))
 			return true
 		}
 
@@ -231,6 +240,12 @@ func (c *AccessRequestCache) ListMatchingAccessRequests(ctx context.Context, req
 	if len(rsp.AccessRequests) > limit {
 		rsp.NextKey = cache.KeyOf(index, rsp.AccessRequests[limit])
 		rsp.AccessRequests = rsp.AccessRequests[:limit]
+	}
+
+	if expired > 0 {
+		// this is a debug-level log since some amount of delay between expiry and backend cleanup is expected, but
+		// very large and/or disproportionate numbers of stale access requests might be a symptom of a deeper issue.
+		slog.DebugContext(ctx, "omitting expired access requests from cache read", "count", expired)
 	}
 
 	return &rsp, nil
@@ -271,7 +286,7 @@ func (c *AccessRequestCache) fetch(ctx context.Context) (*sortcache.SortCache[*t
 			if evicted := cache.Put(r); evicted != 0 {
 				// this warning, if it appears, means that we configured our indexes incorrectly and one access request is overwriting another.
 				// the most likely explanation is that one of our indexes is missing the request id suffix we typically use.
-				log.Warnf("AccessRequest %q conflicted with %d other requests during cache fetch. This is a bug and may result in requests not appearing in UI/CLI correctly.", r.GetName(), evicted)
+				slog.WarnContext(ctx, "conflict during access request fetch (this is a bug and may result in missing requests)", "id", r.GetName(), "evicted", evicted)
 			}
 		}
 
@@ -351,18 +366,18 @@ func (c *AccessRequestCache) processEventAndUpdateCurrent(ctx context.Context, e
 	case types.OpPut:
 		req, ok := event.Resource.(*types.AccessRequestV3)
 		if !ok {
-			log.Warnf("Unexpected resource type %T in event (expected %T)", event.Resource, req)
+			slog.WarnContext(ctx, "unexpected resource type in event", "expected", logutils.TypeAttr(req), "got", logutils.TypeAttr(event.Resource))
 			return
 		}
 		if evicted := cache.Put(req); evicted > 1 {
 			// this warning, if it appears, means that we configured our indexes incorrectly and one access request is overwriting another.
 			// the most likely explanation is that one of our indexes is missing the request id suffix we typically use.
-			log.Warnf("Processing of put event for request %q resulted in multiple cache evictions (this is a bug).", req.GetName())
+			slog.WarnContext(ctx, "request put event resulted in multiple cache evictions (this is a bug)", "id", req.GetName(), "evicted", evicted)
 		}
 	case types.OpDelete:
 		cache.Delete(accessRequestID, event.Resource.GetName())
 	default:
-		log.Warnf("Unexpected event variant: %+v", event)
+		slog.WarnContext(ctx, "unexpected event variant", "op", logutils.StringerAttr(event.Type), "resource", logutils.TypeAttr(event.Resource))
 	}
 }
 

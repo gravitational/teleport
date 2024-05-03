@@ -34,6 +34,7 @@ import type { RecordingType } from 'teleport/services/recordings';
 import type { WebauthnAssertionResponse } from './services/auth';
 import type { Regions } from './services/integrations';
 import type { ParticipantMode } from 'teleport/services/session';
+import type { YamlSupportedResourceKind } from './services/yaml/types';
 
 const cfg = {
   isEnterprise: false,
@@ -54,7 +55,10 @@ const cfg = {
   isUsageBasedBilling: false,
   hideInaccessibleFeatures: false,
   customTheme: '',
-  // isTeam is true if [Features.ProductType] == Team
+  /**
+   * isTeam is true if [Features.ProductType] == Team
+   * @deprecated use other flags do determine cluster features istead of relying on isTeam
+   */
   isTeam: false,
   // isIgsEnabled refers to Identity Governance & Security product.
   // It refers to a group of features: access request, device trust,
@@ -138,6 +142,8 @@ const cfg = {
     player: '/web/cluster/:clusterId/session/:sid', // ?recordingType=ssh|desktop|k8s&durationMs=1234
     login: '/web/login',
     loginSuccess: '/web/msg/info/login_success',
+    loginTerminalRedirect: '/web/msg/info/login_terminal',
+    loginClose: '/web/msg/info/login_close',
     loginErrorLegacy: '/web/msg/error/login_failed',
     loginError: '/web/msg/error/login',
     loginErrorCallback: '/web/msg/error/login/callback',
@@ -332,6 +338,14 @@ const cfg = {
 
     gcpWorkforceConfigurePath:
       '/webapi/scripts/integrations/configure/gcp-workforce-saml.sh?orgId=:orgId&poolName=:poolName&poolProviderName=:poolProviderName',
+
+    notificationsPath:
+      '/v1/webapi/sites/:clusterId/notifications?limit=:limit?&userNotificationsStartKey=:userNotificationsStartKey?&globalNotificationsStartKey=:globalNotificationsStartKey?',
+
+    yaml: {
+      parse: '/v1/webapi/yaml/parse/:kind',
+      stringify: '/v1/webapi/yaml/stringify/:kind',
+    },
   },
 
   getUserClusterPreferencesUrl(clusterId: string) {
@@ -689,6 +703,14 @@ const cfg = {
       clusterId,
       ...params,
     });
+  },
+
+  getYamlParseUrl(kind: YamlSupportedResourceKind) {
+    return generatePath(cfg.api.yaml.parse, { kind });
+  },
+
+  getYamlStringifyUrl(kind: YamlSupportedResourceKind) {
+    return generatePath(cfg.api.yaml.stringify, { kind });
   },
 
   getLocksRoute() {
@@ -1064,6 +1086,10 @@ const cfg = {
     );
   },
 
+  getNotificationsUrl(params: UrlNotificationParams) {
+    return generatePath(cfg.api.notificationsPath, { ...params });
+  },
+
   init(backendConfig = {}) {
     mergeDeep(this, backendConfig);
   },
@@ -1182,6 +1208,13 @@ export interface UrlGcpWorkforceConfigParam {
   orgId: string;
   poolName: string;
   poolProviderName: string;
+}
+
+export interface UrlNotificationParams {
+  clusterId: string;
+  limit?: number;
+  userNotificationsStartKey?: string;
+  globalNotificationsStartKey?: string;
 }
 
 export default cfg;

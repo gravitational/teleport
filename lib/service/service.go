@@ -146,6 +146,7 @@ import (
 	"github.com/gravitational/teleport/lib/system"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/gravitational/teleport/lib/utils/cert"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
@@ -587,7 +588,8 @@ func (process *TeleportProcess) setClusterFeatures(features *proto.Features) {
 	}
 }
 
-func (process *TeleportProcess) getClusterFeatures() proto.Features {
+// GetClusterFeatures returns the cluster features.
+func (process *TeleportProcess) GetClusterFeatures() proto.Features {
 	process.Lock()
 	defer process.Unlock()
 
@@ -1787,7 +1789,7 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 
 	checkingEmitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{
-		Inner:       events.NewMultiEmitter(events.NewLoggingEmitter(process.getClusterFeatures().Cloud), emitter),
+		Inner:       events.NewMultiEmitter(events.NewLoggingEmitter(process.GetClusterFeatures().Cloud), emitter),
 		Clock:       process.Clock,
 		ClusterName: clusterName,
 	})
@@ -2022,9 +2024,11 @@ func (process *TeleportProcess) initAuthService() error {
 		err = events.StartNewUploadCompleter(process.ExitContext(), events.UploadCompleterConfig{
 			Uploader:       uploadHandler,
 			Component:      teleport.ComponentAuth,
+			ClusterName:    clusterName,
 			AuditLog:       process.auditLog,
 			SessionTracker: authServer.Services,
-			ClusterName:    clusterName,
+			Semaphores:     authServer.Services,
+			ServerID:       cfg.HostUUID,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -2513,7 +2517,7 @@ func (process *TeleportProcess) proxyPublicAddr() utils.NetAddr {
 // It is caller's responsibility to call Close on the emitter once done.
 func (process *TeleportProcess) NewAsyncEmitter(clt apievents.Emitter) (*events.AsyncEmitter, error) {
 	emitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{
-		Inner: events.NewMultiEmitter(events.NewLoggingEmitter(process.getClusterFeatures().Cloud), clt),
+		Inner: events.NewMultiEmitter(events.NewLoggingEmitter(process.GetClusterFeatures().Cloud), clt),
 		Clock: process.Clock,
 	})
 	if err != nil {
@@ -4173,7 +4177,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			HostUUID:         process.Config.HostUUID,
 			Context:          process.GracefulExitContext(),
 			StaticFS:         fs,
-			ClusterFeatures:  process.getClusterFeatures(),
+			ClusterFeatures:  process.GetClusterFeatures(),
 			GetProxyIdentity: func() (*auth.Identity, error) {
 				return process.GetIdentity(types.RoleProxy)
 			},
@@ -4381,7 +4385,19 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		tlscfg.InsecureSkipVerify = true
 		tlscfg.ClientAuth = tls.RequireAnyClientCert
 	}
-	tlscfg.GetConfigForClient = auth.WithClusterCAs(tlscfg, accessPoint, clusterName, process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)))
+
+	// clientTLSConfigGenerator pre-generates specialized per-cluster client TLS config values
+	clientTLSConfigGenerator, err := auth.NewClientTLSConfigGenerator(auth.ClientTLSConfigGeneratorConfig{
+		TLS:                  tlscfg.Clone(),
+		ClusterName:          clusterName,
+		PermitRemoteClusters: true,
+		AccessPoint:          accessPoint,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	tlscfg.GetConfigForClient = clientTLSConfigGenerator.GetConfigForClient
 
 	creds, err := auth.NewTransportCredentials(auth.TransportCredentialsConfig{
 		TransportCredentials: credentials.NewTLS(tlscfg),
@@ -4558,7 +4574,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				// the provided connection certificate is from a proxy server and
 				// will impersonate the identity of the user that is making the request.
 				ConnTLSConfig:   tlsConfig.Clone(),
-				ClusterFeatures: process.getClusterFeatures,
+				ClusterFeatures: process.GetClusterFeatures,
 			},
 			TLS:                      tlsConfig.Clone(),
 			LimiterConfig:            cfg.Proxy.Limiter,
@@ -4768,7 +4784,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			return trace.Wrap(err)
 		}
 
-		alpnTLSConfigForWeb := process.setupALPNTLSConfigForWeb(serverTLSConfig, accessPoint, clusterName)
+		alpnTLSConfigForWeb, err := process.setupALPNTLSConfigForWeb(serverTLSConfig, accessPoint, clusterName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 		alpnHandlerForWeb.Set(alpnServer.MakeConnectionHandler(alpnTLSConfigForWeb))
 
 		process.RegisterCriticalFunc("proxy.tls.alpn.sni.proxy", func() error {
@@ -4843,6 +4862,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			if reverseTunnelALPNServer != nil {
 				warnOnErr(process.ExitContext(), reverseTunnelALPNServer.Close(), logger)
 			}
+
+			if clientTLSConfigGenerator != nil {
+				clientTLSConfigGenerator.Close()
+			}
 		} else {
 			logger.InfoContext(process.ExitContext(), "Shutting down gracefully.")
 			ctx := payloadContext(payload)
@@ -4894,6 +4917,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 						logger.DebugContext(ctx, "Failed to delete heartbeat.", "error", err)
 					}
 				}
+			}
+
+			if clientTLSConfigGenerator != nil {
+				clientTLSConfigGenerator.Close()
 			}
 		}
 		warnOnErr(process.ExitContext(), asyncEmitter.Close(), logger)
@@ -5053,7 +5080,9 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 	}
 
 	setupTLSConfigALPNProtocols(tlsConfig)
-	setupTLSConfigClientCAsForCluster(tlsConfig, accessPoint, clusterName)
+	if err := process.setupTLSConfigClientCAGeneratorForCluster(tlsConfig, accessPoint, clusterName); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return tlsConfig, nil
 }
 
@@ -5063,41 +5092,55 @@ func setupTLSConfigALPNProtocols(tlsConfig *tls.Config) {
 	tlsConfig.NextProtos = apiutils.Deduplicate(append(tlsConfig.NextProtos, alpncommon.ProtocolsToString(alpncommon.SupportedProtocols)...))
 }
 
-func setupTLSConfigClientCAsForCluster(tlsConfig *tls.Config, accessPoint auth.ReadProxyAccessPoint, clusterName string) {
-	tlsConfig.GetConfigForClient = func(*tls.ClientHelloInfo) (*tls.Config, error) {
-		tlsClone := tlsConfig.Clone()
+func (process *TeleportProcess) setupTLSConfigClientCAGeneratorForCluster(tlsConfig *tls.Config, accessPoint auth.ReadProxyAccessPoint, clusterName string) error {
+	// create a local copy of the TLS config so we can change some settings that are only
+	// relevant to the config returned by GetConfigForClient.
+	tlsClone := tlsConfig.Clone()
 
-		// Set client auth to "verify client cert if given" to support
-		// app access CLI flow.
-		//
-		// Clients (like curl) connecting to the web proxy endpoint will
-		// present a client certificate signed by the cluster's user CA.
-		//
-		// Browser connections to web UI and other clients (like database
-		// access) connecting to web proxy won't be affected since they
-		// don't present a certificate.
-		tlsClone.ClientAuth = tls.VerifyClientCertIfGiven
+	// Set client auth to "verify client cert if given" to support
+	// app access CLI flow.
+	//
+	// Clients (like curl) connecting to the web proxy endpoint will
+	// present a client certificate signed by the cluster's user CA.
+	//
+	// Browser connections to web UI and other clients (like database
+	// access) connecting to web proxy won't be affected since they
+	// don't present a certificate.
+	tlsClone.ClientAuth = tls.VerifyClientCertIfGiven
 
-		// Build the client CA pool containing the cluster's user CA in
-		// order to be able to validate certificates provided by app
-		// access CLI clients.
-		var err error
-		tlsClone.ClientCAs, _, err = auth.DefaultClientCertPool(accessPoint, clusterName)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return tlsClone, nil
+	// Set up the client CA generator containing for the local cluster's CAs in
+	// order to be able to validate certificates provided by app access CLI clients.
+	generator, err := auth.NewClientTLSConfigGenerator(auth.ClientTLSConfigGeneratorConfig{
+		TLS:                  tlsClone,
+		ClusterName:          clusterName,
+		PermitRemoteClusters: false,
+		AccessPoint:          accessPoint,
+	})
+	if err != nil {
+		return trace.Wrap(err)
 	}
+
+	process.OnExit("closer", func(payload interface{}) {
+		generator.Close()
+	})
+
+	// set getter on the original TLS config.
+	tlsConfig.GetConfigForClient = generator.GetConfigForClient
+
+	// note: generator will be closed via the passed in context, rather than an explicit call to Close.
+	return nil
 }
 
-func (process *TeleportProcess) setupALPNTLSConfigForWeb(serverTLSConfig *tls.Config, accessPoint auth.ReadProxyAccessPoint, clusterName string) *tls.Config {
+func (process *TeleportProcess) setupALPNTLSConfigForWeb(serverTLSConfig *tls.Config, accessPoint auth.ReadProxyAccessPoint, clusterName string) (*tls.Config, error) {
 	tlsConfig := utils.TLSConfig(process.Config.CipherSuites)
 	tlsConfig.Certificates = serverTLSConfig.Certificates
 
 	setupTLSConfigALPNProtocols(tlsConfig)
-	setupTLSConfigClientCAsForCluster(tlsConfig, accessPoint, clusterName)
-	return tlsConfig
+	if err := process.setupTLSConfigClientCAGeneratorForCluster(tlsConfig, accessPoint, clusterName); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return tlsConfig, nil
 }
 
 func setupALPNRouter(listeners *proxyListeners, serverTLSConfig *tls.Config, cfg *servicecfg.Config) (router, rtRouter *alpnproxy.Router) {
@@ -5464,14 +5507,29 @@ func (process *TeleportProcess) initApps() {
 			return trace.Wrap(err)
 		}
 
+		connectionsHandler, err := app.NewConnectionsHandler(process.ExitContext(), &app.ConnectionsHandlerConfig{
+			Clock:              process.Config.Clock,
+			DataDir:            process.Config.DataDir,
+			AuthClient:         conn.Client,
+			AccessPoint:        accessPoint,
+			Authorizer:         authorizer,
+			TLSConfig:          tlsConfig,
+			CipherSuites:       process.Config.CipherSuites,
+			HostID:             process.Config.HostUUID,
+			Emitter:            asyncEmitter,
+			ConnectionMonitor:  connMonitor,
+			ServiceComponent:   teleport.ComponentApp,
+			Logger:             logger,
+			AWSSessionProvider: awsutils.SessionProviderUsingAmbientCredentials(),
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		appServer, err := app.New(process.ExitContext(), &app.Config{
 			Clock:                process.Config.Clock,
-			DataDir:              process.Config.DataDir,
 			AuthClient:           conn.Client,
 			AccessPoint:          accessPoint,
-			Authorizer:           authorizer,
-			TLSConfig:            tlsConfig,
-			CipherSuites:         process.Config.CipherSuites,
 			HostID:               process.Config.HostUUID,
 			Hostname:             process.Config.Hostname,
 			GetRotation:          process.GetRotation,
@@ -5480,9 +5538,7 @@ func (process *TeleportProcess) initApps() {
 			ResourceMatchers:     process.Config.Apps.ResourceMatchers,
 			OnHeartbeat:          process.OnHeartbeat(teleport.ComponentApp),
 			ConnectedProxyGetter: proxyGetter,
-			Emitter:              asyncEmitter,
-			ConnectionMonitor:    connMonitor,
-			Logger:               logger,
+			ConnectionsHandler:   connectionsHandler,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -6187,13 +6243,13 @@ func (process *TeleportProcess) newExternalAuditStorageConfigurator() (*external
 	// watcher initialized.
 	watcher.WaitInit(process.GracefulExitContext())
 
-	ecaSvc := local.NewExternalAuditStorageService(process.backend)
+	easSvc := local.NewExternalAuditStorageService(process.backend)
 	integrationSvc, err := local.NewIntegrationsService(process.backend)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	statusService := local.NewStatusService(process.backend)
-	return externalauditstorage.NewConfigurator(process.ExitContext(), ecaSvc, integrationSvc, statusService)
+	return externalauditstorage.NewConfigurator(process.ExitContext(), easSvc, integrationSvc, statusService)
 }
 
 // createLockedPIDFile creates a PID file in the path specified by pidFile

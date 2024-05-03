@@ -186,6 +186,18 @@ export interface UserActivityRecord {
      * @generated from protobuf field: uint64 spiffe_svids_issued = 15;
      */
     spiffeSvidsIssued: number;
+    /**
+     * counter of bot joins
+     *
+     * @generated from protobuf field: uint64 bot_joins = 16;
+     */
+    botJoins: number;
+    /**
+     * counter of certificates issued for this user
+     *
+     * @generated from protobuf field: uint64 certificates_issued = 17;
+     */
+    certificatesIssued: number;
 }
 /**
  * @generated from protobuf message prehog.v1.ResourcePresenceReport
@@ -467,7 +479,9 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
             { no: 11, name: "sftp_events", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 2 /*LongType.NUMBER*/ },
             { no: 12, name: "ssh_port_v2_sessions", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 2 /*LongType.NUMBER*/ },
             { no: 13, name: "kube_port_sessions", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 2 /*LongType.NUMBER*/ },
-            { no: 15, name: "spiffe_svids_issued", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 2 /*LongType.NUMBER*/ }
+            { no: 15, name: "spiffe_svids_issued", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 2 /*LongType.NUMBER*/ },
+            { no: 16, name: "bot_joins", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 2 /*LongType.NUMBER*/ },
+            { no: 17, name: "certificates_issued", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 2 /*LongType.NUMBER*/ }
         ]);
     }
     create(value?: PartialMessage<UserActivityRecord>): UserActivityRecord {
@@ -487,6 +501,8 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
         message.sshPortV2Sessions = 0;
         message.kubePortSessions = 0;
         message.spiffeSvidsIssued = 0;
+        message.botJoins = 0;
+        message.certificatesIssued = 0;
         if (value !== undefined)
             reflectionMergePartial<UserActivityRecord>(this, message, value);
         return message;
@@ -540,6 +556,12 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
                     break;
                 case /* uint64 spiffe_svids_issued */ 15:
                     message.spiffeSvidsIssued = reader.uint64().toNumber();
+                    break;
+                case /* uint64 bot_joins */ 16:
+                    message.botJoins = reader.uint64().toNumber();
+                    break;
+                case /* uint64 certificates_issued */ 17:
+                    message.certificatesIssued = reader.uint64().toNumber();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -598,6 +620,12 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
         /* uint64 spiffe_svids_issued = 15; */
         if (message.spiffeSvidsIssued !== 0)
             writer.tag(15, WireType.Varint).uint64(message.spiffeSvidsIssued);
+        /* uint64 bot_joins = 16; */
+        if (message.botJoins !== 0)
+            writer.tag(16, WireType.Varint).uint64(message.botJoins);
+        /* uint64 certificates_issued = 17; */
+        if (message.certificatesIssued !== 0)
+            writer.tag(17, WireType.Varint).uint64(message.certificatesIssued);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

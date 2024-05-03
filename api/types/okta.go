@@ -385,10 +385,6 @@ func (o *OktaAssignmentV1) CheckAndSetDefaults() error {
 		return trace.BadParameter("user must not be empty")
 	}
 
-	if len(o.Spec.Targets) == 0 {
-		return trace.BadParameter("targets is empty")
-	}
-
 	// Make sure the times are UTC so that Copy() works properly.
 	o.Spec.CleanupTime = o.Spec.CleanupTime.UTC()
 	o.Spec.LastTransition = o.Spec.LastTransition.UTC()

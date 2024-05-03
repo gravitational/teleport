@@ -136,8 +136,7 @@ type MfaResponseProps = BaseProps & {
 type DefaultProps = BaseProps & {
   onAuthenticated(privilegeTokenId: string): void;
   onMfaResponse?: never;
-  // TODO(Joerger): change type to 'never' once it is no longer expected in /e
-  challengeScope?: MfaChallengeScope;
+  challengeScope?: never;
 };
 
 export type Props = MfaResponseProps | DefaultProps;

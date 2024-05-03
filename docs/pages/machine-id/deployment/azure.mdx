@@ -29,7 +29,7 @@ occur without the use of a long-lived secret.
 - An Azure VM you wish to install Machine ID onto with the managed identity
   configured as a user-assigned managed identity.
 
-## Step 1/4. Install `tbot`
+## Step 1/5. Install `tbot`
 
 **This step is completed on the Azure VM.**
 
@@ -40,7 +40,13 @@ Download and install the appropriate Teleport package for your platform:
 
 (!docs/pages/includes/install-linux.mdx!)
 
-## Step 2/4. Create a join token and bot user
+## Step 2/5. Create a Bot
+
+**This step is completed on your local machine.**
+
+(!docs/pages/includes/machine-id/create-a-bot.mdx!)
+
+## Step 3/5. Create a join token
 
 **This step is completed on your local machine.**
 
@@ -54,7 +60,7 @@ metadata:
   name: example-bot
 spec:
   roles: [Bot]
-  # bot_name will match the name of the bot created later in this guide.
+  # bot_name should match the name of the bot created earlier in this guide.
   bot_name: example
   join_method: azure
   azure:
@@ -71,6 +77,7 @@ spec:
 Replace:
 
 - `11111111-1111-1111-1111-111111111111` with the UID of your Azure subscription
+- `example` with the name of the bot you created in the second step
 - `group1` with the name of the resource group that the VM resides within or
   omit this entirely to allow joining from any VM within the subscription
 
@@ -80,13 +87,7 @@ Use `tctl` to apply this file:
 $ tctl create -f bot-token.yaml
 ```
 
-Create the bot, specifying the token that you have created:
-
-```code
-$ tctl bots add example --token example-bot
-```
-
-## Step 3/4. Configure `tbot`
+## Step 4/5. Configure `tbot`
 
 **This step is completed on the Azure VM.**
 
@@ -116,7 +117,7 @@ Replace:
 
 (!docs/pages/includes/machine-id/daemon-or-oneshot.mdx!)
 
-## Step 4/4. Configure outputs
+## Step 5/5. Configure outputs
 
 (!docs/pages/includes/machine-id/configure-outputs.mdx!)
 

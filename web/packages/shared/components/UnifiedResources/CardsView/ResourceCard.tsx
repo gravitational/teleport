@@ -70,8 +70,8 @@ export function ResourceCard({
 
   const [hovered, setHovered] = useState(false);
 
-  const innerContainer = useRef<Element | null>(null);
-  const labelsInnerContainer = useRef(null);
+  const innerContainer = useRef<HTMLElement | null>(null);
+  const labelsInnerContainer = useRef<HTMLElement>(null);
   const collapseTimeout = useRef<ReturnType<typeof setTimeout>>(null);
 
   // This effect installs a resize observer whose purpose is to detect the size
@@ -82,6 +82,15 @@ export function ResourceCard({
 
     const observer = new ResizeObserver(entries => {
       const container = entries[0];
+
+      // In Connect, when a tab becomes active, its outermost DOM element switches from `display:
+      // none` to `display: flex`. This callback is then fired with the height reported as zero.
+      //
+      // As such, when checking whether to show the "More labels" button, we should consider only
+      // values other than zero.
+      if (container.contentRect.height === 0) {
+        return;
+      }
 
       // We're taking labelRowHeight * 1.5 just in case some glitch adds or
       // removes a pixel here and there.

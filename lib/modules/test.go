@@ -45,7 +45,8 @@ type TestModules struct {
 	defaultModules
 
 	// MockAttestationData is fake attestation data to return
-	// during tests when hardware key support is enabled.
+	// during tests when hardware key support is enabled. This
+	// attestation data is shared by all logins when set.
 	MockAttestationData *keys.AttestationData
 }
 

@@ -57,7 +57,7 @@ The examples in this guide will install a `tbot` deployment in the `default`
 Namespace of the Kubernetes cluster. Adjust references to `default` to the
 Namespace you wish to use.
 
-## Step 1/4. Prepare Kubernetes RBAC
+## Step 1/5. Prepare Kubernetes RBAC
 
 In order to prepare the Kubernetes cluster for Machine ID, several Kubernetes
 RBAC resources must be created.
@@ -118,7 +118,11 @@ Apply this file to your Kubernetes cluster:
 $ kubectl apply -f ./k8s-rbac.yaml
 ```
 
-## Step 2/4. Create a join token and bot user
+## Step 2/5. Create a Bot
+
+(!docs/pages/includes/machine-id/create-a-bot.mdx!)
+
+## Step 3/5. Create a join token
 
 Next, a join token needs to be configured. This will be used by `tbot` to join
 the cluster. As the `kubernetes` join method will be used, the public key of the
@@ -146,7 +150,7 @@ metadata:
   name: example-bot
 spec:
   roles: [Bot]
-  # bot_name will match the name of the bot created later in this guide.
+  # bot_name should match the name of the bot created earlier in this guide.
   bot_name: example
   join_method: kubernetes
   kubernetes:
@@ -169,13 +173,7 @@ Use `tctl` to apply this file:
 $ tctl create -f bot-token.yaml
 ```
 
-Create the bot, specifying the token that you have created:
-
-```code
-$ tctl bots add example --token example-bot
-```
-
-## Step 3/4. Create a `tbot` deployment
+## Step 4/5. Create a `tbot` deployment
 
 First, a ConfigMap will be created to contain the configuration file for `tbot`.
 This will then be mounted into the Pod.
@@ -311,7 +309,7 @@ $ kubectl logs deployment/tbot
 With this complete, `tbot` is now successfully deployed to your cluster.
 However, it is not yet producing any useful output.
 
-## Step 4/4. Configure outputs
+## Step 5/5. Configure outputs
 
 Follow one of the [access guides](../access-guides.mdx) to configure an output
 that meets your access needs.

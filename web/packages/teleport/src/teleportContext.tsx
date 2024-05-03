@@ -38,6 +38,7 @@ import MfaService from './services/mfa';
 import { agentService } from './services/agents';
 import { storageService } from './services/storageService';
 import ClustersService from './services/clusters/clusters';
+import { NotificationService } from './services/notifications';
 
 class TeleportContext implements types.Context {
   // stores
@@ -60,6 +61,7 @@ class TeleportContext implements types.Context {
   desktopService = desktopService;
   userGroupService = userGroupService;
   mfaService = new MfaService();
+  notificationService = new NotificationService();
 
   isEnterprise = cfg.isEnterprise;
   isCloud = cfg.isCloud;

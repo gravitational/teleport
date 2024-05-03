@@ -4,3 +4,4 @@ destination:
 roles:
   - access
 cluster: leaf.example.com
+ssh_config: "off"

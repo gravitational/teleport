@@ -141,6 +141,10 @@ export default class StoreUserContext extends Store<UserContext> {
     return this.state.acl.accessRequests;
   }
 
+  getAccessMonitoringRuleAccess() {
+    return this.state.acl.accessMonitoringRule;
+  }
+
   getAccessGraphAccess() {
     return this.state.acl.accessGraph;
   }

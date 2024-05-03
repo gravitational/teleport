@@ -10,6 +10,7 @@ The Teleport team delivers a new major release roughly every 4 months.
 | Version | Date           |
 | ------- | -------------- |
 | 15.3.0  | April 30, 2024 |
+| 15.4.0  | May 31, 2024   |
 | 16.0.0  | May 31, 2024   |
 
 ### 15.3.0
@@ -21,10 +22,6 @@ load times even on clusters with large numbers of roles.
 
 *Delayed from Teleport 15.1.0*
 
-#### Database access for Spanner
-
-Database access users will be able to connect to GCP Spanner.
-
 #### Resizing for Windows desktop sessions
 
 Windows desktop sessions will automatically resize as the size of the browser
@@ -35,6 +32,13 @@ window changes.
 Teleport will support connecting to agentless OpenSSH nodes even when Teleport
 is configured to require hardware key MFA checks.
 
+#### TPM joining
+
+The new TPM join method will enable secure joining for agents and Machine ID bots that
+run on-premise. Based on the secure properties of the host's hardware trusted platform module,
+this join method removes the need to create and distribute secret tokens, significantly
+reducing the risk of exfiltration.
+
 ### 15.4.0
 
 #### Access requests notification routing rules
@@ -42,12 +46,11 @@ is configured to require hardware key MFA checks.
 Hosted Slack plugin users will be able to configure notification routing rules
 for role-based access requests.
 
-#### TPM joining
+#### Database access for Spanner
 
-The new TPM join method will enable secure joining for agents and Machine ID bots that
-run on-premise. Based on the secure properties of the host's hardware trusted platform module,
-this join method removes the need to create and distribute secret tokens, significantly
-reducing the risk of exfiltration.
+Database access users will be able to connect to GCP Spanner.
+
+*Delayed from Teleport 15.3.0*
 
 ### 16.0.0
 

@@ -5,6 +5,13 @@ description: How to configure Teleport database access with Azure Cache for Redi
 
 (!docs/pages/includes/database-access/db-introduction.mdx  dbType="Azure Cache for Redis" dbConfigure="Azure Cache for Redis with IAM authentication" dbName="Azure Cache for Redis" !)
 
+## How it works
+
+The Teleport Database Service proxies traffic between Teleport users and Azure
+Cache for Redis. When a user connects to the database via Teleport, the Database
+Service obtains an access token from Microsoft Entra ID (formerly Azure AD) and
+authenticates to Azure as a principal with permissions to manage the database.
+
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![Teleport Database Access Azure Cache for Redis Self-Hosted](../../../img/database-access/guides/azure/redis-self-hosted.png)
