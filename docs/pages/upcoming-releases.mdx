@@ -9,35 +9,8 @@ The Teleport team delivers a new major release roughly every 4 months.
 
 | Version | Date           |
 | ------- | -------------- |
-| 15.3.0  | April 30, 2024 |
 | 15.4.0  | May 31, 2024   |
-| 16.0.0  | May 31, 2024   |
-
-### 15.3.0
-
-#### Improved Roles UI
-
-The Roles page of the web UI will be backed by a paginated API, ensuring fast
-load times even on clusters with large numbers of roles.
-
-*Delayed from Teleport 15.1.0*
-
-#### Resizing for Windows desktop sessions
-
-Windows desktop sessions will automatically resize as the size of the browser
-window changes.
-
-#### Hardware key support for agentless nodes
-
-Teleport will support connecting to agentless OpenSSH nodes even when Teleport
-is configured to require hardware key MFA checks.
-
-#### TPM joining
-
-The new TPM join method will enable secure joining for agents and Machine ID bots that
-run on-premise. Based on the secure properties of the host's hardware trusted platform module,
-this join method removes the need to create and distribute secret tokens, significantly
-reducing the risk of exfiltration.
+| 16.0.0  | June 14, 2024  |
 
 ### 15.4.0
 
