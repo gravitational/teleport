@@ -53,6 +53,7 @@ import { AccessMonitoring } from 'e-teleport/AccessMonitoring';
 
 import { InviteCollaboratorsDialog } from 'e-teleport/InviteCollaborators';
 import EmailPasswordResetDialog from 'e-teleport/InviteCollaborators/EmailPasswordResetDialog';
+import { UnifiedResourcesE } from 'e-teleport/UnifiedResources';
 
 import type {
   FeatureFlags,
@@ -66,6 +67,15 @@ import type {
 // ****************************
 
 const AccessGraph = lazy(() => import('e-teleport/AccessGraph'));
+class FeatureUnifiedResources extends OSS.FeatureUnifiedResources {
+  route = {
+    ...super.getRoute(),
+    // Enterprise Unified Resources can display requestable resources
+    // and allows the creation of access requests
+    component: UnifiedResourcesE,
+  };
+}
+
 class FeatureAccessRequests implements TeleportFeature {
   route: TeleportFeatureRoute; // intentionally undefined
   category = NavigationCategory.Resources;
@@ -481,7 +491,7 @@ class FeatureAccessGraph implements TeleportFeature {
 export function getEnterpriseFeatures(): TeleportFeature[] {
   return [
     // Resources
-    new OSS.FeatureUnifiedResources(),
+    new FeatureUnifiedResources(),
     new FeatureAccessRequests(),
     new FeatureNewAccessRequest(),
     new FeatureReviewAccessRequests(),
