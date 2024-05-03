@@ -32,6 +32,7 @@ export const Dialog = () => (
     <AuthenticateWebDevice
       rootClusterUri={makeRootCluster().uri}
       onClose={() => {}}
+      onCancel={() => {}}
       onAuthorize={async () => {}}
     />
   </MockAppContextProvider>
