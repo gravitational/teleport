@@ -34,7 +34,8 @@ import (
 )
 
 const (
-	maxUDPMessageSize = 65535
+	maxUDPMessageSize     = 65535
+	forwardRequestTimeout = 5 * time.Second
 )
 
 // Resolver represents an entity that can resolve DNS requests.
@@ -227,10 +228,10 @@ func (s *Server) handleDNSMessage(ctx context.Context, remoteAddr string, buf []
 }
 
 // forward forwards raw DNS messages to all upstream nameservers and writes the first response to
-// [responseWriter]. If there are no upstream nameservers, or none of them response within the timeout, an
+// [responseWriter]. If there are no upstream nameservers, or none of them responds within the timeout, an
 // error is returned.
 func (s *Server) forward(ctx context.Context, slog *slog.Logger, buf []byte, responseWriter io.Writer) error {
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, forwardRequestTimeout)
 	defer cancel()
 	deadline, _ := ctx.Deadline()
 
