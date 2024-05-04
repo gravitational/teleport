@@ -94,3 +94,10 @@ func (c *Config) checkAndSetDefaults() error {
 	c.Logger = c.Logger.With("rdp-addr", c.Addr)
 	return nil
 }
+
+// hasOverrideSize returns true if the width and height have been set.
+// This will be true when a user has specified a fixed `screen_size` for
+// a given desktop.
+func (c *Config) hasOverrideSize() bool {
+	return c.Width != 0 && c.Height != 0
+}
