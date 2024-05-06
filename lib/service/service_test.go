@@ -766,6 +766,11 @@ type mockAccessPoint struct {
 	auth.ProxyAccessPoint
 }
 
+// NewWatcher needs to be defined so that we can test proxy TLS config setup without panicing.
+func (m *mockAccessPoint) NewWatcher(_ context.Context, _ types.Watch) (types.Watcher, error) {
+	return nil, trace.NotImplemented("mock access point does not produce events")
+}
+
 type mockReverseTunnelServer struct {
 	reversetunnelclient.Server
 }

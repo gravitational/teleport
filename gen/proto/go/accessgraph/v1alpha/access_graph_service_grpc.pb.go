@@ -36,12 +36,13 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	AccessGraphService_Query_FullMethodName           = "/accessgraph.v1alpha.AccessGraphService/Query"
-	AccessGraphService_GetFile_FullMethodName         = "/accessgraph.v1alpha.AccessGraphService/GetFile"
-	AccessGraphService_EventsStream_FullMethodName    = "/accessgraph.v1alpha.AccessGraphService/EventsStream"
-	AccessGraphService_Register_FullMethodName        = "/accessgraph.v1alpha.AccessGraphService/Register"
-	AccessGraphService_ReplaceCAs_FullMethodName      = "/accessgraph.v1alpha.AccessGraphService/ReplaceCAs"
-	AccessGraphService_AWSEventsStream_FullMethodName = "/accessgraph.v1alpha.AccessGraphService/AWSEventsStream"
+	AccessGraphService_Query_FullMethodName              = "/accessgraph.v1alpha.AccessGraphService/Query"
+	AccessGraphService_GetFile_FullMethodName            = "/accessgraph.v1alpha.AccessGraphService/GetFile"
+	AccessGraphService_EventsStream_FullMethodName       = "/accessgraph.v1alpha.AccessGraphService/EventsStream"
+	AccessGraphService_Register_FullMethodName           = "/accessgraph.v1alpha.AccessGraphService/Register"
+	AccessGraphService_ReplaceCAs_FullMethodName         = "/accessgraph.v1alpha.AccessGraphService/ReplaceCAs"
+	AccessGraphService_AWSEventsStream_FullMethodName    = "/accessgraph.v1alpha.AccessGraphService/AWSEventsStream"
+	AccessGraphService_GitlabEventsStream_FullMethodName = "/accessgraph.v1alpha.AccessGraphService/GitlabEventsStream"
 )
 
 // AccessGraphServiceClient is the client API for AccessGraphService service.
@@ -79,6 +80,8 @@ type AccessGraphServiceClient interface {
 	// and pushes all AWS resources and following events to it.
 	// This stream is used to sync the access graph with the AWS database state.
 	AWSEventsStream(ctx context.Context, opts ...grpc.CallOption) (AccessGraphService_AWSEventsStreamClient, error)
+	// GitlabEventsStream is a stream of commands to the Gitlab importer.
+	GitlabEventsStream(ctx context.Context, opts ...grpc.CallOption) (AccessGraphService_GitlabEventsStreamClient, error)
 }
 
 type accessGraphServiceClient struct {
@@ -193,6 +196,37 @@ func (x *accessGraphServiceAWSEventsStreamClient) CloseAndRecv() (*AWSEventsStre
 	return m, nil
 }
 
+func (c *accessGraphServiceClient) GitlabEventsStream(ctx context.Context, opts ...grpc.CallOption) (AccessGraphService_GitlabEventsStreamClient, error) {
+	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[2], AccessGraphService_GitlabEventsStream_FullMethodName, opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &accessGraphServiceGitlabEventsStreamClient{stream}
+	return x, nil
+}
+
+type AccessGraphService_GitlabEventsStreamClient interface {
+	Send(*GitlabEventsStreamRequest) error
+	Recv() (*GitlabEventsStreamResponse, error)
+	grpc.ClientStream
+}
+
+type accessGraphServiceGitlabEventsStreamClient struct {
+	grpc.ClientStream
+}
+
+func (x *accessGraphServiceGitlabEventsStreamClient) Send(m *GitlabEventsStreamRequest) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *accessGraphServiceGitlabEventsStreamClient) Recv() (*GitlabEventsStreamResponse, error) {
+	m := new(GitlabEventsStreamResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // AccessGraphServiceServer is the server API for AccessGraphService service.
 // All implementations must embed UnimplementedAccessGraphServiceServer
 // for forward compatibility
@@ -228,6 +262,8 @@ type AccessGraphServiceServer interface {
 	// and pushes all AWS resources and following events to it.
 	// This stream is used to sync the access graph with the AWS database state.
 	AWSEventsStream(AccessGraphService_AWSEventsStreamServer) error
+	// GitlabEventsStream is a stream of commands to the Gitlab importer.
+	GitlabEventsStream(AccessGraphService_GitlabEventsStreamServer) error
 	mustEmbedUnimplementedAccessGraphServiceServer()
 }
 
@@ -252,6 +288,9 @@ func (UnimplementedAccessGraphServiceServer) ReplaceCAs(context.Context, *Replac
 }
 func (UnimplementedAccessGraphServiceServer) AWSEventsStream(AccessGraphService_AWSEventsStreamServer) error {
 	return status.Errorf(codes.Unimplemented, "method AWSEventsStream not implemented")
+}
+func (UnimplementedAccessGraphServiceServer) GitlabEventsStream(AccessGraphService_GitlabEventsStreamServer) error {
+	return status.Errorf(codes.Unimplemented, "method GitlabEventsStream not implemented")
 }
 func (UnimplementedAccessGraphServiceServer) mustEmbedUnimplementedAccessGraphServiceServer() {}
 
@@ -390,6 +429,32 @@ func (x *accessGraphServiceAWSEventsStreamServer) Recv() (*AWSEventsStreamReques
 	return m, nil
 }
 
+func _AccessGraphService_GitlabEventsStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(AccessGraphServiceServer).GitlabEventsStream(&accessGraphServiceGitlabEventsStreamServer{stream})
+}
+
+type AccessGraphService_GitlabEventsStreamServer interface {
+	Send(*GitlabEventsStreamResponse) error
+	Recv() (*GitlabEventsStreamRequest, error)
+	grpc.ServerStream
+}
+
+type accessGraphServiceGitlabEventsStreamServer struct {
+	grpc.ServerStream
+}
+
+func (x *accessGraphServiceGitlabEventsStreamServer) Send(m *GitlabEventsStreamResponse) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *accessGraphServiceGitlabEventsStreamServer) Recv() (*GitlabEventsStreamRequest, error) {
+	m := new(GitlabEventsStreamRequest)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // AccessGraphService_ServiceDesc is the grpc.ServiceDesc for AccessGraphService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -423,6 +488,12 @@ var AccessGraphService_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "AWSEventsStream",
 			Handler:       _AccessGraphService_AWSEventsStream_Handler,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "GitlabEventsStream",
+			Handler:       _AccessGraphService_GitlabEventsStream_Handler,
+			ServerStreams: true,
 			ClientStreams: true,
 		},
 	},

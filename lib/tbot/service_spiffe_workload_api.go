@@ -176,7 +176,8 @@ func createListener(ctx context.Context, log *slog.Logger, addr string) (net.Lis
 	}
 
 	switch parsed.Scheme {
-	case "tcp":
+	// If no scheme is provided, default to TCP.
+	case "tcp", "":
 		return net.Listen("tcp", parsed.Host)
 	case "unix":
 		absPath, err := filepath.Abs(parsed.Path)

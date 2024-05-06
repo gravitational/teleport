@@ -20,6 +20,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api"
 )
 
 func TestGetTunnelType(t *testing.T) {
@@ -51,6 +53,63 @@ func TestGetTunnelType(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			require.Equal(t, test.expected, test.appServer.GetTunnelType())
+		})
+	}
+}
+
+func TestNewAppServerForAWSOIDCIntegration(t *testing.T) {
+	for _, tt := range []struct {
+		name           string
+		integratioName string
+		hostID         string
+		expectedApp    *AppServerV3
+		errCheck       require.ErrorAssertionFunc
+	}{
+		{
+			name:           "valid",
+			integratioName: "valid",
+			hostID:         "my-host-id",
+			expectedApp: &AppServerV3{
+				Kind:    KindAppServer,
+				Version: V3,
+				Metadata: Metadata{
+					Name:      "valid",
+					Namespace: "default",
+				},
+				Spec: AppServerSpecV3{
+					Version: api.Version,
+					HostID:  "my-host-id",
+					App: &AppV3{
+						Kind:    KindApp,
+						Version: V3,
+						Metadata: Metadata{
+							Name:      "valid",
+							Namespace: "default",
+						},
+						Spec: AppSpecV3{
+							URI:         "https://console.aws.amazon.com",
+							Cloud:       "AWS",
+							Integration: "valid",
+						},
+					},
+				},
+			},
+			errCheck: require.NoError,
+		},
+		{
+			name:           "error when HostID is missing",
+			integratioName: "invalid-missing-hostid",
+			errCheck:       require.Error,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			app, err := NewAppServerForAWSOIDCIntegration(tt.integratioName, tt.hostID)
+			if tt.errCheck != nil {
+				tt.errCheck(t, err)
+			}
+			if tt.expectedApp != nil {
+				require.Equal(t, tt.expectedApp, app)
+			}
 		})
 	}
 }
