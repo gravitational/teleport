@@ -21,14 +21,16 @@ package common
 import (
 	"context"
 	"fmt"
+
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/gravitational/trace"
+	"golang.org/x/crypto/bcrypt"
+
 	"github.com/gravitational/teleport"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/trace"
-	"golang.org/x/crypto/bcrypt"
 )
 
 type pluginInstallArgs struct {
