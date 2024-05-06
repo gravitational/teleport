@@ -147,7 +147,10 @@ func TestUpdateCrownJewel(t *testing.T) {
 
 	expiry := timestamppb.New(clock.Now().Add(30 * time.Minute))
 
-	obj := getObject(t, 0)
+	// Fetch the object from the backend so the revision is populated.
+	obj, err := service.GetCrownJewel(ctx, getObject(t, 0).GetMetadata().GetName())
+	require.NoError(t, err)
+	// update the expiry time
 	obj.Metadata.Expires = expiry
 
 	objUpdated, err := service.UpdateCrownJewel(ctx, obj)
@@ -157,6 +160,23 @@ func TestUpdateCrownJewel(t *testing.T) {
 	objFresh, err := service.GetCrownJewel(ctx, obj.Metadata.Name)
 	require.NoError(t, err)
 	require.Equal(t, expiry, objFresh.Metadata.Expires)
+}
+
+func TestUpdateCrownJewelMissingRevision(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	service := getService(t)
+	prepopulate(t, service, 1)
+
+	expiry := timestamppb.New(clock.Now().Add(30 * time.Minute))
+
+	obj := getObject(t, 0)
+	obj.Metadata.Expires = expiry
+
+	// Update should be rejected as the revision is missing.
+	_, err := service.UpdateCrownJewel(ctx, obj)
+	require.Error(t, err)
 }
 
 func TestDeleteCrownJewel(t *testing.T) {
