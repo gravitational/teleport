@@ -5485,14 +5485,19 @@ func (a *ServerWithRoles) CreateSnowflakeSession(ctx context.Context, req types.
 
 // CreateSAMLIdPSession creates a SAML IdP session.
 func (a *ServerWithRoles) CreateSAMLIdPSession(ctx context.Context, req *proto.CreateSAMLIdPSessionRequest) (types.WebSession, error) {
-	// Check if this a proxy service.
-	if !a.hasBuiltinRole(types.RoleProxy) {
-		if err := a.currentUserAction(req.Username); err != nil {
+	if a.hasBuiltinRole(types.RoleProxy) {
+		ws, err := a.authServer.CreateSAMLIdPSessionForUser(ctx, req.Username, req.SAMLSession)
+		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		return ws, nil
 	}
 
-	samlSession, err := a.authServer.CreateSAMLIdPSession(ctx, req, a.context.Identity.GetIdentity(), a.context.Checker)
+	if err := a.currentUserAction(req.Username); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	samlSession, err := a.authServer.CreateSAMLIdPSession(ctx, a.context.Identity.GetIdentity(), req.MFAResponse)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

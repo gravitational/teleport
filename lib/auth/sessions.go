@@ -22,6 +22,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/crewjam/saml"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -30,6 +31,7 @@ import (
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/e/lib/idp/saml/attribute"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
@@ -538,20 +540,156 @@ func (a *Server) CreateSnowflakeSession(ctx context.Context, req types.CreateSno
 	return session, nil
 }
 
-func (a *Server) CreateSAMLIdPSession(ctx context.Context, req *proto.CreateSAMLIdPSessionRequest,
-	identity tlsca.Identity, checker services.AccessChecker,
-) (types.WebSession, error) {
+func (a *Server) CreateSAMLIdPSession(ctx context.Context, identity tlsca.Identity, mfaResp *proto.MFAAuthenticateResponse) (types.WebSession, error) {
+	// example crewjam/samlidp.
+	idHex, err := utils.CryptoRandomHex(32)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	indexHex, err := utils.CryptoRandomHex(32)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	session := &saml.Session{
+		ID:         idHex,
+		NameID:     identity.Username,
+		CreateTime: a.clock.Now(),
+		ExpireTime: identity.Expires,
+		Index:      indexHex,
+		UserName:   identity.Username,
+		Groups:     identity.Groups,
+		CustomAttributes: samlMappableAttributeToCustomAttribute(attribute.SAMLMappableUserSpec{
+			Username: identity.Username,
+			Traits:   identity.Traits,
+			Roles:    identity.Groups,
+		}),
+	}
+	sessionData, err := samlSessionToSessionData(session)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if mfaResp != nil {
+		requiredExt := &mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION}
+		mfaData, err := a.ValidateMFAAuthResponse(ctx, mfaResp, identity.Username, requiredExt)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		sessionData.MFADevice = mfaData.Device.Id
+	}
+
+	ws, err := a.CreateSAMLIdPSessionForUser(ctx, identity.Username, sessionData)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ws, nil
+}
+
+// samlMappableAttributeToCustomAttribute converts samlMappableUserSpec to saml.Attribute
+// which will eventually be added to SAML session custom attributes.
+func samlMappableAttributeToCustomAttribute(userSpec attribute.SAMLMappableUserSpec) []saml.Attribute {
+	var customAttributes []saml.Attribute = make([]saml.Attribute, 0)
+	for k, v := range userSpec.Traits {
+		customAttributes = addAttribute(customAttributes, k, k, v...)
+	}
+	customAttributes = addAttribute(customAttributes, "roles", "roles", userSpec.Roles...)
+	customAttributes = addAttribute(customAttributes, "username", "username", userSpec.Username)
+	return customAttributes
+}
+
+// addAttribute will add an attribute to the given slice if the number of values is non-zero. If there is one element,
+// the attribute will not be added if it is empty.
+func addAttribute(attributes []saml.Attribute, friendlyName, name string, values ...string) []saml.Attribute {
+	return addAttributeWithFormat(attributes, friendlyName, name, types.SAMLURINameFormat, values...)
+}
+
+// addAttributeWithFormat has the same behavior as addAttribute but allows for the user to specify the name format.
+func addAttributeWithFormat(attributes []saml.Attribute, friendlyName, name, format string, values ...string) []saml.Attribute {
+	numValues := len(values)
+	if numValues == 0 {
+		return attributes
+	}
+	if numValues == 1 && values[0] == "" {
+		return attributes
+	}
+
+	return append(attributes, attribute.New(friendlyName, name, format, values...))
+}
+
+// samlSessionToSessionData converts a *saml.Session object into a types.SAMLSessionData.
+func samlSessionToSessionData(session *saml.Session) (*types.SAMLSessionData, error) {
+	if session == nil {
+		return nil, trace.BadParameter("the session is nil")
+	}
+
+	data := &types.SAMLSessionData{
+		ID:         session.ID,
+		CreateTime: session.CreateTime,
+		ExpireTime: session.ExpireTime,
+		Index:      session.Index,
+
+		NameID:       session.NameID,
+		NameIDFormat: session.NameIDFormat,
+		SubjectID:    session.SubjectID,
+
+		UserName:              session.UserName,
+		UserEmail:             session.UserEmail,
+		UserCommonName:        session.UserCommonName,
+		UserSurname:           session.UserSurname,
+		UserGivenName:         session.UserGivenName,
+		UserScopedAffiliation: session.UserScopedAffiliation,
+	}
+
+	data.Groups = append(data.Groups, session.Groups...)
+
+	for _, attribute := range session.CustomAttributes {
+		var values []*types.SAMLAttributeValue
+		for _, value := range attribute.Values {
+			var nameID *types.SAMLNameID
+			if value.NameID != nil {
+				nameID = &types.SAMLNameID{
+					NameQualifier:   value.NameID.NameQualifier,
+					SPNameQualifier: value.NameID.SPNameQualifier,
+					Format:          value.NameID.Format,
+					SPProvidedID:    value.NameID.SPProvidedID,
+					Value:           value.NameID.Value,
+				}
+			}
+			value := &types.SAMLAttributeValue{
+				Type:   value.Type,
+				Value:  value.Value,
+				NameID: nameID,
+			}
+
+			values = append(values, value)
+		}
+		internalAttribute := types.SAMLAttribute{
+			FriendlyName: attribute.FriendlyName,
+			Name:         attribute.Name,
+			NameFormat:   attribute.NameFormat,
+			Values:       values,
+		}
+
+		data.CustomAttributes = append(data.CustomAttributes, &internalAttribute)
+	}
+
+	return data, nil
+}
+
+func (a *Server) CreateSAMLIdPSessionForUser(ctx context.Context, username string, samlSession *types.SAMLSessionData) (types.WebSession, error) {
 	// TODO(mdwn): implement a module.Features() check.
 
-	if req.SAMLSession == nil {
+	if samlSession == nil {
 		return nil, trace.BadParameter("required SAML session is not populated")
 	}
 
 	// Create services.WebSession for this session.
-	session, err := types.NewWebSession(req.SessionID, types.KindSAMLIdPSession, types.WebSessionSpecV2{
-		User:        req.Username,
-		Expires:     req.SAMLSession.ExpireTime,
-		SAMLSession: req.SAMLSession,
+	session, err := types.NewWebSession(samlSession.ID, types.KindSAMLIdPSession, types.WebSessionSpecV2{
+		User:        username,
+		Expires:     samlSession.ExpireTime,
+		SAMLSession: samlSession,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -559,7 +697,7 @@ func (a *Server) CreateSAMLIdPSession(ctx context.Context, req *proto.CreateSAML
 	if err = a.UpsertSAMLIdPSession(ctx, session); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log.Debugf("Generated SAML IdP web session for %v.", req.Username)
+	log.Debugf("Generated SAML IdP web session for %v.", username)
 
 	return session, nil
 }
