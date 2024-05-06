@@ -103,6 +103,8 @@ export interface User {
   // authType describes how the user authenticated
   // e.g. locally or with a SSO provider.
   authType?: string;
+  // What kind of upstream IdP has the user come from?
+  origin?: string;
   // isLocal is true if json.authType was 'local'.
   isLocal?: boolean;
   // traits existed before field "externalTraits"

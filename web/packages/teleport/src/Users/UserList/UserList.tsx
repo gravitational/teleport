@@ -61,9 +61,9 @@ export default function UserList({
           key: 'authType',
           headerText: 'Type',
           isSortable: true,
-          render: ({ authType }) => (
+          render: ({ authType, origin }) => (
             <Cell style={{ textTransform: 'capitalize' }}>
-              {renderAuthType(authType)}
+              {renderAuthType(authType, origin)}
             </Cell>
           ),
         },
@@ -85,12 +85,19 @@ export default function UserList({
     />
   );
 
-  function renderAuthType(authType: string) {
+  function renderAuthType(authType: string, origin: string) {
     switch (authType) {
       case 'github':
         return 'GitHub';
       case 'saml':
-        return 'SAML';
+        switch (origin) {
+          case "okta":
+            return "Okta";
+          case "scim":
+            return "SCIM";
+          default:
+            return 'SAML';
+        }
       case 'oidc':
         return 'OIDC';
     }
