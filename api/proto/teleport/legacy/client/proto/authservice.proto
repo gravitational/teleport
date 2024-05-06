@@ -818,6 +818,10 @@ message CreateSAMLIdPSessionRequest {
   string Username = 2 [(gogoproto.jsontag) = "username"];
   // SAMLSession is the session data associated with the SAML IdP session.
   types.SAMLSessionData SAMLSession = 3 [(gogoproto.jsontag) = "saml_session"];
+  // MFAResponse is a response to a challenge from a user's MFA device.
+  // An optional field, that when provided, the response will be validated and
+  // the ID of the validated MFA device will be stored in SAML IdP session.
+  MFAAuthenticateResponse MFAResponse = 4 [(gogoproto.jsontag) = "mfa_response,omitempty"];
 }
 
 // CreateSAMLIdPSessionResponse contains a SAML IdP session.

@@ -3952,6 +3952,9 @@ message SAMLSessionData {
 
   // CustomAttributes are any custom attributes associated with the request.
   repeated SAMLAttribute CustomAttributes = 15 [(gogoproto.jsontag) = "custom_attributes"];
+
+  // MFADevice is the mfa device used to verify the SAML IdP session.
+  string MFADevice = 16 [(gogoproto.jsontag) = "mfa_device,omitempty"];
 }
 
 // SAMLAttribute contains an attribute name and associated values.
