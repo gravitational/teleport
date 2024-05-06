@@ -63,8 +63,6 @@ type AWSSigninRequest struct {
 	// Integration is the Integration name to use to generate credentials.
 	// If empty, it will use ambient credentials
 	Integration string
-	// Region is the AWS region to used with the Integration to generate credentials.
-	Region string
 }
 
 // CheckAndSetDefaults validates the request.
@@ -172,7 +170,10 @@ func (c *cloud) getAWSSigninToken(ctx context.Context, req *AWSSigninRequest, en
 	// the AWS session is using temporary credentials. However, when the
 	// "SessionDuration" is not provided, the web console session duration will
 	// be bound to the duration used in the next AssumeRole call.
-	session, err := c.cfg.SessionGetter(ctx, req.Region, req.Integration)
+
+	// Sign In requests target IAM endpoints which don't require a region.
+	region := ""
+	session, err := c.cfg.SessionGetter(ctx, region, req.Integration)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

@@ -485,10 +485,11 @@ func (c *ConnectionsHandler) serveAWSWebConsole(w http.ResponseWriter, r *http.R
 	)
 
 	url, err := c.cfg.Cloud.GetAWSSigninURL(r.Context(), AWSSigninRequest{
-		Identity:   identity,
-		TargetURL:  app.GetURI(),
-		Issuer:     app.GetPublicAddr(),
-		ExternalID: app.GetAWSExternalID(),
+		Identity:    identity,
+		TargetURL:   app.GetURI(),
+		Issuer:      app.GetPublicAddr(),
+		ExternalID:  app.GetAWSExternalID(),
+		Integration: app.GetIntegration(),
 	})
 	if err != nil {
 		return trace.Wrap(err)

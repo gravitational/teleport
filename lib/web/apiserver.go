@@ -313,6 +313,9 @@ type Config struct {
 	// proxy built-in version server to retrieve target versions. This is part
 	// of the automatic upgrades.
 	AutomaticUpgradesChannels automaticupgrades.Channels
+
+	// IntegrationAppHandler handles App Access requests which use an Integration.
+	IntegrationAppHandler app.ServerHandler
 }
 
 // SetDefaults ensures proper default values are set if
@@ -619,13 +622,14 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	var appHandler *app.Handler
 	if !cfg.MinimalReverseTunnelRoutesOnly {
 		appHandler, err = app.NewHandler(cfg.Context, &app.HandlerConfig{
-			Clock:            h.clock,
-			AuthClient:       cfg.ProxyClient,
-			AccessPoint:      cfg.AccessPoint,
-			ProxyClient:      cfg.Proxy,
-			CipherSuites:     cfg.CipherSuites,
-			ProxyPublicAddrs: cfg.ProxyPublicAddrs,
-			WebPublicAddr:    resp.SSH.PublicAddr,
+			Clock:                 h.clock,
+			AuthClient:            cfg.ProxyClient,
+			AccessPoint:           cfg.AccessPoint,
+			ProxyClient:           cfg.Proxy,
+			CipherSuites:          cfg.CipherSuites,
+			ProxyPublicAddrs:      cfg.ProxyPublicAddrs,
+			WebPublicAddr:         resp.SSH.PublicAddr,
+			IntegrationAppHandler: cfg.IntegrationAppHandler,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
