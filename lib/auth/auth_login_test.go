@@ -819,8 +819,8 @@ func TestServer_AuthenticateUser_passwordOnly(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	svr := newTestTLSServer(t)
-	authServer := svr.Auth()
+	testServer := newTestTLSServer(t)
+	authServer := testServer.Auth()
 
 	const username = "bowman"
 	const password = "it's full of stars!"
@@ -856,12 +856,14 @@ func TestServer_AuthenticateUser_passwordOnly_failure(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	svr := newTestTLSServer(t)
-	authServer := svr.Auth()
+	testServer := newTestTLSServer(t)
+	authServer := testServer.Auth()
+
+	const username = "capybara"
 
 	setPassword := func(pwd string) func(*testing.T, *Server) {
 		return func(t *testing.T, s *Server) {
-			require.NoError(t, s.UpsertPassword("capybara", []byte(pwd)))
+			require.NoError(t, s.UpsertPassword(username, []byte(pwd)))
 		}
 	}
 
@@ -874,7 +876,7 @@ func TestServer_AuthenticateUser_passwordOnly_failure(t *testing.T) {
 		{
 			name:         "wrong password",
 			setup:        setPassword("secure password"),
-			authUser:     "capybara",
+			authUser:     username,
 			authPassword: "wrong password",
 		},
 		{
@@ -886,7 +888,7 @@ func TestServer_AuthenticateUser_passwordOnly_failure(t *testing.T) {
 		{
 			name:         "password not found",
 			setup:        func(*testing.T, *Server) {},
-			authUser:     "capybara",
+			authUser:     username,
 			authPassword: "secure password",
 		},
 	}
@@ -896,9 +898,11 @@ func TestServer_AuthenticateUser_passwordOnly_failure(t *testing.T) {
 		// authenticate function.
 		makeRun := func(authenticate func(*Server, AuthenticateUserRequest) error) func(t *testing.T) {
 			return func(t *testing.T) {
-				_, _, err := CreateUserAndRole(authServer, "capybara", nil, nil)
+				_, _, err := CreateUserAndRole(authServer, username, nil, nil)
 				require.NoError(t, err)
-				defer authServer.DeleteUser(ctx, "capybara")
+				t.Cleanup(func() {
+					assert.NoError(t, authServer.DeleteUser(ctx, username), "failed to delete user %s", username)
+				})
 				test.setup(t, authServer)
 
 				err = authenticate(authServer, AuthenticateUserRequest{
@@ -928,8 +932,8 @@ func TestServer_AuthenticateUser_setsPasswordState(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	svr := newTestTLSServer(t)
-	authServer := svr.Auth()
+	testServer := newTestTLSServer(t)
+	authServer := testServer.Auth()
 
 	const username = "bowman"
 	const password = "it's full of stars!"
