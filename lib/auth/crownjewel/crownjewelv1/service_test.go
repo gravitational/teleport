@@ -161,7 +161,7 @@ func otherAdminStates(states []authz.AdminActionAuthState) []authz.AdminActionAu
 	return out
 }
 
-// callMethod calls a method with given name in the DatabaseObjectService service
+// callMethod calls a method with given name in the CrownJewel service
 func callMethod(t *testing.T, service *Service, method string) error {
 	for _, desc := range crownjewelv1.CrownJewelService_ServiceDesc.Methods {
 		if desc.MethodName == method {
@@ -180,10 +180,8 @@ type fakeChecker struct {
 
 func (f fakeChecker) CheckAccessToRule(_ services.RuleContext, _ string, resource string, verb string) error {
 	if resource == types.KindCrownJewel {
-		for _, allowedVerb := range f.allowedVerbs {
-			if allowedVerb == verb {
-				return nil
-			}
+		for slices.Contains(f.allowedVerbs, verb) {
+			return nil
 		}
 	}
 
@@ -214,7 +212,7 @@ func newService(t *testing.T, authState authz.AdminActionAuthState, checker serv
 	service, err := NewService(ServiceConfig{
 		Authorizer: authorizer,
 		Backend:    backendService,
-		Cache:      backendService,
+		Reader:     backendService,
 	})
 	require.NoError(t, err)
 	return service

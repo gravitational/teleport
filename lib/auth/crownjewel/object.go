@@ -42,7 +42,7 @@ func NewCrownJewel(name string, spec *crownjewelv1.CrownJewelSpec) (*crownjewelv
 	return cj, nil
 }
 
-// ValidateCrownJewel validates the CrownJewel object.
+// ValidateCrownJewel validates the CrownJewel object without modifying it.
 // Required fields:
 //   - Metadata.Name
 //   - Spec.TeleportMatchers or Spec.AwsMatchers
@@ -71,11 +71,9 @@ func ValidateCrownJewel(jewel *crownjewelv1.CrownJewel) error {
 				return trace.BadParameter("teleport matcher name or labels must be set")
 			}
 
-			if len(matcher.GetLabels()) > 0 {
-				for _, label := range matcher.GetLabels() {
-					if label.Name == "" || len(label.Values) == 0 {
-						return trace.BadParameter("teleport matcher label name or value is empty")
-					}
+			for _, label := range matcher.GetLabels() {
+				if label.Name == "" || len(label.Values) == 0 {
+					return trace.BadParameter("teleport matcher label name or value is empty")
 				}
 			}
 		}
@@ -91,11 +89,9 @@ func ValidateCrownJewel(jewel *crownjewelv1.CrownJewel) error {
 				return trace.BadParameter("aws matcher arn or tags must be set")
 			}
 
-			if len(matcher.GetTypes()) > 0 {
-				for _, label := range matcher.GetTags() {
-					if label.Key == "" || len(label.Values) == 0 {
-						return trace.BadParameter("aws matcher tag key or value is empty")
-					}
+			for _, label := range matcher.GetTags() {
+				if label.Key == "" || len(label.Values) == 0 {
+					return trace.BadParameter("aws matcher tag key or value is empty")
 				}
 			}
 		}

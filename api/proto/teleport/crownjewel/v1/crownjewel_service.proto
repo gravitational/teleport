@@ -81,6 +81,3 @@ message DeleteCrownJewelRequest {
   // Name is the name of the CrownJewel to delete.
   string name = 1;
 }
-
-// DeleteAllCrownJewelsRequest is a request to delete all CrownJewels.
-message DeleteAllCrownJewelsRequest {}

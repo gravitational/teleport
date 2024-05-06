@@ -55,7 +55,7 @@ func (c *Client) CreateCrownJewel(ctx context.Context, req *crownjewelv1.CrownJe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return rsp, trace.Wrap(err)
+	return rsp, nil
 }
 
 // GetCrownJewel returns a Crown Jewel by name.
@@ -66,7 +66,7 @@ func (c *Client) GetCrownJewel(ctx context.Context, name string) (*crownjewelv1.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return rsp, trace.Wrap(err)
+	return rsp, nil
 }
 
 // UpdateCrownJewel updates an existing Crown Jewel.
@@ -77,7 +77,7 @@ func (c *Client) UpdateCrownJewel(ctx context.Context, req *crownjewelv1.CrownJe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return rsp, trace.Wrap(err)
+	return rsp, nil
 }
 
 // UpsertCrownJewel upserts a Crown Jewel.
@@ -88,7 +88,7 @@ func (c *Client) UpsertCrownJewel(ctx context.Context, req *crownjewelv1.CrownJe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return rsp, trace.Wrap(err)
+	return rsp, nil
 }
 
 // DeleteCrownJewel deletes a Crown Jewel.

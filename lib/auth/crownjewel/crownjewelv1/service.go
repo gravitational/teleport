@@ -39,8 +39,8 @@ type ServiceConfig struct {
 	// Backend is the backend for storing CrownJewel.
 	Backend services.CrownJewels
 
-	// Cache is the cache for storing CrownJewel.
-	Cache Cache
+	// Reader is the cache for storing CrownJewel.
+	Reader Reader
 }
 
 // CheckAndSetDefaults checks the ServiceConfig fields and returns an error if
@@ -53,14 +53,14 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 	if s.Backend == nil {
 		return trace.BadParameter("backend is required")
 	}
-	if s.Cache == nil {
+	if s.Reader == nil {
 		return trace.BadParameter("cache is required")
 	}
 
 	return nil
 }
 
-type Cache interface {
+type Reader interface {
 	ListCrownJewels(ctx context.Context, pageSize int64, nextToken string) ([]*crownjewelv1.CrownJewel, string, error)
 	GetCrownJewel(ctx context.Context, name string) (*crownjewelv1.CrownJewel, error)
 }
@@ -71,7 +71,7 @@ type Service struct {
 
 	authorizer authz.Authorizer
 	backend    services.CrownJewels
-	cache      Cache
+	reader     Reader
 }
 
 // NewService returns a new CrownJewel gRPC service.
@@ -83,7 +83,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	return &Service{
 		authorizer: cfg.Authorizer,
 		backend:    cfg.Backend,
-		cache:      cfg.Cache,
+		reader:     cfg.Reader,
 	}, nil
 }
 
@@ -125,7 +125,7 @@ func (s *Service) ListCrownJewels(ctx context.Context, req *crownjewelv1.ListCro
 		return nil, trace.Wrap(err)
 	}
 
-	rsp, nextToken, err := s.cache.ListCrownJewels(ctx, req.PageSize, req.PageToken)
+	rsp, nextToken, err := s.reader.ListCrownJewels(ctx, req.PageSize, req.PageToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -147,7 +147,7 @@ func (s *Service) GetCrownJewel(ctx context.Context, req *crownjewelv1.GetCrownJ
 		return nil, trace.Wrap(err)
 	}
 
-	rsp, err := s.cache.GetCrownJewel(ctx, req.GetName())
+	rsp, err := s.reader.GetCrownJewel(ctx, req.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
