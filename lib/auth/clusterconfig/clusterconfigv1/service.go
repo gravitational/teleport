@@ -610,6 +610,10 @@ func (s *Service) ResetClusterNetworkingConfig(ctx context.Context, _ *clusterco
 	return nil, trace.LimitExceeded("failed to reset networking config within %v iterations", iterationLimit)
 }
 
+// ValidateCloudNetworkConfigUpdate validates that that [newConfig] is a valid update of [oldConfig]. Cloud
+// customers are not allowed to edit certain fields of the cluster networking config, and even if they were,
+// the edits would be overwritten by the values from the static config file every time an auth process starts
+// up.
 func ValidateCloudNetworkConfigUpdate(authzCtx authz.Context, newConfig, oldConfig types.ClusterNetworkingConfig) error {
 	if authz.HasBuiltinRole(authzCtx, string(types.RoleAdmin)) {
 		return nil
