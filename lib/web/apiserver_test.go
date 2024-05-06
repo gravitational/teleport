@@ -6030,6 +6030,72 @@ func TestListConnectionsDiagnostic(t *testing.T) {
 	require.Equal(t, "some details", receivedConnectionDiagnostic.Traces[0].Details)
 }
 
+func TestWebLauncherURL(t *testing.T) {
+	t.Parallel()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "foo@example.com", nil /* roles */)
+
+	testcases := []struct {
+		desc           string
+		appURL         string
+		wantBadRequest bool
+	}{
+		{
+			desc:   "valid semicolon",
+			appURL: "dumper.localhost;testing",
+		},
+		{
+			desc:   "valid with query (question mark)",
+			appURL: "dumper.localhost?foo",
+		},
+		{
+			desc:   "valid with multipath",
+			appURL: "dumper.localhost/foo/bar/",
+		},
+		{
+			desc:   "valid with multipath with query",
+			appURL: "dumper.localhost/foo/bar?foo=bar",
+		},
+		{
+			desc:           "invalid use of semicolon, invalid port",
+			appURL:         "dumper.localhost;script-src:something",
+			wantBadRequest: true,
+		},
+		{
+			desc:           "invalid use of escape characters (space)",
+			appURL:         "dumper.localhost;%20script-src%20unsafe-inline%20;",
+			wantBadRequest: true,
+		},
+		{
+			desc:           "invalid use of escape characters (double encoded space)",
+			appURL:         "dumper.localhost;%2520script-src%20unsafe-inline%2520;",
+			wantBadRequest: true,
+		},
+		{
+			desc:           "invalid use of spaces",
+			appURL:         "dumper.localhost; script-src * unsafe-inline;",
+			wantBadRequest: true,
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.desc, func(t *testing.T) {
+			str := fmt.Sprintf("%s/%s/%s", proxy.webURL.String(), "web/launch", tc.appURL)
+
+			resp, err := pack.clt.HTTPClient().Get(str)
+			require.NoError(t, err)
+
+			if tc.wantBadRequest {
+				require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+			} else {
+				require.Equal(t, http.StatusOK, resp.StatusCode)
+			}
+		})
+	}
+
+}
+
 func TestDiagnoseSSHConnection(t *testing.T) {
 	ctx := context.Background()
 
