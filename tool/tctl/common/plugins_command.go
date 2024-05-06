@@ -225,8 +225,8 @@ func (p *PluginsCommand) InstallSCIM(ctx context.Context, client *auth.Client) e
 			Spec: types.PluginSpecV1{
 				Settings: &types.PluginSpecV1_Scim{
 					Scim: &types.PluginSCIMSettings{
-						SamlConnectorId: p.install.scim.samlConnector,
-						DefaultRole:     p.install.scim.role,
+						SamlConnectorName: p.install.scim.samlConnector,
+						DefaultRole:       p.install.scim.role,
 					},
 				},
 			},
