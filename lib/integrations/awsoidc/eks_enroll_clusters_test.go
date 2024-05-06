@@ -21,6 +21,7 @@ package awsoidc
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"slices"
 	"strings"
 	"testing"
@@ -33,7 +34,6 @@ import (
 	"github.com/aws/smithy-go/middleware"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 
@@ -224,7 +224,7 @@ func TestEnrollEKSClusters(t *testing.T) {
 				clt := baseClient(t, clusters)
 				mockClt, ok := clt.(*mockEnrollEKSClusterClient)
 				require.True(t, ok)
-				mockClt.checkAgentAlreadyInstalled = func(ctx context.Context, getter genericclioptions.RESTClientGetter, logger logrus.FieldLogger) (bool, error) {
+				mockClt.checkAgentAlreadyInstalled = func(ctx context.Context, getter genericclioptions.RESTClientGetter, logger *slog.Logger) (bool, error) {
 					return true, nil
 				}
 				return mockClt
@@ -277,7 +277,7 @@ func TestEnrollEKSClusters(t *testing.T) {
 			}
 
 			response, err := EnrollEKSClusters(
-				ctx, utils.NewLoggerForTests().WithField("test", t.Name()), clock, proxyAddr, credsProvider, tc.enrollClient(t, tc.eksClusters), req)
+				ctx, utils.NewSlogLoggerForTests().With("test", t.Name()), clock, proxyAddr, credsProvider, tc.enrollClient(t, tc.eksClusters), req)
 			require.NoError(t, err)
 
 			tc.responseCheck(t, response)
@@ -301,7 +301,7 @@ func TestEnrollEKSClusters(t *testing.T) {
 		}
 
 		response, err := EnrollEKSClusters(
-			ctx, utils.NewLoggerForTests().WithField("test", t.Name()), clock, proxyAddr, credsProvider, mockClt, req)
+			ctx, utils.NewSlogLoggerForTests().With("test", t.Name()), clock, proxyAddr, credsProvider, mockClt, req)
 		require.NoError(t, err)
 		require.Len(t, response.Results, 1)
 		require.Equal(t, "EKS1", response.Results[0].ClusterName)
@@ -444,8 +444,8 @@ type mockEnrollEKSClusterClient struct {
 	deleteAccessEntry          func(context.Context, *eks.DeleteAccessEntryInput, ...func(*eks.Options)) (*eks.DeleteAccessEntryOutput, error)
 	describeCluster            func(context.Context, *eks.DescribeClusterInput, ...func(*eks.Options)) (*eks.DescribeClusterOutput, error)
 	getCallerIdentity          func(context.Context, *sts.GetCallerIdentityInput, ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
-	checkAgentAlreadyInstalled func(context.Context, genericclioptions.RESTClientGetter, logrus.FieldLogger) (bool, error)
-	installKubeAgent           func(context.Context, *eksTypes.Cluster, string, string, string, genericclioptions.RESTClientGetter, logrus.FieldLogger, EnrollEKSClustersRequest) error
+	checkAgentAlreadyInstalled func(context.Context, genericclioptions.RESTClientGetter, *slog.Logger) (bool, error)
+	installKubeAgent           func(context.Context, *eksTypes.Cluster, string, string, string, genericclioptions.RESTClientGetter, *slog.Logger, EnrollEKSClustersRequest) error
 	createToken                func(ctx context.Context, token types.ProvisionToken) error
 }
 
@@ -491,14 +491,14 @@ func (m *mockEnrollEKSClusterClient) GetCallerIdentity(ctx context.Context, para
 	return &sts.GetCallerIdentityOutput{}, nil
 }
 
-func (m *mockEnrollEKSClusterClient) CheckAgentAlreadyInstalled(ctx context.Context, kubeconfig genericclioptions.RESTClientGetter, log logrus.FieldLogger) (bool, error) {
+func (m *mockEnrollEKSClusterClient) CheckAgentAlreadyInstalled(ctx context.Context, kubeconfig genericclioptions.RESTClientGetter, log *slog.Logger) (bool, error) {
 	if m.checkAgentAlreadyInstalled != nil {
 		return m.checkAgentAlreadyInstalled(ctx, kubeconfig, log)
 	}
 	return false, nil
 }
 
-func (m *mockEnrollEKSClusterClient) InstallKubeAgent(ctx context.Context, eksCluster *eksTypes.Cluster, proxyAddr, joinToken, resourceId string, kubeconfig genericclioptions.RESTClientGetter, log logrus.FieldLogger, req EnrollEKSClustersRequest) error {
+func (m *mockEnrollEKSClusterClient) InstallKubeAgent(ctx context.Context, eksCluster *eksTypes.Cluster, proxyAddr, joinToken, resourceId string, kubeconfig genericclioptions.RESTClientGetter, log *slog.Logger, req EnrollEKSClustersRequest) error {
 	if m.installKubeAgent != nil {
 		return m.installKubeAgent(ctx, eksCluster, proxyAddr, joinToken, resourceId, kubeconfig, log, req)
 	}
