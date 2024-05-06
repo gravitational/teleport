@@ -27,7 +27,7 @@ export default function makeUser(json: any): User {
     roles: roles ? roles.sort() : [],
     authType: authType === 'local' ? 'teleport local user' : authType,
     isLocal: authType === 'local',
-    origin: origin,
+    origin: origin ? origin : '',
     traits: {
       logins: traits.logins || [],
       databaseUsers: traits.databaseUsers || [],
