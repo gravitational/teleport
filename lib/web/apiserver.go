@@ -531,6 +531,13 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 				// legacy app access needs to make a CORS fetch request,
 				// so we only set the default CSP on that page
 				parts := strings.Split(r.URL.Path, "/")
+
+				if len(parts[3]) == 0 {
+					h.log.Warn("Application URL is missing from web/launch URL")
+					http.Error(w, "missing application URL", http.StatusBadRequest)
+					return
+				}
+
 				// grab the FQDN from the URL to allow in the connect-src CSP
 				applicationURL := "https://" + parts[3]
 
@@ -541,7 +548,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 				//  - invalid port after host eg: :unsafe-inline
 				_, err := url.Parse(applicationURL)
 				if err != nil {
-					h.log.WithError(err).Warn("Failed to parse application URL extracted from web/launcher.")
+					h.log.WithError(err).Warn("Failed to parse application URL extracted from web/launch.")
 					http.Error(w, err.Error(), http.StatusBadRequest)
 					return
 				}
