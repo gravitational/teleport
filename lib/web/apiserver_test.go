@@ -459,6 +459,14 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	if cfg.ClusterFeatures != nil {
 		features = *cfg.ClusterFeatures
 	}
+	authID := auth.IdentityID{
+		Role:     types.RoleProxy,
+		HostUUID: proxyID,
+	}
+	dns := []string{"localhost", "127.0.0.1"}
+	proxyIdentity, err := auth.LocalRegister(authID, s.server.Auth(), nil, dns, "", nil)
+	require.NoError(t, err)
+
 	handlerConfig := Config{
 		ClusterFeatures:                 features,
 		Proxy:                           revTunServer,
@@ -483,6 +491,10 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		UI:                   cfg.uiConfig,
 		OpenAIConfig:         cfg.OpenAIConfig,
 		PresenceChecker:      cfg.presenceChecker,
+		GetProxyIdentity: func() (*auth.Identity, error) {
+			return proxyIdentity, nil
+		},
+		IntegrationAppHandler: &mockIntegrationAppHandler{},
 	}
 
 	if handlerConfig.HealthCheckAppServer == nil {
@@ -8025,6 +8037,14 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 
 	fs, err := newDebugFileSystem()
 	require.NoError(t, err)
+
+	authID := auth.IdentityID{
+		Role:     types.RoleProxy,
+		HostUUID: proxyID,
+	}
+	dns := []string{"localhost", "127.0.0.1"}
+	proxyIdentity, err := auth.LocalRegister(authID, authServer.Auth(), nil, dns, "", nil)
+	require.NoError(t, err)
 	handler, err := NewHandler(Config{
 		Proxy:            revTunServer,
 		AuthServers:      utils.FromAddr(authServer.Addr()),
@@ -8046,6 +8066,10 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		Router:                         router,
 		HealthCheckAppServer:           func(context.Context, string, string) error { return nil },
 		MinimalReverseTunnelRoutesOnly: cfg.minimalHandler,
+		GetProxyIdentity: func() (*auth.Identity, error) {
+			return proxyIdentity, nil
+		},
+		IntegrationAppHandler: &mockIntegrationAppHandler{},
 	}, SetSessionStreamPollPeriod(200*time.Millisecond), SetClock(clock))
 	require.NoError(t, err)
 
@@ -8092,6 +8116,10 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		webURL:  *url,
 	}
 }
+
+type mockIntegrationAppHandler struct{}
+
+func (m *mockIntegrationAppHandler) HandleConnection(_ net.Conn) {}
 
 // webPack represents the state of a single web test.
 // It replicates most of the WebSuite and serves to gradually

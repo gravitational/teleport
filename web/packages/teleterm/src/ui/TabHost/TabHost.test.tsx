@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { createRef } from 'react';
 import { fireEvent, render, screen } from 'design/utils/testing';
 
 import { TabHost } from 'teleterm/ui/TabHost/TabHost';
@@ -24,15 +25,7 @@ import { Document } from 'teleterm/ui/services/workspacesService';
 import { TabContextMenuOptions } from 'teleterm/mainProcess/types';
 import { makeDocumentCluster } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
-
-// TODO(ravicious): Remove the mock once a separate entry point for e-teleterm is created.
-//
-// Mocking out DocumentsRenderer because it imports an e-teleterm component which breaks CI tests
-// for the OSS version. The tests here don't test the behavior of DocumentsRenderer so the only
-// thing we lose by adding the mock is "smoke tests" of different document kinds.
-jest.mock('teleterm/ui/Documents/DocumentsRenderer', () => ({
-  DocumentsRenderer: ({ children }) => <>{children}</>,
-}));
+import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 
 function getMockDocuments(): Document[] {
   return [
@@ -54,6 +47,15 @@ const rootClusterUri = '/clusters/test_uri';
 function getTestSetup({ documents }: { documents: Document[] }) {
   const appContext = new MockAppContext();
   jest.spyOn(appContext.mainProcessClient, 'openTabContextMenu');
+
+  appContext.clustersService.setState(draft => {
+    draft.clusters.set(
+      rootClusterUri,
+      makeRootCluster({
+        uri: rootClusterUri,
+      })
+    );
+  });
 
   appContext.workspacesService.setState(draft => {
     draft.rootClusterUri = rootClusterUri;
@@ -78,7 +80,7 @@ function getTestSetup({ documents }: { documents: Document[] }) {
 
   const utils = render(
     <MockAppContextProvider appContext={appContext}>
-      <TabHost ctx={appContext} topBarContainerRef={undefined} />
+      <TabHost ctx={appContext} topBarContainerRef={createRef()} />
     </MockAppContextProvider>
   );
 

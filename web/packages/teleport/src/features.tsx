@@ -143,6 +143,10 @@ export class FeatureUnifiedResources implements TeleportFeature {
   hasAccess() {
     return !cfg.isDashboard;
   }
+
+  getRoute() {
+    return this.route;
+  }
 }
 
 export class FeatureSessions implements TeleportFeature {
