@@ -98,7 +98,7 @@ func (p *PluginsCommand) initInstall(parent *kingpin.CmdClause) {
 		Flag("token", "The bearer token used by the SCIM client to authenticate").
 		Short('t').
 		Required().
-		Envar("SCIM_BEARER_TOKEN").
+		Envar("TELEPORT_SCIM_BEARER_TOKEN").
 		StringVar(&p.install.scim.token)
 	p.install.scim.cmd.
 		Flag("force", "Proceed with installation even if validation fails").
@@ -115,6 +115,7 @@ func (p *PluginsCommand) initDelete(parent *kingpin.CmdClause) {
 		StringVar(&p.delete.name)
 }
 
+// Delete implements `tctl plugins delete`, deleting a plugin from teh Teleport cluster
 func (p *PluginsCommand) Delete(ctx context.Context, client *auth.Client) error {
 	log := p.config.Logger
 	plugins := client.PluginsClient()
@@ -176,6 +177,8 @@ func (p *PluginsCommand) Cleanup(ctx context.Context, clusterAPI *auth.Client) e
 	return nil
 }
 
+// InstallSCIM implements `tctl plugins install scim`, installing a SCIM integration
+// plugin into the teleport cluster
 func (p *PluginsCommand) InstallSCIM(ctx context.Context, client *auth.Client) error {
 	log := p.config.Logger
 
