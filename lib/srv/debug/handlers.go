@@ -96,7 +96,7 @@ func handleSetLog(logger *slog.Logger, leveler LogLeveler) http.HandlerFunc {
 // pprofMiddleware logs pprof HTTP requests.
 func pprofMiddleware(logger *slog.Logger, profile string, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		seconds := r.URL.Query().Get("seconds")
+		seconds := r.FormValue("seconds")
 		if seconds == "" {
 			seconds = "default"
 		}

@@ -26,6 +26,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/maps"
 )
 
 func TestCollectProfiles(t *testing.T) {
@@ -35,68 +36,70 @@ func TestCollectProfiles(t *testing.T) {
 		desc             string
 		profilesInput    string
 		seconds          int
-		expectErr        bool
-		expectedProfiles []string
+		expectedProfiles map[string]int
 	}{
-		{
-			desc:             "default profiles",
-			profilesInput:    "",
-			expectedProfiles: defaultCollectProfiles,
-		},
 		{
 			desc:             "single profile",
 			profilesInput:    "goroutine",
-			expectedProfiles: []string{"goroutine"},
+			expectedProfiles: map[string]int{"goroutine": 0},
 		},
 		{
 			desc:             "profile with seconds flag",
 			profilesInput:    "block",
-			seconds:          10,
-			expectedProfiles: []string{"block"},
+			seconds:          15,
+			expectedProfiles: map[string]int{"block": 15},
 		},
 		{
 			desc:             "multiple profiles",
 			profilesInput:    "allocs,goroutine",
-			expectedProfiles: []string{"allocs", "goroutine"},
+			expectedProfiles: map[string]int{"allocs": 0, "goroutine": 0},
 		},
 		{
-			desc:             "all valid profiles",
-			profilesInput:    "allocs,block,cmdline,goroutine,heap,mutex,profile,threadcreate,trace",
-			expectedProfiles: []string{"allocs", "block", "cmdline", "goroutine", "heap", "mutex", "profile", "threadcreate", "trace"},
+			desc:             "profiles without snapshot support",
+			profilesInput:    "trace,profile",
+			expectedProfiles: map[string]int{"trace": defaultCollectProfileSeconds, "profile": defaultCollectProfileSeconds},
 		},
 		{
-			desc:          "invalid profile",
-			profilesInput: "random",
-			expectErr:     true,
+			desc:             "profiles without snapshot support with seconds provided",
+			profilesInput:    "trace,profile",
+			seconds:          20,
+			expectedProfiles: map[string]int{"trace": 20, "profile": 20},
 		},
 		{
-			desc:          "invalid profile on the list",
-			profilesInput: "goroutine,random",
-			expectErr:     true,
+			desc:             "duplicated profiles",
+			profilesInput:    "goroutine,goroutine",
+			expectedProfiles: map[string]int{"goroutine": 0},
 		},
 		{
-			desc:          "invalid profiles separator",
-			profilesInput: "goroutine random",
-			expectErr:     true,
+			desc:          "all valid profiles",
+			profilesInput: "allocs,block,cmdline,goroutine,heap,mutex,profile,threadcreate,trace",
+			expectedProfiles: map[string]int{
+				"allocs":       0,
+				"block":        0,
+				"cmdline":      0,
+				"goroutine":    0,
+				"heap":         0,
+				"mutex":        0,
+				"profile":      defaultCollectProfileSeconds,
+				"threadcreate": 0,
+				"trace":        defaultCollectProfileSeconds,
+			},
 		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
 			clt := &mockDebugClient{profileContents: make([]byte, 0)}
 			var out bytes.Buffer
 			err := collectProfiles(ctx, clt, &out, test.profilesInput, test.seconds)
-			if test.expectErr {
-				require.Error(t, err)
-				return
-			}
 			require.NoError(t, err)
 
-			require.Len(t, clt.collectedProfiles, len(test.expectedProfiles))
 			var requestedProfiles []string
 			for _, profile := range clt.collectedProfiles {
-				require.Equal(t, test.seconds, profile.seconds)
+				expectedSeconds, ok := test.expectedProfiles[profile.name]
+				require.True(t, ok, "unexpected profile %q collected", profile.name)
+				require.Equal(t, expectedSeconds, profile.seconds)
 				requestedProfiles = append(requestedProfiles, profile.name)
 			}
-			require.ElementsMatch(t, test.expectedProfiles, requestedProfiles)
+			require.Equal(t, len(test.expectedProfiles), len(requestedProfiles), "expected %d to be requested but got %d", len(test.expectedProfiles), len(requestedProfiles))
 
 			reader, err := gzip.NewReader(&out)
 			require.NoError(t, err)
@@ -112,7 +115,7 @@ func TestCollectProfiles(t *testing.T) {
 			}
 
 			// We should have one file per profile collected.
-			require.ElementsMatch(t, test.expectedProfiles, files)
+			require.ElementsMatch(t, maps.Keys(test.expectedProfiles), files)
 		})
 	}
 }

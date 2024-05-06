@@ -30,6 +30,21 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 )
 
+// SupportedProfiles list of supported pprof profiles that can be collected.
+// This list is composed by runtime/pprof.Profile and http/pprof definitions.
+var SupportedProfiles = map[string]struct{}{
+	"allocs":       {},
+	"block":        {},
+	"cmdline":      {},
+	"goroutine":    {},
+	"heap":         {},
+	"mutex":        {},
+	"profile":      {},
+	"threadcreate": {},
+	"trace":        {},
+}
+
+// Client represents the debug service client.
 type Client struct {
 	clt *http.Client
 }
@@ -92,6 +107,10 @@ func (c *Client) GetLogLevel(ctx context.Context) (string, error) {
 func (c *Client) CollectProfile(ctx context.Context, profileName string, seconds int) ([]byte, error) {
 	u := url.URL{
 		Path: "/debug/pprof/" + profileName,
+	}
+
+	if _, ok := SupportedProfiles[profileName]; !ok {
+		return nil, trace.BadParameter("%q profile not supported", profileName)
 	}
 
 	if seconds > 0 {

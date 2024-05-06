@@ -18,6 +18,7 @@ package debug
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -63,6 +64,7 @@ func TestCollectProfile(t *testing.T) {
 		desc         string
 		profile      string
 		seconds      int
+		expectErr    bool
 		expectedArgs string
 	}{
 		{
@@ -75,6 +77,10 @@ func TestCollectProfile(t *testing.T) {
 			seconds:      10,
 			expectedArgs: "seconds=10",
 		},
+		{
+			desc:    "invalid profile",
+			profile: "RANDOM",
+		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
 			socketPath, closeFn := newSocketMockService(t, http.StatusOK, []byte("collected profile"))
@@ -82,6 +88,10 @@ func TestCollectProfile(t *testing.T) {
 			clt := NewClient(socketPath)
 
 			_, err := clt.CollectProfile(ctx, test.profile, test.seconds)
+			if test.expectErr {
+				require.Error(t, err)
+				return
+			}
 			require.NoError(t, err)
 
 			requestedPaths := closeFn()

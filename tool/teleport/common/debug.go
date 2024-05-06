@@ -92,18 +92,15 @@ func getLogLevel(ctx context.Context, clt DebugClient) (string, error) {
 	return clt.GetLogLevel(ctx)
 }
 
-// supportedProfiles list of supported pprof profiles that can be collected.
-// This list is composed by runtime/pprof.Profile and http/pprof definitions.
-var supportedProfiles = map[string]struct{}{
-	"allocs":       {},
-	"block":        {},
-	"cmdline":      {},
-	"goroutine":    {},
-	"heap":         {},
-	"mutex":        {},
-	"profile":      {},
-	"threadcreate": {},
-	"trace":        {},
+// defaultCollectProfileSeconds defines the default collect profiles seconds
+// value.
+const defaultCollectProfileSeconds = 10
+
+// profilesWithoutSnapshotSupport list of profiles that DO NOT support taking
+// snapshots (seconds = 0).
+var profilesWithoutSnapshotSupport = map[string]struct{}{
+	"profile": {},
+	"trace":   {},
 }
 
 // defaultCollectProfiles defines the default profiles to be collected in case
@@ -133,13 +130,7 @@ func onCollectProfiles(configPath string, rawProfiles string, seconds int) error
 func collectProfiles(ctx context.Context, clt DebugClient, buf io.Writer, rawProfiles string, seconds int) error {
 	profiles := defaultCollectProfiles
 	if rawProfiles != "" {
-		profiles = strings.Split(rawProfiles, ",")
-	}
-
-	for _, profile := range profiles {
-		if _, ok := supportedProfiles[profile]; !ok {
-			return trace.BadParameter("%q profile not supported", profile)
-		}
+		profiles = slices.Compact(strings.Split(rawProfiles, ","))
 	}
 
 	fileTime := time.Now()
@@ -147,7 +138,14 @@ func collectProfiles(ctx context.Context, clt DebugClient, buf io.Writer, rawPro
 	tw := tar.NewWriter(gw)
 
 	for _, profile := range profiles {
-		contents, err := clt.CollectProfile(ctx, profile, seconds)
+		profileSeconds := seconds
+		// When the profile doesn't support snapshot, we set a default seconds
+		// value to avoid blocking users when they consume those profiles.
+		if _, ok := profilesWithoutSnapshotSupport[profile]; seconds == 0 && ok {
+			profileSeconds = 10
+		}
+
+		contents, err := clt.CollectProfile(ctx, profile, profileSeconds)
 		if err != nil {
 			return trace.Wrap(err)
 		}
