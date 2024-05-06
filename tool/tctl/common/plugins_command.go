@@ -21,6 +21,8 @@ package common
 import (
 	"context"
 	"fmt"
+	"log/slog"
+
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/bcrypt"
@@ -34,10 +36,14 @@ import (
 
 const (
 	logFieldPlugin        = "plugin"
-	logFieldSAMLConnector = "saml-connector"
-	logFieldError         = "err"
+	logFieldSAMLConnector = "saml_connector"
 	logFieldRole          = "role"
 )
+
+func logErrorMessage(err error) slog.Attr {
+	const logFieldError = "err"
+	return slog.String(logFieldError, err.Error())
+}
 
 type pluginInstallArgs struct {
 	cmd  *kingpin.CmdClause
@@ -188,10 +194,10 @@ func (p *PluginsCommand) Cleanup(ctx context.Context, clusterAPI *auth.Client) e
 func (p *PluginsCommand) InstallSCIM(ctx context.Context, client *auth.Client) error {
 	log := p.config.Logger.With(logFieldPlugin, p.install.name)
 
-	log.Debug("Fetching cluster info...")
+	log.DebugContext(ctx, "Fetching cluster info...")
 	info, err := client.Ping(ctx)
 	if err != nil {
-		log.Error("Failed fetching cluster info", logFieldError, err.Error())
+		log.ErrorContext(ctx, "Failed fetching cluster info", logErrorMessage(err))
 		return trace.Wrap(err)
 	}
 
@@ -201,20 +207,22 @@ func (p *PluginsCommand) InstallSCIM(ctx context.Context, client *auth.Client) e
 	}
 
 	connectorID := p.install.scim.samlConnector
-	log.Debug("Validating SAML Connector...", logFieldSAMLConnector, connectorID)
+	log.DebugContext(ctx, "Validating SAML Connector...", logFieldSAMLConnector, connectorID)
 	connector, err := client.GetSAMLConnector(ctx, p.install.scim.samlConnector, false)
 	if err != nil {
-		log.Error("Failed validating SAML connector",
-			logFieldSAMLConnector, connectorID, logFieldError, err.Error())
+		log.ErrorContext(ctx, "Failed validating SAML connector",
+			slog.String(logFieldSAMLConnector, connectorID),
+			logErrorMessage(err))
+
 		if !p.install.scim.force {
 			return trace.Wrap(err)
 		}
 	}
 
 	role := p.install.scim.role
-	log.Debug("Validating Default Role...", logFieldRole, role)
+	log.DebugContext(ctx, "Validating Default Role...", logFieldRole, role)
 	if _, err := client.GetRole(ctx, role); err != nil {
-		log.Error("Failed validating role", logFieldRole, role, logFieldError, err.Error())
+		log.ErrorContext(ctx, "Failed validating role", slog.String(logFieldRole, role), logErrorMessage(err))
 		if !p.install.scim.force {
 			return trace.Wrap(err)
 		}
@@ -252,20 +260,23 @@ func (p *PluginsCommand) InstallSCIM(ctx context.Context, client *auth.Client) e
 		},
 	}
 
-	log.Debug("Creating SCIM Plugin...")
+	log.DebugContext(ctx, "Creating SCIM Plugin...")
 	if _, err := client.PluginsClient().CreatePlugin(ctx, request); err != nil {
-		log.Error("Failed to create SCIM integration", logFieldError, err.Error())
+		log.ErrorContext(ctx, "Failed to create SCIM integration", logErrorMessage(err))
 		return trace.Wrap(err)
 	}
 
 	fmt.Printf("Successfully created SCIM plugin %q\n", p.install.name)
 	fmt.Printf("SCIM base URL: https://%s/v1/webapi/scim/%s\n", info.ProxyPublicAddr, p.install.name)
 
+	if connector == nil {
+		return nil
+	}
+
 	switch connector.Origin() {
 	case types.OriginOkta:
 		fmt.Println("Follow this guide to configure SCIM provisioning on Okta side: https://goteleport.com/docs/application-access/okta/hosted-guide/#configuring-scim-provisioning")
 	}
-
 	return nil
 }
 
