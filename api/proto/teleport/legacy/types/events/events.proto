@@ -3096,6 +3096,11 @@ message DatabasePermissionUpdate {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "permission_summary"
   ];
+  // AffectedObjectCounts counts how many distinct objects of each kind were affected.
+  map<string, int32> AffectedObjectCounts = 6 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "affected_object_counts"
+  ];
 }
 
 // DatabasePermissionEntry is a summary of permissions, scoped to a particular permission.
