@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action.
@@ -329,7 +330,7 @@ func (s *AWSOIDCService) ListDatabases(ctx context.Context, req *integrationpb.L
 		if !ok {
 			s.logger.WarnContext(ctx, "Skipping database because conversion to DatabaseV3 failed",
 				"database", db.GetName(),
-				"type", db,
+				"type", logutils.TypeAttr(db),
 				"error", err,
 			)
 			continue
@@ -609,7 +610,7 @@ func (s *AWSOIDCService) ListEC2(ctx context.Context, req *integrationpb.ListEC2
 		if !ok {
 			s.logger.WarnContext(ctx, "Skipping server because conversion to ServerV2 failed",
 				"server", server.GetName(),
-				"type", server,
+				"type", logutils.TypeAttr(server),
 				"error", err,
 			)
 			continue
