@@ -229,8 +229,7 @@ func (c *Cluster) ReissueGatewayCerts(ctx context.Context, clusterClient *client
 			return tls.Certificate{}, trace.Wrap(err)
 		}
 
-		// The cert is saved and then loaded from disk, then returned from this function and finally set
-		// on LocalProxy by the middleware.
+		// The cert is returned from this function and finally set on LocalProxy by the middleware.
 		cert, err := c.reissueAppCert(ctx, clusterClient, app)
 		return cert, trace.Wrap(err)
 	default:

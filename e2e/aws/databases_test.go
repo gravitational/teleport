@@ -245,7 +245,7 @@ func startLocalALPNProxy(t *testing.T, ctx context.Context, user string, cluster
 		InsecureSkipVerify: true,
 		Listener:           listener,
 		ParentContext:      ctx,
-		Certs:              []tls.Certificate{tlsCert},
+		Cert:               tlsCert,
 	})
 	require.NoError(t, err)
 

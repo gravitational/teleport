@@ -289,16 +289,16 @@ func TestMiddleware(t *testing.T) {
 
 // mockCertRenewer is a mock middleware for the local proxy that always sets the local proxy certs slice.
 type mockCertRenewer struct {
-	certs []tls.Certificate
+	cert tls.Certificate
 }
 
 func (m *mockCertRenewer) OnNewConnection(_ context.Context, lp *LocalProxy, _ net.Conn) error {
-	lp.SetCerts(append([]tls.Certificate(nil), m.certs...))
+	lp.SetCert(m.cert)
 	return nil
 }
 
 func (m *mockCertRenewer) OnStart(_ context.Context, lp *LocalProxy) error {
-	lp.SetCerts(append([]tls.Certificate(nil), m.certs...))
+	lp.SetCert(m.cert)
 	return nil
 }
 
@@ -314,7 +314,7 @@ func TestLocalProxyConcurrentCertRenewal(t *testing.T) {
 		Protocols:          []common.Protocol{common.ProtocolHTTP},
 		ParentContext:      context.Background(),
 		InsecureSkipVerify: true,
-		Middleware:         &mockCertRenewer{certs: []tls.Certificate{}},
+		Middleware:         &mockCertRenewer{tls.Certificate{}},
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -419,8 +419,8 @@ func TestCheckDBCerts(t *testing.T) {
 				}),
 				withClock(tt.clock),
 			)
-			lp.SetCerts([]tls.Certificate{tlsCert})
-			tt.errAssertFn(t, lp.CheckDBCerts(tt.dbRoute))
+			lp.SetCert(tlsCert)
+			tt.errAssertFn(t, lp.CheckDBCert(tt.dbRoute))
 		})
 	}
 }
@@ -698,21 +698,20 @@ func TestGetCertsForConn(t *testing.T) {
 			t.Parallel()
 			// we wont actually be listening for connections, but local proxy config needs to be valid to pass checks.
 			lp, err := NewLocalProxy(LocalProxyConfig{
-				RemoteProxyAddr:  "localhost",
-				Protocols:        append([]common.Protocol{"foo-bar-proto"}, tt.addProtocols...),
-				ParentContext:    context.Background(),
-				CheckCertsNeeded: tt.checkCertsNeeded,
-				Certs:            []tls.Certificate{tlsCert},
+				RemoteProxyAddr: "localhost",
+				Protocols:       append([]common.Protocol{"foo-bar-proto"}, tt.addProtocols...),
+				ParentContext:   context.Background(),
+				CheckCertNeeded: tt.checkCertsNeeded,
+				Cert:            tlsCert,
 			})
 			require.NoError(t, err)
 			conn := &stubConn{buff: *bytes.NewBuffer(tt.stubConnBytes)}
-			gotCerts, _, err := lp.getCertsForConn(context.Background(), conn)
+			gotCert, _, err := lp.getCertForConn(conn)
 			require.NoError(t, err)
 			if tt.wantCerts {
-				require.Len(t, gotCerts, 1)
-				require.Equal(t, tlsCert, gotCerts[0])
+				require.Equal(t, tlsCert, gotCert)
 			} else {
-				require.Empty(t, gotCerts)
+				require.Empty(t, gotCert)
 			}
 		})
 	}
