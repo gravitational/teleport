@@ -9,7 +9,7 @@ metadata of the database servers, generating IAM authentication tokens, and
 assuming IAM roles.
 
 You can generate IAM permissions with the [`teleport db configure aws
-print-iam`](../../database-access/reference/cli.mdx#teleport-db-configure--awsprint-iam)
+print-iam`](../../database-access/reference/cli.mdx#teleport-db-configure-aws-print-iam)
 command. For example, the following command would generate and print the IAM
 policies:
 
@@ -288,7 +288,7 @@ role for Redshift.
 When authenticating as an existing database user, the Teleport Database Service
 can automatically manage IAM policies of the attached IAM identity for Redshift
 access. To use this feature, Teleport requires `iam:PutRolePolicy` or
-`iam:PutUserPolicy` permissions to grant itself neccessary IAM permissions for
+`iam:PutUserPolicy` permissions to grant itself necessary IAM permissions for
 each registered database. If you prefer to manage IAM identities manually,
 refer to the [manage IAM identities
 yourself](#manage-iam-identities-yourself-for-redshift-access) section which
@@ -626,7 +626,7 @@ ElastiCache and MemoryDB supports IAM authentication for Redis engine version
 7.0 or above. The Teleport Database Service can automatically manage IAM
 policies of the attached IAM identity for ElastiCache and MemoryDB that use IAM
 authentication. To use this feature, Teleport requires `iam:PutRolePolicy` or
-`iam:PutUserPolicy` permissions to grant itself neccessary IAM permissions for
+`iam:PutUserPolicy` permissions to grant itself necessary IAM permissions for
 each registered database. If you prefer to manage IAM identities on your own,
 refer to the [manage IAM identities
 yourself](#manage-iam-identities-yourself-for-elasticachememorydb-access)
