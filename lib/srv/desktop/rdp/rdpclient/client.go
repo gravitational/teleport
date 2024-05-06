@@ -239,7 +239,7 @@ func (c *Client) readClientSize() error {
 			continue
 		}
 
-		if c.cfg.hasOverrideSize() {
+		if c.cfg.hasSizeOverride() {
 			// Some desktops have a screen size in their resource definition.
 			// If non-zero then we always request this screen size.
 			c.cfg.Logger.DebugContext(context.Background(), "Forcing a fixed screen size", "width", c.cfg.Width, "height", c.cfg.Height)
@@ -396,7 +396,7 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 		case tdp.ClientScreenSpec:
 			// If the client has specified a fixed screen size, we don't
 			// need to send a screen resize event.
-			if c.cfg.hasOverrideSize() {
+			if c.cfg.hasSizeOverride() {
 				continue
 			}
 
