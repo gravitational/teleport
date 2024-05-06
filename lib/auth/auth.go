@@ -5923,7 +5923,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		}, nil
 	}
 
-	var noMFAAccessErr, notFoundErr error
+	var noMFAAccessErr error
 	switch t := req.Target.(type) {
 	case *proto.IsMFARequiredRequest_Node:
 		if t.Node.Node == "" {
@@ -6001,7 +6001,6 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		}
 
 	case *proto.IsMFARequiredRequest_KubernetesCluster:
-		notFoundErr = trace.NotFound("kubernetes cluster %q not found", t.KubernetesCluster)
 		if t.KubernetesCluster == "" {
 			return nil, trace.BadParameter("missing KubernetesCluster field in a kubernetes-only UserCertsRequest")
 		}
@@ -6019,13 +6018,12 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			}
 		}
 		if cluster == nil {
-			return nil, trace.Wrap(notFoundErr)
+			return nil, trace.NotFound("kubernetes cluster %q not found", t.KubernetesCluster)
 		}
 
 		noMFAAccessErr = checker.CheckAccess(cluster, services.AccessState{})
 
 	case *proto.IsMFARequiredRequest_Database:
-		notFoundErr = trace.NotFound("database service %q not found", t.Database.ServiceName)
 		if t.Database.ServiceName == "" {
 			return nil, trace.BadParameter("missing ServiceName field in a database-only UserCertsRequest")
 		}
@@ -6041,7 +6039,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			}
 		}
 		if db == nil {
-			return nil, trace.Wrap(notFoundErr)
+			return nil, trace.NotFound("database service %q not found", t.Database.ServiceName)
 		}
 
 		autoCreate, err := checker.DatabaseAutoUserMode(db)
@@ -6078,11 +6076,23 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			services.NewWindowsLoginMatcher(t.WindowsDesktop.GetLogin()))
 
 	case *proto.IsMFARequiredRequest_App:
-		app, err := a.GetApp(ctx, t.App.GetName())
+		if t.App.Name == "" {
+			return nil, trace.BadParameter("missing Name field in an app-only UserCertsRequest")
+		}
+
+		servers, err := a.GetApplicationServers(ctx, apidefaults.Namespace)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
+		i := slices.IndexFunc(servers, func(server types.AppServer) bool {
+			return server.GetApp().GetName() == t.App.Name
+		})
+		if i == -1 {
+			return nil, trace.NotFound("application service %q not found", t.App.Name)
+		}
+
+		app := servers[i].GetApp()
 		noMFAAccessErr = checker.CheckAccess(app, services.AccessState{})
 
 	default:

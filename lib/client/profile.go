@@ -488,12 +488,15 @@ func (p *ProfileStatus) DatabaseLocalCAPath() string {
 // for this profile.
 //
 // It's kept in <profile-dir>/keys/<proxy>/<user>-app/<cluster>/<name>-x509.pem
-func (p *ProfileStatus) AppCertPath(name string) string {
+func (p *ProfileStatus) AppCertPath(cluster, name string) string {
+	if cluster == "" {
+		cluster = p.Cluster
+	}
 	if path, ok := p.virtualPathFromEnv(VirtualPathApp, VirtualPathAppParams(name)); ok {
 		return path
 	}
 
-	return keypaths.AppCertPath(p.Dir, p.Name, p.Username, p.Cluster, name)
+	return keypaths.AppCertPath(p.Dir, p.Name, p.Username, cluster, name)
 }
 
 // AppLocalCAPath returns the specified app's self-signed localhost CA path for
@@ -556,6 +559,27 @@ func (p *ProfileStatus) DatabasesForCluster(clusterName string) ([]tlsca.RouteTo
 		return nil, trace.Wrap(err)
 	}
 	return findActiveDatabases(key)
+}
+
+// AppsForCluster returns a list of apps for this profile, for the
+// specified cluster name.
+func (p *ProfileStatus) AppsForCluster(clusterName string) ([]tlsca.RouteToApp, error) {
+	if clusterName == "" || clusterName == p.Cluster {
+		return p.Apps, nil
+	}
+
+	idx := KeyIndex{
+		ProxyHost:   p.Name,
+		Username:    p.Username,
+		ClusterName: clusterName,
+	}
+
+	store := NewFSKeyStore(p.Dir)
+	key, err := store.GetKey(idx, WithAppCerts{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return findActiveApps(key)
 }
 
 // AppNames returns a list of app names this profile is logged into.

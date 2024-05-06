@@ -646,6 +646,12 @@ func PerformMFACeremony(ctx context.Context, params PerformMFACeremonyParams) (*
 			}
 			key.WindowsDesktopCerts[certsReq.RouteToWindowsDesktop.WindowsDesktop] = newCerts.TLS
 
+		case proto.UserCertsRequest_App:
+			if key.AppTLSCerts == nil {
+				key.AppTLSCerts = make(map[string][]byte)
+			}
+			key.AppTLSCerts[certsReq.RouteToApp.Name] = newCerts.TLS
+
 		default:
 			return nil, nil, trace.BadParameter("server returned a TLS certificate but cert request usage was %s", certsReq.Usage)
 		}

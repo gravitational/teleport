@@ -173,6 +173,7 @@ func (s *signerHandler) serveCommonRequest(sessCtx *common.SessionContext, w htt
 			SessionName:   sessCtx.Identity.Username,
 			AWSRoleArn:    sessCtx.Identity.RouteToApp.AWSRoleARN,
 			AWSExternalID: sessCtx.App.GetAWSExternalID(),
+			Integration:   sessCtx.App.GetIntegration(),
 		})
 	if err != nil {
 		return trace.Wrap(err)
