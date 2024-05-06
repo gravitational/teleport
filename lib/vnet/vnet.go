@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"os"
 	"os/signal"
 	"sync"
@@ -297,11 +298,15 @@ func (m *Manager) handleTCP(req *tcp.ForwarderRequest) {
 
 		endpoint.SocketOptions().SetKeepAlive(true)
 
-		conn := gonet.NewTCPConn(&wq, endpoint)
+		conn, connClosed := newConnWithCloseNotifier(gonet.NewTCPConn(&wq, endpoint))
+
 		m.wg.Add(1)
 		go func() {
 			defer m.wg.Done()
 			select {
+			case <-connClosed:
+				// Conn is already being closed, nothing to do.
+				return
 			case <-notifyCh:
 				slog.DebugContext(ctx, "Got HUP or ERR, closing TCP conn.")
 			case <-m.destroyed:
@@ -470,4 +475,23 @@ func u32ToBytes(i uint32) []byte {
 	bytes[2] = byte(i >> 8)
 	bytes[3] = byte(i >> 0)
 	return bytes
+}
+
+// newConnWithCloseNotifier returns a net.Conn and a channel that will be closed when the conn is closed.
+func newConnWithCloseNotifier(conn *gonet.TCPConn) (net.Conn, <-chan struct{}) {
+	ch := make(chan struct{})
+	return &connWithCloseNotifier{
+		TCPConn:   conn,
+		closeOnce: sync.OnceFunc(func() { close(ch) }),
+	}, ch
+}
+
+type connWithCloseNotifier struct {
+	*gonet.TCPConn
+	closeOnce func()
+}
+
+func (c *connWithCloseNotifier) Close() error {
+	c.closeOnce()
+	return c.TCPConn.Close()
 }
