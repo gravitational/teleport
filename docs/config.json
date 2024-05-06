@@ -815,6 +815,10 @@
               "slug": "/management/export-audit-events/elastic-stack/"
             },
             {
+              "title": "Export Audit Events to Panther",
+              "slug": "/management/export-audit-events/panther/"
+            },
+            {
               "title": "Export Audit Events to Splunk",
               "slug": "/management/export-audit-events/splunk/"
             }

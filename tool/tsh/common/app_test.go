@@ -30,9 +30,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
@@ -267,6 +269,7 @@ func TestAppCommands(t *testing.T) {
 								err = Run(ctx, []string{
 									"app",
 									"logout",
+									"--cluster", app.cluster,
 								}, setHomePath(loginPath))
 								require.NoError(t, err)
 							})
@@ -290,6 +293,16 @@ func TestAppCommands(t *testing.T) {
 								require.EventuallyWithT(t, func(t *assert.CollectT) {
 									testDummyAppConn(t, app.name, fmt.Sprintf("http://127.0.0.1:%v", localProxyPort))
 								}, time.Second, 100*time.Millisecond)
+
+								// proxy certs should not be saved to disk.
+								err = Run(context.Background(), []string{
+									"app",
+									"config",
+									app.name,
+									"--cluster", app.cluster,
+								}, setHomePath(loginPath))
+								require.Error(t, err)
+								require.True(t, trace.IsNotFound(err))
 							})
 						})
 					}
@@ -530,7 +543,15 @@ uri: https://test-app.example.com:8443
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			test.tc.InsecureSkipVerify = test.insecure
-			result, err := formatAppConfig(test.tc, testProfile, testAppName, testAppPublicAddr, test.format, "root", test.awsArn, test.azureIdentity, test.gcpServiceAccount)
+			routeToApp := proto.RouteToApp{
+				Name:              testAppName,
+				PublicAddr:        testAppPublicAddr,
+				ClusterName:       "root",
+				AWSRoleARN:        test.awsArn,
+				AzureIdentity:     test.azureIdentity,
+				GCPServiceAccount: test.gcpServiceAccount,
+			}
+			result, err := formatAppConfig(test.tc, testProfile, routeToApp, test.format)
 			if test.wantErr {
 				assert.Error(t, err)
 			} else {
