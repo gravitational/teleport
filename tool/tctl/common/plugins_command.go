@@ -253,7 +253,7 @@ func (p *PluginsCommand) InstallSCIM(ctx context.Context, client *auth.Client) e
 
 	switch connector.Origin() {
 	case types.OriginOkta:
-		fmt.Println("Okta SCIM provisioning guide: https://goteleport.com/docs/application-access/okta/hosted-guide/#configuring-scim-provisioning")
+		fmt.Println("Follow this guide to configure SCIM provisioning on Okta side: https://goteleport.com/docs/application-access/okta/hosted-guide/#configuring-scim-provisioning")
 	}
 
 	return nil
