@@ -136,7 +136,7 @@ type Manager struct {
 
 	// destroyed is a channel that will be closed when the VNet is in the process of being destroyed.
 	// All goroutines should terminate quickly after either this is closed or the context passed to
-	// [Manager.Run] is cancelled.
+	// [Manager.Run] is canceled.
 	destroyed chan struct{}
 	// wg is a [sync.WaitGroup] that keeps track of all running goroutines started by the [Manager].
 	wg sync.WaitGroup
