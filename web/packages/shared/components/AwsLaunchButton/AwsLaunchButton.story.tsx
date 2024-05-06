@@ -22,7 +22,7 @@ export default {
   title: 'Shared/AwsLaunchButton',
 };
 
-export const SingleAccountSameDisplayName = () => {
+export const SameDisplayName = () => {
   return (
     <AwsLaunchButton
       awsRoles={[
@@ -44,51 +44,7 @@ export const SingleAccountSameDisplayName = () => {
   );
 };
 
-export const TwoAccountsSameDisplayName = () => {
-  return (
-    <AwsLaunchButton
-      awsRoles={[
-        {
-          arn: 'foo',
-          display: 'foo',
-          name: 'foo',
-          accountId: '123456789012',
-        },
-        {
-          arn: 'bar',
-          display: 'bar',
-          name: 'bar',
-          accountId: '123456789013',
-        },
-      ]}
-      getLaunchUrl={() => null}
-    />
-  );
-};
-
-export const SingleAccountDifferentDisplayName = () => {
-  return (
-    <AwsLaunchButton
-      awsRoles={[
-        {
-          arn: 'foo',
-          display: 'my foo',
-          name: 'foo',
-          accountId: '123456789012',
-        },
-        {
-          arn: 'bar',
-          display: 'my bar',
-          name: 'bar',
-          accountId: '123456789012',
-        },
-      ]}
-      getLaunchUrl={() => null}
-    />
-  );
-};
-
-export const TwoAccountsDifferentDisplayName = () => {
+export const DifferentDisplayName = () => {
   return (
     <AwsLaunchButton
       awsRoles={[
