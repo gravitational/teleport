@@ -91,10 +91,10 @@ export default function UserList({
         return 'GitHub';
       case 'saml':
         switch (origin) {
-          case "okta":
-            return "Okta";
-          case "scim":
-            return "SCIM";
+          case 'okta':
+            return 'Okta';
+          case 'scim':
+            return 'SCIM';
           default:
             return 'SAML';
         }
