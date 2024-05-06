@@ -27,8 +27,7 @@ import (
 )
 
 func testRedshiftServerless(t *testing.T) {
-	// skip until we fix the spacelift stack
-	t.Skip()
+	t.Skip("skipped until we fix the spacelift stack")
 	t.Parallel()
 	accessRole := mustGetEnv(t, rssAccessRoleEnv)
 	discoveryRole := mustGetEnv(t, rssDiscoveryRoleEnv)
