@@ -23,7 +23,7 @@ To learn more about a specific database, refer to the related section below.
 
 (!docs/pages/includes/database-access/reference/aws-db-brief.mdx db="RDS instances, Aurora clusters, and RDS Proxies" !)
 
-### RDS Auto-discovery
+### RDS auto-discovery
 
 The following IAM permissions are required for the Teleport service that
 performs auto-discovery:
@@ -51,7 +51,7 @@ performs auto-discovery:
 
 (!docs/pages/includes/database-access/reference/boundary-policy-note.mdx!)
 
-### RDS Access
+### RDS access
 
 The Teleport Database Service can automatically manage IAM policies of the
 attached IAM identity for RDS access. To use this feature, Teleport requires
@@ -100,7 +100,9 @@ Teleport is managing:
   }
   ```
 
-  (!docs/pages/includes/database-access/reference/rds-action-notes-with-modify.mdx!)
+  (!docs/pages/includes/database-access/reference/rds-action-notes.mdx!)
+
+  (!docs/pages/includes/database-access/reference/rds-action-notes-on-modify.mdx!)
 
   For best security, use the following boundary policy that limits Teleport's
   self-granting capability on the IAM user:
@@ -169,7 +171,9 @@ Teleport is managing:
   }
   ```
 
-  (!docs/pages/includes/database-access/reference/rds-action-notes-with-modify.mdx!)
+  (!docs/pages/includes/database-access/reference/rds-action-notes.mdx!)
+
+  (!docs/pages/includes/database-access/reference/rds-action-notes-on-modify.mdx!)
 
   For best security, use the following boundary policy that limits Teleport's
   self-granting capability on the IAM user:
@@ -254,7 +258,7 @@ for more information.
 
 (!docs/pages/includes/database-access/reference/aws-db-brief.mdx db="Redshift clusters" !)
 
-### Redshift Auto-discovery
+### Redshift auto-discovery
 
 The following IAM permissions are required for the Teleport service that
 performs auto-discovery:
@@ -275,7 +279,7 @@ performs auto-discovery:
 
 (!docs/pages/includes/database-access/reference/boundary-policy-note.mdx!)
 
-### Redshift Access
+### Redshift access
 As mentioned in the [Redshift
 guide](../guides/postgres-redshift.mdx#step-36-create-an-iam-role-for-user-access-optional),
 Teleport supports IAM authentication as either an existing database user or an IAM
@@ -495,7 +499,7 @@ Parameters:
 
 (!docs/pages/includes/database-access/reference/aws-db-brief.mdx db="Redshift Serverless workgroups" !)
 
-### Redshift Serverless Auto-discovery
+### Redshift Serverless auto-discovery
 
 The following IAM permissions are required for the Teleport service that
 performs auto-discovery:
@@ -520,7 +524,7 @@ performs auto-discovery:
 
 (!docs/pages/includes/database-access/reference/boundary-policy-note.mdx!)
 
-### Redshift Serverless Access
+### Redshift Serverless access
 
 Redshift Serverless maps IAM roles to database users. The Teleport Database
 Service must be able to assume these "access" IAM roles which are granted IAM
@@ -583,7 +587,7 @@ Parameters:
 
 (!docs/pages/includes/database-access/reference/aws-db-brief.mdx db="ElastiCache and MemoryDB for Redis" !)
 
-### ElastiCache/MemoryDB Auto-discovery
+### ElastiCache/MemoryDB auto-discovery
 
 The following IAM permissions are required for the Teleport service that
 performs auto-discovery:
@@ -616,7 +620,7 @@ performs auto-discovery:
 
 (!docs/pages/includes/database-access/reference/boundary-policy-note.mdx!)
 
-### ElastiCache/MemoryDB Access
+### ElastiCache/MemoryDB access
 
 ElastiCache and MemoryDB supports IAM authentication for Redis engine version
 7.0 or above. The Teleport Database Service can automatically manage IAM
@@ -933,7 +937,7 @@ static configuration, add the following to the IAM policy:
 
 (!docs/pages/includes/database-access/reference/aws-db-brief.mdx db="OpenSearch domains" !)
 
-### OpenSearch Auto-discovery
+### OpenSearch auto-discovery
 
 The following IAM permissions are required for the Teleport service that
 performs auto-discovery:
@@ -957,7 +961,7 @@ performs auto-discovery:
 
 (!docs/pages/includes/database-access/reference/boundary-policy-note.mdx!)
 
-### OpenSearch Access
+### OpenSearch access
 
 OpenSearch maps IAM roles to OpenSearch backend roles. Teleport Database
 Service must be able to assume these "access" IAM roles to sign the OpenSearch
