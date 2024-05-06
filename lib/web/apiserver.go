@@ -504,9 +504,21 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 				// so we only set the default CSP on that page
 				parts := strings.Split(r.URL.Path, "/")
 				// grab the FQDN from the URL to allow in the connect-src CSP
-				applicationURL := "https://" + parts[3] + ":*"
+				applicationURL := "https://" + parts[3]
 
-				httplib.SetAppLaunchContentSecurityPolicy(w.Header(), applicationURL)
+				// Parse to validate the URL extracted is in a valid format.
+				// An invalid URL is:
+				//  - having spaces
+				//  - having escape characters eg: %20
+				//  - invalid port after host eg: :unsafe-inline
+				_, err := url.Parse(applicationURL)
+				if err != nil {
+					h.log.WithError(err).Warn("Failed to parse application URL extracted from web/launcher.")
+					http.Error(w, err.Error(), http.StatusBadRequest)
+					return
+				}
+
+				httplib.SetAppLaunchContentSecurityPolicy(w.Header(), applicationURL+":*")
 			} else {
 				httplib.SetIndexContentSecurityPolicy(w.Header(), cfg.ClusterFeatures)
 			}
