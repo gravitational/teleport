@@ -1,0 +1,616 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`failed state 1`] = `
+.c4 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  box-sizing: border-box;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.24);
+  margin: 0 0 24px 0;
+  min-height: 40px;
+  padding: 8px 16px;
+  overflow: auto;
+  word-break: break-word;
+  line-height: 1.5;
+  background: #FF6257;
+  color: #000000;
+}
+
+.c4 a {
+  color: #FFFFFF;
+}
+
+.c0 {
+  box-sizing: border-box;
+  margin-top: 48px;
+  border: 1px solid;
+  border-color: #0C143D;
+}
+
+.c1 {
+  box-sizing: border-box;
+  padding-left: 16px;
+  padding-right: 16px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  background-color: #0C143D;
+}
+
+.c3 {
+  box-sizing: border-box;
+  padding: 16px;
+  background-color: #344179;
+}
+
+.c5 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+}
+
+.c12 {
+  box-sizing: border-box;
+}
+
+.c16 {
+  box-sizing: border-box;
+  max-width: 500px;
+  margin-bottom: 24px;
+}
+
+.c20 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  color: #000000;
+  background: #9F85FF;
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+}
+
+.c20:hover,
+.c20:focus {
+  background: #B29DFF;
+}
+
+.c20:active {
+  background: #C5B6FF;
+}
+
+.c20:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+  cursor: auto;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 24px;
+  margin: 0px;
+  margin-right: 16px;
+}
+
+.c15 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+}
+
+.c17 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 12px;
+  width: 100%;
+  margin-bottom: 0px;
+}
+
+.c6 {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.c13 {
+  display: flex;
+}
+
+.c14 {
+  display: flex;
+  align-items: center;
+}
+
+.c18 {
+  appearance: none;
+  border: 1px solid rgba(255,255,255,0.54);
+  border-radius: 4px;
+  box-sizing: border-box;
+  min-height: 50px;
+  height: 80px;
+  font-size: 16px;
+  padding: 16px;
+  outline: none;
+  width: 100%;
+  color: #FFFFFF;
+  background: inherit;
+  margin-top: 4px;
+  resize: vertical;
+}
+
+.c18::placeholder {
+  color: rgba(255,255,255,0.54);
+  opacity: 1;
+}
+
+.c18:hover,
+.c18:focus,
+.c18:active {
+  border: 1px solid rgba(255,255,255,0.72);
+}
+
+.c18:read-only {
+  cursor: not-allowed;
+}
+
+.c18:disabled {
+  color: rgba(255,255,255,0.36);
+  border-color: rgba(255,255,255,0.36);
+}
+
+.c7 {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.c10 {
+  display: flex;
+  align-items: center;
+  cursor: not-allowed;
+}
+
+.c8 {
+  margin: 0 8px 0 0;
+  accent-color: #9F85FF;
+  cursor: inherit;
+}
+
+.c9 {
+  opacity: 1;
+}
+
+.c11 {
+  opacity: 0.5;
+}
+
+.c19 {
+  font-size: 14px;
+  min-height: 100px;
+}
+
+<div>
+  <div
+    class="c0"
+    style="position: relative;"
+  >
+    <div
+      class="c1"
+    >
+      <div
+        class="c2"
+      >
+        loggedInUsername
+         - add a review
+      </div>
+    </div>
+    <div
+      class="c3"
+    >
+      <div
+        class="c4"
+        kind="danger"
+      >
+        server error
+      </div>
+      <div
+        class="c5 c6"
+      >
+        <label
+          class="c7"
+        >
+          <input
+            checked=""
+            class="c8"
+            name="DENIED"
+            type="radio"
+            value="DENIED"
+          />
+          <span
+            class="c9"
+          >
+            Reject request
+          </span>
+        </label>
+        <label
+          class="c7"
+        >
+          <input
+            class="c8"
+            name="APPROVED"
+            type="radio"
+            value="APPROVED"
+          />
+          <span
+            class="c9"
+          >
+            Approve short-term access
+             (12 hours)
+          </span>
+        </label>
+        <label
+          class="c10"
+        >
+          <input
+            class="c8"
+            disabled=""
+            name="PROMOTED"
+            type="radio"
+            value="PROMOTED"
+          />
+          <span
+            class="c11"
+          >
+            <div
+              class="c12 c13"
+            >
+              <div
+                class="c12 c14"
+              >
+                <div
+                  class="c15"
+                >
+                  Approve long-term access via Access List with the requested resources
+                </div>
+              </div>
+            </div>
+          </span>
+        </label>
+      </div>
+      <div
+        class="c16"
+      >
+        <label
+          class="c17"
+          font-size="0"
+        >
+          Message
+          <textarea
+            autocomplete="off"
+            class="c18 c19"
+            placeholder="Optional message..."
+          />
+        </label>
+      </div>
+      <button
+        class="c20"
+        kind="primary"
+      >
+        Submit Review
+      </button>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`loaded state 1`] = `
+.c0 {
+  box-sizing: border-box;
+  margin-top: 48px;
+  border: 1px solid;
+  border-color: #0C143D;
+}
+
+.c1 {
+  box-sizing: border-box;
+  padding-left: 16px;
+  padding-right: 16px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  background-color: #0C143D;
+}
+
+.c3 {
+  box-sizing: border-box;
+  padding: 16px;
+  background-color: #344179;
+}
+
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+}
+
+.c11 {
+  box-sizing: border-box;
+}
+
+.c15 {
+  box-sizing: border-box;
+  max-width: 500px;
+  margin-bottom: 24px;
+}
+
+.c19 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  color: #000000;
+  background: #9F85FF;
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+}
+
+.c19:hover,
+.c19:focus {
+  background: #B29DFF;
+}
+
+.c19:active {
+  background: #C5B6FF;
+}
+
+.c19:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+  cursor: auto;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 24px;
+  margin: 0px;
+  margin-right: 16px;
+}
+
+.c14 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+}
+
+.c16 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 12px;
+  width: 100%;
+  margin-bottom: 0px;
+}
+
+.c5 {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.c12 {
+  display: flex;
+}
+
+.c13 {
+  display: flex;
+  align-items: center;
+}
+
+.c17 {
+  appearance: none;
+  border: 1px solid rgba(255,255,255,0.54);
+  border-radius: 4px;
+  box-sizing: border-box;
+  min-height: 50px;
+  height: 80px;
+  font-size: 16px;
+  padding: 16px;
+  outline: none;
+  width: 100%;
+  color: #FFFFFF;
+  background: inherit;
+  margin-top: 4px;
+  resize: vertical;
+}
+
+.c17::placeholder {
+  color: rgba(255,255,255,0.54);
+  opacity: 1;
+}
+
+.c17:hover,
+.c17:focus,
+.c17:active {
+  border: 1px solid rgba(255,255,255,0.72);
+}
+
+.c17:read-only {
+  cursor: not-allowed;
+}
+
+.c17:disabled {
+  color: rgba(255,255,255,0.36);
+  border-color: rgba(255,255,255,0.36);
+}
+
+.c6 {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.c9 {
+  display: flex;
+  align-items: center;
+  cursor: not-allowed;
+}
+
+.c7 {
+  margin: 0 8px 0 0;
+  accent-color: #9F85FF;
+  cursor: inherit;
+}
+
+.c8 {
+  opacity: 1;
+}
+
+.c10 {
+  opacity: 0.5;
+}
+
+.c18 {
+  font-size: 14px;
+  min-height: 100px;
+}
+
+<div>
+  <div
+    class="c0"
+    style="position: relative;"
+  >
+    <div
+      class="c1"
+    >
+      <div
+        class="c2"
+      >
+        loggedInUsername
+         - add a review
+      </div>
+    </div>
+    <div
+      class="c3"
+    >
+      <div
+        class="c4 c5"
+      >
+        <label
+          class="c6"
+        >
+          <input
+            checked=""
+            class="c7"
+            name="DENIED"
+            type="radio"
+            value="DENIED"
+          />
+          <span
+            class="c8"
+          >
+            Reject request
+          </span>
+        </label>
+        <label
+          class="c6"
+        >
+          <input
+            class="c7"
+            name="APPROVED"
+            type="radio"
+            value="APPROVED"
+          />
+          <span
+            class="c8"
+          >
+            Approve short-term access
+             (12 hours)
+          </span>
+        </label>
+        <label
+          class="c9"
+        >
+          <input
+            class="c7"
+            disabled=""
+            name="PROMOTED"
+            type="radio"
+            value="PROMOTED"
+          />
+          <span
+            class="c10"
+          >
+            <div
+              class="c11 c12"
+            >
+              <div
+                class="c11 c13"
+              >
+                <div
+                  class="c14"
+                >
+                  Approve long-term access via Access List with the requested resources
+                </div>
+              </div>
+            </div>
+          </span>
+        </label>
+      </div>
+      <div
+        class="c15"
+      >
+        <label
+          class="c16"
+          font-size="0"
+        >
+          Message
+          <textarea
+            autocomplete="off"
+            class="c17 c18"
+            placeholder="Optional message..."
+          />
+        </label>
+      </div>
+      <button
+        class="c19"
+        kind="primary"
+      >
+        Submit Review
+      </button>
+    </div>
+  </div>
+</div>
+`;

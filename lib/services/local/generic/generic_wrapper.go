@@ -93,6 +93,13 @@ func (s ServiceWrapper[T]) UpdateResource(ctx context.Context, resource T) (T, e
 	return adapter.resource, trace.Wrap(err)
 }
 
+// ConditionalUpdateResource updates an existing resource if the provided
+// resource and the existing resource have matching revisions.
+func (s ServiceWrapper[T]) ConditionalUpdateResource(ctx context.Context, resource T) (T, error) {
+	adapter, err := s.service.ConditionalUpdateResource(ctx, newResourceMetadataAdapter(resource))
+	return adapter.resource, trace.Wrap(err)
+}
+
 // CreateResource creates a new resource.
 func (s ServiceWrapper[T]) CreateResource(ctx context.Context, resource T) (T, error) {
 	adapter, err := s.service.CreateResource(ctx, newResourceMetadataAdapter(resource))

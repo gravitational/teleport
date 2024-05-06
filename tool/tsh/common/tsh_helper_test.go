@@ -36,9 +36,13 @@ import (
 
 	"github.com/gravitational/teleport/api/breaker"
 	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/mocku2f"
+	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
@@ -473,4 +477,56 @@ func mustRegisterKubeClusters(t *testing.T, ctx context.Context, authSrv *auth.S
 			assert.Contains(c, gotNames, name, "missing kube cluster")
 		}
 	}, time.Second*10, time.Millisecond*500, "dynamically created kube clusters failed to register")
+}
+
+func setupWebAuthnChallengeSolver(device *mocku2f.Key, success bool) CliOption {
+	return func(c *CLIConf) error {
+		c.WebauthnLogin = func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, opts *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
+			car, err := device.SignAssertion(origin, assertion)
+			if err != nil {
+				return nil, "", err
+			}
+
+			carProto := wantypes.CredentialAssertionResponseToProto(car)
+			if !success {
+				carProto.Type = "NOT A VALID TYPE" // set to an invalid type so the ceremony fails
+			}
+
+			return &proto.MFAAuthenticateResponse{
+				Response: &proto.MFAAuthenticateResponse_Webauthn{
+					Webauthn: carProto,
+				},
+			}, "", nil
+		}
+		return nil
+	}
+}
+
+func registerDeviceForUser(t *testing.T, authServer *auth.Server, device *mocku2f.Key, username string, origin string) {
+	ctx := context.Background()
+	token, err := authServer.CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
+		Name: username,
+	})
+	require.NoError(t, err)
+
+	tokenID := token.GetName()
+	res, err := authServer.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+		TokenID:     tokenID,
+		DeviceType:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+		DeviceUsage: proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
+	})
+	require.NoError(t, err)
+	cc := wantypes.CredentialCreationFromProto(res.GetWebauthn())
+
+	ccr, err := device.SignCredentialCreation(origin, cc)
+	require.NoError(t, err)
+	_, err = authServer.ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
+		TokenID: tokenID,
+		NewMFARegisterResponse: &proto.MFARegisterResponse{
+			Response: &proto.MFARegisterResponse_Webauthn{
+				Webauthn: wantypes.CredentialCreationResponseToProto(ccr),
+			},
+		},
+	})
+	require.NoError(t, err)
 }

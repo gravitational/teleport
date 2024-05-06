@@ -1,0 +1,427 @@
+
+## `teleport`
+
+`teleport` contains the configuration describing how the plugin connects to
+your Teleport cluster.
+
+### `teleport.address`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`teleport.address` is the address of the Teleport cluster the plugin
+connects to. The address must contain both the domain name and the port of
+the Teleport cluster. It can be either the address of the auth servers or the
+proxy servers.
+
+For example:
+  - joining a Proxy: `teleport.example.com:443` or `teleport.example.com:3080`
+  - joining an Auth: `teleport-auth.example.com:3025`
+
+### `teleport.identitySecretName`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`teleport.identitySecretName` is the name of the Kubernetes secret
+that contains the credentials for the connection to your Teleport cluster.
+
+The secret should be in the following format:
+
+```yaml
+apiVersion: v1
+kind: Secret
+type: Opaque
+metadata:
+  name: teleport-plugin-identity
+data:
+  auth_id: #...
+```
+
+Check out the [Access Requests with
+Email](../../../access-controls/access-request-plugins/ssh-approval-email.mdx) guide
+for more information about how to acquire these credentials.
+
+### `teleport.identitySecretPath`
+
+| Type | Default |
+|------|---------|
+| `string` | `"auth_id"` |
+
+`teleport.identitySecretPath` is the key in the Kubernetes secret
+specified by `teleport.identitySecretName` that holds the credentials for
+the connection to your Teleport cluster. If the secret has the path,
+`"auth_id"`, you can omit this field.
+
+## `mailgun`
+
+`mailgun` configures the mailgun sending parameters.
+Either `mailgun` or `smtp` must be set.
+
+You can pass the Mailgun key:
+- via the chart Values by setting `mailgun.privateKey`
+- via an existing Kubernetes Secret by setting `mailgun.privateKeyFromSecret`
+
+### `mailgun.enabled`
+
+| Type | Default |
+|------|---------|
+| `bool` | `false` |
+
+`mailgun.enabled` makes the plugin send emails via Mailgun.
+
+### `mailgun.domain`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`mailgun.domain` configures the domain Mailgun will send the emails from.
+This is mandatory when mailgun is enabled.
+
+### `mailgun.privateKey`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`mailgun.privateKey` is the Mailgun private key used by the plugin
+to interact with Mailgun. When set, the Chart creates a Kubernetes Secret
+for you.
+
+This value has no effect if `mailgun.privateKeyFromSecret` is set.
+
+### `mailgun.privateKeyFromSecret`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`mailgun.privateKeyFromSecret` is the name of the Kubernetes Secret
+containing the Mailgun key. When this value is set, you must create the
+Secret before creating the chart release.
+
+### `mailgun.privateKeySecretPath`
+
+| Type | Default |
+|------|---------|
+| `string` | `"mailgunPrivateKey"` |
+
+`mailgun.privateKeySecretPath` is the Kubernetes Secret key
+containing the Mailgun key. The secret name is set via `mailgun.privateKeyFromSecret`.
+
+## `smtp`
+
+`smtp` configures the SMTP sending parameters.
+Either `smtp` or `smtp` must be set.
+
+You can pass the SMTP password:
+- via the chart Values by setting `smtp.password`
+- via an existing Kubernetes Secret by setting `smtp.passwordFromSecret`
+
+### `smtp.enabled`
+
+| Type | Default |
+|------|---------|
+| `bool` | `false` |
+
+`smtp.enabled` makes the plugin send emails via SMTP.
+
+### `smtp.host`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`smtp.host` configures the SMTP host used by the plugin to send emails over SMTP.
+This is mandatory when SMTP is enabled.
+
+### `smtp.port`
+
+| Type | Default |
+|------|---------|
+| `integer` | `587` |
+
+`smtp.port` configures the SMTP port used by the plugin to send emails over SMTP.
+
+### `smtp.username`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`smtp.username` configures the SMTP user used by the plugin to send emails over SMTP.
+This is mandatory when SMTP is enabled.
+
+### `smtp.password`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`smtp.password` configures the SMTP password used by the plugin to send emails over SMTP.
+When set, the Chart creates a Kubernetes Secret for you.
+
+This value has no effect if `smtp.passwordFromSecret` is set.
+
+### `smtp.passwordFromSecret`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`smtp.passwordFromSecret` is the name of the Kubernetes Secret
+containing the SMTP password. When this value is set, you must create the
+Secret before creating the chart release.
+
+### `smtp.passwordSecretPath`
+
+| Type | Default |
+|------|---------|
+| `string` | `"smtpPassword"` |
+
+`smtp.passwordSecretPath` is the Kubernetes Secret key
+containing the SMTP password. The secret name is set via `smtp.passwordFromSecret`.
+
+### `smtp.starttlsPolicy`
+
+| Type | Default |
+|------|---------|
+| `string` | `"mandatory"` |
+
+`smtp.starttlsPolicy` configures the SMTP StartTLS policy used by
+the plugin to send emails over SMTP.
+
+## `delivery`
+
+`delivery` configures the email plugin delivery options.
+
+### `delivery.sender`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`delivery.sender` is the email sender.
+
+### `delivery.recipients`
+
+| Type | Default |
+|------|---------|
+| `list[string]` | `[]` |
+
+`delivery.recipients` is DEPRECATED.
+This is the list of email recipients. `roleToRecipients` should be used instead.
+
+## `roleToRecipients`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`roleToRecipients` is mapping the requested role name to a list of
+email recipients the plugin will notify.
+It must contain a mapping for `*` in case no matching roles are found.
+
+Example value:
+```yaml
+roleToRecipients:
+ "*": "admin@example.com"
+ dev:
+   - "dev-team+accessrequest@example.com"
+   - "devops@example.com"
+```
+
+## `log`
+
+`log` controls the plugin logging.
+
+### `log.severity`
+
+| Type | Default |
+|------|---------|
+| `string` | `"INFO"` |
+
+`log.severity` is the log level for the Teleport process.
+Available log levels are: `DEBUG`, `INFO`, `WARN`, `ERROR`.
+
+The default is `INFO`, which is recommended in production.
+`DEBUG` is useful during first-time setup or to see more detailed logs for debugging.
+
+### `log.output`
+
+| Type | Default |
+|------|---------|
+| `string` | `"stdout"` |
+
+`log.output` sets the output destination for the Teleport process.
+This can be set to any of the built-in values: `stdout`, `stderr`.
+
+The value can also be set to a file path (such as `/var/log/teleport.log`)
+to write logs to a file. Bear in mind that a few service startup messages
+will still go to `stderr` for resilience.
+
+## `annotations`
+
+`annotations` contains annotations to apply to the different Kubernetes
+objects created by the chart. See [the Kubernetes annotation
+documentation](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
+for more details.
+
+### `annotations.config`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`annotations.config` contains the Kubernetes annotations
+put on the `ConfigMap` resource created by the chart.
+
+### `annotations.deployment`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`annotations.deployment` contains the Kubernetes annotations
+put on the `Deployment` or `StatefulSet` resource created by the chart.
+
+### `annotations.pod`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`annotations.pod` contains the Kubernetes annotations
+put on the `Pod` resources created by the chart.
+
+### `annotations.secret`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`annotations.secret` contains the Kubernetes annotations
+put on the `Secret` resource created by the chart.
+This has no effect when `joinTokenSecret.create` is `false`.
+
+## `image`
+
+`image` sets the container image used for plugin pods created by the chart.
+
+You can override this to use your own plugin image rather than a Teleport-published image.
+
+### `image.repository`
+
+| Type | Default |
+|------|---------|
+| `string` | `"public.ecr.aws/gravitational/teleport-plugin-email"` |
+
+`image.repository` is the image repository.
+
+### `image.pullPolicy`
+
+| Type | Default |
+|------|---------|
+| `string` | `"IfNotPresent"` |
+
+`image.pullPolicy` is the [Kubernetes image pull policy](https://kubernetes.io/docs/concepts/containers/images/#image-pull-policy).
+
+### `image.tag`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`image.tag` Overrides the image tag whose default is the chart appVersion.
+
+Normally, the version of the Teleport plugin matches the
+version of the chart. If you install chart version 15.0.0, you'll use
+the plugin version 15.0.0. Upgrading the plugin is done by upgrading the chart.
+
+<Admonition type="warning">
+`image.tag` is intended for development and custom tags. This MUST NOT be
+used to control the plugin version in a typical deployment. This
+chart is designed to run a specific plugin version. You will face
+compatibility issues trying to run a different version with it.
+
+If you want to run the Teleport plugin version `X.Y.Z`, you should use
+`helm install --version X.Y.Z` instead.
+</Admonition>
+
+## `imagePullSecrets`
+
+| Type | Default |
+|------|---------|
+| `list` | `[]` |
+
+`imagePullSecrets` is a list of secrets containing authorization tokens
+which can be optionally used to access a private Docker registry.
+
+See the [Kubernetes reference](https://kubernetes.io/docs/concepts/containers/images/#specifying-imagepullsecrets-on-a-pod) for more details.
+
+## `podSecurityContext`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`podSecurityContext` sets the pod security context for any pods created by the chart.
+See [the Kubernetes documentation](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod)
+for more details.
+
+To unset the security context, set it to `null` or `~`.
+
+## `securityContext`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`securityContext` sets the container security context for any pods created by the chart.
+See [the Kubernetes documentation](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-container)
+for more details.
+
+To unset the security context, set it to `null` or `~`.
+
+## `resources`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`resources` sets the resource requests/limits for any pods created by the chart.
+See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/)
+for more details.
+
+## `nodeSelector`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`nodeSelector` sets the node selector for any pods created by the chart.
+See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector)
+for more details.
+
+## `tolerations`
+
+| Type | Default |
+|------|---------|
+| `list` | `[]` |
+
+`tolerations` sets the tolerations for any pods created by the chart.
+See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/)
+for more details.
+
+## `affinity`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`affinity` sets the affinities for any pods created by the chart.
+See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity)
+for more details.

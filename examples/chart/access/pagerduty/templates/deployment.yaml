@@ -2,6 +2,10 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "pagerduty.fullname" . }}
+  {{- with .Values.annotations.deployment }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   labels:
     {{- include "pagerduty.labels" . | nindent 4 }}
 spec:
@@ -11,7 +15,7 @@ spec:
       {{- include "pagerduty.selectorLabels" . | nindent 6 }}
   template:
     metadata:
-      {{- with .Values.podAnnotations }}
+      {{- with coalesce .Values.annotations.pod .Values.podAnnotations }}
       annotations:
         {{- toYaml . | nindent 8 }}
       {{- end }}

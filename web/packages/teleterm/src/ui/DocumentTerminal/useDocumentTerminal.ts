@@ -233,10 +233,26 @@ async function setUpPtyProcess(
   const ptyProcess = await createPtyProcess(ctx, cmd);
 
   if (doc.kind === 'doc.terminal_tsh_node') {
-    ctx.usageService.captureProtocolUse(clusterUri, 'ssh', doc.origin);
+    ctx.usageService.captureProtocolUse({
+      uri: clusterUri,
+      protocol: 'ssh',
+      origin: doc.origin,
+      accessThrough: 'proxy_service',
+    });
   }
   if (doc.kind === 'doc.terminal_tsh_kube' || doc.kind === 'doc.gateway_kube') {
-    ctx.usageService.captureProtocolUse(clusterUri, 'kube', doc.origin);
+    ctx.usageService.captureProtocolUse({
+      uri: clusterUri,
+      // Other gateways send one protocol use event per gateway being created, but here we're
+      // sending one event per kube tab being opened. In the context of protocol usage, that is fine
+      // since we now count not protocol _uses_ but protocol _users_.
+      protocol: 'kube',
+      origin: doc.origin,
+      // This will likely need to be adjusted after adding kube support to VNet. VNet is probably
+      // going to send one protocol use event per kube cluster seen, but Connect sends one event per
+      // tab opened.
+      accessThrough: 'local_proxy',
+    });
   }
 
   const openContextMenu = () => ctx.mainProcessClient.openTerminalContextMenu();

@@ -3304,9 +3304,15 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 
 	challenges, err := a.mfaAuthChallenge(ctx, username, challengeExtensions)
 	if err != nil {
+		// Do not obfuscate config-related errors.
+		if errors.Is(err, types.ErrPasswordlessRequiresWebauthn) || errors.Is(err, types.ErrPasswordlessDisabledBySettings) {
+			return nil, trace.Wrap(err)
+		}
+
 		log.Error(trace.DebugReport(err))
 		return nil, trace.AccessDenied("unable to create MFA challenges")
 	}
+
 	return challenges, nil
 }
 
@@ -5917,7 +5923,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		}, nil
 	}
 
-	var noMFAAccessErr, notFoundErr error
+	var noMFAAccessErr error
 	switch t := req.Target.(type) {
 	case *proto.IsMFARequiredRequest_Node:
 		if t.Node.Node == "" {
@@ -5995,7 +6001,6 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		}
 
 	case *proto.IsMFARequiredRequest_KubernetesCluster:
-		notFoundErr = trace.NotFound("kubernetes cluster %q not found", t.KubernetesCluster)
 		if t.KubernetesCluster == "" {
 			return nil, trace.BadParameter("missing KubernetesCluster field in a kubernetes-only UserCertsRequest")
 		}
@@ -6013,13 +6018,12 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			}
 		}
 		if cluster == nil {
-			return nil, trace.Wrap(notFoundErr)
+			return nil, trace.NotFound("kubernetes cluster %q not found", t.KubernetesCluster)
 		}
 
 		noMFAAccessErr = checker.CheckAccess(cluster, services.AccessState{})
 
 	case *proto.IsMFARequiredRequest_Database:
-		notFoundErr = trace.NotFound("database service %q not found", t.Database.ServiceName)
 		if t.Database.ServiceName == "" {
 			return nil, trace.BadParameter("missing ServiceName field in a database-only UserCertsRequest")
 		}
@@ -6035,7 +6039,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			}
 		}
 		if db == nil {
-			return nil, trace.Wrap(notFoundErr)
+			return nil, trace.NotFound("database service %q not found", t.Database.ServiceName)
 		}
 
 		autoCreate, err := checker.DatabaseAutoUserMode(db)
@@ -6072,11 +6076,23 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			services.NewWindowsLoginMatcher(t.WindowsDesktop.GetLogin()))
 
 	case *proto.IsMFARequiredRequest_App:
-		app, err := a.GetApp(ctx, t.App.GetName())
+		if t.App.Name == "" {
+			return nil, trace.BadParameter("missing Name field in an app-only UserCertsRequest")
+		}
+
+		servers, err := a.GetApplicationServers(ctx, apidefaults.Namespace)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
+		i := slices.IndexFunc(servers, func(server types.AppServer) bool {
+			return server.GetApp().GetName() == t.App.Name
+		})
+		if i == -1 {
+			return nil, trace.NotFound("application service %q not found", t.App.Name)
+		}
+
+		app := servers[i].GetApp()
 		noMFAAccessErr = checker.CheckAccess(app, services.AccessState{})
 
 	default:
@@ -6146,8 +6162,12 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, challengeExt
 	// Handle passwordless separately, it works differently from MFA.
 	if isPasswordless {
 		if !enableWebauthn {
-			return nil, trace.BadParameter("passwordless requires WebAuthn")
+			return nil, trace.Wrap(types.ErrPasswordlessRequiresWebauthn)
 		}
+		if !apref.GetAllowPasswordless() {
+			return nil, trace.Wrap(types.ErrPasswordlessDisabledBySettings)
+		}
+
 		webLogin := &wanlib.PasswordlessFlow{
 			Webauthn: webConfig,
 			Identity: a.Services,
@@ -6404,6 +6424,18 @@ func (a *Server) validateMFAAuthResponseInternal(
 				Identity: a.Services,
 			}
 			loginData, err = webLogin.Finish(ctx, assertionResp)
+
+			// Disallow non-local users from logging in with passwordless.
+			if err == nil {
+				u, getErr := a.GetUser(ctx, loginData.User, false /* withSecrets */)
+				if getErr != nil {
+					err = trace.Wrap(getErr)
+				} else if u.GetUserType() != types.UserTypeLocal {
+					// Return the error unmodified, without the "MFA response validation
+					// failed" prefix.
+					return nil, trace.Wrap(types.ErrPassswordlessLoginBySSOUser)
+				}
+			}
 		} else {
 			webLogin := &wanlib.LoginFlow{
 				U2F:      u2f,
