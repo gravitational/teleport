@@ -123,6 +123,23 @@ $ aws iam attach-role-policy --role-name <IAM role> --policy-arn <policy ARN>
 
 (!docs/pages/includes/aws-credentials.mdx service="the Teleport Auth Service"!)
 
+<Admonition type="warning">
+Be aware that anyone with access to this IAM role will be able create signatures
+as if they are the Teleport CA.
+It should be considered a highly privileged role and should be restricted as
+much as possible.
+
+If you provide AWS credentials to the Teleport Auth Service via the Instance
+Metadata Service, be aware that any user with access to the instance could use
+those credentials.
+You may wish to use the following iptables rule to restrict IMDS access to the
+root user only:
+
+```sh
+$ iptables -A OUTPUT -m owner ! --uid-owner 0 -d 169.254.169.254 -j REJECT
+```
+</Admonition>
+
 ## Step 2/5. Configure your Auth Service to use KMS keys
 
 CA key parameters are statically configured in the `teleport.yaml` configuration

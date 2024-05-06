@@ -25,7 +25,7 @@ db_service:
     # 'elasticache' - discovers and registers AWS ElastiCache Redis databases.
     # 'memorydb' - discovers and registers AWS MemoryDB Redis databases.
     # 'opensearch' - discovers and registers AWS OpenSearch Redis databases.
-  - types: ["rds", "rdsproxy","redshift", "redshift-serverless", "elasticache", "memorydb"]
+  - types: ["rds", "rdsproxy","redshift", "redshift-serverless", "elasticache", "memorydb", "opensearch"]
     # AWS regions to register databases from.
     regions: ["us-west-1", "us-east-2"]
     # Optional AWS role that the Database Service will assume to discover

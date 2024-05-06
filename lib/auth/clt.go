@@ -554,7 +554,7 @@ func (c *Client) UpsertUser(ctx context.Context, user types.User) (types.User, e
 }
 
 // DiscoveryConfigClient returns a client for managing the DiscoveryConfig resource.
-func (c *Client) DiscoveryConfigClient() services.DiscoveryConfigs {
+func (c *Client) DiscoveryConfigClient() services.DiscoveryConfigWithStatusUpdater {
 	return c.APIClient.DiscoveryConfigClient()
 }
 
@@ -1108,7 +1108,7 @@ type ClientI interface {
 	// Clients connecting to older Teleport versions, still get an DiscoveryConfig client
 	// when calling this method, but all RPCs will return "not implemented" errors
 	// (as per the default gRPC behavior).
-	DiscoveryConfigClient() services.DiscoveryConfigs
+	DiscoveryConfigClient() services.DiscoveryConfigWithStatusUpdater
 
 	// ResourceUsageClient returns a resource usage service client.
 	// Clients connecting to non-Enterprise clusters, or older Teleport versions,
@@ -1167,4 +1167,7 @@ type ClientI interface {
 
 	// GetClusterAccessGraphConfig retrieves the cluster Access Graph configuration from Auth server.
 	GetClusterAccessGraphConfig(ctx context.Context) (*clusterconfigpb.AccessGraphConfig, error)
+
+	// GenerateAppToken creates a JWT token with application access.
+	GenerateAppToken(ctx context.Context, req types.GenerateAppTokenRequest) (string, error)
 }

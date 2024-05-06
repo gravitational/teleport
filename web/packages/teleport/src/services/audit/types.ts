@@ -125,6 +125,7 @@ export const eventCodes = {
   DEVICE_AUTHENTICATE: 'TV006I',
   DEVICE_UPDATE: 'TV007I',
   DEVICE_WEB_TOKEN_CREATE: 'TV008I',
+  DEVICE_AUTHENTICATE_CONFIRM: 'TV009I',
   EXEC_FAILURE: 'T3002E',
   EXEC: 'T3002I',
   GITHUB_CONNECTOR_CREATED: 'T8000I',
@@ -244,7 +245,9 @@ export const eventCodes = {
   CERTIFICATE_CREATED: 'TC000I',
   UPGRADE_WINDOW_UPDATED: 'TUW01I',
   BOT_JOIN: 'TJ001I',
+  BOT_JOIN_FAILURE: 'TJ001E',
   INSTANCE_JOIN: 'TJ002I',
+  INSTANCE_JOIN_FAILURE: 'TJ002E',
   BOT_CREATED: 'TB001I',
   BOT_UPDATED: 'TB002I',
   BOT_DELETED: 'TB003I',
@@ -1248,6 +1251,9 @@ export type RawEvents = {
   [eventCodes.DEVICE_WEB_TOKEN_CREATE]: RawDeviceEvent<
     typeof eventCodes.DEVICE_WEB_TOKEN_CREATE
   >;
+  [eventCodes.DEVICE_AUTHENTICATE_CONFIRM]: RawDeviceEvent<
+    typeof eventCodes.DEVICE_AUTHENTICATE_CONFIRM
+  >;
   [eventCodes.UNKNOWN]: RawEvent<
     typeof eventCodes.UNKNOWN,
     {
@@ -1313,7 +1319,22 @@ export type RawEvents = {
       method: string;
     }
   >;
+  [eventCodes.BOT_JOIN_FAILURE]: RawEvent<
+    typeof eventCodes.BOT_JOIN,
+    {
+      bot_name: string;
+      method: string;
+    }
+  >;
   [eventCodes.INSTANCE_JOIN]: RawEvent<
+    typeof eventCodes.INSTANCE_JOIN,
+    {
+      node_name: string;
+      method: string;
+      role: string;
+    }
+  >;
+  [eventCodes.INSTANCE_JOIN_FAILURE]: RawEvent<
     typeof eventCodes.INSTANCE_JOIN,
     {
       node_name: string;

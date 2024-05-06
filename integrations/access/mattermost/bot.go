@@ -372,6 +372,11 @@ func (b Bot) LookupDirectChannel(ctx context.Context, email string) (string, err
 	return channel.ID, nil
 }
 
+// NotifyUser will send users a direct message with the access request status
+func (b Bot) NotifyUser(ctx context.Context, reqID string, reqData pd.AccessRequestData) error {
+	return trace.NotImplemented("notify user not implemented for plugin")
+}
+
 func (b Bot) UpdateMessages(ctx context.Context, reqID string, reqData pd.AccessRequestData, mmData accessrequest.SentMessages, reviews []types.AccessReview) error {
 	text, err := b.buildPostText(reqID, reqData)
 	if err != nil {

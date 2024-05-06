@@ -30,17 +30,18 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
+	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -139,10 +140,10 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindAccessRequest},
 		{Kind: types.KindAppServer},
 		{Kind: types.KindApp},
-		{Kind: types.KindWebSession, SubKind: types.KindSAMLIdPSession},
-		{Kind: types.KindWebSession, SubKind: types.KindSnowflakeSession},
-		{Kind: types.KindWebSession, SubKind: types.KindAppSession},
-		{Kind: types.KindWebSession, SubKind: types.KindWebSession},
+		{Kind: types.KindWebSession, SubKind: types.KindSAMLIdPSession, LoadSecrets: true},
+		{Kind: types.KindWebSession, SubKind: types.KindSnowflakeSession, LoadSecrets: true},
+		{Kind: types.KindWebSession, SubKind: types.KindAppSession, LoadSecrets: true},
+		{Kind: types.KindWebSession, SubKind: types.KindWebSession, LoadSecrets: true},
 		{Kind: types.KindWebToken},
 		{Kind: types.KindRemoteCluster},
 		{Kind: types.KindDatabaseServer},
@@ -172,6 +173,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindKubeWaitingContainer},
 		{Kind: types.KindNotification},
 		{Kind: types.KindGlobalNotification},
+		{Kind: types.KindAccessMonitoringRule},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -203,10 +205,10 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindTunnelConnection},
 		{Kind: types.KindAppServer},
 		{Kind: types.KindApp},
-		{Kind: types.KindWebSession, SubKind: types.KindSAMLIdPSession},
-		{Kind: types.KindWebSession, SubKind: types.KindSnowflakeSession},
-		{Kind: types.KindWebSession, SubKind: types.KindAppSession},
-		{Kind: types.KindWebSession, SubKind: types.KindWebSession},
+		{Kind: types.KindWebSession, SubKind: types.KindSAMLIdPSession, LoadSecrets: true},
+		{Kind: types.KindWebSession, SubKind: types.KindSnowflakeSession, LoadSecrets: true},
+		{Kind: types.KindWebSession, SubKind: types.KindAppSession, LoadSecrets: true},
+		{Kind: types.KindWebSession, SubKind: types.KindWebSession, LoadSecrets: true},
 		{Kind: types.KindWebToken},
 		{Kind: types.KindRemoteCluster},
 		{Kind: types.KindDatabaseServer},
@@ -549,6 +551,7 @@ type Cache struct {
 	lowVolumeEventsFanout        *utils.RoundRobin[*services.FanoutV2]
 	kubeWaitingContsCache        *local.KubeWaitingContainerService
 	notificationsCache           services.Notifications
+	accessMontoringRuleCache     services.AccessMonitoringRules
 
 	// closed indicates that the cache has been closed
 	closed atomic.Bool
@@ -715,6 +718,8 @@ type Config struct {
 	KubeWaitingContainers services.KubeWaitingContainer
 	// Notifications is the notifications service
 	Notifications services.Notifications
+	// AccessMonitoringRules is the access monitoring rules service.
+	AccessMonitoringRules services.AccessMonitoringRules
 	// Backend is a backend for local cache
 	Backend backend.Backend
 	// MaxRetryPeriod is the maximum period between cache retries on failures
@@ -884,7 +889,7 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	integrationsCache, err := local.NewIntegrationsService(config.Backend)
+	integrationsCache, err := local.NewIntegrationsService(config.Backend, local.WithIntegrationsServiceCacheMode(true))
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
@@ -915,6 +920,12 @@ func New(config Config) (*Cache, error) {
 	}
 
 	notificationsCache, err := local.NewNotificationsService(config.Backend, config.Clock)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
+	accessMonitoringRuleCache, err := local.NewAccessMonitoringRulesService(config.Backend)
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
@@ -956,6 +967,7 @@ func New(config Config) (*Cache, error) {
 		webSessionCache:              local.NewIdentityService(config.Backend).WebSessions(),
 		webTokenCache:                local.NewIdentityService(config.Backend).WebTokens(),
 		windowsDesktopsCache:         local.NewWindowsDesktopService(config.Backend),
+		accessMontoringRuleCache:     accessMonitoringRuleCache,
 		samlIdPServiceProvidersCache: samlIdPServiceProvidersCache,
 		userGroupsCache:              userGroupsCache,
 		oktaCache:                    oktaCache,
@@ -1536,14 +1548,7 @@ func tracedApplyFn(parent oteltrace.Span, tracer oteltrace.Tracer, kind resource
 			oteltrace.ContextWithSpan(ctx, parent),
 			fmt.Sprintf("cache/apply/%s", kind.String()),
 		)
-
-		defer func() {
-			if err != nil {
-				span.RecordError(err)
-				span.SetStatus(codes.Error, err.Error())
-			}
-			span.End()
-		}()
+		defer func() { apitracing.EndSpan(span, err) }()
 
 		return f(ctx)
 	}
@@ -1575,13 +1580,7 @@ func isControlPlane(target string) bool {
 
 func (c *Cache) fetch(ctx context.Context, confirmedKinds map[resourceKind]types.WatchKind) (fn applyFn, err error) {
 	ctx, fetchSpan := c.Tracer.Start(ctx, "cache/fetch", oteltrace.WithAttributes(attribute.String("target", c.target)))
-	defer func() {
-		if err != nil {
-			fetchSpan.RecordError(err)
-			fetchSpan.SetStatus(codes.Error, err.Error())
-		}
-		fetchSpan.End()
-	}()
+	defer func() { apitracing.EndSpan(fetchSpan, err) }()
 
 	g, ctx := errgroup.WithContext(ctx)
 	g.SetLimit(fetchLimit(c.target))
@@ -1600,13 +1599,7 @@ func (c *Cache) fetch(ctx context.Context, confirmedKinds map[resourceKind]types
 					attribute.String("target", c.target),
 				),
 			)
-			defer func() {
-				if err != nil {
-					span.RecordError(err)
-					span.SetStatus(codes.Error, err.Error())
-				}
-				span.End()
-			}()
+			defer func() { apitracing.EndSpan(span, err) }()
 
 			_, cacheOK := confirmedKinds[resourceKind{kind: kind.kind, subkind: kind.subkind}]
 			applyfn, err := collection.fetch(ctx, cacheOK)
@@ -2368,7 +2361,7 @@ func (c *Cache) GetAppSession(ctx context.Context, req types.GetAppSessionReques
 		// fallback is sane because method is never used
 		// in construction of derivative caches.
 		if sess, err := c.Config.AppSession.GetAppSession(ctx, req); err == nil {
-			c.Logger.Warnf("Cache was forced to load session %v/%v from upstream. Frequent occurrence may indicate sync/perf issues.", sess.GetSubKind(), sess.GetName())
+			c.Logger.Debugf("Cache was forced to load session %v/%v from upstream.", sess.GetSubKind(), sess.GetName())
 			return sess, nil
 		}
 	}
@@ -2407,7 +2400,7 @@ func (c *Cache) GetSnowflakeSession(ctx context.Context, req types.GetSnowflakeS
 		// fallback is sane because method is never used
 		// in construction of derivative caches.
 		if sess, err := c.Config.SnowflakeSession.GetSnowflakeSession(ctx, req); err == nil {
-			c.Logger.Warnf("Cache was forced to load session %v/%v from upstream. Frequent occurrence may indicate sync/perf issues.", sess.GetSubKind(), sess.GetName())
+			c.Logger.Debugf("Cache was forced to load session %v/%v from upstream.", sess.GetSubKind(), sess.GetName())
 			return sess, nil
 		}
 	}
@@ -2433,7 +2426,7 @@ func (c *Cache) GetSAMLIdPSession(ctx context.Context, req types.GetSAMLIdPSessi
 		// fallback is sane because method is never used
 		// in construction of derivative caches.
 		if sess, err := c.Config.SAMLIdPSession.GetSAMLIdPSession(ctx, req); err == nil {
-			c.Logger.Warnf("Cache was forced to load session %v/%v from upstream. Frequent occurrence may indicate sync/perf issues.", sess.GetSubKind(), sess.GetName())
+			c.Logger.Debugf("Cache was forced to load session %v/%v from upstream.", sess.GetSubKind(), sess.GetName())
 			return sess, nil
 		}
 	}
@@ -2499,7 +2492,7 @@ func (c *Cache) GetWebSession(ctx context.Context, req types.GetWebSessionReques
 		// fallback is sane because method is never used
 		// in construction of derivative caches.
 		if sess, err := c.Config.WebSession.Get(ctx, req); err == nil {
-			c.Logger.Warnf("Cache was forced to load session %v/%v from upstream. Frequent occurrence may indicate sync/perf issues.", sess.GetSubKind(), sess.GetName())
+			c.Logger.Debugf("Cache was forced to load session %v/%v from upstream.", sess.GetSubKind(), sess.GetName())
 			return sess, nil
 		}
 	}
@@ -3108,9 +3101,36 @@ func (c *Cache) ListGlobalNotifications(ctx context.Context, pageSize int, start
 		return nil, "", trace.Wrap(err)
 	}
 	defer rg.Release()
-
 	out, nextKey, err := rg.reader.ListGlobalNotifications(ctx, pageSize, startKey)
 	return out, nextKey, trace.Wrap(err)
+}
+
+// ListAccessMonitoringRules returns a paginated list of access monitoring rules.
+func (c *Cache) ListAccessMonitoringRules(ctx context.Context, pageSize int, nextToken string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListAccessMonitoringRules")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.accessMonitoringRules)
+
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	out, nextKey, err := rg.reader.ListAccessMonitoringRules(ctx, pageSize, nextToken)
+	return out, nextKey, trace.Wrap(err)
+}
+
+// GetAccessMonitoringRule returns the specified AccessMonitoringRule resources.
+func (c *Cache) GetAccessMonitoringRule(ctx context.Context, name string) (*accessmonitoringrulesv1.AccessMonitoringRule, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetAccessMonitoringRule")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.accessMonitoringRules)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.GetAccessMonitoringRule(ctx, name)
 }
 
 // ListResources is a part of auth.Cache implementation

@@ -135,7 +135,7 @@ func TestTeleterm(t *testing.T) {
 		require.NoError(t, err)
 
 		// Enforce MFA
-		_, err = authServer.UpsertAuthPreference(context.Background(), &types.AuthPreferenceV2{
+		helpers.UpsertAuthPrefAndWaitForCache(t, context.Background(), authServer, &types.AuthPreferenceV2{
 			Spec: types.AuthPreferenceSpecV2{
 				Type:         constants.Local,
 				SecondFactor: constants.SecondFactorWebauthn,
@@ -144,11 +144,10 @@ func TestTeleterm(t *testing.T) {
 				},
 			},
 		})
-		require.NoError(t, err)
 
 		// Remove MFA enforcement on cleanup.
 		t.Cleanup(func() {
-			_, err := authServer.UpsertAuthPreference(context.Background(), &types.AuthPreferenceV2{
+			helpers.UpsertAuthPrefAndWaitForCache(t, context.Background(), authServer, &types.AuthPreferenceV2{
 				Spec: types.AuthPreferenceSpecV2{
 					Type:         constants.Local,
 					SecondFactor: constants.SecondFactorOff,
@@ -489,7 +488,7 @@ func testClientCache(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.
 	eg, egCtx := errgroup.WithContext(ctx)
 	blocker := make(chan struct{})
 	const concurrentCalls = 5
-	concurrentCallsForClient := make([]*client.ProxyClient, concurrentCalls)
+	concurrentCallsForClient := make([]*client.ClusterClient, concurrentCalls)
 	for i := range concurrentCallsForClient {
 		client := &concurrentCallsForClient[i]
 		eg.Go(func() error {
@@ -517,21 +516,6 @@ func testClientCache(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.
 	thirdCallForClient, err := daemonService.GetCachedClient(ctx, cluster.URI)
 	require.NoError(t, err)
 	require.NotEqual(t, secondCallForClient, thirdCallForClient)
-
-	// After closing the client (from our or a remote side)
-	// it will be removed from the cache.
-	// The call to GetCachedClient will connect to proxy and return a new client.
-	err = thirdCallForClient.Close()
-	require.NoError(t, err)
-
-	// TODO(gzdunek): Re-enable this test.
-	// This part is flaky, there is no guarantee that the goroutine waiting
-	// for the client to close will be able to remove it from the cache
-	// before we try to get a new client.
-
-	//fourthCallForClient, err := daemonService.GetCachedClient(ctx, cluster.URI)
-	//require.NoError(t, err)
-	//require.NotEqual(t, thirdCallForClient, fourthCallForClient)
 }
 
 func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack) {

@@ -66,7 +66,7 @@ func TestNewAWSNodeFromEC2Instance(t *testing.T) {
 			name:        "valid",
 			ec2Instance: makeEC2Instance(func(i *ec2types.Instance) {}),
 			awsCloudMetadata: &types.AWSInfo{
-				AccountID:   "1234567889012",
+				AccountID:   "123456789012",
 				Region:      "us-east-1",
 				Integration: "myintegration",
 			},
@@ -77,11 +77,11 @@ func TestNewAWSNodeFromEC2Instance(t *testing.T) {
 				SubKind: "openssh-ec2-ice",
 				Metadata: types.Metadata{
 					Labels: map[string]string{
-						"account-id":               "1234567889012",
+						"account-id":               "123456789012",
 						"region":                   "us-east-1",
 						"MyTag":                    "MyTagValue",
 						"teleport.dev/instance-id": "i-123456789abcedf",
-						"teleport.dev/account-id":  "1234567889012",
+						"teleport.dev/account-id":  "123456789012",
 					},
 					Namespace: "default",
 				},
@@ -90,7 +90,7 @@ func TestNewAWSNodeFromEC2Instance(t *testing.T) {
 					Hostname: "my-private-dns.compute.aws",
 					CloudMetadata: &types.CloudMetadata{
 						AWS: &types.AWSInfo{
-							AccountID:   "1234567889012",
+							AccountID:   "123456789012",
 							InstanceID:  "i-123456789abcedf",
 							Region:      "us-east-1",
 							VPCID:       "vpc-abcd",
@@ -114,7 +114,7 @@ func TestNewAWSNodeFromEC2Instance(t *testing.T) {
 				})
 			}),
 			awsCloudMetadata: &types.AWSInfo{
-				AccountID:   "1234567889012",
+				AccountID:   "123456789012",
 				Region:      "us-east-1",
 				Integration: "myintegration",
 			},
@@ -125,11 +125,11 @@ func TestNewAWSNodeFromEC2Instance(t *testing.T) {
 				SubKind: "openssh-ec2-ice",
 				Metadata: types.Metadata{
 					Labels: map[string]string{
-						"account-id":               "1234567889012",
+						"account-id":               "123456789012",
 						"region":                   "us-east-1",
 						"MyTag":                    "MyTagValue",
 						"teleport.dev/instance-id": "i-123456789abcedf",
-						"teleport.dev/account-id":  "1234567889012",
+						"teleport.dev/account-id":  "123456789012",
 					},
 					Namespace: "default",
 				},
@@ -138,7 +138,7 @@ func TestNewAWSNodeFromEC2Instance(t *testing.T) {
 					Hostname: "my-private-dns.compute.aws",
 					CloudMetadata: &types.CloudMetadata{
 						AWS: &types.AWSInfo{
-							AccountID:   "1234567889012",
+							AccountID:   "123456789012",
 							InstanceID:  "i-123456789abcedf",
 							Region:      "us-east-1",
 							VPCID:       "vpc-abcd",
@@ -155,7 +155,7 @@ func TestNewAWSNodeFromEC2Instance(t *testing.T) {
 				i.PrivateDnsName = nil
 			}),
 			awsCloudMetadata: &types.AWSInfo{
-				AccountID:   "1234567889012",
+				AccountID:   "123456789012",
 				Region:      "us-east-1",
 				Integration: "myintegration",
 			},
@@ -167,7 +167,7 @@ func TestNewAWSNodeFromEC2Instance(t *testing.T) {
 				i.InstanceId = nil
 			}),
 			awsCloudMetadata: &types.AWSInfo{
-				AccountID:   "1234567889012",
+				AccountID:   "123456789012",
 				Region:      "us-east-1",
 				Integration: "myintegration",
 			},
@@ -179,7 +179,7 @@ func TestNewAWSNodeFromEC2Instance(t *testing.T) {
 				i.VpcId = nil
 			}),
 			awsCloudMetadata: &types.AWSInfo{
-				AccountID:   "1234567889012",
+				AccountID:   "123456789012",
 				Region:      "us-east-1",
 				Integration: "myintegration",
 			},
@@ -191,7 +191,7 @@ func TestNewAWSNodeFromEC2Instance(t *testing.T) {
 				i.PrivateDnsName = nil
 			}),
 			awsCloudMetadata: &types.AWSInfo{
-				AccountID:   "1234567889012",
+				AccountID:   "123456789012",
 				Region:      "us-east-1",
 				Integration: "myintegration",
 			},
@@ -210,7 +210,7 @@ func TestNewAWSNodeFromEC2Instance(t *testing.T) {
 			name:        "missing region",
 			ec2Instance: makeEC2Instance(func(i *ec2types.Instance) {}),
 			awsCloudMetadata: &types.AWSInfo{
-				AccountID:   "1234567889012",
+				AccountID:   "123456789012",
 				Integration: "myintegration",
 			},
 			errCheck: isBadParameterErr,
@@ -219,7 +219,7 @@ func TestNewAWSNodeFromEC2Instance(t *testing.T) {
 			name:        "missing integration name",
 			ec2Instance: makeEC2Instance(func(i *ec2types.Instance) {}),
 			awsCloudMetadata: &types.AWSInfo{
-				AccountID: "1234567889012",
+				AccountID: "123456789012",
 				Region:    "us-east-1",
 			},
 			errCheck: isBadParameterErr,
@@ -271,7 +271,7 @@ func TestNewAWSNodeFromEC2v1Instance(t *testing.T) {
 			name:        "valid",
 			ec2Instance: makeEC2Instance(func(i *ec2v1.Instance) {}),
 			awsCloudMetadata: &types.AWSInfo{
-				AccountID:   "1234567889012",
+				AccountID:   "123456789012",
 				Region:      "us-east-1",
 				Integration: "myintegration",
 			},
@@ -282,11 +282,11 @@ func TestNewAWSNodeFromEC2v1Instance(t *testing.T) {
 				SubKind: "openssh-ec2-ice",
 				Metadata: types.Metadata{
 					Labels: map[string]string{
-						"account-id":               "1234567889012",
+						"account-id":               "123456789012",
 						"region":                   "us-east-1",
 						"MyTag":                    "MyTagValue",
 						"teleport.dev/instance-id": "i-123456789abcedf",
-						"teleport.dev/account-id":  "1234567889012",
+						"teleport.dev/account-id":  "123456789012",
 					},
 					Namespace: "default",
 				},
@@ -295,7 +295,7 @@ func TestNewAWSNodeFromEC2v1Instance(t *testing.T) {
 					Hostname: "my-private-dns.compute.aws",
 					CloudMetadata: &types.CloudMetadata{
 						AWS: &types.AWSInfo{
-							AccountID:   "1234567889012",
+							AccountID:   "123456789012",
 							InstanceID:  "i-123456789abcedf",
 							Region:      "us-east-1",
 							VPCID:       "vpc-abcd",
@@ -319,7 +319,7 @@ func TestNewAWSNodeFromEC2v1Instance(t *testing.T) {
 				})
 			}),
 			awsCloudMetadata: &types.AWSInfo{
-				AccountID:   "1234567889012",
+				AccountID:   "123456789012",
 				Region:      "us-east-1",
 				Integration: "myintegration",
 			},
@@ -330,11 +330,11 @@ func TestNewAWSNodeFromEC2v1Instance(t *testing.T) {
 				SubKind: "openssh-ec2-ice",
 				Metadata: types.Metadata{
 					Labels: map[string]string{
-						"account-id":               "1234567889012",
+						"account-id":               "123456789012",
 						"region":                   "us-east-1",
 						"MyTag":                    "MyTagValue",
 						"teleport.dev/instance-id": "i-123456789abcedf",
-						"teleport.dev/account-id":  "1234567889012",
+						"teleport.dev/account-id":  "123456789012",
 					},
 					Namespace: "default",
 				},
@@ -343,7 +343,7 @@ func TestNewAWSNodeFromEC2v1Instance(t *testing.T) {
 					Hostname: "my-private-dns.compute.aws",
 					CloudMetadata: &types.CloudMetadata{
 						AWS: &types.AWSInfo{
-							AccountID:   "1234567889012",
+							AccountID:   "123456789012",
 							InstanceID:  "i-123456789abcedf",
 							Region:      "us-east-1",
 							VPCID:       "vpc-abcd",
@@ -360,7 +360,7 @@ func TestNewAWSNodeFromEC2v1Instance(t *testing.T) {
 				i.PrivateDnsName = nil
 			}),
 			awsCloudMetadata: &types.AWSInfo{
-				AccountID:   "1234567889012",
+				AccountID:   "123456789012",
 				Region:      "us-east-1",
 				Integration: "myintegration",
 			},
@@ -372,7 +372,7 @@ func TestNewAWSNodeFromEC2v1Instance(t *testing.T) {
 				i.InstanceId = nil
 			}),
 			awsCloudMetadata: &types.AWSInfo{
-				AccountID:   "1234567889012",
+				AccountID:   "123456789012",
 				Region:      "us-east-1",
 				Integration: "myintegration",
 			},
@@ -384,7 +384,7 @@ func TestNewAWSNodeFromEC2v1Instance(t *testing.T) {
 				i.VpcId = nil
 			}),
 			awsCloudMetadata: &types.AWSInfo{
-				AccountID:   "1234567889012",
+				AccountID:   "123456789012",
 				Region:      "us-east-1",
 				Integration: "myintegration",
 			},
@@ -396,7 +396,7 @@ func TestNewAWSNodeFromEC2v1Instance(t *testing.T) {
 				i.PrivateDnsName = nil
 			}),
 			awsCloudMetadata: &types.AWSInfo{
-				AccountID:   "1234567889012",
+				AccountID:   "123456789012",
 				Region:      "us-east-1",
 				Integration: "myintegration",
 			},
@@ -415,7 +415,7 @@ func TestNewAWSNodeFromEC2v1Instance(t *testing.T) {
 			name:        "missing region",
 			ec2Instance: makeEC2Instance(func(i *ec2v1.Instance) {}),
 			awsCloudMetadata: &types.AWSInfo{
-				AccountID:   "1234567889012",
+				AccountID:   "123456789012",
 				Integration: "myintegration",
 			},
 			errCheck: isBadParameterErr,
@@ -424,7 +424,7 @@ func TestNewAWSNodeFromEC2v1Instance(t *testing.T) {
 			name:        "missing integration name",
 			ec2Instance: makeEC2Instance(func(i *ec2v1.Instance) {}),
 			awsCloudMetadata: &types.AWSInfo{
-				AccountID: "1234567889012",
+				AccountID: "123456789012",
 				Region:    "us-east-1",
 			},
 			errCheck: isBadParameterErr,

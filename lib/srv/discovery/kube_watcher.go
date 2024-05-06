@@ -34,9 +34,10 @@ import (
 const kubeEventPrefix = "kube/"
 
 func (s *Server) startKubeWatchers() error {
-	if len(s.kubeFetchers) == 0 {
+	if len(s.getKubeNonIntegrationFetchers()) == 0 && s.dynamicMatcherWatcher == nil {
 		return nil
 	}
+
 	var (
 		kubeResources []types.KubeCluster
 		mu            sync.Mutex
@@ -70,7 +71,11 @@ func (s *Server) startKubeWatchers() error {
 	}
 
 	watcher, err := common.NewWatcher(s.ctx, common.WatcherConfig{
-		FetchersFn:     common.StaticFetchers(s.kubeFetchers),
+		FetchersFn: func() []common.Fetcher {
+			kubeNonIntegrationFetchers := s.getKubeNonIntegrationFetchers()
+			s.submitFetchersEvent(kubeNonIntegrationFetchers)
+			return kubeNonIntegrationFetchers
+		},
 		Log:            s.Log.WithField("kind", types.KindKubernetesCluster),
 		DiscoveryGroup: s.DiscoveryGroup,
 		Interval:       s.PollInterval,

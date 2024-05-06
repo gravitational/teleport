@@ -1,74 +1,10 @@
-<Tabs>
-<TabItem scope={["oss"]} label="Teleport Community Edition">
+{{ version="(=teleport.version=)" }}
 
-- A running Teleport cluster. For details on how to set this up, see the
-  [Getting Started](../index.mdx) guide.
+- A running Teleport cluster version {{ version }} or above. If you want to get started with Teleport, [sign
+  up](https://goteleport.com/signup) for a free trial or [set up a demo
+  environment](../index.mdx).
 
-- The `tctl` admin tool and `tsh` client tool version >= (=teleport.version=).
+- The `tctl` admin tool and `tsh` client tool.
 
-  See [Installation](../installation.mdx) for details.
-
-To check version information, run the `tctl version` and `tsh version` commands.
-For example:
-
-```code
-$ tctl version
-# Teleport v(=teleport.version=) git:(=teleport.git=) go(=teleport.golang=)
-  
-$ tsh version
-# Teleport v(=teleport.version=) go(=teleport.golang=)
-Proxy version: (=teleport.version=)
-Proxy: (=teleport.url=)
-```
-
-</TabItem>  
-<TabItem
-  scope={["enterprise"]} label="Teleport Enterprise">
-
-- A running Teleport Enterprise cluster. For details on how to set this up, see the Enterprise
-  [Getting Started](../choose-an-edition/teleport-enterprise/introduction.mdx) guide.
-
-- The Enterprise `tctl` admin tool and `tsh` client tool version >=
-  (=teleport.version=).
-  
-  You can download these tools by visiting your [Teleport
-  account workspace](https://teleport.sh).
-
-To check version information, run the `tctl version` and `tsh version` commands.
-For example:
-
-```code
-$ tctl version
-# Teleport Enterprise v(=teleport.version=) git:(=teleport.git=) go(=teleport.golang=)
-  
-$ tsh version
-# Teleport v(=teleport.version=) go(=teleport.golang=)
-Proxy version: (=teleport.version=)
-Proxy: (=teleport.url=)
-```
-
-</TabItem>
-<TabItem scope={["cloud"]}
-  label="Teleport Enterprise Cloud">
-
-- A Teleport Enterprise Cloud account. If you don't have an account, sign up to
-  begin a [free trial](https://goteleport.com/signup/). 
-
-- The Enterprise `tctl` admin tool and `tsh` client tool version >= (=cloud.version=).
-
-  You can download these tools from the [Cloud Downloads page](../choose-an-edition/teleport-cloud/downloads.mdx).
-
-To check version information, run the `tctl version` and `tsh version` commands.
-For example:
-
-```code
-$ tctl version
-# Teleport Enterprise v(=cloud.version=) git:(=teleport.git=) go(=teleport.golang=)
-  
-$ tsh version
-# Teleport v(=cloud.version=) go(=teleport.golang=)
-Proxy version: (=cloud.version=)
-Proxy: (=teleport.url=)
-```
-</TabItem>
-</Tabs>
+  Visit [Installation](../installation.mdx) for instructions on downloading
+  `tctl` and `tsh`.

@@ -1686,6 +1686,12 @@ type AWSMatcher struct {
 	// SSM provides options to use when sending a document command to
 	// an EC2 node
 	SSM AWSSSM `yaml:"ssm,omitempty"`
+	// Integration is the integration name used to generate credentials to interact with AWS APIs.
+	// Environment credentials will not be used when this value is set.
+	Integration string `yaml:"integration"`
+	// KubeAppDiscovery controls whether Kubernetes App Discovery will be enabled for agents running on
+	// discovered clusters, currently only affects AWS EKS discovery in integration mode.
+	KubeAppDiscovery bool `yaml:"kube_app_discovery"`
 }
 
 // InstallParams sets join method to use on discovered nodes
@@ -2112,6 +2118,10 @@ type Proxy struct {
 type UIConfig struct {
 	// ScrollbackLines is the max number of lines the UI terminal can display in its history
 	ScrollbackLines int `yaml:"scrollback_lines,omitempty"`
+	// ShowResources determines which resources are shown in the web UI. Default if unset is "requestable"
+	// which means resources the user has access to and resources they can request will be shown in the
+	// resources UI. If set to `accessible_only`, only resources the user already has access to will be shown.
+	ShowResources constants.ShowResources `yaml:"show_resources,omitempty"`
 }
 
 // ACME configures ACME protocol - automatic X.509 certificates

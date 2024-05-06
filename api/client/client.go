@@ -3805,27 +3805,27 @@ type ResourcePage[T types.ResourceWithLabels] struct {
 // PaginatedResource returned from the rpc ListUnifiedResources.
 func convertEnrichedResource(resource *proto.PaginatedResource) (*types.EnrichedResource, error) {
 	if r := resource.GetNode(); r != nil {
-		return &types.EnrichedResource{ResourceWithLabels: r, Logins: resource.Logins}, nil
+		return &types.EnrichedResource{ResourceWithLabels: r, Logins: resource.Logins, RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetDatabaseServer(); r != nil {
-		return &types.EnrichedResource{ResourceWithLabels: r}, nil
+		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetDatabaseService(); r != nil {
-		return &types.EnrichedResource{ResourceWithLabels: r}, nil
+		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetAppServerOrSAMLIdPServiceProvider(); r != nil { //nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
-		return &types.EnrichedResource{ResourceWithLabels: r}, nil
+		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetWindowsDesktop(); r != nil {
-		return &types.EnrichedResource{ResourceWithLabels: r}, nil
+		return &types.EnrichedResource{ResourceWithLabels: r, Logins: resource.Logins, RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetWindowsDesktopService(); r != nil {
-		return &types.EnrichedResource{ResourceWithLabels: r}, nil
+		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetKubeCluster(); r != nil {
-		return &types.EnrichedResource{ResourceWithLabels: r}, nil
+		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetKubernetesServer(); r != nil {
-		return &types.EnrichedResource{ResourceWithLabels: r}, nil
+		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetUserGroup(); r != nil {
-		return &types.EnrichedResource{ResourceWithLabels: r}, nil
+		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetAppServer(); r != nil {
-		return &types.EnrichedResource{ResourceWithLabels: r}, nil
+		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetSAMLIdPServiceProvider(); r != nil {
-		return &types.EnrichedResource{ResourceWithLabels: r}, nil
+		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
 	} else {
 		return nil, trace.BadParameter("received unsupported resource %T", resource.Resource)
 	}

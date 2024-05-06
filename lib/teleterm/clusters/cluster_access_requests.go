@@ -212,7 +212,7 @@ func (c *Cluster) DeleteAccessRequest(ctx context.Context, rootAuthClient auth.C
 	return trace.Wrap(err)
 }
 
-func (c *Cluster) AssumeRole(ctx context.Context, rootProxyClient *client.ProxyClient, req *api.AssumeRoleRequest) error {
+func (c *Cluster) AssumeRole(ctx context.Context, rootClient *client.ClusterClient, req *api.AssumeRoleRequest) error {
 	err := AddMetadataToRetryableError(ctx, func() error {
 		params := client.ReissueParams{
 			AccessRequests:     req.AccessRequestIds,
@@ -228,7 +228,7 @@ func (c *Cluster) AssumeRole(ctx context.Context, rootProxyClient *client.ProxyC
 		}
 		// When assuming a role, we want to drop all cached certs otherwise
 		// tsh will continue to use the old certs.
-		return rootProxyClient.ReissueUserCerts(ctx, client.CertCacheDrop, params)
+		return rootClient.ReissueUserCerts(ctx, client.CertCacheDrop, params)
 	})
 	if err != nil {
 		return trace.Wrap(err)

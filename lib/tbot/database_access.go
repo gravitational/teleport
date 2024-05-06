@@ -20,9 +20,9 @@ package tbot
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -58,7 +58,7 @@ func getDatabase(ctx context.Context, clt *auth.Client, name string) (types.Data
 
 func getRouteToDatabase(
 	ctx context.Context,
-	log logrus.FieldLogger,
+	log *slog.Logger,
 	client *auth.Client,
 	service string,
 	username string,
@@ -81,7 +81,11 @@ func getRouteToDatabase(
 	if db.GetProtocol() == libdefaults.ProtocolMongoDB && username == "" {
 		// This isn't strictly a runtime error so killing the process seems
 		// wrong. We'll just loudly warn about it.
-		log.Errorf("Database `username` field for %q is unset but is required for MongoDB databases.", service)
+		log.ErrorContext(
+			ctx,
+			"Database `username` field for service is unset but is required for MongoDB databases.",
+			"service", service,
+		)
 	} else if db.GetProtocol() == libdefaults.ProtocolRedis && username == "" {
 		// Per tsh's lead, fall back to the default username.
 		username = libdefaults.DefaultRedisUsername

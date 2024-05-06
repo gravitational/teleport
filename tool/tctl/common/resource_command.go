@@ -133,6 +133,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindLock:                     rc.createLock,
 		types.KindNetworkRestrictions:      rc.createNetworkRestrictions,
 		types.KindApp:                      rc.createApp,
+		types.KindAppServer:                rc.createAppServer,
 		types.KindDatabase:                 rc.createDatabase,
 		types.KindKubernetesCluster:        rc.createKubeCluster,
 		types.KindToken:                    rc.createToken,
@@ -154,6 +155,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindBot:                      rc.createBot,
 		types.KindDatabaseObjectImportRule: rc.createDatabaseObjectImportRule,
 		types.KindDatabaseObject:           rc.createDatabaseObject,
+		types.KindAccessMonitoringRule:     rc.createAccessMonitoringRule,
 	}
 	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
 		types.KindUser:                    rc.updateUser,
@@ -164,6 +166,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindClusterNetworkingConfig: rc.updateClusterNetworkingConfig,
 		types.KindClusterAuthPreference:   rc.updateAuthPreference,
 		types.KindSessionRecordingConfig:  rc.updateSessionRecordingConfig,
+		types.KindAccessMonitoringRule:    rc.updateAccessMonitoringRule,
 	}
 	rc.config = config
 
@@ -862,6 +865,21 @@ func (rc *ResourceCommand) createWindowsDesktop(ctx context.Context, client *aut
 	}
 
 	fmt.Printf("windows desktop %q has been updated\n", wd.GetName())
+	return nil
+}
+
+func (rc *ResourceCommand) createAppServer(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
+	appServer, err := services.UnmarshalAppServer(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if appServer.GetApp().GetIntegration() == "" {
+		return trace.BadParameter("only applications that use an integration can be created")
+	}
+	if _, err := client.UpsertApplicationServer(ctx, appServer); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("application server %q has been upserted\n", appServer.GetName())
 	return nil
 }
 
@@ -1713,6 +1731,11 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *auth.Client) (err
 			return trace.Wrap(err)
 		}
 		fmt.Printf("Object %q has been deleted\n", rc.ref.Name)
+	case types.KindAccessMonitoringRule:
+		if err := client.AccessMonitoringRuleClient().DeleteAccessMonitoringRule(ctx, rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("Access monitoring rule %q has been deleted\n", rc.ref.Name)
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
@@ -2917,5 +2940,39 @@ func (rc *ResourceCommand) createSecurityReport(ctx context.Context, client *aut
 	if err = client.SecReportsClient().UpsertSecurityReport(ctx, in); err != nil {
 		return trace.Wrap(err)
 	}
+	return nil
+}
+
+func (rc *ResourceCommand) createAccessMonitoringRule(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
+	in, err := services.UnmarshalAccessMonitoringRule(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if rc.IsForced() {
+		if _, err = client.AccessMonitoringRuleClient().UpsertAccessMonitoringRule(ctx, in); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("access monitoring rule %q has been created\n", in.GetMetadata().GetName())
+		return nil
+	}
+
+	if _, err = client.AccessMonitoringRuleClient().CreateAccessMonitoringRule(ctx, in); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf("access monitoring rule %q has been created\n", in.GetMetadata().GetName())
+	return nil
+}
+
+func (rc *ResourceCommand) updateAccessMonitoringRule(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
+	in, err := services.UnmarshalAccessMonitoringRule(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := client.AccessMonitoringRuleClient().UpdateAccessMonitoringRule(ctx, in); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("access monitoring rule %q has been updated\n", in.GetMetadata().GetName())
 	return nil
 }

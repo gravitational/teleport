@@ -259,6 +259,7 @@ export type TshdRpcError = Pick<
    * It is taken from the error metadata.
    */
   isResolvableWithRelogin: boolean;
+  toString: () => string;
 };
 
 /**
@@ -313,6 +314,7 @@ function cloneError(error: unknown): TshdRpcError | Error | unknown {
       cause: error.cause,
       code: error.code,
       isResolvableWithRelogin: error.meta['is-resolvable-with-relogin'] === '1',
+      toString: () => error.toString(),
     } satisfies TshdRpcError;
   }
 
@@ -322,7 +324,8 @@ function cloneError(error: unknown): TshdRpcError | Error | unknown {
       message: error.message,
       stack: error.stack,
       cause: error.cause,
-    } satisfies Error;
+      toString: () => error.toString(),
+    };
   }
 
   return error;
@@ -406,7 +409,9 @@ export class MockedUnaryCall<Response extends object>
     onrejected?: (reason: any) => TResult2 | PromiseLike<TResult2>
   ): Promise<TResult1 | TResult2> {
     if (this.error) {
-      return Promise.reject(onrejected(this.error));
+      // Despite this being an error branch, it needs to use Promise.resolve. Otherwise we'd get
+      // uncaught errors. See https://www.promisejs.org/implementing/#then
+      return Promise.resolve(onrejected(this.error));
     }
 
     return Promise.resolve(

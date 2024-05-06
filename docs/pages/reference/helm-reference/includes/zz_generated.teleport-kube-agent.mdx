@@ -435,6 +435,10 @@ the agent to provide access to them. See [the Kubernetes App Discovery
 documentation](../../../auto-discovery/kubernetes-applications/architecture.mdx)
 for more details.
 
+<Admonition type="note">
+The Discovery mechanism ignores Kubernetes services running in the `kube-system` and
+`kube-public` namespaces.
+</Admonition>
 The default value will try to discover all apps running in Kubernetes.
 The discovery can be restricted through this value. For example:
 
@@ -697,6 +701,43 @@ Supported values are `amazon`, `google`, `docker` and `none`.
 
 `updater.extraArgs` contains additional arguments to pass to the updater
 binary.
+
+### `updater.extraVolumes`
+
+| Type | Default |
+|------|---------|
+| `list` | `[]` |
+
+`updater.extraVolumes` contains extra volumes to mount into the Updater pods.
+See [the Kubernetes volume documentation](https://kubernetes.io/docs/concepts/storage/volumes/)
+for more details.
+
+For example:
+```yaml
+updater:
+  extraVolumes:
+  - name: myvolume
+    secret:
+      secretName: testSecret
+```
+
+### `updater.extraVolumeMounts`
+
+| Type | Default |
+|------|---------|
+| `list` | `[]` |
+
+`updater.extraVolumeMounts` contains extra volumes mounts for the updater.
+See [the Kubernetes volume documentation](https://kubernetes.io/docs/concepts/storage/volumes/)
+for more details.
+
+For example:
+```yaml
+updater:
+  extraVolumesMounts:
+  - name: myvolume
+    mountPath: /path/on/host
+```
 
 ## `existingDataVolume`
 

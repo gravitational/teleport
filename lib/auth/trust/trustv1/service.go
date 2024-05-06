@@ -51,7 +51,7 @@ type authServer interface {
 type ServiceConfig struct {
 	Authorizer authz.Authorizer
 	Cache      services.AuthorityGetter
-	Backend    services.Trust
+	Backend    services.TrustInternal
 	Logger     *logrus.Entry
 	AuthServer authServer
 }
@@ -61,7 +61,7 @@ type Service struct {
 	trustpb.UnimplementedTrustServiceServer
 	authorizer authz.Authorizer
 	cache      services.AuthorityGetter
-	backend    services.Trust
+	backend    services.TrustInternal
 	authServer authServer
 	logger     *logrus.Entry
 }
@@ -349,7 +349,7 @@ func (s *Service) RotateExternalCertAuthority(ctx context.Context, req *trustpb.
 
 	// use compare and swap to protect from concurrent updates
 	// by trusted cluster API
-	if err := s.backend.CompareAndSwapCertAuthority(updated, existing); err != nil {
+	if _, err := s.backend.UpdateCertAuthority(ctx, updated); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

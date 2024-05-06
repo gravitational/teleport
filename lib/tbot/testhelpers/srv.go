@@ -20,6 +20,7 @@ package testhelpers
 
 import (
 	"context"
+	"log/slog"
 	"path/filepath"
 	"testing"
 	"time"
@@ -91,17 +92,23 @@ func DefaultConfig(t *testing.T) (*config.FileConfig, []*servicecfg.FileDescript
 }
 
 // MakeAndRunTestAuthServer creates an auth server useful for testing purposes.
-func MakeAndRunTestAuthServer(t *testing.T, log utils.Logger, fc *config.FileConfig, fds []*servicecfg.FileDescriptor) (auth *service.TeleportProcess) {
+func MakeAndRunTestAuthServer(t *testing.T, log *slog.Logger, fc *config.FileConfig, fds []*servicecfg.FileDescriptor) (auth *service.TeleportProcess) {
 	t.Helper()
 
 	var err error
 	cfg := servicecfg.MakeDefaultConfig()
 	require.NoError(t, config.ApplyFileConfig(fc, cfg))
 	cfg.FileDescriptors = fds
-	cfg.Log = log
-
+	cfg.Logger = log
 	cfg.CachePolicy.Enabled = false
 	cfg.Proxy.DisableWebInterface = true
+
+	// Disable session recording to avoid flakiness caused by TempDir cleanup.
+	cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
+	// Disable audit log as we don't rely on this in our tests and it can cause
+	// flakiness due to TempDir cleanup.
+	cfg.Auth.NoAudit = true
+
 	auth, err = service.NewTeleport(cfg)
 	require.NoError(t, err)
 	require.NoError(t, auth.Start())
@@ -122,7 +129,7 @@ func MakeAndRunTestAuthServer(t *testing.T, log utils.Logger, fc *config.FileCon
 // MakeDefaultAuthClient reimplements the bare minimum needed to create a
 // default root-level auth client for a Teleport server started by
 // MakeAndRunTestAuthServer.
-func MakeDefaultAuthClient(t *testing.T, log utils.Logger, fc *config.FileConfig) *auth.Client {
+func MakeDefaultAuthClient(t *testing.T, fc *config.FileConfig) *auth.Client {
 	t.Helper()
 
 	cfg := servicecfg.MakeDefaultConfig()
@@ -140,7 +147,7 @@ func MakeDefaultAuthClient(t *testing.T, log utils.Logger, fc *config.FileConfig
 	require.NoError(t, err)
 
 	authConfig.AuthServers = cfg.AuthServerAddresses()
-	authConfig.Log = log
+	authConfig.Log = utils.NewLogger()
 
 	client, err := authclient.Connect(context.Background(), authConfig)
 	require.NoError(t, err)

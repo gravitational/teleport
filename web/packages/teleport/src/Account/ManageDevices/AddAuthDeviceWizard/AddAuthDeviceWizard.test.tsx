@@ -24,8 +24,8 @@ import { userEvent, UserEvent } from '@testing-library/user-event';
 
 import TeleportContext from 'teleport/teleportContext';
 import { ContextProvider } from 'teleport';
-import MfaService, { DeviceUsage } from 'teleport/services/mfa';
-import auth from 'teleport/services/auth/auth';
+import MfaService from 'teleport/services/mfa';
+import auth, { DeviceUsage } from 'teleport/services/auth';
 
 import { AddAuthDeviceWizard } from '.';
 
@@ -40,7 +40,7 @@ beforeEach(() => {
   onSuccess = jest.fn();
 
   jest
-    .spyOn(MfaService.prototype, 'createNewWebAuthnDevice')
+    .spyOn(auth, 'createNewWebAuthnDevice')
     .mockResolvedValueOnce(dummyCredential);
   jest
     .spyOn(MfaService.prototype, 'saveNewWebAuthnDevice')
@@ -94,7 +94,7 @@ describe('flow without reauthentication', () => {
     await user.click(
       createStep.getByRole('button', { name: 'Create a passkey' })
     );
-    expect(ctx.mfaService.createNewWebAuthnDevice).toHaveBeenCalledWith({
+    expect(auth.createNewWebAuthnDevice).toHaveBeenCalledWith({
       tokenId: 'privilege-token',
       deviceUsage: 'passwordless',
     });
@@ -123,7 +123,7 @@ describe('flow without reauthentication', () => {
     await user.click(
       createStep.getByRole('button', { name: 'Create an MFA method' })
     );
-    expect(ctx.mfaService.createNewWebAuthnDevice).toHaveBeenCalledWith({
+    expect(auth.createNewWebAuthnDevice).toHaveBeenCalledWith({
       tokenId: 'privilege-token',
       deviceUsage: 'mfa',
     });
@@ -185,7 +185,7 @@ describe('flow with reauthentication', () => {
     await user.click(
       createStep.getByRole('button', { name: 'Create a passkey' })
     );
-    expect(ctx.mfaService.createNewWebAuthnDevice).toHaveBeenCalledWith({
+    expect(auth.createNewWebAuthnDevice).toHaveBeenCalledWith({
       tokenId: 'webauthn-privilege-token',
       deviceUsage: 'passwordless',
     });
@@ -223,7 +223,7 @@ describe('flow with reauthentication', () => {
     await user.click(
       createStep.getByRole('button', { name: 'Create a passkey' })
     );
-    expect(ctx.mfaService.createNewWebAuthnDevice).toHaveBeenCalledWith({
+    expect(auth.createNewWebAuthnDevice).toHaveBeenCalledWith({
       tokenId: 'totp-privilege-token-654987',
       deviceUsage: 'passwordless',
     });

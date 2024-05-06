@@ -200,6 +200,8 @@ export type ThemeColors = {
 
   link: string;
 
+  highlightedNavigationItem: string;
+
   dataVisualisation: DataVisualisationColors;
   accessGraph: AccessGraphColors;
 } & SharedColors;
@@ -284,7 +286,6 @@ type VisualisationColors = {
 
 export type SharedStyles = {
   sidebarWidth: number;
-  dockedAssistWidth: number;
   boxShadow: string[];
   breakpoints: {
     mobile: number;

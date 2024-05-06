@@ -56,6 +56,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/gravitational/teleport"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -110,6 +111,21 @@ const (
 	mfaModeOTP = "otp"
 )
 
+const (
+	// accessRequestModeOff disables automatic access requests.
+	accessRequestModeOff = "off"
+	// accessRequestModeResource enables automatic resource access requests.
+	accessRequestModeResource = "resource"
+	// accessRequestModeRole enables automatic role access requests.
+	accessRequestModeRole = "role"
+)
+
+var accessRequestModes = []string{
+	accessRequestModeOff,
+	accessRequestModeResource,
+	accessRequestModeRole,
+}
+
 // CLIConf stores command line arguments and flags:
 type CLIConf struct {
 	// UserHost contains "[login]@hostname" argument to SSH command
@@ -130,6 +146,8 @@ type CLIConf struct {
 	RequestID string
 	// RequestIDs is a list of access request IDs
 	RequestIDs []string
+	// RequestMode is the type of access request to automatically make if needed.
+	RequestMode string
 	// ReviewReason indicates the reason for an access review.
 	ReviewReason string
 	// ReviewableRequests indicates that only requests which can be reviewed should
@@ -439,7 +457,7 @@ type CLIConf struct {
 	// TracingProvider is the provider to use to create tracers, from which spans can be created.
 	TracingProvider oteltrace.TracerProvider
 
-	// disableAccessRequest disables automatic resource access requests.
+	// disableAccessRequest disables automatic resource access requests. Deprecated in favor of RequestType.
 	disableAccessRequest bool
 
 	// FromUTC is the start time to use for the range of sessions listed by the session recordings listing command
@@ -613,6 +631,7 @@ const (
 	awsWorkgroupEnvVar       = "TELEPORT_AWS_WORKGROUP"
 	proxyKubeConfigEnvVar    = "TELEPORT_KUBECONFIG"
 	noResumeEnvVar           = "TELEPORT_NO_RESUME"
+	requestModeEnvVar        = "TELEPORT_REQUEST_MODE"
 
 	clusterHelp = "Specify the Teleport cluster to connect"
 	browserHelp = "Set to 'none' to suppress browser opening on login"
@@ -753,7 +772,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	ssh.Flag("x11-untrusted-timeout", "Sets a timeout for untrusted X11 forwarding, after which the client will reject any forwarding requests from the server").Default("10m").DurationVar((&cf.X11ForwardingTimeout))
 	ssh.Flag("participant-req", "Displays a verbose list of required participants in a moderated session.").BoolVar(&cf.displayParticipantRequirements)
 	ssh.Flag("request-reason", "Reason for requesting access").StringVar(&cf.RequestReason)
-	ssh.Flag("disable-access-request", "Disable automatic resource access requests").BoolVar(&cf.disableAccessRequest)
+	ssh.Flag("request-mode", fmt.Sprintf("Type of automatic access request to make (%s)", strings.Join(accessRequestModes, ", "))).Envar(requestModeEnvVar).Default(accessRequestModeResource).EnumVar(&cf.RequestMode, accessRequestModes...)
+	ssh.Flag("disable-access-request", "Disable automatic resource access requests (DEPRECATED: use --request-mode=off)").BoolVar(&cf.disableAccessRequest)
 	ssh.Flag("log-dir", "Directory to log separated command output, when executing on multiple nodes. If set, output from each node will also be labeled in the terminal.").StringVar(&cf.SSHLogDir)
 	ssh.Flag("no-resume", "Disable SSH connection resumption").Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
 
@@ -814,6 +834,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	appConfig.Flag("format", fmt.Sprintf("Optional print format, one of: %q to print app address, %q to print CA cert path, %q to print cert path, %q print key path, %q to print example curl command, %q or %q to print everything as JSON or YAML.",
 		appFormatURI, appFormatCA, appFormatCert, appFormatKey, appFormatCURL, appFormatJSON, appFormatYAML),
 	).Short('f').StringVar(&cf.Format)
+	appConfig.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 
 	// Recordings.
 	recordings := app.Command("recordings", "View and control session recordings.").Alias("recording")
@@ -850,6 +871,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	proxyApp := proxy.Command("app", "Start local TLS proxy for app connection when using Teleport in single-port mode.")
 	proxyApp.Arg("app", "The name of the application to start local proxy for").Required().StringVar(&cf.AppName)
 	proxyApp.Flag("port", "Specifies the source port used by by the proxy app listener").Short('p').StringVar(&cf.LocalProxyPort)
+	proxyApp.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 
 	proxyAWS := proxy.Command("aws", "Start local proxy for AWS access.")
 	proxyAWS.Flag("app", "Optional Name of the AWS application to use if logged into multiple.").StringVar(&cf.AppName)
@@ -1092,7 +1114,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	reqCreate.Flag("resource", "Resource ID to be requested").StringsVar(&cf.RequestedResourceIDs)
 	reqCreate.Flag("request-ttl", "Expiration time for the access request").DurationVar(&cf.RequestTTL)
 	reqCreate.Flag("session-ttl", "Expiration time for the elevated certificate").DurationVar(&cf.SessionTTL)
-	reqCreate.Flag("max-duration", "How long the the access should be granted for").DurationVar(&cf.MaxDuration)
+	reqCreate.Flag("max-duration", "How long the access should be granted for").DurationVar(&cf.MaxDuration)
 	reqCreate.Flag("assume-start-time", "Sets time roles can be assumed by requestor (RFC3339 e.g 2023-12-12T23:20:50.52Z)").StringVar(&cf.AssumeStartTimeRaw)
 
 	reqReview := req.Command("review", "Review an access request.")
@@ -1225,6 +1247,10 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	cf.ExplicitUsername = cf.Username != ""
 
 	cf.command = command
+	// Convert --disable-access-request for compatibility.
+	if cf.disableAccessRequest {
+		cf.RequestMode = accessRequestModeOff
+	}
 
 	// apply any options after parsing of arguments to ensure
 	// that defaults don't overwrite options.
@@ -1792,7 +1818,7 @@ func onLogin(cf *CLIConf) error {
 	tc.HomePath = cf.HomePath
 
 	// client is already logged in and profile is not expired
-	if profile != nil && !profile.IsExpired(clockwork.NewRealClock()) {
+	if profile != nil && !profile.IsExpired(time.Now()) {
 		switch {
 		// in case if nothing is specified, re-fetch kube clusters and print
 		// current status
@@ -2191,7 +2217,8 @@ func onListNodes(cf *CLIConf) error {
 type clusterClient struct {
 	name            string
 	connectionError error
-	proxy           *client.ProxyClient
+	cluster         *client.ClusterClient
+	auth            auth.ClientI
 	profile         *client.ProfileStatus
 	req             proto.ListResourcesRequest
 }
@@ -2201,7 +2228,7 @@ func (c *clusterClient) Close() error {
 		return nil
 	}
 
-	return c.proxy.Close()
+	return trace.NewAggregate(c.auth.Close(), c.cluster.Close())
 }
 
 // getClusterClients establishes a ProxyClient to every cluster
@@ -2226,8 +2253,7 @@ func getClusterClients(cf *CLIConf, resource string) ([]*clusterClient, error) {
 		logger := log.WithField("cluster", profile.Cluster)
 
 		logger.Debug("Creating client...")
-		//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
-		proxy, err := tc.ConnectToProxy(ctx)
+		clt, err := tc.ConnectToCluster(ctx)
 		if err != nil {
 			// log error and return nil so that results may still be retrieved
 			// for other clusters.
@@ -2242,20 +2268,43 @@ func getClusterClients(cf *CLIConf, resource string) ([]*clusterClient, error) {
 			return nil
 		}
 
-		sites, err := proxy.GetSites(ctx)
+		// Add the local cluster to the output
+		mu.Lock()
+		clusters = append(clusters, &clusterClient{
+			name:    tc.SiteName,
+			cluster: clt,
+			auth:    clt.AuthClient,
+			profile: profile,
+			req:     *tc.ResourceFilter(resource),
+		})
+		mu.Unlock()
+
+		// Check if the user has access to any attached remote clusters.
+		remoteClusters, err := clt.AuthClient.GetRemoteClusters(ctx)
 		if err != nil {
-			// log error and create a site for the proxy we were able to
-			// connect to so that results are still retrieved.
+			// Log that an error happened but do not return an error to
+			// prevent results from other clusters from being retrieved.
 			logger.Errorf("Failed to lookup leaf clusters: %v", err)
-			sites = []types.Site{{Name: profile.Cluster}}
+			return nil
 		}
 
-		localClusters := make([]*clusterClient, 0, len(sites))
-		for _, site := range sites {
+		localClusters := make([]*clusterClient, 0, len(remoteClusters))
+		for _, cluster := range remoteClusters {
+			clusterName := cluster.GetName()
+			auth, err := clt.ConnectToCluster(ctx, clusterName)
+			if err != nil {
+				localClusters = append(localClusters, &clusterClient{
+					name:            clusterName,
+					connectionError: trace.ConnectionProblem(err, "failed to connect to cluster %s: %v", clusterName, err),
+				})
+				continue
+			}
+
 			localClusters = append(localClusters, &clusterClient{
-				proxy:   proxy,
+				cluster: clt,
+				auth:    auth,
 				profile: profile,
-				name:    site.Name,
+				name:    clusterName,
 				req:     *tc.ResourceFilter(resource),
 			})
 		}
@@ -2337,7 +2386,7 @@ func listNodesAllClusters(cf *CLIConf) error {
 			defer span.End()
 
 			logger := log.WithField("cluster", cluster.name)
-			nodes, err := cluster.proxy.FindNodesByFiltersForCluster(ctx, &cluster.req, cluster.name)
+			nodes, err := apiclient.GetAllResources[types.Server](ctx, cluster.auth, &cluster.req)
 			if err != nil {
 				logger.Errorf("Failed to get nodes: %v.", err)
 
@@ -2658,17 +2707,17 @@ func printNodesAsText[T types.Server](output io.Writer, nodes []T, verbose bool)
 	return nil
 }
 
-func showApps(apps []types.Application, active []tlsca.RouteToApp, format string, verbose bool) error {
+func showApps(apps []types.Application, active []tlsca.RouteToApp, w io.Writer, format string, verbose bool) error {
 	format = strings.ToLower(format)
 	switch format {
 	case teleport.Text, "":
-		showAppsAsText(apps, active, verbose)
+		showAppsAsText(apps, active, verbose, w)
 	case teleport.JSON, teleport.YAML:
 		out, err := serializeApps(apps, format)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Println(out)
+		fmt.Fprintln(w, out)
 	default:
 		return trace.BadParameter("unsupported format %q", format)
 	}
@@ -2713,7 +2762,7 @@ func getAppRow(proxy, cluster string, app types.Application, active []tlsca.Rout
 	return row
 }
 
-func showAppsAsText(apps []types.Application, active []tlsca.RouteToApp, verbose bool) {
+func showAppsAsText(apps []types.Application, active []tlsca.RouteToApp, verbose bool, w io.Writer) {
 	var rows [][]string
 	for _, app := range apps {
 		rows = append(rows, getAppRow("", "", app, active, verbose))
@@ -2728,7 +2777,7 @@ func showAppsAsText(apps []types.Application, active []tlsca.RouteToApp, verbose
 		t = asciitable.MakeTableWithTruncatedColumn(
 			[]string{"Application", "Description", "Type", "Public Address", "Labels"}, rows, "Labels")
 	}
-	fmt.Println(t.AsBuffer().String())
+	fmt.Fprintln(w, t.AsBuffer().String())
 }
 
 func showDatabases(cf *CLIConf, databases []types.Database, active []tlsca.RouteToDatabase, accessChecker services.AccessChecker) error {
@@ -3192,9 +3241,9 @@ func serializeClusters(rootCluster clusterInfo, leafClusters []clusterInfo, form
 	return string(out), trace.Wrap(err)
 }
 
-// accessRequestForSSH attempts to create a resource access request for the case
+// accessRequestForSSH attempts to create an access request for the case
 // where "tsh ssh" was attempted and access was denied
-func accessRequestForSSH(ctx context.Context, _ *CLIConf, tc *client.TeleportClient) (types.AccessRequest, error) {
+func accessRequestForSSH(ctx context.Context, cf *CLIConf, tc *client.TeleportClient) (types.AccessRequest, error) {
 	if tc.Host == "" {
 		return nil, trace.BadParameter("no host specified")
 	}
@@ -3225,14 +3274,30 @@ func accessRequestForSSH(ctx context.Context, _ *CLIConf, tc *client.TeleportCli
 
 	// At this point we have exactly 1 node.
 	node := rsp.Servers[0]
+	var req types.AccessRequest
 	requestResourceIDs := []types.ResourceID{{
 		ClusterName: tc.SiteName,
 		Kind:        types.KindNode,
 		Name:        node.GetName(),
 	}}
+	switch cf.RequestMode {
+	case accessRequestModeRole:
+		req, err = getAutoRoleRequest(ctx, clt, requestResourceIDs, tc)
+	case accessRequestModeResource:
+		req, err = getAutoResourceRequest(ctx, tc, requestResourceIDs)
+	default:
+		return nil, trace.BadParameter("unexpected request mode %q", cf.RequestMode)
+	}
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
+	return req, nil
+}
+
+func getAutoResourceRequest(ctx context.Context, tc *client.TeleportClient, requestResourceIDs []types.ResourceID) (types.AccessRequest, error) {
 	// Roles to request will be automatically determined on the backend.
-	req, err := services.NewAccessRequestWithResources(tc.Username, nil /* roles */, requestResourceIDs)
+	req, err := services.NewAccessRequestWithResources(tc.Username, nil, requestResourceIDs)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3251,7 +3316,28 @@ func accessRequestForSSH(ctx context.Context, _ *CLIConf, tc *client.TeleportCli
 	}
 	req.SetDryRun(false)
 	req.SetRequestReason("")
+	return req, nil
+}
 
+func getAutoRoleRequest(ctx context.Context, clt *client.ClusterClient, requestResourceIDs []types.ResourceID, tc *client.TeleportClient) (types.AccessRequest, error) {
+	rootClient, err := clt.ConnectToRootCluster(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	resp, err := rootClient.GetAccessCapabilities(ctx, types.AccessCapabilitiesRequest{
+		RequestableRoles:                 true,
+		ResourceIDs:                      requestResourceIDs,
+		Login:                            tc.HostLogin,
+		FilterRequestableRolesByResource: true,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	req, err := services.NewAccessRequestWithResources(tc.Username, resp.RequestableRoles, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return req, nil
 }
 
@@ -3263,8 +3349,8 @@ func retryWithAccessRequest(
 	resource string,
 ) error {
 	origErr := fn()
-	if cf.disableAccessRequest || !trace.IsAccessDenied(origErr) {
-		// Return if --disable-access-request was specified.
+	if cf.RequestMode == accessRequestModeOff || !trace.IsAccessDenied(origErr) {
+		// Return if --request-mode=off was specified.
 		// Return the original error if it's not AccessDenied.
 		// Quit now if we don't have a hostname.
 		return trace.Wrap(origErr)
@@ -3284,10 +3370,10 @@ func retryWithAccessRequest(
 	// Print and log the original AccessDenied error.
 	fmt.Fprintln(os.Stderr, utils.UserMessageFromError(origErr))
 	fmt.Fprintf(os.Stdout, "You do not currently have access to %q, attempting to request access.\n\n", resource)
-
-	if err := setAccessRequestReason(cf, req); err != nil {
+	if err := promptUserForAccessRequestDetails(cf, req); err != nil {
 		return trace.Wrap(err)
 	}
+
 	if err := sendAccessRequestAndWaitForApproval(cf, tc, req); err != nil {
 		return trace.Wrap(err)
 	}
@@ -3296,6 +3382,32 @@ func retryWithAccessRequest(
 	// Clear the original exit status.
 	tc.ExitStatus = 0
 	return trace.Wrap(fn())
+}
+
+func promptUserForAccessRequestDetails(cf *CLIConf, req types.AccessRequest) error {
+	if cf.RequestMode != accessRequestModeRole {
+		return nil
+	}
+	// If this is a role access request, ensure that it only has one role.
+	switch len(req.GetRoles()) {
+	case 0:
+		return trace.AccessDenied("no roles to request that would grant access")
+	case 1:
+		return nil
+	default:
+		selectedRole, err := prompt.PickOne(
+			cf.Context, os.Stdout, prompt.NewContextReader(os.Stdin),
+			"Choose role to request",
+			req.GetRoles())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		req.SetRoles([]string{selectedRole})
+	}
+	if err := setAccessRequestReason(cf, req); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 func setAccessRequestReason(cf *CLIConf, req types.AccessRequest) (err error) {
@@ -3697,13 +3809,13 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	}
 
 	// Check if this host has a matching proxy template.
-	tProxy, tHost, tCluster, tMatched := cf.TSHConfig.ProxyTemplates.Apply(fullHostName)
+	expanded, tMatched := cf.TSHConfig.ProxyTemplates.Apply(fullHostName)
 	if !tMatched && useProxyTemplate {
 		return nil, trace.BadParameter("proxy jump contains {{proxy}} variable but did not match any of the templates in tsh config")
 	} else if tMatched {
-		if tHost != "" {
-			c.Host = tHost
-			log.Debugf("Will connect to host %q according to proxy template.", tHost)
+		if expanded.Host != "" {
+			c.Host = expanded.Host
+			log.Debugf("Will connect to host %q according to proxy template.", expanded.Host)
 
 			if host, port, err := net.SplitHostPort(c.Host); err == nil {
 				c.Host = host
@@ -3712,17 +3824,27 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 					return nil, trace.Wrap(err)
 				}
 			}
+		} else if expanded.Query != "" {
+			log.Debugf("Will query for hosts via %q according to proxy template.", expanded.Query)
+			cf.PredicateExpression = expanded.Query
+			// The PredicateExpression is ignored if the Host is populated.
+			c.Host = ""
+		} else if expanded.Search != "" {
+			log.Debugf("Will search for hosts via %q according to proxy template.", expanded.Search)
+			cf.SearchKeywords = expanded.Search
+			// The SearchKeywords are ignored if the Host is populated.
+			c.Host = ""
 		}
 
 		// Don't overwrite proxy jump if explicitly provided
-		if cf.ProxyJump == "" && tProxy != "" {
-			cf.ProxyJump = tProxy
-			log.Debugf("Will connect to proxy %q according to proxy template.", tProxy)
+		if cf.ProxyJump == "" && expanded.Proxy != "" {
+			cf.ProxyJump = expanded.Proxy
+			log.Debugf("Will connect to proxy %q according to proxy template.", expanded.Proxy)
 		}
 
-		if tCluster != "" {
-			cf.SiteName = tCluster
-			log.Debugf("Will connect to cluster %q according to proxy template.", tCluster)
+		if expanded.Cluster != "" {
+			cf.SiteName = expanded.Cluster
+			log.Debugf("Will connect to cluster %q according to proxy template.", expanded.Cluster)
 		}
 	}
 
@@ -3837,7 +3959,6 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	c.KeyTTL = time.Minute * time.Duration(cf.MinsToLive)
 	c.InsecureSkipVerify = cf.InsecureSkipVerify
 	c.PredicateExpression = cf.PredicateExpression
-
 	if cf.SearchKeywords != "" {
 		c.SearchKeywords = client.ParseSearchKeywords(cf.SearchKeywords, ',')
 	}
@@ -4729,7 +4850,7 @@ func onApps(cf *CLIConf) error {
 		return apps[i].GetName() < apps[j].GetName()
 	})
 
-	return trace.Wrap(showApps(apps, profile.Apps, cf.Format, cf.Verbose))
+	return trace.Wrap(showApps(apps, profile.Apps, cf.Stdout(), cf.Format, cf.Verbose))
 }
 
 type appListing struct {
@@ -4759,25 +4880,78 @@ func (l appListings) Swap(i, j int) {
 }
 
 func listAppsAllClusters(cf *CLIConf) error {
-	var listings appListings
-	err := forEachProfile(cf, func(tc *client.TeleportClient, profile *client.ProfileStatus) error {
-		result, err := tc.ListAppsAllClusters(cf.Context, nil /* custom filter */)
-		if err != nil {
-			return trace.Wrap(err)
+	clusters, err := getClusterClients(cf, types.KindAppServer)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	defer func() {
+		// close all clients
+		for _, cluster := range clusters {
+			_ = cluster.Close()
 		}
-		for clusterName, apps := range result {
+	}()
+
+	// Fetch listings for all clusters in parallel with an upper limit
+	group, groupCtx := errgroup.WithContext(cf.Context)
+	group.SetLimit(10)
+
+	// mu guards access to dbListings
+	var (
+		mu       sync.Mutex
+		listings appListings
+		errors   []error
+	)
+	for _, cluster := range clusters {
+		cluster := cluster
+		if cluster.connectionError != nil {
+			mu.Lock()
+			errors = append(errors, cluster.connectionError)
+			mu.Unlock()
+			continue
+		}
+
+		logger := log.WithField("cluster", cluster.name)
+		group.Go(func() error {
+			servers, err := apiclient.GetAllResources[types.AppServer](groupCtx, cluster.auth, &cluster.req)
+			if err != nil {
+				logger.Errorf("Failed to get app servers: %v.", err)
+
+				mu.Lock()
+				errors = append(errors, trace.ConnectionProblem(err, "failed to list app serves for cluster %s: %v", cluster.name, err))
+				mu.Unlock()
+				return nil
+			}
+
+			apps := make([]types.Application, 0, len(servers))
+			for _, srv := range servers {
+				apps = append(apps, srv.GetApp())
+			}
+			apps = types.DeduplicateApps(apps)
+
+			localAppListings := make([]appListing, 0, len(servers))
 			for _, app := range apps {
-				listings = append(listings, appListing{
-					Proxy:   profile.ProxyURL.Host,
-					Cluster: clusterName,
+				localAppListings = append(localAppListings, appListing{
+					Proxy:   cluster.profile.ProxyURL.Host,
+					Cluster: cluster.name,
 					App:     app,
 				})
 			}
-		}
-		return nil
-	})
-	if err != nil {
+
+			mu.Lock()
+			listings = append(listings, localAppListings...)
+			mu.Unlock()
+
+			return nil
+		})
+	}
+
+	if err := group.Wait(); err != nil {
 		return trace.Wrap(err)
+	}
+
+	if len(listings) == 0 && len(errors) > 0 {
+		return trace.NewAggregate(errors...)
 	}
 
 	sort.Sort(listings)
@@ -4800,7 +4974,7 @@ func listAppsAllClusters(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Println(out)
+		fmt.Fprintln(cf.Stdout(), out)
 	default:
 		return trace.BadParameter("unsupported format %q", format)
 	}
@@ -4977,34 +5151,6 @@ func validateParticipantMode(mode types.SessionParticipantMode) error {
 	}
 }
 
-// forEachProfile performs an action for each profile a user is currently logged in to.
-func forEachProfile(cf *CLIConf, fn func(tc *client.TeleportClient, profile *client.ProfileStatus) error) error {
-	profiles, err := cf.ListProfiles()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	clock := clockwork.NewRealClock()
-	errors := make([]error, 0)
-	for _, p := range profiles {
-		proxyAddr := p.ProxyURL.Host
-		if p.IsExpired(clock) {
-			fmt.Fprintf(os.Stderr, "Credentials expired for proxy %q, skipping...\n", proxyAddr)
-			continue
-		}
-		tc, err := makeClientForProxy(cf, proxyAddr)
-		if err != nil {
-			errors = append(errors, err)
-			continue
-		}
-		if err := fn(tc, p); err != nil {
-			errors = append(errors, err)
-		}
-	}
-
-	return trace.NewAggregate(errors...)
-}
-
 // forEachProfileParallel performs an action for each profile a user is currently logged in to in
 // parallel.
 func forEachProfileParallel(cf *CLIConf, fn func(ctx context.Context, tc *client.TeleportClient, profile *client.ProfileStatus) error) error {
@@ -5016,11 +5162,10 @@ func forEachProfileParallel(cf *CLIConf, fn func(ctx context.Context, tc *client
 		return trace.Wrap(err)
 	}
 
-	clock := clockwork.NewRealClock()
 	for _, p := range profiles {
 		p := p
 		proxyAddr := p.ProxyURL.Host
-		if p.IsExpired(clock) {
+		if p.IsExpired(time.Now()) {
 			fmt.Fprintf(os.Stderr, "Credentials expired for proxy %q, skipping...\n", proxyAddr)
 			continue
 		}

@@ -32,35 +32,23 @@ import (
 	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
-	awsConfig "github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/athena"
-	"github.com/aws/aws-sdk-go-v2/service/glue"
-	"github.com/aws/aws-sdk-go-v2/service/iam"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	ecatypes "github.com/gravitational/teleport/api/types/externalauditstorage"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/configurators"
 	awsconfigurators "github.com/gravitational/teleport/lib/configurators/aws"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/integrations/awsoidc"
-	"github.com/gravitational/teleport/lib/integrations/externalauditstorage"
-	"github.com/gravitational/teleport/lib/integrations/externalauditstorage/easconfig"
-	"github.com/gravitational/teleport/lib/integrations/samlidp"
-	"github.com/gravitational/teleport/lib/integrations/samlidp/samlidpconfig"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/openssh"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
+	"github.com/gravitational/teleport/lib/tpm"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -76,6 +64,7 @@ type Options struct {
 // Run inits/starts the process according to the provided options
 func Run(options Options) (app *kingpin.Application, executedCommand string, conf *servicecfg.Config) {
 	var err error
+	ctx := context.Background()
 
 	// configure trace's errors to produce full stack traces
 	isDebug, _ := strconv.ParseBool(os.Getenv(teleport.VerboseLogsEnvVar))
@@ -473,6 +462,9 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	integrationConfEICECmd.Flag("aws-region", "AWS Region.").Required().StringVar(&ccf.IntegrationConfEICEIAMArguments.Region)
 	integrationConfEICECmd.Flag("role", "The AWS Role used by the AWS OIDC Integration.").Required().StringVar(&ccf.IntegrationConfEICEIAMArguments.Role)
 
+	integrationConfAWSAppAccessCmd := integrationConfigureCmd.Command("aws-app-access-iam", "Adds required IAM permissions to connect to AWS using App Access.")
+	integrationConfAWSAppAccessCmd.Flag("role", "The AWS Role name used by the AWS OIDC Integration.").Required().StringVar(&ccf.IntegrationConfAWSAppAccessIAMArguments.RoleName)
+
 	integrationConfEKSCmd := integrationConfigureCmd.Command("eks-iam", "Adds required IAM permissions for enrollment of EKS clusters to Teleport.")
 	integrationConfEKSCmd.Flag("aws-region", "AWS Region.").Required().StringVar(&ccf.IntegrationConfEKSIAMArguments.Region)
 	integrationConfEKSCmd.Flag("role", "The AWS Role used by the AWS OIDC Integration.").Required().StringVar(&ccf.IntegrationConfEKSIAMArguments.Role)
@@ -519,6 +511,9 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	integrationSAMLIdPGCPWorkforce.Flag("pool-name", "Name for the new workforce identity pool.").Required().StringVar(&ccf.IntegrationConfSAMLIdPGCPWorkforceArguments.PoolName)
 	integrationSAMLIdPGCPWorkforce.Flag("pool-provider-name", "Name for the new workforce identity pool provider.").Required().StringVar(&ccf.IntegrationConfSAMLIdPGCPWorkforceArguments.PoolProviderName)
 	integrationSAMLIdPGCPWorkforce.Flag("idp-metadata-url", "Teleport SAML IdP metadata endpoint.").Required().StringVar(&ccf.IntegrationConfSAMLIdPGCPWorkforceArguments.SAMLIdPMetadataURL)
+
+	tpmCmd := app.Command("tpm", "Commands related to managing TPM joining functionality.")
+	tpmIdentifyCmd := tpmCmd.Command("identify", "Output identifying information related to the TPM detected on the system.")
 
 	// parse CLI commands+flags:
 	utils.UpdateAppUsageTemplate(app, options.Args)
@@ -608,21 +603,30 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	case joinOpenSSH.FullCommand():
 		err = onJoinOpenSSH(ccf, conf)
 	case integrationConfDeployServiceCmd.FullCommand():
-		err = onIntegrationConfDeployService(ccf.IntegrationConfDeployServiceIAMArguments)
+		err = onIntegrationConfDeployService(ctx, ccf.IntegrationConfDeployServiceIAMArguments)
 	case integrationConfEICECmd.FullCommand():
-		err = onIntegrationConfEICEIAM(ccf.IntegrationConfEICEIAMArguments)
+		err = onIntegrationConfEICEIAM(ctx, ccf.IntegrationConfEICEIAMArguments)
+	case integrationConfAWSAppAccessCmd.FullCommand():
+		err = onIntegrationConfAWSAppAccessIAM(ctx, ccf.IntegrationConfAWSAppAccessIAMArguments)
 	case integrationConfEKSCmd.FullCommand():
-		err = onIntegrationConfEKSIAM(ccf.IntegrationConfEKSIAMArguments)
+		err = onIntegrationConfEKSIAM(ctx, ccf.IntegrationConfEKSIAMArguments)
 	case integrationConfAWSOIDCIdPCmd.FullCommand():
-		err = onIntegrationConfAWSOIDCIdP(ccf)
+		err = onIntegrationConfAWSOIDCIdP(ctx, ccf)
 	case integrationConfListDatabasesCmd.FullCommand():
-		err = onIntegrationConfListDatabasesIAM(ccf.IntegrationConfListDatabasesIAMArguments)
+		err = onIntegrationConfListDatabasesIAM(ctx, ccf.IntegrationConfListDatabasesIAMArguments)
 	case integrationConfExternalAuditCmd.FullCommand():
-		err = onIntegrationConfExternalAuditCmd(ccf.IntegrationConfExternalAuditStorageArguments)
+		err = onIntegrationConfExternalAuditCmd(ctx, ccf.IntegrationConfExternalAuditStorageArguments)
 	case integrationConfTAGSyncCmd.FullCommand():
-		err = onIntegrationConfAccessGraphAWSSync(ccf.IntegrationConfAccessGraphAWSSyncArguments)
+		err = onIntegrationConfAccessGraphAWSSync(ctx, ccf.IntegrationConfAccessGraphAWSSyncArguments)
 	case integrationSAMLIdPGCPWorkforce.FullCommand():
-		err = onIntegrationConfSAMLIdPGCPWorkforce(ccf.IntegrationConfSAMLIdPGCPWorkforceArguments)
+		err = onIntegrationConfSAMLIdPGCPWorkforce(ctx, ccf.IntegrationConfSAMLIdPGCPWorkforceArguments)
+	case tpmIdentifyCmd.FullCommand():
+		var query *tpm.QueryRes
+		query, err = tpm.Query(context.Background(), slog.Default())
+		if err != nil {
+			break
+		}
+		tpm.PrintQuery(query, ccf.Debug, os.Stdout)
 	}
 	if err != nil {
 		utils.FatalError(err)
@@ -956,206 +960,5 @@ func onJoinOpenSSH(clf config.CommandLineFlags, conf *servicecfg.Config) error {
 	if err := OnStart(clf, conf); err != nil {
 		return trace.Wrap(err)
 	}
-	return nil
-}
-
-func onIntegrationConfDeployService(params config.IntegrationConfDeployServiceIAM) error {
-	ctx := context.Background()
-
-	// Ensure we print output to the user. LogLevel at this point was set to Error.
-	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
-
-	iamClient, err := awsoidc.NewDeployServiceIAMConfigureClient(ctx, params.Region)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = awsoidc.ConfigureDeployServiceIAM(ctx, iamClient, awsoidc.DeployServiceIAMConfigureRequest{
-		Cluster:         params.Cluster,
-		IntegrationName: params.Name,
-		Region:          params.Region,
-		IntegrationRole: params.Role,
-		TaskRole:        params.TaskRole,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-func onIntegrationConfEICEIAM(params config.IntegrationConfEICEIAM) error {
-	ctx := context.Background()
-
-	// Ensure we print output to the user. LogLevel at this point was set to Error.
-	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
-
-	iamClient, err := awsoidc.NewEICEIAMConfigureClient(ctx, params.Region)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = awsoidc.ConfigureEICEIAM(ctx, iamClient, awsoidc.EICEIAMConfigureRequest{
-		Region:          params.Region,
-		IntegrationRole: params.Role,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-func onIntegrationConfEKSIAM(params config.IntegrationConfEKSIAM) error {
-	ctx := context.Background()
-
-	// Ensure we print output to the user. LogLevel at this point was set to Error.
-	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
-
-	iamClient, err := awsoidc.NewEKSIAMConfigureClient(ctx, params.Region)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = awsoidc.ConfigureEKSIAM(ctx, iamClient, awsoidc.EKSIAMConfigureRequest{
-		Region:          params.Region,
-		IntegrationRole: params.Role,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-func onIntegrationConfAWSOIDCIdP(clf config.CommandLineFlags) error {
-	ctx := context.Background()
-
-	// pass the value of --insecure flag to the runtime
-	lib.SetInsecureDevMode(clf.InsecureMode)
-
-	// Ensure we print output to the user. LogLevel at this point was set to Error.
-	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
-
-	iamClient, err := awsoidc.NewIdPIAMConfigureClient(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = awsoidc.ConfigureIdPIAM(ctx, iamClient, awsoidc.IdPIAMConfigureRequest{
-		Cluster:            clf.IntegrationConfAWSOIDCIdPArguments.Cluster,
-		IntegrationName:    clf.IntegrationConfAWSOIDCIdPArguments.Name,
-		IntegrationRole:    clf.IntegrationConfAWSOIDCIdPArguments.Role,
-		ProxyPublicAddress: clf.IntegrationConfAWSOIDCIdPArguments.ProxyPublicURL,
-		S3BucketLocation:   clf.IntegrationConfAWSOIDCIdPArguments.S3BucketURI,
-		S3JWKSContentsB64:  clf.IntegrationConfAWSOIDCIdPArguments.S3JWKSContentsB64,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-func onIntegrationConfListDatabasesIAM(params config.IntegrationConfListDatabasesIAM) error {
-	ctx := context.Background()
-
-	// Ensure we show progress to the user.
-	// LogLevel at this point is set to Error.
-	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
-
-	if params.Region == "" {
-		return trace.BadParameter("region is required")
-	}
-
-	cfg, err := awsConfig.LoadDefaultConfig(ctx, awsConfig.WithRegion(params.Region))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	iamClient := iam.NewFromConfig(cfg)
-
-	err = awsoidc.ConfigureListDatabasesIAM(ctx, iamClient, awsoidc.ConfigureIAMListDatabasesRequest{
-		Region:          params.Region,
-		IntegrationRole: params.Role,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-func onIntegrationConfExternalAuditCmd(params easconfig.ExternalAuditStorageConfiguration) error {
-	ctx := context.Background()
-	cfg, err := awsConfig.LoadDefaultConfig(ctx, awsConfig.WithRegion(params.Region))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if params.Bootstrap {
-		err = externalauditstorage.BootstrapInfra(ctx, externalauditstorage.BootstrapInfraParams{
-			Athena: athena.NewFromConfig(cfg),
-			Glue:   glue.NewFromConfig(cfg),
-			S3:     s3.NewFromConfig(cfg),
-			Spec: &ecatypes.ExternalAuditStorageSpec{
-				SessionRecordingsURI:   params.SessionRecordingsURI,
-				AuditEventsLongTermURI: params.AuditEventsURI,
-				AthenaResultsURI:       params.AthenaResultsURI,
-				AthenaWorkgroup:        params.AthenaWorkgroup,
-				GlueDatabase:           params.GlueDatabase,
-				GlueTable:              params.GlueTable,
-			},
-			Region: params.Region,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	clt := &awsoidc.DefaultConfigureExternalAuditStorageClient{
-		Iam: iam.NewFromConfig(cfg),
-		Sts: sts.NewFromConfig(cfg),
-	}
-	return trace.Wrap(awsoidc.ConfigureExternalAuditStorage(ctx, clt, &params))
-}
-
-func onIntegrationConfAccessGraphAWSSync(params config.IntegrationConfAccessGraphAWSSync) error {
-	ctx := context.Background()
-
-	// Ensure we print output to the user. LogLevel at this point was set to Error.
-	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
-
-	iamClient, err := awsoidc.NewAccessGraphIAMConfigureClient(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = awsoidc.ConfigureAccessGraphSyncIAM(ctx, iamClient, awsoidc.AccessGraphAWSIAMConfigureRequest{
-		IntegrationRole: params.Role,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-func onIntegrationConfSAMLIdPGCPWorkforce(params samlidpconfig.GCPWorkforceAPIParams) error {
-	ctx := context.Background()
-
-	// Ensure we print output to the user. LogLevel at this point was set to Error.
-	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
-
-	gcpWorkforceService, err := samlidp.NewGCPWorkforceService(samlidp.GCPWorkforceService{
-		APIParams: params,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := gcpWorkforceService.CreateWorkforcePoolAndProvider(ctx); err != nil {
-		return trace.Wrap(err)
-	}
-
 	return nil
 }

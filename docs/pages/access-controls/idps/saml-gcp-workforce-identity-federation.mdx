@@ -20,7 +20,7 @@ SAML IdP, so users can sign in into GCP web console by authenticating with Telep
 
 ## Prerequisites
 
-(!docs/pages/includes/no-oss-prereqs-tabs.mdx!)
+(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
 - (!docs/pages/includes/tctl.mdx!)
 - If you're new to SAML, consider reviewing our [SAML Identity Provider
@@ -115,7 +115,7 @@ pool user `test@example.com` with a permissions to browse GCP project resources.
 
 ```
 gcloud projects add-iam-policy-binding GCP_PROJECT_ID \
- --role=”roles/browser”  \
+ --role="roles/browser"  \
  --member="principal://iam.googleapis.com/locations/global/workforcePools/<pool id>/subject/test@example.com"
 ```
 
@@ -178,8 +178,8 @@ Next, an IAM policy must be created referencing GCP group.
 
 ```
 gcloud projects add-iam-policy-binding <GCP_Project_ID> \
- --role=”roles/browser”  \
- --member=”principalSet://iam.googleapis.com/locations/global/workforcePools/<pool id>/group/gcp-dev”
+ --role="roles/browser"  \
+ --member="principalSet://iam.googleapis.com/locations/global/workforcePools/<pool id>/group/gcp-dev"
 ```
 
 Since Teleport role was mapped as a GCP group with attribute mapping, the policy will grant

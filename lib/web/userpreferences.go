@@ -58,6 +58,11 @@ type UnifiedResourcePreferencesResponse struct {
 	LabelsViewMode userpreferencesv1.LabelsViewMode `json:"labelsViewMode"`
 }
 
+// AccessGraphPreferencesResponse is the JSON response for Access Graph preferences.
+type AccessGraphPreferencesResponse struct {
+	HasBeenRedirected bool `json:"hasBeenRedirected"`
+}
+
 // UserPreferencesResponse is the JSON response for the user preferences.
 type UserPreferencesResponse struct {
 	Assist                     AssistUserPreferencesResponse      `json:"assist"`
@@ -65,6 +70,7 @@ type UserPreferencesResponse struct {
 	UnifiedResourcePreferences UnifiedResourcePreferencesResponse `json:"unifiedResourcePreferences"`
 	Onboard                    OnboardUserPreferencesResponse     `json:"onboard"`
 	ClusterPreferences         ClusterUserPreferencesResponse     `json:"clusterPreferences,omitempty"`
+	AccessGraph                AccessGraphPreferencesResponse     `json:"accessGraph,omitempty"`
 }
 
 func (h *Handler) getUserClusterPreferences(_ http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
@@ -145,6 +151,9 @@ func makePreferenceRequest(req UserPreferencesResponse) *userpreferencesv1.Upser
 					ResourceIds: req.ClusterPreferences.PinnedResources,
 				},
 			},
+			AccessGraph: &userpreferencesv1.AccessGraphUserPreferences{
+				HasBeenRedirected: req.AccessGraph.HasBeenRedirected,
+			},
 		},
 	}
 }
@@ -178,6 +187,7 @@ func userPreferencesResponse(resp *userpreferencesv1.UserPreferences) *UserPrefe
 		Onboard:                    onboardUserPreferencesResponse(resp.Onboard),
 		ClusterPreferences:         clusterPreferencesResponse(resp.ClusterPreferences),
 		UnifiedResourcePreferences: unifiedResourcePreferencesResponse(resp.UnifiedResourcePreferences),
+		AccessGraph:                accessGraphPreferencesResponse(resp.AccessGraph),
 	}
 
 	return jsonResp
@@ -230,4 +240,17 @@ func onboardUserPreferencesResponse(resp *userpreferencesv1.OnboardUserPreferenc
 	jsonResp.PreferredResources = append(jsonResp.PreferredResources, resp.PreferredResources...)
 
 	return jsonResp
+}
+
+// accessGraphPreferencesResponse creates a JSON response for the access graph preferences.
+func accessGraphPreferencesResponse(resp *userpreferencesv1.AccessGraphUserPreferences) AccessGraphPreferencesResponse {
+	if resp == nil {
+		return AccessGraphPreferencesResponse{
+			HasBeenRedirected: false,
+		}
+	}
+
+	return AccessGraphPreferencesResponse{
+		HasBeenRedirected: resp.HasBeenRedirected,
+	}
 }

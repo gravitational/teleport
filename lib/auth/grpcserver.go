@@ -48,6 +48,7 @@ import (
 	authpb "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
+	accessmonitoringrules "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	dbobjectpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
@@ -71,6 +72,7 @@ import (
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/accessmonitoringrules/accessmonitoringrulesv1"
 	"github.com/gravitational/teleport/lib/auth/assist/assistv1"
 	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
 	"github.com/gravitational/teleport/lib/auth/dbobject/dbobjectv1"
@@ -647,8 +649,8 @@ func validateUserCertsRequest(actx *grpcContext, req *authpb.UserCertsRequest) e
 			return trace.BadParameter("single-use certificates cannot be issued for all purposes")
 		}
 	case authpb.UserCertsRequest_App:
-		if req.Purpose == authpb.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS {
-			return trace.BadParameter("single-use certificates cannot be issued for app access")
+		if req.RouteToApp.Name == "" {
+			return trace.BadParameter("missing app Name field in an app-only UserCertsRequest")
 		}
 	case authpb.UserCertsRequest_SSH:
 		if req.NodeName == "" {
@@ -2571,7 +2573,7 @@ func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req auth
 	switch req.Usage {
 	case authpb.UserCertsRequest_SSH:
 		resp.SSH = certs.SSH
-	case authpb.UserCertsRequest_Kubernetes, authpb.UserCertsRequest_Database, authpb.UserCertsRequest_WindowsDesktop:
+	case authpb.UserCertsRequest_Kubernetes, authpb.UserCertsRequest_Database, authpb.UserCertsRequest_WindowsDesktop, authpb.UserCertsRequest_App:
 		resp.TLS = certs.TLS
 	default:
 		return nil, trace.BadParameter("unknown certificate usage %q", req.Usage)
@@ -4308,7 +4310,7 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *authpb.ListResource
 		return nil, trace.Wrap(err)
 	}
 
-	paginatedResources, err := services.MakePaginatedResources(req.ResourceType, resp.Resources)
+	paginatedResources, err := services.MakePaginatedResources(req.ResourceType, resp.Resources, nil /* requestable map */)
 	if err != nil {
 		return nil, trace.Wrap(err, "making paginated resources")
 	}
@@ -5444,6 +5446,16 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	kubewaitingcontainerpb.RegisterKubeWaitingContainersServiceServer(server, kubeWaitingContsServer)
+
+	accessMonitoringRuleServer, err := accessmonitoringrulesv1.NewService(&accessmonitoringrulesv1.ServiceConfig{
+		Authorizer: cfg.Authorizer,
+		Backend:    cfg.AuthServer.Services,
+		Cache:      cfg.AuthServer.Cache,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	accessmonitoringrules.RegisterAccessMonitoringRulesServiceServer(server, accessMonitoringRuleServer)
 
 	// Only register the service if this is an open source build. Enterprise builds
 	// register the actual service via an auth plugin, if we register here then all

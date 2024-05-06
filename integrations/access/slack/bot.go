@@ -188,6 +188,28 @@ func (b Bot) lookupDirectChannelByEmail(ctx context.Context, email string) (stri
 	return result.User.ID, nil
 }
 
+// NotifyUser directly messages a user when their request is updated
+func (b Bot) NotifyUser(ctx context.Context, reqID string, reqData pd.AccessRequestData) error {
+	recipient, err := b.FetchRecipient(ctx, reqData.User)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if recipient.Kind != RecipientKindEmail {
+		return trace.BadParameter("user was not found, cant directly notify")
+	}
+
+	_, err = b.client.NewRequest().
+		SetContext(ctx).
+		SetBody(Message{BaseMessage: BaseMessage{Channel: recipient.ID}, BlockItems: []BlockItem{
+			NewBlockItem(SectionBlock{
+				Text: NewTextObjectItem(MarkdownObject{Text: fmt.Sprintf("Request with ID %q has been updated: *%s*", reqID, reqData.ResolutionTag)}),
+			}),
+		}}).
+		Post("chat.postMessage")
+	return trace.Wrap(err)
+}
+
 // Expire updates request's Slack post with EXPIRED status and removes action buttons.
 func (b Bot) UpdateMessages(ctx context.Context, reqID string, reqData pd.AccessRequestData, slackData accessrequest.SentMessages, reviews []types.AccessReview) error {
 	var errors []error
@@ -217,6 +239,11 @@ func (b Bot) UpdateMessages(ctx context.Context, reqID string, reqData pd.Access
 	return nil
 }
 
+const (
+	RecipientKindEmail   = "Email"
+	RecipientKindChannel = "Channel"
+)
+
 func (b Bot) FetchRecipient(ctx context.Context, name string) (*common.Recipient, error) {
 	if lib.IsEmail(name) {
 		channel, err := b.lookupDirectChannelByEmail(ctx, name)
@@ -229,7 +256,7 @@ func (b Bot) FetchRecipient(ctx context.Context, name string) (*common.Recipient
 		return &common.Recipient{
 			Name: name,
 			ID:   channel,
-			Kind: "Email",
+			Kind: RecipientKindEmail,
 			Data: nil,
 		}, nil
 	}
@@ -237,7 +264,7 @@ func (b Bot) FetchRecipient(ctx context.Context, name string) (*common.Recipient
 	return &common.Recipient{
 		Name: name,
 		ID:   name,
-		Kind: "Channel",
+		Kind: RecipientKindChannel,
 		Data: nil,
 	}, nil
 }

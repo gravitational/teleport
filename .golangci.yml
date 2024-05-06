@@ -18,6 +18,11 @@ issues:
     - linters:
       - unused
       path: 'integrations/operator/controllers/resources/(.+)_controller_test\.go'
+    # TODO(codingllama): Remove once we move to grpc.NewClient.
+    - linters: [staticcheck]
+      text: "grpc.Dial is deprecated"
+    - linters: [staticcheck]
+      text: "grpc.DialContext is deprecated"
   exclude-use-default: true
   max-same-issues: 0
   max-issues-per-linter: 0
@@ -76,6 +81,7 @@ linters-settings:
       - standard # Standard section: captures all standard packages.
       - default # Default section: contains all imports that could not be matched to another section type.
       - prefix(github.com/gravitational/teleport) # Custom section: groups all imports with the specified Prefix.
+      - prefix(github.com/gravitational/teleport/integrations/terraform,github.com/gravitational/teleport/integrations/event-handler)
     skip-generated: true # Skip generated files.
     custom-order: true # Required for "sections" to take effect.
   misspell:

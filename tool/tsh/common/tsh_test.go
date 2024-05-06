@@ -46,8 +46,9 @@ import (
 	"time"
 
 	"github.com/ghodss/yaml"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	otlp "go.opentelemetry.io/proto/otlp/trace/v1"
@@ -90,6 +91,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
+	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 const (
@@ -1774,25 +1776,39 @@ func (o *output) String() string {
 // AccessDenied.
 func TestSSHAccessRequest(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
-	tmpHomePath := t.TempDir()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	requester, err := types.NewRole("requester", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Request: &types.AccessRequestConditions{
+				Roles:         []string{"node-access"},
 				SearchAsRoles: []string{"node-access"},
 			},
 		},
 	})
 	require.NoError(t, err)
 
+	emptyRole, err := types.NewRole("empty", types.RoleSpecV6{})
+	require.NoError(t, err)
+	searchOnlyRequester, err := types.NewRole("search-only-requester", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Roles:         []string{"empty"},
+				SearchAsRoles: []string{"node-access"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	user, err := user.Current()
+	require.NoError(t, err)
 	nodeAccessRole, err := types.NewRole("node-access", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			NodeLabels: types.Labels{
 				"access": {"true"},
 			},
-			Logins: []string{"{{internal.logins}}"},
+			Logins: []string{user.Username},
 		},
 	})
 	require.NoError(t, err)
@@ -1802,18 +1818,15 @@ func TestSSHAccessRequest(t *testing.T) {
 	alice, err := types.NewUser("alice@example.com")
 	require.NoError(t, err)
 	alice.SetRoles([]string{"requester"})
-	user, err := user.Current()
-	require.NoError(t, err)
 	traits := map[string][]string{
 		constants.TraitLogins: {user.Username},
 	}
 	alice.SetTraits(traits)
 
 	rootAuth, rootProxy := makeTestServers(t,
-		withBootstrap(requester, nodeAccessRole, connector, alice),
-		withConfig(func(cfg *servicecfg.Config) {
-			cfg.Clock = clockwork.NewFakeClock()
-		}))
+		withBootstrap(requester, searchOnlyRequester, nodeAccessRole, emptyRole, connector, alice),
+		// Do not use a fake clock to better imitate real-world behavior.
+	)
 
 	authAddr, err := rootAuth.AuthAddr()
 	require.NoError(t, err)
@@ -1850,6 +1863,20 @@ func TestSSHAccessRequest(t *testing.T) {
 	// wait for auth to see nodes
 	require.Eventually(t, hasNodes(sshHostID, sshHostID2, sshHostIDNoAccess),
 		10*time.Second, 100*time.Millisecond, "nodes never showed up")
+
+	// approve all requests as they're created
+	errChan := make(chan error)
+	t.Cleanup(func() {
+		require.ErrorIs(t, <-errChan, context.Canceled, "unexpected error from approveAllAccessRequests")
+	})
+	go func() {
+		err := approveAllAccessRequests(ctx, rootAuth.GetAuthServer())
+		// Cancel the context, so Run calls don't block
+		cancel()
+		errChan <- err
+	}()
+
+	tmpHomePath := t.TempDir()
 
 	err = Run(ctx, []string{
 		"login",
@@ -1888,116 +1915,166 @@ func TestSSHAccessRequest(t *testing.T) {
 	}, setHomePath(tmpHomePath))
 	require.Error(t, err)
 
-	// approve all requests as they're created
-	errChan := make(chan error)
-	t.Cleanup(func() {
-		require.ErrorIs(t, <-errChan, context.Canceled, "unexpected error from approveAllAccessRequests")
-	})
-	go func() {
-		err := approveAllAccessRequests(ctx, rootAuth.GetAuthServer())
-		// Cancel the context, so Run calls don't block
-		cancel()
-		errChan <- err
-	}()
-
 	// won't request if explicitly disabled
 	err = Run(ctx, []string{
 		"ssh",
 		"--insecure",
 		"--request-reason", "reason here to bypass prompt",
+		"--request-mode", accessRequestModeOff,
+		fmt.Sprintf("%s@%s", user.Username, sshHostname),
+		"echo", "test",
+	}, setHomePath(tmpHomePath))
+	require.Error(t, err)
+	err = Run(ctx, []string{
+		"ssh",
+		"--insecure",
+		"--request-reason", "reason here to bypass prompt",
 		"--disable-access-request",
 		fmt.Sprintf("%s@%s", user.Username, sshHostname),
 		"echo", "test",
 	}, setHomePath(tmpHomePath))
 	require.Error(t, err)
 
-	// the first ssh request can fail if the proxy node watcher doesn't know
-	// about the nodes yet, retry a few times until it works
-	require.Eventually(t, func() bool {
-		// ssh with request, by hostname
-		err := Run(ctx, []string{
-			"ssh",
-			"--debug",
-			"--insecure",
-			"--request-reason", "reason here to bypass prompt",
-			fmt.Sprintf("%s@%s", user.Username, sshHostname),
-			"echo", "test",
-		}, setHomePath(tmpHomePath))
-		if err != nil {
-			t.Logf("Got error while trying to SSH to node, retrying. Error: %v", err)
-		}
-		return err == nil
-	}, 10*time.Second, 100*time.Millisecond, "failed to ssh with retries")
+	tests := []struct {
+		name                        string
+		requestMode                 string
+		assertNonApprovedNodeAccess require.ErrorAssertionFunc
+		assertSearchRolesOnly       require.ErrorAssertionFunc
+	}{
+		{
+			name:                        "resource-based",
+			requestMode:                 accessRequestModeResource,
+			assertNonApprovedNodeAccess: require.Error,
+			assertSearchRolesOnly:       require.NoError,
+		},
+		{
+			name:                        "role-based",
+			requestMode:                 accessRequestModeRole,
+			assertNonApprovedNodeAccess: require.NoError,
+			assertSearchRolesOnly:       require.Error,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(ctx)
+			defer cancel()
 
-	// now that we have an approved access request, it should work without
-	// prompting for a request reason
-	err = Run(ctx, []string{
-		"ssh",
-		"--insecure",
-		fmt.Sprintf("%s@%s", user.Username, sshHostname),
-		"echo", "test",
-	}, setHomePath(tmpHomePath))
-	require.NoError(t, err)
+			alice.SetRoles([]string{"requester"})
+			_, err = rootAuth.GetAuthServer().UpsertUser(ctx, alice)
+			require.NoError(t, err)
 
-	// log out and back in with no access request
-	err = Run(ctx, []string{
-		"logout",
-	}, setHomePath(tmpHomePath))
-	require.NoError(t, err)
-	err = Run(ctx, []string{
-		"login",
-		"--insecure",
-		"--proxy", proxyAddr.String(),
-		"--user", "alice",
-	}, setHomePath(tmpHomePath), setMockSSOLogin(rootAuth.GetAuthServer(), alice, connector.GetName()))
-	require.NoError(t, err)
+			// the first ssh request can fail if the proxy node watcher doesn't know
+			// about the nodes yet, retry a few times until it works
+			require.Eventually(t, func() bool {
+				// ssh with request, by hostname
+				err := Run(ctx, []string{
+					"ssh",
+					"--debug",
+					"--insecure",
+					"--request-mode", tc.requestMode,
+					"--request-reason", "reason here to bypass prompt",
+					fmt.Sprintf("%s@%s", user.Username, sshHostname),
+					"echo", "test",
+				}, setHomePath(tmpHomePath))
+				if err != nil {
+					t.Logf("Got error while trying to SSH to node, retrying. Error: %v", err)
+				}
+				return err == nil
+			}, 10*time.Second, 100*time.Millisecond, "failed to ssh with retries")
 
-	// ssh with request, by host ID
-	err = Run(ctx, []string{
-		"ssh",
-		"--insecure",
-		"--request-reason", "reason here to bypass prompt",
-		fmt.Sprintf("%s@%s", user.Username, sshHostID),
-		"echo", "test",
-	}, setHomePath(tmpHomePath))
-	require.NoError(t, err)
+			// now that we have an approved access request, it should work without
+			// prompting for a request reason
+			err = Run(ctx, []string{
+				"ssh",
+				"--insecure",
+				fmt.Sprintf("%s@%s", user.Username, sshHostname),
+				"echo", "test",
+			}, setHomePath(tmpHomePath))
+			require.NoError(t, err)
 
-	// fail to ssh to other non-approved node, do not prompt for request
-	err = Run(ctx, []string{
-		"ssh",
-		"--insecure",
-		fmt.Sprintf("%s@%s", user.Username, sshHostname2),
-		"echo", "test",
-	}, setHomePath(tmpHomePath))
-	require.Error(t, err)
+			// log out and back in with no access request
+			err = Run(ctx, []string{
+				"logout",
+			}, setHomePath(tmpHomePath))
+			require.NoError(t, err)
+			err = Run(ctx, []string{
+				"login",
+				"--insecure",
+				"--proxy", proxyAddr.String(),
+				"--user", "alice",
+			}, setHomePath(tmpHomePath), setMockSSOLogin(rootAuth.GetAuthServer(), alice, connector.GetName()))
+			require.NoError(t, err)
 
-	// drop the current access request
-	err = Run(ctx, []string{
-		"--insecure",
-		"request",
-		"drop",
-	}, setHomePath(tmpHomePath))
-	require.NoError(t, err)
+			// ssh with request, by host ID
+			err = Run(ctx, []string{
+				"ssh",
+				"--insecure",
+				"--request-mode", tc.requestMode,
+				"--request-reason", "reason here to bypass prompt",
+				fmt.Sprintf("%s@%s", user.Username, sshHostID),
+				"echo", "test",
+			}, setHomePath(tmpHomePath))
+			require.NoError(t, err)
 
-	// fail to ssh to other node with no active request
-	err = Run(ctx, []string{
-		"ssh",
-		"--insecure",
-		"--disable-access-request",
-		fmt.Sprintf("%s@%s", user.Username, sshHostname2),
-		"echo", "test",
-	}, setHomePath(tmpHomePath))
-	require.Error(t, err)
+			// check access to non-requested node
+			err = Run(ctx, []string{
+				"ssh",
+				"--insecure",
+				fmt.Sprintf("%s@%s", user.Username, sshHostname2),
+				"echo", "test",
+			}, setHomePath(tmpHomePath))
+			tc.assertNonApprovedNodeAccess(t, err)
 
-	// successfully ssh to other node, with new request
-	err = Run(ctx, []string{
-		"ssh",
-		"--insecure",
-		"--request-reason", "reason here to bypass prompt",
-		fmt.Sprintf("%s@%s", user.Username, sshHostname2),
-		"echo", "test",
-	}, setHomePath(tmpHomePath))
-	require.NoError(t, err)
+			// drop the current access request
+			err = Run(ctx, []string{
+				"--insecure",
+				"request",
+				"drop",
+			}, setHomePath(tmpHomePath))
+			require.NoError(t, err)
+
+			// fail to ssh to other node with no active request
+			err = Run(ctx, []string{
+				"ssh",
+				"--insecure",
+				"--request-mode", accessRequestModeOff,
+				fmt.Sprintf("%s@%s", user.Username, sshHostname2),
+				"echo", "test",
+			}, setHomePath(tmpHomePath))
+			require.Error(t, err)
+
+			// successfully ssh to other node, with new request
+			err = Run(ctx, []string{
+				"ssh",
+				"--insecure",
+				"--request-mode", tc.requestMode,
+				"--request-reason", "reason here to bypass prompt",
+				fmt.Sprintf("%s@%s", user.Username, sshHostname2),
+				"echo", "test",
+			}, setHomePath(tmpHomePath))
+			require.NoError(t, err)
+
+			// Check access to nodes when only search_as_roles are available
+			alice.SetRoles([]string{"search-only-requester"})
+			_, err = rootAuth.GetAuthServer().UpsertUser(ctx, alice)
+			require.NoError(t, err)
+			err = Run(ctx, []string{
+				"--insecure",
+				"request",
+				"drop",
+			}, setHomePath(tmpHomePath))
+			require.NoError(t, err)
+			err = Run(ctx, []string{
+				"ssh",
+				"--insecure",
+				"--request-mode", tc.requestMode,
+				"--request-reason", "reason here to bypass prompt",
+				fmt.Sprintf("%s@%s", user.Username, sshHostname),
+				"echo", "test",
+			}, setHomePath(tmpHomePath))
+			tc.assertSearchRolesOnly(t, err)
+		})
+	}
 }
 
 func TestAccessRequestOnLeaf(t *testing.T) {
@@ -5430,4 +5507,393 @@ func TestFlatten(t *testing.T) {
 	// Test execution: validate that flattening succeeds if a profile already exists.
 	conf.IdentityFileIn = identityPath
 	require.NoError(t, flattenIdentity(&conf), "unexpected error when overwriting a tsh profile")
+}
+
+// TestListingResourcesAcrossClusters validates that tsh ls -R
+// returns expected results for root and leaf clusters.
+func TestListingResourcesAcrossClusters(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	lib.SetInsecureDevMode(true)
+	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
+
+	createAgent(t)
+
+	accessUser, err := types.NewUser("access")
+	require.NoError(t, err)
+	accessUser.SetRoles([]string{"access"})
+
+	user, err := user.Current()
+	require.NoError(t, err)
+	accessUser.SetLogins([]string{user.Name})
+
+	connector := mockConnector(t)
+	rootServerOpts := []testserver.TestServerOptFunc{
+		testserver.WithBootstrap(connector, accessUser),
+		testserver.WithHostname("node01"),
+		testserver.WithClusterName(t, "root"),
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			// Enable DB
+			cfg.Databases.Enabled = true
+			cfg.Databases.Databases = []servicecfg.Database{
+				{
+					Name:     "db01",
+					Protocol: defaults.ProtocolPostgres,
+					URI:      "localhost:5432",
+				},
+			}
+
+			cfg.Apps.Enabled = true
+			cfg.Apps.DebugApp = true
+		}),
+	}
+	rootServer := testserver.MakeTestServer(t, rootServerOpts...)
+
+	leafServerOpts := []testserver.TestServerOptFunc{
+		testserver.WithBootstrap(connector, accessUser),
+		testserver.WithHostname("node02"),
+		testserver.WithClusterName(t, "leaf"),
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			// Enable DB
+			cfg.Databases.Enabled = true
+			cfg.Databases.Databases = []servicecfg.Database{
+				{
+					Name:     "db02",
+					Protocol: defaults.ProtocolPostgres,
+					URI:      "localhost:5432",
+				},
+			}
+
+			cfg.Apps.Enabled = true
+			cfg.Apps.DebugApp = true
+		}),
+	}
+	leafServer := testserver.MakeTestServer(t, leafServerOpts...)
+	testserver.SetupTrustedCluster(ctx, t, rootServer, leafServer)
+
+	var (
+		rootNode, leafNode *types.ServerV2
+		rootDB, leafDB     *types.DatabaseV3
+		rootApp, leafApp   *types.AppV3
+	)
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		rootNodes, err := rootServer.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
+		if !assert.NoError(t, err) || !assert.Len(t, rootNodes, 1) {
+			return
+		}
+
+		leafNodes, err := leafServer.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
+		if !assert.NoError(t, err) || !assert.Len(t, leafNodes, 1) {
+			return
+		}
+
+		rootDatabases, err := rootServer.GetAuthServer().GetDatabaseServers(ctx, apidefaults.Namespace)
+		if !assert.NoError(t, err) || !assert.Len(t, rootDatabases, 1) {
+			return
+		}
+
+		leafDatabases, err := leafServer.GetAuthServer().GetDatabaseServers(ctx, apidefaults.Namespace)
+		if !assert.NoError(t, err) || !assert.Len(t, leafDatabases, 1) {
+			return
+		}
+
+		rootApps, err := rootServer.GetAuthServer().GetApplicationServers(ctx, apidefaults.Namespace)
+		if !assert.NoError(t, err) || !assert.Len(t, rootApps, 1) {
+			return
+		}
+
+		leafApps, err := leafServer.GetAuthServer().GetApplicationServers(ctx, apidefaults.Namespace)
+		if !assert.NoError(t, err) || !assert.Len(t, leafApps, 1) {
+			return
+		}
+
+		rootNode = rootNodes[0].(*types.ServerV2)
+		leafNode = leafNodes[0].(*types.ServerV2)
+		rootDB = rootDatabases[0].GetDatabase().(*types.DatabaseV3)
+		leafDB = leafDatabases[0].GetDatabase().(*types.DatabaseV3)
+		rootApp = rootApps[0].GetApp().(*types.AppV3)
+		leafApp = leafApps[0].GetApp().(*types.AppV3)
+	}, 10*time.Second, 100*time.Millisecond)
+
+	t.Run("nodes", func(t *testing.T) {
+		t.Parallel()
+
+		testListingResources(t,
+			listPack[*types.ServerV2]{
+				rootProcess:   rootServer,
+				leafProcess:   leafServer,
+				rootResource:  rootNode,
+				leafResource:  leafNode,
+				user:          accessUser,
+				connectorName: connector.GetName(),
+				args:          []string{"ls"},
+			},
+			func(t *testing.T, proxyAddr string, recursive bool, raw []byte) []*types.ServerV2 {
+				type recursiveServer struct {
+					Proxy   string          `json:"proxy"`
+					Cluster string          `json:"cluster"`
+					Node    *types.ServerV2 `json:"node"`
+				}
+
+				var nodes []*types.ServerV2
+				if recursive {
+					var servers []recursiveServer
+					require.NoError(t, json.Unmarshal(raw, &servers))
+					require.NotEmpty(t, servers)
+
+					nodes = make([]*types.ServerV2, 0, len(servers))
+					for _, s := range servers {
+						if s.Node.GetHostname() == "node01" {
+							assert.Equal(t, "root", s.Cluster)
+						} else {
+							assert.Equal(t, "leaf", s.Cluster)
+						}
+
+						assert.Equal(t, proxyAddr, s.Proxy)
+						require.NoError(t, s.Node.CheckAndSetDefaults())
+						nodes = append(nodes, s.Node)
+					}
+				} else {
+					err := json.Unmarshal(raw, &nodes)
+					assert.NoError(t, err)
+					require.NotEmpty(t, nodes)
+
+					for _, s := range nodes {
+						require.NoError(t, s.CheckAndSetDefaults())
+					}
+				}
+
+				return nodes
+			},
+			func(a, b *types.ServerV2) bool {
+				return strings.Compare(a.GetName(), b.GetName()) < 0
+			},
+		)
+	})
+
+	t.Run("databases", func(t *testing.T) {
+		t.Parallel()
+
+		testListingResources(t,
+			listPack[*types.DatabaseV3]{
+				rootProcess:   rootServer,
+				leafProcess:   leafServer,
+				rootResource:  rootDB,
+				leafResource:  leafDB,
+				user:          accessUser,
+				connectorName: connector.GetName(),
+				args:          []string{"db", "ls"},
+			},
+			func(t *testing.T, proxyAddr string, recursive bool, raw []byte) []*types.DatabaseV3 {
+				type recursiveServer struct {
+					Proxy    string            `json:"proxy"`
+					Cluster  string            `json:"cluster"`
+					Database *types.DatabaseV3 `json:"database"`
+				}
+
+				var databases []*types.DatabaseV3
+				if recursive {
+					var servers []recursiveServer
+					assert.NoError(t, json.Unmarshal(raw, &servers))
+					require.NotEmpty(t, servers)
+
+					databases = make([]*types.DatabaseV3, 0, len(servers))
+					for _, s := range servers {
+						if s.Database.GetName() == "db01" {
+							assert.Equal(t, "root", s.Cluster)
+						} else {
+							assert.Equal(t, "leaf", s.Cluster)
+						}
+
+						assert.Equal(t, proxyAddr, s.Proxy)
+						require.NoError(t, s.Database.CheckAndSetDefaults())
+						databases = append(databases, s.Database)
+					}
+				} else {
+					var servers []*types.DatabaseV3
+					assert.NoError(t, json.Unmarshal(raw, &servers))
+					require.NotEmpty(t, servers)
+
+					for _, s := range servers {
+						require.NoError(t, s.CheckAndSetDefaults())
+						databases = append(databases, s)
+					}
+				}
+
+				return databases
+			},
+			func(a, b *types.DatabaseV3) bool {
+				return strings.Compare(a.GetName(), b.GetName()) < 0
+			},
+		)
+	})
+
+	t.Run("applications", func(t *testing.T) {
+		t.Parallel()
+
+		testListingResources(t,
+			listPack[*types.AppV3]{
+				rootProcess:   rootServer,
+				leafProcess:   leafServer,
+				rootResource:  rootApp,
+				leafResource:  leafApp,
+				user:          accessUser,
+				connectorName: connector.GetName(),
+				args:          []string{"apps", "ls"},
+			},
+			func(t *testing.T, proxyAddr string, recursive bool, raw []byte) []*types.AppV3 {
+				type recursiveServer struct {
+					Proxy   string       `json:"proxy"`
+					Cluster string       `json:"cluster"`
+					App     *types.AppV3 `json:"app"`
+				}
+
+				var apps []*types.AppV3
+				if recursive {
+					var servers []recursiveServer
+					assert.NoError(t, json.Unmarshal(raw, &servers))
+					require.NotEmpty(t, servers)
+
+					apps = make([]*types.AppV3, 0, len(servers))
+					for _, s := range servers {
+						if s.App.GetPublicAddr() == "dumper.root" {
+							assert.Equal(t, "root", s.Cluster)
+						} else {
+							assert.Equal(t, "leaf", s.Cluster)
+						}
+
+						assert.Equal(t, proxyAddr, s.Proxy)
+						require.NoError(t, s.App.CheckAndSetDefaults())
+						apps = append(apps, s.App)
+					}
+				} else {
+					assert.NoError(t, json.Unmarshal(raw, &apps))
+					require.NotEmpty(t, apps)
+
+					for _, s := range apps {
+						require.NoError(t, s.CheckAndSetDefaults())
+					}
+				}
+
+				return apps
+			},
+			func(a, b *types.AppV3) bool {
+				return strings.Compare(a.GetPublicAddr(), b.GetPublicAddr()) < 0
+			},
+		)
+	})
+}
+
+type listPack[T any] struct {
+	rootProcess   *service.TeleportProcess
+	leafProcess   *service.TeleportProcess
+	rootResource  T
+	leafResource  T
+	user          types.User
+	connectorName string
+	args          []string
+}
+
+func testListingResources[T any](t *testing.T, pack listPack[T], unmarshalFunc func(*testing.T, string, bool, []byte) []T, lessFunc func(a, b T) bool) {
+	ctx := context.Background()
+
+	rootProxyAddr, err := pack.rootProcess.ProxyWebAddr()
+	require.NoError(t, err)
+	leafProxyAddr, err := pack.leafProcess.ProxyWebAddr()
+	require.NoError(t, err)
+
+	tests := []struct {
+		name      string
+		proxyAddr *utils.NetAddr
+		cluster   string
+		auth      *auth.Server
+		recursive bool
+		expected  []T
+	}{
+		{
+			name:      "root",
+			proxyAddr: rootProxyAddr,
+			cluster:   "root",
+			auth:      pack.rootProcess.GetAuthServer(),
+			expected:  []T{pack.rootResource},
+		},
+		{
+			name:      "leaf",
+			proxyAddr: leafProxyAddr,
+			cluster:   "leaf",
+			auth:      pack.leafProcess.GetAuthServer(),
+			expected:  []T{pack.leafResource},
+		},
+		{
+			name:      "leaf via root",
+			proxyAddr: rootProxyAddr,
+			cluster:   "leaf",
+			auth:      pack.rootProcess.GetAuthServer(),
+			expected:  []T{pack.leafResource},
+		},
+		{
+			name:      "root recursive",
+			proxyAddr: rootProxyAddr,
+			cluster:   "root",
+			auth:      pack.rootProcess.GetAuthServer(),
+			recursive: true,
+			expected:  []T{pack.rootResource, pack.leafResource},
+		},
+		{
+			name:      "leaf recursive",
+			proxyAddr: leafProxyAddr,
+			cluster:   "leaf",
+			auth:      pack.leafProcess.GetAuthServer(),
+			recursive: true,
+			expected:  []T{pack.leafResource},
+		},
+		{
+			name:      "leaf via root recursive",
+			proxyAddr: rootProxyAddr,
+			cluster:   "leaf",
+			auth:      pack.rootProcess.GetAuthServer(),
+			recursive: true,
+			expected:  []T{pack.leafResource},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			tmpHomePath := t.TempDir()
+			err = Run(
+				ctx,
+				[]string{
+					"--insecure",
+					"login",
+					"--proxy", test.proxyAddr.String(),
+					test.cluster,
+				},
+				setHomePath(tmpHomePath),
+				setMockSSOLogin(test.auth, pack.user, pack.connectorName),
+			)
+			require.NoError(t, err)
+
+			stdout := &output{buf: bytes.Buffer{}}
+
+			args := slices.Clone(pack.args)
+			args = append(args, "--format", "json")
+			if test.recursive {
+				args = append(args, "-R")
+			}
+			err = Run(ctx,
+				args,
+				setHomePath(tmpHomePath),
+				func(conf *CLIConf) error {
+					conf.overrideStdin = &bytes.Buffer{}
+					conf.OverrideStdout = stdout
+					return nil
+				},
+			)
+			require.NoError(t, err)
+
+			out := unmarshalFunc(t, test.proxyAddr.String(), test.recursive, stdout.buf.Bytes())
+			require.Empty(t, cmp.Diff(test.expected, out, cmpopts.SortSlices(lessFunc)))
+		})
+	}
 }

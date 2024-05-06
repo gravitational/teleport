@@ -20,6 +20,8 @@ package auth
 
 import (
 	"fmt"
+	"slices"
+	"strings"
 
 	"golang.org/x/mod/semver"
 
@@ -104,40 +106,112 @@ func inspectVersionCounts(counts map[string]int) (median string, total int, ok b
 
 // instanceMetricsPeriodic is an aggregator for general instance metrics.
 type instanceMetricsPeriodic struct {
-	upgraderCounts map[string]map[string]int
-	totalInstances int
+	metadata []instanceMetadata
+}
+
+// instanceMetadata contains instance metadata to be exported.
+type instanceMetadata struct {
+	// version specifies the version of the Teleport instance
+	version string
+	// installMethod specifies the Teleport agent installation method
+	installMethod string
+	// upgraderType specifies the upgrader type
+	upgraderType string
+	// upgraderVersion specifies the upgrader version
+	upgraderVersion string
 }
 
 func newInstanceMetricsPeriodic() *instanceMetricsPeriodic {
 	return &instanceMetricsPeriodic{
-		upgraderCounts: make(map[string]map[string]int),
+		metadata: []instanceMetadata{},
 	}
 }
 
-// VisitInstance adds an instance to ongoing aggregations.
-func (i *instanceMetricsPeriodic) VisitInstance(instance proto.UpstreamInventoryHello) {
-	i.totalInstances++
-	if upgrader := instance.GetExternalUpgrader(); upgrader != "" {
-		if _, exists := i.upgraderCounts[upgrader]; !exists {
-			i.upgraderCounts[upgrader] = make(map[string]int)
-		}
-		i.upgraderCounts[upgrader][instance.GetExternalUpgraderVersion()]++
+func (i *instanceMetricsPeriodic) VisitInstance(instance proto.UpstreamInventoryHello, metadata proto.UpstreamInventoryAgentMetadata) {
+	// Sort install methods if multiple methods are specified.
+	installMethod := "unknown"
+	installMethods := append([]string{}, metadata.GetInstallMethods()...)
+	if len(installMethods) > 0 {
+		slices.Sort(installMethods)
+		installMethod = strings.Join(installMethods, ",")
 	}
+
+	iMetadata := instanceMetadata{
+		version:         instance.GetVersion(),
+		installMethod:   installMethod,
+		upgraderType:    instance.GetExternalUpgrader(),
+		upgraderVersion: instance.GetExternalUpgraderVersion(),
+	}
+	i.metadata = append(i.metadata, iMetadata)
+}
+
+type registeredAgent struct {
+	version          string
+	automaticUpdates string
+}
+
+// RegisteredAgentsCount returns the count registered agents count.
+func (i *instanceMetricsPeriodic) RegisteredAgentsCount() map[registeredAgent]int {
+	result := make(map[registeredAgent]int)
+	for _, metadata := range i.metadata {
+		automaticUpdates := "false"
+		if metadata.upgraderType != "" {
+			automaticUpdates = "true"
+		}
+
+		agent := registeredAgent{
+			version:          metadata.version,
+			automaticUpdates: automaticUpdates,
+		}
+		result[agent]++
+	}
+	return result
+}
+
+// InstallMethodCounts returns the count of each install method.
+func (i *instanceMetricsPeriodic) InstallMethodCounts() map[string]int {
+	installMethodCount := make(map[string]int)
+	for _, metadata := range i.metadata {
+		installMethodCount[metadata.installMethod]++
+	}
+	return installMethodCount
+}
+
+type upgrader struct {
+	upgraderType string
+	version      string
+}
+
+// UpgraderCounts returns the count for the different upgrader version and type combinations.
+func (i *instanceMetricsPeriodic) UpgraderCounts() map[upgrader]int {
+	result := make(map[upgrader]int)
+	for _, metadata := range i.metadata {
+		// Do not count the instance if a type is not specified
+		if metadata.upgraderType == "" {
+			continue
+		}
+
+		upgrader := upgrader{
+			upgraderType: metadata.upgraderType,
+			version:      metadata.upgraderVersion,
+		}
+		result[upgrader]++
+	}
+	return result
 }
 
 // TotalEnrolledInUpgrades gets the total number of instances that have some upgrader defined.
 func (i *instanceMetricsPeriodic) TotalEnrolledInUpgrades() int {
 	var total int
-	for _, upgraderVersion := range i.upgraderCounts {
-		for _, count := range upgraderVersion {
-			total += count
+	for _, metadata := range i.metadata {
+		if metadata.upgraderType != "" {
+			total++
 		}
 	}
-
 	return total
 }
 
 // TotalInstances gets the total number of known instances.
 func (i *instanceMetricsPeriodic) TotalInstances() int {
-	return i.totalInstances
+	return len(i.metadata)
 }

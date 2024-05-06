@@ -50,6 +50,7 @@ func TestAccessMonitoringRuleCRUD(t *testing.T) {
 
 	sampleAccessMonitoringRuleFn := func(t *testing.T, name string) *accessmonitoringrulev1.AccessMonitoringRule {
 		return &accessmonitoringrulev1.AccessMonitoringRule{
+			Kind:     types.KindAccessMonitoringRule,
 			Metadata: &v1.Metadata{Name: name},
 			Spec: &accessmonitoringrulev1.AccessMonitoringRuleSpec{
 				Subjects:  []string{"someSubject"},
@@ -351,7 +352,7 @@ func initSvc(t *testing.T, clusterName string) (context.Context, localClient, *S
 
 	trustSvc := local.NewCAService(backend)
 	roleSvc := local.NewAccessService(backend)
-	userSvc := local.NewIdentityService(backend)
+	userSvc := local.NewTestIdentityService(backend)
 
 	clusterConfigSvc, err := local.NewClusterConfigurationService(backend)
 	require.NoError(t, err)

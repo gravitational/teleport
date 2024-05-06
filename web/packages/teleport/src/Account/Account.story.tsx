@@ -18,14 +18,33 @@
 
 import React from 'react';
 
+import { PasswordState } from 'teleport/services/user';
+
 import { Account, AccountProps } from './Account';
 
 export default {
-  title: 'Teleport/Account (new)',
+  title: 'Teleport/Account',
   component: Account,
 };
 
 export const Loaded = () => <Account {...props} />;
+
+export const LoadedNoDevices = () => <Account {...props} devices={[]} />;
+
+export const LoadedPasswordStateUnspecified = () => (
+  <Account
+    {...props}
+    passwordState={PasswordState.PASSWORD_STATE_UNSPECIFIED}
+  />
+);
+
+export const LoadedPasswordUnset = () => (
+  <Account
+    {...props}
+    devices={props.devices.filter(d => d.usage === 'passwordless')}
+    passwordState={PasswordState.PASSWORD_STATE_UNSET}
+  />
+);
 
 export const LoadedPasskeysOff = () => (
   <Account {...props} canAddPasskeys={false} />
@@ -168,4 +187,6 @@ const props: AccountProps = {
   isReauthenticationRequired: false,
   addDeviceWizardVisible: false,
   closeAddDeviceWizard: () => {},
+  passwordState: PasswordState.PASSWORD_STATE_SET,
+  onPasswordChange: () => {},
 };
