@@ -2527,13 +2527,14 @@ func setUserSingleUseCertsTTL(actx *grpcContext, req *authpb.UserCertsRequest) {
 	}
 }
 
-// isLocalProxyCertReq returns whether a cert request is for
-// a database cert and the requester is a local proxy tunnel.
+// isLocalProxyCertReq returns whether a cert request is for a local proxy cert.
 func isLocalProxyCertReq(req *authpb.UserCertsRequest) bool {
 	return (req.Usage == authpb.UserCertsRequest_Database &&
 		req.RequesterName == authpb.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL) ||
 		(req.Usage == authpb.UserCertsRequest_Kubernetes &&
-			req.RequesterName == authpb.UserCertsRequest_TSH_KUBE_LOCAL_PROXY)
+			req.RequesterName == authpb.UserCertsRequest_TSH_KUBE_LOCAL_PROXY) ||
+		(req.Usage == authpb.UserCertsRequest_App &&
+			req.RequesterName == authpb.UserCertsRequest_TSH_APP_LOCAL_PROXY)
 }
 
 // ErrNoMFADevices is returned when an MFA ceremony is performed without possible devices to
