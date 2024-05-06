@@ -21,7 +21,6 @@ package common
 import (
 	"context"
 	"fmt"
-
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/bcrypt"
@@ -31,6 +30,13 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+)
+
+const (
+	logFieldPlugin        = "plugin"
+	logFieldSAMLConnector = "saml-connector"
+	logFieldError         = "err"
+	logFieldRole          = "role"
 )
 
 type pluginInstallArgs struct {
@@ -115,18 +121,18 @@ func (p *PluginsCommand) initDelete(parent *kingpin.CmdClause) {
 		StringVar(&p.delete.name)
 }
 
-// Delete implements `tctl plugins delete`, deleting a plugin from teh Teleport cluster
+// Delete implements `tctl plugins delete`, deleting a plugin from the Teleport cluster
 func (p *PluginsCommand) Delete(ctx context.Context, client *auth.Client) error {
-	log := p.config.Logger
+	log := p.config.Logger.With("plugin", p.delete.name)
 	plugins := client.PluginsClient()
 
 	req := &pluginsv1.DeletePluginRequest{Name: p.delete.name}
 	if _, err := plugins.DeletePlugin(ctx, req); err != nil {
 		if trace.IsNotFound(err) {
-			log.Info(fmt.Sprintf("Plugin [%s] not found", p.delete.name))
+			log.InfoContext(ctx, "Plugin not found")
 			return nil
 		}
-		log.Error(fmt.Sprintf("Failed deleting plugin [%s]: %v"), p.delete.name, err)
+		log.ErrorContext(ctx, "Failed deleting plugin: ", err)
 		return trace.Wrap(err)
 	}
 	return nil
@@ -180,12 +186,12 @@ func (p *PluginsCommand) Cleanup(ctx context.Context, clusterAPI *auth.Client) e
 // InstallSCIM implements `tctl plugins install scim`, installing a SCIM integration
 // plugin into the teleport cluster
 func (p *PluginsCommand) InstallSCIM(ctx context.Context, client *auth.Client) error {
-	log := p.config.Logger
+	log := p.config.Logger.With(logFieldPlugin, p.install.name)
 
 	log.Debug("Fetching cluster info...")
 	info, err := client.Ping(ctx)
 	if err != nil {
-		log.Error(fmt.Sprintf("Failed fetching cluster info %v", err))
+		log.Error("Failed fetching cluster info", logFieldError, err.Error())
 		return trace.Wrap(err)
 	}
 
@@ -195,19 +201,20 @@ func (p *PluginsCommand) InstallSCIM(ctx context.Context, client *auth.Client) e
 	}
 
 	connectorID := p.install.scim.samlConnector
-	log.Debug(fmt.Sprintf("Validating SAML Connector ID [%s]...", connectorID))
+	log.Debug("Validating SAML Connector...", logFieldSAMLConnector, connectorID)
 	connector, err := client.GetSAMLConnector(ctx, p.install.scim.samlConnector, false)
 	if err != nil {
-		log.Error(fmt.Sprintf("Failed validating SAML connector [%s]: %v", connectorID, err))
+		log.Error("Failed validating SAML connector",
+			logFieldSAMLConnector, connectorID, logFieldError, err.Error())
 		if !p.install.scim.force {
 			return trace.Wrap(err)
 		}
 	}
 
 	role := p.install.scim.role
-	log.Debug(fmt.Sprintf("Validating Default Role [%s]...", role))
+	log.Debug("Validating Default Role...", logFieldRole, role)
 	if _, err := client.GetRole(ctx, role); err != nil {
-		log.Error(fmt.Sprintf("Failed validating role[%s]: %v", role, err))
+		log.Error("Failed validating role", logFieldRole, role, logFieldError, err.Error())
 		if !p.install.scim.force {
 			return trace.Wrap(err)
 		}
@@ -245,9 +252,9 @@ func (p *PluginsCommand) InstallSCIM(ctx context.Context, client *auth.Client) e
 		},
 	}
 
-	log.Debug(fmt.Sprintf("Creating SCIM Plugin %q...", p.install.name))
+	log.Debug("Creating SCIM Plugin...")
 	if _, err := client.PluginsClient().CreatePlugin(ctx, request); err != nil {
-		log.Error(fmt.Sprintf("Failed to create SCIM integration %q: %v", p.install.name, err))
+		log.Error("Failed to create SCIM integration", logFieldError, err.Error())
 		return trace.Wrap(err)
 	}
 
