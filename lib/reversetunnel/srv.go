@@ -347,7 +347,7 @@ func NewServer(cfg Config) (reversetunnelclient.Server, error) {
 		// this address is not used
 		utils.NetAddr{Addr: "127.0.0.1:1", AddrNetwork: "tcp"},
 		srv,
-		cfg.HostSigners,
+		sshutils.StaticHostSigners(cfg.HostSigners...),
 		sshutils.AuthMethods{
 			PublicKey: srv.keyAuth,
 		},
