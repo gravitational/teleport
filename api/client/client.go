@@ -1564,12 +1564,8 @@ func (c *Client) CreateSnowflakeSession(ctx context.Context, req types.CreateSno
 }
 
 // CreateSAMLIdPSession creates a SAML IdP session.
-func (c *Client) CreateSAMLIdPSession(ctx context.Context, req types.CreateSAMLIdPSessionRequest) (types.WebSession, error) {
-	resp, err := c.grpc.CreateSAMLIdPSession(ctx, &proto.CreateSAMLIdPSessionRequest{
-		SessionID:   req.SessionID,
-		Username:    req.Username,
-		SAMLSession: req.SAMLSession,
-	})
+func (c *Client) CreateSAMLIdPSession(ctx context.Context, req *proto.CreateSAMLIdPSessionRequest) (types.WebSession, error) {
+	resp, err := c.grpc.CreateSAMLIdPSession(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

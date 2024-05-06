@@ -1680,11 +1680,7 @@ func (g *GRPCServer) CreateSAMLIdPSession(ctx context.Context, req *authpb.Creat
 		return nil, trace.Wrap(err)
 	}
 
-	session, err := auth.CreateSAMLIdPSession(ctx, types.CreateSAMLIdPSessionRequest{
-		SessionID:   req.GetSessionID(),
-		Username:    req.GetUsername(),
-		SAMLSession: req.GetSAMLSession(),
-	})
+	session, err := auth.CreateSAMLIdPSession(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

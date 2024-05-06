@@ -538,7 +538,7 @@ func (a *Server) CreateSnowflakeSession(ctx context.Context, req types.CreateSno
 	return session, nil
 }
 
-func (a *Server) CreateSAMLIdPSession(ctx context.Context, req types.CreateSAMLIdPSessionRequest,
+func (a *Server) CreateSAMLIdPSession(ctx context.Context, req *proto.CreateSAMLIdPSessionRequest,
 	identity tlsca.Identity, checker services.AccessChecker,
 ) (types.WebSession, error) {
 	// TODO(mdwn): implement a module.Features() check.

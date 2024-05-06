@@ -9281,7 +9281,7 @@ func TestSAMlSessionClearedOnLogout(t *testing.T) {
 
 	// manually add SAML IdP session. The actual SAML IdP session and session cookie is set
 	// by the SAML IdP and the code to do that is on teleport.e.
-	_, err := env.proxies[0].client.CreateSAMLIdPSession(ctx, types.CreateSAMLIdPSessionRequest{
+	_, err := env.proxies[0].client.CreateSAMLIdPSession(ctx, &authproto.CreateSAMLIdPSessionRequest{
 		SessionID:   samlSessionID,
 		Username:    pack.user,
 		SAMLSession: &types.SAMLSessionData{ID: samlSessionID},

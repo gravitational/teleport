@@ -389,29 +389,6 @@ type CreateSnowflakeSessionRequest struct {
 	TokenTTL time.Duration
 }
 
-// CreateSAMLIdPSessionRequest contains the parameters needed to request
-// creating a SAML IdP session.
-type CreateSAMLIdPSessionRequest struct {
-	// SessionID is the identifier for the session.
-	SessionID string
-	// Username is the identity of the user requesting the session.
-	Username string `json:"username"`
-	// SAMLSession is the session data associated with the SAML IdP session.
-	SAMLSession *SAMLSessionData `json:"saml_session"`
-}
-
-// Check validates the request.
-func (r CreateSAMLIdPSessionRequest) Check() error {
-	if r.Username == "" {
-		return trace.BadParameter("username missing")
-	}
-	if r.SAMLSession == nil {
-		return trace.BadParameter("saml session missing")
-	}
-
-	return nil
-}
-
 // DeleteAppSessionRequest are the parameters used to request removal of
 // an application web session.
 type DeleteAppSessionRequest struct {

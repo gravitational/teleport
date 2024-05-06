@@ -6876,7 +6876,7 @@ func TestCreateSAMLIdPSession(t *testing.T) {
 			t.Cleanup(cancel)
 			client, err := srv.NewClient(test.identity)
 			require.NoError(t, err)
-			_, err = client.CreateSAMLIdPSession(ctx, types.CreateSAMLIdPSessionRequest{
+			_, err = client.CreateSAMLIdPSession(ctx, &proto.CreateSAMLIdPSessionRequest{
 				SessionID:   "test",
 				Username:    alice,
 				SAMLSession: &types.SAMLSessionData{},
@@ -6897,7 +6897,7 @@ func TestGetSAMLIdPSession(t *testing.T) {
 	aliceClient, err := srv.NewClient(TestUser(alice))
 	require.NoError(t, err)
 
-	sess, err := aliceClient.CreateSAMLIdPSession(ctx, types.CreateSAMLIdPSessionRequest{
+	sess, err := aliceClient.CreateSAMLIdPSession(ctx, &proto.CreateSAMLIdPSessionRequest{
 		SessionID:   "test",
 		Username:    alice,
 		SAMLSession: &types.SAMLSessionData{},
@@ -7013,7 +7013,7 @@ func TestDeleteSAMLIdPSession(t *testing.T) {
 			t.Parallel()
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			sess, err := aliceClient.CreateSAMLIdPSession(ctx, types.CreateSAMLIdPSessionRequest{
+			sess, err := aliceClient.CreateSAMLIdPSession(ctx, &proto.CreateSAMLIdPSessionRequest{
 				SessionID:   uuid.NewString(),
 				Username:    alice,
 				SAMLSession: &types.SAMLSessionData{},

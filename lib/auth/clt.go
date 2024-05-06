@@ -1002,7 +1002,7 @@ type ClientI interface {
 
 	// CreateSAMLIdPSession creates a SAML IdP. SAML IdP sessions represent
 	// sessions created by the SAML identity provider.
-	CreateSAMLIdPSession(context.Context, types.CreateSAMLIdPSessionRequest) (types.WebSession, error)
+	CreateSAMLIdPSession(context.Context, *proto.CreateSAMLIdPSessionRequest) (types.WebSession, error)
 
 	// GenerateDatabaseCert generates a client certificate used by a database
 	// service to authenticate with the database instance, or a server certificate
