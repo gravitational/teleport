@@ -2791,6 +2791,14 @@ func (set RoleSet) CanCopyFiles() bool {
 	return true
 }
 
+// CanJoinSessions returns true if at least one role in the role set
+// allows the user to join active sessions.
+func (set RoleSet) CanJoinSessions() bool {
+	return slices.ContainsFunc(set, func(r types.Role) bool {
+		return len(r.GetSessionJoinPolicies()) > 0
+	})
+}
+
 // CertificateFormat returns the most permissive certificate format in a
 // RoleSet.
 func (set RoleSet) CertificateFormat() string {

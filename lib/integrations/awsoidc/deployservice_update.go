@@ -20,6 +20,7 @@ package awsoidc
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -27,7 +28,6 @@ import (
 	ecsTypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/aws/aws-sdk-go/aws/awsutil"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
@@ -65,7 +65,7 @@ func (req *UpdateServiceRequest) CheckAndSetDefaults() error {
 }
 
 // UpdateDeployService updates all the AWS OIDC deployed services with the specified version tag.
-func UpdateDeployService(ctx context.Context, clt DeployServiceClient, log *logrus.Entry, req UpdateServiceRequest) error {
+func UpdateDeployService(ctx context.Context, clt DeployServiceClient, log *slog.Logger, req UpdateServiceRequest) error {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -77,12 +77,12 @@ func UpdateDeployService(ctx context.Context, clt DeployServiceClient, log *logr
 	}
 
 	for _, ecsService := range services {
-		log := log.WithFields(logrus.Fields{
-			"ecs-service-arn": aws.ToString(ecsService.ServiceArn),
-			"teleport-image":  teleportImage,
-		})
-		if err := updateServiceContainerImage(ctx, clt, log, &ecsService, teleportImage, req.OwnershipTags); err != nil {
-			log.WithError(err).Warn("Failed to upgrade ECS Service.")
+		logService := log.With(
+			"ecs_service_arn", aws.ToString(ecsService.ServiceArn),
+			"teleport_image", teleportImage,
+		)
+		if err := updateServiceContainerImage(ctx, clt, logService, &ecsService, teleportImage, req.OwnershipTags); err != nil {
+			logService.WarnContext(ctx, "Failed to upgrade ECS Service.", "error", err)
 			continue
 		}
 	}
@@ -90,7 +90,7 @@ func UpdateDeployService(ctx context.Context, clt DeployServiceClient, log *logr
 	return nil
 }
 
-func updateServiceContainerImage(ctx context.Context, clt DeployServiceClient, log *logrus.Entry, service *ecsTypes.Service, teleportImage string, ownershipTags AWSTags) error {
+func updateServiceContainerImage(ctx context.Context, clt DeployServiceClient, log *slog.Logger, service *ecsTypes.Service, teleportImage string, ownershipTags AWSTags) error {
 	taskDefinition, err := getManagedTaskDefinition(ctx, clt, aws.ToString(service.TaskDefinition), ownershipTags)
 	if err != nil {
 		return trace.Wrap(err)
@@ -134,7 +134,7 @@ func updateServiceContainerImage(ctx context.Context, clt DeployServiceClient, l
 	// Wait for Service to become stable, or rollback to the previous TaskDefinition.
 	go waitServiceStableOrRollback(ctx, clt, log, serviceNewVersion.Service, oldTaskDefinitionARN)
 
-	log.Info("Successfully upgraded ECS Service.")
+	log.InfoContext(ctx, "Successfully upgraded ECS Service.")
 
 	return nil
 }
@@ -162,7 +162,7 @@ func getAllServiceNamesForCluster(ctx context.Context, clt DeployServiceClient, 
 	return ret, nil
 }
 
-func getManagedServices(ctx context.Context, clt DeployServiceClient, log *logrus.Entry, teleportClusterName string, ownershipTags AWSTags) ([]ecsTypes.Service, error) {
+func getManagedServices(ctx context.Context, clt DeployServiceClient, log *slog.Logger, teleportClusterName string, ownershipTags AWSTags) ([]ecsTypes.Service, error) {
 	// The Cluster name is created using the Teleport Cluster Name.
 	// Check the DeployDatabaseServiceRequest.CheckAndSetDefaults
 	// and DeployServiceRequest.CheckAndSetDefaults.
@@ -202,16 +202,15 @@ func getManagedServices(ctx context.Context, clt DeployServiceClient, log *logru
 
 		// Filter out Services without Ownership tags or an invalid LaunchType.
 		for _, s := range describeServicesOut.Services {
-			log := log.WithField("ecs-service", aws.ToString(s.ServiceArn))
+			log := log.With("ecs_service", aws.ToString(s.ServiceArn))
 			if !ownershipTags.MatchesECSTags(s.Tags) {
-				log.Warnf("ECS Service exists but is not managed by Teleport. "+
-					"Add the following tags to allow Teleport to manage this service: %s", ownershipTags)
+				log.WarnContext(ctx, "ECS Service exists but is not managed by Teleport. Add the tags to allow Teleport to manage this service", "tags", ownershipTags)
 				continue
 			}
 			// If the LaunchType is the required one, than we can update the current Service.
 			// Otherwise we have to delete it.
 			if s.LaunchType != ecsTypes.LaunchTypeFargate {
-				log.Warnf("ECS Service already exists but has an invalid LaunchType %q. Delete the Service and try again.", s.LaunchType)
+				log.WarnContext(ctx, "ECS Service already exists but has an invalid LaunchType. Delete the Service and try again.", "launch_type", s.LaunchType)
 				continue
 			}
 			ecsServices = append(ecsServices, s)
@@ -244,28 +243,28 @@ func getTaskDefinitionTeleportImage(taskDefinition *ecsTypes.TaskDefinition) (st
 }
 
 // waitServiceStableOrRollback waits for the ECS Service to be stable, and if it takes longer than 5 minutes, it restarts it with its old task definition.
-func waitServiceStableOrRollback(ctx context.Context, clt DeployServiceClient, log *logrus.Entry, service *ecsTypes.Service, oldTaskDefinitionARN string) {
-	log = log.WithFields(logrus.Fields{
-		"ecs-service":         aws.ToString(service.ServiceArn),
-		"task-definition":     aws.ToString(service.TaskDefinition),
-		"old-task-definition": oldTaskDefinitionARN,
-	})
+func waitServiceStableOrRollback(ctx context.Context, clt DeployServiceClient, log *slog.Logger, service *ecsTypes.Service, oldTaskDefinitionARN string) {
+	log = log.With(
+		"ecs_service", aws.ToString(service.ServiceArn),
+		"task_definition", aws.ToString(service.TaskDefinition),
+		"old_task_definition", oldTaskDefinitionARN,
+	)
 
-	log.Debug("Waiting for ECS Service to become stable.")
+	log.DebugContext(ctx, "Waiting for ECS Service to become stable")
 	serviceStableWaiter := ecs.NewServicesStableWaiter(clt)
 	waitErr := serviceStableWaiter.Wait(ctx, &ecs.DescribeServicesInput{
 		Services: []string{aws.ToString(service.ServiceName)},
 		Cluster:  service.ClusterArn,
 	}, waitDuration)
 	if waitErr == nil {
-		log.Debug("ECS Service is stable.")
+		log.DebugContext(ctx, "ECS Service is stable")
 		return
 	}
 
-	log.WithError(waitErr).Warn("ECS Service is not stable, restarting the service with its previous TaskDefinition.")
+	log.WarnContext(ctx, "ECS Service is not stable, restarting the service with its previous TaskDefinition", "error", waitErr)
 	_, rollbackErr := clt.UpdateService(ctx, generateServiceWithTaskDefinition(service, oldTaskDefinitionARN))
 	if rollbackErr != nil {
-		log.WithError(rollbackErr).Warn("Failed to update ECS Service with its previous version.")
+		log.WarnContext(ctx, "Failed to update ECS Service with its previous version", "error", rollbackErr)
 	}
 }
 
