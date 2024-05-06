@@ -733,6 +733,9 @@ func (h *Handler) bindDefaultEndpoints() {
 	// App sessions
 	h.POST("/webapi/sessions/app", h.WithAuth(h.createAppSession))
 
+	// SAML IdP sessions
+	h.POST("/webapi/sessions/saml-idp", h.WithAuth(h.createSAMLIdPSession))
+
 	// Web sessions
 	h.POST("/webapi/sessions/web", httplib.WithCSRFProtection(h.WithLimiterHandlerFunc(h.createWebSession)))
 	h.DELETE("/webapi/sessions/web", h.WithAuth(h.deleteWebSession))

@@ -306,6 +306,67 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 	}, nil
 }
 
+// CreateSAMLIdPSessionResponse is a request to POST /v1/webapi/sessions/app
+type CreateSAMLIdPSessionRequest struct {
+	// MFAResponse is an optional MFA response used to create an MFA verified app session.
+	MFAResponse string `json:"mfa_response"`
+}
+
+// CreateSAMLIdPSessionResponse is a response to POST /v1/webapi/sessions/app
+type CreateSAMLIdPSessionResponse struct {
+	// CookieValue is the application session cookie value.
+	CookieValue string `json:"cookie_value"`
+}
+
+// createSAMLIdPSession creates a new SAML IdP session.
+//
+// POST /v1/webapi/sessions/saml-idp
+func (h *Handler) createSAMLIdPSession(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext) (interface{}, error) {
+	var req CreateAppSessionRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var mfaProtoResponse *proto.MFAAuthenticateResponse
+	if req.MFAResponse != "" {
+		var resp mfaResponse
+		if err := json.Unmarshal([]byte(req.MFAResponse), &resp); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		mfaProtoResponse = &proto.MFAAuthenticateResponse{
+			Response: &proto.MFAAuthenticateResponse_Webauthn{
+				Webauthn: wantypes.CredentialAssertionResponseToProto(resp.WebauthnAssertionResponse),
+			},
+		}
+	}
+
+	// Get an auth client connected with the user's identity.
+	authClient, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Create an application web session.
+	//
+	// Application sessions should not last longer than the parent session.TTL
+	// will be derived from the identity which has the same expiration as the
+	// parent web session.
+	//
+	// PublicAddr and ClusterName will get encoded within the certificate and
+	// used for request routing.
+	ws, err := authClient.CreateSAMLIdPSession(r.Context(), &proto.CreateSAMLIdPSessionRequest{
+		MFAResponse: mfaProtoResponse,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &CreateSAMLIdPSessionResponse{
+		CookieValue: ws.GetName(),
+	}, nil
+}
+
 type ResolveAppParams struct {
 	// FQDNHint indicates (tentatively) the fully qualified domain name of the application.
 	FQDNHint string `json:"fqdn,omitempty"`
