@@ -20,7 +20,7 @@ package awsoidc
 
 import (
 	"context"
-	"log"
+	"log/slog"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
@@ -108,6 +108,9 @@ func ConfigureAccessGraphSyncIAM(ctx context.Context, clt AccessGraphIAMConfigur
 		return trace.Wrap(err)
 	}
 
-	log.Printf("IntegrationRole: IAM Policy %q added to Role %q\n", req.IntegrationRoleTAGPolicy, req.IntegrationRole)
+	slog.InfoContext(ctx, "IntegrationRole: IAM Policy added to IAM Role",
+		"policy", req.IntegrationRoleTAGPolicy,
+		"role", req.IntegrationRole,
+	)
 	return nil
 }
