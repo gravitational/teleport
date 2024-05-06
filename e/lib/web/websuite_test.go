@@ -249,6 +249,7 @@ func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 			Cloud:         true,
 			RecoveryCodes: true,
 		},
+		IntegrationAppHandler: &mockIntegrationAppHandler{},
 	}, web.SetSessionStreamPollPeriod(200*time.Millisecond), web.SetClock(s.clock))
 	require.NoError(t, err)
 
@@ -267,6 +268,12 @@ func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 	})
 
 	return s
+}
+
+type mockIntegrationAppHandler struct{}
+
+func (m *mockIntegrationAppHandler) HandleConnection(_ net.Conn) {
+	panic("HandleConnection not implemented")
 }
 
 func (s *webSuite) clientNoRedirects(opts ...roundtrip.ClientParam) *client.WebClient {
