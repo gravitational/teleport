@@ -861,7 +861,8 @@ func New(
 
 	server, err := sshutils.NewServer(
 		component,
-		addr, s, signers,
+		addr, s,
+		sshutils.StaticHostSigners(signers...),
 		sshutils.AuthMethods{PublicKey: s.authHandlers.UserKeyAuth},
 		sshutils.SetLimiter(s.limiter),
 		sshutils.SetRequestHandler(s),
