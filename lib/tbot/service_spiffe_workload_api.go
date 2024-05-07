@@ -396,6 +396,76 @@ func (s *SPIFFEWorkloadAPIService) fetchX509SVIDs(
 	return svids, nil
 }
 
+func filterSVIDRequests(
+	ctx context.Context,
+	log *slog.Logger,
+	svidRequests []config.SVIDRequestWithRules,
+	udsCreds *uds.Creds,
+) []config.SVIDRequest {
+	var filtered []config.SVIDRequest
+	for _, req := range svidRequests {
+		log := log.With("svid", req.SVIDRequest)
+		// If no rules are configured, default to allow.
+		if len(req.Rules) == 0 {
+			log.DebugContext(
+				ctx,
+				"No rules configured for SVID. SVID will be issued",
+			)
+			filtered = append(filtered, req.SVIDRequest)
+			continue
+		}
+
+		// Otherwise, evaluate all the rules, looking for one matching rule.
+		match := false
+		for _, rule := range req.Rules {
+			log := log.With("rule", rule)
+			log.DebugContext(
+				ctx,
+				"Evaluating rule against workload attestation",
+			)
+			if rule.Unix.UID != nil && (udsCreds == nil || *rule.Unix.UID != udsCreds.UID) {
+				log.DebugContext(
+					ctx,
+					"Rule did not match workload attestation",
+					"field", "unix.uid",
+				)
+				continue
+			}
+			if rule.Unix.PID != nil && (udsCreds == nil || *rule.Unix.PID != udsCreds.PID) {
+				log.DebugContext(
+					ctx,
+					"Rule did not match workload attestation",
+					"field", "unix.pid",
+				)
+				continue
+			}
+			if rule.Unix.GID != nil && (udsCreds == nil || *rule.Unix.GID != udsCreds.GID) {
+				log.DebugContext(
+					ctx,
+					"Rule did not match workload attestation",
+					"field", "unix.gid",
+				)
+				continue
+			}
+
+			log.DebugContext(
+				ctx,
+				"Rule matched workload attestation. SVID will be issued",
+			)
+			match = true
+			filtered = append(filtered, req.SVIDRequest)
+			break
+		}
+		if !match {
+			log.DebugContext(
+				ctx,
+				"No rules matched workload attestation. SVID will not be issued",
+			)
+		}
+	}
+	return filtered
+}
+
 // FetchX509SVID generates and returns the X.509 SVIDs available to a workload.
 // It is a streaming RPC, and sends renewed SVIDs to the client before they
 // expire.
@@ -416,7 +486,7 @@ func (s *SPIFFEWorkloadAPIService) FetchX509SVID(
 	authInfo, ok := p.AuthInfo.(uds.AuthInfo)
 	if ok && authInfo.Creds != nil {
 		log = log.With(
-			slog.Group("peer",
+			slog.Group("workload",
 				slog.Group("unix",
 					"pid", authInfo.Creds.PID,
 					"uid", authInfo.Creds.UID,
@@ -427,7 +497,7 @@ func (s *SPIFFEWorkloadAPIService) FetchX509SVID(
 	}
 	if p.Addr.String() != "" {
 		log = log.With(
-			slog.Group("peer",
+			slog.Group("workload",
 				slog.String("addr", p.Addr.String()),
 			),
 		)
@@ -438,7 +508,7 @@ func (s *SPIFFEWorkloadAPIService) FetchX509SVID(
 
 	// Before we issue the SVIDs to the workload, we need to complete workload
 	// attestation and determine which SVIDs to issue.
-	var svidReqs []config.SVIDRequest
+	svidReqs := filterSVIDRequests(ctx, log, s.cfg.SVIDs, authInfo.Creds)
 
 	// The SPIFFE Workload API (5.2.1):
 	//
@@ -448,6 +518,7 @@ func (s *SPIFFEWorkloadAPIService) FetchX509SVID(
 	//   for more information). Under such a case, the client MAY attempt to
 	//   reconnect with another call to the FetchX509SVID RPC after a backoff.
 	if len(svidReqs) == 0 {
+		log.ErrorContext(ctx, "Workload did not pass attestation for any SVIDs")
 		return status.Error(
 			codes.PermissionDenied,
 			"workload did not pass attestation for any SVIDs",
