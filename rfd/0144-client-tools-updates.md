@@ -54,9 +54,12 @@ using the version required by the cluster. All other `tsh` subcommands (like
 
 The original client tools binaries won't be overwritten. Instead, an additional
 binary will be downloaded and stored in `~/.tsh/bin` with `0755` permissions.
-A hash of the binary will be performed and checked against a known value to
-ensure the file has not been corrupted during download. To enable concurrent
-operation of client tools, a locking mechanisms utilizing
+
+To validate the binaries have not been corrupted during download, a hash of the
+archive will be checked against the expected value. The expected hash value
+comes from the archive download path with `.sha256` appended.
+
+To enable concurrent operation of client tools, a locking mechanisms utilizing
 [syscall.Flock](https://pkg.go.dev/syscall#Flock) (for Linux and macOS) and
 [LockFileEx](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-lockfileex)
 (for Windows) will be used.
