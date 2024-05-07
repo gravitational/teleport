@@ -75,7 +75,11 @@ func (p *PluginsCommand) Initialize(app *kingpin.Application, config *servicecfg
 	p.cleanupCmd.Arg("type", "The type of plugin to cleanup. Only supports okta at present.").Required().EnumVar(&p.pluginType, string(types.PluginTypeOkta))
 	p.cleanupCmd.Flag("dry-run", "Dry run the cleanup command. Dry run defaults to on.").Default("true").BoolVar(&p.dryRun)
 
-	p.install.cmd = pluginsCommand.Command("install", "Install new plugin instance")
+	p.initInstall(pluginsCommand, config)
+}
+
+func (p *PluginsCommand) initInstall(parent *kingpin.CmdClause, config *servicecfg.Config) {
+	p.install.cmd = parent.Command("install", "Install new plugin instance")
 
 	p.install.okta.cmd = p.install.cmd.Command("okta", "Install an okta integration")
 	p.install.okta.cmd.
@@ -91,7 +95,8 @@ func (p *PluginsCommand) Initialize(app *kingpin.Application, config *servicecfg
 		Required().
 		StringVar(&p.install.okta.apiToken)
 	p.install.okta.cmd.
-		Flag("saml-connector", "SAML connector to link to plugin").
+		Flag("saml-connector", "SAML connector used for Okta SSO login.").
+		Default("okta-integration").
 		StringVar(&p.install.okta.samlConnector)
 	p.install.okta.cmd.
 		Flag("app-id", "Okta ID of the APP used for SSO via SAML").
@@ -104,7 +109,7 @@ func (p *PluginsCommand) Initialize(app *kingpin.Application, config *servicecfg
 		Default("true").
 		BoolVar(&p.install.okta.userSync)
 	p.install.okta.cmd.
-		Flag("owner", "Set default owners for synced Access Lists").
+		Flag("owner", "Add default owners for synced Access Lists").
 		Short('o').
 		StringsVar(&p.install.okta.defaultOwners)
 	p.install.okta.cmd.
@@ -283,10 +288,11 @@ func (p *PluginsCommand) InstallOkta(ctx context.Context, args installPluginArgs
 	}
 
 	if _, err := args.plugins.CreatePlugin(ctx, req); err != nil {
-		fmt.Printf("Plugin creation failed: %v", err)
+		fmt.Printf("Plugin creation failed: %v\n", err)
 		return trace.Wrap(err)
 	}
 
+	fmt.Println("See https://goteleport.com/docs/application-access/okta/hosted-guide for help configuring provisioning in Okta")
 	return nil
 }
 
