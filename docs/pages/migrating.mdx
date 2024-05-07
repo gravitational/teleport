@@ -167,42 +167,6 @@ Note: ​​Migration of agents can be done all at once or gradually, depending 
 
 Once the migration is complete, validate that the resources are present in the Teleport Cluster and verify their status and connectivity to ensure they are properly registered and available for connections. You can either check via the Web UI, or use `tctl` to get a list of all resources and verify their registration and status. 
 
-{/* For example, to list all nodes registered with the Teleport Cluster, you can run the command below
-
-```
-tctl nodes ls
-```
-
-Similarly, to list all other registered resources, you can run the commands below:
-
-
-List all registered Kubernetes Clusters
-
-```
-tctl kube ls
-```
-
-List all registered Databases
-
-```
-tctl db ls
-```
-
-List all registered Applications
-
-
-```
-tctl apps ls
-```
-
-List all registered Windows Desktops
-
-
-```
-tctl get windows_desktop
-
-``` */}
-
 To list all other registered resources, you can run the commands below:
 
 | **Resource Type**        | **Command**               |
@@ -212,6 +176,7 @@ To list all other registered resources, you can run the commands below:
 | Databases                | `tctl db ls`              |
 | Applications             | `tctl apps ls`            |
 | Windows Desktops         | `tctl get windows_desktop`|
+
 
 These `tctl` commands will show you the resources registered within your Teleport Cluster, and you can verify their availability for connections.
 
