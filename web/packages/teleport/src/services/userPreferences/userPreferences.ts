@@ -126,7 +126,7 @@ export function makeDefaultUserPreferences(): UserPreferences {
       labelsViewMode: LabelsViewMode.COLLAPSED,
     },
     clusterPreferences: makeDefaultUserClusterPreferences(),
-    keyboardLayout: 0
+    keyboardLayout: 0,
   };
 }
 
