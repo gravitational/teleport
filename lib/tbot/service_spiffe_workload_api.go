@@ -376,14 +376,16 @@ func (s *SPIFFEWorkloadAPIService) fetchX509SVIDs(
 		// provide additional metadata about the client.
 		log.InfoContext(ctx,
 			"Issued SVID for workload",
-			"svid_type", "x509",
-			"spiffe_id", svidRes.SpiffeId,
-			"serial_number", serialString(cert.SerialNumber),
-			"hint", svidRes.Hint,
-			"not_after", cert.NotAfter,
-			"not_before", cert.NotBefore,
-			"dns_sans", cert.DNSNames,
-			"ip_sans", cert.IPAddresses,
+			slog.Group("svid",
+				"type", "x509",
+				"spiffe_id", svidRes.SpiffeId,
+				"serial_number", serialString(cert.SerialNumber),
+				"hint", svidRes.Hint,
+				"not_after", cert.NotAfter,
+				"not_before", cert.NotBefore,
+				"dns_sans", cert.DNSNames,
+				"ip_sans", cert.IPAddresses,
+			),
 		)
 	}
 
