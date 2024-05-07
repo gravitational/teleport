@@ -1657,6 +1657,10 @@
         {
           "title": "Troubleshooting",
           "slug": "/machine-id/troubleshooting/"
+        },
+        {
+          "title": "Manifesto",
+          "slug": "/machine-id/manifesto/"
         }
       ]
     },
