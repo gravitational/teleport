@@ -1575,19 +1575,18 @@ func TestDebugServiceStartSocket(t *testing.T) {
 	t.Parallel()
 	fakeClock := clockwork.NewFakeClock()
 
+	var err error
+	dataDir, err := os.MkdirTemp("", "*")
+	require.NoError(t, err)
+	t.Cleanup(func() { os.RemoveAll(dataDir) })
+
 	cfg := servicecfg.MakeDefaultConfig()
 	cfg.DebugService.Enabled = true
 	cfg.Clock = fakeClock
-	var err error
-	cfg.DataDir = t.TempDir()
+	cfg.DataDir = dataDir
 	cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
-	cfg.Auth.Enabled = true
-	cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
-	cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
-	cfg.Proxy.Enabled = true
-	cfg.Proxy.DisableWebInterface = true
-	cfg.Proxy.WebAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"}
+	cfg.Auth.Enabled = false
 	cfg.SSH.Enabled = false
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
