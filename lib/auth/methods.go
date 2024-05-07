@@ -398,7 +398,7 @@ func (a *Server) authenticateUserInternal(
 	case req.Webauthn != nil:
 		authenticateFn = func() (*types.MFADevice, error) {
 			if req.Pass != nil {
-				if err = a.checkPasswordWOToken(user, req.Pass.Password); err != nil {
+				if err = a.checkPasswordWOToken(ctx, user, req.Pass.Password); err != nil {
 					return nil, trace.Wrap(err)
 				}
 			}
@@ -418,7 +418,7 @@ func (a *Server) authenticateUserInternal(
 		authenticateFn = func() (*types.MFADevice, error) {
 			// OTP cannot be validated by validateMFAAuthResponse because we need to
 			// check the user's password too.
-			res, err := a.checkPassword(user, req.OTP.Password, req.OTP.Token)
+			res, err := a.checkPassword(ctx, user, req.OTP.Password, req.OTP.Token)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -484,7 +484,7 @@ func (a *Server) authenticateUserInternal(
 		return nil, "", trace.AccessDenied("missing second factor")
 	}
 	if err = a.WithUserLock(ctx, user, func() error {
-		return a.checkPasswordWOToken(user, req.Pass.Password)
+		return a.checkPasswordWOToken(ctx, user, req.Pass.Password)
 	}); err != nil {
 		if fieldErr := getErrorByTraceField(err); fieldErr != nil {
 			return nil, "", trace.Wrap(fieldErr)

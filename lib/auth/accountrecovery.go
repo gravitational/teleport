@@ -195,7 +195,7 @@ func (a *Server) VerifyAccountRecovery(ctx context.Context, req *proto.VerifyAcc
 		}
 
 		if err := a.verifyAuthnRecovery(ctx, startToken, func() error {
-			return a.checkPasswordWOToken(startToken.GetUser(), req.GetPassword())
+			return a.checkPasswordWOToken(ctx, startToken.GetUser(), req.GetPassword())
 		}); err != nil {
 			return nil, trace.Wrap(err)
 		}
