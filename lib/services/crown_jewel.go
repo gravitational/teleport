@@ -22,11 +22,11 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // CrownJewels is the interface for managing crown jewel resources.
@@ -57,7 +57,7 @@ func MarshalCrownJewel(object *crownjewelv1.CrownJewel, opts ...MarshalOption) (
 		object = proto.Clone(object).(*crownjewelv1.CrownJewel)
 		object.Metadata.Revision = ""
 	}
-	data, err := utils.FastMarshal(object)
+	data, err := protojson.Marshal(object)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -74,7 +74,7 @@ func UnmarshalCrownJewel(data []byte, opts ...MarshalOption) (*crownjewelv1.Crow
 		return nil, trace.Wrap(err)
 	}
 	var obj crownjewelv1.CrownJewel
-	if err := utils.FastUnmarshal(data, &obj); err != nil {
+	if err := protojson.Unmarshal(data, &obj); err != nil {
 		return nil, trace.BadParameter(err.Error())
 	}
 	if cfg.Revision != "" {

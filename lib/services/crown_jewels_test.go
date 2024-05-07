@@ -95,7 +95,7 @@ func TestUnmarshalCrownJewel(t *testing.T) {
 
 	obj, err := UnmarshalCrownJewel(data)
 	require.NoError(t, err)
-	require.Equal(t, expected, obj)
+	require.True(t, proto.Equal(expected, obj), "CrownJewel objects are not equal")
 }
 
 const correctCrownJewelYAML = `
@@ -112,7 +112,7 @@ spec:
       tags:
         - key: env
           values:
-            - value: prod
+            - prod
       types:
         - ec2
   teleport_matchers:
