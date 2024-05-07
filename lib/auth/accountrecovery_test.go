@@ -1114,6 +1114,10 @@ func TestCreateAccountRecoveryCodes(t *testing.T) {
 	_, err = srv.Auth().UpsertAuthPreference(ctx, ap)
 	require.NoError(t, err)
 
+	const user = "llama@example.com"
+	_, _, err = CreateUserAndRole(srv.Auth(), user, []string{user}, nil /* allowRules */)
+	require.NoError(t, err, "CreateUserAndRole failed")
+
 	cases := []struct {
 		name       string
 		wantErr    bool
@@ -1123,7 +1127,7 @@ func TestCreateAccountRecoveryCodes(t *testing.T) {
 			name:    "invalid token type",
 			wantErr: true,
 			getRequest: func() *proto.CreateAccountRecoveryCodesRequest {
-				token, err := srv.Auth().createRecoveryToken(ctx, "llama@example.com", UserTokenTypeRecoveryStart, types.UserTokenUsage_USER_TOKEN_RECOVER_MFA)
+				token, err := srv.Auth().createRecoveryToken(ctx, user, UserTokenTypeRecoveryStart, types.UserTokenUsage_USER_TOKEN_RECOVER_MFA)
 				require.NoError(t, err)
 
 				return &proto.CreateAccountRecoveryCodesRequest{
@@ -1155,7 +1159,7 @@ func TestCreateAccountRecoveryCodes(t *testing.T) {
 		{
 			name: "recovery approved token",
 			getRequest: func() *proto.CreateAccountRecoveryCodesRequest {
-				token, err := srv.Auth().createRecoveryToken(ctx, "llama@example.com", UserTokenTypeRecoveryApproved, types.UserTokenUsage_USER_TOKEN_RECOVER_MFA)
+				token, err := srv.Auth().createRecoveryToken(ctx, user, UserTokenTypeRecoveryApproved, types.UserTokenUsage_USER_TOKEN_RECOVER_MFA)
 				require.NoError(t, err)
 
 				return &proto.CreateAccountRecoveryCodesRequest{
@@ -1166,7 +1170,7 @@ func TestCreateAccountRecoveryCodes(t *testing.T) {
 		{
 			name: "privilege token",
 			getRequest: func() *proto.CreateAccountRecoveryCodesRequest {
-				token, err := srv.Auth().createPrivilegeToken(ctx, "llama@example.com", UserTokenTypePrivilege)
+				token, err := srv.Auth().createPrivilegeToken(ctx, user, UserTokenTypePrivilege)
 				require.NoError(t, err)
 
 				return &proto.CreateAccountRecoveryCodesRequest{
@@ -1183,7 +1187,7 @@ func TestCreateAccountRecoveryCodes(t *testing.T) {
 
 			switch {
 			case c.wantErr:
-				require.True(t, trace.IsAccessDenied(err))
+				require.True(t, trace.IsAccessDenied(err), "CreateAccountRecoveryCodes returned err=%v (%T), want AccessDenied", err, trace.Unwrap(err))
 
 			default:
 				require.NoError(t, err)
