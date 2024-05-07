@@ -26,6 +26,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"runtime"
 	"sync"
 	"syscall"
 
@@ -44,6 +45,7 @@ import (
 	"gvisor.dev/gvisor/pkg/waiter"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 )
 
 const (
@@ -242,13 +244,17 @@ func (m *Manager) Run(ctx context.Context) error {
 
 	allErrors := make(chan error, 3)
 	g, ctx := errgroup.WithContext(ctx)
-	g.Go(func() error {
-		// Make sure to cancel the context in case this exits prematurely with a nil error.
-		defer cancel()
-		err := trace.Wrap(m.statsHandler(ctx))
-		allErrors <- err
-		return err
-	})
+	if runtime.GOOS != constants.WindowsOS {
+		// Windows doesn't have any appropriate OS signals we can handle to print stats. This is just for
+		// debug, and we're not supporting Windows yet, so it's not that important.
+		g.Go(func() error {
+			// Make sure to cancel the context in case this exits prematurely with a nil error.
+			defer cancel()
+			err := trace.Wrap(m.statsHandler(ctx))
+			allErrors <- err
+			return err
+		})
+	}
 	g.Go(func() error {
 		// Make sure to cancel the context in case this exits prematurely with a nil error.
 		defer cancel()
