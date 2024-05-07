@@ -306,7 +306,7 @@ func (c *Client) ListAccessListReviews(ctx context.Context, accessList string, p
 	resp, err := c.grpcClient.ListAccessListReviews(ctx, &accesslistv1.ListAccessListReviewsRequest{
 		AccessList: accessList,
 		PageSize:   int32(pageSize),
-		NextToken:  nextToken,
+		NextToken:  pageToken,
 	})
 	if err != nil {
 		return nil, "", trace.Wrap(err)
@@ -328,7 +328,7 @@ func (c *Client) ListAccessListReviews(ctx context.Context, accessList string, p
 func (c *Client) ListAllAccessListReviews(ctx context.Context, pageSize int, pageToken string) (reviews []*accesslist.Review, nextToken string, err error) {
 	resp, err := c.grpcClient.ListAllAccessListReviews(ctx, &accesslistv1.ListAllAccessListReviewsRequest{
 		PageSize:  int32(pageSize),
-		NextToken: nextToken,
+		NextToken: pageToken,
 	})
 	if err != nil {
 		return nil, "", trace.Wrap(err)

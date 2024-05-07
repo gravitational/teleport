@@ -470,15 +470,16 @@ func TestAutoRotation(t *testing.T) {
 	require.Equal(t, ca.GetRotation().Phase, types.RotationPhaseStandby)
 	require.NoError(t, err)
 
-	// old clients should no longer work
-	// new client has to be created here to force re-create the new
-	// connection instead of re-using the one from pool
-	// this is not going to be a problem in real teleport
+	// old clients should no longer work as soon as backend modification event propagates.
+	// new client has to be created here to force re-create the new connection instead of
+	// re-using the one from pool this is not going to be a problem in real teleport
 	// as it reloads the full server after reload
-	_, err = testSrv.CloneClient(t, proxy).GetNodes(ctx, apidefaults.Namespace)
-	// TODO(rosstimothy, espadolini, jakule): figure out how to consistently
-	// match a certificate error and not other errors
-	require.Error(t, err)
+	require.Eventually(t, func() bool {
+		_, err = testSrv.CloneClient(t, proxy).GetNodes(ctx, apidefaults.Namespace)
+		// TODO(rosstimothy, espadolini, jakule): figure out how to consistently
+		// match a certificate error and not other errors
+		return err != nil
+	}, time.Second*15, time.Millisecond*200)
 
 	// new clients work
 	_, err = testSrv.CloneClient(t, newProxy).GetNodes(ctx, apidefaults.Namespace)
@@ -645,13 +646,14 @@ func TestManualRotation(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// old clients should no longer work
-	// new client has to be created here to force re-create the new
-	// connection instead of re-using the one from pool
-	// this is not going to be a problem in real teleport
+	// old clients should no longer work as soon as backend modification event propagates.
+	// new client has to be created here to force re-create the new connection instead of
+	// re-using the one from pool this is not going to be a problem in real teleport
 	// as it reloads the full server after reload
-	_, err = testSrv.CloneClient(t, proxy).GetNodes(ctx, apidefaults.Namespace)
-	require.Error(t, err)
+	require.Eventually(t, func() bool {
+		_, err = testSrv.CloneClient(t, proxy).GetNodes(ctx, apidefaults.Namespace)
+		return err != nil
+	}, time.Second*15, time.Millisecond*200)
 
 	// new clients work
 	_, err = testSrv.CloneClient(t, newProxy).GetNodes(ctx, apidefaults.Namespace)
@@ -744,9 +746,11 @@ func TestRollback(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// clients with new creds will no longer work
-	_, err = testSrv.CloneClient(t, newProxy).GetNodes(ctx, apidefaults.Namespace)
-	require.Error(t, err)
+	// clients with new creds will no longer work as soon as backend modification event propagates.
+	require.Eventually(t, func() bool {
+		_, err := testSrv.CloneClient(t, newProxy).GetNodes(ctx, apidefaults.Namespace)
+		return err != nil
+	}, time.Second*15, time.Millisecond*200)
 
 	grpcClientOld := testSrv.CloneClient(t, proxy)
 	t.Cleanup(func() {

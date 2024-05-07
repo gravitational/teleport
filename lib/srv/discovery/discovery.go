@@ -335,7 +335,7 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 	}
 	s.discardUnsupportedMatchers(&s.Matchers)
 
-	if err := s.startDynamicMatchersWatcher(ctx); err != nil {
+	if err := s.startDynamicMatchersWatcher(s.ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -349,11 +349,11 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.initAzureWatchers(ctx, cfg.Matchers.Azure); err != nil {
+	if err := s.initAzureWatchers(s.ctx, cfg.Matchers.Azure); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.initGCPWatchers(ctx, cfg.Matchers.GCP); err != nil {
+	if err := s.initGCPWatchers(s.ctx, cfg.Matchers.GCP); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -367,7 +367,7 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.initAccessGraphWatchers(ctx, cfg); err != nil {
+	if err := s.initAccessGraphWatchers(s.ctx, cfg); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
