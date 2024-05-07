@@ -20,15 +20,10 @@ import (
 	"context"
 	"crypto/rand"
 	"errors"
-	"fmt"
 	"io"
 	"log/slog"
 	"net"
-	"os"
-	"os/signal"
-	"runtime"
 	"sync"
-	"syscall"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
@@ -45,7 +40,6 @@ import (
 	"gvisor.dev/gvisor/pkg/waiter"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
 )
 
 const (
@@ -242,19 +236,8 @@ func (m *Manager) Run(ctx context.Context) error {
 
 	ctx, cancel := context.WithCancel(ctx)
 
-	allErrors := make(chan error, 3)
+	allErrors := make(chan error, 2)
 	g, ctx := errgroup.WithContext(ctx)
-	if runtime.GOOS != constants.WindowsOS {
-		// Windows doesn't have any appropriate OS signals we can handle to print stats. This is just for
-		// debug, and we're not supporting Windows yet, so it's not that important.
-		g.Go(func() error {
-			// Make sure to cancel the context in case this exits prematurely with a nil error.
-			defer cancel()
-			err := trace.Wrap(m.statsHandler(ctx))
-			allErrors <- err
-			return err
-		})
-	}
 	g.Go(func() error {
 		// Make sure to cancel the context in case this exits prematurely with a nil error.
 		defer cancel()
@@ -389,20 +372,6 @@ func (m *Manager) assignTCPHandler(handler tcpHandler) (tcpip.Address, error) {
 	}
 
 	return addr, nil
-}
-
-func (m *Manager) statsHandler(ctx context.Context) error {
-	ch := make(chan os.Signal, 1)
-	signal.Notify(ch, syscall.SIGUSR1)
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-ch:
-		}
-		stats := m.stack.Stats()
-		fmt.Printf("%+v\n", stats)
-	}
 }
 
 func forwardBetweenTunAndNetstack(ctx context.Context, tun TUNDevice, linkEndpoint *channel.Endpoint) error {
