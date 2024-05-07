@@ -275,13 +275,12 @@ func (s *Server) forward(ctx context.Context, slog *slog.Logger, buf []byte, res
 				upstreamConn.Close()
 			}()
 
-			upstreamConn.SetWriteDeadline(deadline)
+			upstreamConn.SetDeadline(deadline)
 			_, err = upstreamConn.Write(buf)
 			if err != nil {
 				errs <- trace.Wrap(err, "writing message to upstream")
 				return nil
 			}
-			upstreamConn.SetReadDeadline(deadline)
 			n, err := upstreamConn.Read(responseBuf)
 			if err != nil {
 				errs <- trace.Wrap(err, "reading forwarded DNS response")
