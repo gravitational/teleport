@@ -25,6 +25,10 @@ import { Notification, NotificationItem } from 'shared/components/Notification';
 
 import { useStore } from 'shared/libs/stores';
 
+import { SingleRowBox } from 'design/MultiRowBox';
+
+import Select from 'shared/components/Select';
+
 import useTeleport from 'teleport/useTeleport';
 import {
   FeatureBox,
@@ -40,6 +44,8 @@ import { DeviceUsage } from 'teleport/services/auth';
 
 import { PasswordState } from 'teleport/services/user';
 
+import { UserContext } from 'teleport/User/UserContext';
+
 import { AuthDeviceList } from './ManageDevices/AuthDeviceList/AuthDeviceList';
 import useManageDevices, {
   State as ManageDevicesState,
@@ -48,9 +54,7 @@ import { ActionButtonPrimary, ActionButtonSecondary, Header } from './Header';
 import { PasswordBox } from './PasswordBox';
 import { AddAuthDeviceWizard } from './ManageDevices/AddAuthDeviceWizard';
 import { StatePill } from './StatePill';
-import { SingleRowBox } from 'design/MultiRowBox';
-import Select from 'shared/components/Select';
-import { UserContext } from 'teleport/User/UserContext';
+
 
 export interface EnterpriseComponentProps {
   // TODO(bl-nero): Consider moving the notifications to its own store and
@@ -366,7 +370,6 @@ export function Account({
                         if (Array.isArray(selected)) {
                           selected = selected[0];
                         }
-                        console.log('value', selected.value);
                         ctx
                           .updatePreferences({
                             keyboardLayout: selected.value,
