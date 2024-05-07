@@ -221,7 +221,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
               stream.requests.send({
                 request: {
                   oneofKind: 'credential',
-                  credential: { index },
+                  credential: { index: BigInt(index) },
                 },
               });
             };

@@ -403,7 +403,7 @@ func (p *pwdlessLoginPrompt) PromptCredential(deviceCreds []*wancli.CredentialIn
 
 	// Test for out of range index values.
 	selectedIndex := credRes.GetIndex()
-	if selectedIndex < 0 || selectedIndex > int32(len(creds))-1 {
+	if selectedIndex < 0 || selectedIndex > int64(len(creds))-1 {
 		return nil, trace.BadParameter("invalid login name")
 	}
 
