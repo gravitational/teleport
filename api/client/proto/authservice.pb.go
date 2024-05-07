@@ -15271,6 +15271,8 @@ type AuthServiceClient interface {
 	GetResetPasswordToken(ctx context.Context, in *GetResetPasswordTokenRequest, opts ...grpc.CallOption) (*types.UserTokenV3, error)
 	// CreateResetPasswordToken resets users current password and second factors and creates a reset
 	// password token.
+	//
+	// Only local users may be reset.
 	CreateResetPasswordToken(ctx context.Context, in *CreateResetPasswordTokenRequest, opts ...grpc.CallOption) (*types.UserTokenV3, error)
 	// CreateBot creates a new bot user.
 	CreateBot(ctx context.Context, in *CreateBotRequest, opts ...grpc.CallOption) (*CreateBotResponse, error)
@@ -15294,6 +15296,8 @@ type AuthServiceClient interface {
 	// DeleteUser deletes an existing user in a backend by username.
 	DeleteUser(ctx context.Context, in *DeleteUserRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// ChangePassword allows a user to change their own password.
+	//
+	// Only local users may change their password.
 	ChangePassword(ctx context.Context, in *ChangePasswordRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// AcquireSemaphore acquires lease with requested resources from semaphore.
 	AcquireSemaphore(ctx context.Context, in *types.AcquireSemaphoreRequest, opts ...grpc.CallOption) (*types.SemaphoreLease, error)
@@ -15647,6 +15651,8 @@ type AuthServiceClient interface {
 	// also adds a new MFA device. After successful invocation, a new web session is created as well
 	// as a new set of recovery codes (if user meets the requirements to receive them), invalidating
 	// any existing codes the user previously had.
+	//
+	// Only local users may be targeted by this RPC.
 	ChangeUserAuthentication(ctx context.Context, in *ChangeUserAuthenticationRequest, opts ...grpc.CallOption) (*ChangeUserAuthenticationResponse, error)
 	// StartAccountRecovery (exclusive to cloud users) is the first out of two step user
 	// verification needed to allow a user to recover their account. The first form of verification
@@ -15659,6 +15665,8 @@ type AuthServiceClient interface {
 	// user account gets temporarily locked from further recovery attempts and from logging in.
 	//
 	// Start tokens last RecoveryStartTokenTTL.
+	//
+	// Only local users may perform account recovery
 	StartAccountRecovery(ctx context.Context, in *StartAccountRecoveryRequest, opts ...grpc.CallOption) (*types.UserTokenV3, error)
 	// VerifyAccountRecovery (exclusive to cloud users) is the second step of the two step
 	// verification needed to allow a user to recover their account, after RPC StartAccountRecovery.
@@ -18517,6 +18525,8 @@ type AuthServiceServer interface {
 	GetResetPasswordToken(context.Context, *GetResetPasswordTokenRequest) (*types.UserTokenV3, error)
 	// CreateResetPasswordToken resets users current password and second factors and creates a reset
 	// password token.
+	//
+	// Only local users may be reset.
 	CreateResetPasswordToken(context.Context, *CreateResetPasswordTokenRequest) (*types.UserTokenV3, error)
 	// CreateBot creates a new bot user.
 	CreateBot(context.Context, *CreateBotRequest) (*CreateBotResponse, error)
@@ -18540,6 +18550,8 @@ type AuthServiceServer interface {
 	// DeleteUser deletes an existing user in a backend by username.
 	DeleteUser(context.Context, *DeleteUserRequest) (*emptypb.Empty, error)
 	// ChangePassword allows a user to change their own password.
+	//
+	// Only local users may change their password.
 	ChangePassword(context.Context, *ChangePasswordRequest) (*emptypb.Empty, error)
 	// AcquireSemaphore acquires lease with requested resources from semaphore.
 	AcquireSemaphore(context.Context, *types.AcquireSemaphoreRequest) (*types.SemaphoreLease, error)
@@ -18893,6 +18905,8 @@ type AuthServiceServer interface {
 	// also adds a new MFA device. After successful invocation, a new web session is created as well
 	// as a new set of recovery codes (if user meets the requirements to receive them), invalidating
 	// any existing codes the user previously had.
+	//
+	// Only local users may be targeted by this RPC.
 	ChangeUserAuthentication(context.Context, *ChangeUserAuthenticationRequest) (*ChangeUserAuthenticationResponse, error)
 	// StartAccountRecovery (exclusive to cloud users) is the first out of two step user
 	// verification needed to allow a user to recover their account. The first form of verification
@@ -18905,6 +18919,8 @@ type AuthServiceServer interface {
 	// user account gets temporarily locked from further recovery attempts and from logging in.
 	//
 	// Start tokens last RecoveryStartTokenTTL.
+	//
+	// Only local users may perform account recovery
 	StartAccountRecovery(context.Context, *StartAccountRecoveryRequest) (*types.UserTokenV3, error)
 	// VerifyAccountRecovery (exclusive to cloud users) is the second step of the two step
 	// verification needed to allow a user to recover their account, after RPC StartAccountRecovery.
