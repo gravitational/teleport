@@ -401,21 +401,28 @@ func (s *SPIFFEWorkloadAPIService) FetchX509SVID(
 	renewCh, unsubscribe := s.trustBundleBroadcast.subscribe()
 	defer unsubscribe()
 	ctx := srv.Context()
-	log := s.log
 
 	p, ok := peer.FromContext(ctx)
 	if !ok {
 		return trace.BadParameter("peer not found in context")
 	}
-	var unixCreds *uds.Creds
+	log := s.log
 	authInfo, ok := p.AuthInfo.(uds.AuthInfo)
-	if ok {
-		unixCreds = authInfo.Creds
+	if ok && authInfo.Creds != nil {
 		log = log.With(
-			slog.Group("unix",
-				"pid", unixCreds.PID,
-				"uid", unixCreds.UID,
-				"gid", unixCreds.GID,
+			slog.Group("peer",
+				slog.Group("unix",
+					"pid", authInfo.Creds.PID,
+					"uid", authInfo.Creds.UID,
+					"gid", authInfo.Creds.GID,
+				),
+			),
+		)
+	}
+	if p.Addr.String() != "" {
+		log = log.With(
+			slog.Group("peer",
+				slog.String("addr", p.Addr.String()),
 			),
 		)
 	}
