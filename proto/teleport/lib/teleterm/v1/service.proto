@@ -345,7 +345,7 @@ message LoginPasswordlessRequest {
   message LoginPasswordlessCredentialResponse {
     // index is the associated number in the list of credentials that the user selected to log
     // in as.
-    int64 index = 1;
+    int32 index = 1;
   }
 }
 

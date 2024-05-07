@@ -439,9 +439,9 @@ export interface LoginPasswordlessRequest_LoginPasswordlessCredentialResponse {
      * index is the associated number in the list of credentials that the user selected to log
      * in as.
      *
-     * @generated from protobuf field: int64 index = 1;
+     * @generated from protobuf field: int32 index = 1;
      */
-    index: bigint;
+    index: number;
 }
 /**
  * @generated from protobuf message teleport.lib.teleterm.v1.FileTransferRequest
@@ -2671,12 +2671,12 @@ export const LoginPasswordlessRequest_LoginPasswordlessPINResponse = new LoginPa
 class LoginPasswordlessRequest_LoginPasswordlessCredentialResponse$Type extends MessageType<LoginPasswordlessRequest_LoginPasswordlessCredentialResponse> {
     constructor() {
         super("teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse", [
-            { no: 1, name: "index", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 0 /*LongType.BIGINT*/ }
+            { no: 1, name: "index", kind: "scalar", T: 5 /*ScalarType.INT32*/ }
         ]);
     }
     create(value?: PartialMessage<LoginPasswordlessRequest_LoginPasswordlessCredentialResponse>): LoginPasswordlessRequest_LoginPasswordlessCredentialResponse {
         const message = globalThis.Object.create((this.messagePrototype!));
-        message.index = 0n;
+        message.index = 0;
         if (value !== undefined)
             reflectionMergePartial<LoginPasswordlessRequest_LoginPasswordlessCredentialResponse>(this, message, value);
         return message;
@@ -2686,8 +2686,8 @@ class LoginPasswordlessRequest_LoginPasswordlessCredentialResponse$Type extends 
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
             switch (fieldNo) {
-                case /* int64 index */ 1:
-                    message.index = reader.int64().toBigInt();
+                case /* int32 index */ 1:
+                    message.index = reader.int32();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -2701,9 +2701,9 @@ class LoginPasswordlessRequest_LoginPasswordlessCredentialResponse$Type extends 
         return message;
     }
     internalBinaryWrite(message: LoginPasswordlessRequest_LoginPasswordlessCredentialResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* int64 index = 1; */
-        if (message.index !== 0n)
-            writer.tag(1, WireType.Varint).int64(message.index);
+        /* int32 index = 1; */
+        if (message.index !== 0)
+            writer.tag(1, WireType.Varint).int32(message.index);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
