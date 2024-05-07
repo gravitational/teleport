@@ -181,6 +181,8 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.OPENSEARCH_REQUEST_FAILURE]: Icons.Database,
   [eventCodes.DYNAMODB_REQUEST]: Icons.Database,
   [eventCodes.DYNAMODB_REQUEST_FAILURE]: Icons.Database,
+  [eventCodes.SPANNER_RPC]: Icons.Database,
+  [eventCodes.SPANNER_RPC_DENIED]: Icons.Database,
   [eventCodes.DESKTOP_SESSION_STARTED]: Icons.Desktop,
   [eventCodes.DESKTOP_SESSION_STARTED_FAILED]: Icons.Desktop,
   [eventCodes.DESKTOP_SESSION_ENDED]: Icons.Desktop,

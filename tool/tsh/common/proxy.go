@@ -19,6 +19,7 @@
 package common
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509/pkix"
 	"fmt"
@@ -234,6 +235,9 @@ func onProxyCommandDB(cf *CLIConf) error {
 		if opts, err = maybeAddDBUserPassword(cf, tc, dbInfo, opts); err != nil {
 			return trace.Wrap(err)
 		}
+		if opts, err = maybeAddGCPMetadata(cf.Context, tc, dbInfo, opts); err != nil {
+			return trace.Wrap(err)
+		}
 
 		commands, err := dbcmd.NewCmdBuilder(tc, profile, dbInfo.RouteToDatabase, rootCluster,
 			opts...,
@@ -250,8 +254,9 @@ func onProxyCommandDB(cf *CLIConf) error {
 			"address":    listener.Addr().String(),
 			"randomPort": randomPort,
 		}
+		maybeAddGCPMetadataTplArgs(cf.Context, tc, dbInfo, templateArgs)
 
-		tmpl := chooseProxyCommandTemplate(templateArgs, commands, dbInfo.Protocol)
+		tmpl := chooseProxyCommandTemplate(templateArgs, commands, dbInfo)
 		err = tmpl.Execute(os.Stdout, templateArgs)
 		if err != nil {
 			return trace.Wrap(err)
@@ -300,18 +305,55 @@ func maybeAddDBUserPassword(cf *CLIConf, tc *libclient.TeleportClient, dbInfo *d
 	return opts, nil
 }
 
+func requiresGCPMetadata(protocol string) bool {
+	return protocol == defaults.ProtocolSpanner
+}
+
+func maybeAddGCPMetadata(ctx context.Context, tc *libclient.TeleportClient, dbInfo *databaseInfo, opts []dbcmd.ConnectCommandFunc) ([]dbcmd.ConnectCommandFunc, error) {
+	if !requiresGCPMetadata(dbInfo.Protocol) {
+		return opts, nil
+	}
+	db, err := dbInfo.GetDatabase(ctx, tc)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	gcp := db.GetGCP()
+	return append(opts, dbcmd.WithGCP(gcp)), nil
+}
+
+func maybeAddGCPMetadataTplArgs(ctx context.Context, tc *libclient.TeleportClient, dbInfo *databaseInfo, templateArgs map[string]any) {
+	if !requiresGCPMetadata(dbInfo.Protocol) {
+		return
+	}
+	templateArgs["gcpProject"] = "<project>"
+	templateArgs["gcpInstance"] = "<instance>"
+	db, err := dbInfo.GetDatabase(ctx, tc)
+	if err == nil {
+		gcp := db.GetGCP()
+		templateArgs["gcpProject"] = gcp.ProjectID
+		templateArgs["gcpInstance"] = gcp.InstanceID
+	}
+}
+
 type templateCommandItem struct {
 	Description string
 	Command     string
 }
 
-func chooseProxyCommandTemplate(templateArgs map[string]any, commands []dbcmd.CommandAlternative, protocol string) *template.Template {
+func chooseProxyCommandTemplate(templateArgs map[string]any, commands []dbcmd.CommandAlternative, dbInfo *databaseInfo) *template.Template {
 	// there is only one command, use plain template.
 	if len(commands) == 1 {
 		templateArgs["command"] = formatCommand(commands[0].Command)
-		if protocol == defaults.ProtocolOracle {
+		switch dbInfo.Protocol {
+		case defaults.ProtocolOracle:
 			templateArgs["args"] = commands[0].Command.Args
 			return dbProxyOracleAuthTpl
+		case defaults.ProtocolSpanner:
+			templateArgs["databaseName"] = "<database>"
+			if dbInfo.Database != "" {
+				templateArgs["databaseName"] = dbInfo.Database
+			}
+			return dbProxySpannerAuthTpl
 		}
 		return dbProxyAuthTpl
 	}
@@ -702,6 +744,19 @@ var dbProxyAuthTpl = template.Must(template.New("").Parse(
 ` + dbProxyConnectAd + `
 Use the following command to connect to the database or to the address above using other database GUI/CLI clients:
   $ {{.command}}
+`))
+
+// dbProxySpannerAuthTpl is the message that's printed for an authenticated spanner db proxy.
+var dbProxySpannerAuthTpl = template.Must(template.New("").Parse(
+	`Started authenticated tunnel for the {{.type}} database "{{.database}}" in cluster "{{.cluster}}" on {{.address}}.
+{{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
+{{end}}
+` + dbProxyConnectAd + `
+Use the following command to connect to the database or to the address above using other database GUI/CLI clients:
+  $ {{.command}}
+
+Or use the following JDBC connection string to connect with other GUI/CLI clients:
+jdbc:cloudspanner://{{.address}}/projects/{{.gcpProject}}/instances/{{.gcpInstance}}/databases/{{.databaseName}};usePlainText=true
 `))
 
 // dbProxyOracleAuthTpl is the message that's printed for an authenticated db proxy.
