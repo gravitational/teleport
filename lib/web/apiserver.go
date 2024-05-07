@@ -3321,14 +3321,10 @@ func (h *Handler) getKubeExecClusterData(netConfig types.ClusterNetworkingConfig
 		return "https://" + h.kubeProxyHostPort(), "", nil
 	}
 
-	proxyAddr := h.PublicProxyAddr()
-	if proxyAddr == "" {
-		proxyAddr = createHostPort(h.cfg.ProxyWebAddr, defaults.HTTPListenPort)
-	}
-
+	proxyAddr := createHostPort(h.cfg.ProxyWebAddr, defaults.HTTPListenPort)
 	host, port, err := utils.SplitHostPort(proxyAddr)
 	if err != nil {
-		return "", "", trace.Wrap(err, "failed to split proxy address %q, probably port is missing", proxyAddr)
+		return "", "", trace.Wrap(err, "failed to split proxy address %q", proxyAddr)
 	}
 
 	tlsServerName := client.GetKubeTLSServerName(host)

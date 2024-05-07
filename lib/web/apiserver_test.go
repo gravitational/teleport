@@ -9445,11 +9445,10 @@ func TestWebSocketAuthenticateRequest(t *testing.T) {
 
 func TestGetKubeExecClusterData(t *testing.T) {
 	testCases := []struct {
-		name            string
-		listenerMode    types.ProxyListenerMode
-		proxyKubeAddr   string
-		publicProxyAddr string
-		proxyWebAddr    string
+		name          string
+		listenerMode  types.ProxyListenerMode
+		proxyKubeAddr string
+		proxyWebAddr  string
 
 		expectedServerAddr string
 		expectedTLSName    string
@@ -9475,13 +9474,6 @@ func TestGetKubeExecClusterData(t *testing.T) {
 			expectedServerAddr: "https://localhost:444",
 		},
 		{
-			name:               "multiplex, regular public proxy addr",
-			listenerMode:       types.ProxyListenerMode_Multiplex,
-			publicProxyAddr:    "teleport.example.com:443",
-			expectedServerAddr: "https://teleport.example.com:443",
-			expectedTLSName:    "kube-teleport-proxy-alpn.teleport.example.com",
-		},
-		{
 			name:               "multiplex, regular proxy web addr",
 			listenerMode:       types.ProxyListenerMode_Multiplex,
 			proxyWebAddr:       "web.example.com:777",
@@ -9499,9 +9491,7 @@ func TestGetKubeExecClusterData(t *testing.T) {
 
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
-			h := Handler{cfg: Config{
-				PublicProxyAddr: tt.publicProxyAddr,
-			}}
+			h := Handler{}
 			if tt.proxyWebAddr != "" {
 				h.cfg.ProxyWebAddr = *utils.MustParseAddr(tt.proxyWebAddr)
 			}
