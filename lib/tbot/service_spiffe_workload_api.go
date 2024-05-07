@@ -42,6 +42,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/peer"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -51,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/uds"
 )
 
 // SPIFFEWorkloadAPIService implements a gRPC server that fulfills the SPIFFE
@@ -225,7 +227,7 @@ func (s *SPIFFEWorkloadAPIService) Run(ctx context.Context) error {
 			// - Transport Layer Security MUST NOT be required
 			// TODO(noah): We should optionally provide TLS support here down
 			// the road.
-			insecure.NewCredentials(),
+			uds.NewTransportCredentials(insecure.NewCredentials()),
 		),
 		grpc.ChainUnaryInterceptor(
 			recovery.UnaryServerInterceptor(),
@@ -322,6 +324,7 @@ func serialString(serial *big.Int) string {
 // returns them in the SPIFFE Workload API format.
 func (s *SPIFFEWorkloadAPIService) fetchX509SVIDs(
 	ctx context.Context,
+	log *slog.Logger,
 ) ([]*workloadpb.X509SVID, error) {
 	ctx, span := tracer.Start(ctx, "SPIFFEWorkloadAPIService/fetchX509SVIDs")
 	defer span.End()
@@ -371,7 +374,7 @@ func (s *SPIFFEWorkloadAPIService) fetchX509SVIDs(
 		}
 		// Log a message which correlates with the audit log entry and can
 		// provide additional metadata about the client.
-		s.log.InfoContext(ctx,
+		log.InfoContext(ctx,
 			"Issued SVID for workload",
 			"svid_type", "x509",
 			"spiffe_id", svidRes.SpiffeId,
@@ -398,13 +401,32 @@ func (s *SPIFFEWorkloadAPIService) FetchX509SVID(
 	renewCh, unsubscribe := s.trustBundleBroadcast.subscribe()
 	defer unsubscribe()
 	ctx := srv.Context()
-	s.log.InfoContext(ctx, "FetchX509SVID stream opened by workload")
-	defer s.log.InfoContext(ctx, "FetchX509SVID stream has closed")
+	log := s.log
+
+	p, ok := peer.FromContext(ctx)
+	if !ok {
+		return trace.BadParameter("peer not found in context")
+	}
+	var unixCreds *uds.Creds
+	authInfo, ok := p.AuthInfo.(uds.AuthInfo)
+	if ok {
+		unixCreds = authInfo.Creds
+		log = log.With(
+			slog.Group("unix",
+				"pid", unixCreds.PID,
+				"uid", unixCreds.UID,
+				"gid", unixCreds.GID,
+			),
+		)
+	}
+
+	log.InfoContext(ctx, "FetchX509SVID stream opened by workload")
+	defer log.InfoContext(ctx, "FetchX509SVID stream has closed")
 
 	for {
-		s.log.InfoContext(ctx, "Starting to issue X509 SVIDs to workload")
+		log.InfoContext(ctx, "Starting to issue X509 SVIDs to workload")
 
-		svids, err := s.fetchX509SVIDs(ctx)
+		svids, err := s.fetchX509SVIDs(ctx, log)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -414,20 +436,20 @@ func (s *SPIFFEWorkloadAPIService) FetchX509SVID(
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		s.log.DebugContext(
+		log.DebugContext(
 			ctx, "Finished issuing SVIDs to workload. Waiting for next renewal interval or CA rotation",
 		)
 
 		select {
 		case <-ctx.Done():
-			s.log.DebugContext(ctx, "Context closed, stopping SVID stream")
+			log.DebugContext(ctx, "Context closed, stopping SVID stream")
 			return nil
 		case <-time.After(s.botCfg.RenewalInterval):
-			s.log.DebugContext(ctx, "Renewal interval reached, renewing SVIDs")
+			log.DebugContext(ctx, "Renewal interval reached, renewing SVIDs")
 			// Time to renew the certificate
 			continue
 		case <-renewCh:
-			s.log.DebugContext(ctx, "Trust bundle has been updated, renewing SVIDs")
+			log.DebugContext(ctx, "Trust bundle has been updated, renewing SVIDs")
 			continue
 		}
 	}
