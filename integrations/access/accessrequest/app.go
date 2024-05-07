@@ -41,6 +41,8 @@ import (
 const (
 	// handlerTimeout is used to bound the execution time of watcher event handler.
 	handlerTimeout = time.Second * 5
+	// defaultAccessMonitoringRulePageSize is the default number of rules to retrieve per request
+	defaultAccessMonitoringRulePageSize = 10
 )
 
 // App is the access request application for plugins. This will notify when access requests
@@ -421,6 +423,9 @@ func (a *App) getMessageRecipients(ctx context.Context, req types.AccessRequest)
 	for _, recipient := range recipients.ToSlice() {
 		recipientSet.Add(recipient)
 	}
+	if len(recipientSet.ToSlice()) != 0 {
+		return recipientSet.ToSlice()
+	}
 
 	switch a.pluginType {
 	case types.PluginTypeServiceNow:
@@ -473,7 +478,7 @@ func (a *App) recipientsFromAccessMonitoringRules(ctx context.Context, req types
 	// This switch is used to determine which plugins we are enabling access monitoring notification rules for.
 	switch a.pluginType {
 	// Enabled plugins are added to this case.
-	case types.PluginTypeSlack, types.PluginTypeOpsgenie:
+	case types.PluginTypeSlack:
 		log.Debug("Applying access monitoring rules to request")
 	default:
 		return &recipientSet
@@ -582,7 +587,8 @@ func (a *App) getAllAccessMonitoringRules(ctx context.Context) ([]*accessmonitor
 	for {
 		var page []*accessmonitoringrulesv1.AccessMonitoringRule
 		var err error
-		page, nextToken, err = a.apiClient.ListAccessMonitoringRules(ctx, 0 /* page size */, nextToken)
+		page, nextToken, err = a.apiClient.ListAccessMonitoringRulesWithFilter(ctx, defaultAccessMonitoringRulePageSize, nextToken,
+			[]string{types.KindAccessRequest}, a.pluginName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

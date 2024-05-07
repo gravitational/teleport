@@ -40,6 +40,7 @@ type ServiceConfig struct {
 // Cache is the subset of the cached resources that the service queries.
 type Cache interface {
 	ListAccessMonitoringRules(ctx context.Context, limit int, startKey string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
+	ListAccessMonitoringRulesWithFilter(ctx context.Context, pageSize int, pageToken string, subjects []string, notificationName string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
 	GetAccessMonitoringRule(ctx context.Context, name string) (*accessmonitoringrulesv1.AccessMonitoringRule, error)
 }
 
@@ -160,6 +161,25 @@ func (s *Service) ListAccessMonitoringRules(ctx context.Context, req *accessmoni
 		return nil, trace.Wrap(err)
 	}
 	results, nextToken, err := s.cache.ListAccessMonitoringRules(ctx, int(req.PageSize), req.PageToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &accessmonitoringrulesv1.ListAccessMonitoringRulesResponse{
+		Rules:         results,
+		NextPageToken: nextToken,
+	}, nil
+}
+
+// ListAccessMonitoringRuleWithFilter lists current access monitoring rules.
+func (s *Service) ListAccessMonitoringRuleWithFilter(ctx context.Context, req *accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest) (*accessmonitoringrulesv1.ListAccessMonitoringRulesResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authCtx.CheckAccessToKind(types.KindAccessMonitoringRule, types.VerbRead, types.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	results, nextToken, err := s.cache.ListAccessMonitoringRulesWithFilter(ctx, int(req.PageSize), req.PageToken, req.Subjects,req.NotificationName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

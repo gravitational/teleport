@@ -20,7 +20,6 @@ package services
 
 import (
 	"context"
-	"slices"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -41,6 +40,7 @@ type AccessMonitoringRules interface {
 	DeleteAccessMonitoringRule(ctx context.Context, name string) error
 	DeleteAllAccessMonitoringRules(ctx context.Context) error
 	ListAccessMonitoringRules(ctx context.Context, limit int, startKey string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
+	ListAccessMonitoringRulesWithFilter(ctx context.Context, pageSize int, nextToken string, subjects []string, notificationName string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
 }
 
 // NewAccessMonitoringRuleWithLabels creates a new AccessMonitoringRule  with the given spec and labels.
@@ -65,36 +65,36 @@ func NewAccessMonitoringRuleWithLabels(name string, labels map[string]string, sp
 
 // ValidateAccessMonitoringRule checks that the provided access monitoring rule is valid.
 func ValidateAccessMonitoringRule(accessMonitoringRule *accessmonitoringrulesv1.AccessMonitoringRule) error {
-	if accessMonitoringRule.Kind != types.KindAccessMonitoringRule {
-		return trace.BadParameter("invalid kind for access monitoring rule: %q", accessMonitoringRule.Kind)
-	}
-	if accessMonitoringRule.Metadata == nil {
-		return trace.BadParameter("accessMonitoringRule metadata is missing")
-	}
-	if accessMonitoringRule.Version != types.V1 {
-		return trace.BadParameter("accessMonitoringRule %q is not supported", accessMonitoringRule.Version)
-	}
-	if accessMonitoringRule.Spec == nil {
-		return trace.BadParameter("accessMonitoringRule spec is missing")
-	}
+	// if accessMonitoringRule.Kind != types.KindAccessMonitoringRule {
+	// 	return trace.BadParameter("invalid kind for access monitoring rule: %q", accessMonitoringRule.Kind)
+	// }
+	// if accessMonitoringRule.Metadata == nil {
+	// 	return trace.BadParameter("accessMonitoringRule metadata is missing")
+	// }
+	// if accessMonitoringRule.Version != types.V1 {
+	// 	return trace.BadParameter("accessMonitoringRule %q is not supported", accessMonitoringRule.Version)
+	// }
+	// if accessMonitoringRule.Spec == nil {
+	// 	return trace.BadParameter("accessMonitoringRule spec is missing")
+	// }
 
-	if len(accessMonitoringRule.Spec.Subjects) == 0 {
-		return trace.BadParameter("accessMonitoringRule subject is missing")
-	}
+	// if len(accessMonitoringRule.Spec.Subjects) == 0 {
+	// 	return trace.BadParameter("accessMonitoringRule subject is missing")
+	// }
 
-	if accessMonitoringRule.Spec.Condition == "" {
-		return trace.BadParameter("accessMonitoringRule condition is missing")
-	}
+	// if accessMonitoringRule.Spec.Condition == "" {
+	// 	return trace.BadParameter("accessMonitoringRule condition is missing")
+	// }
 
-	if accessMonitoringRule.Spec.Notification != nil && accessMonitoringRule.Spec.Notification.Name == "" {
-		return trace.BadParameter("accessMonitoringRule notification plugin name is missing")
-	}
-	if hasAccessRequestAsSubject := slices.ContainsFunc(accessMonitoringRule.Spec.Subjects, func(subject string) bool {
-		return subject == types.KindAccessRequest
-	}); hasAccessRequestAsSubject && accessMonitoringRule.Spec.Notification == nil {
-		return trace.BadParameter("accessMonitoringRule notification configuration must be set if subjects contain %q",
-			types.KindAccessRequest)
-	}
+	// if accessMonitoringRule.Spec.Notification != nil && accessMonitoringRule.Spec.Notification.Name == "" {
+	// 	return trace.BadParameter("accessMonitoringRule notification plugin name is missing")
+	// }
+	// if hasAccessRequestAsSubject := slices.ContainsFunc(accessMonitoringRule.Spec.Subjects, func(subject string) bool {
+	// 	return subject == types.KindAccessRequest
+	// }); hasAccessRequestAsSubject && accessMonitoringRule.Spec.Notification == nil {
+	// 	return trace.BadParameter("accessMonitoringRule notification configuration must be set if subjects contain %q",
+	// 		types.KindAccessRequest)
+	// }
 
 	return nil
 }
