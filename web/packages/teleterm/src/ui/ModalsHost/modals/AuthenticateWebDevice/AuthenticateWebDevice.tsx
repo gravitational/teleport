@@ -27,6 +27,7 @@ import { RootClusterUri, routing } from 'teleterm/ui/uri';
 
 type Props = {
   rootClusterUri: RootClusterUri;
+  onCancel(): void;
   onClose(): void;
   onAuthorize(): Promise<void>;
 };
@@ -34,6 +35,7 @@ type Props = {
 export const AuthenticateWebDevice = ({
   onAuthorize,
   onClose,
+  onCancel,
   rootClusterUri,
 }: Props) => {
   const [attempt, run] = useAsync(async () => {
@@ -66,7 +68,7 @@ export const AuthenticateWebDevice = ({
         </ButtonPrimary>
         <ButtonSecondary
           disabled={attempt.status === 'processing'}
-          onClick={onClose}
+          onClick={onCancel}
         >
           Cancel
         </ButtonSecondary>

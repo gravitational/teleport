@@ -342,14 +342,25 @@ func onProxyCommandApp(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	appCerts, err := loadAppCertificateWithAppLogin(cf, tc, cf.AppName)
+	app, err := getRegisteredApp(cf, tc)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	app, err := getRegisteredApp(cf, tc)
+	profile, err := tc.ProfileStatus()
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	routeToApp, err := getRouteToApp(cf, tc, profile, app)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	opts := []alpnproxy.LocalProxyConfigOpt{
+		alpnproxy.WithALPNProtocol(alpnProtocolForApp(app)),
+		alpnproxy.WithClusterCAsIfConnUpgrade(cf.Context, tc.RootClusterCACertPool),
+		alpnproxy.WithMiddleware(libclient.NewAppCertChecker(tc, routeToApp, nil)),
 	}
 
 	addr := "localhost:0"
@@ -362,12 +373,7 @@ func onProxyCommandApp(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	lp, err := alpnproxy.NewLocalProxy(
-		makeBasicLocalProxyConfig(cf, tc, listener),
-		alpnproxy.WithALPNProtocol(alpnProtocolForApp(app)),
-		alpnproxy.WithClientCerts(appCerts),
-		alpnproxy.WithClusterCAsIfConnUpgrade(cf.Context, tc.RootClusterCACertPool),
-	)
+	lp, err := alpnproxy.NewLocalProxy(makeBasicLocalProxyConfig(cf, tc, listener), opts...)
 	if err != nil {
 		if cerr := listener.Close(); cerr != nil {
 			return trace.NewAggregate(err, cerr)
@@ -387,7 +393,7 @@ func onProxyCommandApp(cf *CLIConf) error {
 
 	defer lp.Close()
 	if err = lp.Start(cf.Context); err != nil {
-		log.WithError(err).Errorf("Failed to start local proxy.")
+		return trace.Wrap(err)
 	}
 
 	return nil
@@ -585,17 +591,15 @@ func loadAppCertificate(tc *libclient.TeleportClient, appName string) (certifica
 	if err != nil {
 		return tls.Certificate{}, false, trace.Wrap(err)
 	}
-	cert, ok := key.AppTLSCerts[appName]
-	if !ok {
-		return tls.Certificate{}, true, trace.NotFound("please login into the application first: 'tsh apps login %v'", appName)
-	}
 
-	tlsCert, err := key.TLSCertificate(cert)
-	if err != nil {
+	appCert, err := key.AppTLSCert(appName)
+	if trace.IsNotFound(err) {
+		return tls.Certificate{}, true, trace.NotFound("please login into the application first: 'tsh apps login %v'", appName)
+	} else if err != nil {
 		return tls.Certificate{}, false, trace.Wrap(err)
 	}
 
-	expiresAt, err := getTLSCertExpireTime(tlsCert)
+	expiresAt, err := getTLSCertExpireTime(appCert)
 	if err != nil {
 		return tls.Certificate{}, true, trace.WrapWithMessage(err, "invalid certificate - please login to the application again: 'tsh apps login %v'", appName)
 	}
@@ -604,7 +608,8 @@ func loadAppCertificate(tc *libclient.TeleportClient, appName string) (certifica
 			"application %s certificate has expired, please re-login to the app using 'tsh apps login %v'", appName,
 			appName)
 	}
-	return tlsCert, false, nil
+
+	return appCert, false, nil
 }
 
 func loadDBCertificate(tc *libclient.TeleportClient, dbName string) (tls.Certificate, error) {
@@ -612,15 +617,15 @@ func loadDBCertificate(tc *libclient.TeleportClient, dbName string) (tls.Certifi
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
-	cert, ok := key.DBTLSCerts[dbName]
-	if !ok {
+
+	dbCert, err := key.DBTLSCert(dbName)
+	if trace.IsNotFound(err) {
 		return tls.Certificate{}, trace.NotFound("please login into the database first. 'tsh db login'")
-	}
-	tlsCert, err := key.TLSCertificate(cert)
-	if err != nil {
+	} else if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
-	return tlsCert, nil
+
+	return dbCert, nil
 }
 
 // getTLSCertExpireTime returns the certificate NotAfter time.
