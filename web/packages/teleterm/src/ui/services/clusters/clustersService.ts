@@ -215,7 +215,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
               stream.requests.send({
                 request: {
                   oneofKind: 'credential',
-                  credential: { index },
+                  credential: { index: BigInt(index) },
                 },
               });
             };
@@ -711,7 +711,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     ).reduce((requestsMap, request) => {
       requestsMap[request.id] = {
         id: request.id,
-        expires: new Date(request.expires.seconds * 1000),
+        expires: Timestamp.toDate(request.expires),
         roles: request.roles,
       };
       return requestsMap;
