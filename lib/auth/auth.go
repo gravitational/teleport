@@ -57,6 +57,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
+	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/maps"
 	"golang.org/x/time/rate"
@@ -969,6 +970,11 @@ type Server struct {
 	// createDeviceWebTokenFunc is the CreateDeviceWebToken implementation.
 	// Is nil on OSS clusters.
 	createDeviceWebTokenFunc CreateDeviceWebTokenFunc
+
+	// bcryptCostOverride overrides the bcrypt cost for operations executed
+	// directly by [Server].
+	// Used for testing.
+	bcryptCostOverride *int
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -1128,6 +1134,13 @@ func (a *Server) createDeviceWebToken(ctx context.Context, webToken *devicepb.De
 	}
 	token, err := a.createDeviceWebTokenFunc(ctx, webToken)
 	return token, trace.Wrap(err)
+}
+
+func (a *Server) bcryptCost() int {
+	if cost := a.bcryptCostOverride; cost != nil {
+		return *cost
+	}
+	return bcrypt.DefaultCost
 }
 
 // syncUpgradeWindowStartHour attempts to load the cloud UpgradeWindowStartHour value and set
