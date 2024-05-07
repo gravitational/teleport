@@ -24,7 +24,6 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/sync/singleflight"
 
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
@@ -50,7 +49,6 @@ type AppProvider interface {
 // TCPAppResolver implements [TCPHandlerResolver] for Teleport TCP apps.
 type TCPAppResolver struct {
 	appProvider AppProvider
-	group       singleflight.Group
 	slog        *slog.Logger
 }
 
@@ -72,52 +70,34 @@ func NewTCPAppResolver(appProvider AppProvider) *TCPAppResolver {
 // ResolveTCPHandler resolves a fully-qualified domain name to a TCPHandler for a Teleport TCP app that should
 // be used to handle all future TCP connections to [fqdn].
 func (r *TCPAppResolver) ResolveTCPHandler(ctx context.Context, fqdn string) (handler TCPHandler, match bool, err error) {
-	// Use a singleflight group to avoid the extra work of querying for the same fqdn multiple times
-	// concurrently, which is likely because DNS clients often ask for A and AAAA records in quick succession.
-	// Caching at this layer shouldn't be necessary because the [Manager] will "cache" positive results by
-	// assigning an address to the returned handler and returning that address to all future queries.
-	resAny, err, _ := r.group.Do(fqdn, func() (any, error) {
-		return r.resolveTCPHandler(ctx, fqdn)
-	})
-	res := resAny.(result)
-	return res.handler, res.match, trace.Wrap(err)
-}
-
-type result struct {
-	handler *tcpAppHandler
-	match   bool
-}
-
-func (r *TCPAppResolver) resolveTCPHandler(ctx context.Context, fqdn string) (result, error) {
 	profileNames, err := r.appProvider.ListProfiles()
 	if err != nil {
-		return result{}, trace.Wrap(err, "listing profiles")
+		return nil, false, trace.Wrap(err, "listing profiles")
 	}
 	appPublicAddr := strings.TrimSuffix(fqdn, ".")
 	for _, profileName := range profileNames {
-		slog := r.slog.With("profile", profileName, "fqdn", fqdn)
+		if profileName == appPublicAddr {
+			// This is a query for the proxy address, which we'll never want to handle.
+			return nil, false, nil
+		}
+		if !isSubdomain(fqdn, profileName) {
+			// TODO(nklaassen): support leaf clusters and custom DNS zones.
+			continue
+		}
 
+		slog := r.slog.With("profile", profileName, "fqdn", fqdn)
 		rootClient, err := r.appProvider.GetCachedClient(ctx, profileName, "")
 		if err != nil {
 			// The user might be logged out from this one cluster (and retryWithRelogin isn't working). Don't
 			// return an error so that DNS resolution will be forwarded upstream instead of failing, to avoid
-			// breaking e.g. web app access (we don't know if this is a web or TCP app yet because we can't log in).
+			// breaking e.g. web app access (we don't know if this is a web or TCP app yet because we can't
+			// log in).
 			slog.InfoContext(ctx, "Failed to get teleport client.", "error", err)
 			continue
 		}
-
-		if isSubdomain(fqdn, profileName) {
-			res, err := r.resolveTCPHandlerForCluster(ctx, slog, rootClient.CurrentCluster(), profileName, "", appPublicAddr)
-			if res.match || err != nil {
-				return res, trace.Wrap(err)
-			}
-			// TODO(nklaassen): handle custom DNS zones.
-			return result{}, nil
-		}
-
-		// TODO(nklaassen): support leaf clusters.
+		return r.resolveTCPHandlerForCluster(ctx, slog, rootClient.CurrentCluster(), profileName, "", appPublicAddr)
 	}
-	return result{}, nil
+	return nil, false, nil
 }
 
 func (r *TCPAppResolver) resolveTCPHandlerForCluster(
@@ -125,7 +105,7 @@ func (r *TCPAppResolver) resolveTCPHandlerForCluster(
 	slog *slog.Logger,
 	clt apiclient.GetResourcesClient,
 	profileName, leafClusterName, appPublicAddr string,
-) (result, error) {
+) (handler TCPHandler, match bool, err error) {
 	resp, err := apiclient.GetResourcePage[types.AppServer](ctx, clt, &proto.ListResourcesRequest{
 		ResourceType:        types.KindAppServer,
 		PredicateExpression: fmt.Sprintf(`resource.spec.public_addr == "%s" && hasPrefix(resource.spec.uri, "tcp://")`, appPublicAddr),
@@ -134,17 +114,17 @@ func (r *TCPAppResolver) resolveTCPHandlerForCluster(
 	if err != nil {
 		// Don't return an error so we can try to find the app in different clusters or forward the request upstream.
 		slog.InfoContext(ctx, "Failed to list application servers.", "error", err)
-		return result{}, nil
+		return nil, false, nil
 	}
 	if len(resp.Resources) == 0 {
-		return result{}, nil
+		return nil, false, nil
 	}
 	app := resp.Resources[0].GetApp()
 	appHandler, err := newTCPAppHandler(ctx, r.appProvider, profileName, leafClusterName, app)
 	if err != nil {
-		return result{}, trace.Wrap(err)
+		return nil, false, trace.Wrap(err)
 	}
-	return result{handler: appHandler, match: true}, nil
+	return appHandler, true, nil
 }
 
 type tcpAppHandler struct {

@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/singleflight"
 	"golang.zx2c4.com/wireguard/device"
 	"gvisor.dev/gvisor/pkg/buffer"
 	"gvisor.dev/gvisor/pkg/tcpip"
@@ -166,6 +167,10 @@ type Manager struct {
 	// tcpHandlerResolver resolves app FQDNs to a TCP handler that will be used to handle all future TCP
 	// connections to IP addresses that will be assigned to that FQDN.
 	tcpHandlerResolver TCPHandlerResolver
+	// resolveHandlerGroup is a [singleflight.Group] that will be used to avoid resolving the same FQDN
+	// multiple times concurrently. Every call to [tcpHandlerResolver.ResolveTCPHandler] will be wrapped by
+	// this. The key will be the FQDN.
+	resolveHandlerGroup singleflight.Group
 
 	// destroyed is a channel that will be closed when the VNet is in the process of being destroyed.
 	// All goroutines should terminate quickly after either this is closed or the context passed to
@@ -494,53 +499,57 @@ func (m *Manager) assignUDPHandler(addr tcpip.Address, handler UDPHandler) error
 
 // ResolveA implements [dns.Resolver.ResolveA].
 func (m *Manager) ResolveA(ctx context.Context, fqdn string) (dns.Result, error) {
-	if _, ok := m.appIPv6(fqdn); ok {
+	result, err := m.resolveAAAA(ctx, fqdn)
+	if err != nil {
+		return dns.Result{}, trace.Wrap(err)
+	}
+	if result.AAAA != ([16]byte{}) {
 		// Matched a known app but not supporting IPv4 yet, return NoRecord.
 		return dns.Result{
 			NoRecord: true,
 		}, nil
 	}
-
-	_, found, err := m.tcpHandlerResolver.ResolveTCPHandler(ctx, fqdn)
-	if err != nil {
-		return dns.Result{}, trace.Wrap(err, "resolving TCP handler for fqdn %q", fqdn)
-	}
-	if !found {
-		// Did not find any known app, forward the DNS request upstream.
-		return dns.Result{}, nil
-	}
-
-	// Matched a known app but not supporting IPv4 yet, return NoRecord.
-	return dns.Result{
-		NoRecord: true,
-	}, nil
+	return result, nil
 }
 
 // ResolveAAAA implements [dns.Resolver.ResolveAAAA].
 func (m *Manager) ResolveAAAA(ctx context.Context, fqdn string) (dns.Result, error) {
-	if ip, ok := m.appIPv6(fqdn); ok {
+	result, err := m.resolveAAAA(ctx, fqdn)
+	return result, trace.Wrap(err)
+}
+
+func (m *Manager) resolveAAAA(ctx context.Context, fqdn string) (dns.Result, error) {
+	// Do the actual resolution within a [singleflight.Group] keyed by [fqdn] to avoid concurrent requests to
+	// resolve an FQDN and then assign an address to it.
+	resultAny, err, _ := m.resolveHandlerGroup.Do(fqdn, func() (any, error) {
+		if ip, ok := m.appIPv6(fqdn); ok {
+			return dns.Result{
+				AAAA: ip.As16(),
+			}, nil
+		}
+
+		tcpHandler, found, err := m.tcpHandlerResolver.ResolveTCPHandler(ctx, fqdn)
+		if err != nil {
+			return dns.Result{}, trace.Wrap(err, "resolving TCP handler for fqdn %q", fqdn)
+		}
+		if !found {
+			// Did not find any known app, forward the DNS request upstream.
+			return dns.Result{}, nil
+		}
+
+		addr, err := m.assignTCPHandler(tcpHandler, fqdn)
+		if err != nil {
+			return dns.Result{}, trace.Wrap(err, "assigning address to handler for %q", fqdn)
+		}
+
 		return dns.Result{
-			AAAA: ip.As16(),
+			AAAA: addr.As16(),
 		}, nil
-	}
-
-	tcpHandler, found, err := m.tcpHandlerResolver.ResolveTCPHandler(ctx, fqdn)
+	})
 	if err != nil {
-		return dns.Result{}, trace.Wrap(err, "resolving TCP handler for fqdn %q", fqdn)
+		return dns.Result{}, trace.Wrap(err)
 	}
-	if !found {
-		// Did not find any known app, forward the DNS request upstream.
-		return dns.Result{}, nil
-	}
-
-	addr, err := m.assignTCPHandler(tcpHandler, fqdn)
-	if err != nil {
-		return dns.Result{}, trace.Wrap(err, "assigning address to handler for %q", fqdn)
-	}
-
-	return dns.Result{
-		AAAA: addr.As16(),
-	}, nil
+	return resultAny.(dns.Result), nil
 }
 
 func (m *Manager) appIPv6(fqdn string) (tcpip.Address, bool) {
