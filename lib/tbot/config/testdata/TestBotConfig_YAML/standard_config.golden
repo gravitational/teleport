@@ -30,6 +30,13 @@ services:
             - foo.bar
           ip:
             - 10.0.0.1
+        rules:
+          - unix:
+              pid: 100
+              uid: 1000
+              gid: 1234
+          - unix:
+              pid: 100
   - type: example
     message: llama
 debug: true
