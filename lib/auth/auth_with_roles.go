@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
 	"github.com/gravitational/teleport/lib/auth/integration/integrationv1"
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
@@ -4567,7 +4568,16 @@ func (a *ServerWithRoles) SetClusterNetworkingConfig(ctx context.Context, newNet
 		return trace.AccessDenied("proxy peering is an enterprise-only feature")
 	}
 
-	return a.authServer.SetClusterNetworkingConfig(ctx, newNetConfig)
+	oldNetConf, err := a.authServer.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := clusterconfigv1.ValidateCloudNetworkConfigUpdate(a.context, newNetConfig, oldNetConf); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(a.authServer.SetClusterNetworkingConfig(ctx, newNetConfig))
 }
 
 // ResetClusterNetworkingConfig resets cluster networking configuration to defaults.
@@ -4584,6 +4594,14 @@ func (a *ServerWithRoles) ResetClusterNetworkingConfig(ctx context.Context) erro
 		if err2 := a.action(apidefaults.Namespace, types.KindClusterConfig, types.VerbUpdate); err2 != nil {
 			return trace.Wrap(err)
 		}
+	}
+	oldNetConf, err := a.authServer.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := clusterconfigv1.ValidateCloudNetworkConfigUpdate(a.context, types.DefaultClusterNetworkingConfig(), oldNetConf); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return a.authServer.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())

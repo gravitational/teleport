@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/trace"
 
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/modules"
 )
@@ -62,6 +63,41 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}
 
 	return &Service{authorizer: cfg.Authorizer, accessGraph: cfg.AccessGraph}, nil
+}
+
+// ValidateCloudNetworkConfigUpdate validates that that [newConfig] is a valid update of [oldConfig]. Cloud
+// customers are not allowed to edit certain fields of the cluster networking config, and even if they were,
+// the edits would be overwritten by the values from the static config file every time an auth process starts
+// up.
+func ValidateCloudNetworkConfigUpdate(authzCtx authz.Context, newConfig, oldConfig types.ClusterNetworkingConfig) error {
+	if authz.HasBuiltinRole(authzCtx, string(types.RoleAdmin)) {
+		return nil
+	}
+
+	if !modules.GetModules().Features().Cloud {
+		return nil
+	}
+
+	const cloudUpdateFailureMsg = "cloud tenants cannot update %q"
+
+	if newConfig.GetProxyListenerMode() != oldConfig.GetProxyListenerMode() {
+		return trace.BadParameter(cloudUpdateFailureMsg, "proxy_listener_mode")
+	}
+	newtst, _ := newConfig.GetTunnelStrategyType()
+	oldtst, _ := oldConfig.GetTunnelStrategyType()
+	if newtst != oldtst {
+		return trace.BadParameter(cloudUpdateFailureMsg, "tunnel_strategy")
+	}
+
+	if newConfig.GetKeepAliveInterval() != oldConfig.GetKeepAliveInterval() {
+		return trace.BadParameter(cloudUpdateFailureMsg, "keep_alive_interval")
+	}
+
+	if newConfig.GetKeepAliveCountMax() != oldConfig.GetKeepAliveCountMax() {
+		return trace.BadParameter(cloudUpdateFailureMsg, "keep_alive_count_max")
+	}
+
+	return nil
 }
 
 func (s *Service) GetClusterAccessGraphConfig(ctx context.Context, _ *clusterconfigpb.GetClusterAccessGraphConfigRequest) (*clusterconfigpb.GetClusterAccessGraphConfigResponse, error) {
