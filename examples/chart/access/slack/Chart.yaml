@@ -1,4 +1,4 @@
-.version: &version "14.0.0-dev.fred.updater-nonmajor-10"
+.version: &version "14.0.0-dev.fred.updater-nonmajor-11"
 
 apiVersion: v2
 name: teleport-plugin-slack
