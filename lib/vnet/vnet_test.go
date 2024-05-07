@@ -117,11 +117,6 @@ func newTestPack(t *testing.T, ctx context.Context) *testPack {
 			}
 			return nil
 		},
-		Terminate: func() error {
-			tunErr := tun2.Close()
-			destroyErr := manager.Destroy()
-			return trace.NewAggregate(tunErr, destroyErr)
-		},
 	})
 
 	return &testPack{
