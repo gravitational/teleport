@@ -1,4 +1,4 @@
-.version: &version "14.0.0-dev.fred.updater-nonmajor-6"
+.version: &version "14.0.0-dev.fred.updater-nonmajor-7"
 
 apiVersion: v2
 name: teleport-plugin-discord
