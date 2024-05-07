@@ -300,6 +300,8 @@ type isMFARequiredApp struct {
 
 type isMFARequiredAdminAction struct{}
 
+type isMFARequiredSAML struct{}
+
 type isMFARequiredRequest struct {
 	// Database contains fields required to check if target database
 	// requires MFA check.
@@ -316,8 +318,10 @@ type isMFARequiredRequest struct {
 	// App contains fields required to resolve an application and check if
 	// the target application requires MFA check.
 	App *isMFARequiredApp `json:"app,omitempty"`
-	// AdminAction is the name of the admin action RPC to check if MFA is required.
+	// AdminAction checks if MFA is required for admin actions.
 	AdminAction *isMFARequiredAdminAction `json:"admin_action,omitempty"`
+	// AdminAction checks if MFA is required for SAML sessions.
+	SAML *isMFARequiredSAML `json:"saml,omitempty"`
 }
 
 func (h *Handler) checkAndGetProtoRequest(ctx context.Context, scx *SessionContext, r *isMFARequiredRequest) (*proto.IsMFARequiredRequest, error) {
@@ -417,6 +421,15 @@ func (h *Handler) checkAndGetProtoRequest(ctx context.Context, scx *SessionConte
 		protoReq = &proto.IsMFARequiredRequest{
 			Target: &proto.IsMFARequiredRequest_AdminAction{
 				AdminAction: &proto.AdminAction{},
+			},
+		}
+	}
+
+	if r.SAML != nil {
+		numRequests++
+		protoReq = &proto.IsMFARequiredRequest{
+			Target: &proto.IsMFARequiredRequest_SAMLIdP{
+				SAMLIdP: &proto.SAMLIdP{},
 			},
 		}
 	}

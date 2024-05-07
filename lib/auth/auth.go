@@ -5950,6 +5950,8 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		}, nil
 	}
 
+	// Cases below are if MFA is required on a per-role basis.
+
 	var noMFAAccessErr error
 	switch t := req.Target.(type) {
 	case *proto.IsMFARequiredRequest_Node:
@@ -6121,6 +6123,13 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 
 		app := servers[i].GetApp()
 		noMFAAccessErr = checker.CheckAccess(app, services.AccessState{})
+
+	case *proto.IsMFARequiredRequest_SAMLIdP:
+		// Require MFA for SAML IdP Sessions if any role requires MFA.
+		return &proto.IsMFARequiredResponse{
+			MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
+			Required:    true,
+		}, nil
 
 	default:
 		return nil, trace.BadParameter("unknown Target %T", req.Target)

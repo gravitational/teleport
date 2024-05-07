@@ -372,7 +372,8 @@ export type IsMfaRequiredRequest =
   | IsMfaRequiredKube
   | IsMfaRequiredWindowsDesktop
   | IsMfaRequiredApp
-  | IsMfaRequiredAdminAction;
+  | IsMfaRequiredAdminAction
+  | IsMfaRequiredSAML;
 
 export type IsMfaRequiredResponse = {
   required: boolean;
@@ -430,6 +431,11 @@ export type IsMfaRequiredApp = {
 export type IsMfaRequiredAdminAction = {
   // empty object.
   admin_action: Record<string, never>;
+};
+
+export type IsMfaRequiredSAML = {
+  // empty object.
+  saml: Record<string, never>;
 };
 
 // MfaChallengeScope is an mfa challenge scope. Possible values are defined in mfa.proto

@@ -37,6 +37,7 @@ import (
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/idp/saml"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -312,17 +313,11 @@ type CreateSAMLIdPSessionRequest struct {
 	MFAResponse string `json:"mfa_response"`
 }
 
-// CreateSAMLIdPSessionResponse is a response to POST /v1/webapi/sessions/app
-type CreateSAMLIdPSessionResponse struct {
-	// CookieValue is the application session cookie value.
-	CookieValue string `json:"cookie_value"`
-}
-
 // createSAMLIdPSession creates a new SAML IdP session.
 //
 // POST /v1/webapi/sessions/saml-idp
 func (h *Handler) createSAMLIdPSession(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext) (interface{}, error) {
-	var req CreateAppSessionRequest
+	var req CreateSAMLIdPSessionRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -362,9 +357,8 @@ func (h *Handler) createSAMLIdPSession(w http.ResponseWriter, r *http.Request, p
 		return nil, trace.Wrap(err)
 	}
 
-	return &CreateSAMLIdPSessionResponse{
-		CookieValue: ws.GetName(),
-	}, nil
+	saml.SetCookie(w, ws.GetName(), 60)
+	return struct{}{}, nil
 }
 
 type ResolveAppParams struct {

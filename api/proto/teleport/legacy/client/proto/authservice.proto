@@ -1365,6 +1365,8 @@ message IsMFARequiredRequest {
     AdminAction AdminAction = 5;
     // App specifies the target App.
     RouteToApp App = 6;
+    // SAMLIdP specifies the target SAML IdP.
+    SAMLIdP SAMLIdP = 7;
   }
 }
 
@@ -1390,6 +1392,9 @@ message AdminAction {
   reserved 1;
   reserved "Name";
 }
+
+// SAMLIdP specifies the target SAML IdP.
+message SAMLIdP {}
 
 // IsMFARequiredResponse is a response for MFA requirement check.
 message IsMFARequiredResponse {
