@@ -55,7 +55,6 @@ import { PasswordBox } from './PasswordBox';
 import { AddAuthDeviceWizard } from './ManageDevices/AddAuthDeviceWizard';
 import { StatePill } from './StatePill';
 
-
 export interface EnterpriseComponentProps {
   // TODO(bl-nero): Consider moving the notifications to its own store and
   // unifying them between this screen and the unified resources screen.
