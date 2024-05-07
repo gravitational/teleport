@@ -309,36 +309,18 @@ func (p *podHandler) handler(r *http.Request) error {
 }
 
 func createKubeRestConfig(serverAddr, tlsServerName string, ca types.CertAuthority, clientCert, rsaKey []byte) (*rest.Config, error) {
-	cfg := clientcmdapi.Config{
-		Clusters:  make(map[string]*clientcmdapi.Cluster),
-		AuthInfos: make(map[string]*clientcmdapi.AuthInfo),
-		Contexts:  make(map[string]*clientcmdapi.Context),
-	}
-
 	var clusterCACerts [][]byte
 	for _, keyPair := range ca.GetTrustedTLSKeyPairs() {
 		clusterCACerts = append(clusterCACerts, keyPair.Cert)
 	}
-
-	cfg.Clusters["cluster"] = &clientcmdapi.Cluster{
-		Server:                   serverAddr,
-		CertificateAuthorityData: bytes.Join(clusterCACerts, []byte("\n")),
-		TLSServerName:            tlsServerName,
-	}
-	cfg.AuthInfos["user"] = &clientcmdapi.AuthInfo{
-		ClientCertificateData: clientCert,
-		ClientKeyData:         rsaKey,
-	}
-	cfg.Contexts["context"] = &clientcmdapi.Context{
-		Cluster:  "cluster",
-		AuthInfo: "user",
-	}
-	cfg.APIVersion = "v1"
-	cfg.CurrentContext = "context"
-	config, err := clientcmd.NewDefaultClientConfig(cfg, nil).ClientConfig()
-	if err != nil {
-		return nil, trace.Wrap(err, "failed creating Kubernetes client config")
-	}
-
-	return config, nil
+	return &rest.Config{
+		Host: serverAddr,
+		TLSClientConfig: rest.TLSClientConfig{
+			CertData:   clientCert,
+			KeyData:    rsaKey,
+			CAData:     bytes.Join(clusterCACerts, []byte("\n")),
+			ServerName: tlsServerName,
+		},
+	}, nil
 }
+
