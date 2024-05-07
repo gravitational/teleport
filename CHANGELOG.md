@@ -1,5 +1,13 @@
 # Changelog
 
+## 13.4.24 (05/07/24)
+
+* Fix a bug that was preventing tsh proxy kube certificate renewal from working when accessing a leaf kubernetes cluster via the root. [#41159](https://github.com/gravitational/teleport/pull/41159)
+* Add lock target to lock deletion audit events. [#41110](https://github.com/gravitational/teleport/pull/41110)
+* Fix user SSO bypass by performing a local passwordless login. [#41072](https://github.com/gravitational/teleport/pull/41072)
+* Enforce allow_passwordless server-side. [#41059](https://github.com/gravitational/teleport/pull/41059)
+* Improved error message when performing an SSO login with a hardware key. [#40925](https://github.com/gravitational/teleport/pull/40925)
+
 ## 13.4.23 (04/25/24)
 
 * Fixed a bug in the `teleport-cluster` Helm chart that happened when `sessionRecording` was `off`. [#40921](https://github.com/gravitational/teleport/pull/40921)
