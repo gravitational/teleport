@@ -1963,7 +1963,7 @@ func (c *testContext) startLocalALPNProxy(ctx context.Context, proxyAddr, telepo
 		InsecureSkipVerify: true,
 		Listener:           listener,
 		ParentContext:      ctx,
-		Certs:              []tls.Certificate{tlsCert},
+		Cert:               tlsCert,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

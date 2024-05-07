@@ -262,7 +262,6 @@ exports[`render clusters 1`] = `
 }
 
 .c9 {
-  background: #0C143D;
   border-radius: 200px;
   width: 100%;
   height: 56px;

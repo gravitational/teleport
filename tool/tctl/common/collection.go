@@ -573,8 +573,8 @@ func (c *uiConfigCollection) resources() (r []types.Resource) {
 }
 
 func (c *uiConfigCollection) writeText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"Scrollback Lines"})
-	t.AddRow([]string{string(c.uiconfig.GetScrollbackLines())})
+	t := asciitable.MakeTable([]string{"Scrollback Lines", "Show Resources"})
+	t.AddRow([]string{strconv.FormatInt(int64(c.uiconfig.GetScrollbackLines()), 10), string(c.uiconfig.GetShowResources())})
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }

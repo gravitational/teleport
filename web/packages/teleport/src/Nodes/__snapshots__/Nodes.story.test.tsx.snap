@@ -789,7 +789,6 @@ exports[`failed 1`] = `
 }
 
 .c11 {
-  background: #0C143D;
   border-radius: 200px;
   width: 100%;
   height: 56px;
@@ -1970,7 +1969,6 @@ exports[`loaded 1`] = `
 }
 
 .c11 {
-  background: #0C143D;
   border-radius: 200px;
   width: 100%;
   height: 56px;

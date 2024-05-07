@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils"
 )
 
@@ -80,6 +81,22 @@ func NewAppServerV3FromApp(app *AppV3, hostname, hostID string) (*AppServerV3, e
 		Hostname: hostname,
 		HostID:   hostID,
 		App:      app,
+	})
+}
+
+// NewAppServerForAWSOIDCIntegration creates a new AppServer that will be used to grant AWS App Access
+// using the AWSOIDC credentials.
+func NewAppServerForAWSOIDCIntegration(integrationName string, hostID string) (*AppServerV3, error) {
+	return NewAppServerV3(Metadata{
+		Name: integrationName,
+	}, AppServerSpecV3{
+		HostID: hostID,
+		App: &AppV3{Metadata: Metadata{
+			Name: integrationName,
+		}, Spec: AppSpecV3{
+			URI:         constants.AWSConsoleURL,
+			Integration: integrationName,
+		}},
 	})
 }
 

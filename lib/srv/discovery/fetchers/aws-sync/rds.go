@@ -140,7 +140,8 @@ func awsRDSInstanceToRDS(instance *rds.DBInstance, region, accountID string) *ac
 			Engine:  aws.StringValue(instance.Engine),
 			Version: aws.StringValue(instance.EngineVersion),
 		},
-		IsCluster: false,
+		IsCluster:  false,
+		ResourceId: aws.StringValue(instance.DbiResourceId),
 	}
 }
 
@@ -167,6 +168,7 @@ func awsRDSClusterToRDS(instance *rds.DBCluster, region, accountID string) *acce
 			Engine:  aws.StringValue(instance.Engine),
 			Version: aws.StringValue(instance.EngineVersion),
 		},
-		IsCluster: true,
+		IsCluster:  true,
+		ResourceId: aws.StringValue(instance.DbClusterResourceId),
 	}
 }

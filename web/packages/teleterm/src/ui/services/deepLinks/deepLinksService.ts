@@ -116,7 +116,9 @@ export class DeepLinksService {
     this.modalsService.openRegularDialog({
       kind: 'device-trust-authorize',
       rootClusterUri,
-      onCancel: () => {},
+      onCancel: () => {
+        window.open(`https://${rootCluster.proxyHost}/web`);
+      },
       onAuthorize: async () => {
         const result = await this.clustersService.authenticateWebDevice(
           rootClusterUri,
