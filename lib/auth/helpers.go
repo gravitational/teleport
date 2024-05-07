@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
+	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -291,6 +292,10 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Reduce auth.Server bcrypt costs when testing.
+	minCost := bcrypt.MinCost
+	srv.AuthServer.bcryptCostOverride = &minCost
 
 	err = srv.AuthServer.SetClusterAuditConfig(ctx, types.DefaultClusterAuditConfig())
 	if err != nil {

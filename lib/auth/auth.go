@@ -50,6 +50,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
+	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
@@ -758,6 +759,11 @@ type Server struct {
 
 	// ulsGenerator is the user login state generator.
 	ulsGenerator *userloginstate.Generator
+
+	// bcryptCostOverride overrides the bcrypt cost for operations executed
+	// directly by [Server].
+	// Used for testing.
+	bcryptCostOverride *int
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -873,6 +879,13 @@ func (a *Server) SetHeadlessAuthenticationWatcher(headlessAuthenticationWatcher 
 	a.lock.Lock()
 	defer a.lock.Unlock()
 	a.headlessAuthenticationWatcher = headlessAuthenticationWatcher
+}
+
+func (a *Server) bcryptCost() int {
+	if cost := a.bcryptCostOverride; cost != nil {
+		return *cost
+	}
+	return bcrypt.DefaultCost
 }
 
 // syncUpgradeWindowStartHour attempts to load the cloud UpgradeWindowStartHour value and set
