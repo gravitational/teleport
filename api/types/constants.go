@@ -193,7 +193,8 @@ const (
 
 	// KindKubeServer is an kubernetes server resource.
 	KindKubeServer = "kube_server"
-
+	// KindCrownJewel is a crown jewel resource
+	KindCrownJewel = "crown_jewel"
 	// KindKubernetesCluster is a Kubernetes cluster.
 	KindKubernetesCluster = "kube_cluster"
 
@@ -636,6 +637,10 @@ const (
 	// OriginDiscoveryKubernetes indicates that the resource was imported
 	// from kubernetes cluster by discovery service.
 	OriginDiscoveryKubernetes = common.OriginDiscoveryKubernetes
+
+	// OriginEntraID indicates that the resource was imported
+	// from the Entra ID directory.
+	OriginEntraID = common.OriginEntraID
 
 	// IntegrationLabel is a resource metadata label name used to identify the integration name that created the resource.
 	IntegrationLabel = TeleportNamespace + "/integration"

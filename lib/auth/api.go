@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	accessmonitoringrules "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
@@ -1157,10 +1158,16 @@ type Cache interface {
 	// ListAccessListReviews will list access list reviews for a particular access list.
 	ListAccessListReviews(ctx context.Context, accessList string, pageSize int, pageToken string) (reviews []*accesslist.Review, nextToken string, err error)
 
+	// ListCrownJewels returns a paginated list of crown jewels.
+	ListCrownJewels(ctx context.Context, pageSize int64, nextToken string) ([]*crownjewelv1.CrownJewel, string, error)
+
+	// GetCrownJewel returns the specified crown jewel.
+	GetCrownJewel(ctx context.Context, name string) (*crownjewelv1.CrownJewel, error)
+
 	// IntegrationsGetter defines read/list methods for integrations.
 	services.IntegrationsGetter
 
-	// NotificationsGetter defines list methods for notifications.
+	// NotificationGetter defines list methods for notifications.
 	services.NotificationGetter
 
 	// ListAccessMonitoringRules returns a paginated list of access monitoring rules.

@@ -1190,6 +1190,12 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 	if fc.Proxy.UI != nil {
 		cfg.Proxy.UI = webclient.UIConfig(*fc.Proxy.UI)
+		switch cfg.Proxy.UI.ShowResources {
+		case constants.ShowResourcesaccessibleOnly,
+			constants.ShowResourcesRequestable:
+		default:
+			return trace.BadParameter("show resources %q not supported", cfg.Proxy.UI.ShowResources)
+		}
 	}
 
 	if fc.Proxy.Assist != nil && fc.Proxy.Assist.OpenAI != nil {

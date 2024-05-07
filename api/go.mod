@@ -5,7 +5,7 @@ go 1.21
 require (
 	github.com/coreos/go-semver v0.3.1
 	github.com/go-piv/piv-go v1.11.0
-	github.com/gobwas/ws v1.3.2
+	github.com/gobwas/ws v1.4.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/google/go-cmp v0.6.0
 	github.com/google/uuid v1.6.0
@@ -28,7 +28,7 @@ require (
 	golang.org/x/term v0.19.0
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240401170217-c3f982113cda
 	google.golang.org/grpc v1.63.2
-	google.golang.org/protobuf v1.33.0
+	google.golang.org/protobuf v1.34.0
 	gopkg.in/yaml.v2 v2.4.0
 )
 

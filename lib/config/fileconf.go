@@ -2123,6 +2123,10 @@ type Proxy struct {
 type UIConfig struct {
 	// ScrollbackLines is the max number of lines the UI terminal can display in its history
 	ScrollbackLines int `yaml:"scrollback_lines,omitempty"`
+	// ShowResources determines which resources are shown in the web UI. Default if unset is "requestable"
+	// which means resources the user has access to and resources they can request will be shown in the
+	// resources UI. If set to `accessible_only`, only resources the user already has access to will be shown.
+	ShowResources constants.ShowResources `yaml:"show_resources,omitempty"`
 }
 
 // ACME configures ACME protocol - automatic X.509 certificates

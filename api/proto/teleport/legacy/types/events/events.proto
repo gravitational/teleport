@@ -2476,6 +2476,9 @@ message SAMLConnectorCreate {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // Connector is the new SAML connector
+  types.SAMLConnectorV2 Connector = 4 [(gogoproto.jsontag) = "connector"];
 }
 
 // SAMLConnectorUpdate fires when SAML connector is updated.
@@ -2500,6 +2503,9 @@ message SAMLConnectorUpdate {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // Connector is the updated SAML connector
+  types.SAMLConnectorV2 Connector = 4 [(gogoproto.jsontag) = "connector"];
 }
 
 // SAMLConnectorDelete fires when SAML connector is deleted.

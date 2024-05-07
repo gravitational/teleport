@@ -29,6 +29,9 @@ import (
 const (
 	// IntegrationSubKindAWSOIDC is an integration with AWS that uses OpenID Connect as an Identity Provider.
 	IntegrationSubKindAWSOIDC = "aws-oidc"
+
+	// IntegrationSubKindAzureOIDC is an integration with Azure that uses OpenID Connect as an Identity Provider.
+	IntegrationSubKindAzureOIDC = "azure-oidc"
 )
 
 // Integration specifies is a connection configuration between Teleport and a 3rd party system.
@@ -47,6 +50,9 @@ type Integration interface {
 	// SetAWSOIDCIssuerS3URI sets the IssuerS3URI of the AWS OIDC Spec.
 	// Eg, s3://my-bucket/my-prefix
 	SetAWSOIDCIssuerS3URI(string)
+
+	// GetAzureOIDCIntegrationSpec returns the `azure-oidc` spec fields.
+	GetAzureOIDCIntegrationSpec() *AzureOIDCIntegrationSpecV1
 }
 
 var _ ResourceWithLabels = (*IntegrationV1)(nil)
@@ -63,6 +69,27 @@ func NewIntegrationAWSOIDC(md Metadata, spec *AWSOIDCIntegrationSpecV1) (*Integr
 		Spec: IntegrationSpecV1{
 			SubKindSpec: &IntegrationSpecV1_AWSOIDC{
 				AWSOIDC: spec,
+			},
+		},
+	}
+	if err := ig.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ig, nil
+}
+
+// NewIntegrationAzureOIDC returns a new `azure-oidc` subkind Integration
+func NewIntegrationAzureOIDC(md Metadata, spec *AzureOIDCIntegrationSpecV1) (*IntegrationV1, error) {
+	ig := &IntegrationV1{
+		ResourceHeader: ResourceHeader{
+			Metadata: md,
+			Kind:     KindIntegration,
+			Version:  V1,
+			SubKind:  IntegrationSubKindAzureOIDC,
+		},
+		Spec: IntegrationSpecV1{
+			SubKindSpec: &IntegrationSpecV1_AzureOIDC{
+				AzureOIDC: spec,
 			},
 		},
 	}
@@ -128,6 +155,11 @@ func (s *IntegrationSpecV1) CheckAndSetDefaults() error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+	case *IntegrationSpecV1_AzureOIDC:
+		err := integrationSubKind.Validate()
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	default:
 		return trace.BadParameter("unknown integration subkind: %T", integrationSubKind)
 	}
@@ -135,7 +167,7 @@ func (s *IntegrationSpecV1) CheckAndSetDefaults() error {
 	return nil
 }
 
-// CheckAndSetDefaults validates an agent mesh integration.
+// CheckAndSetDefaults validates the configuration for AWS OIDC integration subkind.
 func (s *IntegrationSpecV1_AWSOIDC) CheckAndSetDefaults() error {
 	if s == nil || s.AWSOIDC == nil {
 		return trace.BadParameter("aws_oidc is required for %q subkind", IntegrationSubKindAWSOIDC)
@@ -155,6 +187,21 @@ func (s *IntegrationSpecV1_AWSOIDC) CheckAndSetDefaults() error {
 		if issuerS3URL.Scheme != "s3" || issuerS3URL.Host == "" || issuerS3URL.Path == "" {
 			return trace.BadParameter("issuer s3 uri must be in a valid format (eg, s3://my-bucket/my-prefix)")
 		}
+	}
+
+	return nil
+}
+
+// Validate validates the configuration for Azure OIDC integration subkind.
+func (s *IntegrationSpecV1_AzureOIDC) Validate() error {
+	if s == nil || s.AzureOIDC == nil {
+		return trace.BadParameter("azure_oidc is required for %q subkind", IntegrationSubKindAzureOIDC)
+	}
+	if s.AzureOIDC.TenantID == "" {
+		return trace.BadParameter("tenant_id must be set")
+	}
+	if s.AzureOIDC.ClientID == "" {
+		return trace.BadParameter("client_id must be set")
 	}
 
 	return nil
@@ -196,6 +243,11 @@ func (ig *IntegrationV1) SetAWSOIDCIssuerS3URI(issuerS3URI string) {
 	ig.Spec.SubKindSpec = &IntegrationSpecV1_AWSOIDC{
 		AWSOIDC: currentSubSpec,
 	}
+}
+
+// GetAzureOIDCIntegrationSpec returns the specific spec fields for `azure-oidc` subkind integrations.
+func (ig *IntegrationV1) GetAzureOIDCIntegrationSpec() *AzureOIDCIntegrationSpecV1 {
+	return ig.Spec.GetAzureOIDC()
 }
 
 // Integrations is a list of Integration resources.
@@ -247,7 +299,8 @@ func (ig *IntegrationV1) UnmarshalJSON(data []byte) error {
 	d := struct {
 		ResourceHeader `json:""`
 		Spec           struct {
-			AWSOIDC json.RawMessage `json:"aws_oidc"`
+			AWSOIDC   json.RawMessage `json:"aws_oidc"`
+			AzureOIDC json.RawMessage `json:"azure_oidc"`
 		} `json:"spec"`
 	}{}
 
@@ -265,6 +318,17 @@ func (ig *IntegrationV1) UnmarshalJSON(data []byte) error {
 		}
 
 		if err := json.Unmarshal(d.Spec.AWSOIDC, subkindSpec.AWSOIDC); err != nil {
+			return trace.Wrap(err)
+		}
+
+		integration.Spec.SubKindSpec = subkindSpec
+
+	case IntegrationSubKindAzureOIDC:
+		subkindSpec := &IntegrationSpecV1_AzureOIDC{
+			AzureOIDC: &AzureOIDCIntegrationSpecV1{},
+		}
+
+		if err := json.Unmarshal(d.Spec.AzureOIDC, subkindSpec.AzureOIDC); err != nil {
 			return trace.Wrap(err)
 		}
 
@@ -290,7 +354,8 @@ func (ig *IntegrationV1) MarshalJSON() ([]byte, error) {
 	d := struct {
 		ResourceHeader `json:""`
 		Spec           struct {
-			AWSOIDC AWSOIDCIntegrationSpecV1 `json:"aws_oidc"`
+			AWSOIDC   AWSOIDCIntegrationSpecV1   `json:"aws_oidc,omitempty"`
+			AzureOIDC AzureOIDCIntegrationSpecV1 `json:"azure_oidc,omitempty"`
 		} `json:"spec"`
 	}{}
 
@@ -303,6 +368,12 @@ func (ig *IntegrationV1) MarshalJSON() ([]byte, error) {
 		}
 
 		d.Spec.AWSOIDC = *ig.GetAWSOIDCIntegrationSpec()
+	case IntegrationSubKindAzureOIDC:
+		if ig.GetAzureOIDCIntegrationSpec() == nil {
+			return nil, trace.BadParameter("missing subkind data for %q subkind", ig.SubKind)
+		}
+
+		d.Spec.AzureOIDC = *ig.GetAzureOIDCIntegrationSpec()
 	default:
 		return nil, trace.BadParameter("invalid subkind %q", ig.SubKind)
 	}
