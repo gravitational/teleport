@@ -126,6 +126,7 @@ export function makeDefaultUserPreferences(): UserPreferences {
       labelsViewMode: LabelsViewMode.COLLAPSED,
     },
     clusterPreferences: makeDefaultUserClusterPreferences(),
+    keyboardLayout: 0
   };
 }
 
@@ -155,6 +156,7 @@ export function convertBackendUserPreferences(
 ): UserPreferences {
   return {
     ...preferences,
+    keyboardLayout: 0,
     clusterPreferences: convertBackendClusterUserPreferences(
       preferences.clusterPreferences
     ),

@@ -25,8 +25,6 @@ import { Notification, NotificationItem } from 'shared/components/Notification';
 
 import { useStore } from 'shared/libs/stores';
 
-import Option from 'shared/components/Select';
-
 import useTeleport from 'teleport/useTeleport';
 import {
   FeatureBox,
@@ -343,8 +341,8 @@ export function Account({
   };
 
   let layout = ctx.preferences.keyboardLayout;
-  let value: Option<any, any> = { label: layouts[layout], value: layout };
-  let options: Option<any, any>[] = Object.keys(layouts).map(k => {
+  let value = { label: layouts[layout], value: layout };
+  let options = Object.keys(layouts).map(k => {
     return { label: layouts[k], value: parseInt(k) };
   });
 
