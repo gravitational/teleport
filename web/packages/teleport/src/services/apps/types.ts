@@ -43,7 +43,8 @@ export interface App {
   // samlApp is whether the application is a SAML Application (Service Provider).
   samlApp: boolean;
   // samlAppSsoUrl is the URL that triggers IdP-initiated SSO for SAML Application;
-  samlAppSsoUrl?: string;
+  // samlAppSsoUrl?: string;
+  samlAppName?: string;
 }
 
 export type UserGroupAndDescription = {

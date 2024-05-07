@@ -127,6 +127,7 @@ const cfg = {
     assist: '/web/assist/:conversationId?',
     apps: '/web/cluster/:clusterId/apps',
     appLauncher: '/web/launch/:fqdn/:clusterId?/:publicAddr?/:arn?',
+    samlIdPLogin: '/web/saml-idp/:name',
     support: '/web/support',
     settings: '/web/settings',
     account: '/web/account',
@@ -602,6 +603,10 @@ const cfg = {
 
   getAppLauncherRoute(params: UrlLauncherParams) {
     return generatePath(cfg.routes.appLauncher, { ...params });
+  },
+
+  getSAMLIdPLauncherRoute(params: UrlSAMLIdPParams) {
+    return generatePath(cfg.routes.samlIdPLogin, { ...params });
   },
 
   getPlayerRoute(params: UrlPlayerParams, search: UrlPlayerSearch) {
@@ -1235,6 +1240,10 @@ export interface UrlNotificationParams {
   limit?: number;
   userNotificationsStartKey?: string;
   globalNotificationsStartKey?: string;
+}
+
+export interface UrlSAMLIdPParams {
+  name: string;
 }
 
 export default cfg;

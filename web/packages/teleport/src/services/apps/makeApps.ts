@@ -58,9 +58,9 @@ export default function makeApp(json: any): App {
     }
   }
 
-  let samlAppSsoUrl = '';
+  let samlAppName = '';
   if (samlApp) {
-    samlAppSsoUrl = `${cfg.baseUrl}/enterprise/saml-idp/login/${name}`;
+    samlAppName = name;
   }
 
   return {
@@ -81,7 +81,7 @@ export default function makeApp(json: any): App {
     friendlyName,
     userGroups,
     samlApp,
-    samlAppSsoUrl,
+    samlAppName,
     requiresRequest,
   };
 }
