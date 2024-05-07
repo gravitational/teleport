@@ -230,6 +230,12 @@ const (
 	// This is indicates that the database agent http transport failed to round trip the request.
 	DynamoDBRequestFailureCode = "TDY01E"
 
+	// SpannerRPCCode is the db.session.spanner.rpc event code.
+	SpannerRPCCode = "TSPN001I"
+	// SpannerRPCDeniedCode is the warning event code for a Spanner client RPC
+	// that is denied.
+	SpannerRPCDeniedCode = "TSPN001W"
+
 	// DatabaseCreateCode is the db.create event code.
 	DatabaseCreateCode = "TDB03I"
 	// DatabaseUpdateCode is the db.update event code.

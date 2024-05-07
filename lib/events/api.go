@@ -532,6 +532,10 @@ const (
 	// DatabaseSessionCassandraRegisterEvent is emitted when a Cassandra client sends the register packet.
 	DatabaseSessionCassandraRegisterEvent = "db.session.cassandra.register"
 
+	// DatabaseSessionSpannerRPCEvent is emitted when a Spanner client
+	// calls a Spanner RPC.
+	DatabaseSessionSpannerRPCEvent = "db.session.spanner.rpc"
+
 	// SessionRejectedReasonMaxConnections indicates that a session.rejected event
 	// corresponds to enforcement of the max_connections control.
 	SessionRejectedReasonMaxConnections = "max_connections limit reached"
