@@ -18,7 +18,7 @@
 
 import { AccessRequest } from 'shared/services/accessRequests';
 
-import { AccessRequest as TshdAccessRequest } from 'teleterm/services/tshd/types';
+import { AccessRequest as TshdAccessRequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/access_request_pb';
 
 import { makeUiAccessRequest } from './useAccessRequests';
 

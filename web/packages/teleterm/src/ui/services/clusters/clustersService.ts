@@ -24,17 +24,24 @@ import {
 } from 'shared/services/databases';
 import { pipe } from 'shared/utils/pipe';
 
-import * as uri from 'teleterm/ui/uri';
-import { NotificationsService } from 'teleterm/ui/services/notifications';
+import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
+import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
+import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+import { Kube } from 'gen-proto-ts/teleport/lib/teleterm/v1/kube_pb';
+import { Server } from 'gen-proto-ts/teleport/lib/teleterm/v1/server_pb';
+import { Database } from 'gen-proto-ts/teleport/lib/teleterm/v1/database_pb';
+import { App as TshdApp } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
 import {
-  Cluster,
-  Gateway,
   CreateAccessRequestRequest,
   GetRequestableRolesRequest,
   ReviewAccessRequestRequest,
   PromoteAccessRequestRequest,
   PasswordlessPrompt,
-} from 'teleterm/services/tshd/types';
+  CreateGatewayRequest,
+} from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
+
+import * as uri from 'teleterm/ui/uri';
+import { NotificationsService } from 'teleterm/ui/services/notifications';
 import { MainProcessClient } from 'teleterm/mainProcess/types';
 import { UsageService } from 'teleterm/ui/services/usage';
 
@@ -42,7 +49,6 @@ import { ImmutableStore } from '../immutableStore';
 
 import type * as types from './types';
 import type { TshdClient, CloneableAbortSignal } from 'teleterm/services/tshd';
-import type * as tsh from 'teleterm/services/tshd/types';
 
 const { routing } = uri;
 
@@ -511,7 +517,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     return response as types.AuthSettings;
   }
 
-  async createGateway(params: tsh.CreateGatewayRequest) {
+  async createGateway(params: CreateGatewayRequest) {
     const { response: gateway } = await this.client.createGateway(params);
     this.setState(draft => {
       draft.gateways.set(gateway.uri, gateway);
@@ -734,7 +740,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
   }
 }
 
-export function makeServer(source: tsh.Server) {
+export function makeServer(source: Server) {
   return {
     uri: source.uri,
     id: source.name,
@@ -747,7 +753,7 @@ export function makeServer(source: tsh.Server) {
   };
 }
 
-export function makeDatabase(source: tsh.Database) {
+export function makeDatabase(source: Database) {
   return {
     uri: source.uri,
     name: source.name,
@@ -761,7 +767,7 @@ export function makeDatabase(source: tsh.Database) {
   };
 }
 
-export function makeKube(source: tsh.Kube) {
+export function makeKube(source: Kube) {
   return {
     uri: source.uri,
     name: source.name,
@@ -769,7 +775,7 @@ export function makeKube(source: tsh.Kube) {
   };
 }
 
-export interface App extends tsh.App {
+export interface App extends TshdApp {
   /**
    * `addrWithProtocol` is an app protocol + a public address.
    * If the public address is empty, it falls back to the endpoint URI.
@@ -779,7 +785,7 @@ export interface App extends tsh.App {
   addrWithProtocol: string;
 }
 
-export function makeApp(source: tsh.App): App {
+export function makeApp(source: TshdApp): App {
   const { publicAddr, endpointUri } = source;
 
   const isTcp = endpointUri && endpointUri.startsWith('tcp://');
