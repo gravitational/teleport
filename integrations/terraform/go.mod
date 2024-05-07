@@ -2,7 +2,7 @@ module github.com/gravitational/teleport/integrations/terraform
 
 go 1.21
 
-toolchain go1.21.9
+toolchain go1.21.10
 
 require (
 	github.com/gogo/protobuf v1.3.2
