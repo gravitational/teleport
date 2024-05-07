@@ -155,7 +155,7 @@ func (a *Server) CreateResetPasswordToken(ctx context.Context, req CreateUserTok
 		return nil, trace.AccessDenied("only local users may be reset")
 	}
 
-	if err := a.ResetPassword(ctx, req.Name); err != nil {
+	if err := a.resetPassword(ctx, req.Name); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

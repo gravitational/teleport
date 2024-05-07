@@ -117,9 +117,10 @@ type SessionCreds struct {
 	ID string `json:"id"`
 }
 
-// AuthenticateUser authenticates user based on the request type.
-// Returns the username of the authenticated user.
-func (a *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserRequest) (services.UserState, services.AccessChecker, error) {
+// authenticateUserLogin implements the bulk of user login authentication.
+// Used by the top-level local login methods, [Server.AuthenticateSSHUser] and
+// [Server.AuthenticateWebUser]
+func (a *Server) authenticateUserLogin(ctx context.Context, req AuthenticateUserRequest) (services.UserState, services.AccessChecker, error) {
 	username := req.Username
 
 	requiredExt := mfav1.ChallengeExtensions{
@@ -691,7 +692,7 @@ func (a *Server) AuthenticateWebUser(ctx context.Context, req AuthenticateUserRe
 		return session, nil
 	}
 
-	user, _, err := a.AuthenticateUser(ctx, req)
+	user, _, err := a.authenticateUserLogin(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -848,7 +849,7 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHReq
 
 	// It's safe to extract the roles and traits directly from services.User as
 	// this endpoint is only used for local accounts.
-	user, checker, err := a.AuthenticateUser(ctx, req.AuthenticateUserRequest)
+	user, checker, err := a.authenticateUserLogin(ctx, req.AuthenticateUserRequest)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

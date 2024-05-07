@@ -860,7 +860,7 @@ func TestResetPassword(t *testing.T) {
 
 	// Reset password.
 	ctx := context.Background()
-	err = s.a.ResetPassword(ctx, "dave")
+	err = s.a.resetPassword(ctx, "dave")
 	require.NoError(t, err)
 
 	// Make sure that the password has been reset.
@@ -871,7 +871,7 @@ func TestResetPassword(t *testing.T) {
 
 	// Make sure that we can reset once again (i.e. we don't complain if there's
 	// no password).
-	err = s.a.ResetPassword(ctx, "dave")
+	err = s.a.resetPassword(ctx, "dave")
 	require.NoError(t, err)
 }
 
