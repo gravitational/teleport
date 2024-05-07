@@ -1,6 +1,6 @@
 ---
 title: Machine ID Manifesto
-description: A manifesto for Trusted Machine Computing
+description: A manifesto for Machine Identity
 ---
 
 As time goes on, machines and services are doing more and more impactful and
@@ -18,26 +18,31 @@ pillars.
 
 ### Strong identity-based authentication
 
-Legacy systems rely on shared secrets, such as API keys, to authenticate.
+Legacy systems rely on shared secrets, such as API keys, to authenticate. These
+do not provide a distinct identity for each service or machine and are liable to
+be exfiltrated.
 
 Instead, each service and machine should have a strong, cryptographic identity
-(e.g an X.509 certificate) that is verifiable by other services inside and
+(e.g. an X.509 certificate) that is verifiable by other services inside and
 outside the organization. This identity should be used for authentication and
 form the basis of authorization decisions.
 
 ### Trusted execution
 
-Before an identity is issued, the integrity and authenticity of the machine
-should be verified. The chain of trust of the code running on the machine must
-be verified to guard against tampering prior to startup, and the code should be
-executed in a trusted execution environment to prevent tampering at runtime.
+Before an identity is issued, the integrity and authenticity of the subject
+machine should be verified. The chain of trust of the code running on the
+machine must be verified to guard against tampering prior to startup, and the
+code should be executed in a trusted execution environment to prevent tampering
+at runtime.
 
 ### Complete visibility and unified access control
 
-We need a unified way to reason and express the properties of the entire
-ecosystem of services: what data they have access to and why, what permissions
-they have, and what data have they accessed and modified with tamper-proof
-evidence and trial of their execution.
+There must be a unified way to reason about and express the properties of the
+entire ecosystem of services: what data they have access to and why, what
+permissions they have, and what data have they accessed and modified with
+tamper-proof evidence of their execution.
+
+### Summary
 
 Together, these three pillars create a strong foundation for AI, automations and
 other workloads running together in a predictable way that is secure and
