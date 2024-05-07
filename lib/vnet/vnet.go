@@ -458,7 +458,7 @@ func (m *Manager) handleUDPConcurrent(req *udp.ForwarderRequest) {
 
 	handler, ok := m.getUDPHandler(id.LocalAddress)
 	if !ok {
-		slog.DebugContext(ctx, "No handler for address.", "addr", id.LocalAddress)
+		slog.DebugContext(ctx, "No handler for address.")
 		return
 	}
 
