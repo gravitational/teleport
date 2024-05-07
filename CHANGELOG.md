@@ -1,5 +1,13 @@
 # Changelog
 
+## 14.3.18 (05/07/24)
+
+* Ensure that the active sessions page shows up in the web UI for users with permissions to join sessions. [#41222](https://github.com/gravitational/teleport/pull/41222)
+* Fix a bug that was preventing tsh proxy kube certificate renewal from working when accessing a leaf kubernetes cluster via the root. [#41157](https://github.com/gravitational/teleport/pull/41157)
+* Add lock target to lock deletion audit events. [#41111](https://github.com/gravitational/teleport/pull/41111)
+* Improve the reliability of the upload completer. [#41104](https://github.com/gravitational/teleport/pull/41104)
+* Allows the listener for the tbot database-tunnel service to be set to a unix socket. [#41042](https://github.com/gravitational/teleport/pull/41042)
+
 ## 14.3.17 (04/30/24)
 
 * Fixed user SSO bypass by performing a local passwordless login. [#41071](https://github.com/gravitational/teleport/pull/41071)
