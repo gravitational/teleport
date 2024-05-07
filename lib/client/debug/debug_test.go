@@ -18,7 +18,6 @@ package debug
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -78,8 +77,9 @@ func TestCollectProfile(t *testing.T) {
 			expectedArgs: "seconds=10",
 		},
 		{
-			desc:    "invalid profile",
-			profile: "RANDOM",
+			desc:      "invalid profile",
+			profile:   "RANDOM",
+			expectErr: true,
 		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
