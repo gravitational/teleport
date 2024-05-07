@@ -94,8 +94,10 @@ func NewServer(resolver Resolver, upstreamNameserverSource UpstreamNameserverSou
 	}, nil
 }
 
-func (s *Server) getMessageBuffer() ([]byte, func()) {
-	buf := *s.messageBuffers.Get().(*[]byte)
+// getMessageBuffer returns a buffer of size [maxUDPMessageSize]. Call [returnBuf] to return the buffer to the
+// shared pool. Use this to avoid large allocations on all DNS messages.
+func (s *Server) getMessageBuffer() (buf []byte, returnBuf func()) {
+	buf = *s.messageBuffers.Get().(*[]byte)
 	buf = buf[:cap(buf)]
 	return buf, func() {
 		s.messageBuffers.Put(&buf)
