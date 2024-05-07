@@ -3,7 +3,7 @@ updates:
   - package-ecosystem: gomod
     directory: "/tooling/os-package-repo-tool"
     schedule:
-      interval: weekly
+      interval: monthly
       day: "sunday"
       time: "09:00" # 9am UTC
     open-pull-requests-limit: 10
@@ -20,7 +20,7 @@ updates:
   - package-ecosystem: cargo
     directory: "/windowsauth"
     schedule:
-      interval: weekly
+      interval: monthly
       day: "sunday"
       time: "09:00" # 9am UTC
     open-pull-requests-limit: 10
@@ -38,7 +38,7 @@ updates:
   - package-ecosystem: github-actions
     directory: "/.github/workflows"
     schedule:
-      interval: weekly
+      interval: monthly
       day: monday
       time: "09:00"
       timezone: "America/Los_Angeles"
@@ -52,7 +52,7 @@ updates:
   - package-ecosystem: github-actions
     directory: "/.github/actions/checkout-teleport"
     schedule:
-      interval: weekly
+      interval: monthly
       day: monday
       time: "09:00"
       timezone: "America/Los_Angeles"
@@ -62,7 +62,7 @@ updates:
   - package-ecosystem: github-actions
     directory: "/.github/actions/deploy-os-package"
     schedule:
-      interval: weekly
+      interval: monthly
       day: monday
       time: "09:00"
       timezone: "America/Los_Angeles"
@@ -72,7 +72,7 @@ updates:
   - package-ecosystem: github-actions
     directory: "/.github/actions/load-gpg-key"
     schedule:
-      interval: weekly
+      interval: monthly
       day: monday
       time: "09:00"
       timezone: "America/Los_Angeles"
@@ -82,7 +82,7 @@ updates:
   - package-ecosystem: github-actions
     directory: "/.github/actions/parse-version"
     schedule:
-      interval: weekly
+      interval: monthly
       day: monday
       time: "09:00"
       timezone: "America/Los_Angeles"
