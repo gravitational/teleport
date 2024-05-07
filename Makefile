@@ -263,6 +263,7 @@ CGOFLAG_TSH ?= $(CGOFLAG)
 ELECTRON_BUILDER_ARCH_amd64 = x64
 ELECTRON_BUILDER_ARCH = $(or $(ELECTRON_BUILDER_ARCH_$(ARCH)),$(ARCH))
 
+BUILDFLAGS += $(if $(filter $(OSS_BUILD_TYPE),community),-ldflags="-X github.com/gravitational/teleport/lib/web.teleportEdition=community")
 #
 # 'make all' builds all 4 executables and places them in the current directory.
 #

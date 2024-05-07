@@ -106,6 +106,8 @@ type WebConfig struct {
 	SAML bool `json:"saml"`
 	// MobileDeviceManagement indicates whether adding Jamf plugin is enabled
 	MobileDeviceManagement bool `json:"mobileDeviceManagement"`
+	// IsCommunity determines if this binary is running the community edition
+	IsCommunity bool `json:"isCommunity"`
 }
 
 // featureLimits define limits for features.

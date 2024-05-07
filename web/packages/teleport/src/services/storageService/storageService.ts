@@ -218,6 +218,16 @@ export const storageService = {
     );
   },
 
+  getLicenseAcknowledged(): boolean {
+    return (
+      window.localStorage.getItem(KeysEnum.LICENSE_ACKNOWLEDGED) === 'true'
+    );
+  },
+
+  setLicenseAcknowledged() {
+    window.localStorage.setItem(KeysEnum.LICENSE_ACKNOWLEDGED, 'true');
+  },
+
   broadcast(messageType, messageBody) {
     window.localStorage.setItem(messageType, messageBody);
     window.localStorage.removeItem(messageType);

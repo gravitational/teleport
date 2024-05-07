@@ -38,6 +38,7 @@ import type { YamlSupportedResourceKind } from './services/yaml/types';
 
 const cfg = {
   isEnterprise: false,
+  isCommunity: false,
   isCloud: false,
   assistEnabled: false,
   automaticUpgrades: false,
@@ -361,6 +362,16 @@ const cfg = {
       parse: '/v1/webapi/yaml/parse/:kind',
       stringify: '/v1/webapi/yaml/stringify/:kind',
     },
+  },
+
+  getEdition(): TeleportEdition {
+    if (cfg.isEnterprise) {
+      return 'enterprise';
+    }
+    if (cfg.isCommunity) {
+      return 'community';
+    }
+    return 'agpl';
   },
 
   getUserClusterPreferencesUrl(clusterId: string) {
@@ -1238,3 +1249,5 @@ export interface UrlNotificationParams {
 }
 
 export default cfg;
+
+export type TeleportEdition = 'enterprise' | 'community' | 'agpl';

@@ -71,4 +71,6 @@ const sample: State = {
   motd: '',
   showMotd: false,
   acknowledgeMotd: () => null,
+  licenseAcknowledged: true,
+  setLicenseAcknowledged: () => {},
 };
