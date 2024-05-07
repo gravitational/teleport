@@ -533,27 +533,27 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 				parts := strings.Split(r.URL.Path, "/")
 
 				if len(parts[3]) == 0 {
-					h.log.Warn("Application URL is missing from web/launch URL")
-					http.Error(w, "missing application URL", http.StatusBadRequest)
+					h.log.Warn("Application domain is missing from web/launch URL")
+					http.Error(w, "missing application domain", http.StatusBadRequest)
 					return
 				}
 
 				// grab the FQDN from the URL to allow in the connect-src CSP
-				applicationURL := "https://" + parts[3]
+				applicationOrigin := "https://" + parts[3]
 
-				// Parse to validate the URL extracted is in a valid format.
-				// An invalid URL is:
+				// Parse to validate the application domain extracted is in a valid format.
+				// An invalid domain is:
 				//  - having spaces
 				//  - having escape characters eg: %20
 				//  - invalid port after host eg: :unsafe-inline
-				_, err := url.Parse(applicationURL)
+				_, err := url.Parse(applicationOrigin)
 				if err != nil {
-					h.log.WithError(err).Warn("Failed to parse application URL extracted from web/launch.")
+					h.log.WithError(err).Warn("Failed to parse application domain extracted from web/launch.")
 					http.Error(w, err.Error(), http.StatusBadRequest)
 					return
 				}
 
-				httplib.SetAppLaunchContentSecurityPolicy(w.Header(), applicationURL+":*")
+				httplib.SetAppLaunchContentSecurityPolicy(w.Header(), applicationOrigin+":*")
 			} else {
 				httplib.SetIndexContentSecurityPolicy(w.Header(), cfg.ClusterFeatures, r.URL.Path)
 			}
