@@ -37,8 +37,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
-	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 	"k8s.io/client-go/tools/remotecommand"
 
 	clientproto "github.com/gravitational/teleport/api/client/proto"
@@ -264,7 +262,7 @@ func (p *podHandler) handler(r *http.Request) error {
 		TTY:       p.req.IsInteractive,
 		Stdin:     p.req.IsInteractive,
 		Stdout:    true,
-		Stderr:    true,
+		Stderr:    !p.req.IsInteractive,
 	}
 
 	kubeReq.VersionedParams(option, scheme.ParameterCodec)
@@ -323,4 +321,3 @@ func createKubeRestConfig(serverAddr, tlsServerName string, ca types.CertAuthori
 		},
 	}, nil
 }
-
