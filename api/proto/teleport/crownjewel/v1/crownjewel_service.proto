@@ -25,10 +25,14 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport
 service CrownJewelService {
   // CreateCrownJewel creates a new CrownJewel.
   rpc CreateCrownJewel(CreateCrownJewelRequest) returns (CrownJewel);
+  // GetCrownJewel gets a CrownJewel by name.
+  rpc GetCrownJewel(GetCrownJewelRequest) returns (CrownJewel);
   // ListCrownJewels returns a list of CrownJewels. It supports pagination.
   rpc ListCrownJewels(ListCrownJewelsRequest) returns (ListCrownJewelsResponse);
   // UpdateCrownJewel updates an existing CrownJewel.
   rpc UpdateCrownJewel(UpdateCrownJewelRequest) returns (CrownJewel);
+  // UpsertCrownJewel upserts a CrownJewel.
+  rpc UpsertCrownJewel(UpsertCrownJewelRequest) returns (CrownJewel);
   // DeleteCrownJewel deletes a CrownJewel.
   rpc DeleteCrownJewel(DeleteCrownJewelRequest) returns (google.protobuf.Empty);
 }
@@ -36,6 +40,12 @@ service CrownJewelService {
 // CrownJewelRequest is a request to create a new CrownJewel.
 message CreateCrownJewelRequest {
   teleport.crownjewel.v1.CrownJewel crown_jewels = 1;
+}
+
+// GetCrownJewelRequest is a request to get a CrownJewel by name.
+message GetCrownJewelRequest {
+  // Name is the name of the CrownJewel to get.
+  string name = 1;
 }
 
 // ListCrownJewelsRequest is a request to get a list of CrownJewels.
@@ -61,11 +71,13 @@ message UpdateCrownJewelRequest {
   teleport.crownjewel.v1.CrownJewel crown_jewels = 1;
 }
 
+// UpsertCrownJewelRequest is a request to upsert a CrownJewel.
+message UpsertCrownJewelRequest {
+  teleport.crownjewel.v1.CrownJewel crown_jewels = 1;
+}
+
 // DeleteCrownJewelRequest is a request to delete a CrownJewel.
 message DeleteCrownJewelRequest {
   // Name is the name of the CrownJewel to delete.
   string name = 1;
 }
-
-// DeleteAllCrownJewelsRequest is a request to delete all CrownJewels.
-message DeleteAllCrownJewelsRequest {}

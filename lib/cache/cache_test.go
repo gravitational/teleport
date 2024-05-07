@@ -43,6 +43,8 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -116,6 +118,7 @@ type testPack struct {
 	accessLists             services.AccessLists
 	kubeWaitingContainers   services.KubeWaitingContainer
 	accessMonitoringRules   services.AccessMonitoringRules
+	crownJewels             services.CrownJewels
 }
 
 // testFuncs are functions to support testing an object in a cache.
@@ -298,6 +301,12 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	}
 	p.accessMonitoringRules = accessMonitoringRuleService
 
+	crownJewelsSvc, err := local.NewCrownJewelsService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.crownJewels = crownJewelsSvc
+
 	kubeWaitingContSvc, err := local.NewKubeWaitingContainerService(p.backend)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -347,6 +356,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		AccessLists:             p.accessLists,
 		KubeWaitingContainers:   p.kubeWaitingContainers,
 		AccessMonitoringRules:   p.accessMonitoringRules,
+		CrownJewels:             p.crownJewels,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -747,6 +757,7 @@ func TestCompletenessInit(t *testing.T) {
 			AccessLists:             p.accessLists,
 			KubeWaitingContainers:   p.kubeWaitingContainers,
 			AccessMonitoringRules:   p.accessMonitoringRules,
+			CrownJewels:             p.crownJewels,
 			MaxRetryPeriod:          200 * time.Millisecond,
 			EventsC:                 p.eventsC,
 		}))
@@ -821,6 +832,7 @@ func TestCompletenessReset(t *testing.T) {
 		AccessLists:             p.accessLists,
 		KubeWaitingContainers:   p.kubeWaitingContainers,
 		AccessMonitoringRules:   p.accessMonitoringRules,
+		CrownJewels:             p.crownJewels,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -1007,6 +1019,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		AccessLists:             p.accessLists,
 		KubeWaitingContainers:   p.kubeWaitingContainers,
 		AccessMonitoringRules:   p.accessMonitoringRules,
+		CrownJewels:             p.crownJewels,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		neverOK:                 true, // ensure reads are never healthy
@@ -1092,6 +1105,7 @@ func initStrategy(t *testing.T) {
 		AccessLists:             p.accessLists,
 		KubeWaitingContainers:   p.kubeWaitingContainers,
 		AccessMonitoringRules:   p.accessMonitoringRules,
+		CrownJewels:             p.crownJewels,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -2200,7 +2214,7 @@ func TestDiscoveryConfig(t *testing.T) {
 	})
 }
 
-// TestAccessListRules tests that CRUD operations on access list rule resources are
+// TestAuditQuery tests that CRUD operations on access list rule resources are
 // replicated from the backend to the cache.
 func TestAuditQuery(t *testing.T) {
 	t.Parallel()
@@ -2450,6 +2464,62 @@ func TestAccessListReviews(t *testing.T) {
 			return items, trace.Wrap(err)
 		},
 		deleteAll: p.accessLists.DeleteAllAccessListReviews,
+	})
+}
+
+// TestCrownJewel tests that CRUD operations on user notification resources are
+// replicated from the backend to the cache.
+func TestCrownJewel(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources153(t, p, testFuncs153[*crownjewelv1.CrownJewel]{
+		newResource: func(name string) (*crownjewelv1.CrownJewel, error) {
+			return newCrownJewel(t, name), nil
+		},
+		create: func(ctx context.Context, item *crownjewelv1.CrownJewel) error {
+			_, err := p.crownJewels.CreateCrownJewel(ctx, item)
+			return trace.Wrap(err)
+		},
+		list: func(ctx context.Context) ([]*crownjewelv1.CrownJewel, error) {
+			items, _, err := p.crownJewels.ListCrownJewels(ctx, 0, "")
+			return items, trace.Wrap(err)
+		},
+		cacheList: func(ctx context.Context) ([]*crownjewelv1.CrownJewel, error) {
+			items, _, err := p.crownJewels.ListCrownJewels(ctx, 0, "")
+			return items, trace.Wrap(err)
+		},
+		deleteAll: p.crownJewels.DeleteAllCrownJewels,
+	})
+}
+
+// TestGlobalNotifications tests that CRUD operations on global notification resources are
+// replicated from the backend to the cache.
+func TestGlobalNotifications(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources153(t, p, testFuncs153[*notificationsv1.GlobalNotification]{
+		newResource: func(name string) (*notificationsv1.GlobalNotification, error) {
+			return newGlobalNotification(t, name), nil
+		},
+		create: func(ctx context.Context, item *notificationsv1.GlobalNotification) error {
+			_, err := p.notifications.CreateGlobalNotification(ctx, item)
+			return trace.Wrap(err)
+		},
+		list: func(ctx context.Context) ([]*notificationsv1.GlobalNotification, error) {
+			items, _, err := p.notifications.ListGlobalNotifications(ctx, 0, "")
+			return items, trace.Wrap(err)
+		},
+		cacheList: func(ctx context.Context) ([]*notificationsv1.GlobalNotification, error) {
+			items, _, err := p.cache.ListGlobalNotifications(ctx, 0, "")
+			return items, trace.Wrap(err)
+		},
+		deleteAll: p.notifications.DeleteAllGlobalNotifications,
 	})
 }
 
@@ -2949,6 +3019,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindAccessListReview:        newAccessListReview(t, "access-list", "review"),
 		types.KindKubeWaitingContainer:    newKubeWaitingContainer(t),
 		types.KindAccessMonitoringRule:    types.Resource153ToLegacy(newAccessMonitoringRule(t)),
+		types.KindCrownJewel:              types.Resource153ToLegacy(newCrownJewel(t, "test")),
 	}
 
 	for name, cfg := range cases {
@@ -3398,6 +3469,18 @@ func newKubeWaitingContainer(t *testing.T) types.Resource {
 	require.NoError(t, err)
 
 	return types.Resource153ToLegacy(waitingCont)
+}
+
+func newCrownJewel(t *testing.T, name string) *crownjewelv1.CrownJewel {
+	t.Helper()
+
+	crownJewel := &crownjewelv1.CrownJewel{
+		Metadata: &headerv1.Metadata{
+			Name: name,
+		},
+	}
+
+	return crownJewel
 }
 
 func newAccessMonitoringRule(t *testing.T) *accessmonitoringrulesv1.AccessMonitoringRule {

@@ -2560,10 +2560,14 @@ func (process *TeleportProcess) newLocalCacheForWindowsDesktop(clt authclient.Cl
 
 // accessPointWrapper is a wrapper around auth.ClientI that reduces the surface area of the
 // auth.ClientI.DiscoveryConfigClient interface to services.DiscoveryConfigs.
-// Cache doesn't implement the full auth.ClientI interface, so we need to wrap auth.ClientI to
+// Cache doesn't implement the full auth.ClientI interface, so we need to wrap auth.ClientI
 // to make it compatible with the services.DiscoveryConfigs interface.
 type accessPointWrapper struct {
 	authclient.ClientI
+}
+
+func (a accessPointWrapper) CrownJewelClient() services.CrownJewels {
+	return a.ClientI.CrownJewelServiceClient()
 }
 
 func (a accessPointWrapper) DiscoveryConfigClient() services.DiscoveryConfigs {
