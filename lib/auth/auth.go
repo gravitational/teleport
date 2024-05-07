@@ -3190,7 +3190,7 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 		username = req.GetUserCredentials().GetUsername()
 
 		if err := a.WithUserLock(ctx, username, func() error {
-			return a.checkPasswordWOToken(username, req.GetUserCredentials().GetPassword())
+			return a.checkPasswordWOToken(ctx, username, req.GetUserCredentials().GetPassword())
 		}); err != nil {
 			return nil, trace.Wrap(err)
 		}
