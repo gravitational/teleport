@@ -40,6 +40,7 @@ message UserPreferences {
   UnifiedResourcePreferences unified_resource_preferences = 5;
   // access_graph is the preferences for Access Graph.
   AccessGraphUserPreferences access_graph = 6;
+  // keyboard_layout is the layout used by the user in Windows Desktop sessions
   int32 keyboard_layout = 7;
 }
 
@@ -62,7 +63,7 @@ message GetKeyboardLayoutRequest {
 
 // GetKeyboardLayoutResponse is a response to get the user keyboard layout.
 message GetKeyboardLayoutResponse {
-  // preferences is the user preferences.
+  // keyboard_layout is the code of keyboard layout preferred by the user.
   int32 keyboard_layout = 1;
 }
 
@@ -81,6 +82,6 @@ service UserPreferencesService {
   rpc GetUserPreferences(GetUserPreferencesRequest) returns (GetUserPreferencesResponse);
   // UpsertUserPreferences creates or updates user preferences for a given username.
   rpc UpsertUserPreferences(UpsertUserPreferencesRequest) returns (google.protobuf.Empty);
-  // GetUserPreferences returns the user preferences for a given user.
+  // GetKeyboardLayout returns the keyboard layout preference for the user.
   rpc GetKeyboardLayout(GetKeyboardLayoutRequest) returns (GetKeyboardLayoutResponse);
 }

@@ -67,6 +67,8 @@ type Config struct {
 	// Logger is the logger for status messages.
 	Logger *slog.Logger
 
+	// KeyboardLayout is the keyboard layout preference for the user.
+	// Possible values: https://learn.microsoft.com/en-us/globalization/windows-keyboard-layouts
 	KeyboardLayout int32
 }
 

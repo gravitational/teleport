@@ -97,6 +97,7 @@ func (a *Service) UpsertUserPreferences(ctx context.Context, req *userpreference
 	return &emptypb.Empty{}, trace.Wrap(a.backend.UpsertUserPreferences(ctx, username, req.Preferences))
 }
 
+// GetKeyboardLayout returns the keyboard layout preference for the user.
 func (a *Service) GetKeyboardLayout(ctx context.Context, req *userpreferences.GetKeyboardLayoutRequest) (*userpreferences.GetKeyboardLayoutResponse, error) {
 	authCtx, err := a.authorizer.Authorize(ctx)
 	if err != nil {

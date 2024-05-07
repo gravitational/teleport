@@ -528,9 +528,6 @@ var (
 	// RequestedDatabaseRolesExtensionOID is an extension OID used when
 	// encoding/decoding requested database roles.
 	RequestedDatabaseRolesExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 19}
-
-	// KeyboardLayoutExtensionOID is an extension OID used when encoding keyboard layout used for RPD connection
-	KeyboardLayoutExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 20}
 )
 
 // Device Trust OIDs.
