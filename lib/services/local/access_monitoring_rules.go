@@ -113,7 +113,7 @@ func (s *AccessMonitoringRulesService) DeleteAllAccessMonitoringRules(ctx contex
 	return trace.Wrap(s.svc.DeleteAllResources(ctx))
 }
 
-func (s *AccessMonitoringRulesService) listResourcesListAccessMonitoringRulesWithFilter(ctx context.Context, pageSize int, pageToken string, subjects []string, notificationName string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error) {
+func (s *AccessMonitoringRulesService) ListAccessMonitoringRulesWithFilter(ctx context.Context, pageSize int, pageToken string, subjects []string, notificationName string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error) {
 
 	var keyPrefix []string
 	var unmarshalItemFunc backendItemToResourceFunc
