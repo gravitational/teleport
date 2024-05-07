@@ -594,8 +594,6 @@ func TestProxySSHJumpHost(t *testing.T) {
 					testserver.WithAuthConfig(
 						func(cfg *servicecfg.AuthConfig) {
 							cfg.NetworkingConfig.SetProxyListenerMode(rootListenerMode)
-							// Disable session recording to prevent writing to disk after the test concludes.
-							cfg.SessionRecordingConfig.SetMode(types.RecordOff)
 							// Load all CAs on login so that leaf CA is trusted by clients.
 							cfg.LoadAllCAs = true
 						},
@@ -610,8 +608,6 @@ func TestProxySSHJumpHost(t *testing.T) {
 					testserver.WithAuthConfig(
 						func(cfg *servicecfg.AuthConfig) {
 							cfg.NetworkingConfig.SetProxyListenerMode(leafListenerMode)
-							// Disable session recording to prevent writing to disk after the test concludes.
-							cfg.SessionRecordingConfig.SetMode(types.RecordOff)
 						},
 					),
 				}

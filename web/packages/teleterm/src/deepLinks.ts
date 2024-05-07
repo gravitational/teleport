@@ -84,8 +84,6 @@ export function parseDeepLink(rawUrl: string): DeepLinkParseResult {
     };
   }
 
-  // TODO (avatus): remove when authenticate web device case is implemented
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { host, hostname, port, username, pathname, searchParams } = whatwgURL;
   const baseUrl = {
     host,

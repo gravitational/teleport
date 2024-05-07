@@ -39,7 +39,7 @@ func verifyJWT(t *testing.T, pack *Pack, token, appURI string) {
 	var jwks web.JWKSResponse
 	err = json.Unmarshal([]byte(body), &jwks)
 	require.NoError(t, err)
-	require.Len(t, jwks.Keys, 1)
+	require.Len(t, jwks.Keys, 2) // For backwards compatibility the same key is included twice in JWKS with different key IDs.
 	publicKey, err := jwt.UnmarshalJWK(jwks.Keys[0])
 	require.NoError(t, err)
 

@@ -20,8 +20,18 @@ import { Node, AwsMetadata } from './types';
 
 export default function makeNode(json: any): Node {
   json = json ?? {};
-  const { id, siteId, subKind, hostname, addr, tunnel, tags, sshLogins, aws } =
-    json;
+  const {
+    id,
+    siteId,
+    subKind,
+    hostname,
+    addr,
+    tunnel,
+    tags,
+    sshLogins,
+    aws,
+    requiresRequest,
+  } = json;
 
   return {
     kind: 'node',
@@ -32,6 +42,7 @@ export default function makeNode(json: any): Node {
     labels: tags ?? [],
     addr,
     tunnel,
+    requiresRequest,
     sshLogins: sshLogins ?? [],
     awsMetadata: aws ? makeAwsMetadata(aws) : undefined,
   };

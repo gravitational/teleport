@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
@@ -1208,10 +1209,25 @@ func (a *ServerWithRoles) GetNode(ctx context.Context, namespace, name string) (
 	return node, nil
 }
 
-func (a *ServerWithRoles) checkUnifiedAccess(resource types.ResourceWithLabels, checker resourceAccessChecker, filter services.MatchResourceFilter, resourceAccessMap map[string]error) (bool, error) {
+// resourceAccess is used for different rbac results when filtering items
+type resourceAccess struct {
+	// accessChecker is used to check a user's access to resources. This can
+	// be extended to include SearchAsRoles
+	accessChecker resourceAccessChecker
+	// baseAuthChecker is set when a user's auth context is extended during a
+	// searchAsRoles request
+	baseAuthChecker resourceAccessChecker
+	// kindAccessMap is used to check errors for list/read verbs per kind
+	kindAccessMap map[string]error
+	// requestableMap is used to track if a resource matches a filter but is only
+	// available after an access request. This map is of Resource.GetName()
+	requestableMap map[string]struct{}
+}
+
+func (c *resourceAccess) checkAccess(resource types.ResourceWithLabels, filter services.MatchResourceFilter) (bool, error) {
 	resourceKind := resource.GetKind()
 
-	if canAccessErr := resourceAccessMap[resourceKind]; canAccessErr != nil {
+	if canAccessErr := c.kindAccessMap[resourceKind]; canAccessErr != nil {
 		// skip access denied error. It is expected that resources won't be available
 		// to some users and we want to keep iterating until we've reached the request limit
 		// of resources they have access to
@@ -1241,11 +1257,35 @@ func (a *ServerWithRoles) checkUnifiedAccess(resource types.ResourceWithLabels, 
 		return true, nil
 	}
 
-	if err := checker.CanAccess(resource); err != nil {
-		if trace.IsAccessDenied(err) {
-			return false, nil
+	// check access normally if base checker doesnt exist
+	if c.baseAuthChecker == nil {
+		if err := c.accessChecker.CanAccess(resource); err != nil {
+			if trace.IsAccessDenied(err) {
+				return false, nil
+			}
+			return false, trace.Wrap(err)
 		}
-		return false, trace.Wrap(err)
+		return true, nil
+	}
+
+	// baseAuthChecker exists if the current auth context has been extended for a includeRequestable request.
+	// if true, we should check with the base auth checker first and if that returns false, check the extended context
+	// so we know if a resource is being matched because they have access to it currently, or only to be added
+	// to an access request
+	if err := c.baseAuthChecker.CanAccess(resource); err != nil {
+		if !trace.IsAccessDenied(err) {
+			return false, trace.Wrap(err)
+		}
+
+		// user does not have access with their base context
+		// check if they would have access with the extended context
+		if err := c.accessChecker.CanAccess(resource); err != nil {
+			if trace.IsAccessDenied(err) {
+				return false, nil
+			}
+			return false, trace.Wrap(err)
+		}
+		c.requestableMap[resource.GetName()] = struct{}{}
 	}
 
 	return true, nil
@@ -1267,10 +1307,16 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		filter.PredicateExpression = expression
 	}
 
-	// Populate resourceAccessMap with any access errors the user has for each possible
-	// resource kind. This allows the access check to occur a single time per resource
-	// kind instead of once per matching resource.
-	resourceAccessMap := make(map[string]error, len(services.UnifiedResourceKinds))
+	resourceAccess := &resourceAccess{
+		// Populate kindAccessMap with any access errors the user has for each possible
+		// resource kind. This allows the access check to occur a single time per resource
+		// kind instead of once per matching resource.
+		kindAccessMap: make(map[string]error, len(services.UnifiedResourceKinds)),
+		// requestableMap is populated with resources that are being returned but can only
+		// be accessed to the user via an access request
+		requestableMap: make(map[string]struct{}),
+	}
+
 	for _, kind := range services.UnifiedResourceKinds {
 		actionVerbs := []string{types.VerbList, types.VerbRead}
 		if kind == types.KindNode {
@@ -1282,7 +1328,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 			actionVerbs = []string{types.VerbList}
 		}
 
-		resourceAccessMap[kind] = a.action(apidefaults.Namespace, kind, actionVerbs...)
+		resourceAccess.kindAccessMap[kind] = a.action(apidefaults.Namespace, kind, actionVerbs...)
 	}
 
 	// Before doing any listing, verify that the user is allowed to list
@@ -1294,7 +1340,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 	}
 	var rbacErrors int
 	for _, kind := range requested {
-		if err, ok := resourceAccessMap[kind]; ok && err != nil {
+		if err, ok := resourceAccess.kindAccessMap[kind]; ok && err != nil {
 			rbacErrors++
 		}
 	}
@@ -1319,6 +1365,16 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 			return nil, trace.Wrap(err)
 		}
 		baseContext := a.context
+		// If IncludeRequestable is true, we will create a baseChecker to
+		// use during RBAC to determine if a resource would be available only after extending
+		if req.IncludeRequestable {
+			baseChecker, err := a.newResourceAccessChecker(types.KindUnifiedResource)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			resourceAccess.baseAuthChecker = baseChecker
+		}
+
 		a.context = *extendedContext
 		defer func() {
 			a.context = baseContext
@@ -1330,7 +1386,8 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		return nil, trace.Wrap(err)
 	}
 
-	// Fetch full list of resources in the backend.
+	resourceAccess.accessChecker = checker
+
 	var (
 		unifiedResources types.ResourcesWithLabels
 		nextKey          string
@@ -1344,7 +1401,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 			return &proto.ListUnifiedResourcesResponse{}, nil
 		}
 		unifiedResources, err = a.authServer.UnifiedResourceCache.GetUnifiedResourcesByIDs(ctx, prefs.ClusterPreferences.PinnedResources.GetResourceIds(), func(resource types.ResourceWithLabels) (bool, error) {
-			match, err := a.checkUnifiedAccess(resource, checker, filter, resourceAccessMap)
+			match, err := resourceAccess.checkAccess(resource, filter)
 			return match, trace.Wrap(err)
 		})
 		if err != nil {
@@ -1359,7 +1416,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		}
 	} else {
 		unifiedResources, nextKey, err = a.authServer.UnifiedResourceCache.IterateUnifiedResources(ctx, func(resource types.ResourceWithLabels) (bool, error) {
-			match, err := a.checkUnifiedAccess(resource, checker, filter, resourceAccessMap)
+			match, err := resourceAccess.checkAccess(resource, filter)
 			return match, trace.Wrap(err)
 		}, req)
 		if err != nil {
@@ -1367,7 +1424,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		}
 	}
 
-	paginatedResources, err := services.MakePaginatedResources(types.KindUnifiedResource, unifiedResources)
+	paginatedResources, err := services.MakePaginatedResources(types.KindUnifiedResource, unifiedResources, resourceAccess.requestableMap)
 	if err != nil {
 		return nil, trace.Wrap(err, "making paginated unified resources")
 	}
@@ -1467,24 +1524,6 @@ func (a *ServerWithRoles) authContextForSearch(ctx context.Context, req *proto.L
 		return nil, trace.Wrap(err)
 	}
 
-	// Only emit the event if the role list actually changed
-	if len(extendedContext.Checker.RoleNames()) != len(a.context.Checker.RoleNames()) {
-		if err := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.AccessRequestResourceSearch{
-			Metadata: apievents.Metadata{
-				Type: events.AccessRequestResourceSearch,
-				Code: events.AccessRequestResourceSearchCode,
-			},
-			UserMetadata:        authz.ClientUserMetadata(ctx),
-			SearchAsRoles:       extendedContext.Checker.RoleNames(),
-			ResourceType:        req.ResourceType,
-			Namespace:           req.Namespace,
-			Labels:              req.Labels,
-			PredicateExpression: req.PredicateExpression,
-			SearchKeywords:      req.SearchKeywords,
-		}); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
 	return extendedContext, nil
 }
 
@@ -4580,6 +4619,15 @@ func (a *ServerWithRoles) SetClusterNetworkingConfig(ctx context.Context, newNet
 		return trace.AccessDenied("proxy peering is an enterprise-only feature")
 	}
 
+	oldNetConf, err := a.authServer.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := clusterconfigv1.ValidateCloudNetworkConfigUpdate(a.context, newNetConfig, oldNetConf); err != nil {
+		return trace.Wrap(err)
+	}
+
 	_, err = a.authServer.UpsertClusterNetworkingConfig(ctx, newNetConfig)
 	var msg string
 	if err != nil {
@@ -4600,7 +4648,6 @@ func (a *ServerWithRoles) SetClusterNetworkingConfig(ctx context.Context, newNet
 	}); auditErr != nil {
 		log.WithError(auditErr).Warn("Failed to emit cluster networking config update event event.")
 	}
-
 	return trace.Wrap(err)
 }
 
@@ -4618,6 +4665,14 @@ func (a *ServerWithRoles) ResetClusterNetworkingConfig(ctx context.Context) erro
 		if err2 := a.action(apidefaults.Namespace, types.KindClusterConfig, types.VerbUpdate); err2 != nil {
 			return trace.Wrap(err)
 		}
+	}
+	oldNetConf, err := a.authServer.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := clusterconfigv1.ValidateCloudNetworkConfigUpdate(a.context, types.DefaultClusterNetworkingConfig(), oldNetConf); err != nil {
+		return trace.Wrap(err)
 	}
 
 	if err := a.context.AuthorizeAdminAction(); err != nil {

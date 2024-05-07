@@ -55,11 +55,13 @@ export function UnifiedResources() {
   const { clusterId, isLeafCluster } = useStickyClusterId();
 
   return (
-    <ClusterResources
-      key={clusterId} // when the current cluster changes, remount the component
-      clusterId={clusterId}
-      isLeafCluster={isLeafCluster}
-    />
+    <FeatureBox px={4}>
+      <ClusterResources
+        key={clusterId} // when the current cluster changes, remount the component
+        clusterId={clusterId}
+        isLeafCluster={isLeafCluster}
+      />
+    </FeatureBox>
   );
 }
 
@@ -88,7 +90,7 @@ const getAvailableKindsWithAccess = (flags: FeatureFlags): FilterKind[] => {
   ];
 };
 
-function ClusterResources({
+export function ClusterResources({
   clusterId,
   isLeafCluster,
 }: {
@@ -191,7 +193,7 @@ function ClusterResources({
   }
 
   return (
-    <FeatureBox px={4}>
+    <>
       {loadClusterError && <Danger>{loadClusterError}</Danger>}
       <SharedUnifiedResources
         params={params}
@@ -268,11 +270,11 @@ function ClusterResources({
           </>
         }
       />
-    </FeatureBox>
+    </>
   );
 }
 
-const emptyStateInfo: EmptyStateInfo = {
+export const emptyStateInfo: EmptyStateInfo = {
   title: 'Add your first resource to Teleport',
   byline:
     'Connect SSH servers, Kubernetes clusters, Windows Desktops, Databases, Web apps and more from our integrations catalog.',

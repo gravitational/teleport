@@ -16,40 +16,44 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import styled from 'styled-components';
 
-function SlideTabs({
+import { Indicator, Text } from '..';
+
+export function SlideTabs({
   appearance = 'square',
-  initialSelected = 0,
+  activeIndex = 0,
   name = 'slide-tab',
   onChange,
   size = 'xlarge',
   tabs,
+  isProcessing = false,
 }: props) {
-  const [activeIndex, setActiveIndex] = useState(initialSelected);
-
-  useEffect(() => {
-    onChange(activeIndex);
-  }, [activeIndex]);
-
   return (
     <Wrapper>
       <TabNav role="tablist" appearance={appearance} size={size}>
-        {tabs.map((tabData, tabIndex) => {
-          const tabDataType = typeof tabData === 'string';
-          const tabName = tabDataType ? tabData : tabData.name;
-          const tabContent = tabDataType ? tabData : tabData.component;
+        {tabs.map((tabName, tabIndex) => {
+          const selected = tabIndex === activeIndex;
           return (
             <TabLabel
               role="tab"
               htmlFor={`${name}-${tabName}`}
-              onClick={() => setActiveIndex(tabIndex)}
+              onClick={e => {
+                e.preventDefault();
+                onChange(tabIndex);
+              }}
               itemCount={tabs.length}
               key={`${tabName}-${tabIndex}`}
               className={tabIndex === activeIndex && 'selected'}
+              processing={isProcessing}
             >
-              {tabContent}
+              <Box>
+                {selected && isProcessing && (
+                  <Spinner delay="none" size="25px" />
+                )}
+                <Text ml={2}>{tabName}</Text>
+              </Box>
               <TabInput type="radio" name={name} id={`${name}-${tabName}`} />
             </TabLabel>
           );
@@ -66,19 +70,39 @@ function SlideTabs({
 }
 
 type props = {
-  // The style to render the selector in.
+  /**
+   * The style to render the selector in.
+   */
   appearance?: 'square' | 'round';
-  // The index that you'd like to select on the initial render.
-  initialSelected?: number;
-  // The name you'd like to use for the form if using multiple tabs on the page.
-  // Default: "slide-tab"
+  /**
+   * The index that you'd like to select on the initial render.
+   */
+  activeIndex: number;
+  /**
+   * The name you'd like to use for the form if using multiple tabs on the page.
+   * Default: "slide-tab"
+   */
   name?: string;
-  // To be notified when the selected tab changes supply it with this fn.
+  /**
+   * To be notified when the selected tab changes supply it with this fn.
+   */
   onChange: (selectedTab: number) => void;
-  // The size to render the selector in.
+  /**
+   * The size to render the selector in.
+   */
   size?: 'xlarge' | 'medium';
-  // A list of tab names that you'd like displayed in the list of tabs.
-  tabs: string[] | TabComponent[];
+  /**
+   * A list of tab names that you'd like displayed in the list of tabs.
+   */
+  tabs: string[];
+  /**
+   * If true, renders a spinner and disables clicking on the tabs.
+   *
+   * Currently, a spinner is used in absolute positioning which can render
+   * outside of the given tab when browser width is narrow enough.
+   * Look into horizontal progress bar (connect has one in LinearProgress.tsx)
+   */
+  isProcessing?: boolean;
 };
 
 export type TabComponent = {
@@ -97,6 +121,8 @@ const TabLabel = styled.label`
   padding: 10px;
   width: ${props => 100 / props.itemCount}%;
   z-index: 1; /* Ensures that the label is above the background slider. */
+  opacity: ${p => (p.processing ? 0.5 : 1)};
+  pointer-events: ${p => (p.processing ? 'none' : 'auto')};
 `;
 
 const TabInput = styled.input`
@@ -131,4 +157,12 @@ const TabNav = styled.nav`
   }
 `;
 
-export default SlideTabs;
+const Spinner = styled(Indicator)`
+  color: ${p => p.theme.colors.levels.deep};
+  position: absolute;
+  left: -${p => p.theme.space[4]}px;
+`;
+
+const Box = styled.div`
+  position: relative;
+`;

@@ -56,6 +56,10 @@ rules:
   resources: ["pods/log"]
   verbs: ["get"]
   resourceNames: ["test-pod"]
+- apiGroups: [""]
+  resources: ["pods/attach"]
+  verbs: ["create"]
+  resourceNames: ["test-pod"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding

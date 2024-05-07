@@ -57,6 +57,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
+	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/maps"
 	"golang.org/x/time/rate"
@@ -243,6 +244,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+
+	if cfg.CrownJewels == nil {
+		cfg.CrownJewels, err = local.NewCrownJewelsService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 	if cfg.ConnectionsDiagnostic == nil {
 		cfg.ConnectionsDiagnostic = local.NewConnectionsDiagnosticService(cfg.Backend)
 	}
@@ -416,6 +424,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		KubeWaitingContainer:      cfg.KubeWaitingContainers,
 		Notifications:             cfg.Notifications,
 		AccessMonitoringRules:     cfg.AccessMonitoringRules,
+		CrownJewels:               cfg.CrownJewels,
 	}
 
 	as := Server{
@@ -577,6 +586,7 @@ type Services struct {
 	services.SecReports
 	services.KubeWaitingContainer
 	services.AccessMonitoringRules
+	services.CrownJewels
 }
 
 // SecReportsClient returns the security reports client.
@@ -625,6 +635,11 @@ func (r *Services) AccessMonitoringRuleClient() services.AccessMonitoringRules {
 
 // DiscoveryConfigClient returns the DiscoveryConfig client.
 func (r *Services) DiscoveryConfigClient() services.DiscoveryConfigs {
+	return r
+}
+
+// CrownJewelClient returns the CrownJewels client.
+func (r *Services) CrownJewelClient() services.CrownJewels {
 	return r
 }
 
@@ -686,9 +701,12 @@ var (
 		prometheus.GaugeOpts{
 			Namespace: teleport.MetricNamespace,
 			Name:      teleport.MetricRegisteredServers,
-			Help:      "The number of Teleport services that are connected to an auth server by version.",
+			Help:      "The number of Teleport services that are connected to an auth server.",
 		},
-		[]string{teleport.TagVersion},
+		[]string{
+			teleport.TagVersion,
+			teleport.TagAutomaticUpdates,
+		},
 	)
 
 	registeredAgentsInstallMethod = prometheus.NewGaugeVec(
@@ -952,6 +970,11 @@ type Server struct {
 	// createDeviceWebTokenFunc is the CreateDeviceWebToken implementation.
 	// Is nil on OSS clusters.
 	createDeviceWebTokenFunc CreateDeviceWebTokenFunc
+
+	// bcryptCostOverride overrides the bcrypt cost for operations executed
+	// directly by [Server].
+	// Used for testing.
+	bcryptCostOverride *int
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -1111,6 +1134,13 @@ func (a *Server) createDeviceWebToken(ctx context.Context, webToken *devicepb.De
 	}
 	token, err := a.createDeviceWebTokenFunc(ctx, webToken)
 	return token, trace.Wrap(err)
+}
+
+func (a *Server) bcryptCost() int {
+	if cost := a.bcryptCostOverride; cost != nil {
+		return *cost
+	}
+	return bcrypt.DefaultCost
 }
 
 // syncUpgradeWindowStartHour attempts to load the cloud UpgradeWindowStartHour value and set
@@ -1304,8 +1334,7 @@ func (a *Server) runPeriodicOperations() {
 			// Update prometheus gauge
 			heartbeatsMissedByAuth.Set(float64(missedKeepAliveCount))
 		case <-promTicker.Next():
-			a.updateVersionMetrics()
-			a.updateInstallMethodsMetrics()
+			a.updateAgentMetrics()
 		case <-releaseCheck.Next():
 			a.syncReleaseAlerts(ctx, true)
 		case <-localReleaseCheck.Next():
@@ -1375,8 +1404,6 @@ func (a *Server) doInstancePeriodics(ctx context.Context) {
 		log.Warnf("Failed stream instances for periodics: %v", err)
 		return
 	}
-
-	a.updateUpdaterVersionMetrics()
 
 	// create/delete upgrade enroll prompt as appropriate
 	enrollMsg, shouldPrompt := uep.GenerateEnrollPrompt()
@@ -1563,75 +1590,38 @@ func (a *Server) doReleaseAlertSync(ctx context.Context, current vc.Target, visi
 	}
 }
 
-// updateUpdaterVersionMetrics leverages the inventory control stream to report the
-// number of teleport updaters installed and their versions. To get an accurate representation
-// of versions in an entire cluster the metric must be aggregated with all auth instances.
-func (a *Server) updateUpdaterVersionMetrics() {
+func (a *Server) updateAgentMetrics() {
 	imp := newInstanceMetricsPeriodic()
 
-	// record versions for all connected resources
 	a.inventory.Iter(func(handle inventory.UpstreamHandle) {
-		imp.VisitInstance(handle.Hello())
+		imp.VisitInstance(handle.Hello(), handle.AgentMetadata())
 	})
 
 	totalInstancesMetric.Set(float64(imp.TotalInstances()))
 	enrolledInUpgradesMetric.Set(float64(imp.TotalEnrolledInUpgrades()))
 
 	// reset the gauges so that any versions that fall off are removed from exported metrics
-	upgraderCountsMetric.Reset()
-	for upgraderType, upgraderVersions := range imp.upgraderCounts {
-		for version, count := range upgraderVersions {
-			upgraderCountsMetric.With(prometheus.Labels{
-				teleport.TagUpgrader: upgraderType,
-				teleport.TagVersion:  version,
-			}).Set(float64(count))
-		}
-	}
-}
-
-// updateVersionMetrics leverages the inventory control stream to report the versions of
-// all instances that are connected to a single auth server via prometheus metrics. To
-// get an accurate representation of versions in an entire cluster the metric must be aggregated
-// with all auth instances.
-func (a *Server) updateVersionMetrics() {
-	versionCount := make(map[string]int)
-
-	// record versions for all connected resources
-	a.inventory.Iter(func(handle inventory.UpstreamHandle) {
-		versionCount[handle.Hello().Version]++
-	})
-
-	// reset the gauges so that any versions that fall off are removed from exported metrics
 	registeredAgents.Reset()
-	for version, count := range versionCount {
-		registeredAgents.WithLabelValues(version).Set(float64(count))
+	for agent, count := range imp.RegisteredAgentsCount() {
+		registeredAgents.With(prometheus.Labels{
+			teleport.TagVersion:          agent.version,
+			teleport.TagAutomaticUpdates: agent.automaticUpdates,
+		}).Set(float64(count))
 	}
-}
-
-// updateInstallMethodsMetrics leverages the inventory control stream to report the install methods
-// of all instances that are connected to a single auth server via prometheus metrics.
-// To get an accurate representation of install methods in an entire cluster the metric must be aggregated
-// with all auth instances.
-func (a *Server) updateInstallMethodsMetrics() {
-	installMethodCount := make(map[string]int)
-
-	// record install methods for all connected resources
-	a.inventory.Iter(func(handle inventory.UpstreamHandle) {
-		installMethod := "unknown"
-		installMethods := append([]string{}, handle.AgentMetadata().InstallMethods...)
-
-		if len(installMethods) > 0 {
-			slices.Sort(installMethods)
-			installMethod = strings.Join(installMethods, ",")
-		}
-
-		installMethodCount[installMethod]++
-	})
 
 	// reset the gauges so that any versions that fall off are removed from exported metrics
 	registeredAgentsInstallMethod.Reset()
-	for installMethod, count := range installMethodCount {
+	for installMethod, count := range imp.InstallMethodCounts() {
 		registeredAgentsInstallMethod.WithLabelValues(installMethod).Set(float64(count))
+	}
+
+	// reset the gauges so that any type+version that fall off are removed from exported metrics
+	upgraderCountsMetric.Reset()
+	for metadata, count := range imp.UpgraderCounts() {
+		upgraderCountsMetric.With(prometheus.Labels{
+			teleport.TagUpgrader: metadata.upgraderType,
+			teleport.TagVersion:  metadata.version,
+		}).Set(float64(count))
 	}
 }
 
@@ -2085,12 +2075,33 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 	}
 	checker := services.NewAccessCheckerWithRoleSet(accessInfo, clusterName.GetClusterName(), roleSet)
 
+	sessionTTL := time.Duration(req.TTL)
+
+	// OpenSSH certs and their corresponding keys are held strictly by the proxy,
+	// so we can attest them as "web_session" to bypass Hardware Key support
+	// requirements that are unattainable from the Proxy.
+	sshPublicKey, _, _, _, err := ssh.ParseAuthorizedKey(req.PublicKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cryptoPublicKey, ok := sshPublicKey.(ssh.CryptoPublicKey)
+	if !ok {
+		return nil, trace.BadParameter("unsupported SSH public key type %q", sshPublicKey.Type())
+	}
+	webAttData, err := services.NewWebSessionAttestationData(cryptoPublicKey.CryptoPublicKey())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err = a.UpsertKeyAttestationData(ctx, webAttData, sessionTTL); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	certs, err := a.generateOpenSSHCert(ctx, certRequest{
 		user:            req.User,
 		publicKey:       req.PublicKey,
 		compatibility:   constants.CertificateFormatStandard,
 		checker:         checker,
-		ttl:             time.Duration(req.TTL),
+		ttl:             sessionTTL,
 		traits:          req.User.GetTraits(),
 		routeToCluster:  req.Cluster,
 		disallowReissue: true,
@@ -3278,7 +3289,7 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 		username = req.GetUserCredentials().GetUsername()
 
 		if err := a.WithUserLock(ctx, username, func() error {
-			return a.checkPasswordWOToken(username, req.GetUserCredentials().GetPassword())
+			return a.checkPasswordWOToken(ctx, username, req.GetUserCredentials().GetPassword())
 		}); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -3320,9 +3331,15 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 
 	challenges, err := a.mfaAuthChallenge(ctx, username, challengeExtensions)
 	if err != nil {
+		// Do not obfuscate config-related errors.
+		if errors.Is(err, types.ErrPasswordlessRequiresWebauthn) || errors.Is(err, types.ErrPasswordlessDisabledBySettings) {
+			return nil, trace.Wrap(err)
+		}
+
 		log.Error(trace.DebugReport(err))
 		return nil, trace.AccessDenied("unable to create MFA challenges")
 	}
+
 	return challenges, nil
 }
 
@@ -5933,7 +5950,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		}, nil
 	}
 
-	var noMFAAccessErr, notFoundErr error
+	var noMFAAccessErr error
 	switch t := req.Target.(type) {
 	case *proto.IsMFARequiredRequest_Node:
 		if t.Node.Node == "" {
@@ -6011,7 +6028,6 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		}
 
 	case *proto.IsMFARequiredRequest_KubernetesCluster:
-		notFoundErr = trace.NotFound("kubernetes cluster %q not found", t.KubernetesCluster)
 		if t.KubernetesCluster == "" {
 			return nil, trace.BadParameter("missing KubernetesCluster field in a kubernetes-only UserCertsRequest")
 		}
@@ -6029,13 +6045,12 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			}
 		}
 		if cluster == nil {
-			return nil, trace.Wrap(notFoundErr)
+			return nil, trace.NotFound("kubernetes cluster %q not found", t.KubernetesCluster)
 		}
 
 		noMFAAccessErr = checker.CheckAccess(cluster, services.AccessState{})
 
 	case *proto.IsMFARequiredRequest_Database:
-		notFoundErr = trace.NotFound("database service %q not found", t.Database.ServiceName)
 		if t.Database.ServiceName == "" {
 			return nil, trace.BadParameter("missing ServiceName field in a database-only UserCertsRequest")
 		}
@@ -6051,7 +6066,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			}
 		}
 		if db == nil {
-			return nil, trace.Wrap(notFoundErr)
+			return nil, trace.NotFound("database service %q not found", t.Database.ServiceName)
 		}
 
 		autoCreate, err := checker.DatabaseAutoUserMode(db)
@@ -6088,11 +6103,23 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			services.NewWindowsLoginMatcher(t.WindowsDesktop.GetLogin()))
 
 	case *proto.IsMFARequiredRequest_App:
-		app, err := a.GetApp(ctx, t.App.GetName())
+		if t.App.Name == "" {
+			return nil, trace.BadParameter("missing Name field in an app-only UserCertsRequest")
+		}
+
+		servers, err := a.GetApplicationServers(ctx, apidefaults.Namespace)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
+		i := slices.IndexFunc(servers, func(server types.AppServer) bool {
+			return server.GetApp().GetName() == t.App.Name
+		})
+		if i == -1 {
+			return nil, trace.NotFound("application service %q not found", t.App.Name)
+		}
+
+		app := servers[i].GetApp()
 		noMFAAccessErr = checker.CheckAccess(app, services.AccessState{})
 
 	default:
@@ -6162,8 +6189,12 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, challengeExt
 	// Handle passwordless separately, it works differently from MFA.
 	if isPasswordless {
 		if !enableWebauthn {
-			return nil, trace.BadParameter("passwordless requires WebAuthn")
+			return nil, trace.Wrap(types.ErrPasswordlessRequiresWebauthn)
 		}
+		if !apref.GetAllowPasswordless() {
+			return nil, trace.Wrap(types.ErrPasswordlessDisabledBySettings)
+		}
+
 		webLogin := &wanlib.PasswordlessFlow{
 			Webauthn: webConfig,
 			Identity: a.Services,
@@ -6420,6 +6451,18 @@ func (a *Server) validateMFAAuthResponseInternal(
 				Identity: a.Services,
 			}
 			loginData, err = webLogin.Finish(ctx, assertionResp)
+
+			// Disallow non-local users from logging in with passwordless.
+			if err == nil {
+				u, getErr := a.GetUser(ctx, loginData.User, false /* withSecrets */)
+				if getErr != nil {
+					err = trace.Wrap(getErr)
+				} else if u.GetUserType() != types.UserTypeLocal {
+					// Return the error unmodified, without the "MFA response validation
+					// failed" prefix.
+					return nil, trace.Wrap(types.ErrPassswordlessLoginBySSOUser)
+				}
+			}
 		} else {
 			webLogin := &wanlib.LoginFlow{
 				U2F:      u2f,

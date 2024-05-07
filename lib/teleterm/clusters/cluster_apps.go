@@ -26,6 +26,7 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth"
@@ -181,27 +182,18 @@ func (c *Cluster) reissueAppCert(ctx context.Context, clusterClient *client.Clus
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	err = clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
+	key, _, err := clusterClient.IssueUserCertsWithMFA(ctx, client.ReissueParams{
 		RouteToCluster: c.clusterClient.SiteName,
 		RouteToApp:     routeToApp,
 		AccessRequests: c.status.ActiveRequests.AccessRequests,
-	})
+		RequesterName:  proto.UserCertsRequest_TSH_APP_LOCAL_PROXY,
+	}, c.clusterClient.NewMFAPrompt(mfa.WithPromptReasonSessionMFA("Application", routeToApp.Name)))
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	key, err := c.clusterClient.LocalAgent().GetKey(c.clusterClient.SiteName, client.WithAppCerts{})
-	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
-	}
-
-	cert, ok := key.AppTLSCerts[app.GetName()]
-	if !ok {
-		return tls.Certificate{}, trace.NotFound("the user is not logged in into the application %v", app.GetName())
-	}
-
-	tlsCert, err := key.TLSCertificate(cert)
-	return tlsCert, trace.Wrap(err)
+	appCert, err := key.AppTLSCert(app.GetName())
+	return appCert, trace.Wrap(err)
 }
 
 // AssembleAppFQDN is a wrapper on top of [utils.AssembleAppFQDN] which encapsulates translation

@@ -21,12 +21,14 @@ ironrdp-rdpdr.workspace = true
 ironrdp-rdpsnd.workspace = true
 ironrdp-session.workspace = true
 ironrdp-svc.workspace = true
+ironrdp-dvc.workspace = true
+ironrdp-displaycontrol.workspace = true
 ironrdp-tls.workspace = true
 ironrdp-tokio.workspace = true
 iso7816 = "0.1.2"
 iso7816-tlv = "0.4.4"
 log = "0.4.21"
-parking_lot = "0.12.1"
+parking_lot = "0.12.2"
 rand = { version = "0.8.5", features = ["getrandom"] }
 rand_chacha = "0.3.1"
 rsa = "0.9.6"
