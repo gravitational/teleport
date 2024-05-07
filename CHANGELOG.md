@@ -1,5 +1,17 @@
 # Changelog
 
+## 15.3.1 (05/07/24)
+
+* Fixed `screen_size` behavior for Windows Desktops, which was being overridden by the new resize feature. [#41241](https://github.com/gravitational/teleport/pull/41241)
+* Ensure that the active sessions page shows up in the web UI for users with permissions to join sessions. [#41221](https://github.com/gravitational/teleport/pull/41221)
+* Added indicators on the account settings page that tell which authentication methods are active. [#41169](https://github.com/gravitational/teleport/pull/41169)
+* Fix a bug that was preventing tsh proxy kube certificate renewal from working when accessing a leaf kubernetes cluster via the root. [#41158](https://github.com/gravitational/teleport/pull/41158)
+* Fixed `AccessDeniedException` for `dynamodb:ConditionCheckItem` operations when using AWS DynamoDB for cluster state storage. [#41133](https://github.com/gravitational/teleport/pull/41133)
+* Added lock target to lock deletion audit events. [#41112](https://github.com/gravitational/teleport/pull/41112)
+* Fixed a permissions issue that prevented the teleport-cluster helm chart operator from registering agentless ssh servers. [#41108](https://github.com/gravitational/teleport/pull/41108)
+* Improve the reliability of the upload completer. [#41103](https://github.com/gravitational/teleport/pull/41103)
+* Allows the listener for the `tbot` `database-tunnel` service to be set to a unix socket. [#41008](https://github.com/gravitational/teleport/pull/41008)
+
 ## 15.3.0 (04/30/24)
 
 ### Improved Roles UI
