@@ -465,7 +465,7 @@ func (m *Manager) handleUDPConcurrent(req *udp.ForwarderRequest) {
 	var wq waiter.Queue
 	endpoint, err := req.CreateEndpoint(&wq)
 	if err != nil {
-		slog.With("error", err).ErrorContext(ctx, "Failed to create UDP endpoint.")
+		slog.ErrorContext(ctx, "Failed to create UDP endpoint.", "error", err)
 		return
 	}
 
