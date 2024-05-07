@@ -475,7 +475,7 @@ func (a *Server) CreateAccountRecoveryCodes(ctx context.Context, req *proto.Crea
 	}
 
 	// Verify if the user is local.
-	switch user, err := a.GetUser(ctx, token.GetUser(), false /* withSecrets */); {
+	switch user, err := a.GetUser(token.GetUser(), false /* withSecrets */); {
 	case err != nil:
 		// err swallowed on purpose.
 		return nil, trace.AccessDenied(unableToCreateCodesMsg)
