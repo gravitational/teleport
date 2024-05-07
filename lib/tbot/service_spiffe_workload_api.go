@@ -41,8 +41,10 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/peer"
+	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -325,6 +327,7 @@ func serialString(serial *big.Int) string {
 func (s *SPIFFEWorkloadAPIService) fetchX509SVIDs(
 	ctx context.Context,
 	log *slog.Logger,
+	svidRequests []config.SVIDRequest,
 ) ([]*workloadpb.X509SVID, error) {
 	ctx, span := tracer.Start(ctx, "SPIFFEWorkloadAPIService/fetchX509SVIDs")
 	defer span.End()
@@ -332,13 +335,14 @@ func (s *SPIFFEWorkloadAPIService) fetchX509SVIDs(
 	// contention on the mutex and to ensure that all SVIDs are using the
 	// same trust bundle.
 	trustBundle := s.getTrustBundle()
+
 	// TODO(noah): We should probably take inspiration from SPIRE agent's
 	// behavior of pre-fetching the SVIDs rather than doing this for
 	// every request.
 	res, privateKey, err := config.GenerateSVID(
 		ctx,
 		s.client.WorkloadIdentityServiceClient(),
-		s.cfg.SVIDs,
+		svidRequests,
 		// For TTL, we use the one globally configured.
 		s.botCfg.CertificateTTL,
 	)
@@ -432,10 +436,28 @@ func (s *SPIFFEWorkloadAPIService) FetchX509SVID(
 	log.InfoContext(ctx, "FetchX509SVID stream opened by workload")
 	defer log.InfoContext(ctx, "FetchX509SVID stream has closed")
 
+	// Before we issue the SVIDs to the workload, we need to complete workload
+	// attestation and determine which SVIDs to issue.
+	var svidReqs []config.SVIDRequest
+
+	// The SPIFFE Workload API (5.2.1):
+	//
+	//   If the client is not entitled to receive any X509-SVIDs, then the
+	//   server SHOULD respond with the "PermissionDenied" gRPC status code (see
+	//   the Error Codes section in the SPIFFE Workload Endpoint specification
+	//   for more information). Under such a case, the client MAY attempt to
+	//   reconnect with another call to the FetchX509SVID RPC after a backoff.
+	if len(svidReqs) == 0 {
+		return status.Error(
+			codes.PermissionDenied,
+			"workload did not pass attestation for any SVIDs",
+		)
+	}
+
 	for {
 		log.InfoContext(ctx, "Starting to issue X509 SVIDs to workload")
 
-		svids, err := s.fetchX509SVIDs(ctx, log)
+		svids, err := s.fetchX509SVIDs(ctx, log, svidReqs)
 		if err != nil {
 			return trace.Wrap(err)
 		}
