@@ -433,6 +433,17 @@ func (s *Service) UpdateClusterNetworkingConfig(ctx context.Context, req *cluste
 
 	req.ClusterNetworkConfig.SetOrigin(types.OriginDynamic)
 
+	oldCfg, err := s.cache.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	newCfg := req.GetClusterNetworkConfig()
+
+	if err := ValidateCloudNetworkConfigUpdate(*authzCtx, newCfg, oldCfg); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	updated, err := s.backend.UpdateClusterNetworkingConfig(ctx, req.ClusterNetworkConfig)
 
 	if err := s.emitter.EmitAuditEvent(ctx, &apievents.ClusterNetworkingConfigUpdate{
@@ -487,7 +498,18 @@ func (s *Service) UpsertClusterNetworkingConfig(ctx context.Context, req *cluste
 
 	req.ClusterNetworkConfig.SetOrigin(types.OriginDynamic)
 
-	upserted, err := s.backend.UpsertClusterNetworkingConfig(ctx, req.GetClusterNetworkConfig())
+	oldCfg, err := s.cache.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	newCfg := req.GetClusterNetworkConfig()
+
+	if err := ValidateCloudNetworkConfigUpdate(*authzCtx, newCfg, oldCfg); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	upserted, err := s.backend.UpsertClusterNetworkingConfig(ctx, newCfg)
 
 	if err := s.emitter.EmitAuditEvent(ctx, &apievents.ClusterNetworkingConfigUpdate{
 		Metadata: apievents.Metadata{
@@ -531,6 +553,16 @@ func (s *Service) ResetClusterNetworkingConfig(ctx context.Context, _ *clusterco
 	}
 
 	defaultConfig := types.DefaultClusterNetworkingConfig()
+
+	oldCfg, err := s.cache.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := ValidateCloudNetworkConfigUpdate(*authzCtx, defaultConfig, oldCfg); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	const iterationLimit = 3
 	// Attempt a few iterations in case the conditional update fails
 	// due to spurious networking conditions.
@@ -576,6 +608,41 @@ func (s *Service) ResetClusterNetworkingConfig(ctx context.Context, _ *clusterco
 	}
 
 	return nil, trace.LimitExceeded("failed to reset networking config within %v iterations", iterationLimit)
+}
+
+// ValidateCloudNetworkConfigUpdate validates that that [newConfig] is a valid update of [oldConfig]. Cloud
+// customers are not allowed to edit certain fields of the cluster networking config, and even if they were,
+// the edits would be overwritten by the values from the static config file every time an auth process starts
+// up.
+func ValidateCloudNetworkConfigUpdate(authzCtx authz.Context, newConfig, oldConfig types.ClusterNetworkingConfig) error {
+	if authz.HasBuiltinRole(authzCtx, string(types.RoleAdmin)) {
+		return nil
+	}
+
+	if !modules.GetModules().Features().Cloud {
+		return nil
+	}
+
+	const cloudUpdateFailureMsg = "cloud tenants cannot update %q"
+
+	if newConfig.GetProxyListenerMode() != oldConfig.GetProxyListenerMode() {
+		return trace.BadParameter(cloudUpdateFailureMsg, "proxy_listener_mode")
+	}
+	newtst, _ := newConfig.GetTunnelStrategyType()
+	oldtst, _ := oldConfig.GetTunnelStrategyType()
+	if newtst != oldtst {
+		return trace.BadParameter(cloudUpdateFailureMsg, "tunnel_strategy")
+	}
+
+	if newConfig.GetKeepAliveInterval() != oldConfig.GetKeepAliveInterval() {
+		return trace.BadParameter(cloudUpdateFailureMsg, "keep_alive_interval")
+	}
+
+	if newConfig.GetKeepAliveCountMax() != oldConfig.GetKeepAliveCountMax() {
+		return trace.BadParameter(cloudUpdateFailureMsg, "keep_alive_count_max")
+	}
+
+	return nil
 }
 
 // GetSessionRecordingConfig returns the locally cached networking configuration.
