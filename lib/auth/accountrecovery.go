@@ -540,7 +540,7 @@ func (a *Server) generateAndUpsertRecoveryCodes(ctx context.Context, username st
 
 	hashedCodes := make([]types.RecoveryCode, len(codes))
 	for i, token := range codes {
-		hashedCode, err := utils.BcryptFromPassword([]byte(token), bcrypt.DefaultCost)
+		hashedCode, err := utils.BcryptFromPassword([]byte(token), a.bcryptCost())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
