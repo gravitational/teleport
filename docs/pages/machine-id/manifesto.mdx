@@ -3,11 +3,10 @@ title: Machine ID Manifesto
 description: A manifesto for Trusted Machine Computing
 ---
 
-Increasingly, machines and services are doing more and more impactful and
-privileged work, escaping the perimeter of a SaaS. Services are increasingly
-communicating with each other across network and company boundaries. AI agents
-are getting increasingly common and are becoming more autonomous and powerful at
-an accelerating pace.
+As time goes on, machines and services are doing more and more impactful and
+privileged work. Services are increasingly communicating with each other across
+network and company boundaries. AI agents are getting increasingly common and
+are becoming more autonomous and powerful at an accelerating pace.
 
 On the other side, services and machines are increasingly a target of attacks,
 with hackers trying to get access to critical systems, stealing API keys and
@@ -17,17 +16,21 @@ mission-critical systems.
 These challenges create an urgent need for trusted computing that rests on three
 pillars.
 
-### Strong Cryptographic Identity
+### Strong identity-based authentication
 
-Each service and machine should have a strong, cryptographic identity, that is
-verifiable by other services and organizations, resistant to hacks and
-exfiltration of secrets.
+Legacy systems rely on shared secrets, such as API keys, to authenticate.
+
+Instead, each service and machine should have a strong, cryptographic identity
+(e.g an X.509 certificate) that is verifiable by other services inside and
+outside the organization. This identity should be used for authentication and
+form the basis of authorization decisions.
 
 ### Trusted execution
 
-Systems should verify the chain of trust of the code starting from the origin,
-making sure it has not been tampered with at the startup or during execution in
-a tamper-proof execution environment.
+Before an identity is issued, the integrity and authenticity of the machine
+should be verified. The chain of trust of the code running on the machine must
+be verified to guard against tampering prior to startup, and the code should be
+executed in a trusted execution environment to prevent tampering at runtime.
 
 ### Complete visibility and unified access control
 
@@ -36,9 +39,9 @@ ecosystem of services: what data they have access to and why, what permissions
 they have, and what data have they accessed and modified with tamper-proof
 evidence and trial of their execution.
 
-Combined, we will get a strong ecosystem of AI, automation and other workloads
-running together in a predictable way that is secure and possible to reason
-about and maintain.
+Together, these three pillars create a strong foundation for AI, automations and
+other workloads running together in a predictable way that is secure and
+possible to reason about and maintain.
 
 Teleport Workload & Machine Identity is on a mission to make this vision a
 reality.
