@@ -20,13 +20,10 @@ import (
 	"context"
 	"crypto/rand"
 	"errors"
-	"fmt"
 	"io"
 	"log/slog"
-	"os"
-	"os/signal"
+	"net"
 	"sync"
-	"syscall"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
@@ -46,8 +43,10 @@ import (
 )
 
 const (
-	nicID = 1
-	mtu   = 1500
+	nicID                            = 1
+	mtu                              = 1500
+	tcpReceiveBufferSize             = 0 // 0 means a default will be used.
+	maxInFlightTCPConnectionAttempts = 1024
 )
 
 // Config holds configuration parameters for the VNet.
@@ -114,14 +113,35 @@ type TUNDevice interface {
 
 // Manager holds configuration and state for the VNet.
 type Manager struct {
-	tun          TUNDevice
-	stack        *stack.Stack
+	// stack is the gVisor networking stack.
+	stack *stack.Stack
+
+	// tun is the OS TUN device. Incoming IP/L3 packets will be copied from here to [linkEndpoint], and
+	// outgoing packets from [linkEndpoint] will be written here.
+	tun TUNDevice
+
+	// linkEndpoint is the gVisor-side endpoint that emulates the OS TUN device. All incoming IP/L3 packets
+	// from the OS TUN device will be injected as inbound packets to this endpoint to be processed by the
+	// gVisor netstack which ultimately calls the TCP or UDP protocol handler. When the protocol handler
+	// writes packets to the gVisor stack to an address assigned to this endpoint, they will be written to
+	// this endpoint, and then copied from this endpoint to the OS TUN device.
 	linkEndpoint *channel.Endpoint
-	ipv6Prefix   tcpip.Address
-	destroyed    chan struct{}
-	wg           sync.WaitGroup
-	state        state
-	slog         *slog.Logger
+
+	// ipv6Prefix holds the 96-bit prefix that will be used for all IPv6 addresses assigned in the VNet.
+	ipv6Prefix tcpip.Address
+
+	// destroyed is a channel that will be closed when the VNet is in the process of being destroyed.
+	// All goroutines should terminate quickly after either this is closed or the context passed to
+	// [Manager.Run] is canceled.
+	destroyed chan struct{}
+	// wg is a [sync.WaitGroup] that keeps track of all running goroutines started by the [Manager].
+	wg sync.WaitGroup
+
+	// state holds all mutable state for the Manager, it is currently protect by a single RWMutex, this could
+	// be optimized as necessary.
+	state state
+
+	slog *slog.Logger
 }
 
 type state struct {
@@ -144,8 +164,9 @@ type tcpHandler interface {
 	handleTCP(context.Context, tcpConnector) error
 }
 
-// NewManager creates a new VNet manager with the given configuration and root
-// context. Call Run() on the returned manager to start the VNet.
+// NewManager creates a new VNet manager with the given configuration and root context. It takes ownership of
+// [cfg.TUNDevice] and will handle closing it before Run() returns. Call Run() on the returned manager to
+// start the VNet.
 func NewManager(cfg *Config) (*Manager, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -171,11 +192,7 @@ func NewManager(cfg *Config) (*Manager, error) {
 		slog:         slog,
 	}
 
-	const (
-		tcpReceiveBufferSize          = 0 // 0 means a default will be used.
-		maxInFlightConnectionAttempts = 1024
-	)
-	tcpForwarder := tcp.NewForwarder(m.stack, tcpReceiveBufferSize, maxInFlightConnectionAttempts, m.handleTCP)
+	tcpForwarder := tcp.NewForwarder(m.stack, tcpReceiveBufferSize, maxInFlightTCPConnectionAttempts, m.handleTCP)
 	m.stack.SetTransportProtocolHandler(tcp.ProtocolNumber, tcpForwarder.HandlePacket)
 
 	return m, nil
@@ -212,27 +229,54 @@ func installVnetRoutes(stack *stack.Stack) error {
 	return nil
 }
 
-// Run starts the VNet.
+// Run starts the VNet. It blocks until [ctx] is canceled, at which point it closes the link endpoint, waits
+// for all goroutines to terminate, and destroys the networking stack.
 func (m *Manager) Run(ctx context.Context) error {
-	m.slog.With("ipv6_prefix", m.ipv6Prefix).InfoContext(ctx, "Running Teleport VNet.")
-	g, ctx := errgroup.WithContext(ctx)
-	g.Go(func() error { return m.statsHandler(ctx) })
-	g.Go(func() error {
-		return forwardBetweenTunAndNetstack(ctx, m.tun, m.linkEndpoint)
-	})
-	return trace.Wrap(g.Wait())
-}
+	m.slog.InfoContext(ctx, "Running Teleport VNet.", "ipv6_prefix", m.ipv6Prefix)
 
-// Destroy closes the link endpoint, waits for all goroutines to terminate, and destroys the networking stack.
-func (m *Manager) Destroy() error {
-	close(m.destroyed)
-	m.linkEndpoint.Close()
+	ctx, cancel := context.WithCancel(ctx)
+
+	allErrors := make(chan error, 2)
+	g, ctx := errgroup.WithContext(ctx)
+	g.Go(func() error {
+		// Make sure to cancel the context in case this exits prematurely with a nil error.
+		defer cancel()
+		err := forwardBetweenTunAndNetstack(ctx, m.tun, m.linkEndpoint)
+		allErrors <- err
+		return err
+	})
+	g.Go(func() error {
+		// When the context is canceled for any reason (the caller or one of the other concurrent tasks may
+		// have canceled it) destroy everything and quit.
+		<-ctx.Done()
+
+		// In-flight connections should start terminating after closing [m.destroyed].
+		close(m.destroyed)
+
+		// Close the link endpoint and the TUN, this should cause [forwardBetweenTunAndNetstack] to terminate
+		// if it hasn't already.
+		m.linkEndpoint.Close()
+		err := trace.Wrap(m.tun.Close(), "closing TUN device")
+
+		allErrors <- err
+		return err
+	})
+
+	// Deliberately ignoring the error from g.Wait() to return an aggregate of all errors.
+	_ = g.Wait()
+
+	// Wait for all connections and goroutines to clean themselves up.
 	m.wg.Wait()
+
+	// Now we can destroy the gVisor networking stack and wait for all its goroutines to terminate.
 	m.stack.Destroy()
-	return nil
+
+	close(allErrors)
+	return trace.NewAggregateFromChannel(allErrors, context.Background())
 }
 
 func (m *Manager) handleTCP(req *tcp.ForwarderRequest) {
+	// Add 1 to the waitgroup because the networking stack runs this in its own goroutine.
 	m.wg.Add(1)
 	defer m.wg.Done()
 
@@ -240,6 +284,7 @@ func (m *Manager) handleTCP(req *tcp.ForwarderRequest) {
 	defer cancel()
 
 	// Clients of *tcp.ForwarderRequest must eventually call Complete on it exactly once.
+	// [req] consumes 1 of [maxInFlightTCPConnectionAttempts] until [req.Complete] is called.
 	var completed bool
 	defer func() {
 		if !completed {
@@ -254,7 +299,7 @@ func (m *Manager) handleTCP(req *tcp.ForwarderRequest) {
 
 	handler, ok := m.getTCPHandler(id.LocalAddress)
 	if !ok {
-		slog.With("addr", id.LocalAddress).DebugContext(ctx, "No handler for address.")
+		slog.DebugContext(ctx, "No handler for address.", "addr", id.LocalAddress)
 		return
 	}
 
@@ -275,11 +320,15 @@ func (m *Manager) handleTCP(req *tcp.ForwarderRequest) {
 
 		endpoint.SocketOptions().SetKeepAlive(true)
 
-		conn := gonet.NewTCPConn(&wq, endpoint)
+		conn, connClosed := newConnWithCloseNotifier(gonet.NewTCPConn(&wq, endpoint))
+
 		m.wg.Add(1)
 		go func() {
 			defer m.wg.Done()
 			select {
+			case <-connClosed:
+				// Conn is already being closed, nothing to do.
+				return
 			case <-notifyCh:
 				slog.DebugContext(ctx, "Got HUP or ERR, closing TCP conn.")
 			case <-m.destroyed:
@@ -323,20 +372,6 @@ func (m *Manager) assignTCPHandler(handler tcpHandler) (tcpip.Address, error) {
 	}
 
 	return addr, nil
-}
-
-func (m *Manager) statsHandler(ctx context.Context) error {
-	ch := make(chan os.Signal, 1)
-	signal.Notify(ch, syscall.SIGUSR1)
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-ch:
-		}
-		stats := m.stack.Stats()
-		fmt.Printf("%+v\n", stats)
-	}
 }
 
 func forwardBetweenTunAndNetstack(ctx context.Context, tun TUNDevice, linkEndpoint *channel.Endpoint) error {
@@ -448,4 +483,23 @@ func u32ToBytes(i uint32) []byte {
 	bytes[2] = byte(i >> 8)
 	bytes[3] = byte(i >> 0)
 	return bytes
+}
+
+// newConnWithCloseNotifier returns a net.Conn and a channel that will be closed when the conn is closed.
+func newConnWithCloseNotifier(conn *gonet.TCPConn) (net.Conn, <-chan struct{}) {
+	ch := make(chan struct{})
+	return &connWithCloseNotifier{
+		TCPConn:   conn,
+		closeOnce: sync.OnceFunc(func() { close(ch) }),
+	}, ch
+}
+
+type connWithCloseNotifier struct {
+	*gonet.TCPConn
+	closeOnce func()
+}
+
+func (c *connWithCloseNotifier) Close() error {
+	c.closeOnce()
+	return c.TCPConn.Close()
 }
