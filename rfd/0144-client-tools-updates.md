@@ -107,8 +107,10 @@ During re-execution, child process will inherit all environment variables and
 flags. `TELEPORT_TOOLS_VERSION=off` will be added during re-execution to
 prevent infinite loops.
 
-Automatic updates will not be used if `tctl` is connecting to the Auth Service
-over localhost.
+When `tctl` is used to connect to Auth Service running on the same host over
+`localhost`, `tctl` assumes a special administrator role that can perform all
+operations on a cluster. In this situation the expectation is for the version
+of `tctl` and `teleport` to match so automatic updates will not be used.
 
 > [!NOTE]
 > If a user connects to multiple root clusters, each running a different
