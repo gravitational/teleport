@@ -139,7 +139,7 @@ func (a *Server) CreateResetPasswordToken(ctx context.Context, req CreateUserTok
 		return nil, trace.BadParameter("invalid reset password token request type")
 	}
 
-	switch user, err := a.GetUser(ctx, req.Name, false /* withSecrets */); {
+	switch user, err := a.GetUser(req.Name, false /* withSecrets */); {
 	case err != nil:
 		return nil, trace.Wrap(err)
 	case user.GetUserType() != types.UserTypeLocal:

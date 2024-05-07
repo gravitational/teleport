@@ -1045,7 +1045,6 @@ func TestSSOPasswordBypass(t *testing.T) {
 					Password: []byte(mfa.Password),
 				},
 			},
-			ChallengeExtensions: &mfav1.ChallengeExtensions{},
 		})
 		require.NoError(t, err, "CreateAuthenticateChallenge failed")
 		return chal
@@ -1110,13 +1109,15 @@ func TestSSOPasswordBypass(t *testing.T) {
 					SecondFactor: constants.SecondFactorOff,
 				})
 				require.NoError(t, err, "NewAuthPreference failed")
-				_, err = authServer.UpsertAuthPreference(ctx, authPref)
-				require.NoError(t, err, "UpdateAuthPreference failed")
+				require.NoError(t,
+					authServer.SetAuthPreference(ctx, authPref),
+					"SetAuthPreference failed")
 
 				// Reset after test.
 				t.Cleanup(func() {
-					_, err := authServer.UpsertAuthPreference(ctx, beforePref)
-					assert.NoError(t, err, "UpsertAuthPreference failed, AuthPreference not restored")
+					assert.NoError(t,
+						authServer.SetAuthPreference(ctx, beforePref),
+						"SetAuthPreference failed, AuthPreference not restored")
 				})
 
 				// Password-only auth.
@@ -1213,8 +1214,9 @@ func TestSSOAccountRecoveryProhibited(t *testing.T) {
 		},
 	})
 	require.NoError(t, err, "NewAuthPreference failed")
-	_, err = authServer.UpsertAuthPreference(ctx, authPref)
-	require.NoError(t, err, "UpsertAuthPreference failed")
+	require.NoError(t,
+		authServer.SetAuthPreference(ctx, authPref),
+		"SetAuthPreference failed")
 
 	// Create a user that looks like an SSO user. The name must be an e-mail for
 	// account recovery to work.
@@ -1249,9 +1251,6 @@ func TestSSOAccountRecoveryProhibited(t *testing.T) {
 		// Issue a privilege token
 		chal, err := userClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 			Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{},
-			ChallengeExtensions: &mfav1.ChallengeExtensions{
-				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES,
-			},
 		})
 		require.NoError(t, err, "CreateAuthenticateChallenge failed")
 		mfaResp, err := totpDev.SolveAuthn(chal)

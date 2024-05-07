@@ -359,7 +359,7 @@ func (a *Server) authenticateUserInternal(ctx context.Context, req AuthenticateU
 	// Disallow non-local users from local authentication.
 	// Passwordless does its own check, as the user is only known after the
 	// webauthn assertion is cleared.
-	switch u, err := a.GetUser(ctx, user, false /* withSecrets */); {
+	switch u, err := a.GetUser(user, false /* withSecrets */); {
 	case trace.IsNotFound(err):
 		// Keep going if the user is not known.
 	case err != nil:
