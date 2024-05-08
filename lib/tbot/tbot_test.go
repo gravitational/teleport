@@ -649,6 +649,8 @@ func TestBotSPIFFEWorkloadAPI(t *testing.T) {
 	role, err = rootClient.UpsertRole(ctx, role)
 	require.NoError(t, err)
 
+	pid := os.Getpid()
+
 	tempDir := t.TempDir()
 	socketPath := "unix://" + path.Join(tempDir, "spiffe.sock")
 	onboarding, _ := testhelpers.MakeBot(t, rootClient, "test", role.GetName())
@@ -661,6 +663,21 @@ func TestBotSPIFFEWorkloadAPI(t *testing.T) {
 				&config.SPIFFEWorkloadAPIService{
 					Listen: socketPath,
 					SVIDs: []config.SVIDRequestWithRules{
+						// Intentionally unmatching PID to ensure this SVID
+						// is not issued.
+						{
+							SVIDRequest: config.SVIDRequest{
+								Path: "/bar",
+							},
+							Rules: []config.SVIDRequestRule{
+								{
+									Unix: config.SVIDRequestRuleUnix{
+										PID: ptr(0),
+									},
+								},
+							},
+						},
+						// SVID with rule that matches on PID.
 						{
 							SVIDRequest: config.SVIDRequest{
 								Path: "/foo",
@@ -668,6 +685,13 @@ func TestBotSPIFFEWorkloadAPI(t *testing.T) {
 								SANS: config.SVIDRequestSANs{
 									DNS: []string{"example.com"},
 									IP:  []string{"10.0.0.1"},
+								},
+							},
+							Rules: []config.SVIDRequestRule{
+								{
+									Unix: config.SVIDRequestRuleUnix{
+										PID: &pid,
+									},
 								},
 							},
 						},
