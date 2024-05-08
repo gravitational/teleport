@@ -400,7 +400,7 @@ func waitForAnyEvent(t *testing.T, testCtx *testContext) events.AuditEvent {
 	case event := <-testCtx.emitter.C():
 		return event
 	case <-time.After(time.Second):
-		t.Fatalf("didn't receive any event after 1 second")
+		require.FailNow(t, "timed out waiting for an audit event", "didn't receive any event after 1 second")
 	}
 	return nil
 }
@@ -422,7 +422,16 @@ func waitForEvent(t *testing.T, testCtx *testContext, code string) events.AuditE
 			}
 			return event
 		case <-time.After(time.Second):
-			t.Fatalf("didn't receive %v event after 1 second", code)
+			require.FailNow(t, "timed out waiting for an audit event", "didn't receive %v event after 1 second", code)
 		}
 	}
+}
+
+// requireSpannerRPCEvent waits for a spanner RPC audit event or fails the test.
+func requireSpannerRPCEvent(t *testing.T, testCtx *testContext) *events.SpannerRPC {
+	t.Helper()
+	evt := waitForEvent(t, testCtx, libevents.SpannerRPCCode)
+	rpcEvt, ok := evt.(*events.SpannerRPC)
+	require.True(t, ok)
+	return rpcEvt
 }

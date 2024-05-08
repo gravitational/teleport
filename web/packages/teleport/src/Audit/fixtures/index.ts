@@ -21,6 +21,73 @@ import { makeEvent } from 'teleport/services/audit';
 // events contains sample JSON's of ALL supported event types
 export const events = [
   {
+    args: {
+      database: 'projects/project-id/instances/instance-id/databases/prod-db',
+      session_count: 100,
+      session_template: {},
+    },
+    cluster_name: 'root',
+    code: 'TSPN001W',
+    db_name: 'prod-db',
+    db_origin: 'dynamic',
+    db_protocol: 'spanner',
+    db_service: 'teleport-spanner',
+    db_type: 'spanner',
+    db_uri: 'spanner.googleapis.com:443',
+    db_user: 'some-user',
+    error:
+      'access to db denied. User does not have permissions. Confirm database user and name.',
+    event: 'db.session.spanner.rpc',
+    message:
+      'access to db denied. User does not have permissions. Confirm database user and name.',
+    procedure: 'BatchCreateSessions',
+    sid: '04364984-a6d0-4e2c-93c7-5c44e2359502',
+    success: false,
+    time: '2024-03-13T01:25:48.568Z',
+    uid: '1de57538-2eea-438b-a52d-3098f8093b28',
+    user: 'alice@example.com',
+  },
+  {
+    args: {
+      query_options: {},
+      request_options: {},
+      seqno: 1,
+      session:
+        'projects/project-id/instances/instance-id/databases/dev-db/sessions/ABCDEF1234567890Aye8_QwuELYD9rxa74YTWc-lu9LNuDDADbi4EOGm2C2j0ixe',
+      sql: 'select * from TestTable',
+      transaction: {
+        Selector: {
+          SingleUse: {
+            Mode: {
+              ReadOnly: {
+                TimestampBound: {
+                  Strong: true,
+                },
+                return_read_timestamp: true,
+              },
+            },
+          },
+        },
+      },
+    },
+    cluster_name: 'root',
+    code: 'TSPN001I',
+    db_name: 'dev-db',
+    db_origin: 'dynamic',
+    db_protocol: 'spanner',
+    db_service: 'teleport-spanner',
+    db_type: 'spanner',
+    db_uri: 'spanner.googleapis.com:443',
+    db_user: 'some-user',
+    event: 'db.session.spanner.rpc',
+    procedure: 'ExecuteStreamingSql',
+    sid: '406b9883-0e16-42f2-9d0b-b3bd956f9cd4',
+    success: true,
+    time: '2024-03-13T00:02:44.739Z',
+    uid: 'e0625e79-9399-4ea3-aa8b-dba1eb98658d',
+    user: 'alice@example.com',
+  },
+  {
     cluster_name: 'root.com',
     code: 'TDY01I',
     event: 'db.session.dynamodb.request',
