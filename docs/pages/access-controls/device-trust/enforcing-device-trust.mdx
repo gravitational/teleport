@@ -201,6 +201,58 @@ version: v2
 
 Now the alice user can only access `env:production` apps using a trusted device.
 
+## Desktop Access support
+
+Desktop access may enforce device trust via [role-based enforcement](
+#role-based-trusted-device-enforcement).
+
+To access desktops protected by device trust make sure your device is
+[registered and enrolled](./device-management.mdx#register-a-trusted-device),
+install [Teleport Connect](
+../../connect-your-client/teleport-connect.mdx#installation--upgrade), and
+follow the instructions during login.
+
+As an example, to enforce device trust for all `env:production` desktops, save
+the role below as `require-trusted-device-desktops.yaml`:
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: require-trusted-device-desktops
+spec:
+  options:
+    device_trust_mode: "required"
+  allow:
+    windows_desktop_labels:
+      env: "production"
+    windows_desktop_logins: ["Administrator", "alice"]
+```
+
+Create the role and assign it to a user:
+
+```code
+$ tctl create require-trusted-device-desktops.yaml
+$ tctl edit users/alice
+```
+
+```diff
+kind: user
+metadata:
+  name: alice
+  # (...)
+spec:
+  roles:
+  - access
+  - editor
++ - require-trusted-device-desktops
+  # (...)
+version: v2
+```
+
+Now the alice user can only access `env:production` desktops using a trusted
+device.
+
 ## Locking a device
 
 Similar to [session and identity locking](../guides/locking.mdx), a device can
