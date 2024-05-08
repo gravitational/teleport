@@ -4516,6 +4516,7 @@ func TestGetWebConfig(t *testing.T) {
 		AssistEnabled:      false,
 		AutomaticUpgrades:  false,
 		JoinActiveSessions: true,
+		Edition:            modules.BuildOSS, // testBuildType is empty
 	}
 
 	// Make a request.
@@ -4566,6 +4567,7 @@ func TestGetWebConfig(t *testing.T) {
 	expectedCfg.AutomaticUpgradesTargetVersion = "v" + teleport.Version
 	expectedCfg.AssistEnabled = false
 	expectedCfg.JoinActiveSessions = false
+	expectedCfg.Edition = "" // testBuildType is empty
 
 	// request and verify enabled features are enabled.
 	re, err = clt.Get(ctx, endpoint, nil)
