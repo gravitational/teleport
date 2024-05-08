@@ -201,6 +201,8 @@ func (s *Server) handleDNSMessage(ctx context.Context, remoteAddr string, buf []
 			return trace.Wrap(err, "resolving AAAA request for %q", fqdn)
 		}
 	default:
+		slog.DebugContext(ctx, "Question type is not A or AAAA, forwarding.", "type", question.Type)
+		return trace.Wrap(s.forward(ctx, slog, buf, responseWriter), "forwarding %s DNS query", question.Type)
 	}
 
 	var response []byte
