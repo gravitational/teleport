@@ -59,9 +59,9 @@ export interface UserContextValue {
 
 export const UserContext = createContext<UserContextValue>({
   preferences: makeDefaultUserPreferences(),
-  updatePreferences: preferences => Promise.reject('unimplemented'),
-  updateClusterPinnedResources: preferences => Promise.reject('unimplemented'),
-  getClusterPinnedResources: preferences => Promise.reject('unimplemented'),
+  updatePreferences: () => Promise.reject('unimplemented'),
+  updateClusterPinnedResources: () => Promise.reject('unimplemented'),
+  getClusterPinnedResources: () => Promise.reject('unimplemented'),
 });
 
 export function useUser(): UserContextValue {
