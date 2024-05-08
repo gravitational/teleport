@@ -396,6 +396,8 @@ func (s *SPIFFEWorkloadAPIService) fetchX509SVIDs(
 	return svids, nil
 }
 
+// filterSVIDRequests filters the SVID requests based on the workload
+// attestation.
 func filterSVIDRequests(
 	ctx context.Context,
 	log *slog.Logger,
