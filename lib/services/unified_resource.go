@@ -855,7 +855,13 @@ func MakePaginatedResource(ctx context.Context, requestType string, r types.Reso
 		// TODO(gzdunek): DELETE IN 17.0
 		// This is needed to maintain backward compatibility between v16 server and v15 client.
 		clientVersion, versionExists := metadata.ClientVersionFromContext(ctx)
-		isClientNotSupportingSAMLIdPServiceProviderResource := versionExists && semver.New(clientVersion).Major < 16
+		isClientNotSupportingSAMLIdPServiceProviderResource := false
+		if versionExists {
+			version, err := semver.NewVersion(clientVersion)
+			if err == nil && version.Major < 16 {
+				isClientNotSupportingSAMLIdPServiceProviderResource = true
+			}
+		}
 
 		if isClientNotSupportingSAMLIdPServiceProviderResource {
 			protoResource = &proto.PaginatedResource{
