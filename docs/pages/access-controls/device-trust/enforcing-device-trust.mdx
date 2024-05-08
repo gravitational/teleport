@@ -78,11 +78,6 @@ Enterprise clusters run in `optional` mode by default. Changing the mode to
 `required` will enforce a trusted device for all SSH, Database and Kubernetes
 accesses.
 
-<Admonition type="warning" title="Web UI">
-The Web UI is not capable of trusted device access. Only `tsh` and Teleport
-Connect are able to fulfill device mode `required`.
-</Admonition>
-
 To enable device mode `required` update your configuration as follows:
 
 <Tabs dropDownCaption="Teleport Deployment">
