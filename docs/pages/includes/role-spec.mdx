@@ -58,18 +58,7 @@ spec:
     max_connections: 2
     # limit number of concurrent Kubernetes sessions per user
     max_kubernetes_connections: 1
-    # Specify whether or not to record the user's SSH sessions and how to deal
-    # with session recording failures, such as a full disk error.
-    #
-    # Session recording is enabled if any of the user's roles specify
-    # `best_effort` or `strict`, where, in case of recording failures, the
-    # session will be immediately terminated only if the mode is set to `strict`.
-    #
-    # The configuration is done per service. The `default` will be used if the
-    # service doesn’t specify a value. When set in multiple roles, the value
-    # used will always be the strictest, following the rule: `strict` > `best_effort` > `off`.
-    # To turn off the session recording, all user’s roles must set the value to
-    # `off`; otherwise, the strictest value will be used.
+    # Defines session recording options.
     record_session:
       # Specify whether or not to record the user's desktop sessions.
       # Desktop session recording is enabled if one or more of the user's
@@ -81,8 +70,17 @@ spec:
       # is set to 'off' in teleport.yaml (Auth Service) or if the cluster's
       # session_recording_config resource has set 'mode: off'.
       desktop: true
-      # Optional: the default session recording mode to use when a
-      # protocol-specific mode is not set. Defaults to `best_effort`
+      # Specify whether or not to record the user's sessions (currently only
+      # available for SSH sessions) and how to deal with session recording
+      # failures, such as a full disk error.
+      #
+      # Session recording is enabled if any of the user's roles specify
+      # `best_effort` or `strict`, where, in case of recording failures, the
+      # session will be immediately terminated only if the mode is set to
+      # `strict`. This option is optional and the default value is `best_effort`.
+      #
+      # To turn off the session recording, all user's roles must set the value to
+      # `off`; otherwise, the strictest value will be used.
       default: off|best_effort|strict
       # Optional: Session recording mode for SSH sessions.
       # If not set, the value set on default will be used.

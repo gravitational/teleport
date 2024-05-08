@@ -65,7 +65,7 @@ user:
 | `request_prompt` | Prompt for the Access Request "reason" field | |
 | `max_connections` | Enterprise-only limit on how many concurrent sessions can be started via Teleport | The lowest value takes precedence. |
 | `max_kubernetes_connections` | Defines the maximum number of concurrent Kubernetes sessions per user | |
-| `record_session` |Defines the [Session recording mode](../reference/audit.mdx#modes).|The strictest value takes precedence.|
+| `record_session` |Defines the session recording options, including [Session recording modes](../reference/audit.mdx#modes) for SSH access.|The strictest value takes precedence.|
 | `desktop_clipboard` | Allow clipboard sharing for desktop sessions | Logical "AND" i.e. evaluates to "yes" if all roles enable clipboard sharing |
 | `pin_source_ip` | Enable source IP pinning for SSH certificates. | Logical "OR" i.e. evaluates to "yes" if at least one role requires session termination |
 | `cert_extensions` | Specifies extensions to be included in SSH certificates | |
