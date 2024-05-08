@@ -38,6 +38,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp/totp"
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
@@ -1248,6 +1249,135 @@ func TestAuthPreferenceRBAC(t *testing.T) {
 		},
 		alwaysReadable: true,
 	})
+}
+
+func TestClusterNetworkingCloudUpdates(t *testing.T) {
+	srv := newTestTLSServer(t)
+	ctx := context.Background()
+	err := srv.Auth().SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
+	require.NoError(t, err)
+
+	user, _, err := CreateUserAndRole(srv.Auth(), "username", []string{}, []types.Rule{
+		{
+			Resources: []string{
+				types.KindClusterNetworkingConfig,
+			},
+			Verbs: services.RW(),
+		},
+	})
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		cloud                   bool
+		identity                TestIdentity
+		expectSetErr            string
+		clusterNetworkingConfig types.ClusterNetworkingConfig
+		name                    string
+	}{
+		{
+			name:                    "non admin user can set existing values to the same value",
+			cloud:                   true,
+			identity:                TestUser(user.GetName()),
+			clusterNetworkingConfig: types.DefaultClusterNetworkingConfig(),
+		},
+		{
+			name:         "non admin user cannot set keep_alive_interval",
+			cloud:        true,
+			identity:     TestUser(user.GetName()),
+			expectSetErr: "keep_alive_interval",
+			clusterNetworkingConfig: newClusterNetworkingConf(t, types.ClusterNetworkingConfigSpecV2{
+				KeepAliveInterval: types.Duration(time.Second * 20),
+			}),
+		},
+		{
+			name:         "non admin user cannot set tunnel_strategy",
+			cloud:        true,
+			identity:     TestUser(user.GetName()),
+			expectSetErr: "tunnel_strategy",
+			clusterNetworkingConfig: newClusterNetworkingConf(t, types.ClusterNetworkingConfigSpecV2{
+				TunnelStrategy: &types.TunnelStrategyV1{
+					Strategy: &types.TunnelStrategyV1_ProxyPeering{
+						ProxyPeering: types.DefaultProxyPeeringTunnelStrategy(),
+					},
+				},
+			}),
+		},
+		{
+			name:         "non admin user cannot set proxy_listener_mode",
+			cloud:        true,
+			identity:     TestUser(user.GetName()),
+			expectSetErr: "proxy_listener_mode",
+			clusterNetworkingConfig: newClusterNetworkingConf(t, types.ClusterNetworkingConfigSpecV2{
+				ProxyListenerMode: types.ProxyListenerMode_Multiplex,
+			}),
+		},
+		{
+			name:         "non admin user cannot set keep_alive_count_max",
+			cloud:        true,
+			identity:     TestUser(user.GetName()),
+			expectSetErr: "keep_alive_count_max",
+			clusterNetworkingConfig: newClusterNetworkingConf(t, types.ClusterNetworkingConfigSpecV2{
+				KeepAliveCountMax: 55,
+			}),
+		},
+		{
+			name:     "non admin user can set client_idle_timeout",
+			cloud:    true,
+			identity: TestUser(user.GetName()),
+			clusterNetworkingConfig: newClusterNetworkingConf(t, types.ClusterNetworkingConfigSpecV2{
+				ClientIdleTimeout: types.Duration(time.Second * 67),
+			}),
+		},
+		{
+			name:     "admin user can set keep_alive_interval",
+			cloud:    true,
+			identity: TestAdmin(),
+			clusterNetworkingConfig: newClusterNetworkingConf(t, types.ClusterNetworkingConfigSpecV2{
+				KeepAliveInterval: types.Duration(time.Second * 67),
+			}),
+		},
+		{
+			name:     "non admin user can set keep_alive_interval on non cloud cluster",
+			cloud:    false,
+			identity: TestUser(user.GetName()),
+			clusterNetworkingConfig: newClusterNetworkingConf(t, types.ClusterNetworkingConfigSpecV2{
+				KeepAliveInterval: types.Duration(time.Second * 67),
+			}),
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			modules.SetTestModules(t, &modules.TestModules{
+				TestBuildType: modules.BuildEnterprise,
+				TestFeatures: modules.Features{
+					Cloud: tc.cloud,
+				},
+			})
+
+			client, err := srv.NewClient(tc.identity)
+			require.NoError(t, err)
+
+			err = client.SetClusterNetworkingConfig(ctx, tc.clusterNetworkingConfig.(*types.ClusterNetworkingConfigV2))
+			if tc.expectSetErr != "" {
+				assert.ErrorContains(t, err, tc.expectSetErr)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func newClusterNetworkingConf(t *testing.T, spec types.ClusterNetworkingConfigSpecV2) *types.ClusterNetworkingConfigV2 {
+	c := &types.ClusterNetworkingConfigV2{
+		Metadata: types.Metadata{
+			Labels: map[string]string{
+				types.OriginLabel: types.OriginDynamic,
+			},
+		},
+		Spec: spec,
+	}
+	err := c.CheckAndSetDefaults()
+	require.NoError(t, err)
+	return c
 }
 
 func TestClusterNetworkingConfigRBAC(t *testing.T) {
