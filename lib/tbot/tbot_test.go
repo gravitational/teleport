@@ -660,13 +660,15 @@ func TestBotSPIFFEWorkloadAPI(t *testing.T) {
 			ServiceConfigs: []config.ServiceConfig{
 				&config.SPIFFEWorkloadAPIService{
 					Listen: socketPath,
-					SVIDs: []config.SVIDRequest{
+					SVIDs: []config.SVIDRequestWithRules{
 						{
-							Path: "/foo",
-							Hint: "hint",
-							SANS: config.SVIDRequestSANs{
-								DNS: []string{"example.com"},
-								IP:  []string{"10.0.0.1"},
+							SVIDRequest: config.SVIDRequest{
+								Path: "/foo",
+								Hint: "hint",
+								SANS: config.SVIDRequestSANs{
+									DNS: []string{"example.com"},
+									IP:  []string{"10.0.0.1"},
+								},
 							},
 						},
 					},
