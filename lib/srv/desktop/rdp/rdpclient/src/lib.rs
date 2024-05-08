@@ -101,7 +101,7 @@ pub unsafe extern "C" fn client_run(cgo_handle: CgoHandle, params: CGOConnectPar
             allow_clipboard: params.allow_clipboard,
             allow_directory_sharing: params.allow_directory_sharing,
             show_desktop_wallpaper: params.show_desktop_wallpaper,
-            keyboard_layout: params.keyboard_layout
+            keyboard_layout: params.keyboard_layout,
         },
     ) {
         Ok(res) => CGOResult {
