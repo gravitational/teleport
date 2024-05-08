@@ -111,25 +111,8 @@ function LicenseAcknowledgement({
     <>
       <LogoHero />
       <LicenseBox>
-        <Text
-          css={`
-            line-height: 32px;
-            font-weight: 500;
-            font-size: ${props => props.theme.fontSizes[7]}px;
-          `}
-          mb={2}
-        >
-          Welcome to Teleport
-        </Text>
-        <Text
-          css={`
-            font-weight: 300;
-            line-height: 24px;
-
-            font-size: ${props => props.theme.fontSizes[3]}px;
-            color: ${p => p.theme.colors.text.muted};
-          `}
-        >
+        <InfoHeader mb={2}>Welcome to Teleport</InfoHeader>
+        <InfoText>
           Companies may use Teleport Community Edition on the condition they
           have less than 100 employees and less than $10MM in annual revenue. If
           your company exceeds these limits, please{' '}
@@ -140,7 +123,7 @@ function LicenseAcknowledgement({
             contact us
           </Text>{' '}
           to evaluate and use Teleport.
-        </Text>
+        </InfoText>
         <Flex mt={3} alignItems="center" gap={2}>
           <StyledCheckbox
             checked={checked}
@@ -169,37 +152,42 @@ function LicenseAcknowledgement({
           Continue
         </ButtonPrimary>
       </LicenseBox>
-      <Flex
-        css={`
-          width: 100%;
-          position: absolute;
-          bottom: 24px;
-          gap: 45px;
-          justify-content: center;
-        `}
-      >
+      <Footer>
         <Text>©Gravitational, Inc. All Rights Reserved</Text>
-        <Text
-          as="a"
-          href="https://goteleport.com/legal/tos/"
-          css={`
-            color: ${props => props.theme.colors.text.main};
-            text-decoration: none;
-          `}
-        >
+        <FooterLink as="a" href="https://goteleport.com/legal/tos/">
           Terms of Service
-        </Text>
-        <Text
-          as="a"
-          href="https://goteleport.com/legal/privacy/"
-          css={`
-            color: ${props => props.theme.colors.text.main};
-            text-decoration: none;
-          `}
-        >
+        </FooterLink>
+        <FooterLink as="a" href="https://goteleport.com/legal/privacy/">
           Privacy Policy
-        </Text>
-      </Flex>
+        </FooterLink>
+      </Footer>
     </>
   );
 }
+
+const FooterLink = styled(Text)`
+  color: ${props => props.theme.colors.text.main};
+  text-decoration: none;
+`;
+
+const Footer = styled(Flex)`
+  width: 100%;
+  position: absolute;
+  bottom: 24px;
+  gap: 45px;
+  justify-content: center;
+`;
+
+const InfoText = styled(Text)`
+  font-weight: 300;
+  line-height: 24px;
+
+  font-size: ${props => props.theme.fontSizes[3]}px;
+  color: ${p => p.theme.colors.text.muted};
+`;
+
+const InfoHeader = styled(Text)`
+  line-height: 32px;
+  font-weight: 500;
+  font-size: ${props => props.theme.fontSizes[7]}px;
+`;

@@ -313,7 +313,9 @@ const (
 	BuildOSS = "oss"
 	// BuildEnterprise specifies enterprise build type
 	BuildEnterprise = "ent"
-	// BuildCommunity specifies community build type
+	// BuildCommunity identifies builds of Teleport Community Edition,
+	// which are distributed on goteleport.com/download under our
+	// Teleport Community license agreement.
 	BuildCommunity = "community"
 )
 
