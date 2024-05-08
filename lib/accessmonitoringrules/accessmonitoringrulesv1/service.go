@@ -179,7 +179,7 @@ func (s *Service) ListAccessMonitoringRuleWithFilter(ctx context.Context, req *a
 	if err := authCtx.CheckAccessToKind(types.KindAccessMonitoringRule, types.VerbRead, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	results, nextToken, err := s.cache.ListAccessMonitoringRulesWithFilter(ctx, int(req.PageSize), req.PageToken, req.Subjects,req.NotificationName)
+	results, nextToken, err := s.cache.ListAccessMonitoringRulesWithFilter(ctx, int(req.PageSize), req.PageToken, req.Subjects, req.NotificationName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
