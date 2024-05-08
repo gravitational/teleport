@@ -687,6 +687,25 @@ It is recommended to set resource requests/limits for each container based on th
         memory: 2Gi
   ```
 
+## `global`
+
+### `global.clusterDomain`
+
+| Type     | Default value                                    |
+|----------|--------------------------------------------------|
+| `string` | `cluster.local` |
+
+`global.clusterDomain` sets the the domain suffix used by the Kubernetes DNS service. 
+This is used to resolve service names in the cluster.
+
+`values.yaml` example:
+
+  ```yaml
+  global:
+    clusterDomain: custom-domain.org
+  ```
+
+
 ## `teleportVersionOverride`
 
 | Type     | Default value |
