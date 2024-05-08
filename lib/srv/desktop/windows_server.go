@@ -25,13 +25,14 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"log/slog"
 	"net"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 
 	"github.com/go-ldap/ldap/v3"
 	"github.com/gravitational/trace"
