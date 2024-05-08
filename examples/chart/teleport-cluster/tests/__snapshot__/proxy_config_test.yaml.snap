@@ -528,3 +528,47 @@ matches snapshot for separate-postgres-listener.yaml:
           output: stderr
           severity: INFO
       version: v3
+sets clusterDomain on Configmap:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |-
+        auth_service:
+          enabled: false
+        proxy_service:
+          enabled: true
+          kube_listen_addr: 0.0.0.0:3026
+          listen_addr: 0.0.0.0:3023
+          mysql_listen_addr: 0.0.0.0:3036
+          public_addr: teleport.example.com:443
+          tunnel_listen_addr: 0.0.0.0:3024
+        ssh_service:
+          enabled: false
+        teleport:
+          auth_server: RELEASE-NAME-auth.NAMESPACE.svc.test.com:3025
+          join_params:
+            method: kubernetes
+            token_name: RELEASE-NAME-proxy
+          log:
+            format:
+              extra_fields:
+              - timestamp
+              - level
+              - component
+              - caller
+              output: text
+            output: stderr
+            severity: INFO
+        version: v3
+    kind: ConfigMap
+    metadata:
+      labels:
+        app.kubernetes.io/component: proxy
+        app.kubernetes.io/instance: RELEASE-NAME
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: teleport-cluster
+        app.kubernetes.io/version: 16.0.0-dev
+        helm.sh/chart: teleport-cluster-16.0.0-dev
+        teleport.dev/majorVersion: "16"
+      name: RELEASE-NAME-proxy
+      namespace: NAMESPACE
