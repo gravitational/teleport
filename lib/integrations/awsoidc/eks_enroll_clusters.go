@@ -131,6 +131,7 @@ func (d *defaultEnrollEKSClustersClient) GetCallerIdentity(ctx context.Context, 
 
 // CheckAgentAlreadyInstalled checks if teleport-kube-agent Helm chart is already installed on the EKS cluster.
 func (d *defaultEnrollEKSClustersClient) CheckAgentAlreadyInstalled(ctx context.Context, clientGetter genericclioptions.RESTClientGetter, log *slog.Logger) (bool, error) {
+	log = log.With("helm_action", "check agent already installed")
 	actionConfig, err := getHelmActionConfig(ctx, clientGetter, log)
 	if err != nil {
 		return false, trace.Wrap(err)
@@ -171,6 +172,7 @@ func getToken(ctx context.Context, clock clockwork.Clock, tokenCreator TokenCrea
 
 // InstallKubeAgent installs teleport-kube-agent Helm chart to the EKS cluster.
 func (d *defaultEnrollEKSClustersClient) InstallKubeAgent(ctx context.Context, eksCluster *eksTypes.Cluster, proxyAddr, joinToken, resourceId string, clientGetter genericclioptions.RESTClientGetter, log *slog.Logger, req EnrollEKSClustersRequest) error {
+	log = log.With("helm_action", "install kube agent")
 	actionConfig, err := getHelmActionConfig(ctx, clientGetter, log)
 	if err != nil {
 		return trace.Wrap(err)
@@ -473,7 +475,6 @@ func getKubeClientGetter(ctx context.Context, timestamp time.Time, credsProvider
 func getHelmActionConfig(ctx context.Context, clientGetter genericclioptions.RESTClientGetter, log *slog.Logger) (*action.Configuration, error) {
 	actionConfig := new(action.Configuration)
 
-	log = log.With("source", "helm")
 	// helm.action.Configuration requires a debug method that supports string interpolation (similar to fmt.XPrintf family of commands).
 	// > func(format string, v ...interface{})
 	// slog.Log does not support it, so it must be added
