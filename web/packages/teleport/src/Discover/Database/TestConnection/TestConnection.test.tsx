@@ -90,6 +90,11 @@ test('custom db name and user is respected when defined', async () => {
     screen.getByText(/--db-user=<user> --db-name=name1/i)
   ).toBeInTheDocument();
 
+  await userEvent.type(
+    screen.getByPlaceholderText(/custom-database-user-name/i),
+    'custom-user'
+  );
+
   await userEvent.click(screen.getByText('name1'));
   // The first wildcard is on screen from selecting
   // it for db users dropdown.
@@ -97,6 +102,11 @@ test('custom db name and user is respected when defined', async () => {
   expect(
     screen.getByText(/--db-user=custom-user --db-name=<name>/i)
   ).toBeInTheDocument();
+
+  await userEvent.type(
+    screen.getByPlaceholderText(/custom-database-name/i),
+    'custom-name'
+  );
 
   await userEvent.click(screen.getByRole('button', { name: /restart test/i }));
   expect(agentService.createConnectionDiagnostic).toHaveBeenCalledWith(
