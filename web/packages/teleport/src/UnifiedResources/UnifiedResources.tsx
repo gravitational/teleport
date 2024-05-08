@@ -26,6 +26,7 @@ import {
   UnifiedResources as SharedUnifiedResources,
   useUnifiedResourcesFetch,
   UnifiedResourcesPinning,
+  BulkAction,
 } from 'shared/components/UnifiedResources';
 import { ClusterDropdown } from 'shared/components/ClusterDropdown/ClusterDropdown';
 
@@ -47,6 +48,7 @@ import { SearchResource } from 'teleport/Discover/SelectResource';
 import { encodeUrlQueryParams } from 'teleport/components/hooks/useUrlFiltering';
 import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
 import { FeatureFlags } from 'teleport/types';
+import { UnifiedResource } from 'teleport/services/agents';
 
 import { ResourceActionButton } from './ResourceActionButton';
 import SearchPanel from './SearchPanel';
@@ -93,9 +95,18 @@ const getAvailableKindsWithAccess = (flags: FeatureFlags): FilterKind[] => {
 export function ClusterResources({
   clusterId,
   isLeafCluster,
+  getActionButton,
+  includeRequestable,
+  showCheckout = false,
+  bulkActions = [],
 }: {
   clusterId: string;
   isLeafCluster: boolean;
+  getActionButton?: (resource: UnifiedResource) => JSX.Element;
+  includeRequestable?: boolean;
+  showCheckout?: boolean;
+  /** A list of actions that can be performed on the selected items. */
+  bulkActions?: BulkAction[];
 }) {
   const teleCtx = useTeleport();
   const flags = teleCtx.getFeatureFlags();
@@ -150,6 +161,7 @@ export function ClusterResources({
             searchAsRoles: '',
             limit: paginationParams.limit,
             startKey: paginationParams.startKey,
+            includeRequestable,
           },
           signal
         );
@@ -168,6 +180,7 @@ export function ClusterResources({
         params.search,
         params.sort,
         teleCtx.resourceService,
+        includeRequestable,
       ]
     ),
   });
@@ -196,6 +209,7 @@ export function ClusterResources({
     <>
       {loadClusterError && <Danger>{loadClusterError}</Danger>}
       <SharedUnifiedResources
+        bulkActions={bulkActions}
         params={params}
         fetchResources={fetch}
         resourcesFetchAttempt={attempt}
@@ -222,7 +236,9 @@ export function ClusterResources({
         resources={resources.map(resource => ({
           resource,
           ui: {
-            ActionButton: <ResourceActionButton resource={resource} />,
+            ActionButton: getActionButton?.(resource) || (
+              <ResourceActionButton resource={resource} />
+            ),
           },
         }))}
         setParams={newParams => {
@@ -251,12 +267,14 @@ export function ClusterResources({
             >
               <FeatureHeaderTitle>Resources</FeatureHeaderTitle>
               <Flex alignItems="center">
-                <AgentButtonAdd
-                  agent={SearchResource.UNIFIED_RESOURCE}
-                  beginsWithVowel={false}
-                  isLeafCluster={isLeafCluster}
-                  canCreate={canCreate}
-                />
+                {!showCheckout && (
+                  <AgentButtonAdd
+                    agent={SearchResource.UNIFIED_RESOURCE}
+                    beginsWithVowel={false}
+                    isLeafCluster={isLeafCluster}
+                    canCreate={canCreate}
+                  />
+                )}
               </Flex>
             </FeatureHeader>
             <Flex alignItems="center" justifyContent="space-between">

@@ -16,8 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { RequestCheckoutWithSlider, RequestCheckout } from './RequestCheckout';
-export type { RequestCheckoutProps } from './RequestCheckout';
-
-export * from './utils';
-export type { ReviewerOption } from './types';
+export const getBackgroundColor = props => {
+  if (props.requiresRequest && props.pinned) {
+    return props.theme.colors.interactive.tonal.primary[0];
+  }
+  if (props.requiresRequest) {
+    return props.theme.colors.spotBackground[0];
+  }
+  if (props.selected) {
+    return props.theme.colors.interactive.tonal.primary[2];
+  }
+  if (props.pinned) {
+    return props.theme.colors.interactive.tonal.primary[1];
+  }
+  return 'transparent';
+};
