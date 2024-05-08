@@ -75,18 +75,11 @@ export function TestConnection() {
   const [customDbUser, setCustomDbUser] = useState('');
   const [customDbName, setCustomDbName] = useState('');
 
-  let tshDbCmd = `tsh db connect ${db.name} --db-user=`;
-
-  // do not display wildcard as the user
-  const dbUser = customDbUser || selectedDbUser.value;
-  if (dbUser == '*') tshDbCmd += `<user>`;
-  else tshDbCmd += `${customDbUser || selectedDbUser.value}`;
-
-  const dbName = customDbName || selectedDbName.value;
-  if (dbName) {
-    // do not show wildcard as the database name
-    if (dbName == '*') tshDbCmd += ` --db-name=<name>`;
-    else tshDbCmd += ` --db-name=${customDbName || selectedDbName.value}`;
+  const dbUser = getInputValue(customDbUser || selectedDbUser.value, 'user');
+  let tshDbCmd = `tsh db connect ${db.name} --db-user=${dbUser}`;
+  if (customDbName || selectedDbName) {
+    const dbName = getInputValue(customDbName || selectedDbName.value, 'name');
+    tshDbCmd += ` --db-name=${dbName}`;
   }
 
   function makeTestConnRequest() {
@@ -238,4 +231,11 @@ export function TestConnection() {
       )}
     </Validation>
   );
+}
+
+function getInputValue(input: string, inputKind: 'name' | 'user') {
+  if (input == WILD_CARD) {
+    return inputKind === 'name' ? '<name>' : '<user>';
+  }
+  return input;
 }
