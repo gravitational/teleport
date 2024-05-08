@@ -86,6 +86,10 @@ test('custom db name and user is respected when defined', async () => {
   // Test with custom fields.
   await userEvent.click(screen.getByText('user1'));
   await userEvent.click(screen.getByText('*'));
+  expect(
+    screen.getByText(/--db-user=<user> --db-name=name1/i)
+  ).toBeInTheDocument();
+
   await userEvent.type(
     screen.getByPlaceholderText(/custom-database-user-name/i),
     'custom-user'
@@ -95,6 +99,10 @@ test('custom db name and user is respected when defined', async () => {
   // The first wildcard is on screen from selecting
   // it for db users dropdown.
   await userEvent.click(screen.getAllByText('*')[1]);
+  expect(
+    screen.getByText(/--db-user=custom-user --db-name=<name>/i)
+  ).toBeInTheDocument();
+
   await userEvent.type(
     screen.getByPlaceholderText(/custom-database-name/i),
     'custom-name'
