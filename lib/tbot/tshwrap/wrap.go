@@ -25,6 +25,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"syscall"
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
@@ -101,9 +102,8 @@ func New() (*Wrapper, error) {
 	}, nil
 }
 
-// Exec runs tsh with the given environment variables and arguments. The child
-// process inherits stdin/stdout/stderr and runs until completion. Errors are
-// returned per `exec.Command().Run()` semantics.
+// Exec replaces the current process with tsh with the given environment
+// variables and arguments. Always returns an error, if it returns.
 func (w *Wrapper) Exec(env map[string]string, args ...string) error {
 	// The subprocess should inherit the environment plus our vars. Our env
 	// vars will safely overwrite those from the environment, per `exec.Cmd`
@@ -122,13 +122,7 @@ func (w *Wrapper) Exec(env map[string]string, args ...string) error {
 		"args", args,
 	)
 
-	child := exec.Command(w.path, args...)
-	child.Env = environ
-	child.Stdin = os.Stdin
-	child.Stdout = os.Stdout
-	child.Stderr = os.Stderr
-
-	return trace.Wrap(child.Run(), "unable to execute tsh")
+	return trace.Wrap(syscall.Exec(w.path, append([]string{w.path}, args...), environ), "unable to execute tsh")
 }
 
 // GetTSHVersion queries the system tsh for its version.
