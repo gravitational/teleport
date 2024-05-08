@@ -119,6 +119,7 @@ function LicenseAcknowledgement({
           <Text
             as="a"
             href="https://goteleport.com/signup/enterprise/?utm_campaign=CTA_terms_and_conditions&utm_source=oss&utm_medium=in-product"
+            target="_blank"
           >
             contact us
           </Text>{' '}
@@ -135,6 +136,7 @@ function LicenseAcknowledgement({
           <Text
             as="a"
             href="https://github.com/gravitational/teleport/blob/master/LICENSE-community"
+            target="_blank"
           >
             Terms and Conditions
           </Text>
@@ -154,10 +156,18 @@ function LicenseAcknowledgement({
       </LicenseBox>
       <Footer>
         <Text>©Gravitational, Inc. All Rights Reserved</Text>
-        <FooterLink as="a" href="https://goteleport.com/legal/tos/">
+        <FooterLink
+          as="a"
+          href="https://goteleport.com/legal/tos/"
+          target="_blank"
+        >
           Terms of Service
         </FooterLink>
-        <FooterLink as="a" href="https://goteleport.com/legal/privacy/">
+        <FooterLink
+          as="a"
+          href="https://goteleport.com/legal/privacy/"
+          target="_blank"
+        >
           Privacy Policy
         </FooterLink>
       </Footer>
