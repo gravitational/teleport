@@ -379,7 +379,7 @@ func (s *SlogTextHandler) Handle(ctx context.Context, r slog.Record) error {
 			Line:     f.Line,
 		}
 
-		file, line := getCaller(slog.Attr{Key: slog.SourceKey, Value: slog.AnyValue(src)})
+		file, line := getCaller(src)
 		*buf = fmt.Appendf(*buf, " %s:%d", file, line)
 	}
 
@@ -536,7 +536,14 @@ func NewSlogJSONHandler(w io.Writer, cfg SlogJSONHandlerConfig) *SlogJSONHandler
 						return slog.Attr{}
 					}
 
-					file, line := getCaller(a)
+					file := "UNKNOWN"
+					var line int
+					// The slog.NewJSONHandler will inject "source" Attr when AddSource is true.
+					// However, this lib's consumer might add an Attr using the same key ("source") and the injected value ends up being replaced.
+					// If that's the case, replace the file name with an obvious value that indicates there's no file found.
+					if s, ok := a.Value.Any().(*slog.Source); ok {
+						file, line = getCaller(s)
+					}
 					a = slog.String(CallerField, fmt.Sprintf("%s:%d", file, line))
 				}
 
@@ -589,8 +596,7 @@ func (j *SlogJSONHandler) Handle(ctx context.Context, r slog.Record) error {
 // getCaller retrieves source information from the attribute
 // and returns the file and line of the caller. The file is
 // truncated from the absolute path to package/filename.
-func getCaller(a slog.Attr) (file string, line int) {
-	s := a.Value.Any().(*slog.Source)
+func getCaller(s *slog.Source) (file string, line int) {
 	count := 0
 	idx := strings.LastIndexFunc(s.File, func(r rune) bool {
 		if r == '/' {

@@ -20,6 +20,7 @@ package log
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -179,4 +180,19 @@ func TestSlogJSONHandler(t *testing.T) {
 		return ms
 	}
 	require.NoError(t, slogtest.TestHandler(h, results))
+}
+
+func TestSlogJSONHandlerSourceOverride(t *testing.T) {
+	ctx := context.Background()
+	var buf bytes.Buffer
+	h := NewSlogJSONHandler(&buf, SlogJSONHandlerConfig{Level: slog.LevelDebug})
+	logger := slog.New(h)
+
+	logger.DebugContext(ctx, "Must not panic", "source", "not a slog.Source type")
+
+	logRecordMap := make(map[string]string)
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &logRecordMap))
+
+	require.Contains(t, logRecordMap, "caller")
+	require.Equal(t, "UNKNOWN:0", logRecordMap["caller"])
 }
