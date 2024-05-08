@@ -86,7 +86,7 @@ export function TestConnection() {
   if (dbName) {
     // do not show wildcard as the database name
     if (dbName == '*') tshDbCmd += ` --db-name=<name>`;
-    else tshDbCmd += ` --db-name=${customDbName || selectedDbName}`;
+    else tshDbCmd += ` --db-name=${customDbName || selectedDbName.value}`;
   }
 
   function makeTestConnRequest() {
