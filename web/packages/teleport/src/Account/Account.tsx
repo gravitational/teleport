@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useContext, useState } from 'react';
+import React, { useState } from 'react';
 import { Box, Flex, Text } from 'design';
 import styled, { useTheme } from 'styled-components';
 import { Attempt } from 'shared/hooks/useAttemptNext';
@@ -46,7 +46,7 @@ import { DeviceUsage } from 'teleport/services/auth';
 
 import { PasswordState } from 'teleport/services/user';
 
-import {UserContext, useUser} from 'teleport/User/UserContext';
+import { useUser } from 'teleport/User/UserContext';
 
 import { AuthDeviceList } from './ManageDevices/AuthDeviceList/AuthDeviceList';
 import useManageDevices, {
@@ -345,13 +345,14 @@ export function Account({
     addNotification('info', message);
     onDeviceAdded();
   }
-  
+
   const { preferences, updatePreferences } = useUser();
 
   const layout = preferences.keyboardLayout;
   const value = { label: layouts[layout], value: layout };
 
-  const [updateKeyboardLayoutAttempt, runUpdateKeyboardLayout] = useAsync(updatePreferences);
+  const [updateKeyboardLayoutAttempt, runUpdateKeyboardLayout] =
+    useAsync(updatePreferences);
 
   return (
     <Relative>
