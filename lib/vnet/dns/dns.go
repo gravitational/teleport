@@ -286,7 +286,7 @@ func (s *Server) forward(ctx context.Context, slog *slog.Logger, buf []byte, res
 				errs <- trace.Wrap(err, "reading forwarded DNS response")
 				return nil
 			}
-			if n == cap(responseBuf) {
+			if n == len(responseBuf) {
 				errs <- fmt.Errorf("DNS response too large")
 				return nil
 			}
