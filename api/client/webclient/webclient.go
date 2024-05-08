@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -222,9 +223,15 @@ func Ping(cfg *Config) (*PingResponse, error) {
 
 	if resp.StatusCode != http.StatusOK {
 		slog.DebugContext(req.Context(), "Received unsuccessful ping response", "code", resp.StatusCode)
-		errResp := &PingErrorResponse{}
 
-		if err := json.NewDecoder(resp.Body).Decode(errResp); err != nil {
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, trace.Wrap(err, "could not read ping response body")
+		}
+
+		errResp := &PingErrorResponse{}
+		if err := json.Unmarshal(bodyBytes, errResp); err != nil {
+			slog.DebugContext(req.Context(), "Could not parse ping response body", "body", string(bodyBytes))
 			return nil, trace.Wrap(err, "cannot parse unsuccessful ping response")
 		}
 
