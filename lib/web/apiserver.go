@@ -3298,6 +3298,14 @@ func (h *Handler) podConnect(
 		return nil, trace.Wrap(err)
 	}
 
+	hostCA, err := h.auth.accessPoint.GetCertAuthority(r.Context(), types.CertAuthID{
+		Type:       types.HostCA,
+		DomainName: h.auth.clusterName,
+	}, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	ph := podHandler{
 		req:                 execReq,
 		sess:                sess,
@@ -3307,7 +3315,7 @@ func (h *Handler) podConnect(
 		keepAliveInterval:   keepAliveInterval,
 		log:                 h.log.WithField(teleport.ComponentKey, "pod"),
 		userClient:          clt,
-		localAccessPoint:    h.auth.accessPoint,
+		localCA:             hostCA,
 		configServerAddr:    serverAddr,
 		configTLSServerName: tlsServerName,
 	}

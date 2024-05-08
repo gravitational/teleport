@@ -64,7 +64,7 @@ type podHandler struct {
 	keepAliveInterval   time.Duration
 	log                 *logrus.Entry
 	userClient          auth.ClientI
-	localAccessPoint    localAccessPoint
+	localCA             types.CertAuthority
 
 	// closedByClient indicates if the websocket connection was closed by the
 	// user (closing the browser tab, exiting the session, etc).
@@ -191,14 +191,6 @@ func (p *podHandler) handler(r *http.Request) error {
 		TLSCert:    p.sctx.cfg.Session.GetTLSCert(),
 	}
 
-	hostCA, err := p.localAccessPoint.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.HostCA,
-		DomainName: p.teleportCluster,
-	}, false)
-	if err != nil {
-		return trace.Wrap(err, "failed getting host CA")
-	}
-
 	stream := NewTerminalStream(ctx, TerminalStreamConfig{WS: p.ws, Logger: p.log})
 
 	certsReq := clientproto.UserCertsRequest{
@@ -244,7 +236,7 @@ func (p *podHandler) handler(r *http.Request) error {
 		return trace.Wrap(err, "failed getting rsa private key")
 	}
 
-	restConfig, err := createKubeRestConfig(p.configServerAddr, p.configTLSServerName, hostCA, certs.TLS, rsaKey)
+	restConfig, err := createKubeRestConfig(p.configServerAddr, p.configTLSServerName, p.localCA, certs.TLS, rsaKey)
 	if err != nil {
 		return trace.Wrap(err, "failed creating Kubernetes rest config")
 	}

@@ -310,7 +310,6 @@ type sshBaseHandler struct {
 type localAccessPoint interface {
 	GetUser(ctx context.Context, username string, withSecrets bool) (types.User, error)
 	GetRole(ctx context.Context, name string) (types.Role, error)
-	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 }
 
 // TerminalHandler connects together an SSH session with a web-based
