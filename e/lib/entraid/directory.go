@@ -1,0 +1,112 @@
+package entraid
+
+import (
+	"context"
+
+	"github.com/gravitational/trace"
+	msgraphsdk "github.com/microsoftgraph/msgraph-sdk-go"
+
+	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
+)
+
+type userAccessPoint interface {
+	CreateUser(ctx context.Context, user types.User) (types.User, error)
+	ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
+	DeleteUser(ctx context.Context, user string) error
+	UpdateUser(ctx context.Context, user types.User) (types.User, error)
+}
+
+type accessListAccessPoint interface {
+	ListAccessLists(context.Context, int, string) ([]*accesslist.AccessList, string, error)
+	UpsertAccessList(context.Context, *accesslist.AccessList) (*accesslist.AccessList, error)
+	DeleteAccessList(context.Context, string) error
+
+	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
+	UpsertAccessListMember(ctx context.Context, member *accesslist.AccessListMember) (*accesslist.AccessListMember, error)
+	DeleteAccessListMember(ctx context.Context, accessList string, memberName string) error
+}
+
+// DirectoryReconciler uses the Microsoft Graph API
+// to synchronize Entra ID users and groups into the Teleport cluster
+// as users and access lists.
+type DirectoryReconciler struct {
+	graphClient   graphClient
+	userSvc       userAccessPoint
+	accessListSvc accessListAccessPoint
+
+	// defaultOwners specifies the default owners for access lists synchronized from Entra ID.
+	defaultOwners []accesslist.Owner
+	// tenantID specifies the Entra Tenant ID
+	tenantID string
+}
+
+// DirectoryReconcilerConfig specifies dependencies and parameters for instantiating DirectoryReconciler.
+type DirectoryReconcilerConfig struct {
+	// GraphClient is the instantiated Microsoft Graph SDK client.
+	GraphClient *msgraphsdk.GraphServiceClient
+	// UserSvc is the service used to read and modify Teleport users.
+	UserSvc userAccessPoint
+	// AccessListSvc is the service used to read and modify Teleport access lists.
+	AccessListSvc accessListAccessPoint
+
+	// DefaultOwners specifies the default owners for access lists synchronized from Entra ID.
+	DefaultOwners []accesslist.Owner
+	// TenantID specifies the Entra Tenant ID
+	TenantID string
+}
+
+// Validate ensures that required values are set.
+func (cfg *DirectoryReconcilerConfig) Validate() error {
+	if cfg.GraphClient == nil {
+		return trace.BadParameter("GraphClient is required")
+	}
+	if cfg.UserSvc == nil {
+		return trace.BadParameter("UserSvc is required")
+	}
+	if cfg.AccessListSvc == nil {
+		return trace.BadParameter("AccessListSvc is required")
+	}
+	if len(cfg.DefaultOwners) == 0 {
+		return trace.BadParameter("DefaultOwners is required")
+	}
+	if cfg.TenantID == "" {
+		return trace.BadParameter("TenantID is required")
+	}
+
+	return nil
+}
+
+// NewDirectoryReconciler creates a new DirectoryReconciler using the given config.
+func NewDirectoryReconciler(cfg DirectoryReconcilerConfig) (*DirectoryReconciler, error) {
+	if err := cfg.Validate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &DirectoryReconciler{
+		graphClient:   &graphClientWrapper{client: cfg.GraphClient},
+		userSvc:       cfg.UserSvc,
+		accessListSvc: cfg.AccessListSvc,
+		defaultOwners: cfg.DefaultOwners,
+		tenantID:      cfg.TenantID,
+	}, nil
+}
+
+// Reconcile does a one-time reconciliation of users and access lists
+// from Entra ID to Teleport.
+func (r *DirectoryReconciler) Reconcile(ctx context.Context) error {
+	usersByEntraID, err := r.reconcileUsers(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := r.reconcileAccessLists(ctx, usersByEntraID); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func matchByLabel[T types.Resource](resource T) bool {
+	origin, ok := resource.GetMetadata().Labels[types.OriginLabel]
+	return ok && origin == types.OriginEntraID
+}

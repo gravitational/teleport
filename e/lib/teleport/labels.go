@@ -30,4 +30,17 @@ const (
 	// PluginLabel is a unique label generated for plugins that use static credentials
 	// in order to ensure that the static credentials are only readable by specific plugins.
 	PluginLabel = types.TeleportInternalLabelPrefix + "plugin"
+
+	// EntraTenantIDLabel is the label for the Entra tenant ID.
+	EntraTenantIDLabel = types.TeleportInternalLabelPrefix + "entra-tenant"
+
+	// EntraUniqueIDLabel is the label for the unique identifier of the object in the Entra ID directory.
+	EntraUniqueIDLabel = types.TeleportInternalLabelPrefix + "entra-unique-id"
+
+	// EntraDisplayNameLabel is the label for the display name of the object in the Entra ID directory.
+	// The display name may not be unique.
+	EntraDisplayNameLabel = types.TeleportInternalLabelPrefix + "entra-display-name"
+
+	// EntraMemberOfGroupTrait is the trait that an access list imported from Entra ID assigns to its members.
+	EntraMemberOfGroupTrait = "entra/member-of-group"
 )

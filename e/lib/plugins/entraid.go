@@ -10,6 +10,8 @@ import (
 	msgraphsdk "github.com/microsoftgraph/msgraph-sdk-go"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/e/lib/entraid"
 	"github.com/gravitational/teleport/lib/integrations/azureoidc"
 )
 
@@ -34,41 +36,47 @@ func entraIDInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps in
 		return nil, trace.BadParameter("expected %q to be an %q integration, was %q instead", integration.GetName(), types.IntegrationSubKindAzureOIDC, integration.GetSubKind())
 	}
 
+	getAssertion := func(ctx context.Context) (string, error) {
+		token, err := azureoidc.GenerateEntraOIDCToken(ctx, authServer, authServer.GetKeyStore(), deps.parentProcess.Clock)
+		if err != nil {
+			return "", err
+		}
+		deps.log.Debug("Entra token signed")
+		return token, nil
+	}
+
+	graphClient, err := constructGraphClient(azureSpec.TenantID, azureSpec.ClientID, getAssertion)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	owners := []accesslist.Owner{}
+	for _, name := range entraSpec.SyncSettings.DefaultOwners {
+		owners = append(owners, accesslist.Owner{Name: name})
+	}
+	directoryReconciler, err := entraid.NewDirectoryReconciler(entraid.DirectoryReconcilerConfig{
+		GraphClient:   graphClient,
+		UserSvc:       authServer,
+		AccessListSvc: authServer,
+		DefaultOwners: owners,
+		TenantID:      azureSpec.TenantID,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return func() error {
 		ctx := deps.lifetime
-
-		getAssertion := func(ctx context.Context) (string, error) {
-			token, err := azureoidc.GenerateEntraOIDCToken(ctx, authServer, authServer.GetKeyStore(), deps.parentProcess.Clock)
-			if err != nil {
-				return "", err
-			}
-			deps.log.Info("Entra token signed")
-			return token, nil
-		}
-
-		graphClient, err := constructGraphClient(azureSpec.TenantID, azureSpec.ClientID, getAssertion)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
 		deps.log.Info("Entra ID plugin running")
 		t := time.NewTicker(2 * time.Minute)
 		defer t.Stop()
 		for {
-			func() {
-				resp, err := graphClient.Users().Get(ctx, nil)
-				if err != nil {
-					deps.log.Error(err)
-					return
-				}
-				if len(resp.GetValue()) == 0 {
-					deps.log.Error("Users() response empty!")
-				}
-				deps.log.Infof("Entra request successful. First user: %+v", resp.GetValue()[0])
-			}()
+			if err := directoryReconciler.Reconcile(ctx); err != nil {
+				deps.log.WithError(err).Error("Entra ID directory reconciler failed")
+			}
 			select {
 			case <-t.C:
-			case <-deps.lifetime.Done():
+			case <-ctx.Done():
 				deps.log.Info("Entra ID plugin has stopped")
 				return nil
 			}
