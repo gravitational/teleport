@@ -212,6 +212,7 @@ const TooltipContent = styled(Box)`
   padding: 12px 16px 12px 16px;
   box-shadow: ${p => p.theme.boxShadow[1]};
   background-color: ${props => props.theme.colors.tooltip.background};
+  z-index: 20;
 `;
 
 const FooterContent = styled(Flex)`
