@@ -100,8 +100,6 @@ import (
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
-var teleportEdition = "agpl"
-
 const (
 	// SSOLoginFailureMessage is a generic error message to avoid disclosing sensitive SSO failure messages.
 	SSOLoginFailureMessage = "Failed to login. Please check Teleport's log for more details."
@@ -1689,7 +1687,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	isTeam := clusterFeatures.GetProductType() == proto.ProductType_PRODUCT_TYPE_TEAM
 
 	webCfg := webclient.WebConfig{
-		IsCommunity:                    teleportEdition == "community",
+		Edition:                        modules.GetModules().BuildType(),
 		Auth:                           authSettings,
 		CanJoinSessions:                canJoinSessions,
 		IsCloud:                        clusterFeatures.GetCloud(),

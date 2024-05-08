@@ -60,7 +60,7 @@ export function LoginComponent({
     return null;
   }
 
-  if (!licenseAcknowledged && cfg.getEdition() === 'community') {
+  if (!licenseAcknowledged && cfg.edition === 'community') {
     return (
       <LicenseAcknowledgement setLicenseAcknowledged={setLicenseAcknowledged} />
     );
@@ -117,6 +117,7 @@ function LicenseAcknowledgement({
             font-weight: 500;
             font-size: ${props => props.theme.fontSizes[7]}px;
           `}
+          mb={2}
         >
           Welcome to Teleport
         </Text>
@@ -124,8 +125,9 @@ function LicenseAcknowledgement({
           css={`
             font-weight: 300;
             line-height: 24px;
+
             font-size: ${props => props.theme.fontSizes[3]}px;
-            color: ${p => p.theme.colors.text.slightlyMuted};
+            color: ${p => p.theme.colors.text.muted};
           `}
         >
           Companies may use Teleport Community Edition on the condition they
@@ -176,7 +178,7 @@ function LicenseAcknowledgement({
           justify-content: center;
         `}
       >
-        <Text>@Gravitational, Inc. All Rights Reserved</Text>
+        <Text>©Gravitational, Inc. All Rights Reserved</Text>
         <Text
           as="a"
           href="https://goteleport.com/legal/tos/"

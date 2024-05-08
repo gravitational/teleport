@@ -234,9 +234,8 @@ export const TopBarContainer = styled(TopNav)`
 `;
 
 const TeleportLogo = ({ CustomLogo }: TopBarProps) => {
-  const edition = cfg.getEdition();
   const theme = useTheme();
-  const src = logos[edition][theme.type];
+  const src = logos[cfg.edition][theme.type];
 
   return (
     <HoverTooltip

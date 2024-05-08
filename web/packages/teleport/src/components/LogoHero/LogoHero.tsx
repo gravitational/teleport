@@ -34,7 +34,7 @@ type LogoMap = {
 };
 
 export const logos: Record<TeleportEdition, LogoMap> = {
-  agpl: {
+  oss: {
     light: AGPLLogoLight,
     dark: AGPLLogoDark,
   },
@@ -42,18 +42,16 @@ export const logos: Record<TeleportEdition, LogoMap> = {
     light: CommunityLogoLight,
     dark: CommunityLogoDark,
   },
-  enterprise: {
+  ent: {
     light: EnterpriseLogoLight,
     dark: EnterpriseLogoDark,
   },
 };
 
 export const LogoHero = ({ ...rest }) => {
-  const edition = cfg.getEdition();
-
   const theme = useTheme();
-  const src = logos[edition][theme.type];
-  return <Image {...rest} src={src} />;
+  const src = logos[cfg.edition][theme.type];
+  return <Image {...rest} src={src} fill="#ff0000" />;
 };
 
 LogoHero.defaultProps = {

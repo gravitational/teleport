@@ -37,8 +37,11 @@ import type { ParticipantMode } from 'teleport/services/session';
 import type { YamlSupportedResourceKind } from './services/yaml/types';
 
 const cfg = {
+  /**
+   * @deprecated use cfg.edition instead
+   */
   isEnterprise: false,
-  isCommunity: false,
+  edition: 'oss',
   isCloud: false,
   assistEnabled: false,
   automaticUpgrades: false,
@@ -362,16 +365,6 @@ const cfg = {
       parse: '/v1/webapi/yaml/parse/:kind',
       stringify: '/v1/webapi/yaml/stringify/:kind',
     },
-  },
-
-  getEdition(): TeleportEdition {
-    if (cfg.isEnterprise) {
-      return 'enterprise';
-    }
-    if (cfg.isCommunity) {
-      return 'community';
-    }
-    return 'agpl';
   },
 
   getUserClusterPreferencesUrl(clusterId: string) {
@@ -1250,4 +1243,4 @@ export interface UrlNotificationParams {
 
 export default cfg;
 
-export type TeleportEdition = 'enterprise' | 'community' | 'agpl';
+export type TeleportEdition = 'ent' | 'community' | 'oss';
