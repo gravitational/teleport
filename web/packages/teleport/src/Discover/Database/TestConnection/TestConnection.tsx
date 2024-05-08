@@ -72,9 +72,11 @@ export function TestConnection() {
   const [customDbUser, setCustomDbUser] = useState('');
   const [customDbName, setCustomDbName] = useState('');
 
-  let tshDbCmd = `tsh db connect ${db.name} --db-user=${customDbUser || selectedDbUser.value}`;
+  const dbUser = getInputValue(customDbUser || selectedDbUser.value, 'user');
+  let tshDbCmd = `tsh db connect ${db.name} --db-user=${dbUser}`;
   if (customDbName || selectedDbName) {
-    tshDbCmd += ` --db-name=${customDbName || selectedDbName.value}`;
+    const dbName = getInputValue(customDbName || selectedDbName.value, 'name');
+    tshDbCmd += ` --db-name=${dbName}`;
   }
 
   function makeTestConnRequest() {
@@ -233,3 +235,10 @@ const StyledBox = styled(Box)`
   border-radius: 8px;
   padding: 20px;
 `;
+
+function getInputValue(input: string, inputKind: 'name' | 'user') {
+  if (input == WILD_CARD) {
+    return inputKind === 'name' ? '<name>' : '<user>';
+  }
+  return input;
+}
