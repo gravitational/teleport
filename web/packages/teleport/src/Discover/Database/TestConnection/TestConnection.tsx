@@ -75,9 +75,18 @@ export function TestConnection() {
   const [customDbUser, setCustomDbUser] = useState('');
   const [customDbName, setCustomDbName] = useState('');
 
-  let tshDbCmd = `tsh db connect ${db.name} --db-user=${customDbUser || selectedDbUser.value}`;
-  if (customDbName || selectedDbName) {
-    tshDbCmd += ` --db-name=${customDbName || selectedDbName.value}`;
+  let tshDbCmd = `tsh db connect ${db.name} --db-user=`;
+
+  // do not display wildcard as the user
+  const dbUser = customDbUser || selectedDbUser.value;
+  if (dbUser == '*') tshDbCmd += `<database-user>`;
+  else tshDbCmd += `${customDbUser || selectedDbUser.value}`;
+
+  const dbName = customDbName || selectedDbName.value;
+  if (dbName) {
+    // do not show wildcard as the database name
+    if (dbName == '*') tshDbCmd += ` --db-name=<database-name>`;
+    else tshDbCmd += ` --db-name=${customDbName || selectedDbName}`;
   }
 
   function makeTestConnRequest() {
