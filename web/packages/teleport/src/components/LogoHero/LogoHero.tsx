@@ -51,7 +51,7 @@ export const logos: Record<TeleportEdition, LogoMap> = {
 export const LogoHero = ({ ...rest }) => {
   const theme = useTheme();
   const src = logos[cfg.edition][theme.type];
-  return <Image {...rest} src={src} fill="#ff0000" />;
+  return <Image {...rest} src={src} />;
 };
 
 LogoHero.defaultProps = {
