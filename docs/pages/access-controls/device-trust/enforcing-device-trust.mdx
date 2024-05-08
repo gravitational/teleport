@@ -150,13 +150,19 @@ leaf clusters.
 ## App Access support
 
 Apps may enforce device trust via [role-based enforcement](
-#role-based-trusted-device-enforcement). Any apps that enforce device trust must
-be accessed using tsh commands such as [tsh proxy app](
-../../reference/cli/tsh.mdx#tsh-proxy-app) or using the certificates issued by
-`tsh app login`. Direct access to those apps via the Web UI is not yet
-available.
+#role-based-trusted-device-enforcement).
 
-For example, to enforce device trust for all `env:production` apps, save the
+To access apps protected by device trust using the Web UI, make sure your device
+is [registered and enrolled](
+./device-management.mdx#register-a-trusted-device), install [Teleport Connect](
+../../connect-your-client/teleport-connect.mdx#installation--upgrade), and
+follow the instructions during login.
+
+Alternatively, you may use [tsh proxy app](
+../../reference/cli/tsh.mdx#tsh-proxy-app) or the certificates issued by
+`tsh app login`.
+
+As an example, to enforce device trust for all `env:production` apps, save the
 role below as `require-trusted-device-apps.yaml`:
 
 ```yaml
@@ -194,8 +200,6 @@ version: v2
 ```
 
 Now the alice user can only access `env:production` apps using a trusted device.
-For example, to access an app called `myapp`, alice runs `tsh proxy app myapp -p
-8888` and opens http://localhost:8888 in her browser.
 
 ## Locking a device
 
