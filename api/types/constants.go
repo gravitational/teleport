@@ -193,7 +193,8 @@ const (
 
 	// KindKubeServer is an kubernetes server resource.
 	KindKubeServer = "kube_server"
-
+	// KindCrownJewel is a crown jewel resource
+	KindCrownJewel = "crown_jewel"
 	// KindKubernetesCluster is a Kubernetes cluster.
 	KindKubernetesCluster = "kube_cluster"
 
