@@ -26,7 +26,7 @@ import (
 	"github.com/tiktoken-go/tokenizer/codec"
 )
 
-var defaultTokenizer = codec.NewCl100kBase()
+var defaultTokenizer = sync.OnceValue(func() *codec.Codec { return codec.NewCl100kBase() })
 
 // TokenCount holds TokenCounters for both Prompt and Completion tokens.
 // As the agent performs multiple calls to the model, each call creates its own
@@ -115,7 +115,7 @@ func (tc *StaticTokenCounter) TokenCount() int {
 func NewPromptTokenCounter(prompt []openai.ChatCompletionMessage) (*StaticTokenCounter, error) {
 	var promptCount int
 	for _, message := range prompt {
-		promptTokens, _, err := defaultTokenizer.Encode(message.Content)
+		promptTokens, _, err := defaultTokenizer().Encode(message.Content)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -130,7 +130,7 @@ func NewPromptTokenCounter(prompt []openai.ChatCompletionMessage) (*StaticTokenC
 // NewSynchronousTokenCounter takes the completion request output and
 // computes how many tokens were used by the model to generate this result.
 func NewSynchronousTokenCounter(completion string) (*StaticTokenCounter, error) {
-	completionTokens, _, err := defaultTokenizer.Encode(completion)
+	completionTokens, _, err := defaultTokenizer().Encode(completion)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -188,7 +188,7 @@ func (tc *AsynchronousTokenCounter) Add() error {
 // the content has been streamed yet. Streamed content can be added a posteriori
 // with Add(). Once all the content is streamed, Finish() must be called.
 func NewAsynchronousTokenCounter(completionStart string) (*AsynchronousTokenCounter, error) {
-	completionTokens, _, err := defaultTokenizer.Encode(completionStart)
+	completionTokens, _, err := defaultTokenizer().Encode(completionStart)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
