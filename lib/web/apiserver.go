@@ -588,10 +588,29 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 				// legacy app access needs to make a CORS fetch request,
 				// so we only set the default CSP on that page
 				parts := strings.Split(r.URL.Path, "/")
-				// grab the FQDN from the URL to allow in the connect-src CSP
-				applicationURL := "https://" + parts[3] + ":*"
 
-				httplib.SetAppLaunchContentSecurityPolicy(w.Header(), applicationURL)
+				if len(parts[3]) == 0 {
+					h.log.Warn("Application domain is missing from web/launch URL")
+					http.Error(w, "missing application domain", http.StatusBadRequest)
+					return
+				}
+
+				// grab the FQDN from the URL to allow in the connect-src CSP
+				applicationOrigin := "https://" + parts[3]
+
+				// Parse to validate the application domain extracted is in a valid format.
+				// An invalid domain is:
+				//  - having spaces
+				//  - having escape characters eg: %20
+				//  - invalid port after host eg: :unsafe-inline
+				_, err := url.Parse(applicationOrigin)
+				if err != nil {
+					h.log.WithError(err).Warn("Failed to parse application domain extracted from web/launch.")
+					http.Error(w, err.Error(), http.StatusBadRequest)
+					return
+				}
+
+				httplib.SetAppLaunchContentSecurityPolicy(w.Header(), applicationOrigin+":*")
 			} else {
 				httplib.SetIndexContentSecurityPolicy(w.Header(), cfg.ClusterFeatures, r.URL.Path)
 			}
