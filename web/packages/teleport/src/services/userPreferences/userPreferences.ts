@@ -51,6 +51,7 @@ export interface BackendUserPreferences {
   onboard?: OnboardUserPreferences;
   clusterPreferences?: BackendClusterUserPreferences;
   unifiedResourcePreferences?: UnifiedResourcePreferences;
+  keyboardLayout: number;
 }
 
 export async function getUserPreferences(): Promise<UserPreferences> {
@@ -156,7 +157,6 @@ export function convertBackendUserPreferences(
 ): UserPreferences {
   return {
     ...preferences,
-    keyboardLayout: 0,
     clusterPreferences: convertBackendClusterUserPreferences(
       preferences.clusterPreferences
     ),
