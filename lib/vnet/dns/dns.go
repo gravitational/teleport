@@ -34,7 +34,15 @@ import (
 )
 
 const (
-	maxUDPMessageSize     = 65535
+	// This is the recommended EDNS maximum payload size in https://www.rfc-editor.org/rfc/rfc6891.txt
+	// While this server doesn't directly support EDNS yet for queries that actually resolve to Teleport apps,
+	// upstream nameservers may, and we shouldn't drop valid requests to those upstream servers.
+	// This is not an absolute maximum for EDNS, but it is the usual maximum in practice, and the maximum
+	// supported by bind https://github.com/isc-projects/bind9/blob/9357019498d57aef95fff94d408198e21dcc93c9/lib/dns/resolver.c#L238
+	maxUDPDNSMessageSize = 4096
+
+	// https://www.rfc-editor.org/rfc/rfc1123#page-77 recommends 5 seconds as a minimum, and this seems to be
+	// common in practice.
 	forwardRequestTimeout = 5 * time.Second
 )
 
@@ -86,7 +94,7 @@ func NewServer(resolver Resolver, upstreamNameserverSource UpstreamNameserverSou
 		upstreamNameserverSource: upstreamNameserverSource,
 		messageBuffers: sync.Pool{
 			New: func() any {
-				buf := make([]byte, maxUDPMessageSize)
+				buf := make([]byte, maxUDPDNSMessageSize)
 				return &buf
 			},
 		},
@@ -114,7 +122,7 @@ func (s *Server) HandleUDP(ctx context.Context, conn net.Conn) error {
 	if err != nil {
 		return trace.Wrap(err, "failed to read from UDP conn")
 	}
-	if n >= maxUDPMessageSize {
+	if n >= maxUDPDNSMessageSize {
 		return trace.BadParameter("Dropping UDP message that is too large")
 	}
 	buf = buf[:n]
@@ -135,7 +143,7 @@ func (s *Server) ListenAndServeUDP(ctx context.Context, conn *net.UDPConn) error
 		if err != nil {
 			return trace.Wrap(err, "failed to read from UDP conn")
 		}
-		if n >= maxUDPMessageSize {
+		if n >= maxUDPDNSMessageSize {
 			return trace.BadParameter("Dropping UDP message that is too large")
 		}
 		buf = buf[:n]
@@ -231,9 +239,10 @@ func (s *Server) handleDNSMessage(ctx context.Context, remoteAddr string, buf []
 	return trace.Wrap(err, "writing DNS response")
 }
 
-// forward forwards raw DNS messages to all upstream nameservers and writes the first response to
+// forward forwards a raw DNS message to all upstream nameservers and writes the first response to
 // [responseWriter]. If there are no upstream nameservers, or none of them responds within the timeout, an
-// error is returned.
+// error is returned. This doesn't do any retries because the downstream resolver is likely to do its own
+// retries.
 func (s *Server) forward(ctx context.Context, slog *slog.Logger, buf []byte, responseWriter io.Writer) error {
 	ctx, cancel := context.WithTimeout(ctx, forwardRequestTimeout)
 	defer cancel()
