@@ -219,13 +219,18 @@ func Ping(cfg *Config) (*PingResponse, error) {
 		return nil, trace.Wrap(err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusBadRequest {
-		per := &PingErrorResponse{}
-		if err := json.NewDecoder(resp.Body).Decode(per); err != nil {
-			return nil, trace.Wrap(err)
+
+	if resp.StatusCode != http.StatusOK {
+		slog.DebugContext(req.Context(), "Received unsuccessful ping response", "code", resp.StatusCode)
+		errResp := &PingErrorResponse{}
+
+		if err := json.NewDecoder(resp.Body).Decode(errResp); err != nil {
+			return nil, trace.Wrap(err, "cannot parse unsuccessful ping response")
 		}
-		return nil, errors.New(per.Error.Message)
+
+		return nil, trace.Wrap(errors.New(errResp.Error.Message), "proxy service returned unsuccessful ping response")
 	}
+
 	pr := &PingResponse{}
 	if err := json.NewDecoder(resp.Body).Decode(pr); err != nil {
 		return nil, trace.Wrap(err, "cannot parse server response; is %q a Teleport server?", "https://"+cfg.ProxyAddr)
@@ -293,13 +298,12 @@ type PingResponse struct {
 	AutomaticUpgrades bool `json:"automatic_upgrades"`
 }
 
-// PingErrorResponse contains the error message if the requested connector
-// does not match one that has been registered.
+// PingErrorResponse contains the error from /webapi/ping.
 type PingErrorResponse struct {
 	Error PingError `json:"error"`
 }
 
-// PingError contains the string message from the PingErrorResponse
+// PingError contains the string message from /webapi/ping.
 type PingError struct {
 	Message string `json:"message"`
 }

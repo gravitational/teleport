@@ -110,6 +110,26 @@ func TestPlainHttpFallback(t *testing.T) {
 	}
 }
 
+func TestPingError(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.RequestURI != "/webapi/ping" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(PingErrorResponse{Error: PingError{Message: "lorem ipsum"}})
+	})
+	httpSvr := httptest.NewServer(handler)
+	defer httpSvr.Close()
+	proxyAddr := httpSvr.Listener.Addr().String()
+
+	_, err := Ping(
+		&Config{Context: context.Background(), ProxyAddr: proxyAddr, Insecure: true})
+	require.ErrorContains(t, err, "lorem ipsum")
+}
+
 func TestTunnelAddr(t *testing.T) {
 	cases := []struct {
 		name               string
