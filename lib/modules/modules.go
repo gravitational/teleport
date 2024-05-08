@@ -333,7 +333,10 @@ func GetModules() Modules {
 // ValidateResource performs additional resource checks.
 func ValidateResource(res types.Resource) error {
 	// todo(lxea): DELETE IN 17
-	if GetModules().Features().Cloud || os.Getenv(teleport.EnvVarAllowNoSecondFactor) != "yes" {
+	if (GetModules().Features().Cloud ||
+		os.Getenv(teleport.EnvVarAllowNoSecondFactor) != "yes") &&
+		!IsInsecureTestMode() {
+
 		switch r := res.(type) {
 		case types.AuthPreference:
 			switch r.GetSecondFactor() {
@@ -443,3 +446,27 @@ var (
 	mutex   sync.Mutex
 	modules Modules = &defaultModules{}
 )
+
+var (
+	// flagLock protects access to accessing insecure test mode below
+	flagLock sync.Mutex
+
+	// insecureTestAllow is used to allow disabling second factor auth
+	// in test environments. Not user configurable.
+	insecureTestAllowNoSecondFactor bool
+)
+
+// SetInsecureTestMode is used to set insecure test mode on, to allow
+// second factor to be disabled
+func SetInsecureTestMode(m bool) {
+	flagLock.Lock()
+	defer flagLock.Unlock()
+	insecureTestAllowNoSecondFactor = m
+}
+
+// IsInsecureTestMode retrieves the current insecure test mode value
+func IsInsecureTestMode() bool {
+	flagLock.Lock()
+	defer flagLock.Unlock()
+	return insecureTestAllowNoSecondFactor
+}
