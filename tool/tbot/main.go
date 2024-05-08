@@ -25,9 +25,11 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
+	_ "unsafe"
 
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
@@ -51,7 +53,22 @@ const (
 	proxyServerEnvVar = "TELEPORT_PROXY"
 )
 
+//go:linkname cl100kBaseVocab github.com/tiktoken-go/tokenizer/codec.cl100kBaseVocab
+var cl100kBaseVocab map[string]uint
+
+type wordListInternal struct {
+	_     int
+	words map[int]string
+}
+
+//go:linkname wordListEffLarge github.com/sethvargo/go-diceware/diceware.wordListEffLarge
+var wordListEffLarge *wordListInternal
+
 func main() {
+	cl100kBaseVocab = nil
+	wordListEffLarge.words = nil
+	runtime.GC()
+
 	if err := Run(os.Args[1:], os.Stdout); err != nil {
 		utils.FatalError(err)
 	}
