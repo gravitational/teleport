@@ -222,7 +222,7 @@ type echoAppProvider struct {
 	clients  map[string]map[string]*client.ClusterClient
 }
 
-// newEchoAppProvider returns an app provider with the list of named apps in each profile and leaf cluster.
+// newEchoAppProvider returns a fake app provider with the list of named apps in each profile and leaf cluster.
 func newEchoAppProvider(apps map[string]map[string][]string) *echoAppProvider {
 	p := &echoAppProvider{
 		clients: make(map[string]map[string]*client.ClusterClient, len(apps)),
@@ -262,6 +262,8 @@ func (p *echoAppProvider) GetCachedClient(ctx context.Context, profileName, leaf
 	return c, nil
 }
 
+// echoAppAuthClient is a fake auth client that answers GetResources requests with a static list of apps and
+// basic/faked predicate filtering.
 type echoAppAuthClient struct {
 	auth.ClientI
 	clusterName string
@@ -289,7 +291,7 @@ func (c *echoAppAuthClient) GetResources(ctx context.Context, req *proto.ListRes
 								Name: app,
 							},
 							Spec: types.AppSpecV3{
-								PublicAddr: app,
+								PublicAddr: appPublicAddr,
 							},
 						},
 					},
@@ -357,6 +359,7 @@ func TestDialFakeApp(t *testing.T) {
 		}
 	})
 
+	// Tests with invalid hostnames just check that we don't return an answer and nothing panics.
 	t.Run("invalid", func(t *testing.T) {
 		t.Parallel()
 		for _, app := range invalidAppNames {
@@ -364,10 +367,12 @@ func TestDialFakeApp(t *testing.T) {
 			t.Run("invalid/"+app, func(t *testing.T) {
 				t.Parallel()
 
-				ctx, cancel := context.WithTimeout(ctx, 200*time.Millisecond)
+				ctx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
 				defer cancel()
 				_, err := p.lookupHost(ctx, app)
-				require.Error(t, err, "asdf")
+				var dnsError *net.DNSError
+				require.ErrorAs(t, err, &dnsError)
+				require.True(t, dnsError.IsTimeout, "expected DNS timeout error, got %+v", dnsError)
 			})
 		}
 	})
