@@ -133,7 +133,7 @@ func (w *Wrapper) Exec(env map[string]string, args ...string) error {
 
 // GetTSHVersion queries the system tsh for its version.
 func GetTSHVersion(w *Wrapper) (*semver.Version, error) {
-	rawVersion, err := w.capture(w.path, "version", "-f", "json")
+	rawVersion, err := w.capture(w.path, "version", "--format", "json", "--client")
 	if err != nil {
 		return nil, trace.Wrap(err, "querying tsh version")
 	}
