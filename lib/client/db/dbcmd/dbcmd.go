@@ -33,6 +33,7 @@ import (
 	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/client/db/mysql"
@@ -78,6 +79,8 @@ const (
 	awsBin = "aws"
 	// oracleBin is the Oracle CLI program name.
 	oracleBin = "sql"
+	// spannerBin is a Google Spanner interactive CLI program name.
+	spannerBin = "spanner-cli"
 )
 
 // Execer is an abstraction of Go's exec module, as this one doesn't specify any interfaces.
@@ -206,6 +209,8 @@ func (c *CLICommandBuilder) GetConnectCommand() (*exec.Cmd, error) {
 	case defaults.ProtocolClickHouse:
 		return c.getClickhouseNativeCommand()
 
+	case defaults.ProtocolSpanner:
+		return c.getSpannerCommand()
 	}
 
 	return nil, trace.BadParameter("unsupported database protocol: %v", c.db)
@@ -668,15 +673,23 @@ func (c *CLICommandBuilder) getOpenSearchCLICommand() (*exec.Cmd, error) {
 	return exec.Command(openSearchCLIBin, args...), nil
 }
 
-func (c *CLICommandBuilder) getDynamoDBCommand() (*exec.Cmd, error) {
-	// we can't guess at what the user wants to do, so this command is for print purposes only,
-	// and it only works with a local proxy tunnel.
-	if !c.options.printFormat || !c.options.noTLS || c.options.localProxyHost == "" || c.options.localProxyPort == 0 {
+func (c *CLICommandBuilder) checkLocalProxyTunnelOnly(requirePrint bool) error {
+	if (requirePrint && !c.options.printFormat) || !c.options.noTLS || c.options.localProxyHost == "" || c.options.localProxyPort == 0 {
 		svc := "<db>"
 		if c.db != nil && c.db.ServiceName != "" {
 			svc = c.db.ServiceName
 		}
-		return nil, trace.BadParameter("DynamoDB requires a local proxy tunnel. Use `tsh proxy db --tunnel %v`", svc)
+		protocol := defaults.ReadableDatabaseProtocol(c.db.Protocol)
+		return trace.BadParameter("%s requires a local proxy tunnel. Use `tsh proxy db --tunnel %v`", protocol, svc)
+	}
+	return nil
+}
+
+func (c *CLICommandBuilder) getDynamoDBCommand() (*exec.Cmd, error) {
+	// we can't guess at what the user wants to do, so this command is for print
+	// purposes only, and it only works with a local proxy tunnel.
+	if err := c.checkLocalProxyTunnelOnly(true); err != nil {
+		return nil, trace.Wrap(err)
 	}
 	args := []string{
 		"--endpoint", fmt.Sprintf("http://%v:%v/", c.options.localProxyHost, c.options.localProxyPort),
@@ -684,6 +697,52 @@ func (c *CLICommandBuilder) getDynamoDBCommand() (*exec.Cmd, error) {
 		"<command>",
 	}
 	return exec.Command(awsBin, args...), nil
+}
+
+func (c *CLICommandBuilder) getSpannerCommand() (*exec.Cmd, error) {
+	if err := c.checkLocalProxyTunnelOnly(false); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var (
+		project,
+		instance,
+		database string
+	)
+	if c.options.printFormat {
+		// default placeholders for a print command if not all info is available
+		project, instance, database = "<project>", "<instance>", "<database>"
+	}
+
+	if c.options.gcp.ProjectID != "" {
+		project = c.options.gcp.ProjectID
+	}
+	if c.options.gcp.InstanceID != "" {
+		instance = c.options.gcp.InstanceID
+	}
+	if c.db.Database != "" {
+		database = c.db.Database
+	}
+
+	protocol := defaults.ReadableDatabaseProtocol(c.db.Protocol)
+	switch {
+	case project == "":
+		return nil, trace.BadParameter("missing GCP project ID for %s command (this is a bug)", protocol)
+	case instance == "":
+		return nil, trace.BadParameter("missing GCP instance ID for %s command (this is a bug)", protocol)
+	case database == "":
+		return nil, trace.BadParameter("missing database name for %s command (this is a bug)", protocol)
+	}
+
+	args := []string{
+		"-p", project,
+		"-i", instance,
+		"-d", database,
+	}
+	cmd := exec.Command(spannerBin, args...)
+	cmd.Env = append(cmd.Env,
+		fmt.Sprintf("SPANNER_EMULATOR_HOST=%s:%d", c.host, c.port),
+	)
+	return cmd, nil
 }
 
 type jdbcOracleThinConnection struct {
@@ -814,6 +873,7 @@ type connectionCommandOpts struct {
 	log                      *logrus.Entry
 	exe                      Execer
 	password                 string
+	gcp                      types.GCPCloudSQL
 }
 
 // ConnectCommandFunc is a type for functions returned by the "With*" functions in this package.
@@ -900,6 +960,13 @@ func WithTolerateMissingCLIClient() ConnectCommandFunc {
 func WithExecer(exe Execer) ConnectCommandFunc {
 	return func(opts *connectionCommandOpts) {
 		opts.exe = exe
+	}
+}
+
+// WithGCP adds GCP metadata for the database command to access.
+func WithGCP(gcp types.GCPCloudSQL) ConnectCommandFunc {
+	return func(opts *connectionCommandOpts) {
+		opts.gcp = gcp
 	}
 }
 

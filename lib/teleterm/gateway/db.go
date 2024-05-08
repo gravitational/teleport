@@ -69,7 +69,7 @@ func makeDatabaseGateway(cfg Config) (Database, error) {
 		RemoteProxyAddr:         d.cfg.WebProxyAddr,
 		Listener:                listener,
 		ParentContext:           d.closeContext,
-		Certs:                   []tls.Certificate{tlsCert},
+		Cert:                    tlsCert,
 		Clock:                   d.cfg.Clock,
 		ALPNConnUpgradeRequired: d.cfg.TLSRoutingConnUpgradeRequired,
 	}
@@ -107,6 +107,6 @@ func (d *db) setDBCert(newCert tls.Certificate) error {
 			"database certificate check failed, try restarting the database connection")
 	}
 
-	d.localProxy.SetCerts([]tls.Certificate{newCert})
+	d.localProxy.SetCert(newCert)
 	return nil
 }

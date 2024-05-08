@@ -140,6 +140,7 @@ import (
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/app"
 	"github.com/gravitational/teleport/lib/srv/db"
+	"github.com/gravitational/teleport/lib/srv/debug"
 	"github.com/gravitational/teleport/lib/srv/desktop"
 	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/srv/regular"
@@ -1099,6 +1100,14 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		if err := process.initTracingService(); err != nil {
 			return nil, trace.Wrap(err)
 		}
+	}
+
+	if cfg.DebugService.Enabled {
+		if err := process.initDebugService(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		warnOnErr(process.ExitContext(), process.closeImportedDescriptors(teleport.ComponentDebug), process.logger)
 	}
 
 	// Create a process wide key generator that will be shared. This is so the
@@ -2479,10 +2488,14 @@ func (process *TeleportProcess) newLocalCacheForWindowsDesktop(clt auth.ClientI,
 
 // accessPointWrapper is a wrapper around auth.ClientI that reduces the surface area of the
 // auth.ClientI.DiscoveryConfigClient interface to services.DiscoveryConfigs.
-// Cache doesn't implement the full auth.ClientI interface, so we need to wrap auth.ClientI to
+// Cache doesn't implement the full auth.ClientI interface, so we need to wrap auth.ClientI
 // to make it compatible with the services.DiscoveryConfigs interface.
 type accessPointWrapper struct {
 	auth.ClientI
+}
+
+func (a accessPointWrapper) CrownJewelClient() services.CrownJewels {
+	return a.ClientI.CrownJewelServiceClient()
 }
 
 func (a accessPointWrapper) DiscoveryConfigClient() services.DiscoveryConfigs {
@@ -3286,6 +3299,47 @@ func (process *TeleportProcess) initDiagnosticService() error {
 
 	process.OnExit("diagnostic.shutdown", func(payload interface{}) {
 		warnOnErr(process.ExitContext(), muxListener.Close(), logger)
+		if payload == nil {
+			logger.InfoContext(process.ExitContext(), "Shutting down immediately.")
+			warnOnErr(process.ExitContext(), server.Close(), logger)
+		} else {
+			logger.InfoContext(process.ExitContext(), "Shutting down gracefully.")
+			ctx := payloadContext(payload)
+			warnOnErr(process.ExitContext(), server.Shutdown(ctx), logger)
+		}
+		logger.InfoContext(process.ExitContext(), "Exited.")
+	})
+
+	return nil
+}
+
+// initDebugService starts debug service serving endpoints used for
+// troubleshooting the instance.
+func (process *TeleportProcess) initDebugService() error {
+	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentDebug, process.id))
+
+	listener, err := process.importOrCreateListener(ListenerDebug, filepath.Join(process.Config.DataDir, teleport.DebugServiceSocketName))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	server := &http.Server{
+		Handler:           debug.NewServeMux(logger, process.Config),
+		ReadTimeout:       apidefaults.DefaultIOTimeout,
+		ReadHeaderTimeout: defaults.ReadHeadersTimeout,
+		WriteTimeout:      apidefaults.DefaultIOTimeout,
+		IdleTimeout:       apidefaults.DefaultIdleTimeout,
+	}
+
+	process.RegisterFunc("debug.service", func() error {
+		if err := server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			logger.WarnContext(process.ExitContext(), "Debug server exited with error.", "error", err)
+		}
+		return nil
+	})
+	warnOnErr(process.ExitContext(), process.closeImportedDescriptors(teleport.ComponentDebug), logger)
+
+	process.OnExit("debug.shutdown", func(payload interface{}) {
 		if payload == nil {
 			logger.InfoContext(process.ExitContext(), "Shutting down immediately.")
 			warnOnErr(process.ExitContext(), server.Close(), logger)
@@ -4764,7 +4818,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 					alpncommon.ProtocolRedisDB,
 					alpncommon.ProtocolSnowflake,
 					alpncommon.ProtocolSQLServer,
-					alpncommon.ProtocolCassandra),
+					alpncommon.ProtocolCassandra,
+					alpncommon.ProtocolSpanner,
+				),
 			})
 		}
 

@@ -18,7 +18,7 @@
 
 import { AccessRequest } from 'shared/services/accessRequests';
 
-import { AccessRequest as TshdAccessRequest } from 'teleterm/services/tshd/types';
+import { AccessRequest as TshdAccessRequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/access_request_pb';
 
 import { makeUiAccessRequest } from './useAccessRequests';
 
@@ -40,7 +40,7 @@ test('makeUiAccessRequest', async () => {
         roles: ['admin'],
         reason: 'not today',
         promotedAccessListTitle: '',
-        created: { seconds: 1709703565, nanos: 148537000 },
+        created: { seconds: 1709703565n, nanos: 148537000 },
       },
     ],
     suggestedReviewers: ['sugested-reviewer-1'],
@@ -67,27 +67,27 @@ test('makeUiAccessRequest', async () => {
     ],
     promotedAccessListTitle: 'promoted-title',
     created: {
-      seconds: 1709703565,
+      seconds: 1709703565n,
       nanos: 148537000,
     },
     expires: {
-      seconds: 1709746587,
+      seconds: 1709746587n,
       nanos: 999998000,
     },
     maxDuration: {
-      seconds: 1709746587,
+      seconds: 1709746587n,
       nanos: 999998000,
     },
     requestTtl: {
-      seconds: 1710308365,
+      seconds: 1710308365n,
       nanos: 148880000,
     },
     sessionTtl: {
-      seconds: 1709746587,
+      seconds: 1709746587n,
       nanos: 999998000,
     },
     assumeStartTime: {
-      seconds: 1709853650,
+      seconds: 1709853650n,
       nanos: 520000000,
     },
   };
