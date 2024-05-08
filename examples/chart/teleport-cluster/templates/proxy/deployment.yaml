@@ -108,7 +108,7 @@ spec:
             - teleport
             - wait
             - no-resolve
-            - '{{ include "teleport-cluster.auth.previousVersionServiceName" . }}.{{ .Release.Namespace }}.svc.cluster.local'
+            - '{{ include "teleport-cluster.auth.previousVersionServiceName" . }}.{{ .Release.Namespace }}.svc.{{ include "teleport-cluster.clusterDomain" . }}'
 {{- if $proxy.securityContext }}
           securityContext: {{- toYaml $proxy.securityContext | nindent 12 }}
 {{- end }}
