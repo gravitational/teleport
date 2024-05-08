@@ -38,12 +38,16 @@ CGOFLAG ?= CGO_ENABLED=1
 # should be an absolute directory as it is used by e/Makefile too, from the e/ directory.
 RELEASE_DIR := $(CURDIR)/$(BUILDDIR)/artifacts
 
+LDFLAGS ?= -w -s $(KUBECTL_SETVERSION)
+
+# Appending new conditional settings for community build type
+LDFLAGS += $(if $(filter $(TELEPORT_BUILD_TYPE),community),-X github.com/gravitational/teleport/lib/modules.teleportBuildType=community)
 # When TELEPORT_DEBUG is true, set flags to produce
 # debugger-friendly builds.
 ifeq ("$(TELEPORT_DEBUG)","true")
 BUILDFLAGS ?= $(ADDFLAGS) -gcflags=all="-N -l"
 else
-BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s $(KUBECTL_SETVERSION)' -trimpath -buildmode=pie
+BUILDFLAGS ?= $(ADDFLAGS) -ldflags '$(LDFLAGS)' -trimpath -buildmode=pie
 endif
 
 GO_ENV_OS := $(shell go env GOOS)
@@ -241,8 +245,9 @@ ifeq ($(IS_NATIVE_BUILD),"no")
 CC=arm-linux-gnueabihf-gcc
 endif
 
+LDFLAGS += -extldflags "-Wl,--long-plt" -debugtramp=2 
 # Add -debugtramp=2 to work around 24 bit CALL/JMP instruction offset.
-BUILDFLAGS = $(ADDFLAGS) -ldflags '-extldflags "-Wl,--long-plt" -w -s -debugtramp=2 $(KUBECTL_SETVERSION)' -trimpath -buildmode=pie
+BUILDFLAGS = $(ADDFLAGS) -ldflags '$(LDFLAGS)' -trimpath -buildmode=pie
 endif
 endif # OS == linux
 
@@ -253,7 +258,7 @@ ifneq ("$(ARCH)","amd64")
 $(error "Building for windows requires ARCH=amd64")
 endif
 CGOFLAG = CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++
-BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s $(KUBECTL_SETVERSION)' -trimpath -buildmode=pie
+BUILDFLAGS = $(ADDFLAGS) -ldflags '$(LDFLAGS)' -trimpath -buildmode=pie
 endif
 
 CGOFLAG_TSH ?= $(CGOFLAG)
@@ -263,7 +268,6 @@ CGOFLAG_TSH ?= $(CGOFLAG)
 ELECTRON_BUILDER_ARCH_amd64 = x64
 ELECTRON_BUILDER_ARCH = $(or $(ELECTRON_BUILDER_ARCH_$(ARCH)),$(ARCH))
 
-BUILDFLAGS += $(if $(filter $(TELEPORT_BUILD_TYPE),community),-ldflags="-X github.com/gravitational/teleport/lib/modules.teleportBuildType=community")
 #
 # 'make all' builds all 4 executables and places them in the current directory.
 #
