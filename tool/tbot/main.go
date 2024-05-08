@@ -25,6 +25,9 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"runtime"
+	"runtime/pprof"
+	runtimetrace "runtime/trace"
 	"strings"
 	"syscall"
 	"time"
@@ -68,12 +71,17 @@ func Run(args []string, stdout io.Writer) error {
 	var cf config.CLIConf
 	ctx := context.Background()
 
+	var cpuProfile, memProfile, traceProfile string
+
 	app := utils.InitCLIParser("tbot", appHelp).Interspersed(false)
 	app.Flag("debug", "Verbose logging to stdout.").Short('d').BoolVar(&cf.Debug)
 	app.Flag("config", "Path to a configuration file.").Short('c').StringVar(&cf.ConfigPath)
 	app.Flag("fips", "Runs tbot in FIPS compliance mode. This requires the FIPS binary is in use.").BoolVar(&cf.FIPS)
 	app.Flag("trace", "Capture and export distributed traces.").Hidden().BoolVar(&cf.Trace)
 	app.Flag("trace-exporter", "An OTLP exporter URL to send spans to.").Hidden().StringVar(&cf.TraceExporter)
+	app.Flag("mem-profile", "Write memory profile to file").Hidden().StringVar(&memProfile)
+	app.Flag("cpu-profile", "Write CPU profile to file").Hidden().StringVar(&cpuProfile)
+	app.Flag("trace-profile", "Write trace profile to file").Hidden().StringVar(&traceProfile)
 	app.HelpFlag.Short('h')
 
 	joinMethodList := fmt.Sprintf(
@@ -153,9 +161,19 @@ func Run(args []string, stdout io.Writer) error {
 	proxyCmd.Flag("proxy", "The Teleport proxy server to use, in host:port form.").Hidden().StringVar(&legacyProxyFlag)
 	proxyCmd.Flag("destination-dir", "The destination directory with which to authenticate tsh").StringVar(&cf.DestinationDir)
 	proxyCmd.Flag("cluster", "The cluster name. Extracted from the certificate if unset.").StringVar(&cf.Cluster)
-	proxyRemaining := config.RemainingArgs(proxyCmd.Arg(
+
+	proxySSHCmd := proxyCmd.Command("ssh", "")
+	proxySSHCmd.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
+
+	proxyKubeCmd := proxyCmd.Command("kube", "")
+	proxyKubeRemaining := config.RemainingArgs(proxyKubeCmd.Arg(
 		"args",
-		"Arguments to `tsh proxy ...`; prefix with `-- ` to ensure flags are passed correctly.",
+		"Arguments to `tsh proxy kube`; prefix with `-- ` to ensure flags are passed correctly.",
+	))
+	proxyDBCmd := proxyCmd.Command("db", "")
+	proxyDBRemaining := config.RemainingArgs(proxyDBCmd.Arg(
+		"args",
+		"Arguments to `tsh proxy db`; prefix with `-- ` to ensure flags are passed correctly.",
 	))
 
 	kubeCmd := app.Command("kube", "Kubernetes helpers").Hidden()
@@ -194,8 +212,10 @@ func Run(args []string, stdout io.Writer) error {
 	// move them to the remaining args field.
 	if len(*dbRemaining) > 0 {
 		cf.RemainingArgs = *dbRemaining
-	} else if len(*proxyRemaining) > 0 {
-		cf.RemainingArgs = *proxyRemaining
+	} else if len(*proxyKubeRemaining) > 0 {
+		cf.RemainingArgs = *proxyKubeRemaining
+	} else if len(*proxyDBRemaining) > 0 {
+		cf.RemainingArgs = *proxyKubeRemaining
 	}
 
 	if cf.Trace {
@@ -225,6 +245,48 @@ func Run(args []string, stdout io.Writer) error {
 		}()
 	}
 
+	if cpuProfile != "" {
+		log.DebugContext(ctx, "capturing CPU profile", "profile_path", cpuProfile)
+		f, err := os.Create(cpuProfile)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer f.Close()
+		if err := pprof.StartCPUProfile(f); err != nil {
+			return trace.Wrap(err)
+		}
+		defer pprof.StopCPUProfile()
+	}
+
+	if memProfile != "" {
+		log.DebugContext(ctx, "capturing memory profile", "profile_path", memProfile)
+		defer func() {
+			f, err := os.Create(memProfile)
+			if err != nil {
+				return
+			}
+			defer f.Close()
+			runtime.GC()
+			if err := pprof.WriteHeapProfile(f); err != nil {
+				return
+			}
+		}()
+	}
+
+	if traceProfile != "" {
+		log.DebugContext(ctx, "capturing trace profile", "profile_path", traceProfile)
+		f, err := os.Create(traceProfile)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer f.Close()
+
+		if err := runtimetrace.Start(f); err != nil {
+			return trace.Wrap(err)
+		}
+		defer runtimetrace.Stop()
+	}
+
 	// If migration is specified, we want to run this before the config is
 	// loaded normally.
 	if migrateCmd.FullCommand() == command {
@@ -247,8 +309,12 @@ func Run(args []string, stdout io.Writer) error {
 		err = onInit(botConfig, &cf)
 	case dbCmd.FullCommand():
 		err = onDBCommand(botConfig, &cf)
-	case proxyCmd.FullCommand():
-		err = onProxyCommand(botConfig, &cf)
+	case proxyKubeCmd.FullCommand():
+		err = onProxyCommand(botConfig, &cf, proxyKubeCmd.Name())
+	case proxyDBCmd.FullCommand():
+		err = onProxyCommand(botConfig, &cf, proxyDBCmd.Name())
+	case proxySSHCmd.FullCommand():
+		err = onProxySSHCommand(botConfig, &cf)
 	case kubeCredentialsCmd.FullCommand():
 		err = onKubeCredentialsCommand(ctx, botConfig)
 	case spiffeInspectCmd.FullCommand():

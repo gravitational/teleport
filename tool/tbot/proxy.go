@@ -20,7 +20,6 @@ package main
 
 import (
 	"path/filepath"
-	"slices"
 
 	"github.com/gravitational/trace"
 
@@ -29,7 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/tshwrap"
 )
 
-func onProxyCommand(botConfig *config.BotConfig, cf *config.CLIConf) error {
+func onProxyCommand(botConfig *config.BotConfig, cf *config.CLIConf, command string) error {
 	wrapper, err := tshwrap.New()
 	if err != nil {
 		return trace.Wrap(err)
@@ -52,7 +51,7 @@ func onProxyCommand(botConfig *config.BotConfig, cf *config.CLIConf) error {
 
 	// TODO(timothyb89):  We could consider supporting a --cluster passthrough
 	//  here as in `tbot db ...`.
-	args := []string{"-i", identityPath, "proxy", "--proxy=" + cf.ProxyServer}
+	args := []string{"-i", identityPath, "proxy", "--proxy=" + cf.ProxyServer, command}
 	args = append(args, cf.RemainingArgs...)
 
 	// Pass through the debug flag, and prepend to satisfy argument ordering
@@ -63,7 +62,7 @@ func onProxyCommand(botConfig *config.BotConfig, cf *config.CLIConf) error {
 
 	// Handle a special case for `tbot proxy kube` where additional env vars
 	// need to be injected.
-	if slices.Contains(cf.RemainingArgs, "kube") {
+	if command == "kube" {
 		// `tsh kube proxy` uses teleport.EnvKubeConfig to determine the
 		// original kube config file.
 		env[teleport.EnvKubeConfig] = filepath.Join(

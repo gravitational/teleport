@@ -189,6 +189,9 @@ type CLIConf struct {
 	// TraceExporter is a manually provided URI to send traces to instead of
 	// forwarding them to the Auth service.
 	TraceExporter string
+
+	// UserHost is the target connection string of tbot proxy ssh in the form of user@host.
+	UserHost string
 }
 
 // AzureOnboardingConfig holds configuration relevant to the "azure" join method.
