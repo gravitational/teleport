@@ -43,6 +43,7 @@ const KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT = [
   KeysEnum.SHOW_ASSIST_POPUP,
   KeysEnum.USER_PREFERENCES,
   KeysEnum.RECOMMEND_FEATURE,
+  KeysEnum.LICENSE_ACKNOWLEDGED,
 ];
 
 export const storageService = {
