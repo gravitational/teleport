@@ -41,10 +41,6 @@ const (
 	// TSHVarName is the name of the environment variable that can override the
 	// tsh path that would otherwise be located on the $PATH.
 	TSHVarName = "TSH"
-
-	// TSHMinVersion is the minimum version of tsh that supports Machine ID
-	// proxies.
-	TSHMinVersion = "9.3.0"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -144,27 +140,6 @@ func GetTSHVersion(w *Wrapper) (*semver.Version, error) {
 	}
 
 	return sv, nil
-}
-
-// CheckTSHSupported checks if the current tsh supports Machine ID.
-func CheckTSHSupported(w *Wrapper) error {
-	version, err := GetTSHVersion(w)
-	if err != nil {
-		return trace.Wrap(err, "unable to determine tsh version")
-	}
-
-	minVersion := semver.New(TSHMinVersion)
-	if version.LessThan(*minVersion) {
-		return trace.BadParameter(
-			"installed tsh version %s does not support Machine ID proxies, "+
-				"please upgrade to at least %s",
-			version, minVersion,
-		)
-	}
-
-	log.Debugf("tsh version %s is supported", version)
-
-	return nil
 }
 
 // GetDestinationDirectory attempts to select an unambiguous destination, either from
