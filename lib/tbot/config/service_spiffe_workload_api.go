@@ -19,6 +19,8 @@
 package config
 
 import (
+	"log/slog"
+
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 )
@@ -63,6 +65,22 @@ type SVIDRequestRule struct {
 	// Unix domain sockets. If any value here is set, the rule will not pass
 	// unless the workload is connecting via a Unix domain socket.
 	Unix SVIDRequestRuleUnix `yaml:"unix"`
+}
+
+func (o SVIDRequestRule) LogValue() slog.Value {
+	var unixAttrs []any
+	if o.Unix.PID != nil {
+		unixAttrs = append(unixAttrs, slog.Int("pid", *o.Unix.PID))
+	}
+	if o.Unix.GID != nil {
+		unixAttrs = append(unixAttrs, slog.Int("gid", *o.Unix.GID))
+	}
+	if o.Unix.UID != nil {
+		unixAttrs = append(unixAttrs, slog.Int("uid", *o.Unix.UID))
+	}
+	return slog.GroupValue(
+		slog.Group("unix", unixAttrs...),
+	)
 }
 
 // SPIFFEWorkloadAPIService is the configuration for the SPIFFE Workload API
