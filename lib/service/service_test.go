@@ -474,7 +474,8 @@ func TestAthenaAuditLogSetup(t *testing.T) {
 	ctx := context.Background()
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			Cloud: true,
+			Cloud:                true,
+			ExternalAuditStorage: true,
 		},
 	})
 
@@ -766,6 +767,11 @@ type mockAccessPoint struct {
 	auth.ProxyAccessPoint
 }
 
+// NewWatcher needs to be defined so that we can test proxy TLS config setup without panicing.
+func (m *mockAccessPoint) NewWatcher(_ context.Context, _ types.Watch) (types.Watcher, error) {
+	return nil, trace.NotImplemented("mock access point does not produce events")
+}
+
 type mockReverseTunnelServer struct {
 	reversetunnelclient.Server
 }
@@ -797,6 +803,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-opensearch-ping",
 				"teleport-dynamodb-ping",
 				"teleport-clickhouse-ping",
+				"teleport-spanner-ping",
 				"teleport-proxy-ssh",
 				"teleport-reversetunnel",
 				"teleport-auth@",
@@ -816,6 +823,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-opensearch",
 				"teleport-dynamodb",
 				"teleport-clickhouse",
+				"teleport-spanner",
 			},
 		},
 		{
@@ -835,6 +843,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-opensearch-ping",
 				"teleport-dynamodb-ping",
 				"teleport-clickhouse-ping",
+				"teleport-spanner-ping",
 				// Ensure http/1.1 has precedence over http2.
 				"http/1.1",
 				"h2",
@@ -857,6 +866,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-opensearch",
 				"teleport-dynamodb",
 				"teleport-clickhouse",
+				"teleport-spanner",
 			},
 		},
 	}
@@ -1561,4 +1571,49 @@ func TestSingleProcessModeResolver(t *testing.T) {
 			require.Equal(t, test.wantAddr, addr.FullAddress())
 		})
 	}
+}
+
+// TestDebugServiceStartSocket ensures the debug service socket starts
+// correctly, and is accessible.
+func TestDebugServiceStartSocket(t *testing.T) {
+	t.Parallel()
+	fakeClock := clockwork.NewFakeClock()
+
+	var err error
+	dataDir, err := os.MkdirTemp("", "*")
+	require.NoError(t, err)
+	t.Cleanup(func() { os.RemoveAll(dataDir) })
+
+	cfg := servicecfg.MakeDefaultConfig()
+	cfg.DebugService.Enabled = true
+	cfg.Clock = fakeClock
+	cfg.DataDir = dataDir
+	cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
+	cfg.Auth.Enabled = true
+	cfg.Auth.StorageConfig.Params["path"] = dataDir
+	cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+	cfg.SSH.Enabled = false
+	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+
+	process, err := NewTeleport(cfg)
+	require.NoError(t, err)
+
+	require.NoError(t, process.Start())
+	t.Cleanup(func() { require.NoError(t, process.Close()) })
+
+	httpClient := &http.Client{
+		Timeout: 10 * time.Second,
+		Transport: &http.Transport{
+			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
+				return net.Dial("unix", filepath.Join(process.Config.DataDir, teleport.DebugServiceSocketName))
+			},
+		},
+	}
+
+	// Fetch a random path, it should return 404 error.
+	req, err := httpClient.Get("http://debug/random")
+	require.NoError(t, err)
+	defer req.Body.Close()
+	require.Equal(t, http.StatusNotFound, req.StatusCode)
 }

@@ -106,6 +106,9 @@ type Config struct {
 	// Metrics defines the metrics service configuration.
 	Metrics MetricsConfig
 
+	// DebugService defines the debug service configuration.
+	DebugService DebugConfig
+
 	// WindowsDesktop defines the Windows desktop service configuration.
 	WindowsDesktop WindowsDesktopConfig
 
@@ -781,4 +784,9 @@ func verifyEnabledService(cfg *Config) error {
 func (c *Config) SetLogLevel(level slog.Level) {
 	c.Log.SetLevel(logutils.SlogLevelToLogrusLevel(level))
 	c.LoggerLevel.Set(level)
+}
+
+// GetLogLevel returns the current log level.
+func (c *Config) GetLogLevel() slog.Level {
+	return c.LoggerLevel.Level()
 }

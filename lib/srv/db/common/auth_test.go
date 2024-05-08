@@ -204,6 +204,12 @@ func TestAuthGetTLSConfig(t *testing.T) {
 			expectVerifyConnection:   true,
 		},
 		{
+			name:             "GCP Spanner",
+			sessionDatabase:  newSpannerDatabase(t, ""),
+			expectServerName: "spanner.googleapis.com",
+			expectRootCAs:    systemCertPool,
+		},
+		{
 			name:             "Azure SQL Server",
 			sessionDatabase:  newAzureSQLDatabase(t, "resource-id"),
 			expectServerName: "test-database.database.windows.net",
@@ -868,6 +874,25 @@ func newAzureSQLDatabase(t *testing.T, resourceID string) types.Database {
 			ResourceID: resourceID,
 		},
 	})
+	require.NoError(t, err)
+	return database
+}
+
+func newSpannerDatabase(t *testing.T, uri string, specOpts ...databaseSpecOpt) types.Database {
+	spec := types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolSpanner,
+		URI:      uri,
+		GCP: types.GCPCloudSQL{
+			ProjectID:  "project-id",
+			InstanceID: "instance-id",
+		},
+	}
+	for _, opt := range specOpts {
+		opt(&spec)
+	}
+	database, err := types.NewDatabaseV3(types.Metadata{
+		Name: "test-database",
+	}, spec)
 	require.NoError(t, err)
 	return database
 }

@@ -20,6 +20,7 @@ import api from 'teleport/services/api';
 
 import user from './user';
 import { makeTraits } from './makeUser';
+import { PasswordState } from './types';
 
 test('undefined values in context response gives proper default values', async () => {
   const mockContext = {
@@ -296,6 +297,7 @@ test('undefined values in context response gives proper default values', async (
     // Test undefined roles and reviewers are set to empty arrays.
     accessCapabilities: { requestableRoles: [], suggestedReviewers: [] },
     allowedSearchAsRoles: [],
+    passwordState: PasswordState.PASSWORD_STATE_UNSPECIFIED,
   });
 });
 

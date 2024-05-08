@@ -79,6 +79,11 @@ func (h *Handler) jwks(ctx context.Context, caType types.CertAuthType) (*JWKSRes
 			return nil, trace.Wrap(err)
 		}
 		resp.Keys = append(resp.Keys, jwk)
+
+		// Return an additional copy of the same JWK
+		// with KeyID set to the empty string for compatibility.
+		jwk.KeyID = ""
+		resp.Keys = append(resp.Keys, jwk)
 	}
 	return &resp, nil
 }

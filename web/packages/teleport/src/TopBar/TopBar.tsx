@@ -25,13 +25,7 @@ import { matchPath, useHistory } from 'react-router';
 
 import { Theme } from 'design/theme/themes/types';
 
-import {
-  ArrowLeft,
-  ChatCircleSparkle,
-  Download,
-  Server,
-  SlidersVertical,
-} from 'design/Icon';
+import { ArrowLeft, Download, Server, SlidersVertical } from 'design/Icon';
 import { HoverTooltip } from 'shared/components/ToolTip';
 
 import useTeleport from 'teleport/useTeleport';
@@ -70,7 +64,7 @@ function getCategoryForRoute(
   return feature.category;
 }
 
-export function TopBar({ CustomLogo, assistProps }: TopBarProps) {
+export function TopBar({ CustomLogo }: TopBarProps) {
   const ctx = useTeleport();
   const { clusterId } = useStickyClusterId();
   const history = useHistory();
@@ -81,7 +75,6 @@ export function TopBar({ CustomLogo, assistProps }: TopBarProps) {
   );
   const { currentWidth } = useLayout();
   const theme: Theme = useTheme();
-
   const [previousManagementRoute, setPreviousManagementRoute] = useState('');
 
   const handleLocationChange = useCallback(
@@ -212,29 +205,11 @@ export function TopBar({ CustomLogo, assistProps }: TopBarProps) {
       )}
       {!feature?.logoOnlyTopbar && (
         <Flex height="100%" alignItems="center">
-          {assistProps?.assistEnabled && (
-            <HoverTooltip
-              anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-              transformOrigin={{ vertical: 'top', horizontal: 'center' }}
-              tipContent="Teleport Assist"
-              css={`
-                height: 100%;
-              `}
-            >
-              <ButtonIconContainer
-                onClick={() =>
-                  assistProps?.setShowAssist(!assistProps?.showAssist)
-                }
-              >
-                <ChatCircleSparkle
-                  color={assistProps?.showAssist ? 'text.main' : 'text.muted'}
-                  size={iconSize}
-                />
-              </ButtonIconContainer>
-            </HoverTooltip>
-          )}
           <Notifications iconSize={iconSize} />
-          <UserMenuNav username={ctx.storeUser.state.username} />
+          <UserMenuNav
+            username={ctx.storeUser.state.username}
+            iconSize={iconSize}
+          />
         </Flex>
       )}
     </TopBarContainer>
@@ -434,14 +409,7 @@ export type NavigationItem = {
   Icon: JSX.Element;
 };
 
-export type AssistProps = {
-  showAssist: boolean;
-  setShowAssist: (show: boolean) => void;
-  assistEnabled: boolean;
-};
-
 export type TopBarProps = {
   CustomLogo?: () => React.ReactElement;
   showPoweredByLogo?: boolean;
-  assistProps?: AssistProps;
 };

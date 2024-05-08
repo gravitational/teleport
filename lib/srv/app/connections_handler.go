@@ -485,10 +485,11 @@ func (c *ConnectionsHandler) serveAWSWebConsole(w http.ResponseWriter, r *http.R
 	)
 
 	url, err := c.cfg.Cloud.GetAWSSigninURL(r.Context(), AWSSigninRequest{
-		Identity:   identity,
-		TargetURL:  app.GetURI(),
-		Issuer:     app.GetPublicAddr(),
-		ExternalID: app.GetAWSExternalID(),
+		Identity:    identity,
+		TargetURL:   app.GetURI(),
+		Issuer:      app.GetPublicAddr(),
+		ExternalID:  app.GetAWSExternalID(),
+		Integration: app.GetIntegration(),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -728,7 +729,7 @@ See https://goteleport.com/docs/access-controls/device-trust/device-management/#
 // carry identity in the client certificate.
 func (c *ConnectionsHandler) getConnectionInfo(ctx context.Context, conn net.Conn) (*tls.Conn, authz.IdentityGetter, types.Application, error) {
 	tlsConn := tls.Server(conn, c.tlsConfig)
-	if err := tlsConn.Handshake(); err != nil {
+	if err := tlsConn.HandshakeContext(ctx); err != nil {
 		return nil, nil, nil, trace.Wrap(err, "TLS handshake failed")
 	}
 
