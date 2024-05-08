@@ -32,10 +32,6 @@ func onDBCommand(botConfig *config.BotConfig, cf *config.CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	if err := tshwrap.CheckTSHSupported(wrapper); err != nil {
-		return trace.Wrap(err)
-	}
-
 	destination, err := tshwrap.GetDestination(botConfig, cf)
 	if err != nil {
 		return trace.Wrap(err)
