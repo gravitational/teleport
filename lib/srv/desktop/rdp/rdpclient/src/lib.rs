@@ -462,7 +462,7 @@ pub struct CGOConnectParams {
     allow_clipboard: bool,
     allow_directory_sharing: bool,
     show_desktop_wallpaper: bool,
-    keyboard_layout: u32
+    keyboard_layout: u32,
 }
 
 /// CGOKeyboardEvent is a CGO-compatible version of KeyboardEvent that we pass back to Go.
