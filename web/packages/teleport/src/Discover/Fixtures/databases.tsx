@@ -51,7 +51,6 @@ export function getDbResourceSpec(
 export function getDbMeta(): DbMeta {
   return {
     resourceName: 'db-name',
-    awsRegion: 'us-east-1',
     agentMatcherLabels: [],
     db: {
       aws: {
@@ -63,7 +62,6 @@ export function getDbMeta(): DbMeta {
           subnets: [],
         },
       },
-      kind: 'db',
       name: 'some-db-name',
       description: 'some-description',
       type: 'rds',
@@ -85,14 +83,12 @@ export function getDbMeta(): DbMeta {
       vpcId: '',
       status: 'available',
     },
-    awsIntegration: {
+    integration: {
       kind: IntegrationKind.AwsOidc,
       name: 'test-integration',
       resourceType: 'integration',
       spec: {
         roleArn: 'arn:aws:iam::123456789012:role/test-role-arn',
-        issuerS3Bucket: '',
-        issuerS3Prefix: '',
       },
       statusCode: IntegrationStatusCode.Running,
     },
