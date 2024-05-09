@@ -1887,7 +1887,6 @@ func configureForMFA(t *testing.T, srv *TestTLSServer) *configureMFAResp {
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
 		},
-		// Use default Webauthn config.
 	})
 	require.NoError(t, err)
 
