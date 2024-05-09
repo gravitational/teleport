@@ -355,6 +355,7 @@
     "clusterrolebinding",
     "clusterrolebindings",
     "clusterroles",
+    "cmdkey",
     "cockroachdb",
     "codingllama",
     "compat",
