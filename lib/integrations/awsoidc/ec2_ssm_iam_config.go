@@ -154,7 +154,7 @@ func ConfigureEC2SSM(ctx context.Context, clt EC2SSMConfigureClient, req EC2SSMI
 	})
 	if err != nil {
 		if trace.IsNotFound(awslib.ConvertIAMv2Error(err)) {
-			return trace.NotFound("role %q not found.", req.IntegrationRole)
+			return trace.NotFound("role %q not found", req.IntegrationRole)
 		}
 		return trace.Wrap(err)
 	}
