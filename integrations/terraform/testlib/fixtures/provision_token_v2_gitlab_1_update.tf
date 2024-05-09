@@ -13,7 +13,7 @@ resource "teleport_provision_token" "token" {
       domain = "bug.report"
       allow = [
         {
-          project_path = "my-repo"
+          project_path          = "my-repo"
           environment_protected = true
         }
       ]
