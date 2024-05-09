@@ -107,7 +107,10 @@ func (s *Server) shouldInitCACertLocked(database types.Database) bool {
 		types.DatabaseTypeMemoryDB,
 		types.DatabaseTypeAWSKeyspaces,
 		types.DatabaseTypeDynamoDB,
+		types.DatabaseTypeMongoAtlas,
 		types.DatabaseTypeCloudSQL,
+		// GCP Spanner is intentionally omitted, because the GCP Spanner endpoint
+		// is issued by a public CA.
 		types.DatabaseTypeAzure:
 		return true
 	default:
@@ -197,6 +200,11 @@ func (s *Server) getCACertPaths(database types.Database) ([]string, error) {
 
 	case types.DatabaseTypeAWSKeyspaces:
 		return []string{filepath.Join(s.cfg.DataDir, filepath.Base(amazonKeyspacesCAURL))}, nil
+
+	case types.DatabaseTypeMongoAtlas:
+		return []string{
+			filepath.Join(s.cfg.DataDir, filepath.Base(isrgRootX1URL)),
+		}, nil
 	}
 
 	return nil, trace.BadParameter("%v doesn't support automatic CA download", database)
@@ -319,6 +327,8 @@ func (d *realDownloader) Download(ctx context.Context, database types.Database, 
 		return nil, nil, trace.BadParameter("unknown Azure CA %q", hint)
 	case types.DatabaseTypeAWSKeyspaces:
 		return d.downloadFromURL(amazonKeyspacesCAURL)
+	case types.DatabaseTypeMongoAtlas:
+		return d.downloadFromURL(isrgRootX1URL)
 	}
 	return nil, nil, trace.BadParameter("%v doesn't support automatic CA download", database)
 }
@@ -343,6 +353,8 @@ func (d *realDownloader) GetVersion(ctx context.Context, database types.Database
 		return nil, trace.BadParameter("unknown Azure CA %q", hint)
 	case types.DatabaseTypeAWSKeyspaces:
 		return d.getVersionFromURL(database, amazonKeyspacesCAURL)
+	case types.DatabaseTypeMongoAtlas:
+		return d.getVersionFromURL(database, isrgRootX1URL)
 	}
 
 	return nil, trace.NotImplemented("%v doesn't support fetching CA version", database)
@@ -504,6 +516,13 @@ const (
 	// presented by AWS Keyspace. See:
 	// https://docs.aws.amazon.com/keyspaces/latest/devguide/using_go_driver.html
 	amazonKeyspacesCAURL = "https://certs.secureserver.net/repository/sf-class2-root.crt"
+
+	// isrgRootX1URL is the URL to download ISRG Root X1 CA for Let's Encrypt. See:
+	// https://letsencrypt.org/certificates/
+	//
+	// MongoDB Atlas uses certificates signed by Let's Encrypt:
+	// https://www.mongodb.com/docs/atlas/reference/faq/security/#which-certificate-authority-signs-mongodb-atlas-tls-certificates-
+	isrgRootX1URL = "https://letsencrypt.org/certs/isrgrootx1.pem"
 
 	// cloudSQLDownloadError is the error message that gets returned when
 	// we failed to download root certificate for Cloud SQL instance.

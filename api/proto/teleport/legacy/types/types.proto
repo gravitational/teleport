@@ -6752,6 +6752,23 @@ message InstallerParams {
   string PublicProxyAddr = 6 [(gogoproto.jsontag) = "proxy_addr,omitempty"];
   // Azure is the set of Azure-specific installation parameters.
   AzureInstallerParams Azure = 7 [(gogoproto.jsontag) = "azure,omitempty"];
+  // EnrollMode indicates the enrollment mode to be used when adding a node.
+  // Valid values:
+  // 0: uses eice for EC2 matchers which use an integration and script for all the other methods
+  // 1: uses script mode
+  // 2: uses eice mode
+  InstallParamEnrollMode EnrollMode = 8 [(gogoproto.jsontag) = "enroll_mode,omitempty"];
+}
+
+// InstallParamEnrollMode is the mode used to enroll the node into the cluster.
+enum InstallParamEnrollMode {
+  // INSTALL_PARAM_ENROLL_MODE_UNSPECIFIED uses the EICE mode for EC2 Matchers with an Integration and SCRIPT mode otherwise.
+  INSTALL_PARAM_ENROLL_MODE_UNSPECIFIED = 0;
+  // INSTALL_PARAM_ENROLL_MODE_SCRIPT runs a script on the target host.
+  INSTALL_PARAM_ENROLL_MODE_SCRIPT = 1;
+  // INSTALL_PARAM_ENROLL_MODE_EICE uses EC2 Instance Connect Endpoint to access the node and DiscoveryService handles the heartbeat.
+  // Only available for AWS EC2 instances.
+  INSTALL_PARAM_ENROLL_MODE_EICE = 2;
 }
 
 // AWSSSM provides options to use when executing SSM documents

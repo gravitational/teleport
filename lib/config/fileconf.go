@@ -80,6 +80,10 @@ type FileConfig struct {
 	// that defines the metrics service configuration
 	Metrics Metrics `yaml:"metrics_service,omitempty"`
 
+	// Debug is the "debug_service" section that defines the configuration for
+	// the Debug service.
+	Debug DebugService `yaml:"debug_service,omitempty"`
+
 	// WindowsDesktop is the "windows_desktop_service" that defines the
 	// configuration for Windows Desktop Access.
 	WindowsDesktop WindowsDesktopService `yaml:"windows_desktop_service,omitempty"`
@@ -466,6 +470,7 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 	conf.SSH.defaultEnabled = true
 	conf.Kube.defaultEnabled = false
 	conf.Okta.defaultEnabled = false
+	conf.Debug.defaultEnabled = true
 	if conf.Version == "" {
 		conf.Version = defaults.TeleportConfigVersionV1
 	}
@@ -1711,7 +1716,18 @@ type InstallParams struct {
 	PublicProxyAddr string `yaml:"public_proxy_addr,omitempty"`
 	// Azure is te set of installation parameters specific to Azure.
 	Azure *AzureInstallParams `yaml:"azure,omitempty"`
+	// EnrollMode indicates the mode used to enroll the node into Teleport.
+	// Valid values: script, eice.
+	// Optional.
+	EnrollMode string `yaml:"enroll_mode"`
 }
+
+const (
+	installEnrollModeEICE   = "eice"
+	installEnrollModeScript = "script"
+)
+
+var validInstallEnrollModes = []string{installEnrollModeEICE, installEnrollModeScript}
 
 func (ip *InstallParams) parse() (*types.InstallerParams, error) {
 	install := &types.InstallerParams{
@@ -1720,6 +1736,18 @@ func (ip *InstallParams) parse() (*types.InstallerParams, error) {
 		ScriptName:      ip.ScriptName,
 		InstallTeleport: true,
 		SSHDConfig:      ip.SSHDConfig,
+		EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_UNSPECIFIED,
+	}
+
+	switch ip.EnrollMode {
+	case installEnrollModeEICE:
+		install.EnrollMode = types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE
+	case installEnrollModeScript:
+		install.EnrollMode = types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT
+	case "":
+		install.EnrollMode = types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_UNSPECIFIED
+	default:
+		return nil, trace.BadParameter("enroll mode %q is invalid, valid values: %v", ip.EnrollMode, validInstallEnrollModes)
 	}
 
 	if ip.InstallTeleport == "" {
@@ -2295,6 +2323,12 @@ type Metrics struct {
 // MTLSEnabled returns whether mtls is enabled or not in the metrics service config.
 func (m *Metrics) MTLSEnabled() bool {
 	return len(m.KeyPairs) > 0 && len(m.CACerts) > 0
+}
+
+// DebugService is a `debug_service` section of the config file.
+type DebugService struct {
+	// Service is a generic service configuration section
+	Service `yaml:",inline"`
 }
 
 // WindowsDesktopService contains configuration for windows_desktop_service.

@@ -46,6 +46,7 @@ import (
 	"time"
 
 	awscredentials "github.com/aws/aws-sdk-go/aws/credentials"
+	awssession "github.com/aws/aws-sdk-go/aws/session"
 	"github.com/google/renameio/v2"
 	"github.com/google/uuid"
 	"github.com/gravitational/roundtrip"
@@ -111,6 +112,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/pgevents"
 	"github.com/gravitational/teleport/lib/events/s3sessions"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/joinserver"
@@ -138,6 +140,7 @@ import (
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/app"
 	"github.com/gravitational/teleport/lib/srv/db"
+	"github.com/gravitational/teleport/lib/srv/debug"
 	"github.com/gravitational/teleport/lib/srv/desktop"
 	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/srv/regular"
@@ -152,6 +155,7 @@ import (
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
 	uw "github.com/gravitational/teleport/lib/versioncontrol/upgradewindow"
 	"github.com/gravitational/teleport/lib/web"
+	webapp "github.com/gravitational/teleport/lib/web/app"
 )
 
 const (
@@ -1096,6 +1100,14 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		if err := process.initTracingService(); err != nil {
 			return nil, trace.Wrap(err)
 		}
+	}
+
+	if cfg.DebugService.Enabled {
+		if err := process.initDebugService(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		warnOnErr(process.ExitContext(), process.closeImportedDescriptors(teleport.ComponentDebug), process.logger)
 	}
 
 	// Create a process wide key generator that will be shared. This is so the
@@ -2476,10 +2488,14 @@ func (process *TeleportProcess) newLocalCacheForWindowsDesktop(clt auth.ClientI,
 
 // accessPointWrapper is a wrapper around auth.ClientI that reduces the surface area of the
 // auth.ClientI.DiscoveryConfigClient interface to services.DiscoveryConfigs.
-// Cache doesn't implement the full auth.ClientI interface, so we need to wrap auth.ClientI to
+// Cache doesn't implement the full auth.ClientI interface, so we need to wrap auth.ClientI
 // to make it compatible with the services.DiscoveryConfigs interface.
 type accessPointWrapper struct {
 	auth.ClientI
+}
+
+func (a accessPointWrapper) CrownJewelClient() services.CrownJewels {
+	return a.ClientI.CrownJewelServiceClient()
 }
 
 func (a accessPointWrapper) DiscoveryConfigClient() services.DiscoveryConfigs {
@@ -3283,6 +3299,47 @@ func (process *TeleportProcess) initDiagnosticService() error {
 
 	process.OnExit("diagnostic.shutdown", func(payload interface{}) {
 		warnOnErr(process.ExitContext(), muxListener.Close(), logger)
+		if payload == nil {
+			logger.InfoContext(process.ExitContext(), "Shutting down immediately.")
+			warnOnErr(process.ExitContext(), server.Close(), logger)
+		} else {
+			logger.InfoContext(process.ExitContext(), "Shutting down gracefully.")
+			ctx := payloadContext(payload)
+			warnOnErr(process.ExitContext(), server.Shutdown(ctx), logger)
+		}
+		logger.InfoContext(process.ExitContext(), "Exited.")
+	})
+
+	return nil
+}
+
+// initDebugService starts debug service serving endpoints used for
+// troubleshooting the instance.
+func (process *TeleportProcess) initDebugService() error {
+	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentDebug, process.id))
+
+	listener, err := process.importOrCreateListener(ListenerDebug, filepath.Join(process.Config.DataDir, teleport.DebugServiceSocketName))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	server := &http.Server{
+		Handler:           debug.NewServeMux(logger, process.Config),
+		ReadTimeout:       apidefaults.DefaultIOTimeout,
+		ReadHeaderTimeout: defaults.ReadHeadersTimeout,
+		WriteTimeout:      apidefaults.DefaultIOTimeout,
+		IdleTimeout:       apidefaults.DefaultIdleTimeout,
+	}
+
+	process.RegisterFunc("debug.service", func() error {
+		if err := server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			logger.WarnContext(process.ExitContext(), "Debug server exited with error.", "error", err)
+		}
+		return nil
+	})
+	warnOnErr(process.ExitContext(), process.closeImportedDescriptors(teleport.ComponentDebug), logger)
+
+	process.OnExit("debug.shutdown", func(payload interface{}) {
 		if payload == nil {
 			logger.InfoContext(process.ExitContext(), "Shutting down immediately.")
 			warnOnErr(process.ExitContext(), server.Close(), logger)
@@ -4157,6 +4214,85 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			accessGraphAddr = *addr
 		}
 
+		cn, err := conn.Client.GetClusterName()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		lockWatcher, err := services.NewLockWatcher(process.GracefulExitContext(), services.LockWatcherConfig{
+			ResourceWatcherConfig: services.ResourceWatcherConfig{
+				Component: teleport.ComponentWebProxy,
+				Log:       process.log,
+				Client:    conn.Client,
+				Clock:     process.Clock,
+			},
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
+			ClusterName: cn.GetClusterName(),
+			AccessPoint: accessPoint,
+			LockWatcher: lockWatcher,
+			Logger:      process.log,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		connMonitor, err := srv.NewConnectionMonitor(srv.ConnectionMonitorConfig{
+			AccessPoint:    accessPoint,
+			LockWatcher:    lockWatcher,
+			Clock:          process.Clock,
+			ServerID:       cfg.HostUUID,
+			Emitter:        asyncEmitter,
+			EmitterContext: process.GracefulExitContext(),
+			Logger:         process.log,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		awsSessionGetter := func(ctx context.Context, region, integration string) (*awssession.Session, error) {
+			if integration == "" {
+				return awsutils.SessionProviderUsingAmbientCredentials()(ctx, region, integration)
+			}
+
+			return awsoidc.NewSessionV1(ctx, conn.Client, region, integration)
+		}
+
+		connectionsHandler, err := app.NewConnectionsHandler(process.GracefulExitContext(), &app.ConnectionsHandlerConfig{
+			Clock:              process.Clock,
+			DataDir:            cfg.DataDir,
+			Emitter:            asyncEmitter,
+			Authorizer:         authorizer,
+			HostID:             cfg.HostUUID,
+			AuthClient:         conn.Client,
+			AccessPoint:        accessPoint,
+			TLSConfig:          serverTLSConfig,
+			ConnectionMonitor:  connMonitor,
+			CipherSuites:       cfg.CipherSuites,
+			ServiceComponent:   teleport.ComponentWebProxy,
+			AWSSessionProvider: awsSessionGetter,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		connectionsHandler.SetApplicationsProvider(func(ctx context.Context, publicAddr string) (types.Application, error) {
+			allAppServers, err := accessPoint.GetApplicationServers(ctx, apidefaults.Namespace)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			publicAddressMatches := webapp.MatchPublicAddr(publicAddr)
+			for _, a := range allAppServers {
+				if publicAddressMatches(ctx, a) {
+					return a.GetApp(), nil
+				}
+			}
+			return nil, trace.NotFound("no app found for endpoint %q", publicAddr)
+		})
+
 		webConfig := web.Config{
 			Proxy:            tsrv,
 			AuthServers:      cfg.AuthServerAddresses()[0],
@@ -4195,6 +4331,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			AccessGraphAddr:           accessGraphAddr,
 			TracerProvider:            process.TracingProvider,
 			AutomaticUpgradesChannels: cfg.Proxy.AutomaticUpgradesChannels,
+			IntegrationAppHandler:     connectionsHandler,
 		}
 		webHandler, err := web.NewHandler(webConfig)
 		if err != nil {
@@ -4681,7 +4818,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 					alpncommon.ProtocolRedisDB,
 					alpncommon.ProtocolSnowflake,
 					alpncommon.ProtocolSQLServer,
-					alpncommon.ProtocolCassandra),
+					alpncommon.ProtocolCassandra,
+					alpncommon.ProtocolSpanner,
+				),
 			})
 		}
 

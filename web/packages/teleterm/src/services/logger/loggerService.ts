@@ -182,7 +182,12 @@ function stringifier(message: unknown[]): string {
         return singleMessage.stack;
       }
       if (isObject(singleMessage)) {
-        return JSON.stringify(singleMessage);
+        return JSON.stringify(
+          singleMessage,
+          // BigInt is not serializable with JSON.stringify
+          // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/BigInt#use_within_json
+          (_, value) => (typeof value === 'bigint' ? `${value}n` : value)
+        );
       }
       return singleMessage;
     })
