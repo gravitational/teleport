@@ -234,6 +234,25 @@ type TestAuthServer struct {
 	LockWatcher *services.LockWatcher
 }
 
+// FakeRecoverCodeGenerator is a [RecoveryCodeGenerator] that returns
+// uuids for codes.
+type FakeRecoverCodeGenerator struct{}
+
+// Generate returns a slice populated with uuids.
+func (FakeRecoverCodeGenerator) Generate(numWords int) ([]string, error) {
+	out := make([]string, 0, numWords)
+	for i := 0; i < numWords; i++ {
+		u, err := uuid.NewRandom()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		out = append(out, u.String())
+	}
+
+	return out, nil
+}
+
 // NewTestAuthServer returns new instances of Auth server
 func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	ctx := context.Background()
@@ -302,9 +321,10 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 				RSAKeyPairSource: authority.New().GenerateKeyPair,
 			},
 		},
-		EmbeddingRetriever: ai.NewSimpleRetriever(),
-		HostUUID:           uuid.New().String(),
-		AccessLists:        accessLists,
+		EmbeddingRetriever:    ai.NewSimpleRetriever(),
+		HostUUID:              uuid.New().String(),
+		AccessLists:           accessLists,
+		RecoveryCodeGenerator: FakeRecoverCodeGenerator{},
 	},
 		WithClock(cfg.Clock),
 		WithEmbedder(cfg.Embedder),

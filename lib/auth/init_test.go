@@ -1002,7 +1002,8 @@ func setupConfig(t *testing.T) InitConfig {
 				RSAKeyPairSource: testauthority.New().GenerateKeyPair,
 			},
 		},
-		Tracer: tracing.NoopTracer(teleport.ComponentAuth),
+		Tracer:                tracing.NoopTracer(teleport.ComponentAuth),
+		RecoveryCodeGenerator: FakeRecoverCodeGenerator{},
 	}
 }
 

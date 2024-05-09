@@ -119,6 +119,7 @@ func newTestPack(
 				RSAKeyPairSource: testauthority.New().GenerateKeyPair,
 			},
 		},
+		RecoveryCodeGenerator: FakeRecoverCodeGenerator{},
 	}
 	p.a, err = NewServer(authConfig, opts...)
 	if err != nil {
@@ -982,6 +983,7 @@ func TestUpdateConfig(t *testing.T) {
 				RSAKeyPairSource: testauthority.New().GenerateKeyPair,
 			},
 		},
+		RecoveryCodeGenerator: FakeRecoverCodeGenerator{},
 	}
 	authServer, err := NewServer(authConfig)
 	require.NoError(t, err)

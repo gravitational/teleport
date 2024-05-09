@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/sethvargo/go-diceware/diceware"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/otel/attribute"
@@ -1850,6 +1851,11 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 
+	recoveryCodeGenerator, err := diceware.NewGenerator(nil /* use default word list */)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// first, create the AuthServer
 	authServer, err := auth.Init(
 		process.ExitContext(),
@@ -1895,6 +1901,7 @@ func (process *TeleportProcess) initAuthService() error {
 			EmbeddingClient:         embedderClient,
 			Tracer:                  process.TracingProvider.Tracer(teleport.ComponentAuth),
 			CloudClients:            cloudClients,
+			RecoveryCodeGenerator:   recoveryCodeGenerator,
 		}, func(as *auth.Server) error {
 			if !process.Config.CachePolicy.Enabled {
 				return nil
