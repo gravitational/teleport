@@ -805,7 +805,6 @@ func genInstancesLogStr[T any](instances []T, getID func(T) string) string {
 }
 
 func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
-	// TODO(marco): support AWS SSM Client backed by an integration
 	serverInfos, err := instances.ServerInfos()
 	if err != nil {
 		return trace.Wrap(err)
@@ -825,13 +824,16 @@ func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
 		return trace.NotFound("all fetched nodes already enrolled")
 	}
 
-	switch {
-	case instances.Integration != "":
+	switch instances.EnrollMode {
+	case types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE:
 		s.heartbeatEICEInstance(instances)
-	default:
+
+	case types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT:
 		if err := s.handleEC2RemoteInstallation(instances); err != nil {
 			return trace.Wrap(err)
 		}
+	default:
+		return trace.BadParameter("invalid enroll mode for ec2 instance: %q", instances.EnrollMode.String())
 	}
 
 	if err := s.emitUsageEvents(instances.MakeEvents()); err != nil {
@@ -902,7 +904,10 @@ func (s *Server) heartbeatEICEInstance(instances *server.EC2Instances) {
 
 func (s *Server) handleEC2RemoteInstallation(instances *server.EC2Instances) error {
 	// TODO(gavin): support assume_role_arn for ec2.
-	ec2Client, err := s.CloudClients.GetAWSSSMClient(s.ctx, instances.Region, cloud.WithAmbientCredentials())
+	ec2Client, err := s.CloudClients.GetAWSSSMClient(s.ctx,
+		instances.Region,
+		cloud.WithCredentialsMaybeIntegration(instances.Integration),
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}

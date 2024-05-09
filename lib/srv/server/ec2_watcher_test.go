@@ -163,6 +163,7 @@ func TestEC2Watcher(t *testing.T) {
 			SSM:     &types.AWSSSM{},
 		},
 		{
+			Params:      &types.InstallerParams{},
 			Types:       []string{"EC2"},
 			Regions:     []string{"us-west-2"},
 			Tags:        map[string]utils.Strings{"with-eice": {"please"}},
