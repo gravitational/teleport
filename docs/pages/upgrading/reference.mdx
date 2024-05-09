@@ -103,8 +103,8 @@ $ teleport-upgrade force
    $ sudo chown <Var name="your-teleport-user" /> /etc/teleport-upgrade.d/schedule
    ```
    
-1. Configure the upgrader to connect to your custom version server and subscribe
-   to the right release channel:
+1. Configure the upgrader to connect to your version server and subscribe to the
+   right release channel:
    
    ```code
    $ echo "<Var name="teleport.example.com:443" />/v1/webapi/automaticupgrades/channel/default" | sudo tee /etc/teleport-upgrade.d/endpoint
@@ -113,6 +113,18 @@ $ teleport-upgrade force
    Make sure not to include `https://` as a prefix to the server address, nor
    suffix the endpoint with `/version`.
 
+### Choosing a release channel
+
+When [configuring the updater](#configuring-the-teleport-upgrade-tool), you can
+select a release channel. 
+
+The following channels are available for APT, YUM, and Zypper repos:
+
+| Channel name      | Description                                                                                |
+|-------------------|--------------------------------------------------------------------------------------------|
+| `stable/<major>`  | Receives releases for the specified major release line, i.e. `v(=teleport.major_version=)` |
+| `stable/cloud`    | Rolling channel that receives releases compatible with current Cloud version               |
+| `stable/rolling`  | Rolling channel that receives all published Teleport releases                              |
 ### Updating the updater
 
 The updater is designed to be minimal and relatively stable, but the updater will
