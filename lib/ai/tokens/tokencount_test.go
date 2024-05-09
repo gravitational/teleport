@@ -69,7 +69,7 @@ func TestAsynchronousTokenCounter_TokenCount(t *testing.T) {
 			require.NoError(t, err)
 			tokens := countTokens(tt.completionEnd)
 
-			for range tokens {
+			for i := 0; i < tokens; i++ {
 				require.NoError(t, tc.Add())
 			}
 
