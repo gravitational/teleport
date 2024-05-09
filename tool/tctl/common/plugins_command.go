@@ -201,6 +201,8 @@ func (p *PluginsCommand) InstallSCIM(ctx context.Context, client *auth.Client) e
 		return trace.Wrap(err)
 	}
 
+	scimBaseURL := fmt.Sprintf("https://%s/v1/webapi/scim/%s", info.ProxyPublicAddr, p.install.name)
+
 	scimTokenHash, err := bcrypt.GenerateFromPassword([]byte(p.install.scim.token), bcrypt.DefaultCost)
 	if err != nil {
 		return trace.Wrap(err)
@@ -234,6 +236,7 @@ func (p *PluginsCommand) InstallSCIM(ctx context.Context, client *auth.Client) e
 			Metadata: types.Metadata{
 				Labels: map[string]string{
 					types.HostedPluginLabel: "true",
+					types.SCIMBaseURLLabel:  scimBaseURL,
 				},
 				Name: p.install.name,
 			},
@@ -267,7 +270,7 @@ func (p *PluginsCommand) InstallSCIM(ctx context.Context, client *auth.Client) e
 	}
 
 	fmt.Printf("Successfully created SCIM plugin %q\n", p.install.name)
-	fmt.Printf("SCIM base URL: https://%s/v1/webapi/scim/%s\n", info.ProxyPublicAddr, p.install.name)
+	fmt.Printf("SCIM base URL: %s\n", scimBaseURL)
 
 	if connector == nil {
 		return nil

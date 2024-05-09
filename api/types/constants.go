@@ -1240,3 +1240,9 @@ const (
 	// rather than self-hosted plugin services.
 	HostedPluginLabel = TeleportNamespace + "/hosted-plugin"
 )
+
+const (
+	// SCIMBaseURLLabel defines a label indicating the base URL for
+	// interacting with a plugin via SCIM. Useful for diagnostic display.
+	SCIMBaseURLLabel = TeleportNamespace + "/scim-base-url"
+)
