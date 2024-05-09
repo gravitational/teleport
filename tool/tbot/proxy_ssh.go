@@ -177,6 +177,7 @@ func onProxySSHCommand(botConfig *config.BotConfig, cf *config.CLIConf) error {
 			SearchKeywords:      ParseSearchKeywords(expanded.Search, ','),
 			PredicateExpression: expanded.Query,
 		})
+		_ = apiClient.Close()
 		if err != nil {
 			return trace.Wrap(err)
 		}
