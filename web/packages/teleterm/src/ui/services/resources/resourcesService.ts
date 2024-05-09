@@ -230,28 +230,24 @@ export class AmbiguousHostnameError extends Error {
 export class ResourceSearchError extends Error {
   constructor(
     public clusterUri: uri.ClusterUri,
-    public resourceKind: SearchResult['kind'],
     cause: Error | TshdRpcError
   ) {
-    super(
-      `Error while fetching resources of type ${resourceKind} from cluster ${clusterUri}`,
-      { cause }
-    );
+    super(`Error while fetching resources from cluster ${clusterUri}`, {
+      cause,
+    });
     this.name = 'ResourceSearchError';
     this.clusterUri = clusterUri;
-    this.resourceKind = resourceKind;
   }
 
   messageWithClusterName(
     getClusterName: (resourceUri: uri.ClusterOrResourceUri) => string,
     opts = { capitalize: true }
   ) {
-    const resource = pluralize(2, this.resourceKind);
     const cluster = getClusterName(this.clusterUri);
 
     return `${
       opts.capitalize ? 'Could' : 'could'
-    } not fetch ${resource} from ${cluster}`;
+    } not fetch resources from ${cluster}`;
   }
 
   messageAndCauseWithClusterName(

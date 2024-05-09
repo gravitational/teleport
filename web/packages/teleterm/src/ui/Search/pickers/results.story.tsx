@@ -534,7 +534,6 @@ const AuxiliaryItems = () => {
             errors={[
               new ResourceSearchError(
                 '/clusters/foo',
-                'server',
                 new Error(
                   '14 UNAVAILABLE: connection error: desc = "transport: authentication handshake failed: EOF"'
                 )
@@ -548,7 +547,6 @@ const AuxiliaryItems = () => {
             errors={[
               new ResourceSearchError(
                 '/clusters/bar',
-                'database',
                 new Error(
                   '2 UNKNOWN: Unable to connect to ssh proxy at teleport.local:443. Confirm connectivity and availability.\n	dial tcp: lookup teleport.local: no such host'
                 )
