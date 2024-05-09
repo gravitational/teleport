@@ -42,7 +42,7 @@ import (
 
 const (
 	maxGRPCAccessGraphMessageSize = 20 * 1024 * 1024 // 20MB
-	// 	accessGraphStaticPathPrefix  is the prefix for static files served by the access graph.
+	// accessGraphStaticPathPrefix is the prefix for static files served by the access graph.
 	// We use it to distinguish between static files and the query endpoint since
 	// the static files aren't authenticated.
 	accessGraphStaticPathPrefix = "/static"

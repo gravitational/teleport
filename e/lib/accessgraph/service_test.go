@@ -92,7 +92,7 @@ func (s *serviceFake) GetFile(_ context.Context, _ *accessgraphv1alpha.GetFileRe
 	return &accessgraphv1alpha.GetFileResponse{}, nil
 }
 
-func (s *serviceFake) EventsStream(_ context.Context, _ ...grpc.CallOption) (accessgraphv1alpha.AccessGraphService_EventsStreamClient, error) {
+func (s *serviceFake) EventsStreamV2(_ context.Context, _ ...grpc.CallOption) (accessgraphv1alpha.AccessGraphService_EventsStreamV2Client, error) {
 	s.calledFunctions["EventsStream"]++
 	return nil, nil
 }

@@ -34,15 +34,19 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
+	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	accesslistv1conv "github.com/gravitational/teleport/api/types/accesslist/convert/v1"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	legacy_header "github.com/gravitational/teleport/api/types/header/convert/legacy"
 	headerv1 "github.com/gravitational/teleport/api/types/header/convert/v1"
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -87,7 +91,7 @@ func initializeAndWatchAccessGraph(ctx context.Context, log *slog.Logger, config
 			defer accessGraphConn.Close()
 			client := accessgraphv1.NewAccessGraphServiceClient(accessGraphConn)
 
-			stream, err := client.EventsStream(ctx)
+			stream, err := client.EventsStreamV2(ctx)
 			if err != nil {
 				log.ErrorContext(ctx, "Failed to get access graph service stream", "error", err)
 				return trace.Wrap(err)
@@ -108,6 +112,25 @@ func initializeAndWatchAccessGraph(ctx context.Context, log *slog.Logger, config
 
 			newCtx, cancel := context.WithCancel(ctx)
 			defer cancel()
+
+			go func() {
+				defer cancel()
+
+				for {
+					obj, err := stream.Recv()
+					if err != nil {
+						if errors.Is(err, context.Canceled) {
+							log.InfoContext(ctx, "access graph service connection was closed", "error", err)
+						} else {
+							log.ErrorContext(ctx, "Failed to receive message from access graph service", "error", err)
+						}
+						return
+					}
+
+					processTAGMessage(ctx, obj, authServer, log)
+				}
+			}()
+
 			// Start a goroutine to watch the access graph service connection state.
 			// If the connection is closed, cancel the context to stop the event watcher
 			// before it tries to send any events to the access graph service.
@@ -170,6 +193,49 @@ func initializeAndWatchAccessGraph(ctx context.Context, log *slog.Logger, config
 	return trace.Wrap(err)
 }
 
+type eventSender interface {
+	EmitAuditEvent(ctx context.Context, e apievents.AuditEvent) error
+}
+
+func processTAGMessage(ctx context.Context, obj *accessgraphv1.EventsStreamV2Response, authServer eventSender, log *slog.Logger) {
+	switch o := obj.Action.(type) {
+	case *accessgraphv1.EventsStreamV2Response_Event:
+		event := convertEvent(o.Event)
+		if event == nil {
+			log.WarnContext(ctx, "Received unknown event type from access graph service", "event", obj)
+			return
+		}
+
+		if err := authServer.EmitAuditEvent(ctx, event); err != nil {
+			log.ErrorContext(ctx, "Failed to emit Crown Jewel update event")
+		}
+	default:
+		log.WarnContext(ctx, "Received unknown event type from access graph service", "event", obj)
+	}
+}
+
+func convertEvent(event *accessgraphv1.AuditEvent) apievents.AuditEvent {
+	var tEvent apievents.AuditEvent
+
+	switch e := event.Event.(type) {
+	case *accessgraphv1.AuditEvent_AccessPathChanged:
+		data := e.AccessPathChanged
+		tEvent = &apievents.AccessPathChanged{
+			Metadata: apievents.Metadata{
+				Type: events.AccessGraphAccessPathChanged,
+				Code: events.AccessGraphAccessPathChangedCode,
+			},
+			ChangeID:               data.ChangeId,
+			AffectedResourceName:   data.AffectedResourceName,
+			AffectedResourceSource: data.AffectedResourceSource,
+		}
+	default:
+		return nil
+	}
+
+	return tEvent
+}
+
 func supportedKindsToWatcherKinds(supportedKinds []string) []types.WatchKind {
 	var observedKinds []types.WatchKind
 	for _, kind := range supportedKinds {
@@ -228,7 +294,7 @@ func newTagEventWatcher(ctx context.Context, stream accessGraphSender) *tagEvent
 }
 
 // sendTeleportResources sends all teleport resources to the access graph service.
-func sendTeleportResources(ctx context.Context, stream accessgraphv1.AccessGraphService_EventsStreamClient, authServer *auth.Server, serverSupportedKinds []string) error {
+func sendTeleportResources(ctx context.Context, stream accessgraphv1.AccessGraphService_EventsStreamV2Client, authServer *auth.Server, serverSupportedKinds []string) error {
 	if slices.Contains(serverSupportedKinds, types.KindRole) {
 		if err := sendRoles(ctx, authServer.Cache, stream); err != nil {
 			return trace.Wrap(err)
@@ -243,6 +309,12 @@ func sendTeleportResources(ctx context.Context, stream accessgraphv1.AccessGraph
 
 	if slices.Contains(serverSupportedKinds, types.KindAccessRequest) {
 		if err := sendAccessRequests(ctx, authServer, stream); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	if slices.Contains(serverSupportedKinds, types.KindCrownJewel) {
+		if err := sendCrownJewels(ctx, authServer.Cache, stream); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -278,8 +350,8 @@ func sendTeleportResources(ctx context.Context, stream accessgraphv1.AccessGraph
 	}
 	// Send end event to indicate that initialization is done.
 	err := stream.Send(
-		&accessgraphv1.EventsStreamRequest{
-			Operation: &accessgraphv1.EventsStreamRequest_Sync{
+		&accessgraphv1.EventsStreamV2Request{
+			Operation: &accessgraphv1.EventsStreamV2Request_Sync{
 				Sync: &accessgraphv1.SyncOperation{},
 			},
 		},
@@ -289,7 +361,6 @@ func sendTeleportResources(ctx context.Context, stream accessgraphv1.AccessGraph
 
 // forwardEventsWatch starts watching the auth server for events and sends them to the access graph service.
 func forwardEventsWatch(watcher types.Watcher, eventWatcher *tagEventWatcher) error {
-
 	for {
 		select {
 		case event := <-watcher.Events():
@@ -309,7 +380,7 @@ func forwardEventsWatch(watcher types.Watcher, eventWatcher *tagEventWatcher) er
 // sendUsers sends all users to the access graph service.
 func sendUsers(ctx context.Context, authServer interface {
 	ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
-}, stream accessgraphv1.AccessGraphService_EventsStreamClient) error {
+}, stream accessgraphv1.AccessGraphService_EventsStreamV2Client) error {
 	req := userspb.ListUsersRequest{
 		PageSize: apidefaults.DefaultChunkSize,
 	}
@@ -333,7 +404,32 @@ func sendUsers(ctx context.Context, authServer interface {
 	return nil
 }
 
-func pushUsersToTAG(ctx context.Context, stream accessgraphv1.AccessGraphService_EventsStreamClient, users []*types.UserV2) error {
+func sendCrownJewels(ctx context.Context, authServer interface {
+	ListCrownJewels(ctx context.Context, pageSize int64, nextToken string) ([]*crownjewelv1.CrownJewel, string, error)
+}, stream accessgraphv1.AccessGraphService_EventsStreamV2Client) error {
+	nextToken := ""
+
+	for {
+		crownJewels, token, err := authServer.ListCrownJewels(ctx, 0, nextToken)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if err := pushCrownJewelsToTAG(ctx, stream, crownJewels); err != nil {
+			return trace.Wrap(err)
+		}
+
+		if token == "" {
+			break
+		}
+
+		nextToken = token
+	}
+
+	return nil
+}
+
+func pushUsersToTAG(ctx context.Context, stream accessgraphv1.AccessGraphService_EventsStreamV2Client, users []*types.UserV2) error {
 	if len(users) == 0 {
 		return nil
 	}
@@ -345,8 +441,27 @@ func pushUsersToTAG(ctx context.Context, stream accessgraphv1.AccessGraphService
 			},
 		})
 	}
-	return trace.Wrap(stream.Send(&accessgraphv1.EventsStreamRequest{
-		Operation: &accessgraphv1.EventsStreamRequest_Upsert{
+	return trace.Wrap(stream.Send(&accessgraphv1.EventsStreamV2Request{
+		Operation: &accessgraphv1.EventsStreamV2Request_Upsert{
+			Upsert: list,
+		},
+	}))
+}
+
+func pushCrownJewelsToTAG(ctx context.Context, stream accessgraphv1.AccessGraphService_EventsStreamV2Client, crownJewels []*crownjewelv1.CrownJewel) error {
+	if len(crownJewels) == 0 {
+		return nil
+	}
+	list := &accessgraphv1.ResourceList{}
+	for _, crownJewel := range crownJewels {
+		list.Resources = append(list.Resources, &accessgraphv1.ResourceEntry{
+			Resource: &accessgraphv1.ResourceEntry_CrownJewel{
+				CrownJewel: crownJewel,
+			},
+		})
+	}
+	return trace.Wrap(stream.Send(&accessgraphv1.EventsStreamV2Request{
+		Operation: &accessgraphv1.EventsStreamV2Request_Upsert{
 			Upsert: list,
 		},
 	}))
@@ -355,7 +470,7 @@ func pushUsersToTAG(ctx context.Context, stream accessgraphv1.AccessGraphService
 // sendRoles sends all roles to the access graph service.
 func sendRoles(ctx context.Context, authServer interface {
 	GetRoles(context.Context) ([]types.Role, error)
-}, stream accessgraphv1.AccessGraphService_EventsStreamClient) error {
+}, stream accessgraphv1.AccessGraphService_EventsStreamV2Client) error {
 	// Get all roles.
 	// Auth server does not support pagination for roles, so we have to get all roles at once
 	// and we chunk them after.
@@ -378,7 +493,7 @@ func sendRoles(ctx context.Context, authServer interface {
 	return nil
 }
 
-func pushRolesToTAG(ctx context.Context, stream accessgraphv1.AccessGraphService_EventsStreamClient, roles []types.Role) error {
+func pushRolesToTAG(ctx context.Context, stream accessgraphv1.AccessGraphService_EventsStreamV2Client, roles []types.Role) error {
 	if len(roles) == 0 {
 		return nil
 	}
@@ -394,8 +509,8 @@ func pushRolesToTAG(ctx context.Context, stream accessgraphv1.AccessGraphService
 			},
 		})
 	}
-	return trace.Wrap(stream.Send(&accessgraphv1.EventsStreamRequest{
-		Operation: &accessgraphv1.EventsStreamRequest_Upsert{
+	return trace.Wrap(stream.Send(&accessgraphv1.EventsStreamV2Request{
+		Operation: &accessgraphv1.EventsStreamV2Request_Upsert{
 			Upsert: list,
 		},
 	}))
@@ -405,7 +520,7 @@ func pushRolesToTAG(ctx context.Context, stream accessgraphv1.AccessGraphService
 func sendAccessLists(ctx context.Context, authServer interface {
 	ListAccessLists(context.Context, int, string) ([]*accesslist.AccessList, string, error)
 	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
-}, stream accessgraphv1.AccessGraphService_EventsStreamClient) error {
+}, stream accessgraphv1.AccessGraphService_EventsStreamV2Client) error {
 	startToken := ""
 	limit := 0 // use default limit
 
@@ -434,7 +549,7 @@ func sendAccessLists(ctx context.Context, authServer interface {
 	return nil
 }
 
-func pushAccessListsToTAG(ctx context.Context, stream accessgraphv1.AccessGraphService_EventsStreamClient, accessLists []*accesslist.AccessList) error {
+func pushAccessListsToTAG(ctx context.Context, stream accessgraphv1.AccessGraphService_EventsStreamV2Client, accessLists []*accesslist.AccessList) error {
 	if len(accessLists) == 0 {
 		return nil
 	}
@@ -446,8 +561,8 @@ func pushAccessListsToTAG(ctx context.Context, stream accessgraphv1.AccessGraphS
 			},
 		})
 	}
-	return trace.Wrap(stream.Send(&accessgraphv1.EventsStreamRequest{
-		Operation: &accessgraphv1.EventsStreamRequest_Upsert{
+	return trace.Wrap(stream.Send(&accessgraphv1.EventsStreamV2Request{
+		Operation: &accessgraphv1.EventsStreamV2Request_Upsert{
 			Upsert: list,
 		},
 	}))
@@ -455,7 +570,7 @@ func pushAccessListsToTAG(ctx context.Context, stream accessgraphv1.AccessGraphS
 
 func sendAccessListMembers(ctx context.Context, authServer interface {
 	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
-}, stream accessgraphv1.AccessGraphService_EventsStreamClient, accessList *accesslist.AccessList) error {
+}, stream accessgraphv1.AccessGraphService_EventsStreamV2Client, accessList *accesslist.AccessList) error {
 	startToken := ""
 	limit := 0 // use default limit
 
@@ -479,7 +594,7 @@ func sendAccessListMembers(ctx context.Context, authServer interface {
 	return nil
 }
 
-func pushAccessListMembersToTAG(ctx context.Context, stream accessgraphv1.AccessGraphService_EventsStreamClient, accessListMembers []*accesslist.AccessListMember) error {
+func pushAccessListMembersToTAG(ctx context.Context, stream accessgraphv1.AccessGraphService_EventsStreamV2Client, accessListMembers []*accesslist.AccessListMember) error {
 	if len(accessListMembers) == 0 {
 		return nil
 	}
@@ -489,15 +604,15 @@ func pushAccessListMembersToTAG(ctx context.Context, stream accessgraphv1.Access
 			list.Members, accesslistv1conv.ToMemberProto(accessListMember),
 		)
 	}
-	return trace.Wrap(stream.Send(&accessgraphv1.EventsStreamRequest{
-		Operation: &accessgraphv1.EventsStreamRequest_AccessListsMembers{
+	return trace.Wrap(stream.Send(&accessgraphv1.EventsStreamV2Request{
+		Operation: &accessgraphv1.EventsStreamV2Request_AccessListsMembers{
 			AccessListsMembers: list,
 		},
 	}))
 }
 
 // sendAccessRequests sends all access requests to the access graph service.
-func sendAccessRequests(ctx context.Context, authServer services.AccessRequestGetter, stream accessgraphv1.AccessGraphService_EventsStreamClient) error {
+func sendAccessRequests(ctx context.Context, authServer services.AccessRequestGetter, stream accessgraphv1.AccessGraphService_EventsStreamV2Client) error {
 	requests, err := authServer.GetAccessRequests(ctx, types.AccessRequestFilter{})
 	if err != nil {
 		return trace.Wrap(err)
@@ -517,7 +632,7 @@ func sendAccessRequests(ctx context.Context, authServer services.AccessRequestGe
 	return nil
 }
 
-func pushAccessRequestToTAG(ctx context.Context, stream accessgraphv1.AccessGraphService_EventsStreamClient, accessRequests []types.AccessRequest) error {
+func pushAccessRequestToTAG(ctx context.Context, stream accessgraphv1.AccessGraphService_EventsStreamV2Client, accessRequests []types.AccessRequest) error {
 	if len(accessRequests) == 0 {
 		return nil
 	}
@@ -536,15 +651,15 @@ func pushAccessRequestToTAG(ctx context.Context, stream accessgraphv1.AccessGrap
 			},
 		)
 	}
-	return trace.Wrap(stream.Send(&accessgraphv1.EventsStreamRequest{
-		Operation: &accessgraphv1.EventsStreamRequest_Upsert{
+	return trace.Wrap(stream.Send(&accessgraphv1.EventsStreamV2Request{
+		Operation: &accessgraphv1.EventsStreamV2Request_Upsert{
 			Upsert: list,
 		},
 	}))
 }
 
 type accessGraphSender interface {
-	Send(*accessgraphv1.EventsStreamRequest) error
+	Send(request *accessgraphv1.EventsStreamV2Request) error
 }
 
 type tagEventWatcher struct {
@@ -623,9 +738,9 @@ func (t *tagEventWatcher) markReady() error {
 }
 
 func (t *tagEventWatcher) sendDelete(event *proto.Event) error {
-	deleteEventStreamRequest := func(header *types.ResourceHeader) *accessgraphv1.EventsStreamRequest {
-		return &accessgraphv1.EventsStreamRequest{
-			Operation: &accessgraphv1.EventsStreamRequest_Delete{
+	deleteEventStreamRequest := func(header *types.ResourceHeader) *accessgraphv1.EventsStreamV2Request {
+		return &accessgraphv1.EventsStreamV2Request{
+			Operation: &accessgraphv1.EventsStreamV2Request_Delete{
 				Delete: &accessgraphv1.ResourceHeaderList{
 					Resources: []*types.ResourceHeader{
 						header,
@@ -634,7 +749,7 @@ func (t *tagEventWatcher) sendDelete(event *proto.Event) error {
 			},
 		}
 	}
-	var req *accessgraphv1.EventsStreamRequest
+	var req *accessgraphv1.EventsStreamV2Request
 	switch resource := event.Resource.(type) {
 	case *proto.Event_User:
 		req = deleteEventStreamRequest(
@@ -717,8 +832,8 @@ func (t *tagEventWatcher) sendDelete(event *proto.Event) error {
 		)
 	case *proto.Event_AccessListMember:
 		// Access list member uses a different header format.
-		req = &accessgraphv1.EventsStreamRequest{
-			Operation: &accessgraphv1.EventsStreamRequest_ExcludeAccessListMembers{
+		req = &accessgraphv1.EventsStreamV2Request{
+			Operation: &accessgraphv1.EventsStreamV2Request_ExcludeAccessListMembers{
 				ExcludeAccessListMembers: &accessgraphv1.ExcludeAccessListsMembers{
 					Members: []*accessgraphv1.ExcludeAccessListMember{
 						{
@@ -729,6 +844,14 @@ func (t *tagEventWatcher) sendDelete(event *proto.Event) error {
 				},
 			},
 		}
+	case *proto.Event_CrownJewel:
+		req = deleteEventStreamRequest(
+			&types.ResourceHeader{
+				Kind:     resource.CrownJewel.Kind,
+				Version:  resource.CrownJewel.Version,
+				Metadata: fromProtoMetadataToTypes(resource.CrownJewel.Metadata),
+			},
+		)
 	default:
 		return trace.BadParameter("unexpected resource type: %T", resource)
 	}
@@ -739,10 +862,29 @@ func (t *tagEventWatcher) sendDelete(event *proto.Event) error {
 	return trace.Wrap(err)
 }
 
+func fromProtoMetadataToTypes(metadata *v1.Metadata) types.Metadata {
+	return types.Metadata{
+		ID:          metadata.GetId(), //nolint: staticcheck // deprecated or not, we need to support it
+		Name:        metadata.GetName(),
+		Namespace:   metadata.GetNamespace(),
+		Description: metadata.GetDescription(),
+		Labels:      metadata.GetLabels(),
+		Revision:    metadata.GetRevision(),
+		Expires:     timePtr(metadata.GetExpires().AsTime()),
+	}
+}
+
+func timePtr(asTime time.Time) *time.Time {
+	if asTime.IsZero() {
+		return nil
+	}
+	return &asTime
+}
+
 func (t *tagEventWatcher) sendPut(event *proto.Event) (err error) {
-	putResourceEventStreamRequest := func(resources ...*accessgraphv1.ResourceEntry) *accessgraphv1.EventsStreamRequest {
-		return &accessgraphv1.EventsStreamRequest{
-			Operation: &accessgraphv1.EventsStreamRequest_Upsert{
+	putResourceEventStreamRequest := func(resources ...*accessgraphv1.ResourceEntry) *accessgraphv1.EventsStreamV2Request {
+		return &accessgraphv1.EventsStreamV2Request{
+			Operation: &accessgraphv1.EventsStreamV2Request_Upsert{
 				Upsert: &accessgraphv1.ResourceList{
 					Resources: resources,
 				},
@@ -750,13 +892,22 @@ func (t *tagEventWatcher) sendPut(event *proto.Event) (err error) {
 		}
 	}
 
-	var req *accessgraphv1.EventsStreamRequest
+	var req *accessgraphv1.EventsStreamV2Request
 	switch resource := event.Resource.(type) {
 	case *proto.Event_User:
 		req = putResourceEventStreamRequest(
 			&accessgraphv1.ResourceEntry{
 				Resource: &accessgraphv1.ResourceEntry_User{
 					User: resource.User,
+				},
+			},
+		)
+
+	case *proto.Event_CrownJewel:
+		req = putResourceEventStreamRequest(
+			&accessgraphv1.ResourceEntry{
+				Resource: &accessgraphv1.ResourceEntry_CrownJewel{
+					CrownJewel: resource.CrownJewel,
 				},
 			},
 		)
@@ -825,8 +976,8 @@ func (t *tagEventWatcher) sendPut(event *proto.Event) (err error) {
 			},
 		)
 	case *proto.Event_AccessListMember:
-		req = &accessgraphv1.EventsStreamRequest{
-			Operation: &accessgraphv1.EventsStreamRequest_AccessListsMembers{
+		req = &accessgraphv1.EventsStreamV2Request{
+			Operation: &accessgraphv1.EventsStreamV2Request_AccessListsMembers{
 				AccessListsMembers: &accessgraphv1.AccessListsMembers{
 					Members: []*accesslistv1.Member{resource.AccessListMember},
 				},
@@ -852,7 +1003,7 @@ func resourceHeaderFromMetadata(kind, version string, t interface{ GetMetadata()
 
 // pushResourcesViaUnifiedResourcesCache pushes resources to the access graph service via the unified resources cache.
 // It iterates over all resources in the unified resources cache whose kinds match [kinds] and pushes them to the access graph service.
-func pushResourcesViaUnifiedResourcesCache(ctx context.Context, authServer *auth.Server, stream accessgraphv1.AccessGraphService_EventsStreamClient, kinds ...string) error {
+func pushResourcesViaUnifiedResourcesCache(ctx context.Context, authServer *auth.Server, stream accessgraphv1.AccessGraphService_EventsStreamV2Client, kinds ...string) error {
 	set := utils.StringsSet(kinds)
 	req := &proto.ListUnifiedResourcesRequest{
 		Kinds: kinds,
@@ -889,7 +1040,7 @@ func pushResourcesViaUnifiedResourcesCache(ctx context.Context, authServer *auth
 }
 
 // pushResourcesWithLabelsToTAG pushes resources with labels to the access graph service.
-func pushResourcesWithLabelsToTAG(resources []types.ResourceWithLabels, stream accessgraphv1.AccessGraphService_EventsStreamClient) error {
+func pushResourcesWithLabelsToTAG(resources []types.ResourceWithLabels, stream accessgraphv1.AccessGraphService_EventsStreamV2Client) error {
 	if len(resources) == 0 {
 		return nil
 	}
@@ -930,8 +1081,8 @@ func pushResourcesWithLabelsToTAG(resources []types.ResourceWithLabels, stream a
 			return trace.BadParameter("unexpected resource type: %T", resource)
 		}
 	}
-	return trace.Wrap(stream.Send(&accessgraphv1.EventsStreamRequest{
-		Operation: &accessgraphv1.EventsStreamRequest_Upsert{
+	return trace.Wrap(stream.Send(&accessgraphv1.EventsStreamV2Request{
+		Operation: &accessgraphv1.EventsStreamV2Request_Upsert{
 			Upsert: list,
 		},
 	}))

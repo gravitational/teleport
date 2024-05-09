@@ -293,6 +293,10 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 
 	h.GET("/enterprise/releases", h.WithAuth(p.getReleases))
 
+	// Crown Jewels
+	h.POST("/enterprise/crownjewels", h.WithAuth(p.markCrownJewel))
+	h.DELETE("/enterprise/crownjewels/:name", h.WithAuth(p.deleteCrownJewel))
+
 	// Plugins: RESTy endpoints (create/list/delete)
 	// createPluginHandle expects html form request and
 	//	-	For OAuth plugins: it responds with meta redirect. With meta redirect, browser takes user to
