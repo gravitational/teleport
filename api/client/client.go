@@ -49,7 +49,6 @@ import (
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client/accesslist"
 	"github.com/gravitational/teleport/api/client/accessmonitoringrules"
-	"github.com/gravitational/teleport/api/client/crownjewel"
 	crownjewelapi "github.com/gravitational/teleport/api/client/crownjewel"
 	"github.com/gravitational/teleport/api/client/discoveryconfig"
 	"github.com/gravitational/teleport/api/client/externalauditstorage"
@@ -4900,7 +4899,7 @@ func (c *Client) DiscoveryConfigClient() *discoveryconfig.Client {
 // when calling this method, but all RPCs will return "not implemented" errors
 // (as per the default gRPC behavior).
 func (c *Client) CrownJewelServiceClient() *crownjewelapi.Client {
-	return crownjewel.NewClient(crownjewelv1.NewCrownJewelServiceClient(c.conn))
+	return crownjewelapi.NewClient(crownjewelv1.NewCrownJewelServiceClient(c.conn))
 }
 
 // UserLoginStateClient returns a user login state client.
