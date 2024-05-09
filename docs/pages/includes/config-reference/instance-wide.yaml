@@ -130,3 +130,7 @@ teleport:
         format:
           output: text
           extra_fields: [level, timestamp, component, caller]
+
+# These settings apply to the Debug service:
+debug_service:
+    enabled: true
