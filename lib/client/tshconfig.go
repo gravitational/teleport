@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package common
+package client
 
 import (
 	"errors"
@@ -237,15 +237,15 @@ func loadConfig(fullConfigPath string) (*TSHConfig, error) {
 	return &cfg, nil
 }
 
-// loadAllConfigs loads all tsh configs and merges them in appropriate order.
-func loadAllConfigs(cf CLIConf) (*TSHConfig, error) {
+// LoadAllConfigs loads all tsh configs and merges them in appropriate order.
+func LoadAllConfigs(globalTshConfigPath, homePath string) (*TSHConfig, error) {
 	var globalConf *TSHConfig
 	switch {
 	// prefer using explicitly provided config paths
-	case cf.GlobalTshConfigPath != "":
-		cfg, err := loadConfig(cf.GlobalTshConfigPath)
+	case globalTshConfigPath != "":
+		cfg, err := loadConfig(globalTshConfigPath)
 		if err != nil {
-			return nil, trace.Wrap(err, "failed to load global tsh config from %q", cf.GlobalTshConfigPath)
+			return nil, trace.Wrap(err, "failed to load global tsh config from %q", globalTshConfigPath)
 		}
 		globalConf = cfg
 	// skip the default global config path on windows see
@@ -261,7 +261,7 @@ func loadAllConfigs(cf CLIConf) (*TSHConfig, error) {
 		globalConf = cfg
 	}
 
-	fullConfigPath := filepath.Join(profile.FullProfilePath(cf.HomePath), tshConfigPath)
+	fullConfigPath := filepath.Join(profile.FullProfilePath(homePath), tshConfigPath)
 	userConf, err := loadConfig(fullConfigPath)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to load tsh config from %q", fullConfigPath)

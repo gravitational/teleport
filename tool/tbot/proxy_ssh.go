@@ -22,24 +22,21 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"net"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
-	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	proxyclient "github.com/gravitational/teleport/api/client/proxy"
-	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
+	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
@@ -88,7 +85,7 @@ func onProxySSHCommand(botConfig *config.BotConfig, cf *config.CLIConf) error {
 		cluster = facade.Get().ClusterName
 	}
 
-	tshCFG, err := loadConfig(filepath.Join(profile.FullProfilePath(""), "config/config.yaml"))
+	tshCFG, err := libclient.LoadAllConfigs("", "")
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -253,165 +250,4 @@ func cleanTargetHost(targetHost, proxyHost, siteName string) string {
 	targetHost = strings.TrimSuffix(targetHost, "."+proxyHost)
 	targetHost = strings.TrimSuffix(targetHost, "."+siteName)
 	return targetHost
-}
-
-// loadConfig load a single config file from given path. If the path does not exist, an empty config is returned instead.
-func loadConfig(fullConfigPath string) (*TSHConfig, error) {
-	bs, err := os.ReadFile(fullConfigPath)
-	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return &TSHConfig{}, nil
-		}
-		return nil, trace.ConvertSystemError(err)
-	}
-	var cfg TSHConfig
-	if err := yaml.Unmarshal(bs, &cfg); err != nil {
-		return nil, trace.ConvertSystemError(err)
-	}
-	if err := cfg.Check(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &cfg, nil
-}
-
-// TSHConfig represents configuration loaded from the tsh config file.
-type TSHConfig struct {
-	// ProxyTemplates describe rules for parsing out proxy out of full hostnames.
-	ProxyTemplates ProxyTemplates `yaml:"proxy_templates,omitempty"`
-	// Aliases are custom commands extending baseline tsh functionality.
-	Aliases map[string]string `yaml:"aliases,omitempty"`
-}
-
-// Check validates the tsh config.
-func (config *TSHConfig) Check() error {
-	for _, template := range config.ProxyTemplates {
-		if err := template.Check(); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	return nil
-}
-
-// ProxyTemplates represents a list of individual proxy templates.
-type ProxyTemplates []*ProxyTemplate
-
-// ExpandedTemplate contains any matched date from a
-// [ProxyTemplate] that has been expanded after being evaluated.
-type ExpandedTemplate struct {
-	Proxy   string
-	Host    string
-	Cluster string
-	Query   string
-	Search  string
-}
-
-func (e ExpandedTemplate) String() string {
-	return fmt.Sprintf("Proxy=%s,Host=%s,Cluster=%s,Query=%s,Search=%s", e.Proxy, e.Host, e.Cluster, e.Query, e.Search)
-}
-
-// Apply attempts to match the provided full hostname against all the templates
-// in the list. Returns extracted proxy and host upon encountering the first
-// matching template.
-func (t ProxyTemplates) Apply(fullHostname string) (expanded *ExpandedTemplate, matched bool) {
-	for _, template := range t {
-		expanded, matched := template.Apply(fullHostname)
-		if matched {
-			return expanded, true
-		}
-	}
-	return nil, false
-}
-
-// ProxyTemplate describes a single rule for parsing out proxy address from
-// the full hostname. Used by tsh proxy ssh.
-type ProxyTemplate struct {
-	// Template is a regular expression that full hostname is matched against.
-	Template string `yaml:"template"`
-	// Proxy is the proxy address. Can refer to regex groups from the template.
-	Proxy string `yaml:"proxy"`
-	// Cluster is an optional cluster name. Can refer to regex groups from the template.
-	Cluster string `yaml:"cluster"`
-	// Host is an optional hostname. Can refer to regex groups from the template.
-	Host string `yaml:"host"`
-	// Query is an optional predicate expression used to resolve the target host.
-	// Can refer to regex groups from the template.
-	Query string `yaml:"query"`
-	// Search contains optional fuzzy matching terms used to resolve the target host.
-	// Can refer to regex groups from the template.
-	Search string `yaml:"search"`
-
-	// re is the compiled template regexp.
-	re *regexp.Regexp
-}
-
-// Check validates the proxy template.
-func (t *ProxyTemplate) Check() (err error) {
-	if strings.TrimSpace(t.Template) == "" {
-		return trace.BadParameter("empty proxy template")
-	}
-
-	if strings.TrimSpace(t.Proxy) == "" &&
-		strings.TrimSpace(t.Cluster) == "" &&
-		strings.TrimSpace(t.Host) == "" &&
-		strings.TrimSpace(t.Query) == "" &&
-		strings.TrimSpace(t.Search) == "" {
-		return trace.BadParameter("empty proxy, cluster, host, query, and search fields in proxy template, but at least one is required")
-	}
-	t.re, err = regexp.Compile(t.Template)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// Apply applies the proxy template to the provided hostname and returns
-// expanded proxy address and hostname.
-func (t *ProxyTemplate) Apply(fullHostname string) (_ *ExpandedTemplate, matched bool) {
-	match := t.re.FindAllStringSubmatchIndex(fullHostname, -1)
-	if match == nil {
-		return nil, false
-	}
-
-	var expanded ExpandedTemplate
-	if t.Proxy != "" {
-		var expandedProxy []byte
-		for _, m := range match {
-			expandedProxy = t.re.ExpandString(expandedProxy, t.Proxy, fullHostname, m)
-		}
-		expanded.Proxy = string(expandedProxy)
-	}
-
-	if t.Host != "" {
-		var expandedHost []byte
-		for _, m := range match {
-			expandedHost = t.re.ExpandString(expandedHost, t.Host, fullHostname, m)
-		}
-		expanded.Host = string(expandedHost)
-	}
-
-	if t.Cluster != "" {
-		var expandedCluster []byte
-		for _, m := range match {
-			expandedCluster = t.re.ExpandString(expandedCluster, t.Cluster, fullHostname, m)
-		}
-		expanded.Cluster = string(expandedCluster)
-	}
-
-	if t.Query != "" {
-		var expandedQuery []byte
-		for _, m := range match {
-			expandedQuery = t.re.ExpandString(expandedQuery, t.Query, fullHostname, m)
-		}
-		expanded.Query = string(expandedQuery)
-	}
-
-	if t.Search != "" {
-		var expandedSearch []byte
-		for _, m := range match {
-			expandedSearch = t.re.ExpandString(expandedSearch, t.Search, fullHostname, m)
-		}
-		expanded.Search = string(expandedSearch)
-	}
-
-	return &expanded, true
 }
