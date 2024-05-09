@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
@@ -57,6 +58,9 @@ type AppProvider interface {
 
 	// GetDialOptions returns ALPN dial options for the profile.
 	GetDialOptions(ctx context.Context, profileName string) (*DialOptions, error)
+
+	// GetVnetConfig returns the cluster VnetConfig resource.
+	GetVnetConfig(ctx context.Context, profileName, leafClusterName string) (*vnet.VnetConfig, error)
 }
 
 // DialOptions holds ALPN dial options for dialing apps.
@@ -75,9 +79,10 @@ type DialOptions struct {
 
 // TCPAppResolver implements [TCPHandlerResolver] for Teleport TCP apps.
 type TCPAppResolver struct {
-	appProvider AppProvider
-	slog        *slog.Logger
-	clock       clockwork.Clock
+	appProvider        AppProvider
+	clusterConfigCache *clusterConfigCache
+	slog               *slog.Logger
+	clock              clockwork.Clock
 }
 
 // NewTCPAppResolver returns a new *TCPAppResolver which will resolve full-qualified domain names to
@@ -88,16 +93,21 @@ type TCPAppResolver struct {
 // handled.
 //
 // [appProvider] is also used to get app certificates used to dial the apps.
-func NewTCPAppResolver(appProvider AppProvider, opts ...tcpAppResolverOption) *TCPAppResolver {
+func NewTCPAppResolver(appProvider AppProvider, opts ...tcpAppResolverOption) (*TCPAppResolver, error) {
+	clusterConfigCache, err := newClusterConfigCache(appProvider.GetVnetConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	r := &TCPAppResolver{
-		appProvider: appProvider,
-		slog:        slog.With(teleport.ComponentKey, "VNet.AppResolver"),
-		clock:       clockwork.NewRealClock(),
+		appProvider:        appProvider,
+		slog:               slog.With(teleport.ComponentKey, "VNet.AppResolver"),
+		clusterConfigCache: clusterConfigCache,
+		clock:              clockwork.NewRealClock(),
 	}
 	for _, opt := range opts {
 		opt(r)
 	}
-	return r
+	return r, nil
 }
 
 type tcpAppResolverOption func(*TCPAppResolver)
@@ -108,19 +118,17 @@ func withClock(clock clockwork.Clock) tcpAppResolverOption {
 	}
 }
 
-// ResolveTCPHandler resolves a fully-qualified domain name (FQDN) to a TCPHandler for handling TCP
-// connections to a Teleport TCP app. It returns the TCPHandler if a matching app is found, else it will
-// return with match == false. Errors must only be returned for truly unexpected errors that should cause a
-// DNS request to fail.
-func (r *TCPAppResolver) ResolveTCPHandler(ctx context.Context, fqdn string) (handler TCPHandler, match bool, err error) {
+// ResolveTCPHandler resolves a fully-qualified domain name to a TCPHandlerSpec for a Teleport TCP app that should
+// be used to handle all future TCP connections to [fqdn].
+func (r *TCPAppResolver) ResolveTCPHandler(ctx context.Context, fqdn string) (*TCPHandlerSpec, error) {
 	profileNames, err := r.appProvider.ListProfiles()
 	if err != nil {
-		return nil, false, trace.Wrap(err, "listing profiles")
+		return nil, trace.Wrap(err, "listing profiles")
 	}
 	for _, profileName := range profileNames {
 		if fqdn == fullyQualify(profileName) {
 			// This is a query for the proxy address, which we'll never want to handle.
-			return nil, false, nil
+			return nil, ErrNoTCPHandler
 		}
 		if !isSubdomain(fqdn, profileName) {
 			// TODO(nklaassen): support leaf clusters and custom DNS zones.
@@ -139,9 +147,8 @@ func (r *TCPAppResolver) ResolveTCPHandler(ctx context.Context, fqdn string) (ha
 		}
 		return r.resolveTCPHandlerForCluster(ctx, slog, rootClient.CurrentCluster(), profileName, "", fqdn)
 	}
-
 	// fqdn did not match any profile, forward the request upstream.
-	return nil, false, nil
+	return nil, ErrNoTCPHandler
 }
 
 func (r *TCPAppResolver) resolveTCPHandlerForCluster(
@@ -149,7 +156,7 @@ func (r *TCPAppResolver) resolveTCPHandlerForCluster(
 	slog *slog.Logger,
 	clt apiclient.GetResourcesClient,
 	profileName, leafClusterName, fqdn string,
-) (handler TCPHandler, match bool, err error) {
+) (*TCPHandlerSpec, error) {
 	// An app public_addr could technically be full-qualified or not, match either way.
 	expr := fmt.Sprintf(`(resource.spec.public_addr == "%s" || resource.spec.public_addr == "%s") && hasPrefix(resource.spec.uri, "tcp://")`,
 		strings.TrimSuffix(fqdn, "."), fqdn)
@@ -159,21 +166,39 @@ func (r *TCPAppResolver) resolveTCPHandlerForCluster(
 		Limit:               1,
 	})
 	if err != nil {
-		// Don't return an error so we can try to find the app in different clusters or forward the request
-		// upstream.
+		// Don't return an unexpected error so we can try to find the app in different clusters or forward the
+		// request upstream.
 		slog.InfoContext(ctx, "Failed to list application servers.", "error", err)
-		return nil, false, nil
+		return nil, ErrNoTCPHandler
 	}
 	if len(resp.Resources) == 0 {
 		// Didn't find any matching app, forward the request upstream.
-		return nil, false, nil
+		return nil, ErrNoTCPHandler
 	}
 	app := resp.Resources[0].GetApp()
 	appHandler, err := r.newTCPAppHandler(ctx, profileName, leafClusterName, app)
 	if err != nil {
-		return nil, false, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	return appHandler, true, nil
+
+	var cidrRange string
+	vnetConfig, err := r.clusterConfigCache.getVnetConfig(ctx, profileName, leafClusterName)
+	switch {
+	case err == nil:
+		cidrRange = vnetConfig.GetSpec().GetIpv4CidrRange()
+		if cidrRange == "" {
+			cidrRange = defaultIPv4CIDRRange
+		}
+	case trace.IsNotFound(err) || trace.IsNotImplemented(err):
+		cidrRange = defaultIPv4CIDRRange
+	default:
+		return nil, trace.Wrap(err)
+	}
+
+	return &TCPHandlerSpec{
+		IPv4CIDRRange: cidrRange,
+		TCPHandler:    appHandler,
+	}, nil
 }
 
 type tcpAppHandler struct {
