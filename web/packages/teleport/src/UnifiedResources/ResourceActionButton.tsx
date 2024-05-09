@@ -146,7 +146,7 @@ const AppLaunch = ({ app }: { app: App }) => {
     publicAddr,
     isCloudOrTcpEndpoint,
     samlApp,
-    samlAppName,
+    samlAppSsoUrl,
   } = app;
   if (awsConsole) {
     return (
@@ -183,7 +183,7 @@ const AppLaunch = ({ app }: { app: App }) => {
         width="90px"
         size="small"
         target="_blank"
-        href={cfg.getSAMLIdPLauncherRoute({ name: samlAppName })}
+        href={samlAppSsoUrl}
         rel="noreferrer"
         textTransform="none"
       >
