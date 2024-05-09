@@ -6005,9 +6005,19 @@ message PluginEntraIDAccessGraphSettings {
   //
   // This data is stored here because it is not available through traditional methods (MS Graph API).
   // Instead, it is fetched once during the plugin's set up using the user's credentials to connect to Azure's private API.
-  //
-  // As this data is only parsed by TAG, values are stored as opaque JSON blobs to ease future evolution.
-  map<string, string> app_sso_settings_cache = 1;
+  map<string, PluginEntraIDAppSSOSettings> app_sso_settings_cache = 1;
+}
+
+// PluginEntraIDAppSSOSettings is a container for a single Entra ID enterprise application's
+// cached SSO settings.
+// As this data is only parsed by TAG, each value is stored as an opaque JSON blob.
+message PluginEntraIDAppSSOSettings {
+  option (gogoproto.equal) = true;
+
+  // SSOApplication contains payload from the /ApplicationSso/{servicePrincipalId}/SsoApplication endpoint.
+  string SSOApplication = 1;
+  // FederatedSSOV2 contains payload from the /ApplicationSso/{servicePrincipalId}/FederatedSSOV2 endpoint.
+  string FederatedSSOV2 = 2;
 }
 
 message PluginBootstrapCredentialsV1 {
