@@ -36,7 +36,8 @@ export function AccessInfo({ accessKind, traitKind, traitDesc }: Props) {
       return (
         <>
           <Info>
-            You don’t have any {traitKind} {traitDesc} defined.
+            You don’t have any {traitKind} {traitDesc} defined and SSO users are
+            not able to add access.
             <br />
             Please ask your Teleport administrator to update your role and add
             the required {traitKind} {traitDesc}.

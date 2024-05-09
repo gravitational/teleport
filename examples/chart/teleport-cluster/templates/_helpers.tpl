@@ -87,7 +87,12 @@ teleport.dev/majorVersion: '{{ include "teleport-cluster.majorVersion" . }}'
 {{/* In most places we want to use the FQDN instead of relying on Kubernetes ndots behaviour
      for performance reasons */}}
 {{- define "teleport-cluster.auth.serviceFQDN" -}}
-{{ include "teleport-cluster.auth.serviceName" . }}.{{ .Release.Namespace }}.svc.cluster.local
+{{ include "teleport-cluster.auth.serviceName" . }}.{{ .Release.Namespace }}.svc.{{ include "teleport-cluster.clusterDomain" . }}
+{{- end -}}
+
+{{/* Returns the cluster domain if set, otherwise fallback to "cluster.local" */}}
+{{- define "teleport-cluster.clusterDomain" -}}
+{{ default "cluster.local" .Values.global.clusterDomain }}
 {{- end -}}
 
 {{/* Matches the operator template "teleport-cluster.operator.fullname" but can be
