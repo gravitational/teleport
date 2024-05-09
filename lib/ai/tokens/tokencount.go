@@ -23,10 +23,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sashabaranov/go-openai"
-	"github.com/tiktoken-go/tokenizer/codec"
 )
-
-var defaultTokenizer = codec.NewCl100kBase()
 
 // TokenCount holds TokenCounters for both Prompt and Completion tokens.
 // As the agent performs multiple calls to the model, each call creates its own
@@ -115,12 +112,10 @@ func (tc *StaticTokenCounter) TokenCount() int {
 func NewPromptTokenCounter(prompt []openai.ChatCompletionMessage) (*StaticTokenCounter, error) {
 	var promptCount int
 	for _, message := range prompt {
-		promptTokens, _, err := defaultTokenizer.Encode(message.Content)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+		// Rough estimations that each token is around 4 characters.
+		promptTokens := len(message.Content) / 4
 
-		promptCount = promptCount + perMessage + perRole + len(promptTokens)
+		promptCount = promptCount + perMessage + perRole + int(promptTokens)
 	}
 	tc := StaticTokenCounter(promptCount)
 
@@ -130,12 +125,10 @@ func NewPromptTokenCounter(prompt []openai.ChatCompletionMessage) (*StaticTokenC
 // NewSynchronousTokenCounter takes the completion request output and
 // computes how many tokens were used by the model to generate this result.
 func NewSynchronousTokenCounter(completion string) (*StaticTokenCounter, error) {
-	completionTokens, _, err := defaultTokenizer.Encode(completion)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	// Rough estimations that each token is around 4 characters.
+	completionTokens := len(completion) / 4
 
-	completionCount := perRequest + len(completionTokens)
+	completionCount := perRequest + int(completionTokens)
 
 	tc := StaticTokenCounter(completionCount)
 	return &tc, nil
