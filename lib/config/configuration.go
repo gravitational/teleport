@@ -59,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage/easconfig"
+	"github.com/gravitational/teleport/lib/integrations/samlidp/samlidpconfig"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/pam"
@@ -213,6 +214,14 @@ type CommandLineFlags struct {
 	// `teleport integration configure eice-iam` command
 	IntegrationConfEICEIAMArguments IntegrationConfEICEIAM
 
+	// IntegrationConfAWSAppAccessIAMArguments contains the arguments of
+	// `teleport integration configure aws-app-access-iam` command
+	IntegrationConfAWSAppAccessIAMArguments IntegrationConfAWSAppAccessIAM
+
+	// IntegrationConfEC2SSMIAMArguments contains the arguments of
+	// `teleport integration configure ec2-ssm-iam` command
+	IntegrationConfEC2SSMIAMArguments IntegrationConfEC2SSMIAM
+
 	// IntegrationConfEKSIAMArguments contains the arguments of
 	// `teleport integration configure eks-iam` command
 	IntegrationConfEKSIAMArguments IntegrationConfEKSIAM
@@ -232,6 +241,19 @@ type CommandLineFlags struct {
 	// IntegrationConfAccessGraphAWSSyncArguments contains the arguments of
 	// `teleport integration configure access-graph aws-iam` command
 	IntegrationConfAccessGraphAWSSyncArguments IntegrationConfAccessGraphAWSSync
+
+	// IntegrationConfSAMLIdPGCPWorkforceArguments contains the arguments of
+	// `teleport integration configure samlidp gcp-workforce` command
+	IntegrationConfSAMLIdPGCPWorkforceArguments samlidpconfig.GCPWorkforceAPIParams
+
+	// LogLevel is the new application's log level.
+	LogLevel string
+
+	// Profiles comma-separated list of pprof profiles to be collected.
+	Profiles string
+
+	// ProfileSeconds defines the time the pprof will be collected.
+	ProfileSeconds int
 }
 
 // IntegrationConfAccessGraphAWSSync contains the arguments of
@@ -265,6 +287,29 @@ type IntegrationConfEICEIAM struct {
 	Role string
 }
 
+// IntegrationConfAWSAppAccessIAM contains the arguments of
+// `teleport integration configure aws-app-access-iam` command
+type IntegrationConfAWSAppAccessIAM struct {
+	// RoleName is the AWS Role associated with the Integration
+	RoleName string
+}
+
+// IntegrationConfEC2SSMIAM contains the arguments of
+// `teleport integration configure ec2-ssm-iam` command
+type IntegrationConfEC2SSMIAM struct {
+	// RoleName is the AWS Role associated with the Integration
+	RoleName string
+	// Region is the AWS Region used to set up the client.
+	Region string
+	// SSMDocumentName is the SSM Document to be created that will run the installer script.
+	SSMDocumentName string
+	// ProxyPublicURL is Proxy's Public URL.
+	// This is used fetch the installer script.
+	// No trailing / is expected.
+	// Eg https://tenant.teleport.sh
+	ProxyPublicURL string
+}
+
 // IntegrationConfEKSIAM contains the arguments of
 // `teleport integration configure eks-iam` command
 type IntegrationConfEKSIAM struct {
@@ -286,6 +331,22 @@ type IntegrationConfAWSOIDCIdP struct {
 	// ProxyPublicURL is the IdP Issuer URL (Teleport Proxy Public Address).
 	// Eg, https://<tenant>.teleport.sh
 	ProxyPublicURL string
+
+	// S3BucketURI is the S3 URI which contains the bucket name and prefix for the issuer.
+	// Format: s3://<bucket-name>/<prefix>
+	// Eg, s3://my-bucket/idp-teleport
+	// This is used in two places:
+	// - create openid configuration and jwks objects
+	// - set up the issuer
+	// The bucket must be public and will be created if it doesn't exist.
+	//
+	// If empty, the ProxyPublicAddress is used as issuer and no s3 objects are created.
+	S3BucketURI string
+
+	// S3JWKSContentsB64 must contain the public keys for the Issuer.
+	// The contents must be Base64 encoded.
+	// Eg. base64(`{"keys":[{"kty":"RSA","alg":"RS256","n":"<value of n>","e":"<value of e>","use":"sig","kid":""}]}`)
+	S3JWKSContentsB64 string
 }
 
 // IntegrationConfListDatabasesIAM contains the arguments of
@@ -381,11 +442,14 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	if fc.WindowsDesktop.Disabled() {
 		cfg.WindowsDesktop.Enabled = false
 	}
+	if fc.Debug.Enabled() {
+		cfg.DebugService.Enabled = true
+	}
 
 	if fc.AccessGraph.Enabled {
 		cfg.AccessGraph.Enabled = true
 		if fc.AccessGraph.Endpoint == "" {
-			return trace.Errorf("Please, provide access_graph_service.addr configuration variable")
+			return trace.BadParameter("access_graph.endpoint is required when access graph integration is enabled")
 		}
 		cfg.AccessGraph.Addr = fc.AccessGraph.Endpoint
 		cfg.AccessGraph.CA = fc.AccessGraph.CA
@@ -705,23 +769,23 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 		w = logFile
 	}
 
-	var level slog.Level
+	level := new(slog.LevelVar)
 	switch strings.ToLower(loggerConfig.Severity) {
 	case "", "info":
 		logger.SetLevel(log.InfoLevel)
-		level = slog.LevelInfo
+		level.Set(slog.LevelInfo)
 	case "err", "error":
 		logger.SetLevel(log.ErrorLevel)
-		level = slog.LevelError
+		level.Set(slog.LevelError)
 	case teleport.DebugLevel:
 		logger.SetLevel(log.DebugLevel)
-		level = slog.LevelDebug
+		level.Set(slog.LevelDebug)
 	case "warn", "warning":
 		logger.SetLevel(log.WarnLevel)
-		level = slog.LevelWarn
+		level.Set(slog.LevelWarn)
 	case "trace":
 		logger.SetLevel(log.TraceLevel)
-		level = logutils.TraceLevel
+		level.Set(logutils.TraceLevel)
 	default:
 		return trace.BadParameter("unsupported logger severity: %q", loggerConfig.Severity)
 	}
@@ -742,7 +806,7 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 	case "":
 		fallthrough // not set. defaults to 'text'
 	case "text":
-		enableColors := trace.IsTerminal(os.Stderr)
+		enableColors := utils.IsTerminal(os.Stderr)
 		formatter := &logutils.TextFormatter{
 			ExtraFields:  configuredFields,
 			EnableColors: enableColors,
@@ -796,6 +860,7 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 
 	cfg.Log = logger
 	cfg.Logger = slogLogger
+	cfg.LoggerLevel = level
 	return nil
 }
 
@@ -942,13 +1007,13 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	}
 
 	// read in and set the license file path (not used in open-source version)
-	licenseFile := fc.Auth.LicenseFile
-	if licenseFile != "" {
-		if filepath.IsAbs(licenseFile) {
-			cfg.Auth.LicenseFile = licenseFile
-		} else {
-			cfg.Auth.LicenseFile = filepath.Join(cfg.DataDir, licenseFile)
-		}
+	switch licenseFile := fc.Auth.LicenseFile; {
+	case licenseFile == "":
+		cfg.Auth.LicenseFile = filepath.Join(cfg.DataDir, defaults.LicenseFile)
+	case filepath.IsAbs(licenseFile):
+		cfg.Auth.LicenseFile = licenseFile
+	default:
+		cfg.Auth.LicenseFile = filepath.Join(cfg.DataDir, licenseFile)
 	}
 
 	cfg.Auth.LoadAllCAs = fc.Auth.LoadAllCAs
@@ -1145,6 +1210,12 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 	if fc.Proxy.UI != nil {
 		cfg.Proxy.UI = webclient.UIConfig(*fc.Proxy.UI)
+		switch cfg.Proxy.UI.ShowResources {
+		case constants.ShowResourcesaccessibleOnly,
+			constants.ShowResourcesRequestable:
+		default:
+			return trace.BadParameter("show resources %q not supported", cfg.Proxy.UI.ShowResources)
+		}
 	}
 
 	if fc.Proxy.Assist != nil && fc.Proxy.Assist.OpenAI != nil {
@@ -1520,12 +1591,14 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 
 		serviceMatcher := types.AWSMatcher{
-			Types:      matcher.Types,
-			Regions:    matcher.Regions,
-			AssumeRole: assumeRole,
-			Tags:       matcher.Tags,
-			Params:     installParams,
-			SSM:        &types.AWSSSM{DocumentName: matcher.SSM.DocumentName},
+			Types:            matcher.Types,
+			Regions:          matcher.Regions,
+			AssumeRole:       assumeRole,
+			Tags:             matcher.Tags,
+			Params:           installParams,
+			SSM:              &types.AWSSSM{DocumentName: matcher.SSM.DocumentName},
+			Integration:      matcher.Integration,
+			KubeAppDiscovery: matcher.KubeAppDiscovery,
 		}
 		if err := serviceMatcher.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
@@ -1715,6 +1788,7 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 					RoleARN:    matcher.AssumeRoleARN,
 					ExternalID: matcher.ExternalID,
 				},
+				Integration: matcher.Integration,
 			})
 	}
 	for _, matcher := range fc.Databases.AzureMatchers {
@@ -2263,8 +2337,7 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 		// log level right away. Otherwise allow the command line flag to override
 		// logger severity in file configuration.
 		if fileConf == nil {
-			log.SetLevel(log.DebugLevel)
-			cfg.Log.SetLevel(log.DebugLevel)
+			cfg.SetLogLevel(slog.LevelDebug)
 		} else {
 			if strings.ToLower(fileConf.Logger.Severity) != "trace" {
 				fileConf.Logger.Severity = teleport.DebugLevel
@@ -2580,8 +2653,7 @@ func ConfigureOpenSSH(clf *CommandLineFlags, cfg *servicecfg.Config) error {
 
 	// Apply command line --debug flag to override logger severity.
 	if clf.Debug {
-		log.SetLevel(log.DebugLevel)
-		cfg.Log.SetLevel(log.DebugLevel)
+		cfg.SetLogLevel(slog.LevelDebug)
 		cfg.Debug = clf.Debug
 	}
 

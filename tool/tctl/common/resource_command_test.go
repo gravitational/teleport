@@ -35,11 +35,12 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 	"k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/header"
@@ -51,6 +52,8 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tbot/testhelpers"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/tool/tctl/common/databaseobject"
+	"github.com/gravitational/teleport/tool/tctl/common/databaseobjectimportrule"
 )
 
 // TestDatabaseServerResource tests tctl db_server rm/get commands.
@@ -1349,7 +1352,7 @@ func TestCreateResources(t *testing.T) {
 	t.Parallel()
 
 	fc, fds := testhelpers.DefaultConfig(t)
-	_ = testhelpers.MakeAndRunTestAuthServer(t, utils.NewLoggerForTests(), fc, fds)
+	_ = testhelpers.MakeAndRunTestAuthServer(t, utils.NewSlogLoggerForTests(), fc, fds)
 
 	tests := []struct {
 		kind   string
@@ -1374,6 +1377,26 @@ func TestCreateResources(t *testing.T) {
 		{
 			kind:   types.KindDatabaseObjectImportRule,
 			create: testCreateDatabaseObjectImportRule,
+		},
+		{
+			kind:   types.KindDatabaseObject,
+			create: testCreateDatabaseObject,
+		},
+		{
+			kind:   types.KindClusterNetworkingConfig,
+			create: testCreateClusterNetworkingConfig,
+		},
+		{
+			kind:   types.KindClusterAuthPreference,
+			create: testCreateAuthPreference,
+		},
+		{
+			kind:   types.KindSessionRecordingConfig,
+			create: testCreateSessionRecordingConfig,
+		},
+		{
+			kind:   types.KindAppServer,
+			create: testCreateAppServer,
 		},
 	}
 
@@ -1615,6 +1638,7 @@ spec:
 		users,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 		cmpopts.IgnoreFields(types.UserSpecV2{}, "CreatedBy"),
+		cmpopts.IgnoreFields(types.UserV2{}, "Status"),
 	))
 
 	// Explicitly change the revision and try creating the user with and without
@@ -1632,10 +1656,10 @@ spec:
 }
 
 func testCreateDatabaseObjectImportRule(t *testing.T, fc *config.FileConfig) {
-	const resourceName = "import_all_staging_tables"
-	const resourcePath = types.KindDatabaseObjectImportRule + "/" + resourceName
 	const resourceYAML = `kind: db_object_import_rule
 metadata:
+  expires: "2034-03-22T18:06:35.161162Z"
+  id: 1711129895244889000
   name: import_all_staging_tables
   namespace: default
 spec:
@@ -1673,45 +1697,312 @@ spec:
 version: v1
 `
 
-	// Ensure that our test user does not exist
-	_, err := runResourceCommand(t, fc, []string{"get", resourcePath, "--format=json"})
-	require.True(t, trace.IsNotFound(err), "expected llama user to not exist prior to being created")
+	// Verify there is no matching resource
+	const resourceKey = "db_object_import_rule/import_all_staging_tables"
+	_, err := runResourceCommand(t, fc, []string{"get", resourceKey, "--format=json"})
+	require.Error(t, err)
 
-	// Create the user
+	// Create the resource
 	resourceYAMLPath := filepath.Join(t.TempDir(), "resource.yaml")
 	require.NoError(t, os.WriteFile(resourceYAMLPath, []byte(resourceYAML), 0644))
 	_, err = runResourceCommand(t, fc, []string{"create", resourceYAMLPath})
 	require.NoError(t, err)
 
-	// Fetch the user
-	buf, err := runResourceCommand(t, fc, []string{"get", resourcePath, "--format=json"})
+	// Fetch the resource
+	buf, err := runResourceCommand(t, fc, []string{"get", resourceKey, "--format=json"})
 	require.NoError(t, err)
-	resources := mustDecodeJSON[[]*dbobjectimportrulev1.DatabaseObjectImportRule](t, buf)
+	resources := mustDecodeJSON[[]databaseobjectimportrule.Resource](t, buf)
 	require.Len(t, resources, 1)
 
-	var expected dbobjectimportrulev1.DatabaseObjectImportRule
+	// Compare with baseline
+	cmpOpts := []cmp.Option{
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "id", "revision"),
+		protocmp.Transform(),
+	}
+
+	var expected databaseobjectimportrule.Resource
 	require.NoError(t, yaml.Unmarshal([]byte(resourceYAML), &expected))
-	// verify a few expected properties
-	require.Equal(t, 30, int(expected.Spec.Priority))
-	require.Equal(t, "import_all_staging_tables", expected.Metadata.Name)
 
-	resources[0].Metadata.Revision = expected.Metadata.Revision
-	//nolint:staticcheck // SA1019. Added for backward compatibility.
-	resources[0].Metadata.Id = expected.Metadata.Id
-	require.Equal(t, []*dbobjectimportrulev1.DatabaseObjectImportRule{&expected}, resources)
+	require.Equal(t, "", cmp.Diff(expected, resources[0], cmpOpts...))
+	require.Equal(t, "", cmp.Diff(databaseobjectimportrule.ResourceToProto(&expected), databaseobjectimportrule.ResourceToProto(&resources[0]), cmpOpts...))
+}
 
-	// Explicitly change the revision and try creating the user with and without
-	// the force flag.
-	expected.Metadata.Revision = uuid.NewString()
-	data, err := services.MarshalDatabaseObjectImportRule(&expected, services.PreserveResourceID())
+func testCreateClusterNetworkingConfig(t *testing.T, fc *config.FileConfig) {
+	// Get the initial cnc.
+	buf, err := runResourceCommand(t, fc, []string{"get", types.KindClusterNetworkingConfig, "--format=json"})
 	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(resourceYAMLPath, data, 0644))
 
-	_, err = runResourceCommand(t, fc, []string{"create", resourceYAMLPath})
+	cnc := mustDecodeJSON[[]*types.ClusterNetworkingConfigV2](t, buf)
+	require.Len(t, cnc, 1)
+	initial := cnc[0]
+
+	const cncYAML = `kind: cluster_networking_config
+metadata:
+  name: cluster-networking-config
+spec:
+  assist_command_execution_workers: 30
+  client_idle_timeout: 0s
+  idle_timeout_message: ""
+  keep_alive_count_max: 300
+  case_insensitive_routing: true
+  keep_alive_interval: 5m0s
+  proxy_listener_mode: 1
+  session_control_timeout: 0s
+  tunnel_strategy:
+    type: agent_mesh
+  web_idle_timeout: 0s
+version: v2
+`
+
+	// Create the cnc
+	cncYAMLPath := filepath.Join(t.TempDir(), "cnc.yaml")
+	require.NoError(t, os.WriteFile(cncYAMLPath, []byte(cncYAML), 0644))
+	_, err = runResourceCommand(t, fc, []string{"create", cncYAMLPath})
+	require.NoError(t, err)
+
+	// Fetch the cnc
+	buf, err = runResourceCommand(t, fc, []string{"get", types.KindClusterNetworkingConfig, "--format=json"})
+	require.NoError(t, err)
+	cnc = mustDecodeJSON[[]*types.ClusterNetworkingConfigV2](t, buf)
+	require.Len(t, cnc, 1)
+
+	var expected types.ClusterNetworkingConfigV2
+	require.NoError(t, yaml.Unmarshal([]byte(cncYAML), &expected))
+
+	require.NotEqual(t, int64(300), initial.GetKeepAliveCountMax())
+	require.False(t, initial.GetCaseInsensitiveRouting())
+	require.True(t, expected.GetCaseInsensitiveRouting())
+	require.Equal(t, int64(300), expected.GetKeepAliveCountMax())
+
+	// Explicitly change the revision and try creating the cnc with and without
+	// the force flag.
+	expected.SetRevision(uuid.NewString())
+	raw, err := services.MarshalClusterNetworkingConfig(&expected, services.PreserveResourceID())
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(cncYAMLPath, raw, 0644))
+
+	_, err = runResourceCommand(t, fc, []string{"create", cncYAMLPath})
 	require.True(t, trace.IsAlreadyExists(err))
 
-	_, err = runResourceCommand(t, fc, []string{"create", "-f", resourceYAMLPath})
+	_, err = runResourceCommand(t, fc, []string{"create", "-f", cncYAMLPath})
 	require.NoError(t, err)
+}
+
+func testCreateAuthPreference(t *testing.T, fc *config.FileConfig) {
+	// Get the initial CAP.
+	buf, err := runResourceCommand(t, fc, []string{"get", types.KindClusterAuthPreference, "--format=json"})
+	require.NoError(t, err)
+
+	cap := mustDecodeJSON[[]*types.AuthPreferenceV2](t, buf)
+	require.Len(t, cap, 1)
+	initial := cap[0]
+
+	const capYAML = `kind: cluster_auth_preference
+metadata:
+  name: cluster-auth-preference
+spec:
+  second_factor: off
+  type: local
+version: v2
+`
+
+	// Create the cap
+	capYAMLPath := filepath.Join(t.TempDir(), "cap.yaml")
+	require.NoError(t, os.WriteFile(capYAMLPath, []byte(capYAML), 0644))
+	_, err = runResourceCommand(t, fc, []string{"create", capYAMLPath})
+	require.NoError(t, err)
+
+	// Fetch the cap
+	buf, err = runResourceCommand(t, fc, []string{"get", types.KindClusterAuthPreference, "--format=json"})
+	require.NoError(t, err)
+	cap = mustDecodeJSON[[]*types.AuthPreferenceV2](t, buf)
+	require.Len(t, cap, 1)
+
+	var expected types.AuthPreferenceV2
+	require.NoError(t, yaml.Unmarshal([]byte(capYAML), &expected))
+
+	require.NotEqual(t, constants.SecondFactorOff, initial.GetSecondFactor())
+	require.Equal(t, constants.SecondFactorOff, expected.GetSecondFactor())
+
+	// Explicitly change the revision and try creating the cap with and without
+	// the force flag.
+	expected.SetRevision(uuid.NewString())
+	raw, err := services.MarshalAuthPreference(&expected, services.PreserveResourceID())
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(capYAMLPath, raw, 0644))
+
+	_, err = runResourceCommand(t, fc, []string{"create", capYAMLPath})
+	require.True(t, trace.IsAlreadyExists(err))
+
+	_, err = runResourceCommand(t, fc, []string{"create", "-f", capYAMLPath})
+	require.NoError(t, err)
+}
+
+func testCreateSessionRecordingConfig(t *testing.T, fc *config.FileConfig) {
+	// Get the initial recording config.
+	buf, err := runResourceCommand(t, fc, []string{"get", types.KindSessionRecordingConfig, "--format=json"})
+	require.NoError(t, err)
+
+	src := mustDecodeJSON[[]*types.SessionRecordingConfigV2](t, buf)
+	require.Len(t, src, 1)
+	initial := src[0]
+
+	const srcYAML = `kind: session_recording_config
+metadata:
+  labels:
+    teleport.dev/origin: defaults
+  name: session-recording-config
+spec:
+  mode: proxy
+version: v2
+`
+
+	// Create the src
+	srcYAMLPath := filepath.Join(t.TempDir(), "src.yaml")
+	require.NoError(t, os.WriteFile(srcYAMLPath, []byte(srcYAML), 0644))
+	_, err = runResourceCommand(t, fc, []string{"create", srcYAMLPath})
+	require.NoError(t, err)
+
+	// Fetch the cap
+	buf, err = runResourceCommand(t, fc, []string{"get", types.KindSessionRecordingConfig, "--format=json"})
+	require.NoError(t, err)
+	src = mustDecodeJSON[[]*types.SessionRecordingConfigV2](t, buf)
+	require.Len(t, src, 1)
+
+	var expected types.SessionRecordingConfigV2
+	require.NoError(t, yaml.Unmarshal([]byte(srcYAML), &expected))
+
+	require.Equal(t, types.RecordOff, initial.GetMode())
+	require.Equal(t, types.RecordAtProxy, expected.GetMode())
+
+	// Explicitly change the revision and try creating the src with and without
+	// the force flag.
+	expected.SetRevision(uuid.NewString())
+	raw, err := services.MarshalSessionRecordingConfig(&expected, services.PreserveResourceID())
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(srcYAMLPath, raw, 0644))
+
+	_, err = runResourceCommand(t, fc, []string{"create", srcYAMLPath})
+	require.True(t, trace.IsAlreadyExists(err))
+
+	_, err = runResourceCommand(t, fc, []string{"create", "-f", srcYAMLPath})
+	require.NoError(t, err)
+}
+
+func testCreateAppServer(t *testing.T, fc *config.FileConfig) {
+	const appServerWithIntegrationYAML = `---
+kind: app_server
+metadata:
+  name: my-integration
+spec:
+  app:
+    kind: app
+    metadata:
+      name: my-integration
+    spec:
+      uri: https://console.aws.amazon.com
+      integration: my-integration
+    version: v3
+  host_id: c6cfe5c2-653f-4e5d-a914-bfac5a7baf38
+version: v3
+`
+
+	const appServerWithoutIntegrationYAML = `---
+kind: app_server
+metadata:
+  name: my-integration
+spec:
+  app:
+    kind: app
+    metadata:
+      name: my-integration
+    spec:
+      uri: https://console.aws.amazon.com
+    version: v3
+  host_id: c6cfe5c2-653f-4e5d-a914-bfac5a7baf38
+version: v3
+`
+
+	// Creating an AppServer with integration is valid.
+	srcYAMLPath := filepath.Join(t.TempDir(), "appServerWithIntegrationYAML.yaml")
+	require.NoError(t, os.WriteFile(srcYAMLPath, []byte(appServerWithIntegrationYAML), 0644))
+	_, err := runResourceCommand(t, fc, []string{"create", srcYAMLPath})
+	require.NoError(t, err)
+
+	// Creating an AppServer without integration is invalid.
+	srcYAMLPath = filepath.Join(t.TempDir(), "appServerWithoutIntegrationYAML.yaml")
+	require.NoError(t, os.WriteFile(srcYAMLPath, []byte(appServerWithoutIntegrationYAML), 0644))
+	_, err = runResourceCommand(t, fc, []string{"create", srcYAMLPath})
+	require.ErrorContains(t, err, "integration")
+
+	buf, err := runResourceCommand(t, fc, []string{"get", types.KindAppServer, "--format=json"})
+	require.NoError(t, err)
+	appServers := mustDecodeJSON[[]*types.AppServerV3](t, buf)
+	require.Len(t, appServers, 1)
+
+	expectedAppServer, err := types.NewAppServerForAWSOIDCIntegration("my-integration", "c6cfe5c2-653f-4e5d-a914-bfac5a7baf38")
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(
+		expectedAppServer,
+		appServers[0],
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision", "Namespace"),
+	))
+}
+
+func testCreateDatabaseObject(t *testing.T, fc *config.FileConfig) {
+	const resourceYAML = `kind: db_object
+metadata:
+  expires: "2034-03-22T18:06:35.161162Z"
+  id: 1711129895244889000
+  labels:
+    database: foo
+    kind: table
+    name: page_views
+    protocol: postgres
+    schema: web_metrics
+    service_name: pg-docker
+  name: test_table
+  revision: 066f87d9-02cf-4062-9419-96523664c082
+spec:
+  database: foo
+  database_service_name: pg-docker
+  name: page_views
+  object_kind: table
+  protocol: postgres
+  schema: web_metrics
+version: v1
+`
+
+	// Verify there are no pre-existing objects
+	buf, err := runResourceCommand(t, fc, []string{"get", types.KindDatabaseObject, "--format=json"})
+	require.NoError(t, err)
+
+	resources := mustDecodeJSON[[]databaseobject.Resource](t, buf)
+	require.Empty(t, resources)
+
+	// Create the resource
+	resourceYAMLPath := filepath.Join(t.TempDir(), "resource.yaml")
+	require.NoError(t, os.WriteFile(resourceYAMLPath, []byte(resourceYAML), 0644))
+	_, err = runResourceCommand(t, fc, []string{"create", resourceYAMLPath})
+	require.NoError(t, err)
+
+	// Fetch the resource
+	buf, err = runResourceCommand(t, fc, []string{"get", types.KindDatabaseObject, "--format=json"})
+	require.NoError(t, err)
+	resources = mustDecodeJSON[[]databaseobject.Resource](t, buf)
+	require.Len(t, resources, 1)
+
+	// Compare with baseline
+	cmpOpts := []cmp.Option{
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "id", "revision"),
+		protocmp.Transform(),
+	}
+
+	var expected databaseobject.Resource
+	require.NoError(t, yaml.Unmarshal([]byte(resourceYAML), &expected))
+
+	require.Equal(t, "", cmp.Diff(expected, resources[0], cmpOpts...))
+	require.Equal(t, "", cmp.Diff(databaseobject.ResourceToProto(&expected), databaseobject.ResourceToProto(&resources[0]), cmpOpts...))
 }
 
 // TestCreateEnterpriseResources asserts that tctl create

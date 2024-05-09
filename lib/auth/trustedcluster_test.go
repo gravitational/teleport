@@ -374,26 +374,10 @@ func TestValidateTrustedCluster(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		require.Len(t, resp.CAs, 3)
+		require.Len(t, resp.CAs, 4)
 		require.ElementsMatch(t,
-			[]types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA},
-			[]types.CertAuthType{resp.CAs[0].GetType(), resp.CAs[1].GetType(), resp.CAs[2].GetType()},
-		)
-	})
-
-	t.Run("OpenSSH CA not returned for pre v12", func(t *testing.T) {
-		leafClusterCA := types.CertAuthority(suite.NewTestCA(types.HostCA, "leafcluster"))
-		resp, err := a.validateTrustedCluster(ctx, &ValidateTrustedClusterRequest{
-			Token:           validToken,
-			CAs:             []types.CertAuthority{leafClusterCA},
-			TeleportVersion: "11.0.0",
-		})
-		require.NoError(t, err)
-
-		require.Len(t, resp.CAs, 3)
-		require.ElementsMatch(t,
-			[]types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA},
-			[]types.CertAuthType{resp.CAs[0].GetType(), resp.CAs[1].GetType(), resp.CAs[2].GetType()},
+			[]types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA, types.OpenSSHCA},
+			[]types.CertAuthType{resp.CAs[0].GetType(), resp.CAs[1].GetType(), resp.CAs[2].GetType(), resp.CAs[3].GetType()},
 		)
 	})
 
@@ -442,9 +426,12 @@ func newTestAuthServer(ctx context.Context, t *testing.T, name ...string) *Serve
 	require.NoError(t, err)
 	t.Cleanup(func() { a.Close() })
 	require.NoError(t, a.SetClusterAuditConfig(ctx, types.DefaultClusterAuditConfig()))
-	require.NoError(t, a.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig()))
-	require.NoError(t, a.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig()))
-	require.NoError(t, a.SetAuthPreference(ctx, types.DefaultAuthPreference()))
+	_, err = a.UpsertClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
+	require.NoError(t, err)
+	_, err = a.UpsertSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
+	require.NoError(t, err)
+	_, err = a.UpsertAuthPreference(ctx, types.DefaultAuthPreference())
+	require.NoError(t, err)
 	return a
 }
 

@@ -32,18 +32,23 @@ import (
 
 // Notifications defines an interface for managing notifications.
 type Notifications interface {
-	ListNotificationsForUser(context.Context, notificationsv1.ListUserNotificationsRequest) ([]notificationsv1.Notification, error)
-	CreateUserNotification(ctx context.Context, username string, notification *notificationsv1.Notification) error
+	ListUserNotifications(ctx context.Context, pageSize int, startKey string) ([]*notificationsv1.Notification, string, error)
+	ListGlobalNotifications(ctx context.Context, pageSize int, startKey string) ([]*notificationsv1.GlobalNotification, string, error)
+	DeleteAllUserNotifications(ctx context.Context) error
+	DeleteAllGlobalNotifications(ctx context.Context) error
+	CreateUserNotification(ctx context.Context, notification *notificationsv1.Notification) (*notificationsv1.Notification, error)
+	UpsertUserNotification(ctx context.Context, notification *notificationsv1.Notification) (*notificationsv1.Notification, error)
 	DeleteUserNotification(ctx context.Context, username string, notificationId string) error
 	DeleteAllUserNotificationsForUser(ctx context.Context, username string) error
-	CreateGlobalNotification(ctx context.Context, globalNotification *notificationsv1.GlobalNotification) (notificationsv1.GlobalNotification, error)
+	CreateGlobalNotification(ctx context.Context, globalNotification *notificationsv1.GlobalNotification) (*notificationsv1.GlobalNotification, error)
+	UpsertGlobalNotification(ctx context.Context, globalNotification *notificationsv1.GlobalNotification) (*notificationsv1.GlobalNotification, error)
 	DeleteGlobalNotification(ctx context.Context, notificationId string) error
-	UpsertUserNotificationState(ctx context.Context, username string, state *notificationsv1.UserNotificationState) (notificationsv1.UserNotificationState, error)
+	UpsertUserNotificationState(ctx context.Context, username string, state *notificationsv1.UserNotificationState) (*notificationsv1.UserNotificationState, error)
 	DeleteUserNotificationState(ctx context.Context, username string, notificationId string) error
 	DeleteAllUserNotificationStatesForUser(ctx context.Context, username string) error
-	ListUserNotificationStates(ctx context.Context, username string, pageSize int, nextToken string) ([]notificationsv1.UserNotificationState, string, error)
-	UpsertUserLastSeenNotification(ctx context.Context, username string, ulsn *notificationsv1.UserLastSeenNotification) (notificationsv1.UserLastSeenNotification, error)
-	GetUserLastSeenNotification(ctx context.Context, username string) (notificationsv1.UserLastSeenNotification, error)
+	ListUserNotificationStates(ctx context.Context, username string, pageSize int, nextToken string) ([]*notificationsv1.UserNotificationState, string, error)
+	UpsertUserLastSeenNotification(ctx context.Context, username string, ulsn *notificationsv1.UserLastSeenNotification) (*notificationsv1.UserLastSeenNotification, error)
+	GetUserLastSeenNotification(ctx context.Context, username string) (*notificationsv1.UserLastSeenNotification, error)
 	DeleteUserLastSeenNotification(ctx context.Context, username string) error
 }
 
@@ -130,6 +135,10 @@ func ValidateGlobalNotification(globalNotification *notificationsv1.GlobalNotifi
 
 	if err := ValidateNotification(globalNotification.Spec.Notification); err != nil {
 		return trace.Wrap(err)
+	}
+
+	if globalNotification.Spec.Notification.Spec.Username != "" {
+		return trace.BadParameter("a global notification cannot have a username")
 	}
 
 	return nil

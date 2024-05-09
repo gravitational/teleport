@@ -196,7 +196,7 @@ func NewProxyServer(ctx context.Context, config ProxyServerConfig) (*ProxyServer
 			AcceptedUsage: []string{teleport.UsageDatabaseOnly},
 		},
 		closeCtx: ctx,
-		log:      logrus.WithField(trace.Component, proxyServerComponent),
+		log:      logrus.WithField(teleport.ComponentKey, proxyServerComponent),
 	}
 	server.cfg.TLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
 	server.cfg.TLSConfig.GetConfigForClient = getConfigForClient(
@@ -276,7 +276,7 @@ func (s *ProxyServer) serveGenericTLS(listener net.Listener, tlsConfig *tls.Conf
 		go func() {
 			defer clientConn.Close()
 			tlsConn := tls.Server(clientConn, tlsConfig)
-			if err := tlsConn.Handshake(); err != nil {
+			if err := tlsConn.HandshakeContext(s.closeCtx); err != nil {
 				if !utils.IsOKNetworkError(err) {
 					s.log.WithError(err).Errorf("%s TLS handshake failed.", dbName)
 				}

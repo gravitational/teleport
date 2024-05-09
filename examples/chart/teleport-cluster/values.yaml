@@ -276,7 +276,20 @@ operator:
 podSecurityPolicy:
   enabled: true
 
-# Labels is a map of key-value pairs about this cluster
+# The `global` section contains values that are shared between the main chart and all subcharts.
+global:
+  # The `clusterDomain` value controls the domain suffix used in the Kubernetes
+  # DNS service. This is used to resolve service names in the cluster.
+  # The default value is `cluster.local`.
+
+  # WARNING: Changing this value must match the Kubernetes cluster's configuration 
+  # otherwise Teleport will not be able to resolve service names.
+  clusterDomain: cluster.local
+
+# Labels is a map of key-value pairs about this cluster. Those labels are used
+# in Teleport to access the Kuebrnetes cluster. They must not be confused with
+# `extraLabels` which are additional labels to add on Kubernetes resources
+# created by the Helm chart.
 labels: {}
 
 # Mode to deploy the chart in. The default is "standalone". Options:
@@ -348,9 +361,34 @@ aws:
   # The DynamoDB table name to use for audit log storage. Teleport will attempt to create this table automatically if it does not exist.
   # The container will need an appropriately-provisioned IAM role with permissions to create DynamoDB tables.
   # This MUST NOT be the same table name as used for 'backendTable' as the schemas are different.
+  #
+  # If you are using the Athena backend, you don't need to set this value.
+  # If you set this value, audit logs will be sent both to the Athena and DynamoDB
+  # backends, this is useful when migrating backends.
+  # If both `aws.athenaURL` and `aws.auditLogTable` (DynamoDB) are set, the
+  # `aws.auditLogPrimaryBackend` value configures which backend is used for querying.
+  # Teleport queries the audit backend to display the audit log in the web UI, export events
+  # using the audit log collector, or perform any action that needs to inspect past audit events.
   auditLogTable: ""
   # Whether to mirror audit log entries to stdout in JSON format (useful for external log collectors)
   auditLogMirrorOnStdout: false
+  # auditLogPrimaryBackend controls which backend is used for queries when multiple
+  # audit backends are enabled. This setting has no effect when a single audit
+  # log backend is enabled.This setting is used when migrating from DynamoDB to
+  # Athena.
+  #
+  # Possible values are `dynamo` and `athena`.
+  auditLogPrimaryBackend: ""
+  # athenaURL contains the Athena audit log backend configuration
+  # When this value is set, Teleport will export events to the Athena audit backend.
+  #
+  # To use the Athena audit backend, you must set up the required infrastructure
+  # (S3 buckets, SQS queue, AthenaDB, IAM roles and permissions, ...).
+  # The requirements are described in the documentation: https://goteleport.com/docs/reference/backends/#athena
+  #
+  # If both `aws.athenaURL` and `aws.auditLogTable` (DynamoDB) are set, the
+  # `aws.auditLogPrimaryBackend` value configures which backend is used for querying.
+  athenaURL: ""
   # The S3 bucket name to use for recorded session storage. Teleport will attempt to create this bucket automatically if it does not exist.
   # The container will need an appropriately-provisioned IAM role with permissions to create S3 buckets.
   sessionRecordingBucket: ""
@@ -358,6 +396,10 @@ aws:
   backups: false
 
   # Whether Teleport should configure DynamoDB's autoscaling.
+  #
+  # WARNING: DynamoDB autoscaling is no longer recommended. Teleport now
+  # defaults to "on demand" DynamoDB billing, which has more reliable performance.
+  #
   # Requires additional statements in the IAM Teleport Policy to be allowed to configure the autoscaling.
   # See https://goteleport.com/docs/setup/reference/backends/#dynamodb-autoscaling
   dynamoAutoScaling: false
@@ -370,6 +412,20 @@ aws:
   writeMinCapacity: null     # Integer
   writeMaxCapacity: null     # Integer
   writeTargetValue: null     # Float
+
+  # accessMonitoring configures the Access Monitoring feature of the Auth Service.
+  # Using this features requires setting up specific AWS infrastructure as described
+  # in https://goteleport.com/docs/access-controls/access-monitoring/#configuration
+  # The Terraform example code will output the chart values for this section.
+  accessMonitoring:
+    enabled: false
+    # reportResults is the bucket uri where query results are reported.
+    # Example: "s3://example-athena-long-term/report_results"
+    reportResults: ""
+    # roleARN is the ARN of the role that is assumed to run the reports.
+    roleARN: ""
+    # workgroup is the Athena workgroup in which Teleport runs queries.
+    workgroup: ""
 
 ##################################################
 # GCP-specific settings (only used in "gcp" mode)
@@ -573,6 +629,44 @@ annotations:
   # Annotations for the Ingress object
   ingress: {}
 
+# extraLabels -- contains additional Kubernetes labels to apply on the resources
+# created by the chart.
+# See [the Kubernetes label documentation
+# ](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/)
+# for more information.
+#
+# Note: for PodMonitor labels, see `podMonitor.additionalLabels` instead.
+extraLabels:
+  # extraLabels.certSecret(object) -- are labels to set on the certificate secret
+  # generated by cert-manager v1.5+ when `highAvailability.certManager.enabled`
+  # is true.
+  certSecret: {}
+  # extraLabels.clusterRole(object) -- are labels to set on the ClusterRole.
+  clusterRole: {}
+  # extraLabels.clusterRoleBinding(object) -- are labels to set on the ClusterRoleBinding.
+  clusterRoleBinding: {}
+  # extraLabels.role(object) -- are labels to set on the Role.
+  config: {}
+  # extraLabels.deployment(object) -- are labels to set on the Deployment.
+  deployment: {}
+  # extraLabels.ingress(object) -- are labels to set on the Ingress.
+  ingress: {}
+  # extraLabels.job(object) -- are labels to set on the Job run by the Helm hook.
+  job: {}
+  # extraLabels.persistentVolumeClaim(object) -- are labels to set on the PersistentVolumeClaim.
+  persistentVolumeClaim: {}
+  # extraLabels.pod(object) -- are labels to set on the Pods created by the
+  # Deployment.
+  pod: {}
+  # extraLabels.podDisruptionBudget(object) -- are labels to set on the podDisruptionBudget.
+  podDisruptionBudget: {}
+  # extraLabels.secret(object) -- are labels to set on the Secret.
+  secret: {}
+  # extraLabels.service(object) -- are labels to set on the Service.
+  service: {}
+  # extraLabels.serviceAccount(object) -- are labels to set on the ServiceAccount.
+  serviceAccount: {}
+
 # Kubernetes service account to create/use.
 serviceAccount:
   # Specifies whether a ServiceAccount should be created
@@ -675,6 +769,10 @@ resources: {}
 #    memory: "2Gi"
 #  limits:
 #    memory: "2Gi"
+
+# Pod security context for any pods created by the chart
+podSecurityContext: {}
+  # fsGroup: 65532
 
 # Security context to add to the container
 securityContext: {}

@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/mfa"
@@ -89,7 +90,7 @@ func TestMFADeviceManagement(t *testing.T) {
 	})
 	const webOrigin = "https://localhost" // matches RPID above
 	require.NoError(t, err)
-	err = authServer.SetAuthPreference(ctx, authPref)
+	_, err = authServer.UpsertAuthPreference(ctx, authPref)
 	require.NoError(t, err)
 
 	// Create a fake user.
@@ -429,11 +430,13 @@ func TestMFADeviceManagement(t *testing.T) {
 		// Deleting the last passwordless device is only allowed if passwordless is
 		// off, so let's do that.
 		authPref.SetAllowPasswordless(false)
-		require.NoError(t, authServer.SetAuthPreference(ctx, authPref), "SetAuthPreference")
+		authPref, err = authServer.UpsertAuthPreference(ctx, authPref)
+		require.NoError(t, err, "UpsertAuthPreference")
 
 		defer func() {
 			authPref.SetAllowPasswordless(true)
-			assert.NoError(t, authServer.SetAuthPreference(ctx, authPref), "Resetting AuthPreference")
+			authPref, err = authServer.UpsertAuthPreference(ctx, authPref)
+			assert.NoError(t, err, "Resetting AuthPreference")
 		}()
 
 		testDeleteMFADevice(ctx, t, userClient, mfaDeleteTestOpts{
@@ -646,7 +649,7 @@ func TestCreateAppSession_deviceExtensions(t *testing.T) {
 			userClient, err := testServer.NewClient(u)
 			require.NoError(t, err, "NewClient failed")
 
-			session, err := userClient.CreateAppSession(ctx, types.CreateAppSessionRequest{
+			session, err := userClient.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
 				Username:    user.GetName(),
 				PublicAddr:  app.GetPublicAddr(),
 				ClusterName: testServer.ClusterName(),
@@ -741,6 +744,9 @@ func TestGenerateUserCerts_deviceExtensions(t *testing.T) {
 func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise, // required for Device Trust.
+		TestFeatures: modules.Features{
+			App: true,
+		},
 	})
 
 	testServer := newTestTLSServer(t)
@@ -796,9 +802,8 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 
 		modify(authPref)
 
-		require.NoError(t,
-			authServer.SetAuthPreference(ctx, authPref),
-			"SetAuthPreference failed")
+		_, err = authServer.UpsertAuthPreference(ctx, authPref)
+		require.NoError(t, err, "UpsertAuthPreference failed")
 	}
 
 	// Register MFA devices for the user.
@@ -842,7 +847,6 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 		Usage:          proto.UserCertsRequest_App,
 		RouteToApp: proto.RouteToApp{
 			Name:        "hello",
-			SessionID:   "mysessionid",
 			PublicAddr:  "hello.cluster.dev",
 			ClusterName: clusterName,
 		},
@@ -933,16 +937,12 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 			assertErr:          assertSuccess,
 		},
 		{
-			// Tracked here because, if this changes, then the scenario should be the
-			// same as the one above.
-			name:              "single user cert does not allow App usage",
+			name:              "mode=required ignores App Access requests",
 			clusterDeviceMode: constants.DeviceTrustModeRequired,
 			client:            clientWithoutDevice,
 			req:               appReq,
 			skipLoginCerts:    true,
-			assertErr: func(t *testing.T, err error) {
-				assert.ErrorContains(t, err, "app access", "single-use certs expected to fail for usage=App")
-			},
+			assertErr:         assertSuccess,
 		},
 		{
 			name:              "mode=required ignores Desktop Access requests",
@@ -1012,9 +1012,8 @@ func TestRegisterFirstDevice_deviceAuthz(t *testing.T) {
 
 		modify(authPref)
 
-		require.NoError(t,
-			authServer.SetAuthPreference(ctx, authPref),
-			"SetAuthPreference failed")
+		_, err = authServer.UpsertAuthPreference(ctx, authPref)
+		require.NoError(t, err, "UpsertAuthPreference failed")
 	}
 
 	// Enable webauthn
@@ -1125,7 +1124,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 	})
 	const webOrigin = "https://localhost" // matches RPID above
 	require.NoError(t, err)
-	err = srv.Auth().SetAuthPreference(ctx, authPref)
+	_, err = srv.Auth().UpsertAuthPreference(ctx, authPref)
 	require.NoError(t, err)
 
 	// Register an SSH node.
@@ -1172,6 +1171,20 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, srv.Auth().CreateWindowsDesktop(ctx, desktop))
+
+	app, err := types.NewAppV3(
+		types.Metadata{
+			Name: "app-a",
+		},
+		types.AppSpecV3{
+			URI: "localhost",
+		},
+	)
+	require.NoError(t, err)
+	appServer, err := types.NewAppServerV3FromApp(app, "app-a", "app-a")
+	require.NoError(t, err)
+	_, err = srv.Auth().UpsertApplicationServer(ctx, appServer)
+	require.NoError(t, err)
 
 	leaf, err := types.NewRemoteCluster("leaf")
 	require.NoError(t, err)
@@ -1366,6 +1379,45 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 			},
 		},
 		{
+			desc: "app",
+			opts: generateUserSingleUseCertsTestOpts{
+				initReq: &proto.UserCertsRequest{
+					PublicKey: pub,
+					Username:  user.GetName(),
+					// This expiry is longer than allowed, should be
+					// automatically adjusted.
+					Expires: clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
+					Usage:   proto.UserCertsRequest_App,
+					RouteToApp: proto.RouteToApp{
+						Name: "app-a",
+					},
+				},
+				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
+					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
+				},
+				authnHandler: registered.webAuthHandler,
+				verifyErr:    require.NoError,
+				verifyCert: func(t *testing.T, c *proto.Certs) {
+					crt := c.TLS
+					require.NotEmpty(t, crt)
+
+					cert, err := tlsca.ParseCertificatePEM(crt)
+					require.NoError(t, err)
+					require.Equal(t, cert.NotAfter, clock.Now().Add(teleport.UserSingleUseCertTTL))
+
+					identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+					require.NoError(t, err)
+					require.Equal(t, webDevID, identity.MFAVerified)
+					require.Equal(t, userCertExpires, identity.PreviousIdentityExpires)
+					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
+					require.Equal(t, []string{teleport.UsageAppsOnly}, identity.Usage)
+					require.Equal(t, "app-a", identity.RouteToApp.Name)
+					// session ID should be set to a random UUID, corresponding to an app session.
+					require.NotZero(t, identity.RouteToApp.SessionID)
+				},
+			},
+		},
+		{
 			desc: "db with ttl limit disabled",
 			opts: generateUserSingleUseCertsTestOpts{
 				initReq: &proto.UserCertsRequest{
@@ -1438,6 +1490,47 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
 					require.Equal(t, []string{teleport.UsageKubeOnly}, identity.Usage)
 					require.Equal(t, "kube-a", identity.KubernetesCluster)
+				},
+			},
+		},
+		{
+			desc: "app with ttl limit disabled",
+			opts: generateUserSingleUseCertsTestOpts{
+				initReq: &proto.UserCertsRequest{
+					PublicKey: pub,
+					Username:  user.GetName(),
+					// This expiry should *not* be adjusted to single user cert TTL,
+					// since ttl limiting is disabled when requester is a local proxy.
+					// It *should* be adjusted to the user cert ttl though.
+					Expires: clock.Now().Add(1000 * time.Hour),
+					Usage:   proto.UserCertsRequest_App,
+					RouteToApp: proto.RouteToApp{
+						Name: "app-a",
+					},
+					RequesterName: proto.UserCertsRequest_TSH_APP_LOCAL_PROXY,
+				},
+				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
+					require.Equal(t, proto.MFARequired_MFA_REQUIRED_UNSPECIFIED, required)
+				},
+				authnHandler: registered.webAuthHandler,
+				verifyErr:    require.NoError,
+				verifyCert: func(t *testing.T, c *proto.Certs) {
+					crt := c.TLS
+					require.NotEmpty(t, crt)
+
+					cert, err := tlsca.ParseCertificatePEM(crt)
+					require.NoError(t, err)
+					require.Equal(t, userCertExpires, cert.NotAfter)
+
+					identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+					require.NoError(t, err)
+					require.Equal(t, webDevID, identity.MFAVerified)
+					require.Equal(t, userCertExpires, identity.PreviousIdentityExpires)
+					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
+					require.Equal(t, []string{teleport.UsageAppsOnly}, identity.Usage)
+					require.Equal(t, "app-a", identity.RouteToApp.Name)
+					// session ID should be set to a random UUID, corresponding to an app session.
+					require.NotZero(t, identity.RouteToApp.SessionID)
 				},
 			},
 		},
@@ -1709,6 +1802,46 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 			},
 		},
 		{
+			desc: "app in leaf cluster",
+			opts: generateUserSingleUseCertsTestOpts{
+				initReq: &proto.UserCertsRequest{
+					PublicKey: pub,
+					Username:  user.GetName(),
+					// This expiry is longer than allowed, should be
+					// automatically adjusted.
+					Expires: clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
+					Usage:   proto.UserCertsRequest_App,
+					RouteToApp: proto.RouteToApp{
+						Name: "app-b",
+					},
+					RouteToCluster: "leaf",
+				},
+				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
+					require.Equal(t, proto.MFARequired_MFA_REQUIRED_UNSPECIFIED, required)
+				},
+				authnHandler: registered.webAuthHandler,
+				verifyErr:    require.NoError,
+				verifyCert: func(t *testing.T, c *proto.Certs) {
+					crt := c.TLS
+					require.NotEmpty(t, crt)
+
+					cert, err := tlsca.ParseCertificatePEM(crt)
+					require.NoError(t, err)
+					require.Equal(t, cert.NotAfter, clock.Now().Add(teleport.UserSingleUseCertTTL))
+
+					identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+					require.NoError(t, err)
+					require.Equal(t, webDevID, identity.MFAVerified)
+					require.Equal(t, userCertExpires, identity.PreviousIdentityExpires)
+					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
+					require.Equal(t, []string{teleport.UsageAppsOnly}, identity.Usage)
+					require.Equal(t, "app-b", identity.RouteToApp.Name)
+					// session ID should be set to a random UUID, corresponding to an app session.
+					require.NotZero(t, identity.RouteToApp.SessionID)
+				},
+			},
+		},
+		{
 			desc: "ssh in leaf node",
 			opts: generateUserSingleUseCertsTestOpts{
 				initReq: &proto.UserCertsRequest{
@@ -1738,20 +1871,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					require.Equal(t, userCertExpires.Format(time.RFC3339), cert.Extensions[teleport.CertExtensionPreviousIdentityExpires])
 					require.True(t, net.ParseIP(cert.Extensions[teleport.CertExtensionLoginIP]).IsLoopback())
 					require.Equal(t, uint64(clock.Now().Add(teleport.UserSingleUseCertTTL).Unix()), cert.ValidBefore)
-				},
-			},
-		},
-		{
-			desc: "fail - app access not supported",
-			opts: generateUserSingleUseCertsTestOpts{
-				initReq: &proto.UserCertsRequest{
-					PublicKey: pub,
-					Username:  user.GetName(),
-					Expires:   clock.Now().Add(teleport.UserSingleUseCertTTL),
-					Usage:     proto.UserCertsRequest_App,
-				},
-				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
-					require.ErrorContains(t, err, "app access")
 				},
 			},
 		},
@@ -1845,7 +1964,7 @@ func TestIsMFARequired(t *testing.T) {
 				},
 			})
 			require.NoError(t, err)
-			err = srv.Auth().SetAuthPreference(ctx, authPref)
+			authPref, err = srv.Auth().UpsertAuthPreference(ctx, authPref)
 			require.NoError(t, err)
 
 			for _, roleRequireMFAType := range requireMFATypes {
@@ -1916,7 +2035,7 @@ func TestIsMFARequired_unauthorized(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	err = srv.Auth().SetAuthPreference(ctx, authPref)
+	_, err = srv.Auth().UpsertAuthPreference(ctx, authPref)
 	require.NoError(t, err)
 
 	// Register an SSH node.
@@ -2090,6 +2209,127 @@ func TestIsMFARequired_nodeMatch(t *testing.T) {
 	}
 }
 
+func TestIsMFARequired_App(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	appA, err := types.NewAppV3(types.Metadata{
+		Name: "app-a",
+		Labels: map[string]string{
+			"env": "dev",
+		},
+	}, types.AppSpecV3{
+		URI:        "app-a",
+		PublicAddr: "appa.example.com",
+	})
+	require.NoError(t, err)
+	appAServer, err := types.NewAppServerV3FromApp(appA, "host", "host-id")
+	require.NoError(t, err)
+	_, err = srv.Auth().UpsertApplicationServer(ctx, appAServer)
+	require.NoError(t, err)
+
+	accessDevApp, err := types.NewRole("access-a", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			AppLabels: types.Labels{
+				"env": []string{"dev"},
+			},
+		},
+	})
+	require.NoError(t, err)
+	_, err = srv.Auth().UpsertRole(ctx, accessDevApp)
+	require.NoError(t, err)
+
+	accessDevAppMFA, err := types.NewRole("access-a-mfa", types.RoleSpecV6{
+		Options: types.RoleOptions{
+			RequireMFAType: types.RequireMFAType_SESSION,
+		},
+		Allow: types.RoleConditions{
+			AppLabels: types.Labels{
+				"env": []string{"dev"},
+			},
+		},
+	})
+	require.NoError(t, err)
+	_, err = srv.Auth().UpsertRole(ctx, accessDevAppMFA)
+	require.NoError(t, err)
+
+	accessStagingAppMFA, err := types.NewRole("access-b-mfa", types.RoleSpecV6{
+		Options: types.RoleOptions{
+			RequireMFAType: types.RequireMFAType_SESSION,
+		},
+		Allow: types.RoleConditions{
+			AppLabels: types.Labels{
+				"env": []string{"staging"},
+			},
+		},
+	})
+	require.NoError(t, err)
+	_, err = srv.Auth().UpsertRole(ctx, accessStagingAppMFA)
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		name              string
+		authPrefMFAType   types.RequireMFAType
+		roles             []string
+		expectMFARequired proto.MFARequired
+	}{
+		{
+			name:              "mfa not required",
+			authPrefMFAType:   types.RequireMFAType_OFF,
+			roles:             []string{accessDevApp.GetName()},
+			expectMFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+		}, {
+			name:              "mfa required by role",
+			authPrefMFAType:   types.RequireMFAType_OFF,
+			roles:             []string{accessDevAppMFA.GetName()},
+			expectMFARequired: proto.MFARequired_MFA_REQUIRED_YES,
+		}, {
+			name:              "mfa required by cap",
+			authPrefMFAType:   types.RequireMFAType_SESSION,
+			roles:             []string{accessDevApp.GetName()},
+			expectMFARequired: proto.MFARequired_MFA_REQUIRED_YES,
+		}, {
+			name:              "mfa not required from unmatched role role",
+			authPrefMFAType:   types.RequireMFAType_OFF,
+			roles:             []string{accessDevApp.GetName(), accessStagingAppMFA.GetName()},
+			expectMFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+		},
+	} {
+		// Update auth pref mfa type
+		authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+			Type:           constants.Local,
+			SecondFactor:   constants.SecondFactorOptional,
+			RequireMFAType: tc.authPrefMFAType,
+			Webauthn: &types.Webauthn{
+				RPID: "teleport",
+			},
+		})
+		require.NoError(t, err)
+		_, err = srv.Auth().UpsertAuthPreference(ctx, authPref)
+		require.NoError(t, err)
+
+		// Create a user with test case roles.
+		user, err := types.NewUser("alice")
+		require.NoError(t, err)
+		user.SetRoles(tc.roles)
+		user, err = srv.Auth().UpsertUser(ctx, user)
+		require.NoError(t, err)
+
+		cl, err := srv.NewClient(TestUser(user.GetName()))
+		require.NoError(t, err)
+
+		resp, err := cl.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
+			Target: &proto.IsMFARequiredRequest_App{App: &proto.RouteToApp{
+				Name: "app-a",
+			}},
+		})
+		require.NoError(t, err)
+
+		assert.Equal(t, tc.expectMFARequired, resp.MFARequired, "IsMFARequired mismatch")
+		assert.Equal(t, tc.expectMFARequired == proto.MFARequired_MFA_REQUIRED_YES, resp.Required, "Required mismatch")
+	}
+}
+
 // testOriginDynamicStored tests setting a ResourceWithOrigin via the server
 // API always results in the resource being stored with OriginDynamic.
 func testOriginDynamicStored(t *testing.T, setWithOrigin func(*Client, string) error, getStored func(*Server) (types.ResourceWithOrigin, error)) {
@@ -2120,7 +2360,8 @@ func TestAuthPreferenceOriginDynamic(t *testing.T) {
 	setWithOrigin := func(cl *Client, origin string) error {
 		authPref := types.DefaultAuthPreference()
 		authPref.SetOrigin(origin)
-		return cl.SetAuthPreference(ctx, authPref)
+		_, err := cl.UpsertAuthPreference(ctx, authPref)
+		return err
 	}
 
 	getStored := func(asrv *Server) (types.ResourceWithOrigin, error) {
@@ -2137,7 +2378,8 @@ func TestClusterNetworkingConfigOriginDynamic(t *testing.T) {
 	setWithOrigin := func(cl *Client, origin string) error {
 		netConfig := types.DefaultClusterNetworkingConfig()
 		netConfig.SetOrigin(origin)
-		return cl.SetClusterNetworkingConfig(ctx, netConfig)
+		_, err := cl.UpsertClusterNetworkingConfig(ctx, netConfig)
+		return trace.Wrap(err)
 	}
 
 	getStored := func(asrv *Server) (types.ResourceWithOrigin, error) {
@@ -2154,7 +2396,8 @@ func TestSessionRecordingConfigOriginDynamic(t *testing.T) {
 	setWithOrigin := func(cl *Client, origin string) error {
 		recConfig := types.DefaultSessionRecordingConfig()
 		recConfig.SetOrigin(origin)
-		return cl.SetSessionRecordingConfig(ctx, recConfig)
+		_, err := cl.UpsertSessionRecordingConfig(ctx, recConfig)
+		return err
 	}
 
 	getStored := func(asrv *Server) (types.ResourceWithOrigin, error) {
@@ -2331,7 +2574,7 @@ func TestGetSSHTargets(t *testing.T) {
 
 	cnc := types.DefaultClusterNetworkingConfig()
 	cnc.SetCaseInsensitiveRouting(true)
-	err = clt.SetClusterNetworkingConfig(ctx, cnc)
+	_, err = clt.UpsertClusterNetworkingConfig(ctx, cnc)
 	require.NoError(t, err)
 
 	rsp, err = clt.GetSSHTargets(ctx, &proto.GetSSHTargetsRequest{
@@ -4382,6 +4625,75 @@ func TestDropDBClientCAEvents(t *testing.T) {
 			}
 			// watcher should see the first event if it wasn't dropped.
 			require.Equal(t, types.DatabaseClientCA, gotCA.GetType(), "db client CA event was not supposed to be dropped")
+		})
+	}
+}
+
+func TestGetAccessGraphConfig(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			Policy: modules.PolicyFeature{
+				Enabled: true,
+			},
+		},
+	})
+	server := newTestTLSServer(t,
+		withAccessGraphConfig(AccessGraphConfig{
+			Enabled: true,
+			CA:      []byte("ca"),
+			Address: "addr",
+		}),
+	)
+	user, _, err := CreateUserAndRole(server.Auth(), "test", []string{"role"}, nil)
+	require.NoError(t, err)
+	positiveResponse := &clusterconfigpb.AccessGraphConfig{
+		Enabled: true,
+		Ca:      []byte("ca"),
+		Address: "addr",
+	}
+
+	tests := []struct {
+		desc      string
+		identity  authz.IdentityGetter
+		assertErr require.ErrorAssertionFunc
+		expected  *clusterconfigpb.AccessGraphConfig
+	}{
+		{
+			desc: "users can't pull the access graph config",
+			identity: authz.LocalUser{
+				Username: user.GetName(),
+			},
+			assertErr: require.Error,
+		},
+		{
+			desc: "proxy can pull access graph config",
+			identity: authz.BuiltinRole{
+				Role:     types.RoleProxy,
+				Username: server.ClusterName(),
+			},
+			assertErr: require.NoError,
+			expected:  positiveResponse,
+		},
+		{
+			desc: "discovery can pull access graph config",
+			identity: authz.BuiltinRole{
+				Role:     types.RoleDiscovery,
+				Username: server.ClusterName(),
+			},
+			assertErr: require.NoError,
+			expected:  positiveResponse,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			client, err := server.NewClient(TestIdentity{
+				I: test.identity,
+			})
+			require.NoError(t, err)
+			rsp, err := client.GetClusterAccessGraphConfig(context.Background())
+			test.assertErr(t, err)
+			require.Empty(t, cmp.Diff(test.expected, rsp, protocmp.Transform()))
 		})
 	}
 }

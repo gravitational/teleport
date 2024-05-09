@@ -112,6 +112,7 @@ FROM ubuntu:22.04 AS buildbox
 COPY locale.gen /etc/locale.gen
 COPY profile /etc/profile
 COPY gpg/docker.gpg .
+COPY gpg/hashicorp.gpg .
 ENV LANGUAGE="en_US.UTF-8" \
     LANG="en_US.UTF-8" \
     LC_ALL="en_US.UTF-8" \
@@ -171,11 +172,15 @@ RUN apt-get -y update && \
     gpg --dearmor -o /etc/apt/keyrings/docker.gpg docker.gpg && \
     chmod a+r /etc/apt/keyrings/docker.gpg && \
     echo \
-    "deb [arch="$(dpkg --print-architecture)" signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+    "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
     "$(. /etc/os-release && echo "$VERSION_CODENAME")" stable" | \
     tee /etc/apt/sources.list.d/docker.list > /dev/null && \
     apt-get update && \
     apt-get install -y docker-ce-cli && \
+    gpg --dearmor -o /usr/share/keyrings/hashicorp.gpg hashicorp.gpg && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/hashicorp.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | \
+    tee /etc/apt/sources.list.d/hashicorp.list > /dev/null && \
+    apt-get update && apt-get install terraform -y --no-install-recommends && \
     # Manually install the wasm-opt binary from the binaryen package on ARM64.
     if [ "$BUILDARCH" = "arm64" ]; then apt-get install -y binaryen; fi && \
     pip3 --no-cache-dir install yamllint && \
@@ -297,7 +302,7 @@ ARG NODE_PROTOC_TS_VERSION  # eg, "5.0.1"
 RUN npm install --global "grpc-tools@$NODE_GRPC_TOOLS_VERSION" "grpc_tools_node_protoc_ts@$NODE_PROTOC_TS_VERSION"
 
 # Install protoc.
-ARG PROTOC_VERSION # eg, "3.20.2"
+ARG PROTOC_VERSION # eg, "26.1"
 RUN VERSION="$PROTOC_VERSION" && \
   PB_REL='https://github.com/protocolbuffers/protobuf/releases' && \
   PB_FILE="$(mktemp protoc-XXXXXX.zip)" && \

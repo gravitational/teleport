@@ -1,3 +1,135 @@
+sets clusterDomain on Deployment Pods:
+  1: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      annotations:
+        kubernetes.io/deployment: test-annotation
+        kubernetes.io/deployment-different: 3
+      labels:
+        app.kubernetes.io/component: proxy
+        app.kubernetes.io/instance: RELEASE-NAME
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: teleport-cluster
+        app.kubernetes.io/version: 16.0.0-dev
+        helm.sh/chart: teleport-cluster-16.0.0-dev
+        teleport.dev/majorVersion: "16"
+      name: RELEASE-NAME-proxy
+      namespace: NAMESPACE
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/component: proxy
+          app.kubernetes.io/instance: RELEASE-NAME
+          app.kubernetes.io/name: teleport-cluster
+      template:
+        metadata:
+          annotations:
+            checksum/config: da26ba3153ff9f80686314d90a537224873f6ddf7d5236c1cab8d8ca365bfe5a
+            kubernetes.io/pod: test-annotation
+            kubernetes.io/pod-different: 4
+          labels:
+            app.kubernetes.io/component: proxy
+            app.kubernetes.io/instance: RELEASE-NAME
+            app.kubernetes.io/managed-by: Helm
+            app.kubernetes.io/name: teleport-cluster
+            app.kubernetes.io/version: 16.0.0-dev
+            helm.sh/chart: teleport-cluster-16.0.0-dev
+            teleport.dev/majorVersion: "16"
+        spec:
+          affinity:
+            podAntiAffinity: null
+          automountServiceAccountToken: false
+          containers:
+          - args:
+            - --diag-addr=0.0.0.0:3000
+            image: public.ecr.aws/gravitational/teleport-distroless:16.0.0-dev
+            imagePullPolicy: IfNotPresent
+            lifecycle:
+              preStop:
+                exec:
+                  command:
+                  - teleport
+                  - wait
+                  - duration
+                  - 30s
+            livenessProbe:
+              failureThreshold: 6
+              httpGet:
+                path: /healthz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+              timeoutSeconds: 1
+            name: teleport
+            ports:
+            - containerPort: 3080
+              name: tls
+              protocol: TCP
+            - containerPort: 3023
+              name: sshproxy
+              protocol: TCP
+            - containerPort: 3024
+              name: sshtun
+              protocol: TCP
+            - containerPort: 3026
+              name: kube
+              protocol: TCP
+            - containerPort: 3036
+              name: mysql
+              protocol: TCP
+            - containerPort: 3000
+              name: diag
+              protocol: TCP
+            readinessProbe:
+              failureThreshold: 12
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+              timeoutSeconds: 1
+            volumeMounts:
+            - mountPath: /etc/teleport
+              name: config
+              readOnly: true
+            - mountPath: /var/lib/teleport
+              name: data
+            - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+              name: proxy-serviceaccount-token
+              readOnly: true
+          initContainers:
+          - command:
+            - teleport
+            - wait
+            - no-resolve
+            - RELEASE-NAME-auth-v15.NAMESPACE.svc.test.com
+            image: public.ecr.aws/gravitational/teleport-distroless:16.0.0-dev
+            name: wait-auth-update
+          serviceAccountName: RELEASE-NAME-proxy
+          terminationGracePeriodSeconds: 60
+          volumes:
+          - name: proxy-serviceaccount-token
+            projected:
+              sources:
+              - serviceAccountToken:
+                  path: token
+              - configMap:
+                  items:
+                  - key: ca.crt
+                    path: ca.crt
+                  name: kube-root-ca.crt
+              - downwardAPI:
+                  items:
+                  - fieldRef:
+                      fieldPath: metadata.namespace
+                    path: namespace
+          - configMap:
+              name: RELEASE-NAME-proxy
+            name: config
+          - emptyDir: {}
+            name: data
 should provision initContainer correctly when set in values:
   1: |
     - command:

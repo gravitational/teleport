@@ -6,6 +6,15 @@ videoBanner: mu_ZKTjnFJ8
 
 (!docs/pages/includes/database-access/db-introduction.mdx  dbType="MongoDB Atlas cluster" dbConfigure="MongoDB Atlas with mutual TLS authentication or AWS IAM" dbName="MongoDB Atlas" !)
 
+## How it works
+
+The Teleport Database Service communicates with MongoDB Atlas using mutual TLS.
+You configure MongoDB Atlas to trust the Teleport certificate authority for
+database clients, and Teleport to trust the Let's Encrypt CA, which signs
+certificates for MongoDB Atlas. When a user connects to MongoDB Atlas via
+Teleport, the Teleport Database Service authenticates using a certificate and
+forwards user traffic to MongoDB Atlas.
+
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![Teleport Database Access MongoDB Self-Hosted](../../../img/database-access/guides/mongodbatlas_selfhosted.png)

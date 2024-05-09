@@ -20,6 +20,7 @@ package discovery
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -50,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
+	"github.com/gravitational/teleport/lib/srv/discovery/fetchers"
 )
 
 func TestGetAgentVersion(t *testing.T) {
@@ -118,6 +120,82 @@ func TestGetAgentVersion(t *testing.T) {
 			tt.errorAssert(t, err)
 			require.Equal(t, tt.expectedVersion, version)
 		})
+	}
+}
+
+func TestServer_getKubeFetchers(t *testing.T) {
+	eks1, err := fetchers.NewEKSFetcher(fetchers.EKSFetcherConfig{
+		EKSClientGetter: &cloud.TestCloudClients{},
+		FilterLabels:    types.Labels{"l1": []string{"v1"}},
+		Region:          "region1",
+	})
+	require.NoError(t, err)
+	eks2, err := fetchers.NewEKSFetcher(fetchers.EKSFetcherConfig{
+		EKSClientGetter: &cloud.TestCloudClients{},
+		FilterLabels:    types.Labels{"l1": []string{"v1"}},
+		Region:          "region1",
+		Integration:     "aws1"})
+	require.NoError(t, err)
+	eks3, err := fetchers.NewEKSFetcher(fetchers.EKSFetcherConfig{
+		EKSClientGetter: &cloud.TestCloudClients{},
+		FilterLabels:    types.Labels{"l1": []string{"v1"}},
+		Region:          "region1",
+		Integration:     "aws1"})
+	require.NoError(t, err)
+
+	aks1, err := fetchers.NewAKSFetcher(fetchers.AKSFetcherConfig{
+		Client:       &mockAKSAPI{},
+		FilterLabels: types.Labels{"l1": []string{"v1"}},
+		Regions:      []string{"region1"},
+	})
+	require.NoError(t, err)
+	aks2, err := fetchers.NewAKSFetcher(fetchers.AKSFetcherConfig{
+		Client:       &mockAKSAPI{},
+		FilterLabels: types.Labels{"l1": []string{"v1"}},
+		Regions:      []string{"region1"},
+	})
+	require.NoError(t, err)
+	aks3, err := fetchers.NewAKSFetcher(fetchers.AKSFetcherConfig{
+		Client:       &mockAKSAPI{},
+		FilterLabels: types.Labels{"l1": []string{"v1"}},
+		Regions:      []string{"region1"},
+	})
+	require.NoError(t, err)
+
+	testCases := []struct {
+		kubeFetchers                   []common.Fetcher
+		kubeDynamicFetchers            map[string][]common.Fetcher
+		expectedIntegrationFetchers    []common.Fetcher
+		expectedNonIntegrationFetchers []common.Fetcher
+	}{
+		{
+			kubeFetchers:                   []common.Fetcher{eks1},
+			expectedNonIntegrationFetchers: []common.Fetcher{eks1},
+		},
+		{
+			kubeFetchers:                   []common.Fetcher{eks1, eks2, eks3, aks1, aks2, aks3},
+			expectedIntegrationFetchers:    []common.Fetcher{eks2, eks3},
+			expectedNonIntegrationFetchers: []common.Fetcher{eks1, aks1, aks2, aks3},
+		},
+		{
+			kubeFetchers:                   []common.Fetcher{eks1},
+			kubeDynamicFetchers:            map[string][]common.Fetcher{"group1": {eks2}},
+			expectedIntegrationFetchers:    []common.Fetcher{eks2},
+			expectedNonIntegrationFetchers: []common.Fetcher{eks1},
+		},
+		{
+			kubeFetchers:                   []common.Fetcher{aks1, aks2},
+			kubeDynamicFetchers:            map[string][]common.Fetcher{"group1": {eks1}},
+			expectedIntegrationFetchers:    []common.Fetcher{},
+			expectedNonIntegrationFetchers: []common.Fetcher{eks1, aks1, aks2},
+		},
+	}
+
+	for _, tc := range testCases {
+		s := Server{kubeFetchers: tc.kubeFetchers, dynamicKubeFetchers: tc.kubeDynamicFetchers}
+
+		require.ElementsMatch(t, tc.expectedIntegrationFetchers, s.getKubeFetchers(true))
+		require.ElementsMatch(t, tc.expectedNonIntegrationFetchers, s.getKubeFetchers(false))
 	}
 }
 
@@ -384,9 +462,9 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 
 				// Wait for the DiscoveryConfig to be added to the dynamic fetchers
 				require.Eventually(t, func() bool {
-					discServer.muDynamicKubeIntegrationFetchers.RLock()
-					defer discServer.muDynamicKubeIntegrationFetchers.RUnlock()
-					return len(discServer.dynamicKubeIntegrationFetchers) > 0
+					discServer.muDynamicKubeFetchers.RLock()
+					defer discServer.muDynamicKubeFetchers.RUnlock()
+					return len(discServer.dynamicKubeFetchers) > 0
 				}, 1*time.Second, 100*time.Millisecond)
 			}
 
@@ -487,7 +565,7 @@ func (m *mockIntegrationsTokenGenerator) GetProxies() ([]types.Server, error) {
 }
 
 // GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
-func (m *mockIntegrationsTokenGenerator) GenerateAWSOIDCToken(ctx context.Context) (string, error) {
+func (m *mockIntegrationsTokenGenerator) GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error) {
 	m.tokenCallsCount++
 	return uuid.NewString(), nil
 }
@@ -499,8 +577,8 @@ type mockEnrollEKSClusterClient struct {
 	deleteAccessEntry          func(context.Context, *eks.DeleteAccessEntryInput, ...func(*eks.Options)) (*eks.DeleteAccessEntryOutput, error)
 	describeCluster            func(context.Context, *eks.DescribeClusterInput, ...func(*eks.Options)) (*eks.DescribeClusterOutput, error)
 	getCallerIdentity          func(context.Context, *sts.GetCallerIdentityInput, ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
-	checkAgentAlreadyInstalled func(context.Context, genericclioptions.RESTClientGetter, logrus.FieldLogger) (bool, error)
-	installKubeAgent           func(context.Context, *eksTypes.Cluster, string, string, string, genericclioptions.RESTClientGetter, logrus.FieldLogger, awsoidc.EnrollEKSClustersRequest) error
+	checkAgentAlreadyInstalled func(context.Context, genericclioptions.RESTClientGetter, *slog.Logger) (bool, error)
+	installKubeAgent           func(context.Context, *eksTypes.Cluster, string, string, string, genericclioptions.RESTClientGetter, *slog.Logger, awsoidc.EnrollEKSClustersRequest) error
 	createToken                func(context.Context, types.ProvisionToken) error
 }
 
@@ -546,14 +624,14 @@ func (m *mockEnrollEKSClusterClient) GetCallerIdentity(ctx context.Context, para
 	return &sts.GetCallerIdentityOutput{}, nil
 }
 
-func (m *mockEnrollEKSClusterClient) CheckAgentAlreadyInstalled(ctx context.Context, kubeconfig genericclioptions.RESTClientGetter, log logrus.FieldLogger) (bool, error) {
+func (m *mockEnrollEKSClusterClient) CheckAgentAlreadyInstalled(ctx context.Context, kubeconfig genericclioptions.RESTClientGetter, log *slog.Logger) (bool, error) {
 	if m.checkAgentAlreadyInstalled != nil {
 		return m.checkAgentAlreadyInstalled(ctx, kubeconfig, log)
 	}
 	return false, nil
 }
 
-func (m *mockEnrollEKSClusterClient) InstallKubeAgent(ctx context.Context, eksCluster *eksTypes.Cluster, proxyAddr, joinToken, resourceId string, kubeconfig genericclioptions.RESTClientGetter, log logrus.FieldLogger, req awsoidc.EnrollEKSClustersRequest) error {
+func (m *mockEnrollEKSClusterClient) InstallKubeAgent(ctx context.Context, eksCluster *eksTypes.Cluster, proxyAddr, joinToken, resourceId string, kubeconfig genericclioptions.RESTClientGetter, log *slog.Logger, req awsoidc.EnrollEKSClustersRequest) error {
 	if m.installKubeAgent != nil {
 		return m.installKubeAgent(ctx, eksCluster, proxyAddr, joinToken, resourceId, kubeconfig, log, req)
 	}

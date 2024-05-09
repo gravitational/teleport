@@ -23,9 +23,12 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
-var allResources = []string{"*"}
+var wildcard = "*"
+var allResources = []string{wildcard}
 
 // StatementForIAMEditRolePolicy returns a IAM Policy Statement which allows editting Role Policy
 // of the resources.
@@ -136,6 +139,37 @@ func StatementForEC2InstanceConnectEndpoint() *Statement {
 	}
 }
 
+// StatementForEC2SSMAutoDiscover returns the required statement to enable EC2 Auto Discover using SSM.
+func StatementForEC2SSMAutoDiscover() *Statement {
+	return &Statement{
+		Effect: EffectAllow,
+		Actions: []string{
+			"ec2:DescribeInstances",
+			"ssm:SendCommand",
+			"ssm:GetCommandInvocation",
+		},
+		Resources: allResources,
+	}
+}
+
+// StatementForAWSAppAccess returns the statement that allows AWS App Access.
+// Only IAM Roles with `teleport.dev/integration: Allowed` Tag can be used.
+func StatementForAWSAppAccess() *Statement {
+	requiredTag := types.TeleportNamespace + "/integration"
+	return &Statement{
+		Effect: EffectAllow,
+		Actions: []string{
+			"sts:AssumeRole",
+		},
+		Resources: allResources,
+		Conditions: map[string]map[string]SliceOrString{
+			"StringEquals": {
+				"iam:ResourceTag/" + requiredTag: SliceOrString{"true"},
+			},
+		},
+	}
+}
+
 // StatementForEKSAccess returns the statement that allows enrolling of EKS clusters into Teleport.
 func StatementForEKSAccess() *Statement {
 	return &Statement{
@@ -182,6 +216,23 @@ func StatementForListRDSDatabases() *Statement {
 			"ec2:DescribeSecurityGroups",
 		},
 		Resources: allResources,
+	}
+}
+
+// StatementForS3BucketPublicRead returns the statement that
+// allows public/anonynous access to s3 bucket/prefix objects.
+func StatementForS3BucketPublicRead(s3bucketName, objectPrefix string) *Statement {
+	return &Statement{
+		Effect: EffectAllow,
+		Principals: StringOrMap{
+			wildcard: SliceOrString{},
+		},
+		Actions: []string{
+			"s3:GetObject",
+		},
+		Resources: []string{
+			fmt.Sprintf("arn:aws:s3:::%s/%s/*", s3bucketName, objectPrefix),
+		},
 	}
 }
 
@@ -333,6 +384,7 @@ func StatementAccessGraphAWSSync() *Statement {
 			"eks:ListAccessEntries",
 			"eks:ListAccessPolicies",
 			"eks:ListAssociatedAccessPolicies",
+			"eks:DescribeAccessEntry",
 
 			// RDS IAM
 			"rds:DescribeDBInstances",

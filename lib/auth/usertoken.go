@@ -148,8 +148,14 @@ func (a *Server) CreateResetPasswordToken(ctx context.Context, req CreateUserTok
 		return nil, trace.BadParameter("invalid reset password token request type")
 	}
 
-	_, err = a.ResetPassword(ctx, req.Name)
-	if err != nil {
+	switch user, err := a.GetUser(ctx, req.Name, false /* withSecrets */); {
+	case err != nil:
+		return nil, trace.Wrap(err)
+	case user.GetUserType() != types.UserTypeLocal:
+		return nil, trace.AccessDenied("only local users may be reset")
+	}
+
+	if err := a.resetPassword(ctx, req.Name); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

@@ -36,6 +36,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -180,7 +181,7 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 // using gRPC to guarantee consistency between local and remote services
 type ServicesTestSuite struct {
 	Access        services.Access
-	CAS           services.Trust
+	CAS           services.TrustInternal
 	PresenceS     services.Presence
 	ProvisioningS services.Provisioner
 	WebS          services.Identity
@@ -240,12 +241,21 @@ func (s *ServicesTestSuite) UsersCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, u)
 
-	require.NoError(t, s.WebS.UpsertPasswordHash("user1", []byte("hash")))
-	require.NoError(t, s.WebS.UpsertPasswordHash("user2", []byte("hash2")))
+	u1 := newUser("user1", nil)
+	u2 := newUser("user2", nil)
+	_, err = s.WebS.CreateUser(ctx, u1)
+	require.NoError(t, err)
+	_, err = s.WebS.CreateUser(ctx, u2)
+	require.NoError(t, err)
+	require.NoError(t, s.WebS.UpsertPassword("user1", []byte("secretpassword123")))
+	require.NoError(t, s.WebS.UpsertPassword("user2", []byte("secretpassword234")))
+
+	u1.SetPasswordState(types.PasswordState_PASSWORD_STATE_SET)
+	u2.SetPasswordState(types.PasswordState_PASSWORD_STATE_SET)
 
 	u, err = s.WebS.GetUsers(ctx, false)
 	require.NoError(t, err)
-	userSlicesEqual(t, u, []types.User{newUser("user1", nil), newUser("user2", nil)})
+	userSlicesEqual(t, u, []types.User{u1, u2})
 
 	out, err := s.WebS.GetUser(ctx, "user1", false)
 	require.NoError(t, err)
@@ -267,7 +277,7 @@ func (s *ServicesTestSuite) UsersCRUD(t *testing.T) {
 
 	u, err = s.WebS.GetUsers(ctx, false)
 	require.NoError(t, err)
-	userSlicesEqual(t, u, []types.User{newUser("user2", nil)})
+	userSlicesEqual(t, u, []types.User{u2})
 
 	err = s.WebS.DeleteUser(ctx, "user1")
 	require.True(t, trace.IsNotFound(err))
@@ -379,6 +389,72 @@ func (s *ServicesTestSuite) CertAuthCRUD(t *testing.T) {
 	out, err = s.CAS.GetCertAuthority(ctx, ca.GetID(), true)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(&newCA, out, cmpopts.EquateApproxTime(time.Second), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+
+	// test conditional update
+	ca = NewTestCA(types.UserCA, "update.example.com")
+	rev, err := s.CAS.CreateCertAuthorities(ctx, ca)
+	require.NoError(t, err)
+
+	newCA = *ca
+	rotation = types.Rotation{
+		State:       types.RotationStateInProgress,
+		CurrentID:   "id1",
+		GracePeriod: types.NewDuration(time.Hour),
+		Started:     clock.Now(),
+	}
+	newCA.SetRotation(rotation)
+
+	// verify that mismatched revision does not work
+	_, err = s.CAS.UpdateCertAuthority(ctx, &newCA)
+	require.ErrorIs(t, err, backend.ErrIncorrectRevision)
+
+	// verify that revision returned by create causes update to succeed
+	newCA.SetRevision(rev)
+	_, err = s.CAS.UpdateCertAuthority(ctx, &newCA)
+	require.NoError(t, err)
+
+	out, err = s.CAS.GetCertAuthority(ctx, ca.GetID(), true)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(&newCA, out, cmpopts.EquateApproxTime(time.Second), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+
+	// verify 'bulk' ca operations
+
+	clusterNames := []string{
+		"foo.example.com",
+		"bar.example.com",
+		"bin.example.com",
+		"baz.example.com",
+	}
+
+	cas = nil
+	for _, cn := range clusterNames {
+		cas = append(cas, NewTestCA(types.UserCA, cn))
+	}
+
+	rev, err = s.CAS.CreateCertAuthorities(ctx, cas...)
+	require.NoError(t, err)
+
+	// verify that all CAs were created and that they all have the expected revision
+	for _, original := range cas {
+		ca, err := s.CAS.GetCertAuthority(ctx, original.GetID(), true)
+		require.NoError(t, err)
+		require.Equal(t, rev, ca.GetRevision())
+		require.Empty(t, cmp.Diff(original, ca, cmpopts.EquateApproxTime(time.Second), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	}
+
+	// set up bulk delete
+	var ids []types.CertAuthID
+	for _, ca := range cas {
+		ids = append(ids, ca.GetID())
+	}
+
+	require.NoError(t, s.CAS.DeleteCertAuthorities(ctx, ids...))
+
+	// verify that bulk deletion succeeded
+	for _, ca := range cas {
+		_, err := s.CAS.GetCertAuthority(ctx, ca.GetID(), true)
+		require.True(t, trace.IsNotFound(err), "err: %v", err)
+	}
 }
 
 // NewServer creates a new server resource
@@ -546,23 +622,31 @@ func (s *ServicesTestSuite) ReverseTunnelsCRUD(t *testing.T) {
 	require.True(t, trace.IsBadParameter(err))
 }
 
-func (s *ServicesTestSuite) PasswordHashCRUD(t *testing.T) {
+func (s *ServicesTestSuite) PasswordCRUD(t *testing.T) {
+	ctx := context.Background()
+
 	_, err := s.WebS.GetPasswordHash("user1")
 	require.True(t, trace.IsNotFound(err), fmt.Sprintf("%#v", err))
 
-	err = s.WebS.UpsertPasswordHash("user1", []byte("hello123"))
+	u1 := newUser("user1", nil)
+	_, err = s.WebS.CreateUser(ctx, u1)
+	require.NoError(t, err)
+
+	err = s.WebS.UpsertPassword("user1", []byte("secretpassword123"))
 	require.NoError(t, err)
 
 	hash, err := s.WebS.GetPasswordHash("user1")
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(hash, []byte("hello123")))
+	err = bcrypt.CompareHashAndPassword(hash, []byte("secretpassword123"))
+	require.NoError(t, err)
 
-	err = s.WebS.UpsertPasswordHash("user1", []byte("hello321"))
+	err = s.WebS.UpsertPassword("user1", []byte("secretpassword321"))
 	require.NoError(t, err)
 
 	hash, err = s.WebS.GetPasswordHash("user1")
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(hash, []byte("hello321")))
+	err = bcrypt.CompareHashAndPassword(hash, []byte("secretpassword321"))
+	require.NoError(t, err)
 }
 
 func (s *ServicesTestSuite) WebSessionCRUD(t *testing.T) {
@@ -1912,7 +1996,7 @@ func (s *ServicesTestSuite) EventsClusterConfig(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				err = s.ConfigS.SetClusterNetworkingConfig(ctx, netConfig)
+				_, err = s.ConfigS.UpsertClusterNetworkingConfig(ctx, netConfig)
 				require.NoError(t, err)
 
 				out, err := s.ConfigS.GetClusterNetworkingConfig(ctx)
@@ -1934,7 +2018,7 @@ func (s *ServicesTestSuite) EventsClusterConfig(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				err = s.ConfigS.SetSessionRecordingConfig(ctx, recConfig)
+				_, err = s.ConfigS.UpsertSessionRecordingConfig(ctx, recConfig)
 				require.NoError(t, err)
 
 				out, err := s.ConfigS.GetSessionRecordingConfig(ctx)

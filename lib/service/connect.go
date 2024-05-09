@@ -36,8 +36,10 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/breaker"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib"
@@ -48,10 +50,12 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/openssh"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	servicebreaker "github.com/gravitational/teleport/lib/service/breaker"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // reconnectToAuthService continuously attempts to reconnect to the auth
@@ -155,14 +159,16 @@ func (process *TeleportProcess) connectToAuthService(role types.SystemRole, opts
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	process.logger.DebugContext(process.ExitContext(), "Client successfully connected to cluster", "client_identity", connector.ClientIdentity)
+	process.logger.DebugContext(process.ExitContext(), "Client successfully connected to cluster", "client_identity", logutils.StringerAttr(connector.ClientIdentity))
 	process.addConnector(connector)
 
 	return connector, nil
 }
 
-type certOption func(*certOptions)
-type certOptions struct{}
+type (
+	certOption  func(*certOptions)
+	certOptions struct{}
+)
 
 func (process *TeleportProcess) connect(role types.SystemRole, opts ...certOption) (conn *Connector, err error) {
 	var options certOptions
@@ -179,7 +185,7 @@ func (process *TeleportProcess) connect(role types.SystemRole, opts ...certOptio
 		c, err := process.firstTimeConnect(role)
 		return c, trace.Wrap(err)
 	}
-	process.logger.DebugContext(process.ExitContext(), "Got connected state.", "rotation_state", state.Spec.Rotation.String())
+	process.logger.DebugContext(process.ExitContext(), "Got connected state.", "rotation_state", logutils.StringerAttr(&state.Spec.Rotation))
 
 	identity, err := process.GetIdentity(role)
 	if err != nil {
@@ -340,7 +346,9 @@ func (process *TeleportProcess) getCertAuthority(conn *Connector, id types.CertA
 	if conn.ClientIdentity.ID.Role == types.RoleAdmin || conn.ClientIdentity.ID.Role == types.RoleAuth {
 		return process.localAuth.GetCertAuthority(process.ExitContext(), id, loadPrivateKeys)
 	}
-	return conn.Client.GetCertAuthority(process.ExitContext(), id, loadPrivateKeys)
+	ctx, cancel := context.WithTimeout(process.ExitContext(), apidefaults.DefaultIOTimeout)
+	defer cancel()
+	return conn.Client.GetCertAuthority(ctx, id, loadPrivateKeys)
 }
 
 // reRegister receives new identity credentials for proxy, node and auth.
@@ -363,7 +371,9 @@ func (process *TeleportProcess) reRegister(conn *Connector, additionalPrincipals
 	if id.Role == types.RoleInstance {
 		systemRoles = process.getInstanceRoles()
 	}
-	identity, err := auth.ReRegister(auth.ReRegisterParams{
+	ctx, cancel := context.WithTimeout(process.ExitContext(), apidefaults.DefaultIOTimeout)
+	defer cancel()
+	identity, err := auth.ReRegister(ctx, auth.ReRegisterParams{
 		Client:               conn.Client,
 		ID:                   id,
 		AdditionalPrincipals: additionalPrincipals,
@@ -445,7 +455,9 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			GetHostCredentials:   client.HostCredentials,
 			Clock:                process.Clock,
 			JoinMethod:           process.Config.JoinMethod,
-			CircuitBreakerConfig: process.Config.CircuitBreakerConfig,
+			// this circuit breaker is used for a client that only does a few
+			// requests before closing
+			CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 			FIPS:                 process.Config.FIPS,
 			Insecure:             lib.IsInsecureDevMode(),
 		}
@@ -455,7 +467,7 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			}
 		}
 
-		certs, err := auth.Register(registerParams)
+		certs, err := auth.Register(process.ExitContext(), registerParams)
 		if err != nil {
 			if utils.IsUntrustedCertErr(err) {
 				return nil, trace.WrapWithMessage(err, utils.SelfSignedCertsMsg)
@@ -884,7 +896,7 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 		// rollback cycle.
 		case "", types.RotationStateStandby:
 			if regenerateCertificate {
-				process.logger.InfoContext(process.ExitContext(), "Service has updated principals and DNS Names, going to request new principals and update.", "identity", id.Role, "principals", additionalPrincipals, "dna_names", dnsNames)
+				process.logger.InfoContext(process.ExitContext(), "Service has updated principals and DNS Names, going to request new principals and update.", "identity", id.Role, "principals", additionalPrincipals, "dns_names", dnsNames)
 				identity, err := process.reRegister(conn, additionalPrincipals, dnsNames, remote)
 				if err != nil {
 					return nil, trace.Wrap(err)
@@ -942,7 +954,7 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			process.logger.DebugContext(process.ExitContext(), "Re-registered, received new identity.", "identity", identity)
+			process.logger.DebugContext(process.ExitContext(), "Re-registered, received new identity.", "identity", logutils.StringerAttr(identity))
 			err = writeStateAndIdentity(auth.IdentityReplacement, identity)
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -1085,7 +1097,7 @@ func (process *TeleportProcess) newClient(identity *auth.Identity) (*auth.Client
 		logger.DebugContext(process.ExitContext(), "Attempting to discover reverse tunnel address.")
 		logger.DebugContext(process.ExitContext(), "Attempting to connect to Auth Server through tunnel.")
 
-		tunnelClient, pingResponse, err := process.newClientThroughTunnel(tlsConfig, sshClientConfig)
+		tunnelClient, pingResponse, err := process.newClientThroughTunnel(tlsConfig, sshClientConfig, identity.ID.Role)
 		if err != nil {
 			process.logger.ErrorContext(process.ExitContext(), "Node failed to establish connection to Teleport Proxy. We have tried the following endpoints:")
 			process.logger.ErrorContext(process.ExitContext(), "- connecting to auth server directly", "error", directErr)
@@ -1110,7 +1122,7 @@ func (process *TeleportProcess) newClient(identity *auth.Identity) (*auth.Client
 			logger := process.logger.With("proxy-server", proxyServer.String())
 			logger.DebugContext(process.ExitContext(), "Attempting to connect to Auth Server through tunnel.")
 
-			tunnelClient, pingResponse, err := process.newClientThroughTunnel(tlsConfig, sshClientConfig)
+			tunnelClient, pingResponse, err := process.newClientThroughTunnel(tlsConfig, sshClientConfig, identity.ID.Role)
 			if err != nil {
 				return nil, nil, trace.Errorf("Failed to connect to Proxy Server through tunnel: %v", err)
 			}
@@ -1129,7 +1141,7 @@ func (process *TeleportProcess) newClient(identity *auth.Identity) (*auth.Client
 	return nil, nil, trace.NotImplemented("could not find connection strategy for config version %s", process.Config.Version)
 }
 
-func (process *TeleportProcess) newClientThroughTunnel(tlsConfig *tls.Config, sshConfig *ssh.ClientConfig) (*auth.Client, *proto.PingResponse, error) {
+func (process *TeleportProcess) newClientThroughTunnel(tlsConfig *tls.Config, sshConfig *ssh.ClientConfig, role types.SystemRole) (*auth.Client, *proto.PingResponse, error) {
 	dialer, err := reversetunnelclient.NewTunnelAuthDialer(reversetunnelclient.TunnelAuthDialerConfig{
 		Resolver:              process.resolver,
 		ClientConfig:          sshConfig,
@@ -1146,7 +1158,7 @@ func (process *TeleportProcess) newClientThroughTunnel(tlsConfig *tls.Config, ss
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(tlsConfig),
 		},
-		CircuitBreakerConfig: process.Config.CircuitBreakerConfig,
+		CircuitBreakerConfig: servicebreaker.InstrumentBreakerForConnector(role, process.Config.CircuitBreakerConfig),
 		DialTimeout:          process.Config.Testing.ClientTimeout,
 	})
 	if err != nil {
@@ -1155,7 +1167,9 @@ func (process *TeleportProcess) newClientThroughTunnel(tlsConfig *tls.Config, ss
 
 	// If connected, make sure the connector's client works by using
 	// a call that should succeed at all times (Ping).
-	resp, err := clt.Ping(process.ExitContext())
+	ctx, cancel := context.WithTimeout(process.ExitContext(), apidefaults.DefaultIOTimeout)
+	defer cancel()
+	resp, err := clt.Ping(ctx)
 	if err != nil {
 		return nil, nil, trace.NewAggregate(err, clt.Close())
 	}
@@ -1191,7 +1205,7 @@ func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tls
 			apiclient.LoadTLS(tlsConfig),
 		},
 		DialTimeout:          process.Config.Testing.ClientTimeout,
-		CircuitBreakerConfig: process.Config.CircuitBreakerConfig,
+		CircuitBreakerConfig: servicebreaker.InstrumentBreakerForConnector(role, process.Config.CircuitBreakerConfig),
 		DialOpts:             dialOpts,
 	}, cltParams...)
 	if err != nil {
@@ -1200,7 +1214,9 @@ func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tls
 
 	// If connected, make sure the connector's client works by using
 	// a call that should succeed at all times (Ping).
-	resp, err := clt.Ping(process.ExitContext())
+	ctx, cancel := context.WithTimeout(process.ExitContext(), apidefaults.DefaultIOTimeout)
+	defer cancel()
+	resp, err := clt.Ping(ctx)
 	if err != nil {
 		return nil, nil, trace.NewAggregate(err, clt.Close())
 	}

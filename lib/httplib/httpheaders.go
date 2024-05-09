@@ -144,6 +144,13 @@ func SetCacheHeaders(h http.Header, maxAge time.Duration) {
 	h.Set("Cache-Control", fmt.Sprintf("max-age=%.f, immutable", maxAge.Seconds()))
 }
 
+// SetEntityTagCacheHeaders tells proxies and browsers to cache the content
+// and sets an ETag based on teleport version which can be used to check for modifications
+func SetEntityTagCacheHeaders(h http.Header, etag string) {
+	h.Set("Cache-Control", "no-cache")
+	h.Set("ETag", etag)
+}
+
 // SetDefaultSecurityHeaders adds headers that should generally be considered safe defaults.  It is expected that all
 // responses should be able to add these headers without negative impact.
 func SetDefaultSecurityHeaders(h http.Header) {
@@ -194,7 +201,7 @@ var indexCSPStringCache *cspCache = newCSPCache()
 
 func getIndexContentSecurityPolicyString(cfg proto.Features, urlPath string) string {
 	// Check for result with this cfg and urlPath in cache
-	withStripe := cfg.GetProductType() == proto.ProductType_PRODUCT_TYPE_TEAM
+	withStripe := cfg.GetIsStripeManaged()
 	key := fmt.Sprintf("%v-%v", withStripe, urlPath)
 	if cspString, ok := indexCSPStringCache.get(key); ok {
 		return cspString

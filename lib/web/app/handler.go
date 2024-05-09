@@ -63,6 +63,9 @@ type HandlerConfig struct {
 	CipherSuites []uint16
 	// WebPublicAddr
 	WebPublicAddr string
+	// IntegrationAppHandler handles App Access requests directly - not requiring an AppService.
+	// Only available for AWS OIDC Integrations.
+	IntegrationAppHandler ServerHandler
 }
 
 // CheckAndSetDefaults validates configuration.
@@ -79,6 +82,9 @@ func (c *HandlerConfig) CheckAndSetDefaults() error {
 	}
 	if len(c.CipherSuites) == 0 {
 		return trace.BadParameter("ciphersuites missing")
+	}
+	if c.IntegrationAppHandler == nil {
+		return trace.BadParameter("integration app handler missing")
 	}
 
 	return nil
@@ -110,7 +116,7 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 		c:            c,
 		closeContext: ctx,
 		log: logrus.WithFields(logrus.Fields{
-			trace.Component: teleport.ComponentAppProxy,
+			teleport.ComponentKey: teleport.ComponentAppProxy,
 		}),
 	}
 

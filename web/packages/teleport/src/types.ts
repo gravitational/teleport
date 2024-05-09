@@ -18,6 +18,8 @@
 
 import React from 'react';
 
+import { UserPreferences } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
+
 import {
   ManagementSection,
   NavigationCategory,
@@ -26,7 +28,7 @@ import {
 export type NavGroup = 'team' | 'activity' | 'clusters' | 'accessrequests';
 
 export interface Context {
-  init(): Promise<void>;
+  init(preferences: UserPreferences): Promise<void>;
   getFeatureFlags(): FeatureFlags;
 }
 
@@ -107,6 +109,10 @@ export interface TeleportFeature {
   category?: NavigationCategory;
   section?: ManagementSection;
   hasAccess(flags: FeatureFlags): boolean;
+  // logoOnlyTopbar is used to optionally hide the elements in the topbar from view except for the logo.
+  // The features that use this are supposed to be "full page" features where navigation
+  // is either blocked, or done explicitly through the page (such as device trust authorize)
+  logoOnlyTopbar?: boolean;
   hideFromNavigation?: boolean;
   // route defines react router Route fields.
   // This field can be left undefined to indicate
@@ -125,6 +131,9 @@ export interface TeleportFeature {
   // hideNavigation is used to hide the navigation completely
   // and show a back button in the top bar
   hideNavigation?: boolean;
+  // if highlightKey is specified, navigating to ?highlight=<highlightKey>
+  // will highlight the feature in the navigation, to draw a users attention to it
+  highlightKey?: string;
 }
 
 export type StickyCluster = {
@@ -186,11 +195,8 @@ export interface FeatureFlags {
 // LockedFeatures are used for determining which features are disabled in the user's cluster.
 export type LockedFeatures = {
   authConnectors: boolean;
-  activeSessions: boolean;
   accessRequests: boolean;
-  premiumSupport: boolean;
   trustedDevices: boolean;
-  externalCloudAudit: boolean;
 };
 
 // RecommendFeature is used for recommending features if its usage status is zero.

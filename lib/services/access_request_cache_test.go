@@ -70,28 +70,34 @@ func TestAccessRequestCacheBasics(t *testing.T) {
 	// creation times 1 second apart, according to the order in
 	// which they are defined).
 	rrs := []struct {
+		name  string
 		id    string
 		state types.RequestState
 	}{
 		{
 			id:    "00000000-0000-0000-0000-000000000005",
 			state: types.RequestState_PENDING,
+			name:  "bob",
 		},
 		{
 			id:    "00000000-0000-0000-0000-000000000004",
 			state: types.RequestState_APPROVED,
+			name:  "bob",
 		},
 		{
 			id:    "00000000-0000-0000-0000-000000000003",
 			state: types.RequestState_DENIED,
+			name:  "alice",
 		},
 		{
 			id:    "00000000-0000-0000-0000-000000000002",
 			state: types.RequestState_APPROVED,
+			name:  "alice",
 		},
 		{
 			id:    "00000000-0000-0000-0000-000000000001",
 			state: types.RequestState_PENDING,
+			name:  "jan",
 		},
 	}
 
@@ -166,11 +172,33 @@ func TestAccessRequestCacheBasics(t *testing.T) {
 				"00000000-0000-0000-0000-000000000002", // approved
 			},
 		},
+		{
+			Sort:       proto.AccessRequestSort_USER,
+			Descending: true,
+			Expect: []string{
+				"00000000-0000-0000-0000-000000000001", // jan
+				"00000000-0000-0000-0000-000000000005", // bob
+				"00000000-0000-0000-0000-000000000004", // bob
+				"00000000-0000-0000-0000-000000000003", // alice
+				"00000000-0000-0000-0000-000000000002", // alice
+			},
+		},
+		{
+			Sort:       proto.AccessRequestSort_USER,
+			Descending: false,
+			Expect: []string{
+				"00000000-0000-0000-0000-000000000002", // alice
+				"00000000-0000-0000-0000-000000000003", // alice
+				"00000000-0000-0000-0000-000000000004", // bob
+				"00000000-0000-0000-0000-000000000005", // bob
+				"00000000-0000-0000-0000-000000000001", // jan
+			},
+		},
 	}
 
 	created := time.Now()
 	for _, rr := range rrs {
-		r, err := types.NewAccessRequest(rr.id, "alice@example.com", "some-role")
+		r, err := types.NewAccessRequest(rr.id, rr.name, "some-role")
 		require.NoError(t, err)
 		require.NoError(t, r.SetState(rr.state))
 		r.SetCreationTime(created.UTC())
@@ -240,6 +268,108 @@ func TestAccessRequestCacheBasics(t *testing.T) {
 				require.FailNow(t, "timeout waiting for cache to to reach expected resource count", "have=%d, want=%d", len(rsp.AccessRequests), len(rrs)-(i+1))
 			case <-time.After(time.Millisecond * 200):
 			}
+		}
+	}
+}
+
+func TestAccessRequestCacheExpiryFiltering(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	bk, err := memory.New(memory.Config{
+		// set backend into mirror mode so that it does not expire items
+		// automatically.
+		Mirror: true,
+	})
+	require.NoError(t, err)
+
+	svcs := accessRequestServices{
+		Events:           local.NewEventsService(bk),
+		DynamicAccessExt: local.NewDynamicAccessService(bk),
+	}
+
+	cache, err := services.NewAccessRequestCache(services.AccessRequestCacheConfig{
+		Events: svcs,
+		Getter: svcs,
+	})
+	require.NoError(t, err)
+
+	// describe a set of test requests, some of which are expired
+	rrs := []struct {
+		name    string
+		id      string
+		expired bool
+	}{
+		{
+			id:      "00000000-0000-0000-0000-000000000005",
+			name:    "bob",
+			expired: true,
+		},
+		{
+			id:      "00000000-0000-0000-0000-000000000004",
+			name:    "bob",
+			expired: false,
+		},
+		{
+			id:      "00000000-0000-0000-0000-000000000003",
+			name:    "alice",
+			expired: true,
+		},
+		{
+			id:      "00000000-0000-0000-0000-000000000002",
+			name:    "alice",
+			expired: false,
+		},
+		{
+			id:      "00000000-0000-0000-0000-000000000001",
+			name:    "jan",
+			expired: true,
+		},
+	}
+
+	// insert test requests into backend, and aggregate the IDs of the subset that
+	// are unexpired so that we can check them against cache reads later.
+	var unexpiredRequestIDs []string
+	for _, rr := range rrs {
+		r, err := types.NewAccessRequest(rr.id, rr.name, "some-role")
+		require.NoError(t, err)
+
+		if rr.expired {
+			r.SetExpiry(time.Now().Add(-time.Minute * 30).UTC())
+		} else {
+			unexpiredRequestIDs = append(unexpiredRequestIDs, rr.id)
+			r.SetExpiry(time.Now().Add(time.Minute * 30).UTC())
+		}
+		_, err = svcs.CreateAccessRequestV2(ctx, r)
+		require.NoError(t, err)
+	}
+
+	// verify that once cache replication completes, only the unexpired requests are served
+	timeout := time.After(time.Second * 30)
+	for {
+		rsp, err := cache.ListAccessRequests(ctx, &proto.ListAccessRequestsRequest{
+			Limit: int32(len(rrs)),
+		})
+		require.NoError(t, err)
+
+		if len(rsp.AccessRequests) >= len(unexpiredRequestIDs) {
+			// once cache is returning the expected number of requests, verify that
+			// the set of requests returned is exactly the unexpired subset.
+			var returnedRequestIDs []string
+			for _, req := range rsp.AccessRequests {
+				returnedRequestIDs = append(returnedRequestIDs, req.GetName())
+			}
+
+			require.ElementsMatch(t, unexpiredRequestIDs, returnedRequestIDs)
+			break
+		}
+
+		select {
+		case <-timeout:
+			require.FailNow(t, "timeout waiting for access request cache to populate")
+		case <-time.After(time.Millisecond * 200):
 		}
 	}
 }

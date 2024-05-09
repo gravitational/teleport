@@ -87,7 +87,7 @@ on_gcp() {
       fi
     else
       # no automatic upgrades
-      sudo apt-get install -y "$TELEPORT_PACKAGE"
+      sudo apt-get install -y "$TELEPORT_PACKAGE" jq
     fi
 
   elif [ "$ID" = "amzn" ] || [ "$ID" = "rhel" ]; then
@@ -113,7 +113,7 @@ on_gcp() {
       fi
     else
       # no automatic upgrades
-      sudo yum install -y "$TELEPORT_PACKAGE"
+      sudo yum install -y "$TELEPORT_PACKAGE" jq
     fi
 
   elif [ "$ID" = "sles" ] || [ "$ID" = "opensuse-tumbleweed" ] || [ "$ID" = "opensuse-leap" ]; then
@@ -125,7 +125,6 @@ on_gcp() {
     sudo rpm --import "https://zypper.releases.teleport.dev/gpg"
     sudo zypper --non-interactive addrepo "$(rpm --eval "https://zypper.releases.teleport.dev/sles/$VERSION_ID/Teleport/%{_arch}/{{ .RepoChannel }}/teleport.repo")"
     sudo zypper --gpg-auto-import-keys refresh
-    sudo zypper --non-interactive install ${PACKAGE_LIST}
 
     # shellcheck disable=SC2050
     if [ "{{ .AutomaticUpgrades }}" = "true" ]; then
@@ -142,7 +141,7 @@ on_gcp() {
       fi
     else
       # no automatic upgrades
-      sudo zypper --non-interactive install -y "$TELEPORT_PACKAGE"
+      sudo zypper --non-interactive install -y "$TELEPORT_PACKAGE" jq
     fi
   else
     echo "Unsupported distro: $ID"

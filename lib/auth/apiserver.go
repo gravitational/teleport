@@ -57,6 +57,8 @@ type APIConfig struct {
 	// MetadataGetter retrieves additional metadata about session uploads.
 	// Will be nil if audit logging is not enabled.
 	MetadataGetter events.UploadMetadataGetter
+	// AccessGraph contains the configuration about the access graph service
+	AccessGraph AccessGraphConfig
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -71,6 +73,21 @@ func (a *APIConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("authorizer is missing")
 	}
 	return nil
+}
+
+// AccessGraphConfig contains the configuration about the access graph service
+// and whether it is enabled or not.
+type AccessGraphConfig struct {
+	// Enabled is a flag that indicates whether the access graph service is enabled.
+	Enabled bool
+	// Address is the address of the access graph service. The address is in the
+	// form of "host:port".
+	Address string
+	// CA is the PEM-encoded CA certificate of the access graph service.
+	CA []byte
+	// Insecure is a flag that indicates whether the access graph service should
+	// skip verifying the server's certificate chain and host name.
+	Insecure bool
 }
 
 // APIServer implements http API server for AuthServer interface
@@ -124,6 +141,7 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.DELETE("/:version/tunnelconnections", srv.WithAuth(srv.deleteAllTunnelConnections))
 
 	// Remote clusters
+	// TODO(noah): DELETE IN 17.0.0 - all these methods are now gRPC.
 	srv.GET("/:version/remoteclusters/:cluster", srv.WithAuth(srv.getRemoteCluster))
 	srv.GET("/:version/remoteclusters", srv.WithAuth(srv.getRemoteClusters))
 	srv.DELETE("/:version/remoteclusters/:cluster", srv.WithAuth(srv.deleteRemoteCluster))
@@ -140,8 +158,9 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.POST("/:version/tokens/register", srv.WithAuth(srv.registerUsingToken))
 
 	// Active sessions
-	srv.GET("/:version/namespaces/:namespace/sessions/:id/stream", srv.WithAuth(srv.getSessionChunk))  // DELETE IN 16(zmb3)
-	srv.GET("/:version/namespaces/:namespace/sessions/:id/events", srv.WithAuth(srv.getSessionEvents)) // DELETE IN 16(zmb3)
+	// TODO(zmb3): remove these endpoints when Assist no longer needs them
+	srv.GET("/:version/namespaces/:namespace/sessions/:id/stream", srv.WithAuth(srv.getSessionChunk))
+	srv.GET("/:version/namespaces/:namespace/sessions/:id/events", srv.WithAuth(srv.getSessionEvents))
 
 	// Namespaces
 	srv.POST("/:version/namespaces", srv.WithAuth(srv.upsertNamespace))

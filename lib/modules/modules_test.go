@@ -49,12 +49,11 @@ func TestValidateAuthPreferenceOnCloud(t *testing.T) {
 		},
 	})
 
-	authPref := types.DefaultAuthPreference()
-	err = testServer.AuthServer.SetAuthPreference(ctx, authPref)
+	authPref, err := testServer.AuthServer.UpsertAuthPreference(ctx, types.DefaultAuthPreference())
 	require.NoError(t, err)
 
 	authPref.SetSecondFactor(constants.SecondFactorOff)
-	err = testServer.AuthServer.SetAuthPreference(ctx, authPref)
+	_, err = testServer.AuthServer.UpdateAuthPreference(ctx, authPref)
 	require.EqualError(t, err, "cannot disable two-factor authentication on Cloud")
 }
 
@@ -74,10 +73,10 @@ func TestValidateSessionRecordingConfigOnCloud(t *testing.T) {
 	})
 
 	recConfig := types.DefaultSessionRecordingConfig()
-	err = testServer.AuthServer.SetSessionRecordingConfig(ctx, recConfig)
+	_, err = testServer.AuthServer.UpsertSessionRecordingConfig(ctx, recConfig)
 	require.NoError(t, err)
 
 	recConfig.SetMode(types.RecordAtProxy)
-	err = testServer.AuthServer.SetSessionRecordingConfig(ctx, recConfig)
+	_, err = testServer.AuthServer.UpsertSessionRecordingConfig(ctx, recConfig)
 	require.EqualError(t, err, "cannot set proxy recording mode on Cloud")
 }

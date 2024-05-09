@@ -43,6 +43,7 @@ import { ConnectMyComputerContextProvider } from 'teleterm/ui/ConnectMyComputer'
 import * as docTypes from 'teleterm/ui/services/workspacesService/documentsService/types';
 import * as tsh from 'teleterm/services/tshd/types';
 import { makeDocumentCluster } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
+import { VnetContextProvider } from 'teleterm/ui/Vnet';
 
 import DocumentCluster from './DocumentCluster';
 import { ResourcesContextProvider } from './resourcesContext';
@@ -107,8 +108,18 @@ export const OnlineLoadedResources = () => {
               endpointUri: 'https://localhost:8080',
               awsConsole: true,
               awsRoles: [
-                { arn: 'foo', display: 'foo', name: 'foo' },
-                { arn: 'bar', display: 'bar', name: 'bar' },
+                {
+                  arn: 'foo',
+                  display: 'foo',
+                  name: 'foo',
+                  accountId: '123456789012',
+                },
+                {
+                  arn: 'bar',
+                  display: 'bar',
+                  name: 'bar',
+                  accountId: '123456789012',
+                },
               ],
             },
           },
@@ -137,7 +148,7 @@ export const OnlineEmptyResourcesAndCanAddResourcesAndConnectComputer = () => {
     makeRootCluster({
       uri: rootClusterDoc.clusterUri,
       loggedInUser: makeLoggedInUser({
-        userType: tsh.UserType.LOCAL,
+        userType: tsh.LoggedInUser_UserType.LOCAL,
         acl: {
           tokens: {
             create: true,
@@ -173,7 +184,7 @@ export const OnlineEmptyResourcesAndCanAddResourcesButCannotConnectComputer =
       makeRootCluster({
         uri: rootClusterDoc.clusterUri,
         loggedInUser: makeLoggedInUser({
-          userType: tsh.UserType.SSO,
+          userType: tsh.LoggedInUser_UserType.SSO,
           acl: {
             tokens: {
               create: true,
@@ -312,7 +323,7 @@ function renderState({
   doc: docTypes.DocumentCluster;
   listUnifiedResources?: ResourcesService['listUnifiedResources'];
   platform?: NodeJS.Platform;
-  userType?: tsh.UserType;
+  userType?: tsh.LoggedInUser_UserType;
 }) {
   const appContext = new MockAppContext({ platform });
   appContext.clustersService.state = state;
@@ -335,15 +346,17 @@ function renderState({
 
   return (
     <AppContextProvider value={appContext}>
-      <MockWorkspaceContextProvider>
-        <ResourcesContextProvider>
-          <ConnectMyComputerContextProvider rootClusterUri={rootClusterUri}>
-            <Wrapper>
-              <DocumentCluster visible={true} doc={doc} />
-            </Wrapper>
-          </ConnectMyComputerContextProvider>
-        </ResourcesContextProvider>
-      </MockWorkspaceContextProvider>
+      <VnetContextProvider>
+        <MockWorkspaceContextProvider>
+          <ResourcesContextProvider>
+            <ConnectMyComputerContextProvider rootClusterUri={rootClusterUri}>
+              <Wrapper>
+                <DocumentCluster visible={true} doc={doc} />
+              </Wrapper>
+            </ConnectMyComputerContextProvider>
+          </ResourcesContextProvider>
+        </MockWorkspaceContextProvider>
+      </VnetContextProvider>
     </AppContextProvider>
   );
 }

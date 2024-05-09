@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	utilsaws "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/modules"
 )
 
@@ -47,12 +48,17 @@ type IntegrationTokenGenerator interface {
 	GetProxies() ([]types.Server, error)
 
 	// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
-	GenerateAWSOIDCToken(ctx context.Context) (string, error)
+	GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error)
 }
 
 // NewSessionV1 creates a new AWS Session for the region using the integration as source of credentials.
 // This session is usable for AWS SDK Go V1.
 func NewSessionV1(ctx context.Context, client IntegrationTokenGenerator, region string, integrationName string) (*session.Session, error) {
+	if region != "" {
+		if err := utilsaws.IsValidRegion(region); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 	integration, err := client.GetIntegration(ctx, integrationName)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -71,8 +77,7 @@ func NewSessionV1(ctx context.Context, client IntegrationTokenGenerator, region 
 	sess, err := session.NewSessionWithOptions(session.Options{
 		SharedConfigState: session.SharedConfigDisable,
 		Config: aws.Config{
-			EC2MetadataEnableFallback: aws.Bool(false),
-			UseFIPSEndpoint:           useFIPSEndpoint,
+			UseFIPSEndpoint: useFIPSEndpoint,
 		},
 	})
 	if err != nil {
@@ -83,7 +88,7 @@ func NewSessionV1(ctx context.Context, client IntegrationTokenGenerator, region 
 	// Generating a token here and using it as a Static would make this token valid for the Max Duration Session for the current AWS Role (usually, 1 hour).
 	// Instead, it generates a token everytime the Session's client requests a new token, ensuring it always receives a fresh one.
 	var integrationTokenFetcher IntegrationTokenFetcher = func(ctx context.Context) ([]byte, error) {
-		token, err := client.GenerateAWSOIDCToken(ctx)
+		token, err := client.GenerateAWSOIDCToken(ctx, integrationName)
 		return []byte(token), trace.Wrap(err)
 	}
 
@@ -99,10 +104,9 @@ func NewSessionV1(ctx context.Context, client IntegrationTokenGenerator, region 
 	session, err := session.NewSessionWithOptions(session.Options{
 		SharedConfigState: session.SharedConfigDisable,
 		Config: aws.Config{
-			Region:                    aws.String(region),
-			Credentials:               awsCredentials,
-			EC2MetadataEnableFallback: aws.Bool(false),
-			UseFIPSEndpoint:           useFIPSEndpoint,
+			Region:          aws.String(region),
+			Credentials:     awsCredentials,
+			UseFIPSEndpoint: useFIPSEndpoint,
 		},
 	})
 	if err != nil {

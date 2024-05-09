@@ -22,6 +22,8 @@ package common
 
 import (
 	"context"
+	"fmt"
+	"os/user"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -166,4 +168,112 @@ func TestHardwareKeyLogin(t *testing.T) {
 		assert.Equal(t, 1, lastLoginCount, "expected one login attempt but got %v", lastLoginCount)
 		lastLoginCount = 0 // reset login count
 	})
+}
+
+// TestHardwareKeySSH tests Hardware Key SSH flows.
+func TestHardwareKeySSH(t *testing.T) {
+	ctx := context.Background()
+
+	testModules := &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+	}
+	modules.SetTestModules(t, testModules)
+
+	connector := mockConnector(t)
+
+	user, err := user.Current()
+	require.NoError(t, err)
+
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	aliceRole, err := types.NewRole("alice", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins:     []string{user.Name},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	})
+	require.NoError(t, err)
+	alice.SetRoles([]string{aliceRole.GetName()})
+
+	testServer := testserver.MakeTestServer(t,
+		testserver.WithBootstrap(connector, alice, aliceRole),
+		testserver.WithClusterName(t, "my-cluster"),
+		func(o *testserver.TestServersOpts) {
+			o.ConfigFuncs = append(o.ConfigFuncs, func(cfg *servicecfg.Config) {
+				// TODO (Joerger): This test fails to propagate hardware key policy errors from Proxy SSH connections
+				// for unknown reasons unless Multiplex mode is on. I could not reproduce these errors on a live
+				// cluster, so the issue likely lies with the test server setup. Perhaps the test certs generated
+				// are not 1-to-1 with live certs.
+				cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			})
+		})
+	authServer := testServer.GetAuthServer()
+	proxyAddr, err := testServer.ProxyWebAddr()
+	require.NoError(t, err)
+
+	agentless := testserver.CreateAgentlessNode(t, authServer, "my-cluster", "agentless-node")
+
+	// Login before adding hardware key requirement
+	tmpHomePath := t.TempDir()
+	err = Run(ctx, []string{
+		"login",
+		"--insecure",
+		"--proxy", proxyAddr.String(),
+	}, setHomePath(tmpHomePath), setMockSSOLogin(authServer, alice, connector.GetName()))
+	require.NoError(t, err)
+
+	// Require hardware key touch for alice.
+	aliceRole.SetOptions(types.RoleOptions{
+		RequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
+	})
+	_, err = authServer.UpsertRole(ctx, aliceRole)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name       string
+		targetHost string
+	}{
+		{
+			name:       "regular node",
+			targetHost: testServer.Config.Hostname,
+		},
+		{
+			name:       "agentless node",
+			targetHost: agentless.GetHostname(),
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			testModules.MockAttestationData = nil
+			tmpHomePath = t.TempDir()
+			// SSH fails without an attested hardware key login.
+			err = Run(ctx, []string{
+				"ssh",
+				"--insecure",
+				fmt.Sprintf("%s@%s", user.Name, tc.targetHost),
+				"echo", "test",
+			}, setHomePath(tmpHomePath), setMockSSOLogin(authServer, alice, connector.GetName()))
+			require.Error(t, err)
+
+			// Set MockAttestationData to attest the expected key policy and try again.
+			testModules.MockAttestationData = &keys.AttestationData{
+				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
+			}
+
+			err = Run(ctx, []string{
+				"login",
+				"--insecure",
+				"--proxy", proxyAddr.String(),
+			}, setHomePath(tmpHomePath), setMockSSOLogin(authServer, alice, connector.GetName()))
+			require.NoError(t, err)
+
+			err = Run(ctx, []string{
+				"ssh",
+				"--insecure",
+				fmt.Sprintf("%s@%s", user.Name, tc.targetHost),
+				"echo", "test",
+			}, setHomePath(tmpHomePath), setMockSSOLogin(authServer, alice, connector.GetName()))
+			require.NoError(t, err)
+		})
+	}
 }

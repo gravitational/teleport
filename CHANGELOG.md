@@ -1,5 +1,28 @@
 # Changelog
 
+## 16.0.0 (xx/xx/xx)
+
+### Breaking changes
+
+#### Opsgenie plugin annotations
+
+Opsgenie plugin users, role annotations must now contain
+`teleport.dev/notify-services` to receive notification on Opsgenie.
+`teleport.dev/schedules` is now the label used to determine auto approval flow.
+See [the Opsgenie plugin documentation](docs/pages/access-controls/access-request-plugins/opsgenie.mdx)
+for setup instructions.
+
+#### Teleport Assist chat has been remove.
+
+Teleport Assist chat has been removed from Teleport 16. Assist is still available
+in the SSH Web Terminal and Audit Monitoring.
+
+#### DynamoDB permission requirements have changed
+
+Teleport clusters using the dynamodb backend must now have the `dynamodb:ConditionCheckItem`
+permission. For a full list of all required permissions see the dynamo backend iam
+policy [example](docs/pages/includes/dynamodb-iam-policy.mdx).
+
 ## 15.0.0 (xx/xx/24)
 
 ### New features
@@ -4729,7 +4752,7 @@ The most pressing issues (a phishing attack which can potentially be used to ext
 
 ### Bugfixes
 
-* Roles created the the Web UI now have `node` resource. [#949](https://github.com/gravitational/teleport/pull/949)
+* Roles created in the Web UI now have `node` resource. [#949](https://github.com/gravitational/teleport/pull/949)
 
 ## 2.0.3
 

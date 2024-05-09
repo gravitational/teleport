@@ -51,8 +51,10 @@ export enum MessageType {
   NOTIFICATION = 28,
   RDP_FASTPATH_PDU = 29,
   RDP_RESPONSE_PDU = 30,
-  RDP_CONNECTION_INITIALIZED = 31,
+  RDP_CONNECTION_ACTIVATED = 31,
   SYNC_KEYS = 32,
+  SHARED_DIRECTORY_TRUNCATE_REQUEST = 33,
+  SHARED_DIRECTORY_TRUNCATE_RESPONSE = 34,
   __LAST, // utility value
 }
 
@@ -106,7 +108,7 @@ export type ClipboardData = {
 };
 
 // | message type (31) | io_channel_id uint16 | user_channel_id uint16 | screen_width uint16 | screen_height uint16 |
-export type RDPConnectionInitialized = {
+export type RdpConnectionActivated = {
   ioChannelId: number;
   userChannelId: number;
   screenWidth: number;
@@ -274,6 +276,20 @@ export type SharedDirectoryListResponse = {
   completionId: number;
   errCode: SharedDirectoryErrCode;
   fsoList: FileSystemObject[];
+};
+
+// | message type (33) | completion_id uint32 | directory_id uint32 | path_length uint32 | path []byte | end_of_file uint32 |
+export type SharedDirectoryTruncateRequest = {
+  completionId: number;
+  directoryId: number;
+  path: string;
+  endOfFile: number;
+};
+
+// | message type (34) | completion_id uint32 | err_code uint32 |
+export type SharedDirectoryTruncateResponse = {
+  completionId: number;
+  errCode: SharedDirectoryErrCode;
 };
 
 // | last_modified uint64 | size uint64 | file_type uint32 | is_empty bool | path_length uint32 | path byte[] |
@@ -556,19 +572,10 @@ export default class Codec {
   encodeSharedDirectoryDeleteResponse(
     res: SharedDirectoryDeleteResponse
   ): Message {
-    const bufLen = BYTE_LEN + 2 * UINT_32_LEN;
-    const buffer = new ArrayBuffer(bufLen);
-    const view = new DataView(buffer);
-    let offset = 0;
-
-    view.setUint8(offset, MessageType.SHARED_DIRECTORY_DELETE_RESPONSE);
-    offset += BYTE_LEN;
-    view.setUint32(offset, res.completionId);
-    offset += UINT_32_LEN;
-    view.setUint32(offset, res.errCode);
-    offset += UINT_32_LEN;
-
-    return buffer;
+    return this.encodeGenericResponse(
+      MessageType.SHARED_DIRECTORY_DELETE_RESPONSE,
+      res
+    );
   }
 
   // | message type (20) | completion_id uint32 | err_code uint32 | read_data_length uint32 | read_data []byte |
@@ -616,19 +623,10 @@ export default class Codec {
 
   // | message type (24) | completion_id uint32 | err_code uint32 |
   encodeSharedDirectoryMoveResponse(res: SharedDirectoryMoveResponse): Message {
-    const bufLen = BYTE_LEN + 2 * UINT_32_LEN;
-    const buffer = new ArrayBuffer(bufLen);
-    const view = new DataView(buffer);
-    let offset = 0;
-
-    view.setUint8(offset, MessageType.SHARED_DIRECTORY_MOVE_RESPONSE);
-    offset += BYTE_LEN;
-    view.setUint32(offset, res.completionId);
-    offset += UINT_32_LEN;
-    view.setUint32(offset, res.errCode);
-    offset += UINT_32_LEN;
-
-    return buffer;
+    return this.encodeGenericResponse(
+      MessageType.SHARED_DIRECTORY_MOVE_RESPONSE,
+      res
+    );
   }
 
   // | message type (26) | completion_id uint32 | err_code uint32 | fso_list_length uint32 | fso_list fso[] |
@@ -660,6 +658,37 @@ export default class Codec {
     return withFsoList.buffer;
   }
 
+  encodeSharedDirectoryTruncateResponse(
+    res: SharedDirectoryTruncateResponse
+  ): Message {
+    return this.encodeGenericResponse(
+      MessageType.SHARED_DIRECTORY_TRUNCATE_RESPONSE,
+      res
+    );
+  }
+
+  private encodeGenericResponse(
+    type: MessageType,
+    res: {
+      completionId: number;
+      errCode: SharedDirectoryErrCode;
+    }
+  ): Message {
+    const bufLen = BYTE_LEN + 2 * UINT_32_LEN;
+    const buffer = new ArrayBuffer(bufLen);
+    const view = new DataView(buffer);
+    let offset = 0;
+
+    view.setUint8(offset, type);
+    offset += BYTE_LEN;
+    view.setUint32(offset, res.completionId);
+    offset += UINT_32_LEN;
+    view.setUint32(offset, res.errCode);
+    offset += UINT_32_LEN;
+
+    return buffer;
+  }
+
   // | last_modified uint64 | size uint64 | file_type uint32 | is_empty bool | path_length uint32 | path byte[] |
   encodeFileSystemObject(fso: FileSystemObject): Message {
     const dataUtf8array = this.encoder.encode(fso.path);
@@ -687,7 +716,7 @@ export default class Codec {
   }
 
   // | message type (30) | data_length uint32 | data []byte |
-  encodeRDPResponsePDU(responseFrame: ArrayBuffer): Message {
+  encodeRdpResponsePDU(responseFrame: ArrayBuffer): Message {
     const bufLen = BYTE_LEN + UINT_32_LEN + responseFrame.byteLength;
     const buffer = new ArrayBuffer(bufLen);
     const view = new DataView(buffer);
@@ -836,7 +865,7 @@ export default class Codec {
   }
 
   // | message type (29) | data_length uint32 | data []byte |
-  decodeRDPFastPathPDU(buffer: ArrayBuffer): RdpFastPathPdu {
+  decodeRdpFastPathPDU(buffer: ArrayBuffer): RdpFastPathPdu {
     const dv = new DataView(buffer);
     let offset = 0;
     offset += BYTE_LEN; // eat message type
@@ -846,7 +875,7 @@ export default class Codec {
   }
 
   // | message type (31) | io_channel_id uint16 | user_channel_id uint16 | screen_width uint16 | screen_height uint16 |
-  decodeRDPConnectionInitialied(buffer: ArrayBuffer): RDPConnectionInitialized {
+  decodeRdpConnectionActivated(buffer: ArrayBuffer): RdpConnectionActivated {
     const dv = new DataView(buffer);
     let offset = 0;
     offset += BYTE_LEN; // eat message type
@@ -1055,6 +1084,31 @@ export default class Codec {
     buffer: ArrayBuffer
   ): SharedDirectoryListRequest {
     return this.decodeSharedDirectoryInfoRequest(buffer);
+  }
+
+  decodeSharedDirectoryTruncateRequest(
+    buffer: ArrayBuffer
+  ): SharedDirectoryTruncateRequest {
+    const dv = new DataView(buffer);
+    let bufOffset = BYTE_LEN; // eat message type
+    const completionId = dv.getUint32(bufOffset);
+    bufOffset += UINT_32_LEN; // eat completion_id
+    const directoryId = dv.getUint32(bufOffset);
+    bufOffset += UINT_32_LEN; // eat directory_id
+    const pathLength = dv.getUint32(bufOffset);
+    bufOffset += UINT_32_LEN; // eat path_length
+    const path = this.decoder.decode(
+      new Uint8Array(buffer, bufOffset, pathLength)
+    );
+    bufOffset += pathLength; // eat path
+    const endOfFile = dv.getUint32(bufOffset);
+
+    return {
+      completionId,
+      directoryId,
+      path,
+      endOfFile,
+    };
   }
 
   // asBase64Url creates a data:image uri from the png data part of a PNG_FRAME tdp message.

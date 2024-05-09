@@ -39,7 +39,7 @@ import (
 )
 
 func (process *TeleportProcess) initKubernetes() {
-	logger := process.logger.With(trace.Component, teleport.Component(teleport.ComponentKube, process.id))
+	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentKube, process.id))
 
 	process.RegisterWithAuthServer(types.RoleKube, KubeIdentityEvent)
 	process.RegisterCriticalFunc("kube.init", func() error {
@@ -47,7 +47,7 @@ func (process *TeleportProcess) initKubernetes() {
 		if conn == nil {
 			return trace.Wrap(err)
 		}
-		if !process.getClusterFeatures().Kubernetes {
+		if !process.GetClusterFeatures().Kubernetes {
 			logger.WarnContext(process.ExitContext(), "Warning: Kubernetes service not initialized because Teleport Auth Server is not licensed for Kubernetes Access. Please contact the cluster administrator to enable it.")
 			return nil
 		}
@@ -152,7 +152,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 	if len(cfg.Kube.DynamicLabels) != 0 {
 		dynLabels, err = labels.NewDynamic(process.ExitContext(), &labels.DynamicConfig{
 			Labels: cfg.Kube.DynamicLabels,
-			Log:    process.log.WithField(trace.Component, teleport.Component(teleport.ComponentKube, process.id)),
+			Log:    process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentKube, process.id)),
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -169,7 +169,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentKube,
-			Log:       process.log.WithField(trace.Component, teleport.Component(teleport.ComponentKube, process.id)),
+			Log:       process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentKube, process.id)),
 			Client:    conn.Client,
 		},
 	})
@@ -182,7 +182,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 		ClusterName: teleportClusterName,
 		AccessPoint: accessPoint,
 		LockWatcher: lockWatcher,
-		Logger:      process.log.WithField(trace.Component, teleport.Component(teleport.ComponentKube, process.id)),
+		Logger:      process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentKube, process.id)),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -224,7 +224,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 			LockWatcher:                   lockWatcher,
 			CheckImpersonationPermissions: cfg.Kube.CheckImpersonationPermissions,
 			PublicAddr:                    publicAddr,
-			ClusterFeatures:               process.getClusterFeatures,
+			ClusterFeatures:               process.GetClusterFeatures,
 		},
 		TLS:                  tlsConfig,
 		AccessPoint:          accessPoint,
@@ -236,7 +236,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 		StaticLabels:         cfg.Kube.StaticLabels,
 		DynamicLabels:        dynLabels,
 		CloudLabels:          process.cloudLabels,
-		Log:                  process.log.WithField(trace.Component, teleport.Component(teleport.ComponentKube, process.id)),
+		Log:                  process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentKube, process.id)),
 		PROXYProtocolMode:    multiplexer.PROXYProtocolOff, // Kube service doesn't need to process unsigned PROXY headers.
 	})
 	if err != nil {

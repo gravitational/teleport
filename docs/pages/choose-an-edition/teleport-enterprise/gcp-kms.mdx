@@ -123,6 +123,13 @@ $ gcloud kms keyrings add-iam-policy-binding <Var name="teleport-keyring"/> \
     --role "${IAM_ROLE}"
 ```
 
+<Admonition type="warning">
+Be aware that anyone with access to this service account will be able to create
+signatures as if they are the Teleport CA.
+It should be considered highly privileged and access should be restricted as
+much as possible.
+</Admonition>
+
 ## Step 3/5. Provide the service account credentials to your Auth Server
 
 The Teleport Auth Server will use Application Default Credentials to make

@@ -51,7 +51,7 @@ export function AuthConnectors(props: State) {
       ? 'Creating a new github connector'
       : 'Editing github connector';
   const description =
-    'Auth connectors allow Teleport to authenticate users via an external identity source such as Okta, Active Directory, GitHub, etc. This authentication method is commonly known as single sign-on (SSO).';
+    'Auth connectors allow Teleport to authenticate users via an external identity source such as Okta, Microsoft Entra ID, GitHub, etc. This authentication method is commonly known as single sign-on (SSO).';
 
   function handleOnSave(content: string) {
     const name = resources.item.name;

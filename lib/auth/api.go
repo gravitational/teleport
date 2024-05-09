@@ -27,7 +27,11 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	accessmonitoringrules "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
+	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -253,6 +257,16 @@ type ReadProxyAccessPoint interface {
 	// GetKubernetesServers returns a list of kubernetes servers registered in the cluster
 	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
 
+	// ListKubernetesWaitingContainers lists Kubernetes ephemeral
+	// containers that are waiting to be created until moderated
+	// session conditions are met.
+	ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error)
+
+	// GetKubernetesWaitingContainer returns a Kubernetes ephemeral
+	// container that are waiting to be created until moderated
+	// session conditions are met.
+	GetKubernetesWaitingContainer(ctx context.Context, req *kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error)
+
 	// GetDatabaseServers returns all registered database proxy servers.
 	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
 
@@ -449,6 +463,16 @@ type ReadKubernetesAccessPoint interface {
 
 	// GetKubernetesServers returns a list of kubernetes servers registered in the cluster
 	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
+
+	// ListKubernetesWaitingContainers lists Kubernetes ephemeral
+	// containers that are waiting to be created until moderated
+	// session conditions are met.
+	ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error)
+
+	// GetKubernetesWaitingContainer returns a Kubernetes ephemeral
+	// container that are waiting to be created until moderated
+	// session conditions are met.
+	GetKubernetesWaitingContainer(ctx context.Context, req *kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error)
 
 	// GetKubernetesClusters returns all kubernetes cluster resources.
 	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
@@ -758,13 +782,16 @@ type DiscoveryAccessPoint interface {
 	SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error
 
 	// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
-	GenerateAWSOIDCToken(ctx context.Context) (string, error)
+	GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error)
 
 	// EnrollEKSClusters enrolls EKS clusters into Teleport by installing teleport-kube-agent chart on the clusters.
 	EnrollEKSClusters(context.Context, *integrationpb.EnrollEKSClustersRequest, ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error)
 
 	// Ping gets basic info about the auth server.
 	Ping(context.Context) (proto.PingResponse, error)
+
+	// UpdateDiscoveryConfigStatus updates the status of a discovery config.
+	UpdateDiscoveryConfigStatus(ctx context.Context, name string, status discoveryconfig.Status) (*discoveryconfig.DiscoveryConfig, error)
 }
 
 // ReadOktaAccessPoint is a read only API interface to be
@@ -902,6 +929,13 @@ type AccessCache interface {
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 }
 
+// AccessCacheWithEvents extends the AccessCache interface with events. Useful for trust-related components
+// that need to watch for changes.
+type AccessCacheWithEvents interface {
+	AccessCache
+	types.Events
+}
+
 // Cache is a subset of the auth interface handling
 // access to the discovery API and static tokens
 type Cache interface {
@@ -957,7 +991,7 @@ type Cache interface {
 	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
 
 	// ListUsers returns a page of users.
-	ListUsers(ctx context.Context, pageSize int, nextToken string, withSecrets bool) ([]types.User, string, error)
+	ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
 
 	// GetRole returns role by name
 	GetRole(ctx context.Context, name string) (types.Role, error)
@@ -1009,6 +1043,16 @@ type Cache interface {
 
 	// GetKubernetesServers returns a list of kubernetes servers registered in the cluster
 	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
+
+	// ListKubernetesWaitingContainers lists Kubernetes ephemeral
+	// containers that are waiting to be created until moderated
+	// session conditions are met.
+	ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error)
+
+	// GetKubernetesWaitingContainer returns a Kubernetes ephemeral
+	// container that are waiting to be created until moderated
+	// session conditions are met.
+	GetKubernetesWaitingContainer(ctx context.Context, req *kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error)
 
 	// GetDatabaseServers returns all registered database proxy servers.
 	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
@@ -1103,6 +1147,8 @@ type Cache interface {
 	// implicit member list and the underlying implementation does not have
 	// enough information to compute the dynamic member list.
 	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
+	// ListAllAccessListMembers returns a paginated list of all members of all access lists.
+	ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
 	// GetAccessListMember returns the specified access list member resource.
 	// May return a DynamicAccessListError if the requested access list has an
 	// implicit member list and the underlying implementation does not have
@@ -1112,8 +1158,22 @@ type Cache interface {
 	// ListAccessListReviews will list access list reviews for a particular access list.
 	ListAccessListReviews(ctx context.Context, accessList string, pageSize int, pageToken string) (reviews []*accesslist.Review, nextToken string, err error)
 
+	// ListCrownJewels returns a paginated list of crown jewels.
+	ListCrownJewels(ctx context.Context, pageSize int64, nextToken string) ([]*crownjewelv1.CrownJewel, string, error)
+
+	// GetCrownJewel returns the specified crown jewel.
+	GetCrownJewel(ctx context.Context, name string) (*crownjewelv1.CrownJewel, error)
+
 	// IntegrationsGetter defines read/list methods for integrations.
 	services.IntegrationsGetter
+
+	// NotificationGetter defines list methods for notifications.
+	services.NotificationGetter
+
+	// ListAccessMonitoringRules returns a paginated list of access monitoring rules.
+	ListAccessMonitoringRules(ctx context.Context, limit int, startKey string) ([]*accessmonitoringrules.AccessMonitoringRule, string, error)
+	// GetAccessMonitoringRule returns the specified access monitoring rule.
+	GetAccessMonitoringRule(ctx context.Context, name string) (*accessmonitoringrules.AccessMonitoringRule, error)
 }
 
 type NodeWrapper struct {
@@ -1330,8 +1390,8 @@ func (w *DiscoveryWrapper) SubmitUsageEvent(ctx context.Context, req *proto.Subm
 }
 
 // GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
-func (w *DiscoveryWrapper) GenerateAWSOIDCToken(ctx context.Context) (string, error) {
-	return w.NoCache.GenerateAWSOIDCToken(ctx)
+func (w *DiscoveryWrapper) GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error) {
+	return w.NoCache.GenerateAWSOIDCToken(ctx, integration)
 }
 
 // EnrollEKSClusters enrolls EKS clusters into Teleport by installing teleport-kube-agent chart on the clusters.
@@ -1342,6 +1402,11 @@ func (w *DiscoveryWrapper) EnrollEKSClusters(ctx context.Context, req *integrati
 // Ping gets basic info about the auth server.
 func (w *DiscoveryWrapper) Ping(ctx context.Context) (proto.PingResponse, error) {
 	return w.NoCache.Ping(ctx)
+}
+
+// UpdateDiscoveryConfigStatus updates the status of a discovery config.
+func (w *DiscoveryWrapper) UpdateDiscoveryConfigStatus(ctx context.Context, name string, status discoveryconfig.Status) (*discoveryconfig.DiscoveryConfig, error) {
+	return w.NoCache.UpdateDiscoveryConfigStatus(ctx, name, status)
 }
 
 // Close closes all associated resources

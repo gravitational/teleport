@@ -351,18 +351,70 @@ function Build-Tsh {
         Write-Host "::group::Signing tsh..."
         Invoke-SignBinary -UnsignedBinaryPath "$UnsignedBinaryPath" -SignedBinaryPath "$SignedBinaryPath"
         Write-Host "::endgroup::"
+    }
+    Write-Host $("Built TSH in {0:g}" -f $CommandDuration)
 
+    return "$SignedBinaryPath"  # This is needed for building Connect and bundling the zip archive
+}
+
+function Build-Tctl {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string] $TeleportSourceDirectory,
+        [Parameter(Mandatory)]
+        [string] $ArtifactDirectory,
+        [Parameter(Mandatory)]
+        [string] $TeleportVersion
+    )
+
+    $BinaryName = "tctl.exe"
+    $BuildDirectory = "$TeleportSourceDirectory\build"
+    $SignedBinaryPath = "$BuildDirectory\$BinaryName"
+
+    $CommandDuration = Measure-Block {
+        Write-Host "::group::Building tctl..."
+        $UnsignedBinaryPath = "$BuildDirectory\unsigned-$BinaryName"
+        go build -tags piv -o "$UnsignedBinaryPath" "$TeleportSourceDirectory\tool\tctl"
+        Write-Host "::endgroup::"
+
+        Write-Host "::group::Signing tctl..."
+        Invoke-SignBinary -UnsignedBinaryPath "$UnsignedBinaryPath" -SignedBinaryPath "$SignedBinaryPath"
+        Write-Host "::endgroup::"
+    }
+    Write-Host $("Built TCTL in {0:g}" -f $CommandDuration)
+
+    return "$SignedBinaryPath"  # This is needed for bundling the zip archive
+}
+
+function Package-Artifacts {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string] $TeleportSourceDirectory,
+        [Parameter(Mandatory)]
+        [string] $ArtifactDirectory,
+        [Parameter(Mandatory)]
+        [string] $TeleportVersion,
+        [Parameter(Mandatory)]
+        [string] $SignedTctlBinaryPath,
+        [Parameter(Mandatory)]
+        [string] $SignedTshBinaryPath
+    )
+
+    $CommandDuration = Measure-Block {
         $PackageDirectory = New-TempDirectory
-        Write-Host "Packaging tsh with zip directory $PackageDirectory..."
-        Copy-Item -Path "$SignedBinaryPath" -Destination "$PackageDirectory"
+        Write-Host "Packaging zip archive $PackageDirectory..."
+        Copy-Item -Path "$SignedTctlBinaryPath" -Destination "$PackageDirectory"
+        Copy-Item -Path "$SignedTshBinaryPath" -Destination "$PackageDirectory"
         Copy-Item -Path "$TeleportSourceDirectory\CHANGELOG.md" -Destination "$PackageDirectory"
         Copy-Item -Path "$TeleportSourceDirectory\README.md" -Destination "$PackageDirectory"
         Out-File -FilePath "$PackageDirectory\VERSION" -InputObject "v$TeleportVersion"
         Compress-Archive -Path "$PackageDirectory\*" -DestinationPath "$ArtifactDirectory\teleport-v$TeleportVersion-windows-amd64-bin.zip"
     }
-    Write-Host $("Built TSH in {0:g}" -f $CommandDuration)
+    Write-Host $("Created archive in {0:g}" -f $CommandDuration)
 
-    return "$SignedBinaryPath"  # This is needed for building Connect
+    return
 }
 
 function Build-Connect {
@@ -410,11 +462,25 @@ function Build-Artifacts {
     # Create the artifact output directory
     New-Item -Path "$ArtifactDirectory" -ItemType Directory -Force | Out-Null
 
+    # Build tctl
+    $SignedTctlBinaryPath = Build-Tctl `
+        -TeleportSourceDirectory "$TeleportSourceDirectory" `
+        -ArtifactDirectory "$ArtifactDirectory" `
+        -TeleportVersion "$TeleportVersion"
+
     # Build tsh
     $SignedTshBinaryPath = Build-Tsh `
         -TeleportSourceDirectory "$TeleportSourceDirectory" `
         -ArtifactDirectory "$ArtifactDirectory" `
         -TeleportVersion "$TeleportVersion"
+
+    # Create archive
+    Package-Artifacts `
+        -TeleportSourceDirectory "$TeleportSourceDirectory" `
+        -ArtifactDirectory "$ArtifactDirectory" `
+        -TeleportVersion "$TeleportVersion" `
+        -SignedTshBinaryPath "$SignedTshBinaryPath" `
+        -SignedTctlBinaryPath "$SignedTctlBinaryPath"
 
     # Build Teleport Connect
     Build-Connect `

@@ -30,7 +30,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -43,9 +42,6 @@ import (
 
 func TestMain(m *testing.M) {
 	flag.Parse()
-	if testing.Verbose() {
-		logrus.SetLevel(logrus.DebugLevel)
-	}
 	os.Exit(m.Run())
 }
 
@@ -707,5 +703,56 @@ func TestGetResourcesWithFilters(t *testing.T) {
 			require.Len(t, resources, len(expectedResources))
 			require.Empty(t, cmp.Diff(expectedResources, resources))
 		})
+	}
+}
+
+type fakeUnifiedResourcesClient struct {
+	resp *proto.ListUnifiedResourcesResponse
+	err  error
+}
+
+func (f fakeUnifiedResourcesClient) ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error) {
+	return f.resp, f.err
+}
+
+// TestGetUnifiedResourcesWithLogins validates that any logins provided
+// in a [proto.PaginatedResource] are correctly parsed and applied to
+// the corresponding [types.EnrichedResource].
+func TestGetUnifiedResourcesWithLogins(t *testing.T) {
+	ctx := context.Background()
+
+	clt := fakeUnifiedResourcesClient{
+		resp: &proto.ListUnifiedResourcesResponse{
+			Resources: []*proto.PaginatedResource{
+				{
+					Resource: &proto.PaginatedResource_Node{Node: &types.ServerV2{}},
+					Logins:   []string{"alice", "bob"},
+				},
+				{
+					Resource: &proto.PaginatedResource_WindowsDesktop{WindowsDesktop: &types.WindowsDesktopV3{}},
+					Logins:   []string{"llama"},
+				},
+			},
+		},
+	}
+
+	resources, _, err := GetUnifiedResourcePage(ctx, clt, &proto.ListUnifiedResourcesRequest{
+		SortBy: types.SortBy{
+			IsDesc: false,
+			Field:  types.ResourceSpecHostname,
+		},
+		IncludeLogins: true,
+	})
+	require.NoError(t, err)
+
+	require.Len(t, resources, len(clt.resp.Resources))
+
+	for _, enriched := range resources {
+		switch enriched.ResourceWithLabels.(type) {
+		case *types.ServerV2:
+			assert.Equal(t, enriched.Logins, clt.resp.Resources[0].Logins)
+		case *types.WindowsDesktopV3:
+			assert.Equal(t, enriched.Logins, clt.resp.Resources[1].Logins)
+		}
 	}
 }

@@ -365,6 +365,7 @@ func TestKubeSelection(t *testing.T) {
 			cfg.Kube.ResourceMatchers = []services.ResourceMatcher{{
 				Labels: map[string]apiutils.Strings{"*": {"*"}},
 			}}
+			// Do not use a fake clock to better imitate real-world behavior.
 		}),
 	)
 	kubeBarEKS := "bar-eks-us-west-1-123456789012"

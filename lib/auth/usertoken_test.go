@@ -76,7 +76,7 @@ func TestCreateResetPasswordToken(t *testing.T) {
 	require.Empty(t, devs)
 
 	// verify that password was reset
-	err = srv.Auth().checkPasswordWOToken(username, []byte(pass))
+	err = srv.Auth().checkPasswordWOToken(ctx, username, []byte(pass))
 	require.Error(t, err)
 
 	// create another reset token for the same user
@@ -305,7 +305,7 @@ func TestCreatePrivilegeToken(t *testing.T) {
 		SecondFactor: constants.SecondFactorOTP,
 	})
 	require.NoError(t, err)
-	err = srv.Auth().SetAuthPreference(ctx, ap)
+	_, err = srv.Auth().UpsertAuthPreference(ctx, ap)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -380,7 +380,7 @@ func TestCreatePrivilegeToken_WithLock(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	err = srv.Auth().SetAuthPreference(ctx, ap)
+	_, err = srv.Auth().UpsertAuthPreference(ctx, ap)
 	require.NoError(t, err)
 
 	tests := []struct {

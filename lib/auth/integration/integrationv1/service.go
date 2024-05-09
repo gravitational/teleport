@@ -27,6 +27,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 
+	"github.com/gravitational/teleport"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
@@ -87,7 +88,7 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 	}
 
 	if s.Logger == nil {
-		s.Logger = logrus.WithField(trace.Component, "integrations.service")
+		s.Logger = logrus.WithField(teleport.ComponentKey, "integrations.service")
 	}
 
 	if s.Clock == nil {
@@ -247,19 +248,7 @@ func (s *Service) DeleteIntegration(ctx context.Context, req *integrationpb.Dele
 }
 
 // DeleteAllIntegrations removes all Integration resources.
+// DEPRECATED: can't delete all integrations over gRPC.
 func (s *Service) DeleteAllIntegrations(ctx context.Context, _ *integrationpb.DeleteAllIntegrationsRequest) (*emptypb.Empty, error) {
-	authCtx, err := s.authorizer.Authorize(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbDelete); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := s.backend.DeleteAllIntegrations(ctx); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &emptypb.Empty{}, nil
+	return nil, trace.BadParameter("DeleteAllIntegrations is deprecated")
 }

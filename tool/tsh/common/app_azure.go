@@ -19,6 +19,7 @@
 package common
 
 import (
+	"crypto"
 	"fmt"
 	"net"
 	"os"
@@ -166,7 +167,7 @@ func (a *azureApp) GetEnvVars() (map[string]string, error) {
 		// This isn't portable and applications other than az CLI may have to set different env variables,
 		// add the application cert to system root store (not recommended, ultimate fallback)
 		// or use equivalent of --insecure flag.
-		"REQUESTS_CA_BUNDLE": a.profile.AppLocalCAPath(a.app.Name),
+		"REQUESTS_CA_BUNDLE": a.profile.AppLocalCAPath(a.cf.SiteName, a.app.Name),
 	}
 
 	// Set proxy settings.
@@ -206,7 +207,7 @@ func (a *azureApp) startLocalALPNProxy(port string) error {
 		return trace.Wrap(err)
 	}
 
-	appCerts, err := loadAppCertificateWithAppLogin(a.cf, tc, a.app.Name)
+	appCert, err := loadAppCertificateWithAppLogin(a.cf, tc, a.app.Name)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -231,23 +232,17 @@ func (a *azureApp) startLocalALPNProxy(port string) error {
 		return trace.Wrap(err)
 	}
 
-	// backend expects the tokens to be signed with web session private key
-	ws, err := tc.GetAppSession(a.cf.Context, types.GetAppSessionRequest{SessionID: a.app.SessionID})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	wsPK, err := utils.ParsePrivateKey(ws.GetPriv())
-	if err != nil {
-		return trace.Wrap(err)
+	signer, ok := appCert.PrivateKey.(crypto.Signer)
+	if !ok {
+		return trace.BadParameter("private key type %T does not implement crypto.Signer (this is a bug)", appCert.PrivateKey)
 	}
 
 	a.localALPNProxy, err = alpnproxy.NewLocalProxy(
 		makeBasicLocalProxyConfig(a.cf, tc, listener),
-		alpnproxy.WithClientCerts(appCerts),
+		alpnproxy.WithClientCert(appCert),
 		alpnproxy.WithClusterCAsIfConnUpgrade(a.cf.Context, tc.RootClusterCACertPool),
 		alpnproxy.WithHTTPMiddleware(&alpnproxy.AzureMSIMiddleware{
-			Key:    wsPK,
+			Key:    signer,
 			Secret: a.msiSecret,
 			// we could, in principle, get the actual TenantID either from live data or from static configuration,
 			// but at this moment there is no clear advantage over simply issuing a new random identifier.
@@ -256,7 +251,6 @@ func (a *azureApp) startLocalALPNProxy(port string) error {
 			Identity: a.app.AzureIdentity,
 		}),
 	)
-
 	if err != nil {
 		if cerr := listener.Close(); cerr != nil {
 			return trace.NewAggregate(err, cerr)

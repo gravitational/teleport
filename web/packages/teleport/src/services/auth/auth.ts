@@ -18,7 +18,7 @@
 
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
-import { DeviceType, DeviceUsage } from 'teleport/services/mfa';
+import { DeviceType } from 'teleport/services/mfa';
 
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
@@ -35,6 +35,8 @@ import {
   ResetPasswordWithWebauthnReqWithEvent,
   UserCredentials,
   ChangePasswordReq,
+  CreateNewHardwareDeviceRequest,
+  DeviceUsage,
 } from './types';
 import { CreateAuthenticateChallengeRequest } from './types';
 
@@ -50,7 +52,9 @@ const auth = {
       )
     );
   },
+
   checkMfaRequired: checkMfaRequired,
+
   createMfaRegistrationChallenge(
     tokenId: string,
     deviceType: DeviceType,
@@ -62,6 +66,29 @@ const auth = {
         deviceUsage,
       })
       .then(makeMfaRegistrationChallenge);
+  },
+
+  /**
+   * Creates an MFA registration challenge and a corresponding client-side
+   * WebAuthn credential.
+   */
+  createNewWebAuthnDevice(
+    req: CreateNewHardwareDeviceRequest
+  ): Promise<Credential> {
+    return auth
+      .checkWebauthnSupport()
+      .then(() =>
+        auth.createMfaRegistrationChallenge(
+          req.tokenId,
+          'webauthn',
+          req.deviceUsage
+        )
+      )
+      .then(res =>
+        navigator.credentials.create({
+          publicKey: res.webauthnPublicKey,
+        })
+      );
   },
 
   createMfaAuthnChallengeWithToken(tokenId: string) {
@@ -80,15 +107,6 @@ const auth = {
         user: creds?.username,
         pass: creds?.password,
       })
-      .then(makeMfaAuthenticateChallenge);
-  },
-
-  // changePasswordBegin retrieves users mfa challenges for their
-  // registered devices after verifying given password from an
-  // authenticated user.
-  mfaChangePasswordBegin(oldPass: string) {
-    return api
-      .post(cfg.api.mfaChangePasswordBegin, { pass: oldPass })
       .then(makeMfaAuthenticateChallenge);
   },
 
@@ -131,28 +149,16 @@ const auth = {
   // or if passwordless is requested (indicated by empty password param),
   // skips setting a new password and only sets a passwordless device.
   resetPasswordWithWebauthn(props: ResetPasswordWithWebauthnReqWithEvent) {
-    const { req, eventMeta } = props;
+    const { req, credential, eventMeta } = props;
     const deviceUsage: DeviceUsage = req.password ? 'mfa' : 'passwordless';
 
     return auth
       .checkWebauthnSupport()
-      .then(() =>
-        auth.createMfaRegistrationChallenge(
-          req.tokenId,
-          'webauthn',
-          deviceUsage
-        )
-      )
-      .then(res =>
-        navigator.credentials.create({
-          publicKey: res.webauthnPublicKey,
-        })
-      )
-      .then(res => {
+      .then(() => {
         const request = {
           token: req.tokenId,
           password: req.password ? base64EncodeUnicode(req.password) : null,
-          webauthnCreationResponse: makeWebauthnCreationResponse(res),
+          webauthnCreationResponse: makeWebauthnCreationResponse(credential),
           deviceName: req.deviceName,
         };
 
@@ -212,26 +218,6 @@ const auth = {
     };
 
     return api.put(cfg.api.changeUserPasswordPath, data);
-  },
-
-  changePasswordWithWebauthn(oldPass: string, newPass: string) {
-    return auth
-      .checkWebauthnSupport()
-      .then(() => api.post(cfg.api.mfaChangePasswordBegin, { pass: oldPass }))
-      .then(res =>
-        navigator.credentials.get({
-          publicKey: makeMfaAuthenticateChallenge(res).webauthnPublicKey,
-        })
-      )
-      .then(res => {
-        const request = {
-          old_password: base64EncodeUnicode(oldPass),
-          new_password: base64EncodeUnicode(newPass),
-          webauthnAssertionResponse: makeWebauthnAssertionResponse(res),
-        };
-
-        return api.put(cfg.api.changeUserPasswordPath, request);
-      });
   },
 
   headlessSSOGet(transactionId: string) {
@@ -297,12 +283,15 @@ const auth = {
       );
   },
 
-  createPrivilegeTokenWithWebauthn(scope: MfaChallengeScope) {
-    return auth.fetchWebAuthnChallenge({ scope }).then(res =>
-      api.post(cfg.api.createPrivilegeTokenPath, {
-        webauthnAssertionResponse: makeWebauthnAssertionResponse(res),
-      })
-    );
+  createPrivilegeTokenWithWebauthn() {
+    // Creating privilege tokens always expects the MANAGE_DEVICES webauthn scope.
+    return auth
+      .fetchWebAuthnChallenge({ scope: MfaChallengeScope.MANAGE_DEVICES })
+      .then(res =>
+        api.post(cfg.api.createPrivilegeTokenPath, {
+          webauthnAssertionResponse: makeWebauthnAssertionResponse(res),
+        })
+      );
   },
 
   createRestrictedPrivilegeToken() {
@@ -382,6 +371,7 @@ export type IsMfaRequiredRequest =
   | IsMfaRequiredNode
   | IsMfaRequiredKube
   | IsMfaRequiredWindowsDesktop
+  | IsMfaRequiredApp
   | IsMfaRequiredAdminAction;
 
 export type IsMfaRequiredResponse = {
@@ -422,6 +412,17 @@ export type IsMfaRequiredWindowsDesktop = {
 export type IsMfaRequiredKube = {
   kube: {
     // cluster_name is the name of the kube cluster.
+    cluster_name: string;
+  };
+};
+
+export type IsMfaRequiredApp = {
+  app: {
+    // fqdn indicates (tentatively) the fully qualified domain name of the application.
+    fqdn: string;
+    // public_addr is the public address of the application.
+    public_addr: string;
+    // cluster_name is the cluster within which this application is running.
     cluster_name: string;
   };
 };

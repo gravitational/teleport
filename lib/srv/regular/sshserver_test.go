@@ -19,6 +19,7 @@
 package regular
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -133,7 +134,7 @@ func newFixtureWithoutDiskBasedLogging(t *testing.T, sshOpts ...ServerOption) *s
 	// that runs in the background introduces races with test cleanup
 	recConfig := types.DefaultSessionRecordingConfig()
 	recConfig.SetMode(types.RecordAtNodeSync)
-	err := f.testSrv.Auth().SetSessionRecordingConfig(context.Background(), recConfig)
+	_, err := f.testSrv.Auth().UpsertSessionRecordingConfig(context.Background(), recConfig)
 	require.NoError(t, err)
 
 	return f
@@ -217,7 +218,6 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 		SetUUID(nodeID),
 		SetNamespace(apidefaults.Namespace),
 		SetEmitter(nodeClient),
-		SetShell("/bin/sh"),
 		SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
 		SetLabels(
 			map[string]string{"foo": "bar"},
@@ -699,6 +699,51 @@ func TestDirectTCPIP(t *testing.T) {
 		//nolint:bodyclose // We expect an error here, no need to close.
 		_, err := httpClientUsingSessionJoin.Get(ts.URL)
 		require.ErrorContains(t, err, "ssh: rejected: administratively prohibited (attempted direct-tcpip channel open in join-only mode")
+	})
+}
+
+// TestTCPIPForward ensures that the server can create a listener from a
+// "tcpip-forward" request and do remote port forwarding.
+func TestTCPIPForward(t *testing.T) {
+	t.Parallel()
+	f := newFixtureWithoutDiskBasedLogging(t)
+
+	// Request a listener from the server.
+	listener, err := f.ssh.clt.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	// Start up a test server that uses the port forwarded listener.
+	ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, "hello, world")
+	}))
+	t.Cleanup(ts.Close)
+	ts.Listener = listener
+	ts.Start()
+
+	// Dial the test server over the SSH connection.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	t.Cleanup(cancel)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, ts.URL, &bytes.Buffer{})
+	require.NoError(t, err)
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, resp.Body.Close())
+	})
+
+	// Make sure the response is what was expected.
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.Equal(t, []byte("hello, world\n"), body)
+
+	t.Run("SessionJoinPrincipal cannot use tcpip-forward", func(t *testing.T) {
+		// Ensure that ssh client using SessionJoinPrincipal as Login, cannot
+		// connect using "tcpip-forward".
+		ctx := context.Background()
+		cliUsingSessionJoin := f.newSSHClient(ctx, t, &user.User{Username: teleport.SSHSessionJoinPrincipal})
+		_, err := cliUsingSessionJoin.Listen("tcp", "127.0.0.1:0")
+		require.ErrorContains(t, err, "ssh: tcpip-forward request denied by peer")
 	})
 }
 
@@ -1465,7 +1510,7 @@ func TestProxyRoundRobin(t *testing.T) {
 
 	router, err := libproxy.NewRouter(libproxy.RouterConfig{
 		ClusterName:         f.testSrv.ClusterName(),
-		Log:                 utils.NewLoggerForTests().WithField(trace.Component, "test"),
+		Log:                 utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
 		RemoteClusterGetter: proxyClient,
 		SiteGetter:          reverseTunnelServer,
 		TracerProvider:      tracing.NoopProvider(),
@@ -1499,7 +1544,6 @@ func TestProxyRoundRobin(t *testing.T) {
 		SetBPF(&bpf.NOP{}),
 		SetClock(f.clock),
 		SetLockWatcher(lockWatcher),
-		SetNodeWatcher(nodeWatcher),
 		SetSessionController(sessionController),
 	)
 	require.NoError(t, err)
@@ -1605,7 +1649,7 @@ func TestProxyDirectAccess(t *testing.T) {
 
 	router, err := libproxy.NewRouter(libproxy.RouterConfig{
 		ClusterName:         f.testSrv.ClusterName(),
-		Log:                 utils.NewLoggerForTests().WithField(trace.Component, "test"),
+		Log:                 utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
 		RemoteClusterGetter: proxyClient,
 		SiteGetter:          reverseTunnelServer,
 		TracerProvider:      tracing.NoopProvider(),
@@ -1639,7 +1683,6 @@ func TestProxyDirectAccess(t *testing.T) {
 		SetBPF(&bpf.NOP{}),
 		SetClock(f.clock),
 		SetLockWatcher(lockWatcher),
-		SetNodeWatcher(nodeWatcher),
 		SetSessionController(sessionController),
 	)
 	require.NoError(t, err)
@@ -1872,7 +1915,6 @@ func TestLimiter(t *testing.T) {
 		utils.NetAddr{},
 		nodeClient,
 		SetLimiter(limiter),
-		SetShell("/bin/sh"),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
 		SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
@@ -2020,7 +2062,7 @@ func TestGlobalRequestClusterDetails(t *testing.T) {
 			recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{Mode: tt.mode})
 			require.NoError(t, err)
 
-			err = f.testSrv.Auth().SetSessionRecordingConfig(ctx, recConfig)
+			_, err = f.testSrv.Auth().UpsertSessionRecordingConfig(ctx, recConfig)
 			require.NoError(t, err)
 
 			ok, responseBytes, err := f.ssh.clt.SendRequest(ctx, teleport.ClusterDetailsReqType, true, nil)
@@ -2323,7 +2365,7 @@ func TestParseSubsystemRequest(t *testing.T) {
 
 		router, err := libproxy.NewRouter(libproxy.RouterConfig{
 			ClusterName:         f.testSrv.ClusterName(),
-			Log:                 utils.NewLoggerForTests().WithField(trace.Component, "test"),
+			Log:                 utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
 			RemoteClusterGetter: proxyClient,
 			SiteGetter:          reverseTunnelServer,
 			TracerProvider:      tracing.NoopProvider(),
@@ -2357,7 +2399,6 @@ func TestParseSubsystemRequest(t *testing.T) {
 			SetBPF(&bpf.NOP{}),
 			SetClock(f.clock),
 			SetLockWatcher(lockWatcher),
-			SetNodeWatcher(nodeWatcher),
 			SetSessionController(sessionController),
 		)
 		require.NoError(t, err)
@@ -2460,7 +2501,7 @@ func TestX11ProxySupport(t *testing.T) {
 		Mode: types.RecordAtProxy,
 	})
 	require.NoError(t, err)
-	err = f.testSrv.Auth().SetSessionRecordingConfig(ctx, recConfig)
+	_, err = f.testSrv.Auth().UpsertSessionRecordingConfig(ctx, recConfig)
 	require.NoError(t, err)
 
 	// verify that the proxy is in recording mode
@@ -2584,7 +2625,7 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 
 	router, err := libproxy.NewRouter(libproxy.RouterConfig{
 		ClusterName:         f.testSrv.ClusterName(),
-		Log:                 utils.NewLoggerForTests().WithField(trace.Component, "test"),
+		Log:                 utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
 		RemoteClusterGetter: proxyClient,
 		SiteGetter:          reverseTunnelServer,
 		TracerProvider:      tracing.NoopProvider(),
@@ -2618,7 +2659,6 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 		SetBPF(&bpf.NOP{}),
 		SetClock(f.clock),
 		SetLockWatcher(lockWatcher),
-		SetNodeWatcher(nodeWatcher),
 		SetSessionController(sessionController),
 	)
 	require.NoError(t, err)

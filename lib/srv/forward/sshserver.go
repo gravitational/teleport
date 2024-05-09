@@ -328,8 +328,8 @@ func New(c ServerConfig) (*Server, error) {
 
 	s := &Server{
 		log: logrus.WithFields(logrus.Fields{
-			trace.Component: teleport.ComponentForwardingNode,
-			trace.ComponentFields: map[string]string{
+			teleport.ComponentKey: teleport.ComponentForwardingNode,
+			teleport.ComponentFields: map[string]string{
 				"src-addr": c.SrcAddr.String(),
 				"dst-addr": c.DstAddr.String(),
 			},
@@ -455,7 +455,7 @@ func (s *Server) Component() string {
 	return teleport.ComponentForwardingNode
 }
 
-// PermitUserEnvironment is always false because it's up the the remote host
+// PermitUserEnvironment is always false because it's up to the remote host
 // to decide if the user environment will be read or not.
 func (s *Server) PermitUserEnvironment() bool {
 	return false
@@ -672,7 +672,7 @@ func (s *Server) sendSSHPublicKeyToTarget(ctx context.Context) (ssh.Signer, erro
 		return nil, trace.BadParameter("missing aws cloud metadata")
 	}
 
-	token, err := s.authClient.GenerateAWSOIDCToken(ctx)
+	token, err := s.authClient.GenerateAWSOIDCToken(ctx, awsInfo.Integration)
 	if err != nil {
 		return nil, trace.BadParameter("failed to generate aws token: %v", err)
 	}

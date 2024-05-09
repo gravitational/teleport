@@ -52,12 +52,10 @@ func newAccessListSpec(nextAudit time.Time) accesslist.Spec {
 			},
 			NextAuditDate: nextAudit,
 		},
-		Membership: "explicit",
 		MembershipRequires: accesslist.Requires{
 			Roles:  []string{"minion"},
 			Traits: trait.Traits{},
 		},
-		Ownership: "explicit",
 		OwnershipRequires: accesslist.Requires{
 			Roles:  []string{"supervillain"},
 			Traits: trait.Traits{},

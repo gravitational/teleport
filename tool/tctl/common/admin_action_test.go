@@ -699,7 +699,8 @@ func (s *adminActionTestSuite) testClusterAuthPreference(t *testing.T) {
 			return trace.Wrap(err)
 		}
 		authPref.SetOrigin(types.OriginDynamic)
-		return s.authServer.SetAuthPreference(ctx, authPref)
+		_, err = s.authServer.UpsertAuthPreference(ctx, authPref)
+		return trace.Wrap(err)
 	}
 
 	getAuthPref := func() (types.Resource, error) {
@@ -707,7 +708,8 @@ func (s *adminActionTestSuite) testClusterAuthPreference(t *testing.T) {
 	}
 
 	resetAuthPref := func() error {
-		return s.authServer.SetAuthPreference(ctx, originalAuthPref)
+		_, err = s.authServer.UpsertAuthPreference(ctx, originalAuthPref)
+		return trace.Wrap(err)
 	}
 
 	t.Run("ResourceCommands", func(t *testing.T) {
@@ -770,7 +772,8 @@ func (s *adminActionTestSuite) testNetworkingConfig(t *testing.T) {
 	netConfig.SetOrigin(types.OriginDynamic)
 
 	createNetConfig := func() error {
-		return s.authServer.SetClusterNetworkingConfig(ctx, netConfig)
+		_, err := s.authServer.UpsertClusterNetworkingConfig(ctx, netConfig)
+		return err
 	}
 
 	getNetConfig := func() (types.Resource, error) {
@@ -778,7 +781,8 @@ func (s *adminActionTestSuite) testNetworkingConfig(t *testing.T) {
 	}
 
 	resetNetConfig := func() error {
-		return s.authServer.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
+		_, err := s.authServer.UpsertClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
+		return err
 	}
 
 	t.Run("ResourceCommands", func(t *testing.T) {
@@ -806,7 +810,8 @@ func (s *adminActionTestSuite) testSessionRecordingConfig(t *testing.T) {
 	sessionRecordingConfig.SetOrigin(types.OriginDynamic)
 
 	createSessionRecordingConfig := func() error {
-		return s.authServer.SetSessionRecordingConfig(ctx, sessionRecordingConfig)
+		_, err := s.authServer.UpsertSessionRecordingConfig(ctx, sessionRecordingConfig)
+		return err
 	}
 
 	getSessionRecordingConfig := func() (types.Resource, error) {
@@ -814,7 +819,8 @@ func (s *adminActionTestSuite) testSessionRecordingConfig(t *testing.T) {
 	}
 
 	resetSessionRecordingConfig := func() error {
-		return s.authServer.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
+		_, err := s.authServer.UpsertSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
+		return err
 	}
 
 	t.Run("ResourceCommands", func(t *testing.T) {
@@ -1107,9 +1113,11 @@ func (s *adminActionTestSuite) testCommand(t *testing.T, ctx context.Context, tc
 		originalAuthPref, err := s.authServer.GetAuthPreference(ctx)
 		require.NoError(t, err)
 
-		require.NoError(t, s.authServer.SetAuthPreference(ctx, authPref))
+		_, err = s.authServer.UpsertAuthPreference(ctx, authPref)
+		require.NoError(t, err)
 		t.Cleanup(func() {
-			require.NoError(t, s.authServer.SetAuthPreference(ctx, originalAuthPref))
+			_, err = s.authServer.UpsertAuthPreference(ctx, originalAuthPref)
+			require.NoError(t, err)
 		})
 
 		err = runTestCase(t, ctx, s.userClientNoMFA, tc)
@@ -1179,8 +1187,6 @@ func setupWebAuthn(t *testing.T, authServer *auth.Server, username string) libcl
 	require.NoError(t, err)
 	cc := wantypes.CredentialCreationFromProto(res.GetWebauthn())
 
-	userWebID := res.GetWebauthn().PublicKey.User.Id
-
 	ccr, err := device.SignCredentialCreation(origin, cc)
 	require.NoError(t, err)
 	_, err = authServer.ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
@@ -1198,7 +1204,6 @@ func setupWebAuthn(t *testing.T, authServer *auth.Server, username string) libcl
 		if err != nil {
 			return nil, "", err
 		}
-		car.AssertionResponse.UserHandle = userWebID
 
 		return &proto.MFAAuthenticateResponse{
 			Response: &proto.MFAAuthenticateResponse_Webauthn{

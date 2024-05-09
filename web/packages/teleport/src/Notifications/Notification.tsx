@@ -25,6 +25,7 @@ import * as Icons from 'design/Icon';
 import Text from 'design/Text';
 import { ButtonSecondary } from 'design/Button';
 import { MenuIcon, MenuItem } from 'shared/components/MenuAction';
+import { IGNORE_CLICK_CLASSNAME } from 'shared/hooks/useRefClickOutside/useRefClickOutside';
 import Dialog, {
   DialogContent,
   DialogFooter,
@@ -35,17 +36,23 @@ import { Theme } from 'design/theme/themes/types';
 
 import { Notification as NotificationType } from 'teleport/services/notifications';
 
-import {
-  NotificationContent,
-  notificationContentFactory,
-} from './notificationContentFactory';
+import { useTeleport } from '..';
+
+import { NotificationContent } from './notificationContentFactory';
 
 export function Notification({
   notification,
 }: {
   notification: NotificationType;
 }) {
-  const content = notificationContentFactory(notification);
+  const ctx = useTeleport();
+
+  const content = ctx.notificationContentFactory(notification);
+
+  // If the notification is unsupported, it should not be shown.
+  if (!content) {
+    return null;
+  }
 
   // Whether to show the text content dialog. This is only ever used for user-created notifications which only contain informational text
   // and don't redirect to any page.
@@ -78,17 +85,25 @@ export function Notification({
     // TODO rudream - add hide notification functionality
   }
 
-  function onNotificationClick() {
-    if (content.kind === 'text') {
-      setShowTextContentDialog(true);
-      return;
+  function onNotificationClick(e: React.MouseEvent<HTMLElement>) {
+    // Prevents this from being triggered when the user is just clicking away from
+    // an open "mark as read/hide this notification" menu popover.
+    if (e.currentTarget.contains(e.target as HTMLElement)) {
+      if (content.kind === 'text') {
+        setShowTextContentDialog(true);
+        return;
+      }
+      // TODO rudream - add notification redirect functionality
     }
-    // TODO rudream - add notification redirect functionality
   }
 
   return (
     <>
-      <Container clicked={notification.clicked} onClick={onNotificationClick}>
+      <Container
+        clicked={notification.clicked}
+        onClick={onNotificationClick}
+        className="notification"
+      >
         <GraphicContainer>
           <MainIconContainer type={content.type}>
             <content.icon size={18} />
@@ -115,13 +130,22 @@ export function Notification({
             <Text typography="subtitle3">{formattedDate}</Text>
             <MenuIcon
               menuProps={{
-                anchorOrigin: { vertical: 'center', horizontal: 'left' },
-                transformOrigin: { vertical: 'top', horizontal: 'left' },
+                anchorOrigin: { vertical: 'bottom', horizontal: 'right' },
+                transformOrigin: { vertical: 'top', horizontal: 'right' },
+                backdropProps: { className: IGNORE_CLICK_CLASSNAME },
               }}
               buttonIconProps={{ style: { borderRadius: '4px' } }}
             >
-              <MenuItem onClick={onMarkAsClicked}>Mark as read</MenuItem>
-              <MenuItem onClick={onHideNotification}>
+              <MenuItem
+                onClick={onMarkAsClicked}
+                className={IGNORE_CLICK_CLASSNAME}
+              >
+                Mark as read
+              </MenuItem>
+              <MenuItem
+                onClick={onHideNotification}
+                className={IGNORE_CLICK_CLASSNAME}
+              >
                 Hide this notification
               </MenuItem>
             </MenuIcon>
@@ -129,7 +153,7 @@ export function Notification({
         </ContentContainer>
       </Container>
       {content.kind === 'text' && (
-        <Dialog open={showTextContentDialog}>
+        <Dialog open={showTextContentDialog} className={IGNORE_CLICK_CLASSNAME}>
           <DialogHeader>
             <DialogTitle>{content.title}</DialogTitle>
           </DialogHeader>
@@ -138,6 +162,7 @@ export function Notification({
             <ButtonSecondary
               onClick={() => setShowTextContentDialog(false)}
               size="small"
+              className={IGNORE_CLICK_CLASSNAME}
             >
               Close
             </ButtonSecondary>
@@ -165,11 +190,12 @@ function formatDate(date: Date) {
 }
 
 const Container = styled.div`
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: flex-start;
   gap: ${props => props.theme.space[3]}px;
-  max-width: 400px;
+  width: 100%;
   padding: ${props => props.theme.space[3]}px;
   border-radius: ${props => props.theme.radii[3]}px;
   cursor: pointer;
@@ -286,6 +312,7 @@ const AccentIconContainer = styled.div`
   z-index: 2;
   bottom: 0;
   right: 0;
+  color: ${props => props.theme.colors.text.primaryInverse};
 
   background-color: ${props => getIconColors(props.theme, props.type).primary};
 `;

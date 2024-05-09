@@ -192,7 +192,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	log := cfg.Log.WithFields(logrus.Fields{
-		trace.Component: cfg.Component,
+		teleport.ComponentKey: cfg.Component,
 	})
 	// limiter limits requests by frequency and amount of simultaneous
 	// connections per client
@@ -593,7 +593,7 @@ func (t *TLSServer) getServiceStaticLabels() map[string]string {
 	return labels
 }
 
-// setServiceLabels updates the the cluster labels with the kubernetes_service labels.
+// setServiceLabels updates the cluster labels with the kubernetes_service labels.
 // If the cluster and the service define overlapping labels the service labels take precedence.
 // This function manipulates the original cluster.
 func (t *TLSServer) setServiceLabels(cluster types.KubeCluster) {

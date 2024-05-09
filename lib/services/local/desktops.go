@@ -82,6 +82,10 @@ func (s *WindowsDesktopService) CreateWindowsDesktop(ctx context.Context, deskto
 		ID:      desktop.GetResourceID(),
 	}
 	_, err = s.Create(ctx, item)
+	if trace.IsAlreadyExists(err) {
+		return trace.AlreadyExists("windows desktop %q %q doesn't exist", desktop.GetHostID(), desktop.GetName())
+	}
+
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -106,6 +110,10 @@ func (s *WindowsDesktopService) UpdateWindowsDesktop(ctx context.Context, deskto
 		Revision: rev,
 	}
 	_, err = s.Update(ctx, item)
+	if trace.IsNotFound(err) {
+		return trace.NotFound("windows desktop %q %q  doesn't exist", desktop.GetHostID(), desktop.GetName())
+	}
+
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -174,10 +182,17 @@ func (s *WindowsDesktopService) ListWindowsDesktops(ctx context.Context, req typ
 	rangeStart := backend.Key(windowsDesktopsPrefix, req.StartKey)
 	rangeEnd := backend.RangeEnd(backend.ExactKey(windowsDesktopsPrefix))
 	filter := services.MatchResourceFilter{
-		ResourceKind:        types.KindWindowsDesktop,
-		Labels:              req.Labels,
-		SearchKeywords:      req.SearchKeywords,
-		PredicateExpression: req.PredicateExpression,
+		ResourceKind:   types.KindWindowsDesktop,
+		Labels:         req.Labels,
+		SearchKeywords: req.SearchKeywords,
+	}
+
+	if req.PredicateExpression != "" {
+		expression, err := services.NewResourceExpression(req.PredicateExpression)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		filter.PredicateExpression = expression
 	}
 
 	// Get most limit+1 results to determine if there will be a next key.
@@ -239,10 +254,17 @@ func (s *WindowsDesktopService) ListWindowsDesktopServices(ctx context.Context, 
 	rangeStart := backend.Key(windowsDesktopServicesPrefix, req.StartKey)
 	rangeEnd := backend.RangeEnd(backend.ExactKey(windowsDesktopServicesPrefix))
 	filter := services.MatchResourceFilter{
-		ResourceKind:        types.KindWindowsDesktopService,
-		Labels:              req.Labels,
-		SearchKeywords:      req.SearchKeywords,
-		PredicateExpression: req.PredicateExpression,
+		ResourceKind:   types.KindWindowsDesktopService,
+		Labels:         req.Labels,
+		SearchKeywords: req.SearchKeywords,
+	}
+
+	if req.PredicateExpression != "" {
+		expression, err := services.NewResourceExpression(req.PredicateExpression)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		filter.PredicateExpression = expression
 	}
 
 	// Get most limit+1 results to determine if there will be a next key.

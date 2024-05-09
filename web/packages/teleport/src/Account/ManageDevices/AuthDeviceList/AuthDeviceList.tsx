@@ -105,30 +105,10 @@ function RemoveCell({ onRemove }: RemoveCellProps) {
   );
 }
 
-const StyledTable = styled(Table)(
-  props => `
-  background-color: transparent;
-
-  & > tbody > tr > td, thead > tr > th {
-    font-size: ${props.theme.fontSizes[2]}px;
+const StyledTable = styled(Table)`
+  & > tbody > tr > td,
+  thead > tr > th {
     font-weight: 300;
+    padding-bottom: ${props => props.theme.space[2]}px;
   }
-
-  & > thead > tr > th {
-    text-transform: none;
-    padding-top: ${props.theme.space[2]}px;
-    padding-bottom: ${props.theme.space[2]}px;
-
-    &:first-child {
-      border-radius: ${props.theme.radii[2]}px 0 0 ${props.theme.radii[2]}px;
-    }
-    &:last-child {
-      border-radius: 0 ${props.theme.radii[2]}px ${props.theme.radii[2]}px 0;
-    }
-  }
-
-  & > tbody > tr {
-    border: none;
-  }
-`
-);
+`;

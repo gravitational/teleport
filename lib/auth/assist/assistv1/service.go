@@ -26,6 +26,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -90,7 +91,7 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 	case cfg.ResourceGetter == nil:
 		return nil, trace.BadParameter("resource getter is required")
 	case cfg.Logger == nil:
-		cfg.Logger = logrus.WithField(trace.Component, "assist.service")
+		cfg.Logger = logrus.WithField(teleport.ComponentKey, "assist.service")
 	}
 	// Embedder can be nil is the OpenAI API key is not set.
 
@@ -373,7 +374,7 @@ func assembleSearchResponse(ctx context.Context, a *Service, documents []*ai.Doc
 		resources = append(resources, resource)
 	}
 
-	paginated, err := services.MakePaginatedResources(types.KindUnifiedResource, resources)
+	paginated, err := services.MakePaginatedResources(ctx, types.KindUnifiedResource, resources, nil /* requestable map */)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

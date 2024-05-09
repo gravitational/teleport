@@ -20,6 +20,7 @@
 package servicecfg
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"net"
@@ -50,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // Config contains the configuration for all services that Teleport can run.
@@ -104,6 +106,9 @@ type Config struct {
 	// Metrics defines the metrics service configuration.
 	Metrics MetricsConfig
 
+	// DebugService defines the debug service configuration.
+	DebugService DebugConfig
+
 	// WindowsDesktop defines the Windows desktop service configuration.
 	WindowsDesktop WindowsDesktopConfig
 
@@ -143,7 +148,7 @@ type Config struct {
 	PIDFile string
 
 	// Trust is a service that manages certificate authorities
-	Trust services.Trust
+	Trust services.TrustInternal
 
 	// Presence service is a discovery and heartbeat tracker
 	Presence services.PresenceInternal
@@ -221,6 +226,8 @@ type Config struct {
 	// Logger outputs messages using slog. The underlying handler respects
 	// the user supplied logging config.
 	Logger *slog.Logger
+	// LoggerLevel defines the Logger log level.
+	LoggerLevel *slog.LevelVar
 
 	// PluginRegistry allows adding enterprise logic to Teleport services
 	PluginRegistry plugin.Registry
@@ -515,6 +522,10 @@ func ApplyDefaults(cfg *Config) {
 		cfg.Logger = slog.Default()
 	}
 
+	if cfg.LoggerLevel == nil {
+		cfg.LoggerLevel = new(slog.LevelVar)
+	}
+
 	// Remove insecure and (borderline insecure) cryptographic primitives from
 	// default configuration. These can still be added back in file configuration by
 	// users, but not supported by default by Teleport. See #1856 for more
@@ -529,7 +540,7 @@ func ApplyDefaults(cfg *Config) {
 	hostname, err := os.Hostname()
 	if err != nil {
 		hostname = "localhost"
-		cfg.Log.Errorf("Failed to determine hostname: %v.", err)
+		cfg.Logger.ErrorContext(context.Background(), "Failed to determine hostname", "error", err)
 	}
 
 	// Global defaults.
@@ -552,7 +563,6 @@ func ApplyDefaults(cfg *Config) {
 	cfg.Auth.SessionRecordingConfig = types.DefaultSessionRecordingConfig()
 	cfg.Auth.Preference = types.DefaultAuthPreference()
 	defaults.ConfigureLimiter(&cfg.Auth.Limiter)
-	cfg.Auth.LicenseFile = filepath.Join(cfg.DataDir, defaults.LicenseFile)
 
 	cfg.Proxy.WebAddr = *defaults.ProxyWebListenAddr()
 	// Proxy service defaults.
@@ -564,7 +574,6 @@ func ApplyDefaults(cfg *Config) {
 
 	// SSH service defaults.
 	cfg.SSH.Enabled = true
-	cfg.SSH.Shell = defaults.DefaultShell
 	defaults.ConfigureLimiter(&cfg.SSH.Limiter)
 	cfg.SSH.PAM = &PAMConfig{Enabled: false}
 	cfg.SSH.BPF = &BPFConfig{Enabled: false}
@@ -680,6 +689,10 @@ func applyDefaults(cfg *Config) {
 		cfg.Logger = slog.Default()
 	}
 
+	if cfg.LoggerLevel == nil {
+		cfg.LoggerLevel = new(slog.LevelVar)
+	}
+
 	if cfg.PollingPeriod == 0 {
 		cfg.PollingPeriod = defaults.LowResPollingPeriod
 	}
@@ -711,7 +724,7 @@ func validateAuthOrProxyServices(cfg *Config) error {
 		if haveProxyServer {
 			port := cfg.ProxyServer.Port(0)
 			if port == defaults.AuthListenPort {
-				cfg.Log.Warnf("config: proxy_server is pointing to port %d, is this the auth server address?", defaults.AuthListenPort)
+				cfg.Logger.WarnContext(context.Background(), "config: proxy_server is pointing to port 3025, is this the auth server address?")
 			}
 		}
 
@@ -720,7 +733,7 @@ func validateAuthOrProxyServices(cfg *Config) error {
 			checkPorts := []int{defaults.HTTPListenPort, teleport.StandardHTTPSPort}
 			for _, port := range checkPorts {
 				if authServerPort == port {
-					cfg.Log.Warnf("config: auth_server is pointing to port %d, is this the proxy server address?", port)
+					cfg.Logger.WarnContext(context.Background(), "config: auth_server is pointing to port 3080 or 443, is this the proxy server address?")
 				}
 			}
 		}
@@ -762,4 +775,18 @@ func verifyEnabledService(cfg *Config) error {
 
 	return trace.BadParameter(
 		"config: enable at least one of auth_service, ssh_service, proxy_service, app_service, database_service, kubernetes_service, windows_desktop_service, discovery_service, okta_service or jamf_service")
+}
+
+// SetLogLevel changes the loggers log level.
+//
+// If called after `config.ApplyFileConfig` or `config.Configure` it will also
+// change the global loggers.
+func (c *Config) SetLogLevel(level slog.Level) {
+	c.Log.SetLevel(logutils.SlogLevelToLogrusLevel(level))
+	c.LoggerLevel.Set(level)
+}
+
+// GetLogLevel returns the current log level.
+func (c *Config) GetLogLevel() slog.Level {
+	return c.LoggerLevel.Level()
 }

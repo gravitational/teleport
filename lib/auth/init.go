@@ -62,7 +62,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/teleport/lib/srv/db/common/permissions"
+	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
@@ -70,7 +70,7 @@ import (
 )
 
 var log = logrus.WithFields(logrus.Fields{
-	trace.Component: teleport.ComponentAuth,
+	teleport.ComponentKey: teleport.ComponentAuth,
 })
 
 // InitConfig is auth server init config
@@ -123,7 +123,7 @@ type InitConfig struct {
 	OIDCConnectors []types.OIDCConnector
 
 	// Trust is a service that manages users and credentials
-	Trust services.Trust
+	Trust services.TrustInternal
 
 	// Presence service is a discovery and heartbeat tracker
 	Presence services.PresenceInternal
@@ -213,6 +213,9 @@ type InitConfig struct {
 	// UserGroups is a service that manages user groups.
 	UserGroups services.UserGroups
 
+	// CrownJewels is a service that manages CrownJewels.
+	CrownJewels services.CrownJewels
+
 	// Integrations is a service that manages Integrations.
 	Integrations services.Integrations
 
@@ -255,6 +258,9 @@ type InitConfig struct {
 	// DatabaseObjectImportRule is a service that manages database object import rules.
 	DatabaseObjectImportRules services.DatabaseObjectImportRules
 
+	// DatabaseObject is a service that manages database objects.
+	DatabaseObjects services.DatabaseObjects
+
 	// UserLoginStates is a service that manages user login states.
 	UserLoginState services.UserLoginStates
 
@@ -284,8 +290,19 @@ type InitConfig struct {
 	// AccessMonitoringEnabled is true if access monitoring is enabled.
 	AccessMonitoringEnabled bool
 
+	// AccessMonitoringRules is a service that manages access monitoring rules.
+	AccessMonitoringRules services.AccessMonitoringRules
+
 	// CloudClients provides clients for various cloud providers.
 	CloudClients cloud.Clients
+
+	// KubeWaitingContainers is a service that manages
+	// Kubernetes ephemeral containers that are waiting
+	// to be created until moderated session conditions are met.
+	KubeWaitingContainers services.KubeWaitingContainer
+
+	// Notifications is a service that manages notifications.
+	Notifications services.Notifications
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -405,21 +422,21 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	})
 
 	g.Go(func() error {
-		ctx, span := cfg.Tracer.Start(gctx, "auth/SetClusterNetworkingConfig")
+		ctx, span := cfg.Tracer.Start(gctx, "auth/InitializeClusterNetworkingConfig")
 		defer span.End()
-		return trace.Wrap(initSetClusterNetworkingConfig(ctx, asrv, cfg.ClusterNetworkingConfig))
+		return trace.Wrap(initializeClusterNetworkingConfig(ctx, asrv, cfg.ClusterNetworkingConfig))
 	})
 
 	g.Go(func() error {
-		ctx, span := cfg.Tracer.Start(gctx, "auth/SetSessionRecordingConfig")
+		ctx, span := cfg.Tracer.Start(gctx, "auth/InitializeSessionRecordingConfig")
 		defer span.End()
-		return trace.Wrap(initSetSessionRecordingConfig(ctx, asrv, cfg.SessionRecordingConfig))
+		return trace.Wrap(initializeSessionRecordingConfig(ctx, asrv, cfg.SessionRecordingConfig))
 	})
 
 	g.Go(func() error {
-		ctx, span := cfg.Tracer.Start(gctx, "auth/SetAuthPreference")
+		ctx, span := cfg.Tracer.Start(gctx, "auth/initializeAuthPreference")
 		defer span.End()
-		return trace.Wrap(initSetAuthPreference(ctx, asrv, cfg.AuthPreference))
+		return trace.Wrap(initializeAuthPreference(ctx, asrv, cfg.AuthPreference))
 	})
 
 	g.Go(func() error {
@@ -485,7 +502,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		return trace.Wrap(err, "applying migrations")
 	}
 	span.AddEvent("migrating db_client_authority")
-	err = migrateDBClientAuthority(ctx, asrv.Trust, cfg.ClusterName.GetClusterName())
+	err = migrateDBClientAuthority(ctx, asrv.Services, cfg.ClusterName.GetClusterName())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -697,58 +714,123 @@ func generateAuthority(ctx context.Context, asrv *Server, caID types.CertAuthID)
 	return ca, nil
 }
 
-func initSetAuthPreference(ctx context.Context, asrv *Server, newAuthPref types.AuthPreference) error {
-	storedAuthPref, err := asrv.Services.GetAuthPreference(ctx)
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-	shouldReplace, err := shouldInitReplaceResourceWithOrigin(storedAuthPref, newAuthPref)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if shouldReplace {
-		if err := asrv.SetAuthPreference(ctx, newAuthPref); err != nil {
+func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref types.AuthPreference) error {
+	const iterationLimit = 3
+	for i := 0; i < iterationLimit; i++ {
+		storedAuthPref, err := asrv.Services.GetAuthPreference(ctx)
+		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
-		log.Infof("Updating cluster auth preference: %v.", newAuthPref)
+
+		shouldReplace, err := shouldInitReplaceResourceWithOrigin(storedAuthPref, newAuthPref)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if !shouldReplace {
+			return nil
+		}
+
+		if storedAuthPref == nil {
+			log.Infof("Creating cluster auth preference: %v.", newAuthPref)
+			_, err := asrv.CreateAuthPreference(ctx, newAuthPref)
+			if trace.IsAlreadyExists(err) {
+				continue
+			}
+
+			return trace.Wrap(err)
+		}
+
+		newAuthPref.SetRevision(storedAuthPref.GetRevision())
+		_, err = asrv.UpdateAuthPreference(ctx, newAuthPref)
+		if trace.IsCompareFailed(err) {
+			continue
+		}
+
+		return trace.Wrap(err)
 	}
-	return nil
+
+	return trace.LimitExceeded("failed to initialize auth preference in %v iterations", iterationLimit)
 }
 
-func initSetClusterNetworkingConfig(ctx context.Context, asrv *Server, newNetConfig types.ClusterNetworkingConfig) error {
-	storedNetConfig, err := asrv.Services.GetClusterNetworkingConfig(ctx)
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-	shouldReplace, err := shouldInitReplaceResourceWithOrigin(storedNetConfig, newNetConfig)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if shouldReplace {
-		if err := asrv.SetClusterNetworkingConfig(ctx, newNetConfig); err != nil {
+func initializeClusterNetworkingConfig(ctx context.Context, asrv *Server, newNetConfig types.ClusterNetworkingConfig) error {
+	const iterationLimit = 3
+	for i := 0; i < 3; i++ {
+		storedNetConfig, err := asrv.Services.GetClusterNetworkingConfig(ctx)
+		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
+
+		shouldReplace, err := shouldInitReplaceResourceWithOrigin(storedNetConfig, newNetConfig)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if !shouldReplace {
+			return nil
+		}
+
+		if storedNetConfig == nil {
+			log.Infof("Creating cluster networking configuration: %v.", newNetConfig)
+			_, err = asrv.CreateClusterNetworkingConfig(ctx, newNetConfig)
+			if trace.IsAlreadyExists(err) {
+				continue
+			}
+
+			return trace.Wrap(err)
+		}
+
 		log.Infof("Updating cluster networking configuration: %v.", newNetConfig)
+		newNetConfig.SetRevision(storedNetConfig.GetRevision())
+		_, err = asrv.UpdateClusterNetworkingConfig(ctx, newNetConfig)
+		if trace.IsCompareFailed(err) {
+			continue
+		}
+
+		return trace.Wrap(err)
 	}
-	return nil
+
+	return trace.LimitExceeded("failed to initialize cluster networking config in %v iterations", iterationLimit)
 }
 
-func initSetSessionRecordingConfig(ctx context.Context, asrv *Server, newRecConfig types.SessionRecordingConfig) error {
-	storedRecConfig, err := asrv.Services.GetSessionRecordingConfig(ctx)
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-	shouldReplace, err := shouldInitReplaceResourceWithOrigin(storedRecConfig, newRecConfig)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if shouldReplace {
-		if err := asrv.SetSessionRecordingConfig(ctx, newRecConfig); err != nil {
+func initializeSessionRecordingConfig(ctx context.Context, asrv *Server, newRecConfig types.SessionRecordingConfig) error {
+	const iterationLimit = 3
+	for i := 0; i < iterationLimit; i++ {
+		storedRecConfig, err := asrv.Services.GetSessionRecordingConfig(ctx)
+		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
-		log.Infof("Updating session recording configuration: %v.", newRecConfig)
+
+		shouldReplace, err := shouldInitReplaceResourceWithOrigin(storedRecConfig, newRecConfig)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if !shouldReplace {
+			return nil
+		}
+
+		if storedRecConfig == nil {
+			log.Infof("Creating session recording config: %v.", newRecConfig)
+			_, err := asrv.CreateSessionRecordingConfig(ctx, newRecConfig)
+			if trace.IsAlreadyExists(err) {
+				continue
+			}
+
+			return trace.Wrap(err)
+		}
+
+		log.Infof("Updating session recording config: %v.", newRecConfig)
+		newRecConfig.SetRevision(storedRecConfig.GetRevision())
+		_, err = asrv.UpdateSessionRecordingConfig(ctx, newRecConfig)
+		if trace.IsCompareFailed(err) {
+			continue
+		}
+
+		return trace.Wrap(err)
 	}
-	return nil
+
+	return trace.LimitExceeded("failed to initialize session recording config in %v iterations", iterationLimit)
 }
 
 // shouldInitReplaceResourceWithOrigin determines whether the candidate
@@ -941,7 +1023,7 @@ func createPresetDatabaseObjectImportRule(ctx context.Context, rules services.Da
 		return nil
 	}
 
-	rule := permissions.NewPresetImportAllObjectsRule()
+	rule := databaseobjectimportrule.NewPresetImportAllObjectsRule()
 	if rule == nil {
 		return nil
 	}
@@ -988,7 +1070,7 @@ func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, c
 			switch r.GetType() {
 			case types.HostCA, types.UserCA, types.OpenSSHCA:
 				_, signerErr = keyStore.GetSSHSigner(ctx, r)
-			case types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA:
+			case types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA:
 				_, _, signerErr = keyStore.GetTLSCertAndSigner(ctx, r)
 			case types.JWTSigner, types.OIDCIdPCA:
 				_, signerErr = keyStore.GetJWTSigner(ctx, r)
@@ -1500,9 +1582,9 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 		case types.Role:
 			_, err = service.Access.UpsertRole(ctx, r)
 		case types.ClusterNetworkingConfig:
-			err = service.ClusterConfiguration.SetClusterNetworkingConfig(ctx, r)
+			_, err = service.ClusterConfiguration.UpsertClusterNetworkingConfig(ctx, r)
 		case types.AuthPreference:
-			err = service.ClusterConfiguration.SetAuthPreference(ctx, r)
+			_, err = service.ClusterConfiguration.UpsertAuthPreference(ctx, r)
 		case *machineidv1pb.Bot:
 			_, err = machineidv1.UpsertBot(ctx, service, r, time.Now(), "system")
 		case *dbobjectimportrulev1pb.DatabaseObjectImportRule:

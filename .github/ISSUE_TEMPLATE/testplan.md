@@ -212,6 +212,10 @@ as well as an upgrade of the previous version of Teleport.
   - [ ] tsh ssh -L \<node-remote-cluster\>
   - [ ] tsh ssh -L \<agentless-node\>
   - [ ] tsh ssh -L \<agentless-node-remote-cluster\>
+  - [ ] tsh ssh -R \<regular-node\>
+  - [ ] tsh ssh -R \<node-remote-cluster\>
+  - [ ] tsh ssh -R \<agentless-node\>
+  - [ ] tsh ssh -R \<agentless-node-remote-cluster\>
   - [ ] tsh ls
   - [ ] tsh clusters
 
@@ -237,6 +241,10 @@ as well as an upgrade of the previous version of Teleport.
   - [ ] ssh -L \<node-remote-cluster\>
   - [ ] ssh -L \<agentless-node\>
   - [ ] ssh -L \<agentless-node-remote-cluster\>
+  - [ ] ssh -R \<regular-node\>
+  - [ ] ssh -R \<node-remote-cluster\>
+  - [ ] ssh -R \<agentless-node\>
+  - [ ] ssh -R \<agentless-node-remote-cluster\>
 
 - [ ] Verify proxy jump functionality
   Log into leaf cluster via root, shut down the root proxy and verify proxy jump works.
@@ -449,8 +457,6 @@ tsh --proxy=proxy.example.com --user=<username> --insecure ssh --cluster=foo.com
     - [ ] OIDC Screenshots are up-to-date
 - [ ] All providers with guides in docs are covered in this test plan
 - [ ] Login Rules work to transform traits from SSO provider
-- [ ] SAML IdP guide instructions work
-    - [ ] SAML IdP screenshots are up to date
 
 ### GitHub External SSO
 
@@ -537,8 +543,7 @@ instance has label `azure/foo=bar`.
 ### Passwordless
 
 This feature has additional build requirements, so it should be tested with a
-pre-release build from Drone (eg:
-`https://get.gravitational.com/tsh-v10.0.0-alpha.2.pkg`).
+pre-release build (eg: `https://cdn.teleport.dev/tsh-v16.0.0-alpha.2.pkg`).
 
 This sections complements "Users -> Managing MFA devices". `tsh` binaries for
 each operating system (Linux, macOS and Windows) must be tested separately for
@@ -599,11 +604,13 @@ FIDO2 items.
 Device Trust requires Teleport Enterprise.
 
 This feature has additional build requirements, so it should be tested with a
-pre-release build from Drone (eg:
-`https://get.gravitational.com/teleport-ent-v10.0.0-alpha.2-linux-amd64-bin.tar.gz`).
+pre-release build (eg: `https://cdn.teleport.dev/teleport-ent-v16.0.0-alpha.2-linux-amd64-bin.tar.gz`).
 
 Client-side enrollment requires a signed `tsh` for macOS, make sure to use the
 `tsh` binary from `tsh.app`.
+
+Additionally, Device Trust Web requires Teleport Connect to be installed (device
+authentication for the Web is handled by Connect).
 
 A simple formula for testing device authorization is:
 
@@ -613,12 +620,8 @@ A simple formula for testing device authorization is:
 tsh ssh node-that-requires-device-trust
 > ERROR: ssh: rejected: administratively prohibited (unauthorized device)
 
-# Register the device.
-# Get the serial number from `tsh device asset-tag`.
-tctl devices add --os=macos --asset-tag=<SERIAL_NUMBER> --enroll
-
-# Enroll the device.
-tsh device enroll --token=<TOKEN_FROM_COMMAND_ABOVE>
+# Register/enroll the device.
+tsh device enroll --current-device
 tsh logout; tsh login
 
 # After enrollment
@@ -665,6 +668,22 @@ tsh ssh node-that-requires-device-trust
     teleport-device-id ...
     ```
 
+- [ ] Device authentication
+  - [ ] tsh or Connect
+    - [ ] SSH
+    - [ ] DB Access
+    - [ ] K8s Access
+  - [ ] Web UI (requires Connect)
+    - [ ] SSH
+    - [ ] App Access
+    - [ ] Desktop Access
+
+    Confirm that it works by failing first. Most protocols can be tested using
+    device_trust.mode="required". App Acess and Deskop Access require a custom
+    role (see [enforcing device trust][enforcing-device-trust]).
+
+[enforcing-device-trust]: https://goteleport.com/docs/access-controls/device-trust/enforcing-device-trust/#app-access-support).
+
 - [ ] Device authorization
   - [ ] device_trust.mode other than "off" or "" not allowed (OSS)
   - [ ] device_trust.mode="off" doesn't impede access (Enterprise and OSS)
@@ -675,6 +694,7 @@ tsh ssh node-that-requires-device-trust
     - [ ] DB Access
     - [ ] K8s Access
     - [ ] App Access NOT enforced in global mode
+    - [ ] Desktop Access NOT enforced in global mode
   - [ ] device_trust.mode="required" is enforced by processes and not only by
         Auth APIs
     - [ ] SSH
@@ -691,20 +711,25 @@ tsh ssh node-that-requires-device-trust
     - [ ] DB Access
     - [ ] K8s Access
     - [ ] App Access
+    - [ ] Desktop Access
   - [ ] Device authorization works correctly for both require_session_mfa=false
         and require_session_mfa=true
     - [ ] SSH
     - [ ] DB Access
     - [ ] K8s Access
+    - [ ] Desktop Access
   - [ ] Device authorization applies to Trusted Clusters
         (root with mode="optional" and leaf with mode="required")
-  - [ ] Device authorization __does not apply__ to Windows Desktop access
-        (both cluster-wide and role)
 
 - [ ] Device audit (see [lib/events/codes.go][device_event_codes])
   - [ ] Inventory management actions issue events (success only)
   - [ ] Device enrollment issues device event (any outcomes)
   - [ ] Device authorization issues device event (any outcomes)
+  - [ ] Device web authentication issues "Device Web Token Created" and "Device
+        Web Authentication Confirmed" events
+  - [ ] Device web authentication events have web_session_id set.
+        Corresponding "Device Authenticated" events have both
+        web_authentication=true and web_session_id set.
   - [ ] Events with [UserMetadata][event_trusted_device] contain TrustedDevice
         data (for certificates with device extensions)
 
@@ -729,7 +754,7 @@ Hardware Key Support is an Enterprise feature and is not available for OSS.
 
 You will need a YubiKey 4.3+ to test this feature.
 
-This feature has additional build requirements, so it should be tested with a pre-release build from Drone (eg: `https://get.gravitational.com/teleport-ent-v11.0.0-alpha.2-linux-amd64-bin.tar.gz`).
+This feature has additional build requirements, so it should be tested with a pre-release build (eg: `https://cdn.teleport.dev/teleport-ent-v16.0.0-alpha.2-linux-amd64-bin.tar.gz`).
 
 #### Server Access
 
@@ -1500,17 +1525,6 @@ Assist test plan is in the core section instead of WebUI as most functionality i
   - [ ] Assist is enabled by default in the Cloud Team plan.
   - [ ] Assist is always disabled when etcd is used as a backend.
 
-- Conversations
-  - [ ] A new conversation can be started.
-  - [ ] SSH command can be executed on one server.
-  - [ ] SSH command can be executed on multiple servers.
-  - [ ] SSH command can be executed on a node with per session MFA enabled.
-  - [ ] Execution output is explained when it fits the context window.
-  - [ ] Assist can list all nodes/execute a command on all nodes (using embeddings).
-  - [ ] Access request can be created.
-  - [ ] Access request is created when approved.
-  - [ ] Conversation title is set after the first message.
-
 - SSH integration
   - [ ] Assist icon is visible in WebUI's Terminal
   - [ ] A Bash command can be generated in the above window.
@@ -1539,6 +1553,27 @@ Assist test plan is in the core section instead of WebUI as most functionality i
     - [ ] Verify that users/apps/groups are displayed in the Teleport Web UI.
   - [ ] Verify that a user is locked/removed from Teleport when the user is Suspended/Deactivated in OKTA.
   - [ ] Verify access to OKTA apps granted by access_list/access_request.
+
+## Teleport SAML Identity Provider
+Verify SAML IdP service provider resource management.
+
+### Docs:
+- [ ] Verify SAML IdP guide instructions work.
+
+### Manage Service Provider (SP)
+- [ ] `saml_idp_service_provider` resource can be created, updated and deleted with `tctl create/update/delete sp.yaml` command.
+  - [ ] SP can be created with `name` and `entity descriptor`.
+  - [ ] SP can be created with `name`, `entity_id`, `acs_url`.
+    - [ ] Verify Entity descriptor is generated.
+  - [ ] Verify attribute mapping configuration works.
+  - [ ] Verify test attribute mapping command. `$ tctl idp saml test-attribute-mapping --users <usernames or name of file containing user spec> --sp <name of file containing user spec> --format <json/yaml/defaults to text>`
+
+### SAML service provider catalog
+- [ ] GCP Workforce Identity Federation
+  - [ ] Verify guided flow works end-to-end, signing into GCP web console from Teleport resource page.
+  - [ ] Verify that when a SAML resource is created with preset value `preset: gcp-workforce`, Teleport adds
+        relay state `relay_state: https://console.cloud.google/` value in the resulting resource spec.
+
 
 ## Resources
 

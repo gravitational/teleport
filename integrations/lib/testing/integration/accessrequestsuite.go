@@ -22,10 +22,8 @@ import (
 	"context"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
@@ -34,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/lib"
-	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -344,35 +341,6 @@ func (s *AccessRequestSuite) CreateAccessRequest(ctx context.Context, userName s
 	return out
 }
 
-// RunAndWaitReady is a helper to start an app implementing AppI and wait for
-// it to become ready.
-// This is used to start plugins.
-func (s *AccessRequestSuite) RunAndWaitReady(t *testing.T, app AppI) {
-	appCtx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-
-	go func() {
-		ctx := appCtx
-		if err := app.Run(ctx); err != nil {
-			logger.Get(ctx).WithError(err).Error("Application failed")
-			assert.Fail(t, "Application failed")
-		}
-	}()
-
-	t.Cleanup(func() {
-		err := app.Shutdown(appCtx)
-		assert.NoError(t, err)
-		assert.NoError(t, app.Err())
-	})
-
-	waitCtx, cancel := context.WithTimeout(appCtx, 20*time.Second)
-	defer cancel()
-
-	ok, err := app.WaitReady(waitCtx)
-	require.NoError(t, err)
-	require.True(t, ok)
-}
-
 // TeleportFeatures returns the teleport features of the auth server the tests
 // are running against.
 func (s *AccessRequestSuite) TeleportFeatures() *proto.Features {
@@ -416,5 +384,11 @@ func (s *AccessRequestSuite) AnnotateRequesterRoleAccessRequests(ctx context.Con
 		role.SetAccessRequestConditions(types.Allow, conditions)
 		_, err = adminClient.UpdateRole(ctx, role)
 		require.NoError(t, err)
+	}
+}
+
+func (s *AccessRequestSuite) RequireAdvancedWorkflow(t *testing.T) {
+	if !s.TeleportFeatures().GetAdvancedAccessWorkflows() {
+		require.Fail(t, "This test requires AdvancedAccessWorkflows (Teleport enterprise)")
 	}
 }

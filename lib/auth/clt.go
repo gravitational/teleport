@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/crownjewel"
 	"github.com/gravitational/teleport/api/client/externalauditstorage"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/scim"
@@ -35,15 +36,18 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	assistpb "github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
+	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
+	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
@@ -352,6 +356,11 @@ func (c *Client) CreateRemoteCluster(ctx context.Context, rc types.RemoteCluster
 	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
+// PatchRemoteCluster not implemented: can only be called locally.
+func (c *Client) PatchRemoteCluster(ctx context.Context, name string, updateFn func(rc types.RemoteCluster) (types.RemoteCluster, error)) (types.RemoteCluster, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
 // DeleteAllNamespaces not implemented: can only be called locally.
 func (c *Client) DeleteAllNamespaces() error {
 	return trace.NotImplemented(notImplementedMessage)
@@ -499,6 +508,11 @@ func (c *Client) AccessListClient() services.AccessLists {
 	return c.APIClient.AccessListClient()
 }
 
+// AccessMonitoringRuleClient returns the access monitoring rules client.
+func (c *Client) AccessMonitoringRuleClient() services.AccessMonitoringRules {
+	return c.APIClient.AccessMonitoringRulesClient()
+}
+
 func (c *Client) ExternalAuditStorageClient() *externalauditstorage.Client {
 	return c.APIClient.ExternalAuditStorageClient()
 }
@@ -513,26 +527,6 @@ func (c *Client) AccessGraphClient() accessgraphv1.AccessGraphServiceClient {
 
 func (c *Client) IntegrationAWSOIDCClient() integrationv1.AWSOIDCServiceClient {
 	return integrationv1.NewAWSOIDCServiceClient(c.APIClient.GetConnection())
-}
-
-// ListRemoteClusters returns a page of remote clusters.
-func (c *Client) ListRemoteClusters(ctx context.Context, pageSize int, nextToken string) ([]types.RemoteCluster, string, error) {
-	return nil, "", trace.NotImplemented("ListRemoteClusters is not implemented yet")
-}
-
-// UpdateRemoteCluster updates a remote cluster.
-func (c *Client) UpdateRemoteCluster(ctx context.Context, rc types.RemoteCluster) (types.RemoteCluster, error) {
-	// This is a little weird during the migration period of the old endpoints
-	// to grpc. Here, we need to call Update via gRPC and Get via HTTP.
-	err := c.APIClient.UpdateRemoteCluster(ctx, rc)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	fetchedRC, err := c.HTTPClient.GetRemoteCluster(ctx, rc.GetName())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return fetchedRC, nil
 }
 
 // UpsertUser user updates user entry.
@@ -561,8 +555,13 @@ func (c *Client) UpsertUser(ctx context.Context, user types.User) (types.User, e
 }
 
 // DiscoveryConfigClient returns a client for managing the DiscoveryConfig resource.
-func (c *Client) DiscoveryConfigClient() services.DiscoveryConfigs {
+func (c *Client) DiscoveryConfigClient() services.DiscoveryConfigWithStatusUpdater {
 	return c.APIClient.DiscoveryConfigClient()
+}
+
+// CrownJewelsClient returns a client for managing Crown Jewel resources.
+func (c *Client) CrownJewelsClient() services.CrownJewels {
+	return c.APIClient.CrownJewelServiceClient()
 }
 
 // DeleteStaticTokens deletes static tokens
@@ -578,6 +577,101 @@ func (c *Client) GetStaticTokens() (types.StaticTokens, error) {
 // SetStaticTokens sets a list of static register tokens
 func (c *Client) SetStaticTokens(st types.StaticTokens) error {
 	return trace.NotImplemented(notImplementedMessage)
+}
+
+// CreateGlobalNotification creates a global notification.
+func (c *Client) CreateGlobalNotification(ctx context.Context, globalNotification *notificationsv1.GlobalNotification) (*notificationsv1.GlobalNotification, error) {
+	// TODO(rudream): implement client methods for notifications
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// CreateUserNotification creates a user-specific notification.
+func (c *Client) CreateUserNotification(ctx context.Context, notification *notificationsv1.Notification) (*notificationsv1.Notification, error) {
+	// TODO(rudream): implement client methods for notifications
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// DeleteGlobalNotification deletes a global notification.
+func (c *Client) DeleteGlobalNotification(ctx context.Context, notificationId string) error {
+	// TODO(rudream): implement client methods for notifications
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// UpsertUserNotificationState creates or updates a user notification state which records whether the user has clicked on or dismissed a notification.
+func (c *Client) UpsertUserNotificationState(ctx context.Context, username string, state *notificationsv1.UserNotificationState) (*notificationsv1.UserNotificationState, error) {
+	// TODO(rudream): implement client methods for notifications
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// UpsertUserLastSeenNotification creates or updates a user's last seen notification item.
+func (c *Client) UpsertUserLastSeenNotification(ctx context.Context, username string, ulsn *notificationsv1.UserLastSeenNotification) (*notificationsv1.UserLastSeenNotification, error) {
+	// TODO(rudream): implement client methods for notifications
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// DeleteAllGlobalNotifications not implemented: can only be called locally.
+func (c *Client) DeleteAllGlobalNotifications(ctx context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// DeleteAllUserNotificationStatesForUser not implemented: can only be called locally.
+func (c *Client) DeleteAllUserNotificationStatesForUser(ctx context.Context, username string) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// DeleteAllUserNotifications not implemented: can only be called locally.
+func (c *Client) DeleteAllUserNotifications(ctx context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// DeleteAllUserNotificationsForUser not implemented: can only be called locally.
+func (c *Client) DeleteAllUserNotificationsForUser(ctx context.Context, username string) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// DeleteUserLastSeenNotification not implemented: can only be called locally.
+func (c *Client) DeleteUserLastSeenNotification(ctx context.Context, username string) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// DeleteUserNotification not implemented: can only be called locally.
+func (c *Client) DeleteUserNotification(ctx context.Context, username string, notificationId string) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// DeleteUserNotificationState not implemented: can only be called locally.
+func (c *Client) DeleteUserNotificationState(ctx context.Context, username string, notificationId string) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// GetUserLastSeenNotification not implemented: can only be called locally.
+func (c *Client) GetUserLastSeenNotification(ctx context.Context, username string) (*notificationsv1.UserLastSeenNotification, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// ListGlobalNotifications not implemented: can only be called locally.
+func (c *Client) ListGlobalNotifications(ctx context.Context, pageSize int, startKey string) ([]*notificationsv1.GlobalNotification, string, error) {
+	return nil, "", trace.NotImplemented(notImplementedMessage)
+}
+
+// ListUserNotifications not implemented: can only be called locally.
+func (c *Client) ListUserNotifications(ctx context.Context, pageSize int, startKey string) ([]*notificationsv1.Notification, string, error) {
+	return nil, "", trace.NotImplemented(notImplementedMessage)
+}
+
+// ListUserNotificationStates not implemented: can only be called locally.
+func (c *Client) ListUserNotificationStates(ctx context.Context, username string, pageSize int, nextToken string) ([]*notificationsv1.UserNotificationState, string, error) {
+	return nil, "", trace.NotImplemented(notImplementedMessage)
+}
+
+// UpsertGlobalNotification not implemented: can only be called locally.
+func (c *Client) UpsertGlobalNotification(ctx context.Context, globalNotification *notificationsv1.GlobalNotification) (*notificationsv1.GlobalNotification, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// UpsertUserNotification not implemented: can only be called locally.
+func (c *Client) UpsertUserNotification(ctx context.Context, notification *notificationsv1.Notification) (*notificationsv1.Notification, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
 // WebService implements features used by Web UI clients
@@ -695,7 +789,7 @@ type IdentityService interface {
 	GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error)
 
 	// ListUsers returns a page of users.
-	ListUsers(ctx context.Context, pageSize int, pageToken string, withSecrets bool) ([]types.User, string, error)
+	ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
 
 	// ChangePassword changes user password
 	ChangePassword(ctx context.Context, req *proto.ChangePasswordRequest) error
@@ -824,6 +918,8 @@ type ClientI interface {
 	services.ConnectionsDiagnostic
 	services.SAMLIdPSession
 	services.Integrations
+	services.KubeWaitingContainer
+	services.Notifications
 	types.Events
 
 	types.WebSessionsGetter
@@ -898,7 +994,7 @@ type ClientI interface {
 
 	// CreateAppSession creates an application web session. Application web
 	// sessions represent a browser session the client holds.
-	CreateAppSession(context.Context, types.CreateAppSessionRequest) (types.WebSession, error)
+	CreateAppSession(context.Context, *proto.CreateAppSessionRequest) (types.WebSession, error)
 
 	// CreateSnowflakeSession creates a Snowflake web session. Snowflake web
 	// sessions represent Database Access Snowflake session the client holds.
@@ -922,7 +1018,7 @@ type ClientI interface {
 	GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error)
 
 	// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
-	GenerateAWSOIDCToken(ctx context.Context) (string, error)
+	GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error)
 
 	// ResetAuthPreference resets cluster auth preference to defaults.
 	ResetAuthPreference(ctx context.Context) error
@@ -984,8 +1080,17 @@ type ClientI interface {
 	// (as per the default gRPC behavior).
 	AccessListClient() services.AccessLists
 
-	// DatabaseObjectImportRuleClient returns a database import rule client.
+	// AccessMonitoringRuleClient returns an access monitoring rule client.
+	// Clients connecting to older Teleport versions still get an access list client
+	// when calling this method, but all RPCs will return "not implemented" errors
+	// (as per the default gRPC behavior).
+	AccessMonitoringRuleClient() services.AccessMonitoringRules
+
+	// DatabaseObjectImportRuleClient returns a database object import rule client.
 	DatabaseObjectImportRuleClient() dbobjectimportrulev1.DatabaseObjectImportRuleServiceClient
+
+	// DatabaseObjectClient returns a database object client.
+	DatabaseObjectClient() dbobjectv1.DatabaseObjectServiceClient
 
 	// SecReportsClient returns a client for security reports.
 	// Clients connecting to  older Teleport versions, still get an access list client
@@ -994,7 +1099,7 @@ type ClientI interface {
 	SecReportsClient() *secreport.Client
 
 	// BotServiceClient returns a client for security reports.
-	// Clients connecting to  older Teleport versions, still get a bot service client
+	// Clients connecting to older Teleport versions, still get a bot service client
 	// when calling this method, but all RPCs will return "not implemented" errors
 	// (as per the default gRPC behavior).
 	BotServiceClient() machineidv1pb.BotServiceClient
@@ -1009,7 +1114,10 @@ type ClientI interface {
 	// Clients connecting to older Teleport versions, still get an DiscoveryConfig client
 	// when calling this method, but all RPCs will return "not implemented" errors
 	// (as per the default gRPC behavior).
-	DiscoveryConfigClient() services.DiscoveryConfigs
+	DiscoveryConfigClient() services.DiscoveryConfigWithStatusUpdater
+
+	// CrownJewelServiceClient returns a Crown Jewel service client.
+	CrownJewelServiceClient() *crownjewel.Client
 
 	// ResourceUsageClient returns a resource usage service client.
 	// Clients connecting to non-Enterprise clusters, or older Teleport versions,
@@ -1065,4 +1173,10 @@ type ClientI interface {
 	// and prompts the user to answer the challenge with the given promptOpts, and ultimately returning
 	// an MFA challenge response for the user.
 	PerformMFACeremony(ctx context.Context, challengeRequest *proto.CreateAuthenticateChallengeRequest, promptOpts ...mfa.PromptOpt) (*proto.MFAAuthenticateResponse, error)
+
+	// GetClusterAccessGraphConfig retrieves the cluster Access Graph configuration from Auth server.
+	GetClusterAccessGraphConfig(ctx context.Context) (*clusterconfigpb.AccessGraphConfig, error)
+
+	// GenerateAppToken creates a JWT token with application access.
+	GenerateAppToken(ctx context.Context, req types.GenerateAppTokenRequest) (string, error)
 }

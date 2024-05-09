@@ -156,12 +156,14 @@ func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) e
 		sessionCtx.DatabaseUser,
 		details,
 	)
-	if err == nil {
-		return nil
+	if err != nil {
+		e.Log.Debugf("Call teleport_activate_user failed: %v", err)
+		err = convertActivateError(sessionCtx, err)
+		e.Audit.OnDatabaseUserCreate(ctx, sessionCtx, err)
+		return trace.Wrap(err)
 	}
-
-	e.Log.Debugf("Call teleport_activate_user failed: %v", err)
-	return trace.Wrap(convertActivateError(sessionCtx, err))
+	e.Audit.OnDatabaseUserCreate(ctx, sessionCtx, nil)
+	return nil
 }
 
 // DeactivateUser disables the database user.
@@ -187,6 +189,8 @@ func (e *Engine) DeactivateUser(ctx context.Context, sessionCtx *common.Session)
 		e.Log.Debugf("Failed to deactivate user %q: %v.", sessionCtx.DatabaseUser, err)
 		return nil
 	}
+
+	e.Audit.OnDatabaseUserDeactivate(ctx, sessionCtx, false, err)
 	return trace.Wrap(err)
 }
 
@@ -211,18 +215,22 @@ func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) err
 			return nil
 		}
 
+		e.Audit.OnDatabaseUserDeactivate(ctx, sessionCtx, true, err)
 		return trace.Wrap(err)
 	}
 	defer result.Close()
 
+	deleted := true
 	switch readDeleteUserResult(result) {
 	case common.SQLStateUserDropped:
 		e.Log.Debugf("User %q deleted successfully.", sessionCtx.DatabaseUser)
 	case common.SQLStateUserDeactivated:
 		e.Log.Infof("Unable to delete user %q, it was disabled instead.", sessionCtx.DatabaseUser)
+		deleted = false
 	default:
 		e.Log.Warnf("Unable to determine user %q deletion state.", sessionCtx.DatabaseUser)
 	}
+	e.Audit.OnDatabaseUserDeactivate(ctx, sessionCtx, deleted, nil)
 
 	return trace.Wrap(err)
 }
@@ -512,11 +520,11 @@ func doTransaction(conn *clientConn, do func() error) error {
 }
 
 func readDeleteUserResult(res *mysql.Result) string {
-	if len(res.Values) != 1 && len(res.Values[0]) != 1 {
+	if res == nil || res.Resultset == nil ||
+		len(res.Resultset.Values) != 1 || len(res.Resultset.Values[0]) != 1 {
 		return ""
 	}
-
-	return string(res.Values[0][0].AsString())
+	return string(res.Resultset.Values[0][0].AsString())
 }
 
 func getCreateProcedureCommand(conn *clientConn, procedureName string) (string, bool) {

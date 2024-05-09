@@ -29,6 +29,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
+	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
+	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -45,6 +47,8 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
+	"github.com/gravitational/teleport/tool/tctl/common/databaseobject"
+	"github.com/gravitational/teleport/tool/tctl/common/databaseobjectimportrule"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
 	"github.com/gravitational/teleport/tool/tctl/common/oktaassignment"
 )
@@ -570,8 +574,8 @@ func (c *uiConfigCollection) resources() (r []types.Resource) {
 }
 
 func (c *uiConfigCollection) writeText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"Scrollback Lines"})
-	t.AddRow([]string{string(c.uiconfig.GetScrollbackLines())})
+	t := asciitable.MakeTable([]string{"Scrollback Lines", "Show Resources"})
+	t.AddRow([]string{strconv.FormatInt(int64(c.uiconfig.GetScrollbackLines()), 10), string(c.uiconfig.GetShowResources())})
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }
@@ -913,6 +917,39 @@ func (c *kubeServerCollection) writeJSON(w io.Writer) error {
 	return utils.WriteJSONArray(w, c.servers)
 }
 
+type crownJewelCollection struct {
+	items []*crownjewelv1.CrownJewel
+}
+
+func (c *crownJewelCollection) resources() []types.Resource {
+	r := make([]types.Resource, 0, len(c.items))
+	for _, resource := range c.items {
+		r = append(r, types.Resource153ToLegacy(resource))
+	}
+	return r
+}
+
+// writeText formats the crown jewels into a table and writes them into w.
+// If verbose is disabled, labels column can be truncated to fit into the console.
+func (c *crownJewelCollection) writeText(w io.Writer, verbose bool) error {
+	var rows [][]string
+	for _, item := range c.items {
+		labels := common.FormatLabels(item.GetMetadata().GetLabels(), verbose)
+		rows = append(rows, []string{item.Metadata.GetName(), item.GetSpec().String(), labels})
+	}
+	headers := []string{"Name", "Spec", "Labels"}
+	var t asciitable.Table
+	if verbose {
+		t = asciitable.MakeTable(headers, rows...)
+	} else {
+		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
+	}
+	// stable sort by name.
+	t.SortRowsBy([]int{0}, true)
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
 type kubeClusterCollection struct {
 	clusters []types.KubeCluster
 }
@@ -1172,7 +1209,7 @@ type databaseObjectImportRuleCollection struct {
 func (c *databaseObjectImportRuleCollection) resources() []types.Resource {
 	resources := make([]types.Resource, len(c.rules))
 	for i, b := range c.rules {
-		resources[i] = types.Resource153ToLegacy(b)
+		resources[i] = databaseobjectimportrule.ProtoToResource(b)
 	}
 	return resources
 }
@@ -1185,6 +1222,32 @@ func (c *databaseObjectImportRuleCollection) writeText(w io.Writer, verbose bool
 			fmt.Sprintf("%v", b.GetSpec().GetPriority()),
 			fmt.Sprintf("%v", len(b.GetSpec().GetMappings())),
 			fmt.Sprintf("%v", len(b.GetSpec().GetDatabaseLabels())),
+		})
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type databaseObjectCollection struct {
+	objects []*dbobjectv1.DatabaseObject
+}
+
+func (c *databaseObjectCollection) resources() []types.Resource {
+	resources := make([]types.Resource, len(c.objects))
+	for i, b := range c.objects {
+		resources[i] = databaseobject.ProtoToResource(b)
+	}
+	return resources
+}
+
+func (c *databaseObjectCollection) writeText(w io.Writer, verbose bool) error {
+	t := asciitable.MakeTable([]string{"Name", "Kind", "DB Service", "Protocol"})
+	for _, b := range c.objects {
+		t.AddRow([]string{
+			b.GetMetadata().GetName(),
+			fmt.Sprintf("%v", b.GetSpec().GetObjectKind()),
+			fmt.Sprintf("%v", b.GetSpec().GetDatabaseServiceName()),
+			fmt.Sprintf("%v", b.GetSpec().GetProtocol()),
 		})
 	}
 	_, err := t.AsBuffer().WriteTo(w)

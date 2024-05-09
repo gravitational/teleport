@@ -19,6 +19,7 @@
 package web
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/gravitational/trace"
@@ -42,35 +43,23 @@ func (h *Handler) openidConfiguration(_ http.ResponseWriter, _ *http.Request, _ 
 		return nil, trace.Wrap(err)
 	}
 
-	return struct {
-		Issuer                           string   `json:"issuer"`
-		JWKSURI                          string   `json:"jwks_uri"`
-		Claims                           []string `json:"claims"`
-		IdTokenSigningAlgValuesSupported []string `json:"id_token_signing_alg_values_supported"`
-		ResponseTypesSupported           []string `json:"response_types_supported"`
-		ScopesSupported                  []string `json:"scopes_supported"`
-		SubjectTypesSupported            []string `json:"subject_types_supported"`
-	}{
-		Issuer:                           issuer,
-		JWKSURI:                          issuer + OIDCJWKWURI,
-		Claims:                           []string{"iss", "sub", "obo", "aud", "jti", "iat", "exp", "nbf"},
-		IdTokenSigningAlgValuesSupported: []string{"RS256"},
-		ResponseTypesSupported:           []string{"id_token"},
-		ScopesSupported:                  []string{"openid"},
-		SubjectTypesSupported:            []string{"public", "pair-wise"},
-	}, nil
+	return oidc.OpenIDConfigurationForIssuer(issuer, issuer+OIDCJWKWURI), nil
 }
 
 // jwksOIDC returns all public keys used to sign JWT tokens for this cluster.
 func (h *Handler) jwksOIDC(_ http.ResponseWriter, r *http.Request, _ httprouter.Params) (interface{}, error) {
-	clusterName, err := h.GetProxyClient().GetDomainName(r.Context())
+	return h.jwks(r.Context(), types.OIDCIdPCA)
+}
+
+func (h *Handler) jwks(ctx context.Context, caType types.CertAuthType) (*JWKSResponse, error) {
+	clusterName, err := h.GetProxyClient().GetDomainName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Fetch the JWT public keys only.
-	ca, err := h.GetProxyClient().GetCertAuthority(r.Context(), types.CertAuthID{
-		Type:       types.OIDCIdPCA,
+	ca, err := h.GetProxyClient().GetCertAuthority(ctx, types.CertAuthID{
+		Type:       caType,
 		DomainName: clusterName,
 	}, false /* loadKeys */)
 	if err != nil {
@@ -89,6 +78,11 @@ func (h *Handler) jwksOIDC(_ http.ResponseWriter, r *http.Request, _ httprouter.
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		resp.Keys = append(resp.Keys, jwk)
+
+		// Return an additional copy of the same JWK
+		// with KeyID set to the empty string for compatibility.
+		jwk.KeyID = ""
 		resp.Keys = append(resp.Keys, jwk)
 	}
 	return &resp, nil
