@@ -218,6 +218,10 @@ type CommandLineFlags struct {
 	// `teleport integration configure aws-app-access-iam` command
 	IntegrationConfAWSAppAccessIAMArguments IntegrationConfAWSAppAccessIAM
 
+	// IntegrationConfEC2SSMIAMArguments contains the arguments of
+	// `teleport integration configure ec2-ssm-iam` command
+	IntegrationConfEC2SSMIAMArguments IntegrationConfEC2SSMIAM
+
 	// IntegrationConfEKSIAMArguments contains the arguments of
 	// `teleport integration configure eks-iam` command
 	IntegrationConfEKSIAMArguments IntegrationConfEKSIAM
@@ -279,6 +283,22 @@ type IntegrationConfEICEIAM struct {
 type IntegrationConfAWSAppAccessIAM struct {
 	// RoleName is the AWS Role associated with the Integration
 	RoleName string
+}
+
+// IntegrationConfEC2SSMIAM contains the arguments of
+// `teleport integration configure ec2-ssm-iam` command
+type IntegrationConfEC2SSMIAM struct {
+	// RoleName is the AWS Role associated with the Integration
+	RoleName string
+	// Region is the AWS Region used to set up the client.
+	Region string
+	// SSMDocumentName is the SSM Document to be created that will run the installer script.
+	SSMDocumentName string
+	// ProxyPublicURL is Proxy's Public URL.
+	// This is used fetch the installer script.
+	// No trailing / is expected.
+	// Eg https://tenant.teleport.sh
+	ProxyPublicURL string
 }
 
 // IntegrationConfEKSIAM contains the arguments of
