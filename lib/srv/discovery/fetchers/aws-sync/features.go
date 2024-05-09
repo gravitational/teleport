@@ -27,7 +27,7 @@ const (
 	awsRDS       = awsNamespace + "/" + "rds"
 	awsS3        = awsNamespace + "/" + "s3"
 	awsRoles     = awsNamespace + "/" + "roles"
-	awsSAML      = awsNamespace + "/" + "saml"
+	awsIDP       = awsNamespace + "/" + "idp"
 )
 
 // Features is the list of supported resources by the server.
@@ -46,8 +46,8 @@ type Features struct {
 	EKS bool
 	// S3 enables AWS S3 sync.
 	S3 bool
-	// SAML enables AWS IAM SAML providers sync.
-	SAML bool
+	// IDP enables sync of AWS IAM identity providers.
+	IDP bool
 }
 
 // BuildFeatures builds the feature flags based on supported types returned by Access Graph
@@ -70,8 +70,8 @@ func BuildFeatures(values ...string) Features {
 			features.S3 = true
 		case awsRoles:
 			features.Roles = true
-		case awsSAML:
-			features.SAML = true
+		case awsIDP:
+			features.IDP = true
 		}
 	}
 	return features

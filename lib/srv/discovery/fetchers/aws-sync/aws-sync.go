@@ -125,6 +125,8 @@ type Resources struct {
 	RDSDatabases []*accessgraphv1alpha.AWSRDSDatabaseV1
 	// SAMLProviders is a list of SAML providers.
 	SAMLProviders []*accessgraphv1alpha.AWSSAMLProviderV1
+	// OIDCProviders is a list of OIDC providers.
+	OIDCProviders []*accessgraphv1alpha.AWSOIDCProviderV1
 }
 
 func (r *Resources) count() int {
@@ -245,8 +247,9 @@ func (a *awsFetcher) poll(ctx context.Context, features Features) (*Resources, e
 		eGroup.Go(a.pollAWSRDSDatabases(ctx, result, collectErr))
 	}
 
-	if features.SAML {
+	if features.IDP {
 		eGroup.Go(a.pollAWSSAMLProviders(ctx, result, collectErr))
+		eGroup.Go(a.pollAWSOIDCProviders(ctx, result, collectErr))
 	}
 
 	if err := eGroup.Wait(); err != nil {

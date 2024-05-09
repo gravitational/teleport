@@ -78,7 +78,7 @@ func (a *awsFetcher) fetchAWSSAMLProvider(ctx context.Context, client iamiface.I
 	return out, trace.Wrap(err)
 }
 
-// awsSAMLProviderToSAML converts an iam.SAMLProvider to accessgraphv1alpha.SAMLProviderV1 representation.
+// awsSAMLProviderToProto converts an iam.SAMLProvider to accessgraphv1alpha.SAMLProviderV1 representation.
 func awsSAMLProviderOutputToProto(arn string, accountID string, provider *iam.GetSAMLProviderOutput) (*accessgraphv1alpha.AWSSAMLProviderV1, error) {
 	var tags []*accessgraphv1alpha.AWSTag
 	for _, v := range provider.Tags {
@@ -109,5 +109,73 @@ func awsSAMLProviderOutputToProto(arn string, accountID string, provider *iam.Ge
 		AccountId:  accountID,
 		EntityId:   metadata.EntityID,
 		SsoUrls:    ssoURLs,
+	}, nil
+}
+
+func (a *awsFetcher) pollAWSOIDCProviders(ctx context.Context, result *Resources, collectErr func(error)) func() error {
+	return func() error {
+		var err error
+
+		iamClient, err := a.CloudClients.GetAWSIAMClient(
+			ctx,
+			"", /* region is empty because oidc providers are global */
+			a.getAWSOptions()...,
+		)
+		if err != nil {
+			collectErr(trace.Wrap(err, "failed to get AWS IAM client"))
+			return nil
+		}
+		listResp, err := iamClient.ListOpenIDConnectProvidersWithContext(ctx, &iam.ListOpenIDConnectProvidersInput{})
+		if err != nil {
+			collectErr(trace.Wrap(err, "failed to list AWS OIDC identity providers"))
+			return nil
+		}
+
+		providers := make([]*accessgraphv1alpha.AWSOIDCProviderV1, 0, len(listResp.OpenIDConnectProviderList))
+		for _, providerRef := range listResp.OpenIDConnectProviderList {
+			arn := aws.StringValue(providerRef.Arn)
+			provider, err := a.fetchAWSOIDCProvider(ctx, iamClient, arn)
+			if err != nil {
+				collectErr(trace.Wrap(err, "failed to get info for OIDC provider %s", arn))
+			} else {
+				providers = append(providers, provider)
+			}
+		}
+
+		result.OIDCProviders = providers
+		return nil
+	}
+}
+
+// fetchAWSOIDCProvider fetches data about a single OIDC identity provider.
+func (a *awsFetcher) fetchAWSOIDCProvider(ctx context.Context, client iamiface.IAMAPI, arn string) (*accessgraphv1alpha.AWSOIDCProviderV1, error) {
+	providerResp, err := client.GetOpenIDConnectProviderWithContext(ctx, &iam.GetOpenIDConnectProviderInput{
+		OpenIDConnectProviderArn: aws.String(arn),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out, err := awsOIDCProviderOutputToProto(arn, a.AccountID, providerResp)
+	return out, trace.Wrap(err)
+}
+
+// awsOIDCProviderToOIDC converts an iam.OpenIDConnectProvider to accessgraphv1alpha.OIDCProviderV1 representation.
+func awsOIDCProviderOutputToProto(arn string, accountID string, provider *iam.GetOpenIDConnectProviderOutput) (*accessgraphv1alpha.AWSOIDCProviderV1, error) {
+	var tags []*accessgraphv1alpha.AWSTag
+	for _, v := range provider.Tags {
+		tags = append(tags, &accessgraphv1alpha.AWSTag{
+			Key:   aws.StringValue(v.Key),
+			Value: strPtrToWrapper(v.Value),
+		})
+	}
+
+	return &accessgraphv1alpha.AWSOIDCProviderV1{
+		Arn:         arn,
+		CreatedAt:   awsTimeToProtoTime(provider.CreateDate),
+		Tags:        tags,
+		AccountId:   accountID,
+		ClientIds:   aws.StringValueSlice(provider.ClientIDList),
+		Thumbprints: aws.StringValueSlice(provider.ThumbprintList),
+		Url:         aws.StringValue(provider.Url),
 	}, nil
 }

@@ -54,6 +54,7 @@ func ReconcileResults(old *Resources, new *Resources) (upsert, delete *accessgra
 		reconcileAccessEntry(old.AccessEntries, new.AccessEntries),
 		reconcileAWSRDS(old.RDSDatabases, new.RDSDatabases),
 		reconcileSAMLProviders(old.SAMLProviders, new.SAMLProviders),
+		reconcileOIDCProviders(old.OIDCProviders, new.OIDCProviders),
 	} {
 		upsert.Resources = append(upsert.Resources, results.upsert.Resources...)
 		delete.Resources = append(delete.Resources, results.delete.Resources...)
@@ -577,6 +578,32 @@ func reconcileSAMLProviders(
 		delete.Resources = append(delete.Resources, &accessgraphv1alpha.AWSResource{
 			Resource: &accessgraphv1alpha.AWSResource_SamlProvider{
 				SamlProvider: provider,
+			},
+		})
+	}
+	return &reconcileIntermeditateResult{upsert, delete}
+}
+
+func reconcileOIDCProviders(
+	old []*accessgraphv1alpha.AWSOIDCProviderV1,
+	new []*accessgraphv1alpha.AWSOIDCProviderV1,
+) *reconcileIntermeditateResult {
+	upsert, delete := &accessgraphv1alpha.AWSResourceList{}, &accessgraphv1alpha.AWSResourceList{}
+	toAdd, toRemove := reconcile(old, new, func(provider *accessgraphv1alpha.AWSOIDCProviderV1) string {
+		return fmt.Sprintf("%s;%s", provider.AccountId, provider.Arn)
+	})
+
+	for _, provider := range toAdd {
+		upsert.Resources = append(upsert.Resources, &accessgraphv1alpha.AWSResource{
+			Resource: &accessgraphv1alpha.AWSResource_OidcProvider{
+				OidcProvider: provider,
+			},
+		})
+	}
+	for _, provider := range toRemove {
+		delete.Resources = append(delete.Resources, &accessgraphv1alpha.AWSResource{
+			Resource: &accessgraphv1alpha.AWSResource_OidcProvider{
+				OidcProvider: provider,
 			},
 		})
 	}

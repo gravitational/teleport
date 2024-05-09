@@ -50,6 +50,7 @@ func MergeResources(results ...*Resources) *Resources {
 		result.AccessEntries = append(result.AccessEntries, r.AccessEntries...)
 		result.RDSDatabases = append(result.RDSDatabases, r.RDSDatabases...)
 		result.SAMLProviders = append(result.SAMLProviders, r.SAMLProviders...)
+		result.OIDCProviders = append(result.OIDCProviders, r.OIDCProviders...)
 	}
 	return result
 }

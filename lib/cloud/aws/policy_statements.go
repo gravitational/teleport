@@ -411,6 +411,8 @@ func StatementAccessGraphAWSSync() *Statement {
 			"iam:GetRolePolicy",
 			"iam:ListSAMLProviders",
 			"iam:GetSAMLProvider",
+			"iam:ListOpenIDConnectProviders",
+			"iam:GetOpenIDConnectProvider",
 		},
 		Resources: allResources,
 	}

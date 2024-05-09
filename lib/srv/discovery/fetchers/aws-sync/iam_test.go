@@ -151,3 +151,84 @@ func samlProviders(timestamp1, timestamp2 time.Time) map[string]*iam.GetSAMLProv
 		},
 	}
 }
+
+func TestAWSIAMPollOIDCProviders(t *testing.T) {
+	const (
+		accountID = "12345678"
+	)
+	var (
+		regions = []string{"eu-west-1"}
+	)
+
+	timestamp1 := time.Date(2024, time.May, 1, 1, 2, 3, 0, time.UTC)
+	timestamp2 := timestamp1.AddDate(1, 0, 0)
+
+	mockedClients := &cloud.TestCloudClients{
+		IAM: &mocks.IAMMock{
+			OIDCProviders: map[string]*iam.GetOpenIDConnectProviderOutput{
+				"arn:aws:iam::1234678:oidc-provider/provider1": {
+					ClientIDList: aws.StringSlice([]string{"audience1", "audience2"}),
+					CreateDate:   aws.Time(timestamp1),
+					Tags: []*iam.Tag{
+						{Key: aws.String("key1"), Value: aws.String("value1")},
+						{Key: aws.String("key2"), Value: aws.String("value2")},
+					},
+					ThumbprintList: aws.StringSlice([]string{"thumb1", "thumb2"}),
+					Url:            aws.String("https://example.com"),
+				},
+				"arn:aws:iam::1234678:oidc-provider/provider2": {
+					CreateDate: aws.Time(timestamp2),
+					Url:        aws.String("https://teleport.local"),
+				},
+			},
+		},
+	}
+
+	var (
+		errs []error
+		mu   sync.Mutex
+	)
+
+	collectErr := func(err error) {
+		mu.Lock()
+		defer mu.Unlock()
+		errs = append(errs, err)
+	}
+	a := &awsFetcher{
+		Config: Config{
+			AccountID:    accountID,
+			CloudClients: mockedClients,
+			Regions:      regions,
+			Integration:  accountID,
+		},
+	}
+	expected := []*accessgraphv1alpha.AWSOIDCProviderV1{
+		{
+			Arn:       "arn:aws:iam::1234678:oidc-provider/provider1",
+			CreatedAt: timestamppb.New(timestamp1),
+			Tags: []*accessgraphv1alpha.AWSTag{
+				{Key: "key1", Value: &wrapperspb.StringValue{Value: "value1"}},
+				{Key: "key2", Value: &wrapperspb.StringValue{Value: "value2"}},
+			},
+			AccountId:   accountID,
+			ClientIds:   []string{"audience1", "audience2"},
+			Thumbprints: []string{"thumb1", "thumb2"},
+			Url:         "https://example.com",
+		},
+		{
+			Arn:       "arn:aws:iam::1234678:oidc-provider/provider2",
+			CreatedAt: timestamppb.New(timestamp2),
+			AccountId: accountID,
+			Url:       "https://teleport.local",
+		},
+	}
+	result := &Resources{}
+	execFunc := a.pollAWSOIDCProviders(context.Background(), result, collectErr)
+	require.NoError(t, execFunc())
+	require.Empty(t, errs)
+	require.Empty(t, cmp.Diff(
+		expected,
+		result.OIDCProviders,
+		protocmp.Transform(),
+	))
+}
