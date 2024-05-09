@@ -88,9 +88,9 @@ export function useResourceSearch() {
         }
         case 'preview': {
           // In preview mode we know that the user didn't specify any search terms. So instead of
-          // fetching all 100 resources for each request, we fetch only a bunch of them to show
+          // fetching all 100 resources, we fetch only a bunch of them to show
           // example results in the UI.
-          limit = 5;
+          limit = 20;
           break;
         }
         case 'full-search': {
