@@ -95,7 +95,7 @@ linters-settings:
     - name: unused-parameter
       disabled: true
   sloglint:
-    context-only: true
+    context: all
     key-naming-case: snake
     static-msg: true
   testifylint:
@@ -116,6 +116,6 @@ output:
   uniq-by-line: false
 
 run:
-  go: '1.21'
+  go: '1.22'
   build-tags: []
   timeout: 15m
