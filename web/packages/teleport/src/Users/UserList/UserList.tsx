@@ -20,7 +20,7 @@ import React from 'react';
 import Table, { Cell, LabelCell } from 'design/DataTable';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 
-import { User } from 'teleport/services/user';
+import { User, UserOrigin } from 'teleport/services/user';
 
 export default function UserList({
   users = [],
@@ -85,7 +85,7 @@ export default function UserList({
     />
   );
 
-  function renderAuthType(authType: string, origin: string) {
+  function renderAuthType(authType: string, origin: UserOrigin) {
     switch (authType) {
       case 'github':
         return 'GitHub';

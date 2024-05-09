@@ -110,6 +110,8 @@ export interface Acl {
 // AllTraits represent all the traits defined for a user.
 export type AllUserTraits = Record<string, string[]>;
 
+export type UserOrigin = 'okta' | 'saml' | 'scim';
+
 export interface User {
   // name is the teleport username.
   name: string;
@@ -119,7 +121,7 @@ export interface User {
   // e.g. locally or with a SSO provider.
   authType?: string;
   // What kind of upstream IdP has the user come from?
-  origin?: string;
+  origin?: UserOrigin;
   // isLocal is true if json.authType was 'local'.
   isLocal?: boolean;
   // traits existed before field "externalTraits"

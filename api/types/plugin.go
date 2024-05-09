@@ -86,6 +86,9 @@ const (
 	PluginSubkindAccess = "access"
 	// PluginSubkindAccessGraph represents access graph plugins collectively
 	PluginSubkindAccessGraph = "accessgraph"
+	// PluginSubkindProvisioning represents plugins that create and manage
+	// Teleport users and/or other resources from an external source
+	PluginSubkindProvisioning = "provisioning"
 )
 
 // Plugin represents a plugin instance

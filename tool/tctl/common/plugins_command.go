@@ -230,7 +230,7 @@ func (p *PluginsCommand) InstallSCIM(ctx context.Context, client *auth.Client) e
 
 	request := &pluginsv1.CreatePluginRequest{
 		Plugin: &types.PluginV1{
-			SubKind: types.PluginSubkindAccess,
+			SubKind: types.PluginSubkindProvisioning,
 			Metadata: types.Metadata{
 				Labels: map[string]string{
 					types.HostedPluginLabel: "true",
