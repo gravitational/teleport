@@ -3,12 +3,15 @@ package token
 import (
 	"context"
 	"fmt"
-	apitypes "github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integrations/terraform/tfschema"
+
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+
+	apitypes "github.com/gravitational/teleport/api/types"
+
+	"github.com/gravitational/teleport/integrations/terraform/tfschema"
 )
 
 // GenSchemaLabels returns Terraform schema for Labels type
