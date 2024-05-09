@@ -192,7 +192,6 @@ func TestSlogJSONHandlerSourceOverride(t *testing.T) {
 	logRecordMap := make(map[string]any)
 	require.NoError(t, json.Unmarshal(buf.Bytes(), &logRecordMap))
 
-	//
 	// Builtin fields must be present
 	require.Contains(t, logRecordMap, "caller")
 	require.Contains(t, logRecordMap["caller"], "slog_handler_test.go")
@@ -202,7 +201,6 @@ func TestSlogJSONHandlerSourceOverride(t *testing.T) {
 
 	require.Contains(t, logRecordMap, "timestamp")
 
-	//
 	// Some fields can appear twice in the output
 	// See https://github.com/golang/go/issues/59365
 	// Map does not accept two fields with the same name, so we must compare against the actual output.
@@ -211,7 +209,6 @@ func TestSlogJSONHandlerSourceOverride(t *testing.T) {
 	require.Contains(t, buf.String(), `"level":true`)
 	require.Contains(t, buf.String(), `"level":"debug"`)
 
-	//
 	// Fields that conflict with built-ins but have a different name, when not using the expected Attr Value's type should be present
 
 	// source was injected but is not of slog.Source type, so, its value must be kept
