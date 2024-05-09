@@ -111,6 +111,14 @@ func TestInitCACert(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	mongodbAtlas, err := types.NewDatabaseV3(types.Metadata{
+		Name: "mongodb-atlas",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolMongoDB,
+		URI:      "mongodb+srv://test.xxxx.mongodb.net",
+	})
+	require.NoError(t, err)
+
 	cloudSQL, err := types.NewDatabaseV3(types.Metadata{
 		Name: "cloud-sql",
 	}, types.DatabaseSpecV3{
@@ -130,7 +138,7 @@ func TestInitCACert(t *testing.T) {
 	require.NoError(t, err)
 
 	allDatabases := []types.Database{
-		selfHosted, rds, rdsWithCert, redshift, redshiftServerless, cloudSQL, azureMySQL, memoryDB,
+		selfHosted, rds, rdsWithCert, redshift, redshiftServerless, cloudSQL, azureMySQL, memoryDB, mongodbAtlas,
 	}
 
 	tests := []struct {
@@ -177,6 +185,11 @@ func TestInitCACert(t *testing.T) {
 			desc:     "should download Azure CA when it's not set",
 			database: azureMySQL.GetName(),
 			cert:     fixtures.TLSCACertPEM + "\n" + fixtures.TLSCACertPEM, // Two CA files.
+		},
+		{
+			desc:     "should download MongoDB Atlas CA when it's not set",
+			database: mongodbAtlas.GetName(),
+			cert:     fixtures.TLSCACertPEM,
 		},
 	}
 
