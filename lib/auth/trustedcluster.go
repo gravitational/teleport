@@ -31,7 +31,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
 	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -531,7 +530,7 @@ func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *Va
 	// export local cluster certificate authority and return it to the cluster
 	validateResponse := ValidateTrustedClusterResponse{}
 
-	validateResponse.CAs, err = getLeafClusterCAs(ctx, a, domainName, validateRequest)
+	validateResponse.CAs, err = getLeafClusterCAs(ctx, a, domainName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -542,16 +541,12 @@ func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *Va
 	return &validateResponse, nil
 }
 
-// getLeafClusterCAs returns a slice with Cert Authorities that should be returned in response to ValidateTrustedClusterRequest.
-func getLeafClusterCAs(ctx context.Context, srv *Server, domainName string, validateRequest *ValidateTrustedClusterRequest) ([]types.CertAuthority, error) {
-	certTypes, err := getCATypesForLeaf(validateRequest)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+var caTypes = []types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA, types.OpenSSHCA}
 
-	caCerts := make([]types.CertAuthority, 0, len(certTypes))
-
-	for _, caType := range certTypes {
+// getLeafClusterCAs returns a slice with Cert Authorities that should be returned.
+func getLeafClusterCAs(ctx context.Context, srv *Server, domainName string) ([]types.CertAuthority, error) {
+	caCerts := make([]types.CertAuthority, 0, len(caTypes))
+	for _, caType := range caTypes {
 		certAuthority, err := srv.GetCertAuthority(
 			ctx,
 			types.CertAuthID{Type: caType, DomainName: domainName},
@@ -563,32 +558,6 @@ func getLeafClusterCAs(ctx context.Context, srv *Server, domainName string, vali
 	}
 
 	return caCerts, nil
-}
-
-// getCATypesForLeaf returns the list of CA certificates that should be sync in response to ValidateTrustedClusterRequest.
-func getCATypesForLeaf(validateRequest *ValidateTrustedClusterRequest) ([]types.CertAuthType, error) {
-	var (
-		err                error
-		openSSHCASupported bool
-	)
-
-	if validateRequest.TeleportVersion != "" {
-		// (*ValidateTrustedClusterRequest).TeleportVersion was added in Teleport 10.0. If the request comes from an older
-		// cluster this field will be empty.
-		openSSHCASupported, err = utils.MinVerWithoutPreRelease(validateRequest.TeleportVersion, constants.OpenSSHCAMinVersion)
-		if err != nil {
-			return nil, trace.Wrap(err, "failed to parse Teleport version: %q", validateRequest.TeleportVersion)
-		}
-	}
-
-	certTypes := []types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA}
-	if openSSHCASupported {
-		// OpenSSH CA was introduced in Teleport 12.0. Do not send it to older clusters
-		// as they don't understand it.
-		certTypes = append(certTypes, types.OpenSSHCA)
-	}
-
-	return certTypes, nil
 }
 
 func (a *Server) validateTrustedClusterToken(ctx context.Context, tokenName string) (map[string]string, error) {
