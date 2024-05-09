@@ -66,6 +66,9 @@ type EC2Instances struct {
 	// Integration is the integration used to fetch the Instance and should be used to access it.
 	// Might be empty for instances that didn't use an Integration.
 	Integration string
+
+	// EnrollMode is the mode used to enroll the instance into Teleport.
+	EnrollMode types.InstallParamEnrollMode
 }
 
 // EC2Instance represents an AWS EC2 instance that has been
@@ -194,10 +197,8 @@ func MatchersToEC2InstanceFetchers(ctx context.Context, matchers []types.AWSMatc
 				EC2Client:   ec2Client,
 				Labels:      matcher.Tags,
 				Integration: matcher.Integration,
+				EnrollMode:  matcher.Params.EnrollMode,
 			})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
 			ret = append(ret, fetcher)
 		}
 	}
@@ -211,6 +212,7 @@ type ec2FetcherConfig struct {
 	EC2Client   ec2iface.EC2API
 	Labels      types.Labels
 	Integration string
+	EnrollMode  types.InstallParamEnrollMode
 }
 
 type ec2InstanceFetcher struct {
@@ -220,6 +222,7 @@ type ec2InstanceFetcher struct {
 	DocumentName string
 	Parameters   map[string]string
 	Integration  string
+	EnrollMode   types.InstallParamEnrollMode
 
 	// cachedInstances keeps all of the ec2 instances that were matched
 	// in the last run of GetInstances for use as a cache with
@@ -308,6 +311,7 @@ func newEC2InstanceFetcher(cfg ec2FetcherConfig) *ec2InstanceFetcher {
 		DocumentName: cfg.Document,
 		Parameters:   parameters,
 		Integration:  cfg.Integration,
+		EnrollMode:   cfg.EnrollMode,
 		cachedInstances: &instancesCache{
 			instances: map[cachedInstanceKey]struct{}{},
 		},
@@ -406,6 +410,7 @@ func (f *ec2InstanceFetcher) GetInstances(ctx context.Context, rotation bool) ([
 						Parameters:   f.Parameters,
 						Rotation:     rotation,
 						Integration:  f.Integration,
+						EnrollMode:   f.EnrollMode,
 					}
 					for _, ec2inst := range res.Instances[i:end] {
 						f.cachedInstances.add(ownerID, aws.StringValue(ec2inst.InstanceId))

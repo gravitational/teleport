@@ -72,7 +72,6 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/types/wrappers"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/accessmonitoringrules/accessmonitoringrulesv1"
 	"github.com/gravitational/teleport/lib/auth/assist/assistv1"
 	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
@@ -2019,66 +2018,9 @@ func (g *GRPCServer) DeleteAllKubernetesServers(ctx context.Context, req *authpb
 // version for some features of the role returns a shallow copy of the given
 // role downgraded for compatibility with the older version.
 func maybeDowngradeRole(ctx context.Context, role *types.RoleV6) (*types.RoleV6, error) {
-	clientVersionString, ok := metadata.ClientVersionFromContext(ctx)
-	if !ok {
-		// This client is not reporting its version via gRPC metadata. Teleport
-		// clients have been reporting their version for long enough that older
-		// clients won't even support v6 roles at all, so this is likely a
-		// third-party client, and we shouldn't assume that downgrading the role
-		// will do more good than harm.
-		return role, nil
-	}
-
-	clientVersion, err := semver.NewVersion(clientVersionString)
-	if err != nil {
-		return nil, trace.BadParameter("unrecognized client version: %s is not a valid semver", clientVersionString)
-	}
-
-	role = maybeDowngradeRoleHostUserCreationMode(role, clientVersion)
+	// Teleport 16 supports all role features that Teleport 15 does,
+	// so no downgrade is necessary.
 	return role, nil
-}
-
-var minSupportedInsecureDropModeVersions = map[int64]semver.Version{
-	12: {Major: 12, Minor: 4, Patch: 30},
-	13: {Major: 13, Minor: 4, Patch: 11},
-	14: {Major: 14, Minor: 2, Patch: 2},
-}
-
-// maybeDowngradeRoleHostUserCreationMode tests the client version passed through the gRPC metadata, and
-// if the client version is less than the minimum supported version for the insecure-drop
-// host user creation mode returns a shallow copy of the role with mode drop. If the
-// passed in role does not have mode insecure-drop or the client is a supported version,
-// the role is returned unchanged.
-func maybeDowngradeRoleHostUserCreationMode(role *types.RoleV6, clientVersion *semver.Version) *types.RoleV6 {
-	if role.GetOptions().CreateHostUserMode != types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP {
-		return role
-	}
-	minSupportedVersion, ok := minSupportedInsecureDropModeVersions[clientVersion.Major]
-	// Check if insecure-drop is supported. insecure-drop is not supported below
-	// v12, supported for some versions of v12 through v14, and supported for v15+.
-	if clientVersion.Major >= 12 && (!ok || !clientVersion.LessThan(minSupportedVersion)) {
-		return role
-	}
-
-	// Make a shallow copy of the role so that we don't mutate the original.
-	// This is necessary because the role is shared
-	// between multiple clients sessions when notifying about changes in watchers.
-	// If we mutate the original role, it will be mutated for all clients
-	// which can cause panics since it causes a race condition.
-	role = apiutils.CloneProtoMsg(role)
-	options := role.GetOptions()
-	options.CreateHostUserMode = types.CreateHostUserMode_HOST_USER_MODE_DROP
-	role.SetOptions(options)
-
-	reason := fmt.Sprintf(`Client version %q does not support the host creation user mode `+
-		`'insecure-drop'. Role %q will be downgraded to use 'drop' mode instead. `+
-		`In order to support 'insecure-drop', all clients must be updated to version %q or higher.`,
-		clientVersion, role.GetName(), minSupportedVersion)
-	if role.Metadata.Labels == nil {
-		role.Metadata.Labels = make(map[string]string, 1)
-	}
-	role.Metadata.Labels[types.TeleportDowngradedLabel] = reason
-	return role
 }
 
 // GetRole retrieves a role by name.
