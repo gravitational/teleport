@@ -176,6 +176,12 @@ func Run(args []string, stdout io.Writer) error {
 		"Arguments to `tsh proxy db`; prefix with `-- ` to ensure flags are passed correctly.",
 	))
 
+	proxyAppCmd := proxyCmd.Command("app", "")
+	proxyAppRemaining := config.RemainingArgs(proxyAppCmd.Arg(
+		"args",
+		"Arguments to `tsh proxy app`; prefix with `-- ` to ensure flags are passed correctly.",
+	))
+
 	kubeCmd := app.Command("kube", "Kubernetes helpers").Hidden()
 	kubeCredentialsCmd := kubeCmd.Command("credentials", "Get credentials for kubectl access").Hidden()
 	kubeCredentialsCmd.Flag("destination-dir", "The destination directory with which to generate Kubernetes credentials").Required().StringVar(&cf.DestinationDir)
@@ -216,6 +222,8 @@ func Run(args []string, stdout io.Writer) error {
 		cf.RemainingArgs = *proxyKubeRemaining
 	} else if len(*proxyDBRemaining) > 0 {
 		cf.RemainingArgs = *proxyKubeRemaining
+	} else if len(*proxyAppRemaining) > 0 {
+		cf.RemainingArgs = *proxyAppRemaining
 	}
 
 	if cf.Trace {
@@ -313,6 +321,8 @@ func Run(args []string, stdout io.Writer) error {
 		err = onProxyCommand(botConfig, &cf, proxyKubeCmd.Name())
 	case proxyDBCmd.FullCommand():
 		err = onProxyCommand(botConfig, &cf, proxyDBCmd.Name())
+	case proxyAppCmd.FullCommand():
+		err = onProxyCommand(botConfig, &cf, proxyAppCmd.Name())
 	case proxySSHCmd.FullCommand():
 		err = onProxySSHCommand(botConfig, &cf)
 	case kubeCredentialsCmd.FullCommand():
