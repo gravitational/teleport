@@ -1,4 +1,4 @@
-.version: &version "15.3.1-dev-tbot.1"
+.version: &version "15.3.1-dev-tbot.2"
 
 apiVersion: v2
 name: teleport-plugin-msteams
