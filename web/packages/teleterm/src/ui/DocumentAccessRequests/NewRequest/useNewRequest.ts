@@ -28,7 +28,7 @@ import {
   makeDatabase,
   makeServer,
   makeKube,
-  makeApp,
+  getAppAddrWithProtocol,
 } from 'teleterm/ui/services/clusters';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 
@@ -96,7 +96,9 @@ export default function useNewRequest() {
           teleportApps.App,
           'name' | 'labels' | 'description' | 'userGroups' | 'addrWithProtocol'
         > = {
-          ...makeApp(source),
+          name: tshdApp.name,
+          labels: tshdApp.labels,
+          addrWithProtocol: getAppAddrWithProtocol(source),
           description: tshdApp.desc,
           //TODO(gzdunek): Enable requesting apps via user groups in Connect.
           // To make this work, we need

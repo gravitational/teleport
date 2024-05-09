@@ -271,7 +271,7 @@ export type SearchResultDatabase = {
 export type SearchResultKube = { kind: 'kube'; resource: types.Kube };
 export type SearchResultApp = {
   kind: 'app';
-  resource: App;
+  resource: types.App & { addrWithProtocol: string };
 };
 
 export type SearchResult =
