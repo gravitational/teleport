@@ -83,4 +83,13 @@ user accounts created by Teleport can only be accessed via Teleport.
 </Details>
 
 You can store credentials for users created by Teleport using `Control Panel\User Accounts\Credential Manager` or
-using `cmdkey` CLI utility
+using `cmdkey` CLI utility.
+
+Teleport will generate encryption keys for these credentials and store them securely on the machine for each user,
+using mechanisms in LSA. If password is ever created for the user managed by Teleport and login is attempted using
+user/password method (outside of Teleport), these keys will get overwritten and all stored credentials will be removed
+by Windows.
+
+Teleport will never generate keys for users created outside of Teleport to avoid deleting already present credentials.
+For these users credentials can't be used at all when logging using Teleport as the user's password is required to
+decrypt them and Teleport doesn't have access to it.
