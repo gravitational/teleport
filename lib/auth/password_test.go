@@ -87,6 +87,7 @@ func setupPasswordSuite(t *testing.T) *passwordSuite {
 				RSAKeyPairSource: authority.New().GenerateKeyPair,
 			},
 		},
+		RecoveryCodeGenerator: FakeRecoverCodeGenerator{},
 	}
 	s.a, err = NewServer(authConfig)
 	require.NoError(t, err)

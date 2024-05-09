@@ -24,7 +24,6 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
-	"github.com/sethvargo/go-diceware/diceware"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
 
@@ -413,7 +412,7 @@ func (a *Server) GetAccountRecoveryCodes(ctx context.Context, req *proto.GetAcco
 }
 
 func (a *Server) generateAndUpsertRecoveryCodes(ctx context.Context, username string) (*proto.RecoveryCodes, error) {
-	codes, err := generateRecoveryCodes()
+	codes, err := a.generateRecoveryCodes()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -478,15 +477,10 @@ func (a *Server) isAccountRecoveryAllowed(ctx context.Context) error {
 
 // generateRecoveryCodes returns an array of tokens where each token
 // have 8 random words prefixed with tele and concanatenated with dashes.
-func generateRecoveryCodes() ([]string, error) {
-	gen, err := diceware.NewGenerator(nil /* use default word list */)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+func (a *Server) generateRecoveryCodes() ([]string, error) {
 	tokenList := make([]string, numOfRecoveryCodes)
 	for i := 0; i < numOfRecoveryCodes; i++ {
-		list, err := gen.Generate(numWordsInRecoveryCode)
+		list, err := a.recoveryCodeGenerator.Generate(numWordsInRecoveryCode)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

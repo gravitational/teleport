@@ -300,6 +300,9 @@ type InitConfig struct {
 
 	// Notifications is a service that manages notifications.
 	Notifications services.Notifications
+
+	// RecoveryCodeGenerator used to generate random recovery codes.
+	RecoveryCodeGenerator RecoveryCodeGenerator
 }
 
 // Init instantiates and configures an instance of AuthServer

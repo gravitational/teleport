@@ -138,6 +138,7 @@ func newMockServer(t *testing.T) *mockServer {
 				RSAKeyPairSource: testauthority.New().GenerateKeyPair,
 			},
 		},
+		RecoveryCodeGenerator: auth.FakeRecoverCodeGenerator{},
 	}
 
 	authServer, err := auth.NewServer(authCfg, auth.WithClock(clock))
