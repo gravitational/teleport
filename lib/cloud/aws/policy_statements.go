@@ -409,6 +409,8 @@ func StatementAccessGraphAWSSync() *Statement {
 			"iam:ListRolePolicies",
 			"iam:ListAttachedRolePolicies",
 			"iam:GetRolePolicy",
+			"iam:ListSAMLProviders",
+			"iam:GetSAMLProvider",
 		},
 		Resources: allResources,
 	}

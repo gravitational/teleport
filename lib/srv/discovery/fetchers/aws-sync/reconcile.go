@@ -53,6 +53,7 @@ func ReconcileResults(old *Resources, new *Resources) (upsert, delete *accessgra
 		reconcileAssociatedAccessPolicy(old.AssociatedAccessPolicies, new.AssociatedAccessPolicies),
 		reconcileAccessEntry(old.AccessEntries, new.AccessEntries),
 		reconcileAWSRDS(old.RDSDatabases, new.RDSDatabases),
+		reconcileSAMLProviders(old.SAMLProviders, new.SAMLProviders),
 	} {
 		upsert.Resources = append(upsert.Resources, results.upsert.Resources...)
 		delete.Resources = append(delete.Resources, results.delete.Resources...)
@@ -550,6 +551,32 @@ func reconcileAWSRDS(
 		delete.Resources = append(delete.Resources, &accessgraphv1alpha.AWSResource{
 			Resource: &accessgraphv1alpha.AWSResource_Rds{
 				Rds: profile,
+			},
+		})
+	}
+	return &reconcileIntermeditateResult{upsert, delete}
+}
+
+func reconcileSAMLProviders(
+	old []*accessgraphv1alpha.AWSSAMLProviderV1,
+	new []*accessgraphv1alpha.AWSSAMLProviderV1,
+) *reconcileIntermeditateResult {
+	upsert, delete := &accessgraphv1alpha.AWSResourceList{}, &accessgraphv1alpha.AWSResourceList{}
+	toAdd, toRemove := reconcile(old, new, func(provider *accessgraphv1alpha.AWSSAMLProviderV1) string {
+		return fmt.Sprintf("%s;%s", provider.AccountId, provider.Arn)
+	})
+
+	for _, provider := range toAdd {
+		upsert.Resources = append(upsert.Resources, &accessgraphv1alpha.AWSResource{
+			Resource: &accessgraphv1alpha.AWSResource_SamlProvider{
+				SamlProvider: provider,
+			},
+		})
+	}
+	for _, provider := range toRemove {
+		delete.Resources = append(delete.Resources, &accessgraphv1alpha.AWSResource{
+			Resource: &accessgraphv1alpha.AWSResource_SamlProvider{
+				SamlProvider: provider,
 			},
 		})
 	}

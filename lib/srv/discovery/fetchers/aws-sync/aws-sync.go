@@ -123,6 +123,8 @@ type Resources struct {
 	AccessEntries []*accessgraphv1alpha.AWSEKSClusterAccessEntryV1
 	// RDSDatabases is a list of RDS instances and clusters.
 	RDSDatabases []*accessgraphv1alpha.AWSRDSDatabaseV1
+	// SAMLProviders is a list of SAML providers.
+	SAMLProviders []*accessgraphv1alpha.AWSSAMLProviderV1
 }
 
 func (r *Resources) count() int {
@@ -241,6 +243,10 @@ func (a *awsFetcher) poll(ctx context.Context, features Features) (*Resources, e
 	// fetch AWS RDS instances and clusters
 	if features.RDS {
 		eGroup.Go(a.pollAWSRDSDatabases(ctx, result, collectErr))
+	}
+
+	if features.SAML {
+		eGroup.Go(a.pollAWSSAMLProviders(ctx, result, collectErr))
 	}
 
 	if err := eGroup.Wait(); err != nil {
