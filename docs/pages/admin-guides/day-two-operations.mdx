@@ -1,0 +1,32 @@
+---
+title: Day Two Operations
+description: Provides instructions for completing common tasks on already running Teleport clusters
+---
+
+This section shows you how to perform common operations on already running
+Teleport clusters. If you want to set up a new Teleport cluster, learn how to
+[join Teleport agents to the
+cluster](./protect-resources/join-services-to-your-cluster.mdx) and, if you are
+self-hosting your cluster, [plan your
+deployment](../reference//self-hosted.mdx).
+
+## Regular tasks
+
+- [Troubleshooting](./day-two-operations/troubleshooting.mdx): How to fix common
+  Teleport issues.
+- [Backup and Restore](./day-two-operations/backup-restore.mdx): Storing a
+  copy of Auth Service backend data and restoring an Auth Service backend from
+  the backup.
+- [CA Rotation](./day-two-operations/ca-rotation.mdx): How to rotate the
+  certificate authorities maintained by the Teleport Auth Service. To migrate to
+  the split database CAs from clusters with only one database CA, read [Database
+  CA Migration](./day-two-operations//db-ca-rotation.mdx).
+
+## Migration guides
+
+For self-hosted clusters, migrate your cluster to support newer Teleport
+features that potentially require changes in your cluster setup:
+
+- [Migrate to Proxy Peering](./day-two-operations/proxy-peering.mdx)
+- [Migrate to TLS Routing](./day-two-operations/tls-routing.mdx)
+  
