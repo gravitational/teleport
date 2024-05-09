@@ -165,7 +165,6 @@ require (
 	github.com/schollz/progressbar/v3 v3.14.1
 	github.com/scim2/filter-parser/v2 v2.2.0
 	github.com/segmentio/parquet-go v0.0.0-20230622230624-510764ae9e80
-	github.com/sethvargo/go-diceware v0.3.0 // replaced
 	github.com/sigstore/cosign/v2 v2.2.4
 	github.com/sigstore/sigstore v1.8.3
 	github.com/sijms/go-ora/v2 v2.7.9
@@ -546,7 +545,6 @@ replace (
 	// otherwise tests fail with a data race detection.
 	github.com/moby/spdystream => github.com/gravitational/spdystream v0.0.0-20230512133543-4e46862ca9bf
 	github.com/redis/go-redis/v9 => github.com/gravitational/redis/v9 v9.0.2-teleport.2
-	github.com/sethvargo/go-diceware v0.3.0 => github.com/espadolini/sethvargo-go-diceware v0.3.1-0.20240509092330-2f439fe012d9
 	github.com/sijms/go-ora/v2 => github.com/gravitational/go-ora/v2 v2.0.0-20230821114616-e2a9f1131a46
 	github.com/tiktoken-go/tokenizer v0.1.0 => github.com/espadolini/tiktoken-go-tokenizer v0.1.1-0.20240509094058-944cac3e8126
 	github.com/vulcand/predicate => github.com/gravitational/predicate v1.3.1
