@@ -7510,10 +7510,6 @@ func (mock authProviderMock) MaintainSessionPresence(ctx context.Context) (authp
 	return nil, nil
 }
 
-func (mock authProviderMock) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
-	return nil, nil
-}
-
 func (mock authProviderMock) GetUser(_ context.Context, _ string, _ bool) (types.User, error) {
 	return nil, nil
 }
