@@ -20,11 +20,11 @@ package userpreferencesv1
 
 import (
 	"context"
+	"slices"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
-	"slices"
 
 	"github.com/gravitational/teleport"
 	userpreferences "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
