@@ -139,7 +139,11 @@ function AGPLFooter() {
         <>
           This is an independently compiled AGPL-3.0 version of Teleport. You
           can find the official release{' '}
-          <Text as="a" href="https://goteleport.com/download" target="_blank">
+          <Text
+            as="a"
+            href="https://goteleport.com/download/?utm_source=oss&utm_medium=in-product&utm_campaign=limited-features"
+            target="_blank"
+          >
             here.
           </Text>
         </>
@@ -157,7 +161,7 @@ function CommunityFooter() {
         <>
           <Text
             as="a"
-            href="https://goteleport.com/signup/enterprise/"
+            href="https://goteleport.com/signup/enterprise/?utm_source=oss&utm_medium=in-product&utm_campaign=limited-features"
             target="_blank"
           >
             Upgrade to Teleport Enterprise
