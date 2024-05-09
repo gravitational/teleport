@@ -101,7 +101,7 @@ func (s *VnetConfigService) UpdateVnetConfig(ctx context.Context, req *vnet.Upda
 		return nil, trace.Wrap(err)
 	}
 
-	vnetConfig, err := s.storage.CreateVnetConfig(ctx, req.VnetConfig)
+	vnetConfig, err := s.storage.UpdateVnetConfig(ctx, req.VnetConfig)
 	return vnetConfig, trace.Wrap(err)
 }
 
@@ -112,7 +112,7 @@ func (s *VnetConfigService) UpsertVnetConfig(ctx context.Context, req *vnet.Upse
 	}
 
 	// To upsert you must be allowed to Create and Update the new resource.
-	if err := checkAccessToResource(authCtx, req.VnetConfig, types.VerbCreate); err != nil {
+	if err := checkAccessToResource(authCtx, req.VnetConfig, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
