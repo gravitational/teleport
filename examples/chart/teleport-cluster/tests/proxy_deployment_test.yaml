@@ -939,3 +939,16 @@ tests:
             mountPath: /var/run/secrets/kubernetes.io/serviceaccount
             name: proxy-serviceaccount-token
             readOnly: true
+  - it: sets clusterDomain on Deployment Pods
+    template: proxy/deployment.yaml
+    values:
+      - ../.lint/annotations.yaml
+    set:
+      global:
+        clusterDomain: test.com
+    asserts:
+      - matchSnapshot: {}
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[3]
+          pattern: ".svc.test.com$"
+
