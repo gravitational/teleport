@@ -1,0 +1,122 @@
+{/*GENERATED PARTIAL. DO NOT EDIT. RECREATE WITH THIS COMMAND:
+node docs/gen-topic-pages/index.js --in docs/pages/admin-guides,docs/pages/reference,docs/pages/user-guides --out docs/pages/includes/topic-pages*/}
+
+|Topic|Description|
+|---|---|
+|[Teleport Changelog](../../reference/changelog.mdx)|The Changelog provides a comprehensive description of the changes introduced by each Teleport release.|
+|[Teleport Enterprise Cloud Downloads](../../reference/cloud-downloads.mdx)|Cloud Downloads|
+|[Teleport Enterprise Cloud FAQ](../../reference/cloud-faq.mdx)|Teleport cloud frequently asked questions.|
+|[Teleport FAQ](../../reference/faq.mdx)|Frequently Asked Questions About Using Teleport|
+|[Teleport Upcoming Releases](../../reference/upcoming-releases.mdx)|A timeline of upcoming Teleport releases.|
+|[Usage Reporting and Billing](../../reference/usage-billing.mdx)|Provides a detailed breakdown of Teleport usage reporting and billing.|
+
+## Teleport Architecture Guides
+
+Get detailed information about how Teleport works ([more info](../../reference/architecture.mdx))
+
+|Topic|Description|
+|---|---|
+|[Agent Update Management](../../reference/architecture/agent-update-management.mdx)|This chapter explains how Teleport agent automatic update is working.|
+|[Teleport Authentication](../../reference/architecture/authentication.mdx)|This chapter explains how Teleport uses certificate authorities to authenticate users and services.|
+|[Teleport Authorization](../../reference/architecture/authorization.mdx)|This chapter explains how Teleport authorizes users and roles.|
+|[Teleport Enterprise Cloud Architecture](../../reference/architecture/cloud-architecture.mdx)|Cloud security, availability, and networking details.|
+|[Teleport Architecture Guides](../../reference/architecture/introduction.mdx)|Get detailed information about how Teleport works|
+|[Networking](../../reference/architecture/networking.mdx)|This reference explains the networking requirements of a Teleport cluster, including its public address, ports, and support for HTTP CONNECT proxies.|
+|[Teleport SSH Nodes](../../reference/architecture/nodes.mdx)|This chapter explains the concept of a Teleport Node and how Teleport manages SSH.|
+|[Proxy Peering](../../reference/architecture/proxy-peering.mdx)|How Teleport implements more efficient networking with Proxy Peering.|
+|[Teleport Proxy Service](../../reference/architecture/proxy.mdx)|Architecture of Teleport's identity-aware proxy service|
+|[Teleport Session Recording](../../reference/architecture/session-recording.mdx)|An overview of Teleport's session recording and its configuration|
+|[TLS Routing](../../reference/architecture/tls-routing.mdx)|How Teleport implements a single-port setup with TLS routing|
+|[Trusted Clusters Architecture](../../reference/architecture/trustedclusters.mdx)|Deep dive into design of Teleport Trusted Clusters.|
+
+## CLI References
+
+Detailed guide and reference documentation for Teleport's command line interface (CLI) tools. ([more info](../../reference/cli.mdx))
+
+|Topic|Description|
+|---|---|
+|[Teleport Signals Reference](../../reference/cli/signals.mdx)|Signals you can send to a running teleport process.|
+|[tbot CLI reference](../../reference/cli/tbot.mdx)|Comprehensive reference of subcommands, flags, and arguments for the tbot CLI tool.|
+|[tctl CLI reference](../../reference/cli/tctl.mdx)|Comprehensive reference of subcommands, flags, and arguments for the tctl CLI tool.|
+|[teleport CLI Reference](../../reference/cli/teleport.mdx)|Comprehensive reference of subcommands, flags, and arguments for the teleport CLI tool.|
+|[tsh CLI reference](../../reference/cli/tsh.mdx)|Comprehensive reference of subcommands, flags, and arguments for the tsh CLI tool.|
+
+## Compliance Frameworks
+
+How to use Teleport's access controls to streamline compliance without sacrificing productivity. ([more info](../../reference/compliance-frameworks.mdx))
+
+|Topic|Description|
+|---|---|
+|[FedRAMP Compliance for Infrastructure Access](../../reference/compliance-frameworks/fedramp.mdx)|How to configure SSH, Kubernetes, database, and web app access to be FedRAMP compliant, including support for FIPS 140-2.|
+|[SOC 2 compliance for SSH, Kubernetes, and Databases](../../reference/compliance-frameworks/soc2.mdx)|How to configure SOC 2-compliant access to SSH, Kubernetes, databases, desktops, and web apps|
+
+## Configuring Teleport
+
+Contains reference guides for setting up your Teleport cluster. ([more info](../../reference/configuring-teleport.mdx))
+
+|Topic|Description|
+|---|---|
+|[Teleport Access Controls Reference](../../reference/configuring-teleport/access-controls.mdx)|Explains the configuration settings that you can include in a Teleport role, which enables you to apply access controls for your infrastructure.|
+|[Authentication options](../../reference/configuring-teleport/authentication.mdx)|A reference for Teleport's authentication connectors|
+|[Teleport Configuration Reference](../../reference/configuring-teleport/config.mdx)|The detailed guide and reference documentation for configuring Teleport for SSH and Kubernetes access.|
+|[Join Methods and Token Reference](../../reference/configuring-teleport/join-methods.mdx)|Describes the different ways to configure a Teleport to join a cluster.|
+|[Predicate Language](../../reference/configuring-teleport/predicate-language.mdx)|How to use Teleport's predicate language to define filter conditions.|
+|[Teleport Resource Reference](../../reference/configuring-teleport/resources.mdx)|Reference documentation for Teleport resources|
+|[Terraform provider resources](../../reference/configuring-teleport/terraform-provider.mdx)|Terraform provider resources reference|
+|[User Types](../../reference/configuring-teleport/user-types.mdx)|Describes the different types of Teleport users and their properties.|
+
+## Helm Chart Reference
+
+Comprehensive lists of configuration values in Teleport's Helm charts ([more info](../../reference/helm-reference.mdx))
+
+|Topic|Description|
+|---|---|
+|[teleport-access-graph Chart Reference](../../reference/helm-reference/teleport-access-graph.mdx)|Values that can be set using the teleport-access-graph Helm chart|
+|[teleport-cluster Chart Reference](../../reference/helm-reference/teleport-cluster.mdx)|Values that can be set using the teleport-cluster Helm chart|
+|[teleport-kube-agent Chart Reference](../../reference/helm-reference/teleport-kube-agent.mdx)|Values that can be set using the teleport-kube-agent Helm chart|
+|[teleport-operator Chart Reference](../../reference/helm-reference/teleport-operator.mdx)|Values that can be set using the teleport-operator Helm chart|
+|[teleport-plugin-discord Chart Reference](../../reference/helm-reference/teleport-plugin-discord.mdx)|Values that can be set using the teleport-plugin-discord Helm chart|
+|[teleport-plugin-email Chart Reference](../../reference/helm-reference/teleport-plugin-email.mdx)|Values that can be set using the teleport-plugin-email Helm chart|
+|[teleport-plugin-event-handler Chart Reference](../../reference/helm-reference/teleport-plugin-event-handler.mdx)|Values that can be set using the teleport-plugin-event-handler Helm chart|
+|[teleport-plugin-jira Chart Reference](../../reference/helm-reference/teleport-plugin-jira.mdx)|Values that can be set using the teleport-plugin-jira Helm chart|
+|[teleport-plugin-mattermost Chart Reference](../../reference/helm-reference/teleport-plugin-mattermost.mdx)|Values that can be set using the teleport-plugin-mattermost Helm chart|
+|[teleport-plugin-msteams Chart Reference](../../reference/helm-reference/teleport-plugin-msteams.mdx)|Values that can be set using the teleport-plugin-msteams Helm chart|
+|[teleport-plugin-pagerduty Chart Reference](../../reference/helm-reference/teleport-plugin-pagerduty.mdx)|Values that can be set using the teleport-plugin-pagerduty Helm chart|
+|[teleport-plugin-slack Chart Reference](../../reference/helm-reference/teleport-plugin-slack.mdx)|Values that can be set using the teleport-plugin-slack Helm chart|
+
+## Monitoring your Cluster
+
+Monitoring your Teleport deployment ([more info](../../reference/monitoring.mdx))
+
+|Topic|Description|
+|---|---|
+|[Audit Events and Records](../../reference/monitoring/audit.mdx)|Reference of Teleport Audit Events and Session Records|
+|[Distributed Tracing Configuration Reference](../../reference/monitoring/configuration.mdx)|Configuration reference for Distributed Tracing.|
+|[Teleport Metrics](../../reference/monitoring/metrics.mdx)|Comprehensive list of all metrics exposed by Teleport.|
+|[Health Monitoring](../../reference/monitoring/monitoring.mdx)|Monitoring health and readiness.|
+|[Profiling](../../reference/monitoring/profiles.mdx)|Collecting pprof profiles.|
+|[Distributed Tracing](../../reference/monitoring/tracing.mdx)|How to enable tracing within Teleport.|
+
+## Secure Practices for Teleport Clusters
+
+Highlights recommended practices and ways to harden security for your Teleport cluster. ([more info](../../reference/security.mdx))
+
+|Topic|Description|
+|---|---|
+|[PROXY protocol](../../reference/security/proxy-protocol.mdx)|How to securely configure PROXY protocol usage with Teleport|
+|[Reducing the Blast Radius of Attacks](../../reference/security/reduce-blast-radius.mdx)|How to configure Teleport to minimize the scope of security breaches|
+|[Restrict Access for Privileged Accounts](../../reference/security/restrict-privileges.mdx)|Explains the risks of root-level access to Teleport-protected resources.|
+|[Revoking Access](../../reference/security/revoking-access.mdx)|Learn how to revoke access before Teleport certificates expire|
+
+## Self-Hosted Deployment Reference
+
+Guides to self-hosting Teleport on various cloud platforms. ([more info](../../reference/self-hosted.mdx))
+
+|Topic|Description|
+|---|---|
+|[AWS Multi-Region Proxy Deployment](../../reference/self-hosted/aws-gslb-proxy-peering-ha-deployment.mdx)|Deploying a high-availability Teleport cluster using Proxy Peering and Route 53 to create global server load balancing.|
+|[Storage backends](../../reference/self-hosted/backends.mdx)|How to configure Teleport deployment for high-availability using storage backends|
+|[Running Teleport on GCP](../../reference/self-hosted/gcp.mdx)|How to install and configure Teleport on GCP|
+|[Deploying a High Availability Teleport Cluster](../../reference/self-hosted/high-availability.mdx)|Deploying a High Availability Teleport Cluster|
+|[Running Teleport on IBM Cloud](../../reference/self-hosted/ibm.mdx)|How to install and configure Gravitational Teleport on IBM cloud for SSH and Kubernetes access.|
+|[Enterprise License File](../../reference/self-hosted/license.mdx)|How to manage your Teleport Enterprise license file.|
