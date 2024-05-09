@@ -28,6 +28,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh/agent"
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/api/client"
@@ -196,7 +197,22 @@ func onProxySSHCommand(botConfig *config.BotConfig, cf *config.CLIConf) error {
 		return trace.BadParameter("no hostname, search terms or query expression provided")
 	}
 
-	conn, _, err := pclt.DialHost(ctx, target, facade.Get().ClusterName, nil)
+	agentKey, err := key.AsAgentKey()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// TODO(espadolini): figure out if and how we can just derive an agent from
+	// [*identity.Facade] that's kept up to date as the facade is changed
+	keyring, ok := agent.NewKeyring().(agent.ExtendedAgent)
+	if !ok {
+		return trace.BadParameter("unexpected keyring type %T, expected agent.ExtendedKeyring", keyring)
+	}
+	if err := keyring.Add(agentKey); err != nil {
+		return trace.Wrap(err)
+	}
+
+	conn, _, err := pclt.DialHost(ctx, target, facade.Get().ClusterName, keyring)
 	if err != nil {
 		return trace.Wrap(err)
 	}
