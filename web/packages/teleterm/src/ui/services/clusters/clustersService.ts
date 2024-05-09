@@ -750,17 +750,13 @@ export function makeKube(source: Kube) {
   };
 }
 
-export interface App extends TshdApp {
-  /**
-   * `addrWithProtocol` is an app protocol + a public address.
-   * If the public address is empty, it falls back to the endpoint URI.
-   *
-   * Always empty for SAML applications.
-   */
-  addrWithProtocol: string;
-}
-
-export function makeApp(source: TshdApp): App {
+/**
+ * Returns address with protocol which is an app protocol + a public address.
+ * If the public address is empty, it falls back to the endpoint URI.
+ *
+ * Always empty for SAML applications.
+ */
+export function getAppAddrWithProtocol(source: TshdApp): string {
   const { publicAddr, endpointUri } = source;
 
   const isTcp = endpointUri && endpointUri.startsWith('tcp://');
@@ -776,5 +772,5 @@ export function makeApp(source: TshdApp): App {
     }
   }
 
-  return { ...source, addrWithProtocol };
+  return addrWithProtocol;
 }
