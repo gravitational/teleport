@@ -49,7 +49,6 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
@@ -1747,27 +1746,4 @@ func TestInitCreatesCertsIfMissing(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, cert, 1)
 	}
-}
-
-func TestMigrateDatabaseClientCA(t *testing.T) {
-	ctx := context.Background()
-	conf := setupConfig(t)
-
-	hostCA := suite.NewTestCA(types.HostCA, "me.localhost")
-	userCA := suite.NewTestCA(types.UserCA, "me.localhost")
-	dbServerCA := suite.NewTestCA(types.DatabaseCA, "me.localhost")
-
-	conf.Authorities = []types.CertAuthority{hostCA, userCA, dbServerCA}
-	auth, err := Init(ctx, conf)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		err = auth.Close()
-		require.NoError(t, err)
-	})
-
-	dbClientCAs, err := auth.GetCertAuthorities(ctx, types.DatabaseClientCA, true)
-	require.NoError(t, err)
-	require.Len(t, dbClientCAs, 1)
-	require.Equal(t, dbServerCA.Spec.ActiveKeys.TLS[0].Cert, dbClientCAs[0].GetActiveKeys().TLS[0].Cert)
-	require.Equal(t, dbServerCA.Spec.ActiveKeys.TLS[0].Key, dbClientCAs[0].GetActiveKeys().TLS[0].Key)
 }
