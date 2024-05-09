@@ -22,6 +22,8 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"log/slog"
+	"slices"
 	"sync"
 	"time"
 
@@ -75,16 +77,28 @@ const (
 	// AzureADAuth gets a connection token from Azure and uses it as the
 	// password when connecting.
 	AzureADAuth AuthMode = "azure"
+	// GCPSQLIAMAuth fetches an access token and uses it as password when
+	// connecting to GCP SQL PostgreSQL.
+	GCPSQLIAMAuth AuthMode = "gcp-sql"
+	// GCPAlloyDBIAMAuth fetches an access token and uses it as password when
+	// connecting to GCP AlloyDB (PostgreSQL-compatible).
+	GCPAlloyDBIAMAuth AuthMode = "gcp-alloydb"
 )
+
+var supportedAuthModes = []AuthMode{
+	StaticAuth,
+	AzureADAuth,
+	GCPSQLIAMAuth,
+	GCPAlloyDBIAMAuth,
+}
 
 // Check returns an error if the AuthMode is invalid.
 func (a AuthMode) Check() error {
-	switch a {
-	case StaticAuth, AzureADAuth:
+	if slices.Contains(supportedAuthModes, a) {
 		return nil
-	default:
-		return trace.BadParameter("invalid authentication mode %q, should be %q or %q", a, StaticAuth, AzureADAuth)
 	}
+
+	return trace.BadParameter("invalid authentication mode %q, should be one of", a, supportedAuthModes)
 }
 
 // Config is the configuration struct for [Backend]; outside of tests or custom
@@ -173,9 +187,27 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 	}
 
 	log := logrus.WithField(teleport.ComponentKey, componentName)
+	logger := slog.Default().With(teleport.ComponentKey, componentName)
 
-	if cfg.AuthMode == AzureADAuth {
+	switch cfg.AuthMode {
+	case AzureADAuth:
 		bc, err := pgcommon.AzureBeforeConnect(log)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		poolConfig.BeforeConnect = bc
+		feedConfig.BeforeConnect = bc
+
+	case GCPSQLIAMAuth:
+		bc, err := pgcommon.GCPSQLBeforeConnect(ctx, logger)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		poolConfig.BeforeConnect = bc
+		feedConfig.BeforeConnect = bc
+
+	case GCPAlloyDBIAMAuth:
+		bc, err := pgcommon.GCPAlloyDBBeforeConnect(ctx, logger)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

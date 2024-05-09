@@ -21,7 +21,9 @@ package pgevents
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -75,21 +77,34 @@ const (
 	// AzureADAuth gets a connection token from Azure and uses it as the
 	// password when connecting.
 	AzureADAuth AuthMode = "azure"
+	// GCPSQLIAMAuth fetches an access token and uses it as password when
+	// connecting to GCP SQL PostgreSQL.
+	GCPSQLIAMAuth AuthMode = "gcp-sql"
+	// GCPAlloyDBIAMAuth fetches an access token and uses it as password when
+	// connecting to GCP AlloyDB (PostgreSQL-compatible).
+	GCPAlloyDBIAMAuth AuthMode = "gcp-alloydb"
 )
+
+var supportedAuthModes = []AuthMode{
+	FixedAuth,
+	AzureADAuth,
+	GCPSQLIAMAuth,
+	GCPAlloyDBIAMAuth,
+}
 
 // Check returns an error if the AuthMode is invalid.
 func (a AuthMode) Check() error {
-	switch a {
-	case FixedAuth, AzureADAuth:
+	if slices.Contains(supportedAuthModes, a) {
 		return nil
-	default:
-		return trace.BadParameter("invalid authentication mode %q", a)
 	}
+
+	return trace.BadParameter("invalid authentication mode %q, should be one of", a, supportedAuthModes)
 }
 
 // Config is the configuration struct to pass to New.
 type Config struct {
 	Log        logrus.FieldLogger
+	Logger     *slog.Logger
 	PoolConfig *pgxpool.Config
 
 	AuthMode AuthMode
@@ -178,6 +193,9 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.Log == nil {
 		c.Log = logrus.WithField(teleport.ComponentKey, componentName)
 	}
+	if c.Logger == nil {
+		c.Logger = slog.Default().With(teleport.ComponentKey, componentName)
+	}
 
 	return nil
 }
@@ -189,8 +207,15 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if cfg.AuthMode == AzureADAuth {
+	switch cfg.AuthMode {
+	case AzureADAuth:
 		bc, err := pgcommon.AzureBeforeConnect(cfg.Log)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cfg.PoolConfig.BeforeConnect = bc
+	case GCPSQLIAMAuth:
+		bc, err := pgcommon.GCPSQLBeforeConnect(ctx, cfg.Logger)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
