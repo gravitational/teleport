@@ -84,7 +84,7 @@ linters-settings:
     - name: unused-parameter
       disabled: true
   sloglint:
-    context-only: true
+    context: all
     key-naming-case: snake
     static-msg: true
   testifylint:
