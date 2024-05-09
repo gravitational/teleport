@@ -120,28 +120,6 @@ func (w *Wrapper) Exec(env map[string]string, args ...string) error {
 	return trace.Wrap(child.Run(), "unable to execute tsh")
 }
 
-// GetTSHVersion queries the system tsh for its version.
-func GetTSHVersion(w *Wrapper) (*semver.Version, error) {
-	rawVersion, err := w.capture(w.path, "version", "-f", "json")
-	if err != nil {
-		return nil, trace.Wrap(err, "querying tsh version")
-	}
-
-	versionInfo := struct {
-		Version string `json:"version"`
-	}{}
-	if err := json.Unmarshal(rawVersion, &versionInfo); err != nil {
-		return nil, trace.Wrap(err, "error deserializing tsh version from string: %s", rawVersion)
-	}
-
-	sv, err := semver.NewVersion(versionInfo.Version)
-	if err != nil {
-		return nil, trace.Wrap(err, "error parsing tsh version: %s", versionInfo.Version)
-	}
-
-	return sv, nil
-}
-
 // GetDestinationDirectory attempts to select an unambiguous destination, either from
 // CLI or YAML config. It returns an error if the selected destination is
 // invalid.
