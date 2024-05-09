@@ -175,7 +175,7 @@ func (w *WebClientPack) OpenWebsocket(t *testing.T, endpoint string, params any)
 
 	q := u.Query()
 	q.Set("params", string(data))
-	q.Set(roundtrip.AccessTokenQueryParam, w.bearerToken)
+	q.Set(roundtrip.AuthBearer, w.bearerToken)
 	u.RawQuery = q.Encode()
 
 	dialer := websocket.Dialer{}
@@ -193,5 +193,15 @@ func (w *WebClientPack) OpenWebsocket(t *testing.T, endpoint string, params any)
 	header.Add("Cookie", cookie.String())
 
 	ws, resp, err := dialer.Dial(u.String(), header)
+
+	authReq, err := json.Marshal(struct {
+		Token string `json:"token"`
+	}{Token: w.bearerToken})
+	require.NoError(t, err)
+
+	if err := ws.WriteMessage(websocket.TextMessage, authReq); err != nil {
+		return nil, nil, err
+	}
+
 	return ws, resp, trace.Wrap(err)
 }

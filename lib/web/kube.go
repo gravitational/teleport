@@ -33,7 +33,10 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	oteltrace "go.opentelemetry.io/otel/trace"
+	v1authn "k8s.io/api/authentication/v1"
+	v1authz "k8s.io/api/authorization/v1"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
@@ -245,6 +248,25 @@ func (p *podHandler) handler(r *http.Request) error {
 	if err != nil {
 		return trace.Wrap(err, "failed creating Kubernetes client")
 	}
+
+	// DBGG
+	authNResp, err := kubeClient.AuthenticationV1().SelfSubjectReviews().Create(ctx, &v1authn.SelfSubjectReview{Status: v1authn.SelfSubjectReviewStatus{UserInfo: v1authn.UserInfo{}}}, metav1.CreateOptions{})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_ = authNResp
+
+	authZResp, err := kubeClient.AuthorizationV1().SelfSubjectRulesReviews().Create(ctx, &v1authz.SelfSubjectRulesReview{
+		TypeMeta:   metav1.TypeMeta{},
+		ObjectMeta: metav1.ObjectMeta{},
+		Spec:       v1authz.SelfSubjectRulesReviewSpec{Namespace: p.req.Namespace},
+		Status:     v1authz.SubjectRulesReviewStatus{},
+	}, metav1.CreateOptions{})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_ = authZResp
+	// DBGG
 
 	kubeReq := kubeClient.CoreV1().RESTClient().Post().Resource("pods").Name(p.req.Pod).
 		Namespace(p.req.Namespace).SubResource("exec")

@@ -36,6 +36,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
+	"github.com/google/uuid"
+	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -82,6 +85,7 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/web"
 )
 
 type KubeSuite struct {
@@ -186,10 +190,13 @@ func TestKube(t *testing.T) {
 	// be able to exec into a pod
 	t.Run("ExecWithNoAuth", suite.bind(testExecNoAuth))
 	t.Run("EphemeralContainers", suite.bind(testKubeEphemeralContainers))
+
+	t.Run("Exec in Web", suite.bind(testKubeExecWeb))
 }
 
 func testExec(t *testing.T, suite *KubeSuite, pinnedIP string, clientError string) {
 	tconf := suite.teleKubeConfig(Host)
+	tconf.Proxy.DisableWebInterface = false
 
 	teleport := helpers.NewInstance(t, helpers.InstanceConfig{
 		ClusterName: helpers.Site,
@@ -1611,6 +1618,139 @@ func getContainerStatusByName(pod *v1.Pod, containerName string) *v1.ContainerSt
 		}
 	}
 	return nil
+}
+
+func testKubeExecWeb(t *testing.T, suite *KubeSuite) {
+	clusterName := "cluster"
+	kubeClusterName := "cluster"
+	clusterConf := suite.teleKubeConfig(Host)
+
+	clusterConf.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+	clusterConf.Auth.Preference.SetSecondFactor("off")
+
+	cluster := helpers.NewInstance(t, helpers.InstanceConfig{
+		ClusterName: clusterName,
+		HostID:      helpers.HostID,
+		NodeName:    Host,
+		Priv:        suite.priv,
+		Pub:         suite.pub,
+		Log:         suite.log,
+	})
+
+	// main cluster has a role and user called main-kube
+	username := suite.me.Username
+	testUser := username
+	kubeGroups := []string{kube.TestImpersonationGroup}
+	kubeUsers := []string{username}
+	role, err := types.NewRole("kubemaster", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins:     []string{username},
+			KubeGroups: kubeGroups,
+			KubeUsers:  kubeUsers,
+			KubernetesLabels: types.Labels{
+				types.Wildcard: {types.Wildcard},
+			},
+			KubernetesResources: []types.KubernetesResource{
+				{
+					Kind: types.Wildcard, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	cluster.AddUserWithRole(username, role)
+
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
+	err = cluster.CreateEx(t, nil, clusterConf)
+	require.NoError(t, err)
+
+	err = cluster.Start()
+	require.NoError(t, err)
+	defer cluster.StopAll()
+
+	proxyAddr, err := cluster.Process.ProxyWebAddr()
+	require.NoError(t, err)
+
+	auth := cluster.Process.GetAuthServer()
+
+	userPassword := uuid.NewString()
+	require.NoError(t, auth.UpsertPassword(testUser, []byte(userPassword)))
+
+	_, proxyClientConfig, err := kube.ProxyClient(kube.ProxyConfig{
+		T:             cluster,
+		Username:      username,
+		KubeUsers:     kubeUsers,
+		KubeGroups:    kubeGroups,
+		KubeCluster:   kubeClusterName,
+		Impersonation: &rest.ImpersonationConfig{UserName: username, Groups: []string{kube.TestImpersonationGroup}},
+	})
+	require.NoError(t, err)
+
+	out := &bytes.Buffer{}
+	command := kubeExecArgs{
+		podName:      testPod,
+		podNamespace: testNamespace,
+		command:      []string{"ls"},
+		stdout:       out,
+	}
+
+	err = kubeExec(proxyClientConfig, execInContainer, command)
+	require.NoError(t, err)
+
+	// Login and execute the command
+	webPack := helpers.LoginWebClient(t, proxyAddr.String(), testUser, userPassword)
+	endpoint, err := url.JoinPath("sites", "$site", "kube", kubeClusterName, "connect/ws") // :site/kube/:clusterName/connect/ws
+	require.NoError(t, err)
+
+	req := web.PodExecRequest{
+		KubeCluster: kubeClusterName,
+		Namespace:   testNamespace,
+		Pod:         testPod,
+		Command:     "ls",
+		Term:        session.TerminalParams{W: 80, H: 24},
+	}
+
+	ws, resp, err := webPack.OpenWebsocket(t, endpoint, req)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	_, data, err := ws.ReadMessage()
+	require.NoError(t, err)
+	require.Equal(t, `{"type":"create_session_response","status":"ok"}`+"\n", string(data))
+
+	execSocket := executionWebsocketReader{ws}
+
+	// First message: session metadata
+	envelope, err := execSocket.Read()
+	require.NoError(t, err)
+	var sessionMetadata sessionMetadataResponse
+	require.NoError(t, json.Unmarshal([]byte(envelope.Payload), &sessionMetadata))
+
+	envelope, err = execSocket.Read()
+	require.NoError(t, err)
+	require.NotContains(t, envelope.Payload, "is forbidden")
+}
+
+// Small helper that wraps a websocket and unmarshalls messages as Teleport
+// websocket ones.
+type executionWebsocketReader struct {
+	*websocket.Conn
+}
+
+func (r executionWebsocketReader) Read() (web.Envelope, error) {
+	_, data, err := r.ReadMessage()
+	if err != nil {
+		return web.Envelope{}, trace.Wrap(err)
+	}
+	var envelope web.Envelope
+	return envelope, trace.Wrap(proto.Unmarshal(data, &envelope))
+}
+
+// This is used for unmarshalling
+type sessionMetadataResponse struct {
+	Session session.Session `json:"session"`
 }
 
 // teleKubeConfig sets up teleport with kubernetes turned on
