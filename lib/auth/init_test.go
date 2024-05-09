@@ -319,11 +319,11 @@ func TestAuthPreference(t *testing.T) {
 }
 
 func TestAuthPreferenceSecondFactorOnly(t *testing.T) {
-	t.Parallel()
+	modules.SetInsecureTestMode(false)
+	defer modules.SetInsecureTestMode(true)
 	ctx := context.Background()
 
 	t.Run("starting with second_factor disabled fails", func(t *testing.T) {
-		t.Parallel()
 		conf := setupConfig(t)
 		authPref, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
 			SecondFactor: constants.SecondFactorOff,
@@ -336,7 +336,6 @@ func TestAuthPreferenceSecondFactorOnly(t *testing.T) {
 	})
 
 	t.Run("starting with defaults and dynamically updating to disable second factor fails", func(t *testing.T) {
-		t.Parallel()
 		conf := setupConfig(t)
 		s, err := Init(ctx, conf)
 		require.NoError(t, err)
