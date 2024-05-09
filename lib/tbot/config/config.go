@@ -190,8 +190,8 @@ type CLIConf struct {
 	// forwarding them to the Auth service.
 	TraceExporter string
 
-	// UserHost is the target connection string of tbot proxy ssh in the form of user@host.
-	UserHost string
+	// UserHostPort is the target connection string of tbot proxy ssh in the form of user@host:port.
+	UserHostPort string
 }
 
 // AzureOnboardingConfig holds configuration relevant to the "azure" join method.

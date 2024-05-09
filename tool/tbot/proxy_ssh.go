@@ -93,10 +93,9 @@ func onProxySSHCommand(botConfig *config.BotConfig, cf *config.CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	host := cf.UserHost
-	userHost := strings.Split(cf.UserHost, "@")
-	if len(userHost) > 1 {
-		host = userHost[len(userHost)-1]
+	_, hostPort, ok := strings.Cut(cf.UserHostPort, "@")
+	if !ok {
+		hostPort = cf.UserHostPort
 	}
 
 	proxy, _, err := net.SplitHostPort(cf.ProxyServer)
@@ -104,7 +103,7 @@ func onProxySSHCommand(botConfig *config.BotConfig, cf *config.CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	expanded, matched := tshCFG.ProxyTemplates.Apply(host)
+	expanded, matched := tshCFG.ProxyTemplates.Apply(hostPort)
 	if matched {
 		log.DebugContext(ctx, "proxy templated matched", "expanded", expanded)
 		if expanded.Cluster != "" {
@@ -140,7 +139,13 @@ func onProxySSHCommand(botConfig *config.BotConfig, cf *config.CLIConf) error {
 	var target string
 	switch {
 	case expanded == nil:
-		target = net.JoinHostPort(host, "0")
+		targetHost, targetPort, err := net.SplitHostPort(hostPort)
+		if err != nil {
+			targetHost = hostPort
+			targetPort = "0"
+		}
+		targetHost = cleanTargetHost(targetHost, cf.ProxyServer, cluster)
+		target = net.JoinHostPort(targetHost, targetPort)
 	case expanded.Host != "":
 		targetHost, targetPort, err := net.SplitHostPort(expanded.Host)
 		if err != nil {
