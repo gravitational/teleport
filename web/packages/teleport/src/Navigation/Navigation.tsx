@@ -140,7 +140,7 @@ function AGPLFooter() {
           This is an independently compiled AGPL-3.0 version of Teleport. You
           can find the official release{' '}
           <Text as="a" href="https://goteleport.com/download" target="_blank">
-            here
+            here.
           </Text>
         </>
       }
