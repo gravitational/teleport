@@ -20,11 +20,13 @@ package aws_sync
 
 import (
 	"context"
+	"encoding/xml"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
 	"github.com/gravitational/trace"
+	samltypes "github.com/russellhaering/gosaml2/types"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 )
@@ -70,13 +72,14 @@ func (a *awsFetcher) fetchAWSSAMLProvider(ctx context.Context, client iamiface.I
 		SAMLProviderArn: aws.String(arn),
 	})
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
-	return awsSAMLProviderOutputToProto(arn, a.AccountID, providerResp), nil
+	out, err := awsSAMLProviderOutputToProto(arn, a.AccountID, providerResp)
+	return out, trace.Wrap(err)
 }
 
 // awsSAMLProviderToSAML converts an iam.SAMLProvider to accessgraphv1alpha.SAMLProviderV1 representation.
-func awsSAMLProviderOutputToProto(arn string, accountID string, provider *iam.GetSAMLProviderOutput) *accessgraphv1alpha.AWSSAMLProviderV1 {
+func awsSAMLProviderOutputToProto(arn string, accountID string, provider *iam.GetSAMLProviderOutput) (*accessgraphv1alpha.AWSSAMLProviderV1, error) {
 	var tags []*accessgraphv1alpha.AWSTag
 	for _, v := range provider.Tags {
 		tags = append(tags, &accessgraphv1alpha.AWSTag{
@@ -85,12 +88,26 @@ func awsSAMLProviderOutputToProto(arn string, accountID string, provider *iam.Ge
 		})
 	}
 
-	return &accessgraphv1alpha.AWSSAMLProviderV1{
-		Arn:                  arn,
-		CreatedAt:            awsTimeToProtoTime(provider.CreateDate),
-		ValidUntil:           awsTimeToProtoTime(provider.ValidUntil),
-		SamlMetadataDocument: aws.StringValue(provider.SAMLMetadataDocument),
-		Tags:                 tags,
-		AccountId:            accountID,
+	var metadata samltypes.EntityDescriptor
+	if err := xml.Unmarshal([]byte(aws.StringValue(provider.SAMLMetadataDocument)), &metadata); err != nil {
+		return nil, trace.Wrap(err, "failed to parse SAML metadata for %s", arn)
 	}
+
+	var ssoURLs []string
+	if metadata.IDPSSODescriptor == nil {
+		return nil, trace.BadParameter("metadata for %v did not contain IdP descriptor", arn)
+	}
+	for _, ssoService := range metadata.IDPSSODescriptor.SingleSignOnServices {
+		ssoURLs = append(ssoURLs, ssoService.Location)
+	}
+
+	return &accessgraphv1alpha.AWSSAMLProviderV1{
+		Arn:        arn,
+		CreatedAt:  awsTimeToProtoTime(provider.CreateDate),
+		ValidUntil: awsTimeToProtoTime(provider.ValidUntil),
+		Tags:       tags,
+		AccountId:  accountID,
+		EntityId:   metadata.EntityID,
+		SsoUrls:    ssoURLs,
+	}, nil
 }

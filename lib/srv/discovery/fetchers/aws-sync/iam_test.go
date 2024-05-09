@@ -74,21 +74,23 @@ func TestAWSIAMPollSAMLProviders(t *testing.T) {
 	}
 	expected := []*accessgraphv1alpha.AWSSAMLProviderV1{
 		{
-			Arn:                  "arn:aws:iam::1234678:saml-provider/provider1",
-			CreatedAt:            timestamppb.New(timestamp1),
-			ValidUntil:           timestamppb.New(timestamp2),
-			SamlMetadataDocument: "<foo></foo>",
+			Arn:        "arn:aws:iam::1234678:saml-provider/provider1",
+			CreatedAt:  timestamppb.New(timestamp1),
+			ValidUntil: timestamppb.New(timestamp2),
 			Tags: []*accessgraphv1alpha.AWSTag{
 				{Key: "key1", Value: &wrapperspb.StringValue{Value: "value1"}},
 				{Key: "key2", Value: &wrapperspb.StringValue{Value: "value2"}},
 			},
 			AccountId: accountID,
+			EntityId:  "provider1",
+			SsoUrls:   []string{"https://posturl.example.com", "https://redirecturl.example.com"},
 		},
 		{
-			Arn:                  "arn:aws:iam::1234678:saml-provider/provider2",
-			CreatedAt:            timestamppb.New(timestamp2),
-			SamlMetadataDocument: "<bar></bar>",
-			AccountId:            accountID,
+			Arn:       "arn:aws:iam::1234678:saml-provider/provider2",
+			CreatedAt: timestamppb.New(timestamp2),
+			AccountId: accountID,
+			EntityId:  "provider2",
+			SsoUrls:   []string{"https://posturl.teleport.local", "https://redirecturl.teleport.local"},
 		},
 	}
 	result := &Resources{}
@@ -105,17 +107,47 @@ func TestAWSIAMPollSAMLProviders(t *testing.T) {
 func samlProviders(timestamp1, timestamp2 time.Time) map[string]*iam.GetSAMLProviderOutput {
 	return map[string]*iam.GetSAMLProviderOutput{
 		"arn:aws:iam::1234678:saml-provider/provider1": {
-			CreateDate:           aws.Time(timestamp1),
-			SAMLMetadataDocument: aws.String("<foo></foo>"),
-			ValidUntil:           aws.Time(timestamp2),
+			CreateDate: aws.Time(timestamp1),
+			SAMLMetadataDocument: aws.String(`<?xml version="1.0" encoding="UTF-8"?>
+    <md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="provider1">
+      <md:IDPSSODescriptor WantAuthnRequestsSigned="false" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+        <md:KeyDescriptor use="signing">
+          <ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+            <ds:X509Data>
+              <ds:X509Certificate></ds:X509Certificate>
+            </ds:X509Data>
+          </ds:KeyInfo>
+        </md:KeyDescriptor>
+        <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
+        <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
+		<md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://posturl.example.com" />
+		<md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://redirecturl.example.com" />
+      </md:IDPSSODescriptor>
+    </md:EntityDescriptor>`),
+			ValidUntil: aws.Time(timestamp2),
 			Tags: []*iam.Tag{
 				{Key: aws.String("key1"), Value: aws.String("value1")},
 				{Key: aws.String("key2"), Value: aws.String("value2")},
 			},
 		},
 		"arn:aws:iam::1234678:saml-provider/provider2": {
-			CreateDate:           aws.Time(timestamp2),
-			SAMLMetadataDocument: aws.String("<bar></bar>"),
+			CreateDate: aws.Time(timestamp2),
+			SAMLMetadataDocument: aws.String(`<?xml version="1.0" encoding="UTF-8"?>
+    <md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="provider2">
+      <md:IDPSSODescriptor WantAuthnRequestsSigned="false" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+        <md:KeyDescriptor use="signing">
+          <ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+            <ds:X509Data>
+              <ds:X509Certificate></ds:X509Certificate>
+            </ds:X509Data>
+          </ds:KeyInfo>
+        </md:KeyDescriptor>
+        <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
+        <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
+		<md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://posturl.teleport.local" />
+		<md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://redirecturl.teleport.local" />
+      </md:IDPSSODescriptor>
+    </md:EntityDescriptor>`),
 		},
 	}
 }
