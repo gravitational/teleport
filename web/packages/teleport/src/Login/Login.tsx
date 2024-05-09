@@ -125,19 +125,21 @@ function LicenseAcknowledgement({
           </Text>{' '}
           to evaluate and use Teleport.
         </InfoText>
-        <Flex mt={3} alignItems="center" gap={2}>
+        <Flex mt={3} alignItems="center">
           <StyledCheckbox
             checked={checked}
             onChange={e => {
               setChecked(e.target.checked);
             }}
           />
-          By clicking continue, you agree to our{' '}
+          <Text ml={2}>By clicking continue, you agree to our </Text>
           <Text
+            ml={1}
             as="a"
             href="https://github.com/gravitational/teleport/blob/master/LICENSE-community"
             target="_blank"
           >
+            {' '}
             Terms and Conditions
           </Text>
         </Flex>
