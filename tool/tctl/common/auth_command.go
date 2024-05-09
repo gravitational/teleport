@@ -1219,8 +1219,3 @@ func (a *AuthCommand) helperMsgDst() io.Writer {
 	}
 	return os.Stdout
 }
-
-type caGetter interface {
-	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
-	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
-}

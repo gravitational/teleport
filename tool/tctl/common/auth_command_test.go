@@ -397,8 +397,6 @@ type mockClient struct {
 	appSession     types.WebSession
 	networkConfig  types.ClusterNetworkingConfig
 	crl            []byte
-
-	unsupportedCATypes []types.CertAuthType
 }
 
 func (c *mockClient) GetClusterName(...services.MarshalOption) (types.ClusterName, error) {
@@ -424,11 +422,6 @@ func (c *mockClient) GenerateUserCerts(ctx context.Context, userCertsReq proto.U
 }
 
 func (c *mockClient) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool) (types.CertAuthority, error) {
-	for _, unsupported := range c.unsupportedCATypes {
-		if unsupported == id.Type {
-			return nil, trace.BadParameter("%q authority type is not supported", unsupported)
-		}
-	}
 	for _, v := range c.cas {
 		if v.GetType() == id.Type && v.GetClusterName() == id.DomainName {
 			return v, nil
@@ -438,11 +431,6 @@ func (c *mockClient) GetCertAuthority(ctx context.Context, id types.CertAuthID, 
 }
 
 func (c *mockClient) GetCertAuthorities(_ context.Context, caType types.CertAuthType, _ bool) ([]types.CertAuthority, error) {
-	for _, unsupported := range c.unsupportedCATypes {
-		if unsupported == caType {
-			return nil, trace.BadParameter("%q authority type is not supported", unsupported)
-		}
-	}
 	return c.cas, nil
 }
 
@@ -1046,21 +1034,6 @@ func TestGenerateAndSignKeys(t *testing.T) {
 					CACerts: [][]byte{caBytes},
 				},
 				cas: allCAs,
-			},
-		},
-		{
-			name:      "snowflake format db client ca not supported upstream",
-			inFormat:  identityfile.FormatSnowflake,
-			inOutDir:  t.TempDir(),
-			inOutFile: "ca",
-			authClient: &mockClient{
-				clusterName: clusterName,
-				dbCerts: &proto.DatabaseCertResponse{
-					Cert:    certBytes,
-					CACerts: [][]byte{caBytes},
-				},
-				cas:                []types.CertAuthority{dbCARoot, dbCALeaf},
-				unsupportedCATypes: []types.CertAuthType{types.DatabaseClientCA},
 			},
 		},
 		{
