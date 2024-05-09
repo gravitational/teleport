@@ -34,13 +34,9 @@ import (
 	"github.com/gravitational/teleport/api/profile"
 )
 
-// .tsh config must go in a subdir as all .yaml files in .tsh get
-// parsed automatically by the profile loader and results in yaml
-// unmarshal errors.
-const tshConfigPath = "config/config.yaml"
-
-// default location of global tsh config file.
-const globalTshConfigPathDefault = "/etc/tsh.yaml"
+// TSHConfigPath is the path within the .tsh directory to
+// the tsh config file.
+const TSHConfigPath = "config/config.yaml"
 
 // TSHConfig represents configuration loaded from the tsh config file.
 type TSHConfig struct {
@@ -239,6 +235,9 @@ func loadConfig(fullConfigPath string) (*TSHConfig, error) {
 
 // LoadAllConfigs loads all tsh configs and merges them in appropriate order.
 func LoadAllConfigs(globalTshConfigPath, homePath string) (*TSHConfig, error) {
+	// default location of global tsh config file.
+	const globalTshConfigPathDefault = "/etc/tsh.yaml"
+
 	var globalConf *TSHConfig
 	switch {
 	// prefer using explicitly provided config paths
@@ -261,7 +260,7 @@ func LoadAllConfigs(globalTshConfigPath, homePath string) (*TSHConfig, error) {
 		globalConf = cfg
 	}
 
-	fullConfigPath := filepath.Join(profile.FullProfilePath(homePath), tshConfigPath)
+	fullConfigPath := filepath.Join(profile.FullProfilePath(homePath), TSHConfigPath)
 	userConf, err := loadConfig(fullConfigPath)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to load tsh config from %q", fullConfigPath)

@@ -26,7 +26,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"unicode/utf8"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
@@ -171,7 +170,7 @@ func onProxySSHCommand(botConfig *config.BotConfig, cf *config.CLIConf) error {
 
 		nodes, err := client.GetAllResources[types.Server](ctx, apiClient, &proto.ListResourcesRequest{
 			ResourceType:        types.KindNode,
-			SearchKeywords:      ParseSearchKeywords(expanded.Search, ','),
+			SearchKeywords:      libclient.ParseSearchKeywords(expanded.Search, ','),
 			PredicateExpression: expanded.Query,
 		})
 		_ = apiClient.Close()
@@ -210,40 +209,6 @@ func onProxySSHCommand(botConfig *config.BotConfig, cf *config.CLIConf) error {
 	}
 
 	return trace.Wrap(err)
-}
-
-func ParseSearchKeywords(spec string, customDelimiter rune) []string {
-	delimiter := customDelimiter
-	if delimiter == 0 {
-		delimiter = rune(',')
-	}
-
-	var tokens []string
-	openQuotes := false
-	var tokenStart int
-	specLen := len(spec)
-	// tokenize the label search:
-	for i, ch := range spec {
-		endOfToken := false
-		if i+utf8.RuneLen(ch) == specLen {
-			i += utf8.RuneLen(ch)
-			endOfToken = true
-		}
-		switch ch {
-		case '"':
-			openQuotes = !openQuotes
-		case delimiter:
-			if !openQuotes {
-				endOfToken = true
-			}
-		}
-		if endOfToken && i > tokenStart {
-			tokens = append(tokens, strings.TrimSpace(strings.Trim(spec[tokenStart:i], `"`)))
-			tokenStart = i + 1
-		}
-	}
-
-	return tokens
 }
 
 func cleanTargetHost(targetHost, proxyHost, siteName string) string {
