@@ -435,7 +435,6 @@ func newTestAuthServer(ctx context.Context, t *testing.T, name ...string) *Serve
 				RSAKeyPairSource: authority.New().GenerateKeyPair,
 			},
 		},
-		RecoveryCodeGenerator: FakeRecoverCodeGenerator{},
 	}
 	a, err := NewServer(authConfig)
 	require.NoError(t, err)

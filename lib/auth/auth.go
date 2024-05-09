@@ -377,11 +377,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 	}
 
-	if cfg.RecoveryCodeGenerator == nil {
-		// TODO(tross): make this a required field once e is updated to populate it
-		cfg.RecoveryCodeGenerator = FakeRecoverCodeGenerator{}
-	}
-
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	services := &Services{
 		TrustInternal:             cfg.Trust,
@@ -445,7 +440,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		embeddingsRetriever:     cfg.EmbeddingRetriever,
 		embedder:                cfg.EmbeddingClient,
 		accessMonitoringEnabled: cfg.AccessMonitoringEnabled,
-		recoveryCodeGenerator:   cfg.RecoveryCodeGenerator,
 	}
 	as.inventory = inventory.NewController(&as, services, inventory.WithAuthServerID(cfg.HostUUID))
 	for _, o := range opts {
@@ -949,13 +943,6 @@ type Server struct {
 	// directly by [Server].
 	// Used for testing.
 	bcryptCostOverride *int
-
-	// recoveryCodeGenerator creates codes provided during account recovery.
-	recoveryCodeGenerator RecoveryCodeGenerator
-}
-
-type RecoveryCodeGenerator interface {
-	Generate(numWords int) ([]string, error)
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML

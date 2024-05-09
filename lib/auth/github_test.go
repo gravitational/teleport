@@ -86,7 +86,6 @@ func setupGithubContext(ctx context.Context, t *testing.T) *githubContext {
 				RSAKeyPairSource: authority.New().GenerateKeyPair,
 			},
 		},
-		RecoveryCodeGenerator: FakeRecoverCodeGenerator{},
 	}
 	tt.a, err = NewServer(authConfig)
 	require.NoError(t, err)
