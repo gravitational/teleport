@@ -62,7 +62,7 @@ func main() {
 
 const appHelp = `Teleport Machine ID
 
-Machine ID issues and renews short-lived certificates so your machines can 
+Machine ID issues and renews short-lived certificates so your machines can
 access Teleport protected resources in the same way your engineers do!
 
 Find out more at https://goteleport.com/docs/machine-id/introduction/`
@@ -163,7 +163,7 @@ func Run(args []string, stdout io.Writer) error {
 	proxyCmd.Flag("cluster", "The cluster name. Extracted from the certificate if unset.").StringVar(&cf.Cluster)
 
 	proxySSHCmd := proxyCmd.Command("ssh", "")
-	proxySSHCmd.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
+	proxySSHCmd.Arg("[user@]host:port", "Remote host:port and the login to use").Required().StringVar(&cf.UserHostPort)
 
 	proxyKubeCmd := proxyCmd.Command("kube", "")
 	proxyKubeRemaining := config.RemainingArgs(proxyKubeCmd.Arg(
