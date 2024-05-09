@@ -482,7 +482,7 @@ func (a *Server) isAccountRecoveryAllowed(ctx context.Context) error {
 func generateRecoveryCodes() ([]string, error) {
 	tokenList := make([]string, 0, numOfRecoveryCodes)
 
-	for range numOfRecoveryCodes {
+	for i := 0; i < numOfRecoveryCodes; i++ {
 		wordIDs := make([]uint16, numWordsInRecoveryCode)
 		if err := binary.Read(rand.Reader, binary.NativeEndian, wordIDs); err != nil {
 			return nil, trace.Wrap(err)
