@@ -17,13 +17,11 @@ limitations under the License.
 package tshwrap
 
 import (
-	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
@@ -41,10 +39,6 @@ const (
 	// TSHVarName is the name of the environment variable that can override the
 	// tsh path that would otherwise be located on the $PATH.
 	TSHVarName = "TSH"
-
-	// TSHMinVersion is the minimum version of tsh that supports Machine ID
-	// proxies.
-	TSHMinVersion = "9.3.0"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -122,49 +116,6 @@ func (w *Wrapper) Exec(env map[string]string, args ...string) error {
 	child.Stderr = os.Stderr
 
 	return trace.Wrap(child.Run(), "unable to execute tsh")
-}
-
-// GetTSHVersion queries the system tsh for its version.
-func GetTSHVersion(w *Wrapper) (*semver.Version, error) {
-	rawVersion, err := w.capture(w.path, "version", "-f", "json")
-	if err != nil {
-		return nil, trace.Wrap(err, "querying tsh version")
-	}
-
-	versionInfo := struct {
-		Version string `json:"version"`
-	}{}
-	if err := json.Unmarshal(rawVersion, &versionInfo); err != nil {
-		return nil, trace.Wrap(err, "error deserializing tsh version from string: %s", rawVersion)
-	}
-
-	sv, err := semver.NewVersion(versionInfo.Version)
-	if err != nil {
-		return nil, trace.Wrap(err, "error parsing tsh version: %s", versionInfo.Version)
-	}
-
-	return sv, nil
-}
-
-// CheckTSHSupported checks if the current tsh supports Machine ID.
-func CheckTSHSupported(w *Wrapper) error {
-	version, err := GetTSHVersion(w)
-	if err != nil {
-		return trace.Wrap(err, "unable to determine tsh version")
-	}
-
-	minVersion := semver.New(TSHMinVersion)
-	if version.LessThan(*minVersion) {
-		return trace.BadParameter(
-			"installed tsh version %s does not support Machine ID proxies, "+
-				"please upgrade to at least %s",
-			version, minVersion,
-		)
-	}
-
-	log.Debugf("tsh version %s is supported", version)
-
-	return nil
 }
 
 // GetDestinationDirectory attempts to select an unambiguous destination, either from
