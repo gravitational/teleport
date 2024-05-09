@@ -134,7 +134,6 @@ require (
 	github.com/russellhaering/goxmldsig v1.3.0
 	github.com/schollz/progressbar/v3 v3.13.1
 	github.com/segmentio/parquet-go v0.0.0-20230622230624-510764ae9e80
-	github.com/sethvargo/go-diceware v0.3.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/snowflakedb/gosnowflake v1.6.19
 	github.com/spf13/cobra v1.7.0
