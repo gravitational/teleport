@@ -11,6 +11,9 @@ certificate authority managed by the Teleport Auth Service. You can either:
   Service.
 - Configure the Database Service to trust a custom CA.
 
+<Tabs>
+<TabItem label="Use the Teleport CA">
+
 To configure the database to trust the Teleport CA and issue a certificate for
 the database, follow these instructions on your workstation:
 
@@ -39,6 +42,9 @@ the database, follow these instructions on your workstation:
 
    The command creates 3 files: `server.cas`, `server.crt` and `server.key`.
 
+</TabItem>
+<TabItem label="Use a custom CA" >
+
 If the {{ dbname }} database already has a CA that it uses to sign certificates
 , you only need to export a Teleport CA certificate for the database to
 authenticate traffic from the Teleport Database Service. You do not need to
@@ -49,12 +55,17 @@ enable `Db` impersonation privileges.
    workstation:
 
    ```code
-   $ tctl auth export --type=db-client --auth-server=<Var name="example.teleport.sh:443" /> > server.cas
+   $ tctl auth export --type=db-client --auth-server=<Var name="example.teleport.sh:443" /> > db-client.cas
    ```
 
-   The command creates 1 file, `server.cas`.
+   The command creates 1 file, `db-client.cas`.
+
+1. Append the contents of `db-client.cas` to your database's existing CA cert
+   file, which this guide expects to be called `server.cas`.
 
 1. Generate `server.crt` and `server.key` by retrieving a TLS certificate and
    private key from your existing database CA, signed for your database server.
    You will use these files later in the guide.
 
+</TabItem>
+</Tabs>
