@@ -86,6 +86,9 @@ func Run(ctx context.Context, cancel context.CancelFunc, manager *Manager, admin
 		case adminCommandErr = <-adminCommandErrCh:
 			// The admin command exited before the context was canceled, cancel everything and exit.
 			cancel()
+			if adminCommandErr == nil {
+				allErrors <- trace.Errorf("admin subcommand exited prematurely with no error (likely because socket was removed)")
+			}
 		case <-ctx.Done():
 			// The context has been canceled, the admin command should now exit.
 			adminCommandErr = <-adminCommandErrCh

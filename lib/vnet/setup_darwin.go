@@ -61,22 +61,36 @@ func createAndSetupTUNDeviceWithoutRoot(ctx context.Context, ipv6Prefix, dnsAddr
 		errCh <- trace.Wrap(err, "creating unix socket")
 		return tunCh, errCh
 	}
+	slog.DebugContext(ctx, "Created unix socket for admin subcommand", "socket", socketPath)
 
+	socketCtx, cancelSocketCtx := context.WithCancel(ctx)
 	// Make sure all goroutines complete before sending an err on the error chan, to be sure they all have a
 	// chance to clean up before the process terminates.
 	g, ctx := errgroup.WithContext(ctx)
 	g.Go(func() error {
 		// Requirements:
-		// - must close the socket concurrently with recvTUNNameAndFd if the context is canceled to unblock
+		// - must close the socket concurrently with recvTUNNameAndFd if ctx is canceled to unblock
 		//   a stuck AcceptUnix (can't defer).
 		// - must close the socket exactly once before letting the process terminate.
-		<-ctx.Done()
+		<-socketCtx.Done()
 		// When the socket gets closed, the admin process that's on the other end notices that and shuts
 		// down as well.
 		return trace.Wrap(socket.Close())
 	})
 	g.Go(func() error {
-		// Admin command is expected to run until ctx is canceled.
+		// If the admin subcommand exits before ctx gets canceled, make sure that the goroutine which
+		// closes the socket terminates so that g.Wait() gets unblocked. Without the admin subcommand,
+		// there's no one to consume the socket anyway.
+		//
+		// This can happen when the socket is removed while the unprivileged process is still running.
+		// The admin process sees that the socket was removed, so it quits because it assumes that the
+		// unprivileged process has exited too.
+		defer cancelSocketCtx()
+
+		// Once the user gets through the osascript password dialog, ctx has no control over the admin
+		// subcommand anyway – an unprivileged process cannot kill a privileged process. Nevertheless,
+		// ctx needs to be passed anyway so that the password dialog gets closed if the context gets
+		// canceled while the dialog is shown.
 		return trace.Wrap(execAdminSubcommand(ctx, socketPath, ipv6Prefix, dnsAddr))
 	})
 	g.Go(func() error {
