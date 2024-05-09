@@ -48,6 +48,7 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
@@ -158,6 +159,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindDatabaseObject:           rc.createDatabaseObject,
 		types.KindAccessMonitoringRule:     rc.createAccessMonitoringRule,
 		types.KindCrownJewel:               rc.createCrownJewel,
+		types.KindVnetConfig:               rc.createVnetConfig,
 	}
 	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
 		types.KindUser:                    rc.updateUser,
@@ -170,6 +172,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindSessionRecordingConfig:  rc.updateSessionRecordingConfig,
 		types.KindAccessMonitoringRule:    rc.updateAccessMonitoringRule,
 		types.KindCrownJewel:              rc.updateCrownJewel,
+		types.KindVnetConfig:              rc.updateVnetConfig,
 	}
 	rc.config = config
 
@@ -2778,6 +2781,12 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 		accessLists, err := client.AccessListClient().GetAccessLists(ctx)
 		return &accessListCollection{accessLists: accessLists}, trace.Wrap(err)
+	case types.KindVnetConfig:
+		vnetConfig, err := client.VnetConfigServiceClient().GetVnetConfig(ctx, &vnet.GetVnetConfigRequest{})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &vnetConfigCollection{vnetConfig: vnetConfig}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }
@@ -3034,5 +3043,36 @@ func (rc *ResourceCommand) updateAccessMonitoringRule(ctx context.Context, clien
 		return trace.Wrap(err)
 	}
 	fmt.Printf("access monitoring rule %q has been updated\n", in.GetMetadata().GetName())
+	return nil
+}
+
+func (rc *ResourceCommand) createVnetConfig(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
+	vnetConfig, err := services.UnmarshalProtoResource[*vnet.VnetConfig](raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if rc.IsForced() {
+		_, err = client.VnetConfigServiceClient().UpsertVnetConfig(ctx, &vnet.UpsertVnetConfigRequest{VnetConfig: vnetConfig})
+	} else {
+		_, err = client.VnetConfigServiceClient().CreateVnetConfig(ctx, &vnet.CreateVnetConfigRequest{VnetConfig: vnetConfig})
+	}
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Println("vnet_config has been created")
+	return nil
+}
+
+func (rc *ResourceCommand) updateVnetConfig(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
+	vnetConfig, err := services.UnmarshalProtoResource[*vnet.VnetConfig](raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := client.VnetConfigServiceClient().UpdateVnetConfig(ctx, &vnet.UpdateVnetConfigRequest{VnetConfig: vnetConfig}); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Println("vnet_config has been updated")
 	return nil
 }

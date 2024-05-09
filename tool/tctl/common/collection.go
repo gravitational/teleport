@@ -35,6 +35,7 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -1463,4 +1464,22 @@ func (c *accessListCollection) writeText(w io.Writer, verbose bool) error {
 	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
+}
+
+type vnetConfigCollection struct {
+	vnetConfig *vnet.VnetConfig
+}
+
+func (c *vnetConfigCollection) resources() []types.Resource {
+	return []types.Resource{types.Resource153ToLegacy(c.vnetConfig)}
+}
+
+func (c *vnetConfigCollection) writeText(w io.Writer, verbose bool) error {
+	var dnsZoneSuffixes []string
+	for _, dnsZone := range c.vnetConfig.Spec.CustomDnsZones {
+		dnsZoneSuffixes = append(dnsZoneSuffixes, dnsZone.Suffix)
+	}
+	fmt.Fprintln(w, "cidr_range:      ", c.vnetConfig.Spec.CidrRange)
+	fmt.Fprintln(w, "custom_dns_zones:", strings.Join(dnsZoneSuffixes, " "))
+	return nil
 }
