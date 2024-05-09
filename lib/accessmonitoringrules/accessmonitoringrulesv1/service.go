@@ -170,8 +170,8 @@ func (s *Service) ListAccessMonitoringRules(ctx context.Context, req *accessmoni
 	}, nil
 }
 
-// ListAccessMonitoringRuleWithFilter lists current access monitoring rules.
-func (s *Service) ListAccessMonitoringRuleWithFilter(ctx context.Context, req *accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest) (*accessmonitoringrulesv1.ListAccessMonitoringRulesResponse, error) {
+// ListAccessMonitoringRulesWithFilter lists current access monitoring rules.
+func (s *Service) ListAccessMonitoringRulesWithFilter(ctx context.Context, req *accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest) (*accessmonitoringrulesv1.ListAccessMonitoringRulesResponse, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)

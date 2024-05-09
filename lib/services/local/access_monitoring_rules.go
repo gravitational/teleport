@@ -50,7 +50,8 @@ func NewAccessMonitoringRulesService(backend backend.Backend) (*AccessMonitoring
 		return nil, trace.Wrap(err)
 	}
 	return &AccessMonitoringRulesService{
-		svc: service,
+		svc:     service,
+		backend: backend,
 	}, nil
 }
 
@@ -113,10 +114,10 @@ func (s *AccessMonitoringRulesService) DeleteAllAccessMonitoringRules(ctx contex
 	return trace.Wrap(s.svc.DeleteAllResources(ctx))
 }
 
+// ListAccessMonitoringRulesWithFilter returns a paginated list of access monitoring rules that match the given filter.
 func (s *AccessMonitoringRulesService) ListAccessMonitoringRulesWithFilter(ctx context.Context, pageSize int, pageToken string, subjects []string, notificationName string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error) {
 
 	var keyPrefix []string
-	var unmarshalItemFunc backendItemToResourceFunc
 
 	rangeStart := backend.Key(accessMonitoringRulesPrefix, pageToken)
 	rangeEnd := backend.RangeEnd(backend.ExactKey(keyPrefix...))
@@ -130,11 +131,10 @@ func (s *AccessMonitoringRulesService) ListAccessMonitoringRulesWithFilter(ctx c
 				break
 			}
 
-			resource, err := unmarshalItemFunc(item)
+			accessMonitoringRule, err := services.UnmarshalAccessMonitoringRule(item.Value)
 			if err != nil {
 				return false, trace.Wrap(err)
 			}
-			accessMonitoringRule := types.LegacyToResource153(resource).(*accessmonitoringrulesv1.AccessMonitoringRule)
 			if ok := match(accessMonitoringRule, subjects, notificationName); ok {
 				resources = append(resources, accessMonitoringRule)
 			}
