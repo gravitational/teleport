@@ -2,7 +2,7 @@
 # This file can be included in other Makefiles to avoid duplication.
 
 GOLANG_VERSION ?= go1.21.9
-GOLANGCI_LINT_VERSION ?= v1.57.2
+GOLANGCI_LINT_VERSION ?= v1.58.1
 
 NODE_VERSION ?= 20.11.1
 
