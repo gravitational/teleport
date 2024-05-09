@@ -151,7 +151,6 @@ require (
 	github.com/sashabaranov/go-openai v1.14.2
 	github.com/schollz/progressbar/v3 v3.13.1
 	github.com/segmentio/parquet-go v0.0.0-20230622230624-510764ae9e80
-	github.com/sethvargo/go-diceware v0.3.0
 	github.com/sijms/go-ora/v2 v2.7.9
 	github.com/sirupsen/logrus v1.9.3
 	github.com/snowflakedb/gosnowflake v1.7.1
