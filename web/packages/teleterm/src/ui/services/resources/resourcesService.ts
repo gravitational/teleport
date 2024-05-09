@@ -16,10 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { pluralize } from 'shared/utils/text';
-
-import { makeApp, App } from 'teleterm/ui/services/clusters';
-
 import {
   cloneAbortSignal,
   TshdRpcError,
@@ -33,6 +29,7 @@ import {
 } from 'teleterm/helpers';
 
 import Logger from 'teleterm/logger';
+import { getAppAddrWithProtocol } from 'teleterm/ui/services/clusters';
 
 import type { TshdClient } from 'teleterm/services/tshd';
 import type * as types from 'teleterm/services/tshd/types';
@@ -118,66 +115,42 @@ export class ResourcesService {
     search: string;
     filters: ResourceTypeFilter[];
     limit: number;
-  }): Promise<PromiseSettledResult<SearchResult[]>[]> {
-    const params = { search, clusterUri, sort: null, limit, startKey: '' };
-
-    const getServers = () =>
-      this.fetchServers(params).then(
-        res =>
-          res.agents.map(resource => ({
-            kind: 'server' as const,
-            resource,
-          })),
-        err =>
-          Promise.reject(new ResourceSearchError(clusterUri, 'server', err))
-      );
-    const getApps = () =>
-      this.fetchApps(params).then(
-        res =>
-          res.agents.map(resource => ({
-            kind: 'app' as const,
-            resource: makeApp(resource),
-          })),
-        err => Promise.reject(new ResourceSearchError(clusterUri, 'app', err))
-      );
-    const getDatabases = () =>
-      this.fetchDatabases(params).then(
-        res =>
-          res.agents.map(resource => ({
-            kind: 'database' as const,
-            resource,
-          })),
-        err =>
-          Promise.reject(new ResourceSearchError(clusterUri, 'database', err))
-      );
-    const getKubes = () =>
-      this.fetchKubes(params).then(
-        res =>
-          res.agents.map(resource => ({
-            kind: 'kube' as const,
-            resource,
-          })),
-        err => Promise.reject(new ResourceSearchError(clusterUri, 'kube', err))
-      );
-
-    const promises = filters?.length
-      ? [
-          filters.includes('node') && getServers(),
-          filters.includes('app') && getApps(),
-          filters.includes('db') && getDatabases(),
-          filters.includes('kube_cluster') && getKubes(),
-        ].filter(Boolean)
-      : [getServers(), getApps(), getDatabases(), getKubes()];
-
-    return Promise.allSettled(promises);
+  }): Promise<SearchResult[]> {
+    try {
+      const { resources } = await this.listUnifiedResources({
+        clusterUri,
+        kinds: filters,
+        limit,
+        search,
+        query: '',
+        searchAsRoles: false,
+        pinnedOnly: false,
+        startKey: '',
+        sortBy: { field: 'name', isDesc: true },
+      });
+      return resources.map(r => {
+        if (r.kind === 'app') {
+          return {
+            ...r,
+            resource: {
+              ...r.resource,
+              addrWithProtocol: getAppAddrWithProtocol(r.resource),
+            },
+          };
+        }
+        return r;
+      });
+    } catch (err) {
+      throw new ResourceSearchError(clusterUri, err);
+    }
   }
 
   async listUnifiedResources(
     params: types.ListUnifiedResourcesRequest,
-    abortSignal: AbortSignal
+    abortSignal?: AbortSignal
   ): Promise<{ nextKey: string; resources: UnifiedResourceResponse[] }> {
     const { response } = await this.tshClient.listUnifiedResources(params, {
-      abort: cloneAbortSignal(abortSignal),
+      abort: abortSignal && cloneAbortSignal(abortSignal),
     });
     return {
       nextKey: response.nextKey,

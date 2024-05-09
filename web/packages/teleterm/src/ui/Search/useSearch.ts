@@ -116,20 +116,16 @@ export function useResourceSearch() {
           )
         : connectedClusters;
 
-      // ResourcesService.searchResources uses Promise.allSettled so the returned promise will never
-      // get rejected.
-      const promiseResults = (
-        await Promise.all(
-          clustersToSearch.map(cluster =>
-            resourcesService.searchResources({
-              clusterUri: cluster.uri,
-              search,
-              filters: resourceTypeSearchFilters.map(f => f.resourceType),
-              limit,
-            })
-          )
+      const promiseResults = await Promise.allSettled(
+        clustersToSearch.map(cluster =>
+          resourcesService.searchResources({
+            clusterUri: cluster.uri,
+            search,
+            filters: resourceTypeSearchFilters.map(f => f.resourceType),
+            limit,
+          })
         )
-      ).flat();
+      );
 
       const results: resourcesServiceTypes.SearchResult[] = [];
       const errors: resourcesServiceTypes.ResourceSearchError[] = [];
