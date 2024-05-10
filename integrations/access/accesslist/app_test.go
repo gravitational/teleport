@@ -20,7 +20,6 @@ package accesslist
 
 import (
 	"context"
-	"github.com/gravitational/teleport/api/constants"
 	"sync"
 	"testing"
 	"time"
@@ -30,6 +29,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
