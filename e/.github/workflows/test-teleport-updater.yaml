@@ -5,7 +5,7 @@ on:
   pull_request:
     paths:
       - .github/workflows/build-teleport-updater.yaml
-      - .github/workflows/deploy-packages.yaml
+      - .github/workflows/test-teleport-updater.yaml
       - .github/actions/load-gpg-key/action.yaml
       - .github/actions/deploy-os-package/action.yaml
       - assets/systemd-unit-upgrader/**
@@ -59,8 +59,25 @@ jobs:
     env:
       VERSION_CHANNEL: cloud
     steps:
-      - name: Checkout repo
+      - name: Determine workflow references
+        id: refs
+        env:
+          PR_BASE_REF: ${{ github.base_ref }}
+          PR_HEAD_REF: ${{ github.head_ref }}
+        run: |
+          # Only use the PR ref for PRs that target master, because all other branches should
+          # use the version of the OPRT action that lives on master.
+          # This relies on `github.base_ref` only being defined for PR events.
+          if [[ "$PR_BASE_REF" == 'master' ]]; then
+            echo "workflow-ref=$PR_HEAD_REF" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "workflow-ref=refs/heads/master" >> "$GITHUB_OUTPUT"
+      - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.refs.outputs.workflow-ref }}
       - name: Deploy package to `stable/${{ env.VERSION_CHANNEL }}` ${{ matrix.repo-type }} repos
         uses: ./.github/actions/deploy-os-package
         with:
@@ -71,5 +88,5 @@ jobs:
           package-name-filter: "teleport-ent-updater*"
           package-to-test: teleport-ent-updater
           do-teleport-package-tests: true
-          workflow-git-reference: ${{ github.head_ref }}
+          workflow-git-reference: ${{ steps.refs.outputs.workflow-ref }}
     
