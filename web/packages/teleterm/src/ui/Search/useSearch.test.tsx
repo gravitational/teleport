@@ -190,7 +190,7 @@ describe('useResourceSearch', () => {
       clusterUri: cluster.uri,
       search: '',
       filters: [],
-      limit: 20,
+      limit: 10,
     });
     expect(appContext.resourcesService.searchResources).toHaveBeenCalledTimes(
       1
