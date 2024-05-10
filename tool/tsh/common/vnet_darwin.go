@@ -48,8 +48,8 @@ func (c *vnetCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	ctx, cancel := context.WithCancel(cf.Context)
-	defer cancel()
+	ctx, cancel := context.WithCancelCause(cf.Context)
+	defer cancel(nil)
 
 	manager, adminCommandErrCh, err := vnet.Setup(ctx, appProvider)
 	if err != nil {
