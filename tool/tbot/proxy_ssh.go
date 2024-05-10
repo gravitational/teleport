@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
+	"github.com/gravitational/teleport/lib/resumption"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/tshwrap"
@@ -228,6 +229,20 @@ func onProxySSHCommand(botConfig *config.BotConfig, cf *config.CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	if os.Getenv("TBOT_ENABLE_SSH_RESUMPTION") != "" {
+		conn, err = resumption.WrapSSHClientConn(ctx, conn, func(ctx context.Context, hostID string) (net.Conn, error) {
+			// if the connection is being resumed it means that we didn't need the
+			// agent in the first place
+			var noAgent agent.ExtendedAgent
+			conn, _, err := pclt.DialHost(ctx, hostID+":0", cluster, noAgent)
+			return conn, err
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	defer conn.Close()
 
 	stdio := utils.CombineReadWriteCloser(io.NopCloser(bufio.NewReader(os.Stdin)), utils.NopWriteCloser(os.Stdout))
