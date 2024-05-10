@@ -27,30 +27,28 @@ import (
 	"golang.zx2c4.com/wireguard/tun"
 )
 
-// Run is a blocking call to create and start Teleport VNet.
-func Run(ctx context.Context, appProvider AppProvider) error {
+// Setup spins up a separate process with the admin subcommand to create a TUN device. It returns
+// Manager that uses this TUN device, along with an error channel which receives an error if the
+// admin subcommand stops running. Setup should be used in conjunction with Run.
+func Setup(ctx context.Context, appProvider AppProvider) (*Manager, <-chan error, error) {
 	ipv6Prefix, err := NewIPv6Prefix()
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	dnsIPv6 := ipv6WithSuffix(ipv6Prefix, []byte{2})
-
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
 	tunCh, adminCommandErrCh := CreateAndSetupTUNDevice(ctx, ipv6Prefix.String(), dnsIPv6.String())
 
 	var tun TUNDevice
 	select {
 	case err := <-adminCommandErrCh:
-		return trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	case tun = <-tunCh:
 	}
 
 	appResolver, err := NewTCPAppResolver(appProvider)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	manager, err := NewManager(&Config{
@@ -60,9 +58,17 @@ func Run(ctx context.Context, appProvider AppProvider) error {
 		TCPHandlerResolver: appResolver,
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
+	return manager, adminCommandErrCh, nil
+}
+
+// Run is a blocking call that waits for either the admin subcommand or the VNet manager to exit and
+// makes sure the other one exits as well.
+//
+// It captures some peculiarities of running VNet that need to be handled both in tsh and Connect.
+func Run(ctx context.Context, cancel context.CancelFunc, manager *Manager, adminCommandErrCh <-chan error) error {
 	allErrors := make(chan error, 2)
 	g, ctx := errgroup.WithContext(ctx)
 	g.Go(func() error {
