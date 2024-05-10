@@ -145,6 +145,7 @@ export function NewMfaDeviceForm({
                 role="button"
                 aria-label="Back"
                 size="large"
+                mr={3}
                 onClick={() => {
                   clearSubmitAttempt();
                   prev();
