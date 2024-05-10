@@ -137,8 +137,19 @@ do shell script quoted form of executableName & `+
 			if strings.Contains(stderr, "-128") {
 				return trace.Errorf("password prompt closed by user")
 			}
-			return trace.Wrap(exitError, "admin subcommand exited, stderr: %s", stderr)
+
+			if errors.Is(ctx.Err(), context.Canceled) {
+				slog.DebugContext(ctx, "osascript exiting due to canceled context", "stderr", stderr)
+				return nil
+			}
+
+			stderrDesc := ""
+			if stderr != "" {
+				stderrDesc = fmt.Sprintf(", stderr: %s", stderr)
+			}
+			return trace.Wrap(exitError, "osascript exited%s", stderrDesc)
 		}
+
 		return trace.Wrap(err)
 	}
 	return nil

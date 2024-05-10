@@ -21,6 +21,7 @@ package common
 
 import (
 	"context"
+	"errors"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
@@ -52,10 +53,16 @@ func (c *vnetCommand) run(cf *CLIConf) error {
 
 	manager, adminCommandErrCh, err := vnet.Setup(ctx, appProvider)
 	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			return nil
+		}
 		return trace.Wrap(err)
 	}
 
 	err = vnet.Run(ctx, cancel, manager, adminCommandErrCh)
+	if errors.Is(err, context.Canceled) {
+		return nil
+	}
 	return trace.Wrap(err)
 }
 
