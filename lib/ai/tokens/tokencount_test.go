@@ -23,11 +23,8 @@ import (
 )
 
 const (
-	testCompletionStart       = "This is the beginning of the response."
-	testCompletionEnd         = "And this is the end."
-	testCompletionStartTokens = 8 // 1 token per word + 1 for the dot
-	testCompletionEndTokens   = 6 // 1 token per word + 1 for the dot
-	testCompletionTokens      = testCompletionStartTokens + testCompletionEndTokens
+	testCompletionStart = "This is the beginning of the response."
+	testCompletionEnd   = "And this is the end."
 )
 
 // This test checks that Add() properly appends content in the completion
@@ -41,23 +38,24 @@ func TestAsynchronousTokenCounter_TokenCount(t *testing.T) {
 		expectedTokens  int
 	}{
 		{
-			name: "empty count",
+			name:           "empty count",
+			expectedTokens: 3,
 		},
 		{
 			name:            "only completion start",
 			completionStart: testCompletionStart,
-			expectedTokens:  testCompletionStartTokens,
+			expectedTokens:  12,
 		},
 		{
 			name:           "only completion add",
 			completionEnd:  testCompletionEnd,
-			expectedTokens: testCompletionEndTokens,
+			expectedTokens: 8,
 		},
 		{
 			name:            "completion start and end",
 			completionStart: testCompletionStart,
 			completionEnd:   testCompletionEnd,
-			expectedTokens:  testCompletionTokens,
+			expectedTokens:  17,
 		},
 	}
 	for _, tt := range tests {
@@ -67,15 +65,15 @@ func TestAsynchronousTokenCounter_TokenCount(t *testing.T) {
 			// Test setup
 			tc, err := NewAsynchronousTokenCounter(tt.completionStart)
 			require.NoError(t, err)
-			tokens, _, err := defaultTokenizer.Encode(tt.completionEnd)
-			require.NoError(t, err)
-			for range tokens {
+			tokens := countTokens(tt.completionEnd)
+
+			for i := 0; i < tokens; i++ {
 				require.NoError(t, tc.Add())
 			}
 
 			// Doing the real test: asserting the count is right
 			count := tc.TokenCount()
-			require.Equal(t, tt.expectedTokens+perRequest, count)
+			require.Equal(t, tt.expectedTokens, count)
 		})
 	}
 }
@@ -88,7 +86,8 @@ func TestAsynchronousTokenCounter_Finished(t *testing.T) {
 	require.NoError(t, tc.Add())
 
 	// We read from the counter
-	tc.TokenCount()
+	count := tc.TokenCount()
+	require.Equal(t, 13, count)
 
 	// Adding new tokens should be impossible
 	require.Error(t, tc.Add())

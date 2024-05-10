@@ -295,7 +295,11 @@ func (h *Handler) executeCommand(
 		}
 	}
 
-	prompt, completion := tokens.CountTokens(tokenCount)
+	prompt, completion := 0, 0
+	if tokenCount != nil {
+		prompt = tokenCount.Prompt.CountAll()
+		completion = tokenCount.Completion.CountAll()
+	}
 
 	usageEventReq := &clientproto.SubmitUsageEventRequest{
 		Event: &usageeventsv1.UsageEventOneOf{
