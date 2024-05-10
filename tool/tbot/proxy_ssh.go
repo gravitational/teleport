@@ -51,9 +51,6 @@ func onProxySSHCommand(botConfig *config.BotConfig, cf *config.CLIConf) error {
 	}
 
 	identityPath := filepath.Join(destination.Path, config.IdentityFilePath)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 
 	ctx := context.Background()
 	key, err := identityfile.KeyFromIdentityFile(identityPath, cf.ProxyServer, cf.Cluster)
