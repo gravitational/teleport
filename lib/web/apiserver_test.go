@@ -9542,6 +9542,78 @@ func TestWebSocketAuthenticateRequest(t *testing.T) {
 	}
 }
 
+func TestGetKubeExecClusterData(t *testing.T) {
+	testCases := []struct {
+		name          string
+		listenerMode  types.ProxyListenerMode
+		proxyKubeAddr string
+		proxyWebAddr  string
+
+		expectedServerAddr string
+		expectedTLSName    string
+
+		errCheck require.ErrorAssertionFunc
+	}{
+		{
+			name:               "separate, regular addr",
+			listenerMode:       types.ProxyListenerMode_Separate,
+			proxyKubeAddr:      "kube.example.com:555",
+			expectedServerAddr: "https://kube.example.com:555",
+		},
+		{
+			name:               "separate, specified ip addr",
+			listenerMode:       types.ProxyListenerMode_Separate,
+			proxyKubeAddr:      "1.2.3.4:444",
+			expectedServerAddr: "https://1.2.3.4:444",
+		},
+		{
+			name:               "separate, unspecified ip addr",
+			listenerMode:       types.ProxyListenerMode_Separate,
+			proxyKubeAddr:      "0.0.0.0:444",
+			expectedServerAddr: "https://localhost:444",
+		},
+		{
+			name:               "multiplex, regular proxy web addr",
+			listenerMode:       types.ProxyListenerMode_Multiplex,
+			proxyWebAddr:       "web.example.com:777",
+			expectedServerAddr: "https://web.example.com:777",
+			expectedTLSName:    "kube-teleport-proxy-alpn.web.example.com",
+		},
+		{
+			name:               "multiplex, proxy web addr unspecified ip",
+			listenerMode:       types.ProxyListenerMode_Multiplex,
+			proxyWebAddr:       "0.0.0.0:888",
+			expectedServerAddr: "https://localhost:888",
+			expectedTLSName:    "kube-teleport-proxy-alpn.teleport.cluster.local",
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			h := Handler{}
+			if tt.proxyWebAddr != "" {
+				h.cfg.ProxyWebAddr = *utils.MustParseAddr(tt.proxyWebAddr)
+			}
+			if tt.proxyKubeAddr != "" {
+				h.cfg.ProxyKubeAddr = *utils.MustParseAddr(tt.proxyKubeAddr)
+			}
+
+			netConfig := types.ClusterNetworkingConfigV2{Spec: types.ClusterNetworkingConfigSpecV2{
+				ProxyListenerMode: tt.listenerMode,
+			}}
+
+			serverAddr, tlsServerName, err := h.getKubeExecClusterData(&netConfig)
+			if tt.errCheck != nil {
+				tt.errCheck(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.expectedServerAddr, serverAddr)
+			require.Equal(t, tt.expectedTLSName, tlsServerName)
+		})
+	}
+}
+
 // TestSimultaneousAuthenticateRequest ensures that multiple authenticated
 // requests do not race to create a SessionContext. This would happen when
 // Proxies were deployed behind a round-robin load balancer. Only the Proxy
