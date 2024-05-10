@@ -517,10 +517,12 @@ message AWSSAMLProviderV1 {
   repeated AWSTag tags = 4;
   // account_id is the ID of the AWS account that the provider belongs to.
   string account_id = 5;
-  // entity_id is the SAML entity ID for this provider
+  // entity_id is the SAML entity ID for this provider.
   string entity_id = 6;
-  // sso_urls is a list of single sign-on service URLs for this identity provider
+  // sso_urls is a list of single sign-on service URLs for this identity provider.
   repeated string sso_urls = 7;
+  // signing_certificates is a list of signing certificates for this identity provider.
+  repeated string signing_certificates = 8;
 }
 
 // AWSOIDCProviderV1 defines the OIDC identity provider details.

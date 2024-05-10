@@ -81,9 +81,10 @@ func TestAWSIAMPollSAMLProviders(t *testing.T) {
 				{Key: "key1", Value: &wrapperspb.StringValue{Value: "value1"}},
 				{Key: "key2", Value: &wrapperspb.StringValue{Value: "value2"}},
 			},
-			AccountId: accountID,
-			EntityId:  "provider1",
-			SsoUrls:   []string{"https://posturl.example.com", "https://redirecturl.example.com"},
+			AccountId:           accountID,
+			EntityId:            "provider1",
+			SsoUrls:             []string{"https://posturl.example.com", "https://redirecturl.example.com"},
+			SigningCertificates: []string{"cert1", "cert2"},
 		},
 		{
 			Arn:       "arn:aws:iam::1234678:saml-provider/provider2",
@@ -114,7 +115,21 @@ func samlProviders(timestamp1, timestamp2 time.Time) map[string]*iam.GetSAMLProv
         <md:KeyDescriptor use="signing">
           <ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
             <ds:X509Data>
-              <ds:X509Certificate></ds:X509Certificate>
+              <ds:X509Certificate>cert1</ds:X509Certificate>
+            </ds:X509Data>
+          </ds:KeyInfo>
+        </md:KeyDescriptor>
+        <md:KeyDescriptor use="signing">
+          <ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+            <ds:X509Data>
+              <ds:X509Certificate>cert2</ds:X509Certificate>
+            </ds:X509Data>
+          </ds:KeyInfo>
+        </md:KeyDescriptor>
+        <md:KeyDescriptor use="encryption">
+          <ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+            <ds:X509Data>
+              <ds:X509Certificate>irrelevant_cert</ds:X509Certificate>
             </ds:X509Data>
           </ds:KeyInfo>
         </md:KeyDescriptor>
@@ -135,13 +150,6 @@ func samlProviders(timestamp1, timestamp2 time.Time) map[string]*iam.GetSAMLProv
 			SAMLMetadataDocument: aws.String(`<?xml version="1.0" encoding="UTF-8"?>
     <md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="provider2">
       <md:IDPSSODescriptor WantAuthnRequestsSigned="false" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
-        <md:KeyDescriptor use="signing">
-          <ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
-            <ds:X509Data>
-              <ds:X509Certificate></ds:X509Certificate>
-            </ds:X509Data>
-          </ds:KeyInfo>
-        </md:KeyDescriptor>
         <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
         <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
 		<md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://posturl.teleport.local" />

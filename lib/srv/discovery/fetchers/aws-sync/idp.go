@@ -101,14 +101,26 @@ func awsSAMLProviderOutputToProto(arn string, accountID string, provider *iam.Ge
 		ssoURLs = append(ssoURLs, ssoService.Location)
 	}
 
+	const signingUse = "signing"
+	var signingCerts []string
+	for _, key := range metadata.IDPSSODescriptor.KeyDescriptors {
+		ki := key.KeyInfo
+		if key.Use == signingUse {
+			for _, cert := range ki.X509Data.X509Certificates {
+				signingCerts = append(signingCerts, cert.Data)
+			}
+		}
+	}
+
 	return &accessgraphv1alpha.AWSSAMLProviderV1{
-		Arn:        arn,
-		CreatedAt:  awsTimeToProtoTime(provider.CreateDate),
-		ValidUntil: awsTimeToProtoTime(provider.ValidUntil),
-		Tags:       tags,
-		AccountId:  accountID,
-		EntityId:   metadata.EntityID,
-		SsoUrls:    ssoURLs,
+		Arn:                 arn,
+		CreatedAt:           awsTimeToProtoTime(provider.CreateDate),
+		ValidUntil:          awsTimeToProtoTime(provider.ValidUntil),
+		Tags:                tags,
+		AccountId:           accountID,
+		EntityId:            metadata.EntityID,
+		SsoUrls:             ssoURLs,
+		SigningCertificates: signingCerts,
 	}, nil
 }
 
