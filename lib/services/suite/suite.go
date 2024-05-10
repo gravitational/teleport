@@ -1195,11 +1195,6 @@ func (s *ServicesTestSuite) AuthPreference(t *testing.T) {
 	_, err = s.ConfigS.UpdateAuthPreference(ctx, gotAP)
 	require.True(t, trace.IsCompareFailed(err))
 
-	created.SetSecondFactor(constants.SecondFactorOff)
-	updated, err := s.ConfigS.UpdateAuthPreference(ctx, created)
-	require.NoError(t, err)
-	require.Equal(t, constants.SecondFactorOff, updated.GetSecondFactor())
-
 	// Validate that upserting overwrites the value regardless of the revision.
 	upserted, err := s.ConfigS.UpsertAuthPreference(ctx, gotAP)
 	require.NoError(t, err)
