@@ -182,7 +182,10 @@ export const storageService = {
       return theme === 'light' ? Theme.LIGHT : Theme.DARK;
     }
 
-    return Theme.LIGHT;
+    const prefersDark =
+      window.matchMedia &&
+      window.matchMedia('(prefers-color-scheme: dark)').matches;
+    return prefersDark ? Theme.DARK : Theme.LIGHT;
   },
 
   getOnboardUserPreference(): OnboardUserPreferences {
