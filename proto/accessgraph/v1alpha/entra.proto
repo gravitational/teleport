@@ -1,0 +1,43 @@
+/*
+ * Teleport
+ * Copyright (C) 2024  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+syntax = "proto3";
+
+package accessgraph.v1alpha;
+
+option go_package = "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha;accessgraphv1alpha";
+
+// EntraSyncOperation is a request to sync Entra resources
+message EntraSyncOperation {}
+
+// EntraResourceList is a request that contains resources to be sync.
+message EntraResourceList {
+  // resources is a list of gitlab resources to sync.
+  repeated EntraResource resources = 1;
+}
+
+// EntraResource represents a Entra resource
+message EntraResource {
+  oneof resource {
+    // application represents an Entra ID enterprise application
+    EntraApplication application = 1;
+  }
+}
+
+// EntraApplication represents an Entra ID enterprise application together with its service principal.
+message EntraApplication {}
