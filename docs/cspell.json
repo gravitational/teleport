@@ -372,6 +372,7 @@
     "cond",
     "configmap",
     "configurator",
+    "connectionupgrade",
     "connectorname",
     "cqlsh",
     "createkey",

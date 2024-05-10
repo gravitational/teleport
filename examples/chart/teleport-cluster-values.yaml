@@ -1,0 +1,5 @@
+clusterName: sam-5-9-24.teleportdemo.com
+proxyListenerMode: multiplex
+acme: true
+acmeEmail: steven@gotelepor.tcom
+enterprise: true

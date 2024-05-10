@@ -30,6 +30,8 @@ func init() {
 }
 
 func main() {
+
+
 	common.Run(common.Options{
 		Args: os.Args[1:],
 	})
