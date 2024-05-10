@@ -22,14 +22,12 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 type Service struct {
@@ -59,11 +57,7 @@ func (s *Service) GetVnetConfig(ctx context.Context, _ *vnet.GetVnetConfigReques
 
 	vnetConfig, err := s.storage.GetVnetConfig(ctx)
 	if err != nil {
-		return nil, utils.OpaqueAccessDenied(err)
-	}
-
-	if err := checkAccessToResource(authCtx, vnetConfig, types.VerbRead); err != nil {
-		return nil, utils.OpaqueAccessDenied(err)
+		return nil, trace.Wrap(err)
 	}
 
 	return vnetConfig, nil
@@ -75,7 +69,7 @@ func (s *Service) CreateVnetConfig(ctx context.Context, req *vnet.CreateVnetConf
 		return nil, trace.Wrap(err)
 	}
 
-	if err := checkAccessToResource(authCtx, req.VnetConfig, types.VerbCreate); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindVnetConfig, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -93,20 +87,11 @@ func (s *Service) UpdateVnetConfig(ctx context.Context, req *vnet.UpdateVnetConf
 		return nil, trace.Wrap(err)
 	}
 
-	if err := checkAccessToResource(authCtx, req.VnetConfig, types.VerbUpdate); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindVnetConfig, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	if err := authCtx.AuthorizeAdminAction(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	oldVnetConfig, err := s.storage.GetVnetConfig(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := checkAccessToResource(authCtx, oldVnetConfig, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -121,7 +106,7 @@ func (s *Service) UpsertVnetConfig(ctx context.Context, req *vnet.UpsertVnetConf
 	}
 
 	// To upsert you must be allowed to Create and Update the new resource.
-	if err := checkAccessToResource(authCtx, req.VnetConfig, types.VerbCreate, types.VerbUpdate); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindVnetConfig, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -129,38 +114,8 @@ func (s *Service) UpsertVnetConfig(ctx context.Context, req *vnet.UpsertVnetConf
 		return nil, trace.Wrap(err)
 	}
 
-	// Try a few times to Create or Update the resource, in case we race with another Create or Update.
-	for i := 0; i < 5; i++ {
-		// To upsert you must be allowed to Update the existing resource, if there is one.
-		existingVnetConfig, err := s.storage.GetVnetConfig(ctx)
-		if err != nil && !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
-		}
-		if err == nil {
-			// There is an existing resource, make sure the user is allowed to Update it.
-			if err := checkAccessToResource(authCtx, existingVnetConfig, types.VerbUpdate); err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			// Make sure the resource revision doesn't change between the authz check and the write.
-			newVnetConfig := proto.Clone(req.VnetConfig).(*vnet.VnetConfig)
-			newVnetConfig.Metadata.Revision = existingVnetConfig.Metadata.Revision
-			vnetConfig, err := s.storage.UpdateVnetConfig(ctx, newVnetConfig)
-			if trace.IsCompareFailed(err) {
-				continue
-			}
-			return vnetConfig, trace.Wrap(err)
-		}
-
-		// There is no existing resource, just Create the new one.
-		vnetConfig, err := s.storage.CreateVnetConfig(ctx, req.VnetConfig)
-		if trace.IsAlreadyExists(err) {
-			continue
-		}
-		return vnetConfig, trace.Wrap(err)
-	}
-
-	return nil, trace.CompareFailed("failed to upsert vnet_config within 5 attempts")
+	vnetConfig, err := s.storage.UpsertVnetConfig(ctx, req.VnetConfig)
+	return vnetConfig, trace.Wrap(err)
 }
 
 func (s *Service) DeleteVnetConfig(ctx context.Context, _ *vnet.DeleteVnetConfigRequest) (*emptypb.Empty, error) {
@@ -177,25 +132,8 @@ func (s *Service) DeleteVnetConfig(ctx context.Context, _ *vnet.DeleteVnetConfig
 		return nil, trace.Wrap(err)
 	}
 
-	existingVnetConfig, err := s.storage.GetVnetConfig(ctx)
-	if err != nil {
-		if trace.IsNotFound(err) {
-			// Nothing to delete
-			return &emptypb.Empty{}, nil
-		}
-		return nil, trace.Wrap(err)
-	}
-
-	if err := checkAccessToResource(authCtx, existingVnetConfig, types.VerbDelete); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	if err := s.storage.DeleteVnetConfig(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &emptypb.Empty{}, nil
-}
-
-func checkAccessToResource(authCtx *authz.Context, vnetConfig *vnet.VnetConfig, verb string, additionalVerbs ...string) error {
-	return trace.Wrap(authCtx.CheckAccessToResource(types.Resource153ToLegacy(vnetConfig), verb, additionalVerbs...))
 }

@@ -84,6 +84,9 @@ func TestServiceAccess(t *testing.T) {
 			allowedStates: []authz.AdminActionAuthState{authz.AdminActionAuthNotRequired, authz.AdminActionAuthMFAVerified},
 			allowedVerbs:  []string{types.VerbDelete},
 			action: func(service *Service) error {
+				if _, err := service.storage.CreateVnetConfig(ctx, vnetConfig); err != nil {
+					return trace.Wrap(err, "creating vnet_config as pre-req for Delete test")
+				}
 				_, err := service.DeleteVnetConfig(ctx, &vnet.DeleteVnetConfigRequest{})
 				return trace.Wrap(err)
 			},
