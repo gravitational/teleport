@@ -137,15 +137,19 @@ function AGPLFooter() {
       subText="Unofficial Version"
       infoContent={
         <>
-          This is an independently compiled AGPL-3.0 version of Teleport. You
-          can find the official release{' '}
+          {/* This is an independently compiled AGPL-3.0 version of Teleport. You */}
+          {/* can find the official release on{' '} */}
+          This is an independently compiled AGPL-3.0 version of Teleport.
+          <br />
+          Visit{' '}
           <Text
             as="a"
             href="https://goteleport.com/download/?utm_source=oss&utm_medium=in-product&utm_campaign=limited-features"
             target="_blank"
           >
-            here.
-          </Text>
+            the Downloads page
+          </Text>{' '}
+          for the official release.
         </>
       }
     />
@@ -209,7 +213,7 @@ const SubText = styled(Text)`
 `;
 
 const TooltipContent = styled(Box)`
-  width: 360px;
+  width: max-content;
   position: absolute;
   bottom: 0;
   left: 24px;
