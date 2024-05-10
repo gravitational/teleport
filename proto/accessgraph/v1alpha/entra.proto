@@ -27,17 +27,24 @@ message EntraSyncOperation {}
 
 // EntraResourceList is a request that contains resources to be sync.
 message EntraResourceList {
-  // resources is a list of gitlab resources to sync.
+  // resources is a list of entra resources to sync.
   repeated EntraResource resources = 1;
 }
 
-// EntraResource represents a Entra resource
+// EntraResource represents a Entra resource.
 message EntraResource {
   oneof resource {
-    // application represents an Entra ID enterprise application
+    // application represents an Entra ID enterprise application.
     EntraApplication application = 1;
   }
 }
 
 // EntraApplication represents an Entra ID enterprise application together with its service principal.
-message EntraApplication {}
+message EntraApplication {
+  // id is the unique Entra object ID.
+  string id = 1;
+  // app_id is the application ID.
+  string app_id = 2;
+  // display_name is a human-friendly application name.
+  string display_name = 3;
+}
