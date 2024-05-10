@@ -29,7 +29,8 @@ import {
 } from 'teleterm/helpers';
 
 import Logger from 'teleterm/logger';
-import { getAppAddrWithProtocol } from 'teleterm/ui/services/clusters';
+
+import { getAppAddrWithProtocol } from 'teleterm/services/tshd/app';
 
 import type { TshdClient } from 'teleterm/services/tshd';
 import type * as types from 'teleterm/services/tshd/types';

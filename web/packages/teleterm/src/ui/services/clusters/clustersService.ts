@@ -30,7 +30,6 @@ import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 import { Kube } from 'gen-proto-ts/teleport/lib/teleterm/v1/kube_pb';
 import { Server } from 'gen-proto-ts/teleport/lib/teleterm/v1/server_pb';
 import { Database } from 'gen-proto-ts/teleport/lib/teleterm/v1/database_pb';
-import { App as TshdApp } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
 import {
   CreateAccessRequestRequest,
   GetRequestableRolesRequest,
@@ -748,29 +747,4 @@ export function makeKube(source: Kube) {
     name: source.name,
     labels: source.labels,
   };
-}
-
-/**
- * Returns address with protocol which is an app protocol + a public address.
- * If the public address is empty, it falls back to the endpoint URI.
- *
- * Always empty for SAML applications.
- */
-export function getAppAddrWithProtocol(source: TshdApp): string {
-  const { publicAddr, endpointUri } = source;
-
-  const isTcp = endpointUri && endpointUri.startsWith('tcp://');
-  const isCloud = endpointUri && endpointUri.startsWith('cloud://');
-  let addrWithProtocol = endpointUri;
-  if (publicAddr) {
-    if (isCloud) {
-      addrWithProtocol = `cloud://${publicAddr}`;
-    } else if (isTcp) {
-      addrWithProtocol = `tcp://${publicAddr}`;
-    } else {
-      addrWithProtocol = `https://${publicAddr}`;
-    }
-  }
-
-  return addrWithProtocol;
 }
