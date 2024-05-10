@@ -364,11 +364,7 @@ func runResumeV1Write(r *Conn, nc io.Writer, stopRequested *bool, localPosition,
 				}
 			}
 
-			// TODO(espadolini): check if we'll benefit from only acknowledging
-			// above a certain amount of bytes, both in terms of bandwidth
-			// (likely very minor) and in terms of reducing two-byte syscalls
-			// (we shouldn't do the same with data, however)
-			if frameAck > 0 || len(frameData) > 0 {
+			if frameAck >= 1024 || len(frameData) > 0 {
 				break
 			}
 
