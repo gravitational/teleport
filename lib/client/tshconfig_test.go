@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package common
+package client
 
 import (
 	"os"
@@ -26,16 +26,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
-
-	"github.com/gravitational/teleport/api/profile"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestLoadConfigNonExistingFile(t *testing.T) {
 	t.Parallel()
 
 	fullFilePath := "/tmp/doesntexist." + uuid.NewString()
-	gotConfig, gotErr := loadConfig(fullFilePath)
+	gotConfig, gotErr := LoadTSHConfig(fullFilePath)
 	require.NoError(t, gotErr)
 	require.Equal(t, &TSHConfig{}, gotConfig)
 }
@@ -49,7 +46,7 @@ func TestLoadConfigEmptyFile(t *testing.T) {
 	_, err = file.Write([]byte(" "))
 	require.NoError(t, err)
 
-	gotConfig, gotErr := loadConfig(file.Name())
+	gotConfig, gotErr := LoadTSHConfig(file.Name())
 	require.NoError(t, gotErr)
 	require.Equal(t, &TSHConfig{}, gotConfig)
 }
@@ -89,11 +86,7 @@ func TestLoadAllConfigs(t *testing.T) {
 	writeConf(globalPath, globalConf)
 	writeConf(userPath, userConf)
 
-	config, err := loadAllConfigs(CLIConf{
-		GlobalTshConfigPath: globalPath,
-		HomePath:            homeDir,
-	})
-
+	config, err := LoadAllConfigs(globalPath, homeDir)
 	require.NoError(t, err)
 	require.Equal(t, &TSHConfig{
 		ExtraHeaders: []ExtraProxyHeaders{
@@ -359,151 +352,6 @@ func TestProxyTemplatesApply(t *testing.T) {
 			require.Equal(t, test.outCluster, expanded.Cluster)
 			require.Equal(t, test.outSearch, expanded.Search)
 			require.Equal(t, test.outQuery, expanded.Query)
-		})
-	}
-}
-
-// TestProxyTemplates verifies proxy templates apply properly to client config.
-func TestProxyTemplatesMakeClient(t *testing.T) {
-	t.Parallel()
-
-	tshConfig := TSHConfig{
-		ProxyTemplates: ProxyTemplates{
-			{
-				Template: `^(.+)\.(us.example.com):(.+)$`,
-				Proxy:    "$2:443",
-				Cluster:  "$2",
-				Host:     "$1:4022",
-			},
-		},
-	}
-	require.NoError(t, tshConfig.Check())
-
-	newCLIConf := func(modify func(conf *CLIConf)) *CLIConf {
-		// minimal configuration (with defaults)
-		conf := &CLIConf{
-			Proxy:     "proxy:3080",
-			UserHost:  "localhost",
-			HomePath:  t.TempDir(),
-			TSHConfig: tshConfig,
-		}
-
-		// Create a empty profile so we don't ping proxy.
-		clientStore, err := initClientStore(conf, conf.Proxy)
-		require.NoError(t, err)
-		profile := &profile.Profile{
-			SSHProxyAddr: "proxy:3023",
-			WebProxyAddr: "proxy:3080",
-		}
-		err = clientStore.SaveProfile(profile, true)
-		require.NoError(t, err)
-
-		modify(conf)
-		return conf
-	}
-
-	for _, tt := range []struct {
-		name         string
-		InConf       *CLIConf
-		expectErr    bool
-		outHost      string
-		outPort      int
-		outCluster   string
-		outJumpHosts []utils.JumpHost
-	}{
-		{
-			name: "does not match template",
-			InConf: newCLIConf(func(conf *CLIConf) {
-				conf.UserHost = "node-1.cn.example.com:3022"
-			}),
-			outHost:    "node-1.cn.example.com:3022",
-			outCluster: "proxy",
-		},
-		{
-			name: "does not match template with -J {{proxy}}",
-			InConf: newCLIConf(func(conf *CLIConf) {
-				conf.UserHost = "node-1.cn.example.com:3022"
-				conf.ProxyJump = "{{proxy}}"
-			}),
-			expectErr: true,
-		},
-		{
-			name: "match with full host set",
-			InConf: newCLIConf(func(conf *CLIConf) {
-				conf.UserHost = "user@node-1.us.example.com:3022"
-			}),
-			outHost:    "node-1",
-			outPort:    4022,
-			outCluster: "us.example.com",
-			outJumpHosts: []utils.JumpHost{{
-				Addr: utils.NetAddr{
-					Addr:        "us.example.com:443",
-					AddrNetwork: "tcp",
-				},
-			}},
-		},
-		{
-			name: "match with host and port set",
-			InConf: newCLIConf(func(conf *CLIConf) {
-				conf.UserHost = "user@node-1.us.example.com"
-				conf.NodePort = 3022
-			}),
-			outHost:    "node-1",
-			outPort:    4022,
-			outCluster: "us.example.com",
-			outJumpHosts: []utils.JumpHost{{
-				Addr: utils.NetAddr{
-					Addr:        "us.example.com:443",
-					AddrNetwork: "tcp",
-				},
-			}},
-		},
-		{
-			name: "match with -J {{proxy}} set",
-			InConf: newCLIConf(func(conf *CLIConf) {
-				conf.UserHost = "node-1.us.example.com:3022"
-				conf.ProxyJump = "{{proxy}}"
-			}),
-			outHost:    "node-1",
-			outPort:    4022,
-			outCluster: "us.example.com",
-			outJumpHosts: []utils.JumpHost{{
-				Addr: utils.NetAddr{
-					Addr:        "us.example.com:443",
-					AddrNetwork: "tcp",
-				},
-			}},
-		},
-		{
-			name: "match does not overwrite user specified proxy jump",
-			InConf: newCLIConf(func(conf *CLIConf) {
-				conf.UserHost = "node-1.us.example.com:3022"
-				conf.SiteName = "specified.cluster"
-				conf.ProxyJump = "specified.proxy.com:443"
-			}),
-			outHost:    "node-1",
-			outPort:    4022,
-			outCluster: "us.example.com",
-			outJumpHosts: []utils.JumpHost{{
-				Addr: utils.NetAddr{
-					Addr:        "specified.proxy.com:443",
-					AddrNetwork: "tcp",
-				},
-			}},
-		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			tc, err := makeClient(tt.InConf)
-			if tt.expectErr {
-				require.Error(t, err)
-				return
-			}
-
-			require.NoError(t, err)
-			require.Equal(t, tt.outHost, tc.Host)
-			require.Equal(t, tt.outPort, tc.HostPort)
-			require.Equal(t, tt.outJumpHosts, tc.JumpHosts)
-			require.Equal(t, tt.outCluster, tc.SiteName)
 		})
 	}
 }
