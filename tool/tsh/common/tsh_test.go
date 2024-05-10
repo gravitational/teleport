@@ -120,6 +120,7 @@ func TestMain(m *testing.M) {
 	}
 
 	modules.SetModules(&cliModules{})
+	modules.SetInsecureTestMode(true)
 
 	utils.InitLoggerForTests()
 	native.PrecomputeTestKeys(m)

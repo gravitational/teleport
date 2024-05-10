@@ -56,10 +56,11 @@ const failOnConsoleIgnoreList = new Set([
   'web/packages/teleport/src/components/BannerList/useAlerts.test.tsx',
   'web/packages/teleport/src/Navigation/NavigationItem.test.tsx',
   'web/packages/teleterm/src/ui/TabHost/TabHost.test.tsx',
-  // As of the parent commit (708dac8e0d0), these two below are flakes.
+  // As of the parent commit (708dac8e0d0), the tests below are flakes.
   // https://github.com/gravitational/teleport/pull/41252#discussion_r1595036569
   'web/packages/teleport/src/Console/DocumentNodes/DocumentNodes.story.test.tsx',
   'web/packages/teleport/src/Recordings/Recordings.story.test.tsx',
+  'web/packages/teleport/src/Audit/Audit.story.test.tsx',
   ...entFailOnConsoleIgnoreList,
 ]);
 failOnConsole({
