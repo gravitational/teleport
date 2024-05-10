@@ -57,7 +57,7 @@ import {
   DocumentCluster,
   DocumentClusterResourceKind,
 } from 'teleterm/ui/services/workspacesService';
-import { getAppAddrWithProtocol } from 'teleterm/ui/services/clusters';
+import { getAppAddrWithProtocol } from 'teleterm/services/tshd/app';
 
 import {
   ConnectServerActionButton,

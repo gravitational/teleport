@@ -28,7 +28,6 @@ import {
   makeDatabase,
   makeServer,
   makeKube,
-  getAppAddrWithProtocol,
 } from 'teleterm/ui/services/clusters';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 
@@ -39,6 +38,7 @@ import {
 } from 'teleterm/services/tshd/types';
 import { routing } from 'teleterm/ui/uri';
 import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
+import { getAppAddrWithProtocol } from 'teleterm/services/tshd/app';
 
 import type {
   ResourceLabel,

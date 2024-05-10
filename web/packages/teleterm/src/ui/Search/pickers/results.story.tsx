@@ -33,7 +33,7 @@ import {
   makeApp,
 } from 'teleterm/services/tshd/testHelpers';
 import { ResourceSearchError } from 'teleterm/ui/services/resources';
-import { getAppAddrWithProtocol } from 'teleterm/ui/services/clusters';
+import { getAppAddrWithProtocol } from 'teleterm/services/tshd/app';
 
 import { SearchResult } from '../searchResult';
 import { makeResourceResult } from '../testHelpers';
