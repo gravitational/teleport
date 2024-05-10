@@ -20,6 +20,8 @@
 package common
 
 import (
+	"context"
+
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
@@ -44,7 +46,17 @@ func (c *vnetCommand) run(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(vnet.Run(cf.Context, appProvider))
+
+	ctx, cancel := context.WithCancel(cf.Context)
+	defer cancel()
+
+	manager, adminCommandErrCh, err := vnet.Setup(ctx, appProvider)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = vnet.Run(ctx, cancel, manager, adminCommandErrCh)
+	return trace.Wrap(err)
 }
 
 type vnetAdminSetupCommand struct {

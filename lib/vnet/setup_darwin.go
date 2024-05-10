@@ -71,6 +71,8 @@ func createAndSetupTUNDeviceWithoutRoot(ctx context.Context, ipv6Prefix, dnsAddr
 		//   a stuck AcceptUnix (can't defer).
 		// - must close the socket exactly once before letting the process terminate.
 		<-ctx.Done()
+		// When the socket gets closed, the admin process that's on the other end notices that and shuts
+		// down as well.
 		return trace.Wrap(socket.Close())
 	})
 	g.Go(func() error {
