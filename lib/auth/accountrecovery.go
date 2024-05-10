@@ -17,12 +17,13 @@ package auth
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/binary"
 	"net/mail"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sethvargo/go-diceware/diceware"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
 
@@ -599,20 +600,45 @@ func (a *Server) isAccountRecoveryAllowed(ctx context.Context) error {
 // generateRecoveryCodes returns an array of tokens where each token
 // have 8 random words prefixed with tele and concanatenated with dashes.
 func generateRecoveryCodes() ([]string, error) {
-	gen, err := diceware.NewGenerator(nil /* use default word list */)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	tokenList := make([]string, 0, numOfRecoveryCodes)
 
-	tokenList := make([]string, numOfRecoveryCodes)
 	for i := 0; i < numOfRecoveryCodes; i++ {
-		list, err := gen.Generate(numWordsInRecoveryCode)
-		if err != nil {
+		wordIDs := make([]uint16, numWordsInRecoveryCode)
+		if err := binary.Read(rand.Reader, binary.NativeEndian, wordIDs); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		tokenList[i] = "tele-" + strings.Join(list, "-")
+		words := make([]string, 0, 1+len(wordIDs))
+		words = append(words, "tele")
+		for _, id := range wordIDs {
+			words = append(words, encodeProquint(id))
+		}
+
+		tokenList = append(tokenList, strings.Join(words, "-"))
 	}
 
 	return tokenList, nil
+}
+
+// encodeProquint returns a five-letter word based on a uint16.
+// This proquint implementation is adapted from upspin.io:
+// https://github.com/upspin/upspin/blob/master/key/proquint/proquint.go
+// For the algorithm, see https://arxiv.org/html/0901.4016
+func encodeProquint(x uint16) string {
+	const consonants = "bdfghjklmnprstvz"
+	const vowels = "aiou"
+
+	cons3 := x & 0b1111
+	vow2 := (x >> 4) & 0b11
+	cons2 := (x >> 6) & 0b1111
+	vow1 := (x >> 10) & 0b11
+	cons1 := x >> 12
+
+	return string([]byte{
+		consonants[cons1],
+		vowels[vow1],
+		consonants[cons2],
+		vowels[vow2],
+		consonants[cons3],
+	})
 }
