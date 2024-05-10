@@ -20,6 +20,8 @@ package aws_sync
 
 import (
 	"context"
+	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -98,6 +100,7 @@ func TestAWSIAMPollSAMLProviders(t *testing.T) {
 	execFunc := a.pollAWSSAMLProviders(context.Background(), result, collectErr)
 	require.NoError(t, execFunc())
 	require.Empty(t, errs)
+	sortByARN(result.SAMLProviders)
 	require.Empty(t, cmp.Diff(
 		expected,
 		result.SAMLProviders,
@@ -234,9 +237,17 @@ func TestAWSIAMPollOIDCProviders(t *testing.T) {
 	execFunc := a.pollAWSOIDCProviders(context.Background(), result, collectErr)
 	require.NoError(t, execFunc())
 	require.Empty(t, errs)
+	sortByARN(result.OIDCProviders)
 	require.Empty(t, cmp.Diff(
 		expected,
 		result.OIDCProviders,
 		protocmp.Transform(),
 	))
+}
+
+// sortByARN sorts a slice of resources that have a GetArn() function by the ARN.
+func sortByARN[T interface{ GetArn() string }](objs []T) {
+	slices.SortFunc(objs, func(t1, t2 T) int {
+		return strings.Compare(t1.GetArn(), t2.GetArn())
+	})
 }
