@@ -43,6 +43,7 @@ export type CrossClusterResourceSearchResult = {
   search: string;
 };
 
+const MAX_RANKED_RESULTS = 10;
 const SUPPORTED_RESOURCE_TYPES: ResourceTypeFilter[] = [
   'node',
   'app',
@@ -90,7 +91,7 @@ export function useResourceSearch() {
           // In preview mode we know that the user didn't specify any search terms. So instead of
           // fetching all 100 resources, we fetch only a bunch of them to show
           // example results in the UI.
-          limit = 20;
+          limit = MAX_RANKED_RESULTS;
           break;
         }
         case 'full-search': {
@@ -262,7 +263,7 @@ export function rankResults(
         b.score - a.score ||
         collator.compare(mainResourceName(a), mainResourceName(b))
     )
-    .slice(0, 10);
+    .slice(0, MAX_RANKED_RESULTS);
 }
 
 function populateMatches(
