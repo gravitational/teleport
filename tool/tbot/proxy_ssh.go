@@ -209,7 +209,7 @@ func onProxySSHCommand(botConfig *config.BotConfig, cf *config.CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	conn, _, err := pclt.DialHost(ctx, target, facade.Get().ClusterName, keyring)
+	conn, _, err := pclt.DialHost(ctx, target, cluster, keyring)
 	if err != nil {
 		return trace.Wrap(err)
 	}
