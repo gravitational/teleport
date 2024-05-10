@@ -17,6 +17,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"crypto/tls"
 	"errors"
@@ -215,7 +216,7 @@ func onProxySSHCommand(botConfig *config.BotConfig, cf *config.CLIConf) error {
 	}
 	defer conn.Close()
 
-	stdio := utils.CombineReadWriteCloser(io.NopCloser(os.Stdin), utils.NopWriteCloser(os.Stdout))
+	stdio := utils.CombineReadWriteCloser(io.NopCloser(bufio.NewReader(os.Stdin)), utils.NopWriteCloser(os.Stdout))
 	err = trace.Wrap(utils.ProxyConn(ctx, stdio, conn))
 	if errors.Is(err, context.Canceled) {
 		err = nil
