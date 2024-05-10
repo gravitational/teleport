@@ -18,8 +18,9 @@ three pillars.
 ### Strong identity-based authentication
 
 Legacy systems rely on shared secrets, such as API keys, to authenticate. These
-do not provide a distinct identity for each service or machine and are liable to
-be exfiltrated.
+shared secrets suffer from a number of problems: they do not provide a distinct
+identity for each service or machine, and their long-lived and shared nature
+makes them liable to be exfiltrated.
 
 Instead, each service and machine should have a strong, cryptographic identity
 (e.g. an X.509 certificate) that is verifiable by other services inside and
