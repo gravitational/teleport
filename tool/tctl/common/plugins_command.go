@@ -97,6 +97,7 @@ func (p *PluginsCommand) initInstall(parent *kingpin.CmdClause, config *servicec
 	p.install.okta.cmd.
 		Flag("saml-connector", "SAML connector used for Okta SSO login.").
 		Default("okta-integration").
+		Required().
 		StringVar(&p.install.okta.samlConnector)
 	p.install.okta.cmd.
 		Flag("app-id", "Okta ID of the APP used for SSO via SAML").
@@ -197,21 +198,25 @@ func (p *PluginsCommand) InstallOkta(ctx context.Context, args installPluginArgs
 		if len(oktaSettings.defaultOwners) == 0 {
 			return trace.BadParameter("SCIM support requires at least one default owner to be set")
 		}
+	}
 
-		if oktaSettings.appID == "" {
-			return trace.BadParameter("SCIM support requires app-id to be set")
-		}
+	connector, err := args.samlConnectors.GetSAMLConnector(ctx, oktaSettings.samlConnector, false)
+	if err != nil {
+		fmt.Printf("Failed validating SAML connector: %v", err)
+		return trace.Wrap(err)
+	}
 
-		if oktaSettings.samlConnector == "" {
-			return trace.BadParameter("SCIM support requires saml-connector to be set")
+	if p.install.okta.appID == "" {
+		appID, ok := connector.GetMetadata().Labels[types.OktaAppIDLabel]
+		if ok {
+			p.install.okta.appID = appID
 		}
 	}
 
-	if oktaSettings.samlConnector != "" {
-		if err := validateSAMLConnector(ctx, args.samlConnectors, oktaSettings.samlConnector); err != nil {
-			fmt.Printf("Failed validating SAML connector: %v", err)
-			return trace.Wrap(err)
-		}
+	if oktaSettings.scimToken != "" && oktaSettings.appID == "" {
+		fmt.Println("SCIM support requires App ID, which was not supplied and couldn't be deduced from the SAML connector")
+		fmt.Println("Specify the App ID explicitly with --app-id")
+		return trace.BadParameter("SCIM support requires app-id to be set")
 	}
 
 	creds := []*types.PluginStaticCredentialsV1{
@@ -293,14 +298,6 @@ func (p *PluginsCommand) InstallOkta(ctx context.Context, args installPluginArgs
 	}
 
 	fmt.Println("See https://goteleport.com/docs/application-access/okta/hosted-guide for help configuring provisioning in Okta")
-	return nil
-}
-
-func validateSAMLConnector(ctx context.Context, samlConnectors samlConnectorsClient, name string) error {
-	_, err := samlConnectors.GetSAMLConnector(ctx, name, false)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	return nil
 }
 

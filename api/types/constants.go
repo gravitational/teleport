@@ -1245,6 +1245,9 @@ const (
 	// the upstream Okta organization that they come from.
 	OktaOrgURLLabel = "okta/org"
 
+	// OktaAppIDLabel is the label for the Okta application ID on appserver objects.
+	OktaAppIDLabel = TeleportInternalLabelPrefix + "okta-app-id"
+
 	// OktaCredPurposeLabel is used by Okta-managed PluginStaticCredentials to
 	// indicate their purpose
 	OktaCredPurposeLabel = "okta/purpose"
