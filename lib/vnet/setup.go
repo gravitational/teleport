@@ -31,14 +31,19 @@ import (
 // Setup spins up a separate process with the admin subcommand to create a TUN device. It returns
 // Manager that uses this TUN device, along with an error channel which receives an error if the
 // admin subcommand stops running. Setup should be used in conjunction with Run.
-func Setup(ctx context.Context, appProvider AppProvider) (*Manager, <-chan error, error) {
+//
+// adminCommandCtx is the context tied to the lifecycle of the admin subcommand. tsh typically
+// passes the same context as both ctx and adminCommandCtx, whereas Connect uses two different
+// contexts – one that is bound to an RPC that starts VNet and another that is bound to a separate
+// goroutine which runs Manager.
+func Setup(ctx context.Context, adminCommandCtx context.Context, appProvider AppProvider) (*Manager, <-chan error, error) {
 	ipv6Prefix, err := NewIPv6Prefix()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
 	dnsIPv6 := ipv6WithSuffix(ipv6Prefix, []byte{2})
-	tunCh, adminCommandErrCh := CreateAndSetupTUNDevice(ctx, ipv6Prefix.String(), dnsIPv6.String())
+	tunCh, adminCommandErrCh := CreateAndSetupTUNDevice(adminCommandCtx, ipv6Prefix.String(), dnsIPv6.String())
 
 	var tun TUNDevice
 	select {

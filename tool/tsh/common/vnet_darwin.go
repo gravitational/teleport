@@ -51,7 +51,7 @@ func (c *vnetCommand) run(cf *CLIConf) error {
 	ctx, cancel := context.WithCancelCause(cf.Context)
 	defer cancel(nil)
 
-	manager, adminCommandErrCh, err := vnet.Setup(ctx, appProvider)
+	manager, adminCommandErrCh, err := vnet.Setup(ctx, ctx, appProvider)
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
 			return nil

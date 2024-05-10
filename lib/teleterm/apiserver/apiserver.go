@@ -63,7 +63,13 @@ func New(cfg Config) (*APIServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	vnetService := &vnet.Service{}
+	vnetService, err := vnet.New(vnet.Config{
+		DaemonService: cfg.Daemon,
+		ClientStore:   cfg.ClientStore,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	api.RegisterTerminalServiceServer(grpcServer, serviceHandler)
 	vnetapi.RegisterVnetServiceServer(grpcServer, vnetService)
@@ -84,7 +90,9 @@ func (s *APIServer) Serve() error {
 // Stop stops the server and closes all listeners
 func (s *APIServer) Stop() {
 	s.grpcServer.GracefulStop()
-	s.vnetService.Close()
+	if err := s.vnetService.Close(); err != nil {
+		log.WithError(err).Error("Error while closing VNet service")
+	}
 }
 
 func newListener(hostAddr string, listeningC chan<- utils.NetAddr) (net.Listener, error) {
