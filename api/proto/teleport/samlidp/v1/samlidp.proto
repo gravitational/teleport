@@ -23,6 +23,16 @@ import "teleport/legacy/types/wrappers/wrappers.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1;samlidpv1";
 
+// SAMLIdPService provides utility methods for the SAML identity provider.
+service SAMLIdPService {
+  // ProcessSAMLIdPRequest processes the SAML auth request.
+  rpc ProcessSAMLIdPRequest(ProcessSAMLIdPRequestRequest) returns (ProcessSAMLIdPRequestResponse);
+  // TestSAMLIdPAttributeMapping tests SAML attribute mapping configuration.
+  rpc TestSAMLIdPAttributeMapping(TestSAMLIdPAttributeMappingRequest) returns (TestSAMLIdPAttributeMappingResponse);
+  // SAMLIdPLogin
+  rpc SAMLIdPLogin(SAMLIdPLoginRequest) returns (SAMLIdPLoginResponse);
+}
+
 // ProcessSAMLIdPRequestRequest is a request to create and sign the SAML IdP response
 // to a SAML IdP auth request.
 message ProcessSAMLIdPRequestRequest {
@@ -50,12 +60,31 @@ message ProcessSAMLIdPRequestResponse {
   bytes response = 1;
 }
 
-// SAMLIdPService provides utility methods for the SAML identity provider.
-service SAMLIdPService {
-  // ProcessSAMLIdPRequest processes the SAML auth request.
-  rpc ProcessSAMLIdPRequest(ProcessSAMLIdPRequestRequest) returns (ProcessSAMLIdPRequestResponse);
-  // TestSAMLIdPAttributeMapping tests SAML attribute mapping configuration.
-  rpc TestSAMLIdPAttributeMapping(TestSAMLIdPAttributeMappingRequest) returns (TestSAMLIdPAttributeMappingResponse);
+// SAMLIdPLoginRequest
+message SAMLIdPLoginRequest {
+  string user = 1;
+  string session_id = 2;
+  proto.MFAAuthenticateResponse mfa_response = 3;
+
+  // destination is the destination of the response.
+  string destination = 4;
+  // request_id is the request ID.
+  string request_id = 5;
+  // request_time is the time the request was made.
+  google.protobuf.Timestamp request_time = 6;
+  // Metadata_url is the metadata URL of the SAML IdP.
+  string metadata_url = 7;
+  // signature_method is the signature method to use.
+  string signature_method = 8;
+  // service_provider_sso_descriptor is the raw bytes of the service provider's SSO descriptor.
+  bytes service_provider_sso_descriptor = 9;
+  string service_provider_id = 10;
+}
+
+// SAMLIdPLoginResponse
+message SAMLIdPLoginResponse {
+  // response is the SAML response.
+  bytes response = 1;
 }
 
 // TestSAMLIdPAttributeMappingRequest is a request to test attribute mapping.

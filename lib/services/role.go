@@ -841,6 +841,12 @@ type RoleGetter interface {
 	GetRole(ctx context.Context, name string) (types.Role, error)
 }
 
+type WebSessionGetter interface {
+	// GetWebSession queries the existing web session described with req.
+	// Implements ReadAccessPoint.
+	GetWebSession(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error)
+}
+
 // ExtractFromCertificate will extract roles and traits from a *ssh.Certificate.
 func ExtractFromCertificate(cert *ssh.Certificate) ([]string, wrappers.Traits, error) {
 	roles, err := ExtractRolesFromCert(cert)
