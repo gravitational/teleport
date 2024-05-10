@@ -611,9 +611,6 @@ func TestCreateAuthenticateChallenge_failedLoginAudit(t *testing.T) {
 					Password: []byte(mfa.Password + "BAD"),
 				},
 			},
-			ChallengeExtensions: &mfav1.ChallengeExtensions{
-				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
-			},
 		})
 		assert.ErrorContains(t, err, "password", "CreateAuthenticateChallenge error mismatch")
 
