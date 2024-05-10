@@ -117,10 +117,8 @@ func (s *AccessMonitoringRulesService) DeleteAllAccessMonitoringRules(ctx contex
 // ListAccessMonitoringRulesWithFilter returns a paginated list of access monitoring rules that match the given filter.
 func (s *AccessMonitoringRulesService) ListAccessMonitoringRulesWithFilter(ctx context.Context, pageSize int, pageToken string, subjects []string, notificationName string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error) {
 
-	var keyPrefix []string
-
 	rangeStart := backend.Key(accessMonitoringRulesPrefix, pageToken)
-	rangeEnd := backend.RangeEnd(backend.ExactKey(keyPrefix...))
+	rangeEnd := backend.RangeEnd(backend.ExactKey(accessMonitoringRulesPrefix))
 
 	// Get most limit+1 results to determine if there will be a next key.
 	maxLimit := pageSize + 1
