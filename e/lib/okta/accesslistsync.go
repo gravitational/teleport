@@ -510,7 +510,7 @@ func (a *accessListSync) importOktaNativeAssignmentsAsAccessLists(ctx context.Co
 	// We need the opposite relation for this sync.
 	userMapping := make(map[string]string, len(userNameToIDMapping))
 	for k, v := range userNameToIDMapping {
-		userMapping[v] = k
+		userMapping[string(v)] = string(k)
 	}
 
 	appMapping := map[string]types.Application{}
@@ -725,7 +725,7 @@ func (a *accessListSync) appToImportResources(ctx context.Context, appID string,
 		a.log.WithField("app_id", appID).Debug("application ID has no app name to use as a title")
 	}
 
-	assignments, err := a.client.getAppAssignments(ctx, appID)
+	assignments, err := a.client.getAppAssignments(ctx, oktaAppID(appID))
 	if err != nil {
 		return importResourceMetadata{}, trace.Wrap(err)
 	}
@@ -828,14 +828,14 @@ func (a *accessListSync) groupToImportResources(ctx context.Context, groupID str
 
 	description, _ := group.GetLabel(types.OktaGroupDescriptionLabel)
 
-	assignments, err := a.client.getGroupAssignments(ctx, groupID)
+	assignments, err := a.client.getGroupAssignments(ctx, oktaGroupID(groupID))
 	if err != nil {
 		return importResourceMetadata{}, trace.Wrap(err)
 	}
 
 	members := make([]string, 0, len(assignments))
 	for _, assignment := range assignments {
-		if user, ok := userMapping[assignment]; ok {
+		if user, ok := userMapping[string(assignment)]; ok {
 			members = append(members, user)
 		}
 	}

@@ -129,7 +129,7 @@ type appUserConverter func(*okta.AppUser) (types.User, error)
 // candidate Teleport user equivalents for them.
 func fetchOktaAppUsers(ctx context.Context, oktaClient OktaClient, appID string, convertUser appUserConverter, log logrus.FieldLogger) (map[string]types.User, error) {
 	result := map[string]types.User{}
-	err := oktaClient.iterateAppUsers(ctx, appID, func(oau *okta.AppUser) error {
+	err := oktaClient.iterateAppUsers(ctx, oktaAppID(appID), func(oau *okta.AppUser) error {
 		if oau == nil {
 			log.Warn("AppUser value was nil. Skipping.")
 			return nil

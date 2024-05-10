@@ -61,15 +61,13 @@ func (a *assignmentClient) getGroupAssignments(ctx context.Context, groupID okta
 		if populated {
 			return cachedMembers, nil
 		}
+
 		a.log.Debugf("Refreshing assignments for group %s", groupID)
-		members, err := a.oktaClient.getGroupAssignments(ctx, string(groupID))
+		members, err := a.oktaClient.getGroupAssignments(ctx, groupID)
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
-		cachedMembers = newSet[oktaUserID]()
-		for _, member := range members {
-			cachedMembers.add(oktaUserID(member))
-		}
+		cachedMembers = newSet[oktaUserID](members...)
 		a.log.
 			WithFields(logrus.Fields{
 				"members": members,
@@ -133,7 +131,7 @@ func (a *assignmentClient) registerUserToGroup(ctx context.Context, username use
 		return nil
 	}
 
-	if err := a.oktaClient.assignUserToGroup(ctx, string(userID), string(groupID)); err != nil {
+	if err := a.oktaClient.assignUserToGroup(ctx, userID, groupID); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -168,7 +166,7 @@ func (a *assignmentClient) unregisterUserFromGroup(ctx context.Context, username
 		return nil
 	}
 
-	if err := a.oktaClient.unassignUserFromGroup(ctx, string(userID), string(groupID)); err != nil {
+	if err := a.oktaClient.unassignUserFromGroup(ctx, userID, groupID); err != nil {
 		if oErr := (*oktaAPIValidationError)(nil); errors.As(err, &oErr) {
 			// This is referring to Okta group rules:
 			// https://help.okta.com/en-us/Content/Topics/users-groups-profiles/usgp-about-group-rules.htm
@@ -202,7 +200,7 @@ func (a *assignmentClient) getUserAssignedToApp(ctx context.Context, appID oktaA
 			return cached, nil
 		}
 		a.log.Debugf("Refreshing assignments for app %s", appID)
-		items, err := a.oktaClient.getAppAssignments(ctx, string(appID))
+		items, err := a.oktaClient.getAppAssignments(ctx, appID)
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
@@ -277,7 +275,7 @@ func (a *assignmentClient) registerUserToApp(ctx context.Context, username userN
 	}
 
 	// Make update to upstream Okta
-	if err := a.oktaClient.assignUserToApplication(ctx, string(userID), string(appID)); err != nil {
+	if err := a.oktaClient.assignUserToApplication(ctx, userID, appID); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -310,7 +308,7 @@ func (a *assignmentClient) unregisterUserFromApp(ctx context.Context, username u
 		return nil
 	}
 
-	if err := a.oktaClient.unassignUserFromApplication(ctx, string(userID), string(appID)); err != nil {
+	if err := a.oktaClient.unassignUserFromApplication(ctx, userID, appID); err != nil {
 		if oErr := (*oktaAPIValidationError)(nil); errors.As(err, &oErr) {
 			// This is referring to Okta group rules:
 			// https://help.okta.com/en-us/Content/Topics/users-groups-profiles/usgp-about-group-rules.htm
@@ -337,20 +335,11 @@ func (a *assignmentClient) userID(ctx context.Context, username userName) (oktaU
 	var err error
 
 	a.initUsersOnce.Do(func() {
-		var users map[string]string
-
 		a.log.Debugf("Refreshing organization user list")
-		users, err = a.oktaClient.listUsers(ctx)
+		a.users, err = a.oktaClient.listUsers(ctx)
 		if err != nil {
 			err = trace.Wrap(err)
-			return
 		}
-
-		userMap := make(map[userName]oktaUserID, len(users))
-		for un, uid := range users {
-			userMap[userName(un)] = oktaUserID(uid)
-		}
-		a.users = userMap
 	})
 
 	if err != nil {

@@ -153,11 +153,11 @@ func (w *wrappedClient) iterateApps(ctx context.Context, fn func(okta.App) error
 // signal that it does not want to continue receiving users. All other
 // non-nil return values are considered an error and will be propagated to
 // the caller.
-func (w *wrappedClient) iterateAppUsers(ctx context.Context, appID string, fn func(*okta.AppUser) error) error {
+func (w *wrappedClient) iterateAppUsers(ctx context.Context, appID oktaAppID, fn func(*okta.AppUser) error) error {
 
 	// We'll use the max page size of 500 here to minimize API calls.
 	// https://developer.okta.com/docs/reference/api/apps/#list-users-assigned-to-application
-	appUsers, resp, err := w.client.Application.ListApplicationUsers(ctx, appID, query.NewQueryParams(
+	appUsers, resp, err := w.client.Application.ListApplicationUsers(ctx, string(appID), query.NewQueryParams(
 		query.WithLimit(500),
 	))
 
@@ -186,12 +186,12 @@ func (w *wrappedClient) iterateAppUsers(ctx context.Context, appID string, fn fu
 }
 
 // getGroupAssignments will return the list of users assigned to a group.
-func (w *wrappedClient) getGroupAssignments(ctx context.Context, groupID string) ([]string, error) {
-	var userIDs []string
+func (w *wrappedClient) getGroupAssignments(ctx context.Context, groupID oktaGroupID) ([]oktaUserID, error) {
+	var userIDs []oktaUserID
 
 	// The default number of users here is 1000, which will be fine for our purposes.
 	// https://developer.okta.com/docs/reference/api/groups/#list-group-members
-	groupUsers, resp, err := w.client.Group.ListGroupUsers(ctx, groupID, query.NewQueryParams())
+	groupUsers, resp, err := w.client.Group.ListGroupUsers(ctx, string(groupID), query.NewQueryParams())
 
 	for {
 		if err != nil {
@@ -199,7 +199,7 @@ func (w *wrappedClient) getGroupAssignments(ctx context.Context, groupID string)
 		}
 
 		for _, groupUser := range groupUsers {
-			userIDs = append(userIDs, groupUser.Id)
+			userIDs = append(userIDs, oktaUserID(groupUser.Id))
 		}
 
 		if !resp.HasNextPage() {
@@ -213,7 +213,7 @@ func (w *wrappedClient) getGroupAssignments(ctx context.Context, groupID string)
 }
 
 // getAppAssignments will return the list of users assigned to an app.
-func (w *wrappedClient) getAppAssignments(ctx context.Context, appID string) ([]appAssignment, error) {
+func (w *wrappedClient) getAppAssignments(ctx context.Context, appID oktaAppID) ([]appAssignment, error) {
 	var assignments []appAssignment
 	err := w.iterateAppUsers(ctx, appID, func(appUser *okta.AppUser) error {
 		assignments = append(assignments, appAssignment{
@@ -230,12 +230,12 @@ func (w *wrappedClient) getAppAssignments(ctx context.Context, appID string) ([]
 }
 
 // getAppGroups will return the list of groups an application belongs to.
-func (w *wrappedClient) getAppGroups(ctx context.Context, appID string) ([]string, error) {
-	var groupIDs []string
+func (w *wrappedClient) getAppGroups(ctx context.Context, appID oktaAppID) ([]oktaGroupID, error) {
+	var groupIDs []oktaGroupID
 
 	// We'll use the max page size of 200 here to minimize API calls.
 	// https://developer.okta.com/docs/reference/api/apps/#list-groups-assigned-to-application
-	groups, resp, err := w.client.Application.ListApplicationGroupAssignments(ctx, appID, query.NewQueryParams(
+	groups, resp, err := w.client.Application.ListApplicationGroupAssignments(ctx, string(appID), query.NewQueryParams(
 		query.WithLimit(200),
 	))
 
@@ -245,7 +245,7 @@ func (w *wrappedClient) getAppGroups(ctx context.Context, appID string) ([]strin
 		}
 
 		for _, group := range groups {
-			groupIDs = append(groupIDs, group.Id)
+			groupIDs = append(groupIDs, oktaGroupID(group.Id))
 		}
 
 		if !resp.HasNextPage() {
@@ -259,14 +259,29 @@ func (w *wrappedClient) getAppGroups(ctx context.Context, appID string) ([]strin
 }
 
 // listUsers will return a mapping of usernames to user IDs from Okta.
-func (w *wrappedClient) listUsers(ctx context.Context) (map[string]string, error) {
-	usernameToUserID := map[string]string{}
+func (w *wrappedClient) listUsers(ctx context.Context) (map[userName]oktaUserID, error) {
+	usernameToUserID := map[userName]oktaUserID{}
 
 	err := w.iterateUsers(ctx, func(user *okta.User) error {
+		log := w.log.WithField("okta_user_id", user.Id)
+
 		profile := user.Profile
-		if profile != nil {
-			usernameToUserID[fmt.Sprintf("%s", (*profile)[oktaUserProfileLogin])] = user.Id
+		if profile == nil {
+			log.Warn("Malformed Okta user: missing user profile")
+			return nil
 		}
+
+		login, ok := (*profile)[oktaUserProfileLogin]
+		if !ok {
+			log.Warn("Malformed Okta user profile: missing " + oktaUserProfileLogin)
+			return nil
+		}
+
+		// Use Sprintf to coerce the "login" profile attribute into a
+		// string. It _should_ already be one, but the Okta profile
+		// gives no such guarantee.
+		n := fmt.Sprintf("%s", login)
+		usernameToUserID[userName(n)] = oktaUserID(user.Id)
 		return nil
 	})
 
@@ -278,8 +293,8 @@ func (w *wrappedClient) listUsers(ctx context.Context) (map[string]string, error
 }
 
 // assignUserToGroup will assign the given user to the group.
-func (w *wrappedClient) assignUserToGroup(ctx context.Context, userID, groupId string) error {
-	if _, err := w.client.Group.AddUserToGroup(ctx, groupId, userID); err != nil {
+func (w *wrappedClient) assignUserToGroup(ctx context.Context, userID oktaUserID, groupId oktaGroupID) error {
+	if _, err := w.client.Group.AddUserToGroup(ctx, string(groupId), string(userID)); err != nil {
 		return w.oktaErrToTrace(ctx, err)
 	}
 
@@ -287,8 +302,8 @@ func (w *wrappedClient) assignUserToGroup(ctx context.Context, userID, groupId s
 }
 
 // unassignUserFromGroup will unassign the given user from the group.
-func (w *wrappedClient) unassignUserFromGroup(ctx context.Context, userID, groupId string) error {
-	if _, err := w.client.Group.RemoveUserFromGroup(ctx, groupId, userID); err != nil {
+func (w *wrappedClient) unassignUserFromGroup(ctx context.Context, userID oktaUserID, groupId oktaGroupID) error {
+	if _, err := w.client.Group.RemoveUserFromGroup(ctx, string(groupId), string(userID)); err != nil {
 		return w.oktaErrToTrace(ctx, err)
 	}
 
@@ -296,8 +311,8 @@ func (w *wrappedClient) unassignUserFromGroup(ctx context.Context, userID, group
 }
 
 // assignUserToApplication will assign the given user to the application.
-func (w *wrappedClient) assignUserToApplication(ctx context.Context, username, applicationId string) error {
-	user, _, err := w.client.User.GetUser(ctx, username)
+func (w *wrappedClient) assignUserToApplication(ctx context.Context, userID oktaUserID, applicationId oktaAppID) error {
+	user, _, err := w.client.User.GetUser(ctx, string(userID))
 	if err != nil {
 		return w.oktaErrToTrace(ctx, err)
 	}
@@ -305,7 +320,7 @@ func (w *wrappedClient) assignUserToApplication(ctx context.Context, username, a
 	appUser := okta.AppUser{
 		Id: user.Id,
 	}
-	if _, _, err := w.client.Application.AssignUserToApplication(ctx, applicationId, appUser); err != nil {
+	if _, _, err := w.client.Application.AssignUserToApplication(ctx, string(applicationId), appUser); err != nil {
 		return w.oktaErrToTrace(ctx, err)
 	}
 
@@ -313,10 +328,9 @@ func (w *wrappedClient) assignUserToApplication(ctx context.Context, username, a
 }
 
 // assignGroupToApplicationByID assigns the given group to the given application
-// using the OktaGroupID, rather than the group name as in other methods.
-func (w *wrappedClient) assignGroupToApplicationByID(ctx context.Context, groupId, applicationId string) error {
+func (w *wrappedClient) assignGroupToApplication(ctx context.Context, groupId oktaGroupID, applicationId oktaAppID) error {
 	body := okta.ApplicationGroupAssignment{}
-	if _, _, err := w.client.Application.CreateApplicationGroupAssignment(ctx, applicationId, groupId, body); err != nil {
+	if _, _, err := w.client.Application.CreateApplicationGroupAssignment(ctx, string(applicationId), string(groupId), body); err != nil {
 		return w.oktaErrToTrace(ctx, err)
 	}
 
@@ -324,14 +338,14 @@ func (w *wrappedClient) assignGroupToApplicationByID(ctx context.Context, groupI
 }
 
 // unassignUserFromApplication will unassign the given user from the application.
-func (w *wrappedClient) unassignUserFromApplication(ctx context.Context, username, applicationId string) error {
-	user, _, err := w.client.User.GetUser(ctx, username)
+func (w *wrappedClient) unassignUserFromApplication(ctx context.Context, userId oktaUserID, applicationId oktaAppID) error {
+	user, _, err := w.client.User.GetUser(ctx, string(userId))
 	if err != nil {
 		return w.oktaErrToTrace(ctx, err)
 	}
 
 	// Unlike groups, deleting a non-existent application user will produce an error from the Okta API.
-	if _, err := w.client.Application.DeleteApplicationUser(ctx, applicationId, user.Id, query.NewQueryParams()); err != nil {
+	if _, err := w.client.Application.DeleteApplicationUser(ctx, string(applicationId), user.Id, query.NewQueryParams()); err != nil {
 		return w.oktaErrToTrace(ctx, err)
 	}
 
@@ -347,8 +361,8 @@ func (w *wrappedClient) createApplication(ctx context.Context, application okta.
 }
 
 // getApplication fetches the data for a single application, by ID
-func (w *wrappedClient) getApplication(ctx context.Context, appID string, appType okta.App) (okta.App, error) {
-	app, _, err := w.client.Application.GetApplication(ctx, appID, appType, nil)
+func (w *wrappedClient) getApplication(ctx context.Context, appID oktaAppID, appType okta.App) (okta.App, error) {
+	app, _, err := w.client.Application.GetApplication(ctx, string(appID), appType, nil)
 	if err != nil {
 		return nil, w.oktaErrToTrace(ctx, err)
 	}

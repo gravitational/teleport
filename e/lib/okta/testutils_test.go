@@ -18,6 +18,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/okta/okta-sdk-golang/v2/okta"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
@@ -242,10 +243,10 @@ type testOktaClient struct {
 	// testOktaClient behavior in cases where it is difficult to rig the
 	// internal state in the way necessary for a test.
 	monkeyPatch struct {
-		createApp                    func(ctx context.Context, app okta.App) (okta.App, error)
-		assignGroupToApplicationByID func(ctx context.Context, groupId, appId string) error
-		doHttp                       func(context.Context, string, *url.URL, []string) ([]byte, error)
-		orgName                      func(context.Context) (string, error)
+		createApp                func(ctx context.Context, app okta.App) (okta.App, error)
+		assignGroupToApplication func(ctx context.Context, groupId oktaGroupID, appId oktaAppID) error
+		doHttp                   func(context.Context, string, *url.URL, []string) ([]byte, error)
+		orgName                  func(context.Context) (string, error)
 	}
 }
 
@@ -273,7 +274,7 @@ func (t *testOktaClient) getCurrentUser(_ context.Context) (*okta.User, error) {
 }
 
 // getCurrentUser always returns NotImplemented
-func (t *testOktaClient) getApplication(context.Context, string, okta.App) (okta.App, error) {
+func (t *testOktaClient) getApplication(context.Context, oktaAppID, okta.App) (okta.App, error) {
 	return nil, trace.NotImplemented("getApplication")
 }
 
@@ -291,7 +292,7 @@ func (t *testOktaClient) iterateUsers(_ context.Context, fn func(*okta.User) err
 }
 
 // iterateAppUsers will iterate over the list of all Okta users in a given app.
-func (t *testOktaClient) iterateAppUsers(_ context.Context, _ string, fn func(*okta.AppUser) error) error {
+func (t *testOktaClient) iterateAppUsers(_ context.Context, _ oktaAppID, fn func(*okta.AppUser) error) error {
 	for _, oktaAppUser := range t.oktaAppUsers {
 		if err := fn(oktaAppUser); err != nil {
 			if errors.Is(err, errStopIteration) {
@@ -330,33 +331,30 @@ func (t *testOktaClient) iterateApps(_ context.Context, fn func(okta.App) error)
 }
 
 // getGroupAssignments will return the list of users assigned to a group.
-func (t *testOktaClient) getGroupAssignments(_ context.Context, groupID string) ([]string, error) {
+func (t *testOktaClient) getGroupAssignments(_ context.Context, groupID oktaGroupID) ([]oktaUserID, error) {
 	var err error
-	var users []string
+	var users []oktaUserID
 
 	t.groupsToUsers.Read(func(groupsToUsers map[oktaGroupID]set[oktaUserID]) {
-		members, ok := groupsToUsers[oktaGroupID(groupID)]
+		members, ok := groupsToUsers[groupID]
 		if !ok {
 			err = trace.NotFound("assignments for group %s not found", groupID)
 			return
 		}
 
-		users = make([]string, 0, len(members))
-		for u := range members {
-			users = append(users, string(u))
-		}
+		users = maps.Keys(members)
 	})
 
 	return users, err
 }
 
 // getAppAssignments will return the list of users assigned to an app.
-func (t *testOktaClient) getAppAssignments(_ context.Context, appID string) ([]appAssignment, error) {
+func (t *testOktaClient) getAppAssignments(_ context.Context, appID oktaAppID) ([]appAssignment, error) {
 	var err error
 	var assignments []appAssignment
 
 	t.appsToUsers.Read(func(appsToUsers map[oktaAppID]set[appAssignment]) {
-		users, ok := appsToUsers[oktaAppID(appID)]
+		users, ok := appsToUsers[appID]
 		if !ok {
 			err = trace.NotFound("assignments for app %s not found", appID)
 			return
@@ -372,26 +370,13 @@ func (t *testOktaClient) getAppAssignments(_ context.Context, appID string) ([]a
 }
 
 // getAppGroups will return the list of groups an application belongs to.
-func (t *testOktaClient) getAppGroups(_ context.Context, appID string) ([]string, error) {
-	var groups []string
-	for _, g := range t.appsToGroups[oktaAppID(appID)] {
-		groups = append(groups, string(g))
-	}
-	return groups, nil
+func (t *testOktaClient) getAppGroups(_ context.Context, appID oktaAppID) ([]oktaGroupID, error) {
+	return t.appsToGroups[appID], nil
 }
 
 // listUsers will return a mapping of usernames to user IDs from Okta.
-func (t *testOktaClient) listUsers(_ context.Context) (map[string]string, error) {
-	var usernamesToUserIDs map[string]string
-
-	t.usernamesToUserIDs.Read(func(m map[userName]oktaUserID) {
-		usernamesToUserIDs = make(map[string]string, len(m))
-		for k, v := range m {
-			usernamesToUserIDs[string(k)] = string(v)
-		}
-	})
-
-	return usernamesToUserIDs, nil
+func (t *testOktaClient) listUsers(_ context.Context) (map[userName]oktaUserID, error) {
+	return t.usernamesToUserIDs.Clone(), nil
 }
 
 // addUserID will add a mapping from the username to the user ID.
@@ -422,12 +407,12 @@ func (t *testOktaClient) addOktaGroupToMapping(group *okta.Group) {
 }
 
 // assignUserToGroup will assign the given user to the group.
-func (t *testOktaClient) assignUserToGroup(_ context.Context, userID, groupID string) error {
+func (t *testOktaClient) assignUserToGroup(_ context.Context, userID oktaUserID, groupID oktaGroupID) error {
 	var err error
 
 	t.groupsToUsers.Write(func(groupsToUsers map[oktaGroupID]set[oktaUserID]) {
-		if members, ok := groupsToUsers[oktaGroupID(groupID)]; ok {
-			members.add(oktaUserID(userID))
+		if members, ok := groupsToUsers[groupID]; ok {
+			members.add(userID)
 			return
 		}
 		err = trace.NotFound("provision: unable to find group %s", groupID)
@@ -437,17 +422,17 @@ func (t *testOktaClient) assignUserToGroup(_ context.Context, userID, groupID st
 }
 
 // unassignUserFromGroup will unassign the given user from the group.
-func (t *testOktaClient) unassignUserFromGroup(_ context.Context, userID, groupID string) error {
+func (t *testOktaClient) unassignUserFromGroup(_ context.Context, userID oktaUserID, groupID oktaGroupID) error {
 
-	if err, ok := t.unassignGroupErr[oktaGroupID(groupID)]; ok {
+	if err, ok := t.unassignGroupErr[groupID]; ok {
 		return err
 	}
 
 	var err error
 
 	t.groupsToUsers.Write(func(groupsToUsers map[oktaGroupID]set[oktaUserID]) {
-		if members, ok := groupsToUsers[oktaGroupID(groupID)]; ok {
-			members.remove(oktaUserID(userID))
+		if members, ok := groupsToUsers[groupID]; ok {
+			members.remove(userID)
 			return
 		}
 		err = trace.NotFound("cleanup: unable to find group %s", groupID)
@@ -477,12 +462,12 @@ func (t *testOktaClient) addOktaApplicationToMapping(application okta.App) {
 }
 
 // assignUserToApplication will assign the given user to the application.
-func (t *testOktaClient) assignUserToApplication(_ context.Context, userID, applicationId string) error {
+func (t *testOktaClient) assignUserToApplication(_ context.Context, userID oktaUserID, applicationId oktaAppID) error {
 	var err error
 
 	t.appsToUsers.Write(func(appsToUsers map[oktaAppID]set[appAssignment]) {
-		if assignments, ok := appsToUsers[oktaAppID(applicationId)]; ok {
-			assignments.add(appAssignment{userID: userID, scope: userScope})
+		if assignments, ok := appsToUsers[applicationId]; ok {
+			assignments.add(appAssignment{userID: string(userID), scope: userScope})
 			return
 		}
 		err = trace.NotFound("provision: unable to find application %s", applicationId)
@@ -492,8 +477,8 @@ func (t *testOktaClient) assignUserToApplication(_ context.Context, userID, appl
 }
 
 // unassignUserFromApplication will unassign the given user from the application.
-func (t *testOktaClient) unassignUserFromApplication(_ context.Context, username, applicationId string) error {
-	if err, ok := t.unassignAppErr[oktaAppID(applicationId)]; ok {
+func (t *testOktaClient) unassignUserFromApplication(_ context.Context, userID oktaUserID, applicationId oktaAppID) error {
+	if err, ok := t.unassignAppErr[applicationId]; ok {
 		return err
 	}
 
@@ -501,8 +486,8 @@ func (t *testOktaClient) unassignUserFromApplication(_ context.Context, username
 
 	t.appsToUsers.Write(
 		func(appsToUsers map[oktaAppID]set[appAssignment]) {
-			if assignments, ok := appsToUsers[oktaAppID(applicationId)]; ok {
-				assignments.remove(appAssignment{userID: username, scope: userScope})
+			if assignments, ok := appsToUsers[applicationId]; ok {
+				assignments.remove(appAssignment{userID: string(userID), scope: userScope})
 				return
 			}
 			err = trace.NotFound("cleanup: unable to find application %s", applicationId)
@@ -511,11 +496,11 @@ func (t *testOktaClient) unassignUserFromApplication(_ context.Context, username
 	return err
 }
 
-func (t *testOktaClient) assignGroupToApplicationByID(ctx context.Context, groupId, appId string) error {
-	if t.monkeyPatch.assignGroupToApplicationByID != nil {
-		return t.monkeyPatch.assignGroupToApplicationByID(ctx, groupId, appId)
+func (t *testOktaClient) assignGroupToApplication(ctx context.Context, groupId oktaGroupID, appId oktaAppID) error {
+	if t.monkeyPatch.assignGroupToApplication != nil {
+		return t.monkeyPatch.assignGroupToApplication(ctx, groupId, appId)
 	}
-	return trace.NotImplemented("assignGroupToApplicationByID")
+	return trace.NotImplemented("assignGroupToApplication")
 }
 
 func (t *testOktaClient) createApplication(ctx context.Context, app okta.App) (okta.App, error) {

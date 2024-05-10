@@ -124,7 +124,7 @@ func CreateSAMLConnector(ctx context.Context, args ConnectorArgs) (*SAMLConnecto
 	}
 
 	args.Log.Infof("Assigning everyone (group %s) to app %s (%s)", everyone.Id, app.Name, app.Id)
-	err = args.OktaClient.assignGroupToApplicationByID(ctx, everyone.Id, app.Id)
+	err = args.OktaClient.assignGroupToApplication(ctx, oktaGroupID(everyone.Id), oktaAppID(app.Id))
 	if err != nil {
 		return nil, trace.Wrap(err, "assigning everyone to app")
 	}
@@ -221,7 +221,7 @@ func ValidateSAMLConnector(ctx context.Context, connector types.SAMLConnector, o
 		return nil, trace.BadParameter("invalid origin label: %q", connector.Origin())
 	}
 
-	app, err := oktaClient.getApplication(ctx, connectorAppID, &okta.SamlApplication{})
+	app, err := oktaClient.getApplication(ctx, oktaAppID(connectorAppID), &okta.SamlApplication{})
 	if err != nil {
 		return nil, trace.Wrap(err, "fetching Okta App ID %s", connectorAppID)
 	}

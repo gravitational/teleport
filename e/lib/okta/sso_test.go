@@ -66,9 +66,9 @@ func (m *mockSamlConnectors) GetSAMLConnector(ctx context.Context, id string, wi
 
 // makeTestGroup constructs a minimal okta.Group instance for use with the
 // testOktaClient
-func makeTestGroup(id, kind, name string) *okta.Group {
+func makeTestGroup(id oktaGroupID, kind, name string) *okta.Group {
 	return &okta.Group{
-		Id:      id,
+		Id:      string(id),
 		Type:    kind,
 		Profile: &okta.GroupProfile{Name: name},
 	}
@@ -81,8 +81,8 @@ func TestSSOConectorCreation(t *testing.T) {
 
 	t.Run("happy path", func(t *testing.T) {
 		const (
-			testTeleportAppId             = "TEST-OKTA-APP-ID"
-			everyoneGroupId               = "EVERYONE-GROUP-ID"
+			testTeleportAppId             = oktaAppID("TEST-OKTA-APP-ID")
+			everyoneGroupId               = oktaGroupID("EVERYONE-GROUP-ID")
 			testEntityMetadataURL         = "https://example.com/some/thing/or/other"
 			testEntityMetadataContentType = "vegetable/potato"
 		)
@@ -129,7 +129,7 @@ func TestSSOConectorCreation(t *testing.T) {
 
 				// Pretend to be an Okta service and assign the app an ID and
 				// fill out its links field.
-				samlApp.Id = testTeleportAppId
+				samlApp.Id = string(testTeleportAppId)
 				samlApp.Links = map[string]any{
 					"metadata": map[string]any{
 						"href": testEntityMetadataURL,
@@ -138,8 +138,8 @@ func TestSSOConectorCreation(t *testing.T) {
 				}
 				return samlApp, nil
 			}
-		oktaClient.monkeyPatch.assignGroupToApplicationByID =
-			func(ctx context.Context, groupId, appId string) error {
+		oktaClient.monkeyPatch.assignGroupToApplication =
+			func(ctx context.Context, groupId oktaGroupID, appId oktaAppID) error {
 				require.Equal(t, everyoneGroupId, groupId)
 				require.Equal(t, testTeleportAppId, appId)
 				groupWasAssigned = true

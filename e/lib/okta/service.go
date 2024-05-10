@@ -271,7 +271,7 @@ type OktaClient interface {
 	// signal that it does not want to continue receiving users. All other
 	// non-nil return values are considered an error and will be propagated to
 	// the caller.
-	iterateAppUsers(context.Context, string, func(*okta.AppUser) error) error
+	iterateAppUsers(context.Context, oktaAppID, func(*okta.AppUser) error) error
 
 	// iterateGroups will iterate over the list of all Okta groups. The supplied
 	// iterator callback may return errStopIteration to signal that it does not want
@@ -286,40 +286,38 @@ type OktaClient interface {
 	iterateApps(context.Context, func(okta.App) error) error
 
 	// getGroupAssignments will return the list of users assigned to a group.
-	getGroupAssignments(ctx context.Context, groupID string) ([]string, error)
+	getGroupAssignments(ctx context.Context, groupID oktaGroupID) ([]oktaUserID, error)
 
 	// getAppAssignments will return the list of users assigned to an app.
-	getAppAssignments(ctx context.Context, appID string) ([]appAssignment, error)
+	getAppAssignments(ctx context.Context, appID oktaAppID) ([]appAssignment, error)
 
 	// getAppGroups will return the list of groups an application belongs to.
-	getAppGroups(ctx context.Context, appID string) ([]string, error)
+	getAppGroups(ctx context.Context, appID oktaAppID) ([]oktaGroupID, error)
 
 	// listUsers will return a mapping of usernames to user IDs from Okta.
-	listUsers(ctx context.Context) (map[string]string, error)
+	listUsers(ctx context.Context) (map[userName]oktaUserID, error)
 
 	// assignUserToGroup will assign the given user to the group.
-	assignUserToGroup(ctx context.Context, username, groupId string) error
+	assignUserToGroup(ctx context.Context, userID oktaUserID, groupId oktaGroupID) error
 
 	// unassignUserFromGroup will unassign the given user from the group.
-	unassignUserFromGroup(ctx context.Context, username, groupId string) error
+	unassignUserFromGroup(ctx context.Context, userID oktaUserID, groupId oktaGroupID) error
 
 	// assignUserToApplication will assign the given user to the application.
-	assignUserToApplication(ctx context.Context, username, applicationId string) error
+	assignUserToApplication(ctx context.Context, userID oktaUserID, applicationId oktaAppID) error
 
-	// assignGroupToApplicationByID assigns the given group to the application.
-	// Note that the group is indicated using the Okta group ID, rather than the
-	// group name as in other methods.
-	assignGroupToApplicationByID(ctx context.Context, groupID, applicationID string) error
+	// assignGroupToApplication assigns the given group to the application.
+	assignGroupToApplication(ctx context.Context, groupID oktaGroupID, applicationID oktaAppID) error
 
 	// unassignUserFromApplication will unassign the given user from the application.
-	unassignUserFromApplication(ctx context.Context, username, applicationId string) error
+	unassignUserFromApplication(ctx context.Context, userID oktaUserID, applicationId oktaAppID) error
 
 	// createApplication attempts to create a new Okta application from the
 	// supplied application request.
 	createApplication(ctx context.Context, application okta.App) (okta.App, error)
 
 	// getApplication fetches the data for single application.
-	getApplication(ctx context.Context, appID string, appType okta.App) (okta.App, error)
+	getApplication(ctx context.Context, appID oktaAppID, appType okta.App) (okta.App, error)
 
 	// getOrgURL will return the org URL for the client.
 	orgURL() string

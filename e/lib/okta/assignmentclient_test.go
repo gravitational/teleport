@@ -248,14 +248,15 @@ func TestAssignmentClient(t *testing.T) {
 // server. Creating
 type testAssignmentOktaServer struct {
 	t                *testing.T
+	log              *logrus.Entry
 	httpServer       *httptest.Server
 	appsCallsCount   atomic.Int64
 	group1CallsCount atomic.Int64
 	group2CallsCount atomic.Int64
 }
 
-func newTestAssignmentOktaServer(t *testing.T) *testAssignmentOktaServer {
-	fixture := &testAssignmentOktaServer{t: t}
+func newTestAssignmentOktaServer(t *testing.T, log *logrus.Entry) *testAssignmentOktaServer {
+	fixture := &testAssignmentOktaServer{t: t, log: log}
 	fixture.httpServer = httptest.NewTLSServer(fixture)
 	t.Cleanup(func() { fixture.httpServer.Close() })
 
@@ -273,6 +274,7 @@ func (ts *testAssignmentOktaServer) client(t *testing.T, ctx context.Context) Ok
 
 	client := &wrappedClient{
 		client: oktaClient,
+		log:    ts.log,
 	}
 
 	return client
@@ -320,7 +322,7 @@ func TestClientGetAssignedAppsGroups(t *testing.T) {
 	log := logrus.WithField(teleport.ComponentKey, eteleport.ComponentOkta)
 
 	t.Run("get assigned app for user concurrent calls", func(t *testing.T) {
-		testServer := newTestAssignmentOktaServer(t)
+		testServer := newTestAssignmentOktaServer(t, log.WithField("test", t.Name()))
 		assignmentClient := newAssignmentClient(log, testServer.client(t, ctx))
 
 		// Test the OKTA API is called only once for the same user and app
@@ -344,7 +346,7 @@ func TestClientGetAssignedAppsGroups(t *testing.T) {
 	})
 
 	t.Run("get assigned groups for user concurrent calls", func(t *testing.T) {
-		testServer := newTestAssignmentOktaServer(t)
+		testServer := newTestAssignmentOktaServer(t, log.WithField("test", t.Name()))
 		assignmentClient := newAssignmentClient(log, testServer.client(t, ctx))
 
 		// Test the OKTA API is called only once for the same user and group
@@ -374,7 +376,7 @@ func TestClientGetAssignedAppsGroups(t *testing.T) {
 	})
 
 	t.Run("get assigned for username2", func(t *testing.T) {
-		testServer := newTestAssignmentOktaServer(t)
+		testServer := newTestAssignmentOktaServer(t, log.WithField("test", t.Name()))
 		assignmentClient := newAssignmentClient(log, testServer.client(t, ctx))
 
 		// Check if for other user the OKTA API will not be called again and cached value will be used.

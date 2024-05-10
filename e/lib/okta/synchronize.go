@@ -237,10 +237,15 @@ func (s *Service) synchronizeApplications(ctx context.Context) (userGroupsToAppl
 			return nil
 		}
 
-		groups, err := s.client.getAppGroups(ctx, oktaApplication.Id)
+		oktaGroups, err := s.client.getAppGroups(ctx, oktaAppID(oktaApplication.Id))
 		if err != nil {
 			s.log.Debugf("Error getting groups for applications: %v", err)
 			return nil
+		}
+
+		groups := make([]string, len(oktaGroups))
+		for i, g := range oktaGroups {
+			groups[i] = string(g)
 		}
 
 		apps, err := s.oktaAppToApp(oktaApplication, groups)
