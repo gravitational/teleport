@@ -50,7 +50,6 @@ import { ResourceSearchError } from 'teleterm/ui/services/resources';
 import { isRetryable } from 'teleterm/ui/utils/retryWithRelogin';
 import { assertUnreachable } from 'teleterm/ui/utils';
 import { isWebApp } from 'teleterm/services/tshd/app';
-import { App } from 'teleterm/ui/services/clusters';
 
 import { SearchAction } from '../actions';
 import { useSearchContext } from '../SearchContext';
@@ -790,7 +789,7 @@ export function AppItem(props: SearchResultItem<SearchResultApp>) {
   );
 }
 
-function getAppItemCopy($appName: React.JSX.Element, app: App) {
+function getAppItemCopy($appName: React.JSX.Element, app: tsh.App) {
   if (app.samlApp) {
     return <>Log in to {$appName} in the browser</>;
   }
