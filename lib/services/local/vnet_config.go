@@ -97,13 +97,13 @@ func validateVnetConfig(vnetConfig *vnet.VnetConfig) error {
 	if vnetConfig.GetMetadata().GetName() != vnetConfigSingletonName {
 		return trace.BadParameter("name must be %q", vnetConfigSingletonName)
 	}
-	if cidrRange := vnetConfig.GetSpec().GetCidrRange(); cidrRange != "" {
+	if cidrRange := vnetConfig.GetSpec().GetIpv4CidrRange(); cidrRange != "" {
 		ip, _, err := net.ParseCIDR(cidrRange)
 		if err != nil {
-			return trace.Wrap(err, "parsing cidr_range")
+			return trace.Wrap(err, "parsing ipv4_cidr_range")
 		}
 		if ip4 := ip.To4(); ip4 == nil {
-			return trace.BadParameter("cidr_range must be IPv4")
+			return trace.BadParameter("ipv4_cidr_range must be valid IPv4")
 		}
 	}
 	return nil

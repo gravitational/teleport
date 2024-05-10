@@ -45,7 +45,7 @@ func TestVnetConfigService(t *testing.T) {
 		Kind:     types.KindVnetConfig,
 		Version:  types.V1,
 		Metadata: &headerv1.Metadata{Name: vnetConfigSingletonName},
-		Spec:     &vnet.VnetConfigSpec{CidrRange: "192.168.1.0/24"},
+		Spec:     &vnet.VnetConfigSpec{Ipv4CidrRange: "192.168.1.0/24"},
 	}
 
 	// The following are not subtests because they depend on each other.
@@ -117,7 +117,7 @@ func TestVnetConfigValidation(t *testing.T) {
 				Kind:     "invalidKind",
 				Version:  types.V1,
 				Metadata: &headerv1.Metadata{Name: vnetConfigSingletonName},
-				Spec:     &vnet.VnetConfigSpec{CidrRange: "192.168.1.0/24"},
+				Spec:     &vnet.VnetConfigSpec{Ipv4CidrRange: "192.168.1.0/24"},
 			},
 			wantErr: true,
 		},
@@ -127,7 +127,7 @@ func TestVnetConfigValidation(t *testing.T) {
 				Kind:     types.KindVnetConfig,
 				Version:  "v2",
 				Metadata: &headerv1.Metadata{Name: vnetConfigSingletonName},
-				Spec:     &vnet.VnetConfigSpec{CidrRange: "192.168.1.0/24"},
+				Spec:     &vnet.VnetConfigSpec{Ipv4CidrRange: "192.168.1.0/24"},
 			},
 			wantErr: true,
 		},
@@ -137,7 +137,7 @@ func TestVnetConfigValidation(t *testing.T) {
 				Kind:     types.KindVnetConfig,
 				Version:  types.V1,
 				Metadata: &headerv1.Metadata{Name: "wrong-name"},
-				Spec:     &vnet.VnetConfigSpec{CidrRange: "192.168.1.0/24"},
+				Spec:     &vnet.VnetConfigSpec{Ipv4CidrRange: "192.168.1.0/24"},
 			},
 			wantErr: true,
 		},
@@ -147,7 +147,7 @@ func TestVnetConfigValidation(t *testing.T) {
 				Kind:     types.KindVnetConfig,
 				Version:  types.V1,
 				Metadata: &headerv1.Metadata{Name: vnetConfigSingletonName},
-				Spec:     &vnet.VnetConfigSpec{CidrRange: "192.168.300.0/24"},
+				Spec:     &vnet.VnetConfigSpec{Ipv4CidrRange: "192.168.300.0/24"},
 			},
 			wantErr: true,
 		},
@@ -157,7 +157,7 @@ func TestVnetConfigValidation(t *testing.T) {
 				Kind:     types.KindVnetConfig,
 				Version:  types.V1,
 				Metadata: &headerv1.Metadata{Name: vnetConfigSingletonName},
-				Spec:     &vnet.VnetConfigSpec{CidrRange: "192.168.1.0/24"},
+				Spec:     &vnet.VnetConfigSpec{Ipv4CidrRange: "192.168.1.0/24"},
 			},
 		},
 	} {
