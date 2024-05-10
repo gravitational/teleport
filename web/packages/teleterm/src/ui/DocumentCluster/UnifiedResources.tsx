@@ -57,7 +57,7 @@ import {
   DocumentCluster,
   DocumentClusterResourceKind,
 } from 'teleterm/ui/services/workspacesService';
-import { makeApp } from 'teleterm/ui/services/clusters';
+import { getAppAddrWithProtocol } from 'teleterm/services/tshd/app';
 
 import {
   ConnectServerActionButton,
@@ -346,7 +346,7 @@ const mapToSharedResource = (
       };
     }
     case 'app': {
-      const app = makeApp(resource.resource);
+      const { resource: app } = resource;
 
       return {
         resource: {
@@ -354,7 +354,7 @@ const mapToSharedResource = (
           labels: app.labels,
           name: app.name,
           id: app.name,
-          addrWithProtocol: app.addrWithProtocol,
+          addrWithProtocol: getAppAddrWithProtocol(app),
           awsConsole: app.awsConsole,
           description: app.desc,
           friendlyName: app.friendlyName,
