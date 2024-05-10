@@ -5703,7 +5703,7 @@ func TestCheckAccessToSAMLIdP(t *testing.T) {
 				},
 			})
 			require.NoError(t, err)
-			tc.errAssertionFunc(t, tc.roles.CheckAccessToSAMLIdP(authPref))
+			tc.errAssertionFunc(t, tc.roles.CheckAccessToSAMLIdP(authPref, AccessState{MFARequired: MFARequiredNever}))
 		})
 	}
 }
