@@ -5320,7 +5320,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	vnetConfigServiceServer := vnetconfig.NewVnetConfigService(vnetConfigStorage, cfg.Authorizer)
+	vnetConfigServiceServer := vnetconfig.NewService(vnetConfigStorage, cfg.Authorizer)
 	vnet.RegisterVnetConfigServiceServer(server, vnetConfigServiceServer)
 
 	// Only register the service if this is an open source build. Enterprise builds

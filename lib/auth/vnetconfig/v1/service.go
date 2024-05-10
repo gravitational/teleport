@@ -21,17 +21,18 @@ package vnetconfig
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/emptypb"
+
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/emptypb"
 )
 
-type VnetConfigService struct {
+type Service struct {
 	// Opting out of forward compatibility, this service must implement all service methods.
 	vnet.UnsafeVnetConfigServiceServer
 
@@ -39,14 +40,14 @@ type VnetConfigService struct {
 	authorizer authz.Authorizer
 }
 
-func NewVnetConfigService(storage *local.VnetConfigService, authorizer authz.Authorizer) *VnetConfigService {
-	return &VnetConfigService{
+func NewService(storage *local.VnetConfigService, authorizer authz.Authorizer) *Service {
+	return &Service{
 		storage:    storage,
 		authorizer: authorizer,
 	}
 }
 
-func (s *VnetConfigService) GetVnetConfig(ctx context.Context, _ *vnet.GetVnetConfigRequest) (*vnet.VnetConfig, error) {
+func (s *Service) GetVnetConfig(ctx context.Context, _ *vnet.GetVnetConfigRequest) (*vnet.VnetConfig, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -68,7 +69,7 @@ func (s *VnetConfigService) GetVnetConfig(ctx context.Context, _ *vnet.GetVnetCo
 	return vnetConfig, nil
 }
 
-func (s *VnetConfigService) CreateVnetConfig(ctx context.Context, req *vnet.CreateVnetConfigRequest) (*vnet.VnetConfig, error) {
+func (s *Service) CreateVnetConfig(ctx context.Context, req *vnet.CreateVnetConfigRequest) (*vnet.VnetConfig, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -78,17 +79,25 @@ func (s *VnetConfigService) CreateVnetConfig(ctx context.Context, req *vnet.Crea
 		return nil, trace.Wrap(err)
 	}
 
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	vnetConfig, err := s.storage.CreateVnetConfig(ctx, req.VnetConfig)
 	return vnetConfig, trace.Wrap(err)
 }
 
-func (s *VnetConfigService) UpdateVnetConfig(ctx context.Context, req *vnet.UpdateVnetConfigRequest) (*vnet.VnetConfig, error) {
+func (s *Service) UpdateVnetConfig(ctx context.Context, req *vnet.UpdateVnetConfigRequest) (*vnet.VnetConfig, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	if err := checkAccessToResource(authCtx, req.VnetConfig, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -105,7 +114,7 @@ func (s *VnetConfigService) UpdateVnetConfig(ctx context.Context, req *vnet.Upda
 	return vnetConfig, trace.Wrap(err)
 }
 
-func (s *VnetConfigService) UpsertVnetConfig(ctx context.Context, req *vnet.UpsertVnetConfigRequest) (*vnet.VnetConfig, error) {
+func (s *Service) UpsertVnetConfig(ctx context.Context, req *vnet.UpsertVnetConfigRequest) (*vnet.VnetConfig, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -113,6 +122,10 @@ func (s *VnetConfigService) UpsertVnetConfig(ctx context.Context, req *vnet.Upse
 
 	// To upsert you must be allowed to Create and Update the new resource.
 	if err := checkAccessToResource(authCtx, req.VnetConfig, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -150,13 +163,17 @@ func (s *VnetConfigService) UpsertVnetConfig(ctx context.Context, req *vnet.Upse
 	return nil, trace.CompareFailed("failed to upsert vnet_config within 5 attempts")
 }
 
-func (s *VnetConfigService) DeleteVnetConfig(ctx context.Context, _ *vnet.DeleteVnetConfigRequest) (*emptypb.Empty, error) {
+func (s *Service) DeleteVnetConfig(ctx context.Context, _ *vnet.DeleteVnetConfigRequest) (*emptypb.Empty, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	if err := authCtx.CheckAccessToKind(types.KindVnetConfig, types.VerbDelete); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

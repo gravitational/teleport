@@ -1,69 +1,207 @@
+/*
+ * Teleport
+ * Copyright (C) 2024  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package vnetconfig
 
 import (
 	"context"
+	"fmt"
+	"slices"
+	"strings"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
-	header "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
-func TestVnetConfigService(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
+func TestServiceAccess(t *testing.T) {
+	t.Parallel()
 
-	backend, err := memory.New(memory.Config{})
-	require.NoError(t, err)
-
-	storage, err := local.NewVnetConfigService(backend)
-	require.NoError(t, err)
-
-	checker := fakeChecker{
-		allowedVerbs: []string{types.VerbRead, types.VerbUpdate, types.VerbCreate, types.VerbDelete},
-	}
-
-	authorizer := authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
-		user, err := types.NewUser("alice")
-		if err != nil {
-			return nil, err
-		}
-		return &authz.Context{
-			User:    user,
-			Checker: checker,
-		}, nil
-	})
-
-	service := NewVnetConfigService(storage, authorizer)
+	ctx := context.Background()
 
 	vnetConfig := &vnet.VnetConfig{
 		Kind:    types.KindVnetConfig,
 		Version: types.V1,
-		Metadata: &header.Metadata{
+		Metadata: &headerv1.Metadata{
 			Name: "vnet-config",
 		},
-		Spec: &vnet.VnetConfigSpec{
-			CidrRange: "100.64.0.0/10",
-			CustomDnsZones: []*vnet.CustomDNSZone{
-				{Suffix: "example.com"},
-				{Suffix: "test.example.com"},
+	}
+
+	type testCase struct {
+		name          string
+		allowedVerbs  []string
+		allowedStates []authz.AdminActionAuthState
+		action        func(*Service) error
+	}
+	testCases := []testCase{
+		{
+			name:          "CreateVnetConfig",
+			allowedStates: []authz.AdminActionAuthState{authz.AdminActionAuthNotRequired, authz.AdminActionAuthMFAVerified},
+			allowedVerbs:  []string{types.VerbCreate},
+			action: func(service *Service) error {
+				_, err := service.CreateVnetConfig(ctx, &vnet.CreateVnetConfigRequest{VnetConfig: vnetConfig})
+				return trace.Wrap(err)
+			},
+		},
+		{
+			name:          "UpdateVnetConfig",
+			allowedStates: []authz.AdminActionAuthState{authz.AdminActionAuthNotRequired, authz.AdminActionAuthMFAVerified},
+			allowedVerbs:  []string{types.VerbUpdate},
+			action: func(service *Service) error {
+				if _, err := service.storage.CreateVnetConfig(ctx, vnetConfig); err != nil {
+					return trace.Wrap(err, "creating vnet_config as pre-req for Update test")
+				}
+				_, err := service.UpdateVnetConfig(ctx, &vnet.UpdateVnetConfigRequest{VnetConfig: vnetConfig})
+				return trace.Wrap(err)
+			},
+		},
+		{
+			name:          "DeleteVnetConfig",
+			allowedStates: []authz.AdminActionAuthState{authz.AdminActionAuthNotRequired, authz.AdminActionAuthMFAVerified},
+			allowedVerbs:  []string{types.VerbDelete},
+			action: func(service *Service) error {
+				_, err := service.DeleteVnetConfig(ctx, &vnet.DeleteVnetConfigRequest{})
+				return trace.Wrap(err)
+			},
+		},
+		{
+			name:          "UpsertVnetConfig",
+			allowedStates: []authz.AdminActionAuthState{authz.AdminActionAuthNotRequired, authz.AdminActionAuthMFAVerified},
+			allowedVerbs:  []string{types.VerbCreate, types.VerbUpdate},
+			action: func(service *Service) error {
+				_, err := service.UpsertVnetConfig(ctx, &vnet.UpsertVnetConfigRequest{VnetConfig: vnetConfig})
+				return trace.Wrap(err)
+			},
+		},
+		{
+			name:          "UpsertVnetConfig with existing",
+			allowedStates: []authz.AdminActionAuthState{authz.AdminActionAuthNotRequired, authz.AdminActionAuthMFAVerified},
+			allowedVerbs:  []string{types.VerbCreate, types.VerbUpdate},
+			action: func(service *Service) error {
+				if _, err := service.storage.CreateVnetConfig(ctx, vnetConfig); err != nil {
+					return trace.Wrap(err, "creating vnet_config as pre-req for Upsert test")
+				}
+				_, err := service.UpsertVnetConfig(ctx, &vnet.UpsertVnetConfigRequest{VnetConfig: vnetConfig})
+				return trace.Wrap(err)
+			},
+		},
+		{
+			name: "GetVnetConfig",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthUnauthorized, authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified, authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			allowedVerbs: []string{types.VerbRead},
+			action: func(service *Service) error {
+				if _, err := service.storage.CreateVnetConfig(ctx, vnetConfig); err != nil {
+					return trace.Wrap(err, "creating vnet_config as pre-req for Get test")
+				}
+				_, err := service.GetVnetConfig(ctx, &vnet.GetVnetConfigRequest{})
+				return trace.Wrap(err)
 			},
 		},
 	}
 
-	createdVnetConfig, err := service.CreateVnetConfig(ctx, &vnet.CreateVnetConfigRequest{VnetConfig: vnetConfig})
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(vnetConfig, createdVnetConfig,
-		cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
-		cmpopts.IgnoreUnexported(vnet.VnetConfig{}, vnet.VnetConfigSpec{}, vnet.CustomDNSZone{}, header.Metadata{})))
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// test the method with allowed admin states, each one separately.
+			t.Run("allowed admin states", func(t *testing.T) {
+				for _, state := range tc.allowedStates {
+					t.Run(stateToString(state), func(t *testing.T) {
+						for _, verbs := range utils.Combinations(tc.allowedVerbs) {
+							t.Run(fmt.Sprintf("verbs=%v", verbs), func(t *testing.T) {
+								service := newService(t, state, fakeChecker{allowedVerbs: verbs})
+								err := tc.action(service)
+								// expect access denied except with full set of verbs.
+								if len(verbs) == len(tc.allowedVerbs) {
+									require.NoError(t, err, trace.DebugReport(err))
+								} else {
+									require.True(t, trace.IsAccessDenied(err), "expected access denied for verbs %v, got err=%v", verbs, err)
+								}
+							})
+						}
+					})
+				}
+			})
+
+			// test the method with disallowed admin states; expect failures.
+			t.Run("disallowed admin states", func(t *testing.T) {
+				disallowedStates := otherAdminStates(tc.allowedStates)
+				for _, state := range disallowedStates {
+					t.Run(stateToString(state), func(t *testing.T) {
+						// it is enough to test against tc.allowedVerbs,
+						// this is the only different data point compared to the test cases above.
+						service := newService(t, state, fakeChecker{allowedVerbs: tc.allowedVerbs})
+						err := tc.action(service)
+						require.True(t, trace.IsAccessDenied(err))
+					})
+				}
+			})
+		})
+	}
+
+	// verify that all declared methods have matching test cases
+	t.Run("verify coverage", func(t *testing.T) {
+		for _, method := range vnet.VnetConfigService_ServiceDesc.Methods {
+			t.Run(method.MethodName, func(t *testing.T) {
+				match := slices.ContainsFunc(testCases, func(tc testCase) bool {
+					return strings.Contains(method.MethodName, tc.name)
+				})
+				require.True(t, match, "method %v without coverage, no matching tests", method.MethodName)
+			})
+		}
+	})
+}
+
+var allAdminStates = map[authz.AdminActionAuthState]string{
+	authz.AdminActionAuthUnauthorized:         "Unauthorized",
+	authz.AdminActionAuthNotRequired:          "NotRequired",
+	authz.AdminActionAuthMFAVerified:          "MFAVerified",
+	authz.AdminActionAuthMFAVerifiedWithReuse: "MFAVerifiedWithReuse",
+}
+
+func stateToString(state authz.AdminActionAuthState) string {
+	str, ok := allAdminStates[state]
+	if !ok {
+		return fmt.Sprintf("unknown(%v)", state)
+	}
+	return str
+}
+
+// otherAdminStates returns all admin states except for those passed in
+func otherAdminStates(states []authz.AdminActionAuthState) []authz.AdminActionAuthState {
+	var out []authz.AdminActionAuthState
+	for state := range allAdminStates {
+		found := slices.Index(states, state) != -1
+		if !found {
+			out = append(out, state)
+		}
+	}
+	return out
 }
 
 type fakeChecker struct {
@@ -73,12 +211,34 @@ type fakeChecker struct {
 
 func (f fakeChecker) CheckAccessToRule(_ services.RuleContext, _ string, resource string, verb string) error {
 	if resource == types.KindVnetConfig {
-		for _, allowedVerb := range f.allowedVerbs {
-			if allowedVerb == verb {
-				return nil
-			}
+		if slices.Contains(f.allowedVerbs, verb) {
+			return nil
 		}
 	}
 
 	return trace.AccessDenied("access denied to rule=%v/verb=%v", resource, verb)
+}
+
+func newService(t *testing.T, authState authz.AdminActionAuthState, checker services.AccessChecker) *Service {
+	t.Helper()
+
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+
+	storage, err := local.NewVnetConfigService(bk)
+	require.NoError(t, err)
+
+	authorizer := authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+		user, err := types.NewUser("alice")
+		if err != nil {
+			return nil, err
+		}
+		return &authz.Context{
+			User:                 user,
+			Checker:              checker,
+			AdminActionAuthState: authState,
+		}, nil
+	})
+
+	return NewService(storage, authorizer)
 }
