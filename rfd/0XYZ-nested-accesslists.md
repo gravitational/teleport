@@ -51,11 +51,17 @@ version: v1
 These fields will contain a list of other access lists that will be
 included in the access list.
 
+Access lists included in `member_access_lists` and
+`owner_access_lists` will take the membership only from the list of
+members in the included access list.
+
 # Implementation considerations
 
 The implementation will not support cycles within the heirarchy as
 this would introduce confusing options for configuration. Teleport
-will return an error if a cycle are introduced.
+will return an error if a cycle are introduced. It will also only look
+10 layers deep before exiting a lookup to avoid overly complex
+heirarchies.
 
 Errors over cycles in the heirarchy will be detected and returned at
 access list insertion/update time.
@@ -71,6 +77,9 @@ Access list periodic reviews will include in the member review page,
 the list of nested access lists and an indicator to suggest that its
 an access list not an individual member, but not the full list of
 users.
+
+Access request suggested reviewers will include members included in
+the `owner_access_lists` field.
 
 # Examples
 
@@ -133,3 +142,9 @@ be traversed and so upon login, user Alice will have been granted
 - `manager` from `acl-c` as it includes members of `acl-a`
 - `auditor` and `reviewer` from `acl-b` as it includes members of
   `acl-c`, who also include members of `acl-a`
+
+# Future considerations
+
+Further development of membership reviews should be considered to
+expand reviews to include members of nested lists and to include
+information in the UI that nested may need to be separately reviewed
