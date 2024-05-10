@@ -181,9 +181,21 @@ func sendTUNNameAndFd(socketPath, tunName string, fd uintptr) error {
 // recvTUNNameAndFd receives the name of a TUN device and its open file descriptor over a unix socket, meant
 // for passing the TUN from the root process which must create it to the user process.
 func recvTUNNameAndFd(ctx context.Context, socket *net.UnixListener) (string, uintptr, error) {
-	conn, err := socket.AcceptUnix()
-	if err != nil {
-		return "", 0, trace.Wrap(err, "accepting connection on unix socket")
+	var conn *net.UnixConn
+	errC := make(chan error)
+	go func() {
+		connection, err := socket.AcceptUnix()
+		conn = connection
+		errC <- err
+	}()
+
+	select {
+	case <-ctx.Done():
+		return "", 0, trace.Wrap(ctx.Err())
+	case err := <-errC:
+		if err != nil {
+			return "", 0, trace.Wrap(err, "accepting connection on unix socket")
+		}
 	}
 
 	// Close the connection early to unblock reads if the context is canceled.

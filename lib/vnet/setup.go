@@ -41,6 +41,8 @@ func Setup(ctx context.Context, appProvider AppProvider) (*Manager, <-chan error
 
 	var tun TUNDevice
 	select {
+	case <-ctx.Done():
+		return nil, nil, trace.Wrap(ctx.Err())
 	case err := <-adminCommandErrCh:
 		return nil, nil, trace.Wrap(err)
 	case tun = <-tunCh:
