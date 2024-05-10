@@ -34,7 +34,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1698,20 +1697,13 @@ func testKubeExecWeb(t *testing.T, suite *KubeSuite) {
 		return ws
 	}
 
-	findTextInReader := func(t *testing.T, reader io.ReadCloser, text string) {
-		var success atomic.Bool
+	findTextInReader := func(t *testing.T, reader ReaderWithDeadline, text string, timeout time.Duration) {
 		// Make sure we don't wait forever on a read.
-		go func() {
-			time.Sleep(time.Second * 2)
-			if !success.Load() {
-				_ = reader.Close()
-				assert.Fail(t, "Timed out waiting for command output")
-			}
-		}()
+		err := reader.SetReadDeadline(time.Now().Add(timeout))
+		require.NoError(t, err)
 
 		readData := make([]byte, 255)
 		accum := make([]byte, 0, 255)
-
 		for {
 			n, err := reader.Read(readData)
 			require.NoError(t, err)
@@ -1719,7 +1711,6 @@ func testKubeExecWeb(t *testing.T, suite *KubeSuite) {
 			accum = append(accum, readData[:n]...)
 
 			if strings.Contains(string(accum), text) {
-				success.Store(true)
 				break
 			}
 		}
@@ -1739,7 +1730,7 @@ func testKubeExecWeb(t *testing.T, suite *KubeSuite) {
 		wsStream := web.NewWStream(context.Background(), ws, suite.log, nil)
 
 		// Check for the expected string in the output.
-		findTextInReader(t, wsStream, testNamespace)
+		findTextInReader(t, wsStream, testNamespace, time.Second*2)
 
 		err = ws.Close()
 		require.NoError(t, err)
@@ -1769,12 +1760,17 @@ func testKubeExecWeb(t *testing.T, suite *KubeSuite) {
 		require.NoError(t, err)
 
 		// Check for the expected string in the output.
-		findTextInReader(t, wsStream, testNamespace)
+		findTextInReader(t, wsStream, testNamespace, time.Second*2)
 
 		err = ws.Close()
 		require.NoError(t, err)
 	})
 
+}
+
+type ReaderWithDeadline interface {
+	io.Reader
+	SetReadDeadline(time.Time) error
 }
 
 // Small helper that wraps a websocket and unmarshalls messages as Teleport

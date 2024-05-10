@@ -1152,6 +1152,10 @@ func isOKWebsocketCloseError(err error) bool {
 	)
 }
 
+func (t *WSStream) SetReadDeadline(deadline time.Time) error {
+	return t.ws.SetReadDeadline(deadline)
+}
+
 func (t *WSStream) processMessages(ctx context.Context) {
 	defer func() {
 		t.close()
