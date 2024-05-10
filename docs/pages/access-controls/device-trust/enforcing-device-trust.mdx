@@ -78,11 +78,6 @@ Enterprise clusters run in `optional` mode by default. Changing the mode to
 `required` will enforce a trusted device for all SSH, Database and Kubernetes
 accesses.
 
-<Admonition type="warning" title="Web UI">
-The Web UI is not capable of trusted device access. Only `tsh` and Teleport
-Connect are able to fulfill device mode `required`.
-</Admonition>
-
 To enable device mode `required` update your configuration as follows:
 
 <Tabs dropDownCaption="Teleport Deployment">
@@ -154,14 +149,20 @@ leaf clusters.
 
 ## App Access support
 
-Apps may enforce device trust via [role-based enforcement](
-#role-based-trusted-device-enforcement). Any apps that enforce device trust must
-be accessed using tsh commands such as [tsh proxy app](
-../../reference/cli/tsh.mdx#tsh-proxy-app) or using the certificates issued by
-`tsh app login`. Direct access to those apps via the Web UI is not yet
-available.
+The Teleport App Service may enforce device trust via [role-based enforcement](
+#role-based-trusted-device-enforcement).
 
-For example, to enforce device trust for all `env:production` apps, save the
+To access apps protected by device trust using the Web UI (Teleport v16 or
+later), make sure your device is [registered and enrolled](
+./device-management.mdx#register-a-trusted-device), install [Teleport Connect](
+../../connect-your-client/teleport-connect.mdx#installation--upgrade), and
+follow the instructions during login.
+
+Alternatively, you may use [tsh proxy app](
+../../reference/cli/tsh.mdx#tsh-proxy-app) or the certificates issued by
+`tsh app login`.
+
+As an example, to enforce device trust for all `env:production` apps, save the
 role below as `require-trusted-device-apps.yaml`:
 
 ```yaml
@@ -199,8 +200,58 @@ version: v2
 ```
 
 Now the alice user can only access `env:production` apps using a trusted device.
-For example, to access an app called `myapp`, alice runs `tsh proxy app myapp -p
-8888` and opens http://localhost:8888 in her browser.
+
+## Desktop Access support
+
+The Teleport Desktop Service may enforce device trust via [role-based
+enforcement]( #role-based-trusted-device-enforcement).
+
+To access desktops protected by device trust make sure your device is
+[registered and enrolled](./device-management.mdx#register-a-trusted-device),
+install [Teleport Connect](
+../../connect-your-client/teleport-connect.mdx#installation--upgrade), and
+follow the instructions during login.
+
+As an example, to enforce device trust for all `env:production` desktops, save
+the role below as `require-trusted-device-desktops.yaml`:
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: require-trusted-device-desktops
+spec:
+  options:
+    device_trust_mode: "required"
+  allow:
+    windows_desktop_labels:
+      env: "production"
+    windows_desktop_logins: ["Administrator", "alice"]
+```
+
+Create the role and assign it to a user:
+
+```code
+$ tctl create require-trusted-device-desktops.yaml
+$ tctl edit users/alice
+```
+
+```diff
+kind: user
+metadata:
+  name: alice
+  # (...)
+spec:
+  roles:
+  - access
+  - editor
++ - require-trusted-device-desktops
+  # (...)
+version: v2
+```
+
+Now the alice user can only access `env:production` desktops using a trusted
+device.
 
 ## Locking a device
 
