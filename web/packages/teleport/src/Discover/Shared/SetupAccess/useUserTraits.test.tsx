@@ -461,14 +461,15 @@ describe('calls to nextStep respects number of steps to skip', () => {
     });
     discoverCtx.agentMeta.autoDiscovery = {
       config: { name: '', discoveryGroup: '', aws: [] },
+      requiredVpcsAndSubnets: {},
     };
 
-    const { result } = renderHook(() => useUserTraits(), {
+    const { result, waitForNextUpdate } = renderHook(() => useUserTraits(), {
       wrapper: wrapperFn(discoverCtx, teleCtx),
     });
-    await waitFor(() =>
-      expect(result.current.dynamicTraits.logins.length).toBeGreaterThan(0)
-    );
+
+    await waitForNextUpdate();
+    expect(result.current.dynamicTraits.logins.length).toBeGreaterThan(0);
 
     act(() => {
       result.current.onProceed({ databaseNames: [], databaseUsers: [] }, 7);
