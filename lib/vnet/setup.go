@@ -18,6 +18,7 @@ package vnet
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"os"
 	"time"
@@ -70,13 +71,28 @@ func Setup(ctx context.Context, appProvider AppProvider) (*Manager, <-chan error
 // makes sure the other one exits as well.
 //
 // It captures some peculiarities of running VNet that need to be handled both in tsh and Connect.
-func Run(ctx context.Context, cancel context.CancelFunc, manager *Manager, adminCommandErrCh <-chan error) error {
+//
+// cancel accepts a cause because when stopping manager, we need to differentiate between regular
+// cancellation (think Ctrl + C in a terminal) vs canceling because the admin subcommand exiting
+// prematurely.
+func Run(ctx context.Context, cancel context.CancelCauseFunc, manager *Manager, adminCommandErrCh <-chan error) error {
 	allErrors := make(chan error, 2)
 	g, ctx := errgroup.WithContext(ctx)
 	g.Go(func() error {
 		// Make sure to cancel the context if manager.Run terminates for any reason.
-		defer cancel()
+		defer cancel(nil)
 		err := trace.Wrap(manager.Run(ctx), "running VNet manager")
+
+		// If ctx was canceled due to a specific cause, do not put err into allErrors. The specific
+		// cause is going to be reported by another goroutine.
+		//
+		// If this goroutine added context.Canceled into the error aggregate, final callsites in the
+		// upper layers would have assumed that it was merely a context that was canceled, while the
+		// real reason would be more complex.
+		if errors.Is(err, context.Canceled) && !errors.Is(context.Cause(ctx), context.Canceled) {
+			return nil
+		}
+
 		allErrors <- err
 		return err
 	})
@@ -85,10 +101,14 @@ func Run(ctx context.Context, cancel context.CancelFunc, manager *Manager, admin
 		select {
 		case adminCommandErr = <-adminCommandErrCh:
 			// The admin command exited before the context was canceled, cancel everything and exit.
-			cancel()
+			// This can happen if the admin subcommand crashes or gets killed.
+
+			// If socket gets removed, the admin subcommand assumes it's because the process on the other
+			// end of this socket (running this code) has quit.
 			if adminCommandErr == nil {
-				allErrors <- trace.Errorf("admin subcommand exited prematurely with no error (likely because socket was removed)")
+				adminCommandErr = trace.Errorf("admin subcommand exited prematurely with no error (likely because socket was removed)")
 			}
+			cancel(adminCommandErr)
 		case <-ctx.Done():
 			// The context has been canceled, the admin command should now exit.
 			adminCommandErr = <-adminCommandErrCh
