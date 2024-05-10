@@ -14,35 +14,263 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package service
+package vnet
 
 import (
 	"context"
-	"math/rand"
-	"time"
+	"crypto/tls"
+	"crypto/x509"
+	"errors"
+	"sync"
 
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport"
+	vnetproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
+	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/vnet/v1"
+	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/teleterm/api/uri"
+	"github.com/gravitational/teleport/lib/teleterm/daemon"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/vnet"
+)
+
+var log = logutils.NewPackageLogger(teleport.ComponentKey, "term:vnet")
+
+type status int
+
+const (
+	statusNotRunning status = iota
+	statusRunning
+	statusClosed
 )
 
 // Service implements gRPC service for VNet.
 type Service struct {
 	api.UnimplementedVnetServiceServer
+
+	cfg            Config
+	mu             sync.Mutex
+	status         status
+	processManager *vnet.ProcessManager
+}
+
+// New creates an instance of Service.
+func New(cfg Config) (*Service, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &Service{
+		cfg: cfg,
+	}, nil
+}
+
+type Config struct {
+	DaemonService      *daemon.Service
+	ClientStore        *client.Store
+	InsecureSkipVerify bool
+}
+
+// CheckAndSetDefaults checks and sets the defaults
+func (c *Config) CheckAndSetDefaults() error {
+	if c.DaemonService == nil {
+		return trace.BadParameter("missing DaemonService")
+	}
+
+	if c.ClientStore == nil {
+		return trace.BadParameter("missing ClientStore")
+	}
+
+	return nil
 }
 
 func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartResponse, error) {
-	n := rand.Intn(10)
-	randomDelay := time.Duration(n) * 100 * time.Millisecond
-	time.Sleep(randomDelay + 400*time.Millisecond)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.status == statusClosed {
+		return nil, trace.CompareFailed("VNet service has been closed")
+	}
+
+	if s.status == statusRunning {
+		return &api.StartResponse{}, nil
+	}
+
+	appProvider := &appProvider{
+		daemonService:      s.cfg.DaemonService,
+		clientStore:        s.cfg.ClientStore,
+		insecureSkipVerify: s.cfg.InsecureSkipVerify,
+	}
+
+	processManager, err := vnet.SetupAndRun(ctx, appProvider)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	go func() {
+		err := processManager.Wait()
+		if err != nil && !errors.Is(err, context.Canceled) {
+			log.ErrorContext(ctx, "VNet closed with an error", "error", err)
+		} else {
+			log.DebugContext(ctx, "VNet closed")
+		}
+
+		// TODO(ravicious): Notify the Electron app about change of VNet state, but only if it's
+		// running. If it's not running, then the Start RPC has already failed and forwarded the error
+		// to the user.
+
+		s.mu.Lock()
+		defer s.mu.Unlock()
+
+		if s.status == statusRunning {
+			s.status = statusNotRunning
+		}
+	}()
+
+	s.processManager = processManager
+	s.status = statusRunning
 	return &api.StartResponse{}, nil
 }
 
+// Stop stops VNet and cleans up used resources. Blocks until VNet stops or ctx is canceled.
 func (s *Service) Stop(ctx context.Context, req *api.StopRequest) (*api.StopResponse, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	err := s.stopLocked()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &api.StopResponse{}, nil
 }
 
-// Close stops the current VNet instance and prevents new instances from being started.
-//
+func (s *Service) stopLocked() error {
+	if s.status == statusClosed {
+		return trace.CompareFailed("VNet service has been closed")
+	}
+
+	if s.status == statusNotRunning {
+		return nil
+	}
+
+	s.processManager.Close()
+	err := s.processManager.Wait()
+	if err != nil && !errors.Is(err, context.Canceled) {
+		return trace.Wrap(err)
+	}
+
+	s.status = statusNotRunning
+	return nil
+}
+
+// Close stops VNet service and prevents it from being started again. Blocks until VNet stops.
 // Intended for cleanup code when tsh daemon gets terminated.
 func (s *Service) Close() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	err := s.stopLocked()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	s.status = statusClosed
 	return nil
+}
+
+type appProvider struct {
+	daemonService      *daemon.Service
+	clientStore        *client.Store
+	insecureSkipVerify bool
+}
+
+func (p *appProvider) ListProfiles() ([]string, error) {
+	profiles, err := p.clientStore.ListProfiles()
+	return profiles, trace.Wrap(err)
+}
+
+func (p *appProvider) GetCachedClient(ctx context.Context, profileName, leafClusterName string) (*client.ClusterClient, error) {
+	uri := uri.NewClusterURI(profileName).AppendLeafCluster(leafClusterName)
+	client, err := p.daemonService.GetCachedClient(ctx, uri)
+	return client, trace.Wrap(err)
+}
+
+func (p *appProvider) ReissueAppCert(ctx context.Context, profileName, leafClusterName string, app types.Application) (tls.Certificate, error) {
+	clusterURI := uri.NewClusterURI(profileName).AppendLeafCluster(leafClusterName)
+	cluster, _, err := p.daemonService.ResolveClusterURI(clusterURI)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+
+	client, err := p.daemonService.GetCachedClient(ctx, clusterURI)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+
+	// TODO(ravicious): Copy stuff from DaemonService.reissueGatewayCerts in order to handle expired certs.
+	cert, err := cluster.ReissueAppCert(ctx, client, app)
+	return cert, trace.Wrap(err)
+}
+
+// GetDialOptions returns ALPN dial options for the profile.
+func (p *appProvider) GetDialOptions(ctx context.Context, profileName string) (*vnet.DialOptions, error) {
+	profile, err := p.clientStore.GetProfile(profileName)
+	if err != nil {
+		return nil, trace.Wrap(err, "loading user profile")
+	}
+	dialOpts := &vnet.DialOptions{
+		WebProxyAddr:            profile.WebProxyAddr,
+		ALPNConnUpgradeRequired: profile.TLSRoutingConnUpgradeRequired,
+		InsecureSkipVerify:      p.insecureSkipVerify,
+	}
+	if dialOpts.ALPNConnUpgradeRequired {
+		dialOpts.RootClusterCACertPool, err = p.getRootClusterCACertPool(ctx, profileName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return dialOpts, nil
+}
+
+func (p *appProvider) GetVnetConfig(ctx context.Context, profileName, leafClusterName string) (*vnetproto.VnetConfig, error) {
+	clusterClient, err := p.GetCachedClient(ctx, profileName, leafClusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	vnetConfigClient := clusterClient.AuthClient.VnetConfigServiceClient()
+	vnetConfig, err := vnetConfigClient.GetVnetConfig(ctx, &vnetproto.GetVnetConfigRequest{})
+	return vnetConfig, trace.Wrap(err)
+}
+
+// getRootClusterCACertPool returns a certificate pool for the root cluster of the given profile.
+func (p *appProvider) getRootClusterCACertPool(ctx context.Context, profileName string) (*x509.CertPool, error) {
+	tc, err := p.newTeleportClient(ctx, profileName, "")
+	if err != nil {
+		return nil, trace.Wrap(err, "creating new client")
+	}
+	certPool, err := tc.RootClusterCACertPool(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err, "loading root cluster CA cert pool")
+	}
+	return certPool, nil
+}
+
+func (p *appProvider) newTeleportClient(ctx context.Context, profileName, leafClusterName string) (*client.TeleportClient, error) {
+	cfg := &client.Config{
+		ClientStore: p.clientStore,
+	}
+	if err := cfg.LoadProfile(p.clientStore, profileName); err != nil {
+		return nil, trace.Wrap(err, "loading client profile")
+	}
+	if leafClusterName != "" {
+		cfg.SiteName = leafClusterName
+	}
+	tc, err := client.NewClient(cfg)
+	if err != nil {
+		return nil, trace.Wrap(err, "creating new client")
+	}
+	return tc, nil
 }
