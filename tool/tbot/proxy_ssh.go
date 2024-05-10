@@ -26,6 +26,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -46,6 +47,19 @@ import (
 )
 
 func onProxySSHCommand(botConfig *config.BotConfig, cf *config.CLIConf) error {
+	if os.Getenv("GOMAXPROCS") == "" {
+		// tbot proxy ssh in its current form is severely hindered by using
+		// multiple cores in terms of cpu time spent in the scheduler (totaling
+		// about half of the total cpu spent!), as we're juggling between a
+		// whole bunch of goroutines that are all blocked waiting for one
+		// another; encryption and decryption might benefit from two independent
+		// cores, but seeing as both directions of the data still require
+		// synchronization quite often (because of grpc, mostly) it doesn't seem
+		// like we benefit much from using two or more cores, considering the
+		// drawbacks
+		runtime.GOMAXPROCS(1)
+	}
+
 	destination, err := tshwrap.GetDestinationDirectory(botConfig)
 	if err != nil {
 		return trace.Wrap(err)
