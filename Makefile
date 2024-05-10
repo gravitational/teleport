@@ -1195,8 +1195,8 @@ CLOUD_VERSIONS = -cloud. -dev.cloud.
 IS_CLOUD_SEMVER = $(call find-any,$(CLOUD_VERSIONS),$(VERSION))
 
 # IS_PROD_SEMVER is non-empty if $(VERSION) does not contains a pre-release component, or
-# if it does, it is -(cloud|alpha|beta|rc).
-PROD_VERSIONS = -cloud. -alpha. -beta. -rc.
+# if it does, it is -cloud.
+PROD_VERSIONS = -cloud.
 IS_PROD_SEMVER = $(if $(findstring -,$(VERSION)),$(call find-any,$(PROD_VERSIONS),$(VERSION)),true)
 
 # Builds a tag build on GitHub Actions.
