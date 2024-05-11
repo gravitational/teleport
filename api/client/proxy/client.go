@@ -388,6 +388,7 @@ func (c *Client) ClientConfig(ctx context.Context, cluster string) (client.Confi
 			ALPNConnUpgradeRequired:    c.cfg.ALPNConnUpgradeRequired,
 			DialOpts:                   c.cfg.DialOpts,
 			InsecureAddressDiscovery:   c.cfg.InsecureSkipVerify,
+			DialInBackground:           true,
 		}, nil
 	}
 

@@ -487,7 +487,7 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	})
 
 	// Start sending ping frames through websocket to client.
-	go startPingLoop(ctx, ws, t.keepAliveInterval, t.log, t.Close)
+	go startWSPingLoop(ctx, ws, t.keepAliveInterval, t.log, t.Close)
 
 	// Pump raw terminal in/out and audit events into the websocket.
 	go t.streamEvents(ctx, tc)
@@ -1150,6 +1150,10 @@ func isOKWebsocketCloseError(err error) bool {
 		websocket.CloseGoingAway,
 		websocket.CloseNormalClosure,
 	)
+}
+
+func (t *WSStream) SetReadDeadline(deadline time.Time) error {
+	return t.ws.SetReadDeadline(deadline)
 }
 
 func (t *WSStream) processMessages(ctx context.Context) {

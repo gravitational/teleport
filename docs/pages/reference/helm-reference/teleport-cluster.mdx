@@ -306,9 +306,9 @@ Defaults to Teleport's binary default when empty: `best_effort`.
 | `string` | `otp`         | Yes       | `auth_service.authentication.second_factor` |
 
 `authentication.secondFactor` controls the second factor used for local user authentication. Possible values supported by this chart
-are `off` (not recommended), `on`, `otp`, `optional` and `webauthn`.
+are `on`, `otp`, and `webauthn`.
 
-When set to `on`, `optional` or `webauthn`, the `authenticationSecondFactor.webauthn` section can also be used.
+When set to `on` or `webauthn`, the `authenticationSecondFactor.webauthn` section can also be used.
 The configured `rp_id` defaults to `clusterName`.
 
 <Admonition type="warning">
