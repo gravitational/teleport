@@ -1540,7 +1540,6 @@ func (set RoleSet) CheckAccessToSAMLIdP(authPref types.AuthPreference, states ..
 		debugf("Access to SAML IdP denied, cluster requires per-session MFA")
 		return ErrSessionMFARequired
 	}
-	mfaAllowed := state.MFAVerified || state.MFARequired == MFARequiredNever
 
 	for _, role := range set {
 		options := role.GetOptions()
@@ -1555,7 +1554,7 @@ func (set RoleSet) CheckAccessToSAMLIdP(authPref types.AuthPreference, states ..
 			return trace.AccessDenied("user has been denied access to the SAML IdP by role %s", role.GetName())
 		}
 
-		if !mfaAllowed && options.RequireMFAType.IsSessionMFARequired() {
+		if options.RequireMFAType.IsSessionMFARequired() && !state.MFAVerified {
 			debugf("Access to SAML IdP denied, role %q requires per-session MFA", role.GetName())
 			return ErrSessionMFARequired
 		}
