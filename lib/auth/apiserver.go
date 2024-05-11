@@ -34,6 +34,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -453,20 +454,7 @@ func (s *APIServer) getWebSession(auth *ServerWithRoles, w http.ResponseWriter, 
 	return rawMessage(services.MarshalWebSession(sess, services.WithVersion(version)))
 }
 
-type WebSessionReq struct {
-	// User is the user name associated with the session id.
-	User string `json:"user"`
-	// PrevSessionID is the id of current session.
-	PrevSessionID string `json:"prev_session_id"`
-	// AccessRequestID is an optional field that holds the id of an approved access request.
-	AccessRequestID string `json:"access_request_id"`
-	// Switchback is a flag to indicate if user is wanting to switchback from an assumed role
-	// back to their default role.
-	Switchback bool `json:"switchback"`
-	// ReloadUser is a flag to indicate if user needs to be refetched from the backend
-	// to apply new user changes e.g. user traits were updated.
-	ReloadUser bool `json:"reload_user"`
-}
+type WebSessionReq = authclient.WebSessionReq
 
 func (s *APIServer) createWebSession(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req WebSessionReq
@@ -609,7 +597,7 @@ type githubAuthRawResponse struct {
 	// TLSCert is PEM encoded TLS certificate
 	TLSCert []byte `json:"tls_cert,omitempty"`
 	// Req is original oidc auth request
-	Req GithubAuthRequest `json:"req"`
+	Req authclient.GithubAuthRequest `json:"req"`
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
 	HostSigners []json.RawMessage `json:"host_signers"`

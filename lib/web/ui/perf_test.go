@@ -160,7 +160,7 @@ type mockRemoteSite struct {
 	accessPoint auth.ProxyAccessPoint
 }
 
-func (m *mockRemoteSite) CachingAccessPoint() (auth.RemoteProxyAccessPoint, error) {
+func (m *mockRemoteSite) CachingAccessPoint() (reversetunnelclient.RemoteProxyAccessPoint, error) {
 	return m.accessPoint, nil
 }
 

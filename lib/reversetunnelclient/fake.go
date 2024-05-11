@@ -24,8 +24,6 @@ import (
 	"sync/atomic"
 
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/lib/auth"
 )
 
 // FakeServer is a fake Server implementation used in tests.
@@ -56,7 +54,7 @@ type FakeRemoteSite struct {
 	// Name is the remote site name.
 	Name string
 	// AccessPoint is the auth server client.
-	AccessPoint auth.RemoteProxyAccessPoint
+	AccessPoint RemoteProxyAccessPoint
 	// OfflineTunnels is a list of server IDs that will return connection error.
 	OfflineTunnels map[string]struct{}
 	// connCh receives the connection when dialing this site.
@@ -70,7 +68,7 @@ type FakeRemoteSite struct {
 }
 
 // NewFakeRemoteSite is a FakeRemoteSite constructor.
-func NewFakeRemoteSite(clusterName string, accessPoint auth.RemoteProxyAccessPoint) *FakeRemoteSite {
+func NewFakeRemoteSite(clusterName string, accessPoint RemoteProxyAccessPoint) *FakeRemoteSite {
 	return &FakeRemoteSite{
 		Name:        clusterName,
 		connCh:      make(chan net.Conn),
@@ -79,7 +77,7 @@ func NewFakeRemoteSite(clusterName string, accessPoint auth.RemoteProxyAccessPoi
 }
 
 // CachingAccessPoint returns caching auth server client.
-func (s *FakeRemoteSite) CachingAccessPoint() (auth.RemoteProxyAccessPoint, error) {
+func (s *FakeRemoteSite) CachingAccessPoint() (RemoteProxyAccessPoint, error) {
 	return s.AccessPoint, nil
 }
 

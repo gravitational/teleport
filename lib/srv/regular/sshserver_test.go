@@ -70,6 +70,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	libproxy "github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	sess "github.com/gravitational/teleport/lib/session"
@@ -1466,7 +1467,7 @@ func mustListen(t *testing.T) (net.Listener, utils.NetAddr) {
 	return l, addr
 }
 
-func noCache(clt auth.ClientI, cacheName []string) (auth.RemoteProxyAccessPoint, error) {
+func noCache(clt auth.ClientI, cacheName []string) (reversetunnelclient.RemoteProxyAccessPoint, error) {
 	return clt, nil
 }
 

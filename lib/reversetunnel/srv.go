@@ -149,7 +149,7 @@ type Config struct {
 	LocalAccessPoint auth.ProxyAccessPoint
 	// NewCachingAccessPoint returns new caching access points
 	// per remote cluster
-	NewCachingAccessPoint auth.NewRemoteProxyCachingAccessPoint
+	NewCachingAccessPoint reversetunnelclient.NewRemoteProxyCachingAccessPoint
 	// Context is a signaling context
 	Context context.Context
 	// Clock is a clock used in the server, set up to
@@ -197,7 +197,7 @@ type Config struct {
 	// NewCachingAccessPointOldProxy is an access point that can be configured
 	// with the old access point policy until all clusters are migrated to 7.0.0
 	// and above.
-	NewCachingAccessPointOldProxy auth.NewRemoteProxyCachingAccessPoint
+	NewCachingAccessPointOldProxy reversetunnelclient.NewRemoteProxyCachingAccessPoint
 
 	// PeerClient is a client to peer proxy servers.
 	PeerClient *peer.Client
@@ -1086,9 +1086,9 @@ func (s *server) GetSite(name string) (reversetunnelclient.RemoteSite, error) {
 	return nil, trace.NotFound("cluster %q is not found", name)
 }
 
-// GetProxyPeerClient returns the proxy peer client
-func (s *server) GetProxyPeerClient() *peer.Client {
-	return s.PeerClient
+// GetPeerConnectionsCount returns the proxy peer connections count
+func (s *server) GetPeerConnectionsCount() int {
+	return s.PeerClient.GetConnectionsCount()
 }
 
 // alwaysClose forces onSiteTunnelClose to remove and close

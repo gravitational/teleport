@@ -32,12 +32,12 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/metadata"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -460,7 +460,7 @@ func clientForFacade(
 	log *slog.Logger,
 	cfg *config.BotConfig,
 	facade *identity.Facade,
-	resolver reversetunnelclient.Resolver) (_ *auth.Client, err error) {
+	resolver reversetunnelclient.Resolver) (_ *apiclient.Client, err error) {
 	ctx, span := tracer.Start(ctx, "clientForFacade")
 	defer func() { apitracing.EndSpan(span, err) }()
 
@@ -479,6 +479,19 @@ func clientForFacade(
 		return nil, trace.Wrap(err)
 	}
 
+	// reversetunnel.TunnelAuthDialer will take care of creating a net.Conn
+	// within an SSH tunnel.
+	dialer, err := reversetunnelclient.NewTunnelAuthDialer(reversetunnelclient.TunnelAuthDialerConfig{
+		Resolver:              resolver,
+		ClientConfig:          sshConfig,
+		Log:                   logrus.StandardLogger(),
+		InsecureSkipTLSVerify: cfg.Insecure,
+		ClusterCAs:            tlsConfig.RootCAs,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	authClientConfig := &authclient.Config{
 		TLS: tlsConfig,
 		SSH: sshConfig,
@@ -487,16 +500,16 @@ func clientForFacade(
 		AuthServers: []utils.NetAddr{*parsedAddr},
 		Log:         logrus.StandardLogger(),
 		Insecure:    cfg.Insecure,
-		Resolver:    resolver,
+		ProxyDialer: dialer,
 		DialOpts:    []grpc.DialOption{metadata.WithUserAgentFromTeleportComponent(teleport.ComponentTBot)},
 	}
 
 	c, err := authclient.Connect(ctx, authClientConfig)
-	return c, trace.Wrap(err)
+	return c.APIClient, trace.Wrap(err)
 }
 
 type authPingCache struct {
-	client *auth.Client
+	client *apiclient.Client
 	log    *slog.Logger
 
 	mu          sync.RWMutex

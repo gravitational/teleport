@@ -148,7 +148,7 @@ func (s *remoteSite) GetTunnelsCount() int {
 	return s.connectionCount()
 }
 
-func (s *remoteSite) CachingAccessPoint() (auth.RemoteProxyAccessPoint, error) {
+func (s *remoteSite) CachingAccessPoint() (reversetunnelclient.RemoteProxyAccessPoint, error) {
 	return s.remoteAccessPoint, nil
 }
 

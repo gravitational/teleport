@@ -28,11 +28,10 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
 )
 
-func getDatabase(ctx context.Context, clt *auth.Client, name string) (types.Database, error) {
+func getDatabase(ctx context.Context, clt *apiclient.Client, name string) (types.Database, error) {
 	ctx, span := tracer.Start(ctx, "getDatabase")
 	defer span.End()
 
@@ -59,7 +58,7 @@ func getDatabase(ctx context.Context, clt *auth.Client, name string) (types.Data
 func getRouteToDatabase(
 	ctx context.Context,
 	log *slog.Logger,
-	client *auth.Client,
+	client *apiclient.Client,
 	service string,
 	username string,
 	database string,

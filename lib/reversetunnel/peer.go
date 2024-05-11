@@ -82,7 +82,7 @@ func (p *clusterPeers) removePeer(connInfo types.TunnelConnection) {
 	delete(p.peers, connInfo.GetName())
 }
 
-func (p *clusterPeers) CachingAccessPoint() (auth.RemoteProxyAccessPoint, error) {
+func (p *clusterPeers) CachingAccessPoint() (reversetunnelclient.RemoteProxyAccessPoint, error) {
 	peer, err := p.pickPeer()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -198,7 +198,7 @@ func (s *clusterPeer) setConnInfo(ci types.TunnelConnection) {
 	s.connInfo = ci
 }
 
-func (s *clusterPeer) CachingAccessPoint() (auth.RemoteProxyAccessPoint, error) {
+func (s *clusterPeer) CachingAccessPoint() (reversetunnelclient.RemoteProxyAccessPoint, error) {
 	return nil, trace.ConnectionProblem(nil, "unable to fetch access point, this proxy %v has not been discovered yet, try again later", s)
 }
 

@@ -44,8 +44,8 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/gravitational/teleport"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -69,7 +69,7 @@ type SPIFFEWorkloadAPIService struct {
 	botCfg      *config.BotConfig
 	cfg         *config.SPIFFEWorkloadAPIService
 	log         *slog.Logger
-	botClient   *auth.Client
+	botClient   *apiclient.Client
 	resolver    reversetunnelclient.Resolver
 	// rootReloadBroadcaster allows the service to listen for CA rotations and
 	// update the trust bundle cache.
@@ -79,7 +79,7 @@ type SPIFFEWorkloadAPIService struct {
 	trustBundleBroadcast *channelBroadcaster
 
 	// client holds the impersonated client for the service
-	client *auth.Client
+	client *apiclient.Client
 
 	trustDomain string
 

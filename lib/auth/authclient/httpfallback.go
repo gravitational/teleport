@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth
+package authclient
 
 import (
 	"context"
@@ -25,9 +25,11 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	presencepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // httpfallback.go holds endpoints that have been converted to gRPC
@@ -43,6 +45,10 @@ func (c *Client) RotateCertAuthority(ctx context.Context, req types.RotateReques
 	}
 
 	return trace.Wrap(err)
+}
+
+type rotateExternalCertAuthorityRawReq struct {
+	CA json.RawMessage `json:"ca"`
 }
 
 // TODO(Joerger): DELETE IN 16.0.0
@@ -176,4 +182,40 @@ func (c *Client) UpdateRemoteCluster(ctx context.Context, rc types.RemoteCluster
 		return nil, trace.Wrap(err)
 	}
 	return fetchedRC, nil
+}
+
+type CreateAppSessionForV15Client interface {
+	Ping(ctx context.Context) (proto.PingResponse, error)
+	CreateAppSession(ctx context.Context, req *proto.CreateAppSessionRequest) (types.WebSession, error)
+}
+
+// TryCreateAppSessionForClientCertV15 creates an app session if the auth
+// server is pre-v16 and returns the app session ID. This app session ID
+// is needed for user app certs requests before v16.
+// TODO (Joerger): DELETE IN v17.0.0
+func TryCreateAppSessionForClientCertV15(ctx context.Context, client CreateAppSessionForV15Client, username string, routeToApp proto.RouteToApp) (string, error) {
+	pingResp, err := client.Ping(ctx)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	// If the auth server is v16+, the client does not need to provide a pre-created app session.
+	const minServerVersion = "16.0.0-aa" // "-aa" matches all development versions
+	if utils.MeetsVersion(pingResp.ServerVersion, minServerVersion) {
+		return "", nil
+	}
+
+	ws, err := client.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
+		Username:          username,
+		PublicAddr:        routeToApp.PublicAddr,
+		ClusterName:       routeToApp.ClusterName,
+		AWSRoleARN:        routeToApp.AWSRoleARN,
+		AzureIdentity:     routeToApp.AzureIdentity,
+		GCPServiceAccount: routeToApp.GCPServiceAccount,
+	})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return ws.GetName(), nil
 }

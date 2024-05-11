@@ -636,7 +636,7 @@ func (s *WebSuite) addNode(t *testing.T, uuid string, hostname string, address s
 	return node
 }
 
-func noCache(clt auth.ClientI, cacheName []string) (auth.RemoteProxyAccessPoint, error) {
+func noCache(clt auth.ClientI, cacheName []string) (reversetunnelclient.RemoteProxyAccessPoint, error) {
 	return clt, nil
 }
 

@@ -2424,7 +2424,7 @@ func (process *TeleportProcess) newLocalCacheForProxy(clt auth.ClientI, cacheNam
 }
 
 // newLocalCacheForRemoteProxy returns new instance of access point configured for a remote proxy.
-func (process *TeleportProcess) newLocalCacheForRemoteProxy(clt auth.ClientI, cacheName []string) (auth.RemoteProxyAccessPoint, error) {
+func (process *TeleportProcess) newLocalCacheForRemoteProxy(clt auth.ClientI, cacheName []string) (reversetunnelclient.RemoteProxyAccessPoint, error) {
 	// if caching is disabled, return access point
 	if !process.Config.CachePolicy.Enabled {
 		return clt, nil
@@ -2442,7 +2442,7 @@ func (process *TeleportProcess) newLocalCacheForRemoteProxy(clt auth.ClientI, ca
 //
 // newLocalCacheForOldRemoteProxy returns new instance of access point
 // configured for an old remote proxy.
-func (process *TeleportProcess) newLocalCacheForOldRemoteProxy(clt auth.ClientI, cacheName []string) (auth.RemoteProxyAccessPoint, error) {
+func (process *TeleportProcess) newLocalCacheForOldRemoteProxy(clt auth.ClientI, cacheName []string) (reversetunnelclient.RemoteProxyAccessPoint, error) {
 	// if caching is disabled, return access point
 	if !process.Config.CachePolicy.Enabled {
 		return clt, nil

@@ -40,7 +40,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/windows"
 	"github.com/gravitational/teleport/lib/client"
@@ -167,7 +167,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 
 // TryRun takes the CLI command as an argument (like "auth gen") and executes it
 // or returns match=false if 'cmd' does not belong to it
-func (a *AuthCommand) TryRun(ctx context.Context, cmd string, client *auth.Client) (match bool, err error) {
+func (a *AuthCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
 	switch cmd {
 	case a.authGenerate.FullCommand():
 		err = a.GenerateKeys(ctx)
@@ -215,7 +215,7 @@ var allowedCRLCertificateTypes = []string{
 // ExportAuthorities outputs the list of authorities in OpenSSH compatible formats
 // If --type flag is given, only prints keys for CAs of this type, otherwise
 // prints all keys
-func (a *AuthCommand) ExportAuthorities(ctx context.Context, clt *auth.Client) error {
+func (a *AuthCommand) ExportAuthorities(ctx context.Context, clt *authclient.Client) error {
 	exportFunc := client.ExportAuthorities
 	if a.exportPrivateKeys {
 		exportFunc = client.ExportAuthoritiesSecrets
@@ -277,7 +277,7 @@ type certificateSigner interface {
 	GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error)
 	TrustClient() trustpb.TrustServiceClient
 	// TODO (Joerger): DELETE IN 17.0.0
-	auth.CreateAppSessionForV15Client
+	authclient.CreateAppSessionForV15Client
 }
 
 // GenerateAndSignKeys generates a new keypair and signs it for role
@@ -393,7 +393,7 @@ func (a *AuthCommand) generateSnowflakeKey(ctx context.Context, clusterAPI certi
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	key.TrustedCerts = []auth.TrustedCerts{{TLSCertificates: services.GetTLSCerts(dbClientCA)}}
+	key.TrustedCerts = []authclient.TrustedCerts{{TLSCertificates: services.GetTLSCerts(dbClientCA)}}
 
 	filesWritten, err := identityfile.Write(ctx, identityfile.WriteConfig{
 		OutputPath:           a.output,
@@ -411,7 +411,7 @@ func (a *AuthCommand) generateSnowflakeKey(ctx context.Context, clusterAPI certi
 }
 
 // RotateCertAuthority starts or restarts certificate authority rotation process
-func (a *AuthCommand) RotateCertAuthority(ctx context.Context, client *auth.Client) error {
+func (a *AuthCommand) RotateCertAuthority(ctx context.Context, client *authclient.Client) error {
 	req := types.RotateRequest{
 		Type:        types.CertAuthType(a.rotateType),
 		GracePeriod: &a.rotateGracePeriod,
@@ -435,7 +435,7 @@ func (a *AuthCommand) RotateCertAuthority(ctx context.Context, client *auth.Clie
 }
 
 // ListAuthServers prints a list of connected auth servers
-func (a *AuthCommand) ListAuthServers(ctx context.Context, clusterAPI *auth.Client) error {
+func (a *AuthCommand) ListAuthServers(ctx context.Context, clusterAPI *authclient.Client) error {
 	servers, err := clusterAPI.GetAuthServers()
 	if err != nil {
 		return trace.Wrap(err)
@@ -517,7 +517,7 @@ func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI certifica
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	key.TrustedCerts = auth.AuthoritiesToTrustedCerts(hostCAs)
+	key.TrustedCerts = authclient.AuthoritiesToTrustedCerts(hostCAs)
 
 	// if no name was given, take the first name on the list of principals
 	filePath := a.output
@@ -891,7 +891,7 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI certifica
 		}
 
 		// TODO (Joerger): DELETE IN v17.0.0
-		routeToApp.SessionID, err = auth.TryCreateAppSessionForClientCertV15(ctx, clusterAPI, a.genUser, routeToApp)
+		routeToApp.SessionID, err = authclient.TryCreateAppSessionForClientCertV15(ctx, clusterAPI, a.genUser, routeToApp)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -935,7 +935,7 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI certifica
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	key.TrustedCerts = auth.AuthoritiesToTrustedCerts(hostCAs)
+	key.TrustedCerts = authclient.AuthoritiesToTrustedCerts(hostCAs)
 
 	// Is TLS routing enabled?
 	proxyListenerMode := types.ProxyListenerMode_Separate
@@ -1189,7 +1189,7 @@ func getApplicationServer(ctx context.Context, clusterAPI certificateSigner, app
 }
 
 // getDatabaseServer fetches a single `DatabaseServer` by name using the
-// provided `*auth.Client`.
+// provided `*authclient.Client`.
 func getDatabaseServer(ctx context.Context, clientAPI certificateSigner, dbName string) (types.DatabaseServer, error) {
 	servers, err := clientAPI.GetDatabaseServers(ctx, apidefaults.Namespace)
 	if err != nil {

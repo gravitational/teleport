@@ -28,8 +28,8 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/proxy/peer"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleagent"
 )
@@ -118,10 +118,10 @@ type RemoteSite interface {
 	// GetStatus returns status of this site (either offline or connected)
 	GetStatus() string
 	// GetClient returns client connected to remote auth server
-	GetClient() (auth.ClientI, error)
+	GetClient() (authclient.ClientI, error)
 	// CachingAccessPoint returns access point that is lightweight
 	// but is resilient to auth server crashes
-	CachingAccessPoint() (auth.RemoteProxyAccessPoint, error)
+	CachingAccessPoint() (RemoteProxyAccessPoint, error)
 	// NodeWatcher returns the node watcher that maintains the node set for the site
 	NodeWatcher() (*services.NodeWatcher, error)
 	// GetTunnelsCount returns the amount of active inbound tunnels
@@ -132,6 +132,149 @@ type RemoteSite interface {
 	IsClosed() bool
 	// Closer allows the site to be closed
 	io.Closer
+}
+
+// NewRemoteProxyCachingAccessPoint returns new caching access point using
+// access point policy
+type NewRemoteProxyCachingAccessPoint func(clt authclient.ClientI, cacheName []string) (RemoteProxyAccessPoint, error)
+
+// RemoteProxyAccessPoint is an API interface implemented by a certificate authority (CA) to be
+// used by a teleport.ComponentProxy.
+type RemoteProxyAccessPoint interface {
+	// ReadRemoteProxyAccessPoint provides methods to read data
+	ReadRemoteProxyAccessPoint
+
+	// UpsertNode registers node presence, permanently if ttl is 0 or
+	// for the specified duration with second resolution if it's >= 1 second
+	UpsertNode(ctx context.Context, s types.Server) (*types.KeepAlive, error)
+
+	// UpsertProxy registers proxy presence, permanently if ttl is 0 or
+	// for the specified duration with second resolution if it's >= 1 second
+	UpsertProxy(ctx context.Context, s types.Server) error
+
+	// UpsertAuthServer registers auth server presence, permanently if ttl is 0 or
+	// for the specified duration with second resolution if it's >= 1 second
+	UpsertAuthServer(ctx context.Context, s types.Server) error
+
+	// UpsertKubernetesServer registers a kubernetes server
+	UpsertKubernetesServer(context.Context, types.KubeServer) (*types.KeepAlive, error)
+
+	// NewKeepAliver returns a new instance of keep aliver
+	NewKeepAliver(ctx context.Context) (types.KeepAliver, error)
+
+	// UpsertApplicationServer registers an application server.
+	UpsertApplicationServer(context.Context, types.AppServer) (*types.KeepAlive, error)
+
+	// UpsertDatabaseServer registers a database proxy server.
+	UpsertDatabaseServer(context.Context, types.DatabaseServer) (*types.KeepAlive, error)
+
+	// UpsertWindowsDesktopService registers a Windows desktop service.
+	UpsertWindowsDesktopService(context.Context, types.WindowsDesktopService) (*types.KeepAlive, error)
+
+	// UpsertWindowsDesktop registers a Windows desktop host.
+	UpsertWindowsDesktop(context.Context, types.WindowsDesktop) error
+
+	// UpsertDatabaseService registers a DatabaseService.
+	UpsertDatabaseService(context.Context, types.DatabaseService) (*types.KeepAlive, error)
+
+	// Streamer creates and manages audit streams
+	events.Streamer
+
+	// Semaphores provides semaphore operations
+	types.Semaphores
+
+	// UpsertTunnelConnection upserts tunnel connection
+	UpsertTunnelConnection(conn types.TunnelConnection) error
+
+	// DeleteTunnelConnection deletes tunnel connection
+	DeleteTunnelConnection(clusterName, connName string) error
+
+	// GenerateCertAuthorityCRL returns an empty CRL for a CA.
+	GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error)
+
+	// ConnectionDiagnosticTraceAppender adds a method to append traces into ConnectionDiagnostics.
+	services.ConnectionDiagnosticTraceAppender
+}
+
+// ReadRemoteProxyAccessPoint is a read only API interface implemented by a certificate authority (CA) to be
+// used by a teleport.ComponentProxy.
+//
+// NOTE: This interface must match the resources replicated in cache.ForRemoteProxy.
+type ReadRemoteProxyAccessPoint interface {
+	// Closer closes all the resources
+	io.Closer
+
+	// NewWatcher returns a new event watcher.
+	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
+
+	// GetCertAuthority returns cert authority by id
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
+
+	// GetCertAuthorities returns a list of cert authorities
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
+
+	// GetClusterName gets the name of the cluster from the backend.
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+
+	// GetClusterAuditConfig returns cluster audit configuration.
+	GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error)
+
+	// GetClusterNetworkingConfig returns cluster networking configuration.
+	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
+
+	// GetAuthPreference returns the cluster authentication configuration.
+	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
+
+	// GetSessionRecordingConfig returns session recording configuration.
+	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
+
+	// GetRole returns role by name
+	GetRole(ctx context.Context, name string) (types.Role, error)
+
+	// GetRoles returns a list of roles
+	GetRoles(ctx context.Context) ([]types.Role, error)
+
+	// GetNamespaces returns a list of namespaces
+	GetNamespaces() ([]types.Namespace, error)
+
+	// GetNamespace returns namespace by name
+	GetNamespace(name string) (*types.Namespace, error)
+
+	// GetNode returns a node by name and namespace.
+	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
+
+	// GetNodes returns a list of registered servers for this cluster.
+	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
+
+	// GetProxies returns a list of proxy servers registered in the cluster
+	GetProxies() ([]types.Server, error)
+
+	// GetAuthServers returns a list of auth servers registered in the cluster
+	GetAuthServers() ([]types.Server, error)
+
+	// GetReverseTunnels returns  a list of reverse tunnels
+	GetReverseTunnels(ctx context.Context, opts ...services.MarshalOption) ([]types.ReverseTunnel, error)
+
+	// GetAllTunnelConnections returns all tunnel connections
+	GetAllTunnelConnections(opts ...services.MarshalOption) ([]types.TunnelConnection, error)
+
+	// GetTunnelConnections returns tunnel connections for a given cluster
+	GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]types.TunnelConnection, error)
+
+	// GetApplicationServers returns all registered application servers.
+	GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error)
+
+	// GetRemoteClusters returns a list of remote clusters
+	GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error)
+
+	// GetRemoteCluster returns a remote cluster by name
+	GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error)
+
+	// GetKubernetesServers returns a list of kubernetes servers registered in the cluster
+	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
+
+	// GetDatabaseServers returns all registered database proxy servers.
+	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
 }
 
 // Tunnel provides access to connected local or remote clusters
@@ -158,8 +301,8 @@ type Server interface {
 	Shutdown(context.Context) error
 	// Wait waits for server to close all outstanding operations
 	Wait(ctx context.Context)
-	// GetProxyPeerClient returns the proxy peer client
-	GetProxyPeerClient() *peer.Client
+	// GetPeerConnectionsCount returns the proxy peer connections
+	GetPeerConnectionsCount() int
 	// TrackUserConnection tracks a user connection that should prevent
 	// the server from being terminated if active. The returned function
 	// should be called when the connection is terminated.

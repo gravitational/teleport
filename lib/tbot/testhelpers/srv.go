@@ -28,6 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -129,7 +130,7 @@ func MakeAndRunTestAuthServer(t *testing.T, log *slog.Logger, fc *config.FileCon
 // MakeDefaultAuthClient reimplements the bare minimum needed to create a
 // default root-level auth client for a Teleport server started by
 // MakeAndRunTestAuthServer.
-func MakeDefaultAuthClient(t *testing.T, fc *config.FileConfig) *auth.Client {
+func MakeDefaultAuthClient(t *testing.T, fc *config.FileConfig) *client.Client {
 	t.Helper()
 
 	cfg := servicecfg.MakeDefaultConfig()
@@ -171,11 +172,11 @@ func MakeDefaultAuthClient(t *testing.T, fc *config.FileConfig) *auth.Client {
 		return true
 	}, time.Second*10, time.Millisecond*250)
 
-	return client
+	return client.APIClient
 }
 
 // MakeBot creates a server-side bot and returns joining parameters.
-func MakeBot(t *testing.T, client *auth.Client, name string, roles ...string) (*botconfig.OnboardingConfig, *machineidv1pb.Bot) {
+func MakeBot(t *testing.T, client *client.Client, name string, roles ...string) (*botconfig.OnboardingConfig, *machineidv1pb.Bot) {
 	ctx := context.TODO()
 	t.Helper()
 

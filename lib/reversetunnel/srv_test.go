@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -216,7 +217,7 @@ func TestCreateRemoteAccessPoint(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			newProxyFn := func(clt auth.ClientI, cacheName []string) (auth.RemoteProxyAccessPoint, error) {
+			newProxyFn := func(clt auth.ClientI, cacheName []string) (reversetunnelclient.RemoteProxyAccessPoint, error) {
 				if tt.oldRemoteProxy {
 					return nil, errors.New("expected to create an old remote proxy")
 				}
@@ -224,7 +225,7 @@ func TestCreateRemoteAccessPoint(t *testing.T) {
 				return nil, nil
 			}
 
-			oldProxyFn := func(clt auth.ClientI, cacheName []string) (auth.RemoteProxyAccessPoint, error) {
+			oldProxyFn := func(clt auth.ClientI, cacheName []string) (reversetunnelclient.RemoteProxyAccessPoint, error) {
 				if !tt.oldRemoteProxy {
 					return nil, errors.New("expected to create an new remote proxy")
 				}

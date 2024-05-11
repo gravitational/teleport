@@ -188,7 +188,7 @@ func (s *localSite) GetTunnelsCount() int {
 }
 
 // CachingAccessPoint returns an auth.RemoteProxyAccessPoint for this cluster.
-func (s *localSite) CachingAccessPoint() (auth.RemoteProxyAccessPoint, error) {
+func (s *localSite) CachingAccessPoint() (reversetunnelclient.RemoteProxyAccessPoint, error) {
 	return s.accessPoint, nil
 }
 

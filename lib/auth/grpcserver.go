@@ -74,6 +74,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/accessmonitoringrules/accessmonitoringrulesv1"
 	"github.com/gravitational/teleport/lib/auth/assist/assistv1"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
 	"github.com/gravitational/teleport/lib/auth/crownjewel/crownjewelv1"
 	"github.com/gravitational/teleport/lib/auth/dbobject/dbobjectv1"
@@ -2362,9 +2363,7 @@ func isLocalProxyCertReq(req *authpb.UserCertsRequest) bool {
 
 // ErrNoMFADevices is returned when an MFA ceremony is performed without possible devices to
 // complete the challenge with.
-var ErrNoMFADevices = &trace.AccessDeniedError{
-	Message: "MFA is required to access this resource but user has no MFA devices; use 'tsh mfa add' to register MFA devices",
-}
+var ErrNoMFADevices = authclient.ErrNoMFADevices
 
 func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req authpb.UserCertsRequest) (*authpb.Certs, error) {
 	// Get the client IP.

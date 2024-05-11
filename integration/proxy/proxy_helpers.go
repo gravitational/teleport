@@ -590,7 +590,7 @@ func makeNodeConfig(nodeName, proxyAddr string) *servicecfg.Config {
 // waitForActivePeerProxyConnections waits for remote cluster to report a minimum number of active proxy peer connections
 func waitForActivePeerProxyConnections(t *testing.T, tunnel reversetunnelclient.Server, expectedCount int) { //nolint:unused // Only used by skipped test TestProxyTunnelStrategyProxyPeering
 	require.Eventually(t, func() bool {
-		return tunnel.GetProxyPeerClient().GetConnectionsCount() >= expectedCount
+		return tunnel.GetPeerConnectionsCount() >= expectedCount
 	},
 		30*time.Second,
 		time.Second,

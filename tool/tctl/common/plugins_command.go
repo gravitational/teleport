@@ -27,7 +27,7 @@ import (
 
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
@@ -52,7 +52,7 @@ func (p *PluginsCommand) Initialize(app *kingpin.Application, config *servicecfg
 }
 
 // Cleanup cleans up the given plugin.
-func (p *PluginsCommand) Cleanup(ctx context.Context, clusterAPI *auth.Client) error {
+func (p *PluginsCommand) Cleanup(ctx context.Context, clusterAPI *authclient.Client) error {
 	needsCleanup, err := clusterAPI.PluginsClient().NeedsCleanup(ctx, &pluginsv1.NeedsCleanupRequest{
 		Type: p.pluginType,
 	})
@@ -97,7 +97,7 @@ func (p *PluginsCommand) Cleanup(ctx context.Context, clusterAPI *auth.Client) e
 }
 
 // TryRun runs the plugins command
-func (p *PluginsCommand) TryRun(ctx context.Context, cmd string, client *auth.Client) (match bool, err error) {
+func (p *PluginsCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
 	switch cmd {
 	case p.cleanupCmd.FullCommand():
 		err = p.Cleanup(ctx, client)
