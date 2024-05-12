@@ -47,4 +47,15 @@ message EntraApplication {
   string app_id = 2;
   // display_name is a human-friendly application name.
   string display_name = 3;
+  // tenant_id is the ID of Entra tenant that this application is under.
+  string tenant_id = 4;
+  // signing_certificates is a list of SAML signing certificates for this app.
+  repeated string signing_certificates = 5;
+
+  // sso_application contains payload from the /ApplicationSso/{servicePrincipalId}/SsoApplication endpoint.
+  // It is exposed from the internal plugin cache as an opaque JSON blob.
+  string sso_application = 6;
+  // federated_sso_v2 contains payload from the /ApplicationSso/{servicePrincipalId}/FederatedSSOV2 endpoint.
+  // It is exposed from the internal plugin cache as an opaque JSON blob.
+  string federated_sso_v2 = 7;
 }
