@@ -984,6 +984,16 @@ const (
 
 	// PluginGenerationLabel is the label for the current generation of the plugin.
 	PluginGenerationLabel = TeleportInternalLabelPrefix + "plugin-generation"
+
+	// EntraTenantIDLabel is the label for the Entra tenant ID.
+	EntraTenantIDLabel = TeleportInternalLabelPrefix + "entra-tenant"
+
+	// EntraUniqueIDLabel is the label for the unique identifier of the object in the Entra ID directory.
+	EntraUniqueIDLabel = TeleportInternalLabelPrefix + "entra-unique-id"
+
+	// EntraDisplayNameLabel is the label for the display name of the object in the Entra ID directory.
+	// The display name may not be unique.
+	EntraDisplayNameLabel = TeleportInternalLabelPrefix + "entra-display-name"
 )
 
 const (
