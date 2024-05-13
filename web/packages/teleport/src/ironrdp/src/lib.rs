@@ -34,7 +34,7 @@ use ironrdp_session::{
 use js_sys::Uint8Array;
 use log::{debug, warn};
 use wasm_bindgen::{prelude::*, Clamped};
-use web_sys::ImageData;
+use web_sys::{ImageData, CanvasRenderingContext2d};
 
 #[wasm_bindgen]
 pub fn init_wasm_log(log_level: &str) {
@@ -96,7 +96,7 @@ impl BitmapFrame {
 
 fn create_image_data_from_image_and_region(
     image_data: &[u8],
-    image_location: InclusiveRectangle,
+    image_location: &InclusiveRectangle,
 ) -> Result<ImageData, JsValue> {
     ImageData::new_with_u8_clamped_array_and_sh(
         Clamped(image_data),
@@ -105,11 +105,17 @@ fn create_image_data_from_image_and_region(
     )
 }
 
+struct ImageUpdate {
+    data: Vec<u8>,
+    region: InclusiveRectangle
+}
+
 #[wasm_bindgen]
 pub struct FastPathProcessor {
     fast_path_processor: IronRdpFastPathProcessor,
     image: DecodedImage,
     remote_fx_check_required: bool,
+    updates: Vec<ImageUpdate>
 }
 
 #[wasm_bindgen]
@@ -128,11 +134,20 @@ impl FastPathProcessor {
             .build(),
             image: DecodedImage::new(PixelFormat::RgbA32, width, height),
             remote_fx_check_required: true,
+            updates: Vec::new()
         }
     }
 
     pub fn resize(&mut self, width: u16, height: u16) -> Result<(), JsValue> {
         self.image = DecodedImage::new(PixelFormat::RgbA32, width, height);
+        Ok(())
+    }
+
+    pub fn render_updates(&mut self, ctx: CanvasRenderingContext2d) -> Result<(), JsValue> {
+        for update in self.updates.drain(..) {
+            let image_data = create_image_data_from_image_and_region(&update.data, &update.region)?;
+            ctx.put_image_data(&image_data, update.region.left as f64, update.region.top as f64)?;
+        }
         Ok(())
     }
 
@@ -206,7 +221,16 @@ impl FastPathProcessor {
                     // Apply the updated region to the canvas.
                     let (image_location, image_data) =
                         extract_partial_image(&self.image, updated_region);
-                    self.apply_image_to_canvas(image_data, image_location, cb_context, draw_cb)?;
+                    self.updates.push(ImageUpdate{
+                        data: image_data,
+                        region: image_location,
+                    });
+                    self.apply_image_to_canvas(vec![0,0,0,0], InclusiveRectangle{
+                        left: 0,
+                        top: 0,
+                        right: 0,
+                        bottom: 0,
+                    }, cb_context, draw_cb)?;
                 }
                 ActiveStageOutput::ResponseFrame(frame) => {
                     // Send the response frame back to the server.
@@ -220,7 +244,7 @@ impl FastPathProcessor {
                     let data = &pointer.bitmap_data;
                     let image_data = create_image_data_from_image_and_region(
                         data,
-                        InclusiveRectangle {
+                        &InclusiveRectangle {
                             left: 0,
                             top: 0,
                             right: pointer.width - 1,
@@ -288,7 +312,7 @@ impl FastPathProcessor {
         let top = image_location.top;
         let left = image_location.left;
 
-        let image_data = create_image_data_from_image_and_region(&image_data, image_location)?;
+        let image_data = create_image_data_from_image_and_region(&image_data, &image_location)?;
         let bitmap_frame = BitmapFrame {
             top,
             left,
