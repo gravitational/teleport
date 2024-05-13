@@ -529,31 +529,6 @@ func (c *Client) IntegrationAWSOIDCClient() integrationv1.AWSOIDCServiceClient {
 	return integrationv1.NewAWSOIDCServiceClient(c.APIClient.GetConnection())
 }
 
-// UpsertUser user updates user entry.
-// TODO(tross): DELETE IN 16.0.0
-func (c *Client) UpsertUser(ctx context.Context, user types.User) (types.User, error) {
-	upserted, err := c.APIClient.UpsertUser(ctx, user)
-	if err == nil {
-		return upserted, nil
-	}
-
-	if !trace.IsNotImplemented(err) {
-		return nil, trace.Wrap(err)
-	}
-
-	data, err := services.MarshalUser(user)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	_, err = c.HTTPClient.PostJSON(ctx, c.Endpoint("users"), &upsertUserRawReq{User: data})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	upserted, err = c.GetUser(ctx, user.GetName(), false)
-	return upserted, trace.Wrap(err)
-}
-
 // DiscoveryConfigClient returns a client for managing the DiscoveryConfig resource.
 func (c *Client) DiscoveryConfigClient() services.DiscoveryConfigWithStatusUpdater {
 	return c.APIClient.DiscoveryConfigClient()
