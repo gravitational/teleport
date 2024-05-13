@@ -28,6 +28,7 @@ import (
 	"github.com/coreos/go-semver/semver"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/utils/golden"
@@ -90,6 +91,16 @@ func TestTemplateSSHClient_Render(t *testing.T) {
 						return ""
 					}
 					return tc.Env[key]
+				},
+				isALPNConnUpgradeRequired: func(
+					ctx context.Context,
+					addr string,
+					insecure bool,
+					opts ...client.DialOption,
+				) bool {
+					// TODO(strideynet): test both possibilities here and ensure
+					// the correct parameters are provided...
+					return false
 				},
 			}
 

@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/config/openssh"
@@ -47,9 +48,10 @@ const sshConfigProxyModeEnv = "TBOT_SSH_CONFIG_PROXY_COMMAND_MODE"
 // templateSSHClient contains parameters for the ssh_config config
 // template
 type templateSSHClient struct {
-	getSSHVersion        func() (*semver.Version, error)
-	getEnv               func(key string) string
-	executablePathGetter executablePathGetter
+	getSSHVersion             func() (*semver.Version, error)
+	getEnv                    func(key string) string
+	isALPNConnUpgradeRequired func(ctx context.Context, addr string, insecure bool, opts ...client.DialOption) bool
+	executablePathGetter      executablePathGetter
 	// destPath controls whether or not to write the SSH config file.
 	// This is lets this be skipped on non-directory destinations where this
 	// doesn't make sense.
@@ -170,6 +172,8 @@ func (c *templateSSHClient) render(
 	sshConf := openssh.NewSSHConfig(c.getSSHVersion, nil)
 	useLegacyProxyCommand := c.getEnv(sshConfigProxyModeEnv) == "legacy"
 
+	botConfig := bot.Config()
+
 	if useLegacyProxyCommand {
 		// Deprecated: this block will be removed in v17.
 		if err := sshConf.GetSSHConfig(&sshConfigBuilder, &openssh.SSHConfigParameters{
@@ -186,6 +190,18 @@ func (c *templateSSHClient) render(
 			return trace.Wrap(err)
 		}
 	} else {
+		// Test if ALPN upgrade is required, this will only be necessary if we
+		// are using TLS routing.
+		// TODO(strideynet): Tie this into the ProxyPing so we can cache it
+		// rather than running this so often.
+		connUpgradeRequired := false
+		if ping.Proxy.TLSRoutingEnabled {
+			connUpgradeRequired = c.isALPNConnUpgradeRequired(
+				ctx, ping.Proxy.SSH.PublicAddr, botConfig.Insecure,
+			)
+		}
+
+		// Generate SSH config
 		if err := sshConf.GetSSHConfig(&sshConfigBuilder, &openssh.SSHConfigParameters{
 			AppName:             openssh.TbotApp,
 			ClusterNames:        clusterNames,
@@ -198,11 +214,15 @@ func (c *templateSSHClient) render(
 			DestinationDir:      absDestPath,
 
 			PureTBotProxyCommand: true,
-			Insecure:             false, // TODO
-			FIPS:                 false, // TODO
-			TLSRouting:           false, // TODO
-			ConnectionUpgrade:    false, // TODO
-			Resume:               false, // TODO
+			Insecure:             botConfig.Insecure,
+			FIPS:                 botConfig.FIPS,
+			TLSRouting:           ping.Proxy.TLSRoutingEnabled,
+			ConnectionUpgrade:    connUpgradeRequired,
+
+			// Session resumption is enabled by default, this can be
+			// configurable at a later date if we discover reasons for this to
+			// be disabled.
+			Resume: true,
 		}); err != nil {
 			return trace.Wrap(err)
 		}

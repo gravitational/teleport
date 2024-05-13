@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/config/openssh"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/identity"
@@ -87,10 +88,11 @@ func (o *IdentityOutput) templates() []template {
 	}
 	if o.SSHConfigMode == SSHConfigModeOn {
 		templates = append(templates, &templateSSHClient{
-			getSSHVersion:        openssh.GetSystemSSHVersion,
-			executablePathGetter: os.Executable,
-			getEnv:               os.Getenv,
-			destPath:             o.destPath,
+			getSSHVersion:             openssh.GetSystemSSHVersion,
+			executablePathGetter:      os.Executable,
+			getEnv:                    os.Getenv,
+			isALPNConnUpgradeRequired: client.IsALPNConnUpgradeRequired,
+			destPath:                  o.destPath,
 		})
 	}
 	return templates
