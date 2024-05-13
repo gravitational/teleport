@@ -255,7 +255,7 @@ When `update` subcommand is otherwise executed, it will:
 15. Remove all stored versions of the agent except the current version.
 
 To enable auto-updates of the updater itself, all commands will first check for an `active_version`, and reexec using the `teleport-updater` at that version if present and different.
-The `/usr/local/bin/teleport-upgrader` symlink will take precedence to avoid reexec in most scenarios.
+The `/usr/local/bin/teleport-updater` symlink will take precedence to avoid reexec in most scenarios.
 
 #### Failure Conditions
 
@@ -293,7 +293,7 @@ When Teleport is downgraded to a previous version that has a backup of `/var/lib
 2. If the backup is valid, Teleport is fully stopped, the backup is restored along with symlinks, and the downgraded version of Teleport is started.
 3. If the backup is invalid, we refuse to downgrade.
 
-Downgrades are still applied with `teleport-upgrader update`.
+Downgrades are still applied with `teleport-updater update`.
 The above steps modulate the standard workflow in the section above.
 
 Notes:
