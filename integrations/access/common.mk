@@ -30,8 +30,17 @@ $(BINARY):
 
 .PHONY: test
 test: FLAGS ?= '-race'
+test: CGOFLAG=CGO_ENABLED=1 # CGO is required for auth tests as eauth relies on system and system uses cgo
 test:
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go test $(FLAGS) $(ADDFLAGS)
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go test ./... $(FLAGS) $(ADDFLAGS)
+
+.PHONY: test-full
+test-full: ADDFLAGS=--tags enterprisetests
+test-full: test
+
+.PHONY: test-ent
+test-ent: ADDFLAGS=--tags enterprisetests -run 'Test.*Enterprise.*'
+test-ent: test
 
 clean:
 	@echo "---> Cleaning up build artifacts."

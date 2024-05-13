@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 const (
@@ -534,6 +535,55 @@ func (s *PagerdutySuiteEnterprise) TestAutoApprovalWhenOnCall() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
+
+	// We use the OSS user for this advanced workflow test because their role
+	// doesn't have a threshold
+	userName := integration.RequesterOSSUserName
+	pdUser := s.fakePagerduty.StoreUser(pagerduty.User{
+		Name:  "Test User",
+		Email: userName,
+	})
+	s.fakePagerduty.StoreOnCall(pagerduty.OnCall{
+		User:             pagerduty.Reference{Type: "user_reference", ID: pdUser.ID},
+		EscalationPolicy: pagerduty.Reference{Type: "escalation_policy_reference", ID: EscalationPolicyID1},
+	})
+	s.startApp()
+	s.assertReviewSubmitted(ctx, userName)
+}
+
+// TestAutoApprovalWhenOnCallHugo tests that access requests are automatically
+// approved when the user is on-call.
+func (s *PagerdutySuiteEnterprise) TestAutoApprovalWhenOnCallHugo() {
+	t := s.T()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	t.Cleanup(cancel)
+
+	adminClient := s.Ruler()
+	// Create the editor role. This is is the role that will be requested.
+	requestedRole2 := services.NewPresetEditorRole()
+	requestedRole2.SetName("testtest")
+	requestedRole2, err := adminClient.CreateRole(ctx, requestedRole2)
+	require.NoError(t, err)
+
+	ossRequesterRole2, err := types.NewRole(integration.OSSRequesterRoleName+"2", types.RoleSpecV6{Allow: types.RoleConditions{
+		Request: &types.AccessRequestConditions{
+			Roles: []string{requestedRole2.GetName()},
+		}}})
+	require.NoError(t, err)
+	conditions := ossRequesterRole2.GetAccessRequestConditions(types.Allow)
+	if conditions.Annotations == nil {
+		conditions.Annotations = make(map[string][]string)
+	}
+
+	conditions.Annotations[pagerduty.ServicesDefaultAnnotation] = []string{ServiceName1, ServiceName2}
+	ossRequesterRole2.SetAccessRequestConditions(types.Allow, conditions)
+	ossRequesterRole2, err = adminClient.CreateRole(ctx, ossRequesterRole2)
+	require.NoError(t, err)
+
+	user, err := adminClient.GetUser(ctx, integration.RequesterOSSUserName, false)
+	require.NoError(t, err)
+	user.SetRoles(append(user.GetRoles(), ossRequesterRole2.GetName()))
+	user, err = adminClient.UpdateUser(ctx, user)
 
 	// We use the OSS user for this advanced workflow test because their role
 	// doesn't have a threshold
