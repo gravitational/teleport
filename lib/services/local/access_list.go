@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -393,6 +394,12 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 				members      []*accesslist.AccessListMember
 				membersToken string
 			)
+			ignoredFields := []cmp.Option{
+				// Compare members and update if necessary.
+				// IneligibleStatus filed is dynamic filed calculated during getMember/getAccessList operation.
+				cmpopts.IgnoreFields(accesslist.AccessListMemberSpec{}, "IneligibleStatus"),
+				cmpopts.IgnoreFields(accesslist.Owner{}, "IneligibleStatus"),
+			}
 
 			for {
 				// List all members for the access list.
@@ -405,8 +412,7 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 				for _, existingMember := range members {
 					// If the member is not in the new members map (request), delete it.
 					if newMember, ok := membersMap[existingMember.GetName()]; !ok {
-						err = a.memberService.WithPrefix(accessList.GetName()).DeleteResource(ctx, existingMember.GetName())
-						if err != nil {
+						if err = a.memberService.WithPrefix(accessList.GetName()).DeleteResource(ctx, existingMember.GetName()); err != nil {
 							return trace.Wrap(err)
 						}
 					} else {
@@ -422,13 +428,12 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 						newMember.Spec.AddedBy = existingMember.Spec.AddedBy
 
 						// Compare members and update if necessary.
-						if !cmp.Equal(newMember, existingMember) {
+						if !cmp.Equal(newMember, existingMember, ignoredFields...) {
 							// Update the member.
 							upserted, err := a.memberService.WithPrefix(accessList.GetName()).UpsertResource(ctx, newMember)
 							if err != nil {
 								return trace.Wrap(err)
 							}
-
 							existingMember.SetRevision(upserted.GetRevision())
 						}
 					}
@@ -451,9 +456,19 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 				member.SetRevision(upserted.GetRevision())
 			}
 
-			var err error
-			accessList, err = a.service.UpsertResource(ctx, accessList)
-			return trace.Wrap(err)
+			if old, err := a.service.GetResource(ctx, accessList.GetName()); err != nil {
+				if !trace.IsNotFound(err) {
+					return trace.Wrap(err)
+				}
+				accessList, err = a.service.UpsertResource(ctx, accessList)
+				return trace.Wrap(err)
+			} else {
+				if !cmp.Equal(old, accessList, ignoredFields...) {
+					accessList, err = a.service.UpsertResource(ctx, accessList)
+					return trace.Wrap(err)
+				}
+			}
+			return nil
 		})
 	}
 
