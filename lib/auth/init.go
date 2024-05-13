@@ -710,7 +710,7 @@ func generateAuthority(ctx context.Context, asrv *Server, caID types.CertAuthID)
 	return ca, nil
 }
 
-var secondFactorUpgradeInstructions = errors.New(`
+var secondFactorUpgradeInstructions = `
 Teleport v16 removed support for local authentication without a second
 factor enabled. The auth_service should be updated to enable it.
 
@@ -723,7 +723,7 @@ auth_service:
 For more information:
 - https://goteleport.com/docs/access-controls/guides/webauthn/
 - https://goteleport.com/docs/changelog/
-`)
+`
 
 func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref types.AuthPreference) error {
 	const iterationLimit = 3
@@ -742,7 +742,7 @@ func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref typ
 			if os.Getenv(teleport.EnvVarAllowNoSecondFactor) != "true" {
 				err := modules.ValidateResource(storedAuthPref)
 				if errors.Is(err, modules.ErrCannotDisableSecondFactor) {
-					return trace.Wrap(secondFactorUpgradeInstructions)
+					return trace.Wrap(err, secondFactorUpgradeInstructions)
 				}
 				if err != nil {
 					return trace.Wrap(err)
@@ -767,7 +767,7 @@ func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref typ
 			continue
 		}
 		if errors.Is(err, modules.ErrCannotDisableSecondFactor) {
-			return trace.Wrap(secondFactorUpgradeInstructions)
+			return trace.Wrap(err, secondFactorUpgradeInstructions)
 		}
 
 		return trace.Wrap(err)
