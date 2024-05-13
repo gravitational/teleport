@@ -158,7 +158,7 @@ runs:
               }
 
               // Check to see if the job matches the new job's concurrency group
-              if (!doesRunHaveStepWithName(workflowRun.id, concurrencyGroupStepName)) {
+              if (!(await doesRunHaveStepWithName(workflowRun.id, concurrencyGroupStepName))) {
                 process.stdout.write(`Workflow ${workflowRun.id} is in progress but does not match concurrency group ${concurrencyGroupStepName}\n`)
                 continue;
               }
