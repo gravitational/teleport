@@ -153,6 +153,24 @@ func (m *AWSMatcher) CheckAndSetDefaults() error {
 		}
 	}
 
+	switch m.Params.EnrollMode {
+	case InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_UNSPECIFIED:
+		m.Params.EnrollMode = InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT
+		if m.Integration != "" {
+			m.Params.EnrollMode = InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE
+		}
+
+	case InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE:
+		if m.Integration == "" {
+			return trace.BadParameter("integration is required for eice enroll mode")
+		}
+
+	case InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT:
+
+	default:
+		return trace.BadParameter("invalid enroll mode %s", m.Params.EnrollMode.String())
+	}
+
 	switch m.Params.JoinMethod {
 	case JoinMethodIAM, "":
 		m.Params.JoinMethod = JoinMethodIAM

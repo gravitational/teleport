@@ -3190,8 +3190,17 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 		username = req.GetUserCredentials().GetUsername()
 
 		if err := a.WithUserLock(ctx, username, func() error {
-			return a.checkPasswordWOToken(username, req.GetUserCredentials().GetPassword())
+			return a.checkPasswordWOToken(ctx, username, req.GetUserCredentials().GetPassword())
 		}); err != nil {
+			// This is only ever used as a means to acquire a login challenge, so
+			// let's issue an authentication failure event.
+			if err := a.emitAuthAuditEvent(ctx, authAuditProps{
+				username: username,
+				authErr:  err,
+			}); err != nil {
+				log.WithError(err).Warn("Failed to emit login event")
+				// err swallowed on purpose.
+			}
 			return nil, trace.Wrap(err)
 		}
 
