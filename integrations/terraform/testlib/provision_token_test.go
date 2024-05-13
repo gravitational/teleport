@@ -313,3 +313,71 @@ func (s *TerraformSuiteOSS) TestProvisionTokenIAMToken() {
 		},
 	})
 }
+
+func (s *TerraformSuiteOSS) TestProvisionTokenV2Gitlab() {
+	ctx, cancel := context.WithCancel(context.Background())
+	s.T().Cleanup(cancel)
+
+	checkRoleDestroyed := func(state *terraform.State) error {
+		_, err := s.client.GetToken(ctx, "test")
+		if trace.IsNotFound(err) {
+			return nil
+		}
+
+		return err
+	}
+
+	name := "teleport_provision_token.token"
+
+	resource.Test(s.T(), resource.TestCase{
+		ProtoV6ProviderFactories: s.terraformProviders,
+		CheckDestroy:             checkRoleDestroyed,
+		Steps: []resource.TestStep{
+			{
+				Config: s.getFixture("provision_token_v2_gitlab_0_create.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "kind", "token"),
+					resource.TestCheckResourceAttr(name, "metadata.name", "gitlab-test-terraform"),
+					resource.TestCheckResourceAttr(name, "spec.roles.0", "Bot"),
+					resource.TestCheckResourceAttr(name, "spec.join_method", "gitlab"),
+					resource.TestCheckNoResourceAttr(name, "spec.gitlab.allow.0.environment_protected"),
+					resource.TestCheckNoResourceAttr(name, "spec.gitlab.allow.0.ref_protected"),
+				),
+			},
+			{
+				Config:   s.getFixture("provision_token_v2_gitlab_0_create.tf"),
+				PlanOnly: true,
+			},
+			{
+				Config: s.getFixture("provision_token_v2_gitlab_1_update.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "kind", "token"),
+					resource.TestCheckResourceAttr(name, "metadata.name", "gitlab-test-terraform"),
+					resource.TestCheckResourceAttr(name, "spec.roles.0", "Bot"),
+					resource.TestCheckResourceAttr(name, "spec.join_method", "gitlab"),
+					resource.TestCheckResourceAttr(name, "spec.gitlab.allow.0.environment_protected", "true"),
+					resource.TestCheckNoResourceAttr(name, "spec.gitlab.allow.0.ref_protected"),
+				),
+			},
+			{
+				Config:   s.getFixture("provision_token_v2_gitlab_1_update.tf"),
+				PlanOnly: true,
+			},
+			{
+				Config: s.getFixture("provision_token_v2_gitlab_2_update.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "kind", "token"),
+					resource.TestCheckResourceAttr(name, "metadata.name", "gitlab-test-terraform"),
+					resource.TestCheckResourceAttr(name, "spec.roles.0", "Bot"),
+					resource.TestCheckResourceAttr(name, "spec.join_method", "gitlab"),
+					resource.TestCheckNoResourceAttr(name, "spec.gitlab.allow.0.environment_protected"),
+					resource.TestCheckNoResourceAttr(name, "spec.gitlab.allow.0.ref_protected"),
+				),
+			},
+			{
+				Config:   s.getFixture("provision_token_v2_gitlab_2_update.tf"),
+				PlanOnly: true,
+			},
+		},
+	})
+}

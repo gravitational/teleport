@@ -55,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -667,6 +668,7 @@ func TestKubePROXYProtocol(t *testing.T) {
 func TestKubeIPPinning(t *testing.T) {
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(false)
+	modules.SetInsecureTestMode(true)
 
 	const (
 		kubeCluster = constants.KubeTeleportProxyALPNPrefix + "teleport.cluster.local"

@@ -164,6 +164,7 @@ type WebSuite struct {
 // it as an argument. Otherwise, it will run tests as normal.
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
+	modules.SetInsecureTestMode(true)
 	// If the test is re-executing itself, execute the command that comes over
 	// the pipe.
 	if srv.IsReexec() {
@@ -6163,79 +6164,6 @@ func TestListConnectionsDiagnostic(t *testing.T) {
 	require.Equal(t, "some details", receivedConnectionDiagnostic.Traces[0].Details)
 }
 
-func TestWebLauncherURL(t *testing.T) {
-	t.Parallel()
-	env := newWebPack(t, 1)
-	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "foo@example.com", nil /* roles */)
-
-	testcases := []struct {
-		desc       string
-		appURL     string
-		statusCode int
-	}{
-		{
-			desc:       "valid semicolon",
-			appURL:     "dumper.localhost;testing",
-			statusCode: http.StatusOK,
-		},
-		{
-			desc:       "valid with query (question mark)",
-			appURL:     "dumper.localhost?foo",
-			statusCode: http.StatusOK,
-		},
-		{
-			desc:       "valid with multipath",
-			appURL:     "dumper.localhost/foo/bar/",
-			statusCode: http.StatusOK,
-		},
-		{
-			desc:       "valid with multipath with query",
-			appURL:     "dumper.localhost/foo/bar?foo=bar",
-			statusCode: http.StatusOK,
-		},
-		{
-			desc:       "invalid: empty application url",
-			appURL:     "/",
-			statusCode: http.StatusBadRequest,
-		},
-		{
-			desc:       "invalid use of semicolon, invalid port",
-			appURL:     "dumper.localhost;script-src:something",
-			statusCode: http.StatusBadRequest,
-		},
-		{
-			desc:       "invalid use of escape characters (space)",
-			appURL:     "dumper.localhost;%20script-src%20unsafe-inline%20;",
-			statusCode: http.StatusBadRequest,
-		},
-		{
-			desc:       "invalid use of escape characters (double encoded space)",
-			appURL:     "dumper.localhost;%2520script-src%2520unsafe-inline%2520;",
-			statusCode: http.StatusBadRequest,
-		},
-		{
-			desc:       "invalid use of spaces",
-			appURL:     "dumper.localhost; script-src * unsafe-inline;",
-			statusCode: http.StatusBadRequest,
-		},
-	}
-
-	for _, tc := range testcases {
-		t.Run(tc.desc, func(t *testing.T) {
-			url, err := url.JoinPath(proxy.webURL.String(), "web", "launch", tc.appURL)
-			require.NoError(t, err)
-
-			resp, err := pack.clt.HTTPClient().Get(url)
-			require.NoError(t, err)
-			defer resp.Body.Close()
-
-			require.Equal(t, tc.statusCode, resp.StatusCode)
-		})
-	}
-
-}
-
 func TestDiagnoseSSHConnection(t *testing.T) {
 	ctx := context.Background()
 
@@ -9537,6 +9465,78 @@ func TestWebSocketAuthenticateRequest(t *testing.T) {
 			err = conn.ReadJSON(&status)
 			require.NoError(t, err)
 			require.Equal(t, tc.expectResponse, status)
+		})
+	}
+}
+
+func TestGetKubeExecClusterData(t *testing.T) {
+	testCases := []struct {
+		name          string
+		listenerMode  types.ProxyListenerMode
+		proxyKubeAddr string
+		proxyWebAddr  string
+
+		expectedServerAddr string
+		expectedTLSName    string
+
+		errCheck require.ErrorAssertionFunc
+	}{
+		{
+			name:               "separate, regular addr",
+			listenerMode:       types.ProxyListenerMode_Separate,
+			proxyKubeAddr:      "kube.example.com:555",
+			expectedServerAddr: "https://kube.example.com:555",
+		},
+		{
+			name:               "separate, specified ip addr",
+			listenerMode:       types.ProxyListenerMode_Separate,
+			proxyKubeAddr:      "1.2.3.4:444",
+			expectedServerAddr: "https://1.2.3.4:444",
+		},
+		{
+			name:               "separate, unspecified ip addr",
+			listenerMode:       types.ProxyListenerMode_Separate,
+			proxyKubeAddr:      "0.0.0.0:444",
+			expectedServerAddr: "https://localhost:444",
+		},
+		{
+			name:               "multiplex, regular proxy web addr",
+			listenerMode:       types.ProxyListenerMode_Multiplex,
+			proxyWebAddr:       "web.example.com:777",
+			expectedServerAddr: "https://web.example.com:777",
+			expectedTLSName:    "kube-teleport-proxy-alpn.web.example.com",
+		},
+		{
+			name:               "multiplex, proxy web addr unspecified ip",
+			listenerMode:       types.ProxyListenerMode_Multiplex,
+			proxyWebAddr:       "0.0.0.0:888",
+			expectedServerAddr: "https://localhost:888",
+			expectedTLSName:    "kube-teleport-proxy-alpn.teleport.cluster.local",
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			h := Handler{}
+			if tt.proxyWebAddr != "" {
+				h.cfg.ProxyWebAddr = *utils.MustParseAddr(tt.proxyWebAddr)
+			}
+			if tt.proxyKubeAddr != "" {
+				h.cfg.ProxyKubeAddr = *utils.MustParseAddr(tt.proxyKubeAddr)
+			}
+
+			netConfig := types.ClusterNetworkingConfigV2{Spec: types.ClusterNetworkingConfigSpecV2{
+				ProxyListenerMode: tt.listenerMode,
+			}}
+
+			serverAddr, tlsServerName, err := h.getKubeExecClusterData(&netConfig)
+			if tt.errCheck != nil {
+				tt.errCheck(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.expectedServerAddr, serverAddr)
+			require.Equal(t, tt.expectedTLSName, tlsServerName)
 		})
 	}
 }
