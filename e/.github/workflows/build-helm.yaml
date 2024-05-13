@@ -1,0 +1,87 @@
+---
+name: Build Helm charts
+on:
+  workflow_call:
+    inputs:
+      oss-teleport-repo:
+        description: The name of the OSS teleport repo to checkout.
+        type: string
+        default: gravitational/teleport
+
+      oss-teleport-ref:
+        description: Git SHA, tag or branch of the revision of OSS teleport to build.
+        type: string
+        required: true
+
+      teleport-version:
+        description: |
+          The semver version of Teleport version that we're building for.
+        type: string
+
+      environment:
+        description: GitHub environment to build in.
+        type: string
+        default: build-stage
+
+  # The workflow_dispatch event duplicates the workflow_call input parameters, without descriptions.
+  workflow_dispatch:
+    inputs:
+      oss-teleport-repo:
+        type: string
+        default: gravitational/teleport
+      oss-teleport-ref:
+        type: string
+        required: true
+      environment:
+        type: string
+        default: build-stage
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout Teleport
+        uses: gravitational/teleport.e/.github/actions/checkout-teleport@master
+        with:
+          oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
+          oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
+          edition: oss
+          path: teleport
+          repo-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
+          repo-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+
+      - name: Create charts directory
+        run: |
+          mkdir charts
+
+      - name: Package chart repository
+        working-directory: charts
+        env:
+          CHART_SRC: ${{ github.workspace }}/teleport/examples/chart
+        run: |
+          helm package "${CHART_SRC}/teleport-cluster"
+          helm package "${CHART_SRC}/teleport-kube-agent"
+          helm package "${CHART_SRC}/teleport-cluster/charts/teleport-operator"
+          cp "${CHART_SRC}/index.html" "helm-index.html"
+          ls -l
+      
+      - name: Assume AWS role for uploading the artifacts
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        with:
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+          role-to-assume: ${{ vars.ARTIFACT_UPLOAD_AWS_ROLE }}
+          role-session-name: "gha-helm-chart-upload-${{ matrix.architecture }}-${{ matrix.package.file-extension }}-${{ github.run_number }}"
+          role-duration-seconds: 900
+
+      - name: Upload the artifact to S3
+        working-directory: charts
+        env:
+          PENDING_BUCKET_NAME: ${{ vars.ARTIFACT_SOURCE_BUCKET }}
+          TELEPORT_VERSION: ${{ inputs.teleport-version || inputs.oss-teleport-ref }}
+        run: |
+          aws s3 sync . "s3://$PENDING_BUCKET_NAME/teleport/tag/${TELEPORT_VERSION#v}/"

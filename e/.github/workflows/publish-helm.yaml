@@ -1,15 +1,10 @@
 ---
-name: Publish helm charts
+name: Publish Helm charts
 on:
   workflow_call:
     inputs:
-      oss-teleport-repo:
-        description: The name of the OSS teleport repo to checkout.
-        type: string
-        default: gravitational/teleport
-
-      oss-teleport-ref:
-        description: Git SHA, tag or branch of the revision of OSS teleport to build.
+      teleport-version:
+        description: The semver version of Teleport version that we're publishing.
         type: string
         required: true
 
@@ -18,42 +13,47 @@ on:
         type: string
         default: publish-stage
 
-      workflow-tag:
-        description: Tag used to identify workflow runs spawned by this event.
-        type: string
-
   # The workflow_dispatch event duplicates the workflow_call input parameters, without descriptions.
   workflow_dispatch:
     inputs:
-      oss-teleport-repo:
-        type: string
-        default: gravitational/teleport
-      oss-teleport-ref:
+      teleport-version:
         type: string
         required: true
       environment:
         type: string
         default: publish-stage
-      workflow-tag:
-        type: string
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     permissions:
-      contents: read
       id-token: write
+    env:
+      ARITFACTS_DIR: /tmp/artifacts
     steps:
-      - name: Checkout Teleport
-        uses: gravitational/teleport.e/.github/actions/checkout-teleport@master
+      - name: Make the artifacts directory
+        run: |
+          mkdir -pv "${ARITFACTS_DIR}"
+
+      - name: Assume AWS role for downloading the artifacts
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
-          oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
-          oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
-          edition: oss
-          path: teleport
-          repo-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
-          repo-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+          role-to-assume: ${{ vars.ARTIFACT_DOWNLOAD_AWS_ROLE }}
+          role-session-name: "gha-helm-chart-download-${{ github.run_number }}"
+          role-duration-seconds: 900
+
+      - name: Download the Helm chart artifacts
+        working-directory: ${{ env.ARITFACTS_DIR }}
+        env:
+          PENDING_BUCKET_NAME: ${{ vars.ARTIFACT_SOURCE_BUCKET }}
+          TELEPORT_VERSION: ${{ inputs.teleport-version }}
+        run: |
+          # If we ever add non-Helm chart artifacts that end in ".tgz" then this will need to be made more selective
+          aws s3 cp "s3://$PENDING_BUCKET_NAME/teleport/tag/${TELEPORT_VERSION#v}/" . --recursive --exclude "*" --include "*.tgz"
+          aws s3 cp "s3://$PENDING_BUCKET_NAME/teleport/tag/${TELEPORT_VERSION#v}/helm-index.html" index.html
 
       - name: Assume helm chart publishing role
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
@@ -63,38 +63,23 @@ jobs:
           role-session-name: "gha-publish-helm-${{ github.run_attempt }}"
           role-duration-seconds: 3600
 
-      - name: Create charts directory
-        run: |
-          mkdir charts
-
-      - name: Download helm chart repository
-        working-directory: charts
+      - name: Download Helm chart repository
         env:
           S3_PATH: s3://${{ vars.HELM_REPO_BUCKET }}/
         run: |
           aws s3 sync "${S3_PATH}" .
 
-      - name: Package chart repository
-        working-directory: charts
-        env:
-          CHART_SRC: ${{ github.workspace }}/teleport/examples/chart
+      - name: Copy the new artifacts on top of the existing repository
         run: |
-          helm package "${CHART_SRC}/teleport-cluster"
-          helm package "${CHART_SRC}/teleport-kube-agent"
-          helm package "${CHART_SRC}/teleport-cluster/charts/teleport-operator"
-          cp "${CHART_SRC}/index.html" .
+          cp -rv "${ARITFACTS_DIR}" .
+
+      - name: Package chart repository
+        run: |
           helm repo index .
           ls -l
 
       - name: Publish chart repository to S3
-        working-directory: charts
         env:
           S3_PATH: s3://${{ vars.HELM_REPO_BUCKET }}/
         run: |
           aws s3 sync . "${S3_PATH}"
-
-      # Required for gh-trigger-workflow to find dispatched workflow.
-      - name: ${{ inputs.workflow-tag }}
-        if: inputs.workflow-tag != ''
-        run: |
-          # Do nothing

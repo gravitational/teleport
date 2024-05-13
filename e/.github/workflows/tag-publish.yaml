@@ -93,7 +93,7 @@ jobs:
       environment: ${{ inputs.environment }}
 
   publish-helm:
-    name: Publish helm charts
+    name: Publish Helm charts
     if: ${{ !inputs.cloud-only }}
     needs: setup
     secrets: inherit
@@ -102,8 +102,7 @@ jobs:
       id-token: write
     uses: ./.github/workflows/publish-helm.yaml
     with:
-      oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
-      oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
+      teleport-version: ${{ needs.setup.outputs.version }}
       environment: ${{ inputs.environment }}
 
   publish-to-houston:
