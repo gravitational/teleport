@@ -134,7 +134,7 @@ func (a *Server) authenticateUserLogin(ctx context.Context, req AuthenticateUser
 			clientMetadata: req.ClientMetadata,
 			authErr:        err,
 		}); err != nil {
-			log.WithError(err).Warn("Failed to emit login event.")
+			log.WithError(err).Warn("Failed to emit login event")
 		}
 		return nil, nil, trace.Wrap(err)
 	}
@@ -186,7 +186,7 @@ func (a *Server) authenticateUserLogin(ctx context.Context, req AuthenticateUser
 			checker:        checker,
 			authErr:        err,
 		}); err != nil {
-			log.WithError(err).Warn("Failed to emit login event.")
+			log.WithError(err).Warn("Failed to emit login event")
 		}
 		return nil, nil, trace.Wrap(err)
 	}
@@ -198,7 +198,7 @@ func (a *Server) authenticateUserLogin(ctx context.Context, req AuthenticateUser
 		mfaDevice:      mfaDev,
 		checker:        checker,
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit login event.")
+		log.WithError(err).Warn("Failed to emit login event")
 	}
 
 	return userState, checker, trace.Wrap(err)
