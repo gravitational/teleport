@@ -137,7 +137,7 @@ type Config struct {
 	// Listener is a listener address for reverse tunnel server
 	Listener net.Listener
 	// HostSigners is a list of host signers
-	HostSigners []ssh.Signer
+	GetHostSigners sshutils.GetHostSignersFunc
 	// HostKeyCallback
 	// Limiter is optional request limiter
 	Limiter *limiter.Limiter
@@ -347,7 +347,7 @@ func NewServer(cfg Config) (reversetunnelclient.Server, error) {
 		// this address is not used
 		utils.NetAddr{Addr: "127.0.0.1:1", AddrNetwork: "tcp"},
 		srv,
-		cfg.HostSigners,
+		cfg.GetHostSigners,
 		sshutils.AuthMethods{
 			PublicKey: srv.keyAuth,
 		},
