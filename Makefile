@@ -41,7 +41,9 @@ RELEASE_DIR := $(CURDIR)/$(BUILDDIR)/artifacts
 LDFLAGS ?= -w -s $(KUBECTL_SETVERSION)
 
 # Appending new conditional settings for community build type
-LDFLAGS += $(if $(filter $(TELEPORT_BUILD_TYPE),community),-X github.com/gravitational/teleport/lib/modules.teleportBuildType=community)
+ifeq ("$(GITHUB_REPOSITORY_OWNER)","gravitational")
+LDFLAGS += -X github.com/gravitational/teleport/lib/modules.teleportBuildType=community
+endif
 # When TELEPORT_DEBUG is true, set flags to produce
 # debugger-friendly builds.
 ifeq ("$(TELEPORT_DEBUG)","true")
