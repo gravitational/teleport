@@ -19,6 +19,7 @@
 package main
 
 import (
+	"context"
 	"path/filepath"
 	"slices"
 
@@ -29,7 +30,9 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/tshwrap"
 )
 
-func onProxyCommand(botConfig *config.BotConfig, cf *config.CLIConf) error {
+func onProxyCommand(
+	ctx context.Context, botConfig *config.BotConfig, cf *config.CLIConf,
+) error {
 	wrapper, err := tshwrap.New()
 	if err != nil {
 		return trace.Wrap(err)
@@ -74,6 +77,9 @@ func onProxyCommand(botConfig *config.BotConfig, cf *config.CLIConf) error {
 		env["TELEPORT_KUBECONFIG"] = filepath.Join(
 			destination.Path, "kubeconfig-proxied.yaml",
 		)
+	}
+	if slices.Contains(cf.RemainingArgs, "ssh") {
+		log.WarnContext(ctx, "`tbot ssh proxy` is deprecated and will stop working in v17. See https://goteleport.com/docs/machine-id/reference/v16-upgrade-guide/")
 	}
 
 	return trace.Wrap(wrapper.Exec(env, args...), "executing `tsh proxy`")
