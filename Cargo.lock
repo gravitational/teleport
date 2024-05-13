@@ -284,7 +284,7 @@ dependencies = [
 [[package]]
 name = "boring"
 version = "4.4.0"
-source = "git+https://github.com/gravitational/boring?rev=cdf030220da36e6053a2811ee17676eb0ef3ffbf#cdf030220da36e6053a2811ee17676eb0ef3ffbf"
+source = "git+https://github.com/gravitational/boring?rev=f8501b301d5c4fa747dd43d1f088cb6b444d54d1#f8501b301d5c4fa747dd43d1f088cb6b444d54d1"
 dependencies = [
  "bitflags 2.5.0",
  "boring-sys",
@@ -296,7 +296,7 @@ dependencies = [
 [[package]]
 name = "boring-sys"
 version = "4.4.0"
-source = "git+https://github.com/gravitational/boring?rev=cdf030220da36e6053a2811ee17676eb0ef3ffbf#cdf030220da36e6053a2811ee17676eb0ef3ffbf"
+source = "git+https://github.com/gravitational/boring?rev=f8501b301d5c4fa747dd43d1f088cb6b444d54d1#f8501b301d5c4fa747dd43d1f088cb6b444d54d1"
 dependencies = [
  "bindgen",
  "cmake",
@@ -2872,7 +2872,7 @@ dependencies = [
 [[package]]
 name = "tokio-boring"
 version = "4.4.0"
-source = "git+https://github.com/gravitational/boring?rev=cdf030220da36e6053a2811ee17676eb0ef3ffbf#cdf030220da36e6053a2811ee17676eb0ef3ffbf"
+source = "git+https://github.com/gravitational/boring?rev=f8501b301d5c4fa747dd43d1f088cb6b444d54d1#f8501b301d5c4fa747dd43d1f088cb6b444d54d1"
 dependencies = [
  "boring",
  "boring-sys",
