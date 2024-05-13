@@ -49,9 +49,6 @@ func onProxyCommand(
 	}
 
 	identityPath := filepath.Join(destination.Path, config.IdentityFilePath)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 
 	// TODO(timothyb89):  We could consider supporting a --cluster passthrough
 	//  here as in `tbot db ...`.

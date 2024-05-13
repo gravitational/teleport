@@ -71,9 +71,15 @@ func ProxySSH(ctx context.Context, proxyConfig ProxySSHConfig) error {
 	proxy := proxyConfig.ProxyServer
 	cluster := proxyConfig.Cluster
 	targetHost := proxyConfig.Host
-	expanded, matched := tshConfig.ProxyTemplates.Apply(net.JoinHostPort(proxyConfig.Host, proxyConfig.Port))
+	expanded, matched := tshConfig.ProxyTemplates.Apply(
+		net.JoinHostPort(proxyConfig.Host, proxyConfig.Port),
+	)
 	if matched {
-		proxyConfig.Log.DebugContext(ctx, "proxy templated matched", "populated_template", expanded)
+		proxyConfig.Log.DebugContext(
+			ctx,
+			"proxy templated matched",
+			"populated_template", expanded,
+		)
 		if expanded.Cluster != "" {
 			cluster = expanded.Cluster
 		}
@@ -225,14 +231,7 @@ func resolveTargetHost(ctx context.Context, cfg client.Config, search, query str
 }
 
 func parseIdentity(destPath, proxy, cluster string, insecure, fips bool) (*identity.Facade, agent.ExtendedAgent, error) {
-	destination := &config.DestinationDirectory{
-		Path: destPath,
-	}
-	if err := destination.CheckAndSetDefaults(); err != nil {
-		return nil, nil, trace.Wrap(err, "configuring destination directory")
-	}
-
-	identityPath := filepath.Join(destination.Path, config.IdentityFilePath)
+	identityPath := filepath.Join(destPath, config.IdentityFilePath)
 	key, err := identityfile.KeyFromIdentityFile(identityPath, proxy, cluster)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
