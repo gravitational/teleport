@@ -882,6 +882,7 @@
     "upgrader",
     "uqcje",
     "urandom",
+    "urlfetch",
     "usename",
     "userdata",
     "userdel",
@@ -934,5 +935,7 @@
     "zxvf",
     "zztop"
   ],
-  "flagWords": ["hte"]
+  "flagWords": [
+    "hte"
+  ]
 }
