@@ -267,19 +267,13 @@ func (a *App) onDeletedRequest(ctx context.Context, reqID string) error {
 }
 
 func (a *App) getNotifyServiceNames(req types.AccessRequest) ([]string, error) {
-	services, ok := req.GetSystemAnnotations()[types.TeleportNamespace+types.ReqAnnotationNotifyServicesLabel]
-	if !ok {
-		return nil, trace.NotFound("notify services not specified")
-	}
-	return services, nil
+	annotationKey := types.TeleportNamespace + types.ReqAnnotationNotifyServicesLabel
+	return common.GetServiceNamesFromAnnotations(req, annotationKey)
 }
 
 func (a *App) getOnCallServiceNames(req types.AccessRequest) ([]string, error) {
-	services, ok := req.GetSystemAnnotations()[types.TeleportNamespace+types.ReqAnnotationSchedulesLabel]
-	if !ok {
-		return nil, trace.NotFound("on-call schedules not specified")
-	}
-	return services, nil
+	annotationKey := types.TeleportNamespace + types.ReqAnnotationSchedulesLabel
+	return common.GetServiceNamesFromAnnotations(req, annotationKey)
 }
 
 func (a *App) tryNotifyService(ctx context.Context, req types.AccessRequest) (bool, error) {
