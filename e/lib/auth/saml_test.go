@@ -10,6 +10,7 @@ import (
 	"encoding/base64"
 	"encoding/xml"
 	"net/url"
+	"os"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -40,6 +41,11 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+func TestMain(m *testing.M) {
+	modules.SetInsecureTestMode(true)
+	os.Exit(m.Run())
+}
 
 func TestCreateSAMLUser(t *testing.T) {
 	t.Parallel()

@@ -44,6 +44,7 @@ func TestMain(m *testing.M) {
 	if srv.IsReexec() {
 		return
 	}
+	modules.SetInsecureTestMode(true)
 
 	os.Exit(m.Run())
 }

@@ -2,6 +2,7 @@ package pluginsv1
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
@@ -16,8 +17,14 @@ import (
 	"github.com/gravitational/teleport/integrations/access/common/auth/storage"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 )
+
+func TestMain(m *testing.M) {
+	modules.SetInsecureTestMode(true)
+	os.Exit(m.Run())
+}
 
 func TestGetPluginWithSecrets(t *testing.T) {
 	t.Parallel()

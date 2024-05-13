@@ -6,7 +6,13 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
+	"github.com/gravitational/teleport/lib/modules"
 )
+
+func TestMain(m *testing.M) {
+	modules.SetInsecureTestMode(true)
+	os.Exit(m.Run())
+}
 
 // TestLoginRuleController tests the functionality of the Login Rule controller
 // for the Teleport Kubernetes operator. The actual test implementations live

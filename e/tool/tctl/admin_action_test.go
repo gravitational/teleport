@@ -63,6 +63,8 @@ import (
 func TestAdminActionMFA(t *testing.T) {
 	s := newAdminActionTestSuite(t)
 
+	modules.SetInsecureTestMode(true)
+
 	t.Run("DeviceTrust", s.testDeviceTrust)
 	t.Run("LoginRules", s.testLoginRules)
 	t.Run("AccessLists", s.testAccessLists)
