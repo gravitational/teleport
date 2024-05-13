@@ -54,8 +54,13 @@ Host *.{{ $clusterName }} !{{ $dot.ProxyHost }}
     Port {{ $dot.Port }}
     {{- if eq $dot.AppName "tsh" }}
     ProxyCommand "{{ $dot.ExecutablePath }}" proxy ssh --cluster={{ $clusterName }} --proxy={{ $dot.ProxyHost }}:{{ $dot.ProxyPort }} %r@%h:%p
-{{- end }}{{- if eq $dot.AppName "tbot" }}
+{{- end }}
+{{- if eq $dot.AppName "tbot" }}
+{{- if eq $dot.PureProxyCommand true }}
     ProxyCommand "{{ $dot.ExecutablePath }}" proxy --destination-dir={{ $dot.DestinationDir }} --proxy-server={{ $dot.ProxyHost }}:{{ $dot.ProxyPort }} ssh --cluster={{ $clusterName }}  %r@%h:%p
+{{-else}}
+    ProxyCommand "{{ $dot.ExecutablePath }}" ssh-proxy-command --destination-dir={{ $dot.DestinationDir }} --proxy-server={{ $dot.ProxyHost }}:{{ $dot.ProxyPort }} --cluster={{ $clusterName }} --user=%r --host=%h --port=%p --tls-routing --no-connection-upgrade --resume
+{{- end }}
 {{- end }}
 {{- end }}
     {{- if ne $dot.Username "" }}

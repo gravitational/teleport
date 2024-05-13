@@ -40,6 +40,7 @@ import (
 // template
 type templateSSHClient struct {
 	getSSHVersion        func() (*semver.Version, error)
+	getEnv               func(key string) string
 	executablePathGetter executablePathGetter
 	// destPath controls whether or not to write the SSH config file.
 	// This is lets this be skipped on non-directory destinations where this
