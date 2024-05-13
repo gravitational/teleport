@@ -1922,7 +1922,7 @@
       }
     },
     "fedramp": {
-      "control_url": "https://csrc.nist.gov/Projects/risk-management/sp800-53-controls/release-search#!/control?version=5.1&number="
+      "control_url": "https://csrc.nist.gov/projects/cprt/catalog#/cprt/framework/version/SP_800_53_5_1_1/home?keyword="
     },
     "fluentd": {
       "version": "1.12.4"
