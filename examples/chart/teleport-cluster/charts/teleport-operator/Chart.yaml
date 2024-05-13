@@ -1,4 +1,4 @@
-.version: &version "16.0.0-dev.isaiah.25"
+.version: &version "16.0.0-dev.isaiah.26"
 
 name: teleport-operator
 apiVersion: v2
