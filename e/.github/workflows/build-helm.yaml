@@ -43,6 +43,8 @@ jobs:
     permissions:
       contents: read
       id-token: write
+    env:
+      CHART_SRC: ${{ github.workspace }}/teleport/examples/chart
     steps:
       - name: Checkout Teleport
         uses: gravitational/teleport.e/.github/actions/checkout-teleport@master
@@ -53,6 +55,15 @@ jobs:
           path: teleport
           repo-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
           repo-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+        
+      - name: Set default values that are environment-specific
+        env:
+          REGISTRY: ${{ vars.OCI_PUBLIC_REPO_BASE }}
+        run: |
+          sed -i "s~public.ecr.aws/gravitational~${REGISTRY}~" \
+            "${CHART_SRC}/teleport-cluster/values.yaml" \
+            "${CHART_SRC}/teleport-kube-agent/values.yaml" \
+            "${CHART_SRC}/teleport-cluster/charts/teleport-operator/values.yaml"
 
       - name: Create charts directory
         run: |
@@ -60,8 +71,6 @@ jobs:
 
       - name: Package chart repository
         working-directory: charts
-        env:
-          CHART_SRC: ${{ github.workspace }}/teleport/examples/chart
         run: |
           helm package "${CHART_SRC}/teleport-cluster"
           helm package "${CHART_SRC}/teleport-kube-agent"
