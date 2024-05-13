@@ -1,0 +1,166 @@
+---
+title: Installing SCIM-only Okta integration
+description: How to install a SCIM-only Okta integration
+---
+
+## Before you begin
+This test involves upgrading to a dev build of Teleport 15 - back up your
+cluster config & back-end data just in case.
+
+## How it works
+User provisioning (and de-provisioning) with SCIM requires two Teleport
+components working together:
+
+ * A SAML Connector that provides SSO login to Teleport for upstream Okta users
+ * A SCIM integration that provisions and de-provisions Teleport user accounts
+   in response to changes in the upstream Okta organization
+
+Both of these Teleport components rely on an Okta SAML Application to act as the
+interface between Teleport and Okta on the Okta side. For consistency, both of 
+the Teleport components must use the same Okta Application.
+
+When a user is assigned to the Okta App, either directly or via group
+membership, a corresponding Teleport user account will be created. If the Okta
+user already has a valid temporary Teleport SAML user account (i.e. they have
+logged into the cluster via SAML SSO before SCIM provisioning was enabled), the
+temporary account will automatically be adopted by the SAML integration and
+promoted to a long-lived SCIM-managed account.
+
+If a Teleport user with the same name as the Okta user already exists (excluding the temporary SAML user case above), provisioning that user will fail. Provisioning errors will show in both the Okta Tasks page and on the affected user in the Okta application’s assignments pane.
+
+<Admonition type="note">
+Currently none of the SCIM user profile traits are stored in the Teleport user, although this may change in future. 
+</Admonition>
+
+When a user is unassigned from the Okta App, or is disabled by the Okta Admin, Teleport will immediately delete the user in question, and create a lock that will both immediately terminate any existing sessions and prevent that user from re-using any credentials that have already been issued. This lock will be automatically revoked if the user is subsequently re-provisioned via SCIM, otherwise the lock is permanent and will have to be explicitly deleted to remove.
+
+<Admonition type="warning">
+Okta does not send SCIM updates to Teleport when a user is merely suspended. Even though Okta will prevent a suspended user from logging back into the cluster, any existing sessions will not be terminated, and any pre-issued credentials will be valid for their normal lifetimes.
+</Admonition>
+
+## What you need
+ * Enterprise Teleport Dev Build `v15.3.2-dev.scim.1`, available via 
+   * AMD64 linux: https://cdn.teleport.dev/teleport-ent-v15.3.2-dev.scim.1-linux-amd64-bin.tar.gz 
+   * Arm64 linux: https://cdn.teleport.dev/teleport-ent-v15.3.2-dev.scim.1-linux-arm64-bin.tar.gz
+   * Multiarch Docker image (with debug tools): public.ecr.aws/gravitational/teleport-ent-distroless-debug:15.3.2-dev.scim.1
+ * A Teleport cluster with a working SAML Connector to your Okta organization
+ * A securely-generated bearer token
+
+## Installing Teleport
+
+If installing from one of the above tarballs onto a self-hosted system, first 
+back up your existing binaries then unpack the linked tarball and move the 
+contained binaries into place.   
+
+## Installing the SAML Connector
+If you created an Okta SAML connector with the Hosted Okta Integration enrollment
+flow, it will have created a SAML Connector called okta-integration that assigns
+users the okta-requester to the Okta group Everyone.
+
+If you don’t already have a working SAML Connector, see the 
+[Teleport Authentication with Okta](../../access-controls/sso/okta) guide. You
+can skip the Okta Group and role creation parts, as they’re not necessary for a
+SCIM deployment
+
+The resulting Teleport SAML connector resource should look roughly like the 
+example below. Note the role mapping that grants the requester role to the
+`Everyone` group in Okta.
+
+```yaml
+kind: saml
+metadata:
+  name: okta-integration
+spec:
+  acs: https://your.cluster/v1/webapi/saml/acs/okta-integration
+  attributes_to_roles:
+  - name: groups
+    roles:
+    - okta-requester
+    value: Everyone
+  audience: https://your.cluster/v1/webapi/saml/acs/okta-integration
+  display: Okta
+  Entity_descriptor: REDACTED 
+  issuer: http://www.okta.com/exkguvkxh7rSv5gPl5d7
+  service_provider_issuer: https://scim.dev-trent.net/v1/webapi/saml/acs/okta-integration
+  signing_key_pair:
+    cert: REDACTED
+    private_key:  REDACTED
+  sso: https://example.okta.com/app/….
+version: v2
+```
+
+## Installing the Teleport SCIM integration
+You can only install the SCIM integration with the build of `tctl` supplied with
+the `v15.3.2-dev.scim.1` build of Teleport. Other builds of `tctl` do not yet
+have the necessary commands.
+
+```bash
+tctl plugins install scim \
+      --name "okta-scim" \
+      --saml-connector "${SAML_CONNECTOR_NAME}" \
+      --token "${BEARER_TOKEN}" \ 
+      --role "${DEFAULT_ROLE}"
+Successfully created SCIM plugin "okta-scim"
+SCIM Base URL: https://your.cluster.teleport.sh/v1/webapi/scim/okta-scim
+```
+
+<Admonition type="note">
+It's not strictly mandatory for the SCIM service to use the same `--role` that
+the SAML Connector applies to Everyone, but doing so may lead to users having
+different default roles depending on if they were originally provisioned by the
+SAML connector or the SCIM plugin.
+</Admonition>
+
+In general, best practice is to assign a no-access role like `requester` as a
+default, and add more sophisticated controls via Access Lists.
+
+### Installation Notes:
+ * The `--token` parameter can also be read from the `TELEPORT_SCIM_BEARER_TOKEN`
+   environment variable to hide it from your shell history. 
+ * The `--token` value should just be the raw token value, with no Bearer prefix
+ * `--role` defaults to `requester` if not supplied
+
+## Configuring the Okta app
+See the [Okta Integration *Configuring SCIM provisioning*](../hosted-guide.mdx#configuring-scim-provisioning) guide. 
+
+If your Okta App has assigned users *before* SCIM provisioning is enabled, you
+will need to trigger their provisioning explicitly. This can be done by
+selecting the *Provision Users* button on the Okta App Assignments page.
+
+![Provision Existing Users](../../../img/enterprise/plugins/okta/scim-provision-existing-users.png)
+
+<Admonition>
+We have seen some Okta instances that are missing the Provision Users button. 
+In that case the best way we have found to force user provisioning is to remove 
+and re-add the users to the app. Triggering a *Force Sync* in the Provisioning/To 
+App panel may also work, but we have had only intermittent success. 
+</Admonition>
+
+## Hiding Profile Data from Teleport
+If you have data in your Okta user profile that you don’t wish to share with
+Teleport, you can edit the Okta Application User profile to present Teleport 
+with a subset and/or mapped version of the full User profile. 
+
+## Deleting the SCIM integration
+
+You can delete the SCIM integration via the Integrations page in the Teleport UI,
+or with tctl like so:
+
+```bash
+tctl plugins delete okta-scim
+```
+
+<Admonition type="warning">
+Any users provisioned by the SCIM service will be not automatically deleted
+along with the SCIM plugin.
+</Admonition>
+
+You can semi-manually delete all SCIM-provisioned users using a combination of 
+tctl and yq. 
+
+For example:
+```bash
+$ tctl get users \
+  | yq -N 'select(.metadata.labels["teleport.dev/origin"] == "scim") | .metadata.name' \
+  | xargs -L 1 tctl users rm
+```
