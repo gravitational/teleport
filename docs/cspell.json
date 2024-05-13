@@ -279,6 +279,7 @@
     "authz",
     "autodiscovery",
     "autoload",
+    "automations",
     "automount",
     "autoscale",
     "awly",
