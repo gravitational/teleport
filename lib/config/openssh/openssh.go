@@ -56,7 +56,7 @@ Host *.{{ $clusterName }} !{{ $dot.ProxyHost }}
     ProxyCommand "{{ $dot.ExecutablePath }}" proxy ssh --cluster={{ $clusterName }} --proxy={{ $dot.ProxyHost }}:{{ $dot.ProxyPort }} %r@%h:%p
 {{- end }}
 {{- if eq $dot.AppName "tbot" }}
-{{- if eq $dot.PureProxyCommand true }}
+{{- if eq $dot.PureTBotProxyCommand true }}
     ProxyCommand "{{ $dot.ExecutablePath }}" proxy --destination-dir={{ $dot.DestinationDir }} --proxy-server={{ $dot.ProxyHost }}:{{ $dot.ProxyPort }} ssh --cluster={{ $clusterName }}  %r@%h:%p
 {{-else}}
     ProxyCommand "{{ $dot.ExecutablePath }}" ssh-proxy-command --destination-dir={{ $dot.DestinationDir }} --proxy-server={{ $dot.ProxyHost }}:{{ $dot.ProxyPort }} --cluster={{ $clusterName }} --user=%r --host=%h --port=%p --tls-routing --no-connection-upgrade --resume
@@ -84,6 +84,14 @@ type SSHConfigParameters struct {
 	DestinationDir      string
 	// Port is the node port to use, defaulting to 3022, if not specified by flag
 	Port int
+
+	// PureTBotProxyCommand enables the new `ssh-proxy-command` operating mode
+	// when generating the ssh_config for tbot.
+	PureTBotProxyCommand bool
+	ConnectionUpgrade    bool
+	TLSRouting           bool
+	Insecure             bool
+	FIPS                 bool
 }
 
 type sshTmplParams struct {
