@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth
+package authclient
 
 import (
 	"context"
@@ -43,6 +43,10 @@ func (c *Client) RotateCertAuthority(ctx context.Context, req types.RotateReques
 	}
 
 	return trace.Wrap(err)
+}
+
+type rotateExternalCertAuthorityRawReq struct {
+	CA json.RawMessage `json:"ca"`
 }
 
 // TODO(Joerger): DELETE IN 16.0.0
