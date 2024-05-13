@@ -255,7 +255,15 @@ When `update` subcommand is otherwise executed, it will:
 To enable auto-updates of the updater itself, all commands will first check for an `active_version`, and reexec using the `teleport-updater` at that version if present and different.
 The `/usr/local/bin/teleport-upgrader` symlink will take precedence to avoid reexec in most scenarios.
 
-If `teleport-updater` fails with an error, and an older version of `teleport-updater` is available, the upgrade will retry with the older version.
+#### Failure Conditions
+
+If the new version of Teleport fails to start, the installation of Teleport is reverted as described above.
+
+If `teleport-updater` itself fails with an error, and an older version of `teleport-updater` is available, the upgrade will retry with the older version.
+
+Known failure conditions caused by intentional configuration (e.g., upgrades disabled) will not trigger retry logic.
+
+#### Status
 
 To retrieve known information about agent upgrades, the `status` subcommand will return the following:
 ```json
