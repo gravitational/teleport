@@ -220,18 +220,19 @@ The `enable` subcommand will:
 1. Configure `updates.yaml` with the current proxy address and set `enabled` to true.
 2. Query the `/v1/webapi/ping` endpoint.
 3. If the current updater-managed version of Teleport is the latest, and teleport package is not installed, quit.
-4. If the current updater-managed version of Teleport is the latest, but the teleport package is installed, jump to (12).
-5. Download the desired Teleport tarball specified by `agent_version` and `server_edition`.
-6. Download and verify the checksum.
-7. Extract the tarball to `/var/lib/teleport/versions/VERSION`.
-8. Replace any existing binaries or symlinks with symlinks to the current version.
-9. Backup /var/lib/teleport into `/var/lib/teleport/versions/OLD-VERSION/backup/teleport`
-10. Restart the agent if the systemd service is already enabled.
-11. Set `active_version` in `updates.yaml` if successful or not enabled.
-12. Replace the symlinks/binaries and `/var/lib/teleport` and quit (exit 1) if unsuccessful.
-13. Remove any `teleport` package if installed.
-14. Verify the symlinks to the active version still exists.
-15. Remove all stored versions of the agent except the current version.
+4. If the current updater-managed version of Teleport is the latest, but the teleport package is installed, jump to (14).
+5. Ensure there is enough free disk space to upgrade Teleport.
+6. Download the desired Teleport tarball specified by `agent_version` and `server_edition`.
+7. Download and verify the checksum (tarball URL suffixed with `.sha256`).
+8. Extract the tarball to `/var/lib/teleport/versions/VERSION`.
+9. Replace any existing binaries or symlinks with symlinks to the current version.
+10. Backup /var/lib/teleport into `/var/lib/teleport/versions/OLD-VERSION/backup/teleport`
+11. Restart the agent if the systemd service is already enabled.
+12. Set `active_version` in `updates.yaml` if successful or not enabled.
+13. Replace the symlinks/binaries and `/var/lib/teleport` and quit (exit 1) if unsuccessful.
+14. Remove any `teleport` package if installed.
+15. Verify the symlinks to the active version still exists.
+16. Remove all stored versions of the agent except the current version.
 
 The `disable` subcommand will:
 1. Configure `updates.yaml` to set `enabled` to false.
@@ -242,15 +243,16 @@ When `update` subcommand is otherwise executed, it will:
 3. Check if the current time is after the time advertised in `agent_update_after`, and that `agent_auto_updates` is true.
 4. If the current version of Teleport is the latest, quit.
 5. Wait `random(0, agent_update_jitter_seconds)` seconds.
-6. Download the desired Teleport tarball specified by `agent_version` and `server_edition`.
-7. Download and verify the checksum.
-8. Extract the tarball to `/var/lib/teleport/versions/VERSION`.
-9. Update symlinks to point at the new version.
-10. Backup /var/lib/teleport into `/var/lib/teleport/versions/OLD-VERSION/backup/teleport`.
-11. Restart the agent if the systemd service is already enabled.
-12. Set `active_version` in `updates.yaml` if successful or not enabled.
-13. Replace the old symlinks/binaries and `/var/lib/teleport` and quit (exit 1) if unsuccessful.
-14. Remove all stored versions of the agent except the current version.
+6. Ensure there is enough free disk space to upgrade Teleport.
+7. Download the desired Teleport tarball specified by `agent_version` and `server_edition`.
+8. Download and verify the checksum (tarball URL suffixed with `.sha256`).
+9. Extract the tarball to `/var/lib/teleport/versions/VERSION`.
+10. Update symlinks to point at the new version.
+11. Backup /var/lib/teleport into `/var/lib/teleport/versions/OLD-VERSION/backup/teleport`.
+12. Restart the agent if the systemd service is already enabled.
+13. Set `active_version` in `updates.yaml` if successful or not enabled.
+14. Replace the old symlinks/binaries and `/var/lib/teleport` and quit (exit 1) if unsuccessful.
+15. Remove all stored versions of the agent except the current version.
 
 To enable auto-updates of the updater itself, all commands will first check for an `active_version`, and reexec using the `teleport-updater` at that version if present and different.
 The `/usr/local/bin/teleport-upgrader` symlink will take precedence to avoid reexec in most scenarios.
