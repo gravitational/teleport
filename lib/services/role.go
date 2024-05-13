@@ -1541,6 +1541,8 @@ func (set RoleSet) CheckAccessToSAMLIdP(authPref types.AuthPreference, states ..
 		return ErrSessionMFARequired
 	}
 
+	mfaAllowed := state.MFAVerified || state.MFARequired == MFARequiredNever
+
 	for _, role := range set {
 		options := role.GetOptions()
 
@@ -1554,7 +1556,7 @@ func (set RoleSet) CheckAccessToSAMLIdP(authPref types.AuthPreference, states ..
 			return trace.AccessDenied("user has been denied access to the SAML IdP by role %s", role.GetName())
 		}
 
-		if options.RequireMFAType.IsSessionMFARequired() && !state.MFAVerified {
+		if !mfaAllowed && options.RequireMFAType.IsSessionMFARequired() {
 			debugf("Access to SAML IdP denied, role %q requires per-session MFA", role.GetName())
 			return ErrSessionMFARequired
 		}
@@ -3253,9 +3255,8 @@ type AccessState struct {
 type MFARequired string
 
 const (
-	// MFARequiredNever means that MFA is never required for any sessions started by this user. This either
-	// means both the cluster auth preference and all roles have per-session MFA off, or at least one of
-	// those resources has "require_session_mfa: hardware_key_touch", which overrides per-session MFA.
+	// MFARequiredNever means that MFA is never required for any sessions started by this user.
+	// This means that it is not required by the cluster auth preference or any of the user's roles.
 	MFARequiredNever MFARequired = "never"
 	// MFARequiredAlways means that MFA is required for all sessions started by a user. This either
 	// means that the cluster auth preference requires per-session MFA, or all of the user's roles require
