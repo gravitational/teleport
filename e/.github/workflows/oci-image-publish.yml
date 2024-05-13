@@ -26,7 +26,7 @@ on:
       environment:
         description: GitHub environment to publish to.
         type: string
-        default: publish-prod
+        default: publish-stage
 
 run-name: "Publish OCI image ${{ inputs.repository }}:${{ inputs.pending-tag }}"
 

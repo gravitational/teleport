@@ -14,7 +14,7 @@ on:
       environment:
         description: GitHub environment to publish to.
         type: string
-        default: publish-prod
+        default: publish-stage
 
   # The workflow_dispatch event duplicates the workflow_call input parameters, without descriptions.
   workflow_dispatch:
@@ -27,7 +27,7 @@ on:
         required: true
       environment:
         type: string
-        default: publish-prod
+        default: publish-stage
 
 jobs:
   publish:

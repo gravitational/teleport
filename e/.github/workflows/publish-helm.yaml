@@ -16,7 +16,7 @@ on:
       environment:
         description: GitHub environment to publish to.
         type: string
-        default: publish-prod
+        default: publish-stage
 
       workflow-tag:
         description: Tag used to identify workflow runs spawned by this event.
@@ -33,7 +33,7 @@ on:
         required: true
       environment:
         type: string
-        default: publish-prod
+        default: publish-stage
       workflow-tag:
         type: string
 

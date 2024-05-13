@@ -28,7 +28,7 @@ on:
       environment:
         description: GitHub environment to publish to.
         type: environment
-        default: publish-prod
+        default: publish-stage
 
 jobs:
   setup:
@@ -43,6 +43,14 @@ jobs:
         with:
           ref: ${{ inputs.oss-teleport-ref }}
           version: ${{ inputs.teleport-version }}
+      - name: Reject non-cloud prereleases being sent to production
+        if: ${{ contains(inputs.environment, 'prod') && !contains(fromJson('["", "cloud"]'), steps.determine-version.outputs.pre-release) }}
+        env:
+          VERSION: ${{ steps.determine-version.outputs.full }}
+          GH_ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          echo "::error title=Prerelease sent to production environment::Prereleases ($VERSION) must not be sent to production environments ($GH_ENVIRONMENT)." >&2
+          exit 1
 
   publish-distroless-oci:
     name: Publish distroless OCI images
@@ -82,6 +90,7 @@ jobs:
       oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
       oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
       release-source-tag: ${{ needs.setup.outputs.version }}
+      environment: ${{ inputs.environment }}
 
   publish-helm:
     name: Publish helm charts

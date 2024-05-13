@@ -31,7 +31,7 @@ on:
           GitHub Actions environment in which to run the build. Can be either
           `build-stage` or `build-prod`.
         type: string
-        default: build-prod
+        default: build-stage
 
       cloud-only:
         description: Perform a cloud-only release (distroless OCI only)
@@ -54,6 +54,14 @@ jobs:
         with:
           ref: ${{ inputs.oss-teleport-ref }}
           version: ${{ inputs.teleport-version }}
+      - name: Reject non-cloud prereleases being sent to production
+        if: ${{ contains(inputs.environment, 'prod') && !contains(fromJson('["", "cloud"]'), steps.determine-version.outputs.pre-release) }}
+        env:
+          VERSION: ${{ steps.determine-version.outputs.full }}
+          GH_ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          echo "::error title=Prerelease sent to production environment::Prereleases ($VERSION) must not be sent to production environments ($GH_ENVIRONMENT)." >&2
+          exit 1
 
       - name: ${{ inputs.workflow-tag }}
         if: inputs.workflow-tag != ''
