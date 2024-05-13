@@ -23,6 +23,8 @@ import { Attempt } from 'shared/hooks/useAttemptNext';
 import * as Icon from 'design/Icon';
 import { Notification, NotificationItem } from 'shared/components/Notification';
 
+import { useStore } from 'shared/libs/stores';
+
 import useTeleport from 'teleport/useTeleport';
 import {
   FeatureBox,
@@ -32,11 +34,11 @@ import {
 import ReAuthenticate from 'teleport/components/ReAuthenticate';
 import { RemoveDialog } from 'teleport/components/MfaDeviceList';
 
-import { MfaChallengeScope } from 'teleport/services/auth/auth';
-
 import cfg from 'teleport/config';
 
-import { DeviceUsage } from 'teleport/services/mfa';
+import { DeviceUsage } from 'teleport/services/auth';
+
+import { PasswordState } from 'teleport/services/user';
 
 import { AuthDeviceList } from './ManageDevices/AuthDeviceList/AuthDeviceList';
 import useManageDevices, {
@@ -45,6 +47,7 @@ import useManageDevices, {
 import { ActionButtonPrimary, ActionButtonSecondary, Header } from './Header';
 import { PasswordBox } from './PasswordBox';
 import { AddAuthDeviceWizard } from './ManageDevices/AddAuthDeviceWizard';
+import { StatePill } from './StatePill';
 
 export interface EnterpriseComponentProps {
   // TODO(bl-nero): Consider moving the notifications to its own store and
@@ -61,19 +64,26 @@ export interface AccountPageProps {
 
 export function AccountPage({ enterpriseComponent }: AccountPageProps) {
   const ctx = useTeleport();
-  const isSso = ctx.storeUser.isSso();
+  const storeUser = useStore(ctx.storeUser);
+  const isSso = storeUser.isSso();
   const manageDevicesState = useManageDevices(ctx);
 
   const canAddPasskeys = cfg.isPasswordlessEnabled();
   const canAddMfa = cfg.isMfaEnabled();
+
+  function onPasswordChange() {
+    storeUser.setState({ passwordState: PasswordState.PASSWORD_STATE_SET });
+  }
 
   return (
     <Account
       isSso={isSso}
       canAddPasskeys={canAddPasskeys}
       canAddMfa={canAddMfa}
+      passwordState={storeUser.getPasswordState()}
       {...manageDevicesState}
       enterpriseComponent={enterpriseComponent}
+      onPasswordChange={onPasswordChange}
     />
   );
 }
@@ -82,6 +92,8 @@ export interface AccountProps extends ManageDevicesState, AccountPageProps {
   isSso: boolean;
   canAddPasskeys: boolean;
   canAddMfa: boolean;
+  passwordState: PasswordState;
+  onPasswordChange: () => void;
 }
 
 export function Account({
@@ -106,6 +118,8 @@ export function Account({
   canAddPasskeys,
   enterpriseComponent: EnterpriseComponent,
   newDeviceUsage,
+  passwordState,
+  onPasswordChange: onPasswordChangeCb,
 }: AccountProps) {
   const passkeys = devices.filter(d => d.usage === 'passwordless');
   const mfaDevices = devices.filter(d => d.usage === 'mfa');
@@ -154,6 +168,7 @@ export function Account({
 
   function onPasswordChange() {
     addNotification('info', 'Your password has been changed.');
+    onPasswordChangeCb();
   }
 
   function onAddDeviceSuccess() {
@@ -176,7 +191,8 @@ export function Account({
             <AuthDeviceList
               header={
                 <PasskeysHeader
-                  empty={devices.length === 0}
+                  empty={passkeys.length === 0}
+                  passkeysEnabled={canAddPasskeys}
                   disableAddPasskey={disableAddPasskey}
                   fetchDevicesAttempt={fetchDevicesAttempt}
                   onAddDevice={onAddDevice}
@@ -193,6 +209,7 @@ export function Account({
                 createRestrictedTokenAttempt.status === 'processing'
               }
               devices={devices}
+              passwordState={passwordState}
               onPasswordChange={onPasswordChange}
             />
           )}
@@ -200,10 +217,22 @@ export function Account({
             <AuthDeviceList
               header={
                 <Header
-                  title="Multi-factor Authentication"
+                  title={
+                    <Flex gap={2}>
+                      Multi-factor Authentication
+                      <StatePill
+                        data-testid="mfa-state-pill"
+                        state={
+                          canAddMfa && mfaDevices.length > 0
+                            ? 'active'
+                            : 'inactive'
+                        }
+                      />
+                    </Flex>
+                  }
                   description="Provide secondary authentication when signing in
-                with a password. Unlike passkeys, multi-factor methods do not
-                enable passwordless sign-in."
+                    with a password. Unlike passkeys, multi-factor methods do
+                    not enable passwordless sign-in."
                   icon={<Icon.ShieldCheck />}
                   showIndicator={fetchDevicesAttempt.status === 'processing'}
                   actions={
@@ -232,7 +261,6 @@ export function Account({
               onAuthenticated={setToken}
               onClose={hideReAuthenticate}
               actionText="registering a new device"
-              challengeScope={MfaChallengeScope.MANAGE_DEVICES}
             />
           )}
           {EnterpriseComponent && (
@@ -289,11 +317,13 @@ export function Account({
 function PasskeysHeader({
   empty,
   fetchDevicesAttempt,
+  passkeysEnabled,
   disableAddPasskey,
   onAddDevice,
 }: {
   empty: boolean;
   fetchDevicesAttempt: Attempt;
+  passkeysEnabled: boolean;
   disableAddPasskey: boolean;
   onAddDevice: (usage: DeviceUsage) => void;
 }) {
@@ -340,7 +370,15 @@ function PasskeysHeader({
 
   return (
     <Header
-      title="Passkeys"
+      title={
+        <Flex gap={2}>
+          Passkeys
+          <StatePill
+            data-testid="passwordless-state-pill"
+            state={passkeysEnabled ? 'active' : 'inactive'}
+          />
+        </Flex>
+      }
       description="Enable secure passwordless sign-in using
                 fingerprint or facial recognition, a one-time code, or
                 a device password."

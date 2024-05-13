@@ -63,6 +63,9 @@ type HandlerConfig struct {
 	CipherSuites []uint16
 	// WebPublicAddr
 	WebPublicAddr string
+	// IntegrationAppHandler handles App Access requests directly - not requiring an AppService.
+	// Only available for AWS OIDC Integrations.
+	IntegrationAppHandler ServerHandler
 }
 
 // CheckAndSetDefaults validates configuration.
@@ -79,6 +82,9 @@ func (c *HandlerConfig) CheckAndSetDefaults() error {
 	}
 	if len(c.CipherSuites) == 0 {
 		return trace.BadParameter("ciphersuites missing")
+	}
+	if c.IntegrationAppHandler == nil {
+		return trace.BadParameter("integration app handler missing")
 	}
 
 	return nil
@@ -132,13 +138,7 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 	h.router = httprouter.New()
 	h.router.UseRawPath = true
 	h.router.GET("/x-teleport-auth", makeRouterHandler(h.startAppAuthExchange))
-	// DELETE IN 17.0
-	// Kept for legacy app access.
-	h.router.OPTIONS("/x-teleport-auth", makeRouterHandler(h.withCustomCORS(nil)))
-	// DELETE IN 17.0
-	// when deleting, replace with the commented handler below:
-	//   h.router.POST("/x-teleport-auth", makeRouterHandler(h.completeAppAuthExchange))
-	h.router.POST("/x-teleport-auth", makeRouterHandler(h.withCustomCORS(h.handleAuth)))
+	h.router.POST("/x-teleport-auth", makeRouterHandler(h.completeAppAuthExchange))
 	h.router.GET("/teleport-logout", h.withRouterAuth(h.handleLogout))
 	h.router.NotFound = h.withAuth(h.handleHttp)
 

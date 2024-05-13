@@ -35,9 +35,11 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/asciitable"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -50,26 +52,65 @@ func onAppLogin(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	app, err := getRegisteredApp(cf, tc)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+
 	profile, err := tc.ProfileStatus()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	rootCluster, err := tc.RootClusterName(cf.Context)
+	app, err := getRegisteredApp(cf, tc)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	routeToApp, err := getRouteToApp(cf, tc, profile, app)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	appCertParams := client.ReissueParams{
+		RouteToCluster: tc.SiteName,
+		RouteToApp:     routeToApp,
+		AccessRequests: profile.ActiveRequests.AccessRequests,
+	}
+
+	// TODO (Joerger): DELETE IN v17.0.0
+	clusterClient, err := tc.ConnectToCluster(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	rootClient, err := clusterClient.ConnectToRootCluster(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	appCertParams.RouteToApp.SessionID, err = auth.TryCreateAppSessionForClientCertV15(cf.Context, rootClient, tc.Username, appCertParams.RouteToApp)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	key, _, err := clusterClient.IssueUserCertsWithMFA(cf.Context, appCertParams, tc.NewMFAPrompt(mfa.WithPromptReasonSessionMFA("Application", app.GetName())))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := tc.LocalAgent().AddAppKey(key); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := printAppCommand(cf, tc, app, routeToApp); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func getRouteToApp(cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus, app types.Application) (proto.RouteToApp, error) {
 	var awsRoleARN string
 	if app.IsAWSConsole() {
 		var err error
 		awsRoleARN, err = getARNFromFlags(cf, profile, app)
 		if err != nil {
-			return trace.Wrap(err)
+			return proto.RouteToApp{}, trace.Wrap(err)
 		}
 	}
 
@@ -78,7 +119,7 @@ func onAppLogin(cf *CLIConf) error {
 		var err error
 		azureIdentity, err = getAzureIdentityFromFlags(cf, profile)
 		if err != nil {
-			return trace.Wrap(err)
+			return proto.RouteToApp{}, trace.Wrap(err)
 		}
 		log.Debugf("Azure identity is %q", azureIdentity)
 	}
@@ -88,44 +129,26 @@ func onAppLogin(cf *CLIConf) error {
 		var err error
 		gcpServiceAccount, err = getGCPServiceAccountFromFlags(cf, profile)
 		if err != nil {
-			return trace.Wrap(err)
+			return proto.RouteToApp{}, trace.Wrap(err)
 		}
 		log.Debugf("GCP service account is %q", gcpServiceAccount)
 	}
 
-	request := &proto.CreateAppSessionRequest{
-		Username:          tc.Username,
+	return proto.RouteToApp{
+		Name:              app.GetName(),
 		PublicAddr:        app.GetPublicAddr(),
 		ClusterName:       tc.SiteName,
 		AWSRoleARN:        awsRoleARN,
 		AzureIdentity:     azureIdentity,
 		GCPServiceAccount: gcpServiceAccount,
-	}
+	}, nil
+}
 
-	ws, err := tc.CreateAppSession(cf.Context, request)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+func localProxyRequiredForApp(tc *client.TeleportClient) bool {
+	return tc.TLSRoutingConnUpgradeRequired
+}
 
-	params := client.ReissueParams{
-		RouteToCluster: profile.Cluster,
-		RouteToApp: proto.RouteToApp{
-			Name:              app.GetName(),
-			SessionID:         ws.GetName(),
-			PublicAddr:        app.GetPublicAddr(),
-			ClusterName:       tc.SiteName,
-			AWSRoleARN:        awsRoleARN,
-			AzureIdentity:     azureIdentity,
-			GCPServiceAccount: gcpServiceAccount,
-		},
-		AccessRequests: profile.ActiveRequests.AccessRequests,
-	}
-
-	err = tc.ReissueUserCerts(cf.Context, client.CertCacheKeep, params)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
+func printAppCommand(cf *CLIConf, tc *client.TeleportClient, app types.Application, routeToApp proto.RouteToApp) error {
 	output := cf.Stdout()
 	if cf.Quiet {
 		output = io.Discard
@@ -136,11 +159,11 @@ func onAppLogin(cf *CLIConf) error {
 		return awsCliTpl.Execute(output, map[string]string{
 			"awsAppName": app.GetName(),
 			"awsCmd":     "s3 ls",
-			"awsRoleARN": awsRoleARN,
+			"awsRoleARN": routeToApp.AWSRoleARN,
 		})
 
 	case app.IsAzureCloud():
-		if azureIdentity == "" {
+		if routeToApp.AzureIdentity == "" {
 			return trace.BadParameter("app is Azure Cloud but Azure identity is missing")
 		}
 
@@ -148,7 +171,7 @@ func onAppLogin(cf *CLIConf) error {
 		if cf.Debug {
 			args = append(args, "--debug")
 		}
-		args = append(args, "az", "login", "--identity", "-u", azureIdentity)
+		args = append(args, "az", "login", "--identity", "-u", routeToApp.AzureIdentity)
 
 		// automatically login with right identity.
 		cmd := exec.Command(cf.executablePath, args...)
@@ -159,18 +182,18 @@ func onAppLogin(cf *CLIConf) error {
 		log.Debugf("Running automatic az login: %v", cmd.String())
 		err := cf.RunCommand(cmd)
 		if err != nil {
-			return trace.Wrap(err, "failed to automatically login with `az login` using identity %q; run with --debug for details", azureIdentity)
+			return trace.Wrap(err, "failed to automatically login with `az login` using identity %q; run with --debug for details", routeToApp.AzureIdentity)
 		}
 
 		return azureCliTpl.Execute(output, map[string]string{
 			"appName":  app.GetName(),
-			"identity": azureIdentity,
+			"identity": routeToApp.AzureIdentity,
 		})
 
 	case app.IsGCP():
 		return gcpCliTpl.Execute(output, map[string]string{
 			"appName":        app.GetName(),
-			"serviceAccount": gcpServiceAccount,
+			"serviceAccount": routeToApp.GCPServiceAccount,
 		})
 
 	case app.IsTCP():
@@ -184,12 +207,22 @@ func onAppLogin(cf *CLIConf) error {
 		})
 
 	default:
-		publicAddr := app.GetPublicAddr()
+		rootCluster, err := tc.RootClusterName(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		// for remote apps, override their public address with address pointing at the public proxy address.
 		if rootCluster != tc.SiteName {
-			publicAddr = fmt.Sprintf("%v.%v", app.GetName(), tc.WebProxyHost())
+			routeToApp.PublicAddr = fmt.Sprintf("%v.%v", app.GetName(), tc.WebProxyHost())
 		}
-		curlCmd, err := formatAppConfig(tc, profile, app.GetName(), publicAddr, appFormatCURL, rootCluster, awsRoleARN, azureIdentity, gcpServiceAccount)
+
+		profile, err := tc.ProfileStatus()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		curlCmd, err := formatAppConfig(tc, profile, routeToApp, appFormatCURL)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -199,10 +232,6 @@ func onAppLogin(cf *CLIConf) error {
 			"insecure": cf.InsecureSkipVerify,
 		})
 	}
-}
-
-func localProxyRequiredForApp(tc *client.TeleportClient) bool {
-	return tc.TLSRoutingConnUpgradeRequired
 }
 
 // appLoginTpl is the message that gets printed to a user upon successful login
@@ -299,21 +328,28 @@ func onAppLogout(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	activeRoutes, err := profile.AppsForCluster(tc.SiteName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// If a specific app name was specified, just log out of that app.
+	// Otherwise, log out of all apps.
 	var logout []tlsca.RouteToApp
-	// If app name wasn't given on the command line, log out of all.
-	if cf.AppName == "" {
-		logout = profile.Apps
-	} else {
-		for _, app := range profile.Apps {
+	if cf.AppName != "" {
+		for _, app := range activeRoutes {
 			if app.Name == cf.AppName {
 				logout = append(logout, app)
 			}
 		}
+
 		if len(logout) == 0 {
-			return trace.BadParameter("not logged into app %q",
-				cf.AppName)
+			return trace.BadParameter("not logged into app %q", cf.AppName)
 		}
+	} else {
+		logout = activeRoutes
 	}
+
 	for _, app := range logout {
 		err = tc.DeleteAppSession(cf.Context, app.SessionID)
 		if err != nil && !trace.IsNotFound(err) {
@@ -324,7 +360,11 @@ func onAppLogout(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 
-		removeAppLocalFiles(profile, app.Name)
+		// remove generated local files for the provided app.
+		err := utils.RemoveFileIfExist(profile.AppLocalCAPath(tc.SiteName, app.Name))
+		if err != nil {
+			log.WithError(err).Warnf("Failed to remove %v", profile.AppLocalCAPath(tc.SiteName, app.Name))
+		}
 	}
 	if len(logout) == 1 {
 		fmt.Printf("Logged out of app %q\n", logout[0].Name)
@@ -344,11 +384,24 @@ func onAppConfig(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	app, err := pickActiveApp(cf)
+	routes, err := profile.AppsForCluster(tc.SiteName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	conf, err := formatAppConfig(tc, profile, app.Name, app.PublicAddr, cf.Format, "", app.AWSRoleARN, app.AzureIdentity, app.GCPServiceAccount)
+	app, err := pickActiveApp(cf, routes)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	routeToApp := proto.RouteToApp{
+		Name:              app.Name,
+		SessionID:         app.SessionID,
+		PublicAddr:        app.PublicAddr,
+		ClusterName:       app.ClusterName,
+		AWSRoleARN:        app.AWSRoleARN,
+		AzureIdentity:     app.AzureIdentity,
+		GCPServiceAccount: app.GCPServiceAccount,
+	}
+	conf, err := formatAppConfig(tc, profile, routeToApp, cf.Format)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -356,12 +409,12 @@ func onAppConfig(cf *CLIConf) error {
 	return nil
 }
 
-func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, appName, appPublicAddr, format, cluster, awsARN, azureIdentity, gcpServiceAccount string) (string, error) {
+func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, routeToApp proto.RouteToApp, format string) (string, error) {
 	var uri string
 	if port := tc.WebProxyPort(); port == teleport.StandardHTTPSPort {
-		uri = fmt.Sprintf("https://%v", appPublicAddr)
+		uri = fmt.Sprintf("https://%v", routeToApp.PublicAddr)
 	} else {
-		uri = fmt.Sprintf("https://%v:%v", appPublicAddr, port)
+		uri = fmt.Sprintf("https://%v:%v", routeToApp.PublicAddr, port)
 	}
 
 	var curlInsecureFlag string
@@ -374,7 +427,7 @@ func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, a
   --key %v \
   %v`,
 		curlInsecureFlag,
-		profile.AppCertPath(appName),
+		profile.AppCertPath(tc.SiteName, routeToApp.Name),
 		profile.KeyPath(),
 		uri)
 	format = strings.ToLower(format)
@@ -382,24 +435,24 @@ func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, a
 	case appFormatURI:
 		return uri, nil
 	case appFormatCA:
-		return profile.CACertPathForCluster(cluster), nil
+		return profile.CACertPathForCluster(tc.SiteName), nil
 	case appFormatCert:
-		return profile.AppCertPath(appName), nil
+		return profile.AppCertPath(tc.SiteName, routeToApp.Name), nil
 	case appFormatKey:
 		return profile.KeyPath(), nil
 	case appFormatCURL:
 		return curlCmd, nil
 	case appFormatJSON, appFormatYAML:
 		appConfig := &appConfigInfo{
-			Name:              appName,
+			Name:              routeToApp.Name,
 			URI:               uri,
-			CA:                profile.CACertPathForCluster(cluster),
-			Cert:              profile.AppCertPath(appName),
+			CA:                profile.CACertPathForCluster(tc.SiteName),
+			Cert:              profile.AppCertPath(tc.SiteName, routeToApp.Name),
 			Key:               profile.KeyPath(),
 			Curl:              curlCmd,
-			AWSRoleARN:        awsARN,
-			AzureIdentity:     azureIdentity,
-			GCPServiceAccount: gcpServiceAccount,
+			AWSRoleARN:        routeToApp.AWSRoleARN,
+			AzureIdentity:     routeToApp.AzureIdentity,
+			GCPServiceAccount: routeToApp.GCPServiceAccount,
 		}
 		out, err := serializeAppConfig(appConfig, format)
 		if err != nil {
@@ -410,20 +463,20 @@ func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, a
 		t := asciitable.MakeHeadlessTable(2)
 		// additional spaces after `Name:` are there to enforce minimum column width,
 		// which helps to visually separate the two columns.
-		t.AddRow([]string{"Name:     ", appName})
+		t.AddRow([]string{"Name:     ", routeToApp.Name})
 		t.AddRow([]string{"URI:", uri})
-		t.AddRow([]string{"CA:", profile.CACertPathForCluster(cluster)})
-		t.AddRow([]string{"Cert:", profile.AppCertPath(appName)})
+		t.AddRow([]string{"CA:", profile.CACertPathForCluster(tc.SiteName)})
+		t.AddRow([]string{"Cert:", profile.AppCertPath(tc.SiteName, routeToApp.Name)})
 		t.AddRow([]string{"Key:", profile.KeyPath()})
 
-		if awsARN != "" {
-			t.AddRow([]string{"AWS ARN:", awsARN})
+		if routeToApp.AWSRoleARN != "" {
+			t.AddRow([]string{"AWS ARN:", routeToApp.AWSRoleARN})
 		}
-		if azureIdentity != "" {
-			t.AddRow([]string{"Azure Id:", azureIdentity})
+		if routeToApp.AzureIdentity != "" {
+			t.AddRow([]string{"Azure Id:", routeToApp.AzureIdentity})
 		}
-		if gcpServiceAccount != "" {
-			t.AddRow([]string{"GCP Service Account:", gcpServiceAccount})
+		if routeToApp.GCPServiceAccount != "" {
+			t.AddRow([]string{"GCP Service Account:", routeToApp.GCPServiceAccount})
 		}
 
 		return t.AsBuffer().String(), nil
@@ -470,37 +523,29 @@ func serializeAppConfig(configInfo *appConfigInfo, format string) (string, error
 //
 // If logged into multiple apps, returns an error unless one was specified
 // explicitly on CLI.
-func pickActiveApp(cf *CLIConf) (*tlsca.RouteToApp, error) {
-	profile, err := cf.ProfileStatus()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if len(profile.Apps) == 0 {
-		return nil, trace.NotFound("please login using 'tsh apps login' first")
-	}
-	name := cf.AppName
-	if name == "" {
-		apps := profile.AppNames()
-		if len(apps) > 1 {
+func pickActiveApp(cf *CLIConf, activeRoutes []tlsca.RouteToApp) (*tlsca.RouteToApp, error) {
+	if cf.AppName == "" {
+		switch len(activeRoutes) {
+		case 0:
+			return nil, trace.NotFound("please login using 'tsh apps login' first")
+		case 1:
+			return &activeRoutes[0], nil
+		default:
+			var appNames []string
+			for _, r := range activeRoutes {
+				appNames = append(appNames, r.Name)
+			}
 			return nil, trace.BadParameter("multiple apps are available (%v), please specify one via CLI argument",
-				strings.Join(apps, ", "))
-		}
-		name = apps[0]
-	}
-	for _, app := range profile.Apps {
-		if app.Name == name {
-			return &app, nil
+				strings.Join(appNames, ", "))
 		}
 	}
-	return nil, trace.NotFound("not logged into app %q", name)
-}
 
-// removeAppLocalFiles removes generated local files for the provided app.
-func removeAppLocalFiles(profile *client.ProfileStatus, appName string) {
-	err := utils.RemoveFileIfExist(profile.AppLocalCAPath(appName))
-	if err != nil {
-		log.WithError(err).Warnf("Failed to remove %v", profile.AppLocalCAPath(appName))
+	for _, r := range activeRoutes {
+		if r.Name == cf.AppName {
+			return &r, nil
+		}
 	}
+	return nil, trace.NotFound("not logged into app %q", cf.AppName)
 }
 
 // loadAppSelfSignedCA loads self-signed CA for provided app, or tries to
@@ -515,7 +560,7 @@ func loadAppSelfSignedCA(profile *client.ProfileStatus, tc *client.TeleportClien
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	cert, err := loadSelfSignedCA(profile.AppLocalCAPath(appName), profile.KeyPath(), appCertsExpireAt, "localhost")
+	cert, err := loadSelfSignedCA(profile.AppLocalCAPath(tc.SiteName, appName), profile.KeyPath(), appCertsExpireAt, "localhost")
 	return cert, trace.Wrap(err)
 }
 

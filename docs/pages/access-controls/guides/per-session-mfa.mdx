@@ -42,7 +42,7 @@ per-session MFA with FIPS builds, provide the following in your `teleport.yaml`:
 teleport:
   auth_service:
     local_auth: false
-    second_factor: optional
+    second_factor: on
     webauthn:
       rp_id: teleport.example.com
 ```
@@ -262,7 +262,7 @@ Current limitations for this feature are:
 - For SSH connections besides the Web UI, the `tsh` or Teleport Connect client must be used for per-session MFA.
   (The OpenSSH `ssh` client does not work with per-session MFA).
 - Only `kubectl` supports per-session WebAuthn authentication for Kubernetes.
-- Database access with per-session MFA only works with `tsh db connect`.
+- Database access with per-session MFA only works with `tsh db connect` or `tsh proxy db --tunnel`.
   Per-session MFA for databases is not supported in Teleport Connect.
 - Application access clients don't support per-session MFA
   authentication yet, although cluster and role configuration applies to them.

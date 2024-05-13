@@ -29,6 +29,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
+	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -42,7 +43,7 @@ type mockClients struct {
 	azureClient azure.VirtualMachinesClient
 }
 
-func (c *mockClients) GetAWSEC2Client(ctx context.Context, region string, _ ...cloud.AWSAssumeRoleOptionFn) (ec2iface.EC2API, error) {
+func (c *mockClients) GetAWSEC2Client(ctx context.Context, region string, _ ...cloud.AWSOptionsFn) (ec2iface.EC2API, error) {
 	return c.ec2Client, nil
 }
 
@@ -163,6 +164,7 @@ func TestEC2Watcher(t *testing.T) {
 			SSM:     &types.AWSSSM{},
 		},
 		{
+			Params:      &types.InstallerParams{},
 			Types:       []string{"EC2"},
 			Regions:     []string{"us-west-2"},
 			Tags:        map[string]utils.Strings{"with-eice": {"please"}},
@@ -292,4 +294,68 @@ func TestConvertEC2InstancesToServerInfos(t *testing.T) {
 	require.Len(t, serverInfos, 1)
 
 	require.Empty(t, cmp.Diff(expected, serverInfos[0]))
+}
+
+func TestMakeEvents(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		insts    *EC2Instances
+		expected map[string]*usageeventsv1.ResourceCreateEvent
+	}{
+		{
+			name: "script mode with teleport agents, returns node resource type",
+			insts: &EC2Instances{
+				EnrollMode: types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+				Instances: []EC2Instance{{
+					InstanceID: "i-123456789012",
+				}},
+				DocumentName: "TeleportDiscoveryInstaller",
+			},
+			expected: map[string]*usageeventsv1.ResourceCreateEvent{
+				"aws/i-123456789012": {
+					ResourceType:   "node",
+					ResourceOrigin: "cloud",
+					CloudProvider:  "AWS",
+				},
+			},
+		},
+		{
+			name: "script mode with openssh config, returns node.openssh resource type",
+			insts: &EC2Instances{
+				EnrollMode: types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+				Instances: []EC2Instance{{
+					InstanceID: "i-123456789012",
+				}},
+				DocumentName: "TeleportAgentlessDiscoveryInstaller",
+			},
+			expected: map[string]*usageeventsv1.ResourceCreateEvent{
+				"aws/i-123456789012": {
+					ResourceType:   "node.openssh",
+					ResourceOrigin: "cloud",
+					CloudProvider:  "AWS",
+				},
+			},
+		},
+		{
+			name: "eice mode, returns node.openssh-eice resource type",
+			insts: &EC2Instances{
+				EnrollMode: types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE,
+				Instances: []EC2Instance{{
+					InstanceID: "i-123456789012",
+				}},
+			},
+			expected: map[string]*usageeventsv1.ResourceCreateEvent{
+				"aws/i-123456789012": {
+					ResourceType:   "node.openssh-eice",
+					ResourceOrigin: "cloud",
+					CloudProvider:  "AWS",
+				},
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.insts.MakeEvents()
+			require.Equal(t, tt.expected, got)
+		})
+	}
 }

@@ -61,6 +61,8 @@ type SignerHandlerConfig struct {
 	*awsutils.SigningService
 	// Clock is used to override time in tests.
 	Clock clockwork.Clock
+	// MaxHTTPRequestBodySize is the limit on how big a request body can be.
+	MaxHTTPRequestBodySize int64
 }
 
 // CheckAndSetDefaults validates the AwsSignerHandlerConfig.
@@ -80,6 +82,12 @@ func (cfg *SignerHandlerConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
+	}
+
+	// Limit HTTP request body size to 70MB, which matches AWS Lambda function
+	// zip file upload limit (50MB) after accounting for base64 encoding bloat.
+	if cfg.MaxHTTPRequestBodySize == 0 {
+		cfg.MaxHTTPRequestBodySize = 70 << 20
 	}
 	return nil
 }
@@ -117,6 +125,7 @@ func (s *signerHandler) formatForwardResponseError(rw http.ResponseWriter, r *ht
 
 // ServeHTTP handles incoming requests by signing them and then forwarding them to the proper AWS API.
 func (s *signerHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	req.Body = utils.MaxBytesReader(w, req.Body, s.MaxHTTPRequestBodySize)
 	if err := s.serveHTTP(w, req); err != nil {
 		s.formatForwardResponseError(w, req, err)
 		return
@@ -164,6 +173,7 @@ func (s *signerHandler) serveCommonRequest(sessCtx *common.SessionContext, w htt
 			SessionName:   sessCtx.Identity.Username,
 			AWSRoleArn:    sessCtx.Identity.RouteToApp.AWSRoleARN,
 			AWSExternalID: sessCtx.App.GetAWSExternalID(),
+			Integration:   sessCtx.App.GetIntegration(),
 		})
 	if err != nil {
 		return trace.Wrap(err)
@@ -228,7 +238,7 @@ func rewriteRequest(ctx context.Context, r *http.Request, re *endpoints.Resolved
 	}
 	outReq.Body = http.NoBody
 	if r.Body != nil {
-		outReq.Body = io.NopCloser(io.LimitReader(r.Body, teleport.MaxHTTPRequestSize))
+		outReq.Body = r.Body
 	}
 	// need to rewrite the host header as well. The oxy forwarder will do this for us,
 	// since we use the PassHostHeader(false) option, but if host is a signed header

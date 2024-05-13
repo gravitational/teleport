@@ -18,6 +18,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -64,6 +66,14 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		case *notificationsv1.GlobalNotification:
 			out.Resource = &proto.Event_GlobalNotification{
 				GlobalNotification: r,
+			}
+		case *accessmonitoringrulesv1.AccessMonitoringRule:
+			out.Resource = &proto.Event_AccessMonitoringRule{
+				AccessMonitoringRule: r,
+			}
+		case *crownjewelv1.CrownJewel:
+			out.Resource = &proto.Event_CrownJewel{
+				CrownJewel: r,
 			}
 		}
 	case *types.ResourceHeader:
@@ -477,6 +487,12 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else if r := in.GetGlobalNotification(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetAccessMonitoringRule(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetCrownJewel(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else {

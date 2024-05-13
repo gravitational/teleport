@@ -46,7 +46,7 @@ type CreateGatewayParams struct {
 	OnExpiredCert        gateway.OnExpiredCertFunc
 	KubeconfigsDir       string
 	MFAPromptConstructor func(cfg *libmfa.PromptConfig) mfa.Prompt
-	ProxyClient          *client.ProxyClient
+	ClusterClient        *client.ClusterClient
 }
 
 // CreateGateway creates a gateway
@@ -72,7 +72,7 @@ func (c *Cluster) CreateGateway(ctx context.Context, params CreateGatewayParams)
 }
 
 func (c *Cluster) createDBGateway(ctx context.Context, params CreateGatewayParams) (gateway.Gateway, error) {
-	db, err := c.GetDatabase(ctx, params.ProxyClient.CurrentCluster(), params.TargetURI)
+	db, err := c.GetDatabase(ctx, params.ClusterClient.AuthClient, params.TargetURI)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -84,7 +84,7 @@ func (c *Cluster) createDBGateway(ctx context.Context, params CreateGatewayParam
 	}
 
 	err = AddMetadataToRetryableError(ctx, func() error {
-		return trace.Wrap(c.reissueDBCerts(ctx, params.ProxyClient, routeToDatabase))
+		return trace.Wrap(c.reissueDBCerts(ctx, params.ClusterClient, routeToDatabase))
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -119,7 +119,7 @@ func (c *Cluster) createKubeGateway(ctx context.Context, params CreateGatewayPar
 	kube := params.TargetURI.GetKubeName()
 
 	// Check if this kube exists and the user has access to it.
-	if _, err := c.getKube(ctx, params.ProxyClient.CurrentCluster(), kube); err != nil {
+	if _, err := c.getKube(ctx, params.ClusterClient.AuthClient, kube); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -127,7 +127,7 @@ func (c *Cluster) createKubeGateway(ctx context.Context, params CreateGatewayPar
 	var err error
 
 	if err := AddMetadataToRetryableError(ctx, func() error {
-		cert, err = c.reissueKubeCert(ctx, params.ProxyClient, kube)
+		cert, err = c.reissueKubeCert(ctx, params.ClusterClient, kube)
 		return trace.Wrap(err)
 	}); err != nil {
 		return nil, trace.Wrap(err)
@@ -157,7 +157,7 @@ func (c *Cluster) createKubeGateway(ctx context.Context, params CreateGatewayPar
 func (c *Cluster) createAppGateway(ctx context.Context, params CreateGatewayParams) (gateway.Gateway, error) {
 	appName := params.TargetURI.GetAppName()
 
-	app, err := c.getApp(ctx, params.ProxyClient.CurrentCluster(), appName)
+	app, err := c.getApp(ctx, params.ClusterClient.AuthClient, appName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -165,7 +165,7 @@ func (c *Cluster) createAppGateway(ctx context.Context, params CreateGatewayPara
 	var cert tls.Certificate
 
 	if err := AddMetadataToRetryableError(ctx, func() error {
-		cert, err = c.reissueAppCert(ctx, params.ProxyClient, app)
+		cert, err = c.reissueAppCert(ctx, params.ClusterClient, app)
 		return trace.Wrap(err)
 	}); err != nil {
 		return nil, trace.Wrap(err)
@@ -196,14 +196,14 @@ func (c *Cluster) createAppGateway(ctx context.Context, params CreateGatewayPara
 // At the moment, kube gateways reload their certs in memory while db gateways use the old approach
 // of saving a cert to disk and only then loading it to memory.
 // TODO(ravicious): Refactor db gateways to reload cert in memory and support MFA.
-func (c *Cluster) ReissueGatewayCerts(ctx context.Context, proxyClient *client.ProxyClient, g gateway.Gateway) (tls.Certificate, error) {
+func (c *Cluster) ReissueGatewayCerts(ctx context.Context, clusterClient *client.ClusterClient, g gateway.Gateway) (tls.Certificate, error) {
 	switch {
 	case g.TargetURI().IsDB():
 		db, err := gateway.AsDatabase(g)
 		if err != nil {
 			return tls.Certificate{}, trace.Wrap(err)
 		}
-		err = c.reissueDBCerts(ctx, proxyClient, db.RouteToDatabase())
+		err = c.reissueDBCerts(ctx, clusterClient, db.RouteToDatabase())
 		if err != nil {
 			return tls.Certificate{}, trace.Wrap(err)
 		}
@@ -220,18 +220,17 @@ func (c *Cluster) ReissueGatewayCerts(ctx context.Context, proxyClient *client.P
 		// from ReissueGatewayCerts, at least not until we add support for MFA to them.
 		return tls.Certificate{}, nil
 	case g.TargetURI().IsKube():
-		cert, err := c.reissueKubeCert(ctx, proxyClient, g.TargetName())
+		cert, err := c.reissueKubeCert(ctx, clusterClient, g.TargetName())
 		return cert, trace.Wrap(err)
 	case g.TargetURI().IsApp():
 		appName := g.TargetURI().GetAppName()
-		app, err := c.getApp(ctx, proxyClient.CurrentCluster(), appName)
+		app, err := c.getApp(ctx, clusterClient.AuthClient, appName)
 		if err != nil {
 			return tls.Certificate{}, trace.Wrap(err)
 		}
 
-		// The cert is saved and then loaded from disk, then returned from this function and finally set
-		// on LocalProxy by the middleware.
-		cert, err := c.reissueAppCert(ctx, proxyClient, app)
+		// The cert is returned from this function and finally set on LocalProxy by the middleware.
+		cert, err := c.reissueAppCert(ctx, clusterClient, app)
 		return cert, trace.Wrap(err)
 	default:
 		return tls.Certificate{}, trace.NotImplemented("ReissueGatewayCerts does not support this gateway kind %v", g.TargetURI().String())

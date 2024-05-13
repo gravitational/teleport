@@ -16,10 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* eslint-disable @typescript-eslint/ban-ts-comment*/
-// @ts-ignore
-import { AccessRequest } from 'e-teleport/services/workflow';
-
 import { ImmutableStore } from 'teleterm/ui/services/immutableStore';
 
 import {
@@ -47,23 +43,14 @@ function getMockPendingAccessRequest(): PendingAccessRequest {
   };
 }
 
-function getMockAssumed(assumed = {}): Record<string, AccessRequest> {
-  return assumed;
-}
-
-function createService(
-  pending: PendingAccessRequest,
-  assumed: Record<string, AccessRequest>
-): AccessRequestsService {
+function createService(pending: PendingAccessRequest): AccessRequestsService {
   const store = new ImmutableStore<{
     isBarCollapsed: boolean;
     pending: PendingAccessRequest;
-    assumed: Record<string, AccessRequest>;
   }>();
   store.state = {
     isBarCollapsed: false,
     pending,
-    assumed,
   };
   return new AccessRequestsService(
     () => store.state,
@@ -72,22 +59,19 @@ function createService(
 }
 
 test('getCollapsed() returns the bar collapse state', () => {
-  let service = createService(getMockPendingAccessRequest(), getMockAssumed());
+  let service = createService(getMockPendingAccessRequest());
   expect(service.getCollapsed()).toBe(false);
 });
 
 test('toggleBar() changes the collapse state', () => {
-  let service = createService(getMockPendingAccessRequest(), getMockAssumed());
+  let service = createService(getMockPendingAccessRequest());
   expect(service.getCollapsed()).toBe(false);
   service.toggleBar();
   expect(service.getCollapsed()).toBe(true);
 });
 
 test('clearPendingAccessRequest() clears pending access reuqest', () => {
-  let service = createService(
-    getMockPendingAccessRequest(),
-    getMockAssumed({})
-  );
+  let service = createService(getMockPendingAccessRequest());
   service.clearPendingAccessRequest();
   expect(service.getPendingAccessRequest()).toStrictEqual(
     getEmptyPendingAccessRequest()
@@ -95,40 +79,28 @@ test('clearPendingAccessRequest() clears pending access reuqest', () => {
 });
 
 test('getAddedResourceCount() returns added resource count for pending request', () => {
-  let service = createService(
-    getMockPendingAccessRequest(),
-    getMockAssumed({})
-  );
+  let service = createService(getMockPendingAccessRequest());
   expect(service.getAddedResourceCount()).toBe(3);
   service.clearPendingAccessRequest();
   expect(service.getAddedResourceCount()).toBe(0);
 });
 
 test('addOrRemoveResource() adds resource to pending request', () => {
-  let service = createService(
-    getMockPendingAccessRequest(),
-    getMockAssumed({})
-  );
+  let service = createService(getMockPendingAccessRequest());
   service.addOrRemoveResource('node', '456', 'node2');
   const pendingAccessRequest = service.getPendingAccessRequest();
   expect(pendingAccessRequest['node']).toHaveProperty('456');
 });
 
 test('addOrRemoveResource() removes resource if it already exists on pending request', () => {
-  let service = createService(
-    getMockPendingAccessRequest(),
-    getMockAssumed({})
-  );
+  let service = createService(getMockPendingAccessRequest());
   service.addOrRemoveResource('node', '123', 'node1');
   const pendingAccessRequest = service.getPendingAccessRequest();
   expect(pendingAccessRequest['node']).not.toHaveProperty('123');
 });
 
 test('addOrRemoveResource() uses resourceId when resourceName is empty', () => {
-  let service = createService(
-    getMockPendingAccessRequest(),
-    getMockAssumed({})
-  );
+  let service = createService(getMockPendingAccessRequest());
   const resourceId = '567';
   const resourceName = '';
 

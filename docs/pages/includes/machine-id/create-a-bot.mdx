@@ -1,0 +1,26 @@
+Next, you need to create a Bot. A Bot is a Teleport identity for a machine or
+group of machines. Like users, bots have a set of roles and traits which define
+what they can access.
+
+Create `bot.yaml`:
+
+```yaml
+kind: bot
+version: v1
+metadata:
+  # name is a unique identifier for the Bot in the cluster.
+  name: example
+spec:
+  # roles is a list of roles to grant to the Bot. Don't worry if you don't know
+  # what roles you need to specify here, the Access Guides will walk you through
+  # creating and assigning roles to the already created Bot.
+  roles: []
+```
+
+Make sure you replace `example` with a unique, descriptive name for your Bot.
+
+Use `tctl` to apply this file:
+
+```code
+$ tctl create bot.yaml
+```

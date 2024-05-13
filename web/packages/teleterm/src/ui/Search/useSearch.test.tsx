@@ -143,7 +143,7 @@ describe('useResourceSearch', () => {
       }));
     jest
       .spyOn(appContext.resourcesService, 'searchResources')
-      .mockResolvedValue([{ status: 'fulfilled', value: servers }]);
+      .mockResolvedValue(servers);
 
     const { result } = renderHook(() => useResourceSearch(), {
       wrapper: ({ children }) => (
@@ -174,7 +174,7 @@ describe('useResourceSearch', () => {
     });
     jest
       .spyOn(appContext.resourcesService, 'searchResources')
-      .mockResolvedValue([{ status: 'fulfilled', value: [] }]);
+      .mockResolvedValue([]);
 
     const { result } = renderHook(() => useResourceSearch(), {
       wrapper: ({ children }) => (
@@ -190,7 +190,7 @@ describe('useResourceSearch', () => {
       clusterUri: cluster.uri,
       search: '',
       filters: [],
-      limit: 5,
+      limit: 10,
     });
     expect(appContext.resourcesService.searchResources).toHaveBeenCalledTimes(
       1
@@ -205,7 +205,7 @@ describe('useResourceSearch', () => {
     });
     jest
       .spyOn(appContext.resourcesService, 'searchResources')
-      .mockResolvedValue([{ status: 'fulfilled', value: [] }]);
+      .mockResolvedValue([]);
 
     const { result } = renderHook(() => useResourceSearch(), {
       wrapper: ({ children }) => (
@@ -226,7 +226,7 @@ describe('useResourceSearch', () => {
     });
     jest
       .spyOn(appContext.resourcesService, 'searchResources')
-      .mockResolvedValue([{ status: 'fulfilled', value: [] }]);
+      .mockResolvedValue([]);
 
     const { result } = renderHook(() => useResourceSearch(), {
       wrapper: ({ children }) => (

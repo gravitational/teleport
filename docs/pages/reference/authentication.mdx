@@ -47,7 +47,9 @@ Add the following to your Teleport configuration file, which is stored in
   auth_service:
     authentication:
       type: local
-      second_factor: off
+      second_factor: on
+      webauthn:
+        rp_id: example.teleport.sh
   ```
 
 ### Dynamic resource
@@ -117,14 +119,13 @@ $ tctl create -f cap.yaml
 </TabItem>
 </Tabs>
 
-### Local user login failure rules
+### Local user policies
 
-A local user is blocked from attempting logins if, within a 30 minute window, a local user has multiple:
+Teleport requires that passwords for local users be at least 12 characters long.
 
-- failed login attempts or
-- failed password resets
-
-The block lasts 30 minutes. After the block has expired the user may attempt to log in again.
+Additionally, Teleport will lock local user accounts if there are multiple
+failed login attempts within a 30-minute window. The account will remain locked
+for 30 minutes before the user can attempt to log in again.
 
 Overriding a block is available to users with rights to maintain `user` resources,
 available in the built-in `editor` role. To turn off a block, update the user entry,

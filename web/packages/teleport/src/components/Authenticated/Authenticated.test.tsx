@@ -41,7 +41,7 @@ jest.mock('shared/libs/logger', () => {
 describe('session', () => {
   beforeEach(() => {
     jest.spyOn(session, 'isValid').mockImplementation(() => true);
-    jest.spyOn(session, 'validateCookieAndSession').mockResolvedValue(null);
+    jest.spyOn(session, 'validateCookieAndSession').mockResolvedValue({});
     jest.spyOn(session, 'ensureSession').mockImplementation();
     jest.spyOn(session, 'getInactivityTimeout').mockImplementation(() => 0);
     jest.spyOn(session, 'clear').mockImplementation();

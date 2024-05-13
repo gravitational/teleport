@@ -24,6 +24,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"path"
@@ -36,7 +37,6 @@ import (
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
@@ -328,12 +328,12 @@ func ConfigureIdPIAM(ctx context.Context, clt IdPIAMConfigureClient, req IdPIAMC
 		req.AccountID = aws.ToString(callerIdentity.Account)
 	}
 
-	logrus.Infof("Creating IAM OpenID Connect Provider: url=%q.", req.issuerURL)
+	slog.InfoContext(ctx, "Creating IAM OpenID Connect Provider", "url", req.issuerURL)
 	if err := ensureOIDCIdPIAM(ctx, clt, req); err != nil {
 		return trace.Wrap(err)
 	}
 
-	logrus.Infof("Creating IAM Role %q.", req.IntegrationRole)
+	slog.InfoContext(ctx, "Creating IAM Role", "role", req.IntegrationRole)
 	if err := upsertIdPIAMRole(ctx, clt, req); err != nil {
 		return trace.Wrap(err)
 	}
@@ -343,17 +343,17 @@ func ConfigureIdPIAM(ctx context.Context, clt IdPIAMConfigureClient, req IdPIAMC
 	if req.s3Bucket == "" {
 		return nil
 	}
-	log := logrus.WithFields(logrus.Fields{
-		"bucket":        req.s3Bucket,
-		"bucket-prefix": req.s3BucketPrefix,
-	})
+	log := slog.With(
+		"bucket", req.s3Bucket,
+		"bucket-prefix", req.s3BucketPrefix,
+	)
 
-	log.Infof("Creating bucket in region %q", clt.RegionForCreateBucket())
+	log.InfoContext(ctx, "Creating bucket in region", "region", clt.RegionForCreateBucket())
 	if err := ensureBucketIdPIAM(ctx, clt, req, log); err != nil {
 		return trace.Wrap(err)
 	}
 
-	log.Info(`Removing "Block all public access".`)
+	log.InfoContext(ctx, `Removing "Block all public access".`)
 	_, err := clt.DeletePublicAccessBlock(ctx, &s3.DeletePublicAccessBlockInput{
 		Bucket:              &req.s3Bucket,
 		ExpectedBucketOwner: &req.AccountID,
@@ -362,7 +362,7 @@ func ConfigureIdPIAM(ctx context.Context, clt IdPIAMConfigureClient, req IdPIAMC
 		return trace.Wrap(err)
 	}
 
-	log.Info("Uploading 'openid-configuration' and 'jwks' files.")
+	log.InfoContext(ctx, "Uploading 'openid-configuration' and 'jwks' files.")
 	if err := uploadOpenIDPublicFiles(ctx, clt, req); err != nil {
 		return trace.Wrap(err)
 	}
@@ -403,7 +403,7 @@ func ensureOIDCIdPIAM(ctx context.Context, clt IdPIAMConfigureClient, req IdPIAM
 	return nil
 }
 
-func ensureBucketIdPIAM(ctx context.Context, clt IdPIAMConfigureClient, req IdPIAMConfigureRequest, log *logrus.Entry) error {
+func ensureBucketIdPIAM(ctx context.Context, clt IdPIAMConfigureClient, req IdPIAMConfigureRequest, log *slog.Logger) error {
 	// According to https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketLocation.html
 	// s3:GetBucketLocation is not recommended, and should be replaced by s3:HeadBucket according to AWS docs.
 	// The issue with using s3:HeadBucket is that it returns an error if the SDK client's region is not the same as the bucket.
@@ -429,7 +429,7 @@ func ensureBucketIdPIAM(ctx context.Context, clt IdPIAMConfigureClient, req IdPI
 		ExpectedBucketOwner: &req.AccountID,
 	})
 	if err == nil {
-		log.Infof("Bucket already exists in %q", aws.ToString(headBucketResp.BucketRegion))
+		log.InfoContext(ctx, "Bucket already exists in region", "region", aws.ToString(headBucketResp.BucketRegion))
 		return nil
 	}
 	awsErr := awslib.ConvertIAMv2Error(err)

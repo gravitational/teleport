@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -116,9 +117,10 @@ type SessionCreds struct {
 	ID string `json:"id"`
 }
 
-// AuthenticateUser authenticates user based on the request type.
-// Returns the username of the authenticated user.
-func (a *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserRequest) (services.UserState, services.AccessChecker, error) {
+// authenticateUserLogin implements the bulk of user login authentication.
+// Used by the top-level local login methods, [Server.AuthenticateSSHUser] and
+// [Server.AuthenticateWebUser]
+func (a *Server) authenticateUserLogin(ctx context.Context, req AuthenticateUserRequest) (services.UserState, services.AccessChecker, error) {
 	username := req.Username
 
 	requiredExt := mfav1.ChallengeExtensions{
@@ -133,7 +135,7 @@ func (a *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserReque
 			clientMetadata: req.ClientMetadata,
 			authErr:        err,
 		}); err != nil {
-			log.WithError(err).Warn("Failed to emit login event.")
+			log.WithError(err).Warn("Failed to emit login event")
 		}
 		return nil, nil, trace.Wrap(err)
 	}
@@ -185,7 +187,7 @@ func (a *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserReque
 			checker:        checker,
 			authErr:        err,
 		}); err != nil {
-			log.WithError(err).Warn("Failed to emit login event.")
+			log.WithError(err).Warn("Failed to emit login event")
 		}
 		return nil, nil, trace.Wrap(err)
 	}
@@ -197,7 +199,7 @@ func (a *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserReque
 		mfaDevice:      mfaDev,
 		checker:        checker,
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit login event.")
+		log.WithError(err).Warn("Failed to emit login event")
 	}
 
 	return userState, checker, trace.Wrap(err)
@@ -271,6 +273,12 @@ var (
 	// invalidUserpass2FError is the error for when either the provided username,
 	// password, or second factor is incorrect.
 	invalidUserPass2FError = trace.AccessDenied("invalid username, password or second factor")
+
+	// errSSOUserLocalAuth is issued for SSO users attempting local authentication
+	// or related actions (like trying to set a password)
+	// Kept purposefully vague, as such actions don't happen during normal
+	// utilization of the system.
+	errSSOUserLocalAuth = &trace.AccessDeniedError{Message: "invalid credentials"}
 )
 
 // IsInvalidLocalCredentialError checks if an error resulted from an incorrect username,
@@ -378,6 +386,22 @@ func (a *Server) authenticateUserInternal(
 		return a.authenticatePasswordless(ctx, req)
 	}
 
+	// Disallow non-local users from local authentication.
+	// Passwordless does its own check, as the user is only known after the
+	// webauthn assertion is cleared.
+	switch u, err := a.GetUser(ctx, user, false /* withSecrets */); {
+	case trace.IsNotFound(err):
+		// Keep going if the user is not known.
+	case err != nil:
+		return nil, "", trace.Wrap(err)
+	case u.GetUserType() != types.UserTypeLocal:
+		log.WithFields(logrus.Fields{
+			"user":      user,
+			"user_type": u.GetUserType(),
+		}).Warn("Non-local user attempted local authentication")
+		return nil, "", trace.Wrap(errSSOUserLocalAuth)
+	}
+
 	// Try 2nd-factor-enabled authentication schemes first.
 	var authenticateFn func() (*types.MFADevice, error)
 	var authErr error // error message kept obscure on purpose, use logging for details
@@ -398,7 +422,7 @@ func (a *Server) authenticateUserInternal(
 	case req.Webauthn != nil:
 		authenticateFn = func() (*types.MFADevice, error) {
 			if req.Pass != nil {
-				if err = a.checkPasswordWOToken(user, req.Pass.Password); err != nil {
+				if err = a.checkPasswordWOToken(ctx, user, req.Pass.Password); err != nil {
 					return nil, trace.Wrap(err)
 				}
 			}
@@ -418,7 +442,7 @@ func (a *Server) authenticateUserInternal(
 		authenticateFn = func() (*types.MFADevice, error) {
 			// OTP cannot be validated by validateMFAAuthResponse because we need to
 			// check the user's password too.
-			res, err := a.checkPassword(user, req.OTP.Password, req.OTP.Token)
+			res, err := a.checkPassword(ctx, user, req.OTP.Password, req.OTP.Token)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -484,7 +508,7 @@ func (a *Server) authenticateUserInternal(
 		return nil, "", trace.AccessDenied("missing second factor")
 	}
 	if err = a.WithUserLock(ctx, user, func() error {
-		return a.checkPasswordWOToken(user, req.Pass.Password)
+		return a.checkPasswordWOToken(ctx, user, req.Pass.Password)
 	}); err != nil {
 		if fieldErr := getErrorByTraceField(err); fieldErr != nil {
 			return nil, "", trace.Wrap(fieldErr)
@@ -506,7 +530,11 @@ func (a *Server) authenticatePasswordless(ctx context.Context, req AuthenticateU
 
 	requiredExt := &mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN}
 	mfaData, err := a.ValidateMFAAuthResponse(ctx, mfaResponse, "" /* user */, requiredExt)
-	if err != nil {
+	switch {
+	// Don't obfuscate the SSO error.
+	case errors.Is(err, types.ErrPassswordlessLoginBySSOUser):
+		return nil, "", trace.Wrap(err)
+	case err != nil:
 		log.Debugf("Passwordless authentication failed: %v", err)
 		return nil, "", trace.Wrap(authenticateWebauthnError)
 	}
@@ -664,7 +692,7 @@ func (a *Server) AuthenticateWebUser(ctx context.Context, req AuthenticateUserRe
 		return session, nil
 	}
 
-	user, _, err := a.AuthenticateUser(ctx, req)
+	user, _, err := a.authenticateUserLogin(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -821,7 +849,7 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHReq
 
 	// It's safe to extract the roles and traits directly from services.User as
 	// this endpoint is only used for local accounts.
-	user, checker, err := a.AuthenticateUser(ctx, req.AuthenticateUserRequest)
+	user, checker, err := a.authenticateUserLogin(ctx, req.AuthenticateUserRequest)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

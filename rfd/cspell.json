@@ -569,7 +569,6 @@
     "subselection",
     "subselects",
     "subtests",
-    "succesfully",
     "suchinformation",
     "sudoer",
     "sudoersfile",
@@ -693,9 +692,6 @@
     "Yubikeys",
     "Zdunek",
     "Zilla"
-    
   ],
-  "flagWords": [
-    "hte"
-  ]
+  "flagWords": ["hte"]
 }

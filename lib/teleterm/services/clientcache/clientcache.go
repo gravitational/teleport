@@ -38,8 +38,8 @@ type Cache struct {
 	cfg Config
 	mu  sync.Mutex
 	// clients keep mapping between cluster URI
-	// (both root and leaf) and proxy clients
-	clients map[uri.ResourceURI]*client.ProxyClient
+	// (both root and leaf) and cluster clients
+	clients map[uri.ResourceURI]*client.ClusterClient
 	// group prevents duplicate requests to create clients
 	// for a given cluster URI
 	group singleflight.Group
@@ -65,16 +65,17 @@ func New(c Config) *Cache {
 
 	return &Cache{
 		cfg:     c,
-		clients: make(map[uri.ResourceURI]*client.ProxyClient),
+		clients: make(map[uri.ResourceURI]*client.ClusterClient),
 	}
 }
 
 // Get returns a client from the cache if there is one,
 // otherwise it dials the remote server.
 // The caller should not close the returned client.
-func (c *Cache) Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.ProxyClient, error) {
+func (c *Cache) Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.ClusterClient, error) {
 	groupClt, err, _ := c.group.Do(clusterURI.String(), func() (any, error) {
 		if fromCache := c.getFromCache(clusterURI); fromCache != nil {
+			c.cfg.Log.WithField("cluster", clusterURI.String()).Info("Retrieved client from cache.")
 			return fromCache, nil
 		}
 
@@ -83,14 +84,13 @@ func (c *Cache) Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.Pr
 			return nil, trace.Wrap(err)
 		}
 
-		var newProxyClient *client.ProxyClient
+		var newClient *client.ClusterClient
 		if err := clusters.AddMetadataToRetryableError(ctx, func() error {
-			//nolint:staticcheck // SA1019. TODO(gzdunek): Update to use client.ClusterClient.
-			proxyClient, err := clusterClient.ConnectToProxy(ctx)
+			clt, err := clusterClient.ConnectToCluster(ctx)
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			newProxyClient = proxyClient
+			newClient = clt
 			return nil
 		}); err != nil {
 			return nil, trace.Wrap(err)
@@ -99,19 +99,19 @@ func (c *Cache) Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.Pr
 		// We'll save the client in the cache, so we don't have to
 		// build a new connection next time.
 		// All cached clients will be closed when the daemon exits.
-		c.addToCache(clusterURI, newProxyClient)
+		c.addToCache(clusterURI, newClient)
 
 		c.cfg.Log.WithField("cluster", clusterURI.String()).Info("Added client to cache.")
 
-		return newProxyClient, nil
+		return newClient, nil
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	clt, ok := groupClt.(*client.ProxyClient)
+	clt, ok := groupClt.(*client.ClusterClient)
 	if !ok {
-		return nil, trace.BadParameter("unexpected type %T received for proxy client", groupClt)
+		return nil, trace.BadParameter("unexpected type %T received for cluster client", groupClt)
 	}
 
 	return clt, nil
@@ -163,31 +163,14 @@ func (c *Cache) Clear() error {
 	return trace.NewAggregate(errors...)
 }
 
-func (c *Cache) addToCache(clusterURI uri.ResourceURI, proxyClient *client.ProxyClient) {
+func (c *Cache) addToCache(clusterURI uri.ResourceURI, clusterClient *client.ClusterClient) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.clients[clusterURI] = proxyClient
-
-	// This goroutine removes the connection from the cache when
-	// it is unexpectedly interrupted (for example, by the remote site).
-	// It will also react to client.Close() called from our side, but it will be noop.
-	go func() {
-		err := proxyClient.Client.Wait()
-		c.mu.Lock()
-		defer c.mu.Unlock()
-
-		if c.clients[clusterURI] != proxyClient {
-			return
-		}
-
-		delete(c.clients, clusterURI)
-		c.cfg.Log.WithField("cluster", clusterURI.String()).WithError(err).
-			Info("Connection has been closed, removed client from cache.")
-	}()
+	c.clients[clusterURI] = clusterClient
 }
 
-func (c *Cache) getFromCache(clusterURI uri.ResourceURI) *client.ProxyClient {
+func (c *Cache) getFromCache(clusterURI uri.ResourceURI) *client.ClusterClient {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -207,7 +190,7 @@ type NoCache struct {
 
 type noCacheClient struct {
 	uri    uri.ResourceURI
-	client *client.ProxyClient
+	client *client.ClusterClient
 }
 
 func NewNoCache(resolveClusterFunc ResolveClusterFunc) *NoCache {
@@ -216,14 +199,13 @@ func NewNoCache(resolveClusterFunc ResolveClusterFunc) *NoCache {
 	}
 }
 
-func (c *NoCache) Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.ProxyClient, error) {
+func (c *NoCache) Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.ClusterClient, error) {
 	_, clusterClient, err := c.resolveClusterFunc(clusterURI)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	//nolint:staticcheck // SA1019. TODO(gzdunek): Update to use client.ClusterClient.
-	newProxyClient, err := clusterClient.ConnectToProxy(ctx)
+	newClient, err := clusterClient.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -231,11 +213,11 @@ func (c *NoCache) Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.
 	c.mu.Lock()
 	c.clients = append(c.clients, noCacheClient{
 		uri:    clusterURI,
-		client: newProxyClient,
+		client: newClient,
 	})
 	c.mu.Unlock()
 
-	return newProxyClient, nil
+	return newClient, nil
 }
 
 func (c *NoCache) ClearForRoot(clusterURI uri.ResourceURI) error {

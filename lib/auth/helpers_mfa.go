@@ -221,8 +221,7 @@ func (d *TestDevice) solveRegisterWebauthn(c *proto.MFARegisterChallenge) (*prot
 	d.Key.PreferRPID = true
 
 	if d.passwordless {
-		d.Key.AllowResidentKey = true
-		d.Key.SetUV = true
+		d.Key.SetPasswordless()
 	}
 
 	resp, err := d.Key.SignCredentialCreation(d.Origin(), wantypes.CredentialCreationFromProto(c.GetWebauthn()))

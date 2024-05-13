@@ -207,6 +207,7 @@ func newAuthSuite(t *testing.T) *testPack {
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
 	native.PrecomputeTestKeys(m)
+	modules.SetInsecureTestMode(true)
 	os.Exit(m.Run())
 }
 
@@ -1348,6 +1349,8 @@ func TestServer_AugmentContextUserCertificates(t *testing.T) {
 
 	testServer := newTestTLSServer(t)
 	authServer := testServer.Auth()
+	emitter := &eventstest.MockRecorderEmitter{}
+	authServer.emitter = emitter
 	ctx := context.Background()
 
 	const username = "llama"
@@ -1482,6 +1485,25 @@ func TestServer_AugmentContextUserCertificates(t *testing.T) {
 				"got newSSHCert.ValidAfter = %v, want > %v", newSSHCert.ValidAfter, validAfter.Unix())
 			assert.Equal(t, uint64(xCert.NotAfter.Unix()), newSSHCert.ValidBefore, "newSSHCert.ValidBefore mismatch")
 		})
+
+		// Assert audit events.
+		lastEvent := emitter.LastEvent()
+		require.NotNil(t, lastEvent, "emitter.LastEvent() is nil")
+		// Assert the code, that is a good enough proxy for other fields.
+		assert.Equal(t, events.CertificateCreateEvent, lastEvent.GetType(), "lastEvent type mismatch")
+		// Assert event DeviceExtensions.
+		certEvent, ok := lastEvent.(*apievents.CertificateCreate)
+		if assert.True(t, ok, "lastEvent is not an apievents.CertificateCreate, got %T", lastEvent) {
+			got := certEvent.Identity.DeviceExtensions
+			want := &apievents.DeviceExtensions{
+				DeviceId:     test.opts.DeviceExtensions.DeviceID,
+				AssetTag:     test.opts.DeviceExtensions.AssetTag,
+				CredentialId: test.opts.DeviceExtensions.CredentialID,
+			}
+			if diff := cmp.Diff(want, got); diff != "" {
+				t.Errorf("certEvent.Identity.DeviceExtensions mismatch (-want +got)\n%s", diff)
+			}
+		}
 	}
 }
 
@@ -1972,9 +1994,10 @@ func TestServer_AugmentWebSessionCertificates(t *testing.T) {
 
 		opts := &AugmentWebSessionCertificatesOpts{
 			WebSessionID:     userData.webSessionID,
+			User:             userData.user,
 			DeviceExtensions: deviceExts,
 		}
-		err := authServer.AugmentWebSessionCertificates(ctx, userData.authCtx, opts)
+		err := authServer.AugmentWebSessionCertificates(ctx, opts)
 		require.NoError(t, err, "AugmentWebSessionCertificates")
 
 		// Verify WebSession certificates.
@@ -1989,7 +2012,7 @@ func TestServer_AugmentWebSessionCertificates(t *testing.T) {
 
 		// Scenario requires augmented certs to work.
 		t.Run("cannot re-augment the same session", func(t *testing.T) {
-			err := authServer.AugmentWebSessionCertificates(ctx, userData.authCtx, opts)
+			err := authServer.AugmentWebSessionCertificates(ctx, opts)
 			const wantErr = "extensions already present"
 			assert.ErrorContains(t, err, wantErr, "AugmentWebSessionCertificates error mismatch")
 		})
@@ -1998,30 +2021,23 @@ func TestServer_AugmentWebSessionCertificates(t *testing.T) {
 	user2Data := setupUserForAugmentWebSessionCertificatesTest(t, testServer)
 	user2Opts := &AugmentWebSessionCertificatesOpts{
 		WebSessionID:     user2Data.webSessionID,
+		User:             user2Data.user,
 		DeviceExtensions: deviceExts,
 	}
 
 	t.Run("errors", func(t *testing.T) {
 		tests := []struct {
 			name      string
-			authCtx   *authz.Context
 			opts      *AugmentWebSessionCertificatesOpts
 			wantErr   string
 			assertErr func(error) bool // defaults to trace.IsBadParameter
 		}{
 			{
-				name:    "authCtx nil",
-				opts:    user2Opts,
-				wantErr: "authCtx required",
-			},
-			{
 				name:    "opts nil",
-				authCtx: user2Data.authCtx,
 				wantErr: "opts required",
 			},
 			{
-				name:    "opts.WebSessionID is empty",
-				authCtx: user2Data.authCtx,
+				name: "opts.WebSessionID is empty",
 				opts: func() *AugmentWebSessionCertificatesOpts {
 					opts := *user2Opts
 					opts.WebSessionID = ""
@@ -2030,8 +2046,16 @@ func TestServer_AugmentWebSessionCertificates(t *testing.T) {
 				wantErr: "WebSessionID required",
 			},
 			{
-				name:    "opts.DeviceExtensions nil",
-				authCtx: user2Data.authCtx,
+				name: "opts.User is empty",
+				opts: func() *AugmentWebSessionCertificatesOpts {
+					opts := *user2Opts
+					opts.User = ""
+					return &opts
+				}(),
+				wantErr: "User required",
+			},
+			{
+				name: "opts.DeviceExtensions nil",
 				opts: func() *AugmentWebSessionCertificatesOpts {
 					opts := *user2Opts
 					opts.DeviceExtensions = nil
@@ -2039,23 +2063,13 @@ func TestServer_AugmentWebSessionCertificates(t *testing.T) {
 				}(),
 				wantErr: "at least one opts extension",
 			},
-			{
-				// This is the most we can mismatch assuming the session is well-formed.
-				// Internally the method will still check the certificates against each
-				// other.
-				name:      "user/session mismatch",
-				authCtx:   userData.authCtx, // user1
-				opts:      user2Opts,        // user2
-				wantErr:   "session not found",
-				assertErr: trace.IsNotFound,
-			},
 		}
 		for _, test := range tests {
 			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 
-				err := authServer.AugmentWebSessionCertificates(ctx, test.authCtx, test.opts)
+				err := authServer.AugmentWebSessionCertificates(ctx, test.opts)
 				assert.ErrorContains(t, err, test.wantErr, "AugmentWebSessionCertificates error mismatch")
 
 				assertErr := test.assertErr
@@ -2086,8 +2100,9 @@ func TestServer_ExtendWebSession_deviceExtensions(t *testing.T) {
 	}
 
 	// Augment the user's session, then later extend it.
-	err := authServer.AugmentWebSessionCertificates(ctx, userData.authCtx, &AugmentWebSessionCertificatesOpts{
+	err := authServer.AugmentWebSessionCertificates(ctx, &AugmentWebSessionCertificatesOpts{
 		WebSessionID:     userData.webSessionID,
+		User:             userData.user,
 		DeviceExtensions: deviceExts,
 	})
 	require.NoError(t, err, "AugmentWebSessionCertificates() failed")
@@ -2140,13 +2155,11 @@ type augmentUserData struct {
 	user         string
 	pass         []byte
 	pubKey       []byte // SSH "AuthorizedKey" format
-	authCtx      *authz.Context
 	webSessionID string
 }
 
 func setupUserForAugmentWebSessionCertificatesTest(t *testing.T, testServer *TestTLSServer) *augmentUserData {
 	authServer := testServer.Auth()
-	authorizer := testServer.APIConfig.Authorizer
 	ctx := context.Background()
 
 	user := &augmentUserData{
@@ -2169,8 +2182,7 @@ func setupUserForAugmentWebSessionCertificatesTest(t *testing.T, testServer *Tes
 	require.NoError(t, err, "NewPublicKey")
 	user.pubKey = ssh.MarshalAuthorizedKey(pubKeySSH)
 
-	// Authenticate user with SSH and use the replies certificates as the context
-	// identity.
+	// Prepare a WebSession to be augmented.
 	authnReq := AuthenticateUserRequest{
 		Username:  user.user,
 		PublicKey: user.pubKey,
@@ -2178,24 +2190,6 @@ func setupUserForAugmentWebSessionCertificatesTest(t *testing.T, testServer *Tes
 			Password: user.pass,
 		},
 	}
-	authnResp, err := authServer.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
-		AuthenticateUserRequest: authnReq,
-		TTL:                     1 * time.Hour,
-	})
-	require.NoError(t, err, "AuthenticateSSHUser")
-
-	_, userIdentity := parseX509PEMAndIdentity(t, authnResp.TLSCert)
-
-	// Prepare ctx and authz.Context for user.
-	userCtx := context.Background()
-	userCtx = authz.ContextWithUser(userCtx, authz.LocalUser{
-		Username: user.user,
-		Identity: *userIdentity,
-	})
-	user.authCtx, err = authorizer.Authorize(userCtx)
-	require.NoError(t, err, "Authorize failed")
-
-	// Prepare a WebSession to be augmented.
 	session, err := authServer.AuthenticateWebUser(ctx, authnReq)
 	require.NoError(t, err, "AuthenticateWebUser")
 	user.webSessionID = session.GetName()

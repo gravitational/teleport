@@ -42,6 +42,7 @@ export { ArrowRight } from './Icons/ArrowRight';
 export { ArrowUp } from './Icons/ArrowUp';
 export { ArrowsIn } from './Icons/ArrowsIn';
 export { ArrowsOut } from './Icons/ArrowsOut';
+export { BellRinging } from './Icons/BellRinging';
 export { BookOpenText } from './Icons/BookOpenText';
 export { Bots } from './Icons/Bots';
 export { Broadcast } from './Icons/Broadcast';

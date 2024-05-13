@@ -48,8 +48,10 @@ import (
 	authpb "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
+	accessmonitoringrules "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
+	crownjewelpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev12 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	discoveryconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
@@ -70,9 +72,10 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/types/wrappers"
-	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/accessmonitoringrules/accessmonitoringrulesv1"
 	"github.com/gravitational/teleport/lib/auth/assist/assistv1"
 	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
+	"github.com/gravitational/teleport/lib/auth/crownjewel/crownjewelv1"
 	"github.com/gravitational/teleport/lib/auth/dbobject/dbobjectv1"
 	"github.com/gravitational/teleport/lib/auth/dbobjectimportrule/dbobjectimportrulev1"
 	"github.com/gravitational/teleport/lib/auth/discoveryconfig/discoveryconfigv1"
@@ -141,7 +144,7 @@ type GRPCServer struct {
 
 	// usersService is used to forward deprecated users requests to
 	// the new service so that logic only needs to exist in one place.
-	// TODO(tross) DELETE IN 16.0.0
+	// TODO(tross) DELETE IN 17.0.0
 	usersService *usersv1.Service
 
 	// botService is used to forward requests to deprecated bot RPCs to the
@@ -444,7 +447,6 @@ func WatchEvents(watch *authpb.Watch, stream WatchEvent, componentName string, a
 		AllowPartialSuccess: watch.AllowPartialSuccess,
 	}
 
-	opInitHandler := maybeFilterCertAuthorityWatches(stream.Context(), &servicesWatch)
 	events, err := auth.NewStream(stream.Context(), servicesWatch)
 	if err != nil {
 		return trace.Wrap(err)
@@ -459,9 +461,6 @@ func WatchEvents(watch *authpb.Watch, stream WatchEvent, componentName string, a
 
 	for events.Next() {
 		event := events.Item()
-		if event.Type == types.OpInit && opInitHandler != nil {
-			opInitHandler(&event)
-		}
 		if role, ok := event.Resource.(*types.RoleV6); ok {
 			downgraded, err := maybeDowngradeRole(stream.Context(), role)
 			if err != nil {
@@ -485,123 +484,6 @@ func WatchEvents(watch *authpb.Watch, stream WatchEvent, componentName string, a
 
 	// deferred cleanup func will inject stream error if needed
 	return nil
-}
-
-// dbClientCAVersionCutoff is the version starting from which we stop
-// injecting a filter that drops DatabaseClientCA events.
-var dbClientCACutoffVersion = semver.Version{Major: 14, Minor: 3, Patch: 1}
-
-// maybeFilterCertAuthorityWatches will inject a CA filter and return a
-// function that removes the filter from the OpInit event if the client version
-// does not support DatabaseClientCA type and if the client's CA WatchKind is
-// trivial, i.e. it's not already filtering. Otherwise we assume that the client
-// knows what it's doing and this function does nothing.
-// This is a hack to avoid client cache re-init during CA rotation in older
-// services that don't use a CA watch filter, i.e. every service except Node
-// since v9.
-// The returned function, if non-nil, must be called on the OpInit event, to
-// remove the injected filter from the OpInit event's WatchStatus. This is to
-// maintain the illusion to the client that CA events have not been filtered.
-// If we did not remove the injected filter, then validateWatchRequest would
-// fail on the client side because the confirmed kind filter is not as narrow or
-// narrower than a trivial WatchKind.
-//
-// TODO(gavin): DELETE IN 16.0.0 - no supported clients will require this at
-// that point.
-func maybeFilterCertAuthorityWatches(ctx context.Context, watch *types.Watch) func(*types.Event) {
-	// check client version to see if it knows the DatabaseClientCA type.
-	clientVersion, err := getClientVersion(ctx)
-	if err != nil {
-		log.Debugf("Unable to determine client version: %v", err)
-		return nil
-	}
-	if versionHandlesDatabaseClientCAEvents(*clientVersion) {
-		// don't need to inject a CA filter if the client support DB Client CA.
-		return nil
-	}
-
-	// search for trivial CA WatchKinds to inject a filter into - all of them
-	// must be trivial so we can remove the filter(s) from OpInit later.
-	var targets []*types.WatchKind
-	for i, k := range watch.Kinds {
-		if k.Kind != types.KindCertAuthority {
-			continue
-		}
-
-		if !k.IsTrivial() {
-			// We need to remove the injected filter(s) from the OpInit event
-			// later.
-			// As a precaution, do nothing when any of the CA WatchKind(s) are
-			// non-trivial.
-			log.Debugf("Cannot inject filter into non-trivial CertAuthority watcher with client version %s.", clientVersion)
-			return nil
-		}
-		targets = append(targets, &watch.Kinds[i])
-	}
-	if len(targets) == 0 {
-		return nil
-	}
-
-	// create a CA filter that excludes DatabaseClientCA.
-	caFilter := make(types.CertAuthorityFilter, len(types.CertAuthTypes)-1)
-	for _, caType := range types.CertAuthTypes {
-		// exclude db client CA.
-		if caType == types.DatabaseClientCA {
-			continue
-		}
-		caFilter[caType] = types.Wildcard
-	}
-
-	log.Debugf("Injecting filter for CertAuthority watcher with client version %s.", clientVersion)
-	for _, t := range targets {
-		t.Filter = caFilter.IntoMap()
-	}
-
-	// return a func that removes the injected filter from the OpInit event.
-	// otherwise, client watchers may get confused by the upstream confirmed
-	// kinds.
-	return removeOpInitWatchStatusCAFilters
-}
-
-func getClientVersion(ctx context.Context) (*semver.Version, error) {
-	clientVersionString, ok := metadata.ClientVersionFromContext(ctx)
-	if !ok {
-		return nil, trace.NotFound("no client version found in grpc context")
-	}
-	clientVersion, err := semver.NewVersion(clientVersionString)
-	return clientVersion, trace.Wrap(err)
-}
-
-// versionHandlesDatabaseClientCAEvents returns true if the client version can
-// handle the DatabaseClientCA, either because the client knows of the
-// DatabaseClientCA or it uses a CA filter. This CA was introduced in backports.
-// Client version in the intervals [v12.x, v13.0), [v13.y, v14.0), [v14.z, inf)
-// can handle the DatabaseClientCA type, where x, y, z are the minor release
-// versions that the DatabaseClientCA is backported to.
-func versionHandlesDatabaseClientCAEvents(v semver.Version) bool {
-	v.PreRelease = "" // ignore pre-release tags
-	return !v.LessThan(dbClientCACutoffVersion)
-}
-
-func removeOpInitWatchStatusCAFilters(e *types.Event) {
-	// this is paranoid, but make sure we don't panic or modify events that
-	// aren't OpInit.
-	if e == nil || e.Resource == nil || e.Type != types.OpInit {
-		return
-	}
-	status, ok := e.Resource.(types.WatchStatus)
-	if !ok || status == nil {
-		return
-	}
-
-	kinds := status.GetKinds()
-	for i, k := range kinds {
-		if k.Kind != types.KindCertAuthority {
-			continue
-		}
-		kinds[i].Filter = nil
-	}
-	status.SetKinds(kinds)
 }
 
 // resourceLabel returns the label for the provided types.Event
@@ -647,8 +529,8 @@ func validateUserCertsRequest(actx *grpcContext, req *authpb.UserCertsRequest) e
 			return trace.BadParameter("single-use certificates cannot be issued for all purposes")
 		}
 	case authpb.UserCertsRequest_App:
-		if req.Purpose == authpb.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS {
-			return trace.BadParameter("single-use certificates cannot be issued for app access")
+		if req.RouteToApp.Name == "" {
+			return trace.BadParameter("missing app Name field in an app-only UserCertsRequest")
 		}
 	case authpb.UserCertsRequest_SSH:
 		if req.NodeName == "" {
@@ -940,7 +822,7 @@ func (g *GRPCServer) ClearAlertAcks(ctx context.Context, req *authpb.ClearAlertA
 }
 
 // GetUser returns a user matching the provided name if one exists.
-// TODO(tross): DELETE IN 16.0.0
+// TODO(tross): DELETE IN 17.0.0
 // Deprecated: use [usersv1.Service.GetUser] instead.
 func (g *GRPCServer) GetUser(ctx context.Context, req *authpb.GetUserRequest) (*types.UserV2, error) {
 	resp, err := g.usersService.GetUser(ctx, &userspb.GetUserRequest{Name: req.Name, WithSecrets: req.WithSecrets})
@@ -952,7 +834,7 @@ func (g *GRPCServer) GetUser(ctx context.Context, req *authpb.GetUserRequest) (*
 }
 
 // GetCurrentUser returns the currently authenticated user.
-// TODO(tross): DELETE IN 16.0.0
+// TODO(tross): DELETE IN 17.0.0
 // Deprecated: use [usersv1.Service.GetUser] instead.
 func (g *GRPCServer) GetCurrentUser(ctx context.Context, req *emptypb.Empty) (*types.UserV2, error) {
 	resp, err := g.usersService.GetUser(ctx, &userspb.GetUserRequest{CurrentUser: true})
@@ -986,7 +868,7 @@ func (g *GRPCServer) GetCurrentUserRoles(_ *emptypb.Empty, stream authpb.AuthSer
 }
 
 // GetUsers returns all users.
-// TODO(tross): DELETE IN 16.0.0
+// TODO(tross): DELETE IN 17.0.0
 // Deprecated: use [usersv1.Service.ListUsers] instead.
 func (g *GRPCServer) GetUsers(req *authpb.GetUsersRequest, stream authpb.AuthService_GetUsersServer) error {
 	auth, err := g.authenticate(stream.Context())
@@ -1281,7 +1163,7 @@ func (g *GRPCServer) Ping(ctx context.Context, req *authpb.PingRequest) (*authpb
 }
 
 // CreateUser inserts a new user entry in a backend.
-// TODO(tross): DELETE IN 16.0.0
+// TODO(tross): DELETE IN 17.0.0
 // Deprecated: use [usersv1.Service.CreateUser] instead.
 func (g *GRPCServer) CreateUser(ctx context.Context, req *types.UserV2) (*emptypb.Empty, error) {
 	resp, err := g.usersService.CreateUser(ctx, &userspb.CreateUserRequest{User: req})
@@ -1298,7 +1180,7 @@ func (g *GRPCServer) CreateUser(ctx context.Context, req *types.UserV2) (*emptyp
 // users service like other user CRUD methods to preserve update semantics.
 // This results in all updates blindly overwriting the existing user. Updating
 // users with [usersv1.Service.UpdateUser] is protected by optimistic locking.
-// TODO(tross): DELETE IN 16.0.0
+// TODO(tross): DELETE IN 17.0.0
 // Deprecated: use [usersv1.Service.UpdateUser] instead.
 func (g *GRPCServer) UpdateUser(ctx context.Context, req *types.UserV2) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
@@ -2136,66 +2018,9 @@ func (g *GRPCServer) DeleteAllKubernetesServers(ctx context.Context, req *authpb
 // version for some features of the role returns a shallow copy of the given
 // role downgraded for compatibility with the older version.
 func maybeDowngradeRole(ctx context.Context, role *types.RoleV6) (*types.RoleV6, error) {
-	clientVersionString, ok := metadata.ClientVersionFromContext(ctx)
-	if !ok {
-		// This client is not reporting its version via gRPC metadata. Teleport
-		// clients have been reporting their version for long enough that older
-		// clients won't even support v6 roles at all, so this is likely a
-		// third-party client, and we shouldn't assume that downgrading the role
-		// will do more good than harm.
-		return role, nil
-	}
-
-	clientVersion, err := semver.NewVersion(clientVersionString)
-	if err != nil {
-		return nil, trace.BadParameter("unrecognized client version: %s is not a valid semver", clientVersionString)
-	}
-
-	role = maybeDowngradeRoleHostUserCreationMode(role, clientVersion)
+	// Teleport 16 supports all role features that Teleport 15 does,
+	// so no downgrade is necessary.
 	return role, nil
-}
-
-var minSupportedInsecureDropModeVersions = map[int64]semver.Version{
-	12: {Major: 12, Minor: 4, Patch: 30},
-	13: {Major: 13, Minor: 4, Patch: 11},
-	14: {Major: 14, Minor: 2, Patch: 2},
-}
-
-// maybeDowngradeRoleHostUserCreationMode tests the client version passed through the gRPC metadata, and
-// if the client version is less than the minimum supported version for the insecure-drop
-// host user creation mode returns a shallow copy of the role with mode drop. If the
-// passed in role does not have mode insecure-drop or the client is a supported version,
-// the role is returned unchanged.
-func maybeDowngradeRoleHostUserCreationMode(role *types.RoleV6, clientVersion *semver.Version) *types.RoleV6 {
-	if role.GetOptions().CreateHostUserMode != types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP {
-		return role
-	}
-	minSupportedVersion, ok := minSupportedInsecureDropModeVersions[clientVersion.Major]
-	// Check if insecure-drop is supported. insecure-drop is not supported below
-	// v12, supported for some versions of v12 through v14, and supported for v15+.
-	if clientVersion.Major >= 12 && (!ok || !clientVersion.LessThan(minSupportedVersion)) {
-		return role
-	}
-
-	// Make a shallow copy of the role so that we don't mutate the original.
-	// This is necessary because the role is shared
-	// between multiple clients sessions when notifying about changes in watchers.
-	// If we mutate the original role, it will be mutated for all clients
-	// which can cause panics since it causes a race condition.
-	role = apiutils.CloneProtoMsg(role)
-	options := role.GetOptions()
-	options.CreateHostUserMode = types.CreateHostUserMode_HOST_USER_MODE_DROP
-	role.SetOptions(options)
-
-	reason := fmt.Sprintf(`Client version %q does not support the host creation user mode `+
-		`'insecure-drop'. Role %q will be downgraded to use 'drop' mode instead. `+
-		`In order to support 'insecure-drop', all clients must be updated to version %q or higher.`,
-		clientVersion, role.GetName(), minSupportedVersion)
-	if role.Metadata.Labels == nil {
-		role.Metadata.Labels = make(map[string]string, 1)
-	}
-	role.Metadata.Labels[types.TeleportDowngradedLabel] = reason
-	return role
 }
 
 // GetRole retrieves a role by name.
@@ -2525,13 +2350,14 @@ func setUserSingleUseCertsTTL(actx *grpcContext, req *authpb.UserCertsRequest) {
 	}
 }
 
-// isLocalProxyCertReq returns whether a cert request is for
-// a database cert and the requester is a local proxy tunnel.
+// isLocalProxyCertReq returns whether a cert request is for a local proxy cert.
 func isLocalProxyCertReq(req *authpb.UserCertsRequest) bool {
 	return (req.Usage == authpb.UserCertsRequest_Database &&
 		req.RequesterName == authpb.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL) ||
 		(req.Usage == authpb.UserCertsRequest_Kubernetes &&
-			req.RequesterName == authpb.UserCertsRequest_TSH_KUBE_LOCAL_PROXY)
+			req.RequesterName == authpb.UserCertsRequest_TSH_KUBE_LOCAL_PROXY) ||
+		(req.Usage == authpb.UserCertsRequest_App &&
+			req.RequesterName == authpb.UserCertsRequest_TSH_APP_LOCAL_PROXY)
 }
 
 // ErrNoMFADevices is returned when an MFA ceremony is performed without possible devices to
@@ -2571,7 +2397,7 @@ func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req auth
 	switch req.Usage {
 	case authpb.UserCertsRequest_SSH:
 		resp.SSH = certs.SSH
-	case authpb.UserCertsRequest_Kubernetes, authpb.UserCertsRequest_Database, authpb.UserCertsRequest_WindowsDesktop:
+	case authpb.UserCertsRequest_Kubernetes, authpb.UserCertsRequest_Database, authpb.UserCertsRequest_WindowsDesktop, authpb.UserCertsRequest_App:
 		resp.TLS = certs.TLS
 	default:
 		return nil, trace.BadParameter("unknown certificate usage %q", req.Usage)
@@ -4308,7 +4134,7 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *authpb.ListResource
 		return nil, trace.Wrap(err)
 	}
 
-	paginatedResources, err := services.MakePaginatedResources(req.ResourceType, resp.Resources)
+	paginatedResources, err := services.MakePaginatedResources(ctx, req.ResourceType, resp.Resources, nil /* requestable map */)
 	if err != nil {
 		return nil, trace.Wrap(err, "making paginated resources")
 	}
@@ -5391,6 +5217,16 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	discoveryconfigpb.RegisterDiscoveryConfigServiceServer(server, discoveryConfig)
 
+	crownJewel, err := crownjewelv1.NewService(crownjewelv1.ServiceConfig{
+		Authorizer: cfg.Authorizer,
+		Backend:    cfg.AuthServer.Services,
+		Reader:     cfg.AuthServer.Cache,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	crownjewelpb.RegisterCrownJewelServiceServer(server, crownJewel)
+
 	// Initialize and register the user preferences service.
 	userPreferencesSrv, err := userpreferencesv1.NewService(&userpreferencesv1.ServiceConfig{
 		Backend:    cfg.AuthServer.Services,
@@ -5444,6 +5280,16 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	kubewaitingcontainerpb.RegisterKubeWaitingContainersServiceServer(server, kubeWaitingContsServer)
+
+	accessMonitoringRuleServer, err := accessmonitoringrulesv1.NewService(&accessmonitoringrulesv1.ServiceConfig{
+		Authorizer: cfg.Authorizer,
+		Backend:    cfg.AuthServer.Services,
+		Cache:      cfg.AuthServer.Cache,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	accessmonitoringrules.RegisterAccessMonitoringRulesServiceServer(server, accessMonitoringRuleServer)
 
 	// Only register the service if this is an open source build. Enterprise builds
 	// register the actual service via an auth plugin, if we register here then all

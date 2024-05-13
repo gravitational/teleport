@@ -289,6 +289,16 @@ details.
 
 Defaults to Teleport's binary default when empty: `best_effort`.
 
+### `authentication.passwordless`
+
+| Type   | Default value | Required? | `teleport.yaml` equivalent               |
+|--------|---------------|-----------|------------------------------------------|
+| `bool` | `nil`         | No        | `auth_service.authentication.passwordless` |
+
+`authentication.passwordless` controls whether passwordless authentication is enabled.
+
+[Can be used to forbid passwordless access to your cluster](../../access-controls/guides/passwordless.mdx#disable-passwordless)
+
 ### `authentication.secondFactor`
 
 | Type     | Default value | Required? | `teleport.yaml` equivalent                  |
@@ -296,9 +306,9 @@ Defaults to Teleport's binary default when empty: `best_effort`.
 | `string` | `otp`         | Yes       | `auth_service.authentication.second_factor` |
 
 `authentication.secondFactor` controls the second factor used for local user authentication. Possible values supported by this chart
-are `off` (not recommended), `on`, `otp`, `optional` and `webauthn`.
+are `on`, `otp`, and `webauthn`.
 
-When set to `on`, `optional` or `webauthn`, the `authenticationSecondFactor.webauthn` section can also be used.
+When set to `on` or `webauthn`, the `authenticationSecondFactor.webauthn` section can also be used.
 The configured `rp_id` defaults to `clusterName`.
 
 <Admonition type="warning">
@@ -687,6 +697,25 @@ It is recommended to set resource requests/limits for each container based on th
         memory: 2Gi
   ```
 
+## `global`
+
+### `global.clusterDomain`
+
+| Type     | Default value                                    |
+|----------|--------------------------------------------------|
+| `string` | `cluster.local` |
+
+`global.clusterDomain` sets the the domain suffix used by the Kubernetes DNS service. 
+This is used to resolve service names in the cluster.
+
+`values.yaml` example:
+
+  ```yaml
+  global:
+    clusterDomain: custom-domain.org
+  ```
+
+
 ## `teleportVersionOverride`
 
 | Type     | Default value |
@@ -801,11 +830,14 @@ To disable PSP creation, you can set `enabled` to `false`.
 |----------|---------------|
 | `object` | `{}`          |
 
-`labels` can be used to add a map of key-value pairs relating to the Teleport cluster being deployed. These labels can then be used with
-Teleport's RBAC policies to define access rules for the cluster.
+`labels` can be used to add a map of key-value pairs relating to the Teleport
+cluster being deployed. These labels can then be used with Teleport's RBAC
+policies to define access rules for the cluster.
 
 <Admonition type="note">
   These are Teleport-specific RBAC labels, not Kubernetes labels.
+  See [`extraLabels`](#extraLabels) for setting additional labels on Kubernetes
+  resources.
 </Admonition>
 
 `values.yaml` example:
@@ -1042,6 +1074,37 @@ Whether Teleport should configure DynamoDB's autoscaling. Defaults to `false`.
   DynamoDB autoscaling is no longer recommended. Teleport now defaults to "on
   demand" DynamoDB billing, which has more reliable performance.
 </Admonition>
+
+### `aws.accessMonitoring`
+
+`aws.accessMonitoring` configures the [Access Monitoring](../../access-controls/access-monitoring.mdx)
+feature of the Auth Service.
+
+Using this features requires setting up specific AWS infrastructure as described
+in [the AccessMonitoring configuration section](../../access-controls/access-monitoring.mdx#configuration).
+The [Terraform example](https://github.com/gravitational/teleport/tree/v(=teleport.version=)/examples/athena)
+code will output the chart values for this section.
+
+#### `aws.accessMonitoring.enabled`
+`aws.accessMonitoring.enabled` enables Access Monitoring. This requires
+`aws.athenaURL` to be set.
+
+#### `aws.accessMonitoring.reportResults`
+
+`aws.accessMonitoring.reportResults` is the bucket uri where the query results
+are reported.
+
+For example: `s3://example-athena-long-term/report_results`.
+
+#### `aws.accessMonitoring.roleARN`
+
+`aws.accessMonitoring.roleARN` is the ARN of the role that is assumed to run the
+reports.
+
+#### `aws.accessMonitoring.workgroup`
+
+`aws.accessMonitoring.workgroup` is the Athena workgroup in which Teleport runs
+queries.
 
 ## `gcp`
 
@@ -1511,7 +1574,8 @@ Kubernetes affinity to set for pod assignments.
             - teleport
   ```
 
-## `annotations.config`
+## `annotations`
+### `annotations.config`
 
 | Type     | Default value | `teleport.yaml` equivalent |
 |----------|---------------|----------------------------|
@@ -1529,7 +1593,7 @@ Kubernetes annotations which should be applied to the `ConfigMap` created by the
       kubernetes.io/annotation: value
   ```
 
-## `annotations.deployment`
+### `annotations.deployment`
 
 | Type     | Default value |
 |----------|---------------|
@@ -1547,7 +1611,7 @@ Kubernetes annotations which should be applied to the `Deployment` created by th
       kubernetes.io/annotation: value
   ```
 
-## `annotations.pod`
+### `annotations.pod`
 
 | Type     | Default value |
 |----------|---------------|
@@ -1565,7 +1629,7 @@ Kubernetes annotations which should be applied to each `Pod` created by the char
       kubernetes.io/annotation: value
   ```
 
-## `annotations.service`
+### `annotations.service`
 
 | Type     | Default value |
 |----------|---------------|
@@ -1583,7 +1647,7 @@ Kubernetes annotations which should be applied to the `Service` created by the c
       kubernetes.io/annotation: value
   ```
 
-## `annotations.serviceAccount`
+### `annotations.serviceAccount`
 
 | Type     | Default value |
 |----------|---------------|
@@ -1601,7 +1665,7 @@ Kubernetes annotations which should be applied to the `serviceAccount` created b
       kubernetes.io/annotation: value
   ```
 
-## `annotations.certSecret`
+### `annotations.certSecret`
 
 | Type     | Default value |
 |----------|---------------|
@@ -1622,7 +1686,7 @@ Kubernetes annotations which should be applied to the `secret` generated by
       kubernetes.io/annotation: value
   ```
 
-## `annotations.ingress`
+### `annotations.ingress`
 
 | Type     | Default value |
 |----------|---------------|
@@ -1640,6 +1704,122 @@ Kubernetes annotations which should be applied to the `Ingress` created by the c
       alb.ingress.kubernetes.io/target-type: ip
       alb.ingress.kubernetes.io/backend-protocol: HTTPS
   ```
+
+## `extraLabels`
+
+`extraLabels` contains additional Kubernetes labels to apply on the resources
+created by the chart.
+
+See [the Kubernetes label documentation](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/)
+for more information.
+
+Note: for PodMonitor labels, see `podMonitor.additionalLabels` instead.
+
+### `extraLabels.certSecret`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+`extraLabels.certSecret` are labels to set on the certificate secret
+generated by cert-manager v1.5+ when `highAvailability.certManager.enabled`
+is true.
+
+### `extraLabels.clusterRole`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+`extraLabels.clusterRole` are labels to set on the ClusterRole.
+
+### `extraLabels.clusterRoleBinding`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+`extraLabels.clusterRoleBinding` are labels to set on the ClusterRoleBinding.
+
+### `extraLabels.role`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+`extraLabels.role` are labels to set on the Role.
+
+### `extraLabels.deployment`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+`extraLabels.deployment` are labels to set on the Deployment.
+
+### `extraLabels.ingress`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+`extraLabels.ingress` are labels to set on the Ingress.
+
+### `extraLabels.job`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+`extraLabels.job` are labels to set on the Job run by the Helm hook.
+
+### `extraLabels.persistentVolumeClaim`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+`extraLabels.persistentVolumeClaim` are labels to set on the PersistentVolumeClaim.
+
+### `extraLabels.pod`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+`extraLabels.pod` are labels to set on the Pods created by the Deployment.
+
+### `extraLabels.podDisruptionBudget`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+`extraLabels.podDisruptionBudget` are labels to set on the podDisruptionBudget.
+
+### `extraLabels.secret`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+`extraLabels.secret` are labels to set on the Secret.
+
+### `extraLabels.service`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+`extraLabels.service` are labels to set on the Service.
+
+### `extraLabels.serviceAccount`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+`extraLabels.serviceAccount` are labels to set on the ServiceAccount.
 
 ## `serviceAccount.create`
 
@@ -1919,6 +2099,23 @@ See [the GitHub PR](https://github.com/gravitational/teleport/pull/36251) for te
     requests:
       cpu: 1
       memory: 2Gi
+  ```
+
+## `podSecurityContext`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/security/pod-security-standards/)
+
+The `podSecurityContext` applies to the main Teleport pods.
+
+`values.yaml` example:
+
+  ```yaml
+  podSecurityContext:
+    fsGroup: 65532
   ```
 
 ## `securityContext`

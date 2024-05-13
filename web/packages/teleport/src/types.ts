@@ -109,6 +109,10 @@ export interface TeleportFeature {
   category?: NavigationCategory;
   section?: ManagementSection;
   hasAccess(flags: FeatureFlags): boolean;
+  // logoOnlyTopbar is used to optionally hide the elements in the topbar from view except for the logo.
+  // The features that use this are supposed to be "full page" features where navigation
+  // is either blocked, or done explicitly through the page (such as device trust authorize)
+  logoOnlyTopbar?: boolean;
   hideFromNavigation?: boolean;
   // route defines react router Route fields.
   // This field can be left undefined to indicate
@@ -191,11 +195,8 @@ export interface FeatureFlags {
 // LockedFeatures are used for determining which features are disabled in the user's cluster.
 export type LockedFeatures = {
   authConnectors: boolean;
-  activeSessions: boolean;
   accessRequests: boolean;
-  premiumSupport: boolean;
   trustedDevices: boolean;
-  externalCloudAudit: boolean;
 };
 
 // RecommendFeature is used for recommending features if its usage status is zero.

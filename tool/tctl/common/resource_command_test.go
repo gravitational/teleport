@@ -1352,7 +1352,7 @@ func TestCreateResources(t *testing.T) {
 	t.Parallel()
 
 	fc, fds := testhelpers.DefaultConfig(t)
-	_ = testhelpers.MakeAndRunTestAuthServer(t, utils.NewLoggerForTests(), fc, fds)
+	_ = testhelpers.MakeAndRunTestAuthServer(t, utils.NewSlogLoggerForTests(), fc, fds)
 
 	tests := []struct {
 		kind   string
@@ -1393,6 +1393,10 @@ func TestCreateResources(t *testing.T) {
 		{
 			kind:   types.KindSessionRecordingConfig,
 			create: testCreateSessionRecordingConfig,
+		},
+		{
+			kind:   types.KindAppServer,
+			create: testCreateAppServer,
 		},
 	}
 
@@ -1883,6 +1887,66 @@ version: v2
 
 	_, err = runResourceCommand(t, fc, []string{"create", "-f", srcYAMLPath})
 	require.NoError(t, err)
+}
+
+func testCreateAppServer(t *testing.T, fc *config.FileConfig) {
+	const appServerWithIntegrationYAML = `---
+kind: app_server
+metadata:
+  name: my-integration
+spec:
+  app:
+    kind: app
+    metadata:
+      name: my-integration
+    spec:
+      uri: https://console.aws.amazon.com
+      integration: my-integration
+    version: v3
+  host_id: c6cfe5c2-653f-4e5d-a914-bfac5a7baf38
+version: v3
+`
+
+	const appServerWithoutIntegrationYAML = `---
+kind: app_server
+metadata:
+  name: my-integration
+spec:
+  app:
+    kind: app
+    metadata:
+      name: my-integration
+    spec:
+      uri: https://console.aws.amazon.com
+    version: v3
+  host_id: c6cfe5c2-653f-4e5d-a914-bfac5a7baf38
+version: v3
+`
+
+	// Creating an AppServer with integration is valid.
+	srcYAMLPath := filepath.Join(t.TempDir(), "appServerWithIntegrationYAML.yaml")
+	require.NoError(t, os.WriteFile(srcYAMLPath, []byte(appServerWithIntegrationYAML), 0644))
+	_, err := runResourceCommand(t, fc, []string{"create", srcYAMLPath})
+	require.NoError(t, err)
+
+	// Creating an AppServer without integration is invalid.
+	srcYAMLPath = filepath.Join(t.TempDir(), "appServerWithoutIntegrationYAML.yaml")
+	require.NoError(t, os.WriteFile(srcYAMLPath, []byte(appServerWithoutIntegrationYAML), 0644))
+	_, err = runResourceCommand(t, fc, []string{"create", srcYAMLPath})
+	require.ErrorContains(t, err, "integration")
+
+	buf, err := runResourceCommand(t, fc, []string{"get", types.KindAppServer, "--format=json"})
+	require.NoError(t, err)
+	appServers := mustDecodeJSON[[]*types.AppServerV3](t, buf)
+	require.Len(t, appServers, 1)
+
+	expectedAppServer, err := types.NewAppServerForAWSOIDCIntegration("my-integration", "c6cfe5c2-653f-4e5d-a914-bfac5a7baf38")
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(
+		expectedAppServer,
+		appServers[0],
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision", "Namespace"),
+	))
 }
 
 func testCreateDatabaseObject(t *testing.T, fc *config.FileConfig) {

@@ -24,10 +24,13 @@ import {
   useState,
   useCallback,
   useMemo,
+  useEffect,
 } from 'react';
 import { useAsync, Attempt } from 'shared/hooks/useAsync';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { usePersistedState } from 'teleterm/ui/hooks/usePersistedState';
+import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
 
 /**
  * VnetContext manages the VNet instance.
@@ -40,9 +43,9 @@ export type VnetContext = {
    */
   isSupported: boolean;
   status: VnetStatus;
-  start: () => void;
+  start: () => Promise<[void, Error]>;
   startAttempt: Attempt<void>;
-  stop: () => void;
+  stop: () => Promise<[void, Error]>;
   stopAttempt: Attempt<void>;
 };
 
@@ -53,6 +56,13 @@ export const VnetContext = createContext<VnetContext>(null);
 export const VnetContextProvider: FC<PropsWithChildren> = props => {
   const [status, setStatus] = useState<VnetStatus>('stopped');
   const { vnet, mainProcessClient, configService } = useAppContext();
+  const isWorkspaceStateInitialized = useStoreSelector(
+    'workspacesService',
+    useCallback(state => state.isInitialized, [])
+  );
+  const [{ autoStart }, setAppState] = usePersistedState('vnet', {
+    autoStart: false,
+  });
 
   const isSupported = useMemo(
     () =>
@@ -69,15 +79,38 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
       // Reconsider this only once the VNet daemon gets added.
       await vnet.start({});
       setStatus('running');
-    }, [vnet])
+      setAppState({ autoStart: true });
+    }, [vnet, setAppState])
   );
 
   const [stopAttempt, stop] = useAsync(
     useCallback(async () => {
       await vnet.stop({});
       setStatus('stopped');
-    }, [vnet])
+      setAppState({ autoStart: false });
+    }, [vnet, setAppState])
   );
+
+  useEffect(() => {
+    const handleAutoStart = async () => {
+      if (
+        isSupported &&
+        autoStart &&
+        isWorkspaceStateInitialized &&
+        startAttempt.status === ''
+      ) {
+        const [, error] = await start();
+
+        // Turn off autostart if starting fails. Otherwise the user wouldn't be able to turn off
+        // autostart by themselves.
+        if (error) {
+          setAppState({ autoStart: false });
+        }
+      }
+    };
+
+    handleAutoStart();
+  }, [isWorkspaceStateInitialized]);
 
   return (
     <VnetContext.Provider

@@ -87,9 +87,6 @@ func onListDatabases(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	databases := types.DatabaseServers(servers).ToDatabases()
-	types.DeduplicateDatabases(databases)
-
 	accessChecker, err := services.NewAccessCheckerForRemoteCluster(cf.Context, profile.AccessInfo(), tc.SiteName, clusterClient.AuthClient)
 	if err != nil {
 		log.Debugf("Failed to fetch user roles: %v.", err)
@@ -100,6 +97,7 @@ func onListDatabases(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	databases := types.DatabaseServers(servers).ToDatabases()
 	sort.Sort(types.Databases(databases))
 	return trace.Wrap(showDatabases(cf, databases, activeDatabases, accessChecker))
 }
@@ -188,12 +186,12 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 			}
 
 			localDBListings := make(databaseListings, 0, len(databases))
-			for _, database := range databases {
+			for _, database := range types.DatabaseServers(databases).ToDatabases() {
 				localDBListings = append(localDBListings, databaseListing{
 					Proxy:         cluster.profile.ProxyURL.Host,
 					Cluster:       cluster.name,
 					accessChecker: accessChecker,
-					Database:      database.GetDatabase(),
+					Database:      database,
 				})
 			}
 			mu.Lock()
@@ -708,7 +706,7 @@ func prepareLocalProxyOptions(arg *localProxyConfig) ([]alpnproxy.LocalProxyConf
 		// proxy starts instead.
 		cert, err := loadDBCertificate(arg.tc, arg.dbInfo.ServiceName)
 		if err == nil {
-			opts = append(opts, alpnproxy.WithClientCerts(cert))
+			opts = append(opts, alpnproxy.WithClientCert(cert))
 		}
 		return opts, nil
 	}
@@ -721,8 +719,8 @@ func prepareLocalProxyOptions(arg *localProxyConfig) ([]alpnproxy.LocalProxyConf
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		opts = append(opts, alpnproxy.WithClientCerts(cert))
-		opts = append(opts, alpnproxy.WithCheckCertsNeeded())
+		opts = append(opts, alpnproxy.WithClientCert(cert))
+		opts = append(opts, alpnproxy.WithCheckCertNeeded())
 	case defaults.ProtocolMySQL:
 		// To set correct MySQL server version DB proxy needs additional protocol.
 		db, err := arg.dbInfo.GetDatabase(arg.cf.Context, arg.tc)
@@ -779,6 +777,9 @@ func onDatabaseConnect(cf *CLIConf) error {
 	opts = append(opts, dbcmd.WithLogger(log))
 
 	if opts, err = maybeAddDBUserPassword(cf, tc, dbInfo, opts); err != nil {
+		return trace.Wrap(err)
+	}
+	if opts, err = maybeAddGCPMetadata(cf.Context, tc, dbInfo, opts); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1644,7 +1645,8 @@ func getDBLocalProxyRequirement(tc *client.TeleportClient, route tlsca.RouteToDa
 		defaults.ProtocolSQLServer,
 		defaults.ProtocolCassandra,
 		defaults.ProtocolOracle,
-		defaults.ProtocolClickHouse:
+		defaults.ProtocolClickHouse,
+		defaults.ProtocolSpanner:
 
 		// Some protocols only work in the local tunnel mode.
 		out.addLocalProxyWithTunnel(formatDBProtocolReason(route.Protocol))
@@ -1738,12 +1740,7 @@ func formatDbCmdUnsupportedDBProtocol(cf *CLIConf, route tlsca.RouteToDatabase) 
 // getDbCmdAlternatives is a helper func that returns alternative tsh commands for connecting to a database.
 func getDbCmdAlternatives(clusterFlag string, route tlsca.RouteToDatabase) []string {
 	var alts []string
-	switch route.Protocol {
-	case defaults.ProtocolDynamoDB:
-	// DynamoDB only works with a local proxy tunnel and there is no "shell-like" cli, so `tsh db connect` doesn't make sense.
-	case defaults.ProtocolClickHouseHTTP:
-	// ClickHouse HTTP protocol don't support interactive mode
-	default:
+	if protocolSupportsInteractiveMode(route.Protocol) {
 		// prefer displaying the connect command as the first suggested command alternative.
 		alts = append(alts, formatDatabaseConnectCommand(clusterFlag, route))
 	}

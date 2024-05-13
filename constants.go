@@ -71,7 +71,7 @@ const (
 const (
 	// ComponentKey is a field that represents a component - e.g. service or
 	// function
-	ComponentKey = "teleport.ComponentKey"
+	ComponentKey = "trace.component"
 	// ComponentFields is a fields component
 	ComponentFields = "trace.fields"
 
@@ -144,6 +144,10 @@ const (
 
 	// ComponentDiagnostic is a diagnostic service
 	ComponentDiagnostic = "diag"
+
+	// ComponentDebug is the debug service, which exposes debugging
+	// configuration over a Unix socket.
+	ComponentDebug = "debug"
 
 	// ComponentClient is a client
 	ComponentClient = "client"
@@ -412,6 +416,10 @@ const (
 
 	// MinimumEtcdVersion is the minimum version of etcd supported by Teleport
 	MinimumEtcdVersion = "3.3.0"
+
+	// EnvVarAllowNoSecondFactor is used to allow disabling second factor auth
+	// todo(lxea): DELETE IN 17
+	EnvVarAllowNoSecondFactor = "TELEPORT_ALLOW_NO_SECOND_FACTOR"
 )
 
 const (
@@ -849,6 +857,10 @@ const (
 	// until a domain name stops resolving. Its main use is to ensure no
 	// auth instances are still running the previous major version.
 	WaitSubCommand = "wait"
+
+	// VnetAdminSetupSubCommand is the sub-command tsh vnet uses to perform
+	// a setup as a privileged user.
+	VnetAdminSetupSubCommand = "vnet-admin-setup"
 )
 
 const (
@@ -921,4 +933,10 @@ const (
 	// KubeLegacyProxySuffix is the suffix used for legacy proxy services when
 	// generating their names Server names.
 	KubeLegacyProxySuffix = "-proxy_service"
+)
+
+const (
+	// DebugServiceSocketName represents the Unix domain socket name of the
+	// debug service.
+	DebugServiceSocketName = "debug.sock"
 )

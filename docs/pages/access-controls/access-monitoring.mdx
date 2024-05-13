@@ -15,6 +15,12 @@ or database sessions without MFA) and provides users with recommendations on sug
 
 Users are able to write their own custom access monitoring queries by querying the audit log.
 
+<Admonition type="notice">
+  Access Monitoring is not currently supported with External Audit Storage
+  in Teleport Enterprise (cloud-hosted). This functionality will be
+  enabled in a future Teleport release.
+</Admonition>
+
 ## Prerequisites
 - Teleport v14 or later.
 - For self-hosted Teleport the [AWS Athena Backend](../reference/backends.mdx#athena) is required.
@@ -23,9 +29,9 @@ Users are able to write their own custom access monitoring queries by querying t
 ### Configuration
 
 <Tabs>
-<TabItem scope={["cloud","team"]} label="Teleport Cloud">
+<TabItem scope={["cloud","team"]} label="Teleport Enterprise (cloud-hosted)">
 
-Teleport Access Monitoring is enabled by default for all Teleport Cloud users.
+Teleport Access Monitoring is enabled by default for all Teleport Enterprise (cloud-hosted) accounts.
 
 </TabItem>
 <TabItem scope={["enterprise", "oss"]} label="Self-Hosted">
@@ -134,7 +140,7 @@ Below, you can find the IAM permissions that allow the Auth Service to execute A
 ```
 </Details>
 
-You can use our [Terraform Example](https://github.com/gravitational/teleport/tree/master/examples/athena)
+You can use our [Terraform Example](https://github.com/gravitational/teleport/tree/v(=teleport.version=)/examples/athena)
 to set up Athena and Access Monitoring AWS resources and generate Athena Backend and Access Monitoring Teleport configuration:
 
 ```bash
@@ -298,7 +304,7 @@ WHERE
 
 ### Query Examples with Assist AI
 
-The query editor also integrates with Teleport Assist, making it easy to generate queries with a human-readable description of the data you want to retrieve.
+The query editor also integrates with Teleport Assist, allowing you to to generate queries with a human-readable description of the data you want to retrieve.
 
 ![assist query](../../img/access-monitoring/assist_query_1.png)
 

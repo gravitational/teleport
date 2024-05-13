@@ -44,7 +44,7 @@ $(BUILDDIR)/terraform-provider-teleport_%: terraform-provider-teleport-v$(VERSIO
 	mv $(BUILDDIR)/$(OS)/$*/terraform-provider-teleport $@
 
 CUSTOM_IMPORTS_TMP_DIR ?= /tmp/protoc-gen-terraform/custom-imports
-PROTOC_GEN_TERRAFORM_VERSION ?= v2.1.0
+PROTOC_GEN_TERRAFORM_VERSION ?= v2.2.0
 PROTOC_GEN_TERRAFORM_EXISTS := $(shell protoc-gen-terraform version 2>&1 >/dev/null | grep 'protoc-gen-terraform $(PROTOC_GEN_TERRAFORM_VERSION)')
 
 .PHONY: gen-tfschema
@@ -64,6 +64,18 @@ endif
 		--plugin=$(GENTERRAFORMPATH)/protoc-gen-terraform \
 		--terraform_out=config=protoc-gen-terraform-teleport.yaml:./tfschema \
 		teleport/legacy/types/types.proto
+
+	mv ./tfschema/github.com/gravitational/teleport/api/types/types_terraform.go ./tfschema/
+
+	@protoc \
+		-I=../../api/proto \
+		-I=$(PROTOBUF_MOD_PATH) \
+		--plugin=$(GENTERRAFORMPATH)/protoc-gen-terraform \
+		--terraform_out=config=protoc-gen-terraform-teleport-token.yaml:./tfschema \
+		teleport/legacy/types/types.proto
+
+	mkdir -p ./tfschema/token
+	mv ./tfschema/github.com/gravitational/teleport/api/types/types_terraform.go ./tfschema/token/
 
 	@protoc \
 		-I=../../api/proto \
@@ -86,7 +98,6 @@ endif
 		--terraform_out=config=protoc-gen-terraform-accesslist.yaml:./tfschema \
 		teleport/accesslist/v1/accesslist.proto
 
-	mv ./tfschema/github.com/gravitational/teleport/api/types/types_terraform.go ./tfschema/
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1/loginrule_terraform.go ./tfschema/loginrule/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1/accesslist_terraform.go ./tfschema/accesslist/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/types/device_terraform.go ./tfschema/devicetrust/v1/
@@ -105,6 +116,8 @@ endif
 TERRAFORM_EXISTS := $(shell terraform -version 2>/dev/null | grep 'Terraform v1.')
 CURRENT_ULIMIT := $(shell ulimit -n)
 
+TEST_ARGS?=
+
 .PHONY: test
 test: install
 ifndef TERRAFORM_EXISTS
@@ -117,7 +130,15 @@ ifeq ($(shell expr $(CURRENT_ULIMIT) \< 1024), 1)
 	@echo "ulimit -n is too low ($(CURRENT_ULIMIT)), please set ulimit -n 1024"
 	@exit -1
 endif
-	TF_ACC=true go test ./test -v
+	go test ./testlib -v $(TEST_ARGS)
+
+.PHONY: test-full
+test-full: TEST_ARGS=--tags enterprisetests
+test-full: test
+
+.PHONY: test-ent
+test-ent: TEST_ARGS=--tags enterprisetests -run 'TestTerraformEnterprise.*'
+test-ent: test
 
 .PHONY: apply
 apply: install
@@ -130,3 +151,7 @@ reapply:
 .PHONY: destroy
 destroy:
 	terraform -chdir=$(TFDIR) destroy -auto-approve
+
+.PHONY: lint
+lint:
+	golangci-lint run -c ../../.golangci.yml

@@ -20,7 +20,6 @@ package web
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -29,7 +28,6 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	assistpb "github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
@@ -38,8 +36,6 @@ import (
 	"github.com/gravitational/teleport/lib/ai/tokens"
 	"github.com/gravitational/teleport/lib/assist"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 )
 
@@ -50,69 +46,10 @@ const (
 	actionSSHExplainCommand = "ssh-explain"
 	// actionGenerateAuditQuery is the name of the action for generating audit queries.
 	actionGenerateAuditQuery = "audit-query"
-	// We can not know how many tokens we will consume in advance.
-	// Try to consume a small amount of tokens first.
+	// We cannot know how many tokens we will consume in advance.
+	// Try to consume a small number of tokens first.
 	lookaheadTokens = 100
 )
-
-// createAssistantConversationResponse is a response for POST /webapi/assistant/conversations.
-type createdAssistantConversationResponse struct {
-	// ID is a conversation ID.
-	ID string `json:"id"`
-}
-
-// createAssistantConversation is a handler for POST /webapi/assistant/conversations.
-func (h *Handler) createAssistantConversation(_ http.ResponseWriter, r *http.Request,
-	_ httprouter.Params, sctx *SessionContext,
-) (any, error) {
-	authClient, err := sctx.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := checkAssistEnabled(authClient, r.Context()); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	req := &assistpb.CreateAssistantConversationRequest{
-		CreatedTime: timestamppb.New(h.clock.Now().UTC()),
-		Username:    sctx.GetUser(),
-	}
-
-	resp, err := authClient.CreateAssistantConversation(r.Context(), req)
-	if err != nil {
-		return nil, err
-	}
-
-	return &createdAssistantConversationResponse{
-		ID: resp.Id,
-	}, nil
-}
-
-// deleteAssistantConversation is a handler for DELETE /webapi/assistant/conversations/:conversation_id.
-func (h *Handler) deleteAssistantConversation(_ http.ResponseWriter, r *http.Request,
-	p httprouter.Params, sctx *SessionContext,
-) (any, error) {
-	authClient, err := sctx.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := checkAssistEnabled(authClient, r.Context()); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	conversationID := p.ByName("conversation_id")
-
-	if err := authClient.DeleteAssistantConversation(r.Context(), &assistpb.DeleteAssistantConversationRequest{
-		ConversationId: conversationID,
-		Username:       sctx.GetUser(),
-	}); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return OK(), nil
-}
 
 // assistantMessage is an assistant message that is sent to the client.
 type assistantMessage struct {
@@ -124,214 +61,9 @@ type assistantMessage struct {
 	Payload string `json:"payload"`
 }
 
-// getAssistantConversation is a handler for GET /webapi/assistant/conversations/:conversation_id.
-func (h *Handler) getAssistantConversationByID(_ http.ResponseWriter, r *http.Request,
-	p httprouter.Params, sctx *SessionContext,
-) (any, error) {
-	authClient, err := sctx.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := checkAssistEnabled(authClient, r.Context()); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	conversationID := p.ByName("conversation_id")
-
-	resp, err := authClient.GetAssistantMessages(r.Context(), &assistpb.GetAssistantMessagesRequest{
-		ConversationId: conversationID,
-		Username:       sctx.GetUser(),
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return conversationResponse(resp), nil
-}
-
-// conversationResponse creates a response for GET conversation response.
-func conversationResponse(resp *assistpb.GetAssistantMessagesResponse) any {
-	type response struct {
-		Messages []assistantMessage `json:"messages"`
-	}
-
-	jsonResp := &response{
-		Messages: make([]assistantMessage, 0, len(resp.Messages)),
-	}
-
-	for _, message := range resp.Messages {
-		jsonResp.Messages = append(jsonResp.Messages, assistantMessage{
-			Type:        assist.MessageType(message.Type),
-			CreatedTime: message.CreatedTime.AsTime().Format(time.RFC3339),
-			Payload:     message.Payload,
-		})
-	}
-
-	return jsonResp
-}
-
-// conversationInfo is a response for GET conversation response.
-type conversationInfo struct {
-	// ID is a conversation ID.
-	ID string `json:"id"`
-	// Title is a conversation title.
-	Title string `json:"title,omitempty"`
-	// CreatedTime is a time when the conversation was created in RFC3339 format.
-	CreatedTime string `json:"created_time"`
-}
-
-// conversationsResponse is a response for GET conversation response.
-type conversationsResponse struct {
-	Conversations []conversationInfo `json:"conversations"`
-}
-
-// getAssistantConversations is a handler for GET /webapi/assistant/conversations.
-func (h *Handler) getAssistantConversations(_ http.ResponseWriter, r *http.Request,
-	_ httprouter.Params, sctx *SessionContext,
-) (any, error) {
-	authClient, err := sctx.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := checkAssistEnabled(authClient, r.Context()); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	resp, err := authClient.GetAssistantConversations(r.Context(), &assistpb.GetAssistantConversationsRequest{
-		Username: sctx.GetUser(),
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return genConversationsResponse(resp), nil
-}
-
-func genConversationsResponse(resp *assistpb.GetAssistantConversationsResponse) *conversationsResponse {
-	jsonResp := &conversationsResponse{
-		Conversations: make([]conversationInfo, 0, len(resp.Conversations)),
-	}
-
-	for _, conversation := range resp.Conversations {
-		jsonResp.Conversations = append(jsonResp.Conversations, conversationInfo{
-			ID:          conversation.Id,
-			Title:       conversation.Title,
-			CreatedTime: conversation.CreatedTime.AsTime().Format(time.RFC3339),
-		})
-	}
-
-	return jsonResp
-}
-
-// setAssistantTitle is a handler for POST /webapi/assistant/conversations/:conversation_id/title.
-func (h *Handler) setAssistantTitle(_ http.ResponseWriter, r *http.Request,
-	p httprouter.Params, sctx *SessionContext,
-) (any, error) {
-	req := struct {
-		Title string `json:"title"`
-	}{}
-
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	authClient, err := sctx.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := checkAssistEnabled(authClient, r.Context()); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	conversationID := p.ByName("conversation_id")
-
-	conversationInfo := &assistpb.UpdateAssistantConversationInfoRequest{
-		ConversationId: conversationID,
-		Username:       sctx.GetUser(),
-		Title:          req.Title,
-	}
-
-	if err := authClient.UpdateAssistantConversationInfo(r.Context(), conversationInfo); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return OK(), nil
-}
-
-// generateAssistantTitleRequest is a request for POST /webapi/assistant/title/summary.
-type generateAssistantTitleRequest struct {
-	Message string `json:"message"`
-}
-
-// generateAssistantTitle is a handler for POST /webapi/assistant/title/summary.
-func (h *Handler) generateAssistantTitle(_ http.ResponseWriter, r *http.Request,
-	_ httprouter.Params, sctx *SessionContext,
-) (any, error) {
-	var req generateAssistantTitleRequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	authClient, err := sctx.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := checkAssistEnabled(authClient, r.Context()); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	client, err := assist.NewClient(r.Context(), h.cfg.ProxyClient,
-		h.cfg.ProxySettings, h.cfg.OpenAIConfig)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	titleSummary, err := client.GenerateSummary(r.Context(), req.Message)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	conversationInfo := &conversationInfo{
-		Title: titleSummary,
-	}
-
-	// We only want to emmit
-	if modules.GetModules().Features().Cloud {
-		go func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-			defer cancel()
-			class, err := client.ClassifyMessage(ctx, req.Message, assist.MessageClasses)
-			if err != nil {
-				return
-			}
-			h.log.Debugf("message classified as '%s'", class)
-			// TODO(shaka): emit event here to report the message class
-			usageEventReq := &proto.SubmitUsageEventRequest{
-				Event: &usageeventsv1.UsageEventOneOf{
-					Event: &usageeventsv1.UsageEventOneOf_AssistNewConversation{
-						AssistNewConversation: &usageeventsv1.AssistNewConversationEvent{
-							Category: class,
-						},
-					},
-				},
-			}
-			if err := authClient.SubmitUsageEvent(ctx, usageEventReq); err != nil {
-				h.log.WithError(err).Warn("Failed to emit usage event")
-			}
-		}()
-
-	}
-
-	return conversationInfo, nil
-}
-
 // assistant is a handler for GET /webapi/sites/:site/assistant.
 // This handler covers the main chat conversation as well as the
-// SSH completition (SSH command generation and output explanation).
+// SSH competition (SSH command generation and output explanation).
 func (h *Handler) assistant(w http.ResponseWriter, r *http.Request, _ httprouter.Params,
 	sctx *SessionContext, site reversetunnelclient.RemoteSite, ws *websocket.Conn,
 ) (any, error) {
@@ -355,31 +87,6 @@ func (h *Handler) reserveTokens(usedTokens *tokens.TokenCount) (int, int) {
 	}
 	h.assistantLimiter.ReserveN(time.Now(), extraTokens)
 	return promptTokens, completionTokens
-}
-
-// reportTokenUsage sends a token usage event for a conversation.
-func (h *Handler) reportConversationTokenUsage(authClient auth.ClientI, usedTokens *tokens.TokenCount, conversationID string) {
-	// Create a new context to not be bounded by the request timeout.
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	promptTokens, completionTokens := h.reserveTokens(usedTokens)
-	usageEventReq := &proto.SubmitUsageEventRequest{
-		Event: &usageeventsv1.UsageEventOneOf{
-			Event: &usageeventsv1.UsageEventOneOf_AssistCompletion{
-				AssistCompletion: &usageeventsv1.AssistCompletionEvent{
-					ConversationId:   conversationID,
-					TotalTokens:      int64(promptTokens + completionTokens),
-					PromptTokens:     int64(promptTokens),
-					CompletionTokens: int64(completionTokens),
-				},
-			},
-		},
-	}
-
-	if err := authClient.SubmitUsageEvent(ctx, usageEventReq); err != nil {
-		h.log.WithError(err).Warn("Failed to emit usage event")
-	}
 }
 
 // reportTokenUsage sends a token usage event for an action.
@@ -499,7 +206,7 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 		return nil
 	})
 
-	go startPingLoop(ctx, ws, keepAliveInterval, h.log, nil)
+	go startWSPingLoop(ctx, ws, keepAliveInterval, h.log, nil)
 
 	assistClient, err := assist.NewClient(ctx, h.cfg.ProxyClient,
 		h.cfg.ProxySettings, h.cfg.OpenAIConfig)
@@ -515,7 +222,7 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 	case actionGenerateAuditQuery:
 		err = h.assistGenAuditQueryLoop(ctx, assistClient, authClient, ws, sctx.GetUser())
 	default:
-		err = h.assistChatLoop(ctx, assistClient, authClient, conversationID, sctx, ws)
+		err = trace.Errorf("Teleport Assist Chat has been remove in v16")
 	}
 
 	return trace.Wrap(err)
@@ -627,79 +334,7 @@ func (h *Handler) assistGenSSHCommandLoop(ctx context.Context, assistClient *ass
 	return nil
 }
 
-// assistChatLoop is the main chat loop for the assistant.
-// It reads the user's input from provided WS and generates a response.
-func (h *Handler) assistChatLoop(ctx context.Context, assistClient *assist.Assist, authClient auth.ClientI,
-	conversationID string, sctx *SessionContext, ws *websocket.Conn,
-) error {
-	ac, err := sctx.GetUserAccessChecker()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	toolContext := &tools.ToolContext{
-		AssistEmbeddingServiceClient: authClient.EmbeddingClient(),
-		AccessRequestClient:          authClient,
-		AccessChecker:                ac,
-		NodeWatcher:                  h.nodeWatcher,
-		ClusterName:                  sctx.cfg.Parent.clusterName,
-		User:                         sctx.GetUser(),
-	}
-
-	chat, err := assistClient.NewChat(ctx, authClient, toolContext, conversationID)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	onMessage := func(kind assist.MessageType, payload []byte, createdTime time.Time) error {
-		return trace.Wrap(onMessageFn(ws, kind, payload, createdTime))
-	}
-
-	if chat.IsNewConversation() {
-		// new conversation, generate a hello message
-		if _, err := chat.ProcessComplete(ctx, onMessage, ""); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	for {
-		_, payload, err := ws.ReadMessage()
-		if err != nil {
-			if wsIsClosed(err) {
-				break
-			}
-			return trace.Wrap(err)
-		}
-
-		var wsIncoming assistantMessage
-		if err := json.Unmarshal(payload, &wsIncoming); err != nil {
-			return trace.Wrap(err)
-		}
-
-		if wsIncoming.Type == assist.MessageKindAccessRequestCreated {
-			chat.RecordMesssage(ctx, wsIncoming.Type, wsIncoming.Payload)
-		}
-
-		if err := h.preliminaryRateLimitGuard(onMessage); err != nil {
-			return trace.Wrap(err)
-		}
-
-		//TODO(jakule): Should we sanitize the payload?
-		usedTokens, err := chat.ProcessComplete(ctx, onMessage, wsIncoming.Payload)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		// Token usage reporting is asynchronous as we might still be streaming
-		// a message, and we don't want to block everything.
-		go h.reportConversationTokenUsage(authClient, usedTokens, conversationID)
-	}
-
-	h.log.Debug("end assistant conversation loop")
-	return nil
-}
-
-// preliminaryRateLimitGuard checks that some small amount of tokens are still available and the ratelimit is not exceeded.
+// preliminaryRateLimitGuard checks that some small number of tokens is still available and the ratelimit is not exceeded.
 // This is done because the changed quantity within the limiter is not known until after a request is processed.
 func (h *Handler) preliminaryRateLimitGuard(onMessageFn func(kind assist.MessageType, payload []byte, createdTime time.Time) error) error {
 	const errorMsg = "You have reached the rate limit. Please try again later."

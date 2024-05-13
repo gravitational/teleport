@@ -66,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	libproxy "github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -91,6 +92,7 @@ var wildcardAllow = types.Labels{
 // it as an argument. Otherwise it will run tests as normal.
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
+	modules.SetInsecureTestMode(true)
 	if srv.IsReexec() {
 		srv.RunAndExit(os.Args[1])
 		return
@@ -218,7 +220,6 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 		SetUUID(nodeID),
 		SetNamespace(apidefaults.Namespace),
 		SetEmitter(nodeClient),
-		SetShell("/bin/sh"),
 		SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
 		SetLabels(
 			map[string]string{"foo": "bar"},
@@ -242,7 +243,7 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		testServer.ClusterName(),
-		[]ssh.Signer{signer},
+		sshutils.StaticHostSigners(signer),
 		nodeClient,
 		nodeDir,
 		"",
@@ -1490,7 +1491,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		ClientTLS:                     proxyClient.TLSConfig(),
 		ID:                            hostID,
 		Listener:                      listener,
-		HostSigners:                   []ssh.Signer{f.signer},
+		GetHostSigners:                sshutils.StaticHostSigners(f.signer),
 		LocalAuthClient:               proxyClient,
 		LocalAccessPoint:              proxyClient,
 		NewCachingAccessPoint:         noCache,
@@ -1532,7 +1533,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 		f.testSrv.ClusterName(),
-		[]ssh.Signer{f.signer},
+		sshutils.StaticHostSigners(f.signer),
 		proxyClient,
 		t.TempDir(),
 		"",
@@ -1545,7 +1546,6 @@ func TestProxyRoundRobin(t *testing.T) {
 		SetBPF(&bpf.NOP{}),
 		SetClock(f.clock),
 		SetLockWatcher(lockWatcher),
-		SetNodeWatcher(nodeWatcher),
 		SetSessionController(sessionController),
 	)
 	require.NoError(t, err)
@@ -1629,7 +1629,7 @@ func TestProxyDirectAccess(t *testing.T) {
 		ID:                            hostID,
 		ClusterName:                   f.testSrv.ClusterName(),
 		Listener:                      listener,
-		HostSigners:                   []ssh.Signer{f.signer},
+		GetHostSigners:                sshutils.StaticHostSigners(f.signer),
 		LocalAuthClient:               proxyClient,
 		LocalAccessPoint:              proxyClient,
 		NewCachingAccessPoint:         noCache,
@@ -1672,7 +1672,7 @@ func TestProxyDirectAccess(t *testing.T) {
 		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 		f.testSrv.ClusterName(),
-		[]ssh.Signer{f.signer},
+		sshutils.StaticHostSigners(f.signer),
 		proxyClient,
 		t.TempDir(),
 		"",
@@ -1685,7 +1685,6 @@ func TestProxyDirectAccess(t *testing.T) {
 		SetBPF(&bpf.NOP{}),
 		SetClock(f.clock),
 		SetLockWatcher(lockWatcher),
-		SetNodeWatcher(nodeWatcher),
 		SetSessionController(sessionController),
 	)
 	require.NoError(t, err)
@@ -1911,14 +1910,13 @@ func TestLimiter(t *testing.T) {
 		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		f.testSrv.ClusterName(),
-		[]ssh.Signer{f.signer},
+		sshutils.StaticHostSigners(f.signer),
 		nodeClient,
 		nodeStateDir,
 		"",
 		utils.NetAddr{},
 		nodeClient,
 		SetLimiter(limiter),
-		SetShell("/bin/sh"),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
 		SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
@@ -2345,7 +2343,7 @@ func TestParseSubsystemRequest(t *testing.T) {
 			ID:                            hostID,
 			ClusterName:                   f.testSrv.ClusterName(),
 			Listener:                      listener,
-			HostSigners:                   []ssh.Signer{f.signer},
+			GetHostSigners:                sshutils.StaticHostSigners(f.signer),
 			LocalAuthClient:               proxyClient,
 			LocalAccessPoint:              proxyClient,
 			NewCachingAccessPoint:         noCache,
@@ -2390,7 +2388,7 @@ func TestParseSubsystemRequest(t *testing.T) {
 			ctx,
 			utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 			f.testSrv.ClusterName(),
-			[]ssh.Signer{f.signer},
+			sshutils.StaticHostSigners(f.signer),
 			proxyClient,
 			t.TempDir(),
 			"",
@@ -2403,7 +2401,6 @@ func TestParseSubsystemRequest(t *testing.T) {
 			SetBPF(&bpf.NOP{}),
 			SetClock(f.clock),
 			SetLockWatcher(lockWatcher),
-			SetNodeWatcher(nodeWatcher),
 			SetSessionController(sessionController),
 		)
 		require.NoError(t, err)
@@ -2609,7 +2606,7 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 		ID:                            hostID,
 		ClusterName:                   f.testSrv.ClusterName(),
 		Listener:                      listener,
-		HostSigners:                   []ssh.Signer{f.signer},
+		GetHostSigners:                sshutils.StaticHostSigners(f.signer),
 		LocalAuthClient:               proxyClient,
 		LocalAccessPoint:              proxyClient,
 		NewCachingAccessPoint:         noCache,
@@ -2651,7 +2648,7 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 		f.testSrv.ClusterName(),
-		[]ssh.Signer{f.signer},
+		sshutils.StaticHostSigners(f.signer),
 		proxyClient,
 		t.TempDir(),
 		"",
@@ -2664,7 +2661,6 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 		SetBPF(&bpf.NOP{}),
 		SetClock(f.clock),
 		SetLockWatcher(lockWatcher),
-		SetNodeWatcher(nodeWatcher),
 		SetSessionController(sessionController),
 	)
 	require.NoError(t, err)
@@ -2825,7 +2821,7 @@ func TestTargetMetadata(t *testing.T) {
 		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		testServer.ClusterName(),
-		[]ssh.Signer{newSigner(t, ctx, testServer)},
+		sshutils.StaticHostSigners(newSigner(t, ctx, testServer)),
 		nodeClient,
 		nodeDir,
 		"",

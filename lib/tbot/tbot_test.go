@@ -71,7 +71,7 @@ func TestMain(m *testing.M) {
 func TestBot(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	log := utils.NewLoggerForTests()
+	log := utils.NewSlogLoggerForTests()
 
 	// Make a new auth server.
 	fc, fds := testhelpers.DefaultConfig(t)
@@ -90,7 +90,7 @@ func TestBot(t *testing.T) {
 
 	clusterName := string(fc.Auth.ClusterName)
 	_ = testhelpers.MakeAndRunTestAuthServer(t, log, fc, fds)
-	rootClient := testhelpers.MakeDefaultAuthClient(t, log, fc)
+	rootClient := testhelpers.MakeDefaultAuthClient(t, fc)
 
 	// Register an application server so the bot can request certs for it.
 	app, err := types.NewAppV3(types.Metadata{
@@ -405,12 +405,12 @@ func tlsIdentFromDest(ctx context.Context, t *testing.T, dest bot.Destination) *
 func TestBot_ResumeFromStorage(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	log := utils.NewLoggerForTests()
+	log := utils.NewSlogLoggerForTests()
 
 	// Make a new auth server.
 	fc, fds := testhelpers.DefaultConfig(t)
 	_ = testhelpers.MakeAndRunTestAuthServer(t, log, fc, fds)
-	rootClient := testhelpers.MakeDefaultAuthClient(t, log, fc)
+	rootClient := testhelpers.MakeDefaultAuthClient(t, fc)
 
 	// Create bot user and join token
 	botParams, _ := testhelpers.MakeBot(t, rootClient, "test", "access")
@@ -450,12 +450,12 @@ func TestBot_ResumeFromStorage(t *testing.T) {
 func TestBot_InsecureViaProxy(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	log := utils.NewLoggerForTests()
+	log := utils.NewSlogLoggerForTests()
 
 	// Make a new auth server.
 	fc, fds := testhelpers.DefaultConfig(t)
 	_ = testhelpers.MakeAndRunTestAuthServer(t, log, fc, fds)
-	rootClient := testhelpers.MakeDefaultAuthClient(t, log, fc)
+	rootClient := testhelpers.MakeDefaultAuthClient(t, fc)
 
 	// Create bot user and join token
 	botParams, _ := testhelpers.MakeBot(t, rootClient, "test", "access")
@@ -622,12 +622,12 @@ func newMockDiscoveredKubeCluster(t *testing.T, name, discoveredName string) *ty
 func TestBotSPIFFEWorkloadAPI(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	log := utils.NewLoggerForTests()
+	log := utils.NewSlogLoggerForTests()
 
 	// Make a new auth server.
 	fc, fds := testhelpers.DefaultConfig(t)
 	_ = testhelpers.MakeAndRunTestAuthServer(t, log, fc, fds)
-	rootClient := testhelpers.MakeDefaultAuthClient(t, log, fc)
+	rootClient := testhelpers.MakeDefaultAuthClient(t, fc)
 
 	// Create a role that allows the bot to issue a SPIFFE SVID.
 	role, err := types.NewRole("spiffe-issuer", types.RoleSpecV6{
@@ -649,6 +649,8 @@ func TestBotSPIFFEWorkloadAPI(t *testing.T) {
 	role, err = rootClient.UpsertRole(ctx, role)
 	require.NoError(t, err)
 
+	pid := os.Getpid()
+
 	tempDir := t.TempDir()
 	socketPath := "unix://" + path.Join(tempDir, "spiffe.sock")
 	onboarding, _ := testhelpers.MakeBot(t, rootClient, "test", role.GetName())
@@ -660,13 +662,37 @@ func TestBotSPIFFEWorkloadAPI(t *testing.T) {
 			ServiceConfigs: []config.ServiceConfig{
 				&config.SPIFFEWorkloadAPIService{
 					Listen: socketPath,
-					SVIDs: []config.SVIDRequest{
+					SVIDs: []config.SVIDRequestWithRules{
+						// Intentionally unmatching PID to ensure this SVID
+						// is not issued.
 						{
-							Path: "/foo",
-							Hint: "hint",
-							SANS: config.SVIDRequestSANs{
-								DNS: []string{"example.com"},
-								IP:  []string{"10.0.0.1"},
+							SVIDRequest: config.SVIDRequest{
+								Path: "/bar",
+							},
+							Rules: []config.SVIDRequestRule{
+								{
+									Unix: config.SVIDRequestRuleUnix{
+										PID: ptr(0),
+									},
+								},
+							},
+						},
+						// SVID with rule that matches on PID.
+						{
+							SVIDRequest: config.SVIDRequest{
+								Path: "/foo",
+								Hint: "hint",
+								SANS: config.SVIDRequestSANs{
+									DNS: []string{"example.com"},
+									IP:  []string{"10.0.0.1"},
+								},
+							},
+							Rules: []config.SVIDRequestRule{
+								{
+									Unix: config.SVIDRequestRuleUnix{
+										PID: &pid,
+									},
+								},
 							},
 						},
 					},
@@ -717,12 +743,12 @@ func TestBotSPIFFEWorkloadAPI(t *testing.T) {
 func TestBotDatabaseTunnel(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	log := utils.NewLoggerForTests()
+	log := utils.NewSlogLoggerForTests()
 
 	// Make a new auth server.
 	fc, fds := testhelpers.DefaultConfig(t)
 	process := testhelpers.MakeAndRunTestAuthServer(t, log, fc, fds)
-	rootClient := testhelpers.MakeDefaultAuthClient(t, log, fc)
+	rootClient := testhelpers.MakeDefaultAuthClient(t, fc)
 
 	// Make fake postgres server and add a database access instance to expose
 	// it.

@@ -213,13 +213,12 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
 
     // Test that we are updating the user with the correct traits.
     const mockUser = getMockUser();
-    const { kubeUsers, kubeGroups } = result.current.dynamicTraits;
     expect(teleCtx.userService.updateUser).toHaveBeenCalledWith({
       ...mockUser,
       traits: {
         ...result.current.dynamicTraits,
-        kubeGroups: [...kubeGroups, 'dynamicKbGroup3', 'dynamicKbGroup4'],
-        kubeUsers: [...kubeUsers, 'dynamicKbUser3', 'dynamicKbUser4'],
+        kubeGroups: ['dynamicKbGroup3', 'dynamicKbGroup4'],
+        kubeUsers: ['dynamicKbUser3', 'dynamicKbUser4'],
       },
     });
   });
@@ -366,13 +365,12 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
 
     // Test that we are updating the user with the correct traits.
     const mockUser = getMockUser();
-    const { databaseUsers, databaseNames } = result.current.dynamicTraits;
     expect(teleCtx.userService.updateUser).toHaveBeenCalledWith({
       ...mockUser,
       traits: {
         ...result.current.dynamicTraits,
-        databaseNames: [...databaseNames, 'banana', 'carrot'],
-        databaseUsers: [...databaseUsers, 'apple'],
+        databaseNames: ['banana', 'carrot'],
+        databaseUsers: ['apple'],
       },
     });
   });
@@ -447,6 +445,63 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
       ...expected.logins,
     ]);
   });
+
+  test('node with auto discover preserves existing + new dynamic traits', async () => {
+    const discoverCtx = defaultDiscoverContext({
+      resourceSpec: defaultResourceSpec(ResourceKind.Server),
+    });
+    discoverCtx.agentMeta = {
+      ...discoverCtx.agentMeta,
+      ...getMeta(ResourceKind.Server),
+      autoDiscovery: {
+        config: { name: '', discoveryGroup: '', aws: [] },
+        requiredVpcsAndSubnets: {},
+      },
+    };
+
+    const { result } = renderHook(() => useUserTraits(), {
+      wrapper: wrapperFn(discoverCtx, teleCtx),
+    });
+
+    await waitFor(() =>
+      expect(result.current.dynamicTraits.logins).toHaveLength(2)
+    );
+
+    // Should not be setting statics.
+    expect(result.current.staticTraits.logins).toHaveLength(0);
+
+    const addedTraitsOpts = {
+      logins: [
+        {
+          isFixed: true,
+          label: 'banana',
+          value: 'banana',
+        },
+        {
+          isFixed: false,
+          label: 'carrot',
+          value: 'carrot',
+        },
+      ],
+    };
+
+    act(() => {
+      result.current.onProceed(addedTraitsOpts);
+    });
+
+    await waitFor(() => {
+      expect(teleCtx.userService.reloadUser).toHaveBeenCalledTimes(1);
+    });
+    // Test that we are updating the user with the correct traits.
+    const mockUser = getMockUser();
+    expect(teleCtx.userService.updateUser).toHaveBeenCalledWith({
+      ...mockUser,
+      traits: {
+        ...result.current.dynamicTraits,
+        logins: ['banana', 'carrot'],
+      },
+    });
+  });
 });
 
 describe('static and dynamic traits are correctly separated and correctly creates Option objects', () => {
@@ -476,7 +531,16 @@ describe('static and dynamic traits are correctly separated and correctly create
     });
 
     await waitFor(() =>
-      expect(teleCtx.userService.fetchUser).toHaveBeenCalled()
+      expect(result.current.dynamicTraits.logins.length).toBeGreaterThan(0)
+    );
+    expect(teleCtx.userService.fetchUser).toHaveBeenCalled();
+    expect(result.current.dynamicTraits.kubeGroups.length).toBeGreaterThan(0);
+    expect(result.current.dynamicTraits.kubeUsers.length).toBeGreaterThan(0);
+    expect(result.current.dynamicTraits.databaseNames.length).toBeGreaterThan(
+      0
+    );
+    expect(result.current.dynamicTraits.databaseUsers.length).toBeGreaterThan(
+      0
     );
 
     // Test correct making of dynamic traits.
@@ -520,6 +584,45 @@ describe('static and dynamic traits are correctly separated and correctly create
       ...staticOptions,
       ...dynamicOptions,
     ]);
+  });
+});
+
+describe('calls to nextStep respects number of steps to skip', () => {
+  test('with auto discover, as a sso user with no traits', async () => {
+    const teleCtx = createTeleportContext();
+    teleCtx.storeUser.state.authType = 'sso';
+    const user = getMockUser();
+    user.traits = {
+      logins: ['login'],
+      databaseUsers: [],
+      databaseNames: [],
+      kubeUsers: [],
+      kubeGroups: [],
+      windowsLogins: [],
+      awsRoleArns: [],
+    };
+
+    jest.spyOn(teleCtx.userService, 'fetchUser').mockResolvedValue(user);
+
+    const discoverCtx = defaultDiscoverContext({
+      resourceSpec: defaultResourceSpec(ResourceKind.Database),
+    });
+    discoverCtx.agentMeta.autoDiscovery = {
+      config: { name: '', discoveryGroup: '', aws: [] },
+    };
+
+    const { result } = renderHook(() => useUserTraits(), {
+      wrapper: wrapperFn(discoverCtx, teleCtx),
+    });
+    await waitFor(() =>
+      expect(result.current.dynamicTraits.logins.length).toBeGreaterThan(0)
+    );
+
+    act(() => {
+      result.current.onProceed({ databaseNames: [], databaseUsers: [] }, 7);
+    });
+
+    expect(discoverCtx.nextStep).toHaveBeenCalledWith(7);
   });
 });
 

@@ -360,7 +360,7 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 	}
 	s.discardUnsupportedMatchers(&s.Matchers)
 
-	if err := s.startDynamicMatchersWatcher(ctx); err != nil {
+	if err := s.startDynamicMatchersWatcher(s.ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -374,11 +374,11 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.initAzureWatchers(ctx, cfg.Matchers.Azure); err != nil {
+	if err := s.initAzureWatchers(s.ctx, cfg.Matchers.Azure); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.initGCPWatchers(ctx, cfg.Matchers.GCP); err != nil {
+	if err := s.initGCPWatchers(s.ctx, cfg.Matchers.GCP); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -392,7 +392,7 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.initAccessGraphWatchers(ctx, cfg); err != nil {
+	if err := s.initAccessGraphWatchers(s.ctx, cfg); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -805,7 +805,6 @@ func genInstancesLogStr[T any](instances []T, getID func(T) string) string {
 }
 
 func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
-	// TODO(marco): support AWS SSM Client backed by an integration
 	serverInfos, err := instances.ServerInfos()
 	if err != nil {
 		return trace.Wrap(err)
@@ -816,22 +815,24 @@ func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
 	// to be rotated, we don't want to filter out existing OpenSSH nodes as
 	// they all need to have the command run on them
 	//
-	// Integration/EICE Nodes don't have heartbeat.
-	// Those Nodes must not be filtered, so that we can extend their expiration and sync labels.
-	if !instances.Rotation && instances.Integration == "" {
+	// EICE Nodes must never be filtered, so that we can extend their expiration and sync labels.
+	if !instances.Rotation && instances.EnrollMode != types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE {
 		s.filterExistingEC2Nodes(instances)
 	}
 	if len(instances.Instances) == 0 {
 		return trace.NotFound("all fetched nodes already enrolled")
 	}
 
-	switch {
-	case instances.Integration != "":
+	switch instances.EnrollMode {
+	case types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE:
 		s.heartbeatEICEInstance(instances)
-	default:
+
+	case types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT:
 		if err := s.handleEC2RemoteInstallation(instances); err != nil {
 			return trace.Wrap(err)
 		}
+	default:
+		return trace.BadParameter("invalid enroll mode for ec2 instance: %q", instances.EnrollMode.String())
 	}
 
 	if err := s.emitUsageEvents(instances.MakeEvents()); err != nil {
@@ -902,7 +903,10 @@ func (s *Server) heartbeatEICEInstance(instances *server.EC2Instances) {
 
 func (s *Server) handleEC2RemoteInstallation(instances *server.EC2Instances) error {
 	// TODO(gavin): support assume_role_arn for ec2.
-	ec2Client, err := s.CloudClients.GetAWSSSMClient(s.ctx, instances.Region, cloud.WithAmbientCredentials())
+	ec2Client, err := s.CloudClients.GetAWSSSMClient(s.ctx,
+		instances.Region,
+		cloud.WithCredentialsMaybeIntegration(instances.Integration),
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1407,7 +1411,7 @@ func (s *Server) startDynamicWatcherUpdater() {
 				oldDiscoveryConfig := s.dynamicDiscoveryConfig[dc.GetName()]
 				// If the DiscoveryConfig spec didn't change, then there's no need to update the matchers.
 				// we can skip this event.
-				if oldDiscoveryConfig.Equal(dc) {
+				if oldDiscoveryConfig.IsEqual(dc) {
 					continue
 				}
 

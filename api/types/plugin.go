@@ -39,6 +39,7 @@ var AllPluginTypes = []PluginType{
 	PluginTypePagerDuty,
 	PluginTypeMattermost,
 	PluginTypeDiscord,
+	PluginTypeEntraID,
 }
 
 const (
@@ -64,6 +65,10 @@ const (
 	PluginTypeMattermost = "mattermost"
 	// PluginTypeDiscord indicates the Discord access plugin
 	PluginTypeDiscord = "discord"
+	// PluginTypeGitlab indicates the Gitlab access plugin
+	PluginTypeGitlab = "gitlab"
+	// PluginTypeEntraID indicates the Entra ID sync plugin
+	PluginTypeEntraID = "entra-id"
 )
 
 // PluginSubkind represents the type of the plugin, e.g., access request, MDM etc.
@@ -76,6 +81,8 @@ const (
 	PluginSubkindMDM = "mdm"
 	// PluginSubkindAccess represents access request plugins collectively
 	PluginSubkindAccess = "access"
+	// PluginSubkindAccessGraph represents access graph plugins collectively
+	PluginSubkindAccessGraph = "accessgraph"
 )
 
 // Plugin represents a plugin instance
@@ -278,7 +285,25 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if staticCreds == nil {
 			return trace.BadParameter("ServiceNow plugin must be used with the static credentials ref type")
 		}
+	case *PluginSpecV1_Gitlab:
+		if settings.Gitlab == nil {
+			return trace.BadParameter("missing Gitlab settings")
+		}
+		if err := settings.Gitlab.Validate(); err != nil {
+			return trace.Wrap(err)
+		}
 
+		staticCreds := p.Credentials.GetStaticCredentialsRef()
+		if staticCreds == nil {
+			return trace.BadParameter("Gitlab plugin must be used with the static credentials ref type")
+		}
+	case *PluginSpecV1_EntraId:
+		if settings.EntraId == nil {
+			return trace.BadParameter("missing Entra ID settings")
+		}
+		if err := settings.EntraId.Validate(); err != nil {
+			return trace.Wrap(err)
+		}
 	default:
 		return trace.BadParameter("settings are not set or have an unknown type")
 	}
@@ -442,6 +467,10 @@ func (p *PluginV1) GetType() PluginType {
 		return PluginTypeDiscord
 	case *PluginSpecV1_ServiceNow:
 		return PluginTypeServiceNow
+	case *PluginSpecV1_Gitlab:
+		return PluginTypeGitlab
+	case *PluginSpecV1_EntraId:
+		return PluginTypeEntraID
 	default:
 		return PluginTypeUnknown
 	}
@@ -592,7 +621,27 @@ func (c *PluginOAuth2AccessTokenCredentials) CheckAndSetDefaults() error {
 	return nil
 }
 
+func (c *PluginEntraIDSettings) Validate() error {
+	if c.SyncSettings == nil {
+		return trace.BadParameter("sync_settings must be set")
+	}
+	if len(c.SyncSettings.DefaultOwners) == 0 {
+		return trace.BadParameter("sync_settings.default_owners must be set")
+	}
+
+	return nil
+}
+
 // GetCode returns the status code
 func (c PluginStatusV1) GetCode() PluginStatusCode {
 	return c.Code
+}
+
+// CheckAndSetDefaults checks that the required fields for the Gitlab plugin are set.
+func (c *PluginGitlabSettings) Validate() error {
+	if c.ApiEndpoint == "" {
+		return trace.BadParameter("API endpoint must be set")
+	}
+
+	return nil
 }

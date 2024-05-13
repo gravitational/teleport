@@ -75,8 +75,13 @@ export function useUserTraits() {
       break;
 
     case ResourceKind.Server:
-      const node = (agentMeta as NodeMeta).node;
-      staticTraits.logins = arrayStrDiff(node.sshLogins, dynamicTraits.logins);
+      if (!wantAutoDiscover) {
+        const node = (agentMeta as NodeMeta).node;
+        staticTraits.logins = arrayStrDiff(
+          node.sshLogins,
+          dynamicTraits.logins
+        );
+      }
       break;
 
     case ResourceKind.Database:
@@ -124,9 +129,6 @@ export function useUserTraits() {
     switch (resourceSpec.kind) {
       case ResourceKind.Kubernetes:
         let newDynamicKubeUsers = new Set<string>();
-        if (wantAutoDiscover) {
-          newDynamicKubeUsers = new Set(dynamicTraits.kubeUsers);
-        }
         traitOpts.kubeUsers.forEach(o => {
           if (!staticTraits.kubeUsers.includes(o.value)) {
             newDynamicKubeUsers.add(o.value);
@@ -134,9 +136,6 @@ export function useUserTraits() {
         });
 
         let newDynamicKubeGroups = new Set<string>();
-        if (wantAutoDiscover) {
-          newDynamicKubeGroups = new Set(dynamicTraits.kubeGroups);
-        }
         traitOpts.kubeGroups.forEach(o => {
           if (!staticTraits.kubeGroups.includes(o.value)) {
             newDynamicKubeGroups.add(o.value);
@@ -160,14 +159,11 @@ export function useUserTraits() {
           }
         });
 
-        nextStep({ logins: [...newDynamicLogins] });
+        nextStep({ logins: [...newDynamicLogins] }, numStepsToIncrement);
         break;
 
       case ResourceKind.Database:
         let newDynamicDbUsers = new Set<string>();
-        if (wantAutoDiscover) {
-          newDynamicDbUsers = new Set(dynamicTraits.databaseUsers);
-        }
         traitOpts.databaseUsers.forEach(o => {
           if (!staticTraits.databaseUsers.includes(o.value)) {
             newDynamicDbUsers.add(o.value);
@@ -175,9 +171,6 @@ export function useUserTraits() {
         });
 
         let newDynamicDbNames = new Set<string>();
-        if (wantAutoDiscover) {
-          newDynamicDbNames = new Set(dynamicTraits.databaseNames);
-        }
         traitOpts.databaseNames.forEach(o => {
           if (!staticTraits.databaseNames.includes(o.value)) {
             newDynamicDbNames.add(o.value);
@@ -263,7 +256,7 @@ export function useUserTraits() {
     numStepsToSkip?: number
   ) {
     if (isSsoUser || !canEditUser) {
-      next();
+      next(numStepsToSkip);
       return;
     }
 

@@ -744,6 +744,6 @@ type fakeClientCache struct {
 	ClientCache
 }
 
-func (f fakeClientCache) Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.ProxyClient, error) {
-	return &client.ProxyClient{}, nil
+func (f fakeClientCache) Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.ClusterClient, error) {
+	return &client.ClusterClient{}, nil
 }

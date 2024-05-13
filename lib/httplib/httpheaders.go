@@ -201,7 +201,7 @@ var indexCSPStringCache *cspCache = newCSPCache()
 
 func getIndexContentSecurityPolicyString(cfg proto.Features, urlPath string) string {
 	// Check for result with this cfg and urlPath in cache
-	withStripe := cfg.GetProductType() == proto.ProductType_PRODUCT_TYPE_TEAM
+	withStripe := cfg.GetIsStripeManaged()
 	key := fmt.Sprintf("%v-%v", withStripe, urlPath)
 	if cspString, ok := indexCSPStringCache.get(key); ok {
 		return cspString
@@ -221,35 +221,6 @@ func getIndexContentSecurityPolicyString(cfg proto.Features, urlPath string) str
 // SetIndexContentSecurityPolicy sets the Content-Security-Policy header for main index.html page
 func SetIndexContentSecurityPolicy(h http.Header, cfg proto.Features, urlPath string) {
 	cspString := getIndexContentSecurityPolicyString(cfg, urlPath)
-	h.Set("Content-Security-Policy", cspString)
-}
-
-// DELETE IN 17.0: Kept for legacy app access.
-var appLaunchCSPStringCache *cspCache = newCSPCache()
-
-// DELETE IN 17.0: Kept for legacy app access.
-func getAppLaunchContentSecurityPolicyString(applicationURL string) string {
-	if cspString, ok := appLaunchCSPStringCache.get(applicationURL); ok {
-		return cspString
-	}
-
-	cspString := getContentSecurityPolicyString(
-		defaultContentSecurityPolicy,
-		defaultFontSrc,
-		cspMap{
-			"connect-src": {"'self'", applicationURL},
-		},
-	)
-	appLaunchCSPStringCache.set(applicationURL, cspString)
-
-	return cspString
-}
-
-// DELETE IN 17.0: Kept for legacy app access.
-//
-// SetAppLaunchContentSecurityPolicy sets the Content-Security-Policy header for /web/launch
-func SetAppLaunchContentSecurityPolicy(h http.Header, applicationURL string) {
-	cspString := getAppLaunchContentSecurityPolicyString(applicationURL)
 	h.Set("Content-Security-Policy", cspString)
 }
 

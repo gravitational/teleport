@@ -123,7 +123,10 @@ InstanceListForCloud.parameters = {
   },
 };
 
-export const InstanceListLoading = () => <Component />;
+export const InstanceListLoading = () => {
+  cfg.isCloud = true;
+  return <Component />;
+};
 InstanceListLoading.parameters = {
   msw: {
     handlers: [

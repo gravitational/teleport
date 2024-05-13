@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -36,7 +37,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart"
@@ -109,10 +109,10 @@ type EnrollEKSCLusterClient interface {
 	GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
 
 	// CheckAgentAlreadyInstalled checks if teleport-kube-agent Helm chart is already installed on the EKS cluster.
-	CheckAgentAlreadyInstalled(context.Context, genericclioptions.RESTClientGetter, logrus.FieldLogger) (bool, error)
+	CheckAgentAlreadyInstalled(context.Context, genericclioptions.RESTClientGetter, *slog.Logger) (bool, error)
 
 	// InstallKubeAgent installs teleport-kube-agent Helm chart to the EKS cluster.
-	InstallKubeAgent(context.Context, *eksTypes.Cluster, string, string, string, genericclioptions.RESTClientGetter, logrus.FieldLogger, EnrollEKSClustersRequest) error
+	InstallKubeAgent(context.Context, *eksTypes.Cluster, string, string, string, genericclioptions.RESTClientGetter, *slog.Logger, EnrollEKSClustersRequest) error
 
 	// CreateToken creates provisioning token on the auth server. That token can be used to install kube agent to an EKS cluster.
 	CreateToken(context.Context, types.ProvisionToken) error
@@ -130,8 +130,9 @@ func (d *defaultEnrollEKSClustersClient) GetCallerIdentity(ctx context.Context, 
 }
 
 // CheckAgentAlreadyInstalled checks if teleport-kube-agent Helm chart is already installed on the EKS cluster.
-func (d *defaultEnrollEKSClustersClient) CheckAgentAlreadyInstalled(ctx context.Context, clientGetter genericclioptions.RESTClientGetter, log logrus.FieldLogger) (bool, error) {
-	actionConfig, err := getHelmActionConfig(clientGetter, log)
+func (d *defaultEnrollEKSClustersClient) CheckAgentAlreadyInstalled(ctx context.Context, clientGetter genericclioptions.RESTClientGetter, log *slog.Logger) (bool, error) {
+	log = log.With("helm_action", "check agent already installed")
+	actionConfig, err := getHelmActionConfig(ctx, clientGetter, log)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
@@ -170,8 +171,9 @@ func getToken(ctx context.Context, clock clockwork.Clock, tokenCreator TokenCrea
 }
 
 // InstallKubeAgent installs teleport-kube-agent Helm chart to the EKS cluster.
-func (d *defaultEnrollEKSClustersClient) InstallKubeAgent(ctx context.Context, eksCluster *eksTypes.Cluster, proxyAddr, joinToken, resourceId string, clientGetter genericclioptions.RESTClientGetter, log logrus.FieldLogger, req EnrollEKSClustersRequest) error {
-	actionConfig, err := getHelmActionConfig(clientGetter, log)
+func (d *defaultEnrollEKSClustersClient) InstallKubeAgent(ctx context.Context, eksCluster *eksTypes.Cluster, proxyAddr, joinToken, resourceId string, clientGetter genericclioptions.RESTClientGetter, log *slog.Logger, req EnrollEKSClustersRequest) error {
+	log = log.With("helm_action", "install kube agent")
+	actionConfig, err := getHelmActionConfig(ctx, clientGetter, log)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -183,7 +185,6 @@ func (d *defaultEnrollEKSClustersClient) InstallKubeAgent(ctx context.Context, e
 		resourceID:   resourceId,
 		actionConfig: actionConfig,
 		req:          req,
-		log:          log,
 	})
 }
 
@@ -261,7 +262,7 @@ func (e *EnrollEKSClustersRequest) CheckAndSetDefaults() error {
 // During enrollment we create access entry for an EKS cluster if needed and cluster admin policy is associated with that entry,
 // so our AWS integration can access the target EKS cluster during the chart installation. After enrollment is done we remove
 // the access entry (if it was created by us), since we don't need it anymore.
-func EnrollEKSClusters(ctx context.Context, log logrus.FieldLogger, clock clockwork.Clock, proxyAddr string, credsProvider aws.CredentialsProvider, clt EnrollEKSCLusterClient, req EnrollEKSClustersRequest) (*EnrollEKSClusterResponse, error) {
+func EnrollEKSClusters(ctx context.Context, log *slog.Logger, clock clockwork.Clock, proxyAddr string, credsProvider aws.CredentialsProvider, clt EnrollEKSCLusterClient, req EnrollEKSClustersRequest) (*EnrollEKSClusterResponse, error) {
 	var mu sync.Mutex
 	var results []EnrollEKSClusterResult
 
@@ -278,7 +279,10 @@ func EnrollEKSClusters(ctx context.Context, log logrus.FieldLogger, clock clockw
 		group.Go(func() error {
 			resourceId, err := enrollEKSCluster(ctx, log, clock, credsProvider, clt, proxyAddr, eksClusterName, req)
 			if err != nil {
-				log.WithError(err).Debugf("failed to enroll EKS cluster %q", eksClusterName)
+				log.WarnContext(ctx, "Failed to enroll EKS cluster",
+					"error", err,
+					"cluster", eksClusterName,
+				)
 			}
 
 			mu.Lock()
@@ -294,7 +298,7 @@ func EnrollEKSClusters(ctx context.Context, log logrus.FieldLogger, clock clockw
 	return &EnrollEKSClusterResponse{Results: results}, nil
 }
 
-func enrollEKSCluster(ctx context.Context, log logrus.FieldLogger, clock clockwork.Clock, credsProvider aws.CredentialsProvider, clt EnrollEKSCLusterClient, proxyAddr, clusterName string, req EnrollEKSClustersRequest) (string, error) {
+func enrollEKSCluster(ctx context.Context, log *slog.Logger, clock clockwork.Clock, credsProvider aws.CredentialsProvider, clt EnrollEKSCLusterClient, proxyAddr, clusterName string, req EnrollEKSClustersRequest) (string, error) {
 	eksClusterInfo, err := clt.DescribeCluster(ctx, &eks.DescribeClusterInput{
 		Name: aws.String(clusterName),
 	})
@@ -323,7 +327,11 @@ func enrollEKSCluster(ctx context.Context, log logrus.FieldLogger, clock clockwo
 				ClusterName:  aws.String(clusterName),
 				PrincipalArn: aws.String(principalArn),
 			}); err != nil {
-				log.WithError(err).Warnf("could not delete access entry for principal %q on cluster %q", principalArn, clusterName)
+				log.WarnContext(ctx, "Could not delete access entry for principal %q on cluster %q",
+					"error", err,
+					"principal", principalArn,
+					"cluster", clusterName,
+				)
 			}
 		}()
 	}
@@ -464,9 +472,17 @@ func getKubeClientGetter(ctx context.Context, timestamp time.Time, credsProvider
 	return configFlags, nil
 }
 
-func getHelmActionConfig(clientGetter genericclioptions.RESTClientGetter, log logrus.FieldLogger) (*action.Configuration, error) {
+func getHelmActionConfig(ctx context.Context, clientGetter genericclioptions.RESTClientGetter, log *slog.Logger) (*action.Configuration, error) {
 	actionConfig := new(action.Configuration)
-	if err := actionConfig.Init(clientGetter, agentNamespace, "secret", log.WithField("source", "helm").Debugf); err != nil {
+
+	// helm.action.Configuration requires a debug method that supports string interpolation (similar to fmt.XPrintf family of commands).
+	// > func(format string, v ...interface{})
+	// slog.Log does not support it, so it must be added
+	debugLogWithFormat := func(format string, v ...interface{}) {
+		formatString := fmt.Sprintf(format, v...)
+		log.DebugContext(ctx, formatString) //nolint:sloglint // message should be a constant but in this case we are creating it at runtime.
+	}
+	if err := actionConfig.Init(clientGetter, agentNamespace, "secret", debugLogWithFormat); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -511,7 +527,6 @@ type installKubeAgentParams struct {
 	resourceID   string
 	actionConfig *action.Configuration
 	req          EnrollEKSClustersRequest
-	log          logrus.FieldLogger
 }
 
 func getChartURL(version string) *url.URL {

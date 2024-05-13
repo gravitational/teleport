@@ -24,6 +24,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"log/slog"
 	"math/big"
 	"net"
 	"net/url"
@@ -36,12 +37,14 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/recovery"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/sirupsen/logrus"
 	workloadpb "github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/peer"
+	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -51,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/uds"
 )
 
 // SPIFFEWorkloadAPIService implements a gRPC server that fulfills the SPIFFE
@@ -68,7 +72,7 @@ type SPIFFEWorkloadAPIService struct {
 	svcIdentity *config.UnstableClientCredentialOutput
 	botCfg      *config.BotConfig
 	cfg         *config.SPIFFEWorkloadAPIService
-	log         logrus.FieldLogger
+	log         *slog.Logger
 	botClient   *auth.Client
 	resolver    reversetunnelclient.Resolver
 	// rootReloadBroadcaster allows the service to listen for CA rotations and
@@ -118,7 +122,7 @@ func (s *SPIFFEWorkloadAPIService) fetchBundle(ctx context.Context) error {
 		}
 	}
 
-	s.log.Info("Fetched new trust bundle")
+	s.log.InfoContext(ctx, "Fetched new trust bundle")
 	s.setTrustBundle(trustBundleBytes.Bytes())
 	return nil
 }
@@ -169,14 +173,15 @@ func (s *SPIFFEWorkloadAPIService) setup(ctx context.Context) (err error) {
 	return nil
 }
 
-func createListener(log logrus.FieldLogger, addr string) (net.Listener, error) {
+func createListener(ctx context.Context, log *slog.Logger, addr string) (net.Listener, error) {
 	parsed, err := url.Parse(addr)
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing %q", addr)
 	}
 
 	switch parsed.Scheme {
-	case "tcp":
+	// If no scheme is provided, default to TCP.
+	case "tcp", "":
 		return net.Listen("tcp", parsed.Host)
 	case "unix":
 		absPath, err := filepath.Abs(parsed.Path)
@@ -187,7 +192,7 @@ func createListener(log logrus.FieldLogger, addr string) (net.Listener, error) {
 		// Remove the file if it already exists. This is necessary to handle
 		// unclean exits.
 		if err := os.Remove(absPath); err != nil && !os.IsNotExist(err) {
-			log.WithError(err).Warn("Failed to remove existing socket file")
+			log.WarnContext(ctx, "Failed to remove existing socket file", "error", err)
 		}
 
 		return net.ListenUnix("unix", &net.UnixAddr{
@@ -203,12 +208,12 @@ func (s *SPIFFEWorkloadAPIService) Run(ctx context.Context) error {
 	ctx, span := tracer.Start(ctx, "SPIFFEWorkloadAPIService/Run")
 	defer span.End()
 
-	s.log.Debug("Starting pre-run initialization")
+	s.log.DebugContext(ctx, "Starting pre-run initialization")
 	if err := s.setup(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 	defer s.client.Close()
-	s.log.Debug("Completed pre-run initialization")
+	s.log.DebugContext(ctx, "Completed pre-run initialization")
 
 	srvMetrics := metrics.CreateGRPCServerMetrics(
 		true, prometheus.Labels{
@@ -224,7 +229,7 @@ func (s *SPIFFEWorkloadAPIService) Run(ctx context.Context) error {
 			// - Transport Layer Security MUST NOT be required
 			// TODO(noah): We should optionally provide TLS support here down
 			// the road.
-			insecure.NewCredentials(),
+			uds.NewTransportCredentials(insecure.NewCredentials()),
 		),
 		grpc.ChainUnaryInterceptor(
 			recovery.UnaryServerInterceptor(),
@@ -239,19 +244,19 @@ func (s *SPIFFEWorkloadAPIService) Run(ctx context.Context) error {
 	)
 	workloadpb.RegisterSpiffeWorkloadAPIServer(srv, s)
 
-	lis, err := createListener(s.log, s.cfg.Listen)
+	lis, err := createListener(ctx, s.log, s.cfg.Listen)
 	if err != nil {
 		return trace.Wrap(err, "creating listener")
 	}
 	defer func() {
 		if err := lis.Close(); err != nil {
-			s.log.WithError(err).Error("Encountered error closing listener")
+			s.log.ErrorContext(ctx, "Encountered error closing listener", "error", err)
 		}
 	}()
-	s.log.WithField("addr", lis.Addr().String()).Info("Listener opened for Workload API endpoint")
+	s.log.InfoContext(ctx, "Listener opened for Workload API endpoint", "addr", lis.Addr().String())
 	if lis.Addr().Network() == "tcp" {
-		s.log.Warn(
-			"Workload API endpoint listening on a TCP port. Ensure that only intended hosts can reach this port!",
+		s.log.WarnContext(
+			ctx, "Workload API endpoint listening on a TCP port. Ensure that only intended hosts can reach this port!",
 		)
 	}
 
@@ -264,9 +269,9 @@ func (s *SPIFFEWorkloadAPIService) Run(ctx context.Context) error {
 	eg.Go(func() error {
 		// Shutdown the server when the context is canceled
 		<-egCtx.Done()
-		s.log.Debug("Shutting down Workload API endpoint")
+		s.log.DebugContext(ctx, "Shutting down Workload API endpoint")
 		srv.Stop()
-		s.log.Info("Shut down Workload API endpoint")
+		s.log.InfoContext(ctx, "Shut down Workload API endpoint")
 		return nil
 	})
 	eg.Go(func() error {
@@ -291,7 +296,7 @@ func (s *SPIFFEWorkloadAPIService) handleCARotations(ctx context.Context) error 
 		case <-reloadCh:
 		}
 
-		s.log.Info("CA rotation detected, fetching trust bundle")
+		s.log.InfoContext(ctx, "CA rotation detected, fetching trust bundle")
 		err := s.fetchBundle(ctx)
 		if err != nil {
 			return trace.Wrap(err, "updating trust bundle")
@@ -321,6 +326,8 @@ func serialString(serial *big.Int) string {
 // returns them in the SPIFFE Workload API format.
 func (s *SPIFFEWorkloadAPIService) fetchX509SVIDs(
 	ctx context.Context,
+	log *slog.Logger,
+	svidRequests []config.SVIDRequest,
 ) ([]*workloadpb.X509SVID, error) {
 	ctx, span := tracer.Start(ctx, "SPIFFEWorkloadAPIService/fetchX509SVIDs")
 	defer span.End()
@@ -328,13 +335,14 @@ func (s *SPIFFEWorkloadAPIService) fetchX509SVIDs(
 	// contention on the mutex and to ensure that all SVIDs are using the
 	// same trust bundle.
 	trustBundle := s.getTrustBundle()
+
 	// TODO(noah): We should probably take inspiration from SPIRE agent's
 	// behavior of pre-fetching the SVIDs rather than doing this for
 	// every request.
 	res, privateKey, err := config.GenerateSVID(
 		ctx,
 		s.client.WorkloadIdentityServiceClient(),
-		s.cfg.SVIDs,
+		svidRequests,
 		// For TTL, we use the one globally configured.
 		s.botCfg.CertificateTTL,
 	)
@@ -370,20 +378,94 @@ func (s *SPIFFEWorkloadAPIService) fetchX509SVIDs(
 		}
 		// Log a message which correlates with the audit log entry and can
 		// provide additional metadata about the client.
-		s.log.WithFields(logrus.Fields{
-			"svid_type":     "x509",
-			"spiffe_id":     svidRes.SpiffeId,
-			"serial_number": serialString(cert.SerialNumber),
-			"hint":          svidRes.Hint,
-			"not_after":     cert.NotAfter,
-			"not_before":    cert.NotBefore,
-			"dns_sans":      cert.DNSNames,
-			"ip_sans":       cert.IPAddresses,
-			"serial":        cert.SerialNumber,
-		}).Info("Issued SVID for workload")
+		log.InfoContext(ctx,
+			"Issued SVID for workload",
+			slog.Group("svid",
+				"type", "x509",
+				"spiffe_id", svidRes.SpiffeId,
+				"serial_number", serialString(cert.SerialNumber),
+				"hint", svidRes.Hint,
+				"not_after", cert.NotAfter,
+				"not_before", cert.NotBefore,
+				"dns_sans", cert.DNSNames,
+				"ip_sans", cert.IPAddresses,
+			),
+		)
 	}
 
 	return svids, nil
+}
+
+// filterSVIDRequests filters the SVID requests based on the workload
+// attestation.
+func filterSVIDRequests(
+	ctx context.Context,
+	log *slog.Logger,
+	svidRequests []config.SVIDRequestWithRules,
+	udsCreds *uds.Creds,
+) []config.SVIDRequest {
+	var filtered []config.SVIDRequest
+	for _, req := range svidRequests {
+		log := log.With("svid", req.SVIDRequest)
+		// If no rules are configured, default to allow.
+		if len(req.Rules) == 0 {
+			log.DebugContext(
+				ctx,
+				"No rules configured for SVID. SVID will be issued",
+			)
+			filtered = append(filtered, req.SVIDRequest)
+			continue
+		}
+
+		// Otherwise, evaluate all the rules, looking for one matching rule.
+		match := false
+		for _, rule := range req.Rules {
+			log := log.With("rule", rule)
+			log.DebugContext(
+				ctx,
+				"Evaluating rule against workload attestation",
+			)
+			if rule.Unix.UID != nil && (udsCreds == nil || *rule.Unix.UID != udsCreds.UID) {
+				log.DebugContext(
+					ctx,
+					"Rule did not match workload attestation",
+					"field", "unix.uid",
+				)
+				continue
+			}
+			if rule.Unix.PID != nil && (udsCreds == nil || *rule.Unix.PID != udsCreds.PID) {
+				log.DebugContext(
+					ctx,
+					"Rule did not match workload attestation",
+					"field", "unix.pid",
+				)
+				continue
+			}
+			if rule.Unix.GID != nil && (udsCreds == nil || *rule.Unix.GID != udsCreds.GID) {
+				log.DebugContext(
+					ctx,
+					"Rule did not match workload attestation",
+					"field", "unix.gid",
+				)
+				continue
+			}
+
+			log.DebugContext(
+				ctx,
+				"Rule matched workload attestation. SVID will be issued",
+			)
+			match = true
+			filtered = append(filtered, req.SVIDRequest)
+			break
+		}
+		if !match {
+			log.DebugContext(
+				ctx,
+				"No rules matched workload attestation. SVID will not be issued",
+			)
+		}
+	}
+	return filtered
 }
 
 // FetchX509SVID generates and returns the X.509 SVIDs available to a workload.
@@ -396,13 +478,59 @@ func (s *SPIFFEWorkloadAPIService) FetchX509SVID(
 ) error {
 	renewCh, unsubscribe := s.trustBundleBroadcast.subscribe()
 	defer unsubscribe()
-	s.log.Info("FetchX509SVID stream opened by workload")
-	defer s.log.Info("FetchX509SVID stream has closed")
+	ctx := srv.Context()
+
+	p, ok := peer.FromContext(ctx)
+	if !ok {
+		return trace.BadParameter("peer not found in context")
+	}
+	log := s.log
+	authInfo, ok := p.AuthInfo.(uds.AuthInfo)
+	if ok && authInfo.Creds != nil {
+		log = log.With(
+			slog.Group("workload",
+				slog.Group("unix",
+					"pid", authInfo.Creds.PID,
+					"uid", authInfo.Creds.UID,
+					"gid", authInfo.Creds.GID,
+				),
+			),
+		)
+	}
+	if p.Addr.String() != "" {
+		log = log.With(
+			slog.Group("workload",
+				slog.String("addr", p.Addr.String()),
+			),
+		)
+	}
+
+	log.InfoContext(ctx, "FetchX509SVID stream opened by workload")
+	defer log.InfoContext(ctx, "FetchX509SVID stream has closed")
+
+	// Before we issue the SVIDs to the workload, we need to complete workload
+	// attestation and determine which SVIDs to issue.
+	svidReqs := filterSVIDRequests(ctx, log, s.cfg.SVIDs, authInfo.Creds)
+
+	// The SPIFFE Workload API (5.2.1):
+	//
+	//   If the client is not entitled to receive any X509-SVIDs, then the
+	//   server SHOULD respond with the "PermissionDenied" gRPC status code (see
+	//   the Error Codes section in the SPIFFE Workload Endpoint specification
+	//   for more information). Under such a case, the client MAY attempt to
+	//   reconnect with another call to the FetchX509SVID RPC after a backoff.
+	if len(svidReqs) == 0 {
+		log.ErrorContext(ctx, "Workload did not pass attestation for any SVIDs")
+		return status.Error(
+			codes.PermissionDenied,
+			"workload did not pass attestation for any SVIDs",
+		)
+	}
 
 	for {
-		s.log.Info("Starting to issue X509 SVIDs to workload")
+		log.InfoContext(ctx, "Starting to issue X509 SVIDs to workload")
 
-		svids, err := s.fetchX509SVIDs(srv.Context())
+		svids, err := s.fetchX509SVIDs(ctx, log, svidReqs)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -412,20 +540,20 @@ func (s *SPIFFEWorkloadAPIService) FetchX509SVID(
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		s.log.Debug(
-			"Finished issuing SVIDs to workload. Waiting for next renewal interval or CA rotation",
+		log.DebugContext(
+			ctx, "Finished issuing SVIDs to workload. Waiting for next renewal interval or CA rotation",
 		)
 
 		select {
-		case <-srv.Context().Done():
-			s.log.Debug("Context closed, stopping SVID stream")
+		case <-ctx.Done():
+			log.DebugContext(ctx, "Context closed, stopping SVID stream")
 			return nil
 		case <-time.After(s.botCfg.RenewalInterval):
-			s.log.Debug("Renewal interval reached, renewing SVIDs")
+			log.DebugContext(ctx, "Renewal interval reached, renewing SVIDs")
 			// Time to renew the certificate
 			continue
 		case <-renewCh:
-			s.log.Debug("Trust bundle has been updated, renewing SVIDs")
+			log.DebugContext(ctx, "Trust bundle has been updated, renewing SVIDs")
 			continue
 		}
 	}
@@ -439,13 +567,14 @@ func (s *SPIFFEWorkloadAPIService) FetchX509Bundles(
 	_ *workloadpb.X509BundlesRequest,
 	srv workloadpb.SpiffeWorkloadAPI_FetchX509BundlesServer,
 ) error {
-	s.log.Info("FetchX509Bundles stream opened by workload")
-	defer s.log.Info("FetchX509Bundles stream has closed")
+	ctx := srv.Context()
+	s.log.InfoContext(ctx, "FetchX509Bundles stream opened by workload")
+	defer s.log.InfoContext(ctx, "FetchX509Bundles stream has closed")
 	renewCh, unsubscribe := s.trustBundleBroadcast.subscribe()
 	defer unsubscribe()
 
 	for {
-		s.log.Info("Sending X.509 trust bundles to workload")
+		s.log.InfoContext(ctx, "Sending X.509 trust bundles to workload")
 		err := srv.Send(&workloadpb.X509BundlesResponse{
 			// Bundles keyed by trust domain
 			Bundles: map[string][]byte{
@@ -457,11 +586,11 @@ func (s *SPIFFEWorkloadAPIService) FetchX509Bundles(
 		}
 
 		select {
-		case <-srv.Context().Done():
-			s.log.Debug("Context closed, stopping x.509 trust bundle stream")
+		case <-ctx.Done():
+			s.log.DebugContext(ctx, "Context closed, stopping x.509 trust bundle stream")
 			return nil
 		case <-renewCh:
-			s.log.Debug("Trust bundle has been updated, resending trust bundle")
+			s.log.DebugContext(ctx, "Trust bundle has been updated, resending trust bundle")
 			continue
 		}
 	}
