@@ -54,7 +54,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
-	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
@@ -4198,74 +4197,6 @@ func TestGRPCServer_GetInstallers(t *testing.T) {
 	}
 }
 
-// DELETE IN 16.0
-// TestPing_VersionCheck_AccessMonitoringFlag tests that client versions <=14.2.0
-// sets the IGS flag. Old clients will expect IGS == access monitoring.
-func TestPing_VersionCheck_AccessMonitoringFlag(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
-		TestFeatures: modules.Features{
-			AccessMonitoring: modules.AccessMonitoringFeature{
-				Enabled: true,
-			},
-		},
-	})
-
-	srv := newTestTLSServer(t)
-	srv.Auth().accessMonitoringEnabled = true
-
-	user, _, err := CreateUserAndRoleWithoutRoles(srv.Auth(), "user", nil)
-	require.NoError(t, err)
-
-	client, err := srv.NewClient(TestUser(user.GetName()))
-	require.NoError(t, err)
-
-	// Test with latest major version that supports access monitoring field.
-	// Should NOT enable IGS.
-	ctx := context.Background()
-	ctx = metadata.AddMetadataToContext(ctx, map[string]string{
-		metadata.VersionKey: "15.0.0",
-	})
-	ping, err := client.Ping(ctx)
-	require.NoError(t, err)
-	require.False(t, ping.ServerFeatures.IdentityGovernance, "expected field IdentityGovernance to be false")
-	require.True(t, ping.ServerFeatures.AccessMonitoring.Enabled, "expected field AccessMonitoring.Enabled to be true")
-
-	// Test with minimum major/minor/patch version that supports access monitoring field.
-	// Should NOT enable IGS.
-	ctx2 := context.Background()
-	ctx2 = metadata.AddMetadataToContext(ctx2, map[string]string{
-		metadata.VersionKey: "14.2.1",
-	})
-	ping, err = client.Ping(ctx2)
-	require.NoError(t, err)
-	require.False(t, ping.ServerFeatures.IdentityGovernance, "expected field IdentityGovernance to be false")
-	require.True(t, ping.ServerFeatures.AccessMonitoring.Enabled, "expected field AccessMonitoring.Enabled to be true")
-
-	// Test with version that does NOT support access monitoring field.
-	// Should return with IGS enabled to mean access monitoring was enabled
-	// (because that's what older clients expect)
-	ctx3 := context.Background()
-	ctx3 = metadata.AddMetadataToContext(ctx3, map[string]string{
-		metadata.VersionKey: "14.2.0",
-	})
-	ping, err = client.Ping(ctx3)
-	require.NoError(t, err)
-	require.True(t, ping.ServerFeatures.IdentityGovernance, "expected field IdentityGovernance to be true")
-	require.True(t, ping.ServerFeatures.AccessMonitoring.Enabled, "expected field AccessMonitoring.Enabled to be true")
-
-	// Test with an older version.
-	// Should return with IGS enabled to mean access monitoring was enabled
-	// (because that's what older clients expect)
-	ctx4 := context.Background()
-	ctx4 = metadata.AddMetadataToContext(ctx4, map[string]string{
-		metadata.VersionKey: "13.3.0",
-	})
-	ping, err = client.Ping(ctx4)
-	require.NoError(t, err)
-	require.True(t, ping.ServerFeatures.IdentityGovernance, "expected field IdentityGovernance to be true")
-	require.True(t, ping.ServerFeatures.AccessMonitoring.Enabled, "expected field AccessMonitoring.Enabled to be true")
-}
-
 func TestUpsertApplicationServerOrigin(t *testing.T) {
 	t.Parallel()
 
@@ -4353,108 +4284,6 @@ func TestUpsertApplicationServerOrigin(t *testing.T) {
 	ctx = authz.ContextWithUser(parentCtx, node.I)
 	_, err = client.UpsertApplicationServer(ctx, appServer)
 	require.NoError(t, err)
-}
-
-func TestDropDBClientCAEvents(t *testing.T) {
-	server := newTestTLSServer(t)
-	client, err := server.NewClient(TestIdentity{
-		I: authz.BuiltinRole{
-			Role: types.RoleDatabase,
-			AdditionalSystemRoles: []types.SystemRole{
-				types.RoleNode,
-			},
-			Username: server.ClusterName(),
-		},
-	})
-	require.NoError(t, err)
-
-	dbClientCAs, err := client.GetCertAuthorities(context.Background(), types.DatabaseClientCA, false)
-	require.NoError(t, err)
-	require.Len(t, dbClientCAs, 1)
-
-	dbCAs, err := client.GetCertAuthorities(context.Background(), types.DatabaseCA, false)
-	require.NoError(t, err)
-	require.Len(t, dbCAs, 1)
-
-	tests := []struct {
-		desc          string
-		clientVersion string
-		filter        map[string]string
-		expectDrop    bool
-	}{
-		{
-			desc:          "send db client CA events to supported client",
-			clientVersion: dbClientCACutoffVersion.String(),
-		},
-		{
-			desc:          "drop db client CA events to unsupported client",
-			clientVersion: "14.0.0",
-			expectDrop:    true,
-		},
-	}
-
-	for i, test := range tests {
-		t.Run(test.desc, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-			defer cancel()
-			clientCtx := metadata.AddMetadataToContext(ctx,
-				map[string]string{
-					metadata.VersionKey: test.clientVersion,
-				})
-
-			requestedKind := types.WatchKind{Kind: types.KindCertAuthority, LoadSecrets: false}
-			watcher, err := client.NewWatcher(clientCtx, types.Watch{
-				Name:  "cas",
-				Kinds: []types.WatchKind{requestedKind},
-			})
-			require.NoError(t, err)
-			defer watcher.Close()
-
-			// Swallow the init event
-			e := <-watcher.Events()
-			require.Equal(t, types.OpInit, e.Type)
-			status, ok := e.Resource.(types.WatchStatus)
-			require.True(t, ok)
-			require.NotNil(t, status)
-			kinds := status.GetKinds()
-			for _, k := range kinds {
-				if k.Kind == types.KindCertAuthority {
-					require.Equal(t, requestedKind, k)
-				}
-			}
-
-			// update the db client ca so the watcher gets an OpPut event
-			dbClientCAs[0].SetName(fmt.Sprintf("stub_%v", i))
-			err = server.Auth().UpsertCertAuthority(ctx, dbClientCAs[0])
-			require.NoError(t, err)
-
-			// update the db ca so the watcher gets an OpPut event
-			dbCAs[0].SetName(fmt.Sprintf("stub_%v", i))
-			err = server.Auth().UpsertCertAuthority(ctx, dbCAs[0])
-			require.NoError(t, err)
-
-			gotCA, err := func() (types.CertAuthority, error) {
-				for {
-					select {
-					case <-watcher.Done():
-						return nil, watcher.Error()
-					case e := <-watcher.Events():
-						if ca, ok := e.Resource.(types.CertAuthority); ok {
-							return ca, nil
-						}
-					}
-				}
-			}()
-			require.NoError(t, err)
-			if test.expectDrop {
-				// the watcher should only see the second ca event.
-				require.Equal(t, types.DatabaseCA, gotCA.GetType(), "db client CA event was supposed to be dropped")
-				return
-			}
-			// watcher should see the first event if it wasn't dropped.
-			require.Equal(t, types.DatabaseClientCA, gotCA.GetType(), "db client CA event was not supposed to be dropped")
-		})
-	}
 }
 
 func TestGetAccessGraphConfig(t *testing.T) {

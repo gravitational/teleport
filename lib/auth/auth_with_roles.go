@@ -2661,7 +2661,7 @@ func (a *ServerWithRoles) DeleteAccessRequest(ctx context.Context, name string) 
 }
 
 // GetUsers returns all existing users
-// TODO(tross): DELETE IN 16.0.0
+// TODO(tross): DELETE IN 17.0.0
 // Deprecated: use [usersv1.Service.ListUsers] instead.
 func (a *ServerWithRoles) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error) {
 	if withSecrets {
@@ -3338,7 +3338,7 @@ func (a *ServerWithRoles) trySettingConnectorNameToPasswordless(ctx context.Cont
 
 // UpdateUser updates an existing user in a backend.
 // Captures the auth user who modified the user record.
-// TODO(tross): DELETE IN 16.0.0
+// TODO(tross): DELETE IN 17.0.0
 // Deprecated: use [usersv1.Service.UpdateUser] instead.
 func (a *ServerWithRoles) UpdateUser(ctx context.Context, user types.User) (types.User, error) {
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbUpdate); err != nil {
@@ -3358,7 +3358,7 @@ func (a *ServerWithRoles) UpdateUser(ctx context.Context, user types.User) (type
 }
 
 // UpsertUser create or updates an existing user.
-// TODO(tross): DELETE IN 16.0.0
+// TODO(tross): DELETE IN 17.0.0
 // Deprecated: use [usersv1.Service.UpdateUser] instead.
 func (a *ServerWithRoles) UpsertUser(ctx context.Context, u types.User) (types.User, error) {
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbCreate, types.VerbUpdate); err != nil {

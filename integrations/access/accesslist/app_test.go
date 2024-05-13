@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
@@ -110,13 +111,8 @@ func TestAccessListReminders(t *testing.T) {
 
 	clock := clockwork.NewFakeClockAt(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC))
 
-	server, err := auth.NewTestServer(auth.TestServerConfig{
-		Auth: auth.TestAuthServerConfig{
-			Dir:   t.TempDir(),
-			Clock: clockwork.NewFakeClock(),
-		},
-	})
-	require.NoError(t, err)
+	server := newTestAuth(t)
+
 	as := server.Auth()
 	t.Cleanup(func() {
 		require.NoError(t, as.Close())
@@ -217,13 +213,7 @@ func TestAccessListReminders_BadClient(t *testing.T) {
 
 	clock := clockwork.NewFakeClockAt(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC))
 
-	server, err := auth.NewTestServer(auth.TestServerConfig{
-		Auth: auth.TestAuthServerConfig{
-			Dir:   t.TempDir(),
-			Clock: clockwork.NewFakeClock(),
-		},
-	})
-	require.NoError(t, err)
+	server := newTestAuth(t)
 	as := server.Auth()
 	t.Cleanup(func() {
 		require.NoError(t, as.Close())
@@ -292,4 +282,21 @@ func advanceAndLookForRecipients(t *testing.T,
 	clock.BlockUntil(1)
 
 	require.ElementsMatch(t, expectedRecipients, bot.getLastRecipients())
+}
+
+func newTestAuth(t *testing.T) *auth.TestServer {
+	server, err := auth.NewTestServer(auth.TestServerConfig{
+		Auth: auth.TestAuthServerConfig{
+			Dir:   t.TempDir(),
+			Clock: clockwork.NewFakeClock(),
+			AuthPreferenceSpec: &types.AuthPreferenceSpecV2{
+				SecondFactor: constants.SecondFactorOn,
+				Webauthn: &types.Webauthn{
+					RPID: "localhost",
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	return server
 }
