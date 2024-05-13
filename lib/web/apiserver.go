@@ -313,6 +313,9 @@ type Config struct {
 	// proxy built-in version server to retrieve target versions. This is part
 	// of the automatic upgrades.
 	AutomaticUpgradesChannels automaticupgrades.Channels
+
+	// IntegrationAppHandler handles App Access requests which use an Integration.
+	IntegrationAppHandler app.ServerHandler
 }
 
 // SetDefaults ensures proper default values are set if
@@ -574,24 +577,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 			session.XCSRF = csrfToken
 
 			httplib.SetNoCacheHeaders(w.Header())
-
-			// DELETE IN 17.0: Delete the first if block. Keep the else case.
-			// Kept for backwards compatibility.
-			//
-			// This case only adds an additional CSP `content-src` value of the
-			// app URL which allows requesting to the app domain required by
-			// the legacy app access.
-			if strings.HasPrefix(r.URL.Path, "/web/launch/") {
-				// legacy app access needs to make a CORS fetch request,
-				// so we only set the default CSP on that page
-				parts := strings.Split(r.URL.Path, "/")
-				// grab the FQDN from the URL to allow in the connect-src CSP
-				applicationURL := "https://" + parts[3] + ":*"
-
-				httplib.SetAppLaunchContentSecurityPolicy(w.Header(), applicationURL)
-			} else {
-				httplib.SetIndexContentSecurityPolicy(w.Header(), cfg.ClusterFeatures, r.URL.Path)
-			}
+			httplib.SetIndexContentSecurityPolicy(w.Header(), cfg.ClusterFeatures, r.URL.Path)
 
 			if err := indexPage.Execute(w, session); err != nil {
 				h.log.WithError(err).Error("Failed to execute index page template.")
@@ -619,13 +605,14 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	var appHandler *app.Handler
 	if !cfg.MinimalReverseTunnelRoutesOnly {
 		appHandler, err = app.NewHandler(cfg.Context, &app.HandlerConfig{
-			Clock:            h.clock,
-			AuthClient:       cfg.ProxyClient,
-			AccessPoint:      cfg.AccessPoint,
-			ProxyClient:      cfg.Proxy,
-			CipherSuites:     cfg.CipherSuites,
-			ProxyPublicAddrs: cfg.ProxyPublicAddrs,
-			WebPublicAddr:    resp.SSH.PublicAddr,
+			Clock:                 h.clock,
+			AuthClient:            cfg.ProxyClient,
+			AccessPoint:           cfg.AccessPoint,
+			ProxyClient:           cfg.Proxy,
+			CipherSuites:          cfg.CipherSuites,
+			ProxyPublicAddrs:      cfg.ProxyPublicAddrs,
+			WebPublicAddr:         resp.SSH.PublicAddr,
+			IntegrationAppHandler: cfg.IntegrationAppHandler,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -764,6 +751,8 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/connect", h.WithClusterAuthWebSocket(false, h.siteNodeConnect))     // connect to an active session (via websocket)
 	h.GET("/webapi/sites/:site/connect/ws", h.WithClusterAuthWebSocket(true, h.siteNodeConnect))   // connect to an active session (via websocket, with auth over websocket)
 	h.GET("/webapi/sites/:site/sessions", h.WithClusterAuth(h.clusterActiveAndPendingSessionsGet)) // get list of active and pending sessions
+
+	h.GET("/webapi/sites/:site/kube/:clusterName/connect/ws", h.WithClusterAuthWebSocket(true, h.podConnect)) // connect to a pod with exec (via websocket, with auth over websocket)
 
 	// Audit events handlers.
 	h.GET("/webapi/sites/:site/events/search", h.WithClusterAuth(h.clusterSearchEvents))                 // search site events
@@ -924,6 +913,8 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/scripts/integrations/configure/eks-iam.sh", h.WithLimiter(h.awsOIDCConfigureEKSIAM))
 	h.GET("/webapi/scripts/integrations/configure/access-graph-cloud-sync-iam.sh", h.WithLimiter(h.accessGraphCloudSyncOIDC))
 	h.GET("/webapi/scripts/integrations/configure/aws-app-access-iam.sh", h.WithLimiter(h.awsOIDCConfigureAWSAppAccessIAM))
+	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/aws-app-access", h.WithClusterAuth(h.awsOIDCCreateAWSAppAccess))
+	h.GET("/webapi/scripts/integrations/configure/ec2-ssm-iam.sh", h.WithLimiter(h.awsOIDCConfigureEC2SSMIAM))
 
 	// SAML IDP integration endpoints
 	h.GET("/webapi/scripts/integrations/configure/gcp-workforce-saml.sh", h.WithLimiter(h.gcpWorkforceConfigScript))
@@ -1743,6 +1734,7 @@ func (h *Handler) getUIConfig(ctx context.Context) webclient.UIConfig {
 	if uiConfig, err := h.cfg.AccessPoint.GetUIConfig(ctx); err == nil && uiConfig != nil {
 		return webclient.UIConfig{
 			ScrollbackLines: int(uiConfig.GetScrollbackLines()),
+			ShowResources:   uiConfig.GetShowResources(),
 		}
 	}
 	return h.cfg.UI
@@ -2739,6 +2731,35 @@ func calculateDesktopLogins(loginGetter loginGetter, r types.ResourceWithLabels,
 	return logins, trace.Wrap(err)
 }
 
+// getUserGroupLookup is a generator to retrieve UserGroupLookup on first call and return it again in subsequent calls.
+// If we encounter an error, we log it once and return an empty UserGroupLookup for the current and subsequent calls.
+// The returned function is not thread safe.
+func (h *Handler) getUserGroupLookup(ctx context.Context, clt apiclient.GetResourcesClient) func() map[string]types.UserGroup {
+	userGroupLookup := make(map[string]types.UserGroup)
+	var gotUserGroupLookup bool
+	return func() map[string]types.UserGroup {
+		if gotUserGroupLookup {
+			return userGroupLookup
+		}
+
+		userGroups, err := apiclient.GetAllResources[types.UserGroup](ctx, clt, &proto.ListResourcesRequest{
+			ResourceType:     types.KindUserGroup,
+			Namespace:        apidefaults.Namespace,
+			UseSearchAsRoles: true,
+		})
+		if err != nil {
+			h.log.Infof("Unable to fetch user groups while listing applications, unable to display associated user groups: %v", err)
+		}
+
+		for _, userGroup := range userGroups {
+			userGroupLookup[userGroup.GetName()] = userGroup
+		}
+
+		gotUserGroupLookup = true
+		return userGroupLookup
+	}
+}
+
 // clusterUnifiedResourcesGet returns a list of resources for a given cluster site. This includes all resources available to be displayed in the web ui
 // such as Nodes, Apps, Desktops, etc etc
 func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
@@ -2767,35 +2788,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 		return nil, trace.Wrap(err)
 	}
 
-	var userGroups []types.UserGroup
-
-	// generator to retrieve UserGroupLookup on first call and return it again in subsequent calls.
-	// If we encounter an error, we log it once and return an empty UserGroupLookup for the current and subsequent calls.
-	getUserGroupLookup := func() func() map[string]types.UserGroup {
-		userGroupLookup := make(map[string]types.UserGroup)
-		var gotUserGroupLookup bool
-		return func() map[string]types.UserGroup {
-			if gotUserGroupLookup {
-				return userGroupLookup
-			}
-
-			userGroups, err = apiclient.GetAllResources[types.UserGroup](request.Context(), clt, &proto.ListResourcesRequest{
-				ResourceType:     types.KindUserGroup,
-				Namespace:        apidefaults.Namespace,
-				UseSearchAsRoles: true,
-			})
-			if err != nil {
-				h.log.Infof("Unable to fetch user groups while listing applications, unable to display associated user groups: %v", err)
-			}
-
-			for _, userGroup := range userGroups {
-				userGroupLookup[userGroup.GetName()] = userGroup
-			}
-
-			gotUserGroupLookup = true
-			return userGroupLookup
-		}
-	}()
+	getUserGroupLookup := h.getUserGroupLookup(request.Context(), clt)
 
 	var dbNames, dbUsers []string
 	hasFetchedDBUsersAndNames := false
@@ -3228,6 +3221,114 @@ func (h *Handler) siteNodeConnect(
 	httplib.MakeTracingHandler(term, teleport.ComponentProxy).ServeHTTP(w, r)
 
 	return nil, nil
+}
+
+func (h *Handler) podConnect(
+	w http.ResponseWriter,
+	r *http.Request,
+	p httprouter.Params,
+	sctx *SessionContext,
+	site reversetunnelclient.RemoteSite,
+	ws *websocket.Conn,
+) (interface{}, error) {
+	q := r.URL.Query()
+	params := q.Get("params")
+	if params == "" {
+		return nil, trace.BadParameter("missing params")
+	}
+
+	var execReq PodExecRequest
+	if err := json.Unmarshal([]byte(params), &execReq); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := sctx.GetUserClient(r.Context(), site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clusterName := site.GetName()
+
+	accessChecker, err := sctx.GetUserAccessChecker()
+	if err != nil {
+		return session.Session{}, trace.Wrap(err)
+	}
+	policySets := accessChecker.SessionPolicySets()
+	accessEvaluator := auth.NewSessionAccessEvaluator(policySets, types.KubernetesSessionKind, sctx.GetUser())
+
+	sess := session.Session{
+		Kind:                  types.KubernetesSessionKind,
+		Login:                 sctx.GetUser(),
+		ClusterName:           clusterName,
+		KubernetesClusterName: execReq.KubeCluster,
+		Moderated:             accessEvaluator.IsModerated(),
+		ID:                    session.NewID(),
+		Created:               h.clock.Now().UTC(),
+		LastActive:            h.clock.Now().UTC(),
+		Namespace:             apidefaults.Namespace,
+		Owner:                 sctx.GetUser(),
+	}
+
+	h.log.Debugf("New kube exec request for namespace=%s pod=%s container=%s, sid=%s, websid=%s.",
+		execReq.Namespace, execReq.Pod, execReq.Container, sess.ID, sctx.GetSessionID())
+
+	authAccessPoint, err := site.CachingAccessPoint()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	netConfig, err := authAccessPoint.GetClusterNetworkingConfig(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	keepAliveInterval := netConfig.GetKeepAliveInterval()
+
+	serverAddr, tlsServerName, err := h.getKubeExecClusterData(netConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	hostCA, err := h.auth.accessPoint.GetCertAuthority(r.Context(), types.CertAuthID{
+		Type:       types.HostCA,
+		DomainName: h.auth.clusterName,
+	}, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ph := podHandler{
+		req:                 execReq,
+		sess:                sess,
+		sctx:                sctx,
+		teleportCluster:     site.GetName(),
+		ws:                  ws,
+		keepAliveInterval:   keepAliveInterval,
+		log:                 h.log.WithField(teleport.ComponentKey, "pod"),
+		userClient:          clt,
+		localCA:             hostCA,
+		configServerAddr:    serverAddr,
+		configTLSServerName: tlsServerName,
+	}
+
+	ph.ServeHTTP(w, r)
+	return nil, nil
+}
+
+func (h *Handler) getKubeExecClusterData(netConfig types.ClusterNetworkingConfig) (string, string, error) {
+	if netConfig.GetProxyListenerMode() == types.ProxyListenerMode_Separate {
+		return "https://" + h.kubeProxyHostPort(), "", nil
+	}
+
+	proxyAddr := createHostPort(h.cfg.ProxyWebAddr, defaults.HTTPListenPort)
+	host, port, err := utils.SplitHostPort(proxyAddr)
+	if err != nil {
+		return "", "", trace.Wrap(err, "failed to split proxy address %q", proxyAddr)
+	}
+
+	tlsServerName := client.GetKubeTLSServerName(host)
+
+	return "https://" + net.JoinHostPort(host, port), tlsServerName, nil
 }
 
 func (h *Handler) generateSession(req *TerminalRequest, clusterName string, scx *SessionContext) (session.Session, error) {

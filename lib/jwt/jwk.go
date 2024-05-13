@@ -21,6 +21,8 @@ package jwt
 import (
 	"crypto"
 	"crypto/rsa"
+	"crypto/sha256"
+	"crypto/x509"
 	"encoding/base64"
 	"math/big"
 
@@ -50,6 +52,12 @@ type JWK struct {
 	KeyID string `json:"kid"`
 }
 
+// KeyID returns a key id derived from the public key.
+func KeyID(pub *rsa.PublicKey) string {
+	hash := sha256.Sum256(x509.MarshalPKCS1PublicKey(pub))
+	return base64.RawURLEncoding.EncodeToString(hash[:])
+}
+
 // MarshalJWK will marshal a supported public key into JWK format.
 func MarshalJWK(bytes []byte) (JWK, error) {
 	// Parse the public key and validate type.
@@ -69,7 +77,7 @@ func MarshalJWK(bytes []byte) (JWK, error) {
 		N:         base64.RawURLEncoding.EncodeToString(publicKey.N.Bytes()),
 		E:         base64.RawURLEncoding.EncodeToString(big.NewInt(int64(publicKey.E)).Bytes()),
 		Use:       defaults.JWTUse,
-		KeyID:     "",
+		KeyID:     KeyID(publicKey),
 	}, nil
 }
 

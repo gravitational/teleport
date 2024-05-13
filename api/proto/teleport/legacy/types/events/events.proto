@@ -2476,6 +2476,9 @@ message SAMLConnectorCreate {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // Connector is the new SAML connector
+  types.SAMLConnectorV2 Connector = 4 [(gogoproto.jsontag) = "connector"];
 }
 
 // SAMLConnectorUpdate fires when SAML connector is updated.
@@ -2500,6 +2503,9 @@ message SAMLConnectorUpdate {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // Connector is the updated SAML connector
+  types.SAMLConnectorV2 Connector = 4 [(gogoproto.jsontag) = "connector"];
 }
 
 // SAMLConnectorDelete fires when SAML connector is deleted.
@@ -4100,6 +4106,7 @@ message OneOf {
     events.DatabaseUserCreate DatabaseUserCreate = 155;
     events.DatabaseUserDeactivate DatabaseUserDeactivate = 156;
     events.AccessPathChanged AccessPathChanged = 157;
+    events.SpannerRPC SpannerRPC = 158;
   }
 }
 
@@ -6206,4 +6213,45 @@ message AccessPathChanged {
 
   // AffectedResourceSource is the source of the affected resource, ex: Teleport, AWS, GitLab, etc.
   string AffectedResourceSource = 4 [(gogoproto.jsontag) = "affected_resource_source"];
+}
+
+// SpannerRPC is an event emitted when a Spanner client calls a Spanner RPC.
+message SpannerRPC {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // SessionMetadata is a common event session metadata.
+  SessionMetadata Session = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Database contains database related metadata.
+  DatabaseMetadata Database = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Status indicates whether the RPC was successfully sent to the database.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Procedure is the name of the remote procedure.
+  string Procedure = 6 [(gogoproto.jsontag) = "procedure,omitempty"];
+  // Args are the RPC arguments.
+  google.protobuf.Struct Args = 7 [
+    (gogoproto.jsontag) = "args,omitempty",
+    (gogoproto.casttype) = "Struct"
+  ];
 }

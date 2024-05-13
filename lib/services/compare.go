@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/compare"
+	"github.com/gravitational/teleport/api/types/header"
 )
 
 // CompareResources compares two resources by all significant fields.
@@ -42,6 +43,7 @@ func CompareResources[T any](resA, resB T) int {
 			cmpopts.IgnoreFields(types.DatabaseV3{}, "Status"),
 			cmpopts.IgnoreFields(types.UserSpecV2{}, "Status"),
 			cmpopts.IgnoreFields(accesslist.AccessList{}, "Status"),
+			cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision"),
 			cmpopts.IgnoreUnexported(headerv1.Metadata{}),
 			// Managed by IneligibleStatusReconciler, ignored by all others.
 			cmpopts.IgnoreFields(accesslist.AccessListMemberSpec{}, "IneligibleStatus"),

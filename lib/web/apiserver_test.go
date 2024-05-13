@@ -164,6 +164,7 @@ type WebSuite struct {
 // it as an argument. Otherwise, it will run tests as normal.
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
+	modules.SetInsecureTestMode(true)
 	// If the test is re-executing itself, execute the command that comes over
 	// the pipe.
 	if srv.IsReexec() {
@@ -329,7 +330,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		nodeID,
-		[]ssh.Signer{signer},
+		sshutils.StaticHostSigners(signer),
 		nodeClient,
 		nodeDataDir,
 		"",
@@ -393,7 +394,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		Listener:              revTunListener,
 		ClientTLS:             s.proxyClient.TLSConfig(),
 		ClusterName:           s.server.ClusterName(),
-		HostSigners:           []ssh.Signer{signer},
+		GetHostSigners:        sshutils.StaticHostSigners(signer),
 		LocalAuthClient:       s.proxyClient,
 		LocalAccessPoint:      s.proxyClient,
 		Emitter:               s.proxyClient,
@@ -433,7 +434,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		s.server.ClusterName(),
-		[]ssh.Signer{signer},
+		sshutils.StaticHostSigners(signer),
 		s.proxyClient,
 		t.TempDir(),
 		"",
@@ -459,6 +460,14 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	if cfg.ClusterFeatures != nil {
 		features = *cfg.ClusterFeatures
 	}
+	authID := auth.IdentityID{
+		Role:     types.RoleProxy,
+		HostUUID: proxyID,
+	}
+	dns := []string{"localhost", "127.0.0.1"}
+	proxyIdentity, err := auth.LocalRegister(authID, s.server.Auth(), nil, dns, "", nil)
+	require.NoError(t, err)
+
 	handlerConfig := Config{
 		ClusterFeatures:                 features,
 		Proxy:                           revTunServer,
@@ -483,6 +492,10 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		UI:                   cfg.uiConfig,
 		OpenAIConfig:         cfg.OpenAIConfig,
 		PresenceChecker:      cfg.presenceChecker,
+		GetProxyIdentity: func() (*auth.Identity, error) {
+			return proxyIdentity, nil
+		},
+		IntegrationAppHandler: &mockIntegrationAppHandler{},
 	}
 
 	if handlerConfig.HealthCheckAppServer == nil {
@@ -597,7 +610,7 @@ func (s *WebSuite) addNode(t *testing.T, uuid string, hostname string, address s
 		context.Background(),
 		utils.NetAddr{AddrNetwork: "tcp", Addr: address},
 		hostname,
-		[]ssh.Signer{signer},
+		sshutils.StaticHostSigners(signer),
 		nodeClient,
 		t.TempDir(),
 		"",
@@ -1690,6 +1703,7 @@ func TestNewTerminalHandler(t *testing.T) {
 func TestUIConfig(t *testing.T) {
 	uiConfig := webclient.UIConfig{
 		ScrollbackLines: 555,
+		ShowResources:   constants.ShowResourcesaccessibleOnly,
 	}
 	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -7729,7 +7743,7 @@ func newWebPack(t *testing.T, numProxies int, opts ...proxyOption) *webPack {
 		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		nodeID,
-		hostSigners,
+		sshutils.StaticHostSigners(hostSigners...),
 		nodeClient,
 		nodeDataDir,
 		"",
@@ -7868,7 +7882,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		Listener:              revTunListener,
 		ClientTLS:             authClient.TLSConfig(),
 		ClusterName:           authServer.ClusterName(),
-		HostSigners:           hostSigners,
+		GetHostSigners:        sshutils.StaticHostSigners(hostSigners...),
 		LocalAuthClient:       client,
 		LocalAccessPoint:      client,
 		Emitter:               client,
@@ -8003,7 +8017,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		ctx,
 		utils.NetAddr{AddrNetwork: proxyListener.Addr().Network(), Addr: mux.SSH().Addr().String()},
 		authServer.ClusterName(),
-		hostSigners,
+		sshutils.StaticHostSigners(hostSigners...),
 		client,
 		t.TempDir(),
 		"",
@@ -8023,6 +8037,14 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	t.Cleanup(func() { require.NoError(t, proxyServer.Close()) })
 
 	fs, err := newDebugFileSystem()
+	require.NoError(t, err)
+
+	authID := auth.IdentityID{
+		Role:     types.RoleProxy,
+		HostUUID: proxyID,
+	}
+	dns := []string{"localhost", "127.0.0.1"}
+	proxyIdentity, err := auth.LocalRegister(authID, authServer.Auth(), nil, dns, "", nil)
 	require.NoError(t, err)
 	handler, err := NewHandler(Config{
 		Proxy:            revTunServer,
@@ -8045,6 +8067,10 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		Router:                         router,
 		HealthCheckAppServer:           func(context.Context, string, string) error { return nil },
 		MinimalReverseTunnelRoutesOnly: cfg.minimalHandler,
+		GetProxyIdentity: func() (*auth.Identity, error) {
+			return proxyIdentity, nil
+		},
+		IntegrationAppHandler: &mockIntegrationAppHandler{},
 	}, SetSessionStreamPollPeriod(200*time.Millisecond), SetClock(clock))
 	require.NoError(t, err)
 
@@ -8091,6 +8117,10 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		webURL:  *url,
 	}
 }
+
+type mockIntegrationAppHandler struct{}
+
+func (m *mockIntegrationAppHandler) HandleConnection(_ net.Conn) {}
 
 // webPack represents the state of a single web test.
 // It replicates most of the WebSuite and serves to gradually
@@ -9435,6 +9465,78 @@ func TestWebSocketAuthenticateRequest(t *testing.T) {
 			err = conn.ReadJSON(&status)
 			require.NoError(t, err)
 			require.Equal(t, tc.expectResponse, status)
+		})
+	}
+}
+
+func TestGetKubeExecClusterData(t *testing.T) {
+	testCases := []struct {
+		name          string
+		listenerMode  types.ProxyListenerMode
+		proxyKubeAddr string
+		proxyWebAddr  string
+
+		expectedServerAddr string
+		expectedTLSName    string
+
+		errCheck require.ErrorAssertionFunc
+	}{
+		{
+			name:               "separate, regular addr",
+			listenerMode:       types.ProxyListenerMode_Separate,
+			proxyKubeAddr:      "kube.example.com:555",
+			expectedServerAddr: "https://kube.example.com:555",
+		},
+		{
+			name:               "separate, specified ip addr",
+			listenerMode:       types.ProxyListenerMode_Separate,
+			proxyKubeAddr:      "1.2.3.4:444",
+			expectedServerAddr: "https://1.2.3.4:444",
+		},
+		{
+			name:               "separate, unspecified ip addr",
+			listenerMode:       types.ProxyListenerMode_Separate,
+			proxyKubeAddr:      "0.0.0.0:444",
+			expectedServerAddr: "https://localhost:444",
+		},
+		{
+			name:               "multiplex, regular proxy web addr",
+			listenerMode:       types.ProxyListenerMode_Multiplex,
+			proxyWebAddr:       "web.example.com:777",
+			expectedServerAddr: "https://web.example.com:777",
+			expectedTLSName:    "kube-teleport-proxy-alpn.web.example.com",
+		},
+		{
+			name:               "multiplex, proxy web addr unspecified ip",
+			listenerMode:       types.ProxyListenerMode_Multiplex,
+			proxyWebAddr:       "0.0.0.0:888",
+			expectedServerAddr: "https://localhost:888",
+			expectedTLSName:    "kube-teleport-proxy-alpn.teleport.cluster.local",
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			h := Handler{}
+			if tt.proxyWebAddr != "" {
+				h.cfg.ProxyWebAddr = *utils.MustParseAddr(tt.proxyWebAddr)
+			}
+			if tt.proxyKubeAddr != "" {
+				h.cfg.ProxyKubeAddr = *utils.MustParseAddr(tt.proxyKubeAddr)
+			}
+
+			netConfig := types.ClusterNetworkingConfigV2{Spec: types.ClusterNetworkingConfigSpecV2{
+				ProxyListenerMode: tt.listenerMode,
+			}}
+
+			serverAddr, tlsServerName, err := h.getKubeExecClusterData(&netConfig)
+			if tt.errCheck != nil {
+				tt.errCheck(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.expectedServerAddr, serverAddr)
+			require.Equal(t, tt.expectedTLSName, tlsServerName)
 		})
 	}
 }

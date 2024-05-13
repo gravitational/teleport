@@ -709,7 +709,7 @@ func New(
 	ctx context.Context,
 	addr utils.NetAddr,
 	hostname string,
-	signers []ssh.Signer,
+	getHostSigners sshutils.GetHostSignersFunc,
 	authService srv.AccessPoint,
 	dataDir string,
 	advertiseAddr string,
@@ -830,7 +830,8 @@ func New(
 
 	server, err := sshutils.NewServer(
 		component,
-		addr, s, signers,
+		addr, s,
+		getHostSigners,
 		sshutils.AuthMethods{PublicKey: s.authHandlers.UserKeyAuth},
 		sshutils.SetLimiter(s.limiter),
 		sshutils.SetRequestHandler(s),
@@ -857,14 +858,14 @@ func New(
 
 	var heartbeat srv.HeartbeatI
 	if heartbeatMode == srv.HeartbeatModeNode && s.inventoryHandle != nil {
-		s.Logger.Info("debug -> starting control-stream based heartbeat.")
+		s.Logger.Debug("starting control-stream based heartbeat.")
 		heartbeat, err = srv.NewSSHServerHeartbeat(srv.SSHServerHeartbeatConfig{
 			InventoryHandle: s.inventoryHandle,
 			GetServer:       s.getServerInfo,
 			OnHeartbeat:     s.onHeartbeat,
 		})
 	} else {
-		s.Logger.Info("debug -> starting legacy heartbeat.")
+		s.Logger.Debug("starting legacy heartbeat.")
 		heartbeat, err = srv.NewHeartbeat(srv.HeartbeatConfig{
 			Mode:            heartbeatMode,
 			Context:         ctx,

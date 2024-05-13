@@ -442,7 +442,7 @@ type CLIConf struct {
 	displayParticipantRequirements bool
 
 	// TSHConfig is the loaded tsh configuration file ~/.tsh/config/config.yaml.
-	TSHConfig TSHConfig
+	TSHConfig client.TSHConfig
 
 	// ListAll specifies if an ls command should return results from all clusters and proxies.
 	ListAll bool
@@ -812,9 +812,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	// Applications.
 	apps := app.Command("apps", "View and control proxied applications.").Alias("app")
+	apps.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	lsApps := apps.Command("ls", "List available applications.")
 	lsApps.Flag("verbose", "Show extra application fields.").Short('v').BoolVar(&cf.Verbose)
-	lsApps.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	lsApps.Flag("search", searchHelp).StringVar(&cf.SearchKeywords)
 	lsApps.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	lsApps.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
@@ -822,7 +822,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	lsApps.Flag("all", "List apps from all clusters and proxies.").Short('R').BoolVar(&cf.ListAll)
 	appLogin := apps.Command("login", "Retrieve short-lived certificate for an app.")
 	appLogin.Arg("app", "App name to retrieve credentials for. Can be obtained from `tsh apps ls` output.").Required().StringVar(&cf.AppName)
-	appLogin.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	appLogin.Flag("aws-role", "(For AWS CLI access only) Amazon IAM role ARN or role name.").StringVar(&cf.AWSRole)
 	appLogin.Flag("azure-identity", "(For Azure CLI access only) Azure managed identity name.").StringVar(&cf.AzureIdentity)
 	appLogin.Flag("gcp-service-account", "(For GCP CLI access only) GCP service account name.").StringVar(&cf.GCPServiceAccount)
@@ -870,6 +869,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	proxyApp := proxy.Command("app", "Start local TLS proxy for app connection when using Teleport in single-port mode.")
 	proxyApp.Arg("app", "The name of the application to start local proxy for").Required().StringVar(&cf.AppName)
 	proxyApp.Flag("port", "Specifies the source port used by by the proxy app listener").Short('p').StringVar(&cf.LocalProxyPort)
+	proxyApp.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 
 	proxyAWS := proxy.Command("aws", "Start local proxy for AWS access.")
 	proxyAWS.Flag("app", "Optional Name of the AWS application to use if logged into multiple.").StringVar(&cf.AppName)
@@ -1173,6 +1173,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	workloadIdentityCmd := newSVIDCommands(app)
 
+	vnetCmd := newVnetCommand(app)
+	vnetAdminSetupCmd := newVnetAdminSetupCommand(app)
+
 	if runtime.GOOS == constants.WindowsOS {
 		bench.Hidden()
 	}
@@ -1187,7 +1190,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// configs
 	setEnvFlags(&cf)
 
-	confOptions, err := loadAllConfigs(cf)
+	confOptions, err := client.LoadAllConfigs(cf.GlobalTshConfigPath, cf.HomePath)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1535,6 +1538,10 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onHeadlessApprove(&cf)
 	case workloadIdentityCmd.issue.FullCommand():
 		err = workloadIdentityCmd.issue.run(&cf)
+	case vnetCmd.FullCommand():
+		err = vnetCmd.run(&cf)
+	case vnetAdminSetupCmd.FullCommand():
+		err = vnetAdminSetupCmd.run(&cf)
 	default:
 		// Handle commands that might not be available.
 		switch {

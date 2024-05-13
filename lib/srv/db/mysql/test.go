@@ -320,7 +320,7 @@ func (h *testHandler) HandleStmtPrepare(prepare string) (int, int, interface{}, 
 	return params, 0, nil, nil
 }
 func (h *testHandler) HandleStmtExecute(_ interface{}, query string, args []interface{}) (*mysql.Result, error) {
-	h.log.Debugf("Received execute %q with args %+v.", args)
+	h.log.Debugf("Received execute %q with args %+v.", query, args)
 	if strings.HasPrefix(query, "CALL ") {
 		return h.handleCallProcedure(query, args)
 	}

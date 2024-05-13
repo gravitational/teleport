@@ -57,10 +57,11 @@ function renderDialog(dialog: Dialog, handleClose: () => void) {
         <AuthenticateWebDevice
           rootClusterUri={dialog.rootClusterUri}
           onAuthorize={dialog.onAuthorize}
-          onClose={() => {
-            dialog.onCancel();
+          onCancel={() => {
             handleClose();
+            dialog.onCancel();
           }}
+          onClose={handleClose}
         />
       );
     }

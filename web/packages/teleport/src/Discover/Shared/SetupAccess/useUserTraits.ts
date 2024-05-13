@@ -256,7 +256,7 @@ export function useUserTraits() {
     numStepsToSkip?: number
   ) {
     if (isSsoUser || !canEditUser) {
-      next();
+      next(numStepsToSkip);
       return;
     }
 

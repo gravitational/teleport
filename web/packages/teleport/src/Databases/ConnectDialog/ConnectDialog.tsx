@@ -53,6 +53,7 @@ export default function ConnectDialog({
     case 'sqlserver':
     case 'oracle':
     case 'mongodb':
+    case 'spanner':
       // Required
       dbNameFlag = ' --db-name=<name>';
       break;
@@ -107,7 +108,7 @@ export default function ConnectDialog({
           {' - Connect to the database'}
           <TextSelectCopy
             mt="2"
-            text={`tsh ${connectCommand} ${dbName} --db-user=<user> ${dbNameFlag}`}
+            text={`tsh ${connectCommand} ${dbName} --db-user=<user>${dbNameFlag}`}
           />
         </Box>
         {accessRequestId && (

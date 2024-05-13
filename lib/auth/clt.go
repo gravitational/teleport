@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/crownjewel"
 	"github.com/gravitational/teleport/api/client/externalauditstorage"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/scim"
@@ -528,34 +529,14 @@ func (c *Client) IntegrationAWSOIDCClient() integrationv1.AWSOIDCServiceClient {
 	return integrationv1.NewAWSOIDCServiceClient(c.APIClient.GetConnection())
 }
 
-// UpsertUser user updates user entry.
-// TODO(tross): DELETE IN 16.0.0
-func (c *Client) UpsertUser(ctx context.Context, user types.User) (types.User, error) {
-	upserted, err := c.APIClient.UpsertUser(ctx, user)
-	if err == nil {
-		return upserted, nil
-	}
-
-	if !trace.IsNotImplemented(err) {
-		return nil, trace.Wrap(err)
-	}
-
-	data, err := services.MarshalUser(user)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	_, err = c.HTTPClient.PostJSON(ctx, c.Endpoint("users"), &upsertUserRawReq{User: data})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	upserted, err = c.GetUser(ctx, user.GetName(), false)
-	return upserted, trace.Wrap(err)
-}
-
 // DiscoveryConfigClient returns a client for managing the DiscoveryConfig resource.
 func (c *Client) DiscoveryConfigClient() services.DiscoveryConfigWithStatusUpdater {
 	return c.APIClient.DiscoveryConfigClient()
+}
+
+// CrownJewelsClient returns a client for managing Crown Jewel resources.
+func (c *Client) CrownJewelsClient() services.CrownJewels {
+	return c.APIClient.CrownJewelServiceClient()
 }
 
 // DeleteStaticTokens deletes static tokens
@@ -1093,7 +1074,7 @@ type ClientI interface {
 	SecReportsClient() *secreport.Client
 
 	// BotServiceClient returns a client for security reports.
-	// Clients connecting to  older Teleport versions, still get a bot service client
+	// Clients connecting to older Teleport versions, still get a bot service client
 	// when calling this method, but all RPCs will return "not implemented" errors
 	// (as per the default gRPC behavior).
 	BotServiceClient() machineidv1pb.BotServiceClient
@@ -1109,6 +1090,9 @@ type ClientI interface {
 	// when calling this method, but all RPCs will return "not implemented" errors
 	// (as per the default gRPC behavior).
 	DiscoveryConfigClient() services.DiscoveryConfigWithStatusUpdater
+
+	// CrownJewelServiceClient returns a Crown Jewel service client.
+	CrownJewelServiceClient() *crownjewel.Client
 
 	// ResourceUsageClient returns a resource usage service client.
 	// Clients connecting to non-Enterprise clusters, or older Teleport versions,

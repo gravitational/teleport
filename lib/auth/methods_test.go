@@ -38,7 +38,7 @@ func TestServerAuthenticateUserUserAgentTrim(t *testing.T) {
 		},
 	}
 	// Ignoring the error here because we really just care that the event was logged.
-	(&Server{emitter: emitter}).AuthenticateUser(ctx, r)
+	(&Server{emitter: emitter}).authenticateUserLogin(ctx, r)
 	event := emitter.LastEvent()
 	loginEvent, ok := event.(*apievents.UserLogin)
 	require.True(t, ok)

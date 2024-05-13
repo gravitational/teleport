@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -37,8 +36,6 @@ import (
 type mockAuthClient struct {
 	auth.ClientI
 	server *auth.Server
-
-	unsupportedCATypes []types.CertAuthType
 }
 
 func (m *mockAuthClient) GetDomainName(ctx context.Context) (string, error) {
@@ -46,20 +43,10 @@ func (m *mockAuthClient) GetDomainName(ctx context.Context) (string, error) {
 }
 
 func (m *mockAuthClient) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error) {
-	for _, unsupported := range m.unsupportedCATypes {
-		if unsupported == caType {
-			return nil, trace.BadParameter("%q authority type is not supported", unsupported)
-		}
-	}
 	return m.server.GetCertAuthorities(ctx, caType, loadKeys)
 }
 
 func (m *mockAuthClient) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
-	for _, unsupported := range m.unsupportedCATypes {
-		if unsupported == id.Type {
-			return nil, trace.BadParameter("%q authority type is not supported", unsupported)
-		}
-	}
 	return m.server.GetCertAuthority(ctx, id, loadKeys)
 }
 

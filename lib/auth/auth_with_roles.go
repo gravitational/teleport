@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
@@ -1423,7 +1424,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		}
 	}
 
-	paginatedResources, err := services.MakePaginatedResources(types.KindUnifiedResource, unifiedResources, resourceAccess.requestableMap)
+	paginatedResources, err := services.MakePaginatedResources(ctx, types.KindUnifiedResource, unifiedResources, resourceAccess.requestableMap)
 	if err != nil {
 		return nil, trace.Wrap(err, "making paginated unified resources")
 	}
@@ -2660,7 +2661,7 @@ func (a *ServerWithRoles) DeleteAccessRequest(ctx context.Context, name string) 
 }
 
 // GetUsers returns all existing users
-// TODO(tross): DELETE IN 16.0.0
+// TODO(tross): DELETE IN 17.0.0
 // Deprecated: use [usersv1.Service.ListUsers] instead.
 func (a *ServerWithRoles) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error) {
 	if withSecrets {
@@ -3337,7 +3338,7 @@ func (a *ServerWithRoles) trySettingConnectorNameToPasswordless(ctx context.Cont
 
 // UpdateUser updates an existing user in a backend.
 // Captures the auth user who modified the user record.
-// TODO(tross): DELETE IN 16.0.0
+// TODO(tross): DELETE IN 17.0.0
 // Deprecated: use [usersv1.Service.UpdateUser] instead.
 func (a *ServerWithRoles) UpdateUser(ctx context.Context, user types.User) (types.User, error) {
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbUpdate); err != nil {
@@ -3357,7 +3358,7 @@ func (a *ServerWithRoles) UpdateUser(ctx context.Context, user types.User) (type
 }
 
 // UpsertUser create or updates an existing user.
-// TODO(tross): DELETE IN 16.0.0
+// TODO(tross): DELETE IN 17.0.0
 // Deprecated: use [usersv1.Service.UpdateUser] instead.
 func (a *ServerWithRoles) UpsertUser(ctx context.Context, u types.User) (types.User, error) {
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbCreate, types.VerbUpdate); err != nil {
@@ -4618,6 +4619,15 @@ func (a *ServerWithRoles) SetClusterNetworkingConfig(ctx context.Context, newNet
 		return trace.AccessDenied("proxy peering is an enterprise-only feature")
 	}
 
+	oldNetConf, err := a.authServer.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := clusterconfigv1.ValidateCloudNetworkConfigUpdate(a.context, newNetConfig, oldNetConf); err != nil {
+		return trace.Wrap(err)
+	}
+
 	_, err = a.authServer.UpsertClusterNetworkingConfig(ctx, newNetConfig)
 	var msg string
 	if err != nil {
@@ -4638,7 +4648,6 @@ func (a *ServerWithRoles) SetClusterNetworkingConfig(ctx context.Context, newNet
 	}); auditErr != nil {
 		log.WithError(auditErr).Warn("Failed to emit cluster networking config update event event.")
 	}
-
 	return trace.Wrap(err)
 }
 
@@ -4656,6 +4665,14 @@ func (a *ServerWithRoles) ResetClusterNetworkingConfig(ctx context.Context) erro
 		if err2 := a.action(apidefaults.Namespace, types.KindClusterConfig, types.VerbUpdate); err2 != nil {
 			return trace.Wrap(err)
 		}
+	}
+	oldNetConf, err := a.authServer.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := clusterconfigv1.ValidateCloudNetworkConfigUpdate(a.context, types.DefaultClusterNetworkingConfig(), oldNetConf); err != nil {
+		return trace.Wrap(err)
 	}
 
 	if err := a.context.AuthorizeAdminAction(); err != nil {

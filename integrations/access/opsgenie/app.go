@@ -31,6 +31,7 @@ import (
 	tp "github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/backoff"
@@ -274,19 +275,13 @@ func (a *App) onDeletedRequest(ctx context.Context, reqID string) error {
 }
 
 func (a *App) getNotifyServiceNames(req types.AccessRequest) ([]string, error) {
-	services, ok := req.GetSystemAnnotations()[types.TeleportNamespace+types.ReqAnnotationNotifySchedulesLabel]
-	if !ok {
-		return nil, trace.NotFound("notify services not specified")
-	}
-	return services, nil
+	annotationKey := types.TeleportNamespace + types.ReqAnnotationNotifySchedulesLabel
+	return common.GetServiceNamesFromAnnotations(req, annotationKey)
 }
 
 func (a *App) getOnCallServiceNames(req types.AccessRequest) ([]string, error) {
-	services, ok := req.GetSystemAnnotations()[types.TeleportNamespace+types.ReqAnnotationApproveSchedulesLabel]
-	if !ok {
-		return nil, trace.NotFound("on-call schedules not specified")
-	}
-	return services, nil
+	annotationKey := types.TeleportNamespace + types.ReqAnnotationApproveSchedulesLabel
+	return common.GetServiceNamesFromAnnotations(req, annotationKey)
 }
 
 func (a *App) tryNotifyService(ctx context.Context, req types.AccessRequest) (bool, error) {

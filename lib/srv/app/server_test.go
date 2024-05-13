@@ -59,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	libjwt "github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/labels"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/app/common"
@@ -69,6 +70,7 @@ import (
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
 	native.PrecomputeTestKeys(m)
+	modules.SetInsecureTestMode(true)
 	os.Exit(m.Run())
 }
 
@@ -81,17 +83,20 @@ type Suite struct {
 	appServer    *Server
 	hostCertPool *x509.CertPool
 
-	hostUUID              string
-	closeContext          context.Context
-	closeFunc             context.CancelFunc
-	message               string
-	hostport              string
-	testhttp              *httptest.Server
-	clientCertificate     tls.Certificate
-	awsConsoleCertificate tls.Certificate
+	hostUUID     string
+	closeContext context.Context
+	closeFunc    context.CancelFunc
+	message      string
+	hostport     string
+	testhttp     *httptest.Server
 
-	appFoo *types.AppV3
-	appAWS *types.AppV3
+	clientCertificate                    tls.Certificate
+	awsConsoleCertificate                tls.Certificate
+	awsConsoleCertificateWithIntegration tls.Certificate
+
+	appFoo                *types.AppV3
+	appAWS                *types.AppV3
+	appAWSWithIntegration *types.AppV3
 
 	user       types.User
 	role       types.Role
@@ -287,6 +292,15 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		PublicAddr: "aws.example.com",
 	})
 	require.NoError(t, err)
+	s.appAWSWithIntegration, err = types.NewAppV3(types.Metadata{
+		Name:   "awsconsole-integration",
+		Labels: staticLabels,
+	}, types.AppSpecV3{
+		URI:         constants.AWSConsoleURL,
+		PublicAddr:  "aws-integration.example.com",
+		Integration: "my-integration",
+	})
+	require.NoError(t, err)
 
 	// Create a client with a machine role of RoleApp.
 	s.authClient, err = s.tlsServer.NewClient(auth.TestServerID(types.RoleApp, s.hostUUID))
@@ -308,6 +322,9 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	// Generate certificate for AWS console application.
 	s.awsConsoleCertificate = s.generateCertificate(t, s.user, "aws.example.com", "arn:aws:iam::123456789012:role/readonly")
 
+	// Generate certificate for AWS console application with integration
+	s.awsConsoleCertificateWithIntegration = s.generateCertificate(t, s.user, "aws-integration.example.com", "arn:aws:iam::123456789012:role/readonly")
+
 	lockWatcher, err := services.NewLockWatcher(s.closeContext, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentApp,
@@ -326,7 +343,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		lockWatcher.Close()
 	})
 
-	apps := types.Apps{s.appFoo.Copy(), s.appAWS.Copy()}
+	apps := types.Apps{s.appFoo.Copy(), s.appAWS.Copy(), s.appAWSWithIntegration.Copy()}
 	if len(config.Apps) > 0 {
 		apps = config.Apps
 	}
@@ -414,6 +431,7 @@ func TestStart(t *testing.T) {
 	// check that the dynamic labels have been evaluated.
 	appFoo := s.appFoo.Copy()
 	appAWS := s.appAWS.Copy()
+	appAWSWithIntegration := s.appAWSWithIntegration.Copy()
 
 	appFoo.SetDynamicLabels(map[string]types.CommandLabel{
 		dynamicLabelName: &types.CommandLabelV2{
@@ -427,9 +445,11 @@ func TestStart(t *testing.T) {
 	require.NoError(t, err)
 	serverAWS, err := types.NewAppServerV3FromApp(appAWS, "test", s.hostUUID)
 	require.NoError(t, err)
+	serverAWSWithIntegration, err := types.NewAppServerV3FromApp(appAWSWithIntegration, "test", s.hostUUID)
+	require.NoError(t, err)
 
 	sort.Sort(types.AppServers(servers))
-	require.Empty(t, cmp.Diff([]types.AppServer{serverAWS, serverFoo}, servers,
+	require.Empty(t, cmp.Diff([]types.AppServer{serverAWS, serverAWSWithIntegration, serverFoo}, servers,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision", "Expires")))
 
 	// Check the expiry time is correct.
@@ -980,7 +1000,17 @@ func TestSessionClose(t *testing.T) {
 // TestAWSConsoleRedirect verifies AWS management console access.
 func TestAWSConsoleRedirect(t *testing.T) {
 	s := SetUpSuite(t)
+
+	// Using ambient credentials.
 	s.checkHTTPResponse(t, s.awsConsoleCertificate, func(resp *http.Response) {
+		require.Equal(t, http.StatusFound, resp.StatusCode)
+		location, err := resp.Location()
+		require.NoError(t, err)
+		require.Equal(t, "https://signin.aws.amazon.com", location.String())
+	})
+
+	// Using an Integration.
+	s.checkHTTPResponse(t, s.awsConsoleCertificateWithIntegration, func(resp *http.Response) {
 		require.Equal(t, http.StatusFound, resp.StatusCode)
 		location, err := resp.Location()
 		require.NoError(t, err)

@@ -56,7 +56,7 @@ func (m *appMiddleware) OnNewConnection(ctx context.Context, lp *alpn.LocalProxy
 		return trace.Wrap(err)
 	}
 
-	lp.SetCerts([]tls.Certificate{cert})
+	lp.SetCert(cert)
 	return nil
 }
 

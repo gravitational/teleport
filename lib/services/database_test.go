@@ -274,6 +274,53 @@ func TestValidateDatabase(t *testing.T) {
 			expectError: false,
 		},
 		{
+			inputName: "valid-spanner-without-uri",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolSpanner,
+				GCP: types.GCPCloudSQL{
+					ProjectID:  "project-id",
+					InstanceID: "instance-id",
+				},
+			},
+			expectError: false,
+		},
+		{
+			inputName: "valid-spanner-with-uri",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolSpanner,
+				URI:      "spanner.googleapis.com:443",
+				GCP: types.GCPCloudSQL{
+					ProjectID:  "project-id",
+					InstanceID: "instance-id",
+				},
+			},
+			expectError: false,
+		},
+		{
+			inputName: "invalid-spanner-uri-host",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolSpanner,
+				URI:      "foo.googleapis.com:443",
+				GCP: types.GCPCloudSQL{
+					ProjectID:  "project-id",
+					InstanceID: "instance-id",
+				},
+			},
+			expectError: true,
+		},
+		{
+			inputName: "invalid-spanner-uri-missing-port",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolSpanner,
+				URI:      "spanner.googleapis.com",
+				GCP: types.GCPCloudSQL{
+					ProjectID:  "project-id",
+					InstanceID: "instance-id",
+				},
+			},
+			expectError: true,
+		},
+		{
 			inputName: "invalid-mssql-without-ad",
 			inputSpec: types.DatabaseSpecV3{
 				Protocol: defaults.ProtocolSQLServer,
