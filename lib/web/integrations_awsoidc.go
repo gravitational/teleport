@@ -357,6 +357,59 @@ func (h *Handler) awsOIDCConfigureAWSAppAccessIAM(w http.ResponseWriter, r *http
 	return nil, trace.Wrap(err)
 }
 
+// awsOIDCConfigureEC2SSMIAM returns a script that configures AWS IAM Policies and creates an SSM Document
+// to enable EC2 Auto Discover Script mode, using the AWS OIDC Credentials.
+// It receives the IAM Role, AWS Region and SSM Document Name from query params ("role", "awsRegion" and "ssmDocument").
+//
+// The script is returned using the Content-Type "text/x-shellscript".
+// No Content-Disposition header is set.
+func (h *Handler) awsOIDCConfigureEC2SSMIAM(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+	queryParams := r.URL.Query()
+
+	role := queryParams.Get("role")
+	if err := aws.IsValidIAMRoleName(role); err != nil {
+		return nil, trace.BadParameter("invalid role %q", role)
+	}
+
+	region := queryParams.Get("awsRegion")
+	if err := aws.IsValidRegion(region); err != nil {
+		return nil, trace.BadParameter("invalid region %q", region)
+	}
+
+	ssmDocumentName := queryParams.Get("ssmDocument")
+	if ssmDocumentName == "" {
+		return nil, trace.BadParameter("missing ssmDocument query param")
+	}
+	// PublicProxyAddr() might return tenant.teleport.sh
+	// However, the expected format for --proxy-public-url includes the protocol `https://`
+	proxyPublicURL := h.PublicProxyAddr()
+	if !strings.HasPrefix(proxyPublicURL, "https://") {
+		proxyPublicURL = "https://" + proxyPublicURL
+	}
+
+	// The script must execute the following command:
+	// teleport integration configure ec2-ssm-iam
+	argsList := []string{
+		"integration", "configure", "ec2-ssm-iam",
+		fmt.Sprintf("--role=%s", shsprintf.EscapeDefaultContext(role)),
+		fmt.Sprintf("--aws-region=%s", shsprintf.EscapeDefaultContext(region)),
+		fmt.Sprintf("--ssm-document-name=%s", shsprintf.EscapeDefaultContext(ssmDocumentName)),
+		fmt.Sprintf("--proxy-public-url=%s", shsprintf.EscapeDefaultContext(proxyPublicURL)),
+	}
+	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
+		TeleportArgs:   strings.Join(argsList, " "),
+		SuccessMessage: "Success! You can now go back to the browser to finish the EC2 auto discover set up.",
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	httplib.SetScriptHeaders(w.Header())
+
+	_, err = fmt.Fprint(w, script)
+	return nil, trace.Wrap(err)
+}
+
 // awsOIDCConfigureEKSIAM returns a script that configures the required IAM permissions to enroll EKS clusters into Teleport.
 func (h *Handler) awsOIDCConfigureEKSIAM(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 	queryParams := r.URL.Query()

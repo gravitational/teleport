@@ -105,39 +105,30 @@ describe('getServerByHostname', () => {
 });
 
 describe('searchResources', () => {
-  it('returns settled promises for each resource type', async () => {
+  it('returns a promise with resources', async () => {
     const server = makeServer();
     const db = makeDatabase();
     const kube = makeKube();
     const app = makeApp();
 
     const tshClient: Partial<TshdClient> = {
-      getServers: jest.fn().mockResolvedValueOnce(
+      listUnifiedResources: jest.fn().mockResolvedValueOnce(
         new MockedUnaryCall({
-          agents: [server],
-          totalCount: 1,
-          startKey: '',
-        })
-      ),
-      getDatabases: jest.fn().mockResolvedValueOnce(
-        new MockedUnaryCall({
-          agents: [db],
-          totalCount: 1,
-          startKey: '',
-        })
-      ),
-      getKubes: jest.fn().mockResolvedValueOnce(
-        new MockedUnaryCall({
-          agents: [kube],
-          totalCount: 1,
-          startKey: '',
-        })
-      ),
-      getApps: jest.fn().mockResolvedValueOnce(
-        new MockedUnaryCall({
-          agents: [app],
-          totalCount: 1,
-          startKey: '',
+          resources: [
+            {
+              resource: { oneofKind: 'server', server },
+            },
+            {
+              resource: { oneofKind: 'app', app },
+            },
+            {
+              resource: { oneofKind: 'database', database: db },
+            },
+            {
+              resource: { oneofKind: 'kube', kube },
+            },
+          ],
+          nextKey: '',
         })
       ),
     };
@@ -151,100 +142,35 @@ describe('searchResources', () => {
     });
     expect(searchResults).toHaveLength(4);
 
-    const [actualServers, actualApps, actualDatabases, actualKubes] =
-      searchResults;
-    expect(actualServers).toEqual({
-      status: 'fulfilled',
-      value: [{ kind: 'server', resource: server }],
+    const [actualServer, actualApp, actualDatabase, actualKube] = searchResults;
+    expect(actualServer).toEqual({ kind: 'server', resource: server });
+    expect(actualApp).toEqual({
+      kind: 'app',
+      resource: {
+        ...app,
+        addrWithProtocol: 'tcp://local-app.example.com:3000',
+      },
     });
-    expect(actualApps).toEqual({
-      status: 'fulfilled',
-      value: [{ kind: 'app', resource: app }],
-    });
-    expect(actualDatabases).toEqual({
-      status: 'fulfilled',
-      value: [{ kind: 'database', resource: db }],
-    });
-    expect(actualKubes).toEqual({
-      status: 'fulfilled',
-      value: [{ kind: 'kube', resource: kube }],
-    });
+    expect(actualDatabase).toEqual({ kind: 'database', resource: db });
+    expect(actualKube).toEqual({ kind: 'kube', resource: kube });
   });
 
-  it('returns a single item if a filter is supplied', async () => {
-    const server = makeServer();
-    const tshClient: Partial<TshdClient> = {
-      getServers: jest.fn().mockResolvedValueOnce(
-        new MockedUnaryCall({
-          agents: [server],
-          totalCount: 1,
-          startKey: '',
-        })
-      ),
-    };
-    const service = new ResourcesService(tshClient as TshdClient);
-
-    const searchResults = await service.searchResources({
-      clusterUri: '/clusters/foo',
-      search: '',
-      filters: ['node'],
-      limit: 10,
-    });
-    expect(searchResults).toHaveLength(1);
-
-    const [actualServers] = searchResults;
-    expect(actualServers).toEqual({
-      status: 'fulfilled',
-      value: [{ kind: 'server', resource: server }],
-    });
-  });
-
-  it('returns a custom error pointing at resource kind and cluster when an underlying promise gets rejected', async () => {
+  it('returns a custom error pointing at cluster when a promise gets rejected', async () => {
     const expectedCause = new Error('oops');
     const tshClient: Partial<TshdClient> = {
-      getServers: jest.fn().mockRejectedValueOnce(expectedCause),
-      getDatabases: jest.fn().mockRejectedValueOnce(expectedCause),
-      getKubes: jest.fn().mockRejectedValueOnce(expectedCause),
-      getApps: jest.fn().mockRejectedValueOnce(expectedCause),
+      listUnifiedResources: jest.fn().mockRejectedValueOnce(expectedCause),
     };
     const service = new ResourcesService(tshClient as TshdClient);
 
-    const searchResults = await service.searchResources({
+    const searchResults = service.searchResources({
       clusterUri: '/clusters/foo',
       search: '',
       filters: [],
       limit: 10,
     });
-    expect(searchResults).toHaveLength(4);
-
-    const [actualServers, actualApps, actualDatabases, actualKubes] =
-      searchResults;
-    expect(actualServers).toEqual({
-      status: 'rejected',
-      reason: new ResourceSearchError('/clusters/foo', 'server', expectedCause),
-    });
-    expect(actualDatabases).toEqual({
-      status: 'rejected',
-      reason: new ResourceSearchError(
-        '/clusters/foo',
-        'database',
-        expectedCause
-      ),
-    });
-    expect(actualKubes).toEqual({
-      status: 'rejected',
-      reason: new ResourceSearchError('/clusters/foo', 'kube', expectedCause),
-    });
-    expect(actualApps).toEqual({
-      status: 'rejected',
-      reason: new ResourceSearchError('/clusters/foo', 'app', expectedCause),
-    });
-
-    expect((actualServers as PromiseRejectedResult).reason).toBeInstanceOf(
-      ResourceSearchError
+    await expect(searchResults).rejects.toThrow(
+      new ResourceSearchError('/clusters/foo', expectedCause)
     );
-    expect((actualServers as PromiseRejectedResult).reason.cause).toEqual(
-      expectedCause
-    );
+    await expect(searchResults).rejects.toThrow(ResourceSearchError);
   });
 });
