@@ -39,14 +39,15 @@ import (
 	"github.com/gravitational/teleport/lib/resumption"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
-	"github.com/gravitational/teleport/lib/tbot/tshwrap"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 // ProxySSHConfig contains configuration parameters required
 // to initialize the local ssh proxy.
 type ProxySSHConfig struct {
-	BotConfig                 *config.BotConfig
+	DestinationPath           string
+	Insecure                  bool
+	FIPS                      bool
 	TSHConfigPath             string
 	ProxyServer               string
 	Cluster                   string
@@ -89,7 +90,13 @@ func ProxySSH(ctx context.Context, proxyConfig ProxySSHConfig) error {
 		return trace.Wrap(err)
 	}
 
-	facade, keyring, err := parseIdentity(proxyConfig.BotConfig, proxyHost, cluster)
+	facade, keyring, err := parseIdentity(
+		proxyConfig.DestinationPath,
+		proxyHost,
+		cluster,
+		proxyConfig.Insecure,
+		proxyConfig.FIPS,
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -125,7 +132,7 @@ func ProxySSH(ctx context.Context, proxyConfig ProxySSHConfig) error {
 		UnaryInterceptors:       []grpc.UnaryClientInterceptor{interceptors.GRPCClientUnaryErrorInterceptor},
 		StreamInterceptors:      []grpc.StreamClientInterceptor{interceptors.GRPCClientStreamErrorInterceptor},
 		SSHConfig:               sshConfig,
-		InsecureSkipVerify:      proxyConfig.BotConfig.Insecure,
+		InsecureSkipVerify:      proxyConfig.Insecure,
 		ALPNConnUpgradeRequired: proxyConfig.ConnectionUpgradeRequired,
 	})
 	if err != nil {
@@ -217,17 +224,15 @@ func resolveTargetHost(ctx context.Context, cfg client.Config, search, query str
 	return nodes[0], nil
 }
 
-func parseIdentity(botConfig *config.BotConfig, proxy, cluster string) (*identity.Facade, agent.ExtendedAgent, error) {
-	destination, err := tshwrap.GetDestinationDirectory(botConfig)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
+func parseIdentity(destPath, proxy, cluster string, insecure, fips bool) (*identity.Facade, agent.ExtendedAgent, error) {
+	destination := &config.DestinationDirectory{
+		Path: destPath,
+	}
+	if err := destination.CheckAndSetDefaults(); err != nil {
+		return nil, nil, trace.Wrap(err, "configuring destination directory")
 	}
 
 	identityPath := filepath.Join(destination.Path, config.IdentityFilePath)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
 	key, err := identityfile.KeyFromIdentityFile(identityPath, proxy, cluster)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -258,7 +263,7 @@ func parseIdentity(botConfig *config.BotConfig, proxy, cluster string) (*identit
 		return nil, nil, trace.Wrap(err)
 	}
 
-	return identity.NewFacade(botConfig.FIPS, botConfig.Insecure, i), keyring, nil
+	return identity.NewFacade(fips, insecure, i), keyring, nil
 }
 
 func cleanTargetHost(targetHost, proxyHost, siteName string) string {
