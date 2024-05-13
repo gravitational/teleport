@@ -1657,6 +1657,10 @@
         {
           "title": "Troubleshooting",
           "slug": "/machine-id/troubleshooting/"
+        },
+        {
+          "title": "Manifesto",
+          "slug": "/machine-id/manifesto/"
         }
       ]
     },
@@ -1889,7 +1893,7 @@
       "nodeIP": "ip-172-31-35-170"
     },
     "access_graph": {
-      "version": "1.13.0"
+      "version": "1.20.1"
     },
     "ansible": {
       "min_version": "2.9.6"
