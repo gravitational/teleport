@@ -236,7 +236,11 @@ func (a *App) handleAccessMonitoringRule(ctx context.Context, event types.Event)
 		return trace.BadParameter("expected %s resource kind, got %s", types.KindAccessMonitoringRule, kind)
 	}
 
-	req, ok := types.LegacyToResource153(event.Resource).(*accessmonitoringrulesv1.AccessMonitoringRule)
+	e, ok := event.Resource.(types.Resource153Unwrapper)
+	if !ok {
+		return trace.BadParameter("expected AccessMonitoringRule resource type, got %T", event.Resource)
+	}
+	req, ok := e.Unwrap().(*accessmonitoringrulesv1.AccessMonitoringRule)
 	if !ok {
 		return trace.BadParameter("expected AccessMonitoringRule resource type, got %T", event.Resource)
 	}
@@ -587,8 +591,7 @@ func (a *App) getAllAccessMonitoringRules(ctx context.Context) ([]*accessmonitor
 	for {
 		var page []*accessmonitoringrulesv1.AccessMonitoringRule
 		var err error
-		page, nextToken, err = a.apiClient.ListAccessMonitoringRulesWithFilter(ctx, defaultAccessMonitoringRulePageSize, nextToken,
-			[]string{types.KindAccessRequest}, a.pluginName)
+		page, nextToken, err = a.apiClient.ListAccessMonitoringRulesWithFilter(ctx, defaultAccessMonitoringRulePageSize, nextToken, []string{types.KindAccessRequest}, a.pluginName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
