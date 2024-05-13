@@ -52,14 +52,14 @@ Host *.{{ $clusterName }} {{ $dot.ProxyHost }}
 # Flags for all {{ $clusterName }} hosts except the proxy
 Host *.{{ $clusterName }} !{{ $dot.ProxyHost }}
     Port {{ $dot.Port }}
-    {{- if eq $dot.AppName "tsh" }}
+{{- if eq $dot.AppName "tsh" }}
     ProxyCommand "{{ $dot.ExecutablePath }}" proxy ssh --cluster={{ $clusterName }} --proxy={{ $dot.ProxyHost }}:{{ $dot.ProxyPort }} %r@%h:%p
 {{- end }}
 {{- if eq $dot.AppName "tbot" }}
-{{- if eq $dot.PureTBotProxyCommand true }}
+{{- if $dot.PureTBotProxyCommand }}
+    ProxyCommand "{{ $dot.ExecutablePath }}" ssh-proxy-command --destination-dir={{ $dot.DestinationDir }} --proxy-server={{ $dot.ProxyHost }}:{{ $dot.ProxyPort }} --cluster={{ $clusterName }} --tls-routing={{ $dot.TLSRouting }} --connection-upgrade={{ $dot.ConnectionUpgrade }} --resume={{ $dot.Resume }} --user=%r --host=%h --port=%p
+{{- else}}
     ProxyCommand "{{ $dot.ExecutablePath }}" proxy --destination-dir={{ $dot.DestinationDir }} --proxy-server={{ $dot.ProxyHost }}:{{ $dot.ProxyPort }} ssh --cluster={{ $clusterName }}  %r@%h:%p
-{{-else}}
-    ProxyCommand "{{ $dot.ExecutablePath }}" ssh-proxy-command --destination-dir={{ $dot.DestinationDir }} --proxy-server={{ $dot.ProxyHost }}:{{ $dot.ProxyPort }} --cluster={{ $clusterName }} --user=%r --host=%h --port=%p --tls-routing --no-connection-upgrade --resume
 {{- end }}
 {{- end }}
 {{- end }}
@@ -92,6 +92,7 @@ type SSHConfigParameters struct {
 	TLSRouting           bool
 	Insecure             bool
 	FIPS                 bool
+	Resume               bool
 }
 
 type sshTmplParams struct {

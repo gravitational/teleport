@@ -36,6 +36,14 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+// sshConfigProxyModeEnv is the environment variable that controls whether or
+// not to use the new proxy command.
+// It supports:
+// - "legacy" (default in v15): use the legacy proxy command
+// - "new" (default in v16): use the new proxy command
+// In v17, it will be removed.
+const sshConfigProxyModeEnv = "TBOT_SSH_CONFIG_PROXY_COMMAND_MODE"
+
 // templateSSHClient contains parameters for the ssh_config config
 // template
 type templateSSHClient struct {
@@ -160,18 +168,44 @@ func (c *templateSSHClient) render(
 	certificateFilePath := filepath.Join(absDestPath, identity.SSHCertKey)
 
 	sshConf := openssh.NewSSHConfig(c.getSSHVersion, nil)
-	if err := sshConf.GetSSHConfig(&sshConfigBuilder, &openssh.SSHConfigParameters{
-		AppName:             openssh.TbotApp,
-		ClusterNames:        clusterNames,
-		KnownHostsPath:      knownHostsPath,
-		IdentityFilePath:    identityFilePath,
-		CertificateFilePath: certificateFilePath,
-		ProxyHost:           proxyHost,
-		ProxyPort:           proxyPort,
-		ExecutablePath:      executablePath,
-		DestinationDir:      absDestPath,
-	}); err != nil {
-		return trace.Wrap(err)
+	useLegacyProxyCommand := c.getEnv(sshConfigProxyModeEnv) == "legacy"
+
+	if useLegacyProxyCommand {
+		// Deprecated: this block will be removed in v17.
+		if err := sshConf.GetSSHConfig(&sshConfigBuilder, &openssh.SSHConfigParameters{
+			AppName:             openssh.TbotApp,
+			ClusterNames:        clusterNames,
+			KnownHostsPath:      knownHostsPath,
+			IdentityFilePath:    identityFilePath,
+			CertificateFilePath: certificateFilePath,
+			ProxyHost:           proxyHost,
+			ProxyPort:           proxyPort,
+			ExecutablePath:      executablePath,
+			DestinationDir:      absDestPath,
+		}); err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		if err := sshConf.GetSSHConfig(&sshConfigBuilder, &openssh.SSHConfigParameters{
+			AppName:             openssh.TbotApp,
+			ClusterNames:        clusterNames,
+			KnownHostsPath:      knownHostsPath,
+			IdentityFilePath:    identityFilePath,
+			CertificateFilePath: certificateFilePath,
+			ProxyHost:           proxyHost,
+			ProxyPort:           proxyPort,
+			ExecutablePath:      executablePath,
+			DestinationDir:      absDestPath,
+
+			PureTBotProxyCommand: true,
+			Insecure:             false, // TODO
+			FIPS:                 false, // TODO
+			TLSRouting:           false, // TODO
+			ConnectionUpgrade:    false, // TODO
+			Resume:               false, // TODO
+		}); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	if err := destination.Write(ctx, sshConfigName, []byte(sshConfigBuilder.String())); err != nil {

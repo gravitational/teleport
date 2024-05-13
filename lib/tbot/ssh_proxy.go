@@ -63,9 +63,13 @@ type ProxySSHConfig struct {
 // ProxySSH creates a local ssh proxy, dialing a node and transferring data through
 // stdin and stdout, to be used as an OpenSSH/PuTTY proxy command.
 func ProxySSH(ctx context.Context, proxyConfig ProxySSHConfig) error {
-	tshConfig, err := libclient.LoadTSHConfig(proxyConfig.TSHConfigPath)
-	if err != nil {
-		return trace.Wrap(err)
+	tshConfig := &libclient.TSHConfig{}
+	if proxyConfig.TSHConfigPath != "" {
+		var err error
+		tshConfig, err = libclient.LoadTSHConfig(proxyConfig.TSHConfigPath)
+		if err != nil {
+			return trace.Wrap(err, "loading proxy templates")
+		}
 	}
 
 	proxy := proxyConfig.ProxyServer

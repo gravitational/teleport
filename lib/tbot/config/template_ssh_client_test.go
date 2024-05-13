@@ -37,6 +37,7 @@ func TestTemplateSSHClient_Render(t *testing.T) {
 	tests := []struct {
 		Name    string
 		Version string
+		Env     map[string]string
 	}{
 		{
 			Name:    "legacy OpenSSH",
@@ -45,6 +46,20 @@ func TestTemplateSSHClient_Render(t *testing.T) {
 		{
 			Name:    "latest OpenSSH",
 			Version: "9.0.0",
+		},
+		{
+			Name:    "legacy OpenSSH with legacy proxycommand",
+			Version: "6.5.0",
+			Env: map[string]string{
+				sshConfigProxyModeEnv: "legacy",
+			},
+		},
+		{
+			Name:    "latest OpenSSH with legacy proxycommand",
+			Version: "9.0.0",
+			Env: map[string]string{
+				sshConfigProxyModeEnv: "legacy",
+			},
 		},
 	}
 
@@ -70,6 +85,12 @@ func TestTemplateSSHClient_Render(t *testing.T) {
 				},
 				executablePathGetter: fakeGetExecutablePath,
 				destPath:             dest.Path,
+				getEnv: func(key string) string {
+					if tc.Env == nil {
+						return ""
+					}
+					return tc.Env[key]
+				},
 			}
 
 			err = tmpl.render(context.Background(), mockBot, ident, dest)
