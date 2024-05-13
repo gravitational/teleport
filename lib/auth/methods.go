@@ -156,7 +156,7 @@ func (a *Server) authenticateUserLogin(ctx context.Context, req AuthenticateUser
 	if err != nil {
 		event.Error = err.Error()
 		if err := a.emitter.EmitAuditEvent(a.closeCtx, event); err != nil {
-			log.WithError(err).Warn("Failed to emit login event.")
+			log.WithError(err).Warn("Failed to emit login event")
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -194,7 +194,7 @@ func (a *Server) authenticateUserLogin(ctx context.Context, req AuthenticateUser
 		// Log MFA lock failure as an authn failure.
 		event.Error = err.Error()
 		if err := a.emitter.EmitAuditEvent(a.closeCtx, event); err != nil {
-			log.WithError(err).Warn("Failed to emit login event.")
+			log.WithError(err).Warn("Failed to emit login event")
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -204,7 +204,7 @@ func (a *Server) authenticateUserLogin(ctx context.Context, req AuthenticateUser
 	event.Success = true
 	event.Error = ""
 	if err := a.emitter.EmitAuditEvent(a.closeCtx, event); err != nil {
-		log.WithError(err).Warn("Failed to emit login event.")
+		log.WithError(err).Warn("Failed to emit login event")
 	}
 
 	return userState, nil

@@ -2830,6 +2830,27 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 		if err := a.WithUserLock(username, func() error {
 			return a.checkPasswordWOToken(username, req.GetUserCredentials().GetPassword())
 		}); err != nil {
+			event := &apievents.UserLogin{
+				Metadata: apievents.Metadata{
+					Type: events.UserLoginEvent,
+					Code: events.UserLocalLoginFailureCode,
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: username,
+				},
+				Status: apievents.Status{
+					Success: false,
+					Error:   err.Error(),
+				},
+				Method: events.LoginMethodLocal,
+			}
+
+			// This is only ever used as a means to acquire a login challenge, so
+			// let's issue an authentication failure event.
+			if err := a.emitter.EmitAuditEvent(ctx, event); err != nil {
+				log.WithError(err).Warn("Failed to emit login event")
+				// err swallowed on purpose.
+			}
 			return nil, trace.Wrap(err)
 		}
 
