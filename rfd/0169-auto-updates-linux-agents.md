@@ -231,7 +231,7 @@ The `enable` subcommand will:
 12. Replace the symlinks/binaries and `/var/lib/teleport` and quit (exit 1) if unsuccessful.
 13. Remove any `teleport` package if installed.
 14. Verify the symlinks to the active version still exists.
-15. Remove all stored versions of the agent except the current version and last working version.
+15. Remove all stored versions of the agent except the current version.
 
 The `disable` subcommand will:
 1. Configure `updates.yaml` to set `enabled` to false.
@@ -250,7 +250,7 @@ When `update` subcommand is otherwise executed, it will:
 11. Restart the agent if the systemd service is already enabled.
 12. Set `active_version` in `updates.yaml` if successful or not enabled.
 13. Replace the old symlinks/binaries and `/var/lib/teleport` and quit (exit 1) if unsuccessful.
-14. Remove all stored versions of the agent except the current version and last working version.
+14. Remove all stored versions of the agent except the current version.
 
 To enable auto-updates of the updater itself, all commands will first check for an `active_version`, and reexec using the `teleport-updater` at that version if present and different.
 The `/usr/local/bin/teleport-upgrader` symlink will take precedence to avoid reexec in most scenarios.
