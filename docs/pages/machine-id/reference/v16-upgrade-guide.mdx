@@ -39,14 +39,18 @@ to take action.
 #### Using the default `ssh_config`
 
 If you are using the default generated `ssh_config`, then no explicit action
-should be necessary.
+on your behalf should be necessary. From 16.0, the new command will be
+automatically used.
 
-From 16.0, the new command will be used. There should be no changes
-in behaviour. We do recommend that you perform a test-run when updating to
-ensure that everything is working as expected.
+We do recommend that you perform a test-run when updating to ensure that
+everything is working as expected. You can revert to the old behaviour by
+setting the `TBOT_SSH_CONFIG_PROXY_COMMAND_MODE` environment variable to
+`legacy` in the environment in which you are running `tbot`:
 
-If upon upgrading to 16.0, you do not observe the behaviour you are expecting
-then you can temporarily revert to the old behaviour by TODO
+```code
+$ export TBOT_SSH_CONFIG_PROXY_COMMAND_MODE=legacy
+$ tbot start -c config.yaml
+```
 
 #### Using a modified `ssh_config`
 
