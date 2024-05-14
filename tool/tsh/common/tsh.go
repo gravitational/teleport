@@ -89,6 +89,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/diagnostics/latency"
 	"github.com/gravitational/teleport/lib/utils/mlock"
 	"github.com/gravitational/teleport/tool/common"
+	"github.com/gravitational/teleport/tool/common/fido2"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -1164,7 +1165,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	}
 
 	// FIDO2, TouchID and WebAuthnWin commands.
-	f2 := newFIDO2Command(app)
+	f2 := fido2.NewCommand(app)
 	tid := newTouchIDCommand(app)
 	webauthnwin := newWebauthnwinCommand(app)
 
@@ -1508,10 +1509,10 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onDaemonStart(&cf)
 	case daemonStop.FullCommand():
 		err = onDaemonStop(&cf)
-	case f2.diag.FullCommand():
-		err = f2.diag.run(&cf)
-	case f2.attobj.FullCommand():
-		err = f2.attobj.run(&cf)
+	case f2.Diag.FullCommand():
+		err = f2.Diag.Run(cf.Context)
+	case f2.Attobj.FullCommand():
+		err = f2.Attobj.Run()
 	case tid.diag.FullCommand():
 		err = tid.diag.run(&cf)
 	case webauthnwin.diag.FullCommand():
