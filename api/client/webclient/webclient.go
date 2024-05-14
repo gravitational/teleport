@@ -226,16 +226,16 @@ func Ping(cfg *Config) (*PingResponse, error) {
 
 		bodyBytes, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return nil, trace.Wrap(err, "could not read ping response body")
+			return nil, trace.Wrap(err, "could not read ping response body; check the network connection")
 		}
 
 		errResp := &PingErrorResponse{}
 		if err := json.Unmarshal(bodyBytes, errResp); err != nil {
 			slog.DebugContext(req.Context(), "Could not parse ping response body", "body", string(bodyBytes))
-			return nil, trace.Wrap(err, "cannot parse unsuccessful ping response")
+			return nil, trace.Wrap(err, "cannot parse ping response; is proxy reachable?")
 		}
 
-		return nil, trace.Wrap(errors.New(errResp.Error.Message), "proxy service returned unsuccessful ping response")
+		return nil, trace.Wrap(errors.New(errResp.Error.Message), "proxy service returned unsuccessful ping response; Teleport cluster auth may be misconfigured")
 	}
 
 	pr := &PingResponse{}
