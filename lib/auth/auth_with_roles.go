@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
 	"github.com/gravitational/teleport/lib/auth/integration/integrationv1"
 	"github.com/gravitational/teleport/lib/auth/okta"
@@ -7049,7 +7050,7 @@ func (a *ServerWithRoles) UpsertUserPreferences(ctx context.Context, req *userpr
 }
 
 // CloneHTTPClient creates a new HTTP client with the same configuration.
-func (a *ServerWithRoles) CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error) {
+func (a *ServerWithRoles) CloneHTTPClient(params ...roundtrip.ClientParam) (*authclient.HTTPClient, error) {
 	return nil, trace.NotImplemented("not implemented")
 }
 

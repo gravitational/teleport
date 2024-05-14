@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"image/png"
 	"net/url"
-	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/pquerna/otp"
@@ -32,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -42,91 +42,31 @@ import (
 const (
 	// UserTokenTypeResetPasswordInvite is a token type used for the UI invite flow that
 	// allows users to change their password and set second factor (if enabled).
-	UserTokenTypeResetPasswordInvite = "invite"
+	UserTokenTypeResetPasswordInvite = authclient.UserTokenTypeResetPasswordInvite
 	// UserTokenTypeResetPassword is a token type used for the UI flow where user
 	// re-sets their password and second factor (if enabled).
-	UserTokenTypeResetPassword = "password"
+	UserTokenTypeResetPassword = authclient.UserTokenTypeResetPassword
 	// UserTokenTypeRecoveryStart describes a recovery token issued to users who
 	// successfully verified their recovery code.
-	UserTokenTypeRecoveryStart = "recovery_start"
+	UserTokenTypeRecoveryStart = authclient.UserTokenTypeRecoveryStart
 	// UserTokenTypeRecoveryApproved describes a recovery token issued to users who
 	// successfully verified their second auth credential (either password or a second factor) and
 	// can now start changing their password or add a new second factor device.
 	// This token is also used to allow users to delete exisiting second factor devices
 	// and retrieve their new set of recovery codes as part of the recovery flow.
-	UserTokenTypeRecoveryApproved = "recovery_approved"
+	UserTokenTypeRecoveryApproved = authclient.UserTokenTypeRecoveryApproved
 	// UserTokenTypePrivilege describes a token type that grants access to a privileged action
 	// that requires users to re-authenticate with their second factor while looged in. This
 	// token is issued to users who has successfully re-authenticated.
-	UserTokenTypePrivilege = "privilege"
+	UserTokenTypePrivilege = authclient.UserTokenTypePrivilege
 	// UserTokenTypePrivilegeException describes a token type that allowed a user to bypass
 	// second factor re-authentication which in other cases would be required eg:
 	// allowing user to add a mfa device if they don't have any registered.
-	UserTokenTypePrivilegeException = "privilege_exception"
+	UserTokenTypePrivilegeException = authclient.UserTokenTypePrivilegeException
 )
 
 // CreateUserTokenRequest is a request to create a new user token.
-type CreateUserTokenRequest struct {
-	// Name is the user name for token.
-	Name string `json:"name"`
-	// TTL specifies how long the generated token is valid for.
-	TTL time.Duration `json:"ttl"`
-	// Type is the token type.
-	Type string `json:"type"`
-}
-
-// CheckAndSetDefaults checks and sets the defaults.
-func (r *CreateUserTokenRequest) CheckAndSetDefaults() error {
-	if r.Name == "" {
-		return trace.BadParameter("user name can't be empty")
-	}
-
-	if r.TTL < 0 {
-		return trace.BadParameter("TTL can't be negative")
-	}
-
-	if r.Type == "" {
-		r.Type = UserTokenTypeResetPassword
-	}
-
-	switch r.Type {
-	case UserTokenTypeResetPasswordInvite:
-		if r.TTL == 0 {
-			r.TTL = defaults.SignupTokenTTL
-		}
-
-		if r.TTL > defaults.MaxSignupTokenTTL {
-			return trace.BadParameter(
-				"failed to create user token for reset password invite: maximum token TTL is %v hours",
-				defaults.MaxSignupTokenTTL)
-		}
-
-	case UserTokenTypeResetPassword:
-		if r.TTL == 0 {
-			r.TTL = defaults.ChangePasswordTokenTTL
-		}
-
-		if r.TTL > defaults.MaxChangePasswordTokenTTL {
-			return trace.BadParameter(
-				"failed to create user token for reset password: maximum token TTL is %v hours",
-				defaults.MaxChangePasswordTokenTTL)
-		}
-
-	case UserTokenTypeRecoveryStart:
-		r.TTL = defaults.RecoveryStartTokenTTL
-
-	case UserTokenTypeRecoveryApproved:
-		r.TTL = defaults.RecoveryApprovedTokenTTL
-
-	case UserTokenTypePrivilege, UserTokenTypePrivilegeException:
-		r.TTL = defaults.PrivilegeTokenTTL
-
-	default:
-		return trace.BadParameter("unknown user token request type(%v)", r.Type)
-	}
-
-	return nil
-}
+type CreateUserTokenRequest = authclient.CreateUserTokenRequest
 
 // CreateResetPasswordToken creates a reset password token
 func (a *Server) CreateResetPasswordToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error) {

@@ -68,6 +68,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/client"
@@ -3717,8 +3718,8 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 		// a new client to avoid applying the callback timeout to other concurrent requests. To
 		// this end, we create a clone of the HTTP Client with the desired timeout instead.
 		httpClient, err := authClient.CloneHTTPClient(
-			auth.ClientParamTimeout(defaults.CallbackTimeout),
-			auth.ClientParamResponseHeaderTimeout(defaults.CallbackTimeout),
+			authclient.ClientParamTimeout(defaults.CallbackTimeout),
+			authclient.ClientParamResponseHeaderTimeout(defaults.CallbackTimeout),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
