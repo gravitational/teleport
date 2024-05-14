@@ -2206,10 +2206,15 @@
       "permanent": true
     },
     {
+      "source": "/enterprise/sso/google-workspace/#ensure-your-google-workspace-plan-is-correct",
+      "destination": "/access-controls/sso/google-workspace/#review-your-google-workspace-edition",
+      "permanent": true
+    },
+    {
       "source": "/enterprise/sso/google-workspace/",
       "destination": "/access-controls/sso/google-workspace/",
       "permanent": true
-    },
+    },    
     {
       "source": "/enterprise/sso/oidc/",
       "destination": "/access-controls/sso/oidc/",
