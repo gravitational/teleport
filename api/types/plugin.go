@@ -314,6 +314,9 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if settings.Scim == nil {
 			return trace.BadParameter("Must be used with SCIM settings")
 		}
+		if err := settings.Scim.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
 	default:
 		return trace.BadParameter("settings are not set or have an unknown type")
 	}
@@ -640,6 +643,18 @@ func (c *PluginEntraIDSettings) Validate() error {
 	}
 	if len(c.SyncSettings.DefaultOwners) == 0 {
 		return trace.BadParameter("sync_settings.default_owners must be set")
+	}
+
+	return nil
+}
+
+func (c *PluginSCIMSettings) CheckAndSetDefaults() error {
+	if c.DefaultRole == "" {
+		return trace.BadParameter("default_role must be set")
+	}
+
+	if c.SamlConnectorName == "" {
+		return trace.BadParameter("saml_connector_name must be set")
 	}
 
 	return nil
