@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/config/openssh"
@@ -48,10 +47,9 @@ const sshConfigProxyModeEnv = "TBOT_SSH_CONFIG_PROXY_COMMAND_MODE"
 // templateSSHClient contains parameters for the ssh_config config
 // template
 type templateSSHClient struct {
-	getSSHVersion             func() (*semver.Version, error)
-	getEnv                    func(key string) string
-	isALPNConnUpgradeRequired func(ctx context.Context, addr string, insecure bool, opts ...client.DialOption) bool
-	executablePathGetter      executablePathGetter
+	getSSHVersion        func() (*semver.Version, error)
+	getEnv               func(key string) string
+	executablePathGetter executablePathGetter
 	// destPath controls whether or not to write the SSH config file.
 	// This is lets this be skipped on non-directory destinations where this
 	// doesn't make sense.
@@ -170,12 +168,11 @@ func (c *templateSSHClient) render(
 	certificateFilePath := filepath.Join(absDestPath, identity.SSHCertKey)
 
 	sshConf := openssh.NewSSHConfig(c.getSSHVersion, nil)
-	useLegacyProxyCommand := c.getEnv(sshConfigProxyModeEnv) == "legacy"
-
 	botConfig := bot.Config()
 
-	if useLegacyProxyCommand {
-		// Deprecated: this block will be removed in v17.
+	if c.getEnv(sshConfigProxyModeEnv) == "legacy" {
+		// Deprecated: this block will be removed in v17. It exists so users can
+		// revert to the old behaviour if necessary.
 		if err := sshConf.GetSSHConfig(&sshConfigBuilder, &openssh.SSHConfigParameters{
 			AppName:             openssh.TbotApp,
 			ClusterNames:        clusterNames,
@@ -192,13 +189,14 @@ func (c *templateSSHClient) render(
 	} else {
 		// Test if ALPN upgrade is required, this will only be necessary if we
 		// are using TLS routing.
-		// TODO(strideynet): Tie this into the ProxyPing so we can cache it
-		// rather than running this so often.
 		connUpgradeRequired := false
 		if ping.Proxy.TLSRoutingEnabled {
-			connUpgradeRequired = c.isALPNConnUpgradeRequired(
+			connUpgradeRequired, err = bot.IsALPNConnUpgradeRequired(
 				ctx, ping.Proxy.SSH.PublicAddr, botConfig.Insecure,
 			)
+			if err != nil {
+				return trace.Wrap(err, "determining if ALPN upgrade is required")
+			}
 		}
 
 		// Generate SSH config

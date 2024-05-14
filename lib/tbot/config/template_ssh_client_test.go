@@ -28,7 +28,6 @@ import (
 	"github.com/coreos/go-semver/semver"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/utils/golden"
@@ -36,24 +35,32 @@ import (
 
 func TestTemplateSSHClient_Render(t *testing.T) {
 	tests := []struct {
-		Name    string
-		Version string
-		Env     map[string]string
+		Name        string
+		Version     string
+		Env         map[string]string
+		TLSRouting  bool
+		ALPNUpgrade bool
 	}{
 		{
-			Name:    "legacy OpenSSH",
-			Version: "6.5.0",
+			Name:       "legacy OpenSSH",
+			Version:    "6.5.0",
+			TLSRouting: true,
 		},
 		{
-			Name:    "latest OpenSSH",
-			Version: "9.0.0",
+			Name:       "latest OpenSSH",
+			Version:    "9.0.0",
+			TLSRouting: true,
 		},
 		{
-			Name:    "legacy OpenSSH with legacy proxycommand",
-			Version: "6.5.0",
-			Env: map[string]string{
-				sshConfigProxyModeEnv: "legacy",
-			},
+			Name:       "latest OpenSSH no tls routing",
+			Version:    "9.0.0",
+			TLSRouting: false,
+		},
+		{
+			Name:        "latest OpenSSH with alpn upgrade",
+			Version:     "9.0.0",
+			ALPNUpgrade: true,
+			TLSRouting:  true,
 		},
 		{
 			Name:    "latest OpenSSH with legacy proxycommand",
@@ -61,6 +68,7 @@ func TestTemplateSSHClient_Render(t *testing.T) {
 			Env: map[string]string{
 				sshConfigProxyModeEnv: "legacy",
 			},
+			TLSRouting: true,
 		},
 	}
 
@@ -80,6 +88,8 @@ func TestTemplateSSHClient_Render(t *testing.T) {
 			}
 
 			mockBot := newMockProvider(cfg)
+			mockBot.isALPNUpgradeRequired = tc.ALPNUpgrade
+			mockBot.isTLSRouting = tc.TLSRouting
 			tmpl := templateSSHClient{
 				getSSHVersion: func() (*semver.Version, error) {
 					return semver.New(tc.Version), nil
@@ -91,16 +101,6 @@ func TestTemplateSSHClient_Render(t *testing.T) {
 						return ""
 					}
 					return tc.Env[key]
-				},
-				isALPNConnUpgradeRequired: func(
-					ctx context.Context,
-					addr string,
-					insecure bool,
-					opts ...client.DialOption,
-				) bool {
-					// TODO(strideynet): test both possibilities here and ensure
-					// the correct parameters are provided...
-					return false
 				},
 			}
 

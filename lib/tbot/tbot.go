@@ -32,6 +32,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/metadata"
@@ -209,6 +210,10 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		botCfg:        b.cfg,
 		log:           b.log,
 	}
+	alpnUpgradeCache := &alpnProxyConnUpgradeRequiredCache{
+		botCfg: b.cfg,
+		log:    b.log,
+	}
 
 	// Setup all other services
 	if b.cfg.DiagAddr != "" {
@@ -221,12 +226,13 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		})
 	}
 	services = append(services, &outputsService{
-		authPingCache:  authPingCache,
-		proxyPingCache: proxyPingCache,
-		getBotIdentity: b.botIdentitySvc.GetIdentity,
-		botClient:      b.botIdentitySvc.GetClient(),
-		cfg:            b.cfg,
-		resolver:       resolver,
+		authPingCache:    authPingCache,
+		proxyPingCache:   proxyPingCache,
+		alpnUpgradeCache: alpnUpgradeCache,
+		getBotIdentity:   b.botIdentitySvc.GetIdentity,
+		botClient:        b.botIdentitySvc.GetClient(),
+		cfg:              b.cfg,
+		resolver:         resolver,
 		log: b.log.With(
 			teleport.ComponentKey, teleport.Component(componentTBot, "outputs"),
 		),
@@ -568,4 +574,41 @@ func (p *proxyPingCache) ping(ctx context.Context) (*webclient.PingResponse, err
 	p.cachedValue = res
 
 	return p.cachedValue, nil
+}
+
+type alpnConnUpgradeParams struct {
+	addr     string
+	insecure bool
+}
+
+type alpnProxyConnUpgradeRequiredCache struct {
+	botCfg *config.BotConfig
+	log    *slog.Logger
+
+	mu    sync.RWMutex
+	cache map[alpnConnUpgradeParams]bool
+}
+
+func (a *alpnProxyConnUpgradeRequiredCache) isUpgradeRequired(ctx context.Context, addr string, insecure bool) (bool, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.cache == nil {
+		a.cache = make(map[alpnConnUpgradeParams]bool)
+	}
+	v, ok := a.cache[alpnConnUpgradeParams{addr, insecure}]
+	if ok {
+		return v, nil
+	}
+
+	a.log.DebugContext(ctx, "Testing ALPN upgrade necessary", "addr", addr, "insecure", insecure)
+	v = client.IsALPNConnUpgradeRequired(ctx, addr, insecure)
+	a.log.DebugContext(ctx, "Tested ALPN upgrade necessary", "addr", addr, "insecure", insecure, "result", v)
+	if ctx.Err() != nil {
+		// Check for case where false is returned because client cancelled ctx.
+		// We don't want to cache this result.
+		return v, ctx.Err()
+	}
+
+	a.cache[alpnConnUpgradeParams{addr, insecure}] = v
+	return v, nil
 }
