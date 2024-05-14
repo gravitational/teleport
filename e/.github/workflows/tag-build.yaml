@@ -136,12 +136,12 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    uses: ./.github/workflows/release-windows.yaml
+    uses: ./.github/workflows/build-windows.yaml
     with:
       oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
       oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
       ent-teleport-ref: ${{ inputs.ent-teleport-ref }}
-      release-version: ${{ needs.setup.outputs.version }}
+      artifact-version: ${{ needs.setup.outputs.version }}
       environment: ${{ inputs.environment }}
     
   build-updater:
