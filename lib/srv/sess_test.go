@@ -994,8 +994,6 @@ func TestSessionRecordingMode(t *testing.T) {
 }
 
 func TestCloseProxySession(t *testing.T) {
-	t.Helper()
-
 	srv := newMockServer(t)
 	srv.component = teleport.ComponentProxy
 
@@ -1085,6 +1083,8 @@ func TestCloseRemoteSession(t *testing.T) {
 }
 
 func mockSSHSession(t *testing.T) *tracessh.Session {
+	t.Helper()
+
 	ctx := context.Background()
 
 	_, key, err := ed25519.GenerateKey(nil)
