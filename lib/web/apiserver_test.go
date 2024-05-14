@@ -459,6 +459,14 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	if cfg.ClusterFeatures != nil {
 		features = *cfg.ClusterFeatures
 	}
+	authID := auth.IdentityID{
+		Role:     types.RoleProxy,
+		HostUUID: proxyID,
+	}
+	dns := []string{"localhost", "127.0.0.1"}
+	proxyIdentity, err := auth.LocalRegister(authID, s.server.Auth(), nil, dns, "", nil)
+	require.NoError(t, err)
+
 	handlerConfig := Config{
 		ClusterFeatures:                 features,
 		Proxy:                           revTunServer,
@@ -483,6 +491,10 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		UI:                   cfg.uiConfig,
 		OpenAIConfig:         cfg.OpenAIConfig,
 		PresenceChecker:      cfg.presenceChecker,
+		GetProxyIdentity: func() (*auth.Identity, error) {
+			return proxyIdentity, nil
+		},
+		IntegrationAppHandler: &mockIntegrationAppHandler{},
 	}
 
 	if handlerConfig.HealthCheckAppServer == nil {
@@ -4521,11 +4533,12 @@ func TestGetWebConfig(t *testing.T) {
 			PrivateKeyPolicy:   keys.PrivateKeyPolicyNone,
 			MOTD:               MOTD,
 		},
-		CanJoinSessions:   true,
-		ProxyClusterName:  env.server.ClusterName(),
-		IsCloud:           false,
-		AssistEnabled:     false,
-		AutomaticUpgrades: false,
+		CanJoinSessions:    true,
+		ProxyClusterName:   env.server.ClusterName(),
+		IsCloud:            false,
+		AssistEnabled:      false,
+		AutomaticUpgrades:  false,
+		JoinActiveSessions: true,
 	}
 
 	// Make a request.
@@ -4575,6 +4588,7 @@ func TestGetWebConfig(t *testing.T) {
 	expectedCfg.AutomaticUpgrades = true
 	expectedCfg.AutomaticUpgradesTargetVersion = "v" + teleport.Version
 	expectedCfg.AssistEnabled = false
+	expectedCfg.JoinActiveSessions = false
 
 	// request and verify enabled features are enabled.
 	re, err = clt.Get(ctx, endpoint, nil)
@@ -4627,6 +4641,9 @@ func TestGetWebConfig_IGSFeatureLimits(t *testing.T) {
 			AccessMonitoring: modules.AccessMonitoringFeature{
 				MaxReportRangeLimit: 10,
 			},
+			IsUsageBasedBilling: true,
+			IsStripeManaged:     true,
+			Questionnaire:       true,
 		},
 	})
 
@@ -4643,8 +4660,11 @@ func TestGetWebConfig_IGSFeatureLimits(t *testing.T) {
 			AccessListCreateLimit:               5,
 			AccessMonitoringMaxReportRangeLimit: 10,
 		},
-		IsTeam:       true,
-		IsIGSEnabled: true,
+		IsTeam:              true,
+		IsIGSEnabled:        true,
+		IsStripeManaged:     true,
+		Questionnaire:       true,
+		IsUsageBasedBilling: true,
 	}
 
 	// Make a request.
@@ -6016,6 +6036,79 @@ func TestListConnectionsDiagnostic(t *testing.T) {
 	require.Len(t, receivedConnectionDiagnostic.Traces, 1)
 	require.NotNil(t, receivedConnectionDiagnostic.Traces[0])
 	require.Equal(t, "some details", receivedConnectionDiagnostic.Traces[0].Details)
+}
+
+func TestWebLauncherURL(t *testing.T) {
+	t.Parallel()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "foo@example.com", nil /* roles */)
+
+	testcases := []struct {
+		desc       string
+		appURL     string
+		statusCode int
+	}{
+		{
+			desc:       "valid semicolon",
+			appURL:     "dumper.localhost;testing",
+			statusCode: http.StatusOK,
+		},
+		{
+			desc:       "valid with query (question mark)",
+			appURL:     "dumper.localhost?foo",
+			statusCode: http.StatusOK,
+		},
+		{
+			desc:       "valid with multipath",
+			appURL:     "dumper.localhost/foo/bar/",
+			statusCode: http.StatusOK,
+		},
+		{
+			desc:       "valid with multipath with query",
+			appURL:     "dumper.localhost/foo/bar?foo=bar",
+			statusCode: http.StatusOK,
+		},
+		{
+			desc:       "invalid: empty application url",
+			appURL:     "/",
+			statusCode: http.StatusBadRequest,
+		},
+		{
+			desc:       "invalid use of semicolon, invalid port",
+			appURL:     "dumper.localhost;script-src:something",
+			statusCode: http.StatusBadRequest,
+		},
+		{
+			desc:       "invalid use of escape characters (space)",
+			appURL:     "dumper.localhost;%20script-src%20unsafe-inline%20;",
+			statusCode: http.StatusBadRequest,
+		},
+		{
+			desc:       "invalid use of escape characters (double encoded space)",
+			appURL:     "dumper.localhost;%2520script-src%2520unsafe-inline%2520;",
+			statusCode: http.StatusBadRequest,
+		},
+		{
+			desc:       "invalid use of spaces",
+			appURL:     "dumper.localhost; script-src * unsafe-inline;",
+			statusCode: http.StatusBadRequest,
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.desc, func(t *testing.T) {
+			url, err := url.JoinPath(proxy.webURL.String(), "web", "launch", tc.appURL)
+			require.NoError(t, err)
+
+			resp, err := pack.clt.HTTPClient().Get(url)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			require.Equal(t, tc.statusCode, resp.StatusCode)
+		})
+	}
+
 }
 
 func TestDiagnoseSSHConnection(t *testing.T) {
@@ -7862,6 +7955,14 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 
 	fs, err := newDebugFileSystem()
 	require.NoError(t, err)
+
+	authID := auth.IdentityID{
+		Role:     types.RoleProxy,
+		HostUUID: proxyID,
+	}
+	dns := []string{"localhost", "127.0.0.1"}
+	proxyIdentity, err := auth.LocalRegister(authID, authServer.Auth(), nil, dns, "", nil)
+	require.NoError(t, err)
 	handler, err := NewHandler(Config{
 		Proxy:            revTunServer,
 		AuthServers:      utils.FromAddr(authServer.Addr()),
@@ -7883,6 +7984,10 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		Router:                         router,
 		HealthCheckAppServer:           func(context.Context, string, string) error { return nil },
 		MinimalReverseTunnelRoutesOnly: cfg.minimalHandler,
+		GetProxyIdentity: func() (*auth.Identity, error) {
+			return proxyIdentity, nil
+		},
+		IntegrationAppHandler: &mockIntegrationAppHandler{},
 	}, SetSessionStreamPollPeriod(200*time.Millisecond), SetClock(clock))
 	require.NoError(t, err)
 
@@ -7929,6 +8034,10 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		webURL:  *url,
 	}
 }
+
+type mockIntegrationAppHandler struct{}
+
+func (m *mockIntegrationAppHandler) HandleConnection(_ net.Conn) {}
 
 // webPack represents the state of a single web test.
 // It replicates most of the WebSuite and serves to gradually
@@ -9897,4 +10006,110 @@ type loginGetterFunc func(resource services.AccessCheckable) ([]string, error)
 
 func (f loginGetterFunc) GetAllowedLoginsForResource(resource services.AccessCheckable) ([]string, error) {
 	return f(resource)
+}
+
+func TestWebSocketClosedBeforeSSHSessionCreated(t *testing.T) {
+	t.Parallel()
+	s := newWebSuiteWithConfig(t, webSuiteConfig{disableDiskBasedRecording: true})
+
+	ctx, cancel := context.WithCancel(s.ctx)
+	t.Cleanup(cancel)
+
+	pack := s.authPack(t, "foo")
+
+	req := TerminalRequest{
+		Server: s.node.ID(),
+		Login:  pack.login,
+		Term: session.TerminalParams{
+			W: 100,
+			H: 100,
+		},
+	}
+
+	data, err := json.Marshal(req)
+	require.NoError(t, err)
+
+	u := url.URL{
+		Host:   s.webServer.Listener.Addr().String(),
+		Scheme: client.WSS,
+		Path:   "/v1/webapi/sites/-current-/connect/ws",
+	}
+
+	q := u.Query()
+	q.Set("params", string(data))
+	u.RawQuery = q.Encode()
+
+	header := http.Header{}
+	header.Add("Origin", "http://localhost")
+	for _, cookie := range pack.cookies {
+		header.Add("Cookie", cookie.String())
+	}
+
+	dialer := websocket.Dialer{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: true,
+		},
+	}
+
+	ws, resp, err := dialer.Dial(u.String(), header)
+	if err != nil {
+		var sb strings.Builder
+		sb.WriteString("websocket dial")
+		if resp != nil {
+			fmt.Fprintf(&sb, "; status code %v;", resp.StatusCode)
+			fmt.Fprintf(&sb, "headers: %v; body: ", resp.Header)
+			io.Copy(&sb, resp.Body)
+		}
+		require.NoError(t, err, sb.String())
+	}
+	require.NoError(t, resp.Body.Close())
+
+	require.NoError(t, makeAuthReqOverWS(ws, pack.session.Token))
+
+	wsClosedChan := make(chan struct{})
+
+	// Create a stream that closes the web socket when the server writes the session metadata
+	// to the client. At this point, the SSH connection to the target should be in flight but
+	// not yet established.
+	stream := NewTerminalStream(ctx, TerminalStreamConfig{
+		WS:     ws,
+		Logger: utils.NewLogger(),
+		Handlers: map[string]WSHandlerFunc{
+			defaults.WebsocketSessionMetadata: func(ctx context.Context, envelope Envelope) {
+				if envelope.Type != defaults.WebsocketSessionMetadata {
+					return
+				}
+
+				var sessResp siteSessionGenerateResponse
+				if err := json.Unmarshal([]byte(envelope.Payload), &sessResp); err != nil {
+					return
+				}
+
+				assert.NoError(t, ws.WriteControl(websocket.CloseMessage, nil, time.Now().Add(time.Second)))
+				close(wsClosedChan)
+			},
+		},
+	})
+	t.Cleanup(func() { require.NoError(t, stream.Close()) })
+
+	// Set a read deadline to unblock ReadAll below in the event of a bug
+	// preventing the ws from closing above.
+	require.NoError(t, stream.SetReadDeadline(time.Now().Add(30*time.Second)))
+
+	// Wait for the web socket to be closed above.
+	select {
+	case <-wsClosedChan:
+	case <-time.After(10 * time.Second):
+		t.Fatal("timed out waiting for session metadata")
+	}
+
+	// Validate that the SSH connection is terminated in response to the WS closing.
+	require.Eventually(t, func() bool {
+		return s.node.ActiveConnections() == 0
+	}, 10*time.Second, 100*time.Millisecond)
+
+	// Validate that reading nothing was permitted.
+	out, err := io.ReadAll(stream)
+	require.NoError(t, err)
+	require.Empty(t, out)
 }

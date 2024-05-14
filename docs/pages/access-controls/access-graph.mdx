@@ -3,10 +3,6 @@ title: Teleport Access Graph
 description: A reference for Teleport Access Graph.
 ---
 
-<Admonition type="tip" title="Preview">
-  Teleport Access Graph is currently in Preview.
-</Admonition>
-
 Teleport Access Graph visualizes and helps you understand access to your
 infrastructure. It provides a visual representation of the relationships between
 users, roles, and resources in your organization. It can help you answer
@@ -27,125 +23,55 @@ under the Permission Management section.
 
 ## Graph nodes
 
-Teleport Access Graph divides your infrastructure into eight main components:
+Teleport Access Graph divides your infrastructure into six main components:
 
-1. Users
+1. Identities
 
-![User Node](../../img/access-graph/user-node.png)
+![Identity Node](../../img/access-graph/identity-node.png)
 
-Users are the people who access your infrastructure. They can be employees,
-contractors, or bots.
+Identities are the actors that can access your infrastructure. They can be employees,
+contractors, machines or bots.
+
+The number on the right hand side shows "standing privileges".
+Standing privileges is the number of resources that an identity can access without
+creating an access request.
 
 2. User Groups
 
-![User Group Node](../../img/access-graph/user-group-node.png)
+![Identity Group Node](../../img/access-graph/identity-group-node.png)
 
-User Groups are collections of users. They can be used to organize users
-based on their role or team.
+Identity Groups are collections of identities. They can be used to organize users
+based on their role or team, and they can be nested.
 
-3. Temporary user groups
-
-![Temporary User Group Node](../../img/access-graph/temporary-user-group-node.png)
-
-Temporary User Groups are created when a user is granted temporary access to a
-resource. They are automatically deleted when the user's access expires.
-
-4. Actions
+3. Actions
 
 ![Action Node](../../img/access-graph/allow-action-node.png)
 
-Actions are the things that users can or cannot do. Actions are related to
+Actions are the things that identities can or cannot do. Actions are related to
 resources. For example, a user can SSH into a node.
 
-5. Deny Actions
+4. Deny Actions
 
 ![Deny Action Node](../../img/access-graph/deny-action-node.png)
 
-Deny Actions are the things that users cannot do. Deny Actions are related to
+Deny Actions are the things that identities cannot do. Deny Actions are related to
 resources. For example, a user cannot SSH into a node.
 
-6. Temporary Actions
-
-![Temporary Action Node](../../img/access-graph/temporary-action-node.png)
-
-Temporary Actions are created when a user is granted temporary access to a
-resource. They are automatically deleted when the user's access expires.
-
-7. Resource Groups
+5. Resource Groups
 
 ![Resource Group Node](../../img/access-graph/resource-group-node.png)
 
 Resource Groups are collections of resources. They can be used to organize
 resources based on their role or team.
 
-8. Resources
+The number on the right hand side shows the number of resources that a resource group contains.
+
+6. Resources
 
 ![Resource Node](../../img/access-graph/resource-node.png)
 
 Resources are the things that users can or cannot access. They can be
 servers, databases, or Kubernetes clusters.
-
-## Searching
-
-To search for a graph node, either click the search button in the sidebar on the left,
-or press the `s` key.
-
-![Search](../../img/access-graph/search.png)
-
-You can then search through all node types. If you select a result using your keyboard
-arrow keys, you can press either `Tab` to add the node to the graph, or `Enter` to replace
-the graph with just the individual node.
-
-## Changing what is visible
-
-By default, Teleport Access Graph shows all types of nodes and paths. You can see what
-node types are visible by looking at the sidebar on the left.
-
-![Sidebar](../../img/access-graph/sidebar.png)
-
-### Showing/removing individual graph nodes
-
-To show or remove an individual graph node, open up the node type in the sidebar and
-click on the node you want to show or remove.
-
-![Show/Remove Node](../../img/access-graph/search-item-click.png)
-
-Clicking on the node name will toggle the visibility of that node.
-
-![Select only one node](../../img/access-graph/search-item-checkbox-click.png)
-
-Clicking on the checkbox will select only that node.
-
-### Adding/removing graph node types
-
-To add a graph node type that isn't in the view, select it from the list of available
-node types.
-
-![Add node type](../../img/access-graph/add-node-type.png)
-
-To remove the graph node type, expand the node type in the sidebar and click on the
-remove button.
-
-![Remove node type](../../img/access-graph/remove-node-type.png)
-
-### Expanding/collapsing graph nodes
-
-If a graph node has connections to other nodes, it can be expanded to show those
-connections. To expand a node, hover over the edge of the node. If there are
-connections in that direction, the edge will turn blue. Clicking on the edge
-will expand the node.
-
-![Expand node](../../img/access-graph/expand-node.png)
-
-You can keep expanding graph nodes until you reach the end of the path.
-
-![Expand one level](../../img/access-graph/expand-one-level.png)
-
-![Expand two levels](../../img/access-graph/expand-two-levels.png)
-
-To collapse a graph node, click on the edge that was used to expand it.
-
-![Collapse node](../../img/access-graph/collapse-node.png)
 
 ## Graph paths
 
@@ -165,14 +91,14 @@ Paths can be divided into two categories:
 
 ![Allow Path](../../img/access-graph/allow-path.png)
 
-Allow paths connect users to resources. They show what a user can access
+Allow paths connect identities to resources. They show what an identity can access
 and what actions they can perform.
 
 2. Deny paths
 
 ![Deny Path](../../img/access-graph/deny-path.png)
 
-Deny paths connect users to resources. They show what a user cannot access
+Deny paths connect identities to resources. They show what a identity cannot access
 and what actions they cannot perform. Deny paths take precedence over allow
 paths.
 
@@ -188,13 +114,80 @@ Teleport Access Graph can help you to answer questions like:
 
 ![Show Access Path](../../img/access-graph/show-access-path.gif)
 
+## Navigation
 
-## How Teleport resources are represented
+![Navigation](../../img/access-graph/sidebar.png)
 
-Teleport Access Graph imports all Teleport resources and keeps them up to date, so every time you make a change
+The left hand side menu contains the main navigation options:
+
+- Graph view
+- Search
+- SQL editor
+- Integrations
+
+## Graph View
+
+Graph view is the main view that shows the connections between identities and resources.
+By default, an aggregated view of access paths grouped by identity is showed.
+
+## Search
+
+To search for a graph node use the search bar at the top of the page or the search icon on the right hand side.
+
+![Search](../../img/access-graph/search.png)
+
+You can then search through all node types and all imported entities.
+
+## SQL Editor
+
+Access Graph allows creating SQL like queries to explore the graph.
+
+![SQL Editor](../../img/access-graph/sql-editor.png)
+
+The query language allows to create different views of the graph, ex:
+
+Show only allowed paths
+
+```sql
+SELECT * FROM access_path WHERE kind = 'ALLOWED';
+```
+
+Show only denied paths
+```sql
+SELECT * FROM access_path WHERE kind = 'DENIED';
+```
+
+Show all access paths for a user
+
+```sql
+SELECT * FROM access_path WHERE identity = 'bob';
+```
+
+Show all access paths for a user AND resource
+
+```sql
+SELECT * FROM access_path WHERE identity = 'bob' AND resource = 'postgres';
+```
+
+More actionable examples is available under ? icon.
+
+## Integrations
+
+![Integrations](../../img/access-graph/integrations.png)
+
+Integrations page shows integrations that can be enabled or are already enabled in Access Graph.
+
+<Admonition title="Note" type="tip">
+  Resources imported into Teleport through Teleport enabled integrations are automatically imported into
+  Access graph without any additional configuration.
+</Admonition>
+
+## How resources and identities are represented
+
+Access Graph imports all resources and identities from Teleport and keeps them up to date, so every time you make a change
 to your Teleport resources, the Access Graph will reflect those changes.
 
-### Users
+### Identities
 
 Users are created from Teleport Users.
 Local users are imported as soon as they are created.
@@ -226,6 +219,7 @@ Actions take precedence over Allow Actions.
 
 Temporary Actions are created when a user is granted temporary access to a
 resource. They are automatically deleted when the user's access expires.
+The temporary actions can be identified by having `Temporary: true` property.
 
 #### Resource Groups
 

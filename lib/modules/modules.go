@@ -110,6 +110,18 @@ type Features struct {
 	// Policy holds settings for the Teleport Policy feature set.
 	// At the time of writing, this includes Teleport Access Graph (TAG).
 	Policy PolicyFeature
+	// Questionnaire indicates whether cluster users should get an onboarding questionnaire
+	Questionnaire bool
+	// IsStripeManaged indicates if the cluster billing is managed via Stripe
+	IsStripeManaged bool
+	// ExternalAuditStorage indicates whether the EAS feature is enabled in the cluster.
+	ExternalAuditStorage bool
+	// SupportType indicates the type of customer's support
+	SupportType proto.SupportType
+	// JoinActiveSessions indicates whether joining active sessions via web UI is enabled
+	JoinActiveSessions bool
+	// MobileDeviceManagement indicates whether endpoints management (like Jamf Plugin) can be used in the cluster
+	MobileDeviceManagement bool
 }
 
 // DeviceTrustFeature holds the Device Trust feature general and usage-based
@@ -199,6 +211,12 @@ func (f Features) ToProto() *proto.Features {
 		Policy: &proto.PolicyFeature{
 			Enabled: f.Policy.Enabled,
 		},
+		Questionnaire:          f.Questionnaire,
+		IsStripeManaged:        f.IsStripeManaged,
+		ExternalAuditStorage:   f.ExternalAuditStorage,
+		SupportType:            f.SupportType,
+		JoinActiveSessions:     f.JoinActiveSessions,
+		MobileDeviceManagement: f.MobileDeviceManagement,
 	}
 }
 
@@ -225,6 +243,7 @@ func (f Features) IGSEnabled() bool {
 	return f.IdentityGovernanceSecurity
 }
 
+// TODO(mcbattirola): remove isTeam when it is no longer used
 func (f Features) IsTeam() bool {
 	return f.ProductType == ProductTypeTeam
 }
@@ -357,12 +376,14 @@ func (p *defaultModules) Features() Features {
 	})
 
 	return Features{
-		Kubernetes:        true,
-		DB:                true,
-		App:               true,
-		Desktop:           true,
-		AutomaticUpgrades: p.automaticUpgrades,
-		Assist:            true,
+		Kubernetes:         true,
+		DB:                 true,
+		App:                true,
+		Desktop:            true,
+		AutomaticUpgrades:  p.automaticUpgrades,
+		Assist:             true,
+		JoinActiveSessions: true,
+		SupportType:        proto.SupportType_SUPPORT_TYPE_FREE,
 	}
 }
 

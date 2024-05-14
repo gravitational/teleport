@@ -26,14 +26,14 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -54,70 +54,25 @@ const (
 )
 
 // AuthenticateUserRequest is a request to authenticate interactive user
-type AuthenticateUserRequest struct {
-	// Username is a username
-	Username string `json:"username"`
-	// PublicKey is a public key in ssh authorized_keys format
-	PublicKey []byte `json:"public_key"`
-	// Pass is a password used in local authentication schemes
-	Pass *PassCreds `json:"pass,omitempty"`
-	// Webauthn is a signed credential assertion, used in MFA authentication
-	Webauthn *wantypes.CredentialAssertionResponse `json:"webauthn,omitempty"`
-	// OTP is a password and second factor, used for MFA authentication
-	OTP *OTPCreds `json:"otp,omitempty"`
-	// Session is a web session credential used to authenticate web sessions
-	Session *SessionCreds `json:"session,omitempty"`
-	// ClientMetadata includes forwarded information about a client
-	ClientMetadata *ForwardedClientMetadata `json:"client_metadata,omitempty"`
-	// HeadlessAuthenticationID is the ID for a headless authentication resource.
-	HeadlessAuthenticationID string `json:"headless_authentication_id"`
-}
+type AuthenticateUserRequest = authclient.AuthenticateUserRequest
 
 // ForwardedClientMetadata can be used by the proxy web API to forward information about
 // the client to the auth service.
-type ForwardedClientMetadata struct {
-	UserAgent string `json:"user_agent,omitempty"`
-	// RemoteAddr is the IP address of the end user. This IP address is derived
-	// either from a direct client connection, or from a PROXY protocol header
-	// if the connection is forwarded through a load balancer.
-	RemoteAddr string `json:"remote_addr,omitempty"`
-}
-
-// CheckAndSetDefaults checks and sets defaults
-func (a *AuthenticateUserRequest) CheckAndSetDefaults() error {
-	switch {
-	case a.Username == "" && a.Webauthn != nil: // OK, passwordless.
-	case a.Username == "":
-		return trace.BadParameter("missing parameter 'username'")
-	case a.Pass == nil && a.Webauthn == nil && a.OTP == nil && a.Session == nil && a.HeadlessAuthenticationID == "":
-		return trace.BadParameter("at least one authentication method is required")
-	}
-	return nil
-}
+type ForwardedClientMetadata = authclient.ForwardedClientMetadata
 
 // PassCreds is a password credential
-type PassCreds struct {
-	// Password is a user password
-	Password []byte `json:"password"`
-}
+type PassCreds = authclient.PassCreds
 
 // OTPCreds is a two-factor authentication credentials
-type OTPCreds struct {
-	// Password is a user password
-	Password []byte `json:"password"`
-	// Token is a user second factor token
-	Token string `json:"token"`
-}
+type OTPCreds = authclient.OTPCreds
 
 // SessionCreds is a web session credentials
-type SessionCreds struct {
-	// ID is a web session id
-	ID string `json:"id"`
-}
+type SessionCreds = authclient.SessionCreds
 
-// AuthenticateUser authenticates user based on the request type.
-// Returns the username of the authenticated user.
-func (a *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserRequest) (services.UserState, services.AccessChecker, error) {
+// authenticateUserLogin implements the bulk of user login authentication.
+// Used by the top-level local login methods, [Server.AuthenticateSSHUser] and
+// [Server.AuthenticateWebUser]
+func (a *Server) authenticateUserLogin(ctx context.Context, req AuthenticateUserRequest) (services.UserState, services.AccessChecker, error) {
 	username := req.Username
 
 	requiredExt := mfav1.ChallengeExtensions{
@@ -132,7 +87,7 @@ func (a *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserReque
 			clientMetadata: req.ClientMetadata,
 			authErr:        err,
 		}); err != nil {
-			log.WithError(err).Warn("Failed to emit login event.")
+			log.WithError(err).Warn("Failed to emit login event")
 		}
 		return nil, nil, trace.Wrap(err)
 	}
@@ -184,7 +139,7 @@ func (a *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserReque
 			checker:        checker,
 			authErr:        err,
 		}); err != nil {
-			log.WithError(err).Warn("Failed to emit login event.")
+			log.WithError(err).Warn("Failed to emit login event")
 		}
 		return nil, nil, trace.Wrap(err)
 	}
@@ -196,7 +151,7 @@ func (a *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserReque
 		mfaDevice:      mfaDev,
 		checker:        checker,
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit login event.")
+		log.WithError(err).Warn("Failed to emit login event")
 	}
 
 	return userState, checker, trace.Wrap(err)
@@ -270,6 +225,12 @@ var (
 	// invalidUserpass2FError is the error for when either the provided username,
 	// password, or second factor is incorrect.
 	invalidUserPass2FError = trace.AccessDenied("invalid username, password or second factor")
+
+	// errSSOUserLocalAuth is issued for SSO users attempting local authentication
+	// or related actions (like trying to set a password)
+	// Kept purposefully vague, as such actions don't happen during normal
+	// utilization of the system.
+	errSSOUserLocalAuth = &trace.AccessDeniedError{Message: "invalid credentials"}
 )
 
 // IsInvalidLocalCredentialError checks if an error resulted from an incorrect username,
@@ -377,6 +338,22 @@ func (a *Server) authenticateUserInternal(
 		return a.authenticatePasswordless(ctx, req)
 	}
 
+	// Disallow non-local users from local authentication.
+	// Passwordless does its own check, as the user is only known after the
+	// webauthn assertion is cleared.
+	switch u, err := a.GetUser(ctx, user, false /* withSecrets */); {
+	case trace.IsNotFound(err):
+		// Keep going if the user is not known.
+	case err != nil:
+		return nil, "", trace.Wrap(err)
+	case u.GetUserType() != types.UserTypeLocal:
+		log.WithFields(logrus.Fields{
+			"user":      user,
+			"user_type": u.GetUserType(),
+		}).Warn("Non-local user attempted local authentication")
+		return nil, "", trace.Wrap(errSSOUserLocalAuth)
+	}
+
 	// Try 2nd-factor-enabled authentication schemes first.
 	var authenticateFn func() (*types.MFADevice, error)
 	var authErr error // error message kept obscure on purpose, use logging for details
@@ -397,7 +374,7 @@ func (a *Server) authenticateUserInternal(
 	case req.Webauthn != nil:
 		authenticateFn = func() (*types.MFADevice, error) {
 			if req.Pass != nil {
-				if err = a.checkPasswordWOToken(user, req.Pass.Password); err != nil {
+				if err = a.checkPasswordWOToken(ctx, user, req.Pass.Password); err != nil {
 					return nil, trace.Wrap(err)
 				}
 			}
@@ -417,7 +394,7 @@ func (a *Server) authenticateUserInternal(
 		authenticateFn = func() (*types.MFADevice, error) {
 			// OTP cannot be validated by validateMFAAuthResponse because we need to
 			// check the user's password too.
-			res, err := a.checkPassword(user, req.OTP.Password, req.OTP.Token)
+			res, err := a.checkPassword(ctx, user, req.OTP.Password, req.OTP.Token)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -483,7 +460,7 @@ func (a *Server) authenticateUserInternal(
 		return nil, "", trace.AccessDenied("missing second factor")
 	}
 	if err = a.WithUserLock(ctx, user, func() error {
-		return a.checkPasswordWOToken(user, req.Pass.Password)
+		return a.checkPasswordWOToken(ctx, user, req.Pass.Password)
 	}); err != nil {
 		if fieldErr := getErrorByTraceField(err); fieldErr != nil {
 			return nil, "", trace.Wrap(fieldErr)
@@ -505,7 +482,11 @@ func (a *Server) authenticatePasswordless(ctx context.Context, req AuthenticateU
 
 	requiredExt := &mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN}
 	mfaData, err := a.ValidateMFAAuthResponse(ctx, mfaResponse, "" /* user */, requiredExt)
-	if err != nil {
+	switch {
+	// Don't obfuscate the SSO error.
+	case errors.Is(err, types.ErrPassswordlessLoginBySSOUser):
+		return nil, "", trace.Wrap(err)
+	case err != nil:
 		log.Debugf("Passwordless authentication failed: %v", err)
 		return nil, "", trace.Wrap(authenticateWebauthnError)
 	}
@@ -663,7 +644,7 @@ func (a *Server) AuthenticateWebUser(ctx context.Context, req AuthenticateUserRe
 		return session, nil
 	}
 
-	user, _, err := a.AuthenticateUser(ctx, req)
+	user, _, err := a.authenticateUserLogin(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -692,89 +673,19 @@ func (a *Server) AuthenticateWebUser(ctx context.Context, req AuthenticateUserRe
 }
 
 // AuthenticateSSHRequest is a request to authenticate SSH client user via CLI
-type AuthenticateSSHRequest struct {
-	// AuthenticateUserRequest is a request with credentials
-	AuthenticateUserRequest
-	// TTL is a requested TTL for certificates to be issues
-	TTL time.Duration `json:"ttl"`
-	// CompatibilityMode sets certificate compatibility mode with old SSH clients
-	CompatibilityMode string `json:"compatibility_mode"`
-	RouteToCluster    string `json:"route_to_cluster"`
-	// KubernetesCluster sets the target kubernetes cluster for the TLS
-	// certificate. This can be empty on older clients.
-	KubernetesCluster string `json:"kubernetes_cluster"`
-	// AttestationStatement is an attestation statement associated with the given public key.
-	AttestationStatement *keys.AttestationStatement `json:"attestation_statement,omitempty"`
-}
-
-// CheckAndSetDefaults checks and sets default certificate values
-func (a *AuthenticateSSHRequest) CheckAndSetDefaults() error {
-	if err := a.AuthenticateUserRequest.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
-	if len(a.PublicKey) == 0 {
-		return trace.BadParameter("missing parameter 'public_key'")
-	}
-	certificateFormat, err := utils.CheckCertificateFormatFlag(a.CompatibilityMode)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	a.CompatibilityMode = certificateFormat
-	return nil
-}
+type AuthenticateSSHRequest = authclient.AuthenticateSSHRequest
 
 // SSHLoginResponse is a response returned by web proxy, it preserves backwards compatibility
 // on the wire, which is the primary reason for non-matching json tags
-type SSHLoginResponse struct {
-	// User contains a logged-in user information
-	Username string `json:"username"`
-	// Cert is a PEM encoded  signed certificate
-	Cert []byte `json:"cert"`
-	// TLSCertPEM is a PEM encoded TLS certificate signed by TLS certificate authority
-	TLSCert []byte `json:"tls_cert"`
-	// HostSigners is a list of signing host public keys trusted by proxy
-	HostSigners []TrustedCerts `json:"host_signers"`
-}
+type SSHLoginResponse = authclient.SSHLoginResponse
 
 // TrustedCerts contains host certificates, it preserves backwards compatibility
 // on the wire, which is the primary reason for non-matching json tags
-type TrustedCerts struct {
-	// ClusterName identifies teleport cluster name this authority serves,
-	// for host authorities that means base hostname of all servers,
-	// for user authorities that means organization name
-	ClusterName string `json:"domain_name"`
-	// AuthorizedKeys is a list of SSH public keys in authorized_keys format
-	// that can be used to check host key signatures.
-	AuthorizedKeys [][]byte `json:"checking_keys"`
-	// TLSCertificates is a list of TLS certificates of the certificate authority
-	// of the authentication server
-	TLSCertificates [][]byte `json:"tls_certs"`
-}
-
-// SSHCertPublicKeys returns a list of trusted host SSH certificate authority public keys
-func (c *TrustedCerts) SSHCertPublicKeys() ([]ssh.PublicKey, error) {
-	out := make([]ssh.PublicKey, 0, len(c.AuthorizedKeys))
-	for _, keyBytes := range c.AuthorizedKeys {
-		publicKey, _, _, _, err := ssh.ParseAuthorizedKey(keyBytes)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		out = append(out, publicKey)
-	}
-	return out, nil
-}
+type TrustedCerts = authclient.TrustedCerts
 
 // AuthoritiesToTrustedCerts serializes authorities to TrustedCerts data structure
-func AuthoritiesToTrustedCerts(authorities []types.CertAuthority) []TrustedCerts {
-	out := make([]TrustedCerts, len(authorities))
-	for i, ca := range authorities {
-		out[i] = TrustedCerts{
-			ClusterName:     ca.GetClusterName(),
-			AuthorizedKeys:  services.GetSSHCheckingKeys(ca),
-			TLSCertificates: services.GetTLSCerts(ca),
-		}
-	}
-	return out
+func AuthoritiesToTrustedCerts(authorities []types.CertAuthority) []authclient.TrustedCerts {
+	return authclient.AuthoritiesToTrustedCerts(authorities)
 }
 
 // AuthenticateSSHUser authenticates an SSH user and returns SSH and TLS
@@ -798,7 +709,7 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHReq
 
 	// It's safe to extract the roles and traits directly from services.User as
 	// this endpoint is only used for local accounts.
-	user, checker, err := a.AuthenticateUser(ctx, req.AuthenticateUserRequest)
+	user, checker, err := a.authenticateUserLogin(ctx, req.AuthenticateUserRequest)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

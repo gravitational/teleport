@@ -927,6 +927,13 @@ type AccessCache interface {
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 }
 
+// AccessCacheWithEvents extends the AccessCache interface with events. Useful for trust-related components
+// that need to watch for changes.
+type AccessCacheWithEvents interface {
+	AccessCache
+	types.Events
+}
+
 // Cache is a subset of the auth interface handling
 // access to the discovery API and static tokens
 type Cache interface {

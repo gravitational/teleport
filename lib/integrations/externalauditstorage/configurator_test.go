@@ -102,8 +102,8 @@ func TestConfiguratorIsUsed(t *testing.T) {
 			name: "cloud enterprise without config",
 			modules: &modules.TestModules{
 				TestFeatures: modules.Features{
-					Cloud:               true,
-					IsUsageBasedBilling: false,
+					Cloud:                true,
+					ExternalAuditStorage: true,
 				},
 			},
 			wantIsUsed: false,
@@ -112,8 +112,8 @@ func TestConfiguratorIsUsed(t *testing.T) {
 			name: "cloud enterprise with only draft",
 			modules: &modules.TestModules{
 				TestFeatures: modules.Features{
-					Cloud:               true,
-					IsUsageBasedBilling: false,
+					Cloud:                true,
+					ExternalAuditStorage: true,
 				},
 			},
 			// Just create draft, External Audit Storage should be disabled, it's
@@ -129,8 +129,8 @@ func TestConfiguratorIsUsed(t *testing.T) {
 			name: "cloud enterprise with cluster config",
 			modules: &modules.TestModules{
 				TestFeatures: modules.Features{
-					Cloud:               true,
-					IsUsageBasedBilling: false,
+					Cloud:                true,
+					ExternalAuditStorage: true,
 				},
 			},
 			// Create draft and promote it to cluster.
@@ -178,8 +178,8 @@ func TestCredentialsCache(t *testing.T) {
 
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			Cloud:               true,
-			IsUsageBasedBilling: false,
+			Cloud:                true,
+			ExternalAuditStorage: true,
 		},
 	})
 
@@ -316,8 +316,8 @@ func TestDraftConfigurator(t *testing.T) {
 
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			Cloud:               true,
-			IsUsageBasedBilling: false,
+			Cloud:                true,
+			ExternalAuditStorage: true,
 		},
 	})
 

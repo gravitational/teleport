@@ -302,6 +302,15 @@ message AccessListReviewMetadata {
   repeated string RemovedMembers = 6 [(gogoproto.jsontag) = "removed_members,omitempty"];
 }
 
+// LockMetadata contains common metadata for lock resource events.
+message LockMetadata {
+  // Target describes the set of interactions that the lock applies to
+  types.LockTarget Target = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "target"
+  ];
+}
+
 // SessionStart is a session start event
 message SessionStart {
   // Metadata is a common event metadata
@@ -3087,6 +3096,11 @@ message DatabasePermissionUpdate {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "permission_summary"
   ];
+  // AffectedObjectCounts counts how many distinct objects of each kind were affected.
+  map<string, int32> AffectedObjectCounts = 6 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "affected_object_counts"
+  ];
 }
 
 // DatabasePermissionEntry is a summary of permissions, scoped to a particular permission.
@@ -3562,9 +3576,17 @@ message LockCreate {
   ];
 
   // Target describes the set of interactions that the lock applies to
+  // Deprecated: use Lock instead.
   types.LockTarget Target = 4 [
+    deprecated = true,
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "target"
+  ];
+
+  // Lock is a common lock event metadata
+  LockMetadata Lock = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "lock"
   ];
 }
 
@@ -3589,6 +3611,12 @@ message LockDelete {
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
+  ];
+
+  // Lock is a common lock event metadata
+  LockMetadata Lock = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "lock"
   ];
 }
 

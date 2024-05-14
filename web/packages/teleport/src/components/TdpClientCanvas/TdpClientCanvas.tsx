@@ -17,6 +17,7 @@
  */
 
 import React, { memo, useEffect, useRef } from 'react';
+import { DebouncedFunc } from 'shared/utils/highbar';
 
 import { TdpClientEvent, TdpClient } from 'teleport/lib/tdp';
 import { BitmapFrame } from 'teleport/lib/tdp/client';
@@ -50,6 +51,7 @@ function TdpClientCanvas(props: Props) {
     canvasOnMouseUp,
     canvasOnMouseWheelScroll,
     canvasOnContextMenu,
+    windowOnResize,
     style,
     updatePointer,
   } = props;
@@ -154,7 +156,9 @@ function TdpClientCanvas(props: Props) {
       const renderBuffer = () => {
         if (bitmapBuffer.length) {
           for (let i = 0; i < bitmapBuffer.length; i++) {
-            clientOnBmpFrame(ctx, bitmapBuffer[i]);
+            if (bitmapBuffer[i].image_data.data.length != 0) {
+              clientOnBmpFrame(ctx, bitmapBuffer[i]);
+            }
           }
           bitmapBuffer = [];
         }
@@ -380,6 +384,17 @@ function TdpClientCanvas(props: Props) {
   }, [client, canvasOnFocusOut]);
 
   useEffect(() => {
+    if (client && windowOnResize) {
+      const _onresize = () => windowOnResize(client);
+      window.addEventListener('resize', _onresize);
+      return () => {
+        windowOnResize.cancel();
+        window.removeEventListener('resize', _onresize);
+      };
+    }
+  }, [client, windowOnResize]);
+
+  useEffect(() => {
     if (client) {
       const canvas = canvasRef.current;
       const _clearCanvas = () => {
@@ -446,6 +461,7 @@ export type Props = {
   canvasOnMouseUp?: (cli: TdpClient, e: MouseEvent) => void;
   canvasOnMouseWheelScroll?: (cli: TdpClient, e: WheelEvent) => void;
   canvasOnContextMenu?: () => boolean;
+  windowOnResize?: DebouncedFunc<(cli: TdpClient) => void>;
   style?: CSSProperties;
   updatePointer?: boolean;
 };

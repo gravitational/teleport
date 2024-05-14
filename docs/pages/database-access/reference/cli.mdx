@@ -150,6 +150,26 @@ $ teleport db configure bootstrap -c /etc/teleport.yaml --manual
 | `--attach-to-role` | Role name to attach the policy to. Mutually exclusive with `--attach-to-user`. If none of the attach-to flags is provided, the command will try to attach the policy to the current user/role based on the credentials. |
 | `--attach-to-user` | User name to attach the policy to. Mutually exclusive with `--attach-to-role`. If none of the attach-to flags is provided, the command will try to attach the policy to the current user/role based on the credentials. |
 
+## teleport db configure aws print-iam
+
+Print the necessary IAM permissions required for the Database Service based on
+provided database types.
+
+```code
+$ teleport db configure aws print-iam --types rds
+$ teleport db configure aws print-iam --types rds,redshift --role my-db-service-role
+$ teleport db configure aws print-iam --types redshift-serverless --assumes-roles my-access-role --policy
+```
+
+| Flag | Description |
+| - | - |
+| `-r/--types` | Comma-separated list of database types to include in the policy. Any of `rds`, `rdsproxy`, `redshift`, `redshift-serverless`, `elasticache`, `memorydb`, `keyspace`, `dynamodb`, `opensearch`. |
+| `--role` | IAM role name to attach policy to. Mutually exclusive with --user. |
+| `--user` | IAM user name to attach policy to. Mutually exclusive with --role. |
+| `--[no-]policy` | Only print an IAM policy document. |
+| `--[no-]boundary` | Only print an IAM boundary policy document. |
+| `--assumes-roles` | Comma-separated list of additional IAM roles that the IAM identity should be able to assume. Each role can be either an IAM role ARN or the name of a role in the identity's account. |
+
 ## tctl auth sign
 
 When invoked with a `--format=db` (or `--format=mongodb` for MongoDB) flag,

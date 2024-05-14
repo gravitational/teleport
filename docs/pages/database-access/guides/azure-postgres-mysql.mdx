@@ -8,6 +8,14 @@ description: How to configure Teleport database access with Azure Database for P
 Database auto-discovery for Azure PostgreSQL/MySQL flexible servers is available starting from
 Teleport `12.0`.
 
+## How it works
+
+The Teleport Database Service proxies traffic between Teleport users and Azure
+PostgreSQL and MySQL. When a user connects to the database via Teleport, the
+Database Service obtains an access token from Microsoft Entra ID (formerly Azure
+AD) and authenticates to Azure as a principal with permissions to manage the
+database.
+
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![Teleport Database Access Azure PostgreSQL/MySQL Self-Hosted](../../../img/database-access/guides/azure_selfhosted.png)

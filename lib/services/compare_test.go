@@ -22,6 +22,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types/accesslist"
 )
 
 func TestCompareResources(t *testing.T) {
@@ -31,6 +33,17 @@ func TestCompareResources(t *testing.T) {
 	// These results should be forced since we're going through a custom compare function.
 	compareTestCase(t, "IsEqual equal", &compareResourceWithEqual{true}, &compareResourceWithEqual{false}, Equal)
 	compareTestCase(t, "IsEqual not equal", &compareResourceWithEqual{false}, &compareResourceWithEqual{false}, Different)
+
+	// These results compare AccessListMemberSpec, which should ignore the IneligibleStatus field.
+	newAccessListMemberSpec := func(ineligibleStatus, accessList string) accesslist.AccessListMemberSpec {
+		return accesslist.AccessListMemberSpec{
+			AccessList:       accessList,
+			IneligibleStatus: ineligibleStatus,
+		}
+	}
+	compareTestCase(t, "cmp equal with equal IneligibleStatus", newAccessListMemberSpec("status1", "accessList1"), newAccessListMemberSpec("status1", "accessList1"), Equal)
+	compareTestCase(t, "cmp equal with different IneligibleStatus", newAccessListMemberSpec("status1", "accessList1"), newAccessListMemberSpec("status2", "accessList1"), Equal)
+	compareTestCase(t, "cmp not equal", newAccessListMemberSpec("status1", "accessList1"), newAccessListMemberSpec("status1", "accessList2"), Different)
 }
 
 func compareTestCase[T any](t *testing.T, name string, resA, resB T, expected int) {

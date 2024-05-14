@@ -51,7 +51,7 @@ describe('externalAuditStorageCta', () => {
     });
 
     cfg.isCloud = isCloud;
-    ctx.lockedFeatures.externalCloudAudit = lockedFeature;
+    cfg.externalAuditStorage = lockedFeature;
 
     jest
       .spyOn(storageService, 'getExternalAuditStorageCtaDisabled')

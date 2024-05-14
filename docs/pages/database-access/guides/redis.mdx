@@ -5,7 +5,11 @@ description: How to configure Teleport database access with Redis.
 
 If you want to configure Redis Cluster, please read [Database Access with Redis Cluster](redis-cluster.mdx).
 
-(!docs/pages/includes/database-access/db-introduction.mdx  dbType="Redis" dbConfigure="Redis database with mutual TLS authentication" dbName="Redis" !)
+(!docs/pages/includes/database-access/self-hosted-introduction.mdx  dbType="Redis" dbConfigure="Redis database" dbName="Redis" !)
+
+## How it works
+
+(!docs/pages/includes/database-access/how-it-works/mtls.mdx db="Redis"!)
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
@@ -33,6 +37,9 @@ If you want to configure Redis Cluster, please read [Database Access with Redis 
 
   See [Installation](../../installation.mdx) for details.
 
+- Optional: a certificate authority that issues certificates for
+  your self-hosted database.
+
 - (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/5. Set up the Teleport Database Service
@@ -46,7 +53,7 @@ Install and configure Teleport where you will run the Teleport Database Service:
 
 (!docs/pages/includes/install-linux.mdx!)
 
-(!docs/pages/includes/database-access/db-configure-start.mdx dbName="example-redis" dbProtocol="redis" databaseAddress="rediss://redis.example.com:6379" !)
+(!docs/pages/includes/database-access/self-hosted-config-start.mdx dbName="example-redis" dbProtocol="redis" databaseAddress="rediss://redis.example.com:6379" !)
 
 </TabItem>
 <TabItem label="Kubernetes Cluster">
@@ -54,7 +61,7 @@ Install and configure Teleport where you will run the Teleport Database Service:
 
   (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
-  (!docs/pages/includes/database-access/db-helm-install.mdx dbName="example-redis" dbProtocol="redis" databaseAddress="rediss://redis.example.com:6379" !)
+  (!docs/pages/includes/database-access/self-hosted-db-helm-install.mdx dbName="example-redis" dbProtocol="redis" databaseAddress="rediss://redis.example.com:6379" !)
 </TabItem>
 </Tabs>
 
@@ -70,26 +77,7 @@ Install and configure Teleport where you will run the Teleport Database Service:
 
 ## Step 4/5. Set up mutual TLS
 
-(!docs/pages/includes/database-access/tctl-auth-sign.mdx!)
-
-We will show you how to use `tctl auth sign` below.
-
-When connecting to standalone Redis, sign the certificate for the hostname over
-which Teleport will be connecting to it.
-
-For example, if your Redis server is accessible at `redis.example.com`,
-run:
-
-```code
-$ tctl auth sign --format=redis --host=redis.example.com --out=server --ttl=2190h
-```
-
-(!docs/pages/includes/database-access/ttl-note.mdx!)
-
-The command will create three files:
-- `server.cas` with Teleport's certificate authority
-- `server.key` with a generated private key
-- `server.crt` with a generated user certificate
+(!docs/pages/includes/database-access/tctl-auth-sign-3-files.mdx format="redis" dbName="Redis" !)
 
 You will need these files to enable mutual TLS on your Redis server.
 
