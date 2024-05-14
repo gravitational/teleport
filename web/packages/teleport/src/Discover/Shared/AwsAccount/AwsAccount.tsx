@@ -33,19 +33,24 @@ import { Option as BaseOption } from 'shared/components/Select';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 import TextEditor from 'shared/components/TextEditor';
+import { getErrMessage } from 'shared/utils/errorType';
 
+import { App } from 'teleport/services/apps';
 import cfg from 'teleport/config';
 import {
   Integration,
   IntegrationKind,
+  IntegrationListResponse,
   integrationService,
 } from 'teleport/services/integrations';
 import {
   integrationRWE,
   integrationRWEAndNodeRWE,
   integrationRWEAndDbCU,
+  integrationAndAppRW,
 } from 'teleport/Discover/yamlTemplates';
 import useTeleport from 'teleport/useTeleport';
+import ResourceService from 'teleport/services/resources';
 
 import {
   ActionButtons,
@@ -68,10 +73,17 @@ export function AwsAccount() {
     eventState,
     resourceSpec,
     currentStep,
-    viewConfig,
   } = useDiscover();
 
   const integrationAccess = storeUser.getIntegrationsAccess();
+
+  // if true, requires an additional step where we fetch for
+  // apps matching fetched aws integrations to determine
+  // if an app already exists for the integration the user
+  // will select
+  const isAddingAwsApp =
+    resourceSpec.kind === ResourceKind.Application &&
+    resourceSpec.appMeta.awsConsole;
 
   let roleTemplate = integrationRWE;
   let hasAccess =
@@ -81,12 +93,12 @@ export function AwsAccount() {
     integrationAccess.read;
 
   // Ensure required permissions based on which flow this is in.
-  if (viewConfig.kind === ResourceKind.Database) {
+  if (resourceSpec.kind === ResourceKind.Database) {
     roleTemplate = integrationRWEAndDbCU;
     const databaseAccess = storeUser.getDatabaseAccess();
     hasAccess = hasAccess && databaseAccess.create; // required to enroll AWS RDS db
   }
-  if (viewConfig.kind === ResourceKind.Server) {
+  if (resourceSpec.kind === ResourceKind.Server) {
     roleTemplate = integrationRWEAndNodeRWE;
     const nodesAccess = storeUser.getNodeAccess();
     hasAccess =
@@ -96,8 +108,23 @@ export function AwsAccount() {
       nodesAccess.list &&
       nodesAccess.read; // Needed for TestConnection flow
   }
+  if (isAddingAwsApp) {
+    roleTemplate = integrationAndAppRW;
+    const appAccess = storeUser.getAppServerAccess();
+    hasAccess =
+      hasAccess &&
+      // required to upsert app server
+      appAccess.create &&
+      appAccess.edit &&
+      // required to list and read app servers
+      appAccess.list &&
+      appAccess.read;
+  }
 
-  const { attempt, run } = useAttempt(hasAccess ? 'processing' : '');
+  const { attempt, setAttempt } = useAttempt(hasAccess ? 'processing' : '');
+
+  // only used if resource we are trying to add is an AWS console.
+  const [fetchedApps, setFetchedApps] = useState<App[]>([]);
 
   const [awsIntegrations, setAwsIntegrations] = useState<Option[]>([]);
   const [selectedAwsIntegration, setSelectedAwsIntegration] =
@@ -105,27 +132,72 @@ export function AwsAccount() {
 
   useEffect(() => {
     if (hasAccess) {
-      fetchAwsIntegrations();
+      fetchAwsIntegrationsWithApps();
     }
   }, []);
 
-  function fetchAwsIntegrations() {
-    run(() =>
-      integrationService.fetchIntegrations().then(res => {
-        const options = res.items
-          .filter(i => i.kind === 'aws-oidc')
-          .map(i => ({
-            value: i,
-            label: i.name,
-          }));
-        setAwsIntegrations(options);
+  function makeAwsIntegrationOptions(res: IntegrationListResponse) {
+    const options = res.items
+      .filter(i => i.kind === 'aws-oidc')
+      .map(i => ({
+        value: i,
+        label: i.name,
+      }));
+    setAwsIntegrations(options);
 
-        // Auto select the only option.
-        if (options.length === 1) {
-          setSelectedAwsIntegration(options[0]);
-        }
-      })
-    );
+    // Auto select the only option.
+    if (options.length === 1) {
+      setSelectedAwsIntegration(options[0]);
+    }
+
+    return options;
+  }
+
+  async function fetchAwsIntegrationsWithApps() {
+    setAttempt({ status: 'processing' });
+    try {
+      let integrationOptions = awsIntegrations;
+      // checking length, if re-attempting from failure
+      if (integrationOptions.length === 0) {
+        const integrationPage = await integrationService.fetchIntegrations();
+        integrationOptions = makeAwsIntegrationOptions(integrationPage);
+      }
+      if (!isAddingAwsApp || integrationOptions.length === 0) {
+        setAttempt({ status: 'success' });
+        // Skip fetching for apps
+        return;
+      }
+
+      // checking length, if re-attempting from failure
+      if (fetchedApps.length === 0) {
+        const resourceSvc = new ResourceService();
+        // fetch for apps that match fetched integration names.
+        // used later to determine if the integration user selected
+        // already has a application created for it.
+        const query = integrationOptions
+          .map(i => i.value.name)
+          .map(
+            integrationName =>
+              `resource.spec.integration == "${integrationName}"`
+          )
+          .join(' || ');
+
+        const { agents: resources } = await resourceSvc.fetchUnifiedResources(
+          storeUser.getClusterId(),
+          {
+            query,
+            limit: integrationOptions.length,
+            kinds: ['app'],
+            sort: { fieldName: 'name', dir: 'ASC' },
+          }
+        );
+        setFetchedApps(resources.filter(r => r.kind === 'app'));
+        setAttempt({ status: 'success' });
+      }
+    } catch (err) {
+      const errMsg = getErrMessage(err);
+      setAttempt({ status: 'failed', statusText: errMsg });
+    }
   }
 
   if (!hasAccess) {
@@ -147,6 +219,7 @@ export function AwsAccount() {
             />
           </Flex>
         </Box>
+        <ActionButtons onPrev={prevStep} />
       </Box>
     );
   }
@@ -167,7 +240,7 @@ export function AwsAccount() {
       <Box maxWidth="700px">
         <Heading />
         <Alert kind="danger" children={attempt.statusText} />
-        <ButtonPrimary mt={2} onClick={fetchAwsIntegrations}>
+        <ButtonPrimary mt={2} onClick={fetchAwsIntegrationsWithApps}>
           Retry
         </ButtonPrimary>
       </Box>
@@ -177,6 +250,27 @@ export function AwsAccount() {
   function proceedWithExistingIntegration(validator: Validator) {
     if (!validator.validate()) {
       return;
+    }
+
+    if (isAddingAwsApp && fetchedApps.length > 0) {
+      // See if an application already exists for selected integration
+      const foundApp = fetchedApps.find(
+        // app => app.name === selectedAwsIntegration.value.name
+        app =>
+          app.integration === selectedAwsIntegration.value.name &&
+          app.awsConsole
+      );
+      if (foundApp) {
+        updateAgentMeta({
+          ...agentMeta,
+          awsIntegration: selectedAwsIntegration.value,
+          app: foundApp,
+        });
+        // skips the next step (creating an app server)
+        // since it already exists
+        nextStep(2);
+        return;
+      }
     }
 
     updateAgentMeta({
