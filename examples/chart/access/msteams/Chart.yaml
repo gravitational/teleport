@@ -1,4 +1,4 @@
-.version: &version "15.3.1"
+.version: &version "15.3.1-dev.fred-staging.1"
 
 apiVersion: v2
 name: teleport-plugin-msteams
