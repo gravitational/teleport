@@ -203,7 +203,7 @@ func TryRun(commands []CLICommand, args []string) error {
 
 	ctx := context.Background()
 
-	clientConfig.Resolver, err = reversetunnelclient.CachingResolver(
+	resolver, err := reversetunnelclient.CachingResolver(
 		ctx,
 		reversetunnelclient.WebClientResolver(&webclient.Config{
 			Context:   ctx,
@@ -215,6 +215,19 @@ func TryRun(commands []CLICommand, args []string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	dialer, err := reversetunnelclient.NewTunnelAuthDialer(reversetunnelclient.TunnelAuthDialerConfig{
+		Resolver:              resolver,
+		ClientConfig:          clientConfig.SSH,
+		Log:                   clientConfig.Log,
+		InsecureSkipTLSVerify: clientConfig.Insecure,
+		ClusterCAs:            clientConfig.TLS.RootCAs,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	clientConfig.ProxyDialer = dialer
 
 	client, err := authclient.Connect(ctx, clientConfig)
 	if err != nil {
