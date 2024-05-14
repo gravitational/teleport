@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -139,8 +140,7 @@ func (r *TCPAppResolver) ResolveTCPHandler(ctx context.Context, fqdn string) (*T
 			// This is a query for the proxy address, which we'll never want to handle.
 			return nil, ErrNoTCPHandler
 		}
-		if !isSubdomain(fqdn, profileName) {
-			// TODO(nklaassen): support leaf clusters and custom DNS zones.
+		if !r.fqdnMatchesProfile(ctx, profileName, fqdn) {
 			continue
 		}
 
@@ -158,6 +158,21 @@ func (r *TCPAppResolver) ResolveTCPHandler(ctx context.Context, fqdn string) (*T
 	}
 	// fqdn did not match any profile, forward the request upstream.
 	return nil, ErrNoTCPHandler
+}
+
+func (r *TCPAppResolver) fqdnMatchesProfile(ctx context.Context, profileName, fqdn string) bool {
+	if isSubdomain(fqdn, profileName) {
+		return true
+	}
+	// TODO(nklaassen): support leaf clusters.
+	vnetConfig, err := r.clusterConfigCache.getVnetConfig(ctx, profileName, "" /*leafClustername*/)
+	if err != nil {
+		r.slog.DebugContext(ctx, "Failed to get VnetConfig, not checking custom DNS zones.", "profile", profileName, "error", err)
+		return false
+	}
+	return slices.ContainsFunc(vnetConfig.GetSpec().GetCustomDnsZones(), func(zone *vnet.CustomDNSZone) bool {
+		return isSubdomain(fqdn, zone.GetSuffix())
+	})
 }
 
 // resolveTCPHandlerForCluster takes a cluster client and resolves [fqdn] to a [TCPHandlerSpec] if a matching
@@ -296,8 +311,8 @@ func (i *appCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) 
 	return cert.(tls.Certificate), trace.Wrap(err)
 }
 
-func isSubdomain(appFQDN, proxyAddress string) bool {
-	return strings.HasSuffix(appFQDN, "."+fullyQualify(proxyAddress))
+func isSubdomain(appFQDN, suffix string) bool {
+	return strings.HasSuffix(appFQDN, "."+fullyQualify(suffix))
 }
 
 // fullyQualify returns a fully-qualified domain name from [domain]. Fully-qualified domain names always end

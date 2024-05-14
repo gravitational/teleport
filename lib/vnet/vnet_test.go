@@ -231,9 +231,10 @@ func (n noUpstreamNameservers) UpstreamNameservers(ctx context.Context) ([]strin
 }
 
 type testClusterSpec struct {
-	apps         []string
-	cidrRange    string
-	leafClusters map[string]testClusterSpec
+	apps           []string
+	cidrRange      string
+	customDNSZones []string
+	leafClusters   map[string]testClusterSpec
 }
 
 type echoAppProvider struct {
@@ -302,7 +303,7 @@ func (p *echoAppProvider) GetVnetConfig(ctx context.Context, profileName, leafCl
 		if rootCluster.cidrRange == "" {
 			return nil, trace.NotFound("vnet_config not found")
 		}
-		return &vnet.VnetConfig{
+		cfg := &vnet.VnetConfig{
 			Kind:    types.KindVnetConfig,
 			Version: types.V1,
 			Metadata: &headerv1.Metadata{
@@ -311,7 +312,13 @@ func (p *echoAppProvider) GetVnetConfig(ctx context.Context, profileName, leafCl
 			Spec: &vnet.VnetConfigSpec{
 				Ipv4CidrRange: rootCluster.cidrRange,
 			},
-		}, nil
+		}
+		for _, zone := range rootCluster.customDNSZones {
+			cfg.Spec.CustomDnsZones = append(cfg.Spec.CustomDnsZones,
+				&vnet.CustomDNSZone{Suffix: zone},
+			)
+		}
+		return cfg, nil
 	}
 	leafCluster, ok := rootCluster.leafClusters[leafClusterName]
 	if !ok {
@@ -320,7 +327,7 @@ func (p *echoAppProvider) GetVnetConfig(ctx context.Context, profileName, leafCl
 	if leafCluster.cidrRange == "" {
 		return nil, trace.NotFound("vnet_config not found")
 	}
-	return &vnet.VnetConfig{
+	cfg := &vnet.VnetConfig{
 		Kind:    types.KindVnetConfig,
 		Version: types.V1,
 		Metadata: &headerv1.Metadata{
@@ -329,7 +336,13 @@ func (p *echoAppProvider) GetVnetConfig(ctx context.Context, profileName, leafCl
 		Spec: &vnet.VnetConfigSpec{
 			Ipv4CidrRange: leafCluster.cidrRange,
 		},
-	}, nil
+	}
+	for _, zone := range leafCluster.customDNSZones {
+		cfg.Spec.CustomDnsZones = append(cfg.Spec.CustomDnsZones,
+			&vnet.CustomDNSZone{Suffix: zone},
+		)
+	}
+	return cfg, nil
 }
 
 func (p *echoAppProvider) OnNewConnection(ctx context.Context, profileName, leafClusterName string, app types.Application) error {
@@ -350,8 +363,7 @@ func (c *echoAppAuthClient) GetResources(ctx context.Context, req *proto.ListRes
 	resp := &proto.ListResourcesResponse{}
 	for _, app := range c.apps {
 		// Poor-man's predicate expression filter.
-		appPublicAddr := app + "." + c.clusterName
-		if !strings.Contains(req.PredicateExpression, appPublicAddr) {
+		if !strings.Contains(req.PredicateExpression, app) {
 			continue
 		}
 		resp.Resources = append(resp.Resources, &proto.PaginatedResource{
@@ -395,19 +407,20 @@ func TestDialFakeApp(t *testing.T) {
 
 	appProvider := newEchoAppProvider(map[string]testClusterSpec{
 		"root1.example.com": {
-			apps:      []string{"echo1", "echo2"},
-			cidrRange: "192.168.2.0/24",
+			apps:           []string{"echo1.root1.example.com", "echo2.root1.example.com", "echo.myzone.example.com"},
+			cidrRange:      "192.168.2.0/24",
+			customDNSZones: []string{"myzone.example.com"},
 			leafClusters: map[string]testClusterSpec{
 				"leaf1.example.com": {
-					apps: []string{"echo1"},
+					apps: []string{"echo1.leaf1.example.com"},
 				},
 			},
 		},
 		"root2.example.com": {
-			apps: []string{"echo1", "echo2"},
+			apps: []string{"echo1.root2.example.com", "echo2.root2.example.com"},
 			leafClusters: map[string]testClusterSpec{
 				"leaf2.example.com": {
-					apps: []string{"echo1"},
+					apps: []string{"echo1.leaf2.example.com"},
 				},
 			},
 		},
@@ -425,6 +438,10 @@ func TestDialFakeApp(t *testing.T) {
 		},
 		{
 			app:        "echo2.root1.example.com",
+			expectCIDR: "192.168.2.0/24",
+		},
+		{
+			app:        "echo.myzone.example.com",
 			expectCIDR: "192.168.2.0/24",
 		},
 		{
