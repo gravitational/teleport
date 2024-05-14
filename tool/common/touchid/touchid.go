@@ -20,6 +20,7 @@ package touchid
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -58,9 +59,9 @@ func (c *Command) TryRun(ctx context.Context, selectedCommand string) (match boo
 	switch {
 	case c.Diag.FullCommand() == selectedCommand:
 		return true, trace.Wrap(c.Diag.Run())
-	case c.Ls != nil && c.Ls.FullCommand() == selectedCommand:
+	case c.Ls.MatchesCommand(selectedCommand):
 		return true, trace.Wrap(c.Ls.Run())
-	case c.Rm != nil && c.Rm.FullCommand() == selectedCommand:
+	case c.Rm.MatchesCommand(selectedCommand):
 		return true, trace.Wrap(c.Rm.Run())
 	default:
 		return false, nil
@@ -101,17 +102,28 @@ func (c *DiagCommand) Run() error {
 
 // LsCommand implements the "touchid ls" command.
 type LsCommand struct {
-	*kingpin.CmdClause
+	cmd *kingpin.CmdClause
+}
+
+// MatchesCommand returns true if LsCommand matches the given fullCommand, as
+// per [kingpin.CmdClause.FullCommand].
+// Safe even if LsCommand is nil.
+func (c *LsCommand) MatchesCommand(fullCommand string) bool {
+	return c != nil && c.cmd != nil && c.cmd.FullCommand() == fullCommand
 }
 
 func newLsCommand(app *kingpin.CmdClause) *LsCommand {
 	return &LsCommand{
-		CmdClause: app.Command("ls", "Get a list of system Touch ID credentials").Hidden(),
+		cmd: app.Command("ls", "Get a list of system Touch ID credentials").Hidden(),
 	}
 }
 
 // Run executes the "touchid ls" command.
 func (c *LsCommand) Run() error {
+	if c == nil {
+		return errors.New("command not available")
+	}
+
 	infos, err := touchid.ListCredentials()
 	if err != nil {
 		return trace.Wrap(err)
@@ -145,28 +157,31 @@ func (c *LsCommand) Run() error {
 
 // RmCommand implements the "touchid rm" command.
 type RmCommand struct {
-	*kingpin.CmdClause
-
+	cmd          *kingpin.CmdClause
 	credentialID string
+}
+
+// MatchesCommand returns true if RmCommand matches the given fullCommand, as
+// per [kingpin.CmdClause.FullCommand].
+// Safe even if RmCommand is nil.
+func (c *RmCommand) MatchesCommand(fullCommand string) bool {
+	return c != nil && c.cmd != nil && c.cmd.FullCommand() == fullCommand
 }
 
 func newRmCommand(app *kingpin.CmdClause) *RmCommand {
 	c := &RmCommand{
-		CmdClause: app.Command("rm", "Remove a Touch ID credential").Hidden(),
+		cmd: app.Command("rm", "Remove a Touch ID credential").Hidden(),
 	}
-	c.Arg("id", "ID of the Touch ID credential to remove").Required().StringVar(&c.credentialID)
+	c.cmd.Arg("id", "ID of the Touch ID credential to remove").Required().StringVar(&c.credentialID)
 	return c
-}
-
-func (c *RmCommand) FullCommand() string {
-	if c.CmdClause == nil {
-		return "touchid rm"
-	}
-	return c.CmdClause.FullCommand()
 }
 
 // Run executes the "touchid rm" command.
 func (c *RmCommand) Run() error {
+	if c == nil {
+		return errors.New("command not available")
+	}
+
 	if err := touchid.DeleteCredential(c.credentialID); err != nil {
 		return trace.Wrap(err)
 	}
