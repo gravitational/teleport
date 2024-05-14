@@ -2940,7 +2940,17 @@ func (c *Cache) GetAccessList(ctx context.Context, name string) (*accesslist.Acc
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.reader.GetAccessList(ctx, name)
+	item, err := rg.reader.GetAccessList(ctx, name)
+	if trace.IsNotFound(err) && rg.IsCacheRead() {
+		// release read lock early
+		rg.Release()
+		// fallback is sane because method is never used
+		// in construction of derivative caches.
+		if item, err := c.Config.AccessLists.GetAccessList(ctx, name); err == nil {
+			return item, nil
+		}
+	}
+	return item, trace.Wrap(err)
 }
 
 // CountAccessListMembers will count all access list members.
