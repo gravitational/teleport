@@ -28,7 +28,7 @@ import React from 'react';
 import styled, { useTheme, css } from 'styled-components';
 
 export interface HeaderProps {
-  title: string;
+  title: React.ReactNode;
   description?: string;
   icon: React.ReactNode;
   showIndicator?: boolean;

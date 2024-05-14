@@ -64,7 +64,8 @@ export const sharedStyles: SharedStyles = {
   fonts: fonts,
   fontWeights,
   fontSizes,
-  radii: [0, 2, 4, 8, 16, 9999, '100%'],
+  // TODO(rudream): Clean up radii order in sharedStyles.
+  radii: [0, 2, 4, 8, 16, 9999, '100%', 24],
   regular: fontWeights.regular,
   bold: fontWeights.bold,
 };

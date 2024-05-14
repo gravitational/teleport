@@ -17,7 +17,7 @@
  */
 
 import React from 'react';
-
+import { useLocation } from 'react-router';
 import { Prompt } from 'react-router-dom';
 import { Box } from 'design';
 
@@ -95,8 +95,9 @@ function DiscoverContent() {
 }
 
 export function DiscoverComponent({ eViewConfigs = [] }: Props) {
+  const location = useLocation();
   return (
-    <DiscoverProvider eViewConfigs={eViewConfigs}>
+    <DiscoverProvider eViewConfigs={eViewConfigs} key={location.key}>
       <DiscoverContent />
     </DiscoverProvider>
   );

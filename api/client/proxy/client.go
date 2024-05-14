@@ -387,14 +387,17 @@ func (c *Client) ClientConfig(ctx context.Context, cluster string) (client.Confi
 			CircuitBreakerConfig:       breaker.NoopBreakerConfig(),
 			ALPNConnUpgradeRequired:    c.cfg.ALPNConnUpgradeRequired,
 			DialOpts:                   c.cfg.DialOpts,
+			InsecureAddressDiscovery:   c.cfg.InsecureSkipVerify,
+			DialInBackground:           true,
 		}, nil
 	}
 
 	return client.Config{
-		Context:              ctx,
-		Credentials:          []client.Credentials{creds},
-		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
-		DialInBackground:     true,
+		Context:                  ctx,
+		Credentials:              []client.Credentials{creds},
+		CircuitBreakerConfig:     breaker.NoopBreakerConfig(),
+		DialInBackground:         true,
+		InsecureAddressDiscovery: c.cfg.InsecureSkipVerify,
 		Dialer: client.ContextDialerFunc(func(dialCtx context.Context, _ string, _ string) (net.Conn, error) {
 			conn, err := c.transport.DialCluster(dialCtx, cluster, nil)
 			return conn, trace.Wrap(err)

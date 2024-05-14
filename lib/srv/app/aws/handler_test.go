@@ -185,10 +185,20 @@ func TestAWSSignerHandler(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	consoleAppWithIntegration, err := types.NewAppV3(types.Metadata{
+		Name: "awsconsole",
+	}, types.AppSpecV3{
+		URI:         constants.AWSConsoleURL,
+		PublicAddr:  "test.local",
+		Integration: "my-integration",
+	})
+	require.NoError(t, err)
+
 	tests := []struct {
 		name                string
 		app                 types.Application
 		awsClientSession    *session.Session
+		awsSessionProvider  awsutils.AWSSessionProvider
 		request             makeRequest
 		advanceClock        time.Duration
 		wantHost            string
@@ -209,6 +219,29 @@ func TestAWSSignerHandler(t *testing.T) {
 				Region:      aws.String("us-west-2"),
 			})),
 			request:             s3Request,
+			wantHost:            "s3.us-west-2.amazonaws.com",
+			wantAuthCredKeyID:   "AKIDl",
+			wantAuthCredService: "s3",
+			wantAuthCredRegion:  "us-west-2",
+			wantEventType:       &events.AppSessionRequest{},
+			errAssertionFns: []require.ErrorAssertionFunc{
+				require.NoError,
+			},
+		},
+		{
+			name: "s3 access with integration",
+			app:  consoleAppWithIntegration,
+			awsClientSession: session.Must(session.NewSession(&aws.Config{
+				Credentials: staticAWSCredentialsForClient,
+				Region:      aws.String("us-west-2"),
+			})),
+			request: s3Request,
+			awsSessionProvider: func(ctx context.Context, region, integration string) (*session.Session, error) {
+				if integration != "my-integration" {
+					return nil, trace.BadParameter("")
+				}
+				return nil, nil
+			},
 			wantHost:            "s3.us-west-2.amazonaws.com",
 			wantAuthCredKeyID:   "AKIDl",
 			wantAuthCredService: "s3",
@@ -450,7 +483,13 @@ func TestAWSSignerHandler(t *testing.T) {
 
 				w.WriteHeader(http.StatusOK)
 			}
-			suite := createSuite(t, mockAwsHandler, tc.app, fakeClock)
+
+			sessionProvider := awsutils.SessionProviderUsingAmbientCredentials()
+			if tc.awsSessionProvider != nil {
+				sessionProvider = tc.awsSessionProvider
+			}
+
+			suite := createSuite(t, mockAwsHandler, tc.app, fakeClock, sessionProvider)
 			fakeClock.Advance(tc.advanceClock)
 
 			err := tc.request(suite.URL, tc.awsClientSession, tc.wantHost)
@@ -569,7 +608,7 @@ type suite struct {
 	recorder *eventstest.ChannelRecorder
 }
 
-func createSuite(t *testing.T, mockAWSHandler http.HandlerFunc, app types.Application, clock clockwork.Clock) *suite {
+func createSuite(t *testing.T, mockAWSHandler http.HandlerFunc, app types.Application, clock clockwork.Clock, awsSessionProvider awsutils.AWSSessionProvider) *suite {
 	recorder := eventstest.NewChannelRecorder(1)
 	identity := tlsca.Identity{
 		Username: "user",
@@ -586,7 +625,7 @@ func createSuite(t *testing.T, mockAWSHandler http.HandlerFunc, app types.Applic
 	})
 
 	svc, err := awsutils.NewSigningService(awsutils.SigningServiceConfig{
-		SessionProvider:   awsutils.SessionProviderUsingAmbientCredentials(),
+		SessionProvider:   awsSessionProvider,
 		CredentialsGetter: awsutils.NewStaticCredentialsGetter(staticAWSCredentials),
 		Clock:             clock,
 	})

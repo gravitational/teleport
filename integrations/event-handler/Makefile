@@ -1,5 +1,5 @@
 VERSION?=15.2.0
-GO_VERSION=1.21.9
+GO_VERSION=1.21.10
 
 GITTAG=v$(VERSION)
 
@@ -53,7 +53,7 @@ release: build
 	tar -czf $(RELEASE).tar.gz $(RELEASE_NAME)
 	rm -rf $(RELEASE_NAME)/
 	@echo "---> Created $(RELEASE).tar.gz."
-  
+
 
 .PHONY: clean
 clean:
@@ -93,7 +93,7 @@ configure: build
 
 .PHONY: fluentd
 fluentd:
-	docker run -p 8888:8888 -v $(LOCALDIR)tmp:/keys -v $(LOCALDIR)tmp/fluent.conf:/fluentd/etc/fluent.conf fluent/fluentd:edge 
+	docker run -p 8888:8888 -v $(LOCALDIR)tmp:/keys -v $(LOCALDIR)tmp/fluent.conf:/fluentd/etc/fluent.conf fluent/fluentd:edge
 
 .PHONY: example
 example: build
