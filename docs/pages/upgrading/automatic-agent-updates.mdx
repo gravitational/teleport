@@ -3,12 +3,23 @@ title: Set up Automatic Agent Updates
 description: Describes how to set up automatic agent updates.
 ---
 
+We strongly recommend that Teleport users set up automatic agent updates to
+ensure that the version of Teleport running on agents remains compatible with
+the version running on the Auth Service and Proxy Service. If an agent does not
+maintain [version compatibility](./overview.mdx) with your Teleport cluster,
+connections to those agents will become degraded or lost.
+
+Cloud-hosted Teleport clusters are updated on a weekly basis. Major version
+updates are performed every 4 months. You can monitor and subscribe to the
+[Teleport Status](https://status.teleport.sh/) page to be notified of scheduled
+updates.
+
 Teleport supports automatic agent updates for systemd-based Linux distributions
 using `apt`, `yum`, and `zypper` package managers, as well as Kubernetes
 clusters. 
 
 This guide explains how to enable automatic updates for Teleport agents on
-cloud-hosted Teleport Enterprise clusters.
+cloud-hosted Teleport Enterprise clusters. 
 
 ## How it works
 
