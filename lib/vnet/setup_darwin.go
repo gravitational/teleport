@@ -96,8 +96,14 @@ func createAndSetupTUNDeviceWithoutRoot(ctx context.Context, ipv6Prefix, dnsAddr
 	g.Go(func() error {
 		tunName, tunFd, err := recvTUNNameAndFd(ctx, socket)
 		if err != nil {
+			if ctx.Err() != nil {
+				// The context was already canceled and the listener should have been closed,
+				// ignore the read error and return the ctx err to play nice.
+				return trace.Wrap(ctx.Err())
+			}
 			return trace.Wrap(err, "receiving TUN name and file descriptor")
 		}
+
 		tunDevice, err := tun.CreateTUNFromFile(os.NewFile(tunFd, tunName), 0)
 		if err != nil {
 			return trace.Wrap(err, "creating TUN device from file descriptor")
@@ -206,22 +212,10 @@ func sendTUNNameAndFd(socketPath, tunName string, fd uintptr) error {
 // recvTUNNameAndFd receives the name of a TUN device and its open file descriptor over a unix socket, meant
 // for passing the TUN from the root process which must create it to the user process.
 func recvTUNNameAndFd(ctx context.Context, socket *net.UnixListener) (string, uintptr, error) {
-	var conn *net.UnixConn
-	errC := make(chan error)
-	go func() {
-		connection, err := socket.AcceptUnix()
-		conn = connection
-		errC <- err
-	}()
-
-	select {
-	case <-ctx.Done():
-		return "", 0, trace.Wrap(ctx.Err())
-	case err := <-errC:
+	conn, err := socket.AcceptUnix()
 		if err != nil {
 			return "", 0, trace.Wrap(err, "accepting connection on unix socket")
 		}
-	}
 
 	// Close the connection early to unblock reads if the context is canceled.
 	ctx, cancel := context.WithCancel(ctx)
