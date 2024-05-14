@@ -23,7 +23,7 @@ import { Box, Flex, ButtonPrimary, ButtonText, Text, ButtonIcon } from 'design';
 import { ChevronDown } from 'design/Icon';
 import { pluralize } from 'shared/utils/text';
 
-import { RequestCheckout } from 'shared/components/AccessRequests/NewRequest';
+import { RequestCheckoutWithSlider } from 'shared/components/AccessRequests/NewRequest';
 
 import useAccessRequestCheckout from './useAccessRequestCheckout';
 import { AssumedRolesBar } from './AssumedRolesBar';
@@ -128,7 +128,7 @@ export function AccessRequestCheckout() {
         unmountOnExit
       >
         {transitionState => (
-          <RequestCheckout
+          <RequestCheckoutWithSlider
             toggleResource={toggleResource}
             onClose={() => setShowCheckout(false)}
             transitionState={transitionState}

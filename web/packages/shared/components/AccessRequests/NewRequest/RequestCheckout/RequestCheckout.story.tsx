@@ -25,7 +25,10 @@ import { Option } from 'shared/components/Select';
 
 import { dryRunResponse } from '../../fixtures';
 
-import { RequestCheckout, RequestCheckoutProps } from './RequestCheckout';
+import {
+  RequestCheckoutWithSlider,
+  RequestCheckoutWithSliderProps,
+} from './RequestCheckout';
 
 export default {
   title: 'Shared/AccessRequests/Checkout',
@@ -64,7 +67,7 @@ export const Loaded = () => {
   const [requestTTL, setRequestTTL] = useState<Option<number>>();
 
   return (
-    <RequestCheckout
+    <RequestCheckoutWithSlider
       {...props}
       selectedReviewers={selectedReviewers}
       setSelectedReviewers={setSelectedReviewers}
@@ -81,7 +84,7 @@ export const Empty = () => {
   const [requestTTL, setRequestTTL] = useState<Option<number>>();
 
   return (
-    <RequestCheckout
+    <RequestCheckoutWithSlider
       {...props}
       data={[]}
       selectedReviewers={selectedReviewers}
@@ -95,7 +98,7 @@ export const Empty = () => {
 };
 
 export const Failed = () => (
-  <RequestCheckout
+  <RequestCheckoutWithSlider
     {...props}
     requireReason={false}
     createAttempt={{
@@ -114,7 +117,7 @@ export const LoadedResourceRequest = () => {
   const [selectedResourceRequestRoles, setSelectedResourceRequestRoles] =
     useState(props.resourceRequestRoles);
   return (
-    <RequestCheckout
+    <RequestCheckoutWithSlider
       {...props}
       isResourceRequest={true}
       fetchResourceRequestRolesAttempt={{ status: 'success' }}
@@ -127,7 +130,7 @@ export const LoadedResourceRequest = () => {
 };
 
 export const ProcessingResourceRequest = () => (
-  <RequestCheckout
+  <RequestCheckoutWithSlider
     {...props}
     isResourceRequest={true}
     fetchResourceRequestRolesAttempt={{ status: 'processing' }}
@@ -135,7 +138,7 @@ export const ProcessingResourceRequest = () => (
 );
 
 export const FailedResourceRequest = () => (
-  <RequestCheckout
+  <RequestCheckoutWithSlider
     {...props}
     isResourceRequest={true}
     fetchResourceRequestRolesAttempt={{
@@ -147,7 +150,7 @@ export const FailedResourceRequest = () => (
 
 export const Success = () => (
   <MemoryRouter initialEntries={['']}>
-    <RequestCheckout
+    <RequestCheckoutWithSlider
       {...props}
       requireReason={false}
       createAttempt={{ status: 'success' }}
@@ -156,7 +159,7 @@ export const Success = () => (
   </MemoryRouter>
 );
 
-const props: RequestCheckoutProps = {
+const props: RequestCheckoutWithSliderProps = {
   createAttempt: { status: '' },
   fetchResourceRequestRolesAttempt: { status: '' },
   isResourceRequest: false,

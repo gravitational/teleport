@@ -135,7 +135,7 @@ exports[`failed state 1`] = `
   cursor: auto;
 }
 
-.c44 {
+.c45 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -162,16 +162,58 @@ exports[`failed state 1`] = `
   width: 100%;
 }
 
-.c44:hover,
-.c44:focus {
+.c45:hover,
+.c45:focus {
   background: #B29DFF;
 }
 
-.c44:active {
+.c45:active {
   background: #C5B6FF;
 }
 
-.c44:disabled {
+.c45:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+  cursor: auto;
+}
+
+.c46 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  color: #FFFFFF;
+  background: rgba(255,255,255,0.07);
+  min-height: 40px;
+  font-size: 12px;
+  padding: 0px 40px;
+  width: 100%;
+}
+
+.c46:hover,
+.c46:focus {
+  background: rgba(255,255,255,0.13);
+}
+
+.c46:active {
+  background: rgba(255,255,255,0.18);
+}
+
+.c46:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
@@ -296,6 +338,11 @@ exports[`failed state 1`] = `
 .c26 {
   display: flex;
   align-items: end;
+  gap: 8px;
+}
+
+.c43 {
+  display: flex;
   gap: 8px;
 }
 
@@ -783,7 +830,7 @@ exports[`failed state 1`] = `
   background-color: rgba(255,255,255,0.13);
 }
 
-.c43 {
+.c44 {
   position: sticky;
   bottom: 0;
   background: #0C143D;
@@ -1383,14 +1430,21 @@ exports[`failed state 1`] = `
             </button>
           </div>
           <div
-            class="c42 c43"
+            class="c42 c43 c44"
           >
             <button
-              class="c44"
+              class="c45"
               kind="primary"
               width="100%"
             >
               Submit Request
+            </button>
+            <button
+              class="c46"
+              kind="secondary"
+              width="100%"
+            >
+              Cancel
             </button>
           </div>
         </div>
@@ -1530,7 +1584,7 @@ exports[`loaded state 1`] = `
   cursor: auto;
 }
 
-.c50 {
+.c51 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1557,16 +1611,58 @@ exports[`loaded state 1`] = `
   width: 100%;
 }
 
-.c50:hover,
-.c50:focus {
+.c51:hover,
+.c51:focus {
   background: #B29DFF;
 }
 
-.c50:active {
+.c51:active {
   background: #C5B6FF;
 }
 
-.c50:disabled {
+.c51:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+  cursor: auto;
+}
+
+.c52 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  color: #FFFFFF;
+  background: rgba(255,255,255,0.07);
+  min-height: 40px;
+  font-size: 12px;
+  padding: 0px 40px;
+  width: 100%;
+}
+
+.c52:hover,
+.c52:focus {
+  background: rgba(255,255,255,0.13);
+}
+
+.c52:active {
+  background: rgba(255,255,255,0.18);
+}
+
+.c52:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
@@ -1748,6 +1844,11 @@ exports[`loaded state 1`] = `
 .c34 {
   display: flex;
   align-items: end;
+  gap: 8px;
+}
+
+.c49 {
+  display: flex;
   gap: 8px;
 }
 
@@ -2239,7 +2340,7 @@ exports[`loaded state 1`] = `
   background-color: rgba(255,255,255,0.13);
 }
 
-.c49 {
+.c50 {
   position: sticky;
   bottom: 0;
   background: #0C143D;
@@ -3120,14 +3221,21 @@ exports[`loaded state 1`] = `
             </button>
           </div>
           <div
-            class="c48 c49"
+            class="c48 c49 c50"
           >
             <button
-              class="c50"
+              class="c51"
               kind="primary"
               width="100%"
             >
               Submit Request
+            </button>
+            <button
+              class="c52"
+              kind="secondary"
+              width="100%"
+            >
+              Cancel
             </button>
           </div>
         </div>
