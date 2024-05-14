@@ -13,25 +13,52 @@ Teleport FIPS mode works and how it can help your company to become FedRAMP auth
 Teleport includes FedRAMP and FIPS 140-2 features to support companies that sell into
 government agencies.
 
-| Control | Teleport Features |
+### Access controls
+											
+|  Control | Teleport Features |
 | - | - |
-| [AC-02 Account Management]((=fedramp.control_url=)AC-2) | Audit events are emitted in the Auth Service when a user is created, updated, deleted, locked, or unlocked. |
-| [AC-03 Access Enforcement]((=fedramp.control_url=)AC-3) | Teleport Enterprise supports robust [Role-based Access Controls (RBAC)](../../access-controls/introduction.mdx) to: <br/>• Control which SSH nodes a user can or cannot access. <br/>• Control cluster level configuration (session recording, configuration, etc.) <br/>• Control which UNIX logins a user is allowed to use when logging into a server. |
+| [AC-02 Account Management]((=fedramp.control_url=)AC-02) | Audit events are emitted in the Auth Service when a user is created, updated, deleted, locked, or unlocked. |
+| [AC-03 Access Enforcement]((=fedramp.control_url=)AC-03) | Teleport Enterprise supports robust [Role-based Access Controls (RBAC)](../../access-controls/introduction.mdx) to: <br/>• Control which infrastructure resources a user can or cannot access. <br/>• Control cluster level configuration (session recording, configuration, etc.) <br/>• Control which Unix logins a user is allowed to use when logging into a server. |
+| [AC-07 Unsuccessful Logon Attempts]((=fedramp.control_url=)AC-07) |  Teleport Enterprise supports robust [Role-based Access Controls (RBAC)](../../access-controls/introduction.mdx) to: <br/>• Control which resources a user can or cannot access. <br/>• Control cluster level configuration (session recording, configuration, etc.) <br/>• Control which Unix logins a user is allowed to use when logging into a server. |	Teleport supports two types of users: local and SSO-based accounts (GitHub, Google Apps, Okta, etc). For local accounts, by default, Teleport locks accounts for 30 minutes after 5 failed login attempts. For SSO-based accounts, the number of invalid login attempts and lockout time period is controlled by the SSO provider. |
+| [AC-08 System Use Notification]((=fedramp.control_url=)AC-08) | Teleport Enterprise supports robust [Role-based Access Controls (RBAC)](../../access-controls/introduction.mdx) to: <br/>• Control which resources a user can or cannot access. <br/>• Control cluster level configuration (session recording, configuration, etc.) <br/>• Control which Unix logins a user is allowed to use when logging into a server. |	Teleport integrates with Linux Pluggable Authentication Modules (PAM). PAM modules can be used to display a custom message on login using a message of the day (MOTD) module within the Session management primitive. |
 | [AC-10 Concurrent Session Control]((=fedramp.control_url=)AC-10) | Teleport administrators can define concurrent session limits using Teleport’s RBAC. |
-| [AC-12 Session Termination]((=fedramp.control_url=)AC-12) | Admins can terminate active sessions with [session locking](../../access-controls/guides/locking.mdx). Teleport terminates sessions on expiry or inactivity.|
+| [AC-12 Session Termination]((=fedramp.control_url=)AC-12) | Admins can terminate active sessions with [session locking](../../access-controls/guides/locking.mdx). Teleport terminates sessions on expiry or inactivity. |
 | [AC-17 Remote Access]((=fedramp.control_url=)AC-17) | Teleport administrators create users with configurable roles that can be used to allow or deny access to system resources. |
 | [AC-20 Use of External Information Systems]((=fedramp.control_url=)AC-20) | Teleport supports connecting multiple independent clusters using a feature called [Trusted Clusters](../../management/admin/trustedclusters.mdx). When allowing access from one cluster to another, roles are mapped according to a pre-defined relationship of the scope of access. |
-| [AU-03 Audit and Accountability]((=fedramp.control_url=)AU-3) – Content of Audit Records and [AU-12 Audit Generation]((=fedramp.control_url=)AU-12) | Teleport contains an [Audit Log](../../reference/audit.mdx) that records cluster-wide events such as: <br/>• Failed login attempts.<br/>• Commands that were executed (SSH “exec” commands).<br/> • Ports that were forwarded. <br/>• File transfers that were initiated. |
+
+### Audit and accountability
+
+| Control | Teleport Features |
+| - | - |
+| [AU-03, AU-04, AU-12 Audit and Accountability]((=fedramp.control_url=)AU) – Content of Audit Records and [AU-12 Audit Generation]((=fedramp.control_url=)AU-12) | Teleport contains an [Audit Log](../../reference/audit.mdx) that records cluster-wide events such as: <br/>• Failed login attempts.<br/>• Commands that were executed (SSH “exec” commands).<br/> • Ports that were forwarded. <br/>• File transfers that were initiated. |
 | [AU-10 Non-Repudiation]((=fedramp.control_url=)AU-10) | Teleport audit logging supports both events as well as audit of an entire SSH session. For non-repudiation purposes, a full session can be replayed back and viewed. |
-| [CM-08 Information System Component Inventory]((=fedramp.control_url=)CM-8) | Teleport maintains a live list of all nodes within a cluster. This node list can be queried by users (who see a subset they have access to) and administrators any time. |
-| [IA-03 Device Identification and Authentication]((=fedramp.control_url=)IA-3) | Teleport requires valid x509 or SSH certificates issued by a Teleport Certificate Authority (CA) to establish a network connection for device-to-device network connection between Teleport components. |
-| [SC-12 Cryptographic Key Establish and Management]((=fedramp.control_url=)SC-12) | Teleport initializes cryptographic keys that act as a Certificate Authority (CA) to further issue x509 and SSH certificates. SSH and x509 user certificates that are issued are signed by the CA and are (by default) short-lived. SSH host certificates are also signed by the CA and rotated automatically (a manual force rotation can also be performed).<br/>Teleport Enterprise builds against a FIPS 140-2 compliant library (BoringCrypto) is available. <br/>In addition, when Teleport Enterprise is in FedRAMP/FIPS 140-2 mode, Teleport will only start and use FIPS 140-2 compliant cryptography. |
+
+### Configuration management
+
+| Control | Teleport Features |
+| - | - |
+| [CM-08 Information System Component Inventory]((=fedramp.control_url=)CM-08) | Teleport maintains a live list of all nodes within a cluster. This node list can be queried by users (who see a subset they have access to) and administrators any time. |
+
+### Identification and authentication
+
+| Control | Teleport Features |
+| - | - |
+| [IA-02 Concurrent Session Control]((=fedramp.control_url=)IA-02) | Integrates with SSO providers such as GitHub, Okta, Google, etc. Acts as its own SSO provider. Enforces the use of multi-factor authentication (MFA), including requiring per-session MFA. Supports PIV-compatible hardware keys, as well as connection and user limits. |
+| [IA-04 Identifier Management]((=fedramp.control_url=)IA-04) | Maintains several unique identifiers: local users are required to be unique (unique username), roles have unique names and tied to organization roles via SSO, identifiers for devices are unique randomly generated IDs (UUID). |
+| [IA-08 Identification and Authentication (Non-Organizational Users)]((=fedramp.control_url=)IA-08) | Teleport supports PIV-compatible hardware keys. |
+| [IA-03 Device Identification and Authentication]((=fedramp.control_url=)IA-03) | Teleport requires valid x509 or SSH certificates issued by a Teleport Certificate Authority (CA) to establish a network connection for device-to-device network connection between Teleport components. |
+
+### System and communications protection
+
+| Control | Teleport Features |
+| - | - |
+| [SC-10 Network Disconnection]((=fedramp.control_url=)SC-10) | Teleport requires valid X.509 or SSH certificates issued by a Teleport Certificate Authority (CA) to establish a network connection for device-to-device network connection between Teleport components. |
+| [SC-12 Cryptographic Key Establish and Management]((=fedramp.control_url=)SC-12) | Teleport initializes cryptographic keys that act as a Certificate Authority (CA) to further issue x509 and SSH certificates. SSH and x509 user certificates that are issued are signed by the CA and are (by default) short-lived. SSH host certificates are also signed by the CA. Teleport supports Hardware Security Modules (HSM).<br/>Teleport Enterprise builds against a FIPS 140-2 compliant library (BoringCrypto) is available. <br/>In addition, when Teleport Enterprise is in FedRAMP/FIPS 140-2 mode, Teleport will only start and use FIPS 140-2 compliant cryptography. |
+| [SC-13 Use of Cryptography]((=fedramp.control_url=)SC-13) | Teleport Enterprise builds against a FIPS 140-2 compliant library (BoringCrypto). In addition, when Teleport Enterprise is in FedRAMP/FIPS 140-2 mode, Teleport will only start and use FIPS 140-2 compliant cryptography. |
+| [SC-17 Public Key Infrastructure]((=fedramp.control_url=)SC-17) | Certificates Teleport initializes cryptographic keys that act as a Certificate Authority (CA) to further issue X.509 and SSH certificates. SSH and X.509 user certificates that are issued are signed by the CA and are (by default) short-lived. SSH host certificates are also signed by the CA. |
+| [SC-23 Session Authenticity]((=fedramp.control_url=)SC-23) | Teleport SSH and TLS sessions are protected with SSH user and X.509 client certificates. For access to the Web UI, Teleport uses bearer token auth stored in a browser token to authenticate a session. Upon user logout, SSH and TLS certificates are deleted from disk and cookies are removed from the browser. |
 
 ## Download and install
-
-Teleport Enterprise customers can download the custom FIPS package from their
-[Teleport account](https://teleport.sh). Look for `Linux 64-bit (FedRAMP/FIPS)`.
-
 You also can follow the [Installation instructions](../../installation.mdx#linux) for 
 Teleport Enterprise edition to download and install the appropriate FIPS-compliant binaries for 
 your operating environment and package manager or from compressed archive (tarball).
@@ -39,6 +66,10 @@ your operating environment and package manager or from compressed archive (tarba
 For example, you can download and install from the compressed archive by running the following commands:
 
 ```code
+Teleport Enterprise customers can download the custom FIPS package from their
+[Teleport account](https://teleport.sh). Look for `Linux 64-bit (FedRAMP/FIPS)`.
+
+
 $ curl https://cdn.teleport.dev/teleport-ent-(= teleport.version =)-linux-<Var name="$SYSTEM_ARCH"/>-fips-bin.tar.gz.sha256
 <checksum> <filename>
 $ curl -O https://cdn.teleport.dev/teleport-ent-(= teleport.version =)-linux-<Var name="$SYSTEM_ARCH"/>-fips-bin.tar.gz

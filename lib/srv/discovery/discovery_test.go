@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"regexp"
 	"slices"
 	"sync"
@@ -77,11 +78,17 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	libevents "github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/srv/server"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 )
+
+func TestMain(m *testing.M) {
+	modules.SetInsecureTestMode(true)
+	os.Exit(m.Run())
+}
 
 type mockSSMClient struct {
 	ssmiface.SSMAPI
@@ -234,6 +241,25 @@ func TestDiscoveryServer(t *testing.T) {
 			Azure:          defaultStaticMatcher.Azure,
 			GCP:            defaultStaticMatcher.GCP,
 			Kube:           defaultStaticMatcher.Kubernetes,
+		},
+	)
+	require.NoError(t, err)
+
+	dcForEC2SSMWithIntegration, err := discoveryconfig.NewDiscoveryConfig(
+		header.Metadata{Name: uuid.NewString()},
+		discoveryconfig.Spec{
+			DiscoveryGroup: defaultDiscoveryGroup,
+			AWS: []types.AWSMatcher{{
+				Types:   []string{"ec2"},
+				Regions: []string{"eu-central-1"},
+				Tags:    map[string]utils.Strings{"teleport": {"yes"}},
+				SSM:     &types.AWSSSM{DocumentName: "document"},
+				Params: &types.InstallerParams{
+					InstallTeleport: true,
+					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+				},
+				Integration: "my-integration",
+			}},
 		},
 	)
 	require.NoError(t, err)
@@ -444,6 +470,53 @@ func TestDiscoveryServer(t *testing.T) {
 			discoveryConfig:        defaultDiscoveryConfig,
 			wantInstalledInstances: []string{"instance-id-1"},
 		},
+		{
+			name:             "one node found with Script mode using Integration credentials",
+			presentInstances: []types.Server{},
+			foundEC2Instances: []*ec2.Instance{
+				{
+					InstanceId: aws.String("instance-id-1"),
+					Tags: []*ec2.Tag{{
+						Key:   aws.String("env"),
+						Value: aws.String("dev"),
+					}},
+					State: &ec2.InstanceState{
+						Name: aws.String(ec2.InstanceStateNameRunning),
+					},
+				},
+			},
+			ssm: &mockSSMClient{
+				commandOutput: &ssm.SendCommandOutput{
+					Command: &ssm.Command{
+						CommandId: aws.String("command-id-1"),
+					},
+				},
+				invokeOutput: &ssm.GetCommandInvocationOutput{
+					Status:       aws.String(ssm.CommandStatusSuccess),
+					ResponseCode: aws.Int64(0),
+				},
+			},
+			emitter: &mockEmitter{
+				eventHandler: func(t *testing.T, ae events.AuditEvent, server *Server) {
+					t.Helper()
+					require.Equal(t, &events.SSMRun{
+						Metadata: events.Metadata{
+							Type: libevents.SSMRunEvent,
+							Code: libevents.SSMRunSuccessCode,
+						},
+						CommandID:  "command-id-1",
+						AccountID:  "owner",
+						InstanceID: "instance-id-1",
+						Region:     "eu-central-1",
+						ExitCode:   0,
+						Status:     ssm.CommandStatusSuccess,
+					}, ae)
+				},
+			},
+			staticMatchers:         Matchers{},
+			discoveryConfig:        dcForEC2SSMWithIntegration,
+			wantInstalledInstances: []string{"instance-id-1"},
+		},
 	}
 
 	for _, tc := range tcs {
@@ -540,14 +613,16 @@ func TestDiscoveryServerConcurrency(t *testing.T) {
 	logger := logrus.New()
 
 	defaultDiscoveryGroup := "dg01"
+	awsMatcher := types.AWSMatcher{
+		Types:       []string{"ec2"},
+		Regions:     []string{"eu-central-1"},
+		Tags:        map[string]utils.Strings{"teleport": {"yes"}},
+		Integration: "my-integration",
+		SSM:         &types.AWSSSM{DocumentName: "document"},
+	}
+	require.NoError(t, awsMatcher.CheckAndSetDefaults())
 	staticMatcher := Matchers{
-		AWS: []types.AWSMatcher{{
-			Types:       []string{"ec2"},
-			Regions:     []string{"eu-central-1"},
-			Tags:        map[string]utils.Strings{"teleport": {"yes"}},
-			Integration: "my-integration",
-			SSM:         &types.AWSSSM{DocumentName: "document"},
-		}},
+		AWS: []types.AWSMatcher{awsMatcher},
 	}
 
 	emitter := &mockEmitter{

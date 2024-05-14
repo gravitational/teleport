@@ -57,6 +57,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
+	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/maps"
 	"golang.org/x/time/rate"
@@ -243,6 +244,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+
+	if cfg.CrownJewels == nil {
+		cfg.CrownJewels, err = local.NewCrownJewelsService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 	if cfg.ConnectionsDiagnostic == nil {
 		cfg.ConnectionsDiagnostic = local.NewConnectionsDiagnosticService(cfg.Backend)
 	}
@@ -416,6 +424,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		KubeWaitingContainer:      cfg.KubeWaitingContainers,
 		Notifications:             cfg.Notifications,
 		AccessMonitoringRules:     cfg.AccessMonitoringRules,
+		CrownJewels:               cfg.CrownJewels,
 	}
 
 	as := Server{
@@ -577,6 +586,7 @@ type Services struct {
 	services.SecReports
 	services.KubeWaitingContainer
 	services.AccessMonitoringRules
+	services.CrownJewels
 }
 
 // SecReportsClient returns the security reports client.
@@ -625,6 +635,11 @@ func (r *Services) AccessMonitoringRuleClient() services.AccessMonitoringRules {
 
 // DiscoveryConfigClient returns the DiscoveryConfig client.
 func (r *Services) DiscoveryConfigClient() services.DiscoveryConfigs {
+	return r
+}
+
+// CrownJewelClient returns the CrownJewels client.
+func (r *Services) CrownJewelClient() services.CrownJewels {
 	return r
 }
 
@@ -955,6 +970,11 @@ type Server struct {
 	// createDeviceWebTokenFunc is the CreateDeviceWebToken implementation.
 	// Is nil on OSS clusters.
 	createDeviceWebTokenFunc CreateDeviceWebTokenFunc
+
+	// bcryptCostOverride overrides the bcrypt cost for operations executed
+	// directly by [Server].
+	// Used for testing.
+	bcryptCostOverride *int
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -1114,6 +1134,13 @@ func (a *Server) createDeviceWebToken(ctx context.Context, webToken *devicepb.De
 	}
 	token, err := a.createDeviceWebTokenFunc(ctx, webToken)
 	return token, trace.Wrap(err)
+}
+
+func (a *Server) bcryptCost() int {
+	if cost := a.bcryptCostOverride; cost != nil {
+		return *cost
+	}
+	return bcrypt.DefaultCost
 }
 
 // syncUpgradeWindowStartHour attempts to load the cloud UpgradeWindowStartHour value and set
@@ -3262,8 +3289,17 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 		username = req.GetUserCredentials().GetUsername()
 
 		if err := a.WithUserLock(ctx, username, func() error {
-			return a.checkPasswordWOToken(username, req.GetUserCredentials().GetPassword())
+			return a.checkPasswordWOToken(ctx, username, req.GetUserCredentials().GetPassword())
 		}); err != nil {
+			// This is only ever used as a means to acquire a login challenge, so
+			// let's issue an authentication failure event.
+			if err := a.emitAuthAuditEvent(ctx, authAuditProps{
+				username: username,
+				authErr:  err,
+			}); err != nil {
+				log.WithError(err).Warn("Failed to emit login event")
+				// err swallowed on purpose.
+			}
 			return nil, trace.Wrap(err)
 		}
 

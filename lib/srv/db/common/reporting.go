@@ -238,3 +238,10 @@ func GetMessagesFromClientMetric(db types.Database) prometheus.Counter {
 func GetMessagesFromServerMetric(db types.Database) prometheus.Counter {
 	return messagesFromServer.WithLabelValues(teleport.ComponentDatabase, db.GetProtocol(), db.GetType())
 }
+
+// GetEngineErrorsMetric increments the synthetic errors sent by an engine to
+// a client.
+func GetEngineErrorsMetric(db types.Database) prometheus.Counter {
+	l := getLabels(teleport.ComponentDatabase, db)
+	return engineErrors.With(l)
+}

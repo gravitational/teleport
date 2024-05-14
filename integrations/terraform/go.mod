@@ -2,7 +2,7 @@ module github.com/gravitational/teleport/integrations/terraform
 
 go 1.22.0
 
-toolchain go1.22.2
+toolchain go1.22.3
 
 require (
 	github.com/gogo/protobuf v1.3.2
@@ -19,7 +19,7 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.9.0
 	google.golang.org/grpc v1.63.2
-	google.golang.org/protobuf v1.34.0
+	google.golang.org/protobuf v1.34.1
 )
 
 require (
@@ -33,6 +33,7 @@ require (
 	cloud.google.com/go/iam v1.1.8 // indirect
 	cloud.google.com/go/kms v1.15.9 // indirect
 	cloud.google.com/go/longrunning v0.5.6 // indirect
+	cloud.google.com/go/spanner v1.60.0 // indirect
 	cloud.google.com/go/storage v1.40.0 // indirect
 	connectrpc.com/connect v1.16.1 // indirect
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20230811130428-ced1acdcaa24 // indirect
@@ -104,6 +105,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.53.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sns v1.29.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.31.4 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssm v1.50.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.20.5 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.23.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.28.6 // indirect
@@ -114,10 +116,12 @@ require (
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/boombuler/barcode v1.0.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
+	github.com/census-instrumentation/opencensus-proto v0.4.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/chai2010/gettext-go v1.0.2 // indirect
 	github.com/cjlapao/common-go v0.0.39 // indirect
 	github.com/cloudflare/cfssl v1.6.4 // indirect
+	github.com/cncf/xds/go v0.0.0-20231128003011-0fa0005c9caa // indirect
 	github.com/containerd/containerd v1.7.12 // indirect
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/coreos/go-oidc v2.2.1+incompatible // indirect
@@ -148,6 +152,8 @@ require (
 	github.com/elastic/go-elasticsearch/v8 v8.13.1 // indirect
 	github.com/elimity-com/scim v0.0.0-20240320110924-172bf2aee9c8 // indirect
 	github.com/emicklei/go-restful/v3 v3.11.3 // indirect
+	github.com/envoyproxy/go-control-plane v0.12.0 // indirect
+	github.com/envoyproxy/protoc-gen-validate v1.0.4 // indirect
 	github.com/evanphx/json-patch v5.9.0+incompatible // indirect
 	github.com/evanphx/json-patch/v5 v5.9.0 // indirect
 	github.com/exponent-io/jsonpath v0.0.0-20151013193312-d6023ce2651d // indirect
@@ -411,6 +417,7 @@ require (
 	golang.org/x/text v0.15.0 // indirect
 	golang.org/x/time v0.5.0 // indirect
 	golang.org/x/tools v0.19.0 // indirect
+	golang.org/x/xerrors v0.0.0-20231012003039-104605ab7028 // indirect
 	google.golang.org/api v0.177.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/genproto v0.0.0-20240401170217-c3f982113cda // indirect

@@ -18,6 +18,7 @@
     "AWSARN",
     "AWSIIDTTL",
     "Aarch",
+    "Activ",
     "Addrs",
     "Afax",
     "Aqxs",
@@ -288,6 +289,7 @@
     "autodiscovery",
     "autoload",
     "automaticupgrades",
+    "automations",
     "automount",
     "autoscale",
     "awly",
@@ -362,6 +364,7 @@
     "compu",
     "cond",
     "configmap",
+    "connectionupgrade",
     "connectorname",
     "cqlsh",
     "createkey",
@@ -585,6 +588,7 @@
     "mongosh",
     "mpghq",
     "msapi",
+    "msclmd",
     "mspan",
     "msprod",
     "msteams",
@@ -878,6 +882,7 @@
     "upgrader",
     "uqcje",
     "urandom",
+    "urlfetch",
     "usename",
     "userdata",
     "userdel",
@@ -930,5 +935,7 @@
     "zxvf",
     "zztop"
   ],
-  "flagWords": ["hte"]
+  "flagWords": [
+    "hte"
+  ]
 }

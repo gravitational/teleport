@@ -43,6 +43,7 @@ export type CrossClusterResourceSearchResult = {
   search: string;
 };
 
+const MAX_RANKED_RESULTS = 10;
 const SUPPORTED_RESOURCE_TYPES: ResourceTypeFilter[] = [
   'node',
   'app',
@@ -88,9 +89,9 @@ export function useResourceSearch() {
         }
         case 'preview': {
           // In preview mode we know that the user didn't specify any search terms. So instead of
-          // fetching all 100 resources for each request, we fetch only a bunch of them to show
+          // fetching all 100 resources, we fetch only a bunch of them to show
           // example results in the UI.
-          limit = 5;
+          limit = MAX_RANKED_RESULTS;
           break;
         }
         case 'full-search': {
@@ -116,20 +117,16 @@ export function useResourceSearch() {
           )
         : connectedClusters;
 
-      // ResourcesService.searchResources uses Promise.allSettled so the returned promise will never
-      // get rejected.
-      const promiseResults = (
-        await Promise.all(
-          clustersToSearch.map(cluster =>
-            resourcesService.searchResources({
-              clusterUri: cluster.uri,
-              search,
-              filters: resourceTypeSearchFilters.map(f => f.resourceType),
-              limit,
-            })
-          )
+      const promiseResults = await Promise.allSettled(
+        clustersToSearch.map(cluster =>
+          resourcesService.searchResources({
+            clusterUri: cluster.uri,
+            search,
+            filters: resourceTypeSearchFilters.map(f => f.resourceType),
+            limit,
+          })
         )
-      ).flat();
+      );
 
       const results: resourcesServiceTypes.SearchResult[] = [];
       const errors: resourcesServiceTypes.ResourceSearchError[] = [];
@@ -266,7 +263,7 @@ export function rankResults(
         b.score - a.score ||
         collator.compare(mainResourceName(a), mainResourceName(b))
     )
-    .slice(0, 10);
+    .slice(0, MAX_RANKED_RESULTS);
 }
 
 function populateMatches(

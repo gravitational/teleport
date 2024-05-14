@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -677,7 +678,7 @@ func TestTSHProxyTemplate(t *testing.T) {
 	tshHome, _ := mustLoginSetEnv(t, s)
 
 	// Create proxy template configuration.
-	tshConfigFile := filepath.Join(tshHome, tshConfigPath)
+	tshConfigFile := filepath.Join(tshHome, client.TSHConfigPath)
 	require.NoError(t, os.MkdirAll(filepath.Dir(tshConfigFile), 0o777))
 	require.NoError(t, os.WriteFile(tshConfigFile, []byte(fmt.Sprintf(`
 proxy_templates:
@@ -1251,7 +1252,7 @@ Use one of the following commands to connect to the database or to the address a
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			templateArgs := map[string]any{}
-			tpl := chooseProxyCommandTemplate(templateArgs, tt.commands, "")
+			tpl := chooseProxyCommandTemplate(templateArgs, tt.commands, &databaseInfo{})
 			require.Equal(t, tt.wantTemplate, tpl)
 			require.Equal(t, tt.wantTemplateArgs, templateArgs)
 

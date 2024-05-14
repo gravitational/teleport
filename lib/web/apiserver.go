@@ -577,24 +577,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 			session.XCSRF = csrfToken
 
 			httplib.SetNoCacheHeaders(w.Header())
-
-			// DELETE IN 17.0: Delete the first if block. Keep the else case.
-			// Kept for backwards compatibility.
-			//
-			// This case only adds an additional CSP `content-src` value of the
-			// app URL which allows requesting to the app domain required by
-			// the legacy app access.
-			if strings.HasPrefix(r.URL.Path, "/web/launch/") {
-				// legacy app access needs to make a CORS fetch request,
-				// so we only set the default CSP on that page
-				parts := strings.Split(r.URL.Path, "/")
-				// grab the FQDN from the URL to allow in the connect-src CSP
-				applicationURL := "https://" + parts[3] + ":*"
-
-				httplib.SetAppLaunchContentSecurityPolicy(w.Header(), applicationURL)
-			} else {
-				httplib.SetIndexContentSecurityPolicy(w.Header(), cfg.ClusterFeatures, r.URL.Path)
-			}
+			httplib.SetIndexContentSecurityPolicy(w.Header(), cfg.ClusterFeatures, r.URL.Path)
 
 			if err := indexPage.Execute(w, session); err != nil {
 				h.log.WithError(err).Error("Failed to execute index page template.")
@@ -769,6 +752,8 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/connect/ws", h.WithClusterAuthWebSocket(true, h.siteNodeConnect))   // connect to an active session (via websocket, with auth over websocket)
 	h.GET("/webapi/sites/:site/sessions", h.WithClusterAuth(h.clusterActiveAndPendingSessionsGet)) // get list of active and pending sessions
 
+	h.GET("/webapi/sites/:site/kube/:clusterName/connect/ws", h.WithClusterAuthWebSocket(true, h.podConnect)) // connect to a pod with exec (via websocket, with auth over websocket)
+
 	// Audit events handlers.
 	h.GET("/webapi/sites/:site/events/search", h.WithClusterAuth(h.clusterSearchEvents))                 // search site events
 	h.GET("/webapi/sites/:site/events/search/sessions", h.WithClusterAuth(h.clusterSearchSessionEvents)) // search site session events
@@ -929,6 +914,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/scripts/integrations/configure/access-graph-cloud-sync-iam.sh", h.WithLimiter(h.accessGraphCloudSyncOIDC))
 	h.GET("/webapi/scripts/integrations/configure/aws-app-access-iam.sh", h.WithLimiter(h.awsOIDCConfigureAWSAppAccessIAM))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/aws-app-access", h.WithClusterAuth(h.awsOIDCCreateAWSAppAccess))
+	h.GET("/webapi/scripts/integrations/configure/ec2-ssm-iam.sh", h.WithLimiter(h.awsOIDCConfigureEC2SSMIAM))
 
 	// SAML IDP integration endpoints
 	h.GET("/webapi/scripts/integrations/configure/gcp-workforce-saml.sh", h.WithLimiter(h.gcpWorkforceConfigScript))
@@ -3235,6 +3221,114 @@ func (h *Handler) siteNodeConnect(
 	httplib.MakeTracingHandler(term, teleport.ComponentProxy).ServeHTTP(w, r)
 
 	return nil, nil
+}
+
+func (h *Handler) podConnect(
+	w http.ResponseWriter,
+	r *http.Request,
+	p httprouter.Params,
+	sctx *SessionContext,
+	site reversetunnelclient.RemoteSite,
+	ws *websocket.Conn,
+) (interface{}, error) {
+	q := r.URL.Query()
+	params := q.Get("params")
+	if params == "" {
+		return nil, trace.BadParameter("missing params")
+	}
+
+	var execReq PodExecRequest
+	if err := json.Unmarshal([]byte(params), &execReq); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := sctx.GetUserClient(r.Context(), site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clusterName := site.GetName()
+
+	accessChecker, err := sctx.GetUserAccessChecker()
+	if err != nil {
+		return session.Session{}, trace.Wrap(err)
+	}
+	policySets := accessChecker.SessionPolicySets()
+	accessEvaluator := auth.NewSessionAccessEvaluator(policySets, types.KubernetesSessionKind, sctx.GetUser())
+
+	sess := session.Session{
+		Kind:                  types.KubernetesSessionKind,
+		Login:                 sctx.GetUser(),
+		ClusterName:           clusterName,
+		KubernetesClusterName: execReq.KubeCluster,
+		Moderated:             accessEvaluator.IsModerated(),
+		ID:                    session.NewID(),
+		Created:               h.clock.Now().UTC(),
+		LastActive:            h.clock.Now().UTC(),
+		Namespace:             apidefaults.Namespace,
+		Owner:                 sctx.GetUser(),
+	}
+
+	h.log.Debugf("New kube exec request for namespace=%s pod=%s container=%s, sid=%s, websid=%s.",
+		execReq.Namespace, execReq.Pod, execReq.Container, sess.ID, sctx.GetSessionID())
+
+	authAccessPoint, err := site.CachingAccessPoint()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	netConfig, err := authAccessPoint.GetClusterNetworkingConfig(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	keepAliveInterval := netConfig.GetKeepAliveInterval()
+
+	serverAddr, tlsServerName, err := h.getKubeExecClusterData(netConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	hostCA, err := h.auth.accessPoint.GetCertAuthority(r.Context(), types.CertAuthID{
+		Type:       types.HostCA,
+		DomainName: h.auth.clusterName,
+	}, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ph := podHandler{
+		req:                 execReq,
+		sess:                sess,
+		sctx:                sctx,
+		teleportCluster:     site.GetName(),
+		ws:                  ws,
+		keepAliveInterval:   keepAliveInterval,
+		log:                 h.log.WithField(teleport.ComponentKey, "pod"),
+		userClient:          clt,
+		localCA:             hostCA,
+		configServerAddr:    serverAddr,
+		configTLSServerName: tlsServerName,
+	}
+
+	ph.ServeHTTP(w, r)
+	return nil, nil
+}
+
+func (h *Handler) getKubeExecClusterData(netConfig types.ClusterNetworkingConfig) (string, string, error) {
+	if netConfig.GetProxyListenerMode() == types.ProxyListenerMode_Separate {
+		return "https://" + h.kubeProxyHostPort(), "", nil
+	}
+
+	proxyAddr := createHostPort(h.cfg.ProxyWebAddr, defaults.HTTPListenPort)
+	host, port, err := utils.SplitHostPort(proxyAddr)
+	if err != nil {
+		return "", "", trace.Wrap(err, "failed to split proxy address %q", proxyAddr)
+	}
+
+	tlsServerName := client.GetKubeTLSServerName(host)
+
+	return "https://" + net.JoinHostPort(host, port), tlsServerName, nil
 }
 
 func (h *Handler) generateSession(req *TerminalRequest, clusterName string, scx *SessionContext) (session.Session, error) {

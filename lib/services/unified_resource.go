@@ -25,6 +25,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/google/btree"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -33,6 +34,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/utils"
@@ -742,7 +744,7 @@ const (
 )
 
 // MakePaginatedResource converts a resource into a paginated proto representation.
-func MakePaginatedResource(requestType string, r types.ResourceWithLabels, requiresRequest bool) (*proto.PaginatedResource, error) {
+func MakePaginatedResource(ctx context.Context, requestType string, r types.ResourceWithLabels, requiresRequest bool) (*proto.PaginatedResource, error) {
 	var protoResource *proto.PaginatedResource
 	resourceKind := requestType
 	if requestType == types.KindUnifiedResource {
@@ -850,7 +852,37 @@ func MakePaginatedResource(requestType string, r types.ResourceWithLabels, requi
 			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
 		}
 
-		protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_SAMLIdPServiceProvider{SAMLIdPServiceProvider: serviceProvider}, RequiresRequest: requiresRequest}
+		// TODO(gzdunek): DELETE IN 17.0
+		// This is needed to maintain backward compatibility between v16 server and v15 client.
+		clientVersion, versionExists := metadata.ClientVersionFromContext(ctx)
+		isClientNotSupportingSAMLIdPServiceProviderResource := false
+		if versionExists {
+			version, err := semver.NewVersion(clientVersion)
+			if err == nil && version.Major < 16 {
+				isClientNotSupportingSAMLIdPServiceProviderResource = true
+			}
+		}
+
+		if isClientNotSupportingSAMLIdPServiceProviderResource {
+			protoResource = &proto.PaginatedResource{
+				Resource: &proto.PaginatedResource_AppServerOrSAMLIdPServiceProvider{
+					//nolint:staticcheck // SA1019. TODO(gzdunek): DELETE IN 17.0
+					AppServerOrSAMLIdPServiceProvider: &types.AppServerOrSAMLIdPServiceProviderV1{
+						Resource: &types.AppServerOrSAMLIdPServiceProviderV1_SAMLIdPServiceProvider{
+							SAMLIdPServiceProvider: serviceProvider,
+						},
+					},
+				},
+				RequiresRequest: requiresRequest,
+			}
+		} else {
+			protoResource = &proto.PaginatedResource{
+				Resource: &proto.PaginatedResource_SAMLIdPServiceProvider{
+					SAMLIdPServiceProvider: serviceProvider,
+				},
+				RequiresRequest: requiresRequest,
+			}
+		}
 	default:
 		return nil, trace.NotImplemented("resource type %s doesn't support pagination", resource.GetKind())
 	}
@@ -859,11 +891,11 @@ func MakePaginatedResource(requestType string, r types.ResourceWithLabels, requi
 }
 
 // MakePaginatedResources converts a list of resources into a list of paginated proto representations.
-func MakePaginatedResources(requestType string, resources []types.ResourceWithLabels, requestableMap map[string]struct{}) ([]*proto.PaginatedResource, error) {
+func MakePaginatedResources(ctx context.Context, requestType string, resources []types.ResourceWithLabels, requestableMap map[string]struct{}) ([]*proto.PaginatedResource, error) {
 	paginatedResources := make([]*proto.PaginatedResource, 0, len(resources))
 	for _, r := range resources {
 		_, requiresRequest := requestableMap[r.GetName()]
-		protoResource, err := MakePaginatedResource(requestType, r, requiresRequest)
+		protoResource, err := MakePaginatedResource(ctx, requestType, r, requiresRequest)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
