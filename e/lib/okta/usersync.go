@@ -3,6 +3,7 @@ package okta
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -313,6 +314,17 @@ func (r *userReconciler) createTeleportUser(ctx context.Context, oktaUser types.
 		return trace.Wrap(err)
 	}
 
+	// Unlocking should be also called during user creation.
+	// Deactivated user is not returned from OKTA v1/users API thus after deactivation will be locked and removed from
+	// Teleport. But if user will be activated again after a user was deleted from Teleport backend
+	// we need to unlock all okta locks during user creation.
+	if !UserHasLockableStatus(oktaUser) {
+		reasons := []string{LockReasonDeleted, LockReasonDeactivated, LockReasonSuspended}
+		if err := UnlockUser(ctx, oktaUser, reasons, r.cfg.userOrgURL, r.cfg.teleportAP); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	// log the user creation
 	r.stats.created += 1
 
@@ -340,7 +352,7 @@ func (r *userReconciler) updateTeleportUser(ctx context.Context, newUser, oldUse
 		}
 
 	case transitionOutOfLock:
-		if err := UnlockUser(ctx, newUser, LockReasonSuspended, r.cfg.userOrgURL, r.cfg.teleportAP); err != nil {
+		if err := UnlockUser(ctx, newUser, []string{LockReasonSuspended}, r.cfg.userOrgURL, r.cfg.teleportAP); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -565,8 +577,8 @@ func (r *userReconciler) lockUser(ctx context.Context, user types.User, reason s
 // UnlockUser deletes any Okta-managed locks on the target Teleport user. The
 // deleted locks are filtered by the lock reason, so a request to delete
 // `Suspended` locks will not delete `Deleted` locks.
-func UnlockUser(ctx context.Context, user types.User, reason string, orgURL string, locksSvc LocksService) error {
-	locks, err := getOktaLocksForUser(ctx, user, reason, orgURL, locksSvc)
+func UnlockUser(ctx context.Context, user types.User, reasons []string, orgURL string, locksSvc LocksService) error {
+	locks, err := getOktaLocksForUser(ctx, user, reasons, orgURL, locksSvc)
 	if err != nil {
 		return trace.Wrap(err, "fetching locks on user %q", user.GetName())
 	}
@@ -586,7 +598,7 @@ func UnlockUser(ctx context.Context, user types.User, reason string, orgURL stri
 
 // getOktaLocksForUser fetches all of the okta-created locks applied to the
 // supplied user.
-func getOktaLocksForUser(ctx context.Context, user types.User, reason string, orgURL string, locksSvc LocksService) ([]types.Lock, error) {
+func getOktaLocksForUser(ctx context.Context, user types.User, reasons []string, orgURL string, locksSvc LocksService) ([]types.Lock, error) {
 	allLocks, err := locksSvc.GetLocks(ctx, true /* in force only */, types.LockTarget{User: user.GetName()})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -594,7 +606,7 @@ func getOktaLocksForUser(ctx context.Context, user types.User, reason string, or
 
 	var oktaLocks []types.Lock
 	for _, lock := range allLocks {
-		if isOktaLock(lock, orgURL, reason) {
+		if isOktaLock(lock, orgURL, reasons) {
 			oktaLocks = append(oktaLocks, lock)
 		}
 	}
@@ -619,7 +631,7 @@ func UserHasLockableStatus(user types.User) bool {
 
 // isOktaLock identifies a Teleport lock as belonging to *this* Okta service by
 // examining the lock origin and Okta services.
-func isOktaLock(lock types.Lock, orgUrl string, reason string) bool {
+func isOktaLock(lock types.Lock, orgUrl string, reasons []string) bool {
 	if lock.Origin() != types.OriginOkta {
 		return false
 	}
@@ -628,7 +640,7 @@ func isOktaLock(lock types.Lock, orgUrl string, reason string) bool {
 		return false
 	}
 
-	if lr, _ := lock.GetLabel(eteleport.OktaLockReasonLabel); lr != reason {
+	if lr, _ := lock.GetLabel(eteleport.OktaLockReasonLabel); !slices.Contains(reasons, lr) {
 		return false
 	}
 

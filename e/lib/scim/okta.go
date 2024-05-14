@@ -210,7 +210,7 @@ func (s *oktaShim) onCreatedUser(ctx context.Context, createdUser types.User, re
 	log := s.log.WithField("user", createdUser.GetName())
 	log.Info("Ensuring newly-created user has no SCIM locks")
 
-	err := okta.UnlockUser(ctx, createdUser, okta.LockReasonDeactivated,
+	err := okta.UnlockUser(ctx, createdUser, []string{okta.LockReasonDeactivated},
 		oktaSettings.OrgUrl, s.locks)
 	if err != nil {
 		// This is probably not enough of a reason to fail the provisioning, but
@@ -250,7 +250,7 @@ func (s *oktaShim) onUpdatingUser(ctx context.Context, teleportUser types.User, 
 		// if this is an activation request...
 		if (*oktaUser.Active) == true {
 			log.Debug("Okta activating user. Unlocking.")
-			err := okta.UnlockUser(ctx, teleportUser, okta.LockReasonDeactivated,
+			err := okta.UnlockUser(ctx, teleportUser, []string{okta.LockReasonDeactivated},
 				oktaSettings.OrgUrl, s.locks)
 			if err != nil {
 				return nil, false, trace.Wrap(err)

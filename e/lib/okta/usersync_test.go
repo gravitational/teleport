@@ -128,6 +128,15 @@ func mkOktaUser(t *testing.T, name, oktaUserID string) types.User {
 	return u
 }
 
+func setUserOktaStatus(u types.User, status string) {
+	labels := u.GetStaticLabels()
+	if labels == nil {
+		labels = map[string]string{}
+	}
+	labels[eteleport.OktaUserStatusLabel] = status
+	u.SetStaticLabels(labels)
+}
+
 func TestListTeleportUsers(t *testing.T) {
 	ctx := context.Background()
 	log := logrus.WithField("test", t.Name())
@@ -240,6 +249,10 @@ func TestReconcileUsers(t *testing.T) {
 			Run(validateUserSyncEvent(t, 1, 0, 0, 2)).
 			Return(nil)
 
+		fixture.accessPoint.On("GetLocks", someContext, true, mock.Anything).
+			Return([]types.Lock{}, nil).
+			Once()
+
 		// When I reconcile the users...
 		err := uut.reconcileUsers(ctx, oktaUsers, teleportUsers)
 
@@ -272,6 +285,10 @@ func TestReconcileUsers(t *testing.T) {
 		// success
 		fixture.accessPoint.On("CreateUser", someContext, shaggy).
 			Return(shaggy, nil)
+
+		fixture.accessPoint.On("GetLocks", someContext, true, mock.Anything).
+			Return([]types.Lock{}, nil).
+			Once()
 
 		// And we expect a sync event wll be emitted
 		fixture.eventEmitter.On("EmitAuditEvent", someContext, userSyncEvent).
@@ -409,6 +426,9 @@ func TestReconcileUsers(t *testing.T) {
 			Return(nil)
 		fixture.accessPoint.On("CreateUser", someContext, newScooby).
 			Return(newScooby, nil).
+			Once()
+		fixture.accessPoint.On("GetLocks", someContext, true, mock.Anything).
+			Return([]types.Lock{}, nil).
 			Once()
 		// And we expect a sync event wll be emitted
 		fixture.eventEmitter.On("EmitAuditEvent", someContext, userSyncEvent).
@@ -706,6 +726,48 @@ func TestReconcileUsers(t *testing.T) {
 		// ... and that ALL of our expected method have been hit, implying that
 		// the locks in slots #0 and #2 were deleted,m despite the middle one
 		// failing.
+		fixture.AssertExpectations(t)
+	})
+
+	t.Run("user lock is removed when user is created", func(t *testing.T) {
+		scooby := mkOktaUser(t, "scooby", "SCOOBY")
+		shaggy := mkOktaUser(t, "shaggy", "SHAGGY")
+
+		setUserOktaStatus(shaggy, userStatusDeprovisioned)
+
+		oktaUsers := map[string]types.User{
+			"scooby": scooby,
+			"shaggy": shaggy,
+		}
+		teleportLocks := []types.Lock{
+			mkTestLockFor(scooby),
+		}
+
+		// And a Teleport access point rigged to expect a request to create the
+		// `scooby` user
+		uut, fixture := newTestReconciler(t)
+		fixture.accessPoint.On("CreateUser", someContext, mock.Anything).
+			Return(scooby, nil)
+
+		// And we expect a sync event wll be emitted
+		fixture.eventEmitter.On("EmitAuditEvent", someContext, userSyncEvent).
+			Run(validateUserSyncEvent(t, 2, 0, 0, 2)).
+			Return(nil)
+
+		fixture.accessPoint.On("GetLocks", someContext, true, mock.Anything).
+			Return(teleportLocks, nil).
+			Once()
+
+		fixture.accessPoint.On("DeleteLock", someContext, teleportLocks[0].GetName()).
+			Return(nil)
+
+		// When I reconcile the users...
+		err := uut.reconcileUsers(ctx, oktaUsers, map[string]types.User{})
+
+		// Expect that the operation succeeds
+		require.NoError(t, err)
+
+		// and that our mock "CreateUser" method was hit with the correct user
 		fixture.AssertExpectations(t)
 	})
 }
