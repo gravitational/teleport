@@ -26,7 +26,7 @@ import (
 	"github.com/gravitational/teleport/tool/common/touchid"
 )
 
-// touchIDCommand adapts touchid.Commmand for tclt.
+// touchIDCommand adapts touchid.Command for tclt.
 type touchIDCommand struct {
 	impl *touchid.Command
 }
