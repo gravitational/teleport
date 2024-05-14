@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -52,7 +53,7 @@ type ClientConfig struct {
 	// ID is the ID of this server proxy
 	ID string
 	// AuthClient is an auth client
-	AuthClient auth.ClientI
+	AuthClient authclient.ClientI
 	// AccessPoint is a caching auth client
 	AccessPoint auth.ProxyAccessPoint
 	// TLSConfig is the proxy client TLS configuration.

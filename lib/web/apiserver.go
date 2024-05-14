@@ -216,7 +216,7 @@ type Config struct {
 	// DomainName is a domain name served by web handler
 	DomainName string
 	// ProxyClient is a client that authenticated as proxy
-	ProxyClient auth.ClientI
+	ProxyClient authclient.ClientI
 	// ProxySSHAddr points to the SSH address of the proxy
 	ProxySSHAddr utils.NetAddr
 	// ProxyKubeAddr points to the Kube address of the proxy
@@ -984,7 +984,7 @@ func (h *Handler) bindDefaultEndpoints() {
 }
 
 // GetProxyClient returns authenticated auth server client
-func (h *Handler) GetProxyClient() auth.ClientI {
+func (h *Handler) GetProxyClient() authclient.ClientI {
 	return h.cfg.ProxyClient
 }
 
@@ -1250,7 +1250,7 @@ func deviceTrustDisabled(cap types.AuthPreference) bool {
 	return dtconfig.GetEffectiveMode(cap.GetDeviceTrust()) == constants.DeviceTrustModeOff
 }
 
-func getAuthSettings(ctx context.Context, authClient auth.ClientI) (webclient.AuthenticationSettings, error) {
+func getAuthSettings(ctx context.Context, authClient authclient.ClientI) (webclient.AuthenticationSettings, error) {
 	authPreference, err := authClient.GetAuthPreference(ctx)
 	if err != nil {
 		return webclient.AuthenticationSettings{}, trace.Wrap(err)
@@ -3369,7 +3369,7 @@ func (h *Handler) generateSession(req *TerminalRequest, clusterName string, scx 
 }
 
 // fetchExistingSession fetches an active or pending SSH session by the SessionID passed in the TerminalRequest.
-func (h *Handler) fetchExistingSession(ctx context.Context, clt auth.ClientI, req *TerminalRequest, siteName string) (session.Session, types.SessionTracker, error) {
+func (h *Handler) fetchExistingSession(ctx context.Context, clt authclient.ClientI, req *TerminalRequest, siteName string) (session.Session, types.SessionTracker, error) {
 	sessionID, err := session.ParseID(req.SessionID.String())
 	if err != nil {
 		return session.Session{}, nil, trace.Wrap(err)
@@ -3527,7 +3527,7 @@ func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p 
 		eventTypes = strings.Split(include, ",")
 	}
 
-	searchEvents := func(clt auth.ClientI, from, to time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
+	searchEvents := func(clt authclient.ClientI, from, to time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
 		return clt.SearchEvents(r.Context(), events.SearchEventsRequest{
 			From:       from,
 			To:         to,
@@ -3555,7 +3555,7 @@ func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p 
 //	            for ascending and descending respectively.
 //	            If no order is provided it defaults to descending.
 func (h *Handler) clusterSearchSessionEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
-	searchSessionEvents := func(clt auth.ClientI, from, to time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
+	searchSessionEvents := func(clt authclient.ClientI, from, to time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
 		return clt.SearchSessionEvents(r.Context(), events.SearchSessionEventsRequest{
 			From:     from,
 			To:       to,
@@ -3569,7 +3569,7 @@ func (h *Handler) clusterSearchSessionEvents(w http.ResponseWriter, r *http.Requ
 
 // clusterEventsList returns a list of audit events obtained using the provided
 // searchEvents method.
-func clusterEventsList(ctx context.Context, sctx *SessionContext, site reversetunnelclient.RemoteSite, values url.Values, searchEvents func(clt auth.ClientI, from, to time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error)) (interface{}, error) {
+func clusterEventsList(ctx context.Context, sctx *SessionContext, site reversetunnelclient.RemoteSite, values url.Values, searchEvents func(clt authclient.ClientI, from, to time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error)) (interface{}, error) {
 	from, err := queryTime(values, "from", time.Now().UTC().AddDate(0, -1, 0))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -4136,7 +4136,7 @@ type ClusterClientProvider interface {
 	// UserClientForCluster returns a client to the local or remote cluster
 	// identified by clusterName and is authenticated with the identity of the
 	// user.
-	UserClientForCluster(ctx context.Context, clusterName string) (auth.ClientI, error)
+	UserClientForCluster(ctx context.Context, clusterName string) (authclient.ClientI, error)
 }
 
 type clusterClientProvider struct {
@@ -4146,7 +4146,7 @@ type clusterClientProvider struct {
 
 // UserClientForCluster returns a client to the local or remote cluster
 // identified by clusterName and is authenticated with the identity of the user.
-func (r clusterClientProvider) UserClientForCluster(ctx context.Context, clusterName string) (auth.ClientI, error) {
+func (r clusterClientProvider) UserClientForCluster(ctx context.Context, clusterName string) (authclient.ClientI, error) {
 	site, err := r.h.getSiteByClusterName(r.ctx, clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -4216,7 +4216,7 @@ func (h *Handler) WithProvisionTokenAuth(fn ProvisionTokenHandler) httprouter.Ha
 // This is possible because the latest call - DeleteToken - returns an error if the resource doesn't exist
 // This is currently true for all the backends as explained here
 // https://github.com/gravitational/teleport/commit/24fcadc375d8359e80790b3ebeaa36bd8dd2822f
-func consumeTokenForAPICall(ctx context.Context, proxyClient auth.ClientI, tokenName string) (types.ProvisionToken, error) {
+func consumeTokenForAPICall(ctx context.Context, proxyClient authclient.ClientI, tokenName string) (types.ProvisionToken, error) {
 	token, err := proxyClient.GetToken(ctx, tokenName)
 	if err != nil {
 		return nil, trace.Wrap(err)

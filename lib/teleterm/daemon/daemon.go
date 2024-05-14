@@ -36,7 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	dtauthn "github.com/gravitational/teleport/lib/devicetrust/authn"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
@@ -1026,7 +1026,7 @@ func (s *Service) GetUserPreferences(ctx context.Context, clusterURI uri.Resourc
 	err = clusters.AddMetadataToRetryableError(ctx, func() error {
 		rootAuthClient := rootProxyClient.CurrentCluster()
 
-		var leafAuthClient auth.ClientI
+		var leafAuthClient authclient.ClientI
 		if clusterURI.IsLeaf() {
 			leafProxyClient, err := s.GetCachedClient(ctx, clusterURI.GetClusterURI())
 			if err != nil {
@@ -1059,7 +1059,7 @@ func (s *Service) UpdateUserPreferences(ctx context.Context, clusterURI uri.Reso
 	err = clusters.AddMetadataToRetryableError(ctx, func() error {
 		rootAuthClient := rootProxyClient.CurrentCluster()
 
-		var leafAuthClient auth.ClientI
+		var leafAuthClient authclient.ClientI
 		if clusterURI.IsLeaf() {
 			leafProxyClient, err := s.GetCachedClient(ctx, clusterURI.GetClusterURI())
 			if err != nil {

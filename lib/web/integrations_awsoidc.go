@@ -39,7 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/aws"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
@@ -698,7 +698,7 @@ func (h *Handler) awsOIDCRequiredDatabasesVPCS(w http.ResponseWriter, r *http.Re
 	return resp, nil
 }
 
-func awsOIDCListAllDatabases(ctx context.Context, clt auth.ClientI, integration, region string) ([]*types.DatabaseV3, error) {
+func awsOIDCListAllDatabases(ctx context.Context, clt authclient.ClientI, integration, region string) ([]*types.DatabaseV3, error) {
 	nextToken := ""
 	var fetchedRDSs []*types.DatabaseV3
 
@@ -748,7 +748,7 @@ func awsOIDCListAllDatabases(ctx context.Context, clt auth.ClientI, integration,
 	return fetchedRDSs, nil
 }
 
-func awsOIDCRequiredVPCSHelper(ctx context.Context, clt auth.ClientI, req ui.AWSOIDCRequiredVPCSRequest, fetchedRDSs []*types.DatabaseV3) (*ui.AWSOIDCRequiredVPCSResponse, error) {
+func awsOIDCRequiredVPCSHelper(ctx context.Context, clt authclient.ClientI, req ui.AWSOIDCRequiredVPCSRequest, fetchedRDSs []*types.DatabaseV3) (*ui.AWSOIDCRequiredVPCSResponse, error) {
 	// Get all database services with ecs/fargate metadata label.
 	nextToken := ""
 	fetchedDbSvcs := []types.DatabaseService{}
