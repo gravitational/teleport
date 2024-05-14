@@ -173,6 +173,7 @@ func (c *templateSSHClient) render(
 	if c.getEnv(sshConfigProxyModeEnv) == "legacy" {
 		// Deprecated: this block will be removed in v17. It exists so users can
 		// revert to the old behavior if necessary.
+		// TODO(strideynet) DELETE IN 17.0.0
 		if err := sshConf.GetSSHConfig(&sshConfigBuilder, &openssh.SSHConfigParameters{
 			AppName:             openssh.TbotApp,
 			ClusterNames:        clusterNames,
