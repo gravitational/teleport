@@ -33,6 +33,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -260,9 +261,10 @@ type testClusterSpec struct {
 }
 
 type echoAppProvider struct {
-	clusters       map[string]testClusterSpec
-	dialOpts       DialOptions
-	reissueAppCert func() tls.Certificate
+	clusters                 map[string]testClusterSpec
+	dialOpts                 DialOptions
+	reissueAppCert           func() tls.Certificate
+	onNewConnectionCallCount atomic.Uint32
 }
 
 // newEchoAppProvider returns an app provider with the list of named apps in each profile and leaf cluster.
@@ -364,6 +366,11 @@ func (p *echoAppProvider) GetVnetConfig(ctx context.Context, profileName, leafCl
 		)
 	}
 	return cfg, nil
+}
+
+func (p *echoAppProvider) OnNewConnection(ctx context.Context, profileName, leafClusterName string, app types.Application) error {
+	p.onNewConnectionCallCount.Add(1)
+	return nil
 }
 
 type fakeClusterClient struct {
@@ -662,6 +669,103 @@ func testEchoConnection(t *testing.T, conn net.Conn) {
 		require.NoError(t, err)
 		require.Equal(t, string(writeBuf), string(readBuf[:n]))
 	}
+}
+
+func TestOnNewConnection(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	clock := clockwork.NewFakeClockAt(time.Now())
+
+	ca := newSelfSignedCA(t)
+
+	roots := x509.NewCertPool()
+	caX509, err := x509.ParseCertificate(ca.Certificate[0])
+	require.NoError(t, err)
+	roots.AddCert(caX509)
+
+	const proxyCN = "testproxy"
+	proxyCert := newServerCert(t, ca, proxyCN, clock.Now().Add(365*24*time.Hour))
+
+	proxyTLSConfig := &tls.Config{
+		Certificates: []tls.Certificate{proxyCert},
+		ClientAuth:   tls.RequireAndVerifyClientCert,
+		ClientCAs:    roots,
+	}
+
+	listener, err := tls.Listen("tcp", "localhost:0", proxyTLSConfig)
+	require.NoError(t, err)
+
+	// Run a fake web proxy that will accept any client connection and echo the input back.
+	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
+		Name: "web proxy",
+		Task: func(ctx context.Context) error {
+			for {
+				conn, err := listener.Accept()
+				if err != nil {
+					if utils.IsOKNetworkError(err) {
+						return nil
+					}
+					return trace.Wrap(err)
+				}
+				go func() {
+					_, err := io.Copy(conn, conn)
+					if utils.IsOKNetworkError(err) {
+						err = nil
+					}
+					assert.NoError(t, err)
+				}()
+			}
+		},
+		Terminate: func() error {
+			if err := listener.Close(); !utils.IsOKNetworkError(err) {
+				return trace.Wrap(err)
+			}
+			return nil
+		},
+	})
+
+	dialOpts := DialOptions{
+		WebProxyAddr:          listener.Addr().String(),
+		RootClusterCACertPool: roots,
+		SNI:                   proxyCN,
+	}
+
+	const appCertLifetime = time.Hour
+	reissueClientCert := func() tls.Certificate {
+		return newClientCert(t, ca, "testclient", clock.Now().Add(appCertLifetime))
+	}
+
+	appProvider := newEchoAppProvider(map[string]testClusterSpec{
+		"root1.example.com": {
+			apps:         []string{"echo1"},
+			cidrRange:    "192.168.2.0/24",
+			leafClusters: map[string]testClusterSpec{},
+		},
+	}, dialOpts, reissueClientCert)
+
+	validAppName := "echo1.root1.example.com"
+	invalidAppName := "not.an.app.example.com."
+
+	p := newTestPack(t, ctx, testPackConfig{
+		clock:       clock,
+		appProvider: appProvider,
+	})
+
+	// Attempt to establish a connection to an invalid app and verify that OnNewConnection was not
+	// called.
+	lookupCtx, lookupCtxCancel := context.WithTimeout(ctx, 200*time.Millisecond)
+	defer lookupCtxCancel()
+	_, err = p.lookupHost(lookupCtx, invalidAppName)
+	require.Error(t, err, "Expected lookup of an invalid app to fail")
+	require.Equal(t, uint32(0), appProvider.onNewConnectionCallCount.Load())
+
+	// Establish a connection to a valid app and verify that OnNewConnection was called.
+	conn, err := p.dialHost(ctx, validAppName)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, conn.Close()) })
+	require.Equal(t, uint32(1), appProvider.onNewConnectionCallCount.Load())
 }
 
 func randomULAAddress() (tcpip.Address, error) {

@@ -275,3 +275,7 @@ func (p *appProvider) GetVnetConfig(ctx context.Context, profileName, leafCluste
 	vnetConfig, err := vnetConfigClient.GetVnetConfig(ctx, &vnetproto.GetVnetConfigRequest{})
 	return vnetConfig, trace.Wrap(err)
 }
+
+func (p *appProvider) OnNewConnection(ctx context.Context, profileName, leafClusterName string, app types.Application) error {
+	return nil
+}
