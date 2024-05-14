@@ -72,7 +72,7 @@ type SSMRunRequest struct {
 }
 
 // CheckAndSetDefaults ensures the emitter is present and creates a default logger if one is not provided.
-func (c *SSMInstallerConfig) CheckAndSetDefaults() error {
+func (c *SSMInstallerConfig) checkAndSetDefaults() error {
 	if c.Emitter == nil {
 		return trace.BadParameter("missing audit event emitter")
 	}
@@ -86,7 +86,7 @@ func (c *SSMInstallerConfig) CheckAndSetDefaults() error {
 
 // NewSSMInstaller returns a new instance of the SSM installer that installs Teleport on EC2 instances.
 func NewSSMInstaller(cfg SSMInstallerConfig) (*SSMInstaller, error) {
-	if err := cfg.CheckAndSetDefaults(); err != nil {
+	if err := cfg.checkAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &SSMInstaller{
@@ -107,22 +107,26 @@ func (si *SSMInstaller) Run(ctx context.Context, req SSMRunRequest) error {
 	}
 
 	validInstances := ids
-	instancesState, err := si.ssmAgentState(ctx, req, ids)
+	instancesState, err := si.describeSSMAgentState(ctx, req, ids)
 	switch {
-	case err != nil:
-		// ssmAgentState uses `ssm:DescribeInstanceInformation` to gather all the instances information.
+	case trace.IsAccessDenied(err):
+		// describeSSMAgentState uses `ssm:DescribeInstanceInformation` to gather all the instances information.
 		// Previous Docs versions (pre-v16) did not ask for that permission.
 		// If the IAM role does not have access to that action, an Access Denied is returned here.
 		// The process continues but the user is warned that they should add that permission to get better diagnostics.
-		if !trace.IsAccessDenied(err) {
-			return trace.Wrap(err)
-		}
+		si.Logger.WarnContext(ctx,
+			"Add ssm:DescribeInstanceInformation action to IAM Role to improve diagnostics of EC2 Teleport installation failures",
+			"error", err)
 
-		si.Logger.WarnContext(ctx, "Add ssm:DescribeInstanceInformation action to IAM Role to improve diagnostics of EC2 Teleport installation failures")
+	case err != nil:
+		return trace.Wrap(err)
 
 	default:
 		if err := si.emitInvalidInstanceEvents(ctx, req, instancesState); err != nil {
-			return trace.Wrap(err)
+			si.Logger.ErrorContext(ctx,
+				"Failed to emit invalid instances",
+				"instances", instancesState,
+				"error", err)
 		}
 		validInstances = instancesState.valid
 	}
@@ -162,78 +166,66 @@ func invalidSSMInstanceEvent(accountID, region, instanceID, status string) apiev
 	}
 }
 
-/*
-SSM SendCommand failed with ErrCodeInvalidInstanceId. Make sure that the instances have AmazonSSMManagedInstanceCore policy assigned.
-Also check that SSM agent is running and registered with the SSM endpoint on that instance and try restarting or reinstalling it in case of issues.
-See https://docs.aws.amazon.com/systems-manager/latest/APIReference/API_SendCommand.html#API_SendCommand_Errors for more details.
-*/
-
-func (si *SSMInstaller) emitInvalidInstanceEvents(ctx context.Context, req SSMRunRequest, instancesState *instancesSSMState) error {
-	for _, instanceID := range instancesState.missing {
+func (si *SSMInstaller) emitInvalidInstanceEvents(ctx context.Context, req SSMRunRequest, instanceIDsState *instanceIDsSSMState) error {
+	var errs []error
+	for _, instanceID := range instanceIDsState.missing {
 		event := invalidSSMInstanceEvent(req.AccountID, req.Region, instanceID,
 			"EC2 Instance is not registered in SSM. Make sure that the instance has AmazonSSMManagedInstanceCore policy assigned.",
 		)
 		if err := si.Emitter.EmitAuditEvent(ctx, &event); err != nil {
-			return trace.Wrap(err)
+			errs = append(errs, trace.Wrap(err))
 		}
 	}
 
-	for _, instanceID := range instancesState.connectionLost {
+	for _, instanceID := range instanceIDsState.connectionLost {
 		event := invalidSSMInstanceEvent(req.AccountID, req.Region, instanceID,
 			"SSM Agent in EC2 Instance is not connecting to SSM Service. Restart or reinstall the SSM service. See https://docs.aws.amazon.com/systems-manager/latest/userguide/ami-preinstalled-agent.html#verify-ssm-agent-status for more details.",
 		)
 		if err := si.Emitter.EmitAuditEvent(ctx, &event); err != nil {
-			return trace.Wrap(err)
+			errs = append(errs, trace.Wrap(err))
 		}
 	}
 
-	for _, instanceID := range instancesState.unsupportedOS {
+	for _, instanceID := range instanceIDsState.unsupportedOS {
 		event := invalidSSMInstanceEvent(req.AccountID, req.Region, instanceID,
 			"EC2 instance is running an unsupported Operating System. Only Linux is supported.",
 		)
 		if err := si.Emitter.EmitAuditEvent(ctx, &event); err != nil {
-			return trace.Wrap(err)
+			errs = append(errs, trace.Wrap(err))
 		}
 	}
 
-	return nil
+	return errors.Join(errs...)
 }
 
-type instancesSSMState struct {
+// instanceIDsSSMState contains a list of EC2 Instance IDs for a given state.
+type instanceIDsSSMState struct {
 	valid          []string
 	missing        []string
 	connectionLost []string
 	unsupportedOS  []string
 }
 
-// ssmAgentState returns the instancesSSMState for all the instances.
-func (si *SSMInstaller) ssmAgentState(ctx context.Context, req SSMRunRequest, allInstanceIDs []string) (*instancesSSMState, error) {
-	ret := &instancesSSMState{}
+// describeSSMAgentState returns the instanceIDsSSMState for all the instances.
+func (si *SSMInstaller) describeSSMAgentState(ctx context.Context, req SSMRunRequest, allInstanceIDs []string) (*instanceIDsSSMState, error) {
+	ret := &instanceIDsSSMState{}
 
-	// Default is 10, but AWS returns an error if less than 5.
-	maxResults := aws.Int64(int64(10))
-	if len(allInstanceIDs) > 10 {
-		maxResults = aws.Int64(int64(len(allInstanceIDs)))
-	}
+	const defaultMaxResults = 10
 
 	ssmInstancesInfo, err := req.SSM.DescribeInstanceInformationWithContext(ctx, &ssm.DescribeInstanceInformationInput{
 		Filters: []*ssm.InstanceInformationStringFilter{
 			{Key: aws.String(ssm.InstanceInformationFilterKeyInstanceIds), Values: aws.StringSlice(allInstanceIDs)},
 		},
-		MaxResults: maxResults,
+		// AWS returns an error if MaxResults is less than 5.
+		MaxResults: aws.Int64(max(defaultMaxResults, int64(len(allInstanceIDs)))),
 	})
 	if err != nil {
-		// Ignore AccessDeniedException error because users might not have granted `ssm:DescribeInstanceInformation` policy.
-		// Previous docs didn't require this Policy.
-		awsErr := awslib.ConvertRequestFailureError(err)
-		if trace.IsAccessDenied(awsErr) {
-			return nil, trace.Wrap(awsErr)
-		}
-		return nil, trace.Wrap(awsErr)
+		return nil, trace.Wrap(awslib.ConvertRequestFailureError(err))
 	}
 
 	instanceStateByInstanceID := make(map[string]*ssm.InstanceInformation, len(ssmInstancesInfo.InstanceInformationList))
 	for _, instanceState := range ssmInstancesInfo.InstanceInformationList {
+		// instanceState.InstanceId always has the InstanceID value according to AWS Docs.
 		instanceStateByInstanceID[aws.StringValue(instanceState.InstanceId)] = instanceState
 	}
 
