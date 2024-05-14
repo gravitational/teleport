@@ -172,7 +172,7 @@ appResources: []
 # awsDatabases(list) -- configures AWS database auto-discovery.
 #
 # <Admonition type="note" title="IAM roles">
-#   For AWS database auto-discovery to work, your Database Service pods will need to use a role which has appropriate IAM permissions as per the [database documentation](../../../database-access/guides/rds.mdx#step-36-create-iam-policies-for-teleport).
+#   For AWS database auto-discovery to work, your Database Service pods will need to use a role which has appropriate IAM permissions as per the [database documentation](../../../database-access/enroll-aws-databases/rds.mdx#step-36-create-iam-policies-for-teleport).
 #   After configuring a role, you can use an `eks.amazonaws.com/role-arn` annotation with the `annotations.serviceAccount` value to associate it with the service account and grant permissions:
 #
 #   ```yaml
@@ -212,7 +212,7 @@ awsDatabases: []
 
 # azureDatabases(list) -- configures Azure database auto-discovery.
 # <Admonition type="note" title="Azure IAM">
-#   For Azure database auto-discovery to work, your Database Service pods will need to have appropriate IAM permissions as per the [database documentation](../../../database-access/guides/azure-postgres-mysql.mdx#step-35-configure-iam-permissions-for-teleport).
+#   For Azure database auto-discovery to work, your Database Service pods will need to have appropriate IAM permissions as per the [database documentation](../../../database-access/enroll-azure-databases/azure-postgres-mysql.mdx#step-35-configure-iam-permissions-for-teleport).
 #
 #   After configuring a service principal with appropriate IAM permissions, you must pass credentials to the pods.
 #   The easiest way is to use an Azure client secret.
