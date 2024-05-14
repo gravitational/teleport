@@ -41,9 +41,6 @@ RELEASE_DIR := $(CURDIR)/$(BUILDDIR)/artifacts
 LDFLAGS ?= -w -s $(KUBECTL_SETVERSION)
 
 # Appending new conditional settings for community build type
-ifeq ("$(GITHUB_REPOSITORY_OWNER)","gravitational")
-LDFLAGS += -X github.com/gravitational/teleport/lib/modules.teleportBuildType=community
-endif
 # When TELEPORT_DEBUG is true, set flags to produce
 # debugger-friendly builds.
 ifeq ("$(TELEPORT_DEBUG)","true")
@@ -298,8 +295,14 @@ $(BUILDDIR)/tctl:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(PIV_BUILD_TAG)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
 
 .PHONY: $(BUILDDIR)/teleport
+# Appending new conditional settings for community build type
+ifeq ("$(GITHUB_REPOSITORY_OWNER)","gravitational")
+# TELEPORT_LDFLAGS if appended will overwrite the previous LDFLAGS set in the BUILDFLAGS.
+# This is done here to prevent any changes to the (BUI)LDFLAGS passed to the other binaries
+TELEPORT_LDFLAGS ?= -ldflags '$(LDFLAGS) -X github.com/gravitational/teleport.teleportBuildType=community'
+endif
 $(BUILDDIR)/teleport: ensure-webassets bpf-bytecode rdpclient
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "webassets_embed $(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG) $(RDPCLIENT_TAG) $(PIV_BUILD_TAG)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "webassets_embed $(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG) $(RDPCLIENT_TAG) $(PIV_BUILD_TAG)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) $(TELEPORT_LDFLAGS) ./tool/teleport
 
 # NOTE: Any changes to the `tsh` build here must be copied to `build.assets/windows/build.ps1`
 # until we can use this Makefile for native Windows builds.
