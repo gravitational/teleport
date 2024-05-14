@@ -178,6 +178,51 @@ this format is compatible with most Kubernetes tools including:
 - Lens
 - ArgoCD
 
+### Using a TLS terminating load balancer?
+
+If you have a TLS terminating load balancer (L7) in front of your Teleport
+proxy, you may receive the following when trying to use `kubectl`:
+
+```
+E0514 11:58:26.327875    6554 memcache.go:265] couldn't get current server API group list: Get "https://teleport.example.com:443/api?timeout=32s": tls: failed to verify certificate: x509: certificate signed by unknown authority
+```
+
+Because the L7 load balancer is terminating the TLS connection, important
+information is lost which is necessary to route the request to the correct
+Kubernetes cluster.
+
+To resolve this, you must use `tbot proxy kube`. This will start a long-lived
+process which will forward the Kubernetes requests through the L7 load balancer
+to the Teleport Proxy.
+
+```code
+$ tbot proxy --destination-dir /opt/machine-id --proxy-server teleport.example.com:443 kube example-k8s-cluster
+Preparing the following Teleport Kubernetes clusters:
+Teleport Cluster Name Kube Cluster Name
+--------------------- -----------------
+teleport.example.com  example-k8s-cluster
+
+Started local proxy for Kubernetes on 127.0.0.1:59255
+To avoid port randomization, you can choose the listening port using the --port flag.
+
+Use the following config for your Kubernetes applications. For example:
+export KUBECONFIG=/opt/machine-id/kubeconfig-proxied.yaml
+kubectl version
+```
+
+Whilst this process is running, you can then use the newly created
+`kubeconfig-proxied.yaml` to connect to the Kubernetes cluster with `kubectl`:
+
+```code
+$ kubectl --kubeconfig /opt/machine-id/kubeconfig-proxied.yaml get pods -A
+# Or, set the KUBECONFIG environment variable:
+$ export KUBECONFIG=/opt/machine-id/kubeconfig-proxied.yaml
+$ kubectl get pods -A
+```
+
+See the [TLS Routing reference](../../architecture/tls-routing.mdx) for more
+information on Teleport and L7 load balancers.
+
 ## Next steps
 
 - Read the [configuration reference](../reference/configuration.mdx) to explore
