@@ -47,7 +47,6 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -995,18 +994,19 @@ func TestSessionRecordingMode(t *testing.T) {
 }
 
 func TestCloseProxySession(t *testing.T) {
+	t.Helper()
+
 	srv := newMockServer(t)
 	srv.component = teleport.ComponentProxy
 
-	reg, _ := NewSessionRegistry(SessionRegistryConfig{
+	reg, err := NewSessionRegistry(SessionRegistryConfig{
 		Srv:                   srv,
 		SessionTrackerService: srv.auth,
 	})
+	require.NoError(t, err)
 	t.Cleanup(func() { reg.Close() })
 
 	scx := newTestServerContext(t, reg.Srv, nil)
-	sid := string(rsession.NewID())
-	scx.SetEnv(sshutils.SessionEnvVar, sid)
 
 	// Open a new session
 	sshChanOpen := newMockSSHChannel()
@@ -1018,7 +1018,7 @@ func TestCloseProxySession(t *testing.T) {
 		io.ReadAll(sshChanOpen)
 	}()
 
-	err := reg.OpenSession(context.Background(), sshChanOpen, scx)
+	err = reg.OpenSession(context.Background(), sshChanOpen, scx)
 	require.NoError(t, err)
 	require.NotNil(t, scx.session)
 
@@ -1054,9 +1054,6 @@ func TestCloseRemoteSession(t *testing.T) {
 	scx := newTestServerContext(t, reg.Srv, nil)
 	scx.SessionRecordingConfig.SetMode(types.RecordAtProxy)
 	scx.RemoteSession = mockSSHSession(t)
-
-	sid := string(rsession.NewID())
-	scx.SetEnv(sshutils.SessionEnvVar, sid)
 
 	// Open a new session
 	sshChanOpen := newMockSSHChannel()
@@ -1106,63 +1103,76 @@ func mockSSHSession(t *testing.T) *tracessh.Session {
 		conn, err := listener.Accept()
 		if err != nil {
 			t.Logf("error while accepting ssh connections: %s", err)
+			return
 		}
 
 		srvConn, chCh, reqCh, err := ssh.NewServerConn(conn, cfg)
+		if err != nil {
+			t.Logf("error while accepting creating a new ssh server conn: %s", err)
+			return
+		}
+		t.Cleanup(func() { srvConn.Close() })
+
 		go ssh.DiscardRequests(reqCh)
-		go func() {
-			for newChannel := range chCh {
-				channel, requests, err := newChannel.Accept()
-				if err != nil {
-					t.Logf("Failed to handle new channel: %s", err)
-					continue
-				}
-
-				go func() {
-					for req := range requests {
-						req.Reply(true, nil)
-					}
-				}()
-
-				sessTerm := term.NewTerminal(channel, "> ")
-				go func() {
-					defer channel.Close()
-					for {
-						line, err := sessTerm.ReadLine()
-						if err != nil {
-							break
-						}
-						t.Log(line)
-					}
-				}()
+		for newChannel := range chCh {
+			channel, requests, err := newChannel.Accept()
+			if err != nil {
+				t.Logf("failed to accept channel: %s", err)
+				continue
 			}
-		}()
 
-		srvConn.Wait()
+			go func() {
+				for req := range requests {
+					req.Reply(true, nil)
+				}
+			}()
+
+			sessTerm := term.NewTerminal(channel, "> ")
+			go func() {
+				defer channel.Close()
+				for {
+					_, err := sessTerm.ReadLine()
+					if err != nil {
+						break
+					}
+				}
+			}()
+		}
 	}()
 
 	// Establish a connection to the newly created server.
 	sessCh := make(chan *tracessh.Session)
 	go func() {
 		client, err := tracessh.Dial(ctx, listener.Addr().Network(), listener.Addr().String(), &ssh.ClientConfig{
+			Timeout:         10 * time.Second,
 			User:            "user",
 			Auth:            []ssh.AuthMethod{ssh.PublicKeys(signer)},
 			HostKeyCallback: ssh.FixedHostKey(signer.PublicKey()),
 		})
-		require.NoError(t, err)
+		if err != nil {
+			t.Logf("failed to dial test ssh server: %s", err)
+			close(sessCh)
+			return
+		}
+		t.Cleanup(func() { client.Close() })
 
 		sess, err := client.NewSession(ctx)
-		require.NoError(t, err)
+		if err != nil {
+			t.Logf("failed to dial test ssh server: %s", err)
+			close(sessCh)
+			return
+		}
 		t.Cleanup(func() { sess.Close() })
 
 		sessCh <- sess
 	}()
 
 	select {
-	case sess := <-sessCh:
+	case sess, ok := <-sessCh:
+		require.True(t, ok, "expected SSH session but got nothing")
 		return sess
 	case <-time.After(10 * time.Second):
-		require.Fail(t, "expected SSH session but got nothing")
+		require.Fail(t, "timeout while waiting for the SSH session")
 		return nil
 	}
 }

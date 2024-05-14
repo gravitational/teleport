@@ -914,9 +914,9 @@ func (s *session) Close() error {
 	s.log.Infof("Closing session")
 
 	// Remove session parties and close client connections. Since terminals
-	// might await for all the parties to be released, we must called it first.
+	// might await for all the parties to be released, we must close them first.
 	// Closing the parties will cause their SSH channel to be closed, meaning
-	// any gorouting reading from it will be released.
+	// any goroutine reading from it will be released.
 	for _, p := range s.getParties() {
 		p.Close()
 	}
