@@ -127,6 +127,9 @@ func (s *PluginsService) GetPlugins(ctx context.Context, withSecrets bool) ([]ty
 // ListPlugins returns a paginated list of plugin instances.
 // StartKey is a resource name, which is the suffix of its key.
 func (s *PluginsService) ListPlugins(ctx context.Context, limit int, startKey string, withSecrets bool) ([]types.Plugin, string, error) {
+	if limit <= 0 {
+		limit = apidefaults.DefaultChunkSize
+	}
 	// Get at most limit+1 results to determine if there will be a next key.
 	maxLimit := limit + 1
 
