@@ -18,6 +18,7 @@ As an alternative to this guide, you can use the Teleport Web UI (Access Managem
 
 ## How it works
 Teleport is added as an Identity Provider in AWS by exposing the `openid-configuration` and public keys in a public S3 bucket.
+This runs alongside your existing cluster and no extra configuration or services are required.
 
 This allows Teleport to assume a configured IAM role and access AWS resources.
 
