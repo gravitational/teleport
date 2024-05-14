@@ -63,7 +63,6 @@ func createAndSetupTUNDeviceWithoutRoot(ctx context.Context, ipv6Prefix, dnsAddr
 	}
 	slog.DebugContext(ctx, "Created unix socket for admin subcommand", "socket", socketPath)
 
-	socketCtx, cancelSocketCtx := context.WithCancel(ctx)
 	// Make sure all goroutines complete before sending an err on the error chan, to be sure they all have a
 	// chance to clean up before the process terminates.
 	g, ctx := errgroup.WithContext(ctx)
@@ -72,25 +71,13 @@ func createAndSetupTUNDeviceWithoutRoot(ctx context.Context, ipv6Prefix, dnsAddr
 		// - must close the socket concurrently with recvTUNNameAndFd if ctx is canceled to unblock
 		//   a stuck AcceptUnix (can't defer).
 		// - must close the socket exactly once before letting the process terminate.
-		<-socketCtx.Done()
+		<-ctx.Done()
 		// When the socket gets closed, the admin process that's on the other end notices that and shuts
 		// down as well.
 		return trace.Wrap(socket.Close())
 	})
 	g.Go(func() error {
-		// If the admin subcommand exits before ctx gets canceled, make sure that the goroutine which
-		// closes the socket terminates so that g.Wait() gets unblocked. Without the admin subcommand,
-		// there's no one to consume the socket anyway.
-		//
-		// This can happen when the socket is removed while the unprivileged process is still running.
-		// The admin process sees that the socket was removed, so it quits because it assumes that the
-		// unprivileged process has exited too.
-		defer cancelSocketCtx()
-
-		// Once the user gets through the osascript password dialog, ctx has no control over the admin
-		// subcommand anyway – an unprivileged process cannot kill a privileged process. Nevertheless,
-		// ctx needs to be passed anyway so that the password dialog gets closed if the context gets
-		// canceled while the dialog is shown.
+		// Admin command is expected to run until ctx is canceled.
 		return trace.Wrap(execAdminSubcommand(ctx, socketPath, ipv6Prefix, dnsAddr))
 	})
 	g.Go(func() error {
@@ -159,8 +146,8 @@ do shell script quoted form of executableName & `+
 			}
 
 			if errors.Is(ctx.Err(), context.Canceled) {
-				slog.DebugContext(ctx, "osascript exiting due to canceled context", "stderr", stderr)
-				return nil
+				// osascript exiting due to canceled context.
+				return ctx.Err()
 			}
 
 			stderrDesc := ""
@@ -172,6 +159,21 @@ do shell script quoted form of executableName & `+
 
 		return trace.Wrap(err)
 	}
+
+	if ctx.Err() == nil {
+		// The admin subcommand is expected to run until VNet gets stopped (in other words, until ctx
+		// gets canceled).
+		//
+		// If it exits with no error _before_ ctx is canceled, then it most likely means that the socket
+		// was unexpectedly removed. When the socket gets removed, the admin subcommand assumes that the
+		// unprivileged process (executing this code here) has quit and thus it should quit as well. But
+		// we know that it's not the case, so in this scenario we return an error instead.
+		//
+		// If we don't return an error here, then other code won't be properly notified about the fact
+		// that the admin process has quit.
+		return trace.Errorf("admin subcommand exited prematurely with no error (likely because socket was removed)")
+	}
+
 	return nil
 }
 
@@ -213,9 +215,9 @@ func sendTUNNameAndFd(socketPath, tunName string, fd uintptr) error {
 // for passing the TUN from the root process which must create it to the user process.
 func recvTUNNameAndFd(ctx context.Context, socket *net.UnixListener) (string, uintptr, error) {
 	conn, err := socket.AcceptUnix()
-		if err != nil {
-			return "", 0, trace.Wrap(err, "accepting connection on unix socket")
-		}
+	if err != nil {
+		return "", 0, trace.Wrap(err, "accepting connection on unix socket")
+	}
 
 	// Close the connection early to unblock reads if the context is canceled.
 	ctx, cancel := context.WithCancel(ctx)
