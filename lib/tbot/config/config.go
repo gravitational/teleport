@@ -189,6 +189,27 @@ type CLIConf struct {
 	// TraceExporter is a manually provided URI to send traces to instead of
 	// forwarding them to the Auth service.
 	TraceExporter string
+
+	// User is the os login to use for ssh connections.
+	User string
+	// Host is the target ssh machine to connect to.
+	Host string
+	// Post is the post of the ssh machine to connect on.
+	Port string
+
+	// EnableResumption turns on automatic session resumption to prevent connections from
+	// being dropped if Proxy connectivity is lost.
+	EnableResumption bool
+
+	// TLSRoutingEnabled indicates whether the cluster has TLS routing enabled.
+	TLSRoutingEnabled bool
+
+	// ConnectionUpgradeRequired indicates that an ALPN connection upgrade is required
+	// for connections to the cluster.
+	ConnectionUpgradeRequired bool
+
+	// TSHConfigPath is the path to a tsh config file.
+	TSHConfigPath string
 }
 
 // AzureOnboardingConfig holds configuration relevant to the "azure" join method.

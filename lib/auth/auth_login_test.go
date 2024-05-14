@@ -38,6 +38,8 @@ import (
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -608,6 +610,50 @@ func TestCreateAuthenticateChallenge_mfaVerification(t *testing.T) {
 	}
 }
 
+// TestCreateAuthenticateChallenge_failedLoginAudit tests a password+webauthn
+// login scenario where the user types the wrong password.
+// This should issue a "Local Login Failed" audit event.
+func TestCreateAuthenticateChallenge_failedLoginAudit(t *testing.T) {
+	t.Parallel()
+
+	testServer := newTestTLSServer(t)
+	emitter := &eventstest.MockRecorderEmitter{}
+	authServer := testServer.Auth()
+	authServer.SetEmitter(emitter)
+
+	ctx := context.Background()
+
+	// Set the cluster to require 2nd factor, create the user, set a password and
+	// register a webauthn device.
+	// password+OTP logins go through another route.
+	mfa := configureForMFA(t, testServer)
+
+	// Proxy identity is used during login.
+	proxyClient, err := testServer.NewClient(TestBuiltin(types.RoleProxy))
+	require.NoError(t, err, "NewClient(RoleProxy) failed")
+
+	t.Run("emits audit event", func(t *testing.T) {
+		emitter.Reset()
+		_, err := proxyClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+			Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{
+				UserCredentials: &proto.UserCredentials{
+					Username: mfa.User,
+					Password: []byte(mfa.Password + "BAD"),
+				},
+			},
+			ChallengeExtensions: &mfav1.ChallengeExtensions{
+				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+			},
+		})
+		assert.ErrorContains(t, err, "password", "CreateAuthenticateChallenge error mismatch")
+
+		event := emitter.LastEvent()
+		require.NotNil(t, event, "No audit event emitted")
+		assert.Equal(t, events.UserLoginEvent, event.GetType(), "event.Type mismatch")
+		assert.Equal(t, events.UserLocalLoginFailureCode, event.GetCode(), "event.Code mismatch")
+	})
+}
+
 func TestCreateRegisterChallenge(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -815,6 +861,173 @@ func TestCreateRegisterChallenge_unusableDevice(t *testing.T) {
 // jlGaPwXyuzeLuZgpFde7UiM1EHM2ClfGpw==
 // -----END PRIVATE KEY-----
 const sshPubKey = `ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBGv+gN2C23P08ieJRA9gU/Ik4bsOh3Kw193UYscJDw41mATj+Kqyf45Rmj8F8rs3i7mYKRXXu1IjNRBzNgpXxqc=`
+
+func TestServer_AuthenticateUser_passwordOnly(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	testServer := newTestTLSServer(t)
+	authServer := testServer.Auth()
+
+	const username = "bowman"
+	const password = "it's full of stars!"
+	_, _, err := CreateUserAndRole(authServer, username, nil, nil)
+	require.NoError(t, err)
+	require.NoError(t, authServer.UpsertPassword(username, []byte(password)))
+
+	// makeRun is used to test both SSH and Web login by switching the
+	// authenticate function.
+	makeRun := func(authenticate func(*Server, AuthenticateUserRequest) error) func(t *testing.T) {
+		return func(t *testing.T) {
+			require.NoError(t, authenticate(authServer, AuthenticateUserRequest{
+				Username: "bowman",
+				Pass:     &PassCreds{Password: []byte("it's full of stars!")},
+			}))
+		}
+	}
+	t.Run("ssh", makeRun(func(s *Server, req AuthenticateUserRequest) error {
+		req.PublicKey = []byte(sshPubKey)
+		_, err := s.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
+			AuthenticateUserRequest: req,
+			TTL:                     24 * time.Hour,
+		})
+		return err
+	}))
+	t.Run("web", makeRun(func(s *Server, req AuthenticateUserRequest) error {
+		_, err := s.AuthenticateWebUser(ctx, req)
+		return err
+	}))
+}
+
+func TestServer_AuthenticateUser_passwordOnly_failure(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	testServer := newTestTLSServer(t)
+	authServer := testServer.Auth()
+
+	const username = "capybara"
+
+	setPassword := func(pwd string) func(*testing.T, *Server) {
+		return func(t *testing.T, s *Server) {
+			require.NoError(t, s.UpsertPassword(username, []byte(pwd)))
+		}
+	}
+
+	tests := []struct {
+		name         string
+		setup        func(*testing.T, *Server)
+		authUser     string
+		authPassword string
+	}{
+		{
+			name:         "wrong password",
+			setup:        setPassword("secure password"),
+			authUser:     username,
+			authPassword: "wrong password",
+		},
+		{
+			name:         "user not found",
+			setup:        setPassword("secure password"),
+			authUser:     "unknown",
+			authPassword: "secure password",
+		},
+		{
+			name:         "password not found",
+			setup:        func(*testing.T, *Server) {},
+			authUser:     username,
+			authPassword: "secure password",
+		},
+	}
+
+	for _, test := range tests {
+		// makeRun is used to test both SSH and Web login by switching the
+		// authenticate function.
+		makeRun := func(authenticate func(*Server, AuthenticateUserRequest) error) func(t *testing.T) {
+			return func(t *testing.T) {
+				_, _, err := CreateUserAndRole(authServer, username, nil, nil)
+				require.NoError(t, err)
+				t.Cleanup(func() {
+					assert.NoError(t, authServer.DeleteUser(ctx, username), "failed to delete user %s", username)
+				})
+				test.setup(t, authServer)
+
+				err = authenticate(authServer, AuthenticateUserRequest{
+					Username: test.authUser,
+					Pass:     &PassCreds{Password: []byte(test.authPassword)},
+				})
+				assert.Error(t, err)
+				assert.True(t, trace.IsAccessDenied(err), "got %T: %v, want AccessDenied", trace.Unwrap(err), err)
+			}
+		}
+		t.Run(test.name+"/ssh", makeRun(func(s *Server, req AuthenticateUserRequest) error {
+			req.PublicKey = []byte(sshPubKey)
+			_, err := s.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
+				AuthenticateUserRequest: req,
+				TTL:                     24 * time.Hour,
+			})
+			return err
+		}))
+		t.Run(test.name+"/web", makeRun(func(s *Server, req AuthenticateUserRequest) error {
+			_, err := s.AuthenticateWebUser(ctx, req)
+			return err
+		}))
+	}
+}
+
+func TestServer_AuthenticateUser_setsPasswordState(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	testServer := newTestTLSServer(t)
+	authServer := testServer.Auth()
+
+	const username = "bowman"
+	const password = "it's full of stars!"
+	_, _, err := CreateUserAndRole(authServer, username, nil, nil)
+	require.NoError(t, err)
+	require.NoError(t, authServer.UpsertPassword(username, []byte(password)))
+
+	// makeRun is used to test both SSH and Web login by switching the
+	// authenticate function.
+	makeRun := func(authenticate func(*Server, AuthenticateUserRequest) error) func(t *testing.T) {
+		return func(t *testing.T) {
+			// Enforce unspecified password state.
+			u, err := authServer.Identity.UpdateAndSwapUser(ctx, username, false, /* withSecrets */
+				func(u types.User) (bool, error) {
+					u.SetPasswordState(types.PasswordState_PASSWORD_STATE_UNSPECIFIED)
+					return true, nil
+				})
+			require.NoError(t, err)
+			assert.Equal(t, types.PasswordState_PASSWORD_STATE_UNSPECIFIED, u.GetPasswordState())
+
+			// Finish login - either SSH or Web
+			require.NoError(t, authenticate(authServer, AuthenticateUserRequest{
+				Username: "bowman",
+				Pass: &PassCreds{
+					Password: []byte("it's full of stars!"),
+				},
+			}))
+
+			// Verify that the password state has been changed.
+			u, err = authServer.GetUser(ctx, username, false /* withSecrets */)
+			require.NoError(t, err)
+			assert.Equal(t, types.PasswordState_PASSWORD_STATE_SET, u.GetPasswordState())
+		}
+	}
+	t.Run("ssh", makeRun(func(s *Server, req AuthenticateUserRequest) error {
+		req.PublicKey = []byte(sshPubKey)
+		_, err := s.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
+			AuthenticateUserRequest: req,
+			TTL:                     24 * time.Hour,
+		})
+		return err
+	}))
+	t.Run("web", makeRun(func(s *Server, req AuthenticateUserRequest) error {
+		_, err := s.AuthenticateWebUser(ctx, req)
+		return err
+	}))
+}
 
 func TestServer_AuthenticateUser_mfaDevices(t *testing.T) {
 	t.Parallel()
@@ -1674,7 +1887,6 @@ func configureForMFA(t *testing.T, srv *TestTLSServer) *configureMFAResp {
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
 		},
-		// Use default Webauthn config.
 	})
 	require.NoError(t, err)
 
