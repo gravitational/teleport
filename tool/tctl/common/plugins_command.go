@@ -403,8 +403,7 @@ func (p *PluginsCommand) InstallSCIM(ctx context.Context, client *auth.Client) e
 	log.DebugContext(ctx, "Fetching cluster info...")
 	info, err := client.Ping(ctx)
 	if err != nil {
-		log.ErrorContext(ctx, "Failed fetching cluster info", logErrorMessage(err))
-		return trace.Wrap(err)
+		return trace.Wrap(err, "failed fetching cluster info")
 	}
 
 	scimBaseURL := fmt.Sprintf("https://%s/v1/webapi/scim/%s", info.ProxyPublicAddr, p.install.name)
@@ -418,21 +417,16 @@ func (p *PluginsCommand) InstallSCIM(ctx context.Context, client *auth.Client) e
 	log.DebugContext(ctx, "Validating SAML Connector...", logFieldSAMLConnector, connectorID)
 	connector, err := client.GetSAMLConnector(ctx, p.install.scim.samlConnector, false)
 	if err != nil {
-		log.ErrorContext(ctx, "Failed validating SAML connector",
-			slog.String(logFieldSAMLConnector, connectorID),
-			logErrorMessage(err))
-
 		if !p.install.scim.force {
-			return trace.Wrap(err)
+			return trace.Wrap(err, "failed validating SAML connector")
 		}
 	}
 
 	role := p.install.scim.role
 	log.DebugContext(ctx, "Validating Default Role...", logFieldRole, role)
 	if _, err := client.GetRole(ctx, role); err != nil {
-		log.ErrorContext(ctx, "Failed validating role", slog.String(logFieldRole, role), logErrorMessage(err))
 		if !p.install.scim.force {
-			return trace.Wrap(err)
+			return trace.Wrap(err, "failed validating role")
 		}
 	}
 
