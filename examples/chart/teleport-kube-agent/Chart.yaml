@@ -1,4 +1,4 @@
-.version: &version "16.0.0-dev"
+.version: &version "16.0.0-dev.avatus.10"
 
 name: teleport-kube-agent
 apiVersion: v2
