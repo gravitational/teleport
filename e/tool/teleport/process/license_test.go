@@ -1,10 +1,14 @@
 package process
 
 import (
+	"crypto/x509"
 	"testing"
+	"time"
 
+	"github.com/gravitational/license"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/licensefile"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
@@ -67,6 +71,19 @@ func TestConfigureLicense(t *testing.T) {
 				require.Nil(t, lf)
 			},
 		},
+		{
+			name: "auth server with a license valid for more than 100 years and self-hosted should fail",
+			cfg: &servicecfg.Config{
+				Auth: servicecfg.AuthConfig{
+					Enabled:     true,
+					LicenseFile: "testdata/license-deprecated.pem",
+				},
+			},
+			assert: func(t *testing.T, lf *licensefile.LicenseFile, err error) {
+				require.Error(t, err)
+				require.Nil(t, lf)
+			},
+		},
 	}
 
 	for _, tc := range tt {
@@ -75,6 +92,97 @@ func TestConfigureLicense(t *testing.T) {
 			tc.cfg.Logger = utils.NewSlogLoggerForTests()
 			file, err := configureLicense(tc.cfg)
 			tc.assert(t, file, err)
+		})
+	}
+}
+
+func TestIsLicenseDeprecated(t *testing.T) {
+	tt := []struct {
+		name     string
+		license  *licensefile.LicenseFile
+		expected bool
+	}{
+		{
+			name: "non-cloud 100 year license is deprecated",
+			license: &licensefile.LicenseFile{
+				KeyPair: &license.License{
+					Cert: &x509.Certificate{
+						NotBefore: time.Now(),
+						NotAfter:  time.Now().AddDate(100, 0, 0),
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "cloud 100 year license is not deprecated",
+			license: &licensefile.LicenseFile{
+				KeyPair: &license.License{
+					Cert: &x509.Certificate{
+						NotBefore: time.Now(),
+						NotAfter:  time.Now().AddDate(100, 0, 0),
+					},
+				},
+				License: &types.LicenseV3{
+					Spec: types.LicenseSpecV3{
+						Cloud: true,
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "non-cloud licenses valid for less than 4 year is not deprecated",
+			license: &licensefile.LicenseFile{
+				KeyPair: &license.License{
+					Cert: &x509.Certificate{
+						NotBefore: time.Now(),
+						NotAfter:  time.Now().AddDate(3, 11, 15),
+					},
+				},
+				License: &types.LicenseV3{
+					Spec: types.LicenseSpecV3{
+						Cloud: false,
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "non-cloud licenses valid for more than 4 year is deprecated",
+			license: &licensefile.LicenseFile{
+				KeyPair: &license.License{
+					Cert: &x509.Certificate{
+						NotBefore: time.Now(),
+						NotAfter:  time.Now().AddDate(4, 0, 1),
+					},
+				},
+				License: &types.LicenseV3{
+					Spec: types.LicenseSpecV3{
+						Cloud: false,
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "licenses generated before 2024 are deprecated",
+			license: &licensefile.LicenseFile{
+				KeyPair: &license.License{
+					Cert: &x509.Certificate{
+						NotBefore: time.Date(2023, 12, 31, 23, 59, 59, 0, time.UTC),
+						NotAfter:  time.Now().AddDate(3, 11, 15),
+					},
+				},
+				License: &types.LicenseV3{},
+			},
+			expected: true,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.expected, isLicenseDeprecated(tc.license))
 		})
 	}
 }
