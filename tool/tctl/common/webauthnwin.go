@@ -20,6 +20,7 @@ import (
 	"context"
 
 	"github.com/alecthomas/kingpin/v2"
+
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/tool/common/webauthnwin"
