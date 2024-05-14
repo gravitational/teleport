@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -1181,8 +1182,8 @@ func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tls
 	var cltParams []roundtrip.ClientParam
 	if process.Config.Testing.ClientTimeout != 0 {
 		cltParams = []roundtrip.ClientParam{
-			auth.ClientParamIdleConnTimeout(process.Config.Testing.ClientTimeout),
-			auth.ClientParamResponseHeaderTimeout(process.Config.Testing.ClientTimeout),
+			authclient.ClientParamIdleConnTimeout(process.Config.Testing.ClientTimeout),
+			authclient.ClientParamResponseHeaderTimeout(process.Config.Testing.ClientTimeout),
 		}
 	}
 

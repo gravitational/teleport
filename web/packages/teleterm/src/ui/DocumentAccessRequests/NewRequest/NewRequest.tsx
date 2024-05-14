@@ -25,6 +25,7 @@ import { space, width } from 'design/system';
 
 import { SearchPagination, SearchPanel } from 'shared/components/Search';
 import { ResourceList } from 'shared/components/AccessRequests/NewRequest';
+import { getNumAddedResources } from 'shared/components/AccessRequests/Shared/utils';
 
 import useNewRequest, { ResourceKind } from './useNewRequest';
 import ChangeResourceDialog from './ChangeResourceDialog';
@@ -73,13 +74,17 @@ export function NewRequest() {
     agents,
   } = useNewRequest();
 
+  const requestStarted =
+    Object.keys(addedResources?.node).length +
+      Object.keys(addedResources?.db).length +
+      Object.keys(addedResources?.app).length +
+      Object.keys(addedResources?.kube_cluster).length +
+      Object.keys(addedResources?.user_group).length +
+      Object.keys(addedResources?.windows_desktop).length >
+    0;
+
   function handleUpdateSelectedResource(kind: ResourceKind) {
-    const numAddedAgents =
-      Object.keys(addedResources.node).length +
-      Object.keys(addedResources.db).length +
-      Object.keys(addedResources.app).length +
-      Object.keys(addedResources.kube_cluster).length +
-      Object.keys(addedResources.windows_desktop).length;
+    const numAddedAgents = getNumAddedResources(addedResources);
 
     const numAddedRoles = Object.keys(addedResources.role).length;
 
@@ -142,6 +147,7 @@ export function NewRequest() {
         <ResourceList
           agents={agents}
           selectedResource={selectedResource}
+          requestStarted={requestStarted}
           customSort={customSort}
           onLabelClick={onAgentLabelClick}
           addedResources={addedResources}

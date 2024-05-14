@@ -72,6 +72,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
@@ -2660,6 +2661,7 @@ func makeUnifiedResourceRequest(r *http.Request) (*proto.ListUnifiedResourcesReq
 	}
 
 	startKey := values.Get("startKey")
+	includeRequestable := values.Get("includeRequestable") == "true"
 	return &proto.ListUnifiedResourcesRequest{
 		Kinds:               kinds,
 		Limit:               limit,
@@ -2668,9 +2670,12 @@ func makeUnifiedResourceRequest(r *http.Request) (*proto.ListUnifiedResourcesReq
 		PinnedOnly:          values.Get("pinnedOnly") == "true",
 		PredicateExpression: values.Get("query"),
 		SearchKeywords:      client.ParseSearchKeywords(values.Get("search"), ' '),
-		UseSearchAsRoles:    values.Get("searchAsRoles") == "yes",
-		IncludeLogins:       true,
-		IncludeRequestable:  values.Get("includeRequestable") == "true",
+		// includeRequestable requires a searchAsRoles request, but we set it here instead of the frontend
+		// to protect the frontend from accidentally requesting a "SearchAsRoles" request to older proxy versions
+		// and then returning a bunch of resources that won't include "Requires Request" flags.
+		UseSearchAsRoles:   values.Get("searchAsRoles") == "yes" || includeRequestable,
+		IncludeLogins:      true,
+		IncludeRequestable: includeRequestable,
 	}, nil
 }
 
@@ -3856,8 +3861,8 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 		// a new client to avoid applying the callback timeout to other concurrent requests. To
 		// this end, we create a clone of the HTTP Client with the desired timeout instead.
 		httpClient, err := authClient.CloneHTTPClient(
-			auth.ClientParamTimeout(defaults.HeadlessLoginTimeout),
-			auth.ClientParamResponseHeaderTimeout(defaults.HeadlessLoginTimeout),
+			authclient.ClientParamTimeout(defaults.HeadlessLoginTimeout),
+			authclient.ClientParamResponseHeaderTimeout(defaults.HeadlessLoginTimeout),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
