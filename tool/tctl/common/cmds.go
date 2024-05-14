@@ -58,5 +58,6 @@ func Commands() []CLICommand {
 		&PluginsCommand{},
 		&configure.SSOConfigureCommand{},
 		&tester.SSOTestCommand{},
+		&fido2Command{},
 	}
 }
