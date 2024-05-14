@@ -1548,9 +1548,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	default:
 		// Handle commands that might not be available.
 		switch {
-		case tid.Ls != nil && command == tid.Ls.FullCommand():
+		case tid.Ls.MatchesCommand(command):
 			err = tid.Ls.Run()
-		case tid.Rm != nil && command == tid.Rm.FullCommand():
+		case tid.Rm.MatchesCommand(command):
 			err = tid.Rm.Run()
 		default:
 			// This should only happen when there's a missing switch case above.
