@@ -1222,3 +1222,17 @@ const (
 	// ApplicationProtocolTCP is the TCP apps protocol.
 	ApplicationProtocolTCP = "TCP"
 )
+
+const (
+	// HostedPluginLabel defines the name for the hosted plugin label.
+	// When this label is set to "true" on a Plugin resource,
+	// it indicates that the Plugin should be run by the Cloud service,
+	// rather than self-hosted plugin services.
+	HostedPluginLabel = TeleportNamespace + "/hosted-plugin"
+)
+
+const (
+	// SCIMBaseURLLabel defines a label indicating the base URL for
+	// interacting with a plugin via SCIM. Useful for diagnostic display.
+	SCIMBaseURLLabel = TeleportNamespace + "/scim-base-url"
+)
