@@ -46,6 +46,7 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/ghodss/yaml"
+	"github.com/gravitational/teleport/tool/common/webauthnwin"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -1167,7 +1168,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// FIDO2, TouchID and WebAuthnWin commands.
 	f2 := fido2.NewCommand(app)
 	tid := newTouchIDCommand(app)
-	webauthnwin := newWebauthnwinCommand(app)
+	wanwin := webauthnwin.NewCommand(app)
 
 	// Device Trust commands.
 	deviceCmd := newDeviceCommand(app)
@@ -1515,8 +1516,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = f2.Attobj.Run()
 	case tid.diag.FullCommand():
 		err = tid.diag.run(&cf)
-	case webauthnwin.diag.FullCommand():
-		err = webauthnwin.diag.run(&cf)
+	case wanwin.Diag.FullCommand():
+		err = wanwin.Diag.Run(cf.Context)
 	case deviceCmd.enroll.FullCommand():
 		err = deviceCmd.enroll.run(&cf)
 	case deviceCmd.collect.FullCommand():
