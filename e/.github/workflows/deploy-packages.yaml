@@ -524,7 +524,7 @@ jobs:
       - name: Test update
         if: inputs.do-teleport-package-tests && inputs.package-to-test == 'teleport-ent-updater'
         run: |
-          TARGET_VERSION=$(curl https://updates.releases.teleport.dev/v1/stable/cloud/version)
+          TARGET_VERSION=$(curl https://${{ vars.AUTO_UPDATES_DOMAIN_NAME }}/v1/stable/cloud/version)
           echo 'apt' > /etc/teleport-upgrade.d/installer
           teleport-upgrade force
           REPORTED_VERSION=$(teleport version --raw)
@@ -679,7 +679,7 @@ jobs:
       - name: Test update
         if: inputs.do-teleport-package-tests && inputs.package-to-test == 'teleport-ent-updater'
         run: |
-          TARGET_VERSION=$(curl https://updates.releases.teleport.dev/v1/stable/cloud/version)
+          TARGET_VERSION=$(curl https://${{ vars.AUTO_UPDATES_DOMAIN_NAME }}/v1/stable/cloud/version)
           echo 'yum' > /etc/teleport-upgrade.d/installer
           teleport-upgrade force
           REPORTED_VERSION=$(teleport version --raw)
@@ -853,7 +853,7 @@ jobs:
       - name: Test update
         if: inputs.do-teleport-package-tests && inputs.package-to-test == 'teleport-ent-updater'
         run: |
-          TARGET_VERSION=$(curl https://updates.releases.teleport.dev/v1/stable/cloud/version)
+          TARGET_VERSION=$(curl https://${{ vars.AUTO_UPDATES_DOMAIN_NAME }}/v1/stable/cloud/version)
           echo 'zypper' > /etc/teleport-upgrade.d/installer
           teleport-upgrade force
           REPORTED_VERSION=$(teleport version --raw)
