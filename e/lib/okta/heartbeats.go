@@ -65,9 +65,8 @@ func (s *Service) getServerInfoFunc(name string) func() (types.Resource, error) 
 
 func (s *Service) getServerInfo(name string) (types.Resource, error) {
 	// check for app in memory
-	s.appsMu.RLock()
-	originalApp, ok := s.apps[name]
-	s.appsMu.RUnlock()
+	originalApp, ok := s.apps.Load(name)
+
 	if !ok {
 		return nil, trace.NotFound("unable to find app %s", name)
 	}

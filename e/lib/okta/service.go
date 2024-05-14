@@ -368,13 +368,11 @@ type Service struct {
 	groupsReconciler *services.Reconciler[types.UserGroup]
 
 	// groups is the current mapping of groups.
-	groupsMu sync.RWMutex
-	groups   map[string]types.UserGroup
+	groups utils.SyncMap[string, types.UserGroup]
 
 	// newGroups is the mapping of groups discovered by Okta, not yet synchronized
 	// to the group reconciler.
-	newGroupsMu sync.RWMutex
-	newGroups   map[string]types.UserGroup
+	newGroups utils.SyncMap[string, types.UserGroup]
 
 	// group stats for the audit even for a particular reconcile.
 	groupsAdded   []*apievents.OktaResource
@@ -384,14 +382,12 @@ type Service struct {
 	// appsReconciler will reconcile applications discovered in Okta.
 	appsReconciler *services.Reconciler[types.Application]
 
-	// apps is the current mapping of apps.
-	appsMu sync.RWMutex
-	apps   map[string]types.Application
+	// apps is the current mapping of { appName => app }.
+	apps utils.SyncMap[string, types.Application]
 
-	// newApps is the mapping of apps discovered by Okta, not yet synchronzied
-	// to the apps reconciler.
-	newAppsMu sync.RWMutex
-	newApps   map[string]types.Application
+	// newApps is the mapping of { appName => app } for apps discovered
+	// by Okta, not yet synchronzied to the apps map by the reconciler.
+	newApps utils.SyncMap[string, types.Application]
 
 	// app stats for the audit even for a particular reconcile.
 	appsAdded   []*apievents.OktaResource
@@ -619,10 +615,6 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaClient
 		rateLimiter:          rate.NewLimiter(rate.Every(time.Second/time.Duration(config.BackendTasksPerSecond)), 1),
 		hash:                 crypto.SHA256,
 		heartbeats:           map[string]*srv.Heartbeat{},
-		groups:               map[string]types.UserGroup{},
-		newGroups:            map[string]types.UserGroup{},
-		apps:                 map[string]types.Application{},
-		newApps:              map[string]types.Application{},
 		groupIRMapping:       map[string]prioritizedLabels{},
 		applicationIRMapping: map[string]prioritizedLabels{},
 		groupNameRegexes:     []regexAndPriorityLabels{},
@@ -657,8 +649,8 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaClient
 			AccessLists:  config.AccessLists,
 			OrgURL:       s.orgURL,
 			Owners:       config.DefaultOwners,
-			AppsGetter:   s.getApps,
-			GroupsGetter: s.getGroups,
+			AppsGetter:   s.apps.Clone,
+			GroupsGetter: s.groups.Clone,
 			AppFilters:   config.accessListSyncAppFilters,
 			GroupFilters: config.accessListSyncGroupFilters,
 

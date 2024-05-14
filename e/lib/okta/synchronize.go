@@ -193,9 +193,7 @@ func (s *Service) synchronizeGroups(ctx context.Context, groupsToAppsMapping use
 		return trace.Wrap(err)
 	}
 
-	s.newGroupsMu.Lock()
-	s.newGroups = newGroups
-	s.newGroupsMu.Unlock()
+	s.newGroups.Set(newGroups)
 
 	s.groupsAdded = nil
 	s.groupsUpdated = nil
@@ -267,9 +265,7 @@ func (s *Service) synchronizeApplications(ctx context.Context) (userGroupsToAppl
 		return nil, trace.Wrap(err)
 	}
 
-	s.newAppsMu.Lock()
-	s.newApps = newApps
-	s.newAppsMu.Unlock()
+	s.newApps.Set(newApps)
 
 	s.appsAdded = nil
 	s.appsUpdated = nil
@@ -315,9 +311,7 @@ func (s *Service) seedGroupReconciler(ctx context.Context) error {
 		}
 	}
 
-	s.groupsMu.Lock()
-	s.groups = groups
-	s.groupsMu.Unlock()
+	s.groups.Set(groups)
 
 	return nil
 }
@@ -331,8 +325,8 @@ func (s *Service) startSynchronizerReconcilers(ctx context.Context) error {
 
 	s.groupsReconciler, err = services.NewReconciler(services.ReconcilerConfig[types.UserGroup]{
 		Matcher:             s.groupMatcher,
-		GetCurrentResources: s.getGroups,
-		GetNewResources:     s.getNewGroups,
+		GetCurrentResources: s.groups.Clone,
+		GetNewResources:     s.newGroups.Clone,
 		OnCreate:            s.onCreateGroup,
 		OnUpdate:            s.onUpdateGroup,
 		OnDelete:            s.onDeleteGroup,
@@ -344,8 +338,8 @@ func (s *Service) startSynchronizerReconcilers(ctx context.Context) error {
 
 	s.appsReconciler, err = services.NewReconciler(services.ReconcilerConfig[types.Application]{
 		Matcher:             s.appsMatcher,
-		GetCurrentResources: s.getApps,
-		GetNewResources:     s.getNewApps,
+		GetCurrentResources: s.apps.Clone,
+		GetNewResources:     s.newApps.Clone,
 		OnCreate:            s.onCreateApp,
 		OnUpdate:            s.onUpdateApp,
 		OnDelete:            s.onDeleteApp,
@@ -358,33 +352,6 @@ func (s *Service) startSynchronizerReconcilers(ctx context.Context) error {
 // groupMatcher will match groups.
 func (s *Service) groupMatcher(resource types.UserGroup) bool {
 	return resource.GetKind() == types.KindUserGroup && resource.Origin() == types.OriginOkta
-}
-
-// getGroups returns a copy of the current mapping of user groups.
-func (s *Service) getGroups() map[string]types.UserGroup {
-	groups := map[string]types.UserGroup{}
-	s.groupsMu.RLock()
-	defer s.groupsMu.RUnlock()
-
-	for k, v := range s.groups {
-		groups[k] = v
-	}
-
-	return groups
-}
-
-// getNewGroups returns a copy of the current mapping of new user groups, unprocessed
-// by the reconciler.
-func (s *Service) getNewGroups() map[string]types.UserGroup {
-	newGroups := map[string]types.UserGroup{}
-	s.newGroupsMu.RLock()
-	defer s.newGroupsMu.RUnlock()
-
-	for k, v := range s.newGroups {
-		newGroups[k] = v
-	}
-
-	return newGroups
 }
 
 // onCreateGroup will run when a group is created.
@@ -404,9 +371,7 @@ func (s *Service) onCreateGroup(ctx context.Context, group types.UserGroup) erro
 		}
 	}
 
-	s.groupsMu.Lock()
-	s.groups[group.GetName()] = group
-	s.groupsMu.Unlock()
+	s.groups.Store(group.GetName(), group)
 
 	s.addGroupOktaResource(&s.groupsAdded, group)
 
@@ -430,9 +395,7 @@ func (s *Service) onUpdateGroup(ctx context.Context, group, _ types.UserGroup) e
 		}
 	}
 
-	s.groupsMu.Lock()
-	s.groups[group.GetName()] = group
-	s.groupsMu.Unlock()
+	s.groups.Store(group.GetName(), group)
 
 	s.addGroupOktaResource(&s.groupsUpdated, group)
 
@@ -450,9 +413,7 @@ func (s *Service) onDeleteGroup(ctx context.Context, group types.UserGroup) erro
 		return trace.Wrap(err)
 	}
 
-	s.groupsMu.Lock()
-	delete(s.groups, group.GetName())
-	s.groupsMu.Unlock()
+	s.groups.Delete(group.GetName())
 
 	s.addGroupOktaResource(&s.groupsDeleted, group)
 
@@ -464,42 +425,13 @@ func (s *Service) appsMatcher(resource types.Application) bool {
 	return resource.GetKind() == types.KindApp && resource.Origin() == types.OriginOkta
 }
 
-// getApps returns a copy of the current mapping of apps.
-func (s *Service) getApps() map[string]types.Application {
-	apps := map[string]types.Application{}
-	s.appsMu.RLock()
-	defer s.appsMu.RUnlock()
-
-	for k, v := range s.apps {
-		apps[k] = v
-	}
-
-	return apps
-}
-
-// getNewApps returns a copy of the current mapping of new apps, unprocessed
-// by the reconciler.
-func (s *Service) getNewApps() map[string]types.Application {
-	newApps := map[string]types.Application{}
-	s.newAppsMu.RLock()
-	defer s.newAppsMu.RUnlock()
-
-	for k, v := range s.newApps {
-		newApps[k] = v
-	}
-
-	return newApps
-}
-
 // onCreateApp will run when an application is created.
 func (s *Service) onCreateApp(ctx context.Context, app types.Application) error {
 	if err := s.rateLimiter.Wait(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 
-	s.appsMu.Lock()
-	s.apps[app.GetName()] = app
-	s.appsMu.Unlock()
+	s.apps.Store(app.GetName(), app)
 
 	if err := s.startHeartbeat(context.Background(), app); err != nil {
 		return trace.Wrap(err, "error starting heartbeat for new app %v", app)
@@ -516,9 +448,7 @@ func (s *Service) onUpdateApp(ctx context.Context, app, _ types.Application) err
 		return trace.Wrap(err)
 	}
 
-	s.appsMu.Lock()
-	s.apps[app.GetName()] = app
-	s.appsMu.Unlock()
+	s.apps.Store(app.GetName(), app)
 
 	s.addAppOktaResource(&s.appsUpdated, app)
 
@@ -540,9 +470,7 @@ func (s *Service) onDeleteApp(ctx context.Context, app types.Application) error 
 		return trace.Wrap(err, "error deleting application server")
 	}
 
-	s.appsMu.Lock()
-	delete(s.apps, app.GetName())
-	s.appsMu.Unlock()
+	s.apps.Delete(app.GetName())
 
 	s.addAppOktaResource(&s.appsDeleted, app)
 

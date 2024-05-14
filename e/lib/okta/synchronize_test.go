@@ -183,9 +183,7 @@ func TestSynchronizeGroups(t *testing.T) {
 	group3.SetApplications(nil)
 	require.NoError(t, ap.UpdateUserGroup(ctx, group3))
 
-	svc.groupsMu.Lock()
-	svc.groups[group3.GetName()] = group3
-	svc.groupsMu.Unlock()
+	svc.groups.Store(group3.GetName(), group3)
 
 	require.NoError(t, svc.synchronize(ctx))
 
@@ -206,12 +204,13 @@ func TestSynchronizeGroups(t *testing.T) {
 	// We need to simulate the user group backend getting out of sync with the reconciler here.
 
 	// This will cause create to be re-run on group 3, which should be handled.
-	delete(svc.groups, group3.GetName())
+	svc.groups.Delete(group3.GetName())
 
 	// This will cause update to be run on a non-existent group, which should be handled.
 	require.NoError(t, ap.DeleteUserGroup(ctx, group4.GetName()))
-	svc.groups[group4.GetName()].GetMetadata().Labels["dummy"] = "update"
-
+	svc.groups.Write(func(groups map[string]types.UserGroup) {
+		groups[group4.GetName()].GetMetadata().Labels["dummy"] = "update"
+	})
 	require.NoError(t, svc.synchronize(ctx))
 
 	expectAuditEvent(t, emitter, func(event *apievents.OktaResourcesUpdate) {
@@ -438,9 +437,7 @@ func addApp(t *testing.T, name, origin, orgURL string, svc *Service) {
 	})
 	require.NoError(t, err)
 
-	svc.appsMu.Lock()
-	defer svc.appsMu.Unlock()
-	svc.apps[name] = app
+	svc.apps.Store(name, app)
 }
 
 func addGroup(t *testing.T, name, origin, orgURL string, ap auth.OktaAccessPoint) {
@@ -461,13 +458,13 @@ func addGroup(t *testing.T, name, origin, orgURL string, ap auth.OktaAccessPoint
 }
 
 func mapOfAllApps(t *testing.T, svc *Service) map[string]types.Application {
-	svc.appsMu.Lock()
-	defer svc.appsMu.Unlock()
-
 	appMap := map[string]types.Application{}
-	for _, app := range svc.apps {
-		appMap[app.GetName()] = app
-	}
+
+	svc.apps.Read(func(apps map[string]types.Application) {
+		for _, app := range apps {
+			appMap[app.GetName()] = app
+		}
+	})
 
 	return appMap
 }

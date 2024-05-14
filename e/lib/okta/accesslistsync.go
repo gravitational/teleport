@@ -508,9 +508,9 @@ func (a *accessListSync) importOktaNativeAssignmentsAsAccessLists(ctx context.Co
 		return trace.Wrap(err)
 	}
 	// We need the opposite relation for this sync.
-	userMapping := make(map[string]string, len(userNameToIDMapping))
+	userMapping := make(map[oktaUserID]userName, len(userNameToIDMapping))
 	for k, v := range userNameToIDMapping {
-		userMapping[string(v)] = string(k)
+		userMapping[v] = k
 	}
 
 	appMapping := map[string]types.Application{}
@@ -647,25 +647,30 @@ type importResourceMetadata struct {
 	description     string
 	roleAppLabels   map[string][]string
 	roleGroupLabels map[string][]string
-	members         []string
+	members         []userName
 }
 
 var errNoAssignments = errors.New("no assignments")
 
 type importAppsParams struct {
 	apps        map[string]types.Application
-	userMapping map[string]string
+	userMapping map[oktaUserID]userName
 	importCh    chan importResourceMetadata
 }
 
+func getAppID(a types.Application) (oktaAppID, bool) {
+	id, ok := a.GetLabel(eteleport.OktaAppIDLabel)
+	return oktaAppID(id), ok
+}
+
 func (a *accessListSync) importApps(ctx context.Context, params importAppsParams) {
-	appIDProcessed := map[string]struct{}{}
+	appIDProcessed := newSet[oktaAppID]()
 	for _, app := range params.apps {
 		log := a.log.WithFields(logrus.Fields{
 			"app_name": app.GetName(),
 		})
 
-		appID, ok := app.GetLabel(eteleport.OktaAppIDLabel)
+		appID, ok := getAppID(app)
 		if !ok {
 			log.Debug("application has no internal app ID label")
 			continue
@@ -696,7 +701,7 @@ func (a *accessListSync) importApps(ctx context.Context, params importAppsParams
 			}
 		}
 
-		if _, ok := appIDProcessed[appID]; ok {
+		if appIDProcessed.has(appID) {
 			log.Debug("application ID was already processed")
 			continue
 		}
@@ -707,7 +712,7 @@ func (a *accessListSync) importApps(ctx context.Context, params importAppsParams
 			continue
 		}
 
-		appIDProcessed[appID] = struct{}{}
+		appIDProcessed.add(appID)
 
 		if len(irMetadata.members) > 0 {
 			log.Info("Processing application")
@@ -719,13 +724,13 @@ func (a *accessListSync) importApps(ctx context.Context, params importAppsParams
 	}
 }
 
-func (a *accessListSync) appToImportResources(ctx context.Context, appID string, app types.Application, userMapping map[string]string) (importResourceMetadata, error) {
+func (a *accessListSync) appToImportResources(ctx context.Context, appID oktaAppID, app types.Application, userMapping map[oktaUserID]userName) (importResourceMetadata, error) {
 	title, ok := app.GetLabel(types.OktaAppNameLabel)
 	if !ok {
 		a.log.WithField("app_id", appID).Debug("application ID has no app name to use as a title")
 	}
 
-	assignments, err := a.client.getAppAssignments(ctx, oktaAppID(appID))
+	assignments, err := a.client.getAppAssignments(ctx, appID)
 	if err != nil {
 		return importResourceMetadata{}, trace.Wrap(err)
 	}
@@ -736,13 +741,13 @@ func (a *accessListSync) appToImportResources(ctx context.Context, appID string,
 		return importResourceMetadata{}, trace.Wrap(errNoAssignments)
 	}
 
-	members := make([]string, 0, numAssignments)
+	members := make([]userName, 0, numAssignments)
 	for _, assignment := range assignments {
 		// Add a member to the Okta App synced access list only if an Okta user has UserScope (the user has an individual Okta App assessment type).
 		// We do not want to add users with GroupScope to App synced access list because this will cause redundancy were the user will be assigned as
 		// member to both App and Group synced access list and will introduce duplicate access paths.
 		if assignment.scope == userScope {
-			if user, ok := userMapping[assignment.userID]; ok {
+			if user, ok := userMapping[oktaUserID(assignment.userID)]; ok {
 				members = append(members, user)
 			}
 		}
@@ -753,7 +758,7 @@ func (a *accessListSync) appToImportResources(ctx context.Context, appID string,
 		title:       title,
 		description: "imported access list for Okta application",
 		roleAppLabels: map[string][]string{
-			eteleport.OktaAppIDLabel: {appID},
+			eteleport.OktaAppIDLabel: {string(appID)},
 		},
 		members: members,
 	}, nil
@@ -762,24 +767,29 @@ func (a *accessListSync) appToImportResources(ctx context.Context, appID string,
 type importGroupsParams struct {
 	groups      map[string]types.UserGroup
 	appMapping  map[string]types.Application
-	userMapping map[string]string
+	userMapping map[oktaUserID]userName
 	importCh    chan importResourceMetadata
 }
 
+func getGroupID(g types.UserGroup) (oktaGroupID, bool) {
+	groupID, ok := g.GetLabel(eteleport.OktaGroupIDLabel)
+	return oktaGroupID(groupID), ok
+}
+
 func (a *accessListSync) importGroups(ctx context.Context, params importGroupsParams) {
-	groupIDProcessed := map[string]struct{}{}
+	groupIDProcessed := newSet[oktaGroupID]()
 	for _, group := range params.groups {
 		log := a.log.WithField("group_name", group.GetName())
 
-		groupID, ok := group.GetLabel(eteleport.OktaGroupIDLabel)
+		groupID, ok := getGroupID(group)
 		if !ok {
-			a.log.WithField("group_name", group.GetName()).Debug("group has no internal group ID label")
+			log.Debug("group has no internal group ID label")
 			continue
 		}
 
 		log = log.WithField("group_id", groupID)
 
-		if _, ok := groupIDProcessed[groupID]; ok {
+		if groupIDProcessed.has(groupID) {
 			log.Debug("group ID was already processed")
 			continue
 		}
@@ -813,14 +823,14 @@ func (a *accessListSync) importGroups(ctx context.Context, params importGroupsPa
 			continue
 		}
 
-		groupIDProcessed[groupID] = struct{}{}
+		groupIDProcessed.add(groupID)
 
 		params.importCh <- irMetadata
 		a.groupsImported.Add(1)
 	}
 }
 
-func (a *accessListSync) groupToImportResources(ctx context.Context, groupID string, group types.UserGroup, appMapping map[string]types.Application, userMapping map[string]string) (importResourceMetadata, error) {
+func (a *accessListSync) groupToImportResources(ctx context.Context, groupID oktaGroupID, group types.UserGroup, appMapping map[string]types.Application, userMapping map[oktaUserID]userName) (importResourceMetadata, error) {
 	title, ok := group.GetLabel(types.OktaGroupNameLabel)
 	if !ok {
 		return importResourceMetadata{}, trace.BadParameter("group ID %s has no group name to use as a title", groupID)
@@ -828,14 +838,14 @@ func (a *accessListSync) groupToImportResources(ctx context.Context, groupID str
 
 	description, _ := group.GetLabel(types.OktaGroupDescriptionLabel)
 
-	assignments, err := a.client.getGroupAssignments(ctx, oktaGroupID(groupID))
+	assignments, err := a.client.getGroupAssignments(ctx, groupID)
 	if err != nil {
 		return importResourceMetadata{}, trace.Wrap(err)
 	}
 
-	members := make([]string, 0, len(assignments))
+	members := make([]userName, 0, len(assignments))
 	for _, assignment := range assignments {
-		if user, ok := userMapping[string(assignment)]; ok {
+		if user, ok := userMapping[assignment]; ok {
 			members = append(members, user)
 		}
 	}
@@ -858,12 +868,12 @@ func (a *accessListSync) groupToImportResources(ctx context.Context, groupID str
 	}
 
 	return importResourceMetadata{
-		name:          groupID,
+		name:          string(groupID),
 		title:         title,
 		description:   description,
 		roleAppLabels: appLabels,
 		roleGroupLabels: map[string][]string{
-			eteleport.OktaGroupIDLabel: {groupID},
+			eteleport.OktaGroupIDLabel: {string(groupID)},
 		},
 		members: members,
 	}, nil
@@ -922,11 +932,11 @@ func (a *accessListSync) metadataToImportResources(irMetadata importResourceMeta
 	members := make([]*accesslist.AccessListMember, 0, len(irMetadata.members))
 	for _, memberName := range irMetadata.members {
 		member, err := accesslist.NewAccessListMember(header.Metadata{
-			Name:   memberName,
+			Name:   string(memberName),
 			Labels: labels,
 		}, accesslist.AccessListMemberSpec{
 			AccessList: accessList.GetName(),
-			Name:       memberName,
+			Name:       string(memberName),
 			Joined:     a.clock.Now(),
 			AddedBy:    ImporterName,
 		})
