@@ -138,7 +138,7 @@ func (p *PluginsCommand) Delete(ctx context.Context, client *auth.Client) error 
 			log.InfoContext(ctx, "Plugin not found")
 			return nil
 		}
-		log.ErrorContext(ctx, "Failed deleting plugin: ", err)
+		log.ErrorContext(ctx, "Failed deleting plugin", logErrorMessage(err))
 		return trace.Wrap(err)
 	}
 	return nil
