@@ -2,9 +2,11 @@ package azureoidc
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/user"
@@ -99,9 +101,38 @@ func ProvisionTeleportSSO(ctx context.Context) error {
 	return nil
 }
 
+// singleSignOnMode represents the possible values for `currentSingleSignOnMode` in `adSingleSignOn`
+type singleSignOnMode string
+
+const (
+	// singleSignOnModeNone indicates that the application does not have SSO set up.
+	singleSignOnModeNone singleSignOnMode = "none"
+	// singleSignOnModeFederated indicates federated SSO such as SAML.
+	singleSignOnModeFederated singleSignOnMode = "federated"
+)
+
+// adSingleSignOn represents the response from https://main.iam.ad.ext.azure.com/api/ApplicationSso/{servicePrincipalID}/SingleSignOn
+type adSingleSignOn struct {
+	CurrentSingleSignOnMode singleSignOnMode `json:"currentSingleSignOnMode"`
+}
+
 type applicationSSOInfo struct {
-	SSOApplication json.RawMessage `json:"sso_application"`
-	FederatedSsoV2 json.RawMessage `json:"federated_sso_v2"`
+	// FederatedSsoV2 is the payload from the FederatedSsoV2 for this app, gzip compressed.
+	FederatedSsoV2 []byte `json:"federated_sso_v2"`
+}
+
+func getSingleSignOn(ctx context.Context, token string, servicePrincipalID string) (*adSingleSignOn, error) {
+	payload, err := privateAPIGet(ctx, token, path.Join("ApplicationSso", servicePrincipalID, "SingleSignOn"))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var result adSingleSignOn
+	if err := json.Unmarshal(payload, &result); err != nil {
+		return nil, trace.Wrap(err, "failed to deserialize SingleSignOn")
+	}
+
+	return &result, nil
 }
 
 func RetrieveTAGInfo(ctx context.Context) error {
@@ -136,17 +167,18 @@ func RetrieveTAGInfo(ctx context.Context) error {
 		}
 		sp, err := graphClient.ServicePrincipalsWithAppId(appID).Get(ctx, nil)
 		if err != nil {
-			slog.ErrorContext(ctx, "could not retrieve service principal", "app_id", appID, "error", err)
+			slog.ErrorContext(ctx, "could not retrieve service principal", "app_id", *appID, "error", err)
 		}
 		spID := sp.GetId()
 		if spID == nil {
-			slog.WarnContext(ctx, "service principal ID is nil", "app_id", appID)
+			slog.WarnContext(ctx, "service principal ID is nil", "app_id", *appID)
 			continue
 		}
 
-		ssoApplication, err := privateAPIGet(ctx, token, path.Join("ApplicationSso", *spID, "SsoApplication"))
-		if err != nil {
-			slog.WarnContext(ctx, "getting SSO application info failed", "error", err)
+		sso, err := getSingleSignOn(ctx, token, *spID)
+		if sso.CurrentSingleSignOnMode != singleSignOnModeFederated {
+			slog.InfoContext(ctx, "sso not set up for app, will skip it", "app_id", *appID, "sp_id", *spID)
+			continue
 		}
 
 		federatedSSOV2, err := privateAPIGet(ctx, token, path.Join("ApplicationSso", *spID, "FederatedSsoV2"))
@@ -155,8 +187,7 @@ func RetrieveTAGInfo(ctx context.Context) error {
 		}
 
 		apps[*appID] = applicationSSOInfo{
-			SSOApplication: json.RawMessage(ssoApplication),
-			FederatedSsoV2: json.RawMessage(federatedSSOV2),
+			FederatedSsoV2: gzipBytes(federatedSSOV2),
 		}
 	}
 
@@ -166,4 +197,23 @@ func RetrieveTAGInfo(ctx context.Context) error {
 	}
 	fmt.Println(string(payload))
 	return nil
+}
+
+// gzipBytes compresses the given byte slice, returning the result as a new byte slice.
+func gzipBytes(src []byte) []byte {
+	out := new(bytes.Buffer)
+	writer := gzip.NewWriter(out)
+
+	_, err := io.Copy(writer, bytes.NewReader(src))
+	// We do not expect in-memory bytes I/O to fail.
+	if err != nil {
+		panic(err)
+	}
+
+	err = writer.Close()
+	// We do not expect in-memory bytes I/O to fail.
+	if err != nil {
+		panic(err)
+	}
+	return out.Bytes()
 }

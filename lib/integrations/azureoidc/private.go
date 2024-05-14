@@ -119,6 +119,9 @@ func getPrivateAPIToken(ctx context.Context, tenantID string) (string, error) {
 	return "", trace.Errorf("no viable token")
 }
 
+// privateAPIGet invokes GET on the given endpoint of the "private" main.iam.ad.ext.azure.com azure API.
+// On status code 200 OK, it returns the payload received.
+// On any other status code, or protocol errors, it returns an error.
 func privateAPIGet(ctx context.Context, accessToken string, endpoint string) ([]byte, error) {
 	uri := url.URL{
 		Scheme: "https",
