@@ -141,6 +141,22 @@ $ sudo chown <your-teleport-user> /etc/teleport-upgrade.d/schedule
 This section assumes that the name of your `teleport-kube-agent` release is
 `teleport-agent`, and that you have installed it in the `teleport` namespace.
 
+1. Confirm that you are using the Teleport Enterprise edition of the
+   `teleport-kube-agent` chart. You should see the following when you query your
+   `teleport-kube-agent` release:
+
+   ```code
+   $ helm -n `teleport` get values `teleport-agent` -o json | jq '.enterprise'
+   true
+   ```
+
+   If another value such as `null` is returned, update your existing agent
+   `values.yaml` to use the Enterprise version:
+
+   ```yaml
+   enterprise: true
+   ```
+
 1. Add the following chart values to the values file for the
    `teleport-kube-agent` chart:
 
