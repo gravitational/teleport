@@ -46,6 +46,7 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/ghodss/yaml"
+	"github.com/gravitational/teleport/tool/common/touchid"
 	"github.com/gravitational/teleport/tool/common/webauthnwin"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -1167,7 +1168,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	// FIDO2, TouchID and WebAuthnWin commands.
 	f2 := fido2.NewCommand(app)
-	tid := newTouchIDCommand(app)
+	tid := touchid.NewCommand(app)
 	wanwin := webauthnwin.NewCommand(app)
 
 	// Device Trust commands.
@@ -1517,8 +1518,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = f2.Diag.Run(cf.Context)
 	case f2.Attobj.FullCommand():
 		err = f2.Attobj.Run()
-	case tid.diag.FullCommand():
-		err = tid.diag.run(&cf)
+	case tid.Diag.FullCommand():
+		err = tid.Diag.Run()
 	case wanwin.Diag.FullCommand():
 		err = wanwin.Diag.Run(cf.Context)
 	case deviceCmd.enroll.FullCommand():
@@ -1547,10 +1548,10 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	default:
 		// Handle commands that might not be available.
 		switch {
-		case tid.ls != nil && command == tid.ls.FullCommand():
-			err = tid.ls.run(&cf)
-		case tid.rm != nil && command == tid.rm.FullCommand():
-			err = tid.rm.run(&cf)
+		case tid.Ls != nil && command == tid.Ls.FullCommand():
+			err = tid.Ls.Run()
+		case tid.Rm != nil && command == tid.Rm.FullCommand():
+			err = tid.Rm.Run()
 		default:
 			// This should only happen when there's a missing switch case above.
 			err = trace.BadParameter("command %q not configured", command)

@@ -60,5 +60,6 @@ func Commands() []CLICommand {
 		&tester.SSOTestCommand{},
 		&fido2Command{},
 		&webauthnwinCommand{},
+		&touchIDCommand{},
 	}
 }
