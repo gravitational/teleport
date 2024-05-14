@@ -174,7 +174,7 @@ func (b *Backend) runChangeFeed(ctx context.Context) error {
 	//
 	// HACK(espadolini): ALTER ROLE CURRENT_USER crashes Postgres on Azure, so
 	// we have to use an explicit username
-	if b.cfg.AuthMode == AzureADAuth && connConfig.User != "" {
+	if b.cfg.AuthMode == pgcommon.AzureADAuth && connConfig.User != "" {
 		if _, err := conn.Exec(ctx,
 			fmt.Sprintf("ALTER ROLE %v REPLICATION", pgx.Identifier{connConfig.User}.Sanitize()),
 			pgx.QueryExecModeExec,

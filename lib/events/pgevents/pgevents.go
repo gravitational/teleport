@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/url"
-	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -66,48 +65,13 @@ const (
 	retentionPeriodParam = "retention_period"
 )
 
-// AuthMode determines if we should use some environment-specific authentication
-// mechanism or credentials.
-type AuthMode string
-
-const (
-	// FixedAuth uses the static credentials as defined in the connection
-	// string.
-	FixedAuth AuthMode = ""
-	// AzureADAuth gets a connection token from Azure and uses it as the
-	// password when connecting.
-	AzureADAuth AuthMode = "azure"
-	// GCPSQLIAMAuth fetches an access token and uses it as password when
-	// connecting to GCP SQL PostgreSQL.
-	GCPSQLIAMAuth AuthMode = "gcp-sql"
-	// GCPAlloyDBIAMAuth fetches an access token and uses it as password when
-	// connecting to GCP AlloyDB (PostgreSQL-compatible).
-	GCPAlloyDBIAMAuth AuthMode = "gcp-alloydb"
-)
-
-var supportedAuthModes = []AuthMode{
-	FixedAuth,
-	AzureADAuth,
-	GCPSQLIAMAuth,
-	GCPAlloyDBIAMAuth,
-}
-
-// Check returns an error if the AuthMode is invalid.
-func (a AuthMode) Check() error {
-	if slices.Contains(supportedAuthModes, a) {
-		return nil
-	}
-
-	return trace.BadParameter("invalid authentication mode %q, should be one of", a, supportedAuthModes)
-}
-
 // Config is the configuration struct to pass to New.
 type Config struct {
 	Log        logrus.FieldLogger
 	Logger     *slog.Logger
 	PoolConfig *pgxpool.Config
 
-	AuthMode AuthMode
+	AuthMode pgcommon.AuthMode
 
 	DisableCleanup  bool
 	RetentionPeriod time.Duration
@@ -136,7 +100,7 @@ func (c *Config) SetFromURL(u *url.URL) error {
 	}
 	c.PoolConfig = poolConfig
 
-	c.AuthMode = AuthMode(params.Get(authModeParam))
+	c.AuthMode = pgcommon.AuthMode(params.Get(authModeParam))
 
 	if s := params.Get(disableCleanupParam); s != "" {
 		b, err := strconv.ParseBool(s)
@@ -207,19 +171,8 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	switch cfg.AuthMode {
-	case AzureADAuth:
-		bc, err := pgcommon.AzureBeforeConnect(cfg.Log)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		cfg.PoolConfig.BeforeConnect = bc
-	case GCPSQLIAMAuth:
-		bc, err := pgcommon.GCPSQLBeforeConnect(ctx, cfg.Logger)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		cfg.PoolConfig.BeforeConnect = bc
+	if err := cfg.AuthMode.ConfigurePoolConfigs(ctx, cfg.Logger, cfg.PoolConfig); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	cfg.Log.Info("Setting up events backend.")

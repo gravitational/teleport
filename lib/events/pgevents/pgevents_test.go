@@ -28,6 +28,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	pgcommon "github.com/gravitational/teleport/lib/backend/pgbk/common"
 	"github.com/gravitational/teleport/lib/events/test"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -86,7 +87,12 @@ func TestPostgresEvents(t *testing.T) {
 func TestConfig(t *testing.T) {
 	configs := map[string]*Config{
 		"postgres://foo#auth_mode=azure": {
-			AuthMode:        AzureADAuth,
+			AuthMode:        pgcommon.AzureADAuth,
+			RetentionPeriod: defaultRetentionPeriod,
+			CleanupInterval: defaultCleanupInterval,
+		},
+		"postgres://foo?sslmode=require#auth_mode=azure": {
+			AuthMode:        pgcommon.AzureADAuth,
 			RetentionPeriod: defaultRetentionPeriod,
 			CleanupInterval: defaultCleanupInterval,
 		},
@@ -120,6 +126,7 @@ func TestConfig(t *testing.T) {
 
 		require.NoError(t, actualConfig.CheckAndSetDefaults())
 		actualConfig.Log = nil
+		actualConfig.Logger = nil
 		actualConfig.PoolConfig = nil
 
 		require.Equal(t, expectedConfig, &actualConfig)
