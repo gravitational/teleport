@@ -1099,7 +1099,7 @@ func TestCloseProxySession(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { reg.Close() })
 
-	scx := newTestServerContext(t, reg.Srv, nil)
+	scx := newTestServerContext(t, reg.Srv, nil, types.DefaultSessionRecordingConfig())
 
 	// Open a new session
 	sshChanOpen := newMockSSHChannel()
@@ -1144,8 +1144,11 @@ func TestCloseRemoteSession(t *testing.T) {
 	})
 	t.Cleanup(func() { reg.Close() })
 
-	scx := newTestServerContext(t, reg.Srv, nil)
-	scx.SessionRecordingConfig.SetMode(types.RecordAtProxy)
+	proxyRecording, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
+		Mode: types.RecordAtProxy,
+	})
+	require.NoError(t, err)
+	scx := newTestServerContext(t, reg.Srv, nil, proxyRecording)
 	scx.RemoteSession = mockSSHSession(t)
 
 	// Open a new session
@@ -1158,7 +1161,7 @@ func TestCloseRemoteSession(t *testing.T) {
 		io.ReadAll(sshChanOpen)
 	}()
 
-	err := reg.OpenSession(context.Background(), sshChanOpen, scx)
+	err = reg.OpenSession(context.Background(), sshChanOpen, scx)
 	require.NoError(t, err)
 	require.NotNil(t, scx.session)
 
