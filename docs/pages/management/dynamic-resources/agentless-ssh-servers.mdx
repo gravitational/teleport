@@ -59,7 +59,7 @@ A functional Teleport Terraform provider by following [the Terraform provider gu
   to connect to it by going through the Proxy Service.
 </Admonition>
 
-## Step 1/4 - Gather the required information
+## Step 1/5 - Gather the required information
 
 To register an OpenSSH server in Teleport you will need the following information:
 
@@ -79,7 +79,7 @@ env: test
 team: engineering
 ```
 
-## Step 2/4 - Write the server manifest
+## Step 2/5 - Write the server manifest
 
 In this step, we'll write text files describing the OpenSSH server resource we
 want to register in Teleport. Those files are called manifests and their syntax
@@ -166,7 +166,7 @@ output "openssh_node_id" {
 </TabItem>
 </Tabs>
 
-## Step 3/4. Apply all manifests
+## Step 3/5. Apply all manifests
 
 <Tabs>
 <TabItem label="tctl">
@@ -249,7 +249,7 @@ openssh_node_id = "a100fdd0-52db-4eca-a7ab-c3afa7a1564a"
 </TabItem>
 </Tabs>
 
-## Step 3/4. Validate the server created in Teleport
+## Step 4/5. Validate the server created in Teleport
 
 Now that the IaC tooling has run, we'll validate that Teleport is now aware of
 the OpenSSH server:
@@ -268,7 +268,7 @@ $ tctl get "node/<Var name="ssh-server-hostname" />"
 $ tctl get node/a100fdd0-52db-4eca-a7ab-c3afa7a1564a
 ```
 
-## Step 4/4. Trust the Teleport CA and issue host certificates
+## Step 5/5. Trust the Teleport CA and issue host certificates
 
 At this point, Teleport is aware that there's an OpenSSH server and knows how to
 contact it and which user should have access. However, neither Teleport nor the
