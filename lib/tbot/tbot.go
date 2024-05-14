@@ -443,6 +443,17 @@ func clientForFacade(
 		return nil, trace.Wrap(err)
 	}
 
+	dialer, err := reversetunnelclient.NewTunnelAuthDialer(reversetunnelclient.TunnelAuthDialerConfig{
+		Resolver:              resolver,
+		ClientConfig:          sshConfig,
+		Log:                   logrus.StandardLogger(),
+		InsecureSkipTLSVerify: cfg.Insecure,
+		ClusterCAs:            tlsConfig.RootCAs,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	authClientConfig := &authclient.Config{
 		TLS: tlsConfig,
 		SSH: sshConfig,
@@ -451,7 +462,7 @@ func clientForFacade(
 		AuthServers: []utils.NetAddr{*parsedAddr},
 		Log:         log,
 		Insecure:    cfg.Insecure,
-		Resolver:    resolver,
+		ProxyDialer: dialer,
 		DialOpts:    []grpc.DialOption{metadata.WithUserAgentFromTeleportComponent(teleport.ComponentTBot)},
 	}
 
