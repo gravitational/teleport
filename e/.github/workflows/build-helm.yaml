@@ -32,6 +32,8 @@ on:
       oss-teleport-ref:
         type: string
         required: true
+      teleport-version:
+        type: string
       environment:
         type: string
         default: build-stage
@@ -84,7 +86,7 @@ jobs:
           role-skip-session-tagging: true
           aws-region: us-west-2
           role-to-assume: ${{ vars.ARTIFACT_UPLOAD_AWS_ROLE }}
-          role-session-name: "gha-helm-chart-upload-${{ matrix.architecture }}-${{ matrix.package.file-extension }}-${{ github.run_number }}"
+          role-session-name: "gha-helm-chart-upload-${{ github.run_number }}"
           role-duration-seconds: 900
 
       - name: Upload the artifact to S3
