@@ -141,11 +141,14 @@ func WithPollInterval(interval time.Duration) Option {
 func (instances *EC2Instances) MakeEvents() map[string]*usageeventsv1.ResourceCreateEvent {
 	resourceType := types.DiscoveredResourceNode
 
-	switch {
-	case instances.DocumentName == types.AWSAgentlessInstallerDocument:
-		resourceType = types.DiscoveredResourceAgentlessNode
-	case instances.Integration != "":
+	switch instances.EnrollMode {
+	case types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE:
 		resourceType = types.DiscoveredResourceEICENode
+
+	case types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT:
+		if instances.DocumentName == types.AWSAgentlessInstallerDocument {
+			resourceType = types.DiscoveredResourceAgentlessNode
+		}
 	}
 
 	events := make(map[string]*usageeventsv1.ResourceCreateEvent, len(instances.Instances))

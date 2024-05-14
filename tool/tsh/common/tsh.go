@@ -442,7 +442,7 @@ type CLIConf struct {
 	displayParticipantRequirements bool
 
 	// TSHConfig is the loaded tsh configuration file ~/.tsh/config/config.yaml.
-	TSHConfig TSHConfig
+	TSHConfig client.TSHConfig
 
 	// ListAll specifies if an ls command should return results from all clusters and proxies.
 	ListAll bool
@@ -1190,7 +1190,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// configs
 	setEnvFlags(&cf)
 
-	confOptions, err := loadAllConfigs(cf)
+	confOptions, err := client.LoadAllConfigs(cf.GlobalTshConfigPath, cf.HomePath)
 	if err != nil {
 		return trace.Wrap(err)
 	}

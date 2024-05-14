@@ -815,9 +815,8 @@ func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
 	// to be rotated, we don't want to filter out existing OpenSSH nodes as
 	// they all need to have the command run on them
 	//
-	// Integration/EICE Nodes don't have heartbeat.
-	// Those Nodes must not be filtered, so that we can extend their expiration and sync labels.
-	if !instances.Rotation && instances.Integration == "" {
+	// EICE Nodes must never be filtered, so that we can extend their expiration and sync labels.
+	if !instances.Rotation && instances.EnrollMode != types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE {
 		s.filterExistingEC2Nodes(instances)
 	}
 	if len(instances.Instances) == 0 {

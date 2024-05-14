@@ -58,7 +58,6 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
-	"golang.org/x/crypto/ssh"
 	"golang.org/x/sys/unix"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -2731,7 +2730,7 @@ func (process *TeleportProcess) initSSH() error {
 			process.ExitContext(),
 			cfg.SSH.Addr,
 			cfg.Hostname,
-			[]ssh.Signer{conn.ServerIdentity.KeySigner},
+			sshutils.StaticHostSigners(conn.ServerIdentity.KeySigner),
 			authClient,
 			cfg.DataDir,
 			cfg.AdvertiseIP,
@@ -4080,7 +4079,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				ClusterName:                   clusterName,
 				ClientTLS:                     clientTLSConfig,
 				Listener:                      reverseTunnelLimiter.WrapListener(listeners.reverseTunnel),
-				HostSigners:                   []ssh.Signer{conn.ServerIdentity.KeySigner},
+				GetHostSigners:                sshutils.StaticHostSigners(conn.ServerIdentity.KeySigner),
 				LocalAuthClient:               conn.Client,
 				LocalAccessPoint:              accessPoint,
 				NewCachingAccessPoint:         process.newLocalCacheForRemoteProxy,
@@ -4462,7 +4461,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		process.ExitContext(),
 		cfg.SSH.Addr,
 		cfg.Hostname,
-		[]ssh.Signer{conn.ServerIdentity.KeySigner},
+		sshutils.StaticHostSigners(conn.ServerIdentity.KeySigner),
 		accessPoint,
 		cfg.DataDir,
 		"",

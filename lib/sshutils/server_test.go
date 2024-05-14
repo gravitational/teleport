@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -57,7 +58,7 @@ func TestStartStop(t *testing.T) {
 		"test",
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 		fn,
-		[]ssh.Signer{signer},
+		StaticHostSigners(signer),
 		AuthMethods{Password: pass("abcdef123456")},
 	)
 	require.NoError(t, err)
@@ -111,7 +112,7 @@ func TestShutdown(t *testing.T) {
 		"test",
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 		fn,
-		[]ssh.Signer{signer},
+		StaticHostSigners(signer),
 		AuthMethods{Password: pass("abcdef123456")},
 		SetShutdownPollPeriod(10*time.Millisecond),
 	)
@@ -163,7 +164,7 @@ func TestConfigureCiphers(t *testing.T) {
 		"test",
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 		fn,
-		[]ssh.Signer{signer},
+		StaticHostSigners(signer),
 		AuthMethods{Password: pass("abcdef123456")},
 		SetCiphers([]string{"aes128-ctr"}),
 	)
@@ -210,7 +211,7 @@ func TestHostSignerFIPS(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	var tests = []struct {
+	tests := []struct {
 		inSigner ssh.Signer
 		inFIPS   bool
 		assert   require.ErrorAssertionFunc
@@ -245,7 +246,7 @@ func TestHostSignerFIPS(t *testing.T) {
 			"test",
 			utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 			fn,
-			[]ssh.Signer{tt.inSigner},
+			StaticHostSigners(tt.inSigner),
 			AuthMethods{Password: pass("abcdef123456")},
 			SetCiphers([]string{"aes128-ctr"}),
 			SetFIPS(tt.inFIPS),
@@ -265,4 +266,50 @@ func pass(need string) PasswordFunc {
 		}
 		return nil, fmt.Errorf("passwords don't match")
 	}
+}
+
+func TestDynamicHostSigners(t *testing.T) {
+	t.Parallel()
+
+	certFoo, signerFoo, err := cert.CreateCertificate("foo", ssh.HostCert)
+	require.NoError(t, err)
+
+	certBar, signerBar, err := cert.CreateCertificate("bar", ssh.HostCert)
+	require.NoError(t, err)
+
+	var activeSigner atomic.Pointer[ssh.Signer]
+	activeSigner.Store(&signerFoo)
+
+	srv, err := NewServer(
+		"test",
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
+		NewChanHandlerFunc(func(_ context.Context, _ *ConnectionContext, nc ssh.NewChannel) {
+			err := nc.Reject(ssh.UnknownChannelType, ssh.UnknownChannelType.String())
+			assert.NoError(t, err)
+		}),
+		func() []ssh.Signer { return []ssh.Signer{*activeSigner.Load()} },
+		AuthMethods{NoClient: true},
+		SetShutdownPollPeriod(10*time.Millisecond),
+	)
+	require.NoError(t, err)
+	require.NoError(t, srv.Start())
+	t.Cleanup(func() { _ = srv.Close() })
+
+	dial := func(pub ssh.PublicKey) error {
+		clt, err := ssh.Dial("tcp", srv.Addr(), &ssh.ClientConfig{
+			HostKeyCallback: ssh.FixedHostKey(pub),
+		})
+		if clt != nil {
+			defer clt.Close()
+		}
+		return err
+	}
+
+	require.NoError(t, dial(certFoo))
+	require.ErrorContains(t, dial(certBar), "ssh: host key mismatch")
+
+	activeSigner.Store(&signerBar)
+
+	require.NoError(t, dial(certBar))
+	require.ErrorContains(t, dial(certFoo), "ssh: host key mismatch")
 }

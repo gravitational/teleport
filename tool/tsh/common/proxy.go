@@ -23,7 +23,6 @@ import (
 	"crypto/tls"
 	"crypto/x509/pkix"
 	"fmt"
-	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -103,8 +102,7 @@ func onProxyCommandSSH(cf *CLIConf) error {
 
 		defer conn.Close()
 
-		stdio := utils.CombineReadWriteCloser(io.NopCloser(os.Stdin), utils.NopWriteCloser(os.Stdout))
-		return trace.Wrap(utils.ProxyConn(cf.Context, stdio, conn))
+		return trace.Wrap(utils.ProxyConn(cf.Context, utils.CombinedStdio{}, conn))
 	}))
 }
 
