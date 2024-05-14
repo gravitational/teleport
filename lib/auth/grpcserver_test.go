@@ -54,7 +54,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
-	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
@@ -4196,74 +4195,6 @@ func TestGRPCServer_GetInstallers(t *testing.T) {
 			require.Equal(t, tc.expectedInstallers, outputInstallers)
 		})
 	}
-}
-
-// DELETE IN 16.0
-// TestPing_VersionCheck_AccessMonitoringFlag tests that client versions <=14.2.0
-// sets the IGS flag. Old clients will expect IGS == access monitoring.
-func TestPing_VersionCheck_AccessMonitoringFlag(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
-		TestFeatures: modules.Features{
-			AccessMonitoring: modules.AccessMonitoringFeature{
-				Enabled: true,
-			},
-		},
-	})
-
-	srv := newTestTLSServer(t)
-	srv.Auth().accessMonitoringEnabled = true
-
-	user, _, err := CreateUserAndRoleWithoutRoles(srv.Auth(), "user", nil)
-	require.NoError(t, err)
-
-	client, err := srv.NewClient(TestUser(user.GetName()))
-	require.NoError(t, err)
-
-	// Test with latest major version that supports access monitoring field.
-	// Should NOT enable IGS.
-	ctx := context.Background()
-	ctx = metadata.AddMetadataToContext(ctx, map[string]string{
-		metadata.VersionKey: "15.0.0",
-	})
-	ping, err := client.Ping(ctx)
-	require.NoError(t, err)
-	require.False(t, ping.ServerFeatures.IdentityGovernance, "expected field IdentityGovernance to be false")
-	require.True(t, ping.ServerFeatures.AccessMonitoring.Enabled, "expected field AccessMonitoring.Enabled to be true")
-
-	// Test with minimum major/minor/patch version that supports access monitoring field.
-	// Should NOT enable IGS.
-	ctx2 := context.Background()
-	ctx2 = metadata.AddMetadataToContext(ctx2, map[string]string{
-		metadata.VersionKey: "14.2.1",
-	})
-	ping, err = client.Ping(ctx2)
-	require.NoError(t, err)
-	require.False(t, ping.ServerFeatures.IdentityGovernance, "expected field IdentityGovernance to be false")
-	require.True(t, ping.ServerFeatures.AccessMonitoring.Enabled, "expected field AccessMonitoring.Enabled to be true")
-
-	// Test with version that does NOT support access monitoring field.
-	// Should return with IGS enabled to mean access monitoring was enabled
-	// (because that's what older clients expect)
-	ctx3 := context.Background()
-	ctx3 = metadata.AddMetadataToContext(ctx3, map[string]string{
-		metadata.VersionKey: "14.2.0",
-	})
-	ping, err = client.Ping(ctx3)
-	require.NoError(t, err)
-	require.True(t, ping.ServerFeatures.IdentityGovernance, "expected field IdentityGovernance to be true")
-	require.True(t, ping.ServerFeatures.AccessMonitoring.Enabled, "expected field AccessMonitoring.Enabled to be true")
-
-	// Test with an older version.
-	// Should return with IGS enabled to mean access monitoring was enabled
-	// (because that's what older clients expect)
-	ctx4 := context.Background()
-	ctx4 = metadata.AddMetadataToContext(ctx4, map[string]string{
-		metadata.VersionKey: "13.3.0",
-	})
-	ping, err = client.Ping(ctx4)
-	require.NoError(t, err)
-	require.True(t, ping.ServerFeatures.IdentityGovernance, "expected field IdentityGovernance to be true")
-	require.True(t, ping.ServerFeatures.AccessMonitoring.Enabled, "expected field AccessMonitoring.Enabled to be true")
 }
 
 func TestUpsertApplicationServerOrigin(t *testing.T) {

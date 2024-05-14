@@ -115,7 +115,7 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.POST("/:version/authorities/:type/rotate/external", srv.WithAuth(srv.rotateExternalCertAuthority))
 
 	// Operations on users
-	// TODO(tross): DELETE IN 16.0.0
+	// TODO(tross): DELETE IN 17.0.0
 	srv.POST("/:version/users", srv.WithAuth(srv.upsertUser))
 
 	// Passwords and sessions

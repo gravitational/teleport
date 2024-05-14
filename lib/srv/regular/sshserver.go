@@ -709,7 +709,7 @@ func New(
 	ctx context.Context,
 	addr utils.NetAddr,
 	hostname string,
-	signers []ssh.Signer,
+	getHostSigners sshutils.GetHostSignersFunc,
 	authService srv.AccessPoint,
 	dataDir string,
 	advertiseAddr string,
@@ -830,7 +830,8 @@ func New(
 
 	server, err := sshutils.NewServer(
 		component,
-		addr, s, signers,
+		addr, s,
+		getHostSigners,
 		sshutils.AuthMethods{PublicKey: s.authHandlers.UserKeyAuth},
 		sshutils.SetLimiter(s.limiter),
 		sshutils.SetRequestHandler(s),
