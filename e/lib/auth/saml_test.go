@@ -116,8 +116,7 @@ func TestCreateSAMLUser(t *testing.T) {
 		SessionTTL:    1 * time.Minute,
 	}, false)
 	require.NoError(t, err)
-	// TODO(tross): validate revisions after teleport is updated
-	//require.NotEqual(t, user.GetRevision(), user2.GetRevision())
+	require.NotEqual(t, user.GetRevision(), user2.GetRevision())
 	require.Equal(t, user.GetName(), user2.GetName())
 
 	// Advance time 2 minutes, the user should be gone.
