@@ -27,7 +27,9 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
 
+	tp "github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/accessrequest"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -37,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	pd "github.com/gravitational/teleport/integrations/lib/plugindata"
 	"github.com/gravitational/teleport/integrations/lib/watcherjob"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 )
 
 const (
@@ -58,6 +61,7 @@ type App struct {
 	job        lib.ServiceJob
 
 	accessMonitoringRules amrMap
+	amrMetric             prometheus.Counter
 }
 
 type amrMap struct {
@@ -91,6 +95,19 @@ func (a *App) Init(baseApp *common.BaseApp) error {
 	a.bot, ok = baseApp.Bot.(MessagingBot)
 	if !ok {
 		return trace.BadParameter("bot does not implement access request bot methods")
+	}
+
+	a.amrMetric = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name:      tp.MetricPluginAccessMonitoringRules,
+			Namespace: tp.MetricNamespace,
+			Help:      "Number of plugin Access Monitoring Rules.",
+		},
+	)
+
+	err := metrics.RegisterPrometheusCollectors(a.amrMetric)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	return nil
@@ -487,6 +504,7 @@ func (a *App) recipientsFromAccessMonitoringRules(ctx context.Context, req types
 		if !match {
 			continue
 		}
+		a.amrMetric.Inc()
 		for _, recipient := range rule.Spec.Notification.Recipients {
 			rec, err := a.bot.FetchRecipient(ctx, recipient)
 			if err != nil {
