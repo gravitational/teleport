@@ -18,7 +18,9 @@ package srv
 
 import (
 	"context"
+	"crypto/ed25519"
 	"io"
+	"net"
 	"os/user"
 	"slices"
 	"sync/atomic"
@@ -30,10 +32,12 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/term"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -1233,5 +1237,189 @@ func TestSessionRecordingMode(t *testing.T) {
 			gotMode := sess.sessionRecordingMode()
 			require.Equal(t, tt.expectedMode, gotMode)
 		})
+	}
+}
+
+func TestCloseProxySession(t *testing.T) {
+	srv := newMockServer(t)
+	srv.component = teleport.ComponentProxy
+
+	reg, err := NewSessionRegistry(SessionRegistryConfig{
+		Srv:                   srv,
+		SessionTrackerService: srv.auth,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { reg.Close() })
+
+	scx := newTestServerContext(t, reg.Srv, nil)
+
+	// Open a new session
+	sshChanOpen := newMockSSHChannel()
+	// Always close the session from the client side to avoid it being stuck
+	// on closing (server side).
+	t.Cleanup(func() { sshChanOpen.Close() })
+	go func() {
+		// Consume stdout sent to the channel
+		io.ReadAll(sshChanOpen)
+	}()
+
+	err = reg.OpenSession(context.Background(), sshChanOpen, scx)
+	require.NoError(t, err)
+	require.NotNil(t, scx.session)
+
+	// After the session is open, we force a close coming from the server. Do
+	// this inside a goroutine to avoid being blocked.
+	closeChan := make(chan error)
+	go func() {
+		closeChan <- scx.session.Close()
+	}()
+
+	select {
+	case err := <-closeChan:
+		require.NoError(t, err)
+	case <-time.After(10 * time.Second):
+		require.Fail(t, "expected session to be closed")
+	}
+}
+
+// TestClodeRemoteSession given a remote session recording at proxy ensure that
+// closing the session releases all the resources, and return properly to the
+// user.
+func TestCloseRemoteSession(t *testing.T) {
+	srv := newMockServer(t)
+	srv.component = teleport.ComponentProxy
+
+	// init a session registry
+	reg, _ := NewSessionRegistry(SessionRegistryConfig{
+		Srv:                   srv,
+		SessionTrackerService: srv.auth,
+	})
+	t.Cleanup(func() { reg.Close() })
+
+	scx := newTestServerContext(t, reg.Srv, nil)
+	scx.SessionRecordingConfig.SetMode(types.RecordAtProxy)
+	scx.RemoteSession = mockSSHSession(t)
+
+	// Open a new session
+	sshChanOpen := newMockSSHChannel()
+	// Always close the session from the client side to avoid it being stuck
+	// on closing (server side).
+	t.Cleanup(func() { sshChanOpen.Close() })
+	go func() {
+		// Consume stdout sent to the channel
+		io.ReadAll(sshChanOpen)
+	}()
+
+	err := reg.OpenSession(context.Background(), sshChanOpen, scx)
+	require.NoError(t, err)
+	require.NotNil(t, scx.session)
+
+	// After the session is open, we force a close coming from the server. Do
+	// this inside a goroutine to avoid being blocked.
+	closeChan := make(chan error)
+	go func() {
+		closeChan <- scx.session.Close()
+	}()
+
+	select {
+	case err := <-closeChan:
+		require.NoError(t, err)
+	case <-time.After(10 * time.Second):
+		require.Fail(t, "expected session to be closed")
+	}
+}
+
+func mockSSHSession(t *testing.T) *tracessh.Session {
+	t.Helper()
+
+	ctx := context.Background()
+
+	_, key, err := ed25519.GenerateKey(nil)
+	require.NoError(t, err)
+	signer, err := ssh.NewSignerFromKey(key)
+	require.NoError(t, err)
+
+	cfg := &ssh.ServerConfig{NoClientAuth: true}
+	cfg.AddHostKey(signer)
+
+	listener, err := net.Listen("tcp", "localhost:")
+	require.NoError(t, err)
+	t.Cleanup(func() { listener.Close() })
+
+	go func() {
+		conn, err := listener.Accept()
+		if err != nil {
+			t.Logf("error while accepting ssh connections: %s", err)
+			return
+		}
+
+		srvConn, chCh, reqCh, err := ssh.NewServerConn(conn, cfg)
+		if err != nil {
+			t.Logf("error while accepting creating a new ssh server conn: %s", err)
+			return
+		}
+		t.Cleanup(func() { srvConn.Close() })
+
+		go ssh.DiscardRequests(reqCh)
+		for newChannel := range chCh {
+			channel, requests, err := newChannel.Accept()
+			if err != nil {
+				t.Logf("failed to accept channel: %s", err)
+				continue
+			}
+
+			go func() {
+				for req := range requests {
+					req.Reply(true, nil)
+				}
+			}()
+
+			sessTerm := term.NewTerminal(channel, "> ")
+			go func() {
+				defer channel.Close()
+				for {
+					_, err := sessTerm.ReadLine()
+					if err != nil {
+						break
+					}
+				}
+			}()
+		}
+	}()
+
+	// Establish a connection to the newly created server.
+	sessCh := make(chan *tracessh.Session)
+	go func() {
+		client, err := tracessh.Dial(ctx, listener.Addr().Network(), listener.Addr().String(), &ssh.ClientConfig{
+			Timeout:         10 * time.Second,
+			User:            "user",
+			Auth:            []ssh.AuthMethod{ssh.PublicKeys(signer)},
+			HostKeyCallback: ssh.FixedHostKey(signer.PublicKey()),
+		})
+		if err != nil {
+			t.Logf("failed to dial test ssh server: %s", err)
+			close(sessCh)
+			return
+		}
+		t.Cleanup(func() { client.Close() })
+
+		sess, err := client.NewSession(ctx)
+		if err != nil {
+			t.Logf("failed to dial test ssh server: %s", err)
+			close(sessCh)
+			return
+		}
+		t.Cleanup(func() { sess.Close() })
+
+		sessCh <- sess
+	}()
+
+	select {
+	case sess, ok := <-sessCh:
+		require.True(t, ok, "expected SSH session but got nothing")
+		return sess
+	case <-time.After(10 * time.Second):
+		require.Fail(t, "timeout while waiting for the SSH session")
+		return nil
 	}
 }
