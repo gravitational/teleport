@@ -6014,10 +6014,8 @@ message PluginEntraIDAccessGraphSettings {
 message PluginEntraIDAppSSOSettings {
   option (gogoproto.equal) = true;
 
-  // SSOApplication contains payload from the /ApplicationSso/{servicePrincipalId}/SsoApplication endpoint.
-  string SSOApplication = 1;
-  // FederatedSSOV2 contains payload from the /ApplicationSso/{servicePrincipalId}/FederatedSSOV2 endpoint.
-  string FederatedSSOV2 = 2;
+  // FederatedSSOV2 contains the cached, gzip-compressed payload from the /ApplicationSso/{servicePrincipalId}/FederatedSSOV2 endpoint.
+  bytes FederatedSSOV2 = 1;
 }
 
 message PluginBootstrapCredentialsV1 {
