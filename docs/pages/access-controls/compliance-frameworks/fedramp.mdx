@@ -58,7 +58,27 @@ government agencies.
 | [SC-17 Public Key Infrastructure]((=fedramp.control_url=)SC-17) | Certificates Teleport initializes cryptographic keys that act as a Certificate Authority (CA) to further issue X.509 and SSH certificates. SSH and X.509 user certificates that are issued are signed by the CA and are (by default) short-lived. SSH host certificates are also signed by the CA. |
 | [SC-23 Session Authenticity]((=fedramp.control_url=)SC-23) | Teleport SSH and TLS sessions are protected with SSH user and X.509 client certificates. For access to the Web UI, Teleport uses bearer token auth stored in a browser token to authenticate a session. Upon user logout, SSH and TLS certificates are deleted from disk and cookies are removed from the browser. |
 
-## Download and install
+### mTLS
+
+Teleport implements mTLS for all communications between user clients and Teleport servers with several exceptions listed below.
+
+Following successful authentication to SSO Identity Provider, Teleport issues the authenticated user x.509 client certificates signed by its own internal x.509 CA. Target Teleport services and clients require valid x.509 certificates and mTLS for all target SSH, K8s, database, and web application connections. 
+
+Inside the ATO boundary, mTLS is used for communication between the Teleport proxy and internal hosts running all protocols.
+
+#### mTLS exceptions
+
+- Teleport components provide read-only health check REST endpoints requiring only TLS.
+- Teleport offers optional web UI for Windows Desktop and SSH. For web UI access, Teleport uses TLS + session cookie + bearer token with proxy. Teleport Proxy converts web sessions to mTLS to reach out to Teleport servers.
+- Teleport offers optional SSH compatibility mode. In this mode Teleport dials target OpenSSH services using OpenSSH client certificates issued and signed by Teleport OpenSSH CA.
+- The connection from the Teleport Proxy to Teleport desktop agent is mTLS, but the connection Teleport desktop agent to an RDP server is only TLS. The agent authenticates itself to the RDP server via a virtual PIV-compatible smartcard containing a user certificate issued by Teleport’s internal CA.
+
+#### FIPS mTLS details
+
+In FIPS builds, Teleport uses Go’s BoringCrypto-based networking stack for all protocols.
+
+For a detailed list of cryptographic algorithms used in FIPS mode please consult [Teleport FIPS documentation](https://goteleport.com/docs/access-controls/compliance-frameworks/fedramp/#default-cryptographic-algorithms).
+
 You also can follow the [Installation instructions](../../installation.mdx#linux) for 
 Teleport Enterprise edition to download and install the appropriate FIPS-compliant binaries for 
 your operating environment and package manager or from compressed archive (tarball).
