@@ -18,17 +18,23 @@
 
 import React, {
   createContext,
-  useCallback,
   PropsWithChildren,
+  useCallback,
   useContext,
-  useRef,
   useEffect,
+  useRef,
   useState,
 } from 'react';
 
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import { Indicator } from 'design';
+
+import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
+
+import { ClusterUserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/cluster_preferences_pb';
+
+import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 
 import { StyledIndicator } from 'teleport/Main';
 
@@ -37,17 +43,9 @@ import cfg from 'teleport/config';
 
 import { KeysEnum, storageService } from 'teleport/services/storageService';
 
-import {
-  deprecatedThemeToThemePreference,
-  ThemePreference,
-} from 'teleport/services/userPreferences/types';
+import { deprecatedThemeToThemePreference } from 'teleport/services/userPreferences/types';
 
 import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
-
-import type {
-  UserClusterPreferences,
-  UserPreferences,
-} from 'teleport/services/userPreferences/types';
 
 export interface UserContextValue {
   preferences: UserPreferences;
@@ -69,7 +67,7 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
   const { attempt, run } = useAttempt('processing');
   // because we have to update cluster preferences with itself during the update
   // we useRef here to prevent infinite rerenders
-  const clusterPreferences = useRef<Record<string, UserClusterPreferences>>({});
+  const clusterPreferences = useRef<Record<string, ClusterUserPreferences>>({});
 
   const [preferences, setPreferences] = useState<UserPreferences>(
     makeDefaultUserPreferences()
@@ -80,12 +78,12 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
       // we know that pinned resources is supported because we've already successfully
       // fetched their pinned resources once before
       window.localStorage.removeItem(KeysEnum.PINNED_RESOURCES_NOT_SUPPORTED);
-      return clusterPreferences.current[clusterId].pinnedResources;
+      return clusterPreferences.current[clusterId].pinnedResources.resourceIds;
     }
     const prefs = await service.getUserClusterPreferences(clusterId);
     if (prefs) {
       clusterPreferences.current[clusterId] = prefs;
-      return prefs.pinnedResources;
+      return prefs.pinnedResources.resourceIds;
     }
     return null;
   }, []);
@@ -95,9 +93,12 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
     pinnedResources: string[]
   ) => {
     if (!clusterPreferences.current[clusterId]) {
-      clusterPreferences.current[clusterId] = { pinnedResources: [] };
+      clusterPreferences.current[clusterId] = {
+        pinnedResources: { resourceIds: [] },
+      };
     }
-    clusterPreferences.current[clusterId].pinnedResources = pinnedResources;
+    clusterPreferences.current[clusterId].pinnedResources.resourceIds =
+      pinnedResources;
 
     return service.updateUserClusterPreferences(clusterId, {
       ...preferences,
@@ -121,7 +122,7 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
         if (theme) {
           preferences.theme = deprecatedThemeToThemePreference(theme);
 
-          if (preferences.theme !== ThemePreference.Light) {
+          if (preferences.theme !== Theme.LIGHT) {
             // the light theme is the default, so only update the backend if it is not light
             updatePreferences(preferences);
           }
@@ -167,6 +168,10 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
       // updatePreferences only update the root cluster so we can only pass cluster
       // preferences from the root cluster
       clusterPreferences: clusterPreferences.current[cfg.proxyCluster],
+      accessGraph: {
+        ...preferences.accessGraph,
+        ...newPreferences.accessGraph,
+      },
     } as UserPreferences;
     setPreferences(nextPreferences);
     storageService.setUserPreferences(nextPreferences);

@@ -30,6 +30,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
@@ -62,13 +63,14 @@ import (
 
 // CommandOptions controls how the SSH command is built.
 type CommandOptions struct {
-	ForwardAgent bool
-	ForcePTY     bool
-	ControlPath  string
-	SocketPath   string
-	ProxyPort    string
-	NodePort     string
-	Command      string
+	ForwardAgent  bool
+	ForcePTY      bool
+	X11Forwarding bool
+	ControlPath   string
+	SocketPath    string
+	ProxyPort     string
+	NodePort      string
+	Command       string
 }
 
 // ExternalSSHCommand runs an external SSH command (if an external ssh binary
@@ -87,6 +89,10 @@ func ExternalSSHCommand(o CommandOptions) (*exec.Cmd, error) {
 		execArgs = append(execArgs, "-oControlPersist=1s")
 		execArgs = append(execArgs, "-oConnectTimeout=2")
 		execArgs = append(execArgs, fmt.Sprintf("-oControlPath=%v", o.ControlPath))
+	}
+
+	if o.X11Forwarding {
+		execArgs = append(execArgs, "-X")
 	}
 
 	// The -tt flag is used to force PTY allocation. It's often used by
@@ -465,4 +471,19 @@ func FindNodeWithLabel(t *testing.T, ctx context.Context, cl apiclient.ListResou
 		assert.NoError(t, err)
 		return len(servers.Resources) >= 1
 	}
+}
+
+// UpsertAuthPrefAndWaitForCache upserts the authentication preference and waits
+// until the auth server's cache contains the new value. This is needed since
+// the cache doesn't always catch up before we need to use the preference value.
+func UpsertAuthPrefAndWaitForCache(
+	t *testing.T, ctx context.Context, srv *auth.Server, pref types.AuthPreference,
+) {
+	_, err := srv.UpsertAuthPreference(ctx, pref)
+	require.NoError(t, err)
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		p, err := srv.GetAuthPreference(ctx)
+		require.NoError(t, err)
+		assert.Empty(t, cmp.Diff(&pref, &p))
+	}, 5*time.Second, 100*time.Millisecond)
 }

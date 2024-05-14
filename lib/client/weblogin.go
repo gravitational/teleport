@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/auth"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -55,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
+	"github.com/gravitational/teleport/lib/utils"
 	websession "github.com/gravitational/teleport/lib/web/session"
 )
 
@@ -243,15 +245,26 @@ type SSHLoginSSO struct {
 	SSHLogin
 	// ConnectorID is the OIDC or SAML connector ID to use
 	ConnectorID string
+	// ConnectorName is the display name of the connector.
+	ConnectorName string
 	// Protocol is an optional protocol selection
 	Protocol string
 	// BindAddr is an optional host:port address to bind
 	// to for SSO login flows
 	BindAddr string
+	// CallbackAddr is the optional base URL to give to the user when performing
+	// SSO redirect flows.
+	CallbackAddr string
 	// Browser can be used to pass the name of a browser to override the system
 	// default (not currently implemented), or set to 'none' to suppress
 	// browser opening entirely.
 	Browser string
+	// PrivateKeyPolicy is a key policy to follow during login.
+	PrivateKeyPolicy keys.PrivateKeyPolicy
+	// ProxySupportsKeyPolicyMessage lets the tsh redirector give users more
+	// useful messages in the web UI if the proxy supports them.
+	// TODO(atburke): DELETE in v17.0.0
+	ProxySupportsKeyPolicyMessage bool
 }
 
 // SSHLoginDirect contains SSH login parameters for direct (user/pass/OTP)
@@ -336,7 +349,7 @@ type TOTPRegisterChallenge struct {
 // initClient creates a new client to the HTTPS web proxy.
 func initClient(proxyAddr string, insecure bool, pool *x509.CertPool, extraHeaders map[string]string, opts ...roundtrip.ClientParam) (*WebClient, *url.URL, error) {
 	log := logrus.WithFields(logrus.Fields{
-		trace.Component: teleport.ComponentClient,
+		teleport.ComponentKey: teleport.ComponentClient,
 	})
 	log.Debugf("HTTPS client init(proxyAddr=%v, insecure=%v, extraHeaders=%v)", proxyAddr, insecure, extraHeaders)
 
@@ -378,6 +391,20 @@ func initClient(proxyAddr string, insecure bool, pool *x509.CertPool, extraHeade
 
 // SSHAgentSSOLogin is used by tsh to fetch user credentials using OpenID Connect (OIDC) or SAML.
 func SSHAgentSSOLogin(ctx context.Context, login SSHLoginSSO, config *RedirectorConfig) (*auth.SSHLoginResponse, error) {
+	if login.CallbackAddr != "" && !utils.AsBool(os.Getenv("TELEPORT_LOGIN_SKIP_REMOTE_HOST_WARNING")) {
+		const callbackPrompt = "Logging in from a remote host means that credentials will be stored on " +
+			"the remote host. Make sure that you trust the provided callback host " +
+			"(%v) and that it resolves to the provided bind addr (%v). Continue?"
+		ok, err := prompt.Confirmation(ctx, os.Stderr, prompt.NewContextReader(os.Stdin),
+			fmt.Sprintf(callbackPrompt, login.CallbackAddr, login.BindAddr),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if !ok {
+			return nil, trace.BadParameter("Login canceled.")
+		}
+	}
 	rd, err := NewRedirector(ctx, login, config)
 	if err != nil {
 		return nil, trace.Wrap(err)

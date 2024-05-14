@@ -18,7 +18,8 @@
 
 import { Platform } from 'design/platform';
 
-import { ClusterResource } from 'teleport/services/userPreferences/types';
+import { Resource } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
+
 import { AuthType } from 'teleport/services/user';
 
 import { ResourceKind } from '../Shared/ResourceKind';
@@ -60,9 +61,25 @@ export enum ServerLocation {
   Aws,
 }
 
+export enum KubeLocation {
+  SelfHosted,
+  Aws,
+}
+
+/** SamlServiceProviderPreset defines SAML service provider preset types.
+ * Used to define custom or pre-defined configuration flow.
+ */
+export enum SamlServiceProviderPreset {
+  Unspecified = 'unspecified',
+  Grafana = 'grafana',
+  GcpWorkforce = 'gcp-workforce',
+}
+
 export interface ResourceSpec {
   dbMeta?: { location: DatabaseLocation; engine: DatabaseEngine };
   nodeMeta?: { location: ServerLocation };
+  kubeMeta?: { location: KubeLocation };
+  samlMeta?: { preset: SamlServiceProviderPreset };
   name: string;
   popular?: boolean;
   kind: ResourceKind;
@@ -126,6 +143,6 @@ export enum SearchResource {
 }
 
 export type PrioritizedResources = {
-  preferredResources: ClusterResource[];
+  preferredResources: Resource[];
   hasPreferredResources: boolean;
 };

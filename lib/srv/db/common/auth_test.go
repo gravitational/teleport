@@ -204,6 +204,12 @@ func TestAuthGetTLSConfig(t *testing.T) {
 			expectVerifyConnection:   true,
 		},
 		{
+			name:             "GCP Spanner",
+			sessionDatabase:  newSpannerDatabase(t, ""),
+			expectServerName: "spanner.googleapis.com",
+			expectRootCAs:    systemCertPool,
+		},
+		{
 			name:             "Azure SQL Server",
 			sessionDatabase:  newAzureSQLDatabase(t, "resource-id"),
 			expectServerName: "test-database.database.windows.net",
@@ -872,6 +878,25 @@ func newAzureSQLDatabase(t *testing.T, resourceID string) types.Database {
 	return database
 }
 
+func newSpannerDatabase(t *testing.T, uri string, specOpts ...databaseSpecOpt) types.Database {
+	spec := types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolSpanner,
+		URI:      uri,
+		GCP: types.GCPCloudSQL{
+			ProjectID:  "project-id",
+			InstanceID: "instance-id",
+		},
+	}
+	for _, opt := range specOpts {
+		opt(&spec)
+	}
+	database, err := types.NewDatabaseV3(types.Metadata{
+		Name: "test-database",
+	}, spec)
+	require.NoError(t, err)
+	return database
+}
+
 // identityResourceID generates full resource ID of the Azure user identity.
 func identityResourceID(t *testing.T, identityName string) string {
 	t.Helper()
@@ -903,6 +928,9 @@ type authClientMock struct {
 
 // GenerateDatabaseCert generates a cert using fixtures TLS CA.
 func (m *authClientMock) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
+	if req.GetRequesterName() != proto.DatabaseCertRequest_UNSPECIFIED {
+		return nil, trace.BadParameter("db agent should not specify requester name")
+	}
 	csr, err := tlsca.ParseCertificateRequestPEM(req.CSR)
 	if err != nil {
 		return nil, trace.Wrap(err)

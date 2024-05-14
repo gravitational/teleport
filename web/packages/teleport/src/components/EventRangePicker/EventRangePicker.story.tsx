@@ -16,32 +16,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 
-import Component from './EventRangePicker';
+import RangePicker from './EventRangePicker';
+
+import { EventRange, getRangeOptions } from '.';
 
 export default {
   title: 'Teleport/RangePicker',
 };
 
-export const Picker = () => <Component {...props} />;
+export const Picker = () => {
+  const rangeOptions = getRangeOptions();
+  const [range, setRange] = useState<EventRange>(rangeOptions[0]);
 
-const options = [
-  {
-    name: '7 days',
-    from: new Date(),
-    to: new Date(),
-  },
-  {
-    name: 'Custom Range...',
-    isCustom: true,
-    from: new Date(),
-    to: new Date(),
-  },
-];
-
-const props = {
-  range: options[0],
-  ranges: options,
-  onChangeRange: () => {},
+  return (
+    <RangePicker range={range} ranges={rangeOptions} onChangeRange={setRange} />
+  );
 };

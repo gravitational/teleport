@@ -63,11 +63,11 @@ func (ws *WebsocketIO) Close() error {
 	return trace.Wrap(ws.Conn.Close())
 }
 
-// startPingLoop starts a loop that will continuously send a ping frame through the websocket
+// startWSPingLoop starts a loop that will continuously send a ping frame through the websocket
 // to prevent the connection between web client and teleport proxy from becoming idle.
 // Interval is determined by the keep_alive_interval config set by user (or default).
 // Loop will terminate when there is an error sending ping frame or when the context is canceled.
-func startPingLoop(ctx context.Context, ws WSConn, keepAliveInterval time.Duration, log logrus.FieldLogger, onClose func() error) {
+func startWSPingLoop(ctx context.Context, ws WSConn, keepAliveInterval time.Duration, log logrus.FieldLogger, onClose func() error) {
 	log.Debugf("Starting websocket ping loop with interval %v.", keepAliveInterval)
 	tickerCh := time.NewTicker(keepAliveInterval)
 	defer tickerCh.Stop()

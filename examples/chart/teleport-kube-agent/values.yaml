@@ -381,9 +381,13 @@ databaseResources: []
 # The Discovery Service is enabled when the agent `roles` contains "discovery".
 # The Discovery service automatically detects Kubernetes Services and configures
 # the agent to provide access to them. See [the Kubernetes App Discovery
-# documentation](../../../application-access/enroll-kubernetes-applications/architecture.mdx)
+# documentation](../../../auto-discovery/kubernetes-applications/architecture.mdx)
 # for more details.
 #
+# <Admonition type="note">
+# The Discovery mechanism ignores Kubernetes services running in the `kube-system` and
+# `kube-public` namespaces.
+# </Admonition>
 # The default value will try to discover all apps running in Kubernetes.
 # The discovery can be restricted through this value. For example:
 #
@@ -579,9 +583,45 @@ updater:
     # Account name. When unset, it defaults to `<kube agent sa name>-updater`
     name: ""
 
+  # updater.pullCredentials(string) -- configures how the updater attempts to
+  # get the image pull credentials used to validate the image signature.
+  #
+  # This is not required when pulling images from official public Teleport
+  # registries (chart's default).
+  #
+  # Supported values are `amazon`, `google`, `docker` and `none`.
+  pullCredentials: ""
+
   # updater.extraArgs(list) -- contains additional arguments to pass to the updater
   # binary.
   extraArgs: []
+
+  # updater.extraVolumes(list) -- contains extra volumes to mount into the Updater pods.
+  # See [the Kubernetes volume documentation](https://kubernetes.io/docs/concepts/storage/volumes/)
+  # for more details.
+  #
+  # For example:
+  # ```yaml
+  # updater:
+  #   extraVolumes:
+  #   - name: myvolume
+  #     secret:
+  #       secretName: testSecret
+  # ```
+  extraVolumes: []
+
+  # updater.extraVolumeMounts(list) -- contains extra volumes mounts for the updater.
+  # See [the Kubernetes volume documentation](https://kubernetes.io/docs/concepts/storage/volumes/)
+  # for more details.
+  #
+  # For example:
+  # ```yaml
+  # updater:
+  #   extraVolumesMounts:
+  #   - name: myvolume
+  #     mountPath: /path/on/host
+  # ```
+  extraVolumeMounts: []
 
 # existingDataVolume(string) -- is the name of an existing Kubernetes Persistent
 # Volume that should be mounted at `/var/lib/teleport`.
@@ -774,7 +814,7 @@ adminClusterRoleBinding:
 #   to pull the image.
 #
 #   For this reason, it is strongly discouraged to set a custom image when
-#   using automatic updates. Teleport Cloud uses automatic upgrades by default.
+#   using automatic updates. Teleport Cloud uses automatic updates by default.
 # </Admonition>
 #
 # Since version 13, hardened distroless images are used by default.
@@ -799,7 +839,7 @@ image: public.ecr.aws/gravitational/teleport-distroless
 #   to pull the image.
 #
 #   For this reason, it is strongly discouraged to set a custom image when
-#   using automatic updates. Teleport Cloud uses automatic upgrades by default.
+#   using automatic updates. Teleport Cloud uses automatic updates by default.
 # </Admonition>
 #
 # Since version 13, hardened distroless images are used by default.
@@ -1154,29 +1194,37 @@ resources: {}
 # See [the Kubernetes documentation](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-container)
 # for more details.
 #
+# The default value is compatible with [the restricted PSS](https://kubernetes.io/docs/concepts/security/pod-security-standards/).
+#
 # To unset the security context, set it to `null` or `~`.
 initSecurityContext:
   allowPrivilegeEscalation: false
   capabilities:
     drop:
-      - all
+      - ALL
   readOnlyRootFilesystem: true
   runAsNonRoot: true
   runAsUser: 9807
+  seccompProfile:
+    type: RuntimeDefault
 
 # securityContext(object) -- sets the container security context for any pods created by the chart.
 # See [the Kubernetes documentation](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-container)
 # for more details.
+#
+# The default value is compatible with [the restricted PSS](https://kubernetes.io/docs/concepts/security/pod-security-standards/).
 #
 # To unset the security context, set it to `null` or `~`.
 securityContext:
   allowPrivilegeEscalation: false
   capabilities:
     drop:
-      - all
+      - ALL
   readOnlyRootFilesystem: true
   runAsNonRoot: true
   runAsUser: 9807
+  seccompProfile:
+    type: RuntimeDefault
 
 # podSecurityContext(object) -- sets the pod security context for any pods created by the chart.
 # See [the Kubernetes documentation](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod)

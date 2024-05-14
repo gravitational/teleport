@@ -21,6 +21,7 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
@@ -83,7 +84,7 @@ func (la *LoginAttempt) Check() error {
 }
 
 // UnmarshalUser unmarshals the User resource from JSON.
-func UnmarshalUser(bytes []byte, opts ...MarshalOption) (types.User, error) {
+func UnmarshalUser(bytes []byte, opts ...MarshalOption) (*types.UserV2, error) {
 	var h types.ResourceHeader
 	err := json.Unmarshal(bytes, &h)
 	if err != nil {
@@ -137,4 +138,11 @@ func MarshalUser(user types.User, opts ...MarshalOption) ([]byte, error) {
 	default:
 		return nil, trace.BadParameter("unrecognized user version %T", user)
 	}
+}
+
+// UsernameForRemoteCluster returns an username that is prefixed with "remote-"
+// and suffixed with cluster name with the hope that it does not match a real
+// local user.
+func UsernameForRemoteCluster(localUsername, localClusterName string) string {
+	return fmt.Sprintf("remote-%v-%v", localUsername, localClusterName)
 }

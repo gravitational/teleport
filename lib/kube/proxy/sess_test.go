@@ -39,6 +39,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/remotecommand"
 
+	"github.com/gravitational/teleport"
+	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
@@ -242,7 +244,7 @@ func Test_session_trackSession(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sess := &session{
-				log: logrus.New().WithField(trace.Component, "test"),
+				log: logrus.New().WithField(teleport.ComponentKey, "test"),
 				id:  uuid.New(),
 				req: &http.Request{
 					URL: &url.URL{},
@@ -264,8 +266,9 @@ func Test_session_trackSession(t *testing.T) {
 				},
 				forwarder: &Forwarder{
 					cfg: ForwarderConfig{
-						Clock:      clockwork.NewFakeClock(),
-						AuthClient: tt.args.authClient,
+						Clock:             clockwork.NewFakeClock(),
+						AuthClient:        tt.args.authClient,
+						CachingAuthClient: tt.args.authClient,
 					},
 					ctx: context.Background(),
 				},
@@ -289,4 +292,8 @@ func (m *mockSessionTrackerService) CreateSessionTracker(ctx context.Context, tr
 		return nil, trace.ConnectionProblem(nil, "mock error")
 	}
 	return tracker, nil
+}
+
+func (m *mockSessionTrackerService) ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error) {
+	return nil, "", nil
 }

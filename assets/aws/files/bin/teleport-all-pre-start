@@ -1,5 +1,5 @@
 #!/bin/bash
-# This script prepares a Letsencrypt certificate before all-in-one Teleport starts for the first time (if needed)
+# This script prepares a Let's Encrypt certificate before all-in-one Teleport starts for the first time (if needed)
 set -e
 if [[ "${DEBUG:-false}" == "true" ]]; then
     set -x
@@ -10,9 +10,9 @@ if [ -f /etc/teleport.d/conf ]; then
     source /etc/teleport.d/conf
 fi
 
-# check for letsencrypt
+# check for Let's Encrypt
 if [[ "${USE_LETSENCRYPT}" != "true" ]]; then
-    echo "Not using Letsencrypt, exiting with success"
+    echo "Not using Let's Encrypt, exiting with success"
     exit 0
 fi
 

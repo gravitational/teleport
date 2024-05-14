@@ -3,7 +3,11 @@ title: Database Access with Oracle
 description: How to configure Teleport database access with Oracle.
 ---
 
-(!docs/pages/includes/database-access/db-introduction.mdx  dbType="Oracle" dbConfigure="Oracle with mutual TLS authentication" dbName="Oracle" !)
+(!docs/pages/includes/database-access/self-hosted-introduction.mdx  dbType="Oracle" dbConfigure="Oracle" dbName="Oracle" !)
+
+## How it works
+
+(!docs/pages/includes/database-access/how-it-works/mtls.mdx db="Oracle"!)
 
 <Tabs>
 <TabItem scope={["enterprise"]} label="Teleport Enterprise">
@@ -21,6 +25,8 @@ description: How to configure Teleport database access with Oracle.
 - Self-hosted Oracle server instance 18c or later.
 - The `sqlcl` [Oracle client](https://www.oracle.com/pl/database/sqldeveloper/technologies/sqlcl/) installed and added to your system's `PATH` environment variable or any GUI client that supports JDBC
   Oracle thin client.
+- Optional: a certificate authority that issues certificates for
+  your self-hosted database.
 
 ## Step 1/6. Create a Teleport token and user
 
@@ -63,7 +69,7 @@ Follow the instructions below to generate TLS credentials for your database.
 
 ```code
 # Export Teleport's certificate authority and a generated certificate/key pair
-# for host db.example.com with a 1-year validity period.
+# for host db.example.com with a 3-month validity period.
 $ tctl auth sign --format=oracle --host=db.example.com --out=server --ttl=2190h
 ```
 
@@ -74,6 +80,35 @@ Service can reach the Oracle server.
 
 If `tctl` finds the Orapki tool in your local environment, the `tctl auth sign --format=oracle --host=db.example.com --out=server --ttl=2190h` command will produce an Oracle Wallet and
 instructions how to configure the Oracle TCPS listener with Teleport Oracle Wallet. Otherwise the `tctl auth sign --format=oracle` command  will produce a `p12` certificate and instructions on how to create an Oracle Wallet on your Oracle Database instance.
+
+If your Oracle database presents TLS credentials signed by an existing
+certificate authority, take the following steps instead:
+
+1. Export a Teleport CA certificate for Oracle to authenticate traffic from the
+   Teleport Database Service. Replace <Var name="example.teleport.sh:443" />
+   with the host and web port of the Teleport Proxy Service in your cluster. Run
+   the following command on your workstation:
+
+   ```code
+   $ tctl auth export --type=db-client --auth-server=<Var name="example.teleport.sh:443" /> > server.ca-client.crt
+   ```
+
+1. Move `server.ca-client.crt` to a directory in your Oracle server you will use
+   for your Oracle wallet.
+
+1. Issue a key and certificate in PKCS12 format for the Oracle server and move
+   the resulting P12 file to `server.p12` in your Oracle wallet directory.
+
+1. Use the `orapki` tool on your Oracle server to set up an Oracle wallet:
+
+   ```code
+   # Assign this to your password
+   $ PKCS12_PASS=""
+   $ WALLET_DIR="/path/to/oracleWalletDir"
+   $ orapki wallet create -wallet "$WALLET_DIR" -auto_login_only
+   $ orapki wallet import_pkcs12 -wallet "$WALLET_DIR" -auto_login_only -pkcs12file server.p12 -pkcs12pwd ${PKCS12_PASS?}
+   $ orapki wallet add -wallet "$WALLET_DIR" -trusted_cert -auto_login_only -cert server.ca-client.crt
+   ```
 
 <Admonition type="warning">
   If copying these files to your Oracle server, ensure the cert file permissions are readable by the `oracle` user.
@@ -123,7 +158,7 @@ Install and configure Teleport where you will run the Teleport Database Service:
 
 (!docs/pages/includes/install-linux-enterprise.mdx!)
 
-(!docs/pages/includes/database-access/db-configure-start.mdx dbName="oracle" dbProtocol="oracle" databaseAddress="oracle.example.com:2484" dbName="oracle" !)
+(!docs/pages/includes/database-access/self-hosted-config-start.mdx dbName="oracle" dbProtocol="oracle" databaseAddress="oracle.example.com:2484" dbName="oracle" !)
 
 </TabItem>
 <TabItem label="Kubernetes Cluster">
@@ -131,7 +166,7 @@ Install and configure Teleport where you will run the Teleport Database Service:
 
   (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
-  (!docs/pages/includes/database-access/db-helm-install.mdx dbName="oracle" dbProtocol="oracle" databaseAddress="oracle.example.com:2484" !)
+  (!docs/pages/includes/database-access/self-hosted-db-helm-install.mdx dbName="oracle" dbProtocol="oracle" databaseAddress="oracle.example.com:2484" !)
 
 </TabItem>
 </Tabs>

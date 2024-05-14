@@ -416,6 +416,13 @@ func TestDynamicIdentityFileCreds(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, wantTLSCert, *gotTLSCert)
 
+	tlsCACertPEM, _ := pem.Decode(tlsCACert)
+	tlsCACertDER, err := x509.ParseCertificate(tlsCACertPEM.Bytes)
+	require.NoError(t, err)
+	wantCertPool := x509.NewCertPool()
+	wantCertPool.AddCert(tlsCACertDER)
+	require.True(t, wantCertPool.Equal(tlsConfig.RootCAs), "tlsconfig.RootCAs mismatch")
+
 	// Generate a new TLS certificate that contains the same private key as
 	// the original.
 	template := &x509.Certificate{

@@ -21,6 +21,7 @@ package db
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -59,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/srv/db/redis"
 	"github.com/gravitational/teleport/lib/srv/db/snowflake"
+	"github.com/gravitational/teleport/lib/srv/db/spanner"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -76,6 +78,7 @@ func init() {
 	common.RegisterEngine(dynamodb.NewEngine, defaults.ProtocolDynamoDB)
 	common.RegisterEngine(clickhouse.NewEngine, defaults.ProtocolClickHouse)
 	common.RegisterEngine(clickhouse.NewEngine, defaults.ProtocolClickHouseHTTP)
+	common.RegisterEngine(spanner.NewEngine, defaults.ProtocolSpanner)
 }
 
 // Config is the configuration for a database proxy server.
@@ -382,7 +385,7 @@ func New(ctx context.Context, config Config) (*Server, error) {
 	connCtx, connCancelFunc := context.WithCancel(ctx)
 	server := &Server{
 		cfg:              config,
-		log:              logrus.WithField(trace.Component, teleport.ComponentDatabase),
+		log:              logrus.WithField(teleport.ComponentKey, teleport.ComponentDatabase),
 		closeContext:     closeCtx,
 		closeFunc:        closeCancelFunc,
 		dynamicLabels:    make(map[string]*labels.Dynamic),
@@ -615,13 +618,12 @@ func (s *Server) getProxiedDatabase(name string) (types.Database, error) {
 	defer s.mu.RUnlock()
 	// don't call s.getProxiedDatabases() as this will call RLock and
 	// potentially deadlock.
-	for _, db := range s.proxiedDatabases {
-		if db.GetName() == name {
-			return s.copyDatabaseWithUpdatedLabelsLocked(db), nil
-		}
+	db, found := s.proxiedDatabases[name]
+	if !found {
+		return nil, trace.NotFound("%q not found among registered databases: %v",
+			name, s.proxiedDatabases)
 	}
-	return nil, trace.NotFound("%q not found among registered databases: %v",
-		name, s.proxiedDatabases)
+	return s.copyDatabaseWithUpdatedLabelsLocked(db), nil
 }
 
 // copyDatabaseWithUpdatedLabelsLocked will inject updated dynamic and cloud labels into
@@ -893,16 +895,16 @@ func (s *Server) close(ctx context.Context) error {
 
 // Wait will block while the server is running.
 func (s *Server) Wait() error {
-	var errors []error
+	var errs []error
 	for _, ctx := range []context.Context{s.closeContext, s.connContext} {
 		<-ctx.Done()
 
-		if err := ctx.Err(); err != nil && err != context.Canceled {
-			errors = append(errors, err)
+		if err := ctx.Err(); err != nil && !errors.Is(err, context.Canceled) {
+			errs = append(errs, err)
 		}
 	}
 
-	return trace.NewAggregate(errors...)
+	return trace.NewAggregate(errs...)
 }
 
 // ForceHeartbeat is used by tests to force-heartbeat all registered databases.
@@ -937,7 +939,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	// Perform the handshake explicitly, normally it should be performed
 	// on the first read/write but when the connection is passed over
 	// reverse tunnel it doesn't happen for some reason.
-	err := tlsConn.Handshake()
+	err := tlsConn.HandshakeContext(s.closeContext)
 	if err != nil {
 		log.WithError(err).Error("Failed to perform TLS handshake.")
 		return
@@ -1027,6 +1029,15 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 		s.log.Debug("LoginIP is not set (Proxy Service has to be updated). Rate limiting is disabled.")
 	}
 
+	// Update database roles. It needs to be done here after engine is
+	// dispatched so the engine can propagate the error message to the client.
+	if sessionCtx.AutoCreateUserMode.IsEnabled() {
+		sessionCtx.DatabaseRoles, err = sessionCtx.Checker.CheckDatabaseRoles(sessionCtx.Database, sessionCtx.Identity.RouteToDatabase.Roles)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	err = engine.HandleConnection(ctx, sessionCtx)
 	if err != nil {
 		connectionDiagnosticID := sessionCtx.Identity.ConnectionDiagnosticID
@@ -1094,6 +1105,15 @@ func (s *Server) createEngine(sessionCtx *common.Session, audit common.Audit) (c
 				Clock:      s.cfg.Clock,
 			}
 		},
+		UpdateProxiedDatabase: func(name string, doUpdate func(types.Database) error) error {
+			s.mu.Lock()
+			defer s.mu.Unlock()
+			db, found := s.proxiedDatabases[name]
+			if !found {
+				return trace.NotFound("%q not found among registered databases", name)
+			}
+			return trace.Wrap(doUpdate(db))
+		},
 	})
 }
 
@@ -1123,7 +1143,7 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	autoCreate, databaseRoles, err := authContext.Checker.CheckDatabaseRoles(database)
+	autoCreate, err := authContext.Checker.DatabaseAutoUserMode(database)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1141,7 +1161,6 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 		AutoCreateUserMode: autoCreate,
 		DatabaseUser:       identity.RouteToDatabase.Username,
 		DatabaseName:       identity.RouteToDatabase.Database,
-		DatabaseRoles:      databaseRoles,
 		AuthContext:        authContext,
 		Checker:            authContext.Checker,
 		StartupParameters:  make(map[string]string),

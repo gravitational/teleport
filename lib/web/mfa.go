@@ -19,6 +19,7 @@
 package web
 
 import (
+	"context"
 	"net/http"
 	"strings"
 
@@ -26,6 +27,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -130,15 +132,50 @@ func (h *Handler) addMFADeviceHandle(w http.ResponseWriter, r *http.Request, par
 	return OK(), nil
 }
 
+type createAuthenticateChallengeRequest struct {
+	IsMFARequiredRequest        *isMFARequiredRequest `json:"is_mfa_required_req"`
+	ChallengeScope              int                   `json:"challenge_scope"`
+	ChallengeAllowReuse         bool                  `json:"challenge_allow_reuse"`
+	UserVerificationRequirement string                `json:"user_verification_requirement"`
+}
+
 // createAuthenticateChallengeHandle creates and returns MFA authentication challenges for the user in context (logged in user).
 // Used when users need to re-authenticate their second factors.
 func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext) (interface{}, error) {
+	var req createAuthenticateChallengeRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	clt, err := c.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	chal, err := clt.CreateAuthenticateChallenge(r.Context(), &proto.CreateAuthenticateChallengeRequest{})
+	var mfaRequiredCheckProto *proto.IsMFARequiredRequest
+	if req.IsMFARequiredRequest != nil {
+		mfaRequiredCheckProto, err = h.checkAndGetProtoRequest(r.Context(), c, req.IsMFARequiredRequest)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	allowReuse := mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO
+	if req.ChallengeAllowReuse {
+		allowReuse = mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES
+	}
+
+	chal, err := clt.CreateAuthenticateChallenge(r.Context(), &proto.CreateAuthenticateChallengeRequest{
+		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
+			ContextUser: &proto.ContextUser{},
+		},
+		MFARequiredCheck: mfaRequiredCheckProto,
+		ChallengeExtensions: &mfav1.ChallengeExtensions{
+			Scope:                       mfav1.ChallengeScope(req.ChallengeScope),
+			AllowReuse:                  allowReuse,
+			UserVerificationRequirement: req.UserVerificationRequirement,
+		},
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -256,6 +293,13 @@ type isMFARequiredWindowsDesktop struct {
 	Login string `json:"login"`
 }
 
+type isMFARequiredApp struct {
+	// ResolveAppParams contains info used to resolve an application
+	ResolveAppParams
+}
+
+type isMFARequiredAdminAction struct{}
+
 type isMFARequiredRequest struct {
 	// Database contains fields required to check if target database
 	// requires MFA check.
@@ -269,9 +313,14 @@ type isMFARequiredRequest struct {
 	// Kube is the name of the kube cluster to check if target cluster
 	// requires MFA check.
 	Kube *isMFARequiredKube `json:"kube,omitempty"`
+	// App contains fields required to resolve an application and check if
+	// the target application requires MFA check.
+	App *isMFARequiredApp `json:"app,omitempty"`
+	// AdminAction is the name of the admin action RPC to check if MFA is required.
+	AdminAction *isMFARequiredAdminAction `json:"admin_action,omitempty"`
 }
 
-func (r *isMFARequiredRequest) checkAndGetProtoRequest() (*proto.IsMFARequiredRequest, error) {
+func (h *Handler) checkAndGetProtoRequest(ctx context.Context, scx *SessionContext, r *isMFARequiredRequest) (*proto.IsMFARequiredRequest, error) {
 	numRequests := 0
 	var protoReq *proto.IsMFARequiredRequest
 
@@ -291,7 +340,8 @@ func (r *isMFARequiredRequest) checkAndGetProtoRequest() (*proto.IsMFARequiredRe
 					Protocol:    r.Database.Protocol,
 					Database:    r.Database.DatabaseName,
 					Username:    r.Database.Username,
-				}},
+				},
+			},
 		}
 	}
 
@@ -322,7 +372,8 @@ func (r *isMFARequiredRequest) checkAndGetProtoRequest() (*proto.IsMFARequiredRe
 				WindowsDesktop: &proto.RouteToWindowsDesktop{
 					WindowsDesktop: r.WindowsDesktop.DesktopName,
 					Login:          r.WindowsDesktop.Login,
-				}},
+				},
+			},
 		}
 	}
 
@@ -340,7 +391,33 @@ func (r *isMFARequiredRequest) checkAndGetProtoRequest() (*proto.IsMFARequiredRe
 				Node: &proto.NodeLogin{
 					Login: r.Node.Login,
 					Node:  r.Node.NodeName,
-				}},
+				},
+			},
+		}
+	}
+
+	if r.App != nil {
+		resolvedApp, err := h.resolveApp(ctx, scx, r.App.ResolveAppParams)
+		if err != nil {
+			return nil, trace.Wrap(err, "unable to resolve FQDN: %v", r.App.FQDNHint)
+		}
+
+		numRequests++
+		protoReq = &proto.IsMFARequiredRequest{
+			Target: &proto.IsMFARequiredRequest_App{
+				App: &proto.RouteToApp{
+					Name: resolvedApp.App.GetName(),
+				},
+			},
+		}
+	}
+
+	if r.AdminAction != nil {
+		numRequests++
+		protoReq = &proto.IsMFARequiredRequest{
+			Target: &proto.IsMFARequiredRequest_AdminAction{
+				AdminAction: &proto.AdminAction{},
+			},
 		}
 	}
 
@@ -365,7 +442,7 @@ func (h *Handler) isMFARequired(w http.ResponseWriter, r *http.Request, p httpro
 		return nil, trace.Wrap(err)
 	}
 
-	protoReq, err := httpReq.checkAndGetProtoRequest()
+	protoReq, err := h.checkAndGetProtoRequest(r.Context(), sctx, httpReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -45,6 +45,13 @@ type DiscoveryConfigs interface {
 	DeleteAllDiscoveryConfigs(context.Context) error
 }
 
+// DiscoveryConfigWithStatusUpdater defines an interface for managing DiscoveryConfig resources including updating their status.
+type DiscoveryConfigWithStatusUpdater interface {
+	DiscoveryConfigs
+	// UpdateDiscoveryConfigStatus updates the status of the specified DiscoveryConfig resource.
+	UpdateDiscoveryConfigStatus(context.Context, string, discoveryconfig.Status) (*discoveryconfig.DiscoveryConfig, error)
+}
+
 // DiscoveryConfigsGetter defines methods for List/Read operations on DiscoveryConfig Resources.
 type DiscoveryConfigsGetter interface {
 	// ListDiscoveryConfigs returns a paginated list of all DiscoveryConfig resources.
@@ -54,7 +61,7 @@ type DiscoveryConfigsGetter interface {
 	GetDiscoveryConfig(ctx context.Context, name string) (*discoveryconfig.DiscoveryConfig, error)
 }
 
-// MarshalDiscoveryConfig marshals the DiscoveryCOnfig resource to JSON.
+// MarshalDiscoveryConfig marshals the DiscoveryConfig resource to JSON.
 func MarshalDiscoveryConfig(discoveryConfig *discoveryconfig.DiscoveryConfig, opts ...MarshalOption) ([]byte, error) {
 	if err := discoveryConfig.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)

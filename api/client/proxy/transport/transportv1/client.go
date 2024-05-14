@@ -59,22 +59,37 @@ func (c *Client) ClusterDetails(ctx context.Context) (*transportv1pb.ClusterDeta
 // DialCluster establishes a connection to the provided cluster. The provided
 // src address will be used as the LocalAddr of the returned [net.Conn].
 func (c *Client) DialCluster(ctx context.Context, cluster string, src net.Addr) (net.Conn, error) {
-	stream, err := c.clt.ProxyCluster(ctx)
+	// we do this rather than using context.Background to inherit any OTEL data
+	// from the dial context
+	connCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
+	stop := context.AfterFunc(ctx, cancel)
+	defer stop()
+
+	stream, err := c.clt.ProxyCluster(connCtx)
 	if err != nil {
+		cancel()
 		return nil, trace.Wrap(err, "unable to establish proxy stream")
 	}
 
 	if err := stream.Send(&transportv1pb.ProxyClusterRequest{Cluster: cluster}); err != nil {
+		cancel()
 		return nil, trace.Wrap(err, "failed to send cluster request")
 	}
 
-	streamRW, err := streamutils.NewReadWriter(clusterStream{stream: stream})
+	if !stop() {
+		cancel()
+		return nil, trace.Wrap(connCtx.Err(), "unable to establish proxy stream")
+	}
+
+	streamRW, err := streamutils.NewReadWriter(clusterStream{stream: stream, cancel: cancel})
 	if err != nil {
+		cancel()
 		return nil, trace.Wrap(err, "unable to create stream reader")
 	}
 
 	p, ok := peer.FromContext(stream.Context())
 	if !ok {
+		streamRW.Close()
 		return nil, trace.BadParameter("unable to retrieve peer information")
 	}
 
@@ -85,6 +100,7 @@ func (c *Client) DialCluster(ctx context.Context, cluster string, src net.Addr) 
 // for a [transportv1pb.TransportService_ProxyClusterClient].
 type clusterStream struct {
 	stream transportv1pb.TransportService_ProxyClusterClient
+	cancel context.CancelFunc
 }
 
 func (c clusterStream) Recv() ([]byte, error) {
@@ -105,15 +121,20 @@ func (c clusterStream) Send(frame []byte) error {
 }
 
 func (c clusterStream) Close() error {
-	return trace.Wrap(c.stream.CloseSend())
+	if c.cancel != nil {
+		c.cancel()
+	}
+	return nil
 }
 
 // DialHost establishes a connection to the instance in the provided cluster that matches
 // the hostport. If a keyring is provided then it will be forwarded to the remote instance.
 // The src address will be used as the LocalAddr of the returned [net.Conn].
 func (c *Client) DialHost(ctx context.Context, hostport, cluster string, src net.Addr, keyring agent.ExtendedAgent) (net.Conn, *transportv1pb.ClusterDetails, error) {
+	ctx, cancel := context.WithCancel(ctx)
 	stream, err := c.clt.ProxySSH(ctx)
 	if err != nil {
+		cancel()
 		return nil, nil, trace.Wrap(err, "unable to establish proxy stream")
 	}
 
@@ -121,16 +142,18 @@ func (c *Client) DialHost(ctx context.Context, hostport, cluster string, src net
 		HostPort: hostport,
 		Cluster:  cluster,
 	}}); err != nil {
+		cancel()
 		return nil, nil, trace.Wrap(err, "failed to send dial target request")
 	}
 
 	resp, err := stream.Recv()
 	if err != nil {
+		cancel()
 		return nil, nil, trace.Wrap(err, "failed to receive cluster details response")
 	}
 
 	// create streams for ssh and agent protocol
-	sshStream, agentStream := newSSHStreams(stream)
+	sshStream, agentStream := newSSHStreams(stream, cancel)
 
 	// create a reader writer for agent protocol
 	agentRW, err := streamutils.NewReadWriter(agentStream)
@@ -210,9 +233,10 @@ type sshStream struct {
 	closedC   chan struct{}
 	wLock     *sync.Mutex
 	stream    transportv1pb.TransportService_ProxySSHClient
+	cancel    context.CancelFunc
 }
 
-func newSSHStreams(stream transportv1pb.TransportService_ProxySSHClient) (ssh *sshStream, agent *sshStream) {
+func newSSHStreams(stream transportv1pb.TransportService_ProxySSHClient, cancel context.CancelFunc) (ssh *sshStream, agent *sshStream) {
 	wLock := &sync.Mutex{}
 	closedC := make(chan struct{})
 
@@ -225,6 +249,7 @@ func newSSHStreams(stream transportv1pb.TransportService_ProxySSHClient) (ssh *s
 		},
 		wLock:   wLock,
 		closedC: closedC,
+		cancel:  cancel,
 	}
 
 	agent = &sshStream{
@@ -236,6 +261,7 @@ func newSSHStreams(stream transportv1pb.TransportService_ProxySSHClient) (ssh *s
 		},
 		wLock:   wLock,
 		closedC: closedC,
+		cancel:  cancel,
 	}
 
 	return ssh, agent
@@ -265,6 +291,7 @@ func (s *sshStream) Send(frame []byte) error {
 }
 
 func (s *sshStream) Close() error {
+	s.cancel()
 	// grab lock to prevent any sends from occurring
 	s.wLock.Lock()
 	defer s.wLock.Unlock()

@@ -121,7 +121,7 @@ func NewLocalAgent(conf LocalAgentConfig) (a *LocalKeyAgent, err error) {
 	}
 	a = &LocalKeyAgent{
 		log: logrus.WithFields(logrus.Fields{
-			trace.Component: teleport.ComponentKeyAgent,
+			teleport.ComponentKey: teleport.ComponentKeyAgent,
 		}),
 		ExtendedAgent: conf.Agent,
 		clientStore:   conf.ClientStore,
@@ -517,6 +517,15 @@ func (a *LocalKeyAgent) AddDatabaseKey(key *Key) error {
 func (a *LocalKeyAgent) AddKubeKey(key *Key) error {
 	if len(key.KubeTLSCerts) == 0 {
 		return trace.BadParameter("key must contains at least one Kubernetes access certificate")
+	}
+	return a.addKey(key)
+}
+
+// AddAppKey activates a new signed app key by adding it into the keystore.
+// key must contain at least one app cert. ssh cert is not required.
+func (a *LocalKeyAgent) AddAppKey(key *Key) error {
+	if len(key.AppTLSCerts) == 0 {
+		return trace.BadParameter("key must contains at least one App access certificate")
 	}
 	return a.addKey(key)
 }

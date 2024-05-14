@@ -44,6 +44,12 @@ exports[`render with URL loc state set to "server" 1`] = `
   box-sizing: border-box;
 }
 
+.c11 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .c1 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -96,12 +102,6 @@ exports[`render with URL loc state set to "server" 1`] = `
   font-size: 12px;
   margin: 0px;
   margin-top: 40px;
-}
-
-.c11 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c23 {
@@ -561,6 +561,47 @@ exports[`render with URL loc state set to "server" 1`] = `
     <a
       class="c23 c14"
       data-testid="1"
+      href="https://goteleport.com/docs/database-access/guides/rds-proxy-sqlserver"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c16 c7"
+      >
+        <div
+          class="c17 c18"
+          width="24px"
+        >
+          <img
+            class="c19"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c20"
+        >
+          <div
+            class="c21"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c24"
+            color="text.main"
+          >
+            RDS Proxy SQL Server
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c23 c14"
+      data-testid="1"
       href="https://goteleport.com/docs/database-access/guides/redshift-serverless"
       rel="noreferrer"
       style="text-decoration: none;"
@@ -635,7 +676,7 @@ exports[`render with URL loc state set to "server" 1`] = `
             class="c24"
             color="text.main"
           >
-            SQL Server (Preview)
+            SQL Server
           </div>
         </div>
       </div>
@@ -676,7 +717,7 @@ exports[`render with URL loc state set to "server" 1`] = `
             class="c24"
             color="text.main"
           >
-            SQL Server (Preview)
+            SQL Server
           </div>
         </div>
       </div>
@@ -1253,6 +1294,54 @@ exports[`render with all access 1`] = `
         <div
           class="c14"
         >
+          <div
+            class="c15"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c16"
+          >
+            EKS
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
+      data-testid="3"
+    >
+      <div
+        class="c8"
+      >
+        Guided
+      </div>
+      <div
+        class="c9 c10"
+      >
+        <div
+          class="c11 c12"
+          width="24px"
+        >
+          <img
+            class="c13"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c14"
+        >
+          <div
+            class="c15"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Self-Hosted
+          </div>
           <div
             class="c16"
           >
@@ -2193,7 +2282,7 @@ exports[`render with all access 1`] = `
     <a
       class="c17 c7"
       data-testid="1"
-      href="https://goteleport.com/docs/database-access/guides/rds-proxy"
+      href="https://goteleport.com/docs/database-access/guides/rds-proxy-mysql"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
@@ -2226,7 +2315,89 @@ exports[`render with all access 1`] = `
             class="c18"
             color="text.main"
           >
-            RDS Proxy
+            RDS Proxy MariaDB/MySQL
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c17 c7"
+      data-testid="1"
+      href="https://goteleport.com/docs/database-access/guides/rds-proxy-postgres"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c9 c10"
+      >
+        <div
+          class="c11 c12"
+          width="24px"
+        >
+          <img
+            class="c13"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c14"
+        >
+          <div
+            class="c15"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c18"
+            color="text.main"
+          >
+            RDS Proxy PostgreSQL
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c17 c7"
+      data-testid="1"
+      href="https://goteleport.com/docs/database-access/guides/rds-proxy-sqlserver"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c9 c10"
+      >
+        <div
+          class="c11 c12"
+          width="24px"
+        >
+          <img
+            class="c13"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c14"
+        >
+          <div
+            class="c15"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c18"
+            color="text.main"
+          >
+            RDS Proxy SQL Server
           </div>
         </div>
       </div>
@@ -2424,7 +2595,7 @@ exports[`render with all access 1`] = `
             class="c18"
             color="text.main"
           >
-            Snowflake (Preview)
+            Snowflake
           </div>
         </div>
       </div>
@@ -2465,7 +2636,7 @@ exports[`render with all access 1`] = `
             class="c18"
             color="text.main"
           >
-            SQL Server (Preview)
+            SQL Server
           </div>
         </div>
       </div>
@@ -2506,7 +2677,7 @@ exports[`render with all access 1`] = `
             class="c18"
             color="text.main"
           >
-            SQL Server (Preview)
+            SQL Server
           </div>
         </div>
       </div>
@@ -3383,6 +3554,48 @@ exports[`render with no access 1`] = `
         </div>
       </div>
     </div>
+    <div
+      class="c7"
+      data-testid="3"
+    >
+      <div
+        class="c8 c9"
+        data-testid="tooltip"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c10 c11"
+      >
+        <div
+          class="c12 c13"
+          width="24px"
+        >
+          <img
+            class="c14"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c15"
+        >
+          <div
+            class="c16"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c17"
+          >
+            EKS
+          </div>
+        </div>
+      </div>
+    </div>
     <a
       class="c18 c7"
       data-testid="1"
@@ -3594,6 +3807,13 @@ exports[`render with no access 1`] = `
         <div
           class="c15"
         >
+          <div
+            class="c16"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Self-Hosted
+          </div>
           <div
             class="c17"
           >
@@ -4076,7 +4296,99 @@ exports[`render with no access 1`] = `
             class="c19"
             color="text.main"
           >
-            RDS Proxy
+            RDS Proxy MariaDB/MySQL
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c18 c7"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c8 c9"
+        data-testid="tooltip"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c10 c11"
+      >
+        <div
+          class="c12 c13"
+          width="24px"
+        >
+          <img
+            class="c14"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c15"
+        >
+          <div
+            class="c16"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c19"
+            color="text.main"
+          >
+            RDS Proxy PostgreSQL
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c18 c7"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c8 c9"
+        data-testid="tooltip"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c10 c11"
+      >
+        <div
+          class="c12 c13"
+          width="24px"
+        >
+          <img
+            class="c14"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c15"
+        >
+          <div
+            class="c16"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c19"
+            color="text.main"
+          >
+            RDS Proxy SQL Server
           </div>
         </div>
       </div>
@@ -4341,7 +4653,7 @@ exports[`render with no access 1`] = `
             class="c19"
             color="text.main"
           >
-            Snowflake (Preview)
+            Snowflake
           </div>
         </div>
       </div>
@@ -4387,7 +4699,7 @@ exports[`render with no access 1`] = `
             class="c19"
             color="text.main"
           >
-            SQL Server (Preview)
+            SQL Server
           </div>
         </div>
       </div>
@@ -4433,7 +4745,7 @@ exports[`render with no access 1`] = `
             class="c19"
             color="text.main"
           >
-            SQL Server (Preview)
+            SQL Server
           </div>
         </div>
       </div>
@@ -5003,6 +5315,54 @@ exports[`render with partial access 1`] = `
         <div
           class="c14"
         >
+          <div
+            class="c15"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c16"
+          >
+            EKS
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
+      data-testid="3"
+    >
+      <div
+        class="c8"
+      >
+        Guided
+      </div>
+      <div
+        class="c9 c10"
+      >
+        <div
+          class="c11 c12"
+          width="24px"
+        >
+          <img
+            class="c13"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c14"
+        >
+          <div
+            class="c15"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Self-Hosted
+          </div>
           <div
             class="c16"
           >
@@ -6144,7 +6504,99 @@ exports[`render with partial access 1`] = `
             class="c18"
             color="text.main"
           >
-            RDS Proxy
+            RDS Proxy MariaDB/MySQL
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c17 c19"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c20 c21"
+        data-testid="tooltip"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9 c10"
+      >
+        <div
+          class="c11 c12"
+          width="24px"
+        >
+          <img
+            class="c13"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c14"
+        >
+          <div
+            class="c15"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c18"
+            color="text.main"
+          >
+            RDS Proxy PostgreSQL
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c17 c19"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c20 c21"
+        data-testid="tooltip"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9 c10"
+      >
+        <div
+          class="c11 c12"
+          width="24px"
+        >
+          <img
+            class="c13"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c14"
+        >
+          <div
+            class="c15"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c18"
+            color="text.main"
+          >
+            RDS Proxy SQL Server
           </div>
         </div>
       </div>
@@ -6367,7 +6819,7 @@ exports[`render with partial access 1`] = `
             class="c18"
             color="text.main"
           >
-            Snowflake (Preview)
+            Snowflake
           </div>
         </div>
       </div>
@@ -6413,7 +6865,7 @@ exports[`render with partial access 1`] = `
             class="c18"
             color="text.main"
           >
-            SQL Server (Preview)
+            SQL Server
           </div>
         </div>
       </div>
@@ -6459,7 +6911,7 @@ exports[`render with partial access 1`] = `
             class="c18"
             color="text.main"
           >
-            SQL Server (Preview)
+            SQL Server
           </div>
         </div>
       </div>

@@ -17,7 +17,7 @@
  */
 
 import 'whatwg-fetch';
-import auth from 'teleport/services/auth/auth';
+import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
 
 import { storageService } from '../storageService';
 import { WebauthnAssertionResponse } from '../auth';
@@ -31,45 +31,61 @@ const api = {
     return api.fetchJsonWithMfaAuthnRetry(url, { signal: abortSignal });
   },
 
-  post(url, data?, abortSignal?) {
-    return api.fetchJsonWithMfaAuthnRetry(url, {
-      body: JSON.stringify(data),
-      method: 'POST',
-      signal: abortSignal,
-    });
+  post(url, data?, abortSignal?, webauthnResponse?: WebauthnAssertionResponse) {
+    return api.fetchJsonWithMfaAuthnRetry(
+      url,
+      {
+        body: JSON.stringify(data),
+        method: 'POST',
+        signal: abortSignal,
+      },
+      webauthnResponse
+    );
   },
 
-  postFormData(url, formData) {
+  postFormData(url, formData, webauthnResponse?: WebauthnAssertionResponse) {
     if (formData instanceof FormData) {
-      return api.fetchJsonWithMfaAuthnRetry(url, {
-        body: formData,
-        method: 'POST',
-        // Overrides the default header from `defaultRequestOptions`.
-        headers: {
-          Accept: 'application/json',
-          // Let the browser infer the content-type for FormData types
-          // to set the correct boundary:
-          // 1) https://developer.mozilla.org/en-US/docs/Web/API/FormData/Using_FormData_Objects#sending_files_using_a_formdata_object
-          // 2) https://stackoverflow.com/a/64653976
+      return api.fetchJsonWithMfaAuthnRetry(
+        url,
+        {
+          body: formData,
+          method: 'POST',
+          // Overrides the default header from `defaultRequestOptions`.
+          headers: {
+            Accept: 'application/json',
+            // Let the browser infer the content-type for FormData types
+            // to set the correct boundary:
+            // 1) https://developer.mozilla.org/en-US/docs/Web/API/FormData/Using_FormData_Objects#sending_files_using_a_formdata_object
+            // 2) https://stackoverflow.com/a/64653976
+          },
         },
-      });
+        webauthnResponse
+      );
     }
 
     throw new Error('data for body is not a type of FormData');
   },
 
-  delete(url, data?) {
-    return api.fetchJsonWithMfaAuthnRetry(url, {
-      body: JSON.stringify(data),
-      method: 'DELETE',
-    });
+  delete(url, data?, webauthnResponse?: WebauthnAssertionResponse) {
+    return api.fetchJsonWithMfaAuthnRetry(
+      url,
+      {
+        body: JSON.stringify(data),
+        method: 'DELETE',
+      },
+      webauthnResponse
+    );
   },
 
-  put(url, data) {
-    return api.fetchJsonWithMfaAuthnRetry(url, {
-      body: JSON.stringify(data),
-      method: 'PUT',
-    });
+  put(url, data, webauthnResponse?: WebauthnAssertionResponse) {
+    return api.fetchJsonWithMfaAuthnRetry(
+      url,
+      {
+        body: JSON.stringify(data),
+        method: 'PUT',
+      },
+      webauthnResponse
+    );
   },
 
   /**
@@ -112,12 +128,14 @@ const api = {
     );
     const shouldRetry = isAdminActionMfaError && !webauthnResponse;
     if (!shouldRetry) {
-      throw new ApiError(parseError(json), response);
+      throw new ApiError(parseError(json), response, undefined, json.messages);
     }
 
     let webauthnResponseForRetry;
     try {
-      webauthnResponseForRetry = await auth.getWebauthnResponse();
+      webauthnResponseForRetry = await auth.getWebauthnResponse(
+        MfaChallengeScope.ADMIN_ACTION
+      );
     } catch (err) {
       throw new Error(
         'Failed to fetch webauthn credentials, please connect a registered hardware key and try again. If you do not have a hardware key registered, you can add one from your account settings page.'

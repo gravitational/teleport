@@ -76,8 +76,8 @@ func WithPromptReason(hint string) PromptOpt {
 }
 
 // WithPromptReasonAdminAction sets the prompt's PromptReason field to a standard admin action message.
-func WithPromptReasonAdminAction(actionName string) PromptOpt {
-	adminMFAPromptReason := fmt.Sprintf("MFA is required for admin-level API request: %q", actionName)
+func WithPromptReasonAdminAction() PromptOpt {
+	const adminMFAPromptReason = "This is an admin-level action and requires MFA to complete"
 	return WithPromptReason(adminMFAPromptReason)
 }
 

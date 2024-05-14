@@ -36,6 +36,9 @@ type MFADevice struct {
 	LastUsed time.Time `json:"lastUsed"`
 	// AddedAt is the time the user registered the device.
 	AddedAt time.Time `json:"addedAt"`
+	// ResidentKey is true if the device is supports passwordless authentication.
+	// This field is set only for Webauthn devices.
+	ResidentKey bool `json:"residentKey"`
 }
 
 // MakeMFADevices creates a UI list of mfa devices.
@@ -49,6 +52,9 @@ func MakeMFADevices(devices []*types.MFADevice) []MFADevice {
 			Type:     device.MFAType(),
 			LastUsed: device.LastUsed,
 			AddedAt:  device.AddedAt,
+		}
+		if wad := device.GetWebauthn(); wad != nil {
+			uiDevice.ResidentKey = wad.ResidentKey
 		}
 		uiList = append(uiList, uiDevice)
 	}

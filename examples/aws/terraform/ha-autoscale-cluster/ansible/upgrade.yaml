@@ -36,8 +36,8 @@
       block:
         - name: Download and unpack new version of teleport
           get_url:
-            url: https://get.gravitational.com/teleport/{{teleport_version}}/teleport-ent-v{{teleport_version}}-linux-amd64-bin.tar.gz
-            dest: /tmp/teleport-ent-v{{teleport_version}}-linux-amd64-bin.tar.gz
+            url: https://cdn.teleport.dev/teleport-ent-v{{teleport_version}}-linux-arm64-bin.tar.gz
+            dest: /tmp/teleport-ent-v{{teleport_version}}-linux-arm64-bin.tar.gz
         - name: Unpack teleport binaries
           unarchive:
             extra_opts: ['--strip-components=1', '--show-stored-names']
@@ -47,7 +47,7 @@
               - "VERSION"
               - "INSTALL"
               - "CHANGELOG"
-            src: /tmp/teleport-ent-v{{teleport_version}}-linux-amd64-bin.tar.gz
+            src: /tmp/teleport-ent-v{{teleport_version}}-linux-arm64-bin.tar.gz
             dest: /usr/local/bin
             remote_src: true
             owner: "{{ 'root' if 'node' in group_names else 'teleport' }}"

@@ -66,7 +66,7 @@ func newBufferedConn(conn net.Conn, header io.Reader) *bufferedConn {
 //		 },
 //	})
 //
-// err := tlsConn.Handshake()
+// err := tlsConn.HandshakeContext(ctx)
 //
 //	if hello == nil {
 //	   return trace.Wrap(err)

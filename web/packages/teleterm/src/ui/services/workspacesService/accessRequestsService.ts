@@ -16,9 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* eslint-disable @typescript-eslint/ban-ts-comment*/
-// @ts-ignore
-import { ResourceKind } from 'e-teleterm/ui/DocumentAccessRequests/NewRequest/useNewRequest';
+import { ResourceKind } from 'shared/components/AccessRequests/NewRequest';
 
 import type { PendingAccessRequest } from '../workspacesService';
 
@@ -68,13 +66,17 @@ export class AccessRequestsService {
     );
   }
 
-  addOrRemoveResource(kind: ResourceKind, name: string, resourceName: string) {
+  addOrRemoveResource(
+    kind: ResourceKind,
+    resourceId: string,
+    resourceName: string
+  ) {
     this.setState(draftState => {
       const kindIds = draftState.pending[kind];
-      if (kindIds[name]) {
-        delete kindIds[name];
+      if (kindIds[resourceId]) {
+        delete kindIds[resourceId];
       } else {
-        kindIds[name] = resourceName ?? name;
+        kindIds[resourceId] = resourceName || resourceId;
       }
     });
   }

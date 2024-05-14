@@ -18,7 +18,7 @@
 
 import React, { useRef, useState } from 'react';
 import { Text, Flex, Button, Card, ButtonIcon } from 'design';
-import styled from 'styled-components';
+import styled, { useTheme } from 'styled-components';
 import { Notification } from 'shared/components/Notification';
 import { Warning, Cross } from 'design/Icon';
 import { useClickOutside } from 'shared/hooks/useClickOutside';
@@ -28,6 +28,7 @@ import type { NotificationItem } from 'shared/components/Notification';
 export function WarningDropdown({ warnings, onRemoveWarning }: Props) {
   const [showDropdown, setShowDropdown] = useState(false);
   const ref = useRef(null);
+  const theme = useTheme();
 
   const toggleDropdown = () => {
     if (warnings.length > 0) {
@@ -55,7 +56,15 @@ export function WarningDropdown({ warnings, onRemoveWarning }: Props) {
         px={2}
         onClick={toggleDropdown}
       >
-        <Flex alignItems="center" justifyContent="space-between">
+        <Flex
+          alignItems="center"
+          justifyContent="space-between"
+          color={
+            warnings.length
+              ? theme.colors.text.main
+              : theme.colors.text.disabled
+          }
+        >
           <Warning size={20} mr={2} /> {warnings.length}
         </Flex>
       </StyledButton>

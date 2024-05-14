@@ -16,23 +16,37 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Box, ButtonSecondary, Flex, Text } from 'design';
+import {
+  Box,
+  ButtonPrimary,
+  ButtonSecondary,
+  Flex,
+  Indicator,
+  Text,
+} from 'design';
 import React from 'react';
-import styled, { useTheme } from 'styled-components';
+import styled, { useTheme, css } from 'styled-components';
 
 export interface HeaderProps {
-  title: string;
+  title: React.ReactNode;
   description?: string;
   icon: React.ReactNode;
+  showIndicator?: boolean;
   actions: React.ReactNode;
 }
 
-export function Header({ title, description, icon, actions }: HeaderProps) {
+export function Header({
+  title,
+  description,
+  icon,
+  showIndicator,
+  actions,
+}: HeaderProps) {
   const theme = useTheme();
   return (
-    <Flex alignItems="start" gap={3}>
+    <Flex alignItems="center" gap={3}>
       {/* lineHeight=0 prevents the icon background from being larger than
-              required by the icon itself. */}
+          required by the icon itself. */}
       <Box
         bg={theme.colors.interactive.tonal.neutral[0]}
         lineHeight={0}
@@ -47,13 +61,29 @@ export function Header({ title, description, icon, actions }: HeaderProps) {
           {description}
         </Text>
       </Box>
+      {/* Indicator is always in the layout so that the description text doesn't
+          reflow if visibility changes. */}
+      <Box
+        lineHeight={0}
+        style={{ visibility: showIndicator ? 'visible' : 'hidden' }}
+      >
+        <Indicator size={40} />
+      </Box>
       <Box flex="0 0 auto">{actions}</Box>
     </Flex>
   );
 }
 
-export const ActionButton = styled(ButtonSecondary)`
+const actionButtonStyles = css`
   padding: ${props => `${props.theme.space[2]}px ${props.theme.space[4]}px`};
   gap: ${props => `${props.theme.space[2]}px`};
   text-transform: none;
+`;
+
+export const ActionButtonSecondary = styled(ButtonSecondary)`
+  ${actionButtonStyles}
+`;
+
+export const ActionButtonPrimary = styled(ButtonPrimary)`
+  ${actionButtonStyles}
 `;

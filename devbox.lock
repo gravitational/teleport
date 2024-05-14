@@ -120,11 +120,25 @@
       "source": "devbox-search",
       "version": "14.0.6"
     },
-    "nodejs@18.16.1": {
-      "last_modified": "2023-06-30T04:44:22Z",
-      "resolved": "github:NixOS/nixpkgs/3c614fbc76fc152f3e1bc4b2263da6d90adf80fb#nodejs_18",
+    "nodejs@20.11.1": {
+      "last_modified": "2024-03-08T13:51:52Z",
+      "resolved": "github:NixOS/nixpkgs/a343533bccc62400e8a9560423486a3b6c11a23b#nodejs_20",
       "source": "devbox-search",
-      "version": "18.16.1"
+      "version": "20.11.1",
+      "systems": {
+        "aarch64-darwin": {
+          "store_path": "/nix/store/5c0nzhy641v5hqnpb056vvdgg3pl9hgc-nodejs-20.11.1"
+        },
+        "aarch64-linux": {
+          "store_path": "/nix/store/mx6ji5alyrzm731x3nxpah9ag66dak0h-nodejs-20.11.1"
+        },
+        "x86_64-darwin": {
+          "store_path": "/nix/store/sx7h48g69jlq5dhxmi3bwyw5qpd9lp9h-nodejs-20.11.1"
+        },
+        "x86_64-linux": {
+          "store_path": "/nix/store/rxpjn1vzbpv0a2i5lx887wka8054gpwj-nodejs-20.11.1"
+        }
+      }
     },
     "openssl@latest": {
       "last_modified": "2023-08-30T00:25:28Z",
@@ -183,7 +197,27 @@
       "source": "devbox-search",
       "version": "0.9.0"
     },
-    "wasm-pack@0.12.1": {
+    "wasm-bindgen-cli@latest": {
+      "last_modified": "2024-01-14T03:55:27Z",
+      "resolved": "github:NixOS/nixpkgs/dd5621df6dcb90122b50da5ec31c411a0de3e538#wasm-bindgen-cli",
+      "source": "devbox-search",
+      "version": "0.2.89",
+      "systems": {
+        "aarch64-darwin": {
+          "store_path": "/nix/store/vy4rp4yw7357rdgakld1fncvnrl6ddp8-wasm-bindgen-cli-0.2.89"
+        },
+        "aarch64-linux": {
+          "store_path": "/nix/store/9fz6p3r68d3svs92cf43vxiyrg5q6rw6-wasm-bindgen-cli-0.2.89"
+        },
+        "x86_64-darwin": {
+          "store_path": "/nix/store/axl4ccnl5zzhsbjr1jcjm9640yxda38x-wasm-bindgen-cli-0.2.89"
+        },
+        "x86_64-linux": {
+          "store_path": "/nix/store/sam7m4x114khfcx7sf0ivicdjgcn1qvr-wasm-bindgen-cli-0.2.89"
+        }
+      }
+    },
+    "wasm-pack@latest": {
       "last_modified": "2023-12-13T22:54:10Z",
       "resolved": "github:NixOS/nixpkgs/fd04bea4cbf76f86f244b9e2549fca066db8ddff#wasm-pack",
       "source": "devbox-search",

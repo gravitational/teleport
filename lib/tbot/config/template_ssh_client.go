@@ -76,11 +76,11 @@ func (c *templateSSHClient) describe() []FileDescription {
 }
 
 func getClusterNames(
-	bot provider, connectedClusterName string,
+	ctx context.Context, bot provider, connectedClusterName string,
 ) ([]string, error) {
 	allClusterNames := []string{connectedClusterName}
 
-	leafClusters, err := bot.GetRemoteClusters()
+	leafClusters, err := bot.GetRemoteClusters(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -103,17 +103,17 @@ func (c *templateSSHClient) render(
 	)
 	defer span.End()
 
-	ping, err := bot.AuthPing(ctx)
+	ping, err := bot.ProxyPing(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	proxyHost, proxyPort, err := utils.SplitHostPort(ping.ProxyPublicAddr)
+	proxyHost, proxyPort, err := utils.SplitHostPort(ping.Proxy.SSH.PublicAddr)
 	if err != nil {
-		return trace.BadParameter("proxy %+v has no usable public address: %v", ping.ProxyPublicAddr, err)
+		return trace.BadParameter("proxy %+v has no usable public address: %v", ping.Proxy.SSH.PublicAddr, err)
 	}
 
-	clusterNames, err := getClusterNames(bot, ping.ClusterName)
+	clusterNames, err := getClusterNames(ctx, bot, ping.ClusterName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -158,7 +158,7 @@ func (c *templateSSHClient) render(
 	identityFilePath := filepath.Join(absDestPath, identity.PrivateKeyKey)
 	certificateFilePath := filepath.Join(absDestPath, identity.SSHCertKey)
 
-	sshConf := openssh.NewSSHConfig(c.getSSHVersion, log)
+	sshConf := openssh.NewSSHConfig(c.getSSHVersion, nil)
 	if err := sshConf.GetSSHConfig(&sshConfigBuilder, &openssh.SSHConfigParameters{
 		AppName:             openssh.TbotApp,
 		ClusterNames:        clusterNames,

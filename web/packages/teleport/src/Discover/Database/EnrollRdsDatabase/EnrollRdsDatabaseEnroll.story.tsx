@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { MemoryRouter } from 'react-router';
 import { initialize, mswLoader } from 'msw-storybook-addon';
 import { rest } from 'msw';
@@ -40,12 +40,24 @@ import {
 
 import { EnrollRdsDatabase } from './EnrollRdsDatabase';
 
+initialize();
+const defaultIsCloud = cfg.isCloud;
+
 export default {
   title: 'Teleport/Discover/Database/EnrollRds',
   loaders: [mswLoader],
+  decorators: [
+    Story => {
+      useEffect(() => {
+        // Clean up
+        return () => {
+          cfg.isCloud = defaultIsCloud;
+        };
+      }, []);
+      return <Story />;
+    },
+  ],
 };
-
-initialize();
 
 export const InstanceList = () => <Component />;
 InstanceList.parameters = {
@@ -57,11 +69,64 @@ InstanceList.parameters = {
       rest.get(cfg.api.databasesPath, (req, res, ctx) =>
         res(ctx.json({ items: [rdsInstances[2]] }))
       ),
+      rest.post(cfg.api.databasesPath, (req, res, ctx) => res(ctx.json({}))),
+      rest.post(cfg.api.discoveryConfigPath, (req, res, ctx) =>
+        res(ctx.json({}))
+      ),
+      rest.get(cfg.api.databaseServicesPath, (req, res, ctx) =>
+        res(
+          ctx.json({ services: [{ name: 'test', matchers: { '*': ['*'] } }] })
+        )
+      ),
+      rest.get(cfg.api.databaseServicesPath, (req, res, ctx) =>
+        res(ctx.json({}))
+      ),
+      rest.post(cfg.api.awsRdsDbRequiredVpcsPath, (req, res, ctx) =>
+        res(ctx.json({ vpcMapOfSubnets: {} }))
+      ),
     ],
   },
 };
 
-export const InstanceListLoading = () => <Component />;
+export const InstanceListForCloud = () => {
+  cfg.isCloud = true;
+  return <Component />;
+};
+InstanceListForCloud.parameters = {
+  msw: {
+    handlers: [
+      rest.post(cfg.api.awsRdsDbListPath, (req, res, ctx) =>
+        res(ctx.json({ databases: rdsInstances }))
+      ),
+      rest.get(cfg.api.databasesPath, (req, res, ctx) =>
+        res(ctx.json({ items: [rdsInstances[2]] }))
+      ),
+      rest.post(cfg.api.discoveryConfigPath, (req, res, ctx) =>
+        res(ctx.json({}))
+      ),
+      rest.get(cfg.api.databaseServicesPath, (req, res, ctx) =>
+        res(
+          ctx.json({
+            items: [
+              { name: 'test', resource_matchers: [{ labels: { '*': ['*'] } }] },
+            ],
+          })
+        )
+      ),
+      rest.get(cfg.api.databaseServicesPath, (req, res, ctx) =>
+        res(ctx.json({}))
+      ),
+      rest.post(cfg.api.awsRdsDbRequiredVpcsPath, (req, res, ctx) =>
+        res(ctx.json({ vpcMapOfSubnets: { 'vpc-1': ['subnet1'] } }))
+      ),
+    ],
+  },
+};
+
+export const InstanceListLoading = () => {
+  cfg.isCloud = true;
+  return <Component />;
+};
 InstanceListLoading.parameters = {
   msw: {
     handlers: [
@@ -111,7 +176,9 @@ const Component = () => {
         name: 'test-oidc',
         resourceType: 'integration',
         spec: {
-          roleArn: 'arn-123',
+          roleArn: 'arn:aws:iam::123456789012:role/test-role-arn',
+          issuerS3Bucket: '',
+          issuerS3Prefix: '',
         },
         statusCode: IntegrationStatusCode.Running,
       },

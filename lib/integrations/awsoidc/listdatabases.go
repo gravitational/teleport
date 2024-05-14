@@ -103,59 +103,6 @@ func NewListDatabasesClient(ctx context.Context, req *AWSClientRequest) (ListDat
 	return newRDSClient(ctx, req)
 }
 
-// ListAllDatabases collects dbs until end of pages for all supported RDS engines and types.
-func ListAllDatabases(ctx context.Context, clt ListDatabasesClient, region string) (*ListDatabasesResponse, error) {
-	fetchedRDSs := []types.Database{}
-
-	// Get all rds instances.
-	nextToken := ""
-	for {
-		resp, err := ListDatabases(ctx,
-			clt,
-			ListDatabasesRequest{
-				Region:    region,
-				Engines:   []string{services.RDSEngineMySQL, services.RDSEngineMariaDB, services.RDSEnginePostgres},
-				RDSType:   rdsTypeInstance,
-				NextToken: nextToken,
-			},
-		)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		fetchedRDSs = append(fetchedRDSs, resp.Databases...)
-		nextToken = resp.NextToken
-
-		if len(nextToken) == 0 {
-			break
-		}
-	}
-
-	// Get all rds clusters.
-	nextToken = ""
-	for {
-		resp, err := ListDatabases(ctx,
-			clt,
-			ListDatabasesRequest{
-				Region:    region,
-				Engines:   []string{services.RDSEngineAuroraMySQL, services.RDSEngineAuroraPostgres},
-				RDSType:   rdsTypeCluster,
-				NextToken: nextToken,
-			},
-		)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		fetchedRDSs = append(fetchedRDSs, resp.Databases...)
-		nextToken = resp.NextToken
-
-		if len(nextToken) == 0 {
-			break
-		}
-	}
-
-	return &ListDatabasesResponse{Databases: fetchedRDSs}, nil
-}
-
 // ListDatabases calls the following AWS API:
 // https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBClusters.html
 // https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBInstances.html

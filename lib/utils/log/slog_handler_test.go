@@ -46,8 +46,7 @@ func TestSlogTextHandler(t *testing.T) {
 	// the time to whatever time the fake clock has in UTC time. Since the timestamp
 	// is not important for this test overriding, it allows the regex to be simpler.
 	var buf bytes.Buffer
-	h := NewSlogTextHandler(&buf, &SlogTextHandlerConfig{
-		WithCaller: false,
+	h := NewSlogTextHandler(&buf, SlogTextHandlerConfig{
 		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
 			if a.Key == slog.TimeKey {
 				a.Value = slog.StringValue(now)
@@ -62,7 +61,7 @@ func TestSlogTextHandler(t *testing.T) {
 	// Group 2: verbosity level of output
 	// Group 3: message contents
 	// Group 4: additional attributes
-	regex := fmt.Sprintf("^(?:(%s)?)\\s([A-Z]{4})\\s+(\\w+)(?:\\s(.*))?$", now)
+	regex := fmt.Sprintf("^(?:(%s)?)\\s?([A-Z]{4})\\s+(\\w+)(?:\\s(.*))?$", now)
 	lineRegex := regexp.MustCompile(regex)
 
 	results := func() []map[string]any {
@@ -76,6 +75,7 @@ func TestSlogTextHandler(t *testing.T) {
 			matches := lineRegex.FindSubmatch(line)
 			if len(matches) == 0 {
 				assert.Failf(t, "log output did not match regular expression", "regex: %s output: %s", regex, string(line))
+				ms = append(ms, m)
 				continue
 			}
 
@@ -147,7 +147,7 @@ func TestSlogTextHandler(t *testing.T) {
 func TestSlogJSONHandler(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	h := NewSlogJSONHandler(&buf, slog.LevelDebug)
+	h := NewSlogJSONHandler(&buf, SlogJSONHandlerConfig{Level: slog.LevelDebug})
 
 	results := func() []map[string]any {
 		var ms []map[string]any

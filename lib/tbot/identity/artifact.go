@@ -62,12 +62,8 @@ func (a *Artifact) Matches(kinds ...ArtifactKind) bool {
 var artifacts = []Artifact{
 	// SSH artifacts
 	{
-		Key: SSHCertKey,
-
-		// DELETE IN: 12.0
-		// Migrate from old key "sshcert".
-		OldKey: "sshcert",
-		Kind:   KindAlways,
+		Key:  SSHCertKey,
+		Kind: KindAlways,
 		ToBytes: func(i *Identity) []byte {
 			return i.CertBytes
 		},

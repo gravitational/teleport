@@ -22,35 +22,44 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 )
 
 func TestMain(m *testing.M) {
 	flag.Parse()
-	if testing.Verbose() {
-		logrus.SetLevel(logrus.DebugLevel)
-	}
 	os.Exit(m.Run())
 }
 
 type pingService struct {
 	*proto.UnimplementedAuthServiceServer
+	userAgentFromLastCallValue atomic.Value
 }
 
 func (s *pingService) Ping(ctx context.Context, req *proto.PingRequest) (*proto.PingResponse, error) {
+	s.userAgentFromLastCallValue.Store(metadata.UserAgentFromContext(ctx))
 	return &proto.PingResponse{}, nil
+}
+
+func (s *pingService) userAgentFromLastCall() string {
+	if userAgent, ok := s.userAgentFromLastCallValue.Load().(string); ok {
+		return userAgent
+	}
+	return ""
 }
 
 func TestNew(t *testing.T) {
@@ -120,11 +129,13 @@ func TestNewDialBackground(t *testing.T) {
 	l, err := net.Listen("tcp", "localhost:")
 	require.NoError(t, err)
 	addr := l.Addr().String()
-	srv := newMockServer(t, addr, &pingService{})
+	ping := &pingService{}
+	srv := newMockServer(t, addr, ping)
 
 	// Create client before the server is listening.
 	cfg := srv.clientCfg()
 	cfg.DialInBackground = true
+	cfg.DialOpts = append(cfg.DialOpts, metadata.WithUserAgentFromTeleportComponent("api-client-test"))
 	clt, err := New(ctx, cfg)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, clt.Close()) })
@@ -142,6 +153,10 @@ func TestNewDialBackground(t *testing.T) {
 	// requests to the server should succeed.
 	_, err = clt.Ping(ctx)
 	require.NoError(t, err)
+
+	// Verify user agent.
+	expectUserAgentPrefix := fmt.Sprintf("api-client-test/%v grpc-go/", api.Version)
+	require.True(t, strings.HasPrefix(ping.userAgentFromLastCall(), expectUserAgentPrefix))
 }
 
 func TestWaitForConnectionReady(t *testing.T) {
@@ -181,21 +196,21 @@ type listResourcesService struct {
 }
 
 func (s *listResourcesService) ListResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error) {
-	resources, err := testResources[types.ResourceWithLabels](req.ResourceType, req.Namespace)
+	expectedResources, err := testResources[types.ResourceWithLabels](req.ResourceType, req.Namespace)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
 
 	resp := &proto.ListResourcesResponse{
-		Resources:  make([]*proto.PaginatedResource, 0, len(resources)),
-		TotalCount: int32(len(resources)),
+		Resources:  make([]*proto.PaginatedResource, 0, len(expectedResources)),
+		TotalCount: int32(len(expectedResources)),
 	}
 
 	var (
 		takeResources    = req.StartKey == ""
 		lastResourceName string
 	)
-	for _, resource := range resources {
+	for _, resource := range expectedResources {
 		if resource.GetName() == req.StartKey {
 			takeResources = true
 			continue
@@ -243,12 +258,20 @@ func (s *listResourcesService) ListResources(ctx context.Context, req *proto.Lis
 
 			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_WindowsDesktop{WindowsDesktop: desktop}}
 		case types.KindAppOrSAMLIdPServiceProvider:
+			//nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
 			appServerOrSP, ok := resource.(*types.AppServerOrSAMLIdPServiceProviderV1)
 			if !ok {
 				return nil, trace.Errorf("AppServerOrSAMLIdPServiceProvider has invalid type %T", resource)
 			}
 
 			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_AppServerOrSAMLIdPServiceProvider{AppServerOrSAMLIdPServiceProvider: appServerOrSP}}
+		case types.KindSAMLIdPServiceProvider:
+			samlSP, ok := resource.(*types.SAMLIdPServiceProviderV1)
+			if !ok {
+				return nil, trace.Errorf("SAML IdP service provider has invalid type %T", resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_SAMLIdPServiceProvider{SAMLIdPServiceProvider: samlSP}}
 		}
 		resp.Resources = append(resp.Resources, protoResource)
 		lastResourceName = resource.GetName()
@@ -257,7 +280,7 @@ func (s *listResourcesService) ListResources(ctx context.Context, req *proto.Lis
 		}
 	}
 
-	if len(resp.Resources) != len(resources) {
+	if len(resp.Resources) != len(expectedResources) {
 		resp.NextKey = lastResourceName
 	}
 
@@ -421,6 +444,7 @@ func testResources[T types.ResourceWithLabels](resourceType, namespace string) (
 					return nil, trace.Wrap(err)
 				}
 
+				//nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
 				resource := &types.AppServerOrSAMLIdPServiceProviderV1{
 					Resource: &types.AppServerOrSAMLIdPServiceProviderV1_AppServer{
 						AppServer: appServer,
@@ -432,7 +456,7 @@ func testResources[T types.ResourceWithLabels](resourceType, namespace string) (
 				sp := &types.SAMLIdPServiceProviderV1{ResourceHeader: types.ResourceHeader{Metadata: types.Metadata{Name: fmt.Sprintf("saml-app-%d", i), Labels: map[string]string{
 					"label": string(make([]byte, labelSize)),
 				}}}}
-
+				//nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
 				resource := &types.AppServerOrSAMLIdPServiceProviderV1{
 					Resource: &types.AppServerOrSAMLIdPServiceProviderV1_SAMLIdPServiceProvider{
 						SAMLIdPServiceProvider: sp,
@@ -440,6 +464,26 @@ func testResources[T types.ResourceWithLabels](resourceType, namespace string) (
 				}
 				resources = append(resources, any(resource).(T))
 			}
+		}
+	case types.KindSAMLIdPServiceProvider:
+		for i := 0; i < size; i++ {
+			name := fmt.Sprintf("saml-app-%d", i)
+			spResource, err := types.NewSAMLIdPServiceProvider(
+				types.Metadata{
+					Name: name, Labels: map[string]string{
+						"label": string(make([]byte, labelSize)),
+					},
+				},
+				types.SAMLIdPServiceProviderSpecV1{
+					EntityID: name,
+					ACSURL:   name,
+				},
+			)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			resources = append(resources, any(spResource).(T))
 		}
 	default:
 		return nil, trace.Errorf("unsupported resource type %s", resourceType)
@@ -477,6 +521,10 @@ func TestListResources(t *testing.T) {
 			resourceType:   types.KindWindowsDesktop,
 			resourceStruct: &types.WindowsDesktopV3{},
 		},
+		"SAMLIdPServiceProvider": {
+			resourceType:   types.KindSAMLIdPServiceProvider,
+			resourceStruct: &types.SAMLIdPServiceProviderV1{},
+		},
 	}
 
 	// Create client
@@ -502,7 +550,7 @@ func TestListResources(t *testing.T) {
 				ResourceType: test.resourceType,
 			})
 			require.Error(t, err)
-			require.IsType(t, &trace.LimitExceededError{}, err.(*trace.TraceErr).OrigError())
+			require.True(t, trace.IsLimitExceeded(err), "trace.IsLimitExceeded failed: err=%v (%T)", err, trace.Unwrap(err))
 		})
 	}
 
@@ -528,7 +576,7 @@ func testGetResources[T types.ResourceWithLabels](t *testing.T, clt *Client, kin
 		ResourceType: kind,
 	})
 	require.Error(t, err)
-	require.IsType(t, &trace.LimitExceededError{}, err.(*trace.TraceErr).OrigError())
+	require.True(t, trace.IsLimitExceeded(err), "trace.IsLimitExceeded failed: err=%v (%T)", err, trace.Unwrap(err))
 
 	// Test getting a page of resources
 	page, err := GetResourcePage[T](ctx, clt, &proto.ListResourcesRequest{
@@ -588,6 +636,11 @@ func TestGetResources(t *testing.T) {
 		t.Parallel()
 		testGetResources[types.AppServerOrSAMLIdPServiceProvider](t, clt, types.KindAppOrSAMLIdPServiceProvider)
 	})
+
+	t.Run("SAMLIdPServiceProvider", func(t *testing.T) {
+		t.Parallel()
+		testGetResources[types.SAMLIdPServiceProvider](t, clt, types.KindSAMLIdPServiceProvider)
+	})
 }
 
 func TestGetResourcesWithFilters(t *testing.T) {
@@ -620,6 +673,9 @@ func TestGetResourcesWithFilters(t *testing.T) {
 		"AppAndIdPServiceProvider": {
 			resourceType: types.KindAppOrSAMLIdPServiceProvider,
 		},
+		"SAMLIdPServiceProvider": {
+			resourceType: types.KindSAMLIdPServiceProvider,
+		},
 	}
 
 	for name, test := range testCases {
@@ -636,7 +692,7 @@ func TestGetResourcesWithFilters(t *testing.T) {
 				ResourceType: test.resourceType,
 			})
 			require.Error(t, err)
-			require.IsType(t, &trace.LimitExceededError{}, err.(*trace.TraceErr).OrigError())
+			require.True(t, trace.IsLimitExceeded(err), "trace.IsLimitExceeded failed: err=%v (%T)", err, trace.Unwrap(err))
 
 			// Test getting all resources by chunks to handle limit exceeded.
 			resources, err := GetResourcesWithFilters(ctx, clt, proto.ListResourcesRequest{
@@ -647,5 +703,56 @@ func TestGetResourcesWithFilters(t *testing.T) {
 			require.Len(t, resources, len(expectedResources))
 			require.Empty(t, cmp.Diff(expectedResources, resources))
 		})
+	}
+}
+
+type fakeUnifiedResourcesClient struct {
+	resp *proto.ListUnifiedResourcesResponse
+	err  error
+}
+
+func (f fakeUnifiedResourcesClient) ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error) {
+	return f.resp, f.err
+}
+
+// TestGetUnifiedResourcesWithLogins validates that any logins provided
+// in a [proto.PaginatedResource] are correctly parsed and applied to
+// the corresponding [types.EnrichedResource].
+func TestGetUnifiedResourcesWithLogins(t *testing.T) {
+	ctx := context.Background()
+
+	clt := fakeUnifiedResourcesClient{
+		resp: &proto.ListUnifiedResourcesResponse{
+			Resources: []*proto.PaginatedResource{
+				{
+					Resource: &proto.PaginatedResource_Node{Node: &types.ServerV2{}},
+					Logins:   []string{"alice", "bob"},
+				},
+				{
+					Resource: &proto.PaginatedResource_WindowsDesktop{WindowsDesktop: &types.WindowsDesktopV3{}},
+					Logins:   []string{"llama"},
+				},
+			},
+		},
+	}
+
+	resources, _, err := GetUnifiedResourcePage(ctx, clt, &proto.ListUnifiedResourcesRequest{
+		SortBy: types.SortBy{
+			IsDesc: false,
+			Field:  types.ResourceSpecHostname,
+		},
+		IncludeLogins: true,
+	})
+	require.NoError(t, err)
+
+	require.Len(t, resources, len(clt.resp.Resources))
+
+	for _, enriched := range resources {
+		switch enriched.ResourceWithLabels.(type) {
+		case *types.ServerV2:
+			assert.Equal(t, enriched.Logins, clt.resp.Resources[0].Logins)
+		case *types.WindowsDesktopV3:
+			assert.Equal(t, enriched.Logins, clt.resp.Resources[1].Logins)
+		}
 	}
 }

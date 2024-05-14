@@ -292,42 +292,6 @@ exports[`render dialog with instructions to connect to database 1`] = `
           >
             Step 2
           </span>
-           - Retrieve credentials for the database
-          <div
-            class="c11 c12"
-            color="light"
-          >
-            <div
-              class="c13 c14"
-              style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
-            >
-              <div
-                class="c15"
-                style="user-select: none;"
-              >
-                $
-              </div>
-              <div>
-                tsh db login [--db-user=&lt;user&gt;] [--db-name=&lt;name&gt;] aurora
-              </div>
-            </div>
-            <button
-              class="c16"
-              kind="primary"
-              style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
-            >
-              Copy
-            </button>
-          </div>
-        </div>
-        <div
-          class="c9"
-        >
-          <span
-            class="c10"
-          >
-            Step 3
-          </span>
            - Connect to the database
           <div
             class="c11 c12"
@@ -344,7 +308,7 @@ exports[`render dialog with instructions to connect to database 1`] = `
                 $
               </div>
               <div>
-                tsh db connect [--db-user=&lt;user&gt;] [--db-name=&lt;name&gt;] aurora
+                tsh db connect aurora --db-user=&lt;user&gt; --db-name=&lt;name&gt;
               </div>
             </div>
             <button
@@ -680,42 +644,6 @@ exports[`render dialog with instructions to connect to database with requestId 1
             >
               Step 2
             </span>
-             - Retrieve credentials for the database
-            <div
-              class="c11 c12"
-              color="light"
-            >
-              <div
-                class="c13 c14"
-                style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
-              >
-                <div
-                  class="c15"
-                  style="user-select: none;"
-                >
-                  $
-                </div>
-                <div>
-                  tsh db login [--db-user=&lt;user&gt;] [--db-name=&lt;name&gt;] aurora
-                </div>
-              </div>
-              <button
-                class="c16"
-                kind="primary"
-                style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
-              >
-                Copy
-              </button>
-            </div>
-          </div>
-          <div
-            class="c9"
-          >
-            <span
-              class="c10"
-            >
-              Step 3
-            </span>
              - Connect to the database
             <div
               class="c11 c12"
@@ -732,7 +660,7 @@ exports[`render dialog with instructions to connect to database with requestId 1
                   $
                 </div>
                 <div>
-                  tsh db connect [--db-user=&lt;user&gt;] [--db-name=&lt;name&gt;] aurora
+                  tsh db connect aurora --db-user=&lt;user&gt; --db-name=&lt;name&gt;
                 </div>
               </div>
               <button
@@ -750,7 +678,7 @@ exports[`render dialog with instructions to connect to database with requestId 1
             <span
               class="c10"
             >
-              Step 4 (Optional)
+              Step 3 (Optional)
             </span>
              - When finished, drop the assumed role
             <div

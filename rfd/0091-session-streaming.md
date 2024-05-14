@@ -1,6 +1,6 @@
 ---
 authors: Zac Bergquist <zac@goteleport.com>
-state: approved, pending implementation
+state: implemented (Teleport 15)
 ---
 
 # RFD 91 - Streaming Session Playback
@@ -18,12 +18,12 @@ Teleport's session recordings are stored as an ordered stream of gzipped and
 protobuf-encoded events. See [RFD 2](./0002-streaming.md) for details.
 
 Prior versions of Teleport stored recordings in a different format where the
-session content (referred to as "chunks") was stored separately from the 
+session content (referred to as "chunks") was stored separately from the
 metadata and timing information about those chunks.
 
 When RFD 2 was implemented and session streaming was added, the players
 (both the web UI and `tsh play`) saw minimal changes and we opted to convert
-the new protobuf event stream into the legacy metadata/chunks format for 
+the new protobuf event stream into the legacy metadata/chunks format for
 playback.
 
 This RFD outlines the steps necessary to remove this legacy conversion step
@@ -37,8 +37,8 @@ There are several reasons why we'd like to make this change.
 
 The `lib/events` package has a long history of [issues](https://github.com/gravitational/teleport/issues?q=is%3Aopen+is%3Aissue+label%3Aaudit-log)
 and dead code that
-[should](https://github.com/gravitational/teleport/pull/13217) 
-[be](https://github.com/gravitational/teleport/pull/12395) 
+[should](https://github.com/gravitational/teleport/pull/13217)
+[be](https://github.com/gravitational/teleport/pull/12395)
 [removed](https://github.com/gravitational/teleport/pull/11380).
 
 While we've succeeded in removing a large amount of old code, there is still
@@ -52,16 +52,16 @@ on new efforts such as an encrypted audit log.
 ### User Experience
 
 The required conversion to the old playback format results in an experience that
-is suboptimal for users. Since this process requires the entire session be 
+is suboptimal for users. Since this process requires the entire session be
 downloaded and converted before playback can begin, users experience significant
 latency when attempting to play back a large session.
 
-A prototype of streaming playback with a large session has shown a > 10x 
+A prototype of streaming playback with a large session has shown a > 10x
 improvement in "time to first byte" of playback (11s to < 1s).
 
 In addition to latency, the current approach requires the entire session to be
-loaded into memory. This is inefficient, and consuming large amounts of system 
-memory can impact the overall responsiveness of the the system.
+loaded into memory. This is inefficient, and consuming large amounts of system
+memory can impact the overall responsiveness of the system.
 
 In the web UI, this can also result in failure to play the session at all,
 as observed in [#10578](https://github.com/gravitational/teleport/issues/10578).
@@ -73,20 +73,20 @@ When session recording and playback for desktop access was implemented
 we needed to build a new graphical session player, so there was no reason
 to convert to the legacy format in order to reuse the text-based SSH player.
 
-As a result, desktop access has supported streaming playback since its 
+As a result, desktop access has supported streaming playback since its
 inception. Implementing this RFD for other types of sessions will ensure
 greater consistency across the codebase, and will address the long-standing
 request to implement seek functionality for desktop playback.
 
 ## Details
 
-In all cases, we will be leveraging the `StreamSessionEvents` API to do session 
+In all cases, we will be leveraging the `StreamSessionEvents` API to do session
 playback. This API presents the following Go interface:
 
 ```
 func StreamSessionEvents(
-    ctx context.Context, 
-    sessionID session.ID, 
+    ctx context.Context,
+    sessionID session.ID,
     startIndex int64,
   ) (chan apievents.AuditEvent, chan error) {
 ```
@@ -99,10 +99,10 @@ A gRPC wrapper is also available:
 
 Given a session ID and a start index, a channel of `AuditEvent`s is returned.
 Consumers can control the speed of playback by limiting how fast they consume
-from this channel. Each event has a timestamp indicating the number of 
+from this channel. Each event has a timestamp indicating the number of
 milliseconds that have elapsed since the beginning of the session, so consumers
 can implement "real time" playback by sleeping for the correct amount of time
-before consuming the next event. Speeding up playback can be accomplished by 
+before consuming the next event. Speeding up playback can be accomplished by
 sleeping for less time than required.
 
 Skipping forward in a session can be done efficiently by playing back events as
@@ -110,23 +110,23 @@ fast as possible with no timing delay in between events until the desired
 position is reached.
 
 Skipping backward in a session is the most difficult function to  implement, as
-this API offers no way to go back. Once an event is consumed from 
+this API offers no way to go back. Once an event is consumed from
 the channel it is gone. While it is possible to keep some sort of buffer for the
 last N events, this approach is not suitable here for several reasons:
 
 - There is not an obvious buffer size to use. Select too small of a buffer, and
   you end up needing to start from the beginning anyway. Select too large of a
-  buffer and you end up in the same state we are in today 
+  buffer and you end up in the same state we are in today
   (too much memory usage, high latency, etc)
 - The state of the terminal at any point in time is a function of all of the
   events that have occurred up until that time, so you always need to play from
-  the beginning to accurately depict the session. This is true for both TTY 
+  the beginning to accurately depict the session. This is true for both TTY
   sessions and desktop sessions.
 
 Here we propose the naive approach of rewinding by:
 
 1. restarting the stream from the beginning
-2. "fast forwarding" up to the desired rewind point by playing back events 
+2. "fast forwarding" up to the desired rewind point by playing back events
    without inserting a timing delay
 3. resuming playback from this point at regular speed
 
@@ -149,7 +149,7 @@ events instead.
 
 ### Web UI
 
-Today, the web UI performs an API call to 
+Today, the web UI performs an API call to
 `/webapi/sites/:site/sessions/:sid/stream`. Unlike other APIs, this endpoint
 does not return JSON - it returns the text contents directly. This API call
 is synchronous and does not support streaming. The web UI fetches all of the
@@ -157,22 +157,22 @@ data (using multiple API calls if the session is large) before playback can
 begin.
 
 In order to better support streaming, we will need a new endpoint with better
-support for a streaming API. The two options considered are server-sent events 
+support for a streaming API. The two options considered are server-sent events
 (SSE) and websockets.
 
 While SSE is often a good fit for streaming applications, it suffers from two
 major limitations. First, most browsers implement a relatively small limit (6)
-on the number of SSE subscriptions (player tabs, in our case) that can be open 
-to a single site. Second, while SSE is a convenient mechanism for a server to 
+on the number of SSE subscriptions (player tabs, in our case) that can be open
+to a single site. Second, while SSE is a convenient mechanism for a server to
 stream data to a client, we actually need a bidirectional stream so that the
 client can stream commands (play, pause, etc.) to the server.
 
 This leaves websockets as the best choice for web UI playback. In addition to
-supporting bidirectional streaming, websockets are already used throughout 
+supporting bidirectional streaming, websockets are already used throughout
 Teleport and will not require additional server-side dependencies.
 
 To implement this, we can leverage the desktop session player for inspiration.
-We will add a new endpoint, `/webapi/sites/:site/sshplayback/:sid`, which 
+We will add a new endpoint, `/webapi/sites/:site/ttyplayback/:sid`, which
 upgrades the connection to websockets and streams events to the browser while
 listening for playback commands. The commands sent from the browser will be
 JSON-encoded, though the websocket will use binary encoding since there will be
@@ -188,9 +188,9 @@ In addition, a new command for "seeking" to a specific position in the recording
 
 `{ "action": "seek", "ms": 25 }`
 
-In this command, the `ms` field specifies the number of milliseconds into the 
+In this command, the `ms` field specifies the number of milliseconds into the
 recording. Negative values are not accepted, and values greater than the length
-of the recording will cause the playback to immediately jump to the end and 
+of the recording will cause the playback to immediately jump to the end and
 effectively stop playing.
 
 ### Deprecation/Implementation Plan
@@ -234,7 +234,7 @@ From a user experience perspective, implementing this RFD will:
   systems with smaller amounts of memory
 - *increase* the latency of "rewind" operations, since the session stream
   needs to be restarted from the beginning to go backwards in time
-  
-This tradeoff is considered acceptable since users always experience the 
+
+This tradeoff is considered acceptable since users always experience the
 initial latency when playing back a session, and only sometimes have a need
 to rewind a session.

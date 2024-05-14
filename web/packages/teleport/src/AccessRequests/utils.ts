@@ -46,6 +46,17 @@ export function roundToNearestTenMinutes(date: Duration): Duration {
     // Do not round down to 0. This
     roundedMinutes = 10;
   }
+
+  // 60 minutes == 1 hour
+  // Prevent displaying time as eg: `5 hrs and 60 mins`
+  // to `6 hrs`.
+  if (roundedMinutes === 60) {
+    if (!date.hours) {
+      date.hours = 0;
+    }
+    date.hours += 1;
+    roundedMinutes = 0;
+  }
   date.minutes = roundedMinutes;
   date.seconds = 0;
 
@@ -108,10 +119,10 @@ export function middleValues(
   }));
 }
 
-// Generate a list of middle values between now and the session TTL.
+// Generate a list of middle values between now and the request TTL.
 export function requestTtlMiddleValues(
   created: Date,
-  sessionTTL: Date
+  requestTtl: Date
 ): TimeDuration[] {
   const getInterval = (d: Date) =>
     roundToNearestTenMinutes(
@@ -121,22 +132,22 @@ export function requestTtlMiddleValues(
       })
     );
 
-  if (isAfter(addHours(created, 1), sessionTTL)) {
+  if (isAfter(addHours(created, 1), requestTtl)) {
     return [
       {
-        timestamp: sessionTTL.getTime(),
-        duration: getInterval(sessionTTL),
+        timestamp: requestTtl.getTime(),
+        duration: getInterval(requestTtl),
       },
     ];
   }
 
   const points: Date[] = [];
-  // Staggered hour options, up to the maximum possible session TTL.
-  const hourOptions = [1, 2, 3, 4, 6, 8, 12, 18, 24, 30];
+  // Staggered hour options, up to 1 week.
+  const hourOptions = [1, 2, 3, 4, 6, 8, 12, 18, 24, 30, 168];
 
   for (const h of hourOptions) {
     const t = addHours(created, h);
-    if (isAfter(t, sessionTTL)) {
+    if (isAfter(t, requestTtl)) {
       break;
     }
     points.push(t);

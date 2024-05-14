@@ -137,7 +137,7 @@ type Config struct {
 	// Listener is a listener address for reverse tunnel server
 	Listener net.Listener
 	// HostSigners is a list of host signers
-	HostSigners []ssh.Signer
+	GetHostSigners sshutils.GetHostSignersFunc
 	// HostKeyCallback
 	// Limiter is optional request limiter
 	Limiter *limiter.Limiter
@@ -269,7 +269,7 @@ func (cfg *Config) CheckAndSetDefaults() error {
 		logger = log.StandardLogger()
 	}
 	cfg.Log = logger.WithFields(log.Fields{
-		trace.Component: cfg.Component,
+		teleport.ComponentKey: cfg.Component,
 	})
 	if cfg.LockWatcher == nil {
 		return trace.BadParameter("missing parameter LockWatcher")
@@ -347,7 +347,7 @@ func NewServer(cfg Config) (reversetunnelclient.Server, error) {
 		// this address is not used
 		utils.NetAddr{Addr: "127.0.0.1:1", AddrNetwork: "tcp"},
 		srv,
-		cfg.HostSigners,
+		cfg.GetHostSigners,
 		sshutils.AuthMethods{
 			PublicKey: srv.keyAuth,
 		},
@@ -414,7 +414,7 @@ func (s *server) periodicFunctions() {
 
 			connectedRemoteClusters := s.getRemoteClusters()
 
-			remoteClusters, err := s.localAccessPoint.GetRemoteClusters()
+			remoteClusters, err := s.localAccessPoint.GetRemoteClusters(s.ctx)
 			if err != nil {
 				s.log.WithError(err).Warn("Failed to get remote clusters")
 			}
@@ -1181,8 +1181,8 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 		domainName: domainName,
 		connInfo:   connInfo,
 		logger: log.WithFields(log.Fields{
-			trace.Component: teleport.ComponentReverseTunnelServer,
-			trace.ComponentFields: log.Fields{
+			teleport.ComponentKey: teleport.ComponentReverseTunnelServer,
+			teleport.ComponentFields: log.Fields{
 				"cluster": domainName,
 			},
 		}),

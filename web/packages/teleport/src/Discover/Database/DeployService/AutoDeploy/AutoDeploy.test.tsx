@@ -75,6 +75,8 @@ const mocKIntegration: Integration = {
   resourceType: 'integration',
   spec: {
     roleArn: `doncare/${awsoidcRoleArn}`,
+    issuerS3Bucket: '',
+    issuerS3Prefix: '',
   },
   statusCode: IntegrationStatusCode.Running,
 };
@@ -197,12 +199,9 @@ function getMockedContexts() {
     eventState: null,
   };
 
-  jest.spyOn(integrationService, 'deployAwsOidcService').mockResolvedValue({
-    clusterArn: 'cluster-arn',
-    serviceArn: 'service-arn',
-    taskDefinitionArn: 'task-definition',
-    serviceDashboardUrl: 'dashboard-url',
-  });
+  jest
+    .spyOn(integrationService, 'deployAwsOidcService')
+    .mockResolvedValue('dashboard-url');
 
   jest.spyOn(teleCtx.databaseService, 'fetchDatabases').mockResolvedValue({
     agents: [],

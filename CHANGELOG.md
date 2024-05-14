@@ -1,5 +1,32 @@
 # Changelog
 
+## 16.0.0 (xx/xx/xx)
+
+### Breaking changes
+
+#### Opsgenie plugin annotations
+
+Opsgenie plugin users, role annotations must now contain
+`teleport.dev/notify-services` to receive notification on Opsgenie.
+`teleport.dev/schedules` is now the label used to determine auto approval flow.
+See [the Opsgenie plugin documentation](docs/pages/access-controls/access-request-plugins/opsgenie.mdx)
+for setup instructions.
+
+#### Teleport Assist chat has been remove.
+
+Teleport Assist chat has been removed from Teleport 16. Assist is still available
+in the SSH Web Terminal and Audit Monitoring.
+
+#### DynamoDB permission requirements have changed
+
+Teleport clusters using the dynamodb backend must now have the `dynamodb:ConditionCheckItem`
+permission. For a full list of all required permissions see the dynamo backend iam
+policy [example](docs/pages/includes/dynamodb-iam-policy.mdx).
+
+#### Disabling second factor authentication_type
+
+Support for disabling second factor authentication has been removed
+
 ## 15.0.0 (xx/xx/24)
 
 ### New features
@@ -12,6 +39,50 @@ be able to run Teleport in FedRAMP/FIPS mode on ARM64.
 #### Hardened AMIs now produced for ARM64
 
 Teleport 15 now provides hardened AWS AMIs on ARM64.
+
+#### Streaming session playback
+
+Prior to Teleport 15, `tsh play` and the web UI would download the entire
+session recording before starting playback. As a result, playback of large
+recordings could be slow to start, and may fail to play at all in the browser.
+
+In Teleport 15, session recordings are streamed from the auth server, allowing
+playback to start before the entire session is downloaded and unpacked.
+
+Additionally, `tsh play` now supports a `--speed` flag for adjusting the
+playback speed.
+
+#### Standalone Teleport Operator
+
+Prior to Teleport 15, the Teleport Kubernetes Operator had to run as a sidecar
+of the Teleport auth. It was not possible to use the operator in Teleport Cloud
+or against a Teleport cluster not deployed with the `teleport-cluster` Helm chart.
+
+In Teleport 15, the Teleport Operator can reconcile resources in any Teleport
+cluster. Teleport Cloud users can now use the operator to manage their resources.
+
+When deployed with the `teleport-cluster` chart, the operator now runs in a
+separate pod. This ensures that Teleport's availability won't be impacted if
+the operator becomes unready.
+
+See [the Standalone Operator guide](docs/pages/management/dynamic-resources/teleport-operator-standalone.mdx)
+for installation instructions.
+
+#### Teleport Operator now supports roles v6 and v7
+
+Starting with Teleport 15, newly supported kinds will contain the resource version.
+For example: `TeleportRoleV6` and `TeleportRoleV7` kinds will allow users to
+create Teleport Roles v6 and v7.
+
+Existing kinds will remain unchanged in Teleport 15, but will be renamed in
+Teleport 16 for consistency.
+
+To migrate an existing Custom Resource (CR) `TeleportRole` to
+a `TeleportRoleV7`, you must:
+- upgrade Teleport and the operator to v15
+- annotate the exiting `TeleportRole` CR with `teleport.dev/keep: "true"`
+- delete the `TeleportRole` CR (it won't delete the role in Teleport thanks to the annotation)
+- create a new `TeleportRoleV7` CR with the same name
 
 ### Breaking changes and deprecations
 
@@ -53,17 +124,6 @@ rely on parsing the output from multiple nodes should pass the `--log-dir` flag
 to `tsh ssh`, which will create a directory where the separated output of each node
 will be written.
 
-#### `tsh play` now streams PTY playback
-
-Prior to Teleport 15, `tsh play` would download the entire session recording
-before starting playback. As a result, playback of large recordings could be
-slow to start. In Teleport 15 session recordings are streamed from the auth
-server, allowing playback to start before the entire session is downloaded and
-unpacked.
-
-Additionally, `tsh play` now supports a `--speed` flag for adjusting the
-playback speed.
-
 #### `drop` host user creation mode
 
 The `drop` host user creation mode has been removed in Teleport 15. It is replaced
@@ -71,7 +131,13 @@ by `insecure-drop`, which still creates temporary users but does not create a
 home directory. Users who need home directory creation should either wrap `useradd`/`userdel`
 or use PAM.
 
-##### Packages no longer published to legacy Debian and RPM repos
+#### Remove restricted sessions for SSH
+
+The restricted session feature for SSH has been deprecated since Teleport 14 and 
+has been removed in Teleport 15. We recommend implementing network restrictions 
+outside of Teleport (iptables, security groups, etc).
+
+#### Packages no longer published to legacy Debian and RPM repos
 
 `deb.releases.teleport.dev` and `rpm.releases.teleport.dev` were deprecated in
 Teleport 11. Beginning in Teleport 15, Debian and RPM packages will no longer be
@@ -112,6 +178,17 @@ Do not run debug container images in production environments.
 
 Heavy container images will continue to be published for Teleport 13 and 14
 throughout the remainder of these releases' lifecycle.
+
+##### Helm cluster chart FIPS mode changes
+
+The teleport-cluster chart no longer uses versionOverride and extraArgs to set FIPS mode. 
+
+Instead, you should use the following values file configuration:
+```
+enterpriseImage: public.ecr.aws/gravitational/teleport-ent-fips-distroless
+authentication:
+  localAuth: false
+```
 
 ##### Multi-architecture Teleport Operator images
 
@@ -166,6 +243,68 @@ the Windows NTAuth store has been removed. It is not necessary for Teleport to
 perform this step since it must be done by an administrator at installation
 time. As a result, Teleport's service account can use more restrictive
 permissions.
+
+#### Example AWS cluster deployments updated
+
+The AWS terraform examples for Teleport clusters have been updated to use the
+newer hardened Amazon Linux 2023 AMIs. Additionally, the default architecture
+and instance type has been changed to ARM64/Graviton.
+
+As a result of this modernization, the legacy monitoring stack configuration
+used with the legacy AMIs has been removed.
+
+#### `teleport-cluster` Helm chart changes
+
+Due to the new separate operator deployment, the operator is deployed by a subchart.
+This causes the following breaking changes:
+- `installCRDs` has been replaced by `operator.installCRDs`
+- `teleportVersionOverride` does not set the operator version anymore, you must 
+  use `operator.teleportVersionOverride` to override the operator version.
+
+Note: version overrides are dangerous and not recommended. Each chart version
+is designed to run a specific Teleport and operator version. If you want to
+deploy a specific Teleport version, use Helm's `--version X.Y.Z` instead.
+
+The operator now joins using a Kubernetes ServiceAccount token. To validate the
+token, the Teleport Auth Service must have access to the `TokenReview` API.
+The chart configures this for you since v12, unless you disabled `rbac` creation.
+
+##### Helm cluster chart FIPS mode changes
+
+The teleport-cluster chart no longer uses versionOverride and extraArgs to set FIPS mode. 
+
+Instead, you should use the following values file configuration:
+
+```
+enterpriseImage: public.ecr.aws/gravitational/teleport-ent-fips-distroless
+authentication:
+  localAuth: false
+
+```
+
+#### Resource version is now mandatory and immutable in the Terraform provider
+
+Starting with Teleport 15, each Terraform resource must have its version specified.
+Before version 15, Terraform was picking the latest version available on resource creation.
+This caused inconsistencies as new resources created with the same manifest as
+old resources were not exhibiting the same behavior.
+
+Resource version is now immutable. Changing a resource version will cause
+Terraform to delete and re-create the resource. This ensures the correct
+defaults are set.
+
+Existing resources will continue to work as Terraform already imported their
+version. However, new resources will require an explicit version.
+
+### Other changes
+
+#### Increased password length
+
+The minimum password length has been increased to 12 characters.
+
+#### Increased account lockout interval
+
+The account lockout interval has been increased to 30 minutes.
 
 ## 14.0.0 (09/20/23)
 
@@ -227,7 +366,7 @@ applications in Kubernetes clusters. When connected to a Kubernetes cluster (or
 deployed as a Helm chart), Teleport discovery service will automatically find
 and enroll web applications for use with app access.
 
-See documentation [here](docs/pages/application-access/enroll-kubernetes-applications.mdx).
+See documentation [here](docs/pages/auto-discovery/kubernetes-applications.mdx).
 
 #### Extended Kubernetes per-resource RBAC
 
@@ -300,7 +439,7 @@ Teleport 14 before upgrading.
 #### SSH node open dial no longer supported
 
 Teleport 14 no longer allows connecting to OpenSSH servers not registered with
-the cluster. Follow the updated agentless OpenSSH integration [guide](docs/pages/server-access/guides/openssh.mdx)
+the cluster. Follow the updated agentless OpenSSH integration [guide](docs/pages/server-access/openssh/openssh.mdx)
 to register your OpenSSH nodes in the cluster’s inventory.
 
 You can set `TELEPORT_UNSTABLE_UNLISTED_AGENT_DIALING=yes` environment variable
@@ -549,7 +688,7 @@ This will allow users to view the OpenSSH nodes in Web UI and using `tsh ls`
 and use RBAC to control access to them.
 
 See the updated [OpenSSH integration
-guide](docs/pages/server-access/guides/openssh.mdx).
+guide](docs/pages/server-access/openssh/openssh.mdx).
 
 ### Cross-cluster search for Teleport Connect
 
@@ -3321,7 +3460,7 @@ can limit access by changing the options on the new `event` resource.
 The minimum set of Kubernetes permissions that need to be granted to Teleport
 proxies has been updated. If you use the Kubernetes integration, please make
 sure that the ClusterRole used by the proxy has [sufficient
-permissions](./docs/pages/kubernetes-access/manage-access/rbac.mdx).
+permissions](./docs/pages/kubernetes-access/controls.mdx).
 
 ##### Path prefix for etcd
 
@@ -4617,7 +4756,7 @@ The most pressing issues (a phishing attack which can potentially be used to ext
 
 ### Bugfixes
 
-* Roles created the the Web UI now have `node` resource. [#949](https://github.com/gravitational/teleport/pull/949)
+* Roles created in the Web UI now have `node` resource. [#949](https://github.com/gravitational/teleport/pull/949)
 
 ## 2.0.3
 

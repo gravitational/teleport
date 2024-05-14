@@ -36,8 +36,8 @@ import (
 // to trace errors. If the provided error is not an `RequestFailure` it returns
 // the error without modifying it.
 func ConvertRequestFailureError(err error) error {
-	requestErr, ok := err.(awserr.RequestFailure)
-	if !ok {
+	var requestErr awserr.RequestFailure
+	if !errors.As(err, &requestErr) {
 		return err
 	}
 
@@ -66,7 +66,8 @@ func convertRequestFailureErrorFromStatusCode(statusCode int, requestErr error) 
 // ConvertIAMError converts common errors from IAM clients to trace errors.
 func ConvertIAMError(err error) error {
 	// By error code.
-	if awsErr, ok := err.(awserr.Error); ok {
+	var awsErr awserr.Error
+	if errors.As(err, &awsErr) {
 		switch awsErr.Code() {
 		case iam.ErrCodeUnmodifiableEntityException:
 			return trace.AccessDenied(awsErr.Error())
@@ -128,8 +129,9 @@ func ConvertIAMv2Error(err error) error {
 
 // ConvertLoadConfigError converts common AWS config loading errors to trace errors.
 func ConvertLoadConfigError(configErr error) error {
-	switch configErr.(type) {
-	case config.SharedConfigProfileNotExistError:
+	var sharedConfigProfileNotExistError config.SharedConfigProfileNotExistError
+	switch {
+	case errors.As(configErr, &sharedConfigProfileNotExistError):
 		return trace.NotFound(configErr.Error())
 	}
 

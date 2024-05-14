@@ -37,6 +37,10 @@ const GlobalStyle = createGlobalStyle`
     font-family: ${props => props.theme.font};
   }
 
+  input {
+    accent-color: ${props => props.theme.colors.brand};
+  }
+
   // remove dotted Firefox outline
   button, a {
     outline: 0;

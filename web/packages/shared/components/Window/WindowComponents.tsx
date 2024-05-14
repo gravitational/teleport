@@ -60,7 +60,12 @@ export const WindowContentContainer = styled.div`
 
 export const WindowCode = styled.div`
   font-size: 12px;
-  font-family: Menlo, DejaVu Sans Mono, Consolas, Lucida Console, monospace;
+  font-family:
+    Menlo,
+    DejaVu Sans Mono,
+    Consolas,
+    Lucida Console,
+    monospace;
   line-height: 20px;
   white-space: pre-wrap;
 `;

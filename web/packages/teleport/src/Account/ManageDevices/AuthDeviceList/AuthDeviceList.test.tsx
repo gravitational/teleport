@@ -31,6 +31,8 @@ const devices: MfaDevice[] = [
     name: 'touch_id',
     registeredDate: new Date(1628799417000),
     lastUsedDate: new Date(1628799417000),
+    type: 'webauthn',
+    usage: 'passwordless',
   },
   {
     id: '2',
@@ -38,6 +40,8 @@ const devices: MfaDevice[] = [
     name: 'yubikey',
     registeredDate: new Date(1623722252000),
     lastUsedDate: new Date(1623981452000),
+    type: 'webauthn',
+    usage: 'passwordless',
   },
 ];
 
@@ -56,7 +60,13 @@ function getTableCellContents() {
 }
 
 test('renders devices', () => {
-  render(<AuthDeviceList header="Header" devices={devices} />);
+  render(
+    <AuthDeviceList
+      header="Header"
+      deviceTypeColumnName="Passkey Type"
+      devices={devices}
+    />
+  );
   expect(screen.getByText('Header')).toBeInTheDocument();
   expect(getTableCellContents()).toEqual({
     header: ['Passkey Type', 'Nickname', 'Added', 'Last Used', 'Actions'],
@@ -68,7 +78,13 @@ test('renders devices', () => {
 });
 
 test('renders no devices', () => {
-  render(<AuthDeviceList header="Header" devices={[]} />);
+  render(
+    <AuthDeviceList
+      deviceTypeColumnName="Passkey Type"
+      header="Header"
+      devices={[]}
+    />
+  );
   expect(screen.getByText('Header')).toBeInTheDocument();
   expect(screen.queryAllByRole('row')).toEqual([]);
 });

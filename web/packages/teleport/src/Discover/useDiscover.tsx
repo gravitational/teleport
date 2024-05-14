@@ -30,13 +30,13 @@ import {
   DiscoverServiceDeployType,
 } from 'teleport/services/userEvent';
 import cfg from 'teleport/config';
-
+import { DiscoveryConfig } from 'teleport/services/discovery';
 import {
   addIndexToViews,
   findViewAtIndex,
-  ResourceViewConfig,
-  View,
-} from './flow';
+} from 'teleport/components/Wizard/flow';
+
+import { ResourceViewConfig, View } from './flow';
 import { viewConfigs } from './resourceViewConfigs';
 import { EViewConfigs } from './types';
 import { ServiceDeployMethod } from './Database/common';
@@ -294,7 +294,7 @@ export function DiscoverProvider({
     const currCfg = [...viewConfigs, ...eViewConfigs].find(
       r => r.kind === resource.kind
     );
-    let indexedViews = [];
+    let indexedViews: View[] = [];
     if (typeof currCfg.views === 'function') {
       indexedViews = addIndexToViews(currCfg.views(resource));
     } else {
@@ -480,13 +480,26 @@ type BaseMeta = {
    * This field is set when a user wants to enroll AWS resources.
    */
   awsRegion?: Regions;
+  /**
+   * If this field is defined, then user opted for auto discovery.
+   * Auto discover will automatically identify and register resources
+   * in customers infrastructure such as Kubernetes clusters or databases hosted
+   * on cloud platforms like AWS, Azure, etc.
+   */
+  autoDiscovery?: {
+    config: DiscoveryConfig;
+    // requiredVpcsAndSubnets is a map of required vpcs for auto discovery.
+    // If this is empty, then a user can skip deploying db agents.
+    // If >0, auto discovery requires deploying db agents.
+    requiredVpcsAndSubnets?: Record<string, string[]>;
+  };
 };
 
 // NodeMeta describes the fields for node resource
 // that needs to be preserved throughout the flow.
 export type NodeMeta = BaseMeta & {
   node: Node;
-  ec2Ice?: Ec2InstanceConnectEndpoint;
+  ec2Ices?: Ec2InstanceConnectEndpoint[];
 };
 
 // DbMeta describes the fields for a db resource
@@ -496,8 +509,10 @@ export type DbMeta = BaseMeta & {
   // The enroll event expects num count of enrolled RDS's, update accordingly.
   db?: Database;
   selectedAwsRdsDb?: AwsRdsDatabase;
-  // serviceDeployedMethod flag will be undefined if user skipped
-  // deploying service (service already existed).
+  /**
+   * serviceDeployedMethod flag will be undefined if user skipped
+   * deploying service (service already existed).
+   */
   serviceDeployedMethod?: ServiceDeployMethod;
 };
 
@@ -507,6 +522,27 @@ export type KubeMeta = BaseMeta & {
   kube: Kube;
 };
 
-export type AgentMeta = DbMeta | NodeMeta | KubeMeta;
+// KubeMeta describes the fields for a kube resource
+// that needs to be preserved throughout the flow.
+export type EksMeta = BaseMeta & {
+  kube: Kube;
+};
+
+// SamlMeta describes the fields for SAML IdP
+// service provider resource that needs to be
+// preserved throughout the flow.
+export type SamlMeta = BaseMeta & SamlGcpWorkforceMeta;
+
+// GcpWorkforceMeta describes the fields for SAML
+// GCP workforce pool resource that needs to be
+// preserved throughout the flow.
+export type SamlGcpWorkforceMeta = {
+  isAutoConfig: boolean;
+  orgId: string;
+  poolName: string;
+  poolProviderName: string;
+};
+
+export type AgentMeta = DbMeta | NodeMeta | KubeMeta | EksMeta | SamlMeta;
 
 export type State = ReturnType<typeof useDiscover>;

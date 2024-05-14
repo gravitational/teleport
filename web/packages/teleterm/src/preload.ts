@@ -18,8 +18,10 @@
 
 import { contextBridge } from 'electron';
 import { ChannelCredentials, ServerCredentials } from '@grpc/grpc-js';
+import { GrpcTransport } from '@protobuf-ts/grpc-transport';
 
-import createTshClient from 'teleterm/services/tshd/createClient';
+import { createTshdClient, createVnetClient } from 'teleterm/services/tshd';
+import { loggingInterceptor } from 'teleterm/services/tshd/interceptors';
 import createMainProcessClient from 'teleterm/mainProcess/mainProcessClient';
 import { createFileLoggerService } from 'teleterm/services/logger';
 import Logger from 'teleterm/logger';
@@ -60,17 +62,28 @@ async function getElectronGlobals(): Promise<ElectronGlobals> {
     mainProcessClient.getResolvedChildProcessAddresses(),
     createGrpcCredentials(runtimeSettings),
   ]);
-  const tshClient = createTshClient(addresses.tsh, credentials.tshd);
+  const tshdTransport = new GrpcTransport({
+    host: addresses.tsh,
+    channelCredentials: credentials.tshd,
+    interceptors: [loggingInterceptor(new Logger('tshd'))],
+  });
+  const tshClient = createTshdClient(tshdTransport);
+  const vnetClient = createVnetClient(tshdTransport);
   const ptyServiceClient = createPtyService(
     addresses.shared,
     credentials.shared,
-    runtimeSettings
+    runtimeSettings,
+    {
+      noResume: mainProcessClient.configService.get('ssh.noResume').value,
+    }
   );
-  const { subscribeToTshdEvent, resolvedAddress: tshdEventsServerAddress } =
-    await createTshdEventsServer(
-      runtimeSettings.tshdEvents.requestedNetworkAddress,
-      credentials.tshdEvents
-    );
+  const {
+    setupTshdEventContextBridgeService,
+    resolvedAddress: tshdEventsServerAddress,
+  } = await createTshdEventsServer(
+    runtimeSettings.tshdEvents.requestedNetworkAddress,
+    credentials.tshdEvents
+  );
 
   // Here we send to tshd the address of the tshd events server that we just created. This makes
   // tshd prepare a client for the server.
@@ -78,13 +91,16 @@ async function getElectronGlobals(): Promise<ElectronGlobals> {
   // All uses of tshClient must wait before updateTshdEventsServerAddress finishes to ensure that
   // the client is ready. Otherwise we run into a risk of causing panics in tshd due to a missing
   // tshd events client.
-  await tshClient.updateTshdEventsServerAddress(tshdEventsServerAddress);
+  await tshClient.updateTshdEventsServerAddress({
+    address: tshdEventsServerAddress,
+  });
 
   return {
     mainProcessClient,
     tshClient,
+    vnetClient,
     ptyServiceClient,
-    subscribeToTshdEvent,
+    setupTshdEventContextBridgeService,
   };
 }
 
@@ -116,6 +132,10 @@ async function createGrpcCredentials(
     generateAndSaveGrpcCert(certsDir, GrpcCertName.Renderer),
     readGrpcCert(certsDir, GrpcCertName.Tshd),
     readGrpcCert(certsDir, GrpcCertName.Shared),
+    // tsh daemon expects both certs to be created before accepting connections. So even though the
+    // renderer process does not use the cert of the main process, it must still wait for the cert
+    // to be saved to disk.
+    readGrpcCert(certsDir, GrpcCertName.MainProcess),
   ]);
 
   return {

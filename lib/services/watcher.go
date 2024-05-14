@@ -37,6 +37,12 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+const (
+	// smallFanoutCapacity is the default capacity used for the circular event buffer allocated by
+	// resource watchers that implement event fanout.
+	smallFanoutCapacity = 128
+)
+
 // resourceCollector is a generic interface for maintaining an up-to-date view
 // of a resource set being monitored. Used in conjunction with resourceWatcher.
 type resourceCollector interface {
@@ -118,6 +124,9 @@ func (cfg *ResourceWatcherConfig) CheckAndSetDefaults() error {
 // It is the caller's responsibility to verify the inputs' validity
 // incl. cfg.CheckAndSetDefaults.
 func newResourceWatcher(ctx context.Context, collector resourceCollector, cfg ResourceWatcherConfig) (*resourceWatcher, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
 		First:  utils.FullJitter(cfg.MaxRetryPeriod / 10),
 		Step:   cfg.MaxRetryPeriod / 5,
@@ -552,8 +561,10 @@ func NewLockWatcher(ctx context.Context, cfg LockWatcherConfig) (*LockWatcher, e
 	}
 	collector := &lockCollector{
 		LockWatcherConfig: cfg,
-		fanout:            NewFanout(),
-		initializationC:   make(chan struct{}),
+		fanout: NewFanoutV2(FanoutV2Config{
+			Capacity: smallFanoutCapacity,
+		}),
+		initializationC: make(chan struct{}),
 	}
 	// Resource watcher require the fanout to be initialized before passing in.
 	// Otherwise, Emit() may fail due to a race condition mentioned in https://github.com/gravitational/teleport/issues/19289
@@ -581,7 +592,7 @@ type lockCollector struct {
 	// currentRW is a mutex protecting both current and isStale.
 	currentRW sync.RWMutex
 	// fanout provides support for multiple subscribers to the lock updates.
-	fanout *Fanout
+	fanout *FanoutV2
 	// initializationC is used to check whether the initial sync has completed
 	initializationC chan struct{}
 	once            sync.Once
@@ -1455,6 +1466,9 @@ func (cfg *CertAuthorityWatcherConfig) CheckAndSetDefaults() error {
 		}
 		cfg.AuthorityGetter = getter
 	}
+	if len(cfg.Types) == 0 {
+		return trace.BadParameter("missing parameter Types")
+	}
 	return nil
 }
 
@@ -1466,13 +1480,17 @@ func NewCertAuthorityWatcher(ctx context.Context, cfg CertAuthorityWatcherConfig
 
 	collector := &caCollector{
 		CertAuthorityWatcherConfig: cfg,
-		fanout:                     NewFanout(),
-		cas:                        make(map[types.CertAuthType]map[string]types.CertAuthority, len(cfg.Types)),
-		initializationC:            make(chan struct{}),
+		fanout: NewFanoutV2(FanoutV2Config{
+			Capacity: smallFanoutCapacity,
+		}),
+		cas:             make(map[types.CertAuthType]map[string]types.CertAuthority, len(cfg.Types)),
+		filter:          make(types.CertAuthorityFilter, len(cfg.Types)),
+		initializationC: make(chan struct{}),
 	}
 
 	for _, t := range cfg.Types {
 		collector.cas[t] = make(map[string]types.CertAuthority)
+		collector.filter[t] = types.Wildcard
 	}
 	// Resource watcher require the fanout to be initialized before passing in.
 	// Otherwise, Emit() may fail due to a race condition mentioned in https://github.com/gravitational/teleport/issues/19289
@@ -1494,7 +1512,7 @@ type CertAuthorityWatcher struct {
 // caCollector accompanies resourceWatcher when monitoring cert authority resources.
 type caCollector struct {
 	CertAuthorityWatcherConfig
-	fanout *Fanout
+	fanout *FanoutV2
 
 	// lock protects concurrent access to cas
 	lock sync.RWMutex
@@ -1503,10 +1521,14 @@ type caCollector struct {
 	// initializationC is used to check whether the initial sync has completed
 	initializationC chan struct{}
 	once            sync.Once
+	filter          types.CertAuthorityFilter
 }
 
 // Subscribe is used to subscribe to the lock updates.
 func (c *caCollector) Subscribe(ctx context.Context, filter types.CertAuthorityFilter) (types.Watcher, error) {
+	if len(filter) == 0 {
+		filter = c.filter
+	}
 	watch := types.Watch{
 		Kinds: []types.WatchKind{
 			{
@@ -1532,7 +1554,7 @@ func (c *caCollector) Subscribe(ctx context.Context, filter types.CertAuthorityF
 
 // resourceKinds specifies the resource kind to watch.
 func (c *caCollector) resourceKinds() []types.WatchKind {
-	return []types.WatchKind{{Kind: types.KindCertAuthority}}
+	return []types.WatchKind{{Kind: types.KindCertAuthority, Filter: c.filter.IntoMap()}}
 }
 
 // isInitialized is used to check that the cache has done its initial
@@ -1620,12 +1642,9 @@ func (c *caCollector) processEventAndUpdateCurrent(ctx context.Context, event ty
 }
 
 func (c *caCollector) watchingType(t types.CertAuthType) bool {
-	for _, caType := range c.Types {
-		if caType == t {
-			return true
-		}
+	if _, ok := c.cas[t]; ok {
+		return true
 	}
-
 	return false
 }
 
@@ -1716,6 +1735,8 @@ type Node interface {
 	GetTeleportVersion() string
 	// GetAddr return server address
 	GetAddr() string
+	// GetPublicAddrs returns all public addresses where this server can be reached.
+	GetPublicAddrs() []string
 	// GetHostname returns server hostname
 	GetHostname() string
 	// GetNamespace returns server namespace
@@ -1726,8 +1747,11 @@ type Node interface {
 	GetRotation() types.Rotation
 	// GetUseTunnel gets if a reverse tunnel should be used to connect to this node.
 	GetUseTunnel() bool
-	// GetProxyID returns a list of proxy ids this server is connected to.
+	// GetProxyIDs returns a list of proxy ids this server is connected to.
 	GetProxyIDs() []string
+	// IsEICE returns whether the Node is an EICE instance.
+	// Must be `openssh-ec2-ice` subkind and have the AccountID and InstanceID information (AWS Metadata or Labels).
+	IsEICE() bool
 }
 
 // GetNodes allows callers to retrieve a subset of nodes that match the filter provided. The
@@ -1749,6 +1773,22 @@ func (n *nodeCollector) GetNodes(ctx context.Context, fn func(n Node) bool) []ty
 	}
 
 	return matched
+}
+
+// GetNode allows callers to retrieve a node based on its name. The
+// returned server are a copy and can be safely modified.
+func (n *nodeCollector) GetNode(ctx context.Context, name string) (types.Server, error) {
+	// Attempt to freshen our data first.
+	n.refreshStaleNodes(ctx)
+
+	n.rw.RLock()
+	defer n.rw.RUnlock()
+
+	server, found := n.current[name]
+	if !found {
+		return nil, trace.NotFound("server does not exist")
+	}
+	return server.DeepCopy(), nil
 }
 
 // refreshStaleNodes attempts to reload nodes from the NodeGetter if

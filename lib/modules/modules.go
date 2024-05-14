@@ -24,6 +24,7 @@ import (
 	"context"
 	"crypto"
 	"fmt"
+	"os"
 	"runtime"
 	"sync"
 	"time"
@@ -93,6 +94,10 @@ type Features struct {
 	CustomTheme string
 
 	// AccessGraph enables the usage of access graph.
+	// NOTE: this is a legacy flag that is currently used to signal
+	// that Access Graph integration is *enabled* on a cluster.
+	// *Access* to the feature is gated on the `Policy` flag.
+	// TODO(justinas): remove this field once "TAG enabled" status is moved to a resource in the backend.
 	AccessGraph bool
 	// IdentityGovernanceSecurity indicates whether IGS related features are enabled:
 	// access list, access request, access monitoring, device trust.
@@ -103,6 +108,21 @@ type Features struct {
 	AccessMonitoring AccessMonitoringFeature
 	// ProductType describes the product being used.
 	ProductType ProductType
+	// Policy holds settings for the Teleport Policy feature set.
+	// At the time of writing, this includes Teleport Access Graph (TAG).
+	Policy PolicyFeature
+	// Questionnaire indicates whether cluster users should get an onboarding questionnaire
+	Questionnaire bool
+	// IsStripeManaged indicates if the cluster billing is managed via Stripe
+	IsStripeManaged bool
+	// ExternalAuditStorage indicates whether the EAS feature is enabled in the cluster.
+	ExternalAuditStorage bool
+	// SupportType indicates the type of customer's support
+	SupportType proto.SupportType
+	// JoinActiveSessions indicates whether joining active sessions via web UI is enabled
+	JoinActiveSessions bool
+	// MobileDeviceManagement indicates whether endpoints management (like Jamf Plugin) can be used in the cluster
+	MobileDeviceManagement bool
 }
 
 // DeviceTrustFeature holds the Device Trust feature general and usage-based
@@ -147,6 +167,11 @@ type AccessMonitoringFeature struct {
 	MaxReportRangeLimit int
 }
 
+type PolicyFeature struct {
+	// Enabled is set to `true` if Teleport Policy is enabled in the license.
+	Enabled bool
+}
+
 // ToProto converts Features into proto.Features
 func (f Features) ToProto() *proto.Features {
 	return &proto.Features{
@@ -184,6 +209,15 @@ func (f Features) ToProto() *proto.Features {
 		AccessList: &proto.AccessListFeature{
 			CreateLimit: int32(f.AccessList.CreateLimit),
 		},
+		Policy: &proto.PolicyFeature{
+			Enabled: f.Policy.Enabled,
+		},
+		Questionnaire:          f.Questionnaire,
+		IsStripeManaged:        f.IsStripeManaged,
+		ExternalAuditStorage:   f.ExternalAuditStorage,
+		SupportType:            f.SupportType,
+		JoinActiveSessions:     f.JoinActiveSessions,
+		MobileDeviceManagement: f.MobileDeviceManagement,
 	}
 }
 
@@ -210,6 +244,7 @@ func (f Features) IGSEnabled() bool {
 	return f.IdentityGovernanceSecurity
 }
 
+// TODO(mcbattirola): remove isTeam when it is no longer used
 func (f Features) IsTeam() bool {
 	return f.ProductType == ProductTypeTeam
 }
@@ -259,7 +294,7 @@ type Modules interface {
 	// BuildType returns build type (OSS or Enterprise)
 	BuildType() string
 	// AttestHardwareKey attests a hardware key and returns its associated private key policy.
-	AttestHardwareKey(context.Context, interface{}, keys.PrivateKeyPolicy, *keys.AttestationStatement, crypto.PublicKey, time.Duration) (keys.PrivateKeyPolicy, error)
+	AttestHardwareKey(context.Context, interface{}, *keys.AttestationStatement, crypto.PublicKey, time.Duration) (*keys.AttestationData, error)
 	// GenerateAccessRequestPromotions generates a list of valid promotions for given access request.
 	GenerateAccessRequestPromotions(context.Context, AccessResourcesGetter, types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
 	// GetSuggestedAccessLists generates a list of valid promotions for given access request.
@@ -297,17 +332,25 @@ func GetModules() Modules {
 
 // ValidateResource performs additional resource checks.
 func ValidateResource(res types.Resource) error {
+	// todo(lxea): DELETE IN 17 [remove env var, leave insecure test mode]
+	if GetModules().Features().Cloud ||
+		(os.Getenv(teleport.EnvVarAllowNoSecondFactor) != "yes" && !IsInsecureTestMode()) {
+
+		switch r := res.(type) {
+		case types.AuthPreference:
+			switch r.GetSecondFactor() {
+			case constants.SecondFactorOff, constants.SecondFactorOptional:
+				return trace.BadParameter("cannot disable two-factor authentication")
+			}
+		}
+	}
+
 	// All checks below are Cloud-specific.
 	if !GetModules().Features().Cloud {
 		return nil
 	}
 
 	switch r := res.(type) {
-	case types.AuthPreference:
-		switch r.GetSecondFactor() {
-		case constants.SecondFactorOff, constants.SecondFactorOptional:
-			return trace.BadParameter("cannot disable two-factor authentication on Cloud")
-		}
 	case types.SessionRecordingConfig:
 		switch r.GetMode() {
 		case types.RecordAtProxy, types.RecordAtProxySync:
@@ -342,12 +385,14 @@ func (p *defaultModules) Features() Features {
 	})
 
 	return Features{
-		Kubernetes:        true,
-		DB:                true,
-		App:               true,
-		Desktop:           true,
-		AutomaticUpgrades: p.automaticUpgrades,
-		Assist:            true,
+		Kubernetes:         true,
+		DB:                 true,
+		App:                true,
+		Desktop:            true,
+		AutomaticUpgrades:  p.automaticUpgrades,
+		Assist:             true,
+		JoinActiveSessions: true,
+		SupportType:        proto.SupportType_SUPPORT_TYPE_FREE,
 	}
 }
 
@@ -361,9 +406,9 @@ func (p *defaultModules) IsBoringBinary() bool {
 }
 
 // AttestHardwareKey attests a hardware key.
-func (p *defaultModules) AttestHardwareKey(_ context.Context, _ interface{}, _ keys.PrivateKeyPolicy, _ *keys.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (keys.PrivateKeyPolicy, error) {
+func (p *defaultModules) AttestHardwareKey(_ context.Context, _ interface{}, _ *keys.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (*keys.AttestationData, error) {
 	// Default modules do not support attesting hardware keys.
-	return keys.PrivateKeyPolicyNone, nil
+	return nil, trace.NotFound("no attestation data for the given key")
 }
 
 // GenerateAccessRequestPromotions is a noop since OSS teleport does not support generating access list promotions.
@@ -400,3 +445,27 @@ var (
 	mutex   sync.Mutex
 	modules Modules = &defaultModules{}
 )
+
+var (
+	// flagLock protects access to accessing insecure test mode below
+	flagLock sync.Mutex
+
+	// insecureTestAllow is used to allow disabling second factor auth
+	// in test environments. Not user configurable.
+	insecureTestAllowNoSecondFactor bool
+)
+
+// SetInsecureTestMode is used to set insecure test mode on, to allow
+// second factor to be disabled
+func SetInsecureTestMode(m bool) {
+	flagLock.Lock()
+	defer flagLock.Unlock()
+	insecureTestAllowNoSecondFactor = m
+}
+
+// IsInsecureTestMode retrieves the current insecure test mode value
+func IsInsecureTestMode() bool {
+	flagLock.Lock()
+	defer flagLock.Unlock()
+	return insecureTestAllowNoSecondFactor
+}

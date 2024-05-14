@@ -19,6 +19,7 @@
 package mysql
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/go-mysql-org/go-mysql/mysql"
@@ -139,7 +140,7 @@ func Test_convertActivateError(t *testing.T) {
 			input: trace.Wrap(permissionError),
 			errorIs: func(err error) bool {
 				// Not converted.
-				return trace.Unwrap(err) == permissionError
+				return errors.Is(trace.Unwrap(err), permissionError)
 			},
 			errorContains: permissionError.Message,
 		},

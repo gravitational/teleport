@@ -170,12 +170,6 @@ var (
 		"kms:GenerateDataKey",
 		"kms:Decrypt",
 	}
-	// ec2Actions is a list of actions used for EC2 auto-discovery
-	ec2Actions = []string{
-		"ec2:DescribeInstances",
-		"ssm:GetCommandInvocation",
-		"ssm:SendCommand",
-	}
 	// stsActions is a list of actions used for assuming an AWS role.
 	stsActions = []string{
 		"sts:AssumeRole",
@@ -336,8 +330,7 @@ func (c *ConfiguratorConfig) CheckAndSetDefaults() error {
 			c.AWSSession, err = awssession.NewSessionWithOptions(awssession.Options{
 				SharedConfigState: awssession.SharedConfigEnable,
 				Config: aws.Config{
-					EC2MetadataEnableFallback: aws.Bool(false),
-					UseFIPSEndpoint:           useFIPSEndpoint,
+					UseFIPSEndpoint: useFIPSEndpoint,
 				},
 			})
 			if err != nil {
@@ -369,9 +362,8 @@ func (c *ConfiguratorConfig) CheckAndSetDefaults() error {
 					}
 					session, err := awssession.NewSessionWithOptions(awssession.Options{
 						Config: aws.Config{
-							Region:                    &region,
-							EC2MetadataEnableFallback: aws.Bool(false),
-							UseFIPSEndpoint:           useFIPSEndpoint,
+							Region:          &region,
+							UseFIPSEndpoint: useFIPSEndpoint,
 						},
 						SharedConfigState: awssession.SharedConfigEnable,
 					})
@@ -801,7 +793,7 @@ func buildSSMDocumentCreators(ssm map[string]ssmiface.SSMAPI, targetCfg targetCo
 			ssmCreator := awsSSMDocumentCreator{
 				ssm:      ssm[region],
 				Name:     matcher.SSM.DocumentName,
-				Contents: EC2DiscoverySSMDocument(proxyAddr),
+				Contents: awslib.EC2DiscoverySSMDocument(proxyAddr),
 			}
 			creators = append(creators, &ssmCreator)
 		}
@@ -1011,11 +1003,7 @@ func buildIAMEditStatements(target awslib.Identity) ([]*awslib.Statement, error)
 // EC2 instance auto-discovery.
 func buildEC2AutoDiscoveryStatements() []*awslib.Statement {
 	return []*awslib.Statement{
-		{
-			Effect:    awslib.EffectAllow,
-			Actions:   ec2Actions,
-			Resources: []string{"*"},
-		},
+		awslib.StatementForEC2SSMAutoDiscover(),
 	}
 }
 

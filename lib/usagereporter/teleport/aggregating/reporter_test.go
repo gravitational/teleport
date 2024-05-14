@@ -69,11 +69,12 @@ func TestReporter(t *testing.T) {
 	require.NoError(t, err)
 
 	r, err := NewReporter(ctx, ReporterConfig{
-		Backend:     bk,
-		Log:         logrus.StandardLogger(),
-		Clock:       clk,
-		ClusterName: clusterName,
-		HostID:      uuid.NewString(),
+		Backend:          bk,
+		Log:              logrus.StandardLogger(),
+		Clock:            clk,
+		ClusterName:      clusterName,
+		HostID:           uuid.NewString(),
+		AnonymizationKey: "0123456789abcdef",
 	})
 	require.NoError(t, err)
 
@@ -98,6 +99,10 @@ func TestReporter(t *testing.T) {
 		UserName:    "alice",
 		SessionType: "ssh",
 	})
+	r.AnonymizeAndSubmit(&usagereporter.SPIFFESVIDIssuedEvent{
+		UserName: "alice",
+	})
+	recvIngested()
 	recvIngested()
 	recvIngested()
 	recvIngested()
@@ -114,6 +119,7 @@ func TestReporter(t *testing.T) {
 	record := reports[0].Records[0]
 	require.Equal(t, uint64(1), record.Logins)
 	require.Equal(t, uint64(2), record.SshSessions)
+	require.Equal(t, uint64(1), record.SpiffeSvidsIssued)
 
 	r.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
 		Name:   "srv01",

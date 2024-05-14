@@ -30,6 +30,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	logrus "github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/session"
@@ -51,7 +52,7 @@ func NewSessionWriter(cfg SessionWriterConfig) (*SessionWriter, error) {
 		cfg:    cfg,
 		stream: stream,
 		log: logrus.WithFields(logrus.Fields{
-			trace.Component: cfg.Component,
+			teleport.ComponentKey: cfg.Component,
 		}),
 		cancel:   cancel,
 		closeCtx: ctx,

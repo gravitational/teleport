@@ -26,9 +26,11 @@ import (
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
+	"github.com/gravitational/teleport/lib/teleterm/services/clientcache"
 	"github.com/gravitational/teleport/lib/teleterm/services/connectmycomputer"
 )
 
@@ -69,6 +71,24 @@ type Config struct {
 	ConnectMyComputerNodeJoinWait     *connectmycomputer.NodeJoinWait
 	ConnectMyComputerNodeDelete       *connectmycomputer.NodeDelete
 	ConnectMyComputerNodeName         *connectmycomputer.NodeName
+
+	CreateClientCacheFunc func(resolver ResolveClusterFunc) ClientCache
+}
+
+// ResolveClusterFunc returns a cluster by URI.
+type ResolveClusterFunc func(uri uri.ResourceURI) (*clusters.Cluster, *client.TeleportClient, error)
+
+// ClientCache stores clients keyed by cluster URI.
+type ClientCache interface {
+	// Get returns a client from the cache if there is one,
+	// otherwise it dials the remote server.
+	// The caller should not close the returned client.
+	Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.ClusterClient, error)
+	// ClearForRoot closes and removes clients from the cache
+	// for the root cluster and its leaf clusters.
+	ClearForRoot(clusterURI uri.ResourceURI) error
+	// Clear closes and removes all clients.
+	Clear() error
 }
 
 type CreateTshdEventsClientCredsFunc func() (grpc.DialOption, error)
@@ -96,7 +116,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 
 	if c.Log == nil {
-		c.Log = logrus.NewEntry(logrus.StandardLogger()).WithField(trace.Component, "daemon")
+		c.Log = logrus.NewEntry(logrus.StandardLogger()).WithField(teleport.ComponentKey, "daemon")
 	}
 
 	if c.ConnectMyComputerRoleSetup == nil {
@@ -138,6 +158,15 @@ func (c *Config) CheckAndSetDefaults() error {
 		}
 
 		c.ConnectMyComputerNodeName = nodeName
+	}
+
+	if c.CreateClientCacheFunc == nil {
+		c.CreateClientCacheFunc = func(resolver ResolveClusterFunc) ClientCache {
+			return clientcache.New(clientcache.Config{
+				Log:                c.Log,
+				ResolveClusterFunc: clientcache.ResolveClusterFunc(resolver),
+			})
+		}
 	}
 
 	return nil

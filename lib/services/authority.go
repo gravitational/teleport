@@ -70,7 +70,7 @@ func ValidateCertAuthority(ca types.CertAuthority) (err error) {
 	switch ca.GetType() {
 	case types.UserCA, types.HostCA:
 		err = checkUserOrHostCA(ca)
-	case types.DatabaseCA:
+	case types.DatabaseCA, types.DatabaseClientCA:
 		err = checkDatabaseCA(ca)
 	case types.OpenSSHCA:
 		err = checkOpenSSHCA(ca)
@@ -78,10 +78,26 @@ func ValidateCertAuthority(ca types.CertAuthority) (err error) {
 		err = checkJWTKeys(ca)
 	case types.SAMLIDPCA:
 		err = checkSAMLIDPCA(ca)
+	case types.SPIFFECA:
+		err = checkSPIFFECA(ca)
 	default:
 		return trace.BadParameter("invalid CA type %q", ca.GetType())
 	}
 	return trace.Wrap(err)
+}
+
+func checkSPIFFECA(cai types.CertAuthority) error {
+	ca, ok := cai.(*types.CertAuthorityV2)
+	if !ok {
+		return trace.BadParameter("unknown CA type %T", cai)
+	}
+	if len(ca.Spec.ActiveKeys.TLS) == 0 {
+		return trace.BadParameter("certificate authority missing TLS key pairs")
+	}
+	if len(ca.Spec.ActiveKeys.JWT) == 0 {
+		return trace.BadParameter("certificate authority missing JWT key pairs")
+	}
+	return nil
 }
 
 func checkUserOrHostCA(cai types.CertAuthority) error {
@@ -118,7 +134,7 @@ func checkDatabaseCA(cai types.CertAuthority) error {
 	}
 
 	if len(ca.Spec.ActiveKeys.TLS) == 0 {
-		return trace.BadParameter("DB certificate authority missing TLS key pairs")
+		return trace.BadParameter("%s certificate authority missing TLS key pairs", ca.GetType())
 	}
 
 	for _, pair := range ca.GetTrustedTLSKeyPairs() {

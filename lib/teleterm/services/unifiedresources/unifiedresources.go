@@ -33,6 +33,8 @@ var supportedResourceKinds = []string{
 	types.KindNode,
 	types.KindDatabase,
 	types.KindKubernetesCluster,
+	types.KindApp,
+	types.KindSAMLIdPServiceProvider,
 }
 
 func List(ctx context.Context, cluster *clusters.Cluster, client Client, req *proto.ListUnifiedResourcesRequest) (*ListResponse, error) {
@@ -80,6 +82,46 @@ func List(ctx context.Context, cluster *clusters.Cluster, client Client, req *pr
 					KubernetesCluster: e.KubernetesServer.GetCluster(),
 				},
 			})
+		case *proto.PaginatedResource_AppServer:
+			app := e.AppServer.GetApp()
+
+			response.Resources = append(response.Resources, UnifiedResource{
+				App: &clusters.App{
+					URI:      cluster.URI.AppendApp(app.GetName()),
+					FQDN:     cluster.AssembleAppFQDN(app),
+					AWSRoles: cluster.GetAWSRoles(app),
+					App:      app,
+				},
+			})
+		case *proto.PaginatedResource_AppServerOrSAMLIdPServiceProvider:
+			//nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
+			if e.AppServerOrSAMLIdPServiceProvider.IsAppServer() {
+				app := e.AppServerOrSAMLIdPServiceProvider.GetAppServer().GetApp()
+				response.Resources = append(response.Resources, UnifiedResource{
+					App: &clusters.App{
+						URI:      cluster.URI.AppendApp(app.GetName()),
+						FQDN:     cluster.AssembleAppFQDN(app),
+						AWSRoles: cluster.GetAWSRoles(app),
+						App:      app,
+					},
+				})
+			} else {
+				provider := e.AppServerOrSAMLIdPServiceProvider.GetSAMLIdPServiceProvider()
+				response.Resources = append(response.Resources, UnifiedResource{
+					SAMLIdPServiceProvider: &clusters.SAMLIdPServiceProvider{
+						URI:      cluster.URI.AppendApp(provider.GetName()),
+						Provider: provider,
+					},
+				})
+			}
+		case *proto.PaginatedResource_SAMLIdPServiceProvider:
+			provider := e.SAMLIdPServiceProvider
+			response.Resources = append(response.Resources, UnifiedResource{
+				SAMLIdPServiceProvider: &clusters.SAMLIdPServiceProvider{
+					URI:      cluster.URI.AppendApp(provider.GetName()),
+					Provider: provider,
+				},
+			})
 		}
 	}
 
@@ -101,7 +143,9 @@ type ListResponse struct {
 // UnifiedResource combines all resource types into a single struct.
 // Only one filed should be set at a time.
 type UnifiedResource struct {
-	Server   *clusters.Server
-	Database *clusters.Database
-	Kube     *clusters.Kube
+	Server                 *clusters.Server
+	Database               *clusters.Database
+	Kube                   *clusters.Kube
+	App                    *clusters.App
+	SAMLIdPServiceProvider *clusters.SAMLIdPServiceProvider
 }

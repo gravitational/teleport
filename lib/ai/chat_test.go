@@ -58,7 +58,7 @@ func TestChat_PromptTokens(t *testing.T) {
 					Content: "Hello",
 				},
 			},
-			want: 721,
+			want: 850,
 		},
 		{
 			name: "system and user messages",
@@ -72,7 +72,7 @@ func TestChat_PromptTokens(t *testing.T) {
 					Content: "Hi LLM.",
 				},
 			},
-			want: 729,
+			want: 855,
 		},
 		{
 			name: "tokenize our prompt",
@@ -86,7 +86,7 @@ func TestChat_PromptTokens(t *testing.T) {
 					Content: "Show me free disk space on localhost node.",
 				},
 			},
-			want: 932,
+			want: 1114,
 		},
 	}
 

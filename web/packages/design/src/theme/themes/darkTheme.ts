@@ -97,6 +97,26 @@ const colors: ThemeColors = {
         'rgba(159,133,255, 0.18)',
         'rgba(159,133,255, 0.25)',
       ],
+      success: [
+        'rgba(0, 191, 166, 0.1)',
+        'rgba(0, 191, 166, 0.18)',
+        'rgba(0, 191, 166, 0.25)',
+      ],
+      danger: [
+        'rgba(255, 98, 87, 0.1)',
+        'rgba(255, 98, 87, 0.18)',
+        'rgba(255, 98, 87, 0.25)',
+      ],
+      alert: [
+        'rgba(255, 171, 0, 0.1)',
+        'rgba(255, 171, 0, 0.18)',
+        'rgba(255, 171, 0, 0.25)',
+      ],
+      informational: [
+        'rgba(0, 158, 255, 0.1)',
+        'rgba(0, 158, 255, 0.18)',
+        'rgba(0, 158, 255, 0.25)',
+      ],
       neutral: neutralColors,
     },
   },
@@ -165,10 +185,22 @@ const colors: ThemeColors = {
     active: '#FFA19A',
   },
 
+  success: {
+    main: '#00BFA6',
+    hover: '#33CCB8',
+    active: '#66D9CA',
+  },
+
   warning: {
     main: '#FFAB00',
     hover: '#FFBC33',
     active: '#FFCD66',
+  },
+
+  accent: {
+    main: 'rgba(0, 158, 255, 1)',
+    hover: 'rgba(51, 177, 255, 1)',
+    active: 'rgba(102, 197, 255, 1)',
   },
 
   notice: {
@@ -434,7 +466,8 @@ const colors: ThemeColors = {
   },
 
   link: '#009EFF',
-  success: '#00BFA5',
+
+  highlightedNavigationItem: 'rgba(255, 255, 255, 0.3)',
 
   dataVisualisation: dataVisualisationColors,
 };

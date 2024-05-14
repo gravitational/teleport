@@ -26,6 +26,7 @@ import { Box, Indicator } from 'design';
 import session from 'teleport/services/websession';
 import { storageService } from 'teleport/services/storageService';
 import { ApiError } from 'teleport/services/api/parseError';
+import { StyledIndicator } from 'teleport/Main';
 
 import { ErrorDialog } from './ErrorDialogue';
 
@@ -57,7 +58,10 @@ const Authenticated: React.FC<PropsWithChildren> = ({ children }) => {
       }
 
       try {
-        await session.validateCookieAndSession();
+        const result = await session.validateCookieAndSession();
+        if (result.hasDeviceExtensions) {
+          session.setIsDeviceTrusted();
+        }
         setAttempt({ status: 'success' });
       } catch (e) {
         if (e instanceof ApiError && e.response?.status == 403) {
@@ -100,7 +104,9 @@ const Authenticated: React.FC<PropsWithChildren> = ({ children }) => {
 
   return (
     <Box textAlign="center">
-      <Indicator />
+      <StyledIndicator>
+        <Indicator />
+      </StyledIndicator>
     </Box>
   );
 };

@@ -58,7 +58,7 @@ describe('rankResults', () => {
     const server = makeResourceResult({
       kind: 'server',
       resource: makeServer({
-        labelsList: makeLabelsList({ quux: 'bar-baz', foo: 'bar' }),
+        labels: makeLabelsList({ quux: 'bar-baz', foo: 'bar' }),
       }),
     });
 
@@ -87,7 +87,7 @@ describe('rankResults', () => {
         makeResourceResult({
           kind: 'server',
           resource: makeServer({
-            labelsList: makeLabelsList({ foo: 'bar1' }),
+            labels: makeLabelsList({ foo: 'bar1' }),
           }),
         })
       );
@@ -99,7 +99,7 @@ describe('rankResults', () => {
         kind: 'server',
         resource: makeServer({
           uri: lowestScoreServerUri,
-          labelsList: makeLabelsList({ foo: 'bar123456' }),
+          labels: makeLabelsList({ foo: 'bar123456' }),
         }),
       })
     );
@@ -111,7 +111,7 @@ describe('rankResults', () => {
         kind: 'server',
         resource: makeServer({
           uri: highestScoreServerUri,
-          labelsList: makeLabelsList({ foo: 'bar' }),
+          labels: makeLabelsList({ foo: 'bar' }),
         }),
       })
     );
@@ -143,7 +143,7 @@ describe('useResourceSearch', () => {
       }));
     jest
       .spyOn(appContext.resourcesService, 'searchResources')
-      .mockResolvedValue([{ status: 'fulfilled', value: servers }]);
+      .mockResolvedValue(servers);
 
     const { result } = renderHook(() => useResourceSearch(), {
       wrapper: ({ children }) => (
@@ -174,7 +174,7 @@ describe('useResourceSearch', () => {
     });
     jest
       .spyOn(appContext.resourcesService, 'searchResources')
-      .mockResolvedValue([{ status: 'fulfilled', value: [] }]);
+      .mockResolvedValue([]);
 
     const { result } = renderHook(() => useResourceSearch(), {
       wrapper: ({ children }) => (
@@ -190,7 +190,7 @@ describe('useResourceSearch', () => {
       clusterUri: cluster.uri,
       search: '',
       filters: [],
-      limit: 5,
+      limit: 10,
     });
     expect(appContext.resourcesService.searchResources).toHaveBeenCalledTimes(
       1
@@ -205,7 +205,7 @@ describe('useResourceSearch', () => {
     });
     jest
       .spyOn(appContext.resourcesService, 'searchResources')
-      .mockResolvedValue([{ status: 'fulfilled', value: [] }]);
+      .mockResolvedValue([]);
 
     const { result } = renderHook(() => useResourceSearch(), {
       wrapper: ({ children }) => (
@@ -226,7 +226,7 @@ describe('useResourceSearch', () => {
     });
     jest
       .spyOn(appContext.resourcesService, 'searchResources')
-      .mockResolvedValue([{ status: 'fulfilled', value: [] }]);
+      .mockResolvedValue([]);
 
     const { result } = renderHook(() => useResourceSearch(), {
       wrapper: ({ children }) => (

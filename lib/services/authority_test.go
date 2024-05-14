@@ -151,8 +151,6 @@ func TestCertAuthorityEquivalence(t *testing.T) {
 
 func TestCertAuthorityUTCUnmarshal(t *testing.T) {
 	t.Parallel()
-	ta := testauthority.New()
-	t.Cleanup(ta.Close)
 
 	_, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)

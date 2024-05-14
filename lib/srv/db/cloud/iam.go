@@ -20,6 +20,7 @@ package cloud
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
@@ -28,6 +29,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth"
@@ -111,7 +113,7 @@ func NewIAM(ctx context.Context, config IAMConfig) (*IAM, error) {
 	}
 	return &IAM{
 		cfg:             config,
-		log:             logrus.WithField(trace.Component, "iam"),
+		log:             logrus.WithField(teleport.ComponentKey, "iam"),
 		tasks:           make(chan iamTask, defaultIAMTaskQueueSize),
 		iamPolicyStatus: sync.Map{},
 	}, nil
@@ -285,7 +287,7 @@ func (c *IAM) processTask(ctx context.Context, task iamTask) error {
 	configurator, err := c.getAWSConfigurator(ctx, task.database)
 	if err != nil {
 		c.iamPolicyStatus.Store(task.database.GetName(), types.IAMPolicyStatus_IAM_POLICY_STATUS_FAILED)
-		if trace.Unwrap(err) == credentials.ErrNoValidProvidersFoundInChain {
+		if errors.Is(trace.Unwrap(err), credentials.ErrNoValidProvidersFoundInChain) {
 			c.log.Warnf("No AWS credentials provider. Skipping IAM task for database %v.", task.database.GetName())
 			return nil
 		}

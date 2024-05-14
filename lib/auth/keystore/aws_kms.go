@@ -20,6 +20,8 @@ import (
 	"context"
 	"crypto"
 	"crypto/x509"
+	"errors"
+	"fmt"
 	"io"
 	"slices"
 	"strings"
@@ -30,12 +32,15 @@ import (
 	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/service/kms"
 	"github.com/aws/aws-sdk-go/service/kms/kmsiface"
+	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/aws/aws-sdk-go/service/sts/stsiface"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/cloud"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 )
@@ -43,7 +48,18 @@ import (
 const (
 	awskmsPrefix  = "awskms:"
 	clusterTagKey = "TeleportCluster"
+
+	pendingKeyBaseRetryInterval = time.Second / 2
+	pendingKeyMaxRetryInterval  = 4 * time.Second
+	pendingKeyTimeout           = 30 * time.Second
 )
+
+type CloudClientProvider interface {
+	// GetAWSSTSClient returns AWS STS client for the specified region.
+	GetAWSSTSClient(ctx context.Context, region string, opts ...cloud.AWSOptionsFn) (stsiface.STSAPI, error)
+	// GetAWSKMSClient returns AWS KMS client for the specified region.
+	GetAWSKMSClient(ctx context.Context, region string, opts ...cloud.AWSOptionsFn) (kmsiface.KMSAPI, error)
+}
 
 // AWSKMSConfig holds configuration parameters specific to AWS KMS keystores.
 type AWSKMSConfig struct {
@@ -51,8 +67,8 @@ type AWSKMSConfig struct {
 	AWSAccount string
 	AWSRegion  string
 
-	KMS   kmsiface.KMSAPI
-	clock clockwork.Clock
+	CloudClients CloudClientProvider
+	clock        clockwork.Clock
 }
 
 // CheckAndSetDefaults checks that required parameters of the config are
@@ -67,15 +83,8 @@ func (c *AWSKMSConfig) CheckAndSetDefaults() error {
 	if c.AWSRegion == "" {
 		return trace.BadParameter("AWS region is required")
 	}
-	if c.KMS == nil {
-		cloudClients, err := cloud.NewClients()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		c.KMS, err = cloudClients.GetAWSKMSClient(context.Background(), c.AWSRegion, cloud.WithAmbientCredentials())
-		if err != nil {
-			return trace.Wrap(err)
-		}
+	if c.CloudClients == nil {
+		return trace.BadParameter("CloudClients is required")
 	}
 	if c.clock == nil {
 		c.clock = clockwork.NewRealClock()
@@ -93,14 +102,36 @@ type awsKMSKeystore struct {
 }
 
 func newAWSKMSKeystore(ctx context.Context, cfg *AWSKMSConfig, logger logrus.FieldLogger) (*awsKMSKeystore, error) {
+	stsClient, err := cfg.CloudClients.GetAWSSTSClient(ctx, cfg.AWSRegion, cloud.WithAmbientCredentials())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	id, err := stsClient.GetCallerIdentity(&sts.GetCallerIdentityInput{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if aws.StringValue(id.Account) != cfg.AWSAccount {
+		return nil, trace.BadParameter("configured AWS KMS account %q does not match AWS account of ambient credentials %q",
+			cfg.AWSAccount, aws.StringValue(id.Account))
+	}
+	kmsClient, err := cfg.CloudClients.GetAWSKMSClient(ctx, cfg.AWSRegion, cloud.WithAmbientCredentials())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &awsKMSKeystore{
 		cluster:    cfg.Cluster,
 		awsAccount: cfg.AWSAccount,
 		awsRegion:  cfg.AWSRegion,
-		kms:        cfg.KMS,
+		kms:        kmsClient,
 		clock:      cfg.clock,
 		logger:     logger,
 	}, nil
+}
+
+// keyTypeDescription returns a human-readable description of the types of keys
+// this backend uses.
+func (a *awsKMSKeystore) keyTypeDescription() string {
+	return fmt.Sprintf("AWS KMS keys in account %s and region %s", a.awsAccount, a.awsRegion)
 }
 
 // generateRSA creates a new RSA private key and returns its identifier and
@@ -125,7 +156,7 @@ func (a *awsKMSKeystore) generateRSA(ctx context.Context, opts ...RSAKeyOption) 
 		return nil, nil, trace.Errorf("KeyMetadata of generated key is nil")
 	}
 	keyARN := aws.StringValue(output.KeyMetadata.Arn)
-	signer, err := newAWSKMSSigner(a.kms, keyARN)
+	signer, err := a.newSigner(ctx, keyARN)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -143,7 +174,7 @@ func (a *awsKMSKeystore) getSigner(ctx context.Context, rawKey []byte, publicKey
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return newAWSKMSSignerWithPublicKey(a.kms, keyID.arn, publicKey)
+	return a.newSignerWithPublicKey(ctx, keyID.arn, publicKey)
 }
 
 type awsKMSSigner struct {
@@ -152,25 +183,73 @@ type awsKMSSigner struct {
 	kms    kmsiface.KMSAPI
 }
 
-func newAWSKMSSigner(kmsapi kmsiface.KMSAPI, keyARN string) (*awsKMSSigner, error) {
-	output, err := kmsapi.GetPublicKey(&kms.GetPublicKeyInput{
-		KeyId: aws.String(keyARN),
+func (a *awsKMSKeystore) newSigner(ctx context.Context, keyARN string) (*awsKMSSigner, error) {
+	pubkeyDER, err := a.getPublicKeyDER(ctx, keyARN)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	pub, err := x509.ParsePKIXPublicKey(pubkeyDER)
+	if err != nil {
+		return nil, trace.Wrap(err, "unexpected error parsing public key der")
+	}
+	return a.newSignerWithPublicKey(ctx, keyARN, pub)
+}
+
+func (a *awsKMSKeystore) getPublicKeyDER(ctx context.Context, keyARN string) ([]byte, error) {
+	// KMS is eventually-consistent, and this is called immediately after the
+	// key has been recreated, so a few retries may be necessary.
+	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
+		First:  pendingKeyBaseRetryInterval,
+		Driver: retryutils.NewExponentialDriver(pendingKeyBaseRetryInterval),
+		Max:    pendingKeyMaxRetryInterval,
+		Jitter: retryutils.NewHalfJitter(),
+		Clock:  a.clock,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	pub, err := x509.ParsePKIXPublicKey(output.PublicKey)
-	if err != nil {
-		return nil, trace.Wrap(err, "unexpected error parsing public key der")
+	ctx, cancel := context.WithTimeout(ctx, pendingKeyTimeout)
+	defer cancel()
+	timeout := a.clock.NewTimer(pendingKeyTimeout)
+	defer timeout.Stop()
+	for {
+		output, err := a.kms.GetPublicKeyWithContext(ctx, &kms.GetPublicKeyInput{
+			KeyId: aws.String(keyARN),
+		})
+		if err == nil {
+			return output.PublicKey, nil
+		}
+
+		// Check if the error is one of the two expected eventual consistency
+		// error types
+		// https://docs.aws.amazon.com/kms/latest/developerguide/programming-eventual-consistency.html
+		var (
+			notFound     *kms.NotFoundException
+			invalidState *kms.InvalidStateException
+		)
+		if !errors.As(err, &notFound) && !errors.As(err, &invalidState) {
+			return nil, trace.Wrap(err, "unexpected error fetching AWS KMS public key")
+		}
+
+		startedWaiting := a.clock.Now()
+		select {
+		case t := <-retry.After():
+			a.logger.Debugf("Failed to fetch public key for %q, retrying after waiting %v", keyARN, t.Sub(startedWaiting))
+			retry.Inc()
+		case <-ctx.Done():
+			return nil, trace.Wrap(ctx.Err())
+		case <-timeout.Chan():
+			return nil, trace.Errorf("timed out waiting for AWS KMS public key")
+		}
 	}
-	return newAWSKMSSignerWithPublicKey(kmsapi, keyARN, pub)
 }
 
-func newAWSKMSSignerWithPublicKey(kmsapi kmsiface.KMSAPI, keyARN string, publicKey crypto.PublicKey) (*awsKMSSigner, error) {
+func (a *awsKMSKeystore) newSignerWithPublicKey(ctx context.Context, keyARN string, publicKey crypto.PublicKey) (*awsKMSSigner, error) {
 	return &awsKMSSigner{
 		keyARN: keyARN,
 		pub:    publicKey,
-		kms:    kmsapi,
+		kms:    a.kms,
 	}, nil
 }
 
@@ -230,7 +309,7 @@ func (a *awsKMSKeystore) canSignWithKey(ctx context.Context, raw []byte, keyType
 
 // DeleteUnusedKeys deletes all keys readable from the AWS KMS account and
 // region if they:
-// 1. Are not included in the argument activeKys
+// 1. Are not included in the argument activeKeys
 // 2. Are labeled in AWS KMS as being created by this Teleport cluster
 // 3. Were not created in the past 5 minutes.
 //
@@ -242,7 +321,7 @@ func (a *awsKMSKeystore) canSignWithKey(ctx context.Context, raw []byte, keyType
 // 1. A different auth server (auth2) creates a new key in GCP KMS
 // 2. This function (running on auth1) deletes that new key
 // 3. auth2 saves the id of this deleted key to the backend CA
-func (a *awsKMSKeystore) DeleteUnusedKeys(ctx context.Context, activeKeys [][]byte) error {
+func (a *awsKMSKeystore) deleteUnusedKeys(ctx context.Context, activeKeys [][]byte) error {
 	activeAWSKMSKeys := make(map[string]int)
 	for _, activeKey := range activeKeys {
 		keyIsRelevent, err := a.canSignWithKey(ctx, activeKey, keyType(activeKey))
@@ -313,7 +392,7 @@ func (a *awsKMSKeystore) DeleteUnusedKeys(ctx context.Context, activeKeys [][]by
 			a.logger.WithFields(logrus.Fields{
 				"key_arn":   keyARN,
 				"key_state": keyState,
-			}).Info("DeleteUnusedKeys skipping AWS KMS key which is not in enabled state.")
+			}).Info("deleteUnusedKeys skipping AWS KMS key which is not in enabled state.")
 			return nil
 		}
 		creationDate := aws.TimeValue(describeOutput.KeyMetadata.CreationDate)
@@ -323,7 +402,7 @@ func (a *awsKMSKeystore) DeleteUnusedKeys(ctx context.Context, activeKeys [][]by
 			// the backend CA yet (which is why they don't appear in activeKeys).
 			a.logger.WithFields(logrus.Fields{
 				"key_arn": keyARN,
-			}).Info("DeleteUnusedKeys skipping AWS KMS key which was created in the past 5 minutes.")
+			}).Info("deleteUnusedKeys skipping AWS KMS key which was created in the past 5 minutes.")
 			return nil
 		}
 
@@ -350,7 +429,8 @@ func (a *awsKMSKeystore) DeleteUnusedKeys(ctx context.Context, activeKeys [][]by
 	for _, keyARN := range keysToDelete {
 		a.logger.WithField("key_arn", keyARN).Info("Deleting unused AWS KMS key.")
 		if _, err := a.kms.ScheduleKeyDeletion(&kms.ScheduleKeyDeletionInput{
-			KeyId: aws.String(keyARN),
+			KeyId:               aws.String(keyARN),
+			PendingWindowInDays: aws.Int64(7),
 		}); err != nil {
 			return trace.Wrap(err, "failed to schedule AWS KMS key %q for deletion", keyARN)
 		}

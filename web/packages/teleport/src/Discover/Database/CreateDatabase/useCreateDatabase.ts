@@ -213,9 +213,8 @@ export function useCreateDatabase() {
     // database service. If there is no active database service,
     // user is led to the next step.
     try {
-      const { services } = await ctx.databaseService.fetchDatabaseServices(
-        clusterId
-      );
+      const { services } =
+        await ctx.databaseService.fetchDatabaseServices(clusterId);
 
       if (!findActiveDatabaseSvc(db.labels, services)) {
         updateAgentMeta({
@@ -326,6 +325,12 @@ export function useCreateDatabase() {
       }
       // Skips the deploy database service step.
       return nextStep(2);
+    }
+
+    const meta = agentMeta as DbMeta;
+    if (meta.autoDiscovery && meta.serviceDeployedMethod === 'skipped') {
+      // IAM policy setup is not required for auto discover.
+      return nextStep(3);
     }
     nextStep(); // Goes to deploy database service step.
   }

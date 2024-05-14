@@ -13,9 +13,9 @@ the following:
 This guide demonstrates how to add labels to enrolled server resources.
 However, you can follow similar steps to add labels to other types of resources.
 
-## Static and dynamic labels
+## Static, dynamic, and resource-based labels
 
-The labels you assign to resources can be **static labels** or **dynamic labels**.
+The labels you assign to resources can be **static labels**, **dynamic labels**, or **resource-based labels**.
 
 - Static labels are hardcoded in the Teleport configuration file and don't change 
 while the `teleport` process is running. For example, you might use a static label to identify 
@@ -23,8 +23,10 @@ the resources in a `staging` or `production` environment.
 - Dynamic labels—also known as **commands-based labels**—allow you to generate labels at runtime. 
 With a dynamic label, the `teleport` process executes an external command on its host at 
 a configurable frequency and the output of the command becomes the label value.
+- Resource-based labels allow you to add labels to an instance without restarting the `teleport`
+process or editing the configuration file.
 
-You can add multiple static and dynamic labels for the same resource.
+You can add multiple static, dynamic, and resource-based labels for the same resource.
 However, you can't add static labels that use the same key with different values or use
 a static label to define multiple potential values.
 
@@ -41,7 +43,7 @@ but filter and limit access to the servers based on their AWS region.
 
 (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/3. Install Teleport
+## Step 1/2. Install Teleport
 
 1. Select a host for running the Teleport agent.
 
@@ -74,7 +76,12 @@ as a resource:
    $ export INVITE_TOKEN=<token>
    ```
 
-## Step 2/3. Apply a static label
+## Step 2/2. Apply labels
+
+Follow any or all of the sections below to add different types of labels to
+your resource.
+
+### Apply a static label
 
 You can configure static labels by editing the Teleport configuration file, then
 starting Teleport.
@@ -191,7 +198,7 @@ ssh_service:
     teleport.hidden/team-id: ai-lab-01
 ``` 
 
-## Step 3/3. Apply dynamic labels using commands
+### Apply dynamic labels using commands
 
 As with static labels, you can apply dynamic labels by editing the
 Teleport configuration file, then restarting the Teleport service on your server.
@@ -279,6 +286,76 @@ computer. Your Teleport user must be authorized to access the server.
    ---------------- -------------- ------------------------------------------------------
    ip-192-168-13-57 ⟵ Tunnel       arch=x86_64,environment=dev,hostname=ip-192-168-13-57
    ```
+
+### Apply resource-based labels
+
+Applying resource-based labels is only supported for servers.
+
+You can apply resource-based labels to a Teleport instance by creating a `server_info`
+resource for the instance. For a server with name `<name>`, its matching `server_info`
+should be named `si-<name>`.
+
+To add resource-based labels:
+
+1. Run `tctl get node/<Var name="hostname"/>` to get the name of the node resource to apply labels to.
+   You should get output similar to the following:
+
+   ```yaml
+   kind: node
+   metadata:
+      expires: "2024-01-12T00:41:17.355013266Z"
+      id: <id>
+      name: <name-uuid>
+      revision: <revision-uuid>
+   spec:
+      # ...
+   ```
+
+   Save the value of `metadata.name` for the next step.
+
+1. Create the file `server_info.yaml` and paste the following into it:
+
+   ```yaml
+   # server_info.yaml
+   kind: server_info
+   metadata:
+      name: si-<node-name>
+   spec:
+      new_labels:
+         "foo": "bar"
+   ```
+
+   Replace `<node-name>` with the resource name you saved in the previous step.
+   Run the following to create the `server_info` resource:
+
+   ```code
+   $ tctl create server_info.yaml
+   ```
+
+1. Verify that you have added the label by running the following command on your local
+computer. Your Teleport user must be authorized to access the server. Teleport
+applies labels from `server_info` resources gradually to prevent strain on the Auth Service in
+larger clusters, so it may take several minutes for the new labels to appear.
+
+   ```code
+   $ tsh ls
+   ```
+
+   You should see output similar to the following with the `dynamic/foo` label displayed:
+
+   ```code
+   Node Name        Address        Labels                                                                                                                   
+   ---------------- -------------- ------------------------------------------------------
+   ip-192-168-13-57 ⟵ Tunnel       dynamic/foo=bar,hostname=ip-192-168-13-57
+   ```
+
+<Admonition type="warning">
+   All resource-based labels created with `tctl` will have the
+   `dynamic/` prefix. This prefix forbids the label from being used in a
+   role's deny rules.
+</Admonition>
+
+To update resource-based labels, recreate the `server_info` resource with updated labels.
 
 ## Next steps
 

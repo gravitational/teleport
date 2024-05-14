@@ -122,14 +122,14 @@ func TestAlertAcknowledgement_Check(t *testing.T) {
 	expires := time.Now().Add(5 * time.Minute)
 
 	testcases := []struct {
-		desc        string
-		ack         *AlertAcknowledgement
-		expectedErr error
+		desc    string
+		ack     *AlertAcknowledgement
+		wantErr bool
 	}{
 		{
-			desc:        "empty",
-			ack:         &AlertAcknowledgement{},
-			expectedErr: &trace.BadParameterError{},
+			desc:    "empty",
+			ack:     &AlertAcknowledgement{},
+			wantErr: true,
 		},
 		{
 			desc: "missing reason",
@@ -137,7 +137,7 @@ func TestAlertAcknowledgement_Check(t *testing.T) {
 				AlertID: "alert-id",
 				Expires: expires,
 			},
-			expectedErr: &trace.BadParameterError{},
+			wantErr: true,
 		},
 		{
 			desc: "missing alert ID",
@@ -145,7 +145,7 @@ func TestAlertAcknowledgement_Check(t *testing.T) {
 				Expires: expires,
 				Reason:  "some reason",
 			},
-			expectedErr: &trace.BadParameterError{},
+			wantErr: true,
 		},
 		{
 			desc: "missing expiry",
@@ -153,7 +153,7 @@ func TestAlertAcknowledgement_Check(t *testing.T) {
 				AlertID: "alert-id",
 				Reason:  "some reason",
 			},
-			expectedErr: &trace.BadParameterError{},
+			wantErr: true,
 		},
 		{
 			desc: "success",
@@ -162,7 +162,6 @@ func TestAlertAcknowledgement_Check(t *testing.T) {
 				Expires: expires,
 				Reason:  "some reason",
 			},
-			expectedErr: nil,
 		},
 	}
 
@@ -170,12 +169,15 @@ func TestAlertAcknowledgement_Check(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			err := tc.ack.Check()
 
-			if tc.expectedErr == nil {
+			if !tc.wantErr {
 				require.NoError(t, err)
 				return
 			}
 
-			require.ErrorAs(t, err, &tc.expectedErr)
+			require.Error(t, err)
+			require.True(t,
+				trace.IsBadParameter(err),
+				"want BadParameter, got %v (%T)", err, trace.Unwrap(err))
 		})
 	}
 }

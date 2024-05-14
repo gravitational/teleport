@@ -118,6 +118,11 @@ export const createAppConfigSchema = (platform: Platform) => {
       .describe(
         'Skips the confirmation prompt for headless login approval and instead prompts for WebAuthn immediately.'
       ),
+    'ssh.noResume': z
+      .boolean()
+      .default(false)
+      .describe('Disables SSH connection resumption.'),
+    'feature.vnet': z.boolean().default(false).describe('Shows UI for VNet.'),
   });
 };
 

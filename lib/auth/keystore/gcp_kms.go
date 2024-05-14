@@ -36,6 +36,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"google.golang.org/api/iterator"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/keystore/internal/faketime"
 )
@@ -122,7 +123,7 @@ func newGCPKMSKeyStore(ctx context.Context, cfg *GCPKMSConfig, logger logrus.Fie
 		clock = cfg.clockOverride
 	}
 
-	logger = logger.WithFields(logrus.Fields{trace.Component: "GCPKMSKeyStore"})
+	logger = logger.WithFields(logrus.Fields{teleport.ComponentKey: "GCPKMSKeyStore"})
 
 	return &gcpKMSKeyStore{
 		hostUUID:        cfg.HostUUID,
@@ -133,6 +134,12 @@ func newGCPKMSKeyStore(ctx context.Context, cfg *GCPKMSConfig, logger logrus.Fie
 		clock:           clock,
 		waiting:         make(chan struct{}),
 	}, nil
+}
+
+// keyTypeDescription returns a human-readable description of the types of keys
+// this backend uses.
+func (g *gcpKMSKeyStore) keyTypeDescription() string {
+	return fmt.Sprintf("GCP KMS keys in keyring %s", g.keyRing)
 }
 
 // generateRSA creates a new RSA private key and returns its identifier and a
@@ -231,7 +238,7 @@ func (g *gcpKMSKeyStore) canSignWithKey(ctx context.Context, raw []byte, keyType
 	return true, nil
 }
 
-// DeleteUnusedKeys deletes all keys from the configured KMS keyring if they:
+// deleteUnusedKeys deletes all keys from the configured KMS keyring if they:
 //  1. Are not included in the argument activeKeys
 //  2. Are labeled with hostLabel (teleport_auth_host)
 //  3. The hostLabel value matches the local host UUID
@@ -248,7 +255,7 @@ func (g *gcpKMSKeyStore) canSignWithKey(ctx context.Context, raw []byte, keyType
 // or a simpler case where: the other auth server is running in a completely
 // different Teleport cluster and the keys it's actively using will never appear
 // in the activeKeys argument.
-func (g *gcpKMSKeyStore) DeleteUnusedKeys(ctx context.Context, activeKeys [][]byte) error {
+func (g *gcpKMSKeyStore) deleteUnusedKeys(ctx context.Context, activeKeys [][]byte) error {
 	// Make a map of currently active key versions, this is used for lookups to
 	// check which keys in KMS are unused.
 	activeKmsKeyVersions := make(map[string]int)
@@ -403,6 +410,19 @@ type gcpKMSKeyID struct {
 
 func (g gcpKMSKeyID) marshal() []byte {
 	return []byte(gcpkmsPrefix + g.keyVersionName)
+}
+
+func (g gcpKMSKeyID) keyring() (string, error) {
+	// keyVersionName has this format:
+	//   projects/*/locations/*/keyRings/*/cryptoKeys/*/cryptoKeyVersions/1
+	// want to extract:
+	//   projects/*/locations/*/keyRings/*
+	// project name, location, and keyRing name can't contain '/'
+	splits := strings.SplitN(g.keyVersionName, "/", 7)
+	if len(splits) < 7 {
+		return "", trace.BadParameter("GCP KMS keyVersionName has bad format")
+	}
+	return strings.Join(splits[:6], "/"), nil
 }
 
 func parseGCPKMSKeyID(key []byte) (gcpKMSKeyID, error) {

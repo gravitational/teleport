@@ -73,8 +73,8 @@ func (a fakeAuthorizer) Authorize(ctx context.Context) (*authz.Context, error) {
 					},
 				},
 			},
-			Identity:              identity,
-			AdminActionAuthorized: true,
+			Identity:             identity,
+			AdminActionAuthState: authz.AdminActionAuthNotRequired,
 		}, nil
 	}
 
@@ -103,7 +103,7 @@ func (a fakeAuthorizer) Authorize(ctx context.Context) (*authz.Context, error) {
 				Username: "alice",
 			},
 		},
-		AdminActionAuthorized: true,
+		AdminActionAuthState: authz.AdminActionAuthNotRequired,
 	}, nil
 }
 
@@ -118,7 +118,7 @@ type check struct {
 	kind, verb string
 }
 
-func (f *fakeChecker) CheckAccessToRule(context services.RuleContext, namespace string, kind string, verb string, silent bool) error {
+func (f *fakeChecker) CheckAccessToRule(context services.RuleContext, namespace string, kind string, verb string) error {
 	c := check{kind, verb}
 	f.checks = append(f.checks, c)
 
@@ -171,7 +171,7 @@ func newTestEnv(opts ...serviceOpt) (*env, error) {
 		services.Identity
 		services.Access
 	}{
-		Identity: local.NewIdentityService(bk),
+		Identity: local.NewTestIdentityService(bk),
 		Access:   local.NewAccessService(bk),
 	}
 
@@ -385,6 +385,12 @@ func TestUpdateUser(t *testing.T) {
 	createEvent, ok = event.(*apievents.UserCreate)
 	require.True(t, ok, "expected a UserCreate event got %T", event)
 	assert.Equal(t, "alice", createEvent.UserMetadata.User)
+
+	// Attempt to update an existing user and set invalid roles
+	updated.User.AddRole("does-not-exist")
+	_, err = env.UpdateUser(ctx, &userspb.UpdateUserRequest{User: updated.User})
+	assert.True(t, trace.IsNotFound(err), "expected a not found error, got %T", err)
+	require.Error(t, err, "user allowed to be updated with a role that does not exist")
 }
 
 func TestUpsertUser(t *testing.T) {
@@ -427,6 +433,12 @@ func TestUpsertUser(t *testing.T) {
 	createEvent, ok = event.(*apievents.UserCreate)
 	require.True(t, ok, "expected a UserCreate event got %T", event)
 	assert.Equal(t, "alice", createEvent.UserMetadata.User)
+
+	// Attempt to upsert a  user and set invalid roles
+	updated.User.AddRole("does-not-exist")
+	_, err = env.UpsertUser(ctx, &userspb.UpsertUserRequest{User: updated.User})
+	assert.True(t, trace.IsNotFound(err), "expected a not found error, got %T", err)
+	require.Error(t, err, "user allowed to be upserted with a role that does not exist")
 }
 
 func TestListUsers(t *testing.T) {
@@ -876,7 +888,7 @@ func TestRBAC(t *testing.T) {
 						Groups: []string{"dev"},
 					},
 				},
-				AdminActionAuthorized: true,
+				AdminActionAuthState: authz.AdminActionAuthNotRequired,
 			}}))
 			require.NoError(t, err, "creating test service")
 

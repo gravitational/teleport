@@ -34,6 +34,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -57,6 +58,8 @@ type APIConfig struct {
 	// MetadataGetter retrieves additional metadata about session uploads.
 	// Will be nil if audit logging is not enabled.
 	MetadataGetter events.UploadMetadataGetter
+	// AccessGraph contains the configuration about the access graph service
+	AccessGraph AccessGraphConfig
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -71,6 +74,21 @@ func (a *APIConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("authorizer is missing")
 	}
 	return nil
+}
+
+// AccessGraphConfig contains the configuration about the access graph service
+// and whether it is enabled or not.
+type AccessGraphConfig struct {
+	// Enabled is a flag that indicates whether the access graph service is enabled.
+	Enabled bool
+	// Address is the address of the access graph service. The address is in the
+	// form of "host:port".
+	Address string
+	// CA is the PEM-encoded CA certificate of the access graph service.
+	CA []byte
+	// Insecure is a flag that indicates whether the access graph service should
+	// skip verifying the server's certificate chain and host name.
+	Insecure bool
 }
 
 // APIServer implements http API server for AuthServer interface
@@ -92,15 +110,13 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	// Kubernetes extensions
 	srv.POST("/:version/kube/csr", srv.WithAuth(srv.processKubeCSR))
 
+	// TODO(Joerger): DELETE IN 16.0.0, migrated to gRPC.
 	srv.POST("/:version/authorities/:type/rotate", srv.WithAuth(srv.rotateCertAuthority))
+	// TODO(Joerger): DELETE IN v16.0.0, migrated to gRPC
 	srv.POST("/:version/authorities/:type/rotate/external", srv.WithAuth(srv.rotateExternalCertAuthority))
 
-	// Generating certificates for user and host authorities
-	// TODO(noah): DELETE IN 16.0.0 as replaced with gRPC equiv
-	srv.POST("/:version/ca/host/certs", srv.WithAuth(srv.generateHostCert))
-
 	// Operations on users
-	// TODO(tross): DELETE IN 16.0.0
+	// TODO(tross): DELETE IN 17.0.0
 	srv.POST("/:version/users", srv.WithAuth(srv.upsertUser))
 
 	// Passwords and sessions
@@ -126,11 +142,10 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.DELETE("/:version/tunnelconnections", srv.WithAuth(srv.deleteAllTunnelConnections))
 
 	// Remote clusters
-	srv.POST("/:version/remoteclusters", srv.WithAuth(srv.createRemoteCluster))
+	// TODO(noah): DELETE IN 17.0.0 - all these methods are now gRPC.
 	srv.GET("/:version/remoteclusters/:cluster", srv.WithAuth(srv.getRemoteCluster))
 	srv.GET("/:version/remoteclusters", srv.WithAuth(srv.getRemoteClusters))
 	srv.DELETE("/:version/remoteclusters/:cluster", srv.WithAuth(srv.deleteRemoteCluster))
-	srv.DELETE("/:version/remoteclusters", srv.WithAuth(srv.deleteAllRemoteClusters))
 
 	// Reverse tunnels
 	srv.POST("/:version/reversetunnels", srv.WithAuth(srv.upsertReverseTunnel))
@@ -144,6 +159,7 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.POST("/:version/tokens/register", srv.WithAuth(srv.registerUsingToken))
 
 	// Active sessions
+	// TODO(zmb3): remove these endpoints when Assist no longer needs them
 	srv.GET("/:version/namespaces/:namespace/sessions/:id/stream", srv.WithAuth(srv.getSessionChunk))
 	srv.GET("/:version/namespaces/:namespace/sessions/:id/events", srv.WithAuth(srv.getSessionEvents))
 
@@ -156,9 +172,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	// cluster configuration
 	srv.GET("/:version/configuration/name", srv.WithAuth(srv.getClusterName))
 	srv.POST("/:version/configuration/name", srv.WithAuth(srv.setClusterName))
-	srv.GET("/:version/configuration/static_tokens", srv.WithAuth(srv.getStaticTokens))
-	srv.DELETE("/:version/configuration/static_tokens", srv.WithAuth(srv.deleteStaticTokens))
-	srv.POST("/:version/configuration/static_tokens", srv.WithAuth(srv.setStaticTokens))
 
 	// SSO validation handlers
 	srv.POST("/:version/github/requests/validate", srv.WithAuth(srv.validateGithubAuthCallback))
@@ -188,7 +201,7 @@ func (s *APIServer) WithAuth(handler HandlerWithAuthFunc) httprouter.Handle {
 		// HTTPS server expects auth context to be set by the auth middleware
 		authContext, err := s.Authorizer.Authorize(r.Context())
 		if err != nil {
-			return nil, authz.ConvertAuthorizerError(r.Context(), log, err)
+			return nil, trace.Wrap(err)
 		}
 		auth := &ServerWithRoles{
 			authServer: s.AuthServer,
@@ -441,20 +454,7 @@ func (s *APIServer) getWebSession(auth *ServerWithRoles, w http.ResponseWriter, 
 	return rawMessage(services.MarshalWebSession(sess, services.WithVersion(version)))
 }
 
-type WebSessionReq struct {
-	// User is the user name associated with the session id.
-	User string `json:"user"`
-	// PrevSessionID is the id of current session.
-	PrevSessionID string `json:"prev_session_id"`
-	// AccessRequestID is an optional field that holds the id of an approved access request.
-	AccessRequestID string `json:"access_request_id"`
-	// Switchback is a flag to indicate if user is wanting to switchback from an assumed role
-	// back to their default role.
-	Switchback bool `json:"switchback"`
-	// ReloadUser is a flag to indicate if user needs to be refetched from the backend
-	// to apply new user changes e.g. user traits were updated.
-	ReloadUser bool `json:"reload_user"`
-}
+type WebSessionReq = authclient.WebSessionReq
 
 func (s *APIServer) createWebSession(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req WebSessionReq
@@ -532,35 +532,6 @@ func rawMessage(data []byte, err error) (interface{}, error) {
 	return &m, nil
 }
 
-type generateHostCertReq struct {
-	Key         []byte            `json:"key"`
-	HostID      string            `json:"hostname"`
-	NodeName    string            `json:"node_name"`
-	Principals  []string          `json:"principals"`
-	ClusterName string            `json:"auth_domain"`
-	Roles       types.SystemRoles `json:"roles"`
-	TTL         time.Duration     `json:"ttl"`
-}
-
-// TODO(noah): DELETE IN 16.0.0 as replaced with gRPC equiv
-func (s *APIServer) generateHostCert(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
-	var req *generateHostCertReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if len(req.Roles) != 1 {
-		return nil, trace.BadParameter("exactly one system role is required")
-	}
-
-	cert, err := auth.GenerateHostCert(r.Context(), req.Key, req.HostID, req.NodeName, req.Principals, req.ClusterName, req.Roles[0], req.TTL)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return string(cert), nil
-}
-
 func (s *APIServer) registerUsingToken(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
 	var req types.RegisterUsingTokenRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
@@ -574,8 +545,9 @@ func (s *APIServer) registerUsingToken(auth *ServerWithRoles, w http.ResponseWri
 	return certs, nil
 }
 
+// TODO(Joerger): DELETE IN 16.0.0, migrated to gRPC.
 func (s *APIServer) rotateCertAuthority(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req RotateRequest
+	var req types.RotateRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -589,6 +561,7 @@ type rotateExternalCertAuthorityRawReq struct {
 	CA json.RawMessage `json:"ca"`
 }
 
+// TODO(Joerger): DELETE IN v16.0.0, migrated to gRPC
 func (s *APIServer) rotateExternalCertAuthority(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req rotateExternalCertAuthorityRawReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
@@ -912,48 +885,6 @@ func (s *APIServer) setClusterName(auth *ServerWithRoles, w http.ResponseWriter,
 	return message(fmt.Sprintf("cluster name set: %+v", cn)), nil
 }
 
-func (s *APIServer) getStaticTokens(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	st, err := auth.GetStaticTokens()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return rawMessage(services.MarshalStaticTokens(st, services.WithVersion(version), services.PreserveResourceID()))
-}
-
-func (s *APIServer) deleteStaticTokens(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	err := auth.DeleteStaticTokens()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message("ok"), nil
-}
-
-type setStaticTokensReq struct {
-	StaticTokens json.RawMessage `json:"static_tokens"`
-}
-
-func (s *APIServer) setStaticTokens(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req setStaticTokensReq
-
-	err := httplib.ReadJSON(r, &req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	st, err := services.UnmarshalStaticTokens(req.StaticTokens)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	err = auth.SetStaticTokens(st)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return message(fmt.Sprintf("static tokens set: %+v", st)), nil
-}
-
 type upsertTunnelConnectionRawReq struct {
 	TunnelConnection json.RawMessage `json:"tunnel_connection"`
 }
@@ -1035,30 +966,9 @@ func (s *APIServer) deleteAllTunnelConnections(auth *ServerWithRoles, w http.Res
 	return message("ok"), nil
 }
 
-type createRemoteClusterRawReq struct {
-	// RemoteCluster is marshaled remote cluster resource
-	RemoteCluster json.RawMessage `json:"remote_cluster"`
-}
-
-// createRemoteCluster creates remote cluster
-func (s *APIServer) createRemoteCluster(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req createRemoteClusterRawReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	conn, err := services.UnmarshalRemoteCluster(req.RemoteCluster)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := auth.CreateRemoteCluster(conn); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message("ok"), nil
-}
-
 // getRemoteClusters returns a list of remote clusters
 func (s *APIServer) getRemoteClusters(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	clusters, err := auth.GetRemoteClusters()
+	clusters, err := auth.GetRemoteClusters(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1075,7 +985,7 @@ func (s *APIServer) getRemoteClusters(auth *ServerWithRoles, w http.ResponseWrit
 
 // getRemoteCluster returns a remote cluster by name
 func (s *APIServer) getRemoteCluster(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	cluster, err := auth.GetRemoteCluster(p.ByName("cluster"))
+	cluster, err := auth.GetRemoteCluster(r.Context(), p.ByName("cluster"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1085,15 +995,6 @@ func (s *APIServer) getRemoteCluster(auth *ServerWithRoles, w http.ResponseWrite
 // deleteRemoteCluster deletes remote cluster by name
 func (s *APIServer) deleteRemoteCluster(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	err := auth.DeleteRemoteCluster(r.Context(), p.ByName("cluster"))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message("ok"), nil
-}
-
-// deleteAllRemoteClusters deletes all remote clusters
-func (s *APIServer) deleteAllRemoteClusters(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	err := auth.DeleteAllRemoteClusters()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

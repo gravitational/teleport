@@ -3,7 +3,11 @@ title: Database Access with Self-Hosted MySQL/MariaDB
 description: How to configure Teleport database access with self-hosted MySQL/MariaDB.
 ---
 
-(!docs/pages/includes/database-access/db-introduction.mdx  dbType="MySQL or MariaDB" dbConfigure="MySQL or MariaDB database with mutual TLS authentication" dbName="MySQL or MariaDB" !)
+(!docs/pages/includes/database-access/self-hosted-introduction.mdx  dbType="MySQL or MariaDB" dbConfigure="MySQL or MariaDB database" dbName="MySQL or MariaDB" !)
+
+## How it works
+
+(!docs/pages/includes/database-access/how-it-works/mtls.mdx db="MySQL or MariaDB"!)
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
@@ -22,6 +26,8 @@ description: How to configure Teleport database access with self-hosted MySQL/Ma
 - A self-hosted MySQL or MariaDB instance.
 - A host, e.g., an Amazon EC2 instance, where you will run the Teleport Database
   Service.
+- Optional: a certificate authority that issues certificates for
+  your self-hosted database.
 - (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/4. Create the Teleport Database Token
@@ -30,24 +36,7 @@ description: How to configure Teleport database access with self-hosted MySQL/Ma
 
 ## Step 2/4. Create a certificate/key pair
 
-(!docs/pages/includes/database-access/tctl-auth-sign.mdx!)
-
-From your local workstation, create the secrets:
-
-```code
-# Export Teleport's certificate authority and generate certificate/key pair
-# for host db.example.com with a 3-month validity period.
-$ tctl auth sign --format=db --host=db.example.com --out=server --ttl=2190h
-```
-
-In this example, `db.example.com` is the hostname where the Teleport Database
-Service can reach the MySQL server.
-
-(!docs/pages/includes/database-access/ttl-note.mdx!)
-
-The command will create 3 files: `server.cas`, `server.crt` and `server.key`
-which you'll need to enable mutual TLS on your MySQL server. Copy these files
-to the environment running MySQL
+(!docs/pages/includes/database-access/tctl-auth-sign-3-files.mdx dbname="MySQL" !)
 
 ## Step 3/4. Configure MySQL/MariaDB
 
@@ -144,7 +133,7 @@ Install and configure Teleport where you will run the Teleport Database Service:
 
 (!docs/pages/includes/install-linux.mdx!)
 
-(!docs/pages/includes/database-access/db-configure-start.mdx dbName="example-mysql" dbProtocol="mysql" databaseAddress="mysql.example.com:3306" !)
+(!docs/pages/includes/database-access/self-hosted-config-start.mdx dbName="example-mysql" dbProtocol="mysql" databaseAddress="mysql.example.com:3306" !)
 
 </TabItem>
 <TabItem label="Kubernetes Cluster">
@@ -152,7 +141,7 @@ Install and configure Teleport where you will run the Teleport Database Service:
 
   (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
-  (!docs/pages/includes/database-access/db-helm-install.mdx dbName="example-mysql" dbProtocol="mysql" databaseAddress="mysql.example.com:3306" !)
+  (!docs/pages/includes/database-access/self-hosted-db-helm-install.mdx dbName="example-mysql" dbProtocol="mysql" databaseAddress="mysql.example.com:3306" !)
 </TabItem>
 </Tabs>
 

@@ -33,7 +33,8 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	SAMLIdPService_ProcessSAMLIdPRequest_FullMethodName = "/teleport.samlidp.v1.SAMLIdPService/ProcessSAMLIdPRequest"
+	SAMLIdPService_ProcessSAMLIdPRequest_FullMethodName       = "/teleport.samlidp.v1.SAMLIdPService/ProcessSAMLIdPRequest"
+	SAMLIdPService_TestSAMLIdPAttributeMapping_FullMethodName = "/teleport.samlidp.v1.SAMLIdPService/TestSAMLIdPAttributeMapping"
 )
 
 // SAMLIdPServiceClient is the client API for SAMLIdPService service.
@@ -42,6 +43,8 @@ const (
 type SAMLIdPServiceClient interface {
 	// ProcessSAMLIdPRequest processes the SAML auth request.
 	ProcessSAMLIdPRequest(ctx context.Context, in *ProcessSAMLIdPRequestRequest, opts ...grpc.CallOption) (*ProcessSAMLIdPRequestResponse, error)
+	// TestSAMLIdPAttributeMapping tests SAML attribute mapping configuration.
+	TestSAMLIdPAttributeMapping(ctx context.Context, in *TestSAMLIdPAttributeMappingRequest, opts ...grpc.CallOption) (*TestSAMLIdPAttributeMappingResponse, error)
 }
 
 type sAMLIdPServiceClient struct {
@@ -61,12 +64,23 @@ func (c *sAMLIdPServiceClient) ProcessSAMLIdPRequest(ctx context.Context, in *Pr
 	return out, nil
 }
 
+func (c *sAMLIdPServiceClient) TestSAMLIdPAttributeMapping(ctx context.Context, in *TestSAMLIdPAttributeMappingRequest, opts ...grpc.CallOption) (*TestSAMLIdPAttributeMappingResponse, error) {
+	out := new(TestSAMLIdPAttributeMappingResponse)
+	err := c.cc.Invoke(ctx, SAMLIdPService_TestSAMLIdPAttributeMapping_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // SAMLIdPServiceServer is the server API for SAMLIdPService service.
 // All implementations must embed UnimplementedSAMLIdPServiceServer
 // for forward compatibility
 type SAMLIdPServiceServer interface {
 	// ProcessSAMLIdPRequest processes the SAML auth request.
 	ProcessSAMLIdPRequest(context.Context, *ProcessSAMLIdPRequestRequest) (*ProcessSAMLIdPRequestResponse, error)
+	// TestSAMLIdPAttributeMapping tests SAML attribute mapping configuration.
+	TestSAMLIdPAttributeMapping(context.Context, *TestSAMLIdPAttributeMappingRequest) (*TestSAMLIdPAttributeMappingResponse, error)
 	mustEmbedUnimplementedSAMLIdPServiceServer()
 }
 
@@ -76,6 +90,9 @@ type UnimplementedSAMLIdPServiceServer struct {
 
 func (UnimplementedSAMLIdPServiceServer) ProcessSAMLIdPRequest(context.Context, *ProcessSAMLIdPRequestRequest) (*ProcessSAMLIdPRequestResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ProcessSAMLIdPRequest not implemented")
+}
+func (UnimplementedSAMLIdPServiceServer) TestSAMLIdPAttributeMapping(context.Context, *TestSAMLIdPAttributeMappingRequest) (*TestSAMLIdPAttributeMappingResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method TestSAMLIdPAttributeMapping not implemented")
 }
 func (UnimplementedSAMLIdPServiceServer) mustEmbedUnimplementedSAMLIdPServiceServer() {}
 
@@ -108,6 +125,24 @@ func _SAMLIdPService_ProcessSAMLIdPRequest_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SAMLIdPService_TestSAMLIdPAttributeMapping_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TestSAMLIdPAttributeMappingRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SAMLIdPServiceServer).TestSAMLIdPAttributeMapping(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SAMLIdPService_TestSAMLIdPAttributeMapping_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SAMLIdPServiceServer).TestSAMLIdPAttributeMapping(ctx, req.(*TestSAMLIdPAttributeMappingRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // SAMLIdPService_ServiceDesc is the grpc.ServiceDesc for SAMLIdPService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -118,6 +153,10 @@ var SAMLIdPService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ProcessSAMLIdPRequest",
 			Handler:    _SAMLIdPService_ProcessSAMLIdPRequest_Handler,
+		},
+		{
+			MethodName: "TestSAMLIdPAttributeMapping",
+			Handler:    _SAMLIdPService_TestSAMLIdPAttributeMapping_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

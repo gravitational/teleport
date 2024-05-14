@@ -14,6 +14,8 @@ clusterName: ${CLUSTER_NAME}.${ROUTE53_ZONE}      # Name of your cluster. Use th
 teleportVersionOverride: ${TELEPORT_VERSION}
 
 extraArgs: ['--debug']
+image: "public.ecr.aws/gravitational/teleport-distroless-debug"
+enterpriseImage: "public.ecr.aws/gravitational/teleport-ent-distroless-debug"
 
 persistence:
     enabled: false

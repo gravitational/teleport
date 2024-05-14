@@ -33,9 +33,9 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/connectmycomputer"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -118,8 +118,8 @@ func (s *RoleSetup) Run(ctx context.Context, accessAndIdentity AccessAndIdentity
 		if err != nil {
 			return noCertsReloaded, trace.Wrap(err)
 		}
-		if role, err = accessAndIdentity.UpsertRole(ctx, role); err != nil {
-			return noCertsReloaded, trace.Wrap(err, "creating role %v", role.GetName())
+		if _, err = accessAndIdentity.CreateRole(ctx, role); err != nil {
+			return noCertsReloaded, trace.Wrap(err, "creating role %v", roleName)
 		}
 	} else {
 		s.cfg.Log.Infof("The role %v already exists", roleName)
@@ -148,6 +148,9 @@ func (s *RoleSetup) Run(ctx context.Context, accessAndIdentity AccessAndIdentity
 		// value will make sure that the user is able to connect to relevant nodes. This is done more to
 		// reduce the support load than to make the feature more secure.
 		allowedNodeLabels := existingRole.GetNodeLabels(types.Allow)
+		if allowedNodeLabels == nil {
+			allowedNodeLabels = make(types.Labels)
+		}
 		ownerNodeLabelValue := allowedNodeLabels[types.ConnectMyComputerNodeOwnerLabel]
 		expectedOwnerNodeLabelValue := []string{clusterUser.GetName()}
 
@@ -162,7 +165,7 @@ func (s *RoleSetup) Run(ctx context.Context, accessAndIdentity AccessAndIdentity
 			timeoutCtx, cancel := context.WithTimeout(ctx, resourceUpdateTimeout)
 			defer cancel()
 			err = s.syncResourceUpdate(timeoutCtx, accessAndIdentity, existingRole, func(ctx context.Context) error {
-				existingRole, err := accessAndIdentity.UpsertRole(ctx, existingRole)
+				_, err := accessAndIdentity.UpdateRole(ctx, existingRole)
 				return trace.Wrap(err, "updating role %v", existingRole.GetName())
 			})
 			if err != nil {
@@ -233,7 +236,7 @@ func (s *RoleSetup) syncResourceUpdate(ctx context.Context, accessAndIdentity Ac
 
 	err = updateFunc(ctx)
 	if err != nil {
-		return trace.Wrap(err, "calling update function")
+		return trace.Wrap(err)
 	}
 
 	_, err = waitForOpPut(ctx, watcher, resource.GetKind(), resource.GetName())
@@ -245,8 +248,10 @@ func (s *RoleSetup) syncResourceUpdate(ctx context.Context, accessAndIdentity Ac
 type AccessAndIdentity interface {
 	// See services.Access.GetRole.
 	GetRole(ctx context.Context, name string) (types.Role, error)
-	// See services.Access.UpsertRole.
-	UpsertRole(context.Context, types.Role) (types.Role, error)
+	// See services.Access.CreateRole.
+	CreateRole(context.Context, types.Role) (types.Role, error)
+	// See services.Access.UpdateRole.
+	UpdateRole(context.Context, types.Role) (types.Role, error)
 	// See auth.Cache.NewWatcher.
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 
@@ -272,7 +277,7 @@ type RoleSetupConfig struct {
 
 func (c *RoleSetupConfig) CheckAndSetDefaults() error {
 	if c.Log == nil {
-		c.Log = logrus.NewEntry(logrus.StandardLogger()).WithField(trace.Component, "CMC role")
+		c.Log = logrus.NewEntry(logrus.StandardLogger()).WithField(teleport.ComponentKey, "CMC role")
 	}
 
 	return nil
@@ -290,7 +295,7 @@ func NewTokenProvisioner(cfg *TokenProvisionerConfig) *TokenProvisioner {
 
 // CreateNodeToken creates a node join token that is valid for 5 minutes.
 func (t *TokenProvisioner) CreateNodeToken(ctx context.Context, provisioner Provisioner, cluster *clusters.Cluster) (string, error) {
-	tokenName, err := utils.CryptoRandomHex(auth.TokenLenBytes)
+	tokenName, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -312,12 +317,6 @@ func (t *TokenProvisioner) CreateNodeToken(ctx context.Context, provisioner Prov
 	return tokenName, nil
 }
 
-// DeleteToken deletes a join token
-func (t *TokenProvisioner) DeleteToken(ctx context.Context, provisioner Provisioner, token string) error {
-	err := provisioner.DeleteToken(ctx, token)
-	return trace.Wrap(err)
-}
-
 type TokenProvisionerConfig struct {
 	Clock clockwork.Clock
 }
@@ -333,8 +332,6 @@ func (c *TokenProvisionerConfig) checkAndSetDefaults() {
 type Provisioner interface {
 	// See services.Provisioner.CreateToken.
 	CreateToken(ctx context.Context, token types.ProvisionToken) error
-	// See services.Provisioner.DeleteToken.
-	DeleteToken(ctx context.Context, token string) error
 }
 
 type NodeJoinWait struct {

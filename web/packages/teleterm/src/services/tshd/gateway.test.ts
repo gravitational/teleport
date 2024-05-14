@@ -20,12 +20,12 @@ import { getCliCommandArgs, getCliCommandEnv } from './gateway';
 import { GatewayCLICommand } from './types';
 
 describe('getCliCommandArgs', () => {
-  it("extracts Node.js-style args from cliCommand's argsList", () => {
+  it("extracts Node.js-style args from cliCommand's args", () => {
     const cliCommand = makeCliCommand();
 
     const args = getCliCommandArgs(cliCommand);
 
-    expect(args).toEqual([cliCommand.argsList[1]]);
+    expect(args).toEqual([cliCommand.args[1]]);
   });
 });
 
@@ -43,8 +43,8 @@ describe('getCliCommandEnv', () => {
 const makeCliCommand = (): GatewayCLICommand => {
   return {
     path: '/Users/foo/Applications/psql.app/MacOS/psql',
-    argsList: ['psql', 'localhost:1337'],
-    envList: ['foo=bar', 'baz=quux'],
+    args: ['psql', 'localhost:1337'],
+    env: ['foo=bar', 'baz=quux'],
     preview: 'foo=bar baz=quux psql localhost:1337',
   };
 };

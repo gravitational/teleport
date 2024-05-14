@@ -97,6 +97,27 @@ const colors: ThemeColors = {
         'rgba(255,160,40, 0.18)',
         'rgba(255,160,40, 0.25)',
       ],
+      success: [
+        'rgba(0, 162, 35, 0.1)',
+        'rgba(0, 162, 35, 0.18)',
+        'rgba(0, 162, 35, 0.25)',
+      ],
+      // TODO rudream: update bblp interactive tonal colors.
+      danger: [
+        'rgba(255, 98, 87, 0.1)',
+        'rgba(255, 98, 87, 0.18)',
+        'rgba(255, 98, 87, 0.25)',
+      ],
+      alert: [
+        'rgba(255, 171, 0, 0.1)',
+        'rgba(255, 171, 0, 0.18)',
+        'rgba(255, 171, 0, 0.25)',
+      ],
+      informational: [
+        'rgba(0, 158, 255, 0.1)',
+        'rgba(0, 158, 255, 0.18)',
+        'rgba(0, 158, 255, 0.25)',
+      ],
       neutral: neutralColors,
     },
   },
@@ -169,6 +190,13 @@ const colors: ThemeColors = {
     main: '#FA5A28',
     hover: '#FB754C',
     active: '#D64D22',
+  },
+
+  // TODO rudream: update bblp accent colors.
+  accent: {
+    main: 'rgba(0, 158, 255, 1)',
+    hover: 'rgba(51, 177, 255, 1)',
+    active: 'rgba(102, 197, 255, 1)',
   },
 
   notice: {
@@ -434,7 +462,14 @@ const colors: ThemeColors = {
   },
 
   link: '#66ABFF',
-  success: '#00BFA5',
+
+  highlightedNavigationItem: 'rgba(255, 255, 255, 0.3)',
+
+  success: {
+    main: '#00A223',
+    hover: '#35D655',
+    active: '#00851C',
+  },
 
   dataVisualisation: dataVisualisationColors,
 };

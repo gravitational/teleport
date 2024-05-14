@@ -21,12 +21,14 @@ package client
 import (
 	"context"
 	"encoding/pem"
+	"errors"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
@@ -86,6 +88,15 @@ func ExportAuthoritiesSecrets(ctx context.Context, client auth.ClientI, req Expo
 func exportAuth(ctx context.Context, client auth.ClientI, req ExportAuthoritiesRequest, exportSecrets bool) (string, error) {
 	var typesToExport []types.CertAuthType
 
+	if exportSecrets {
+		mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client.PerformMFACeremony, true /*allowReuse*/)
+		if err == nil {
+			ctx = mfa.ContextWithMFAResponse(ctx, mfaResponse)
+		} else if !errors.Is(err, &mfa.ErrMFANotRequired) && !errors.Is(err, &mfa.ErrMFANotSupported) {
+			return "", trace.Wrap(err)
+		}
+	}
+
 	// this means to export TLS authority
 	switch req.AuthType {
 	// "tls" is supported for backwards compatibility.
@@ -105,6 +116,13 @@ func exportAuth(ctx context.Context, client auth.ClientI, req ExportAuthoritiesR
 			ExportPrivateKeys: exportSecrets,
 		}
 		return exportTLSAuthority(ctx, client, req)
+	case "tls-spiffe":
+		req := exportTLSAuthorityRequest{
+			AuthType:          types.SPIFFECA,
+			UnpackPEM:         false,
+			ExportPrivateKeys: exportSecrets,
+		}
+		return exportTLSAuthority(ctx, client, req)
 	case "db":
 		req := exportTLSAuthorityRequest{
 			AuthType:          types.DatabaseCA,
@@ -115,6 +133,20 @@ func exportAuth(ctx context.Context, client auth.ClientI, req ExportAuthoritiesR
 	case "db-der":
 		req := exportTLSAuthorityRequest{
 			AuthType:          types.DatabaseCA,
+			UnpackPEM:         true,
+			ExportPrivateKeys: exportSecrets,
+		}
+		return exportTLSAuthority(ctx, client, req)
+	case "db-client":
+		req := exportTLSAuthorityRequest{
+			AuthType:          types.DatabaseClientCA,
+			UnpackPEM:         false,
+			ExportPrivateKeys: exportSecrets,
+		}
+		return exportTLSAuthority(ctx, client, req)
+	case "db-client-der":
+		req := exportTLSAuthorityRequest{
+			AuthType:          types.DatabaseClientCA,
 			UnpackPEM:         true,
 			ExportPrivateKeys: exportSecrets,
 		}

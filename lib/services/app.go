@@ -191,8 +191,9 @@ func NewApplicationFromKubeService(service corev1.Service, clusterName, protocol
 		Description: fmt.Sprintf("Discovered application in Kubernetes cluster %q", clusterName),
 		Labels:      labels,
 	}, types.AppSpecV3{
-		URI:     appURI,
-		Rewrite: rewriteConfig,
+		URI:                appURI,
+		Rewrite:            rewriteConfig,
+		InsecureSkipVerify: getTLSInsecureSkipVerify(service.GetAnnotations()),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "could not create an app from Kubernetes service")
@@ -233,6 +234,14 @@ func getAppRewriteConfig(annotations map[string]string) (*types.Rewrite, error) 
 	}
 
 	return &rw, nil
+}
+
+func getTLSInsecureSkipVerify(annotations map[string]string) bool {
+	val := annotations[types.DiscoveryAppInsecureSkipVerify]
+	if val == "" {
+		return false
+	}
+	return val == "true"
 }
 
 func getAppName(serviceName, namespace, clusterName, portName, nameAnnotation string) (string, error) {

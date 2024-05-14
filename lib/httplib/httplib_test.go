@@ -295,8 +295,8 @@ func TestSetIndexContentSecurityPolicy(t *testing.T) {
 			},
 		},
 		{
-			name:     "for cloud based usage, Team product (with stripe, no wasm)",
-			features: proto.Features{Cloud: true, IsUsageBased: true, ProductType: proto.ProductType_PRODUCT_TYPE_TEAM},
+			name:     "for cloud based usage, Stripe managed product (with stripe, no wasm)",
+			features: proto.Features{Cloud: true, IsUsageBased: true, IsStripeManaged: true},
 			urlPath:  "/web/index.js",
 			expectedCspVals: map[string]string{
 				"default-src":     "'self'",
@@ -346,8 +346,8 @@ func TestSetIndexContentSecurityPolicy(t *testing.T) {
 			},
 		},
 		{
-			name:     "for cloud based usage & desktop session, Team product (with stripe, with wasm)",
-			features: proto.Features{Cloud: true, IsUsageBased: true, ProductType: proto.ProductType_PRODUCT_TYPE_TEAM},
+			name:     "for cloud based usage & desktop session, Stripe managed product (with stripe, with wasm)",
+			features: proto.Features{Cloud: true, IsUsageBased: true, IsStripeManaged: true},
 			urlPath:  "/web/cluster/:clusterId/desktops/:desktopName/:username",
 			expectedCspVals: map[string]string{
 				"default-src":     "'self'",
@@ -373,32 +373,6 @@ func TestSetIndexContentSecurityPolicy(t *testing.T) {
 				require.Contains(t, actualCsp, expectedCspSubString)
 			}
 		})
-	}
-}
-
-func TestSetAppLaunchContentSecurityPolicy(t *testing.T) {
-	t.Parallel()
-
-	applicationURL := "https://example.com"
-
-	expectedCspVals := map[string]string{
-		"default-src":     "'self'",
-		"base-uri":        "'self'",
-		"form-action":     "'self'",
-		"frame-ancestors": "'none'",
-		"object-src":      "'none'",
-		"style-src":       "'self' 'unsafe-inline'",
-		"img-src":         "'self' data: blob:",
-		"font-src":        "'self' data:",
-		"connect-src":     fmt.Sprintf("'self' %s", applicationURL),
-	}
-
-	h := make(http.Header)
-	SetAppLaunchContentSecurityPolicy(h, applicationURL)
-	actualCsp := h.Get("Content-Security-Policy")
-	for k, v := range expectedCspVals {
-		expectedCspSubString := fmt.Sprintf("%s %s;", k, v)
-		require.Contains(t, actualCsp, expectedCspSubString)
 	}
 }
 

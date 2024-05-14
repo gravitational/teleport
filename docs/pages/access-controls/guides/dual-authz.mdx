@@ -18,9 +18,7 @@ The steps below describe how to use Teleport with Mattermost. You can also
 
 <Notice type="warning">
 
-This guide requires a commercial edition of Teleport. The open source edition of
-Teleport only supports [GitHub](../../access-controls/sso/github-sso.mdx) as an
-SSO provider.
+Dual Authorization requires Teleport Enterprise.
 
 </Notice>
 
@@ -79,8 +77,8 @@ We'll reference the exported file(s) later when configuring the plugin.
 <Tabs>
 <TabItem label="Download">
   ```code
-  $ curl -L https://get.gravitational.com/teleport-access-mattermost-v(=teleport.version=)-linux-amd64-bin.tar.gz
-  $ tar -xzf teleport-access-mattermost-v(=teleport.version=)-linux-amd64-bin.tar.gz
+  $ curl -L https://get.gravitational.com/teleport-access-mattermost-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
+  $ tar -xzf teleport-access-mattermost-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
   $ cd teleport-access-mattermost
   $ ./install
   ```

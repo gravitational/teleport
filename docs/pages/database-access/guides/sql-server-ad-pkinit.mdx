@@ -5,6 +5,16 @@ description: How to configure Microsoft SQL Server access with Active Directory 
 
 (!docs/pages/includes/database-access/db-introduction.mdx  dbType="Microsoft SQL Server" dbConfigure="Microsoft SQL Server database with PKINIT authentication" dbName="Microsoft SQL Server" !)
 
+## How it works
+
+The Teleport Database Service joins the same Active Directory domain as the SQL
+Server database and uses the Kerberos protocol to authenticate with SQL Server.
+An Active Directory domain is configured to trust the Teleport certificate
+authority. When a user connects to SQL Server via Teleport, the Database Service
+uses [PKINIT](https://web.mit.edu/kerberos/krb5-1.12/doc/admin/pkinit.html) to
+obtain a ticket-granting ticket from Active Directory. After authenticating, the
+Teleport Database Service forwards user traffic to the database.
+
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![Database access with SQL Server and AD authentication](../../../img/database-access/sql-server-ad-1.png)
@@ -67,13 +77,13 @@ You will need to repeat these steps if you rotate Teleport's database certificat
 1. Get the Teleport database CA certificate by running:
 
    ```code
-   $ tctl auth export --type=db-der > db-ca.cer
+   $ tctl auth export --type=db-client-der > db-ca.cer
    ```
 
 1. Get the Teleport database CRL by running:
 
    ```code
-   $ tctl auth crl --type=db > db-ca.crl
+   $ tctl auth crl --type=db_client > db-ca.crl
    ```
 
 1. Transfer the `db-ca.cer` and `db-ca.crl` files to a Windows machine where you can manage your group policy.

@@ -3,7 +3,11 @@ title: Database Access with Elasticsearch
 description: How to configure Teleport database access with Elasticsearch.
 ---
 
-(!docs/pages/includes/database-access/db-introduction.mdx  dbType="Elasticsearch" dbConfigure="Self-hosted Elasticsearch with mutual TLS authentication" dbName="Elasticsearch" !)
+(!docs/pages/includes/database-access/self-hosted-introduction.mdx  dbType="Elasticsearch" dbConfigure="Self-hosted Elasticsearch" dbName="Elasticsearch" !)
+
+## How it works
+
+(!docs/pages/includes/database-access/how-it-works/mtls.mdx db="Elasticsearch"!)
 
 ## Prerequisites
 
@@ -14,6 +18,9 @@ description: How to configure Teleport database access with Elasticsearch.
 - A host where you will run the Teleport Database Service.
 
   See [Installation](../../installation.mdx) for details.
+
+- Optional: a certificate authority that issues certificates for
+  your self-hosted database.
 
 - (!docs/pages/includes/tctl.mdx!)
 
@@ -28,7 +35,7 @@ Install and configure Teleport where you will run the Teleport Database Service:
 
 (!docs/pages/includes/install-linux.mdx!)
 
-(!docs/pages/includes/database-access/db-configure-start.mdx dbName="myelastic" dbProtocol="elastic" databaseAddress="elasticsearch.example.com:9200" !)
+(!docs/pages/includes/database-access/self-hosted-config-start.mdx dbName="myelastic" dbProtocol="elastic" databaseAddress="elasticsearch.example.com:9200" !)
 
 </TabItem>
 <TabItem label="Kubernetes Cluster">
@@ -36,7 +43,7 @@ Install and configure Teleport where you will run the Teleport Database Service:
 
   (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
-  (!docs/pages/includes/database-access/db-helm-install.mdx dbName="myelastic" dbProtocol="elastic" databaseAddress="elasticsearch.example.com:9200" !)
+  (!docs/pages/includes/database-access/self-hosted-db-helm-install.mdx dbName="myelastic" dbProtocol="elastic" databaseAddress="elasticsearch.example.com:9200" !)
 </TabItem>
 </Tabs>
 
@@ -89,37 +96,16 @@ $ curl -u elastic:your_elasticsearch_password -X POST "https://elasticsearch.exa
 
 ## Step 4/5. Set up mutual TLS
 
-(!docs/pages/includes/database-access/tctl-auth-sign.mdx!)
-
-We will show you how to use `tctl auth sign` below.
-
-To securely access your Elasticsearch database, sign the certificate for the hostname Teleport will
-connect to.
-
-For example, if your Elasticsearch server is accessible at `elastic.example.com`,
-run:
-
-```code
-$ tctl auth sign --format=elasticsearch --host=elastic.example.com --out=elastic --ttl=2160h
-Database credentials have been written to elastic.key, elastic.crt, elastic.cas.
-```
-
-(!docs/pages/includes/database-access/ttl-note.mdx!)
-
-The command will create three files:
-
-- `elastic.cas` with Teleport's certificate authority
-- `elastic.key` with a generated private key
-- `elastic.crt` with a generated host certificate
+(!docs/pages/includes/database-access/tctl-auth-sign-3-files.mdx format="elasticsearch" dbname="Elasticsearch" !)
 
 Use the generated secrets to enable mutual TLS in your `elasticsearch.yml` configuration
 file:
 
 ```yml
 xpack.security.http.ssl:
-  certificate_authorities: /path/to/elastic.cas
-  certificate: /path/to/elastic.crt
-  key: /path/to/elastic.key
+  certificate_authorities: /path/to/server.cas
+  certificate: /path/to/server.crt
+  key: /path/to/server.key
   enabled: true
   client_authentication: required
   verification_mode: certificate
@@ -127,7 +113,7 @@ xpack.security.http.ssl:
 xpack.security.authc.realms.pki.pki1:
   order: 1
   enabled: true
-  certificate_authorities: /path/to/elastic.cas
+  certificate_authorities: /path/to/server.cas
 ```
 
 Once mutual TLS has been enabled, you will no longer be able to connect to the cluster without

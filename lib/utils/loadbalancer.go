@@ -20,6 +20,7 @@ package utils
 
 import (
 	"context"
+	"errors"
 	"io"
 	"math/rand"
 	"net"
@@ -28,6 +29,8 @@ import (
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport"
 )
 
 // NewLoadBalancer returns new load balancer listening on frontend
@@ -56,8 +59,8 @@ func newLoadBalancer(ctx context.Context, frontend NetAddr, policy loadBalancerP
 		waitCtx:    waitCtx,
 		waitCancel: waitCancel,
 		Entry: log.WithFields(log.Fields{
-			trace.Component: "loadbalancer",
-			trace.ComponentFields: log.Fields{
+			teleport.ComponentKey: "loadbalancer",
+			teleport.ComponentFields: log.Fields{
 				"listen": frontend.String(),
 			},
 		}),
@@ -301,7 +304,7 @@ func (l *LoadBalancer) forward(conn net.Conn) error {
 	for i := 0; i < 2; i++ {
 		select {
 		case err := <-messagesC:
-			if err != nil && err != io.EOF {
+			if err != nil && !errors.Is(err, io.EOF) {
 				logger.Warningf("connection problem: %v %T", trace.DebugReport(err), err)
 				lastErr = err
 			}

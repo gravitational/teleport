@@ -91,6 +91,7 @@ export enum DiscoverEvent {
   EC2InstanceSelection = 'tp.ui.discover.selectedEC2Instance',
   EC2DeployEICE = 'tp.ui.discover.deployEICE',
   CreateNode = 'tp.ui.discover.createNode',
+  KubeEKSEnrollEvent = 'tp.ui.discover.kube.enroll.eks',
   PrincipalsConfigure = 'tp.ui.discover.principals.configure',
   TestConnection = 'tp.ui.discover.testConnection',
   Completed = 'tp.ui.discover.completed',
@@ -100,6 +101,7 @@ export enum DiscoverEvent {
 export enum DiscoverEventResource {
   Server = 'DISCOVER_RESOURCE_SERVER',
   Kubernetes = 'DISCOVER_RESOURCE_KUBERNETES',
+  KubernetesEks = 'DISCOVER_RESOURCE_KUBERNETES_EKS',
   DatabasePostgresSelfHosted = 'DISCOVER_RESOURCE_DATABASE_POSTGRES_SELF_HOSTED',
   DatabaseMysqlSelfHosted = 'DISCOVER_RESOURCE_DATABASE_MYSQL_SELF_HOSTED',
   DatabaseMongodbSelfHosted = 'DISCOVER_RESOURCE_DATABASE_MONGODB_SELF_HOSTED',

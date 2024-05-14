@@ -228,8 +228,11 @@ func ReadCertificates(certificateChainBytes []byte) ([]*x509.Certificate, error)
 
 	for {
 		certificateBlock, remainingBytes = pem.Decode(remainingBytes)
-		if certificateBlock == nil || certificateBlock.Type != pemBlockCertificate {
+		if certificateBlock == nil {
 			return nil, trace.NotFound("no PEM data found")
+		}
+		if t := certificateBlock.Type; t != pemBlockCertificate {
+			return nil, trace.BadParameter("expecting certificate, but found %v", t)
 		}
 		certificates = append(certificates, certificateBlock.Bytes)
 
@@ -300,18 +303,16 @@ func TLSCertLeaf(cert tls.Certificate) (*x509.Certificate, error) {
 	return x509cert, trace.Wrap(err)
 }
 
-// InitCertLeaves initializes the Leaf field for each cert in a slice of certs,
+// InitCertLeaf initializes the Leaf field for each cert in a slice of certs,
 // to reduce per-handshake processing.
 // Typically, servers should avoid doing this since it will
 // consume more memory.
-func InitCertLeaves(certs []tls.Certificate) error {
-	for i := range certs {
-		leaf, err := TLSCertLeaf(certs[i])
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		certs[i].Leaf = leaf
+func InitCertLeaf(cert *tls.Certificate) error {
+	leaf, err := TLSCertLeaf(*cert)
+	if err != nil {
+		return trace.Wrap(err)
 	}
+	cert.Leaf = leaf
 	return nil
 }
 

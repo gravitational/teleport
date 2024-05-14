@@ -176,11 +176,14 @@ func ClickableURL(in string) string {
 		return in
 	}
 	ip := net.ParseIP(host)
-	// if address is not an IP, unspecified, e.g. all interfaces 0.0.0.0 or multicast,
+	// If address is not an IP address, return it unchanged.
+	if ip == nil && out.Host != "" {
+		return out.String()
+	}
+	// if address is unspecified, e.g. all interfaces 0.0.0.0 or multicast,
 	// replace with localhost that is clickable
 	if len(ip) == 0 || ip.IsUnspecified() || ip.IsMulticast() {
 		out.Host = fmt.Sprintf("127.0.0.1:%v", port)
-		return out.String()
 	}
 	return out.String()
 }
@@ -249,21 +252,6 @@ func StringsSet(in []string) map[string]struct{} {
 		out[v] = struct{}{}
 	}
 	return out
-}
-
-// ParseOnOff parses whether value is "on" or "off", parameterName is passed for error
-// reporting purposes, defaultValue is returned when no value is set
-func ParseOnOff(parameterName, val string, defaultValue bool) (bool, error) {
-	switch val {
-	case teleport.On:
-		return true, nil
-	case teleport.Off:
-		return false, nil
-	case "":
-		return defaultValue, nil
-	default:
-		return false, trace.BadParameter("bad %q parameter value: %q, supported values are on or off", parameterName, val)
-	}
 }
 
 // IsGroupMember returns whether currently logged user is a member of a group
@@ -426,10 +414,11 @@ func IsCertExpiredError(err error) bool {
 	return strings.Contains(trace.Unwrap(err).Error(), "ssh: cert has expired")
 }
 
-// OpaqueAccessDenied returns a generic NotFound instead of AccessDenied
-// so as to avoid leaking the existence of secret resources.
+// OpaqueAccessDenied returns a generic [trace.NotFoundError] if [err] is a [trace.NotFoundError] or
+// a [trace.AccessDeniedError] so as to avoid leaking the existence of secret resources,
+// for other error types it returns the original error.
 func OpaqueAccessDenied(err error) error {
-	if trace.IsAccessDenied(err) {
+	if trace.IsNotFound(err) || trace.IsAccessDenied(err) {
 		return trace.NotFound("not found")
 	}
 	return trace.Wrap(err)
@@ -651,18 +640,34 @@ func StoreErrorOf(f func() error, err *error) {
 	*err = trace.NewAggregate(*err, f())
 }
 
+// LimitReader returns a reader that limits bytes from r, and reports an error
+// when limit bytes are read.
+func LimitReader(r io.Reader, limit int64) io.Reader {
+	return &limitedReader{
+		LimitedReader: &io.LimitedReader{R: r, N: limit},
+	}
+}
+
+// limitedReader wraps an [io.LimitedReader] that limits bytes read, and
+// reports an error when the read limit is reached.
+type limitedReader struct {
+	*io.LimitedReader
+}
+
+func (l *limitedReader) Read(p []byte) (int, error) {
+	n, err := l.LimitedReader.Read(p)
+	if l.LimitedReader.N <= 0 {
+		return n, ErrLimitReached
+	}
+	return n, err
+}
+
 // ReadAtMost reads up to limit bytes from r, and reports an error
 // when limit bytes are read.
 func ReadAtMost(r io.Reader, limit int64) ([]byte, error) {
-	limitedReader := &io.LimitedReader{R: r, N: limit}
+	limitedReader := LimitReader(r, limit)
 	data, err := io.ReadAll(limitedReader)
-	if err != nil {
-		return data, err
-	}
-	if limitedReader.N <= 0 {
-		return data, ErrLimitReached
-	}
-	return data, nil
+	return data, err
 }
 
 // HasPrefixAny determines if any of the string values have the given prefix.
@@ -692,6 +697,9 @@ func ByteCount(b int64) string {
 }
 
 // ErrLimitReached means that the read limit is reached.
+//
+// TODO(gavin): this should be converted to a 413 StatusRequestEntityTooLarge
+// in trace.ErrorToCode instead of 429 StatusTooManyRequests.
 var ErrLimitReached = &trace.LimitExceededError{Message: "the read limit is reached"}
 
 const (

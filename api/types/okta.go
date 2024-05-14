@@ -23,8 +23,11 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types/compare"
 	"github.com/gravitational/teleport/api/utils"
 )
+
+var _ compare.IsEqual[OktaAssignment] = (*OktaAssignmentV1)(nil)
 
 // OktaImportRule specifies a rule for importing and labeling Okta applications and groups.
 type OktaImportRule interface {
@@ -385,15 +388,19 @@ func (o *OktaAssignmentV1) CheckAndSetDefaults() error {
 		return trace.BadParameter("user must not be empty")
 	}
 
-	if len(o.Spec.Targets) == 0 {
-		return trace.BadParameter("targets is empty")
-	}
-
 	// Make sure the times are UTC so that Copy() works properly.
 	o.Spec.CleanupTime = o.Spec.CleanupTime.UTC()
 	o.Spec.LastTransition = o.Spec.LastTransition.UTC()
 
 	return nil
+}
+
+// IsEqual determines if two okta assignment resources are equivalent to one another.
+func (o *OktaAssignmentV1) IsEqual(i OktaAssignment) bool {
+	if other, ok := i.(*OktaAssignmentV1); ok {
+		return deriveTeleportEqualOktaAssignmentV1(o, other)
+	}
+	return false
 }
 
 // OktaAssignmentTarget is an target for an Okta assignment.

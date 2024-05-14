@@ -298,7 +298,7 @@ func (p *DatabasePack) testRotateTrustedCluster(t *testing.T) {
 
 		go func() {
 			errChan <- pw.waitForPhase(phase, func() error {
-				return authServer.RotateCertAuthority(ctx, auth.RotateRequest{
+				return authServer.RotateCertAuthority(ctx, types.RotateRequest{
 					Type:        types.DatabaseCA,
 					TargetPhase: phase,
 					Mode:        types.RotationModeManual,

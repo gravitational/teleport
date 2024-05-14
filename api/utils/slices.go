@@ -17,6 +17,7 @@ limitations under the License.
 package utils
 
 import (
+	"slices"
 	"strings"
 )
 
@@ -78,6 +79,53 @@ func DeduplicateAny[T any](in []T, compare func(T, T) bool) []T {
 		if !seen {
 			out = append(out, val)
 		}
+	}
+	return out
+}
+
+// ContainSameUniqueElements returns true if the input slices contain the same
+// unique elements. Ordering and duplicates are ignored.
+func ContainSameUniqueElements[S ~[]E, E comparable](s1, s2 S) bool {
+	s1Dedup := Deduplicate(s1)
+	s2Dedup := Deduplicate(s2)
+
+	if len(s1Dedup) != len(s2Dedup) {
+		return false
+	}
+	for i := range s1Dedup {
+		if !slices.Contains(s2Dedup, s1Dedup[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// Any checks if any element of slice satisfy given predicate. If the slice is empty, it returns false.
+func Any[S ~[]E, E any](s S, predicate func(E) bool) bool {
+	for _, e := range s {
+		if predicate(e) {
+			return true
+		}
+	}
+	return false
+}
+
+// All checks if all elements of slice satisfy given predicate. If the slice is empty, it returns true.
+func All[S ~[]E, E any](s S, predicate func(E) bool) bool {
+	for _, e := range s {
+		if !predicate(e) {
+			return false
+		}
+	}
+	return true
+}
+
+// CountBy counts the occurrences of each element in a slice based on a given mapper function.
+func CountBy[S ~[]E, E any](elements S, mapper func(E) string) map[string]int {
+	out := make(map[string]int)
+	for _, elem := range elements {
+		key := mapper(elem)
+		out[key] += 1
 	}
 	return out
 }

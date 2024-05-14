@@ -17,7 +17,7 @@
  */
 
 import React from 'react';
-import { Card, ButtonPrimary, Flex, Box } from 'design';
+import { ButtonPrimary, Flex, Box, ButtonSecondary } from 'design';
 import * as Alerts from 'design/Alert';
 
 import useAttempt from 'shared/hooks/useAttempt';
@@ -39,8 +39,10 @@ function FormPassword(props: Props) {
   const {
     onChangePassWithWebauthn,
     onChangePass,
+    onCancel,
     auth2faType = 'off',
     preferredMfaType,
+    showCancel,
   } = props;
   const mfaEnabled = auth2faType !== 'off';
 
@@ -109,7 +111,7 @@ function FormPassword(props: Props) {
   return (
     <Validation>
       {({ validator }) => (
-        <Card as="form" width="456px" p="6">
+        <form>
           <Status attempt={attempt} />
           <FieldInput
             rule={requiredField('Current Password is required')}
@@ -121,7 +123,7 @@ function FormPassword(props: Props) {
           />
           {mfaEnabled && (
             <Flex alignItems="flex-end" mb={4}>
-              <Box width="50%" data-testid="mfa-select">
+              <Box width="60%" data-testid="mfa-select">
                 <FieldSelect
                   label="Two-factor Type"
                   value={mfaType}
@@ -132,7 +134,7 @@ function FormPassword(props: Props) {
                   isDisabled={isProcessing}
                 />
               </Box>
-              <Box width="50%">
+              <Box width="40%">
                 {mfaType.value === 'otp' && (
                   <FieldInput
                     label="Authenticator Code"
@@ -164,16 +166,26 @@ function FormPassword(props: Props) {
             type="password"
             placeholder="Confirm Password"
           />
-          <ButtonPrimary
-            block
-            disabled={isProcessing}
-            size="large"
-            onClick={e => onSubmit(e, validator)}
-            mt={5}
-          >
-            Update Password
-          </ButtonPrimary>
-        </Card>
+          <Flex mt={5} gap={5}>
+            <ButtonPrimary
+              block
+              disabled={isProcessing}
+              size="large"
+              onClick={e => onSubmit(e, validator)}
+            >
+              Update Password
+            </ButtonPrimary>
+            {showCancel && (
+              <ButtonSecondary
+                disabled={isProcessing}
+                size="large"
+                onClick={onCancel}
+              >
+                Cancel
+              </ButtonSecondary>
+            )}
+          </Flex>
+        </form>
       )}
     </Validation>
   );
@@ -198,8 +210,10 @@ type StatusProps = {
 type Props = {
   auth2faType?: Auth2faType;
   preferredMfaType?: PreferredMfaType;
+  showCancel?: boolean;
   onChangePass(oldPass: string, newPass: string, token: string): Promise<any>;
   onChangePassWithWebauthn(oldPass: string, newPass: string): Promise<any>;
+  onCancel?(): void;
 };
 
 export default FormPassword;

@@ -40,10 +40,13 @@ import (
 
 // NewHostUsers initialize a new HostUsers object
 func NewHostUsers(ctx context.Context, storage *local.PresenceService, uuid string) HostUsers {
-	// newHostUsersBackend statically returns a valid backend or an error,
-	// resulting in a staticcheck linter error on darwin
-	backend, err := newHostUsersBackend() //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
-	if err != nil {                       //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
+	//nolint:staticcheck // SA4023. False positive on macOS.
+	backend, err := newHostUsersBackend()
+	switch {
+	case trace.IsNotImplemented(err):
+		log.Debugf("Skipping host user management: %v", err)
+		return nil
+	case err != nil: //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
 		log.Warnf("Error making new HostUsersBackend: %s", err)
 		return nil
 	}
@@ -58,11 +61,14 @@ func NewHostUsers(ctx context.Context, storage *local.PresenceService, uuid stri
 }
 
 func NewHostSudoers(uuid string) HostSudoers {
-	// newHostSudoersBackend statically returns a valid backend or an error,
-	// resulting in a staticcheck linter error on darwin
-	backend, err := newHostSudoersBackend(uuid) //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
-	if err != nil {                             //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
-		log.Warnf("Error making new HostUsersBackend: %s", err)
+	//nolint:staticcheck // SA4023. False positive on macOS.
+	backend, err := newHostSudoersBackend(uuid)
+	switch {
+	case trace.IsNotImplemented(err):
+		log.Debugf("Skipping host sudoers management: %v", err)
+		return nil
+	case err != nil: //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
+		log.Warnf("Error making new HostSudoersBackend: %s", err)
 		return nil
 	}
 	return &HostSudoersManagement{
@@ -222,7 +228,7 @@ func (u *HostUserManagement) CreateUser(name string, ui *services.HostUsersInfo)
 	}
 
 	tempUser, err := u.backend.Lookup(name)
-	if err != nil && err != user.UnknownUserError(name) {
+	if err != nil && !errors.Is(err, user.UnknownUserError(name)) {
 		return nil, trace.Wrap(err)
 	}
 
@@ -479,7 +485,7 @@ func (u *HostUserManagement) Shutdown() {
 func (u *HostUserManagement) UserExists(username string) error {
 	_, err := u.backend.Lookup(username)
 	if err != nil {
-		if err == user.UnknownUserError(username) {
+		if errors.Is(err, user.UnknownUserError(username)) {
 			return trace.NotFound("User not found: %s", err)
 		}
 		return trace.Wrap(err)

@@ -17,11 +17,27 @@ on:
       - '.github/workflows/unit-tests-ui.yaml'
       - 'web/**'
       - 'gen/proto/js/**'
+      - 'gen/proto/ts/**'
+      - 'package.json'
+      - 'yarn.lock'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'tsconfig.json'
+      - 'tsconfig.node.json'
+      - 'jest.config.js'
   merge_group:
     paths-ignore:
       - '.github/workflows/unit-tests-ui.yaml'
       - 'web/**'
       - 'gen/proto/js/**'
+      - 'gen/proto/ts/**'
+      - 'package.json'
+      - 'yarn.lock'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'tsconfig.json'
+      - 'tsconfig.node.json'
+      - 'jest.config.js'
 
 jobs:
   lint:

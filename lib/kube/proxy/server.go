@@ -192,7 +192,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	log := cfg.Log.WithFields(logrus.Fields{
-		trace.Component: cfg.Component,
+		teleport.ComponentKey: cfg.Component,
 	})
 	// limiter limits requests by frequency and amount of simultaneous
 	// connections per client
@@ -317,6 +317,14 @@ func (t *TLSServer) Serve(listener net.Listener, options ...ServeOption) error {
 	defer mux.Close()
 
 	t.mu.Lock()
+	select {
+	// If the server is closed before the listener is started, return early
+	// to avoid deadlock.
+	case <-t.closeContext.Done():
+		t.mu.Unlock()
+		return nil
+	default:
+	}
 	t.listener = mux.TLS()
 	err = http2.ConfigureServer(t.Server, &http2.Server{})
 	t.mu.Unlock()
@@ -404,8 +412,11 @@ func (t *TLSServer) close(ctx context.Context) error {
 		t.KubernetesServersWatcher.Close()
 	}
 
+	var listClose error
 	t.mu.Lock()
-	listClose := t.listener.Close()
+	if t.listener != nil {
+		listClose = t.listener.Close()
+	}
 	t.mu.Unlock()
 	return trace.NewAggregate(append(errs, listClose)...)
 }
@@ -582,7 +593,7 @@ func (t *TLSServer) getServiceStaticLabels() map[string]string {
 	return labels
 }
 
-// setServiceLabels updates the the cluster labels with the kubernetes_service labels.
+// setServiceLabels updates the cluster labels with the kubernetes_service labels.
 // If the cluster and the service define overlapping labels the service labels take precedence.
 // This function manipulates the original cluster.
 func (t *TLSServer) setServiceLabels(cluster types.KubeCluster) {

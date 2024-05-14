@@ -51,28 +51,33 @@ func userActivityReportKey(reportUUID uuid.UUID, startTime time.Time) []byte {
 	return backend.Key(userActivityReportsPrefix, startTime.Format(time.RFC3339), reportUUID.String())
 }
 
-func prepareUserActivityReport(
+func prepareUserActivityReports(
 	clusterName, reporterHostID []byte,
 	startTime time.Time, records []*prehogv1.UserActivityRecord,
-) (*prehogv1.UserActivityReport, error) {
-	reportUUID := uuid.New()
-	report := &prehogv1.UserActivityReport{
-		ReportUuid:     reportUUID[:],
-		ClusterName:    clusterName,
-		ReporterHostid: reporterHostID,
-		StartTime:      timestamppb.New(startTime),
-		Records:        records,
-	}
-
-	for proto.Size(report) > maxItemSize {
-		if len(report.Records) <= 1 {
-			return nil, trace.LimitExceeded("failed to marshal user activity report within size limit (this is a bug)")
+) (reports []*prehogv1.UserActivityReport, err error) {
+	for len(records) > 0 {
+		reportUUID := uuid.New()
+		report := &prehogv1.UserActivityReport{
+			ReportUuid:     reportUUID[:],
+			ClusterName:    clusterName,
+			ReporterHostid: reporterHostID,
+			StartTime:      timestamppb.New(startTime),
+			Records:        records,
 		}
 
-		report.Records = report.Records[:len(report.Records)/2]
+		for proto.Size(report) > maxItemSize {
+			if len(report.Records) <= 1 {
+				return nil, trace.LimitExceeded("failed to marshal user activity report within size limit (this is a bug)")
+			}
+
+			report.Records = report.Records[:len(report.Records)/2]
+		}
+
+		records = records[len(report.Records):]
+		reports = append(reports, report)
 	}
 
-	return report, nil
+	return reports, nil
 }
 
 // resourcePresenceReportKey returns the backend key for a resource presence report with

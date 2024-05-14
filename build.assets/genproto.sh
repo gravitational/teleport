@@ -46,6 +46,7 @@ main() {
     --path=api/proto/teleport/legacy/ \
     --path=api/proto/teleport/attestation/ \
     --path=api/proto/teleport/usageevents/ \
+    --path=api/proto/teleport/mfa/ \
     --path=proto/teleport/lib/web/envelope.proto \
     --exclude-path=api/proto/teleport/legacy/client/proto/event.proto
   cp -r gogogen/github.com/gravitational/teleport/. .
@@ -58,6 +59,7 @@ main() {
     --exclude-path=api/proto/teleport/legacy/ \
     --exclude-path=api/proto/teleport/attestation/ \
     --exclude-path=api/proto/teleport/usageevents/ \
+    --exclude-path=api/proto/teleport/mfa/ \
     --exclude-path=proto/teleport/lib/web/envelope.proto \
     --exclude-path=proto/prehog/
 
@@ -70,14 +72,15 @@ main() {
   echoed buf generate --template=buf-connect-go.gen.yaml \
     --path=proto/prehog/
 
-  # Generate JS protos.
-  [[ $skip_js -eq 0 ]] && echoed buf generate --template=buf-js.gen.yaml \
+  # Generate TS protos.
+  [[ $skip_js -eq 0 ]] && echoed buf generate --template=buf-ts.gen.yaml \
     --path=proto/prehog/ \
     --path=proto/teleport/lib/teleterm/ \
-    --path=api/proto/teleport/userpreferences/ \
     --path=api/proto/teleport/accesslist/ \
+    --path=api/proto/teleport/devicetrust/ \
+    --path=api/proto/teleport/header/ \
     --path=api/proto/teleport/trait/ \
-    --path=api/proto/teleport/header/
+    --path=api/proto/teleport/userpreferences/
 }
 
 main "$@"

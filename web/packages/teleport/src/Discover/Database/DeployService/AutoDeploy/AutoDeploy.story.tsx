@@ -17,26 +17,24 @@
  */
 
 import React from 'react';
-import { MemoryRouter } from 'react-router';
 import { initialize, mswLoader } from 'msw-storybook-addon';
 import { rest } from 'msw';
 
-import { Context as TeleportContext, ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
+
 import { ResourceKind } from 'teleport/Discover/Shared';
-import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
-import { getUserContext } from 'teleport/mocks/contexts';
-import { FeaturesContextProvider } from 'teleport/FeaturesContext';
+
+import {
+  ComponentWrapper,
+  getDbMeta,
+  getDbResourceSpec,
+} from 'teleport/Discover/Fixtures/databases';
+
+import { TeleportProvider } from 'teleport/Discover/Fixtures/fixtures';
 import {
   DatabaseEngine,
   DatabaseLocation,
 } from 'teleport/Discover/SelectResource';
-import {
-  DiscoverProvider,
-  DiscoverContextState,
-  DbMeta,
-} from 'teleport/Discover/useDiscover';
-import { IntegrationStatusCode } from 'teleport/services/integrations';
 
 import { AutoDeploy } from './AutoDeploy';
 
@@ -49,9 +47,9 @@ initialize();
 
 export const Init = () => {
   return (
-    <Provider>
+    <ComponentWrapper>
       <AutoDeploy />
-    </Provider>
+    </ComponentWrapper>
   );
 };
 
@@ -67,10 +65,57 @@ Init.parameters = {
   },
 };
 
+export const InitWithAutoEnroll = () => {
+  return (
+    <TeleportProvider
+      resourceKind={ResourceKind.Database}
+      agentMeta={{
+        ...getDbMeta(),
+        autoDiscovery: {
+          config: { name: '', discoveryGroup: '', aws: [] },
+          requiredVpcsAndSubnets: {},
+        },
+      }}
+      resourceSpec={getDbResourceSpec(
+        DatabaseEngine.Postgres,
+        DatabaseLocation.Aws
+      )}
+    >
+      <AutoDeploy />
+    </TeleportProvider>
+  );
+};
+InitWithAutoEnroll.parameters = {
+  msw: {
+    handlers: [
+      rest.post(
+        cfg.getListSecurityGroupsUrl('test-integration'),
+        (req, res, ctx) =>
+          res(ctx.json({ securityGroups: securityGroupsResponse }))
+      ),
+      rest.post(
+        cfg.getAwsRdsDbsDeployServicesUrl('test-integration'),
+        (req, res, ctx) =>
+          res(
+            ctx.json({
+              clusterDashboardUrl: 'some-cluster-dashboard-url',
+            })
+          )
+      ),
+    ],
+  },
+};
+
 export const InitWithLabels = () => {
   return (
-    <Provider
+    <TeleportProvider
+      resourceKind={ResourceKind.Database}
+      resourceSpec={getDbResourceSpec(
+        DatabaseEngine.Postgres,
+        DatabaseLocation.Aws
+      )}
       agentMeta={{
+        ...getDbMeta(),
         agentMatcherLabels: [
           { name: 'env', value: 'staging' },
           { name: 'os', value: 'windows' },
@@ -78,7 +123,7 @@ export const InitWithLabels = () => {
       }}
     >
       <AutoDeploy />
-    </Provider>
+    </TeleportProvider>
   );
 };
 
@@ -96,9 +141,9 @@ InitWithLabels.parameters = {
 
 export const InitSecurityGroupsLoadingFailed = () => {
   return (
-    <Provider>
+    <ComponentWrapper>
       <AutoDeploy />
-    </Provider>
+    </ComponentWrapper>
   );
 };
 
@@ -121,9 +166,9 @@ InitSecurityGroupsLoadingFailed.parameters = {
 
 export const InitSecurityGroupsLoading = () => {
   return (
-    <Provider>
+    <ComponentWrapper>
       <AutoDeploy />
-    </Provider>
+    </ComponentWrapper>
   );
 };
 
@@ -137,84 +182,6 @@ InitSecurityGroupsLoading.parameters = {
     ],
   },
 };
-
-const Provider = props => {
-  const ctx = createTeleportContext();
-  const discoverCtx: DiscoverContextState = {
-    agentMeta: {
-      resourceName: 'db-name',
-      awsRegion: 'us-east-1',
-      agentMatcherLabels: [],
-      db: {
-        aws: {
-          rds: {
-            region: 'us-east-1',
-            vpcId: 'test-vpc',
-          },
-        },
-      },
-      selectedAwsRdsDb: { region: 'us-east-1' } as any,
-      awsIntegration: {
-        kind: 'aws-oidc',
-        name: 'test-integration',
-        resourceType: 'integration',
-        spec: {
-          roleArn: 'arn-123',
-        },
-        statusCode: IntegrationStatusCode.Running,
-      },
-      ...props.agentMeta,
-    } as DbMeta,
-    currentStep: 0,
-    nextStep: () => null,
-    prevStep: () => null,
-    onSelectResource: () => null,
-    resourceSpec: {
-      dbMeta: {
-        location: DatabaseLocation.Aws,
-        engine: DatabaseEngine.AuroraMysql,
-      },
-    } as any,
-    exitFlow: () => null,
-    viewConfig: null,
-    indexedViews: [],
-    setResourceSpec: () => null,
-    updateAgentMeta: () => null,
-    emitErrorEvent: () => null,
-    emitEvent: () => null,
-    eventState: null,
-  };
-
-  return (
-    <MemoryRouter
-      initialEntries={[
-        { pathname: cfg.routes.discover, state: { entity: 'database' } },
-      ]}
-    >
-      <ContextProvider ctx={ctx}>
-        <FeaturesContextProvider value={[]}>
-          <DiscoverProvider mockCtx={discoverCtx}>
-            <PingTeleportProvider
-              interval={props.interval || 100000}
-              resourceKind={ResourceKind.Database}
-            >
-              {props.children}
-            </PingTeleportProvider>
-          </DiscoverProvider>
-        </FeaturesContextProvider>
-      </ContextProvider>
-    </MemoryRouter>
-  );
-};
-
-function createTeleportContext() {
-  const ctx = new TeleportContext();
-
-  ctx.isEnterprise = false;
-  ctx.storeUser.setState(getUserContext());
-
-  return ctx;
-}
 
 const securityGroupsResponse = [
   {

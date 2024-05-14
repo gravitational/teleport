@@ -20,16 +20,14 @@ import { z } from 'zod';
 import { useStore } from 'shared/libs/stores';
 import { arrayObjectIsEqual } from 'shared/utils/highbar';
 
-/* eslint-disable @typescript-eslint/ban-ts-comment*/
-// @ts-ignore
-import { ResourceKind } from 'e-teleport/Workflow/NewRequest/useNewRequest';
+import { ResourceKind } from 'shared/components/AccessRequests/NewRequest';
 
 import {
-  UnifiedResourcePreferences,
   DefaultTab,
-  ViewMode,
   LabelsViewMode,
-} from 'shared/services/unifiedResourcePreferences';
+  UnifiedResourcePreferences,
+  ViewMode,
+} from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 
 import { ModalsService } from 'teleterm/ui/services/modals';
 import { ClustersService } from 'teleterm/ui/services/clusters';
@@ -56,11 +54,33 @@ import {
   Document,
   DocumentsService,
   getDefaultDocumentClusterQueryParams,
+  DocumentCluster,
+  DocumentGateway,
+  DocumentTshKube,
+  DocumentTshNode,
 } from './documentsService';
 
 export interface WorkspacesState {
   rootClusterUri?: RootClusterUri;
   workspaces: Record<RootClusterUri, Workspace>;
+  /**
+   * isInitialized signifies whether WorkspacesState has finished state restoration during the start
+   * of the app. It is useful in places that want to wait for the state to be restored before
+   * proceeding.
+   *
+   * If during the previous start of the app the user was logged into a workspace which cert has
+   * since expired, isInitialized will be set to true only _after_ the user logs in to that
+   * workspace (or closes the login modal).
+   *
+   * This field is not persisted to disk.
+   *
+   * Side note: Arguably, depending on the use case, the moment isInitialized is set to true could
+   * be changed to happen right before the modal is shown. Ultimately, the thing that interests us
+   * the most is whether the state from disk was loaded into memory. Maybe in the future we will
+   * need to separate values or an enum.
+   *
+   */
+  isInitialized: boolean;
 }
 
 export interface Workspace {
@@ -90,6 +110,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
   state: WorkspacesState = {
     rootClusterUri: undefined,
     workspaces: {},
+    isInitialized: false,
   };
 
   constructor(
@@ -399,6 +420,10 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     if (persistedState.rootClusterUri) {
       await this.setActiveWorkspace(persistedState.rootClusterUri);
     }
+
+    this.setState(draft => {
+      draft.isInitialized = true;
+    });
   }
 
   // TODO(gzdunek): Parse the entire workspace state read from disk like below.
@@ -425,27 +450,29 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
           d.kind === 'doc.terminal_tsh_kube' ||
           d.kind === 'doc.terminal_tsh_node'
         ) {
-          return {
+          const documentTerminal: DocumentTshKube | DocumentTshNode = {
             ...d,
             status: 'connecting',
             origin: 'reopened_session',
           };
+          return documentTerminal;
         }
 
         if (d.kind === 'doc.gateway') {
-          return {
+          const documentGateway: DocumentGateway = {
             ...d,
             origin: 'reopened_session',
           };
+          return documentGateway;
         }
 
         if (d.kind === 'doc.cluster') {
           const defaultParams = getDefaultDocumentClusterQueryParams();
           // TODO(gzdunek): this should be parsed by a tool like zod
-          return {
+          const documentCluster: DocumentCluster = {
             ...d,
             queryParams: {
-              defaultParams,
+              ...defaultParams,
               ...d.queryParams,
               sort: {
                 ...defaultParams.sort,
@@ -453,6 +480,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
               },
             },
           };
+          return documentCluster;
         }
 
         return d;

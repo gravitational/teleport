@@ -20,6 +20,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -202,7 +203,7 @@ func NewSupervisor(id string, parentLog logrus.FieldLogger) Supervisor {
 
 		reloadContext: reloadContext,
 		signalReload:  signalReload,
-		log:           parentLog.WithField(trace.Component, teleport.Component(teleport.ComponentProcess, id)),
+		log:           parentLog.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentProcess, id)),
 	}
 	go srv.fanOut()
 	return srv
@@ -311,7 +312,7 @@ func (s *LocalSupervisor) serve(srv Service) {
 		l.Debug("Service has started.")
 		err := srv.Serve()
 		if err != nil {
-			if err == ErrTeleportExited {
+			if errors.Is(err, ErrTeleportExited) {
 				l.Info("Teleport process has shut down.")
 			} else {
 				if s.ExitContext().Err() == nil {

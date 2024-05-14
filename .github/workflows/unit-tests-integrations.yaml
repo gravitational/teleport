@@ -18,15 +18,15 @@ jobs:
        - name: Checkout
          if: ${{ github.event_name == 'merge_group' }}
          uses: actions/checkout@v4
-       - uses: dorny/paths-filter@4512585405083f25c027a35db413c2b3b9006d50 # v2.11.1
+       - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
          id: changes
          with:
            base: ${{ github.event.pull_request.base.ref || github.event.merge_group.base_ref }}
            ref: ${{ github.event.pull_request.head.ref || github.event.merge_group.head_ref }}
            filters: |
              changed:
-               - '/go.mod'
-               - '/go.sum'
+               - 'go.mod'
+               - 'go.sum'
                - 'integrations/**'
                - 'api/types/**'
                - 'gen/**'
@@ -46,7 +46,7 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport15
+      image: ghcr.io/gravitational/teleport-buildbox:teleport16
       options: --cap-add=SYS_ADMIN --privileged
 
     steps:
@@ -56,9 +56,6 @@ jobs:
       - name: Prepare workspace
         uses: ./.github/actions/prepare-workspace
 
-      - name: Build teleport binaries
-        run: make build/tctl build/teleport build/tsh && echo "$PWD/build" >> "$GITHUB_PATH"
-
       - name: Run access plugin tests
         run: make test-access-integrations
         timeout-minutes: 5
@@ -66,6 +63,14 @@ jobs:
       - name: Run integrations lib tests
         run: make test-integrations-lib
         timeout-minutes: 5
+
+      - name: Run terraform provider OSS tests
+        run: make test-terraform-provider
+        timeout-minutes: 15
+
+      - name: Run integrations event-handler tests
+        run: make test-event-handler-integrations
+        timeout-minutes: 10
 
       - name: Run operator tests
         timeout-minutes: 40

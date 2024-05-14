@@ -18,8 +18,9 @@
 
 import { Platform } from 'design/platform';
 
+import { assertUnreachable } from 'shared/utils/assertUnreachable';
+
 import { DiscoverEventResource } from 'teleport/services/userEvent';
-import cfg from 'teleport/config';
 
 import { ResourceKind } from '../Shared/ResourceKind';
 
@@ -29,19 +30,20 @@ import {
   DATABASES_UNGUIDED_DOC,
 } from './databases';
 import {
-  ResourceSpec,
-  DatabaseLocation,
   DatabaseEngine,
+  DatabaseLocation,
+  KubeLocation,
+  ResourceSpec,
   ServerLocation,
 } from './types';
-import { SAML_APPLICATIONS } from './resourcesE';
 
 const baseServerKeywords = 'server node';
+const awsKeywords = 'aws amazon ';
 export const SERVERS: ResourceSpec[] = [
   {
     name: 'Ubuntu 14.04+',
     kind: ResourceKind.Server,
-    keywords: baseServerKeywords + 'ubuntu',
+    keywords: baseServerKeywords + 'ubuntu linux',
     icon: 'Linux',
     event: DiscoverEventResource.Server,
     platform: Platform.Linux,
@@ -49,7 +51,7 @@ export const SERVERS: ResourceSpec[] = [
   {
     name: 'Debian 8+',
     kind: ResourceKind.Server,
-    keywords: baseServerKeywords + 'debian',
+    keywords: baseServerKeywords + 'debian linux',
     icon: 'Linux',
     event: DiscoverEventResource.Server,
     platform: Platform.Linux,
@@ -57,7 +59,7 @@ export const SERVERS: ResourceSpec[] = [
   {
     name: 'RHEL/CentOS 7+',
     kind: ResourceKind.Server,
-    keywords: baseServerKeywords + 'rhel centos',
+    keywords: baseServerKeywords + 'rhel centos linux',
     icon: 'Linux',
     event: DiscoverEventResource.Server,
     platform: Platform.Linux,
@@ -135,10 +137,19 @@ export const KUBERNETES: ResourceSpec[] = [
     keywords: 'kubernetes cluster kubes',
     icon: 'Kube',
     event: DiscoverEventResource.Kubernetes,
+    kubeMeta: { location: KubeLocation.SelfHosted },
+  },
+  {
+    name: 'EKS',
+    kind: ResourceKind.Kubernetes,
+    keywords: awsKeywords + 'kubernetes cluster kubes eks elastic service',
+    icon: 'Aws',
+    event: DiscoverEventResource.KubernetesEks,
+    kubeMeta: { location: KubeLocation.Aws },
   },
 ];
 
-const BASE_RESOURCES: ResourceSpec[] = [
+export const BASE_RESOURCES: ResourceSpec[] = [
   ...APPLICATIONS,
   ...KUBERNETES,
   ...WINDOWS_DESKTOPS,
@@ -147,10 +158,6 @@ const BASE_RESOURCES: ResourceSpec[] = [
   ...DATABASES_UNGUIDED,
   ...DATABASES_UNGUIDED_DOC,
 ];
-
-export const RESOURCES = !cfg.isEnterprise
-  ? BASE_RESOURCES
-  : [...BASE_RESOURCES, ...SAML_APPLICATIONS];
 
 export function getResourcePretitle(r: ResourceSpec) {
   if (!r) {
@@ -180,11 +187,25 @@ export function getResourcePretitle(r: ResourceSpec) {
       break;
     case ResourceKind.Desktop:
       return 'Windows Desktop';
+    case ResourceKind.Kubernetes:
+      if (r.kubeMeta) {
+        switch (r.kubeMeta.location) {
+          case KubeLocation.Aws:
+            return 'Amazon Web Services (AWS)';
+          case KubeLocation.SelfHosted:
+            return 'Self-Hosted';
+          default:
+            assertUnreachable(r.kubeMeta.location);
+        }
+      }
+      break;
     case ResourceKind.Server:
       if (r.nodeMeta?.location === ServerLocation.Aws) {
         return 'Amazon Web Services (AWS)';
       }
       return 'Server';
+    case ResourceKind.SamlApplication:
+      return 'SAML Application';
   }
 
   return '';

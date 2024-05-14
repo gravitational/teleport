@@ -61,7 +61,7 @@ test('notification bell without notification', async () => {
   setup();
 
   render(getTopBar());
-  await screen.findByTestId('cluster-selector');
+  await screen.findByTestId('tb-note');
 
   expect(screen.getByTestId('tb-note')).toBeInTheDocument();
   expect(screen.queryByTestId('tb-note-attention')).not.toBeInTheDocument();
@@ -84,7 +84,7 @@ test('notification bell with notification', async () => {
   };
 
   render(getTopBar());
-  await screen.findByTestId('cluster-selector');
+  await screen.findByTestId('tb-note');
 
   expect(screen.getByTestId('tb-note')).toBeInTheDocument();
   expect(screen.getByTestId('tb-note-attention')).toBeInTheDocument();

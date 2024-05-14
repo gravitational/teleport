@@ -29,6 +29,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"sort"
 	"strings"
@@ -44,11 +45,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/grpc/metadata"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/header"
@@ -61,6 +65,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -157,16 +162,16 @@ func newTestPack(
 	if err != nil {
 		return p, trace.Wrap(err)
 	}
-	if err := p.a.SetAuthPreference(ctx, authPreference); err != nil {
+	if _, err = p.a.UpsertAuthPreference(ctx, authPreference); err != nil {
 		return p, trace.Wrap(err)
 	}
 	if err := p.a.SetClusterAuditConfig(ctx, types.DefaultClusterAuditConfig()); err != nil {
 		return p, trace.Wrap(err)
 	}
-	if err := p.a.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig()); err != nil {
+	if _, err := p.a.UpsertClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig()); err != nil {
 		return p, trace.Wrap(err)
 	}
-	if err := p.a.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig()); err != nil {
+	if _, err := p.a.UpsertSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig()); err != nil {
 		return p, trace.Wrap(err)
 	}
 
@@ -202,6 +207,7 @@ func newAuthSuite(t *testing.T) *testPack {
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
 	native.PrecomputeTestKeys(m)
+	modules.SetInsecureTestMode(true)
 	os.Exit(m.Run())
 }
 
@@ -212,7 +218,7 @@ func TestSessions(t *testing.T) {
 	ctx := context.Background()
 
 	user := "user1"
-	pass := []byte("abc123")
+	pass := []byte("abcdef123456")
 
 	_, err := s.a.AuthenticateWebUser(ctx, AuthenticateUserRequest{
 		Username: user,
@@ -251,6 +257,136 @@ func TestSessions(t *testing.T) {
 	require.True(t, trace.IsNotFound(err), "%#v", err)
 }
 
+func TestAuthenticateWebUser_deviceWebToken(t *testing.T) {
+	t.Parallel()
+	s := newAuthSuite(t)
+
+	authServer := s.a
+
+	const user = "llama"
+	const pass = "supersecretpassword!!1!"
+
+	// Prepare user and password.
+	// 2nd factors are not important for this test.
+	_, _, err := CreateUserAndRole(authServer, user, []string{user}, nil /* allowRules */)
+	require.NoError(t, err, "CreateUserAndRole failed")
+	require.NoError(t,
+		authServer.UpsertPassword(user, []byte(pass)),
+		"UpsertPassword failed")
+
+	const userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+	const remoteIP = "40.89.244.232"
+	const remoteAddr = remoteIP + ":4242"
+
+	makeTokenSuccess := func(t *testing.T) CreateDeviceWebTokenFunc {
+		return func(ctx context.Context, dwt *devicepb.DeviceWebToken) (*devicepb.DeviceWebToken, error) {
+			if !assert.NotNil(t, dwt, "dwt parameter is nil") {
+				return nil, errors.New("dtw parameter is nil")
+			}
+			assert.NotEmpty(t, dwt.WebSessionId, "dwt.WebSessionId is empty")
+			assert.Equal(t, userAgent, dwt.BrowserUserAgent, "dwt.BrowserUserAgent mismatch")
+			assert.Equal(t, remoteIP, dwt.BrowserIp, "dwt.BrowserIp mismatch")
+			assert.Equal(t, user, dwt.User, "dwt.User mismatch")
+
+			return &devicepb.DeviceWebToken{
+				Id:    "this is an opaque ID",
+				Token: "this is an opaque token",
+			}, nil
+		}
+	}
+
+	makeTokenError := func(t *testing.T) CreateDeviceWebTokenFunc {
+		return func(ctx context.Context, dwt *devicepb.DeviceWebToken) (*devicepb.DeviceWebToken, error) {
+			return nil, errors.New("something bad happened")
+		}
+	}
+
+	ctx := context.Background()
+	validReq := &AuthenticateUserRequest{
+		Username: user,
+		Pass: &PassCreds{
+			Password: []byte(pass),
+		},
+		ClientMetadata: &ForwardedClientMetadata{
+			UserAgent:  userAgent,
+			RemoteAddr: remoteAddr,
+		},
+	}
+
+	tests := []struct {
+		name          string
+		makeTokenFunc func(t *testing.T) CreateDeviceWebTokenFunc
+		req           *AuthenticateUserRequest
+		wantErr       string
+		wantToken     bool
+	}{
+		{
+			name:          "success",
+			makeTokenFunc: makeTokenSuccess,
+			req:           validReq,
+			wantToken:     true,
+		},
+		{
+			name:          "CreateDeviceWebToken fails",
+			makeTokenFunc: makeTokenError,
+			req:           validReq,
+		},
+		{
+			name:          "empty ClientMetadata.UserAgent",
+			makeTokenFunc: makeTokenSuccess,
+			req: func() *AuthenticateUserRequest {
+				req := *validReq
+				req.ClientMetadata = &ForwardedClientMetadata{
+					RemoteAddr: remoteAddr, // AuthenticateWebUser fails if RemoteAddr is missing.
+				}
+				return &req
+			}(),
+		},
+		{
+			name:          "nil ClientMetadata",
+			makeTokenFunc: makeTokenSuccess,
+			req: func() *AuthenticateUserRequest {
+				req := *validReq
+				req.ClientMetadata = nil
+				return &req
+			}(),
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var gotSessionID string // captured session ID from DeviceWebToken
+			tokenFn := test.makeTokenFunc(t)
+			captureSessionFn := func(ctx context.Context, dwt *devicepb.DeviceWebToken) (*devicepb.DeviceWebToken, error) {
+				gotSessionID = dwt.GetWebSessionId()
+				return tokenFn(ctx, dwt)
+			}
+
+			// Set a fake SetCreateDeviceWebTokenFunc.
+			// This is set during server creation for Enterprise servers.
+			authServer.SetCreateDeviceWebTokenFunc(captureSessionFn)
+
+			webSession, err := authServer.AuthenticateWebUser(ctx, *test.req)
+			// AuthenticateWebUser is never expected to fail in this test.
+			// Either a DeviceWebToken exists in the response, or it doesn't, but the
+			// method itself always works.
+			require.NoError(t, err, "AuthenticateWebUser failed unexpectedly")
+
+			// Verify the token itself.
+			deviceToken := webSession.GetDeviceWebToken()
+			if !test.wantToken {
+				assert.Nil(t, deviceToken, "WebSession.GetDeviceWebToken is not nil")
+				return
+			}
+			require.NotNil(t, deviceToken, "WebSession.GetDeviceWebToken is nil")
+			assert.NotEmpty(t, deviceToken.Id, "DeviceWebToken.Id is empty")
+			assert.NotEmpty(t, deviceToken.Token, "DeviceWebToken.Token is empty")
+
+			// Verify the WebSessionId sent to CreateDeviceWebTokenFunc.
+			assert.Equal(t, webSession.GetName(), gotSessionID, "Captured DeviceWebToken.WebSessionId mismatch")
+		})
+	}
+}
+
 func TestAuthenticateSSHUser(t *testing.T) {
 	t.Parallel()
 	s := newAuthSuite(t)
@@ -260,10 +396,11 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	// Register the leaf cluster.
 	leaf, err := types.NewRemoteCluster("leaf.localhost")
 	require.NoError(t, err)
-	require.NoError(t, s.a.CreateRemoteCluster(leaf))
+	_, err = s.a.CreateRemoteCluster(ctx, leaf)
+	require.NoError(t, err)
 
 	user := "user1"
-	pass := []byte("abc123")
+	pass := []byte("abcdef123456")
 
 	// Try to login as an unknown user.
 	_, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
@@ -363,8 +500,6 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, wantID, *gotID)
 
-	// Register a kubernetes cluster to verify the defaulting logic in TLS cert
-	// generation.
 	kubeCluster, err := types.NewKubernetesClusterV3(
 		types.Metadata{
 			Name: "root-kube-cluster",
@@ -409,8 +544,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, wantID, *gotID)
 
-	// Login without specifying kube cluster. A registered one should be picked
-	// automatically.
+	// Login without specifying kube cluster. Kube cluster in the certificate should be empty.
 	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
 			Username:  user,
@@ -428,16 +562,15 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	gotTLSCert, err = tlsca.ParseCertificatePEM(resp.TLSCert)
 	require.NoError(t, err)
 	wantID = tlsca.Identity{
-		Username:          user,
-		Groups:            []string{role.GetName()},
-		Principals:        []string{user, teleport.SSHSessionJoinPrincipal},
-		KubernetesUsers:   []string{user},
-		KubernetesGroups:  []string{"system:masters"},
-		KubernetesCluster: "root-kube-cluster",
-		Expires:           gotTLSCert.NotAfter,
-		RouteToCluster:    s.clusterName.GetClusterName(),
-		TeleportCluster:   s.clusterName.GetClusterName(),
-		PrivateKeyPolicy:  keys.PrivateKeyPolicyNone,
+		Username:         user,
+		Groups:           []string{role.GetName()},
+		Principals:       []string{user, teleport.SSHSessionJoinPrincipal},
+		KubernetesUsers:  []string{user},
+		KubernetesGroups: []string{"system:masters"},
+		Expires:          gotTLSCert.NotAfter,
+		RouteToCluster:   s.clusterName.GetClusterName(),
+		TeleportCluster:  s.clusterName.GetClusterName(),
+		PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
@@ -474,8 +607,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, wantID, *gotID)
 
-	// Login without specifying kube cluster. A registered one should be picked
-	// automatically.
+	// Login without specifying kube cluster. Kube cluster in the certificate should be empty.
 	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
 			Username:  user,
@@ -493,16 +625,15 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	gotTLSCert, err = tlsca.ParseCertificatePEM(resp.TLSCert)
 	require.NoError(t, err)
 	wantID = tlsca.Identity{
-		Username:          user,
-		Groups:            []string{role.GetName()},
-		Principals:        []string{user, teleport.SSHSessionJoinPrincipal},
-		KubernetesUsers:   []string{user},
-		KubernetesGroups:  []string{"system:masters"},
-		KubernetesCluster: "root-kube-cluster",
-		Expires:           gotTLSCert.NotAfter,
-		RouteToCluster:    s.clusterName.GetClusterName(),
-		TeleportCluster:   s.clusterName.GetClusterName(),
-		PrivateKeyPolicy:  keys.PrivateKeyPolicyNone,
+		Username:         user,
+		Groups:           []string{role.GetName()},
+		Principals:       []string{user, teleport.SSHSessionJoinPrincipal},
+		KubernetesUsers:  []string{user},
+		KubernetesGroups: []string{"system:masters"},
+		Expires:          gotTLSCert.NotAfter,
+		RouteToCluster:   s.clusterName.GetClusterName(),
+		TeleportCluster:  s.clusterName.GetClusterName(),
+		PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
@@ -522,13 +653,141 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestAuthenticateUser_mfaDeviceLocked(t *testing.T) {
+	t.Parallel()
+
+	testServer := newTestTLSServer(t)
+	authServer := testServer.Auth()
+
+	ctx := context.Background()
+	const user = "llama"
+	const pass = "supersecret!!1!one"
+
+	// Configure auth preferences.
+	authPref, err := authServer.GetAuthPreference(ctx)
+	require.NoError(t, err, "GetAuthPreference")
+	authPref.SetSecondFactor(constants.SecondFactorOptional) // good enough
+	authPref.SetWebauthn(&types.Webauthn{
+		RPID: "localhost",
+	})
+	_, err = authServer.UpdateAuthPreference(ctx, authPref)
+	require.NoError(t, err, "UpdateAuthPreference")
+
+	// Prepare user, password and MFA device.
+	_, _, err = CreateUserAndRole(authServer, user, []string{user}, nil /* allowRules */)
+	require.NoError(t, err, "CreateUserAndRole")
+	require.NoError(t,
+		authServer.UpsertPassword(user, []byte(pass)),
+		"UpsertPassword")
+
+	userClient, err := testServer.NewClient(TestUser(user))
+	require.NoError(t, err, "NewClient")
+
+	// OTP devices would work for this test too.
+	dev1, err := RegisterTestDevice(ctx, userClient, "dev1", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, nil /* authenticator */)
+	require.NoError(t, err, "RegisterTestDevice")
+	dev2, err := RegisterTestDevice(ctx, userClient, "dev2", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, dev1 /* authenticator */)
+	require.NoError(t, err, "RegisterTestDevice")
+
+	// Prepare an SSH public key for testing.
+	privKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err, "GenerateKey")
+	signer, err := ssh.NewSignerFromSigner(privKey)
+	require.NoError(t, err, "NewSignerFromSigner")
+	pubKey := ssh.MarshalAuthorizedKey(signer.PublicKey())
+
+	// Users initially authenticate via Proxy, as there isn't a userClient before
+	// authn.
+	proxyClient, err := testServer.NewClient(TestBuiltin(types.RoleProxy))
+	require.NoError(t, err, "NewClient")
+
+	authenticateSSH := func(dev *TestDevice) (*SSHLoginResponse, error) {
+		chal, err := proxyClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+			Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{
+				UserCredentials: &proto.UserCredentials{
+					Username: user,
+					Password: []byte(pass),
+				},
+			},
+		})
+		if err != nil {
+			return nil, fmt.Errorf("create challenge: %w", err)
+		}
+
+		chalResp, err := dev.SolveAuthn(chal)
+		if err != nil {
+			return nil, fmt.Errorf("solve challenge: %w", err)
+		}
+
+		return proxyClient.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
+			AuthenticateUserRequest: AuthenticateUserRequest{
+				Username:  user,
+				PublicKey: pubKey,
+				Pass: &PassCreds{
+					Password: []byte(pass),
+				},
+				Webauthn: wantypes.CredentialAssertionResponseFromProto(chalResp.GetWebauthn()),
+			},
+			TTL: 1 * time.Hour,
+		})
+	}
+
+	// Lock dev1.
+	const lockMessage = "device locked for testing"
+	lock, err := types.NewLock("dev1-lock", types.LockSpecV2{
+		Target: types.LockTarget{
+			MFADevice: dev1.MFA.Id,
+		},
+		Message: lockMessage,
+	})
+	require.NoError(t, err, "NewLock")
+	require.NoError(t,
+		userClient.UpsertLock(ctx, lock),
+		"UpsertLock")
+
+	t.Run("locked device", func(t *testing.T) {
+		_, err := authenticateSSH(dev1)
+		assert.ErrorContains(t, err, lockMessage)
+	})
+
+	t.Run("unlocked device", func(t *testing.T) {
+		_, err := authenticateSSH(dev2)
+		assert.NoError(t, err, "authenticateSSH failed unexpectedly")
+	})
+
+	t.Run("locked device password change", func(t *testing.T) {
+		chal, err := userClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+			Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
+				ContextUser: &proto.ContextUser{},
+			},
+			ChallengeExtensions: &mfav1.ChallengeExtensions{
+				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_CHANGE_PASSWORD,
+			},
+		})
+		require.NoError(t, err, "CreateAuthenticateChallenge")
+
+		// dev1 is still locked.
+		chalResp, err := dev1.SolveAuthn(chal)
+		require.NoError(t, err, "SolveAuthn")
+
+		assert.ErrorContains(t,
+			userClient.ChangePassword(ctx, &proto.ChangePasswordRequest{
+				User:        user,
+				OldPassword: []byte(pass),
+				NewPassword: []byte("evenmoresecret!!1!ONE"),
+				Webauthn:    chalResp.GetWebauthn(),
+			}),
+			lockMessage)
+	})
+}
+
 func TestUserLock(t *testing.T) {
 	t.Parallel()
 	s := newAuthSuite(t)
 	ctx := context.Background()
 
 	username := "user1"
-	pass := []byte("abc123")
+	pass := []byte("abcdef123456")
 
 	_, err := s.a.AuthenticateWebUser(ctx, AuthenticateUserRequest{
 		Username: username,
@@ -556,7 +815,7 @@ func TestUserLock(t *testing.T) {
 	for i := 0; i <= defaults.MaxLoginAttempts; i++ {
 		_, err = s.a.AuthenticateWebUser(ctx, AuthenticateUserRequest{
 			Username: username,
-			Pass:     &PassCreds{Password: []byte("wrong pass")},
+			Pass:     &PassCreds{Password: []byte("wrong password")},
 		})
 		require.Error(t, err)
 	}
@@ -610,7 +869,7 @@ func generateTestToken(
 	auth tokenCreatorAndDeleter,
 ) string {
 	t.Helper()
-	token, err := utils.CryptoRandomHex(TokenLenBytes)
+	token, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
 	require.NoError(t, err)
 
 	pt, err := types.NewProvisionToken(token, roles, expires)
@@ -771,7 +1030,8 @@ func TestCreateAndUpdateUserEventsEmitted(t *testing.T) {
 	user, err := types.NewUser("some-user")
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	clientAddr := &net.TCPAddr{IP: net.IPv4(10, 255, 0, 0)}
+	ctx := authz.ContextWithClientSrcAddr(context.Background(), clientAddr)
 
 	// test create user, happy path
 	user.SetCreatedBy(types.CreatedBy{
@@ -780,7 +1040,9 @@ func TestCreateAndUpdateUserEventsEmitted(t *testing.T) {
 	user, err = s.a.CreateUser(ctx, user)
 	require.NoError(t, err)
 	require.Equal(t, events.UserCreateEvent, s.mockEmitter.LastEvent().GetType())
-	require.Equal(t, "some-auth-user", s.mockEmitter.LastEvent().(*apievents.UserCreate).User)
+	createEvt := s.mockEmitter.LastEvent().(*apievents.UserCreate)
+	require.Equal(t, "some-auth-user", createEvt.User)
+	require.Equal(t, clientAddr.String(), createEvt.ConnectionMetadata.RemoteAddr)
 	s.mockEmitter.Reset()
 
 	// test create user with existing user
@@ -793,7 +1055,10 @@ func TestCreateAndUpdateUserEventsEmitted(t *testing.T) {
 	require.NoError(t, err)
 	_, err = s.a.CreateUser(ctx, user2)
 	require.NoError(t, err)
-	require.Equal(t, teleport.UserSystem, s.mockEmitter.LastEvent().(*apievents.UserCreate).User)
+	require.Equal(t, events.UserCreateEvent, s.mockEmitter.LastEvent().GetType())
+	createEvt = s.mockEmitter.LastEvent().(*apievents.UserCreate)
+	require.Equal(t, teleport.UserSystem, createEvt.User)
+	require.Equal(t, clientAddr.String(), createEvt.ConnectionMetadata.RemoteAddr)
 	s.mockEmitter.Reset()
 
 	// test update on non-existent user
@@ -807,14 +1072,17 @@ func TestCreateAndUpdateUserEventsEmitted(t *testing.T) {
 	_, err = s.a.UpdateUser(ctx, user)
 	require.NoError(t, err)
 	require.Equal(t, events.UserUpdatedEvent, s.mockEmitter.LastEvent().GetType())
-	require.Equal(t, teleport.UserSystem, s.mockEmitter.LastEvent().(*apievents.UserUpdate).User)
+	updateEvt := s.mockEmitter.LastEvent().(*apievents.UserUpdate)
+	require.Equal(t, teleport.UserSystem, updateEvt.User)
+	require.Equal(t, clientAddr.String(), updateEvt.ConnectionMetadata.RemoteAddr)
 }
 
 func TestTrustedClusterCRUDEventEmitted(t *testing.T) {
 	t.Parallel()
 	s := newAuthSuite(t)
 
-	ctx := context.Background()
+	clientAddr := &net.TCPAddr{IP: net.IPv4(10, 255, 0, 0)}
+	ctx := authz.ContextWithClientSrcAddr(context.Background(), clientAddr)
 	s.a.emitter = s.mockEmitter
 
 	// set up existing cluster to bypass switch cases that
@@ -842,6 +1110,8 @@ func TestTrustedClusterCRUDEventEmitted(t *testing.T) {
 	_, err = s.a.UpsertTrustedCluster(ctx, tc)
 	require.NoError(t, err)
 	require.Equal(t, events.TrustedClusterCreateEvent, s.mockEmitter.LastEvent().GetType())
+	createEvt := s.mockEmitter.LastEvent().(*apievents.TrustedClusterCreate)
+	require.Equal(t, clientAddr.String(), createEvt.ConnectionMetadata.RemoteAddr)
 	s.mockEmitter.Reset()
 
 	// test create event for switch case: when tc exists but enabled is true
@@ -850,19 +1120,24 @@ func TestTrustedClusterCRUDEventEmitted(t *testing.T) {
 	_, err = s.a.UpsertTrustedCluster(ctx, tc)
 	require.NoError(t, err)
 	require.Equal(t, events.TrustedClusterCreateEvent, s.mockEmitter.LastEvent().GetType())
+	createEvt = s.mockEmitter.LastEvent().(*apievents.TrustedClusterCreate)
+	require.Equal(t, clientAddr.String(), createEvt.ConnectionMetadata.RemoteAddr)
 	s.mockEmitter.Reset()
 
 	// test delete event
 	err = s.a.DeleteTrustedCluster(ctx, "test")
 	require.NoError(t, err)
 	require.Equal(t, events.TrustedClusterDeleteEvent, s.mockEmitter.LastEvent().GetType())
+	deleteEvt := s.mockEmitter.LastEvent().(*apievents.TrustedClusterDelete)
+	require.Equal(t, clientAddr.String(), deleteEvt.ConnectionMetadata.RemoteAddr)
 }
 
 func TestGithubConnectorCRUDEventsEmitted(t *testing.T) {
 	t.Parallel()
 	s := newAuthSuite(t)
 
-	ctx := context.Background()
+	clientAddr := &net.TCPAddr{IP: net.IPv4(10, 255, 0, 0)}
+	ctx := authz.ContextWithClientSrcAddr(context.Background(), clientAddr)
 	github, err := types.NewGithubConnector("test", types.GithubConnectorSpecV3{
 		TeamsToRoles: []types.TeamRolesMapping{
 			{
@@ -878,6 +1153,8 @@ func TestGithubConnectorCRUDEventsEmitted(t *testing.T) {
 	require.NoError(t, err)
 	require.IsType(t, &apievents.GithubConnectorCreate{}, s.mockEmitter.LastEvent())
 	require.Equal(t, events.GithubConnectorCreatedEvent, s.mockEmitter.LastEvent().GetType())
+	createEvt := s.mockEmitter.LastEvent().(*apievents.GithubConnectorCreate)
+	require.Equal(t, clientAddr.String(), createEvt.ConnectionMetadata.RemoteAddr)
 	s.mockEmitter.Reset()
 
 	// test github update event
@@ -886,6 +1163,8 @@ func TestGithubConnectorCRUDEventsEmitted(t *testing.T) {
 	require.NoError(t, err)
 	require.IsType(t, &apievents.GithubConnectorUpdate{}, s.mockEmitter.LastEvent())
 	require.Equal(t, events.GithubConnectorUpdatedEvent, s.mockEmitter.LastEvent().GetType())
+	updateEvt := s.mockEmitter.LastEvent().(*apievents.GithubConnectorUpdate)
+	require.Equal(t, clientAddr.String(), updateEvt.ConnectionMetadata.RemoteAddr)
 	s.mockEmitter.Reset()
 
 	// test github upsert event
@@ -895,6 +1174,8 @@ func TestGithubConnectorCRUDEventsEmitted(t *testing.T) {
 	require.NotNil(t, upserted)
 	require.IsType(t, &apievents.GithubConnectorCreate{}, s.mockEmitter.LastEvent())
 	require.Equal(t, events.GithubConnectorCreatedEvent, s.mockEmitter.LastEvent().GetType())
+	createEvt = s.mockEmitter.LastEvent().(*apievents.GithubConnectorCreate)
+	require.Equal(t, clientAddr.String(), createEvt.ConnectionMetadata.RemoteAddr)
 	s.mockEmitter.Reset()
 
 	// test github delete event
@@ -902,6 +1183,8 @@ func TestGithubConnectorCRUDEventsEmitted(t *testing.T) {
 	require.NoError(t, err)
 	require.IsType(t, &apievents.GithubConnectorDelete{}, s.mockEmitter.LastEvent())
 	require.Equal(t, events.GithubConnectorDeletedEvent, s.mockEmitter.LastEvent().GetType())
+	deleteEvt := s.mockEmitter.LastEvent().(*apievents.GithubConnectorDelete)
+	require.Equal(t, clientAddr.String(), deleteEvt.ConnectionMetadata.RemoteAddr)
 }
 
 func TestOIDCConnectorCRUDEventsEmitted(t *testing.T) {
@@ -1066,10 +1349,12 @@ func TestServer_AugmentContextUserCertificates(t *testing.T) {
 
 	testServer := newTestTLSServer(t)
 	authServer := testServer.Auth()
+	emitter := &eventstest.MockRecorderEmitter{}
+	authServer.emitter = emitter
 	ctx := context.Background()
 
 	const username = "llama"
-	const pass = "secret!!1!"
+	const pass = "secret!!1!!!"
 
 	// Use a >1 list of principals.
 	// This is enough to cause ordering issues between the TLS and SSH principal
@@ -1200,6 +1485,25 @@ func TestServer_AugmentContextUserCertificates(t *testing.T) {
 				"got newSSHCert.ValidAfter = %v, want > %v", newSSHCert.ValidAfter, validAfter.Unix())
 			assert.Equal(t, uint64(xCert.NotAfter.Unix()), newSSHCert.ValidBefore, "newSSHCert.ValidBefore mismatch")
 		})
+
+		// Assert audit events.
+		lastEvent := emitter.LastEvent()
+		require.NotNil(t, lastEvent, "emitter.LastEvent() is nil")
+		// Assert the code, that is a good enough proxy for other fields.
+		assert.Equal(t, events.CertificateCreateEvent, lastEvent.GetType(), "lastEvent type mismatch")
+		// Assert event DeviceExtensions.
+		certEvent, ok := lastEvent.(*apievents.CertificateCreate)
+		if assert.True(t, ok, "lastEvent is not an apievents.CertificateCreate, got %T", lastEvent) {
+			got := certEvent.Identity.DeviceExtensions
+			want := &apievents.DeviceExtensions{
+				DeviceId:     test.opts.DeviceExtensions.DeviceID,
+				AssetTag:     test.opts.DeviceExtensions.AssetTag,
+				CredentialId: test.opts.DeviceExtensions.CredentialID,
+			}
+			if diff := cmp.Diff(want, got); diff != "" {
+				t.Errorf("certEvent.Identity.DeviceExtensions mismatch (-want +got)\n%s", diff)
+			}
+		}
 	}
 }
 
@@ -1210,9 +1514,9 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 	authServer := testServer.Auth()
 	ctx := context.Background()
 
-	const pass1 = "secret!!1!"
-	const pass2 = "secret!!2!"
-	const pass3 = "secret!!3!"
+	const pass1 = "secret!!1!!!"
+	const pass2 = "secret!!2!!!"
+	const pass3 = "secret!!3!!!"
 
 	// Prepare a few distinct users.
 	user1, _, err := CreateUserAndRole(authServer, "llama", []string{"llama"}, nil)
@@ -1650,6 +1954,249 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 	}
 }
 
+func TestServer_AugmentWebSessionCertificates(t *testing.T) {
+	t.Parallel()
+
+	testServer := newTestTLSServer(t)
+	authServer := testServer.Auth()
+	ctx := context.Background()
+
+	userData := setupUserForAugmentWebSessionCertificatesTest(t, testServer)
+
+	// Safe to reuse, user-independent.
+	deviceExts := &DeviceExtensions{
+		DeviceID:     "my-device-id",
+		AssetTag:     "my-device-asset-tag",
+		CredentialID: "my-device-credential-id",
+	}
+
+	assertSSHCert := func(t *testing.T, sshCert []byte) {
+		cert, err := sshutils.ParseCertificate(sshCert)
+		require.NoError(t, err, "ParseCertificate")
+
+		// Not empty is good enough here, other tests assert this deeply.
+		assert.NotEmpty(t, cert.Extensions[teleport.CertExtensionDeviceID], "DeviceID empty")
+		assert.NotEmpty(t, cert.Extensions[teleport.CertExtensionDeviceAssetTag], "AssetTag empty")
+		assert.NotEmpty(t, cert.Extensions[teleport.CertExtensionDeviceCredentialID], "CredentialID empty")
+	}
+
+	assertX509Cert := func(t *testing.T, x509PEM []byte) {
+		_, identity := parseX509PEMAndIdentity(t, x509PEM)
+
+		// Not empty is good enough here, other tests assert this deeply.
+		assert.NotEmpty(t, identity.DeviceExtensions.DeviceID, "DeviceID empty")
+		assert.NotEmpty(t, identity.DeviceExtensions.AssetTag, "AssetTag empty")
+		assert.NotEmpty(t, identity.DeviceExtensions.CredentialID, "CredentialID empty")
+	}
+
+	t.Run("ok", func(t *testing.T) {
+		t.Parallel() // Get the errors suite going asap.
+
+		opts := &AugmentWebSessionCertificatesOpts{
+			WebSessionID:     userData.webSessionID,
+			User:             userData.user,
+			DeviceExtensions: deviceExts,
+		}
+		err := authServer.AugmentWebSessionCertificates(ctx, opts)
+		require.NoError(t, err, "AugmentWebSessionCertificates")
+
+		// Verify WebSession certificates.
+		webSession, err := authServer.WebSessions().Get(ctx, types.GetWebSessionRequest{
+			User:      userData.user,
+			SessionID: userData.webSessionID,
+		})
+		require.NoError(t, err, "WebSessions().Get() failed: %v", err)
+		assertSSHCert(t, webSession.GetPub())
+		assertX509Cert(t, webSession.GetTLSCert())
+		assert.True(t, webSession.GetHasDeviceExtensions(), "webSesssion.GetHasDeviceExtensions() mismatch")
+
+		// Scenario requires augmented certs to work.
+		t.Run("cannot re-augment the same session", func(t *testing.T) {
+			err := authServer.AugmentWebSessionCertificates(ctx, opts)
+			const wantErr = "extensions already present"
+			assert.ErrorContains(t, err, wantErr, "AugmentWebSessionCertificates error mismatch")
+		})
+	})
+
+	user2Data := setupUserForAugmentWebSessionCertificatesTest(t, testServer)
+	user2Opts := &AugmentWebSessionCertificatesOpts{
+		WebSessionID:     user2Data.webSessionID,
+		User:             user2Data.user,
+		DeviceExtensions: deviceExts,
+	}
+
+	t.Run("errors", func(t *testing.T) {
+		tests := []struct {
+			name      string
+			opts      *AugmentWebSessionCertificatesOpts
+			wantErr   string
+			assertErr func(error) bool // defaults to trace.IsBadParameter
+		}{
+			{
+				name:    "opts nil",
+				wantErr: "opts required",
+			},
+			{
+				name: "opts.WebSessionID is empty",
+				opts: func() *AugmentWebSessionCertificatesOpts {
+					opts := *user2Opts
+					opts.WebSessionID = ""
+					return &opts
+				}(),
+				wantErr: "WebSessionID required",
+			},
+			{
+				name: "opts.User is empty",
+				opts: func() *AugmentWebSessionCertificatesOpts {
+					opts := *user2Opts
+					opts.User = ""
+					return &opts
+				}(),
+				wantErr: "User required",
+			},
+			{
+				name: "opts.DeviceExtensions nil",
+				opts: func() *AugmentWebSessionCertificatesOpts {
+					opts := *user2Opts
+					opts.DeviceExtensions = nil
+					return &opts
+				}(),
+				wantErr: "at least one opts extension",
+			},
+		}
+		for _, test := range tests {
+			test := test
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				err := authServer.AugmentWebSessionCertificates(ctx, test.opts)
+				assert.ErrorContains(t, err, test.wantErr, "AugmentWebSessionCertificates error mismatch")
+
+				assertErr := test.assertErr
+				if assertErr == nil {
+					assertErr = trace.IsBadParameter
+				}
+				assert.True(t,
+					assertErr(err),
+					"AugmentWebSessionCertificates: assertErr failed: err=%v (%T)", err, trace.Unwrap(err))
+			})
+		}
+	})
+}
+
+func TestServer_ExtendWebSession_deviceExtensions(t *testing.T) {
+	t.Parallel()
+
+	testServer := newTestTLSServer(t)
+	authServer := testServer.Auth()
+	ctx := context.Background()
+
+	userData := setupUserForAugmentWebSessionCertificatesTest(t, testServer)
+
+	deviceExts := &DeviceExtensions{
+		DeviceID:     "my-device-id",
+		AssetTag:     "my-device-asset-tag",
+		CredentialID: "my-device-credential-id",
+	}
+
+	// Augment the user's session, then later extend it.
+	err := authServer.AugmentWebSessionCertificates(ctx, &AugmentWebSessionCertificatesOpts{
+		WebSessionID:     userData.webSessionID,
+		User:             userData.user,
+		DeviceExtensions: deviceExts,
+	})
+	require.NoError(t, err, "AugmentWebSessionCertificates() failed")
+
+	// Retrieve augmented session and parse its identity.
+	webSession, err := authServer.WebSessions().Get(ctx, types.GetWebSessionRequest{
+		User:      userData.user,
+		SessionID: userData.webSessionID,
+	})
+	require.NoError(t, err, "WebSessions().Get() failed")
+
+	_, sessionIdentity := parseX509PEMAndIdentity(t, webSession.GetTLSCert())
+
+	parseSSHDeviceExtensions := func(t *testing.T, sshCert []byte) tlsca.DeviceExtensions {
+		cert, err := sshutils.ParseCertificate(sshCert)
+		require.NoError(t, err, "ParseCertificate")
+
+		return tlsca.DeviceExtensions{
+			DeviceID:     cert.Extensions[teleport.CertExtensionDeviceID],
+			AssetTag:     cert.Extensions[teleport.CertExtensionDeviceAssetTag],
+			CredentialID: cert.Extensions[teleport.CertExtensionDeviceCredentialID],
+		}
+	}
+
+	t.Run("ok", func(t *testing.T) {
+		newSession, err := authServer.ExtendWebSession(ctx, WebSessionReq{
+			User:          webSession.GetUser(),
+			PrevSessionID: webSession.GetName(),
+		}, *sessionIdentity)
+		require.NoError(t, err, "ExtendWebSession() failed")
+
+		// Assert extensions flag.
+		assert.True(t, newSession.GetHasDeviceExtensions(), "newSession.GetHasDeviceExtensions() mismatch")
+
+		// Assert TLS extensions.
+		_, newIdentity := parseX509PEMAndIdentity(t, newSession.GetTLSCert())
+		wantExts := tlsca.DeviceExtensions(*deviceExts)
+		if diff := cmp.Diff(wantExts, newIdentity.DeviceExtensions); diff != "" {
+			t.Errorf("newSession.TLSCert DeviceExtensions mismatch (-want +got)\n%s", diff)
+		}
+
+		// Assert SSH extensions.
+		if diff := cmp.Diff(wantExts, parseSSHDeviceExtensions(t, newSession.GetPub())); diff != "" {
+			t.Errorf("newSession.Pub DeviceExtensions mismatch (-want +got)\n%s", diff)
+		}
+	})
+}
+
+type augmentUserData struct {
+	user         string
+	pass         []byte
+	pubKey       []byte // SSH "AuthorizedKey" format
+	webSessionID string
+}
+
+func setupUserForAugmentWebSessionCertificatesTest(t *testing.T, testServer *TestTLSServer) *augmentUserData {
+	authServer := testServer.Auth()
+	ctx := context.Background()
+
+	user := &augmentUserData{
+		user: "llama_" + uuid.NewString(),
+		pass: []byte("passwordforllamaA1!"),
+	}
+
+	// Create user and assign a password.
+	_, _, err := CreateUserAndRole(authServer, user.user, []string{user.user}, nil /* allowRules */)
+	require.NoError(t, err, "CreateUserAndRole")
+	require.NoError(t,
+		authServer.UpsertPassword(user.user, user.pass),
+		"UpsertPassword",
+	)
+
+	// Generate underlying keys for SSH and TLS.
+	privKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err, "GenerateKey")
+	pubKeySSH, err := ssh.NewPublicKey(privKey.Public())
+	require.NoError(t, err, "NewPublicKey")
+	user.pubKey = ssh.MarshalAuthorizedKey(pubKeySSH)
+
+	// Prepare a WebSession to be augmented.
+	authnReq := AuthenticateUserRequest{
+		Username:  user.user,
+		PublicKey: user.pubKey,
+		Pass: &PassCreds{
+			Password: user.pass,
+		},
+	}
+	session, err := authServer.AuthenticateWebUser(ctx, authnReq)
+	require.NoError(t, err, "AuthenticateWebUser")
+	user.webSessionID = session.GetName()
+
+	return user
+}
+
 func TestGenerateUserCertIPPinning(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
 
@@ -1659,7 +2206,7 @@ func TestGenerateUserCertIPPinning(t *testing.T) {
 
 	const pinnedUser = "pinnedUser"
 	const unpinnedUser = "unpinnedUser"
-	pass := []byte("abc123")
+	pass := []byte("abcdef123456")
 
 	// Create the user without IP pinning
 	_, _, err := CreateUserAndRole(s.a, unpinnedUser, []string{unpinnedUser}, nil)
@@ -1790,9 +2337,18 @@ func parseX509PEMAndIdentity(t *testing.T, rawPEM []byte) (*x509.Certificate, *t
 	return cert, identity
 }
 
+func contextWithGRPCClientUserAgent(ctx context.Context, userAgent string) context.Context {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		md = make(metadata.MD)
+	}
+	md["user-agent"] = append(md["user-agent"], userAgent)
+	return metadata.NewIncomingContext(ctx, md)
+}
+
 func TestGenerateUserCertWithCertExtension(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := contextWithGRPCClientUserAgent(context.Background(), "test-user-agent/1.0")
 	p, err := newTestPack(ctx, t.TempDir())
 	require.NoError(t, err)
 
@@ -1823,7 +2379,7 @@ func TestGenerateUserCertWithCertExtension(t *testing.T) {
 		checker:   accessChecker,
 		publicKey: pub,
 	}
-	certs, err := p.a.generateUserCert(certReq)
+	certs, err := p.a.generateUserCert(ctx, certReq)
 	require.NoError(t, err)
 
 	key, err := sshutils.ParseCertificate(certs.SSH)
@@ -1832,6 +2388,31 @@ func TestGenerateUserCertWithCertExtension(t *testing.T) {
 	val, ok := key.Extensions[extension.Name]
 	require.True(t, ok)
 	require.Equal(t, extension.Value, val)
+
+	// Validate audit event.
+	lastEvent := p.mockEmitter.LastEvent()
+	require.IsType(t, &apievents.CertificateCreate{}, lastEvent)
+	require.Empty(t, cmp.Diff(
+		&apievents.CertificateCreate{
+			Metadata: apievents.Metadata{
+				Type: events.CertificateCreateEvent,
+				Code: events.CertificateCreateCode,
+			},
+			Identity: &apievents.Identity{
+				User:             "test-user",
+				Roles:            []string{"user:test-user"},
+				RouteToCluster:   "test.localhost",
+				TeleportCluster:  "test.localhost",
+				PrivateKeyPolicy: "none",
+			},
+			CertificateType: events.CertificateTypeUser,
+			ClientMetadata: apievents.ClientMetadata{
+				UserAgent: "test-user-agent/1.0",
+			},
+		},
+		lastEvent.(*apievents.CertificateCreate),
+		cmpopts.IgnoreFields(apievents.Identity{}, "Logins", "Expires"),
+	))
 }
 
 func TestGenerateOpenSSHCert(t *testing.T) {
@@ -1918,7 +2499,7 @@ func TestGenerateUserCertWithLocks(t *testing.T) {
 			CredentialID: "credentialid1",
 		},
 	}
-	_, err = p.a.generateUserCert(certReq)
+	_, err = p.a.generateUserCert(ctx, certReq)
 	require.NoError(t, err)
 
 	testTargets := append(
@@ -1948,7 +2529,7 @@ func TestGenerateUserCertWithLocks(t *testing.T) {
 			case <-time.After(2 * time.Second):
 				t.Fatal("Timeout waiting for lock update.")
 			}
-			_, err = p.a.generateUserCert(certReq)
+			_, err = p.a.generateUserCert(ctx, certReq)
 			require.Error(t, err)
 			require.EqualError(t, err, services.LockInForceAccessDenied(lock).Error())
 		})
@@ -2019,7 +2600,7 @@ func TestGenerateUserCertWithUserLoginState(t *testing.T) {
 		publicKey: pub,
 		traits:    accessChecker.Traits(),
 	}
-	resp, err := p.a.generateUserCert(certReq)
+	resp, err := p.a.generateUserCert(ctx, certReq)
 	require.NoError(t, err)
 
 	sshCert, err := sshutils.ParseCertificate(resp.SSH)
@@ -2077,7 +2658,7 @@ func TestGenerateUserCertWithUserLoginState(t *testing.T) {
 		traits:    accessChecker.Traits(),
 	}
 
-	resp, err = p.a.generateUserCert(certReq)
+	resp, err = p.a.generateUserCert(ctx, certReq)
 	require.NoError(t, err)
 
 	sshCert, err = sshutils.ParseCertificate(resp.SSH)
@@ -2096,6 +2677,179 @@ func TestGenerateUserCertWithUserLoginState(t *testing.T) {
 	}, map[string][]string(traits))
 }
 
+func TestGenerateUserCertWithHardwareKeySupport(t *testing.T) {
+	ctx := context.Background()
+	p, err := newTestPack(ctx, t.TempDir())
+	require.NoError(t, err)
+
+	user, _, err := CreateUserAndRole(p.a, "test-user", []string{}, nil)
+	require.NoError(t, err)
+	user.SetTraits(map[string][]string{
+		// add in other random serial numbers to test comparison logic.
+		"hardware_key_serial_numbers": {"other1", "other2,12345678,other3"},
+		// custom trait name
+		"known_yubikeys": {"13572468"},
+	})
+	_, err = p.a.UpdateUser(ctx, user)
+	require.NoError(t, err)
+
+	accessInfo := services.AccessInfoFromUserState(user)
+	accessChecker, err := services.NewAccessChecker(accessInfo, p.clusterName.GetClusterName(), p.a)
+	require.NoError(t, err)
+
+	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	key, err := keys.NewPrivateKey(priv, nil)
+	require.NoError(t, err)
+
+	require.NoError(t, err)
+	certReq := certRequest{
+		user:      user,
+		checker:   accessChecker,
+		publicKey: key.MarshalSSHPublicKey(),
+	}
+
+	for _, tt := range []struct {
+		name                string
+		cap                 types.AuthPreferenceSpecV2
+		mockAttestationData *keys.AttestationData
+		assertErr           require.ErrorAssertionFunc
+	}{
+		{
+			name: "private key policy satified",
+			cap: types.AuthPreferenceSpecV2{
+				RequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
+			},
+			mockAttestationData: &keys.AttestationData{
+				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
+			},
+			assertErr: require.NoError,
+		}, {
+			name: "no attestation data",
+			cap: types.AuthPreferenceSpecV2{
+				RequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
+			},
+			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err, "expected private key policy error but got %v", err)
+				require.True(t, keys.IsPrivateKeyPolicyError(err), "expected private key policy error but got %v", err)
+			},
+		}, {
+			name: "private key policy not satisfied",
+			cap: types.AuthPreferenceSpecV2{
+				RequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
+			},
+			mockAttestationData: &keys.AttestationData{
+				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKey,
+				SerialNumber:     12345678,
+			},
+			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err, "expected private key policy error but got %v", err)
+				require.True(t, keys.IsPrivateKeyPolicyError(err), "expected private key policy error but got %v", err)
+			},
+		}, {
+			name: "known hardware key",
+			cap: types.AuthPreferenceSpecV2{
+				RequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
+				HardwareKey: &types.HardwareKey{
+					SerialNumberValidation: &types.HardwareKeySerialNumberValidation{
+						Enabled: true,
+					},
+				},
+			},
+			mockAttestationData: &keys.AttestationData{
+				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
+				SerialNumber:     12345678,
+			},
+			assertErr: require.NoError,
+		}, {
+			name: "partial serial number is unknown",
+			cap: types.AuthPreferenceSpecV2{
+				RequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
+				HardwareKey: &types.HardwareKey{
+					SerialNumberValidation: &types.HardwareKeySerialNumberValidation{
+						Enabled: true,
+					},
+				},
+			},
+			mockAttestationData: &keys.AttestationData{
+				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
+				SerialNumber:     1234,
+			},
+			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err), "expected bad parameter error but got %v", err)
+				require.ErrorContains(t, err, "unknown hardware key")
+			},
+		}, {
+			name: "known hardware key custom trait name",
+			cap: types.AuthPreferenceSpecV2{
+				RequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
+				HardwareKey: &types.HardwareKey{
+					SerialNumberValidation: &types.HardwareKeySerialNumberValidation{
+						Enabled:               true,
+						SerialNumberTraitName: "known_yubikeys",
+					},
+				},
+			},
+			mockAttestationData: &keys.AttestationData{
+				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
+				SerialNumber:     13572468,
+			},
+			assertErr: require.NoError,
+		}, {
+			name: "unknown hardware key",
+			cap: types.AuthPreferenceSpecV2{
+				RequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
+				HardwareKey: &types.HardwareKey{
+					SerialNumberValidation: &types.HardwareKeySerialNumberValidation{
+						Enabled: true,
+					},
+				},
+			},
+			mockAttestationData: &keys.AttestationData{
+				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
+				SerialNumber:     87654321,
+			},
+			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err), "expected bad parameter error but got %v", err)
+				require.ErrorContains(t, err, "unknown hardware key")
+			},
+		}, {
+			name: "no known hardware keys",
+			cap: types.AuthPreferenceSpecV2{
+				RequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
+				HardwareKey: &types.HardwareKey{
+					SerialNumberValidation: &types.HardwareKeySerialNumberValidation{
+						Enabled:               true,
+						SerialNumberTraitName: "none",
+					},
+				},
+			},
+			mockAttestationData: &keys.AttestationData{
+				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
+				SerialNumber:     12345678,
+			},
+			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err), "expected bad parameter error but got %v", err)
+				require.ErrorContains(t, err, "no known hardware keys")
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			modules.SetTestModules(t, &modules.TestModules{
+				MockAttestationData: tt.mockAttestationData,
+			})
+
+			authPref, err := types.NewAuthPreference(tt.cap)
+			require.NoError(t, err)
+			_, err = p.a.UpsertAuthPreference(ctx, authPref)
+			require.NoError(t, err)
+
+			_, err = p.a.generateUserCert(ctx, certReq)
+			tt.assertErr(t, err)
+		})
+	}
+}
+
 func TestNewWebSession(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -2106,7 +2860,7 @@ func TestNewWebSession(t *testing.T) {
 	duration := time.Duration(5) * time.Minute
 	cfg := types.DefaultClusterNetworkingConfig()
 	cfg.SetWebIdleTimeout(duration)
-	err = p.a.SetClusterNetworkingConfig(ctx, cfg)
+	_, err = p.a.UpsertClusterNetworkingConfig(ctx, cfg)
 	require.NoError(t, err)
 
 	// Create a user.
@@ -2114,16 +2868,16 @@ func TestNewWebSession(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a new web session.
-	req := types.NewWebSessionRequest{
+	req := NewWebSessionRequest{
 		User:       user.GetName(),
 		Roles:      user.GetRoles(),
 		Traits:     user.GetTraits(),
 		LoginTime:  p.a.clock.Now().UTC(),
 		SessionTTL: apidefaults.CertDuration,
 	}
-	bearerTokenTTL := min(req.SessionTTL, BearerTokenTTL)
+	bearerTokenTTL := min(req.SessionTTL, defaults.BearerTokenTTL)
 
-	ws, err := p.a.NewWebSession(ctx, req)
+	ws, err := p.a.newWebSession(ctx, req, nil /* opts */)
 	require.NoError(t, err)
 	require.Equal(t, user.GetName(), ws.GetUser())
 	require.Equal(t, duration, ws.GetIdleTimeout())
@@ -2158,7 +2912,7 @@ func TestDeleteMFADeviceSync(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	err = authServer.SetAuthPreference(ctx, authPreference)
+	_, err = authServer.UpsertAuthPreference(ctx, authPreference)
 	require.NoError(t, err)
 
 	userClient, err := testServer.NewClient(TestUser(username))
@@ -2275,6 +3029,7 @@ func TestDeleteMFADeviceSync(t *testing.T) {
 			require.IsType(t, &apievents.MFADeviceDelete{}, event, "underlying event type")
 			deleteEvent := event.(*apievents.MFADeviceDelete) // asserted above
 			assert.Equal(t, username, deleteEvent.User, "event.User")
+			assert.Contains(t, deleteEvent.ConnectionMetadata.RemoteAddr, "127.0.0.1", "client remote addr must be localhost")
 		})
 	}
 }
@@ -2300,7 +3055,7 @@ func TestDeleteMFADeviceSync_WithErrors(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	err = authServer.SetAuthPreference(ctx, authPreference)
+	_, err = authServer.UpsertAuthPreference(ctx, authPreference)
 	require.NoError(t, err)
 
 	userClient, err := testServer.NewClient(TestUser(username))
@@ -2426,7 +3181,6 @@ func TestDeleteMFADeviceSync_lastDevice(t *testing.T) {
 	webConfig, _ := authPref.GetWebauthn()
 
 	// Define various test helpers.
-
 	setSecondFactor := func(t *testing.T, sf constants.SecondFactorType) {
 		authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 			Type:         constants.Local,
@@ -2434,12 +3188,11 @@ func TestDeleteMFADeviceSync_lastDevice(t *testing.T) {
 			Webauthn:     webConfig,
 		})
 		require.NoError(t, err, "NewAuthPreference")
-		require.NoError(t,
-			authServer.SetAuthPreference(ctx, authPreference),
-			"SetAuthPreference")
+		_, err = authServer.UpsertAuthPreference(ctx, authPreference)
+		require.NoError(t, err, "UpsertAuthPreference")
 	}
 
-	deleteSync := func(userClient *Client, testDev *TestDevice) error {
+	deleteDevice := func(userClient *Client, testDev *TestDevice) error {
 		// Issue and solve authn challenge.
 		authnChal, err := userClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 			Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
@@ -2460,25 +3213,16 @@ func TestDeleteMFADeviceSync_lastDevice(t *testing.T) {
 		})
 	}
 
-	deleteStream := func(userClient *Client, testDev *TestDevice) error {
-		return deleteMFADeviceStream(ctx, userClient, testDev)
-	}
-
 	makeTest := func(sf constants.SecondFactorType, deviceToDelete *TestDevice) func(t *testing.T) {
 		return func(t *testing.T) {
 			t.Helper()
 
 			setSecondFactor(t, sf)
 
-			// Attempt synchronous deletion.
+			// Attempt deletion.
 			const wantErr = "cannot delete the last"
 			assert.ErrorContains(t,
-				deleteSync(userClient, deviceToDelete),
-				wantErr)
-
-			// Attempt streaming deletion.
-			assert.ErrorContains(t,
-				deleteStream(userClient, deviceToDelete),
+				deleteDevice(userClient, deviceToDelete),
 				wantErr)
 
 			devicesResp, err := userClient.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
@@ -2502,7 +3246,7 @@ func TestDeleteMFADeviceSync_lastDevice(t *testing.T) {
 	// second_factor=on.
 	setSecondFactor(t, constants.SecondFactorOptional)
 	require.NoError(t,
-		deleteSync(userClient, webDev),
+		deleteDevice(userClient, webDev),
 		"Second-to-last device deletion failed",
 	)
 	t.Run("second factor on, otp device", makeTest(constants.SecondFactorOn, totpDev))
@@ -2511,7 +3255,7 @@ func TestDeleteMFADeviceSync_lastDevice(t *testing.T) {
 	webDev, err = RegisterTestDevice(ctx, userClient, "web1", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, totpDev /* authenticator */)
 	require.NoError(t, err, "RegisterTestDevice")
 	require.NoError(t,
-		deleteSync(userClient, totpDev),
+		deleteDevice(userClient, totpDev),
 		"Second-to-last device deletion failed",
 	)
 	t.Run("second factor on, otp device", makeTest(constants.SecondFactorOn, webDev))
@@ -2535,7 +3279,7 @@ func TestAddMFADeviceSync(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	err = authServer.SetAuthPreference(ctx, authPreference)
+	_, err = authServer.UpsertAuthPreference(ctx, authPreference)
 	require.NoError(t, err)
 
 	u, err := createUserWithSecondFactors(testServer)
@@ -2716,7 +3460,9 @@ func TestAddMFADeviceSync(t *testing.T) {
 				event := mockEmitter.LastEvent()
 				require.Equal(t, events.MFADeviceAddEvent, event.GetType())
 				require.Equal(t, events.MFADeviceAddEventCode, event.GetCode())
-				require.Equal(t, event.(*apievents.MFADeviceAdd).UserMetadata.User, u.username)
+				addEvt := event.(*apievents.MFADeviceAdd)
+				require.Equal(t, u.username, addEvt.UserMetadata.User)
+				assert.Contains(t, addEvt.ConnectionMetadata.RemoteAddr, "127.0.0.1", "client remote addr must be localhost")
 
 				// Check it's been added.
 				res, err := userClient.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
@@ -2735,242 +3481,6 @@ func TestAddMFADeviceSync(t *testing.T) {
 	}
 }
 
-// DELETE IN 16. Kept so we don't lose coverage on AddMFADevice (codingllama)
-func TestAddMFADevice(t *testing.T) {
-	testServer := newTestTLSServer(t)
-	authServer := testServer.Auth()
-	clock := testServer.Auth().GetClock()
-
-	ctx := context.Background()
-
-	// Start with disabled second factor, makes it easy to set the user's
-	// password.
-	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOff, // for initial user creation
-		Webauthn: &types.Webauthn{
-			RPID: "localhost",
-		},
-	})
-	require.NoError(t, err, "NewAuthPreference")
-	require.NoError(t,
-		authServer.SetAuthPreference(ctx, authPreference),
-		"SetAuthPreference")
-
-	// Create user and set password.
-	const username = "TestAddMFADevice"
-	const password = "supersecretpassword!!1!"
-	_, _, err = CreateUserAndRole(authServer, username, []string{username}, nil /* allowRules */)
-	require.NoError(t, err, "CreateUserAndRole")
-
-	resetToken, err := authServer.CreateResetPasswordToken(ctx, CreateUserTokenRequest{
-		Name: username,
-	})
-	require.NoError(t, err, "CreateResetPasswordToken")
-
-	_, err = authServer.ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
-		TokenID:     resetToken.GetName(),
-		NewPassword: []byte(password),
-	})
-	require.NoError(t, err, "ChangeUserAuthentication")
-
-	// Enable second factor.
-	authPreference.SetSecondFactor(constants.SecondFactorOptional)
-	require.NoError(t,
-		authServer.SetAuthPreference(ctx, authPreference),
-		"SetAuthPreference")
-
-	// User client used from now on.
-	userClient, err := testServer.NewClient(TestUser(username))
-	require.NoError(t, err, "NewClient")
-
-	tests := []struct {
-		name        string
-		deviceName  string
-		deviceType  proto.DeviceType
-		deviceUsage proto.DeviceUsage
-		devOpts     []TestDeviceOpt
-	}{
-		{
-			name:        "totp",
-			deviceName:  "totp",
-			deviceType:  proto.DeviceType_DEVICE_TYPE_TOTP,
-			deviceUsage: proto.DeviceUsage_DEVICE_USAGE_MFA,
-			devOpts:     []TestDeviceOpt{WithTestDeviceClock(clock)},
-		},
-		{
-			name:        "webauthn",
-			deviceName:  "webauthn",
-			deviceType:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
-			deviceUsage: proto.DeviceUsage_DEVICE_USAGE_MFA,
-		},
-		{
-			name:        "passwordless",
-			deviceName:  "passwordless",
-			deviceType:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
-			deviceUsage: proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
-			devOpts:     []TestDeviceOpt{WithPasswordless()},
-		},
-	}
-
-	var existingDev *TestDevice
-	for _, test := range tests {
-		//nolint:staticcheck // SA1019. Kept for backward compatibility testing.
-		t.Run(test.name, func(t *testing.T) {
-			stream, err := userClient.AddMFADevice(ctx)
-			require.NoError(t, err, "AddMFADevice")
-
-			// Init.
-			require.NoError(t,
-				stream.Send(&proto.AddMFADeviceRequest{
-					Request: &proto.AddMFADeviceRequest_Init{
-						Init: &proto.AddMFADeviceRequestInit{
-							DeviceName:  test.deviceName,
-							DeviceType:  test.deviceType,
-							DeviceUsage: test.deviceUsage,
-						},
-					},
-				}), "Send")
-			resp, err := stream.Recv()
-			require.NoError(t, err, "Recv: init")
-
-			// Solve existing device challenge.
-			// Reply with an empty solution if it's the first device.
-			authnChal := resp.GetExistingMFAChallenge()
-
-			var authnSolved *proto.MFAAuthenticateResponse
-			if hasChallenge := authnChal.GetTOTP() != nil || authnChal.GetWebauthnChallenge() != nil; hasChallenge {
-				// Sanity check.
-				require.NotNil(t, existingDev, "Got an existing challenge, but existingDev is nil")
-
-				authnSolved, err = existingDev.SolveAuthn(authnChal)
-				require.NoError(t, err, "SolveAuthn")
-			} else {
-				authnSolved = &proto.MFAAuthenticateResponse{} // empty reply
-			}
-
-			require.NoError(t,
-				stream.Send(&proto.AddMFADeviceRequest{
-					Request: &proto.AddMFADeviceRequest_ExistingMFAResponse{
-						ExistingMFAResponse: authnSolved,
-					},
-				}), "Send")
-			resp, err = stream.Recv()
-			require.NoError(t, err, "Recv: existing challenge response")
-
-			// Solve new device challenge.
-			registerChal := resp.GetNewMFARegisterChallenge()
-			require.NotNil(t, registerChal, "Got response of type %T, want MFARegisterChallenge", resp.Response)
-
-			newDev, registerSolved, err := NewTestDeviceFromChallenge(registerChal, test.devOpts...)
-			require.NoError(t, err, "NewTestDeviceFromChallenge")
-
-			require.NoError(t,
-				stream.Send(&proto.AddMFADeviceRequest{
-					Request: &proto.AddMFADeviceRequest_NewMFARegisterResponse{
-						NewMFARegisterResponse: registerSolved,
-					},
-				}), "Send")
-			resp, err = stream.Recv()
-			require.NoError(t, err, "Recv: register challenge response")
-			assert.NotNil(t, resp.GetAck().GetDevice(), "Got nil Ack or Ack.Device, want non-nil")
-
-			if existingDev == nil {
-				// Use registered device to solve future existing challenges.
-				existingDev = newDev
-			}
-		})
-	}
-}
-
-// DELETE IN 16. Kept so we don't lose coverage on DeleteMFADevice (codingllama)
-func TestDeleteMFADevice(t *testing.T) {
-	t.Parallel()
-
-	testServer := newTestTLSServer(t)
-	authServer := testServer.Auth()
-	ctx := context.Background()
-
-	// Create a user with TOTP and Webauthn.
-	userCreds, err := createUserWithSecondFactors(testServer)
-	require.NoError(t, err, "createUserWithSecondFactors")
-
-	userClient, err := testServer.NewClient(TestUser(userCreds.username))
-	require.NoError(t, err, "NewClient")
-	totpDev := userCreds.totpDev
-	webDev := userCreds.webDev
-
-	// Reuse Webauthn config from createUserWithSecondFactors.
-	authPref, err := authServer.GetAuthPreference(ctx)
-	require.NoError(t, err, "GetAuthPreference")
-	webConfig, _ := authPref.GetWebauthn()
-
-	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOptional, // optional allows deletion of all devices.
-		Webauthn:     webConfig,
-	})
-	require.NoError(t, err, "NewAuthPreference")
-	require.NoError(t,
-		authServer.SetAuthPreference(ctx, authPreference),
-		"SetAuthPreference")
-
-	for _, testDev := range []*TestDevice{totpDev, webDev} {
-		devName := testDev.MFA.GetName()
-		t.Run(devName, func(t *testing.T) {
-			assert.NoError(t,
-				deleteMFADeviceStream(ctx, userClient, testDev),
-				"Streaming device removal failed")
-		})
-	}
-}
-
-//nolint:staticcheck // SA1019. Kept for backward compatibility testing.
-func deleteMFADeviceStream(ctx context.Context, userClient *Client, testDev *TestDevice) error {
-	stream, err := userClient.DeleteMFADevice(ctx)
-	if err != nil {
-		return err
-	}
-
-	// Init.
-	if err := stream.Send(&proto.DeleteMFADeviceRequest{
-		Request: &proto.DeleteMFADeviceRequest_Init{
-			Init: &proto.DeleteMFADeviceRequestInit{
-				DeviceName: testDev.MFA.GetName(),
-			},
-		},
-	}); err != nil {
-		return err
-	}
-	resp, err := stream.Recv()
-	if err != nil {
-		return err
-	}
-
-	// Solve authn challenge.
-	authnSolved, err := testDev.SolveAuthn(resp.GetMFAChallenge())
-	if err != nil {
-		return err
-	}
-	if err := stream.Send(&proto.DeleteMFADeviceRequest{
-		Request: &proto.DeleteMFADeviceRequest_MFAResponse{
-			MFAResponse: authnSolved,
-		},
-	}); err != nil {
-		return err
-	}
-	resp, err = stream.Recv()
-	if err != nil {
-		return err
-	}
-
-	// Verify Ack.
-	if resp.GetAck() == nil {
-		return fmt.Errorf("got %T, want deletion Ack", resp.GetResponse())
-	}
-	return nil
-}
-
 func TestGetMFADevices_WithToken(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
@@ -2984,7 +3494,7 @@ func TestGetMFADevices_WithToken(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	err = srv.Auth().SetAuthPreference(ctx, authPreference)
+	_, err = srv.Auth().UpsertAuthPreference(ctx, authPreference)
 	require.NoError(t, err)
 
 	username := "llama@goteleport.com"
@@ -3068,7 +3578,7 @@ func TestGetMFADevices_WithAuth(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	err = srv.Auth().SetAuthPreference(ctx, authPreference)
+	_, err = srv.Auth().UpsertAuthPreference(ctx, authPreference)
 	require.NoError(t, err)
 
 	username := "llama@goteleport.com"
@@ -3095,10 +3605,10 @@ func newTestServices(t *testing.T) Services {
 	require.NoError(t, err)
 
 	return Services{
-		Trust:                   local.NewCAService(bk),
+		TrustInternal:           local.NewCAService(bk),
 		PresenceInternal:        local.NewPresenceService(bk),
 		Provisioner:             local.NewProvisioningService(bk),
-		Identity:                local.NewIdentityService(bk),
+		Identity:                local.NewTestIdentityService(bk),
 		Access:                  local.NewAccessService(bk),
 		DynamicAccessExt:        local.NewDynamicAccessService(bk),
 		ClusterConfiguration:    configService,
@@ -3338,4 +3848,84 @@ func TestInstallerCRUD(t *testing.T) {
 	_, err = s.a.GetInstaller(ctx, installers.InstallerScriptName)
 	require.Error(t, err)
 	require.True(t, trace.IsNotFound(err))
+}
+
+func TestGetTokens(t *testing.T) {
+	t.Parallel()
+	s := newAuthSuite(t)
+	ctx := context.Background()
+
+	_, _, err := CreateUserAndRole(s.a, "username", []string{"username"}, nil)
+	require.NoError(t, err)
+	_, err = s.a.CreateResetPasswordToken(ctx, CreateUserTokenRequest{
+		Name: "username",
+		TTL:  time.Minute,
+		Type: UserTokenTypeResetPasswordInvite,
+	})
+	require.NoError(t, err)
+
+	for _, role := range types.LocalServiceMappings() {
+		generateTestToken(ctx, t, types.SystemRoles{role}, s.a.GetClock().Now().Add(time.Minute*30), s.a)
+	}
+
+	_, err = s.a.GetTokens(ctx)
+	require.NoError(t, err)
+}
+
+func TestAccessRequestAuditLog(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	p, err := newTestPack(ctx, t.TempDir())
+	require.NoError(t, err)
+
+	requester, _, _ := createSessionTestUsers(t, p.a)
+
+	paymentsRole, err := types.NewRole("paymentsRole", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Roles: []string{"requestRole"},
+				Annotations: map[string][]string{
+					"pagerduty_services": {"payments"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	requestRole, err := types.NewRole("requestRole", types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	p.a.CreateRole(ctx, requestRole)
+	p.a.CreateRole(ctx, paymentsRole)
+
+	user, err := p.a.GetUser(ctx, requester, true)
+	require.NoError(t, err)
+	user.AddRole(paymentsRole.GetName())
+	_, err = p.a.UpsertUser(ctx, user)
+	require.NoError(t, err)
+
+	accessRequest, err := types.NewAccessRequest(uuid.NewString(), requester, "requestRole")
+	require.NoError(t, err)
+	req, err := p.a.CreateAccessRequestV2(ctx, accessRequest, TestUser(requester).I.GetIdentity())
+	require.NoError(t, err)
+
+	expectedAnnotations, err := apievents.EncodeMapStrings(paymentsRole.GetAccessRequestConditions(types.Allow).Annotations)
+	require.NoError(t, err)
+
+	arc, ok := p.mockEmitter.LastEvent().(*apievents.AccessRequestCreate)
+	require.True(t, ok)
+	require.Equal(t, expectedAnnotations, arc.Annotations)
+	require.Equal(t, "PENDING", arc.RequestState)
+
+	err = p.a.SetAccessRequestState(ctx, types.AccessRequestUpdate{
+		RequestID: req.GetName(),
+		State:     types.RequestState_APPROVED,
+	})
+	require.NoError(t, err)
+
+	arc, ok = p.mockEmitter.LastEvent().(*apievents.AccessRequestCreate)
+	require.True(t, ok)
+	require.Equal(t, expectedAnnotations, arc.Annotations)
+	require.Equal(t, "APPROVED", arc.RequestState)
 }

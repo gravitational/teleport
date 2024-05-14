@@ -184,6 +184,7 @@ $ helm install cert-manager jetstack/cert-manager \
 --create-namespace \
 --namespace cert-manager \
 --set installCRDs=true \
+--set global.leaderElection.namespace=cert-manager \
 --set extraArgs="{--issuer-ambient-credentials}" # required to automount ambient AWS credentials when using an Issuer
 ```
 
@@ -338,11 +339,11 @@ podSecurityPolicy:
   enabled: false
 ```
 <Admonition type="note">
-If using an AWS PCA with cert-manager, you will need to 
+If using an AWS PCA with cert-manager, you will need to
 [ensure you set](../../reference/helm-reference/teleport-cluster.mdx#highavailabilitycertmanageraddcommonname)
 `highAvailability.certManager.addCommonName: true` in your values file.  You will also need to get the certificate authority
-certificate for the CA (`aws acm-pca get-certificate-authority-certificate --certificate-authority-arn <arn>`), 
-upload the full certificate chain to a secret, and 
+certificate for the CA (`aws acm-pca get-certificate-authority-certificate --certificate-authority-arn <arn>`),
+upload the full certificate chain to a secret, and
 [reference the secret](../../reference/helm-reference/teleport-cluster.mdx#tlsexistingcasecretname)
 with `tls.existingCASecretName` in the values file.
 </Admonition>
@@ -428,11 +429,11 @@ podSecurityPolicy:
   enabled: false
 ```
 <Admonition type="note">
-If using an AWS PCA with cert-manager, you will need to 
+If using an AWS PCA with cert-manager, you will need to
 [ensure you set](../../reference/helm-reference/teleport-cluster.mdx#highavailabilitycertmanageraddcommonname)
 `highAvailability.certManager.addCommonName: true` in your values file.  You will also need to get the certificate authority
-certificate for the CA (`aws acm-pca get-certificate-authority-certificate --certificate-authority-arn <arn>`), 
-upload the full certificate chain to a secret, and 
+certificate for the CA (`aws acm-pca get-certificate-authority-certificate --certificate-authority-arn <arn>`),
+upload the full certificate chain to a secret, and
 [reference the secret](../../reference/helm-reference/teleport-cluster.mdx#tlsexistingcasecretname)
 with `tls.existingCASecretName` in the values file.
 </Admonition>
@@ -449,7 +450,7 @@ aws:
   backendTable: <Var name="teleport-helm-backend" /> # DynamoDB table to use for the Teleport backend
   auditLogTable: <Var name="teleport-helm-events" />             # DynamoDB table to use for the Teleport audit log (must be different to the backend table)
   auditLogMirrorOnStdout: false                   # Whether to mirror audit log entries to stdout in JSON format (useful for external log collectors)
-  sessionRecordingBucket: <Var name="your-sessions-bucket" />  # S3 bucket to use for Teleport session recordings 
+  sessionRecordingBucket: <Var name="your-sessions-bucket" />  # S3 bucket to use for Teleport session recordings
   backups: true                                   # Whether or not to turn on DynamoDB backups
   dynamoAutoScaling: false                        # Whether Teleport should configure DynamoDB's autoscaling.
 highAvailability:
@@ -714,13 +715,13 @@ To make changes to your Teleport cluster after deployment, you can use `helm upg
 Helm defaults to using the latest version of the chart available in the repo, which will also correspond to the latest
 version of Teleport. You can make sure that the repo is up to date by running `helm repo update`.
 
-Here's an example where we set the chart to use 3 replicas:
+Here's an example where we set the chart to use 2 replicas:
 
 Edit your `aws-values.yaml` file from above and make the appropriate changes:
 
 ```yaml
 highAvailability:
-  replicaCount: 3
+  replicaCount: 2
 ```
 
 Upgrade the deployment with the values from your `aws-values.yaml` file using this command:
@@ -734,33 +735,6 @@ $ helm upgrade <Var name="release-name" /> teleport/teleport-cluster \
 <Admonition type="note">
   To change `chartMode`, `clusterName`, or any `aws` settings, you must first uninstall the existing chart and then install a new version with the appropriate values.
 </Admonition>
-
-### Autoscaling
-
-In order to reduce DynamoDB costs you might want to enable DynamoDB autoscaling.
-This step is usually done after a successful Teleport deployment, once you have gathered some data
-about Teleport's DynamoDB usage and know what regular usage looks like and how autoscaling should be tuned.
-You must know the desired read/write minimum, maximum and target capacity for your DynamoDB instance in order to enable autoscaling.
-
-You can delegate your autoscaling configuration to Teleport or manage it by creating an AWS Application Auto Scaling policy.
-The following steps will set up Teleport-configured DynamoDB autoscaling.
-
-You must grant autoscaling configuration rights to Teleport, as documented in
-[the DynamoDB autoscaling section](../../reference/backends.mdx#dynamodb-autoscaling).
-
-Set the following fields in your existing `aws-values.yaml` file and replace the numeric values with yours:
-
-```yaml
-aws:
-  # [...] already present values under `aws`
-  dynamoAutoScaling: true
-  readMinCapacity: 5     # integer
-  readMaxCapacity: 100   # integer
-  readTargetValue: 50.0  # float
-  writeMinCapacity: 5    # integer
-  writeMaxCapacity: 100  # integer
-  writeTargetValue: 50.0 # float
-```
 
 Then perform a cluster upgrade with the new values:
 

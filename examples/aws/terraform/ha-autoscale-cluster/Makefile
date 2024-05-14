@@ -16,8 +16,9 @@ TF_VAR_license_path ?=
 # AMI name contains the version of Teleport to install, and whether to use OSS or Enterprise version
 # These AMIs are published by Gravitational and shared as public whenever a new version of Teleport is released
 # To list available AMIs:
-# OSS: aws ec2 describe-images --filters 'Name=name,Values=gravitational-teleport-ami-oss*'
-# Enterprise: aws ec2 describe-images --filters 'Name=name,Values=gravitational-teleport-ami-ent*'
+# OSS: aws ec2 describe-images --owners 146628656107 --filters 'Name=name,Values=teleport-oss-*'
+# Enterprise: aws ec2 describe-images --owners 146628656107 --filters 'Name=name,Values=teleport-ent-*'
+# FIPS 140-2 images are also available for Enterprise customers, look for '-fips' on the end of the AMI's name
 TF_VAR_ami_name ?=
 
 # Route 53 zone to use, should be the zone registered in AWS, e.g. example.com
@@ -43,16 +44,13 @@ TF_VAR_enable_mysql_listener ?= true
 # This will be ignored if TF_VAR_use_tls_routing is set to true
 TF_VAR_enable_postgres_listener ?= true
 
-# Bucket name to store encrypted letsencrypt certificates.
+# Bucket name to store encrypted Let's Encrypt certificates.
 TF_VAR_s3_bucket_name ?=
 
-# Email of your support org, used for Letsencrypt cert registration process.
+# Email of your support org, used for Let's Encrypt cert registration process.
 TF_VAR_email ?=
 
-# Setup grafana password for "admin" user. Grafana will be served on https://cluster.example.com:8443 after install
-TF_VAR_grafana_pass ?=
-
-# (optional) Set to true to use ACM (Amazon Certificate Manager) to provision certificates rather than Letsencrypt
+# (optional) Set to true to use ACM (Amazon Certificate Manager) to provision certificates rather than Let's Encrypt
 # If you wish to use a pre-existing ACM certificate rather than having Terraform generate one for you, you can import it:
 # terraform import aws_acm_certificate.cert <certificate_arn>
 TF_VAR_use_acm ?= false
@@ -69,8 +67,8 @@ TF_VAR_use_tls_routing ?= false
 # This is useful for persisting a different default authentication type across AMI upgrades when you have a SAML, OIDC
 # or GitHub connector configured in DynamoDB. The default if not set is "local".
 # Teleport Community Edition supports "local" or "github"
-# Teleport Enterprise Edition supports "local", "github", "oidc" or "saml"
-# Teleport Enterprise FIPS deployments have local authentication disabled, so should use "github", "oidc" or "saml"
+# Teleport Enterprise Edition supports "local", "github", "oidc", or "saml"
+# Teleport Enterprise FIPS deployments have local authentication disabled, so should use "github", "oidc", or "saml"
 TF_VAR_teleport_auth_type ?= "local"
 
 export

@@ -172,6 +172,11 @@ func (f *KubeAppFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, er
 			continue
 		}
 
+		// If the service is marked with the ignore annotation, skip it.
+		if v := service.GetAnnotations()[types.DiscoveryAppIgnore]; v == "true" {
+			continue
+		}
+
 		g.Go(func() error {
 			protocolAnnotation := service.GetAnnotations()[types.DiscoveryProtocolLabel]
 

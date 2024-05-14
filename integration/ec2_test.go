@@ -28,7 +28,6 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/gravitational/trace"
@@ -144,9 +143,6 @@ func getIID(ctx context.Context, t *testing.T) imds.InstanceIdentityDocument {
 func getCallerIdentity(t *testing.T) *sts.GetCallerIdentityOutput {
 	sess, err := session.NewSessionWithOptions(session.Options{
 		SharedConfigState: session.SharedConfigEnable,
-		Config: aws.Config{
-			EC2MetadataEnableFallback: aws.Bool(false),
-		},
 	})
 	require.NoError(t, err)
 	stsService := sts.New(sess)
@@ -408,24 +404,10 @@ func TestEC2Labels(t *testing.T) {
 		kubes, err = authServer.GetKubernetesServers(ctx)
 		assert.NoError(t, err)
 
-		// dedupClusters is required because GetKubernetesServers returns duplicated servers
-		// because it lists the KindKubeServer and KindKubeService.
-		// We must remove this once legacy heartbeat is removed.
-		// DELETE IN 13.0.0 (tigrato)
-		var dedupClusters []types.KubeServer
-		dedup := map[string]struct{}{}
-		for _, kube := range kubes {
-			if _, ok := dedup[kube.GetName()]; ok {
-				continue
-			}
-			dedup[kube.GetName()] = struct{}{}
-			dedupClusters = append(dedupClusters, kube)
-		}
-
 		assert.Len(t, nodes, 1)
 		assert.Len(t, apps, 1)
 		assert.Len(t, databases, 1)
-		assert.Len(t, dedupClusters, 1)
+		assert.Len(t, kubes, 1)
 	}, 10*time.Second, time.Second)
 
 	tagName := fmt.Sprintf("%s/Name", labels.AWSLabelNamespace)
