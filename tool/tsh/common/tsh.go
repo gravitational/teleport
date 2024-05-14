@@ -46,8 +46,6 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/ghodss/yaml"
-	"github.com/gravitational/teleport/tool/common/touchid"
-	"github.com/gravitational/teleport/tool/common/webauthnwin"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -92,6 +90,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils/mlock"
 	"github.com/gravitational/teleport/tool/common"
 	"github.com/gravitational/teleport/tool/common/fido2"
+	"github.com/gravitational/teleport/tool/common/touchid"
+	"github.com/gravitational/teleport/tool/common/webauthnwin"
 )
 
 var log = logrus.WithFields(logrus.Fields{
