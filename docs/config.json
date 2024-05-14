@@ -1528,148 +1528,6 @@
           "slug": "/database-access/getting-started/"
         },
         {
-          "title": "Guides",
-          "slug": "/database-access/guides/",
-          "entries": [
-            {
-              "title": "AWS Cross-Account",
-              "slug": "/database-access/guides/aws-cross-account/"
-            },
-            {
-              "title": "AWS DynamoDB",
-              "slug": "/database-access/guides/aws-dynamodb/"
-            },
-            {
-              "title": "AWS ElastiCache & MemoryDB",
-              "slug": "/database-access/guides/redis-aws/"
-            },
-            {
-              "title": "AWS Keyspaces (Apache Cassandra)",
-              "slug": "/database-access/guides/aws-cassandra-keyspaces/"
-            },
-            {
-              "title": "AWS RDS & Aurora",
-              "slug": "/database-access/guides/rds/"
-            },
-            {
-              "title": "AWS RDS Proxy for MariaDB/MySQL",
-              "slug": "/database-access/guides/rds-proxy-mysql/"
-            },
-            {
-              "title": "AWS RDS Proxy for PostgreSQL",
-              "slug": "/database-access/guides/rds-proxy-postgres/"
-            },
-            {
-              "title": "AWS RDS Proxy for SQL Server",
-              "slug": "/database-access/guides/rds-proxy-sqlserver/"
-            },
-            {
-              "title": "AWS Redshift",
-              "slug": "/database-access/guides/postgres-redshift/"
-            },
-            {
-              "title": "AWS Redshift Serverless",
-              "slug": "/database-access/guides/redshift-serverless/"
-            },
-            {
-              "title": "AWS OpenSearch",
-              "slug": "/database-access/guides/aws-opensearch/"
-            },
-            {
-              "title": "Azure Cache for Redis",
-              "slug": "/database-access/guides/azure-redis/"
-            },
-            {
-              "title": "Azure PostgreSQL & MySQL",
-              "slug": "/database-access/guides/azure-postgres-mysql/"
-            },
-            {
-              "title": "Azure SQL Server",
-              "slug": "/database-access/guides/azure-sql-server-ad/"
-            },
-            {
-              "title": "Dynamic Registration",
-              "slug": "/database-access/guides/dynamic-registration/"
-            },
-            {
-              "title": "GCP Cloud SQL MySQL",
-              "slug": "/database-access/guides/mysql-cloudsql/"
-            },
-            {
-              "title": "GCP Cloud SQL PostgreSQL",
-              "slug": "/database-access/guides/postgres-cloudsql/"
-            },
-            {
-              "title": "High Availability",
-              "slug": "/database-access/guides/ha/"
-            },
-            {
-              "title": "MongoDB Atlas",
-              "slug": "/database-access/guides/mongodb-atlas/"
-            },
-            {
-              "title": "SQL Server",
-              "slug": "/database-access/guides/sql-server-ad/"
-            },
-            {
-              "title": "SQL Server with PKINIT",
-              "slug": "/database-access/guides/sql-server-ad-pkinit/"
-            },
-            {
-              "title": "Self-Hosted Cassandra & ScyllaDB",
-              "slug": "/database-access/guides/cassandra-self-hosted/"
-            },
-            {
-              "title": "Self-Hosted ClickHouse",
-              "slug": "/database-access/guides/clickhouse-self-hosted/"
-            },
-            {
-              "title": "Self-Hosted CockroachDB",
-              "slug": "/database-access/guides/cockroachdb-self-hosted/"
-            },
-            {
-              "title": "Self-Hosted Elasticsearch",
-              "slug": "/database-access/guides/elastic/"
-            },
-            {
-              "title": "Self-Hosted MongoDB",
-              "slug": "/database-access/guides/mongodb-self-hosted/"
-            },
-            {
-              "title": "Self-Hosted MySQL/MariaDB",
-              "slug": "/database-access/guides/mysql-self-hosted/"
-            },
-            {
-              "title": "Self-Hosted PostgreSQL",
-              "slug": "/database-access/guides/postgres-self-hosted/"
-            },
-            {
-              "title": "Self-Hosted Redis",
-              "slug": "/database-access/guides/redis/"
-            },
-            {
-              "title": "Self-Hosted Redis Cluster",
-              "slug": "/database-access/guides/redis-cluster/"
-            },
-            {
-              "title": "Self-Hosted Oracle",
-              "forScopes": [
-                "enterprise",
-                "cloud"
-              ],
-              "slug": "/database-access/guides/oracle-self-hosted/"
-            },
-            {
-              "title": "Snowflake",
-              "slug": "/database-access/guides/snowflake/"
-            },
-            {
-              "title": "Vitess (MySQL protocol)",
-              "slug": "/database-access/guides/vitess/"
-            }
-          ]
-        },
-        {
           "title": "Access Controls",
           "slug": "/database-access/rbac/"
         },
@@ -1700,6 +1558,160 @@
             {
               "title": "Database Access Controls",
               "slug": "/database-access/auto-user-provisioning/database-access-controls/"
+            }
+          ]
+        },
+        {
+          "title": "AWS Databases",
+          "slug": "/database-access/enroll-aws-databases/",
+          "entries": [
+            {
+              "title": "AWS Cross-Account Database Access",
+              "slug": "/database-access/enroll-aws-databases/aws-cross-account/"
+            },
+            {
+              "title": "AWS DynamoDB",
+              "slug": "/database-access/enroll-aws-databases/aws-dynamodb/"
+            },
+            {
+              "title": "AWS OpenSearch",
+              "slug": "/database-access/enroll-aws-databases/aws-opensearch/"
+            },
+            {
+              "title": "AWS RDS Proxy for MariaDB/MySQL",
+              "slug": "/database-access/enroll-aws-databases/rds-proxy-mysql/"
+            },
+            {
+              "title": "Microsoft SQL Server with Active Directory authentication",
+              "slug": "/database-access/enroll-aws-databases/sql-server-ad/"
+            },
+                        {
+              "title": "AWS ElastiCache and AWS MemoryDB for Redis",
+              "slug": "/database-access/enroll-aws-databases/redis-aws/"
+            },
+            {
+              "title": "AWS Keyspaces (Apache Cassandra)",
+              "slug": "/database-access/enroll-aws-databases/aws-cassandra-keyspaces/"
+            },
+            {
+              "title": "AWS RDS Proxy for PostgreSQL",
+              "slug": "/database-access/enroll-aws-databases/rds-proxy-postgres/"
+            },
+            {
+              "title": "Redshift Serverless on AWS",
+              "slug": "/database-access/enroll-aws-databases/redshift-serverless/"
+            },
+            {
+              "title": "AWS RDS Proxy for Microsoft SQL Server",
+              "slug": "/database-access/enroll-aws-databases/rds-proxy-sqlserver/"
+            },
+            {
+              "title": "Redshift on AWS",
+              "slug": "/database-access/enroll-aws-databases/postgres-redshift/"
+            },
+            {
+              "title": "AWS RDS and Aurora",
+              "slug": "/database-access/enroll-aws-databases/rds/"
+            }
+          ]
+        },
+        {
+          "title": "Azure Databases",
+          "slug": "/database-access/enroll-azure-databases/",
+          "entries": [
+            {
+              "title": "SQL Server on Azure",
+              "slug": "/database-access/enroll-azure-databases/azure-sql-server-ad/"
+            },
+            {
+              "title": "Azure PostgreSQL and MySQL",
+              "slug": "/database-access/enroll-azure-databases/azure-postgres-mysql/"
+            },
+            {
+              "title": "Azure Cache for Redis",
+              "slug": "/database-access/enroll-azure-databases/azure-redis/"
+            }
+          ]
+        },
+        {
+          "title": "Google Cloud Databases",
+          "slug": "/database-access/enroll-google-cloud-databases/",
+          "entries": [
+            {
+              "title": "PostgreSQL on GCP Cloud SQL",
+              "slug": "/database-access/enroll-google-cloud-databases/postgres-cloudsql/"
+            },
+            {
+              "title": "MySQL on GCP Cloud SQL",
+              "slug": "/database-access/enroll-google-cloud-databases/mysql-cloudsql/"
+            }
+          ]
+        },
+        {
+          "title": "Database Clouds",
+          "slug": "/database-access/enroll-managed-databases/",
+          "entries": [
+            {
+              "title": "MongoDB Atlas",
+              "slug": "/database-access/enroll-managed-databases/mongodb-atlas/"
+            },
+            {
+              "title": "Snowflake",
+              "slug": "/database-access/enroll-managed-databases/snowflake/"
+            }
+          ]
+        },
+        {
+          "title": "Self-Hosted Databases",
+          "slug": "/database-access/enroll-self-hosted-databases/",
+          "entries": [
+            {
+              "title": "Vitess (MySQL protocol)",
+              "slug": "/database-access/enroll-self-hosted-databases/vitess/"
+            },
+            {
+              "title": "Oracle",
+              "slug": "/database-access/enroll-self-hosted-databases/oracle-self-hosted/"
+            },
+            {
+              "title": "CockroachDB",
+              "slug": "/database-access/enroll-self-hosted-databases/cockroachdb-self-hosted/"
+            },
+            {
+              "title": "Elasticsearch",
+              "slug": "/database-access/enroll-self-hosted-databases/elastic/"
+            },
+            {
+              "title": "ClickHouse",
+              "slug": "/database-access/enroll-self-hosted-databases/clickhouse-self-hosted/"
+            },
+            {
+              "title": "MySQL/MariaDB",
+              "slug": "/database-access/enroll-self-hosted-databases/mysql-self-hosted/"
+            },
+            {
+              "title": "MongoDB",
+              "slug": "/database-access/enroll-self-hosted-databases/mongodb-self-hosted/"
+            },
+            {
+              "title": "Microsoft SQL Server access with PKINIT authentication",
+              "slug": "/database-access/enroll-self-hosted-databases/sql-server-ad-pkinit/"
+            },
+            {
+              "title": "Cassandra and ScyllaDB",
+              "slug": "/database-access/enroll-self-hosted-databases/cassandra-self-hosted/"
+            },
+            {
+              "title": "Redis",
+              "slug": "/database-access/enroll-self-hosted-databases/redis/"
+            },
+            {
+              "title": "Redis Cluster",
+              "slug": "/database-access/enroll-self-hosted-databases/redis-cluster/"
+            },
+            {
+              "title": "PostgreSQL",
+              "slug": "/database-access/enroll-self-hosted-databases/postgres-self-hosted/"
             }
           ]
         },
