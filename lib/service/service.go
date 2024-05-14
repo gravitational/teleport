@@ -37,12 +37,14 @@ import (
 	"net/http/httputil"
 	"net/http/pprof"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	awscredentials "github.com/aws/aws-sdk-go/aws/credentials"
@@ -1270,6 +1272,26 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 
 	// create the new pid file only after started successfully
 	if cfg.PIDFile != "" {
+		// The act of writing the pidfile greenlights the act of killing the
+		// process with HUP, which means that the signal handler for HUP must
+		// always be registered; however, there's some time between the
+		// synchronous call to NewTeleport and the call to
+		// (*TeleportProcess).WaitForSignals; in addition, due to in-process
+		// restarts, there's also some time between the termination of the old
+		// call to (*TeleportProcess).WaitForSignals and the new call, and a HUP
+		// while no signal handler is registered will trigger the default HUP
+		// behavior (killing the process). To avoid this, we deliberately leak a
+		// [signals.Notify] call (just like we're leaking the pidfile file
+		// descriptor that holds it locked). This will cause HUPs to be
+		// swallowed but that's better than the process getting killed.
+
+		// TODO(espadolini): get rid of this deliberate leak once in-process
+		// restarts are vanquished and signal management can be made more sane
+
+		//nolint:staticcheck // SA1017: we don't care about the channel being
+		//unbuffered because we're never going to receive from it anyway
+		signal.Notify(make(chan os.Signal), syscall.SIGHUP)
+
 		if err := createLockedPIDFile(cfg.PIDFile); err != nil {
 			return nil, trace.Wrap(err, "creating pidfile")
 		}
