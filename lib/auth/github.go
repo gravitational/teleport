@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -54,7 +55,7 @@ var ErrGithubNoTeams = trace.BadParameter("user does not belong to any teams con
 // GithubConverter is a thin wrapper around the ClientI interface that
 // ensures GitHub auth connectors use the registered implementation.
 type GithubConverter struct {
-	ClientI
+	authclient.ClientI
 }
 
 // WithGithubConnectorConversions takes a ClientI and returns one that
@@ -68,7 +69,7 @@ type GithubConverter struct {
 // This is function is necessary so that the
 // [github.com/gravitational/teleport/api] module does not import
 // [github.com/gravitational/teleport/lib/services].
-func WithGithubConnectorConversions(c ClientI) ClientI {
+func WithGithubConnectorConversions(c authclient.ClientI) authclient.ClientI {
 	return &GithubConverter{
 		ClientI: c,
 	}
@@ -395,43 +396,14 @@ func (a *Server) deleteGithubConnector(ctx context.Context, connectorName string
 }
 
 // GithubAuthResponse represents Github auth callback validation response
-type GithubAuthResponse struct {
-	// Username is the name of authenticated user
-	Username string `json:"username"`
-	// Identity is the external identity
-	Identity types.ExternalIdentity `json:"identity"`
-	// Session is the created web session
-	Session types.WebSession `json:"session,omitempty"`
-	// Cert is the generated SSH client certificate
-	Cert []byte `json:"cert,omitempty"`
-	// TLSCert is PEM encoded TLS client certificate
-	TLSCert []byte `json:"tls_cert,omitempty"`
-	// Req is the original auth request
-	Req GithubAuthRequest `json:"req"`
-	// HostSigners is a list of signing host public keys
-	// trusted by proxy, used in console login
-	HostSigners []types.CertAuthority `json:"host_signers"`
-}
+type GithubAuthResponse = authclient.GithubAuthResponse
 
 // GithubAuthRequest is an Github auth request that supports standard json marshaling
-type GithubAuthRequest struct {
-	// ConnectorID is the name of the connector to use.
-	ConnectorID string `json:"connector_id"`
-	// CSRFToken is used to protect against CSRF attacks.
-	CSRFToken string `json:"csrf_token"`
-	// PublicKey is an optional public key to sign in case of successful auth.
-	PublicKey []byte `json:"public_key"`
-	// CreateWebSession indicates that a user wants to generate a web session
-	// after successful authentication.
-	CreateWebSession bool `json:"create_web_session"`
-	// ClientRedirectURL is the URL where client will be redirected after
-	// successful auth.
-	ClientRedirectURL string `json:"client_redirect_url"`
-}
+type GithubAuthRequest = authclient.GithubAuthRequest
 
 // GithubAuthRequestFromProto converts the types.GithubAuthRequest to GithubAuthRequest.
-func GithubAuthRequestFromProto(req *types.GithubAuthRequest) GithubAuthRequest {
-	return GithubAuthRequest{
+func GithubAuthRequestFromProto(req *types.GithubAuthRequest) authclient.GithubAuthRequest {
+	return authclient.GithubAuthRequest{
 		ConnectorID:       req.ConnectorID,
 		PublicKey:         req.PublicKey,
 		CSRFToken:         req.CSRFToken,
