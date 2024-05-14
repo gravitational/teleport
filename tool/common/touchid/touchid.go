@@ -16,9 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package common
+package touchid
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"strings"
@@ -31,38 +32,54 @@ import (
 	"github.com/gravitational/teleport/lib/auth/touchid"
 )
 
-type touchIDCommand struct {
-	diag *touchIDDiagCommand
-	ls   *touchIDLsCommand
-	rm   *touchIDRmCommand
+// Command implements the "touchid" hidden/utility commands.
+type Command struct {
+	Diag *DiagCommand
+	Ls   *LsCommand
+	Rm   *RmCommand
 }
 
-// newTouchIDCommand returns touchid subcommands.
-// diag is always available.
-// ls and rm may not be available depending on binary and platform limitations.
-func newTouchIDCommand(app *kingpin.Application) *touchIDCommand {
+// NewCommand returns touchid subcommands.
+// Diag is always available.
+// Ls and Rm may not be available depending on binary and platform limitations.
+func NewCommand(app *kingpin.Application) *Command {
 	tid := app.Command("touchid", "Manage Touch ID credentials").Hidden()
-	cmd := &touchIDCommand{
-		diag: newTouchIDDiagCommand(tid),
+	cmd := &Command{
+		Diag: newDiagCommand(tid),
 	}
 	if touchid.IsAvailable() {
-		cmd.ls = newTouchIDLsCommand(tid)
-		cmd.rm = newTouchIDRmCommand(tid)
+		cmd.Ls = newLsCommand(tid)
+		cmd.Rm = newRmCommand(tid)
 	}
 	return cmd
 }
 
-type touchIDDiagCommand struct {
+func (c *Command) TryRun(ctx context.Context, selectedCommand string) (match bool, err error) {
+	switch {
+	case c.Diag.FullCommand() == selectedCommand:
+		return true, trace.Wrap(c.Diag.Run())
+	case c.Ls != nil && c.Ls.FullCommand() == selectedCommand:
+		return true, trace.Wrap(c.Ls.Run())
+	case c.Rm != nil && c.Rm.FullCommand() == selectedCommand:
+		return true, trace.Wrap(c.Rm.Run())
+	default:
+		return false, nil
+	}
+}
+
+// DiagCommand implements the "touchid diag" command.
+type DiagCommand struct {
 	*kingpin.CmdClause
 }
 
-func newTouchIDDiagCommand(app *kingpin.CmdClause) *touchIDDiagCommand {
-	return &touchIDDiagCommand{
+func newDiagCommand(app *kingpin.CmdClause) *DiagCommand {
+	return &DiagCommand{
 		CmdClause: app.Command("diag", "Run Touch ID diagnostics").Hidden(),
 	}
 }
 
-func (c *touchIDDiagCommand) run(cf *CLIConf) error {
+// Run executes the "touchid diag" command.
+func (c *DiagCommand) Run() error {
 	res, err := touchid.Diag()
 	if err != nil {
 		return trace.Wrap(err)
@@ -82,17 +99,19 @@ func (c *touchIDDiagCommand) run(cf *CLIConf) error {
 	return nil
 }
 
-type touchIDLsCommand struct {
+// LsCommand implements the "touchid ls" command.
+type LsCommand struct {
 	*kingpin.CmdClause
 }
 
-func newTouchIDLsCommand(app *kingpin.CmdClause) *touchIDLsCommand {
-	return &touchIDLsCommand{
+func newLsCommand(app *kingpin.CmdClause) *LsCommand {
+	return &LsCommand{
 		CmdClause: app.Command("ls", "Get a list of system Touch ID credentials").Hidden(),
 	}
 }
 
-func (c *touchIDLsCommand) run(cf *CLIConf) error {
+// Run executes the "touchid ls" command.
+func (c *LsCommand) Run() error {
 	infos, err := touchid.ListCredentials()
 	if err != nil {
 		return trace.Wrap(err)
@@ -124,28 +143,30 @@ func (c *touchIDLsCommand) run(cf *CLIConf) error {
 	return nil
 }
 
-type touchIDRmCommand struct {
+// RmCommand implements the "touchid rm" command.
+type RmCommand struct {
 	*kingpin.CmdClause
 
 	credentialID string
 }
 
-func newTouchIDRmCommand(app *kingpin.CmdClause) *touchIDRmCommand {
-	c := &touchIDRmCommand{
+func newRmCommand(app *kingpin.CmdClause) *RmCommand {
+	c := &RmCommand{
 		CmdClause: app.Command("rm", "Remove a Touch ID credential").Hidden(),
 	}
 	c.Arg("id", "ID of the Touch ID credential to remove").Required().StringVar(&c.credentialID)
 	return c
 }
 
-func (c *touchIDRmCommand) FullCommand() string {
+func (c *RmCommand) FullCommand() string {
 	if c.CmdClause == nil {
 		return "touchid rm"
 	}
 	return c.CmdClause.FullCommand()
 }
 
-func (c *touchIDRmCommand) run(cf *CLIConf) error {
+// Run executes the "touchid rm" command.
+func (c *RmCommand) Run() error {
 	if err := touchid.DeleteCredential(c.credentialID); err != nil {
 		return trace.Wrap(err)
 	}
