@@ -3,6 +3,7 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import { Option } from 'shared/components/Select';
+import { getNumAddedResources } from 'shared/components/AccessRequests/Shared/utils';
 
 import { CreateRequest } from 'shared/components/AccessRequests/Shared/types';
 
@@ -76,9 +77,18 @@ export function useRequestCheckout({
   });
   const [numRequestedResources, setNumRequestedResources] = useState(0);
 
+  const numAddedResources = getNumAddedResources(addedResources);
+
   useEffect(() => {
-    if (isResourceRequest) fetchResourceRequestRoles();
-  }, [addedResources]);
+    if (isResourceRequest && numAddedResources > 0) {
+      fetchResourceRequestRoles();
+      // if we add another resource, clear any successful attempt so we can
+      // view the checkout screen again
+      if (createAttempt.attempt.status === 'success') {
+        clearAttempt();
+      }
+    }
+  }, [addedResources, numAddedResources]);
 
   // Does an initial "dry run" of an empty access request to get all time
   // options and calculate suggested reviewers.
@@ -214,6 +224,7 @@ export function useRequestCheckout({
     requestTTL,
     setRequestTTL,
     dryRunResponse,
+    numAddedResources,
   };
 }
 

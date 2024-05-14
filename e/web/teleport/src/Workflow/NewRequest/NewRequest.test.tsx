@@ -142,7 +142,7 @@ describe('new request behavior', () => {
     expect(screen.getByText(/proceed to request/i)).toBeDisabled();
 
     // Add a resource.
-    rows = screen.getAllByText(/add to request/i);
+    rows = screen.getAllByText(/request access/i);
     expect(rows).toHaveLength(3);
     fireEvent.click(rows[0]);
     checkoutFooter = screen.getByTestId('checkout-footer');
@@ -221,7 +221,7 @@ describe('new request behavior', () => {
     let addrs = await screen.findAllByText('node1-addr');
     // addrs should not increment when the checkout window because we display hostname
     expect(addrs).toHaveLength(1);
-    const addButtons = await screen.findAllByText(/add to request/i);
+    const addButtons = await screen.findAllByText(/request access/i);
 
     await userEvent.click(addButtons[0]);
     const proceedToRequest = await screen.findByText('Proceed to Request');

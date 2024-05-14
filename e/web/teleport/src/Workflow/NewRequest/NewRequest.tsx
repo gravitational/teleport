@@ -28,6 +28,7 @@ import Select from 'shared/components/Select';
 import Link from 'design/Link';
 import { Info } from 'design/Alert';
 import { SearchPanel } from 'shared/components/Search';
+import { getNumAddedResources } from 'shared/components/AccessRequests/Shared/utils';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { ClusterDropdown } from 'shared/components/ClusterDropdown/ClusterDropdown';
 import UnifiedSearchPanel from 'teleport/UnifiedResources/SearchPanel';
@@ -207,13 +208,7 @@ function NewRequest(props: State) {
 
   // numAddedResources is the number of resources added to the Access Request without counting roles.
   // Having any of these resources added to the Access Request makes it a Resource Access Request
-  const numAddedResources =
-    Object.keys(addedResources.node).length +
-    Object.keys(addedResources.db).length +
-    Object.keys(addedResources.app).length +
-    Object.keys(addedResources.kube_cluster).length +
-    Object.keys(addedResources.user_group).length +
-    Object.keys(addedResources.windows_desktop).length;
+  const numAddedResources = getNumAddedResources(addedResources);
 
   const isResourceRequest = numAddedResources > 0;
   const isRoleList = currResourceOpt.value === 'role';
@@ -255,6 +250,7 @@ function NewRequest(props: State) {
   const igsDisabled = !cfg.isLegacyEnterprise() && !cfg.isIgsEnabled;
   const limitReached = usage && usageLimitReached(usage);
   const limited = limitReached || igsDisabled;
+  const requestStarted = getNumAddedResources(addedResources) > 0;
 
   return (
     <FeatureBox>
@@ -475,6 +471,7 @@ function NewRequest(props: State) {
                 customSort={customSort}
                 onLabelClick={onAgentLabelClick}
                 addedResources={addedResources}
+                requestStarted={requestStarted}
                 addOrRemoveResource={addOrRemoveResource}
                 requestableRoles={requestableRoles}
                 disableRows={fetchStatus === 'loading'}

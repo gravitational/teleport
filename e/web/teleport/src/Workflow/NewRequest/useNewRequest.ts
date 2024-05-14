@@ -4,6 +4,7 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 import { isAbortError } from 'shared/utils/abortError';
 import { SharedUnifiedResource } from 'shared/components/UnifiedResources/types';
 import { useUnifiedResourcesFetch } from 'shared/components/UnifiedResources';
+import { getNumAddedResources } from 'shared/components/AccessRequests/Shared/utils';
 import { makeAdvancedSearchQueryForLabel } from 'shared/utils/advancedSearchLabelQuery';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
@@ -344,6 +345,41 @@ export function useNewRequest(ctx: Ctx) {
     [setAttempt]
   );
 
+  function deepCopyResourceMap(resources: ResourceMap): ResourceMap {
+    return {
+      app: { ...resources.app },
+      db: { ...resources.db },
+      kube_cluster: { ...resources.kube_cluster },
+      node: { ...resources.node },
+      user_group: { ...resources.user_group },
+      windows_desktop: { ...resources.windows_desktop },
+      role: { ...resources.role },
+    };
+  }
+
+  // addResource will add the provided resource to the addedresources map
+  // and it already exists in the map, it will continue to do so.
+  function addResource(
+    kind: ResourceKind,
+    resourceId: string,
+    resourceName?: string
+  ) {
+    const newResources: ResourceMap = deepCopyResourceMap(addedResources);
+
+    newResources[kind][resourceId] = resourceName ? resourceName : resourceId;
+    setAddedResources(newResources);
+  }
+
+  // removeResource will only remove resources passed here. If the resource does not exist
+  // in the map, this is a noop
+  function removeResource(kind: ResourceKind, resourceId: string) {
+    const newResources: ResourceMap = deepCopyResourceMap(addedResources);
+    if (newResources[kind][resourceId]) {
+      delete newResources[kind][resourceId];
+      updateAddedAll(kind as ResourceIdKind, false);
+      setAddedResources(newResources);
+    }
+  }
   // addOrRemoveResource adds the resource if it doesn't exist already in the map.
   // Else removes it. "resourceName" is optional, if not provided, it is assumed that
   // "resourceId" is the same as "resourceName" e.g: for resource type "node", we display
@@ -354,24 +390,17 @@ export function useNewRequest(ctx: Ctx) {
     resourceId: string,
     resourceName?: string
   ) {
-    if (addedResources[kind][resourceId]) {
-      delete addedResources[kind][resourceId];
+    // if this is adding a resource for the first time, we run a dry run again to
+    // get updated dryrun return and clear the old attempt
+    const newResources: ResourceMap = deepCopyResourceMap(addedResources);
+    if (newResources[kind][resourceId]) {
+      delete newResources[kind][resourceId];
       updateAddedAll(kind as ResourceIdKind, false);
     } else {
-      addedResources[kind][resourceId] = resourceName
-        ? resourceName
-        : resourceId;
+      newResources[kind][resourceId] = resourceName ? resourceName : resourceId;
     }
 
-    setAddedResources({
-      app: { ...addedResources.app },
-      db: { ...addedResources.db },
-      kube_cluster: { ...addedResources.kube_cluster },
-      node: { ...addedResources.node },
-      user_group: { ...addedResources.user_group },
-      windows_desktop: { ...addedResources.windows_desktop },
-      role: { ...addedResources.role },
-    });
+    setAddedResources(newResources);
   }
 
   function getAgentsFetchCallback(ctx: Ctx, resourceType: ResourceKind) {
@@ -751,8 +780,11 @@ export function useNewRequest(ctx: Ctx) {
     setAddedResources(newMap);
   };
 
+  const numAddedResources = getNumAddedResources(addedResources);
+
   return {
     isLeafCluster,
+    numAddedResources,
     attempt,
     agents: fetchedData.agents,
     agentFilter,
@@ -773,6 +805,8 @@ export function useNewRequest(ctx: Ctx) {
     updateResourceKind,
     dryRunAttempt,
     addedResources,
+    addResource,
+    removeResource,
     addOrRemoveResource,
     pageCount: {
       to: toPage,

@@ -16,12 +16,24 @@ type Option = BaseOption & {
   kind: 'app' | 'user_group';
 };
 
+function getButtonText(addText: string, requestStarted: boolean): string {
+  if (addText) {
+    return addText;
+  }
+  if (requestStarted) {
+    return '+ Add to request';
+  }
+
+  return '+ Request Access';
+}
+
 export const RequestButton = ({
   isAgentAdded,
   onClick,
   removeText,
   addText,
   disabled,
+  requestStarted = false,
 }: {
   // addText is an optional parameter that will be displayed when an agent is not added
   addText?: string;
@@ -30,12 +42,14 @@ export const RequestButton = ({
   isAgentAdded: boolean;
   onClick: React.MouseEventHandler<HTMLButtonElement>;
   disabled: boolean;
+  requestStarted?: boolean;
 }) => {
   if (isAgentAdded) {
     return (
       <ButtonPrimary
+        textTransform="none"
         disabled={disabled}
-        width="134px"
+        width="123px"
         size="small"
         onClick={onClick}
       >
@@ -45,12 +59,13 @@ export const RequestButton = ({
   }
   return (
     <ButtonBorder
+      textTransform="none"
       disabled={disabled}
       onClick={onClick}
-      width="134px"
+      width="123px"
       size="small"
     >
-      {addText || '+ Add to request'}
+      {getButtonText(addText, requestStarted)}
     </ButtonBorder>
   );
 };
@@ -78,10 +93,14 @@ export function AppRequestButton({
   addedResources,
   disabled = false,
   addOrRemoveResource,
+  addText,
+  requestStarted,
 }: {
   disabled?: boolean;
   agent: App;
   addedResources: ResourceMap;
+  addText?: string;
+  requestStarted?: boolean;
   addOrRemoveResource: (
     kind: ResourceKind,
     resourceId: string,
@@ -102,7 +121,9 @@ export function AppRequestButton({
         onClick={() =>
           addOrRemoveResource('app', agent.name, agent.friendlyName)
         }
+        addText={addText}
         disabled={disabled}
+        requestStarted={requestStarted}
       />
     );
   }
@@ -130,39 +151,36 @@ export function AppRequestButton({
   }
 
   return (
-    <Flex gap={2} flexDirection="column" alignItems="end">
-      <Flex alignItems="center" justifyContent="end">
-        <StyledSelect className={isUserGroupAdded ? 'hasSelectedGroups' : ''}>
-          <Select
-            placeholder={isUserGroupAdded ? `EDIT APP ROLE` : 'SELECT APP ROLE'}
-            value={null}
-            options={options}
-            isSearchable={false}
-            isClearable={false}
-            isMulti={false}
-            hideSelectedOptions={false}
-            controlShouldRenderValue={false}
-            closeMenuOnSelect={false}
-            onChange={handleSelect}
-            components={{
-              Option: OptionComponent,
-            }}
-          />
-        </StyledSelect>
-      </Flex>
+    <Flex alignItems="center" justifyContent="end">
+      <StyledSelect className={isUserGroupAdded ? 'hasSelectedGroups' : ''}>
+        <Select
+          placeholder={isUserGroupAdded ? 'Edit App Role' : 'Select App Role'}
+          value={null}
+          options={options}
+          isSearchable={false}
+          isClearable={false}
+          isMulti={false}
+          hideSelectedOptions={false}
+          controlShouldRenderValue={false}
+          closeMenuOnSelect={false}
+          onChange={handleSelect}
+          components={{
+            Option: OptionComponent,
+          }}
+        />
+      </StyledSelect>
     </Flex>
   );
 }
 
 const StyledSelect = styled(BaseStyledSelect)`
-  margin-left: 8px;
   input[type='checkbox'] {
     cursor: pointer;
   }
 
   .react-select__control {
     font-size: 10px;
-    width: 134px;
+    width: 123px;
     height: 26px;
     min-height: 24px;
     border: 2px solid ${p => p.theme.colors.buttons.secondary.default};

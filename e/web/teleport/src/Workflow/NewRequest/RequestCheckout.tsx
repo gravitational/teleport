@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { Box, ButtonPrimary, ButtonText } from 'design';
 
 import {
-  RequestCheckout as SharedRequestCheckout,
+  RequestCheckoutWithSlider as SharedRequestCheckout,
   RequestCheckoutProps as SharedRequestCheckoutProps,
   ResourceMap,
   ResourceKind,
@@ -13,6 +13,8 @@ import useTeleportE from 'e-teleport/useTeleportE';
 
 import { useRequestCheckout } from './useRequestCheckout';
 
+import type { TransitionStatus } from 'react-transition-group';
+
 export function RequestCheckout(
   props: Pick<
     SharedRequestCheckoutProps,
@@ -21,11 +23,11 @@ export function RequestCheckout(
     | 'appsGrantedByUserGroup'
     | 'userGroupFetchAttempt'
     | 'reset'
-    | 'transitionState'
     | 'isResourceRequest'
   > & {
     selectedResource: ResourceKind;
     addedResources: ResourceMap;
+    transitionState: TransitionStatus;
   }
 ) {
   const { selectedResource, addedResources, reset } = props;
@@ -39,6 +41,7 @@ export function RequestCheckout(
 
   return (
     <SharedRequestCheckout
+      transitionState={props.transitionState}
       {...state}
       {...props}
       SuccessComponent={SuccessActionComponent}
