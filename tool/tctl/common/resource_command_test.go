@@ -1902,7 +1902,7 @@ spec:
     spec:
       uri: https://console.aws.amazon.com
       integration: my-integration
-	  public_addr: integration.example.com
+      public_addr: integration.example.com
     version: v3
   host_id: c6cfe5c2-653f-4e5d-a914-bfac5a7baf38
 version: v3
@@ -1919,7 +1919,7 @@ spec:
       name: my-integration
     spec:
       uri: https://console.aws.amazon.com
-	  public_addr: integration.example.com
+      public_addr: integration.example.com
     version: v3
   host_id: c6cfe5c2-653f-4e5d-a914-bfac5a7baf38
 version: v3
