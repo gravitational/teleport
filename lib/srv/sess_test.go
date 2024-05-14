@@ -1020,7 +1020,7 @@ func TestCloseProxySession(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, scx.session)
 
-	// After the session is open, we force a close comming from the server. Do
+	// After the session is open, we force a close coming from the server. Do
 	// this inside a goroutine to avoid being blocked.
 	closeChan := make(chan error)
 	go func() {
