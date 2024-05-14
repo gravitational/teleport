@@ -16,7 +16,7 @@ components working together:
    in response to changes in the upstream Okta organization
 
 Both of these Teleport components rely on an Okta SAML Application to act as the
-interface between Teleport and Okta on the Okta side. For consistency, both of 
+interface between Teleport and Okta. For consistency, both of 
 the Teleport components must use the same Okta Application.
 
 When a user is assigned to the Okta App, either directly or via group
@@ -46,11 +46,6 @@ Okta does not send SCIM updates to Teleport when a user is merely suspended. Eve
  * A Teleport cluster with a working SAML Connector to your Okta organization
  * A securely-generated bearer token
 
-## Installing Teleport
-
-If installing from one of the above tarballs onto a self-hosted system, first 
-back up your existing binaries then unpack the linked tarball and move the 
-contained binaries into place.   
 
 ## Installing the SAML Connector
 If you created an Okta SAML connector with the Hosted Okta Integration enrollment
@@ -90,12 +85,10 @@ version: v2
 ```
 
 ## Installing the Teleport SCIM integration
-You can only install the SCIM integration with the build of `tctl` supplied with
-the `v15.3.2-dev.scim.1` build of Teleport. Other builds of `tctl` do not yet
-have the necessary commands.
+Run the following `tctl` command to install the SCIM integration.
 
 ```bash
-tctl plugins install scim \
+$ tctl plugins install scim \
       --name "okta-scim" \
       --saml-connector "${SAML_CONNECTOR_NAME}" \
       --token "${BEARER_TOKEN}" \ 
@@ -118,7 +111,7 @@ default, and add more sophisticated controls via Access Lists.
  * The `--token` parameter can also be read from the `TELEPORT_SCIM_BEARER_TOKEN`
    environment variable to hide it from your shell history. 
  * The `--token` value should just be the raw token value, with no Bearer prefix
- * `--role` defaults to `requester` if not supplied
+ * `--role` defaults to the built-in `requester` preset role if not supplied
 
 ## Configuring the Okta app
 See the [Okta Integration *Configuring SCIM provisioning*](../hosted-guide.mdx#configuring-scim-provisioning) guide. 
@@ -147,7 +140,7 @@ You can delete the SCIM integration via the Integrations page in the Teleport UI
 or with tctl like so:
 
 ```bash
-tctl plugins delete okta-scim
+$ tctl plugins delete okta-scim
 ```
 
 <Admonition type="warning">
