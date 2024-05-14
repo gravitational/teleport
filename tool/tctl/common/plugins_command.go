@@ -117,7 +117,7 @@ func (p *PluginsCommand) initInstall(parent *kingpin.CmdClause, config *servicec
 func (p *PluginsCommand) initInstallOkta(parent *kingpin.CmdClause) {
 	p.install.okta.cmd = parent.Command("okta", "Install an okta integration")
 	p.install.okta.cmd.
-		Flag("name", "name of the plugin resource to create").
+		Flag("name", "Name of the plugin resource to create").
 		Default("okta").
 		StringVar(&p.install.name)
 	p.install.okta.cmd.
