@@ -144,18 +144,9 @@ func (a *App) run(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	accessMonitoringRules, err := a.getAllAccessMonitoringRules(ctx)
-	if err != nil {
+	if err := a.initAccessMonitoringRulesCache(ctx); err != nil {
 		return trace.Wrap(err)
 	}
-	a.accessMonitoringRules.Lock()
-	for _, amr := range accessMonitoringRules {
-		if !a.amrAppliesToThisPlugin(amr) {
-			continue
-		}
-		a.accessMonitoringRules.rules[amr.GetMetadata().Name] = amr
-	}
-	a.accessMonitoringRules.Unlock()
 
 	a.job.SetReady(ok)
 	if !ok {
@@ -583,6 +574,22 @@ func (a *App) getResourceNames(ctx context.Context, req types.AccessRequest) ([]
 		}
 	}
 	return resourceNames, nil
+}
+
+func (a *App) initAccessMonitoringRulesCache(ctx context.Context) error {
+	accessMonitoringRules, err := a.getAllAccessMonitoringRules(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	a.accessMonitoringRules.Lock()
+	defer a.accessMonitoringRules.Unlock()
+	for _, amr := range accessMonitoringRules {
+		if !a.amrAppliesToThisPlugin(amr) {
+			continue
+		}
+		a.accessMonitoringRules.rules[amr.GetMetadata().Name] = amr
+	}
+	return nil
 }
 
 func (a *App) getAllAccessMonitoringRules(ctx context.Context) ([]*accessmonitoringrulesv1.AccessMonitoringRule, error) {
