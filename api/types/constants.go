@@ -193,7 +193,8 @@ const (
 
 	// KindKubeServer is an kubernetes server resource.
 	KindKubeServer = "kube_server"
-
+	// KindCrownJewel is a crown jewel resource
+	KindCrownJewel = "crown_jewel"
 	// KindKubernetesCluster is a Kubernetes cluster.
 	KindKubernetesCluster = "kube_cluster"
 
@@ -1260,4 +1261,10 @@ const (
 	// SCIM requests from the upstream organization. The content of the credential
 	// is a bcrypt hash of actual token.
 	OktaCredPurposeSCIMToken = "scim-bearer-token"
+)
+
+const (
+	// SCIMBaseURLLabel defines a label indicating the base URL for
+	// interacting with a plugin via SCIM. Useful for diagnostic display.
+	SCIMBaseURLLabel = TeleportNamespace + "/scim-base-url"
 )

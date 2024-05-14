@@ -27,6 +27,8 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/bcrypt"
+	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
@@ -66,7 +68,6 @@ type oktaArgs struct {
 	appFilters     []string
 	groupFilters   []string
 }
-
 
 type scimArgs struct {
 	cmd           *kingpin.CmdClause
@@ -109,11 +110,11 @@ func (p *PluginsCommand) Initialize(app *kingpin.Application, config *servicecfg
 func (p *PluginsCommand) initInstall(parent *kingpin.CmdClause, config *servicecfg.Config) {
 	p.install.cmd = parent.Command("install", "Install new plugin instance")
 
-        p.initInstallOkta(p.install.cmd, config)
-        p.initInstallSCIM(p.install.cmd)
+	p.initInstallOkta(p.install.cmd)
+	p.initInstallSCIM(p.install.cmd)
 }
 
-func (p *PluginsCommand) initInstallOkta(parent *kingpin.CmdClause, config *servicecfg.Config) {
+func (p *PluginsCommand) initInstallOkta(parent *kingpin.CmdClause) {
 	p.install.okta.cmd = parent.Command("okta", "Install an okta integration")
 	p.install.okta.cmd.
 		Flag("name", "name of the plugin resource to create").
@@ -258,7 +259,6 @@ func (p *PluginsCommand) Cleanup(ctx context.Context, clusterAPI *auth.Client) e
 	return nil
 }
 
-
 type samlConnectorsClient interface {
 	GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error)
 }
@@ -273,6 +273,7 @@ type installPluginArgs struct {
 }
 
 func (p *PluginsCommand) InstallOkta(ctx context.Context, args installPluginArgs) error {
+	log := p.config.Logger.With(logFieldPlugin, p.install.name)
 	oktaSettings := p.install.okta
 
 	if oktaSettings.accessListSync {
@@ -287,13 +288,19 @@ func (p *PluginsCommand) InstallOkta(ctx context.Context, args installPluginArgs
 		}
 	}
 
+	log.DebugContext(ctx, "Validating SAML Connector...",
+		logFieldSAMLConnector, oktaSettings.samlConnector)
 	connector, err := args.samlConnectors.GetSAMLConnector(ctx, oktaSettings.samlConnector, false)
 	if err != nil {
-		fmt.Printf("Failed validating SAML connector: %v", err)
+		log.ErrorContext(ctx, "Failed validating SAML connector",
+			logFieldSAMLConnector, oktaSettings.samlConnector,
+			logErrorMessage(err))
 		return trace.Wrap(err)
 	}
 
 	if p.install.okta.appID == "" {
+		log.DebugContext(ctx, "Deducing Okta App ID from SAML Connector...",
+			logFieldSAMLConnector, oktaSettings.samlConnector)
 		appID, ok := connector.GetMetadata().Labels[types.OktaAppIDLabel]
 		if ok {
 			p.install.okta.appID = appID
@@ -301,8 +308,8 @@ func (p *PluginsCommand) InstallOkta(ctx context.Context, args installPluginArgs
 	}
 
 	if oktaSettings.scimToken != "" && oktaSettings.appID == "" {
-		fmt.Println("SCIM support requires App ID, which was not supplied and couldn't be deduced from the SAML connector")
-		fmt.Println("Specify the App ID explicitly with --app-id")
+		log.ErrorContext(ctx, "SCIM support requires App ID, which was not supplied and couldn't be deduced from the SAML connector")
+		log.ErrorContext(ctx, "Specify the App ID explicitly with --app-id")
 		return trace.BadParameter("SCIM support requires app-id to be set")
 	}
 
@@ -380,7 +387,7 @@ func (p *PluginsCommand) InstallOkta(ctx context.Context, args installPluginArgs
 	}
 
 	if _, err := args.plugins.CreatePlugin(ctx, req); err != nil {
-		fmt.Printf("Plugin creation failed: %v\n", err)
+		log.ErrorContext(ctx, "Plugin creation failed", logErrorMessage(err))
 		return trace.Wrap(err)
 	}
 

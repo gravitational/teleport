@@ -18,6 +18,7 @@ package common
 
 import (
 	"context"
+	"log/slog"
 	"net/url"
 	"testing"
 
@@ -31,9 +32,11 @@ import (
 
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
 func TestPluginsInstallOkta(t *testing.T) {
+	slog.SetLogLoggerLevel(slog.LevelDebug)
 
 	testCases := []struct {
 		name                     string
@@ -45,7 +48,8 @@ func TestPluginsInstallOkta(t *testing.T) {
 		{
 			name: "AccessList sync requires at least one default owner",
 			cmd: PluginsCommand{
-				install: installArgs{
+				install: pluginInstallArgs{
+					name: "okta",
 					okta: oktaArgs{
 						accessListSync: true,
 					},
@@ -56,7 +60,8 @@ func TestPluginsInstallOkta(t *testing.T) {
 		{
 			name: "SCIM sync requires at least one default owner",
 			cmd: PluginsCommand{
-				install: installArgs{
+				install: pluginInstallArgs{
+					name: "okta",
 					okta: oktaArgs{
 						samlConnector: "fake-saml-connector",
 						scimToken:     "i am a scim token",
@@ -69,7 +74,8 @@ func TestPluginsInstallOkta(t *testing.T) {
 		{
 			name: "SCIM sync requires appID",
 			cmd: PluginsCommand{
-				install: installArgs{
+				install: pluginInstallArgs{
+					name: "okta",
 					okta: oktaArgs{
 						samlConnector: "fake-saml-connector",
 						scimToken:     "i am a scim token",
@@ -77,32 +83,22 @@ func TestPluginsInstallOkta(t *testing.T) {
 					},
 				},
 			},
-			expectError: requireBadParameter,
-		},
-		{
-			name: "SCIM sync requires SAML connector",
-			cmd: PluginsCommand{
-				install: installArgs{
-					okta: oktaArgs{
-						scimToken:     "i am a scim token",
-						defaultOwners: []string{"admin"},
-						appID:         "okta app ID goes here",
-					},
-				},
-			},
-			expectError: requireBadParameter,
+			expectSAMLConnectorQuery: "fake-saml-connector",
+			expectError:              requireBadParameter,
 		},
 		{
 			name: "Bare bones install succeeds",
 			cmd: PluginsCommand{
-				install: installArgs{
+				install: pluginInstallArgs{
 					name: "okta-barebones-test",
 					okta: oktaArgs{
-						org:      must(url.Parse("https://example.okta.com")),
-						apiToken: "api-token-goes-here",
+						org:           mustParseURL("https://example.okta.com"),
+						samlConnector: "okta-integration",
+						apiToken:      "api-token-goes-here",
 					},
 				},
 			},
+			expectSAMLConnectorQuery: "okta-integration",
 			expectRequest: &pluginsv1.CreatePluginRequest{
 				Plugin: &types.PluginV1{
 					SubKind: types.PluginSubkindAccess,
@@ -115,8 +111,10 @@ func TestPluginsInstallOkta(t *testing.T) {
 					Spec: types.PluginSpecV1{
 						Settings: &types.PluginSpecV1_Okta{
 							Okta: &types.PluginOktaSettings{
-								OrgUrl:       "https://example.okta.com",
-								SyncSettings: &types.PluginOktaSyncSettings{},
+								OrgUrl: "https://example.okta.com",
+								SyncSettings: &types.PluginOktaSyncSettings{
+									SsoConnectorId: "okta-integration",
+								},
 							},
 						},
 					},
@@ -147,11 +145,12 @@ func TestPluginsInstallOkta(t *testing.T) {
 		{
 			name: "Sync service enabled",
 			cmd: PluginsCommand{
-				install: installArgs{
+				install: pluginInstallArgs{
 					name: "okta-sync-service-test",
 					okta: oktaArgs{
-						org:            must(url.Parse("https://example.okta.com")),
+						org:            mustParseURL("https://example.okta.com"),
 						apiToken:       "api-token-goes-here",
+						samlConnector:  "saml-connector-name",
 						userSync:       true,
 						accessListSync: true,
 						defaultOwners:  []string{"admin"},
@@ -160,6 +159,7 @@ func TestPluginsInstallOkta(t *testing.T) {
 					},
 				},
 			},
+			expectSAMLConnectorQuery: "saml-connector-name",
 			expectRequest: &pluginsv1.CreatePluginRequest{
 				Plugin: &types.PluginV1{
 					SubKind: types.PluginSubkindAccess,
@@ -176,6 +176,7 @@ func TestPluginsInstallOkta(t *testing.T) {
 								SyncSettings: &types.PluginOktaSyncSettings{
 									SyncUsers:       true,
 									SyncAccessLists: true,
+									SsoConnectorId:  "saml-connector-name",
 									DefaultOwners:   []string{"admin"},
 									GroupFilters:    []string{"group-alpha", "group-beta"},
 									AppFilters:      []string{"app-gamma", "app-delta", "app-epsilon"},
@@ -210,10 +211,10 @@ func TestPluginsInstallOkta(t *testing.T) {
 		{
 			name: "SCIM service enabled",
 			cmd: PluginsCommand{
-				install: installArgs{
+				install: pluginInstallArgs{
 					name: "okta-scim-test",
 					okta: oktaArgs{
-						org:            must(url.Parse("https://example.okta.com")),
+						org:            mustParseURL("https://example.okta.com"),
 						apiToken:       "api-token-goes-here",
 						appID:          "okta-app-id",
 						samlConnector:  "teleport-saml-connector-id",
@@ -341,6 +342,10 @@ func TestPluginsInstallOkta(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			t.Cleanup(cancel)
 
+			testCase.cmd.config = &servicecfg.Config{
+				Logger: slog.Default().With("test", t.Name()),
+			}
+
 			err := testCase.cmd.InstallOkta(ctx, args)
 			testCase.expectError(t, err)
 		})
@@ -352,13 +357,12 @@ func requireBadParameter(t require.TestingT, err error, _ ...any) {
 	require.True(t, trace.IsBadParameter(err), "Expecting bad parameter, got %T: \"%v\"", err, err)
 }
 
-// must will apply the Go "must" idiom to any arbitrary function that returns a
-// conventional (value, error) pair
-func must[T any](value T, err error) T {
+func mustParseURL(text string) *url.URL {
+	url, err := url.Parse(text)
 	if err != nil {
 		panic(err)
 	}
-	return value
+	return url
 }
 
 type mockPluginsClient struct {
