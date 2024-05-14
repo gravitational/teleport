@@ -156,7 +156,7 @@ func (p *Plugin) PluginsService() services.Plugins {
 	return p.plugins
 }
 
-// PluginsService returns the plugins (i.e. integrations) service
+// PluginStaticCredentialsService returns the plugins (i.e. integrations) service
 func (p *Plugin) PluginStaticCredentialsService() services.PluginStaticCredentials {
 	return p.pluginCreds
 }
@@ -333,7 +333,7 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server interface{}) e
 	userMonitor, err := NewUserMonitor(ctx, UserMonitorConfig{
 		Log:        log,
 		AuthServer: p.authServer.AuthServer,
-		Events:     p.authServer.AuthServer.Services,
+		Events:     p.authServer.AuthServer.Cache,
 	})
 	if err != nil {
 		return trace.Wrap(err)
