@@ -307,7 +307,7 @@ func TestProxySSHConfig(t *testing.T) {
 			"test",
 			utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 			handler,
-			[]ssh.Signer{hostSigner},
+			sshutils.StaticHostSigners(hostSigner),
 			sshutils.AuthMethods{
 				PublicKey: func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
 					certChecker := apisshutils.CertChecker{
