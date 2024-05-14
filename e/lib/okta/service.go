@@ -18,6 +18,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/okta/okta-sdk-golang/v2/okta"
+	"github.com/okta/okta-sdk-golang/v2/okta/query"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/time/rate"
 
@@ -264,7 +265,7 @@ type OktaClient interface {
 	// iterator callback may return errStopIteration to signal that it does not want
 	// to continue receiving users. All other non-nil return values are
 	// considered an error and will be propagated to the caller.
-	iterateUsers(context.Context, func(*okta.User) error) error
+	iterateUsers(context.Context, func(*okta.User) error, ...query.ParamOptions) error
 
 	// iterateAppUsers will iterate over the list of all Okta users assigned to
 	// a given app. The supplied iterator callback may return stopIteration to
@@ -295,7 +296,7 @@ type OktaClient interface {
 	getAppGroups(ctx context.Context, appID oktaAppID) ([]oktaGroupID, error)
 
 	// listUsers will return a mapping of usernames to user IDs from Okta.
-	listUsers(ctx context.Context) (map[userName]oktaUserID, error)
+	listUsers(ctx context.Context, paramOpts ...query.ParamOptions) (map[userName]oktaUserID, error)
 
 	// assignUserToGroup will assign the given user to the group.
 	assignUserToGroup(ctx context.Context, userID oktaUserID, groupId oktaGroupID) error

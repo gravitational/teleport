@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/gravitational/trace"
+	"github.com/okta/okta-sdk-golang/v2/okta/query"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	"golang.org/x/sync/singleflight"
@@ -340,8 +341,20 @@ func (a *assignmentClient) userID(ctx context.Context, username userName) (oktaU
 		if err != nil {
 			err = trace.Wrap(err)
 		}
-	})
 
+		// Assignment can be stale and refer to deactivated user.
+		// userID function needs succeed to successfully process and clean the assignment.
+		// We need to make sure that all assignments for deactivated user was cleanup
+		// before deleting okta assigment.
+		filter := fmt.Sprintf(`status eq "%s"`, userStatusDeprovisioned)
+		var deactivatedUsers map[userName]oktaUserID
+		deactivatedUsers, err = a.oktaClient.listUsers(ctx, query.WithFilter(filter))
+		if err != nil {
+			err = trace.Wrap(err)
+			return
+		}
+		maps.Copy(a.users, deactivatedUsers)
+	})
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

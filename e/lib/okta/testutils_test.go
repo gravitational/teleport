@@ -17,6 +17,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/okta/okta-sdk-golang/v2/okta"
+	"github.com/okta/okta-sdk-golang/v2/okta/query"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
 
@@ -279,7 +280,7 @@ func (t *testOktaClient) getApplication(context.Context, oktaAppID, okta.App) (o
 }
 
 // iterateUsers will iterate over the list of all Okta users.
-func (t *testOktaClient) iterateUsers(_ context.Context, fn func(*okta.User) error) error {
+func (t *testOktaClient) iterateUsers(_ context.Context, fn func(*okta.User) error, paramOpts ...query.ParamOptions) error {
 	for _, oktaUser := range t.oktaUsers {
 		if err := fn(oktaUser); err != nil {
 			if errors.Is(err, errStopIteration) {
@@ -375,7 +376,7 @@ func (t *testOktaClient) getAppGroups(_ context.Context, appID oktaAppID) ([]okt
 }
 
 // listUsers will return a mapping of usernames to user IDs from Okta.
-func (t *testOktaClient) listUsers(_ context.Context) (map[userName]oktaUserID, error) {
+func (t *testOktaClient) listUsers(_ context.Context, _ ...query.ParamOptions) (map[userName]oktaUserID, error) {
 	return t.usernamesToUserIDs.Clone(), nil
 }
 

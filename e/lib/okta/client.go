@@ -49,12 +49,11 @@ func (w *wrappedClient) getCurrentUser(ctx context.Context) (*okta.User, error) 
 // iterateUsers iterates over all users in the Okta system, invoking the
 // supplied function for every user. The user callback may return the
 // `stopIteration` error to signal that it doesn't want any more users.
-func (w *wrappedClient) iterateUsers(ctx context.Context, fn func(*okta.User) error) error {
+func (w *wrappedClient) iterateUsers(ctx context.Context, fn func(*okta.User) error, paramsOpt ...query.ParamOptions) error {
 	// We'll use the max page size of 200 here to minimize API calls.
 	// https://developer.okta.com/docs/reference/api/users/#list-users
-	users, resp, err := w.client.User.ListUsers(ctx, query.NewQueryParams(
-		query.WithLimit(200),
-	))
+	paramsOpt = append(paramsOpt, query.WithLimit(200))
+	users, resp, err := w.client.User.ListUsers(ctx, query.NewQueryParams(paramsOpt...))
 
 	for {
 		if err != nil {
@@ -259,9 +258,8 @@ func (w *wrappedClient) getAppGroups(ctx context.Context, appID oktaAppID) ([]ok
 }
 
 // listUsers will return a mapping of usernames to user IDs from Okta.
-func (w *wrappedClient) listUsers(ctx context.Context) (map[userName]oktaUserID, error) {
+func (w *wrappedClient) listUsers(ctx context.Context, paramOpt ...query.ParamOptions) (map[userName]oktaUserID, error) {
 	usernameToUserID := map[userName]oktaUserID{}
-
 	err := w.iterateUsers(ctx, func(user *okta.User) error {
 		log := w.log.WithField("okta_user_id", user.Id)
 
@@ -283,7 +281,7 @@ func (w *wrappedClient) listUsers(ctx context.Context) (map[userName]oktaUserID,
 		n := fmt.Sprintf("%s", login)
 		usernameToUserID[userName(n)] = oktaUserID(user.Id)
 		return nil
-	})
+	}, paramOpt...)
 
 	if err != nil {
 		return nil, trace.Wrap(err)
