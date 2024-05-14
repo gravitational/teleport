@@ -55,7 +55,7 @@ const (
 	OriginOkta = "okta"
 
 	// OriginSCIM is an Origin value indicating that a resource was provisioned
-	// via a SCIM service 
+	// via a SCIM service
 	OriginSCIM = "scim"
 
 	// OriginIntegrationAWSOIDC is an origin value indicating that the resource was
