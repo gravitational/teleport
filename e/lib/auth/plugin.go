@@ -251,11 +251,12 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server interface{}) e
 		return trace.Wrap(err)
 	}
 
-	samlIdPService, err := samlidpv1.NewSAMLIdPService(&samlidpv1.SAMLIdPServiceConfig{
-		Client:     p.authServer.AuthServer,
-		KeyStore:   p.authServer.AuthServer.GetKeyStore(),
-		Authorizer: p.authServer.Authorizer,
-		Log:        log,
+	samlIdPService, err := samlidpv1.NewSAMLIdPService(samlidpv1.SAMLIdPServiceConfig{
+		Client:           p.authServer.AuthServer,
+		KeyStore:         p.authServer.AuthServer.GetKeyStore(),
+		Authorizer:       p.authServer.Authorizer,
+		MFAAuthenticator: p.authServer.AuthServer,
+		Log:              log,
 	})
 	if err != nil {
 		return trace.Wrap(err)

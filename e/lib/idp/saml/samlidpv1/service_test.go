@@ -15,6 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/gravitational/teleport/api/client/proto"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -37,11 +39,12 @@ func newTEnv(t *testing.T, clock clockwork.Clock) *tEnv {
 	ctx := context.Background()
 	env := testenv.NewTEnvWithURL(ctx, t, clock, testenv.BASEURL)
 
-	samlIdPService, err := NewSAMLIdPService(&SAMLIdPServiceConfig{
-		Client:     env.Client,
-		KeyStore:   env.KeyStore,
-		Authorizer: env.Authorizer,
-		Log:        logrus.NewEntry(logrus.New()),
+	samlIdPService, err := NewSAMLIdPService(SAMLIdPServiceConfig{
+		Client:           env.Client,
+		KeyStore:         env.KeyStore,
+		Authorizer:       env.Authorizer,
+		MFAAuthenticator: &fakeMFAAuthenticator{},
+		Log:              logrus.NewEntry(logrus.New()),
 	})
 	require.NoError(t, err)
 
@@ -52,6 +55,18 @@ func newTEnv(t *testing.T, clock clockwork.Clock) *tEnv {
 	}
 }
 
+type fakeMFAAuthenticator struct {
+	validCodes map[string]string // map of users to valid tokens
+}
+
+func (a *fakeMFAAuthenticator) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, requiredExtensions *mfav1.ChallengeExtensions) (*authz.MFAAuthData, error) {
+	validCode, ok := a.validCodes[user]
+	if !ok || resp.GetTOTP().GetCode() != validCode {
+		return nil, trace.AccessDenied("invalid MFA")
+	}
+	return nil, nil
+}
+
 func TestProcessSAMLIdPRequest(t *testing.T) {
 	t.Parallel()
 
@@ -60,10 +75,24 @@ func TestProcessSAMLIdPRequest(t *testing.T) {
 
 	env := newTEnv(t, clock)
 
+	// Add a fake mfa authenticator for the requesting user.
+	userName := "username"
+	validTOTPCode := "valid"
+	env.SamlIDPService.mfaAuthenticator = &fakeMFAAuthenticator{
+		validCodes: map[string]string{
+			userName: validTOTPCode,
+		},
+	}
+
 	assertion := &saml.Assertion{
 		ID:           "dummy-id",
 		IssueInstant: clock.Now(),
 		Version:      "2.0",
+		Subject: &saml.Subject{
+			NameID: &saml.NameID{
+				Value: userName,
+			},
+		},
 		Issuer: saml.Issuer{
 			Format: "urn:oasis:names:tc:SAML:2.0:nameid-format:entity",
 			Value:  "my-entity-id",
@@ -78,6 +107,35 @@ func TestProcessSAMLIdPRequest(t *testing.T) {
 
 	assertionBytes, err := doc.WriteToBytes()
 	require.NoError(t, err)
+
+	// Used to validate successful assertion responses.
+	validateResp := func(t *testing.T, resp *samlidppb.ProcessSAMLIdPRequestResponse) {
+		respDoc := etree.NewDocument()
+		require.NoError(t, respDoc.ReadFromBytes(resp.Response))
+
+		cas, err := env.SamlIDPService.client.GetCertAuthorities(ctx, types.SAMLIDPCA, false)
+		require.NoError(t, err)
+		ca := cas[0]
+
+		caKeySet := ca.GetActiveKeys()
+		rawCert := caKeySet.TLS[0].Cert
+		require.NotEmpty(t, rawCert)
+
+		cert, err := tlsca.ParseCertificatePEM(rawCert)
+		require.NoError(t, err)
+
+		certStore := &dsig.MemoryX509CertificateStore{
+			Roots: []*x509.Certificate{
+				cert,
+			},
+		}
+
+		dsigClock := dsig.NewFakeClock(clockwork.NewFakeClockAt(cert.NotBefore))
+		validationCtx := dsig.NewDefaultValidationContext(certStore)
+		validationCtx.Clock = dsigClock
+		_, err = validationCtx.Validate(respDoc.Root())
+		require.NoError(t, err)
+	}
 
 	req := &samlidppb.ProcessSAMLIdPRequestRequest{
 		Assertion:                    assertionBytes,
@@ -96,32 +154,30 @@ func TestProcessSAMLIdPRequest(t *testing.T) {
 	// Proxy should have access
 	resp, err := env.SamlIDPService.ProcessSAMLIdPRequest(withRole(ctx, types.RoleProxy), req)
 	require.NoError(t, err)
+	validateResp(t, resp)
 
-	respDoc := etree.NewDocument()
-	require.NoError(t, respDoc.ReadFromBytes(resp.Response))
-
-	cas, err := env.SamlIDPService.client.GetCertAuthorities(ctx, types.SAMLIDPCA, false)
-	require.NoError(t, err)
-	ca := cas[0]
-
-	caKeySet := ca.GetActiveKeys()
-	rawCert := caKeySet.TLS[0].Cert
-	require.NotEmpty(t, rawCert)
-
-	cert, err := tlsca.ParseCertificatePEM(rawCert)
-	require.NoError(t, err)
-
-	certStore := &dsig.MemoryX509CertificateStore{
-		Roots: []*x509.Certificate{
-			cert,
+	// If an invalid MFA response is provided, it should fail.
+	req.MfaResponse = &proto.MFAAuthenticateResponse{
+		Response: &proto.MFAAuthenticateResponse_TOTP{
+			TOTP: &proto.TOTPResponse{
+				Code: "invalid",
+			},
 		},
 	}
+	_, err = env.SamlIDPService.ProcessSAMLIdPRequest(withRole(ctx, types.RoleProxy), req)
+	require.True(t, trace.IsAccessDenied(err))
 
-	dsigClock := dsig.NewFakeClock(clockwork.NewFakeClockAt(cert.NotBefore))
-	validationCtx := dsig.NewDefaultValidationContext(certStore)
-	validationCtx.Clock = dsigClock
-	_, err = validationCtx.Validate(respDoc.Root())
+	// If a valid MFA response is provided, it should succeed.
+	req.MfaResponse = &proto.MFAAuthenticateResponse{
+		Response: &proto.MFAAuthenticateResponse_TOTP{
+			TOTP: &proto.TOTPResponse{
+				Code: validTOTPCode,
+			},
+		},
+	}
+	resp, err = env.SamlIDPService.ProcessSAMLIdPRequest(withRole(ctx, types.RoleProxy), req)
 	require.NoError(t, err)
+	validateResp(t, resp)
 }
 
 func TestAttributeMappingCommand(t *testing.T) {

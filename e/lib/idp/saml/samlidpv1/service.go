@@ -10,6 +10,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -43,6 +44,9 @@ type SAMLIdPServiceConfig struct {
 	// Authorizer is for authorizing the signing requests.
 	Authorizer authz.Authorizer
 
+	// MFAAuthenticator is for authenticating user MFA challenge responses.
+	MFAAuthenticator authz.MFAAuthenticator
+
 	// Log is the logrus logging entry.
 	Log *logrus.Entry
 }
@@ -57,6 +61,9 @@ func (s *SAMLIdPServiceConfig) CheckAndSetDefaults() error {
 	if s.Authorizer == nil {
 		return trace.BadParameter("authorizer is missing")
 	}
+	if s.MFAAuthenticator == nil {
+		return trace.BadParameter("mfa authenticator is missing")
+	}
 	if s.Log == nil {
 		return trace.BadParameter("logger is missing")
 	}
@@ -65,16 +72,17 @@ func (s *SAMLIdPServiceConfig) CheckAndSetDefaults() error {
 }
 
 // NewSAMNewSAMLIdPServiceLIdP will create the new SAML IdP service.
-func NewSAMLIdPService(cfg *SAMLIdPServiceConfig) (*SAMLIdPService, error) {
+func NewSAMLIdPService(cfg SAMLIdPServiceConfig) (*SAMLIdPService, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &SAMLIdPService{
-		client:     cfg.Client,
-		keyStore:   cfg.KeyStore,
-		authorizer: cfg.Authorizer,
-		log:        cfg.Log,
+		client:           cfg.Client,
+		keyStore:         cfg.KeyStore,
+		authorizer:       cfg.Authorizer,
+		mfaAuthenticator: cfg.MFAAuthenticator,
+		log:              cfg.Log,
 	}, nil
 }
 
@@ -83,10 +91,11 @@ func NewSAMLIdPService(cfg *SAMLIdPServiceConfig) (*SAMLIdPService, error) {
 type SAMLIdPService struct {
 	samlidppb.UnimplementedSAMLIdPServiceServer
 
-	client     ProcessSAMLIdPRequestClient
-	keyStore   *keystore.Manager
-	authorizer authz.Authorizer
-	log        *logrus.Entry
+	client           ProcessSAMLIdPRequestClient
+	keyStore         *keystore.Manager
+	authorizer       authz.Authorizer
+	mfaAuthenticator authz.MFAAuthenticator
+	log              *logrus.Entry
 }
 
 // ProcessSAMLIdPRequest makes a signed SAML response to a SAML auth request.
@@ -112,6 +121,21 @@ func (s *SAMLIdPService) ProcessSAMLIdPRequest(ctx context.Context, req *samlidp
 	assertion := &saml.Assertion{}
 	if err := xml.Unmarshal(req.Assertion, assertion); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// If an MFA response is provided, validate it against the user in the saml assertion.
+	// The Proxy service authorized this SAML request on the basis of this verification succeeding.
+	//
+	// TODO(Joerger): Ideally we would authorize the user's request fully on the Auth service side,
+	// rather than just validating the MFA response and trusting the Proxy to do the rest. To do this,
+	// we could move the saml session + assertion creation logic out of the proxy and into here. This
+	// would also cut down on round trips and move SAML IdP Service trust to the Auth Service.
+	if req.MfaResponse != nil {
+		username := assertion.Subject.NameID.Value
+		ext := &mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION}
+		if _, err := s.mfaAuthenticator.ValidateMFAAuthResponse(ctx, req.MfaResponse, username, ext); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	if req.Destination == "" {

@@ -8,16 +8,20 @@ import (
 	"time"
 
 	"github.com/crewjam/saml"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
+	"github.com/gravitational/teleport/api/client/proto"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/idp/saml/samlidpv1"
 	"github.com/gravitational/teleport/e/lib/idp/saml/testenv"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -57,11 +61,12 @@ func (t tClientWithSAMLIdPV1) TestSAMLIdPAttributeMapping(ctx context.Context, r
 func newTEnvWithURL(ctx context.Context, t *testing.T, clock clockwork.Clock, baseURL string) *tEnvWithSAMLService {
 	svcs := testenv.NewTEnvWithURL(ctx, t, clock, baseURL)
 
-	samlidpv1Service, err := samlidpv1.NewSAMLIdPService(&samlidpv1.SAMLIdPServiceConfig{
-		Client:     svcs.Client,
-		KeyStore:   svcs.KeyStore,
-		Authorizer: svcs.Authorizer,
-		Log:        logrus.NewEntry(logrus.New()),
+	samlidpv1Service, err := samlidpv1.NewSAMLIdPService(samlidpv1.SAMLIdPServiceConfig{
+		Client:           svcs.Client,
+		KeyStore:         svcs.KeyStore,
+		Authorizer:       svcs.Authorizer,
+		MFAAuthenticator: &fakeMFAAuthenticator{},
+		Log:              logrus.NewEntry(logrus.New()),
 	})
 	require.NoError(t, err)
 
@@ -89,6 +94,18 @@ func newTEnvWithURL(ctx context.Context, t *testing.T, clock clockwork.Clock, ba
 	require.NoError(t, err)
 
 	return &tEnvWithSAMLService{testServices: svcs, samlIdPService: samlIdPService}
+}
+
+type fakeMFAAuthenticator struct {
+	validCodes map[string]string // map of users to valid tokens
+}
+
+func (a *fakeMFAAuthenticator) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, requiredExtensions *mfav1.ChallengeExtensions) (*authz.MFAAuthData, error) {
+	validCode, ok := a.validCodes[user]
+	if !ok || resp.GetTOTP().GetCode() != validCode {
+		return nil, trace.AccessDenied("invalid MFA")
+	}
+	return nil, nil
 }
 
 // newTEnv creates test environemtn with testenv.BASEURL as base URL.
