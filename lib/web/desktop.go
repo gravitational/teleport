@@ -96,6 +96,7 @@ func (h *Handler) createDesktopConnection(
 	ws *websocket.Conn,
 ) error {
 	defer ws.Close()
+	ctx := r.Context()
 
 	sendTDPError := func(err error) error {
 		sendErr := sendTDPNotification(ws, err, tdp.SeverityError)
@@ -138,11 +139,11 @@ func (h *Handler) createDesktopConnection(
 	//
 	// In the future, we may want to do something smarter like latency-based
 	// routing.
-	clt, err := sctx.GetUserClient(r.Context(), site)
+	clt, err := sctx.GetUserClient(ctx, site)
 	if err != nil {
 		return sendTDPError(trace.Wrap(err))
 	}
-	winDesktops, err := clt.GetWindowsDesktops(r.Context(), types.WindowsDesktopFilter{Name: desktopName})
+	winDesktops, err := clt.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{Name: desktopName})
 	if err != nil {
 		return sendTDPError(trace.Wrap(err, "cannot get Windows desktops"))
 	}
@@ -162,13 +163,31 @@ func (h *Handler) createDesktopConnection(
 		validServiceIDs[i], validServiceIDs[j] = validServiceIDs[j], validServiceIDs[i]
 	})
 
-	// Issue certificate for TLS config and pass MFA check if required.
-	tlsConfig, withheldMessages, err := h.desktopTLSConfig(r.Context(), ws, clt, sctx, desktopName, username, site.GetName())
+	// Parse the private key of the user from the session context.
+	pk, err := keys.ParsePrivateKey(sctx.cfg.Session.GetPriv())
 	if err != nil {
 		return sendTDPError(err)
 	}
 
-	clientSrcAddr, clientDstAddr := authz.ClientAddrsFromContext(r.Context())
+	// Check if MFA is required and create a UserCertsRequest.
+	mfaRequired, certsReq, err := h.prepareForCertIssuance(ctx, sctx, site, pk, desktopName, username)
+	if err != nil {
+		return sendTDPError(err)
+	}
+
+	// Issue certificate for the user/desktop combination and perform MFA ceremony if required.
+	certs, err := h.issueCerts(ctx, ws, sctx, mfaRequired, certsReq)
+	if err != nil {
+		return sendTDPError(err)
+	}
+
+	// Create a TLS config for connecting to the Windows Desktop Service.
+	tlsConfig, err := h.createDesktopTLSConfig(ctx, sctx, desktopName, pk, certs)
+	if err != nil {
+		return sendTDPError(err)
+	}
+
+	clientSrcAddr, clientDstAddr := authz.ClientAddrsFromContext(ctx)
 
 	c := &connector{
 		log:           log,
@@ -185,7 +204,7 @@ func (h *Handler) createDesktopConnection(
 
 	serviceConnTLS := tls.Client(serviceConn, tlsConfig)
 
-	if err := serviceConnTLS.HandshakeContext(r.Context()); err != nil {
+	if err := serviceConnTLS.HandshakeContext(ctx); err != nil {
 		return sendTDPError(err)
 	}
 	log.Debug("Connected to windows_desktop_service")
@@ -203,7 +222,7 @@ func (h *Handler) createDesktopConnection(
 	if err != nil {
 		return sendTDPError(err)
 	}
-	for _, msg := range withheldMessages {
+	for _, msg := range h.withheldMessages {
 		if err := tdpConn.WriteMessage(msg); err != nil {
 			return sendTDPError(err)
 		}
@@ -226,52 +245,22 @@ const (
 	SNISuffix = ".desktop." + constants.APIDomain
 )
 
-// desktopTLSConfig returns a TLS config for connecting to a Windows Desktop Service.
-// It also performs MFA if required.
-//
-// This function returns the TLS config, and a list of withheld TDP messages if MFA was
-// required and any were received before the MFA message was sent. It is the caller's
-// responsibility to send these withheld messages through to the server after the MFA
-// ceremony is completed.
-func (h *Handler) desktopTLSConfig(
-	ctx context.Context,
-	ws *websocket.Conn,
-	clusterClient auth.ClientI,
-	sessCtx *SessionContext,
-	desktopName, username, siteName string,
-) (_ *tls.Config, withheldMessages []tdp.Message, err error) {
-	ctx, span := h.tracer.Start(ctx, "desktop/TLSConfig")
-	defer func() {
-		span.RecordError(err)
-		span.End()
-	}()
-
-	pk, err := keys.ParsePrivateKey(sessCtx.cfg.Session.GetPriv())
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	mfaRequiredResp, err := clusterClient.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
-		Target: &proto.IsMFARequiredRequest_WindowsDesktop{
-			WindowsDesktop: &proto.RouteToWindowsDesktop{
-				WindowsDesktop: desktopName,
-				Login:          username,
-			},
-		},
-	})
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
+func createUserCertsRequest(
+	sctx *SessionContext,
+	pk *keys.PrivateKey,
+	desktopName,
+	username,
+	siteName string,
+) (*proto.UserCertsRequest, error) {
 	key := &client.Key{
 		PrivateKey: pk,
-		Cert:       sessCtx.cfg.Session.GetPub(),
-		TLSCert:    sessCtx.cfg.Session.GetTLSCert(),
+		Cert:       sctx.cfg.Session.GetPub(),
+		TLSCert:    sctx.cfg.Session.GetTLSCert(),
 	}
 
 	tlsCert, err := key.TeleportTLSCertificate()
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	certsReq := proto.UserCertsRequest{
@@ -286,51 +275,95 @@ func (h *Handler) desktopTLSConfig(
 		},
 	}
 
-	var certPEMBlock []byte
-	if mfaRequiredResp.Required {
-		certPEMBlock, withheldMessages, err = h.performMFACeremony(ctx, sessCtx.cfg.RootClient, ws, &certsReq)
+	return &certsReq, nil
+}
+
+// prepareForCertIssuance prepares for certificate issuance by checking if MFA
+// is required for the user/desktop combination and creating a UserCertsRequest.
+func (h *Handler) prepareForCertIssuance(
+	ctx context.Context,
+	sctx *SessionContext,
+	site reversetunnelclient.RemoteSite,
+	pk *keys.PrivateKey,
+	desktopName, username string,
+) (mfaRequired bool, certsReq *proto.UserCertsRequest, err error) {
+	// Check if MFA is required for this user/desktop combination.
+	mfaRequired, err = h.checkMFARequired(ctx, &isMFARequiredRequest{
+		WindowsDesktop: &isMFARequiredWindowsDesktop{
+			DesktopName: desktopName,
+			Login:       username,
+		},
+	}, sctx, site)
+	if err != nil {
+		return false, nil, trace.Wrap(err)
+	}
+
+	certsReq, err = createUserCertsRequest(sctx, pk, desktopName, username, site.GetName())
+	if err != nil {
+		return false, nil, trace.Wrap(err)
+	}
+
+	return mfaRequired, certsReq, nil
+}
+
+// issueCerts issues certificates for the user/desktop combination, performing
+// the MFA ceremony if required.
+func (h *Handler) issueCerts(
+	ctx context.Context,
+	ws *websocket.Conn,
+	sctx *SessionContext,
+	mfaRequired bool,
+	certsReq *proto.UserCertsRequest,
+) (certs *proto.Certs, err error) {
+	if mfaRequired {
+		certs, err = h.performMFACeremony(ctx, ws, sctx, certsReq)
 		if err != nil {
-			return nil, nil, trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 	} else {
-		certs, err := sessCtx.cfg.RootClient.GenerateUserCerts(ctx, certsReq)
+		certs, err = sctx.cfg.RootClient.GenerateUserCerts(ctx, *certsReq)
 		if err != nil {
-			return nil, nil, trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
-
-		certPEMBlock = certs.TLS
 	}
 
-	certConf, err := pk.TLSCertificate(certPEMBlock)
+	return certs, nil
+}
+
+// createDesktopTLSConfig creates a TLS config for connecting to a Windows Desktop Service
+// using the user's private key and the issued certificates.
+func (h *Handler) createDesktopTLSConfig(
+	ctx context.Context,
+	sctx *SessionContext,
+	desktopName string,
+	pk *keys.PrivateKey,
+	certs *proto.Certs,
+) (*tls.Config, error) {
+	certConf, err := pk.TLSCertificate(certs.TLS)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	tlsConfig, err := sessCtx.ClientTLSConfig(ctx)
+	tlsConfig, err := sctx.ClientTLSConfig(ctx)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	tlsConfig.Certificates = []tls.Certificate{certConf}
 	// Pass target desktop name via SNI.
 	tlsConfig.ServerName = desktopName + SNISuffix
-	return tlsConfig, withheldMessages, nil
+	return tlsConfig, nil
 }
 
 // performMFACeremony completes the mfa ceremony and returns the raw TLS certificate
 // on success. The user will be prompted to tap their security key by the UI
 // in order to perform the assertion.
-//
-// This function returns the raw PEM-encoded certificate on success, and a list of withheld
-// TDP messages that were received before the MFA message was sent. It is the caller's
-// responsibility to send these withheld messages through to the server after the MFA ceremony
-// is completed.
 func (h *Handler) performMFACeremony(
 	ctx context.Context,
-	authClient auth.ClientI,
 	ws *websocket.Conn,
+	sctx *SessionContext,
 	certsReq *proto.UserCertsRequest,
-) (_ []byte, withheldMessages []tdp.Message, err error) {
+) (_ *proto.Certs, err error) {
 	ctx, span := h.tracer.Start(ctx, "desktop/performMFACeremony")
 	defer func() {
 		span.RecordError(err)
@@ -380,7 +413,7 @@ func (h *Handler) performMFACeremony(
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
-				withheldMessages = append(withheldMessages, msg)
+				h.withheldMessages = append(h.withheldMessages, msg)
 				continue
 			}
 
@@ -398,7 +431,7 @@ func (h *Handler) performMFACeremony(
 
 	_, newCerts, err := client.PerformMFACeremony(ctx, client.PerformMFACeremonyParams{
 		CurrentAuthClient: nil, // Only RootAuthClient is used.
-		RootAuthClient:    authClient,
+		RootAuthClient:    sctx.cfg.RootClient,
 		MFAPrompt:         promptMFA,
 		MFAAgainstRoot:    true,
 		MFARequiredReq:    nil, // No need to verify.
@@ -409,10 +442,10 @@ func (h *Handler) performMFACeremony(
 		Key:      nil, // We just want the certs.
 	})
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	return newCerts.TLS, withheldMessages, nil
+	return newCerts, nil
 }
 
 func readUsername(r *http.Request) (string, error) {
@@ -651,8 +684,10 @@ func (h *Handler) desktopAccessScriptConfigureHandle(w http.ResponseWriter, r *h
 		return "", trace.BadParameter("invalid token")
 	}
 
+	ctx := r.Context()
+
 	// verify that the token exists
-	token, err := h.GetProxyClient().GetToken(r.Context(), tokenStr)
+	token, err := h.GetProxyClient().GetToken(ctx, tokenStr)
 	if err != nil {
 		return "", trace.BadParameter("invalid token")
 	}
@@ -666,13 +701,13 @@ func (h *Handler) desktopAccessScriptConfigureHandle(w http.ResponseWriter, r *h
 		return "", trace.NotFound("no proxy servers found")
 	}
 
-	clusterName, err := h.GetProxyClient().GetDomainName(r.Context())
+	clusterName, err := h.GetProxyClient().GetDomainName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	certAuthority, err := h.GetProxyClient().GetCertAuthority(
-		r.Context(),
+		ctx,
 		types.CertAuthID{Type: types.UserCA, DomainName: clusterName},
 		false,
 	)
