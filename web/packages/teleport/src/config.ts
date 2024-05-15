@@ -37,7 +37,11 @@ import type { ParticipantMode } from 'teleport/services/session';
 import type { YamlSupportedResourceKind } from './services/yaml/types';
 
 const cfg = {
+  /**
+   * @deprecated use cfg.edition instead
+   */
   isEnterprise: false,
+  edition: 'oss',
   isCloud: false,
   assistEnabled: false,
   automaticUpgrades: false,
@@ -1238,3 +1242,5 @@ export interface UrlNotificationParams {
 }
 
 export default cfg;
+
+export type TeleportEdition = 'ent' | 'community' | 'oss';
