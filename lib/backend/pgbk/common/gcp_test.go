@@ -22,34 +22,38 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net/url"
 	"os"
 	"path"
-	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )
 
-func Test_gcpOAuthTokenGetter(t *testing.T) {
+type fakeGCPAccessTokenGetter struct {
+}
+
+func (f fakeGCPAccessTokenGetter) getFromCredentials(context.Context, *google.Credentials) (*oauth2.Token, error) {
+	return &oauth2.Token{
+		AccessToken: "token-from-default-credentials",
+		Expiry:      time.Now().Add(time.Hour),
+	}, nil
+}
+
+func (f fakeGCPAccessTokenGetter) generateForServiceAccount(ctx context.Context, serviceAccount, scope string) (string, time.Time, error) {
+	return fmt.Sprintf("token-for-%s-with-scope-%s", serviceAccount, scope), time.Now().Add(time.Hour), nil
+}
+
+func Test_gcpOAuthAccessTokenBeforeConnect(t *testing.T) {
 	mustSetGoogleApplicationCredentialsEnv(t)
 
-	gcp, err := newGCPOAuthTokenGetter(context.Background(), "test-scope", slog.Default())
-	require.NoError(t, err)
-
-	// Define some mocks.
-	gcp.genAccessTokenForServiceAccount = func(_ context.Context, sa, scope string, _ *slog.Logger) (string, error) {
-		return fmt.Sprintf("token-for-%s-with-scope-%s", sa, scope), nil
-	}
-	gcp.getAccessTokenFromCredentials = func(context.Context, *google.Credentials, *slog.Logger) (string, error) {
-		return "token-from-default-credentials", nil
-	}
-
-	defaultDBUser := strings.TrimSuffix(mockGoogleServiceAccount, gcpServiceAccountEmailSuffix)
+	ctx := context.Background()
+	tokenGetter := fakeGCPAccessTokenGetter{}
 	tests := []struct {
 		name         string
 		config       *pgx.ConnConfig
@@ -57,19 +61,13 @@ func Test_gcpOAuthTokenGetter(t *testing.T) {
 		wantPassword string
 	}{
 		{
-			name:         "no user in connection string",
-			config:       &pgx.ConnConfig{},
-			wantUser:     defaultDBUser,
-			wantPassword: "token-from-default-credentials",
-		},
-		{
 			name: "default service account as user in connection string",
 			config: &pgx.ConnConfig{
 				Config: pgconn.Config{
-					User: defaultDBUser,
+					User: "my-service-account@teleport-example-123456.iam",
 				},
 			},
-			wantUser:     defaultDBUser,
+			wantUser:     "my-service-account@teleport-example-123456.iam",
 			wantPassword: "token-from-default-credentials",
 		},
 		{
@@ -86,7 +84,10 @@ func Test_gcpOAuthTokenGetter(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			err := gcp.beforeConnect(context.Background(), tc.config)
+			bc, err := gcpOAuthAccessTokenBeforeConnect(ctx, tokenGetter, "test-scope", slog.Default())
+			require.NoError(t, err)
+
+			err = bc(context.Background(), tc.config)
 			require.NoError(t, err)
 			require.Equal(t, tc.wantUser, tc.config.User)
 			require.Equal(t, tc.wantPassword, tc.config.Password)
@@ -94,44 +95,28 @@ func Test_gcpOAuthTokenGetter(t *testing.T) {
 	}
 }
 
-func Test_getClientEmailFromGCPCredentials(t *testing.T) {
-	mustSetGoogleApplicationCredentialsEnv(t)
-
-	defaultCred, err := google.FindDefaultCredentials(context.Background(), "")
-	require.NoError(t, err)
-
-	email, err := getClientEmailFromGCPCredentials(defaultCred, slog.Default())
-	require.NoError(t, err)
-	require.Equal(t, mockGoogleServiceAccount, email)
-}
-
 func mustSetGoogleApplicationCredentialsEnv(t *testing.T) {
 	t.Helper()
 
 	file := path.Join(t.TempDir(), uuid.New().String())
-	fileContent := fmt.Sprintf(`{
-  "type": "service_account",
-  "project_id": "teleport-example-123456",
-  "private_key_id": "1234569890abcdef1234567890abcdef12345678",
-  "private_key": "fake-private-key",
-  "client_email": "%s",
-  "client_id": "111111111111111111111",
-  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-  "token_uri": "https://oauth2.googleapis.com/token",
-  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/%s",
-  "universe_domain": "googleapis.com"
-}`,
-		mockGoogleServiceAccount,
-		url.PathEscape(mockGoogleServiceAccount),
-	)
-
-	err := os.WriteFile(file, []byte(fileContent), 0644)
+	err := os.WriteFile(file, []byte(fakeServiceAccountCredentialsJSON), 0644)
 	require.NoError(t, err)
 
 	t.Setenv("GOOGLE_APPLICATION_CREDENTIALS", file)
 }
 
 const (
-	mockGoogleServiceAccount = "my-service-account@teleport-example-123456.iam.gserviceaccount.com"
+	fakeServiceAccountCredentialsJSON = `{
+  "type": "service_account",
+  "project_id": "teleport-example-123456",
+  "private_key_id": "1234569890abcdef1234567890abcdef12345678",
+  "private_key": "fake-private-key",
+  "client_email": "my-service-account@teleport-example-123456.iam.gserviceaccount.com",
+  "client_id": "111111111111111111111",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/my-service-account%40teleport-example-123456.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}`
 )

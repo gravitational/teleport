@@ -20,37 +20,29 @@ package pgcommon
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
-	"strings"
+	"time"
 
-	"cloud.google.com/go/compute/metadata"
 	credentials "cloud.google.com/go/iam/credentials/apiv1"
 	"cloud.google.com/go/iam/credentials/apiv1/credentialspb"
+	"github.com/gravitational/teleport/lib/utils/gcp"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgx/v5"
+	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )
 
 // GCPSQLBeforeConnect returns a pgx BeforeConnect function suitable for GCP
 // SQL PostgreSQL with IAM authentication.
 func GCPSQLBeforeConnect(ctx context.Context, logger *slog.Logger) (func(ctx context.Context, config *pgx.ConnConfig) error, error) {
-	gcp, err := newGCPOAuthTokenGetter(ctx, gcpSQLOAuthScope, logger)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return gcp.beforeConnect, nil
+	return gcpOAuthAccessTokenBeforeConnect(ctx, gcpAccessTokenGetterImpl{}, gcpSQLOAuthScope, logger)
 }
 
 // GCPAlloyDBBeforeConnect returns a pgx BeforeConnect function suitable for GCP
 // AlloyDB (PostgreSQL-compatiable) with IAM authentication.
 func GCPAlloyDBBeforeConnect(ctx context.Context, logger *slog.Logger) (func(ctx context.Context, config *pgx.ConnConfig) error, error) {
-	gcp, err := newGCPOAuthTokenGetter(ctx, gcpAlloyDBOAuthScope, logger)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return gcp.beforeConnect, nil
+	return gcpOAuthAccessTokenBeforeConnect(ctx, gcpAccessTokenGetterImpl{}, gcpAlloyDBOAuthScope, logger)
 }
 
 const (
@@ -64,146 +56,83 @@ const (
 	gcpServiceAccountEmailSuffix = ".gserviceaccount.com"
 )
 
-type gcpOAuthTokenGetter struct {
-	defaultCred           *google.Credentials
-	defaultServiceAccount string
-	scope                 string
-	logger                *slog.Logger
-
-	// genAccessTokenForServiceAccount defaults to getGCPAccessTokenFromCredentials but
-	// can be overridden for unit test.
-	genAccessTokenForServiceAccount func(context.Context, string, string, *slog.Logger) (string, error)
-	// getAccessTokenFromCredentials defaults to getGCPAccessTokenFromCredentials but
-	// can be overridden for unit test.
-	getAccessTokenFromCredentials func(context.Context, *google.Credentials, *slog.Logger) (string, error)
+type gcpAccessTokenGetter interface {
+	getFromCredentials(ctx context.Context, credentials *google.Credentials) (*oauth2.Token, error)
+	generateForServiceAccount(ctx context.Context, serviceAccount, scope string) (string, time.Time, error)
 }
 
-func newGCPOAuthTokenGetter(ctx context.Context, scope string, logger *slog.Logger) (*gcpOAuthTokenGetter, error) {
+func gcpOAuthAccessTokenBeforeConnect(ctx context.Context, tokenGetter gcpAccessTokenGetter, scope string, logger *slog.Logger) (func(context.Context, *pgx.ConnConfig) error, error) {
 	defaultCred, err := google.FindDefaultCredentials(ctx, scope)
 	if err != nil {
 		// google.FindDefaultCredentials gives pretty error descriptions already.
 		return nil, trace.Wrap(err)
 	}
 
-	// Find the full service account email. This call should not fail but
-	// checking just in case.
-	defaultServiceAccount, err := getClientEmailFromGCPCredentials(defaultCred, logger)
-	if err != nil {
-		return nil, trace.Wrap(err, "finding client email from default google credentials")
-	} else if defaultServiceAccount == "" {
-		return nil, trace.NotFound("could not find client email from default google credentials")
+	// This function tries to capture service account emails from various
+	// credentials methods but may fail for some unknown scenarios.
+	defaultServiceAccount, err := gcp.GetServiceAccountFromCredentials(defaultCred)
+	if err != nil || defaultServiceAccount == "" {
+		logger.WarnContext(ctx, "Failed to get service account email from default google credentials. Teleport will assume the database user in the PostgreSQL connection string matches the service account of the default google credentials.", "err", err, "sa", defaultServiceAccount)
 	}
 
-	return &gcpOAuthTokenGetter{
-		defaultCred:                     defaultCred,
-		defaultServiceAccount:           defaultServiceAccount,
-		scope:                           scope,
-		logger:                          logger,
-		genAccessTokenForServiceAccount: genGCPAccessTokenForServiceAccount,
-		getAccessTokenFromCredentials:   getGCPAccessTokenFromCredentials,
+	return func(ctx context.Context, config *pgx.ConnConfig) error {
+		// IAM auth users have the PostgreSQL username of their emails minus the
+		// ".gserviceaccount.com" part. Now add the suffix back for the full
+		// service account email.
+		serviceAccountToAuth := config.User + gcpServiceAccountEmailSuffix
+
+		// If the requested db user is for another service account, the
+		// "host"/default service account can impersonate the target service
+		// account as a Token Creator. This is useful when using a different
+		// database user for change feed.
+		if defaultServiceAccount != "" && defaultServiceAccount != serviceAccountToAuth {
+			token, ttl, err := tokenGetter.generateForServiceAccount(ctx, serviceAccountToAuth, scope)
+			if err != nil {
+				return trace.Wrap(err, "generating GCP access token for %v", serviceAccountToAuth)
+			}
+
+			logger.DebugContext(ctx, "Generated GCP access token.", "service_account", serviceAccountToAuth, "ttl", ttl)
+			config.Password = token
+			return nil
+		}
+
+		token, err := tokenGetter.getFromCredentials(ctx, defaultCred)
+		if err != nil {
+			return trace.Wrap(err, "obtaining GCP access token from default credentials")
+		}
+
+		logger.DebugContext(ctx, "Obtained GCP access token from default credentials.", "ttl", token.Expiry, "token_type", token.TokenType)
+		config.Password = token.AccessToken
+		return nil
 	}, nil
 }
 
-func (g *gcpOAuthTokenGetter) beforeConnect(ctx context.Context, config *pgx.ConnConfig) error {
-	// Use the default service account if user is not specified in
-	// connection string. IAM auth users have the PostgreSQL username of
-	// their emails minus the ".gserviceaccount.com" part.
-	if config.User == "" {
-		config.User = strings.TrimSuffix(g.defaultServiceAccount, gcpServiceAccountEmailSuffix)
-	}
-
-	// Now add the suffix back for the full service account email.
-	serviceAccountToAuth := config.User + gcpServiceAccountEmailSuffix
-
-	// If the requested db user is for another service account, the
-	// "host"/default service account can impersonate the target service
-	// account as a Token Creator.
-	if g.defaultServiceAccount != serviceAccountToAuth {
-		token, err := g.genAccessTokenForServiceAccount(ctx, serviceAccountToAuth, g.scope, g.logger)
-		if err != nil {
-			return trace.Wrap(err, "generating GCP access token for %v", serviceAccountToAuth)
-		}
-
-		config.Password = token
-		return nil
-	}
-
-	token, err := g.getAccessTokenFromCredentials(ctx, g.defaultCred, g.logger)
-	if err != nil {
-		return trace.Wrap(err, "obtaining GCP access token from default credentials")
-	}
-
-	config.Password = token
-	return nil
+type gcpAccessTokenGetterImpl struct {
 }
 
-func getClientEmailFromGCPCredentials(credentials *google.Credentials, logger *slog.Logger) (string, error) {
-	// When credentials JSON file is provided through either
-	// GOOGLE_APPLICATION_CREDENTIALS env var or a well known file.
-	if len(credentials.JSON) > 0 {
-		content := struct {
-			ClientEmail string `json:"client_email"`
-		}{}
-
-		if err := json.Unmarshal(credentials.JSON, &content); err != nil {
-			return "", trace.Wrap(err)
-		}
-
-		logger.Debug("Retreived client email from default google application credentials.", "email", content.ClientEmail)
-		return content.ClientEmail, nil
-	}
-
-	// No credentials from JSON files but using metadata endpoints when on
-	// Google Compute Engine.
-	if metadata.OnGCE() {
-		email, err := metadata.Email("")
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-
-		logger.Debug("Retreived client email from GCE metadata.", "email", email)
-		return email, nil
-	}
-
-	return "", trace.NotImplemented("unknown scenario for getting client email")
+func (g gcpAccessTokenGetterImpl) getFromCredentials(ctx context.Context, credentials *google.Credentials) (*oauth2.Token, error) {
+	token, err := credentials.TokenSource.Token()
+	return token, trace.Wrap(err)
 }
 
-func getGCPAccessTokenFromCredentials(ctx context.Context, defaultCred *google.Credentials, logger *slog.Logger) (string, error) {
-	token, err := defaultCred.TokenSource.Token()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	logger.DebugContext(ctx, "Acquired GCP access token from default credentials.", "ttl", token.Expiry)
-	return token.AccessToken, nil
-}
-
-func genGCPAccessTokenForServiceAccount(ctx context.Context, serviceAccount, scope string, logger *slog.Logger) (string, error) {
+func (g gcpAccessTokenGetterImpl) generateForServiceAccount(ctx context.Context, serviceAccount, scope string) (string, time.Time, error) {
 	gcpIAM, err := credentials.NewIamCredentialsClient(ctx)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return "", time.Time{}, trace.Wrap(err)
 	}
 
 	defer func() {
 		if err := gcpIAM.Close(); err != nil {
-			logger.DebugContext(ctx, "Failed to close GCP IAM Credentials client", "err", err)
+			slog.DebugContext(ctx, "Failed to close GCP IAM Credentials client.", "err", err)
 		}
 	}()
 
-	resp, err := gcpIAM.GenerateAccessToken(
-		ctx,
-		&credentialspb.GenerateAccessTokenRequest{
-			// The resource name of the service account for which the credentials
-			// are requested, in the following format:
-			// `projects/-/serviceAccounts/{ACCOUNT_EMAIL_OR_UNIQUEID}`.
-			Name:  fmt.Sprintf("projects/-/serviceAccounts/%v", serviceAccount),
-			Scope: []string{scope},
-		},
-	)
+	resp, err := gcpIAM.GenerateAccessToken(ctx, &credentialspb.GenerateAccessTokenRequest{
+		Name:  fmt.Sprintf("projects/-/serviceAccounts/%v", serviceAccount),
+		Scope: []string{scope},
+	})
 	if err != nil {
-		return "", trace.Wrap(err)
+		return "", time.Time{}, trace.Wrap(err)
 	}
-
-	logger.DebugContext(ctx, "Generated GCP access token.", "ttl", resp.ExpireTime, "service_account", serviceAccount)
-	return resp.AccessToken, nil
+	return resp.AccessToken, resp.ExpireTime.AsTime(), nil
 }
