@@ -75,7 +75,7 @@ func (h *Handler) desktopConnectHandle(
 	log := sctx.cfg.Log.WithField("desktop-name", desktopName).WithField("cluster-name", site.GetName())
 	log.Debug("New desktop access websocket connection")
 
-	if err := h.createDesktopConnection(w, r, desktopName, site.GetName(), log, sctx, site, ws); err != nil {
+	if err := h.createDesktopConnection(r, desktopName, site.GetName(), log, sctx, site, ws); err != nil {
 		// createDesktopConnection makes a best effort attempt to send an error to the user
 		// (via websocket) before terminating the connection. We log the error here, but
 		// return nil because our HTTP middleware will try to write the returned error in JSON
@@ -87,7 +87,6 @@ func (h *Handler) desktopConnectHandle(
 }
 
 func (h *Handler) createDesktopConnection(
-	w http.ResponseWriter,
 	r *http.Request,
 	desktopName string,
 	clusterName string,
@@ -164,7 +163,7 @@ func (h *Handler) createDesktopConnection(
 	})
 
 	// Issue certificate for TLS config and pass MFA check if required.
-	tlsConfig, err := h.desktopTLSConfig(r.Context(), ws, clt, sctx, desktopName, username, site.GetName())
+	tlsConfig, withheldMessages, err := h.desktopTLSConfig(r.Context(), ws, clt, sctx, desktopName, username, site.GetName())
 	if err != nil {
 		return sendTDPError(err)
 	}
@@ -192,6 +191,10 @@ func (h *Handler) createDesktopConnection(
 	log.Debug("Connected to windows_desktop_service")
 
 	tdpConn := tdp.NewConn(serviceConnTLS)
+
+	// Now that we have a connection to the Windows Desktop Service, we can
+	// send the username and screen spec to the service, and any withheld
+	// messages that were received before the MFA ceremony was completed.
 	err = tdpConn.WriteMessage(tdp.ClientUsername{Username: username})
 	if err != nil {
 		return sendTDPError(err)
@@ -199,6 +202,11 @@ func (h *Handler) createDesktopConnection(
 	err = tdpConn.WriteMessage(screenSpec)
 	if err != nil {
 		return sendTDPError(err)
+	}
+	for _, msg := range withheldMessages {
+		if err := tdpConn.WriteMessage(msg); err != nil {
+			return sendTDPError(err)
+		}
 	}
 
 	// proxyWebsocketConn hangs here until connection is closed
@@ -218,7 +226,20 @@ const (
 	SNISuffix = ".desktop." + constants.APIDomain
 )
 
-func (h *Handler) desktopTLSConfig(ctx context.Context, ws *websocket.Conn, clusterClient auth.ClientI, sessCtx *SessionContext, desktopName, username, siteName string) (_ *tls.Config, err error) {
+// desktopTLSConfig returns a TLS config for connecting to a Windows Desktop Service.
+// It also performs MFA if required.
+//
+// This function returns the TLS config, and a list of withheld TDP messages if MFA was
+// required and any were received before the MFA message was sent. It is the caller's
+// responsibility to send these withheld messages through to the server after the MFA
+// ceremony is completed.
+func (h *Handler) desktopTLSConfig(
+	ctx context.Context,
+	ws *websocket.Conn,
+	clusterClient auth.ClientI,
+	sessCtx *SessionContext,
+	desktopName, username, siteName string,
+) (_ *tls.Config, withheldMessages []tdp.Message, err error) {
 	ctx, span := h.tracer.Start(ctx, "desktop/TLSConfig")
 	defer func() {
 		span.RecordError(err)
@@ -227,7 +248,7 @@ func (h *Handler) desktopTLSConfig(ctx context.Context, ws *websocket.Conn, clus
 
 	pk, err := keys.ParsePrivateKey(sessCtx.cfg.Session.GetPriv())
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	mfaRequiredResp, err := clusterClient.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
@@ -239,7 +260,7 @@ func (h *Handler) desktopTLSConfig(ctx context.Context, ws *websocket.Conn, clus
 		},
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	key := &client.Key{
@@ -250,7 +271,7 @@ func (h *Handler) desktopTLSConfig(ctx context.Context, ws *websocket.Conn, clus
 
 	tlsCert, err := key.TeleportTLSCertificate()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	certsReq := proto.UserCertsRequest{
@@ -267,14 +288,14 @@ func (h *Handler) desktopTLSConfig(ctx context.Context, ws *websocket.Conn, clus
 
 	var certPEMBlock []byte
 	if mfaRequiredResp.Required {
-		certPEMBlock, err = h.performMFACeremony(ctx, sessCtx.cfg.RootClient, ws, &certsReq)
+		certPEMBlock, withheldMessages, err = h.performMFACeremony(ctx, sessCtx.cfg.RootClient, ws, &certsReq)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, nil, trace.Wrap(err)
 		}
 	} else {
 		certs, err := sessCtx.cfg.RootClient.GenerateUserCerts(ctx, certsReq)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, nil, trace.Wrap(err)
 		}
 
 		certPEMBlock = certs.TLS
@@ -282,24 +303,34 @@ func (h *Handler) desktopTLSConfig(ctx context.Context, ws *websocket.Conn, clus
 
 	certConf, err := pk.TLSCertificate(certPEMBlock)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	tlsConfig, err := sessCtx.ClientTLSConfig(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	tlsConfig.Certificates = []tls.Certificate{certConf}
 	// Pass target desktop name via SNI.
 	tlsConfig.ServerName = desktopName + SNISuffix
-	return tlsConfig, nil
+	return tlsConfig, withheldMessages, nil
 }
 
 // performMFACeremony completes the mfa ceremony and returns the raw TLS certificate
 // on success. The user will be prompted to tap their security key by the UI
 // in order to perform the assertion.
-func (h *Handler) performMFACeremony(ctx context.Context, authClient auth.ClientI, ws *websocket.Conn, certsReq *proto.UserCertsRequest) (_ []byte, err error) {
+//
+// This function returns the raw PEM-encoded certificate on success, and a list of withheld
+// TDP messages that were received before the MFA message was sent. It is the caller's
+// responsibility to send these withheld messages through to the server after the MFA ceremony
+// is completed.
+func (h *Handler) performMFACeremony(
+	ctx context.Context,
+	authClient auth.ClientI,
+	ws *websocket.Conn,
+	certsReq *proto.UserCertsRequest,
+) (_ []byte, withheldMessages []tdp.Message, err error) {
 	ctx, span := h.tracer.Start(ctx, "desktop/performMFACeremony")
 	defer func() {
 		span.RecordError(err)
@@ -325,13 +356,35 @@ func (h *Handler) performMFACeremony(ctx context.Context, authClient auth.Client
 		}
 
 		span.AddEvent("waiting for user to complete mfa ceremony")
-		ty, buf, err := ws.ReadMessage()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+		var buf []byte
+		// Loop through incoming messages until we receive an MFA message that lets us
+		// complete the ceremony. Non-MFA messages (e.g. ClientScreenSpecs representing
+		// screen resizes) are withheld for later.
+		for {
+			var ty int
+			ty, buf, err = ws.ReadMessage()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if ty != websocket.BinaryMessage {
+				return nil, trace.BadParameter("received unexpected web socket message type %d", ty)
+			}
+			if len(buf) == 0 {
+				return nil, trace.BadParameter("empty message received")
+			}
 
-		if ty != websocket.BinaryMessage {
-			return nil, trace.BadParameter("received unexpected web socket message type %d", ty)
+			if tdp.MessageType(buf[0]) != tdp.TypeMFA {
+				// This is not an MFA message, withhold it for later.
+				msg, err := tdp.Decode(buf)
+				h.log.Debugf("Received non-MFA message, withholding:", msg)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				withheldMessages = append(withheldMessages, msg)
+				continue
+			}
+
+			break
 		}
 
 		assertion, err := codec.decodeResponse(buf, defaults.WebsocketWebauthnChallenge)
@@ -356,10 +409,10 @@ func (h *Handler) performMFACeremony(ctx context.Context, authClient auth.Client
 		Key:      nil, // We just want the certs.
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
-	return newCerts.TLS, nil
+	return newCerts.TLS, withheldMessages, nil
 }
 
 func readUsername(r *http.Request) (string, error) {
