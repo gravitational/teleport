@@ -27,7 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // Service implements the gRPC API layer for the singleton VnetConfig resource.
@@ -35,12 +35,12 @@ type Service struct {
 	// Opting out of forward compatibility, this service must implement all service methods.
 	vnet.UnsafeVnetConfigServiceServer
 
-	storage    *local.VnetConfigService
+	storage    services.VnetConfigService
 	authorizer authz.Authorizer
 }
 
 // NewService returns a new VnetConfig API service using the given storage layer and authorizer.
-func NewService(storage *local.VnetConfigService, authorizer authz.Authorizer) *Service {
+func NewService(storage services.VnetConfigService, authorizer authz.Authorizer) *Service {
 	return &Service{
 		storage:    storage,
 		authorizer: authorizer,
