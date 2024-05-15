@@ -86,12 +86,12 @@ func gcpOAuthAccessTokenBeforeConnect(ctx context.Context, tokenGetter gcpAccess
 		// account as a Token Creator. This is useful when using a different
 		// database user for change feed.
 		if defaultServiceAccount != "" && defaultServiceAccount != serviceAccountToAuth {
-			token, ttl, err := tokenGetter.generateForServiceAccount(ctx, serviceAccountToAuth, scope)
+			token, expires, err := tokenGetter.generateForServiceAccount(ctx, serviceAccountToAuth, scope)
 			if err != nil {
 				return trace.Wrap(err, "generating GCP access token for %v", serviceAccountToAuth)
 			}
 
-			logger.DebugContext(ctx, "Generated GCP access token.", "service_account", serviceAccountToAuth, "ttl", ttl)
+			logger.DebugContext(ctx, "Generated GCP access token.", "service_account", serviceAccountToAuth, "ttl", time.Until(expires).String())
 			config.Password = token
 			return nil
 		}
@@ -101,7 +101,7 @@ func gcpOAuthAccessTokenBeforeConnect(ctx context.Context, tokenGetter gcpAccess
 			return trace.Wrap(err, "obtaining GCP access token from default credentials")
 		}
 
-		logger.DebugContext(ctx, "Obtained GCP access token from default credentials.", "ttl", token.Expiry, "token_type", token.TokenType)
+		logger.DebugContext(ctx, "Obtained GCP access token from default credentials.", "ttl", time.Until(token.Expiry).String(), "token_type", token.TokenType)
 		config.Password = token.AccessToken
 		return nil
 	}, nil

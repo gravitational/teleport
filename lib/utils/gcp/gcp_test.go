@@ -258,7 +258,7 @@ const (
     "region_url": "http://169.254.169.254/latest/meta-data/placement/availability-zone",
     "url": "http://169.254.169.254/latest/meta-data/iam/security-credentials",
     "regional_cred_verification_url": "https://sts.{region}.amazonaws.com?Action=GetCallerIdentity&Version=2011-06-15",
-	"imdsv2_session_token_url": "http://169.254.169.254/latest/api/token"
+    "imdsv2_session_token_url": "http://169.254.169.254/latest/api/token"
   }
 }`
 )
