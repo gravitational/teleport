@@ -36,11 +36,13 @@ service TshdEventsService {
   // which it can use to initiate headless authentication resolution in the UI.
   rpc SendPendingHeadlessAuthentication(SendPendingHeadlessAuthenticationRequest) returns (SendPendingHeadlessAuthenticationResponse);
   // PromptMFA notifies the Electron app that the daemon is waiting for the user to answer an MFA prompt.
+  // If Webauthn is supported, tsh daemon starts another goroutine which readies the hardware key.
+  // If TOTP is supported, tsh daemon expects that the Electron app responds to this RPC with the
+  // code.
   rpc PromptMFA(PromptMFARequest) returns (PromptMFAResponse);
 }
 
-// Relogin
-
+// Request for Relogin.
 message ReloginRequest {
   string root_cluster_uri = 1;
   oneof reason {
@@ -70,10 +72,14 @@ message VnetCertExpired {
   string target_uri = 1;
 }
 
+// Response for Relogin.
 message ReloginResponse {}
 
-// SendNotification
-
+// SendNotificationRequest includes details behind a notification.
+//
+// Rather than including arbitrary text strings, SendNotificationRequest should contain minimal
+// details. The Electron app can then consume and format them as needed, without having to change
+// what is sent over the wire.
 message SendNotificationRequest {
   oneof subject {
     CannotProxyGatewayConnection cannot_proxy_gateway_connection = 1;
@@ -98,20 +104,20 @@ message CannotProxyVnetConnection {
   string error = 2;
 }
 
+// Response for SendNotification.
 message SendNotificationResponse {}
 
-// SendPendingHeadlessAuthentication
-
+// Request for SendPendingHeadlessAuthentication.
 message SendPendingHeadlessAuthenticationRequest {
   string root_cluster_uri = 1;
   string headless_authentication_id = 2;
   string headless_authentication_client_ip = 3;
 }
 
+// Response for SendPendingHeadlessAuthentication.
 message SendPendingHeadlessAuthenticationResponse {}
 
-// PromptMFA
-
+// Request for PromptMFA.
 message PromptMFARequest {
   string root_cluster_uri = 1;
   string reason = 2;
@@ -119,6 +125,7 @@ message PromptMFARequest {
   bool webauthn = 4;
 }
 
+// Response for PromptMFA.
 message PromptMFAResponse {
   string totp_code = 1;
 }

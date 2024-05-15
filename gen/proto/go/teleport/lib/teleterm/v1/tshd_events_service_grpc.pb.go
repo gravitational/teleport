@@ -57,6 +57,9 @@ type TshdEventsServiceClient interface {
 	// which it can use to initiate headless authentication resolution in the UI.
 	SendPendingHeadlessAuthentication(ctx context.Context, in *SendPendingHeadlessAuthenticationRequest, opts ...grpc.CallOption) (*SendPendingHeadlessAuthenticationResponse, error)
 	// PromptMFA notifies the Electron app that the daemon is waiting for the user to answer an MFA prompt.
+	// If Webauthn is supported, tsh daemon starts another goroutine which readies the hardware key.
+	// If TOTP is supported, tsh daemon expects that the Electron app responds to this RPC with the
+	// code.
 	PromptMFA(ctx context.Context, in *PromptMFARequest, opts ...grpc.CallOption) (*PromptMFAResponse, error)
 }
 
@@ -119,6 +122,9 @@ type TshdEventsServiceServer interface {
 	// which it can use to initiate headless authentication resolution in the UI.
 	SendPendingHeadlessAuthentication(context.Context, *SendPendingHeadlessAuthenticationRequest) (*SendPendingHeadlessAuthenticationResponse, error)
 	// PromptMFA notifies the Electron app that the daemon is waiting for the user to answer an MFA prompt.
+	// If Webauthn is supported, tsh daemon starts another goroutine which readies the hardware key.
+	// If TOTP is supported, tsh daemon expects that the Electron app responds to this RPC with the
+	// code.
 	PromptMFA(context.Context, *PromptMFARequest) (*PromptMFAResponse, error)
 	mustEmbedUnimplementedTshdEventsServiceServer()
 }
