@@ -451,7 +451,23 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		embedder:                cfg.EmbeddingClient,
 		accessMonitoringEnabled: cfg.AccessMonitoringEnabled,
 	}
-	as.inventory = inventory.NewController(&as, services, inventory.WithAuthServerID(cfg.HostUUID))
+	as.inventory = inventory.NewController(&as, services,
+		inventory.WithAuthServerID(cfg.HostUUID),
+		inventory.WithOnConnect(func(s string) {
+			if g, ok := connectedResourceGauges[s]; ok {
+				g.Inc()
+			} else {
+				log.Warnf("missing connected resources gauge for keep alive %s (this is a bug)", s)
+			}
+		}),
+		inventory.WithOnDisconnect(func(s string) {
+			if g, ok := connectedResourceGauges[s]; ok {
+				g.Dec()
+			} else {
+				log.Warnf("missing connected resources gauge for keep alive %s (this is a bug)", s)
+			}
+		}),
+	)
 	for _, o := range opts {
 		if err := o(&as); err != nil {
 			return nil, trace.Wrap(err)
@@ -1223,8 +1239,9 @@ func (a *Server) runPeriodicOperations() {
 		Jitter:   retryutils.NewSeventhJitter(),
 	})
 	promTicker := interval.New(interval.Config{
-		Duration: defaults.PrometheusScrapeInterval,
-		Jitter:   retryutils.NewSeventhJitter(),
+		FirstDuration: 5 * time.Second,
+		Duration:      defaults.PrometheusScrapeInterval,
+		Jitter:        retryutils.NewSeventhJitter(),
 	})
 	missedKeepAliveCount := 0
 	defer ticker.Stop()
