@@ -63,6 +63,8 @@ type Config struct {
 	// Teleport apps.
 	TCPHandlerResolver TCPHandlerResolver
 
+	// upstreamNameserverSource, if set, overrides the default OS UpstreamNameserverSource which provides the
+	// IP addresses that unmatched DNS queries should be forwarded to. It is used in tests.
 	upstreamNameserverSource dns.UpstreamNameserverSource
 }
 
@@ -85,7 +87,14 @@ func (c *Config) CheckAndSetDefaults() error {
 //
 // Implementations beware - an FQDN always ends with a '.'.
 type TCPHandlerResolver interface {
-	ResolveTCPHandler(ctx context.Context, fqdn string) (TCPHandler, bool, error)
+	// ResolveTCPHandler decides if `fqdn` should match a TCP handler.
+	//
+	// If [fqdn] matches it must return a TCPHandler for future connections to any assigned IPs.
+	//
+	// If [fqdn] does not match an app it must return with match == false && err == nil, in this case the DNS
+	// request will be forwarded to upstream nameservers. Only return a non-nil error for truly unexpected
+	// errors that should cause a DNS request to fail.
+	ResolveTCPHandler(ctx context.Context, fqdn string) (handler TCPHandler, match bool, err error)
 }
 
 // TCPHandler defines the behavior for handling TCP connections from VNet.
@@ -421,6 +430,8 @@ func (m *Manager) getTCPHandler(addr tcpip.Address) (TCPHandler, bool) {
 	return handler, ok
 }
 
+// assignTCPHandler assigns an IP address under [m.ipv6Prefix] to [handler], and returns that new assigned
+// address.
 func (m *Manager) assignTCPHandler(handler TCPHandler, fqdn string) (tcpip.Address, error) {
 	m.state.mu.Lock()
 	defer m.state.mu.Unlock()

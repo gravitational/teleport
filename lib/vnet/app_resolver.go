@@ -67,16 +67,17 @@ func NewTCPAppResolver(appProvider AppProvider) *TCPAppResolver {
 	}
 }
 
-// ResolveTCPHandler resolves a fully-qualified domain name to a TCPHandler for a Teleport TCP app that should
-// be used to handle all future TCP connections to [fqdn].
+// ResolveTCPHandler resolves a fully-qualified domain name (FQDN) to a TCPHandler for handling TCP
+// connections to a Teleport TCP app. It returns the TCPHandler if a matching app is found, else it will
+// return with match == false. Errors must only be returned for truly unexpected errors that should cause a
+// DNS request to fail.
 func (r *TCPAppResolver) ResolveTCPHandler(ctx context.Context, fqdn string) (handler TCPHandler, match bool, err error) {
 	profileNames, err := r.appProvider.ListProfiles()
 	if err != nil {
 		return nil, false, trace.Wrap(err, "listing profiles")
 	}
-	appPublicAddr := strings.TrimSuffix(fqdn, ".")
 	for _, profileName := range profileNames {
-		if profileName == appPublicAddr {
+		if fqdn == fullyQualify(profileName) {
 			// This is a query for the proxy address, which we'll never want to handle.
 			return nil, false, nil
 		}
@@ -95,8 +96,10 @@ func (r *TCPAppResolver) ResolveTCPHandler(ctx context.Context, fqdn string) (ha
 			slog.InfoContext(ctx, "Failed to get teleport client.", "error", err)
 			continue
 		}
-		return r.resolveTCPHandlerForCluster(ctx, slog, rootClient.CurrentCluster(), profileName, "", appPublicAddr)
+		return r.resolveTCPHandlerForCluster(ctx, slog, rootClient.CurrentCluster(), profileName, "", fqdn)
 	}
+
+	// fqdn did not match any profile, forward the request upstream.
 	return nil, false, nil
 }
 
@@ -104,11 +107,15 @@ func (r *TCPAppResolver) resolveTCPHandlerForCluster(
 	ctx context.Context,
 	slog *slog.Logger,
 	clt apiclient.GetResourcesClient,
-	profileName, leafClusterName, appPublicAddr string,
+	profileName, leafClusterName, fqdn string,
 ) (handler TCPHandler, match bool, err error) {
+
+	// An app public_addr could technically be full-qualified or not, match either way.
+	expr := fmt.Sprintf(`(resource.spec.public_addr == "%s" || resource.spec.public_addr == "%s") && hasPrefix(resource.spec.uri, "tcp://")`,
+		strings.TrimSuffix(fqdn, "."), fqdn)
 	resp, err := apiclient.GetResourcePage[types.AppServer](ctx, clt, &proto.ListResourcesRequest{
 		ResourceType:        types.KindAppServer,
-		PredicateExpression: fmt.Sprintf(`resource.spec.public_addr == "%s" && hasPrefix(resource.spec.uri, "tcp://")`, appPublicAddr),
+		PredicateExpression: expr,
 		Limit:               1,
 	})
 	if err != nil {
@@ -117,6 +124,7 @@ func (r *TCPAppResolver) resolveTCPHandlerForCluster(
 		return nil, false, nil
 	}
 	if len(resp.Resources) == 0 {
+		// Didn't find any matching app, forward the request upstream.
 		return nil, false, nil
 	}
 	app := resp.Resources[0].GetApp()
@@ -157,9 +165,14 @@ func (h *tcpAppHandler) HandleTCPConnector(ctx context.Context, connector func()
 }
 
 func isSubdomain(appFQDN, proxyAddress string) bool {
-	// Fully-qualify the proxy address
-	if !strings.HasSuffix(proxyAddress, ".") {
-		proxyAddress = proxyAddress + "."
+	return strings.HasSuffix(appFQDN, "."+fullyQualify(proxyAddress))
+}
+
+// fullyQualify returns a fully-qualified domain name from [domain]. Fully-qualified domain names always end
+// with a ".".
+func fullyQualify(domain string) string {
+	if strings.HasSuffix(domain, ".") {
+		return domain
 	}
-	return strings.HasSuffix(appFQDN, "."+proxyAddress)
+	return domain + "."
 }
