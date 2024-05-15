@@ -20,6 +20,7 @@ import (
 	"context"
 	"log/slog"
 	"net"
+	"unicode"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
@@ -115,6 +116,19 @@ func validateVnetConfig(vnetConfig *vnet.VnetConfig) error {
 		}
 		if ip4 := ip.To4(); ip4 == nil {
 			return trace.BadParameter("ipv4_cidr_range must be valid IPv4")
+		}
+	}
+	for _, zone := range vnetConfig.GetSpec().GetCustomDnsZones() {
+		suffix := zone.GetSuffix()
+		if len(suffix) == 0 {
+			return trace.BadParameter("custom_dns_zone must have a non-empty suffix")
+		}
+		// Some very basic validation that zone suffixes can only contain lowercase letters, numbers, . or -.
+		// This is true for all valid hostnames.
+		for _, r := range suffix {
+			if !(unicode.IsLower(r) || unicode.IsDigit(r) || r == '.' || r == '-') {
+				return trace.BadParameter("custom_dns_zone.suffix can only contain letters, numbers, '-', and '.'")
+			}
 		}
 	}
 	return nil

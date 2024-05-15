@@ -152,12 +152,53 @@ func TestVnetConfigValidation(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "empty zone suffix",
+			config: &vnet.VnetConfig{
+				Kind:     types.KindVnetConfig,
+				Version:  types.V1,
+				Metadata: &headerv1.Metadata{Name: vnetConfigSingletonName},
+				Spec: &vnet.VnetConfigSpec{
+					Ipv4CidrRange: "192.168.1.0/24",
+					CustomDnsZones: []*vnet.CustomDNSZone{
+						&vnet.CustomDNSZone{
+							Suffix: "",
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid zone suffix",
+			config: &vnet.VnetConfig{
+				Kind:     types.KindVnetConfig,
+				Version:  types.V1,
+				Metadata: &headerv1.Metadata{Name: vnetConfigSingletonName},
+				Spec: &vnet.VnetConfigSpec{
+					Ipv4CidrRange: "192.168.1.0/24",
+					CustomDnsZones: []*vnet.CustomDNSZone{
+						&vnet.CustomDNSZone{
+							Suffix: "$#@!",
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
 			name: "valid",
 			config: &vnet.VnetConfig{
 				Kind:     types.KindVnetConfig,
 				Version:  types.V1,
 				Metadata: &headerv1.Metadata{Name: vnetConfigSingletonName},
-				Spec:     &vnet.VnetConfigSpec{Ipv4CidrRange: "192.168.1.0/24"},
+				Spec: &vnet.VnetConfigSpec{
+					Ipv4CidrRange: "192.168.1.0/24",
+					CustomDnsZones: []*vnet.CustomDNSZone{
+						&vnet.CustomDNSZone{
+							Suffix: "teleport.example.com",
+						},
+					},
+				},
 			},
 		},
 	} {
