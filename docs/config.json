@@ -769,6 +769,10 @@
             {
               "title": "Using Teleport's CA with GitHub",
               "slug": "/management/guides/ssh-key-extensions/"
+            },
+            {
+              "title": "AWS OIDC Integration",
+              "slug": "/management/guides/awsoidc-integration/"
             }
           ]
         },
