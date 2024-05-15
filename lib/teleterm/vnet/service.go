@@ -38,14 +38,21 @@ import (
 
 var log = logutils.NewPackageLogger(teleport.ComponentKey, "term:vnet")
 
+type status int
+
+const (
+	statusNotRunning status = iota
+	statusRunning
+	statusClosed
+)
+
 // Service implements gRPC service for VNet.
 type Service struct {
 	api.UnimplementedVnetServiceServer
 
-	cfg       Config
-	mu        sync.Mutex
-	isRunning bool
-	isClosed  bool
+	cfg    Config
+	mu     sync.Mutex
+	status status
 	// stopErrC is used to pass an error from goroutine that runs VNet in the background to the
 	// goroutine which handles RPC for stopping VNet. stopErrC gets closed after VNet stops. Starting
 	// VNet creates a new channel and assigns it as stopErrC.
@@ -90,11 +97,11 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.isClosed {
+	if s.status == statusClosed {
 		return nil, trace.CompareFailed("VNet service has been closed")
 	}
 
-	if s.isRunning {
+	if s.status == statusRunning {
 		return &api.StartResponse{}, nil
 	}
 
@@ -102,7 +109,7 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 	s.cancel = cancelLongCtx
 	defer func() {
 		// If by the end of this RPC the service is not running, make sure to cancel the long context.
-		if !s.isRunning {
+		if s.status != statusRunning {
 			cancelLongCtx(nil)
 		}
 	}()
@@ -134,11 +141,11 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 		s.mu.Lock()
 		defer s.mu.Unlock()
 
-		s.isRunning = false
+		s.status = statusNotRunning
 		cancelLongCtx(nil)
 	}()
 
-	s.isRunning = true
+	s.status = statusRunning
 	return &api.StartResponse{}, nil
 }
 
@@ -167,16 +174,16 @@ func (s *Service) Stop(ctx context.Context, req *api.StopRequest) (*api.StopResp
 }
 
 func (s *Service) stopLocked() error {
-	if s.isClosed {
+	if s.status == statusClosed {
 		return trace.CompareFailed("VNet service has been closed")
 	}
 
-	if !s.isRunning {
+	if s.status == statusNotRunning {
 		return nil
 	}
 
 	s.cancel(nil)
-	s.isRunning = false
+	s.status = statusNotRunning
 
 	return trace.Wrap(<-s.stopErrC)
 }
@@ -188,7 +195,7 @@ func (s *Service) Close() error {
 	defer s.mu.Unlock()
 
 	err := s.stopLocked()
-	s.isClosed = true
+	s.status = statusClosed
 
 	return trace.Wrap(err)
 }
