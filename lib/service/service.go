@@ -44,7 +44,6 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"time"
 
 	awscredentials "github.com/aws/aws-sdk-go/aws/credentials"
@@ -677,7 +676,7 @@ type Process interface {
 	// Start starts the process in a non-blocking way
 	Start() error
 	// WaitForSignals waits for and handles system process signals.
-	WaitForSignals(context.Context) error
+	WaitForSignals(context.Context, <-chan os.Signal) error
 	// ExportFileDescriptors exports service listeners
 	// file descriptors used by the process.
 	ExportFileDescriptors() ([]*servicecfg.FileDescriptor, error)
@@ -705,6 +704,12 @@ func newTeleportProcess(cfg *servicecfg.Config) (Process, error) {
 // Run starts teleport processes, waits for signals
 // and handles internal process reloads.
 func Run(ctx context.Context, cfg servicecfg.Config, newTeleport NewProcess) error {
+	sigC := make(chan os.Signal, 1024)
+	// this should happen before the very first newTeleport, as that's the point
+	// where we MUST handle all the relevant OS signals
+	signal.Notify(sigC, teleportSignals...)
+	defer signal.Stop(sigC)
+
 	if newTeleport == nil {
 		newTeleport = newTeleportProcess
 	}
@@ -721,7 +726,7 @@ func Run(ctx context.Context, cfg servicecfg.Config, newTeleport NewProcess) err
 	}
 	// Wait and reload until called exit.
 	for {
-		srv, err = waitAndReload(ctx, cfg, srv, newTeleport)
+		srv, err = waitAndReload(ctx, sigC, cfg, srv, newTeleport)
 		if err != nil {
 			// This error means that was a clean shutdown
 			// and no reload is necessary.
@@ -733,8 +738,8 @@ func Run(ctx context.Context, cfg servicecfg.Config, newTeleport NewProcess) err
 	}
 }
 
-func waitAndReload(ctx context.Context, cfg servicecfg.Config, srv Process, newTeleport NewProcess) (Process, error) {
-	err := srv.WaitForSignals(ctx)
+func waitAndReload(ctx context.Context, sigC <-chan os.Signal, cfg servicecfg.Config, srv Process, newTeleport NewProcess) (Process, error) {
+	err := srv.WaitForSignals(ctx, sigC)
 	if err == nil {
 		return nil, ErrTeleportExited
 	}
@@ -1281,32 +1286,6 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 
 	// create the new pid file only after started successfully
 	if cfg.PIDFile != "" {
-		// The act of writing the pidfile greenlights the act of killing the
-		// process with HUP, which means that the signal handler for HUP must
-		// always be registered; however, there's some time between the
-		// synchronous call to NewTeleport and the call to
-		// (*TeleportProcess).WaitForSignals; in addition, due to in-process
-		// restarts, there's also some time between the termination of the old
-		// call to (*TeleportProcess).WaitForSignals and the new call, and a HUP
-		// while no signal handler is registered will trigger the default HUP
-		// behavior (killing the process). To avoid this, we deliberately leak a
-		// [signals.Notify] call (just like we're leaking the pidfile file
-		// descriptor that holds it locked). This will cause HUPs to be
-		// swallowed but that's better than the process getting killed.
-
-		// TODO(espadolini): get rid of this deliberate leak once in-process
-		// restarts are vanquished and signal management can be made more sane
-
-		// staticcheck complains about unbuffered channels given to
-		// [signal.Notify], and it's technically slightly faster to do a
-		// nonblocking send on a buffered channel that's full (see chansend in
-		// runtime/chan.go); signal.Notify will never block when sending to a
-		// channel, so a full channel is not harmful to the rest of the signal
-		// handling machinery
-		c := make(chan os.Signal, 1)
-		c <- nil
-		signal.Notify(c, syscall.SIGHUP)
-
 		if err := createLockedPIDFile(cfg.PIDFile); err != nil {
 			return nil, trace.Wrap(err, "creating pidfile")
 		}
