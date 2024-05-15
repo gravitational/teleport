@@ -1291,7 +1291,9 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		// staticcheck complains about unbuffered channels given to
 		// [signal.Notify], and it's technically slightly faster to do a
 		// nonblocking send on a buffered channel that's full (see chansend in
-		// runtime/chan.go)
+		// runtime/chan.go); signal.Notify will never block when sending to a
+		// channel, so a full channel is not harmful to the rest of the signal
+		// handling machinery
 		c := make(chan os.Signal, 1)
 		c <- nil
 		signal.Notify(c, syscall.SIGHUP)
