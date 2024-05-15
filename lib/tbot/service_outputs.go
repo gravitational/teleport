@@ -63,6 +63,7 @@ type outputsService struct {
 	reloadBroadcaster *channelBroadcaster
 	proxyPingCache    *proxyPingCache
 	authPingCache     *authPingCache
+	alpnUpgradeCache  *alpnProxyConnUpgradeRequiredCache
 	botClient         *authclient.Client
 	getBotIdentity    getBotIdentityFn
 	cfg               *config.BotConfig
@@ -93,10 +94,11 @@ func (s *outputsService) renewOutputs(
 	// create a cache shared across outputs so they don't hammer the auth
 	// server with similar requests
 	drc := &outputRenewalCache{
-		proxyPingCache: s.proxyPingCache,
-		authPingCache:  s.authPingCache,
-		client:         s.botClient,
-		cfg:            s.cfg,
+		proxyPingCache:   s.proxyPingCache,
+		authPingCache:    s.authPingCache,
+		alpnUpgradeCache: s.alpnUpgradeCache,
+		client:           s.botClient,
+		cfg:              s.cfg,
 	}
 
 	// Determine the default role list based on the bot role. The role's
@@ -658,10 +660,11 @@ func fetchDefaultRoles(ctx context.Context, roleGetter services.RoleGetter, iden
 // requests for the same information. This is shared between all of the
 // outputs.
 type outputRenewalCache struct {
-	client         *authclient.Client
-	cfg            *config.BotConfig
-	proxyPingCache *proxyPingCache
-	authPingCache  *authPingCache
+	client           *authclient.Client
+	cfg              *config.BotConfig
+	proxyPingCache   *proxyPingCache
+	authPingCache    *authPingCache
+	alpnUpgradeCache *alpnProxyConnUpgradeRequiredCache
 
 	mu sync.Mutex
 	// These are protected by getter/setters with mutex locks
@@ -712,6 +715,18 @@ func (orc *outputRenewalCache) ProxyPing(ctx context.Context) (*webclient.PingRe
 	res, err := orc.proxyPingCache.ping(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	return res, nil
+}
+
+// IsALPNConnUpgradeRequired returns a (possibly cached) test of whether ALPN
+// routing is required.
+func (orc *outputRenewalCache) IsALPNConnUpgradeRequired(
+	ctx context.Context, addr string, insecure bool,
+) (bool, error) {
+	res, err := orc.alpnUpgradeCache.isUpgradeRequired(ctx, addr, insecure)
+	if err != nil {
+		return false, trace.Wrap(err)
 	}
 	return res, nil
 }
