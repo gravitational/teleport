@@ -40,11 +40,16 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 )
+
+// AccessPoint is the subset of the auth cache consumed by the [Client].
+type AccessPoint interface {
+	authclient.CAGetter
+	types.Events
+}
 
 // ClientConfig configures a Client instance.
 type ClientConfig struct {
@@ -55,7 +60,7 @@ type ClientConfig struct {
 	// AuthClient is an auth client
 	AuthClient authclient.ClientI
 	// AccessPoint is a caching auth client
-	AccessPoint auth.ProxyAccessPoint
+	AccessPoint AccessPoint
 	// TLSConfig is the proxy client TLS configuration.
 	TLSConfig *tls.Config
 	// Log is the proxy client logger.
