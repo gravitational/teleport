@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 )
 
+// Service implements the gRPC API layer for the singleton VnetConfig resource.
 type Service struct {
 	// Opting out of forward compatibility, this service must implement all service methods.
 	vnet.UnsafeVnetConfigServiceServer
@@ -38,6 +39,7 @@ type Service struct {
 	authorizer authz.Authorizer
 }
 
+// NewService returns a new VnetConfig API service using the given storage layer and authorizer.
 func NewService(storage *local.VnetConfigService, authorizer authz.Authorizer) *Service {
 	return &Service{
 		storage:    storage,
@@ -45,6 +47,7 @@ func NewService(storage *local.VnetConfigService, authorizer authz.Authorizer) *
 	}
 }
 
+// GetVnetConfig returns the singleton VnetConfig resource.
 func (s *Service) GetVnetConfig(ctx context.Context, _ *vnet.GetVnetConfigRequest) (*vnet.VnetConfig, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
@@ -63,6 +66,7 @@ func (s *Service) GetVnetConfig(ctx context.Context, _ *vnet.GetVnetConfigReques
 	return vnetConfig, nil
 }
 
+// CreateVnetConfig creates a VnetConfig resource.
 func (s *Service) CreateVnetConfig(ctx context.Context, req *vnet.CreateVnetConfigRequest) (*vnet.VnetConfig, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
@@ -81,6 +85,7 @@ func (s *Service) CreateVnetConfig(ctx context.Context, req *vnet.CreateVnetConf
 	return vnetConfig, trace.Wrap(err)
 }
 
+// UpdateVnetConfig updates a VnetConfig resource.
 func (s *Service) UpdateVnetConfig(ctx context.Context, req *vnet.UpdateVnetConfigRequest) (*vnet.VnetConfig, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
@@ -99,13 +104,13 @@ func (s *Service) UpdateVnetConfig(ctx context.Context, req *vnet.UpdateVnetConf
 	return vnetConfig, trace.Wrap(err)
 }
 
+// UpsertVnetConfig does basic validation and upserts a VnetConfig resource.
 func (s *Service) UpsertVnetConfig(ctx context.Context, req *vnet.UpsertVnetConfigRequest) (*vnet.VnetConfig, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// To upsert you must be allowed to Create and Update the new resource.
 	if err := authCtx.CheckAccessToKind(types.KindVnetConfig, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -118,6 +123,7 @@ func (s *Service) UpsertVnetConfig(ctx context.Context, req *vnet.UpsertVnetConf
 	return vnetConfig, trace.Wrap(err)
 }
 
+// DeleteVnetConfig deletes the singleton VnetConfig resource.
 func (s *Service) DeleteVnetConfig(ctx context.Context, _ *vnet.DeleteVnetConfigRequest) (*emptypb.Empty, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {

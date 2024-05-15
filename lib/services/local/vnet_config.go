@@ -35,11 +35,13 @@ const (
 	vnetConfigSingletonName = "vnet-config"
 )
 
+// VnetConfigService implements the storage layer for the VnetConfig resource.
 type VnetConfigService struct {
 	slog *slog.Logger
 	svc  *generic.ServiceWrapper[*vnet.VnetConfig]
 }
 
+// NewVnetConfigService returns a new VnetConfig storage service.
 func NewVnetConfigService(backend backend.Backend) (*VnetConfigService, error) {
 	svc, err := generic.NewServiceWrapper(
 		backend,
@@ -58,10 +60,12 @@ func NewVnetConfigService(backend backend.Backend) (*VnetConfigService, error) {
 	}, nil
 }
 
+// GetVnetConfig returns the singleton VnetConfig resource.
 func (s *VnetConfigService) GetVnetConfig(ctx context.Context) (*vnet.VnetConfig, error) {
 	return s.svc.GetResource(ctx, vnetConfigSingletonName)
 }
 
+// CreateVnetConfig does basic validation and creates a VnetConfig resource.
 func (s *VnetConfigService) CreateVnetConfig(ctx context.Context, vnetConfig *vnet.VnetConfig) (*vnet.VnetConfig, error) {
 	if err := validateVnetConfig(vnetConfig); err != nil {
 		return nil, trace.Wrap(err)
@@ -69,6 +73,7 @@ func (s *VnetConfigService) CreateVnetConfig(ctx context.Context, vnetConfig *vn
 	return s.svc.CreateResource(ctx, vnetConfig)
 }
 
+// UpdateVnetConfig does basic validation and updates a VnetConfig resource.
 func (s *VnetConfigService) UpdateVnetConfig(ctx context.Context, vnetConfig *vnet.VnetConfig) (*vnet.VnetConfig, error) {
 	if err := validateVnetConfig(vnetConfig); err != nil {
 		return nil, trace.Wrap(err)
@@ -76,6 +81,7 @@ func (s *VnetConfigService) UpdateVnetConfig(ctx context.Context, vnetConfig *vn
 	return s.svc.ConditionalUpdateResource(ctx, vnetConfig)
 }
 
+// UpsertVnetConfig does basic validation and upserts a VnetConfig resource.
 func (s *VnetConfigService) UpsertVnetConfig(ctx context.Context, vnetConfig *vnet.VnetConfig) (*vnet.VnetConfig, error) {
 	if err := validateVnetConfig(vnetConfig); err != nil {
 		return nil, trace.Wrap(err)
@@ -83,6 +89,7 @@ func (s *VnetConfigService) UpsertVnetConfig(ctx context.Context, vnetConfig *vn
 	return s.svc.UpsertResource(ctx, vnetConfig)
 }
 
+// DeleteVnetConfig deletes the singleton VnetConfig resource.
 func (s *VnetConfigService) DeleteVnetConfig(ctx context.Context) error {
 	return s.svc.DeleteResource(ctx, vnetConfigSingletonName)
 }
