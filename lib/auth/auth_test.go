@@ -308,7 +308,7 @@ func TestAuthenticateWebUser_deviceWebToken(t *testing.T) {
 		Pass: &PassCreds{
 			Password: []byte(pass),
 		},
-		ClientMetadata: &ForwardedClientMetadata{
+		ClientMetadata: &authclient.ForwardedClientMetadata{
 			UserAgent:  userAgent,
 			RemoteAddr: remoteAddr,
 		},
@@ -337,7 +337,7 @@ func TestAuthenticateWebUser_deviceWebToken(t *testing.T) {
 			makeTokenFunc: makeTokenSuccess,
 			req: func() *authclient.AuthenticateUserRequest {
 				req := *validReq
-				req.ClientMetadata = &ForwardedClientMetadata{
+				req.ClientMetadata = &authclient.ForwardedClientMetadata{
 					RemoteAddr: remoteAddr, // AuthenticateWebUser fails if RemoteAddr is missing.
 				}
 				return &req
@@ -2275,7 +2275,7 @@ func TestGenerateUserCertIPPinning(t *testing.T) {
 			authRequest := baseAuthRequest
 			authRequest.AuthenticateUserRequest.Username = tt.user
 			if tt.loginIP != "" {
-				authRequest.ClientMetadata = &ForwardedClientMetadata{
+				authRequest.ClientMetadata = &authclient.ForwardedClientMetadata{
 					RemoteAddr: tt.loginIP,
 				}
 			}

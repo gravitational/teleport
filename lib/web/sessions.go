@@ -901,7 +901,7 @@ func (s *sessionCache) releaseResourcesIfNoDeviceExtensions(user, sessionID stri
 func (s *sessionCache) AuthWithOTP(
 	ctx context.Context,
 	user, pass, otpToken string,
-	clientMeta *auth.ForwardedClientMetadata,
+	clientMeta *authclient.ForwardedClientMetadata,
 ) (types.WebSession, error) {
 	return s.proxyClient.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
 		Username: user,
@@ -917,7 +917,7 @@ func (s *sessionCache) AuthWithOTP(
 // AuthWithoutOTP authenticates the specified user with the given password.
 // Returns a new web session if successful.
 func (s *sessionCache) AuthWithoutOTP(
-	ctx context.Context, user, pass string, clientMeta *auth.ForwardedClientMetadata,
+	ctx context.Context, user, pass string, clientMeta *authclient.ForwardedClientMetadata,
 ) (types.WebSession, error) {
 	return s.proxyClient.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
 		Username: user,
@@ -929,7 +929,7 @@ func (s *sessionCache) AuthWithoutOTP(
 }
 
 func (s *sessionCache) AuthenticateWebUser(
-	ctx context.Context, req *client.AuthenticateWebUserRequest, clientMeta *auth.ForwardedClientMetadata,
+	ctx context.Context, req *client.AuthenticateWebUserRequest, clientMeta *authclient.ForwardedClientMetadata,
 ) (types.WebSession, error) {
 	authReq := authclient.AuthenticateUserRequest{
 		Username:       req.User,
@@ -942,7 +942,7 @@ func (s *sessionCache) AuthenticateWebUser(
 }
 
 func (s *sessionCache) AuthenticateSSHUser(
-	ctx context.Context, c client.AuthenticateSSHUserRequest, clientMeta *auth.ForwardedClientMetadata,
+	ctx context.Context, c client.AuthenticateSSHUserRequest, clientMeta *authclient.ForwardedClientMetadata,
 ) (*auth.SSHLoginResponse, error) {
 	authReq := authclient.AuthenticateUserRequest{
 		Username:       c.User,

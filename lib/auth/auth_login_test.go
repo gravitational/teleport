@@ -1847,7 +1847,7 @@ func TestServer_Authenticate_headless(t *testing.T) {
 					OTP:                      &OTPCreds{},
 					Username:                 username,
 					PublicKey:                []byte(sshPubKey),
-					ClientMetadata: &ForwardedClientMetadata{
+					ClientMetadata: &authclient.ForwardedClientMetadata{
 						RemoteAddr: "0.0.0.0",
 					},
 				},

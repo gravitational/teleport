@@ -2207,8 +2207,8 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 	return res, nil
 }
 
-func clientMetaFromReq(r *http.Request) *auth.ForwardedClientMetadata {
-	return &auth.ForwardedClientMetadata{
+func clientMetaFromReq(r *http.Request) *authclient.ForwardedClientMetadata {
+	return &authclient.ForwardedClientMetadata{
 		UserAgent:  r.UserAgent(),
 		RemoteAddr: r.RemoteAddr,
 	}

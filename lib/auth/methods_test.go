@@ -33,7 +33,7 @@ func TestServerAuthenticateUserUserAgentTrim(t *testing.T) {
 	ctx := context.Background()
 	emitter := &eventstest.MockRecorderEmitter{}
 	r := authclient.AuthenticateUserRequest{
-		ClientMetadata: &ForwardedClientMetadata{
+		ClientMetadata: &authclient.ForwardedClientMetadata{
 			UserAgent: strings.Repeat("A", maxUserAgentLen+1),
 		},
 	}

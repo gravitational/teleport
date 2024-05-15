@@ -900,7 +900,7 @@ func Test_clientMetaFromReq(t *testing.T) {
 	r.Header.Set("User-Agent", ua)
 
 	got := clientMetaFromReq(r)
-	require.Equal(t, &auth.ForwardedClientMetadata{
+	require.Equal(t, &authclient.ForwardedClientMetadata{
 		UserAgent:  ua,
 		RemoteAddr: "192.0.2.1:1234",
 	}, got)

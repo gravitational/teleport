@@ -54,10 +54,6 @@ const (
 	maxUserAgentLen = 2048
 )
 
-// ForwardedClientMetadata can be used by the proxy web API to forward information about
-// the client to the auth service.
-type ForwardedClientMetadata = authclient.ForwardedClientMetadata
-
 // PassCreds is a password credential
 type PassCreds = authclient.PassCreds
 
@@ -157,7 +153,7 @@ func (a *Server) authenticateUserLogin(ctx context.Context, req authclient.Authe
 
 type authAuditProps struct {
 	username       string
-	clientMetadata *ForwardedClientMetadata
+	clientMetadata *authclient.ForwardedClientMetadata
 	mfaDevice      *types.MFADevice
 	checker        services.AccessChecker
 	authErr        error
