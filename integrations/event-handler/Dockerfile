@@ -8,7 +8,7 @@ WORKDIR /go/src/github.com/gravitational/teleport/
 
 # Copy dependencies and go.mod
 COPY api/ api/
-COPY version.go constants.go gitref.go go.mod go.sum ./
+COPY version.go constants.go go.mod go.sum ./
 COPY lib/ ./lib/
 COPY build.assets/images.mk build.assets/arch.mk ./build.assets/
 COPY integrations/lib/ ./integrations/lib/
