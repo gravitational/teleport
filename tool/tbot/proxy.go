@@ -76,7 +76,7 @@ func onProxyCommand(
 		)
 	}
 	if slices.Contains(cf.RemainingArgs, "ssh") {
-		log.WarnContext(ctx, "`tbot ssh proxy` is deprecated and will stop working in v17. See https://goteleport.com/docs/machine-id/reference/v16-upgrade-guide/")
+		log.WarnContext(ctx, "`tbot proxy ssh` is deprecated and will stop working in v17. See https://goteleport.com/docs/machine-id/reference/v16-upgrade-guide/")
 	}
 
 	return trace.Wrap(wrapper.Exec(env, args...), "executing `tsh proxy`")
