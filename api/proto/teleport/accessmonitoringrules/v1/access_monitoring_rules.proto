@@ -101,9 +101,9 @@ message ListAccessMonitoringRulesWithFilterRequest {
   int64 page_size = 1;
   // page_token is the next_page_token value returned from a previous List request, if any.
   string page_token = 2;
-  // subjects are the subjects the access monitoring rules must have.
+  // subjects are the subjects the access monitoring rules must have. This field is optional.
   repeated string subjects = 3;
-  // notification_name is the value of the notification name field the rule must have.
+  // notification_name is the value of the notification name field the rule must have. This field is optional.
   string notification_name = 4;
 }
 

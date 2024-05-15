@@ -570,9 +570,9 @@ type ListAccessMonitoringRulesWithFilterRequest struct {
 	PageSize int64 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	// page_token is the next_page_token value returned from a previous List request, if any.
 	PageToken string `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
-	// subjects are the subjects the access monitoring rules must have.
+	// subjects are the subjects the access monitoring rules must have. This field is optional.
 	Subjects []string `protobuf:"bytes,3,rep,name=subjects,proto3" json:"subjects,omitempty"`
-	// notification_name is the value of the notification name field the rule must have.
+	// notification_name is the value of the notification name field the rule must have. This field is optional.
 	NotificationName string `protobuf:"bytes,4,opt,name=notification_name,json=notificationName,proto3" json:"notification_name,omitempty"`
 }
 
