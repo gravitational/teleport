@@ -635,8 +635,6 @@ func (a *Server) sendValidateRequestToProxy(host string, validateRequest *authcl
 	return validateResponse, nil
 }
 
-type ValidateTrustedClusterRequestRaw = authclient.ValidateTrustedClusterRequestRaw
-
 type ValidateTrustedClusterResponse = authclient.ValidateTrustedClusterResponse
 
 type ValidateTrustedClusterResponseRaw = authclient.ValidateTrustedClusterResponseRaw
