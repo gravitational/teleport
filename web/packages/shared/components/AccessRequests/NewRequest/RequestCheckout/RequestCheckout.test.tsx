@@ -26,8 +26,8 @@ import { dryRunResponse } from '../../fixtures';
 import { ReviewerOption } from './types';
 
 import {
-  RequestCheckout as RequestCheckoutComp,
-  RequestCheckoutProps,
+  RequestCheckoutWithSlider as RequestCheckoutComp,
+  RequestCheckoutWithSliderProps,
 } from './RequestCheckout';
 
 test('start with no suggested reviewers', async () => {
@@ -147,7 +147,7 @@ const RequestCheckout = ({ reviewers = [] }: { reviewers?: string[] }) => {
   );
 };
 
-const props: RequestCheckoutProps = {
+const props: RequestCheckoutWithSliderProps = {
   createAttempt: { status: '' },
   fetchResourceRequestRolesAttempt: { status: '' },
   isResourceRequest: false,

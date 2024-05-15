@@ -537,6 +537,11 @@ func (c *SessionContext) GetSessionID() string {
 	return c.cfg.Session.GetName()
 }
 
+// GetRootClusterName returns the root cluster name.
+func (c *SessionContext) GetRootClusterName() string {
+	return c.cfg.RootClusterName
+}
+
 // Close cleans up resources associated with this context and removes it
 // from the user context
 func (c *SessionContext) Close() error {

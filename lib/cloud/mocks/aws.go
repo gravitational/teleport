@@ -117,6 +117,10 @@ type IAMMock struct {
 	attachedRolePolicies map[string]map[string]string
 	// attachedUserPolicies maps userName -> policyName -> policyDocument
 	attachedUserPolicies map[string]map[string]string
+	// SAMLProviders maps saml provider ARN -> samlProvider
+	SAMLProviders map[string]*iam.GetSAMLProviderOutput
+	// OIDCProviders maps saml provider ARN -> oidcProvider
+	OIDCProviders map[string]*iam.GetOpenIDConnectProviderOutput
 }
 
 func (m *IAMMock) GetRolePolicyWithContext(ctx aws.Context, input *iam.GetRolePolicyInput, options ...request.Option) (*iam.GetRolePolicyOutput, error) {
@@ -197,6 +201,56 @@ func (m *IAMMock) DeleteUserPolicyWithContext(ctx aws.Context, input *iam.Delete
 		delete(m.attachedUserPolicies[*input.UserName], *input.PolicyName)
 	}
 	return &iam.DeleteUserPolicyOutput{}, nil
+}
+
+func (m *IAMMock) ListSAMLProvidersWithContext(ctx aws.Context, input *iam.ListSAMLProvidersInput, options ...request.Option) (*iam.ListSAMLProvidersOutput, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	resp := &iam.ListSAMLProvidersOutput{}
+	for arn := range m.SAMLProviders {
+		resp.SAMLProviderList = append(resp.SAMLProviderList, &iam.SAMLProviderListEntry{
+			Arn: aws.String(arn),
+		})
+	}
+	return resp, nil
+}
+
+func (m *IAMMock) GetSAMLProviderWithContext(ctx aws.Context, input *iam.GetSAMLProviderInput, options ...request.Option) (*iam.GetSAMLProviderOutput, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if input.SAMLProviderArn == nil {
+		return nil, trace.BadParameter("SAMLProviderARN must not be nil")
+	}
+	provider, ok := m.SAMLProviders[*input.SAMLProviderArn]
+	if !ok {
+		return nil, trace.BadParameter("SAML provider %q not found", *input.SAMLProviderArn)
+	}
+	return provider, nil
+}
+
+func (m *IAMMock) ListOpenIDConnectProvidersWithContext(ctx aws.Context, input *iam.ListOpenIDConnectProvidersInput, options ...request.Option) (*iam.ListOpenIDConnectProvidersOutput, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	resp := &iam.ListOpenIDConnectProvidersOutput{}
+	for arn := range m.OIDCProviders {
+		resp.OpenIDConnectProviderList = append(resp.OpenIDConnectProviderList, &iam.OpenIDConnectProviderListEntry{
+			Arn: aws.String(arn),
+		})
+	}
+	return resp, nil
+}
+
+func (m *IAMMock) GetOpenIDConnectProviderWithContext(ctx aws.Context, input *iam.GetOpenIDConnectProviderInput, options ...request.Option) (*iam.GetOpenIDConnectProviderOutput, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if input.OpenIDConnectProviderArn == nil {
+		return nil, trace.BadParameter("OpenIDConnectProviderARN must not be nil")
+	}
+	provider, ok := m.OIDCProviders[*input.OpenIDConnectProviderArn]
+	if !ok {
+		return nil, trace.BadParameter("OIDC provider %q not found", *input.OpenIDConnectProviderArn)
+	}
+	return provider, nil
 }
 
 // IAMErrorMock is a mock IAM client that returns the provided Error to all
