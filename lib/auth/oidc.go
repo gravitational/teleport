@@ -142,10 +142,6 @@ func (a *Server) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*a
 	return resp, trace.Wrap(err)
 }
 
-// ValidateOIDCAuthCallbackReq is the request made by the proxy to validate
-// and activate a login via OIDC.
-type ValidateOIDCAuthCallbackReq = authclient.ValidateOIDCAuthCallbackReq
-
 // OIDCAuthRawResponse is returned when auth server validated callback parameters
 // returned from OIDC provider
 type OIDCAuthRawResponse = authclient.OIDCAuthRawResponse
