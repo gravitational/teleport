@@ -187,6 +187,7 @@ func TestSeekForward(t *testing.T) {
 
 	// advance playback until right before the last event
 	p.SetPos(9001 * time.Millisecond)
+	clk.BlockUntil(1)
 
 	// advance the clock to unblock the player
 	// (it should now spit out all but the last event in rapid succession)

@@ -37,6 +37,7 @@ import (
 	"net/http/httputil"
 	"net/http/pprof"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -58,7 +59,6 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
-	"golang.org/x/crypto/ssh"
 	"golang.org/x/sys/unix"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -675,7 +675,7 @@ type Process interface {
 	// Start starts the process in a non-blocking way
 	Start() error
 	// WaitForSignals waits for and handles system process signals.
-	WaitForSignals(context.Context) error
+	WaitForSignals(context.Context, <-chan os.Signal) error
 	// ExportFileDescriptors exports service listeners
 	// file descriptors used by the process.
 	ExportFileDescriptors() ([]*servicecfg.FileDescriptor, error)
@@ -703,6 +703,12 @@ func newTeleportProcess(cfg *servicecfg.Config) (Process, error) {
 // Run starts teleport processes, waits for signals
 // and handles internal process reloads.
 func Run(ctx context.Context, cfg servicecfg.Config, newTeleport NewProcess) error {
+	sigC := make(chan os.Signal, 1024)
+	// this should happen before the very first newTeleport, as that's the point
+	// where we MUST handle all the relevant OS signals
+	signal.Notify(sigC, teleportSignals...)
+	defer signal.Stop(sigC)
+
 	if newTeleport == nil {
 		newTeleport = newTeleportProcess
 	}
@@ -719,7 +725,7 @@ func Run(ctx context.Context, cfg servicecfg.Config, newTeleport NewProcess) err
 	}
 	// Wait and reload until called exit.
 	for {
-		srv, err = waitAndReload(ctx, cfg, srv, newTeleport)
+		srv, err = waitAndReload(ctx, sigC, cfg, srv, newTeleport)
 		if err != nil {
 			// This error means that was a clean shutdown
 			// and no reload is necessary.
@@ -731,8 +737,8 @@ func Run(ctx context.Context, cfg servicecfg.Config, newTeleport NewProcess) err
 	}
 }
 
-func waitAndReload(ctx context.Context, cfg servicecfg.Config, srv Process, newTeleport NewProcess) (Process, error) {
-	err := srv.WaitForSignals(ctx)
+func waitAndReload(ctx context.Context, sigC <-chan os.Signal, cfg servicecfg.Config, srv Process, newTeleport NewProcess) (Process, error) {
+	err := srv.WaitForSignals(ctx, sigC)
 	if err == nil {
 		return nil, ErrTeleportExited
 	}
@@ -2720,7 +2726,7 @@ func (process *TeleportProcess) initSSH() error {
 			process.ExitContext(),
 			cfg.SSH.Addr,
 			cfg.Hostname,
-			[]ssh.Signer{conn.ServerIdentity.KeySigner},
+			sshutils.StaticHostSigners(conn.ServerIdentity.KeySigner),
 			authClient,
 			cfg.DataDir,
 			cfg.AdvertiseIP,
@@ -4030,7 +4036,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				ClusterName:                   clusterName,
 				ClientTLS:                     clientTLSConfig,
 				Listener:                      reverseTunnelLimiter.WrapListener(listeners.reverseTunnel),
-				HostSigners:                   []ssh.Signer{conn.ServerIdentity.KeySigner},
+				GetHostSigners:                sshutils.StaticHostSigners(conn.ServerIdentity.KeySigner),
 				LocalAuthClient:               conn.Client,
 				LocalAccessPoint:              accessPoint,
 				NewCachingAccessPoint:         process.newLocalCacheForRemoteProxy,
@@ -4412,7 +4418,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		process.ExitContext(),
 		cfg.SSH.Addr,
 		cfg.Hostname,
-		[]ssh.Signer{conn.ServerIdentity.KeySigner},
+		sshutils.StaticHostSigners(conn.ServerIdentity.KeySigner),
 		accessPoint,
 		cfg.DataDir,
 		"",

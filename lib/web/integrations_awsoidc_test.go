@@ -858,6 +858,7 @@ func TestAWSOIDCAppAccessAppServerCreation(t *testing.T) {
 	require.NoError(t, err)
 
 	proxy := env.proxies[0]
+	proxyPublicAddr := proxy.handler.handler.cfg.PublicProxyAddr
 	pack := proxy.authPack(t, "foo@example.com", []types.Role{roleTokenCRD})
 
 	myIntegration, err := types.NewIntegrationAWSOIDC(types.Metadata{
@@ -872,10 +873,8 @@ func TestAWSOIDCAppAccessAppServerCreation(t *testing.T) {
 
 	// Create the AWS App Access for the current integration.
 	endpoint := pack.clt.Endpoint("webapi", "sites", "localhost", "integrations", "aws-oidc", "my-integration", "aws-app-access")
-	x, err := pack.clt.PostJSON(context.Background(), endpoint, nil)
+	_, err = pack.clt.PostJSON(context.Background(), endpoint, nil)
 	require.NoError(t, err)
-
-	t.Log(x)
 
 	// Ensure the AppServer was correctly created.
 	appServers, err := env.server.Auth().GetApplicationServers(context.Background(), "default")
@@ -901,6 +900,7 @@ func TestAWSOIDCAppAccessAppServerCreation(t *testing.T) {
 					URI:         "https://console.aws.amazon.com",
 					Integration: "my-integration",
 					Cloud:       "AWS",
+					PublicAddr:  "my-integration." + proxyPublicAddr,
 				},
 			},
 		},
