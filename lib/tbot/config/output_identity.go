@@ -89,6 +89,7 @@ func (o *IdentityOutput) templates() []template {
 		templates = append(templates, &templateSSHClient{
 			getSSHVersion:        openssh.GetSystemSSHVersion,
 			executablePathGetter: os.Executable,
+			getEnv:               os.Getenv,
 			destPath:             o.destPath,
 		})
 	}
