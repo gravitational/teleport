@@ -17,6 +17,10 @@ direct the result to a file.
 
 By default, it collects `goroutine`, `heap` and `profile` profiles.
 
+Each profile collected will have a correspondent file inside the tarball. For
+example, collecting `goroutine,trace,heap` will result in `goroutine.pprof`,
+`trace.pprof`, and `heap.pprof` files.
+
 ```bash
 # Collect default profiles and save to a file.
 $ teleport debug profile > pprof.tar.gz
@@ -27,18 +31,35 @@ $ teleport debug profile | tar xzv -C ./
 
 # Collect "trace" and "mutex" profiles and save to a file.
 $ teleport debug profile trace,mutex > pprof.tar.gz
+
+# Collect profiles setting the profiling time in seconds
+$ teleport debug profile -s 20 trace > pprof.tar.gz
 ```
 
 If you're running Teleport on a Kubernetes cluster you can directly collect
 profiles to a local directory without an interactive session:
 
 ```bash
-$ kubectl -n teleport my-pod -- teleport debug profile > pprof.tar.gz 
+$ kubectl -n teleport exec my-pod -- teleport debug profile > pprof.tar.gz 
+```
+
+After extracting the contents, you can use `go tool` commands to explore and
+visualize them:
+
+```bash
+# Opens the terminal interactive explorer
+$ go tool pprof heap.pprof
+
+# Opens the web visualizer
+$ go tool pprof -http : heap.pprof
+
+# Visualize trace profiles
+$ go tool trace trace.pprof
 ```
 
 (!docs/pages/includes/diagnostics/teleport-debug-config.mdx!)
 
-## Using diagnosis endpoints
+## Using diagnostics endpoints
 
 The profiling endpoint is only enabled if the `--debug` flag is supplied.
 
