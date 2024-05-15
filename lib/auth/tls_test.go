@@ -1681,7 +1681,7 @@ func TestWebSessionWithoutAccessRequest(t *testing.T) {
 	_, err = web.GetWebSessionInfo(ctx, user, ws.GetName())
 	require.NoError(t, err)
 
-	ns, err := web.ExtendWebSession(ctx, WebSessionReq{
+	ns, err := web.ExtendWebSession(ctx, authclient.WebSessionReq{
 		User:          user,
 		PrevSessionID: ws.GetName(),
 	})
@@ -1698,7 +1698,7 @@ func TestWebSessionWithoutAccessRequest(t *testing.T) {
 	_, err = web.GetWebSessionInfo(ctx, user, ws.GetName())
 	require.Error(t, err)
 
-	_, err = web.ExtendWebSession(ctx, WebSessionReq{
+	_, err = web.ExtendWebSession(ctx, authclient.WebSessionReq{
 		User:          user,
 		PrevSessionID: ws.GetName(),
 	})
@@ -1810,7 +1810,7 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 	type extendSessionFunc func(*testing.T, *authclient.Client, types.WebSession) (*authclient.Client, types.WebSession)
 	assumeRequest := func(request types.AccessRequest) extendSessionFunc {
 		return func(t *testing.T, clt *authclient.Client, sess types.WebSession) (*authclient.Client, types.WebSession) {
-			newSess, err := clt.ExtendWebSession(ctx, WebSessionReq{
+			newSess, err := clt.ExtendWebSession(ctx, authclient.WebSessionReq{
 				User:            username,
 				PrevSessionID:   sess.GetName(),
 				AccessRequestID: request.GetMetadata().Name,
@@ -1824,7 +1824,7 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 	}
 	failToAssumeRequest := func(request types.AccessRequest) extendSessionFunc {
 		return func(t *testing.T, clt *authclient.Client, sess types.WebSession) (*authclient.Client, types.WebSession) {
-			_, err := clt.ExtendWebSession(ctx, WebSessionReq{
+			_, err := clt.ExtendWebSession(ctx, authclient.WebSessionReq{
 				User:            username,
 				PrevSessionID:   sess.GetName(),
 				AccessRequestID: request.GetMetadata().Name,
@@ -1834,7 +1834,7 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 		}
 	}
 	switchBack := func(t *testing.T, clt *authclient.Client, sess types.WebSession) (*authclient.Client, types.WebSession) {
-		newSess, err := clt.ExtendWebSession(ctx, WebSessionReq{
+		newSess, err := clt.ExtendWebSession(ctx, authclient.WebSessionReq{
 			User:          username,
 			PrevSessionID: sess.GetName(),
 			Switchback:    true,
@@ -1976,7 +1976,7 @@ func TestWebSessionWithApprovedAccessRequestAndSwitchback(t *testing.T) {
 	accessReq, err = clt.CreateAccessRequestV2(ctx, accessReq)
 	require.NoError(t, err)
 
-	sess1, err := web.ExtendWebSession(ctx, WebSessionReq{
+	sess1, err := web.ExtendWebSession(ctx, authclient.WebSessionReq{
 		User:            user,
 		PrevSessionID:   ws.GetName(),
 		AccessRequestID: accessReq.GetMetadata().Name,
@@ -2018,7 +2018,7 @@ func TestWebSessionWithApprovedAccessRequestAndSwitchback(t *testing.T) {
 	require.Empty(t, cmp.Diff(certRequests(sess1.GetTLSCert()), []string{accessReq.GetName()}))
 
 	// Test switch back to default role and expiry.
-	sess2, err := web.ExtendWebSession(ctx, WebSessionReq{
+	sess2, err := web.ExtendWebSession(ctx, authclient.WebSessionReq{
 		User:          user,
 		PrevSessionID: ws.GetName(),
 		Switchback:    true,
@@ -2085,7 +2085,7 @@ func TestExtendWebSessionWithReloadUser(t *testing.T) {
 	require.NoError(t, err)
 
 	// Renew session with the updated traits.
-	sess1, err := web.ExtendWebSession(ctx, WebSessionReq{
+	sess1, err := web.ExtendWebSession(ctx, authclient.WebSessionReq{
 		User:          user,
 		PrevSessionID: ws.GetName(),
 		ReloadUser:    true,
@@ -2192,7 +2192,7 @@ func TestExtendWebSessionWithMaxDuration(t *testing.T) {
 			accessReq, err = adminClient.CreateAccessRequestV2(ctx, accessReq)
 			require.NoError(t, err)
 
-			sess1, err := userClient.ExtendWebSession(ctx, WebSessionReq{
+			sess1, err := userClient.ExtendWebSession(ctx, authclient.WebSessionReq{
 				User:            user,
 				PrevSessionID:   webSession.GetName(),
 				AccessRequestID: accessReq.GetMetadata().Name,
@@ -2929,7 +2929,7 @@ func TestCertificateFormat(t *testing.T) {
 
 		// authentication attempt fails with password auth only
 		re, err := proxyClient.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
-			authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
+			AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 				Username: user.GetName(),
 				Pass: &authclient.PassCreds{
 					Password: pass,
@@ -3269,7 +3269,7 @@ func TestLoginNoLocalAuth(t *testing.T) {
 	_, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 	_, err = testSrv.Auth().AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
-		authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
+		AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 			Username: user,
 			Pass: &authclient.PassCreds{
 				Password: pass,

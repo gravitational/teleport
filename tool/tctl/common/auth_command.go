@@ -40,7 +40,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/windows"
@@ -280,7 +279,7 @@ type certificateSigner interface {
 	GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error)
 	TrustClient() trustpb.TrustServiceClient
 	// TODO (Joerger): DELETE IN 17.0.0
-	auth.CreateAppSessionForV15Client
+	authclient.CreateAppSessionForV15Client
 }
 
 // GenerateAndSignKeys generates a new keypair and signs it for role

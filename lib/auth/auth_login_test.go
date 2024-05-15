@@ -889,8 +889,8 @@ func TestServer_AuthenticateUser_passwordOnly(t *testing.T) {
 	t.Run("ssh", makeRun(func(s *Server, req authclient.AuthenticateUserRequest) error {
 		req.PublicKey = []byte(sshPubKey)
 		_, err := s.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
-			authclient.AuthenticateUserRequest: req,
-			TTL:                                24 * time.Hour,
+			AuthenticateUserRequest: req,
+			TTL:                     24 * time.Hour,
 		})
 		return err
 	}))
@@ -964,8 +964,8 @@ func TestServer_AuthenticateUser_passwordOnly_failure(t *testing.T) {
 		t.Run(test.name+"/ssh", makeRun(func(s *Server, req authclient.AuthenticateUserRequest) error {
 			req.PublicKey = []byte(sshPubKey)
 			_, err := s.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
-				authclient.AuthenticateUserRequest: req,
-				TTL:                                24 * time.Hour,
+				AuthenticateUserRequest: req,
+				TTL:                     24 * time.Hour,
 			})
 			return err
 		}))
@@ -1019,8 +1019,8 @@ func TestServer_AuthenticateUser_setsPasswordState(t *testing.T) {
 	t.Run("ssh", makeRun(func(s *Server, req authclient.AuthenticateUserRequest) error {
 		req.PublicKey = []byte(sshPubKey)
 		_, err := s.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
-			authclient.AuthenticateUserRequest: req,
-			TTL:                                24 * time.Hour,
+			AuthenticateUserRequest: req,
+			TTL:                     24 * time.Hour,
 		})
 		return err
 	}))
@@ -1088,8 +1088,8 @@ func TestServer_AuthenticateUser_mfaDevices(t *testing.T) {
 		}
 		t.Run(test.name+"/ssh", makeRun(func(s *Server, req authclient.AuthenticateUserRequest) error {
 			_, err := s.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
-				authclient.AuthenticateUserRequest: req,
-				TTL:                                24 * time.Hour,
+				AuthenticateUserRequest: req,
+				TTL:                     24 * time.Hour,
 			})
 			return err
 		}))
@@ -1190,7 +1190,7 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 			name: "ssh",
 			authenticate: func(t *testing.T, resp *wantypes.CredentialAssertionResponse) {
 				loginResp, err := proxyClient.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
-					authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
+					AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 						Webauthn:  resp,
 						PublicKey: []byte(sshPubKey),
 					},
@@ -1210,7 +1210,7 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 			},
 			authenticate: func(t *testing.T, resp *wantypes.CredentialAssertionResponse) {
 				loginResp, err := proxyClient.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
-					authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
+					AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 						Webauthn:  resp,
 						PublicKey: []byte(sshPubKey),
 					},
@@ -1256,7 +1256,7 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 
 			// Fail a login attempt so have a non-empty list of attempts.
 			_, err := proxyClient.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
-				authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
+				AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 					Username:  user,
 					Webauthn:  &wantypes.CredentialAssertionResponse{}, // bad response
 					PublicKey: []byte(sshPubKey),
@@ -1351,7 +1351,7 @@ func TestPasswordlessProhibitedForSSO(t *testing.T) {
 			name: "ssh not allowed",
 			authenticate: func(car *wantypes.CredentialAssertionResponse) error {
 				_, err := proxyClient.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
-					authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
+					AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 						PublicKey: []byte(sshPubKey),
 						Webauthn:  car,
 					},
@@ -1513,7 +1513,7 @@ func TestSSOPasswordBypass(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			req := authclient.AuthenticateSSHRequest{
-				authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
+				AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 					Username:  mfa.User,
 					PublicKey: []byte(sshPubKey),
 					// test.setSecondFactor sets either Pass, OTP or Webauthn.
@@ -1723,8 +1723,8 @@ func TestServer_Authenticate_nonPasswordlessRequiresUsername(t *testing.T) {
 
 			// SSH.
 			_, err = proxyClient.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
-				authclient.AuthenticateUserRequest: req,
-				TTL:                                24 * time.Hour,
+				AuthenticateUserRequest: req,
+				TTL:                     24 * time.Hour,
 			})
 			require.Error(t, err, "SSH authentication expected fail (missing username)")
 			require.Contains(t, err.Error(), test.wantErr)
@@ -1797,7 +1797,7 @@ func TestServer_Authenticate_headless(t *testing.T) {
 
 			// Fail a login attempt so we have a non-empty list of attempts.
 			_, err = proxyClient.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
-				authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
+				AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 					Username:  username,
 					Webauthn:  &wantypes.CredentialAssertionResponse{}, // bad response
 					PublicKey: []byte(sshPubKey),
@@ -1840,7 +1840,7 @@ func TestServer_Authenticate_headless(t *testing.T) {
 			}()
 
 			_, err = proxyClient.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
-				authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
+				AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 					// HeadlessAuthenticationID should take precedence over WebAuthn and OTP fields.
 					HeadlessAuthenticationID: headlessID,
 					Webauthn:                 &wantypes.CredentialAssertionResponse{},
