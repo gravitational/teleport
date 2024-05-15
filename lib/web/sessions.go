@@ -905,7 +905,7 @@ func (s *sessionCache) AuthWithOTP(
 ) (types.WebSession, error) {
 	return s.proxyClient.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
 		Username: user,
-		Pass:     &auth.PassCreds{Password: []byte(pass)},
+		Pass:     &authclient.PassCreds{Password: []byte(pass)},
 		OTP: &auth.OTPCreds{
 			Password: []byte(pass),
 			Token:    otpToken,
@@ -921,7 +921,7 @@ func (s *sessionCache) AuthWithoutOTP(
 ) (types.WebSession, error) {
 	return s.proxyClient.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
 		Username: user,
-		Pass: &auth.PassCreds{
+		Pass: &authclient.PassCreds{
 			Password: []byte(pass),
 		},
 		ClientMetadata: clientMeta,
@@ -950,7 +950,7 @@ func (s *sessionCache) AuthenticateSSHUser(
 		PublicKey:      c.PubKey,
 	}
 	if c.Password != "" {
-		authReq.Pass = &auth.PassCreds{Password: []byte(c.Password)}
+		authReq.Pass = &authclient.PassCreds{Password: []byte(c.Password)}
 	}
 	if c.WebauthnChallengeResponse != nil {
 		authReq.Webauthn = c.WebauthnChallengeResponse

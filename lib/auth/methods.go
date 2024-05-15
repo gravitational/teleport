@@ -54,9 +54,6 @@ const (
 	maxUserAgentLen = 2048
 )
 
-// PassCreds is a password credential
-type PassCreds = authclient.PassCreds
-
 // OTPCreds is a two-factor authentication credentials
 type OTPCreds = authclient.OTPCreds
 

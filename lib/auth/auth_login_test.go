@@ -882,7 +882,7 @@ func TestServer_AuthenticateUser_passwordOnly(t *testing.T) {
 		return func(t *testing.T) {
 			require.NoError(t, authenticate(authServer, authclient.AuthenticateUserRequest{
 				Username: "bowman",
-				Pass:     &PassCreds{Password: []byte("it's full of stars!")},
+				Pass:     &authclient.PassCreds{Password: []byte("it's full of stars!")},
 			}))
 		}
 	}
@@ -955,7 +955,7 @@ func TestServer_AuthenticateUser_passwordOnly_failure(t *testing.T) {
 
 				err = authenticate(authServer, authclient.AuthenticateUserRequest{
 					Username: test.authUser,
-					Pass:     &PassCreds{Password: []byte(test.authPassword)},
+					Pass:     &authclient.PassCreds{Password: []byte(test.authPassword)},
 				})
 				assert.Error(t, err)
 				assert.True(t, trace.IsAccessDenied(err), "got %T: %v, want AccessDenied", trace.Unwrap(err), err)
@@ -1005,7 +1005,7 @@ func TestServer_AuthenticateUser_setsPasswordState(t *testing.T) {
 			// Finish login - either SSH or Web
 			require.NoError(t, authenticate(authServer, authclient.AuthenticateUserRequest{
 				Username: "bowman",
-				Pass: &PassCreds{
+				Pass: &authclient.PassCreds{
 					Password: []byte("it's full of stars!"),
 				},
 			}))
@@ -1504,7 +1504,7 @@ func TestSSOPasswordBypass(t *testing.T) {
 				})
 
 				// Password-only auth.
-				req.Pass = &PassCreds{
+				req.Pass = &authclient.PassCreds{
 					Password: []byte(mfa.Password),
 				}
 			},

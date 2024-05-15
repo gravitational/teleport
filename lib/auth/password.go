@@ -129,7 +129,7 @@ func (a *Server) ChangePassword(ctx context.Context, req *proto.ChangePasswordRe
 		Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_CHANGE_PASSWORD,
 	}
 	if len(req.OldPassword) > 0 {
-		authReq.Pass = &PassCreds{
+		authReq.Pass = &authclient.PassCreds{
 			Password: req.OldPassword,
 		}
 	} else {

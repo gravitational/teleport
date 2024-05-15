@@ -223,7 +223,7 @@ func TestSessions(t *testing.T) {
 
 	_, err := s.a.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
 		Username: user,
-		Pass:     &PassCreds{Password: pass},
+		Pass:     &authclient.PassCreds{Password: pass},
 	})
 	require.Error(t, err)
 
@@ -235,7 +235,7 @@ func TestSessions(t *testing.T) {
 
 	ws, err := s.a.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
 		Username: user,
-		Pass:     &PassCreds{Password: pass},
+		Pass:     &authclient.PassCreds{Password: pass},
 	})
 	require.NoError(t, err)
 	require.NotNil(t, ws)
@@ -305,7 +305,7 @@ func TestAuthenticateWebUser_deviceWebToken(t *testing.T) {
 	ctx := context.Background()
 	validReq := &authclient.AuthenticateUserRequest{
 		Username: user,
-		Pass: &PassCreds{
+		Pass: &authclient.PassCreds{
 			Password: []byte(pass),
 		},
 		ClientMetadata: &authclient.ForwardedClientMetadata{
@@ -407,7 +407,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	_, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 			Username: user,
-			Pass:     &PassCreds{Password: pass},
+			Pass:     &authclient.PassCreds{Password: pass},
 		},
 	})
 	require.Error(t, err)
@@ -433,7 +433,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	resp, err := s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 			Username:  user,
-			Pass:      &PassCreds{Password: pass},
+			Pass:      &authclient.PassCreds{Password: pass},
 			PublicKey: pub,
 		},
 		TTL:            time.Hour,
@@ -472,7 +472,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 			Username:  user,
-			Pass:      &PassCreds{Password: pass},
+			Pass:      &authclient.PassCreds{Password: pass},
 			PublicKey: pub,
 		},
 		TTL:               time.Hour,
@@ -518,7 +518,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 			Username:  user,
-			Pass:      &PassCreds{Password: pass},
+			Pass:      &authclient.PassCreds{Password: pass},
 			PublicKey: pub,
 		},
 		TTL:               time.Hour,
@@ -549,7 +549,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 			Username:  user,
-			Pass:      &PassCreds{Password: pass},
+			Pass:      &authclient.PassCreds{Password: pass},
 			PublicKey: pub,
 		},
 		TTL:            time.Hour,
@@ -581,7 +581,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 			Username:  user,
-			Pass:      &PassCreds{Password: pass},
+			Pass:      &authclient.PassCreds{Password: pass},
 			PublicKey: pub,
 		},
 		TTL:               time.Hour,
@@ -612,7 +612,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 			Username:  user,
-			Pass:      &PassCreds{Password: pass},
+			Pass:      &authclient.PassCreds{Password: pass},
 			PublicKey: pub,
 		},
 		TTL:            time.Hour,
@@ -644,7 +644,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	_, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 			Username:  user,
-			Pass:      &PassCreds{Password: pass},
+			Pass:      &authclient.PassCreds{Password: pass},
 			PublicKey: pub,
 		},
 		TTL:               time.Hour,
@@ -724,7 +724,7 @@ func TestAuthenticateUser_mfaDeviceLocked(t *testing.T) {
 			authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 				Username:  user,
 				PublicKey: pubKey,
-				Pass: &PassCreds{
+				Pass: &authclient.PassCreds{
 					Password: []byte(pass),
 				},
 				Webauthn: wantypes.CredentialAssertionResponseFromProto(chalResp.GetWebauthn()),
@@ -792,7 +792,7 @@ func TestUserLock(t *testing.T) {
 
 	_, err := s.a.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
 		Username: username,
-		Pass:     &PassCreds{Password: pass},
+		Pass:     &authclient.PassCreds{Password: pass},
 	})
 	require.Error(t, err)
 
@@ -805,7 +805,7 @@ func TestUserLock(t *testing.T) {
 	// successful log in
 	ws, err := s.a.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
 		Username: username,
-		Pass:     &PassCreds{Password: pass},
+		Pass:     &authclient.PassCreds{Password: pass},
 	})
 	require.NoError(t, err)
 	require.NotNil(t, ws)
@@ -816,7 +816,7 @@ func TestUserLock(t *testing.T) {
 	for i := 0; i <= defaults.MaxLoginAttempts; i++ {
 		_, err = s.a.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
 			Username: username,
-			Pass:     &PassCreds{Password: []byte("wrong password")},
+			Pass:     &authclient.PassCreds{Password: []byte("wrong password")},
 		})
 		require.Error(t, err)
 	}
@@ -830,7 +830,7 @@ func TestUserLock(t *testing.T) {
 
 	_, err = s.a.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
 		Username: username,
-		Pass:     &PassCreds{Password: pass},
+		Pass:     &authclient.PassCreds{Password: pass},
 	})
 	require.NoError(t, err)
 }
@@ -1375,7 +1375,7 @@ func TestServer_AugmentContextUserCertificates(t *testing.T) {
 	authResp, err := authServer.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 			Username: username,
-			Pass: &PassCreds{
+			Pass: &authclient.PassCreds{
 				Password: []byte(pass),
 			},
 			PublicKey: pub,
@@ -1550,7 +1550,7 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 		authResp, err := authServer.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 			authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 				Username: user,
-				Pass: &PassCreds{
+				Pass: &authclient.PassCreds{
 					Password: []byte(pass),
 				},
 				PublicKey: ssh.MarshalAuthorizedKey(sPubKey),
@@ -2187,7 +2187,7 @@ func setupUserForAugmentWebSessionCertificatesTest(t *testing.T, testServer *Tes
 	authnReq := authclient.AuthenticateUserRequest{
 		Username:  user.user,
 		PublicKey: user.pubKey,
-		Pass: &PassCreds{
+		Pass: &authclient.PassCreds{
 			Password: user.pass,
 		},
 	}
@@ -2263,7 +2263,7 @@ func TestGenerateUserCertIPPinning(t *testing.T) {
 
 	baseAuthRequest := AuthenticateSSHRequest{
 		authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
-			Pass:      &PassCreds{Password: pass},
+			Pass:      &authclient.PassCreds{Password: pass},
 			PublicKey: pub,
 		},
 		TTL:            time.Hour,
