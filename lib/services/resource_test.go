@@ -23,8 +23,8 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
@@ -279,7 +279,7 @@ func TestProtoResourceRoundtrip(t *testing.T) {
 
 			unmarshalled, err := tc.unmarshalFunc(marshaled)
 			require.NoError(t, err)
-			require.Empty(t, cmp.Diff(resource, unmarshalled, cmpopts.IgnoreUnexported(vnet.VnetConfig{}, vnet.VnetConfigSpec{}, headerv1.Metadata{})))
+			require.Empty(t, cmp.Diff(resource, unmarshalled, protocmp.Transform()))
 
 			revision := "123"
 			expires := time.Now()
