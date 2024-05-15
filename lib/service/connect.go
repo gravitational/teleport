@@ -842,11 +842,11 @@ func checkServerIdentity(ctx context.Context, conn *Connector, additionalPrincip
 	// certificate need to be updated.
 	if len(additionalPrincipals) != 0 && !conn.ServerIdentity.HasPrincipals(principalsToCheck) {
 		principalsChanged = true
-		logger.DebugContext(ctx, "Rotation in progress, updating SSH principals.", "additional_principals", additionalPrincipals, "current_principals", conn.ServerIdentity.Cert.ValidPrincipals)
+		logger.InfoContext(ctx, "Rotation in progress, updating SSH principals.", "identity", conn.ServerIdentity.ID.Role, "additional_principals", additionalPrincipals, "current_principals", conn.ServerIdentity.Cert.ValidPrincipals)
 	}
 	if len(dnsNames) != 0 && !conn.ServerIdentity.HasDNSNames(dnsNames) {
 		dnsNamesChanged = true
-		logger.DebugContext(ctx, "Rotation in progress, updating DNS names.", "additional_dns_names", dnsNames, "current_dns_names", conn.ServerIdentity.XCert.DNSNames)
+		logger.InfoContext(ctx, "Rotation in progress, updating DNS names.", "identity", conn.ServerIdentity.ID.Role, "additional_dns_names", dnsNames, "current_dns_names", conn.ServerIdentity.XCert.DNSNames)
 	}
 
 	return principalsChanged || dnsNamesChanged
