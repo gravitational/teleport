@@ -587,25 +587,35 @@ type alpnProxyConnUpgradeRequiredCache struct {
 	group singleflight.Group
 }
 
-func alpnArgString(addr string, insecure bool) string {
-	return fmt.Sprintf("%s-%t", addr, insecure)
-}
-
 func (a *alpnProxyConnUpgradeRequiredCache) isUpgradeRequired(ctx context.Context, addr string, insecure bool) (bool, error) {
+	key := fmt.Sprintf("%s-%t", addr, insecure)
+
 	a.mu.Lock()
 	if a.cache == nil {
 		a.cache = make(map[string]bool)
 	}
-	v, ok := a.cache[alpnArgString(addr, insecure)]
+	v, ok := a.cache[key]
 	if ok {
 		a.mu.Unlock()
 		return v, nil
 	}
 	a.mu.Unlock()
 
-	val, err, _ := a.group.Do(alpnArgString(addr, insecure), func() (interface{}, error) {
+	val, err, _ := a.group.Do(key, func() (interface{}, error) {
+		// Recheck the cache in case we've just missed a previous group
+		// completing
+		a.mu.Lock()
+		v, ok := a.cache[key]
+		if ok {
+			a.mu.Unlock()
+			return v, nil
+		}
+		a.mu.Unlock()
+
+		// Ok, now we know for sure that the work hasn't already been done or
+		// isn't in flight, we can complete it.
 		a.log.DebugContext(ctx, "Testing ALPN upgrade necessary", "addr", addr, "insecure", insecure)
-		v := client.IsALPNConnUpgradeRequired(ctx, addr, insecure)
+		v = client.IsALPNConnUpgradeRequired(ctx, addr, insecure)
 		a.log.DebugContext(ctx, "Tested ALPN upgrade necessary", "addr", addr, "insecure", insecure, "result", v)
 		if err := ctx.Err(); err != nil {
 			// Check for case where false is returned because client canceled ctx.
@@ -614,7 +624,7 @@ func (a *alpnProxyConnUpgradeRequiredCache) isUpgradeRequired(ctx context.Contex
 		}
 
 		a.mu.Lock()
-		a.cache[alpnArgString(addr, insecure)] = v
+		a.cache[key] = v
 		a.mu.Unlock()
 		return v, nil
 	})
