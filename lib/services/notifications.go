@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	"github.com/gravitational/teleport/api/types"
 )
 
 // Notifications defines an interface for managing notifications.
@@ -62,8 +63,8 @@ func ValidateNotification(notification *notificationsv1.Notification) error {
 		return trace.BadParameter("notification metadata is missing")
 	}
 
-	if notification.Metadata.Labels == nil {
-		return trace.BadParameter("notification metadata labels are missing")
+	if _, exists := notification.Metadata.GetLabels()[types.NotificationTitleLabel]; !exists {
+		return trace.BadParameter("notification title label is missing")
 	}
 
 	return nil

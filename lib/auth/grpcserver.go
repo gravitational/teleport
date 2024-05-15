@@ -60,6 +60,7 @@ import (
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	presencev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
@@ -83,6 +84,7 @@ import (
 	kubewaitingcontainerv1 "github.com/gravitational/teleport/lib/auth/kubewaitingcontainer"
 	"github.com/gravitational/teleport/lib/auth/loginrule"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
+	notifications "github.com/gravitational/teleport/lib/auth/notifications/notificationsv1"
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/auth/presence/presencev1"
 	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
@@ -5299,6 +5301,18 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	accessmonitoringrules.RegisterAccessMonitoringRulesServiceServer(server, accessMonitoringRuleServer)
+
+	// Initialize and register the notifications service.
+	notificationsServer, err := notifications.NewService(notifications.ServiceConfig{
+		Authorizer:              cfg.Authorizer,
+		Backend:                 cfg.AuthServer.Services,
+		UserNotificationCache:   cfg.AuthServer.UserNotificationCache,
+		GlobalNotificationCache: cfg.AuthServer.GlobalNotificationCache,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	notificationsv1.RegisterNotificationServiceServer(server, notificationsServer)
 
 	// Only register the service if this is an open source build. Enterprise builds
 	// register the actual service via an auth plugin, if we register here then all
