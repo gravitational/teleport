@@ -47,7 +47,7 @@ type SAMLService interface {
 	// CreateSAMLAuthRequest creates SAML AuthnRequest
 	CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error)
 	// ValidateSAMLResponse validates SAML auth response
-	ValidateSAMLResponse(ctx context.Context, samlResponse, connectorID, clientIP string) (*SAMLAuthResponse, error)
+	ValidateSAMLResponse(ctx context.Context, samlResponse, connectorID, clientIP string) (*authclient.SAMLAuthResponse, error)
 }
 
 // UpsertSAMLConnector creates or updates a SAML connector.
@@ -189,7 +189,7 @@ func (a *Server) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRe
 
 // ValidateSAMLResponse delegates the method call to the samlAuthService if present,
 // or returns a NotImplemented error if not present.
-func (a *Server) ValidateSAMLResponse(ctx context.Context, samlResponse, connectorID, clientIP string) (*SAMLAuthResponse, error) {
+func (a *Server) ValidateSAMLResponse(ctx context.Context, samlResponse, connectorID, clientIP string) (*authclient.SAMLAuthResponse, error) {
 	if a.samlAuthService == nil {
 		return nil, trace.Wrap(ErrSAMLRequiresEnterprise)
 	}
@@ -197,10 +197,6 @@ func (a *Server) ValidateSAMLResponse(ctx context.Context, samlResponse, connect
 	resp, err := a.samlAuthService.ValidateSAMLResponse(ctx, samlResponse, connectorID, clientIP)
 	return resp, trace.Wrap(err)
 }
-
-// SAMLAuthResponse is returned when auth server validated callback parameters
-// returned from SAML identity provider
-type SAMLAuthResponse = authclient.SAMLAuthResponse
 
 // SAMLAuthRequest is a SAML auth request that supports standard json marshaling.
 type SAMLAuthRequest = authclient.SAMLAuthRequest

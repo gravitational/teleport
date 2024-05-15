@@ -3696,7 +3696,7 @@ func (a *ServerWithRoles) CreateSAMLAuthRequest(ctx context.Context, req types.S
 }
 
 // ValidateSAMLResponse validates SAML auth response.
-func (a *ServerWithRoles) ValidateSAMLResponse(ctx context.Context, samlResponse, connectorID, clientIP string) (*SAMLAuthResponse, error) {
+func (a *ServerWithRoles) ValidateSAMLResponse(ctx context.Context, samlResponse, connectorID, clientIP string) (*authclient.SAMLAuthResponse, error) {
 	isProxy := a.hasBuiltinRole(types.RoleProxy)
 	if !isProxy {
 		clientIP = "" // We only trust IP information coming from the Proxy.
