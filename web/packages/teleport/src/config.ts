@@ -353,7 +353,10 @@ const cfg = {
       '/webapi/scripts/integrations/configure/gcp-workforce-saml.sh?orgId=:orgId&poolName=:poolName&poolProviderName=:poolProviderName',
 
     notificationsPath:
-      '/v1/webapi/sites/:clusterId/notifications?limit=:limit?&userNotificationsStartKey=:userNotificationsStartKey?&globalNotificationsStartKey=:globalNotificationsStartKey?',
+      '/v1/webapi/sites/:clusterId/notifications?limit=:limit?&startKeys=:startKey?',
+    notificationLastSeenTimePath:
+      '/v1/webapi/sites/:clusterId/lastseennotification',
+    notificationStatePath: '/v1/webapi/sites/:clusterId/notificationstate',
 
     yaml: {
       parse: '/v1/webapi/yaml/parse/:kind',
@@ -1103,6 +1106,14 @@ const cfg = {
     return generatePath(cfg.api.notificationsPath, { ...params });
   },
 
+  getNotificationLastSeenUrl(clusterId: string) {
+    return generatePath(cfg.api.notificationLastSeenTimePath, { clusterId });
+  },
+
+  getNotificationStateUrl(clusterId: string) {
+    return generatePath(cfg.api.notificationStatePath, { clusterId });
+  },
+
   init(backendConfig = {}) {
     mergeDeep(this, backendConfig);
   },
@@ -1226,8 +1237,7 @@ export interface UrlGcpWorkforceConfigParam {
 export interface UrlNotificationParams {
   clusterId: string;
   limit?: number;
-  userNotificationsStartKey?: string;
-  globalNotificationsStartKey?: string;
+  startKey?: string;
 }
 
 export default cfg;
