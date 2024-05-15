@@ -197,7 +197,3 @@ func (a *Server) ValidateSAMLResponse(ctx context.Context, samlResponse, connect
 	resp, err := a.samlAuthService.ValidateSAMLResponse(ctx, samlResponse, connectorID, clientIP)
 	return resp, trace.Wrap(err)
 }
-
-// SAMLAuthRawResponse is returned when auth server validated callback parameters
-// returned from SAML provider
-type SAMLAuthRawResponse = authclient.SAMLAuthRawResponse
