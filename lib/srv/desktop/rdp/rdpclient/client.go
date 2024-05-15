@@ -367,7 +367,6 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 	c.cfg.Logger.InfoContext(context.Background(), "TDP input streaming starting")
 	defer c.cfg.Logger.InfoContext(context.Background(), "TDP input streaming finished")
 
-	// Remember mouse coordinates to send them with all CGOPointer events.
 	var withheldResize *tdp.ClientScreenSpec
 	for {
 		select {
@@ -406,19 +405,20 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 
 		if withheldResize != nil {
 			c.cfg.Logger.DebugContext(context.Background(), "Sending withheld screen size to client")
-			if err := c.handleMessage(*withheldResize); err != nil {
+			if err := c.handleTDPInput(*withheldResize); err != nil {
 				return trace.Wrap(err)
 			}
 			withheldResize = nil
 		}
 
-		if err := c.handleMessage(msg); err != nil {
+		if err := c.handleTDPInput(msg); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 }
 
-func (c *Client) handleMessage(msg tdp.Message) error {
+// handleTDPInput handles a single TDP message sent to us from the browser.
+func (c *Client) handleTDPInput(msg tdp.Message) error {
 	switch m := msg.(type) {
 	case tdp.ClientScreenSpec:
 		// If the client has specified a fixed screen size, we don't
