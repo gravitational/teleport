@@ -258,9 +258,14 @@ func ctxWithIdentity(ctx context.Context, identity *tlsca.Identity) context.Cont
 
 // getIdentityFromCtx will return the identity from the given context.
 func getIdentityFromCtx(ctx context.Context) (*tlsca.Identity, error) {
-	identity, ok := ctx.Value(identityContextKey).(*tlsca.Identity)
+	identityContextValue := ctx.Value(identityContextKey)
+	if identityContextValue == nil {
+		return nil, trace.AccessDenied("access denied")
+	}
+
+	identity, ok := identityContextValue.(*tlsca.Identity)
 	if !ok {
-		return nil, trace.BadParameter("identity is not the expected type, got %T", identity)
+		return nil, trace.BadParameter("identity is not the expected type, got %T", identityContextValue)
 	}
 	return identity, nil
 }

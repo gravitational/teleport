@@ -20,7 +20,6 @@ import (
 	"github.com/gravitational/teleport/e/lib/idp/saml/testenv"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
-	samlidp "github.com/gravitational/teleport/lib/idp/saml"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -37,12 +36,6 @@ func TestGetSession(t *testing.T) {
 	expireTime := clock.Now().Add(time.Hour)
 	localUserIdentity := &tlsca.Identity{
 		Username: "test-user",
-		Expires:  expireTime,
-	}
-
-	// Create an user that doesn't own any sessions.
-	mismatchedUserIdentity := &tlsca.Identity{
-		Username: "test-user2",
 		Expires:  expireTime,
 	}
 
@@ -63,14 +56,10 @@ func TestGetSession(t *testing.T) {
 	// Add in the users
 	user1, err := types.NewUser("test-user")
 	require.NoError(t, err)
-	user2, err := types.NewUser("test-user2")
-	require.NoError(t, err)
 
 	user1.AddRole("auditor")
 	user1.AddRole("editor")
 	_, err = env.testServices.UserService.CreateUser(ctx, user1)
-	require.NoError(t, err)
-	_, err = env.testServices.UserService.CreateUser(ctx, user2)
 	require.NoError(t, err)
 
 	// Valid user.
@@ -94,28 +83,12 @@ func TestGetSession(t *testing.T) {
 
 	result := rw.Result()
 	require.NoError(t, result.Body.Close())
-	require.Len(t, result.Cookies(), 1)
-	require.Empty(t, cmp.Diff(&http.Cookie{
-		Name:     samlidp.SAMLSessionCookieName,
-		Value:    firstSession.ID,
-		MaxAge:   3600, // This should be 1 hour in seconds.
-		HttpOnly: true,
-		Secure:   true,
-		Path:     "/",
-	}, result.Cookies()[0], cmpopts.IgnoreFields(http.Cookie{}, "Raw")))
 
-	// Get the same session.
-	rw = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodGet, "http://test-url/", bytes.NewBuffer([]byte{})).WithContext(localUserCtx)
-	req.AddCookie(&http.Cookie{
-		Name:  samlidp.SAMLSessionCookieName,
-		Value: firstSession.ID,
-	})
-
+	// Subsequent requests should return a similar session.
 	authnReq = newAuthnReq(&idp, req, entityID)
 	secondSession := env.samlIdPService.GetSession(rw, req, authnReq)
 	require.Equal(t, http.StatusOK, rw.Code)
-	require.Empty(t, cmp.Diff(firstSession, secondSession))
+	require.Empty(t, cmp.Diff(firstSession, secondSession, cmpopts.IgnoreFields(saml.Session{}, "ID", "Index")))
 
 	expectAuthAttemptEvent(t, env.testServices.Emitter, func(event *apievents.SAMLIdPAuthAttempt) {
 		require.True(t, event.Success)
@@ -124,56 +97,13 @@ func TestGetSession(t *testing.T) {
 		require.Equal(t, entityID, event.ServiceProviderEntityID)
 	})
 
-	// Get a session that doesn't belong to the user.
-	rw = httptest.NewRecorder()
-	mismatchedUserCtx := context.WithValue(ctx, identityContextKey, mismatchedUserIdentity)
-	req = httptest.NewRequest(http.MethodGet, "http://test-url/", bytes.NewBuffer([]byte{})).WithContext(mismatchedUserCtx)
-	req.AddCookie(&http.Cookie{
-		Name:  samlidp.SAMLSessionCookieName,
-		Value: firstSession.ID,
-	})
-
-	authnReq = newAuthnReq(&idp, req, entityID)
-	mismatchedSession := env.samlIdPService.GetSession(rw, req, authnReq)
-	require.Nil(t, mismatchedSession)
-	require.Equal(t, http.StatusForbidden, rw.Code)
-
-	expectAuthAttemptEvent(t, env.testServices.Emitter, func(event *apievents.SAMLIdPAuthAttempt) {
-		require.False(t, event.Success)
-		require.Equal(t, mismatchedUserIdentity.Username, event.User)
-		require.Equal(t, "user test-user2 attempted to access a SAML IdP session that belonged to test-user", event.Error)
-		require.Equal(t, entityID, event.ServiceProviderEntityID)
-	})
-
-	// No matching session.
-	rw = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodGet, "http://test-url/", bytes.NewBuffer([]byte{})).WithContext(localUserCtx)
-	req.AddCookie(&http.Cookie{
-		Name:  samlidp.SAMLSessionCookieName,
-		Value: "non-existent-ID",
-	})
-	authnReq = newAuthnReq(&idp, req, entityID)
-	require.Nil(t, env.samlIdPService.GetSession(rw, req, authnReq))
-	require.Equal(t, http.StatusForbidden, rw.Code)
-
-	expectAuthAttemptEvent(t, env.testServices.Emitter, func(event *apievents.SAMLIdPAuthAttempt) {
-		require.False(t, event.Success)
-		require.Equal(t, localUserIdentity.Username, event.User)
-		require.Equal(t, "user test-user attempted to access a non-existent SAML IdP session", event.Error)
-		require.Equal(t, entityID, event.ServiceProviderEntityID)
-	})
-
-	// Session is expired.
+	// User Identity is expired.
 	clock.Advance(12 * time.Hour)
-	localUserIdentity.Expires = clock.Now().Add(time.Hour)
 
 	rw = httptest.NewRecorder()
 	localUserCtx = context.WithValue(ctx, identityContextKey, localUserIdentity)
 	req = httptest.NewRequest(http.MethodGet, "http://test-url/", bytes.NewBuffer([]byte{})).WithContext(localUserCtx)
-	req.AddCookie(&http.Cookie{
-		Name:  samlidp.SAMLSessionCookieName,
-		Value: firstSession.ID,
-	})
+
 	authnReq = newAuthnReq(&idp, req, entityID)
 	require.Nil(t, env.samlIdPService.GetSession(rw, req, authnReq))
 	require.Equal(t, http.StatusForbidden, rw.Code)
@@ -181,7 +111,7 @@ func TestGetSession(t *testing.T) {
 	expectAuthAttemptEvent(t, env.testServices.Emitter, func(event *apievents.SAMLIdPAuthAttempt) {
 		require.False(t, event.Success)
 		require.Equal(t, localUserIdentity.Username, event.User)
-		require.Equal(t, "user test-user attempted to access a non-existent SAML IdP session", event.Error)
+		require.Equal(t, "access denied", event.Error)
 		require.Equal(t, entityID, event.ServiceProviderEntityID)
 	})
 }

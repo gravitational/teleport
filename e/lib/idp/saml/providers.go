@@ -1,6 +1,7 @@
 package saml
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/crewjam/saml"
@@ -8,75 +9,99 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	samlidp "github.com/gravitational/teleport/lib/idp/saml"
+	"github.com/gravitational/teleport/e/lib/idp/saml/attribute"
+	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func (s *Service) GetSession(w http.ResponseWriter, r *http.Request, req *saml.IdpAuthnRequest) *saml.Session {
-	session, err := s.getSession(w, r)
+	sess, err := s.getSession(r.Context(), req)
 	if err != nil {
 		s.log.WithError(err).Error("Failed to get session.")
 		s.writeError(w, trace.ErrorToCode(err))
 	}
+	return sess
+}
 
-	// Getting metadata for the audit event.
-	user, userErr := getUsernameFromCtx(r.Context())
-	if userErr != nil {
-		s.log.Warnf("error getting username from context: %v", userErr)
+func (s *Service) getSession(ctx context.Context, req *saml.IdpAuthnRequest) (*saml.Session, error) {
+	entityID := s.getSPEntityID(ctx, req)
+
+	identity, err := getIdentityFromCtx(ctx)
+	if err != nil {
+		s.log.Debugf("error getting identity from context: %v", err)
+		s.emitAuthAttemptEvent(ctx, "", "", entityID, "", err)
+		return nil, trace.Wrap(err)
 	}
 
-	var sessionID string
-	if session != nil {
-		sessionID = session.ID
+	session, err := s.createSession(identity)
+	if err != nil {
+		s.emitAuthAttemptEvent(ctx, identity.Username, "", entityID, "", err)
+		return nil, trace.Wrap(err, "failed to create session")
 	}
 
-	var entityID string
-	if req != nil && req.ServiceProviderMetadata != nil {
-		entityID = req.ServiceProviderMetadata.EntityID
+	s.emitAuthAttemptEvent(ctx, identity.Username, session.ID, entityID, "", err)
+	return session, nil
+}
+
+func (s *Service) getSPEntityID(ctx context.Context, req *saml.IdpAuthnRequest) string {
+	if req != nil && req.ServiceProviderMetadata != nil && req.ServiceProviderMetadata.EntityID != "" {
+		return req.ServiceProviderMetadata.EntityID
 	}
 
 	// If the entity ID is still empty, try to retrieve it from the context.
 	// This will happen during an IdP initiated SSO flow.
-	if entityID == "" {
-		var ctxErr error
-		entityID, ctxErr = getSPEntityIDFromCtx(r.Context())
-		if ctxErr != nil {
-			s.log.Debugf("error getting service provider entity ID from the context, continuing: %v", err)
-		}
+	if entityID, err := getSPEntityIDFromCtx(ctx); err == nil {
+		return entityID
 	}
 
-	s.emitAuthAttemptEvent(r.Context(), user, sessionID, entityID, "", err)
-
-	return session
+	s.log.Debug("Failed to get service provider entity ID, continuing.")
+	return ""
 }
 
-// GetSession is an implementation of crewjam's ServiceProviderProvider which injects Teleport native
-// properties into the resulting session. This has been largely adapted from crewjam/saml's implementation.
-func (s *Service) getSession(w http.ResponseWriter, r *http.Request) (*saml.Session, error) {
-	identity, err := getIdentityFromCtx(r.Context())
-	if err != nil {
-		s.log.Debugf("error getting identity from context: %v", err)
+// createSession will create a new SAML session.
+func (s *Service) createSession(identity *tlsca.Identity) (*saml.Session, error) {
+	if s.clock.Now().After(identity.Expires) {
 		return nil, trace.AccessDenied("access denied")
 	}
 
-	existingSession, err := s.getExistingSession(r, identity)
-	if err != nil && !trace.IsNotFound(err) {
+	// Create random strings for the ID and the index. This code is adapted from the
+	// example crewjam/samlidp.
+	idHex, err := utils.CryptoRandomHex(32)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if existingSession != nil {
-		return existingSession, nil
-	}
-
-	session, err := s.createSession(r, identity)
+	indexHex, err := utils.CryptoRandomHex(32)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// MaxAge is in seconds, so we'll calculate the delta between now and the expire time.
-	maxAge := identity.Expires.Sub(s.clock.Now())
-	// Set SAML session cookie
-	samlidp.SetCookie(w, session.ID, int(maxAge.Seconds()))
-
+	session := &saml.Session{
+		ID:         idHex,
+		NameID:     identity.Username,
+		CreateTime: s.clock.Now(),
+		ExpireTime: identity.Expires,
+		Index:      indexHex,
+		UserName:   identity.Username,
+		Groups:     identity.Groups,
+		CustomAttributes: samlMappableAttributeToCustomAttribute(attribute.SAMLMappableUserSpec{
+			Username: identity.Username,
+			Traits:   identity.Traits,
+			Roles:    identity.Groups,
+		}),
+	}
 	return session, nil
+}
+
+// samlMappableAttributeToCustomAttribute converts samlMappableUserSpec to saml.Attribute
+// which will eventually be added to SAML session custom attributes.
+func samlMappableAttributeToCustomAttribute(userSpec attribute.SAMLMappableUserSpec) []saml.Attribute {
+	var customAttributes []saml.Attribute = make([]saml.Attribute, 0)
+	for k, v := range userSpec.Traits {
+		customAttributes = addAttribute(customAttributes, k, k, v...)
+	}
+	customAttributes = addAttribute(customAttributes, "roles", "roles", userSpec.Roles...)
+	customAttributes = addAttribute(customAttributes, "username", "username", userSpec.Username)
+	return customAttributes
 }
 
 // GetServiceProvider will return service providers from the API.
