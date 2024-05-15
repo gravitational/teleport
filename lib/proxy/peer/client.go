@@ -642,7 +642,7 @@ func (c *Client) connect(peerID string, peerAddr string) (*clientConn, error) {
 		return nil, trace.Wrap(err, "Error updating client tls config")
 	}
 
-	expectedPeer := auth.HostFQDN(peerID, c.config.ClusterName)
+	expectedPeer := authclient.HostFQDN(peerID, c.config.ClusterName)
 
 	conn, err := grpc.Dial(
 		peerAddr,

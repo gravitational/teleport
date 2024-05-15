@@ -1894,9 +1894,9 @@ func (a *Server) generateHostCert(
 		// and `Node` fields if the role is `Node` so that the previous behavior
 		// is preserved.
 		// This is a legacy behavior that we need to support for backwards compatibility.
-		locks = []types.LockTarget{{ServerID: p.HostID, Node: p.HostID}, {ServerID: HostFQDN(p.HostID, p.ClusterName), Node: HostFQDN(p.HostID, p.ClusterName)}}
+		locks = []types.LockTarget{{ServerID: p.HostID, Node: p.HostID}, {ServerID: authclient.HostFQDN(p.HostID, p.ClusterName), Node: authclient.HostFQDN(p.HostID, p.ClusterName)}}
 	default:
-		locks = []types.LockTarget{{ServerID: p.HostID}, {ServerID: HostFQDN(p.HostID, p.ClusterName)}}
+		locks = []types.LockTarget{{ServerID: p.HostID}, {ServerID: authclient.HostFQDN(p.HostID, p.ClusterName)}}
 	}
 	if lockErr := a.checkLockInForce(authPref.GetLockingMode(),
 		locks,
@@ -4333,7 +4333,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 
 	// generate host TLS certificate
 	identity := tlsca.Identity{
-		Username:        HostFQDN(req.HostID, clusterName.GetClusterName()),
+		Username:        authclient.HostFQDN(req.HostID, clusterName.GetClusterName()),
 		Groups:          []string{req.Role.String()},
 		TeleportCluster: clusterName.GetClusterName(),
 		SystemRoles:     systemRoles,

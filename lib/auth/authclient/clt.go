@@ -20,6 +20,7 @@ package authclient
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/url"
 	"time"
@@ -70,6 +71,11 @@ const (
 	// provide the namespace in the request.
 	MissingNamespaceError = "missing required parameter: namespace"
 )
+
+// HostFQDN consists of host UUID and cluster name joined via '.'.
+func HostFQDN(hostUUID, clusterName string) string {
+	return fmt.Sprintf("%v.%v", hostUUID, clusterName)
+}
 
 // APIClient is aliased here so that it can be embedded in Client.
 type APIClient = client.Client
