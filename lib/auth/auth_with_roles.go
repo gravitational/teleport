@@ -3546,7 +3546,7 @@ func (a *ServerWithRoles) GetOIDCAuthRequest(ctx context.Context, id string) (*t
 	return a.authServer.GetOIDCAuthRequest(ctx, id)
 }
 
-func (a *ServerWithRoles) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*OIDCAuthResponse, error) {
+func (a *ServerWithRoles) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*authclient.OIDCAuthResponse, error) {
 	// auth callback is it's own authz, no need to check extra permissions
 	resp, err := a.authServer.ValidateOIDCAuthCallback(ctx, q)
 	if err != nil {
