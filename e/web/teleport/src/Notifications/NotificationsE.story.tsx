@@ -17,6 +17,7 @@
  */
 
 import React from 'react';
+import { MemoryRouter } from 'react-router';
 
 import Flex from 'design/Flex';
 
@@ -34,23 +35,25 @@ export const NotificationsTypesE = () => {
   const ctx = createTeleportContextE();
 
   return (
-    <ContextProvider ctx={ctx}>
-      <Flex
-        p={4}
-        gap={4}
-        css={`
-          background: ${props => props.theme.colors.levels.surface};
-          width: fit-content;
-          height: fit-content;
-          flex-direction: column;
-        `}
-      >
-        {notifications.map(notification => {
-          return (
-            <Notification notification={notification} key={notification.id} />
-          );
-        })}
-      </Flex>
-    </ContextProvider>
+    <MemoryRouter>
+      <ContextProvider ctx={ctx}>
+        <Flex
+          p={4}
+          gap={4}
+          css={`
+            background: ${props => props.theme.colors.levels.surface};
+            width: fit-content;
+            height: fit-content;
+            flex-direction: column;
+          `}
+        >
+          {notifications.map(notification => {
+            return (
+              <Notification notification={notification} key={notification.id} />
+            );
+          })}
+        </Flex>
+      </ContextProvider>
+    </MemoryRouter>
   );
 };
