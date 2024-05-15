@@ -26,7 +26,12 @@ import { useDiscover } from 'teleport/Discover/useDiscover';
 
 import { ResourceKind } from '../ResourceKind';
 
-import type { DbMeta, KubeMeta, NodeMeta } from 'teleport/Discover/useDiscover';
+import type {
+  AppMeta,
+  DbMeta,
+  KubeMeta,
+  NodeMeta,
+} from 'teleport/Discover/useDiscover';
 import type { User, UserTraits } from 'teleport/services/user';
 
 // useUserTraits handles:
@@ -98,6 +103,19 @@ export function useUserTraits() {
       }
       break;
 
+    // Note: specific to AWS CLI access
+    case ResourceKind.Application:
+      if (resourceSpec.appMeta.awsConsole) {
+        const { awsRoleArns } = agentMeta as AppMeta;
+        staticTraits.awsRoleArns = arrayStrDiff(
+          awsRoleArns,
+          dynamicTraits.awsRoleArns
+        );
+        break;
+      }
+
+    // allow fall through
+    // eslint-disable-next-line no-fallthrough
     default:
       throw new Error(
         `useUserTraits.ts:statiTraits: resource kind ${resourceSpec.kind} is not handled`
@@ -186,6 +204,25 @@ export function useUserTraits() {
         );
         break;
 
+      case ResourceKind.Application:
+        if (resourceSpec.appMeta.awsConsole) {
+          let newDynamicArns = new Set<string>();
+          traitOpts.awsRoleArns.forEach(o => {
+            if (!staticTraits.awsRoleArns.includes(o.value)) {
+              newDynamicArns.add(o.value);
+            }
+          });
+
+          nextStep(
+            {
+              awsRoleArns: [...newDynamicArns],
+            },
+            numStepsToIncrement
+          );
+          break;
+        }
+
+      // eslint-disable-next-line no-fallthrough
       default:
         throw new Error(
           `useUserTrait.ts:onProceed: resource kind ${resourceSpec.kind} is not handled`
@@ -244,6 +281,19 @@ export function useUserTraits() {
         });
         break;
 
+      case ResourceKind.Application:
+        if (resourceSpec.appMeta.awsConsole) {
+          updateAgentMeta({
+            ...meta,
+            awsRoleArns: [
+              ...staticTraits.awsRoleArns,
+              ...newDynamicTraits.awsRoleArns,
+            ],
+          });
+          break;
+        }
+
+      // eslint-disable-next-line no-fallthrough
       default:
         throw new Error(
           `useUserTraits.ts:updateResourceMetaDynamicTraits: resource kind ${resourceSpec.kind} is not handled`

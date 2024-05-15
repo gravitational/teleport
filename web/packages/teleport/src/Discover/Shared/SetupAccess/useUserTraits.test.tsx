@@ -31,12 +31,14 @@ import {
   defaultResourceSpec,
 } from 'teleport/Discover/Fixtures/fixtures';
 import TeleportContext from 'teleport/teleportContext';
+import { app } from 'teleport/Discover/AwsMangementConsole/fixtures';
 
 import { ResourceKind } from '../ResourceKind';
 
 import { useUserTraits } from './useUserTraits';
 
 import type {
+  AppMeta,
   DbMeta,
   DiscoverContextState,
   KubeMeta,
@@ -446,6 +448,79 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
     ]);
   });
 
+  test('awsRoleArns', async () => {
+    const discoverCtx = defaultDiscoverContext({
+      resourceSpec: {
+        ...defaultResourceSpec(ResourceKind.Application),
+        appMeta: { awsConsole: true },
+      },
+      agentMeta: {
+        awsRoleArns: ['static-arn1', 'static-arn2'],
+        app,
+      },
+    });
+    const spyUpdateAgentMeta = jest
+      .spyOn(discoverCtx, 'updateAgentMeta')
+      .mockImplementation(x => x);
+
+    const { result } = renderHook(() => useUserTraits(), {
+      wrapper: wrapperFn(discoverCtx, teleCtx),
+    });
+
+    await waitFor(() =>
+      expect(result.current.staticTraits.awsRoleArns.length).toBeGreaterThan(0)
+    );
+
+    const dynamicTraits = result.current.dynamicTraits;
+    const staticTraits = result.current.staticTraits;
+    const mockedSelectedOptions = {
+      awsRoleArns: [
+        {
+          isFixed: false,
+          label: staticTraits.awsRoleArns[0],
+          value: staticTraits.awsRoleArns[0],
+        },
+        {
+          isFixed: false,
+          label: dynamicTraits.awsRoleArns[0],
+          value: dynamicTraits.awsRoleArns[0],
+        },
+        // duplicate
+        {
+          isFixed: false,
+          label: dynamicTraits.awsRoleArns[0],
+          value: dynamicTraits.awsRoleArns[0],
+        },
+      ],
+    };
+
+    const expected = {
+      awsRoleArns: [dynamicTraits.awsRoleArns[0]],
+    };
+
+    act(() => {
+      result.current.onProceed(mockedSelectedOptions);
+    });
+
+    await waitFor(() => {
+      expect(teleCtx.userService.reloadUser).toHaveBeenCalledTimes(1);
+    });
+
+    // Test that we are updating the user with the correct traits.
+    const mockUser = getMockUser();
+    expect(teleCtx.userService.updateUser).toHaveBeenCalledWith({
+      ...mockUser,
+      traits: { ...mockUser.traits, ...expected },
+    });
+
+    // Test that updating meta correctly updated the dynamic traits.
+    const updatedMeta = spyUpdateAgentMeta.mock.results[0].value as AppMeta;
+    expect(updatedMeta.awsRoleArns).toStrictEqual([
+      ...staticTraits.awsRoleArns,
+      ...expected.awsRoleArns,
+    ]);
+  });
+
   test('node with auto discover preserves existing + new dynamic traits', async () => {
     const discoverCtx = defaultDiscoverContext({
       resourceSpec: defaultResourceSpec(ResourceKind.Server),
@@ -639,7 +714,7 @@ function getMockUser() {
       kubeUsers: ['dynamicKbUser1', 'dynamicKbUser2'],
       kubeGroups: ['dynamicKbGroup1', 'dynamicKbGroup2'],
       windowsLogins: [],
-      awsRoleArns: [],
+      awsRoleArns: ['arn1', 'arn2'],
     },
   };
 }
