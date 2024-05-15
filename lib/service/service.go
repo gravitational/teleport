@@ -5656,6 +5656,7 @@ func (process *TeleportProcess) initApps() {
 			OnHeartbeat:          process.OnHeartbeat(teleport.ComponentApp),
 			ConnectedProxyGetter: proxyGetter,
 			ConnectionsHandler:   connectionsHandler,
+			InventoryHandle:      process.inventoryHandle,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -5722,7 +5723,7 @@ func (process *TeleportProcess) initApps() {
 		})
 
 		// Block and wait while the server and agent pool are running.
-		if err := appServer.Wait(); err != nil {
+		if err := appServer.Wait(); err != nil && !errors.Is(err, context.Canceled) {
 			return trace.Wrap(err)
 		}
 		agentPool.Wait()
