@@ -212,7 +212,7 @@ func TestListPlugins(t *testing.T) {
 		require.Empty(t, nextKey)
 
 		require.Empty(t, cmp.Diff(insertedPlugins, fetchedPlugins,
-			cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+			cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 		))
 	})
 }
