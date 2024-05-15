@@ -12,15 +12,15 @@ The following features use an AWS OIDC integration to interact with AWS:
 - EC2 Auto Discovery
 - [Access Graph AWS Sync](../../access-controls/access-graph/aws-sync.mdx)
 
-It targets users who would prefer a more manual approach or which to use a more Infrastrcutre as Code oriented flow.
+It targets users who would prefer a more manual approach or to manage the integration with Infrastructure as Code tools.
 
 As an alternative to this guide, you can use the Teleport Web UI (Access Management / Enroll New Integration).
 
 ## How it works
-Teleport is added as an Identity Provider in AWS by exposing the `openid-configuration` and public keys in a public S3 bucket.
-This runs alongside your existing cluster and no extra configuration or services are required.
+Teleport is added as an [OpenID Connect identity provider](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_create_oidc.html) to establish trust with your AWS account and assume a configured IAM role in order to access AWS resources.
 
-This allows Teleport to assume a configured IAM role and access AWS resources.
+For this to work, the `openid-configuration` and public keys are exposed in a public S3 bucket.
+The integration requires no extra configuration or services to run.
 
 Initially, no policy is added to the IAM role, but users are asked to add them the first time they are trying to use a given feature.
 For example, when setting up [External Audit Storage](../../choose-an-edition/teleport-cloud/external-audit-storage.mdx), you will be asked to add the required policies to this IAM role.
@@ -56,7 +56,7 @@ spec:
 
 
 ## Step 2/5. Upload public keys to S3
-AWS OIDC integration uses OpenID Connect to grant access to AWS APIs.
+The AWS OIDC integration uses OpenID Connect to grant access to AWS APIs.
 Configuring OpenID Connect requires exposing the configuration file and the public keys, which AWS fetches to validate the requests.
 
 Those files should be exposed in S3, for which we'll need to pick a bucket <Var name="s3-bucket"/> and a prefix <Var name="s3-prefix"/>.
