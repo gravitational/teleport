@@ -494,7 +494,7 @@ func (a *App) recipientsFromAccessMonitoringRules(ctx context.Context, req types
 		for _, recipient := range rule.Spec.Notification.Recipients {
 			rec, err := a.bot.FetchRecipient(ctx, recipient)
 			if err != nil {
-				log.Warning(err)
+				log.WithError(err).Warn("Failed to fetch plugin recipients based on Access moniotring rule recipients")
 				continue
 			}
 			recipientSet.Add(*rec)
