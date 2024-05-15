@@ -3,12 +3,9 @@ title: Machine ID v16 Upgrade Guide
 description: Upgrade instructions for Machine ID in Teleport 16.0
 ---
 
-Teleport 16.0 introduces a number of changes to Machine ID, some of which
-may require action on your part.
+Teleport 16.0 introduces a number of changes to Machine ID. These changes may require action on your part if you use Machine ID with OpenSSH or OpenSSH-based clients (e.g. Ansible).
 
-You may need to take action if:
-
-- You use Machine ID with OpenSSH or OpenSSH based clients (e.g. Ansible).
+This guide explains how to migrate your Teleport 16.0 cluster for continued Machine ID support.
 
 ## Changes OpenSSH support and the `tbot proxy ssh` command
 
