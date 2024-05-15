@@ -29,7 +29,6 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/tbot"
 	"github.com/gravitational/teleport/lib/tbot/config"
@@ -48,7 +47,7 @@ const (
 type Bot struct {
 	cfg        *config.BotConfig
 	running    bool
-	rootClient auth.ClientI
+	rootClient authclient.ClientI
 	opts       Options
 
 	// mutex protects cachedCert and cachedClient
@@ -260,7 +259,7 @@ func CreateAndBootstrapBot(ctx context.Context, opts Options) (*Bot, *proto.Feat
 
 // It is not currently possible to join back the cluster as an existing bot.
 // See https://github.com/gravitational/teleport/issues/13091
-func createOrReplaceBot(ctx context.Context, opts Options, authClient auth.ClientI) (string, error) {
+func createOrReplaceBot(ctx context.Context, opts Options, authClient authclient.ClientI) (string, error) {
 	var token string
 	// We need to check if the bot exists first and cannot just attempt to delete
 	// it because DeleteBot() returns an aggregate, which breaks the
@@ -292,7 +291,7 @@ func createOrReplaceBot(ctx context.Context, opts Options, authClient auth.Clien
 	return token, nil
 }
 
-func botExists(ctx context.Context, opts Options, authClient auth.ClientI) (bool, error) {
+func botExists(ctx context.Context, opts Options, authClient authclient.ClientI) (bool, error) {
 	botUsers, err := authClient.GetBotUsers(ctx)
 	if err != nil {
 		return false, trace.Wrap(err)

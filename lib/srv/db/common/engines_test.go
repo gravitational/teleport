@@ -26,7 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cloud"
 )
 
@@ -46,7 +46,7 @@ func TestRegisterEngine(t *testing.T) {
 		Log:          logrus.StandardLogger(),
 		Auth:         &testAuth{},
 		Audit:        &testAudit{},
-		AuthClient:   &auth.Client{},
+		AuthClient:   &authclient.Client{},
 		CloudClients: cloudClients,
 	}
 	require.NoError(t, ec.CheckAndSetDefaults())

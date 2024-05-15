@@ -24,7 +24,7 @@ import (
 	"github.com/gravitational/teleport/api/accessrequest"
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
@@ -47,7 +47,7 @@ func (c *Cluster) GetAccessRequest(ctx context.Context, req types.AccessRequestF
 		request         types.AccessRequest
 		resourceDetails map[string]ResourceDetails
 		proxyClient     *client.ProxyClient
-		authClient      auth.ClientI
+		authClient      authclient.ClientI
 		err             error
 	)
 
@@ -164,7 +164,7 @@ func (c *Cluster) CreateAccessRequest(ctx context.Context, req *api.CreateAccess
 func (c *Cluster) ReviewAccessRequest(ctx context.Context, req *api.ReviewAccessRequestRequest) (*AccessRequest, error) {
 	var (
 		err            error
-		authClient     auth.ClientI
+		authClient     authclient.ClientI
 		proxyClient    *client.ProxyClient
 		updatedRequest types.AccessRequest
 	)
@@ -214,7 +214,7 @@ func (c *Cluster) ReviewAccessRequest(ctx context.Context, req *api.ReviewAccess
 func (c *Cluster) DeleteAccessRequest(ctx context.Context, req *api.DeleteAccessRequestRequest) error {
 	var (
 		err         error
-		authClient  auth.ClientI
+		authClient  authclient.ClientI
 		proxyClient *client.ProxyClient
 	)
 
@@ -272,7 +272,7 @@ func (c *Cluster) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) er
 	return nil
 }
 
-func getResourceDetails(ctx context.Context, req types.AccessRequest, clt auth.ClientI) (map[string]ResourceDetails, error) {
+func getResourceDetails(ctx context.Context, req types.AccessRequest, clt authclient.ClientI) (map[string]ResourceDetails, error) {
 	resourceIDsByCluster := accessrequest.GetResourceIDsByCluster(req)
 
 	resourceDetails := make(map[string]ResourceDetails)

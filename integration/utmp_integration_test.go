@@ -37,6 +37,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/bpf"
@@ -63,7 +64,7 @@ type SrvCtx struct {
 	signer     ssh.Signer
 	server     *auth.TestServer
 	clock      clockwork.FakeClock
-	nodeClient *auth.Client
+	nodeClient *authclient.Client
 	nodeID     string
 	utmpPath   string
 	wtmpPath   string

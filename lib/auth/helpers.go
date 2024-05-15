@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/ai"
 	"github.com/gravitational/teleport/lib/ai/embedding"
 	"github.com/gravitational/teleport/lib/auth/accesspoint"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
@@ -182,7 +183,7 @@ func (a *TestServer) Auth() *Server {
 	return a.AuthServer.AuthServer
 }
 
-func (a *TestServer) NewClient(identity TestIdentity) (*Client, error) {
+func (a *TestServer) NewClient(identity TestIdentity) (*authclient.Client, error) {
 	return a.TLS.NewClient(identity)
 }
 
@@ -731,7 +732,7 @@ func WithAccessGraphConfig(config AccessGraphConfig) TestTLSServerOption {
 
 // NewRemoteClient creates new client to the remote server using identity
 // generated for this certificate authority
-func (a *TestAuthServer) NewRemoteClient(identity TestIdentity, addr net.Addr, pool *x509.CertPool) (*Client, error) {
+func (a *TestAuthServer) NewRemoteClient(identity TestIdentity, addr net.Addr, pool *x509.CertPool) (*authclient.Client, error) {
 	tlsConfig := utils.TLSConfig(a.CipherSuites)
 	cert, err := a.NewCertificate(identity)
 	if err != nil {
@@ -742,7 +743,7 @@ func (a *TestAuthServer) NewRemoteClient(identity TestIdentity, addr net.Addr, p
 	tlsConfig.ServerName = apiutils.EncodeClusterName(a.ClusterName)
 	tlsConfig.Time = a.AuthServer.clock.Now
 
-	return NewClient(client.Config{
+	return authclient.NewClient(client.Config{
 		Addrs: []string{addr.String()},
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
@@ -953,7 +954,7 @@ func TestRemoteBuiltin(role types.SystemRole, remoteCluster string) TestIdentity
 }
 
 // NewClientFromWebSession returns new authenticated client from web session
-func (t *TestTLSServer) NewClientFromWebSession(sess types.WebSession) (*Client, error) {
+func (t *TestTLSServer) NewClientFromWebSession(sess types.WebSession) (*authclient.Client, error) {
 	tlsConfig, err := t.Identity.TLSConfig(t.AuthServer.CipherSuites)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -965,7 +966,7 @@ func (t *TestTLSServer) NewClientFromWebSession(sess types.WebSession) (*Client,
 	tlsConfig.Certificates = []tls.Certificate{tlsCert}
 	tlsConfig.Time = t.AuthServer.AuthServer.clock.Now
 
-	return NewClient(client.Config{
+	return authclient.NewClient(client.Config{
 		Addrs: []string{t.Addr().String()},
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
@@ -1006,7 +1007,7 @@ func (t *TestTLSServer) ClientTLSConfig(identity TestIdentity) (*tls.Config, err
 
 // CloneClient uses the same credentials as the passed client
 // but forces the client to be recreated
-func (t *TestTLSServer) CloneClient(tt *testing.T, clt *Client) *Client {
+func (t *TestTLSServer) CloneClient(tt *testing.T, clt *authclient.Client) *authclient.Client {
 	tlsConfig := clt.Config()
 	// When cloning a client, we want to make sure that we don't reuse
 	// the same session ticket cache. The session ticket cache should not be
@@ -1017,7 +1018,7 @@ func (t *TestTLSServer) CloneClient(tt *testing.T, clt *Client) *Client {
 		tlsConfig.ClientSessionCache = tls.NewLRUClientSessionCache(utils.DefaultLRUCapacity)
 	}
 
-	newClient, err := NewClient(client.Config{
+	newClient, err := authclient.NewClient(client.Config{
 		Addrs: []string{t.Addr().String()},
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
@@ -1033,14 +1034,14 @@ func (t *TestTLSServer) CloneClient(tt *testing.T, clt *Client) *Client {
 }
 
 // NewClientWithCert creates a new client using given cert and private key
-func (t *TestTLSServer) NewClientWithCert(clientCert tls.Certificate) *Client {
+func (t *TestTLSServer) NewClientWithCert(clientCert tls.Certificate) *authclient.Client {
 	tlsConfig, err := t.Identity.TLSConfig(t.AuthServer.CipherSuites)
 	if err != nil {
 		panic(err)
 	}
 	tlsConfig.Time = t.AuthServer.AuthServer.clock.Now
 	tlsConfig.Certificates = []tls.Certificate{clientCert}
-	newClient, err := NewClient(client.Config{
+	newClient, err := authclient.NewClient(client.Config{
 		Addrs: []string{t.Addr().String()},
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
@@ -1054,13 +1055,13 @@ func (t *TestTLSServer) NewClientWithCert(clientCert tls.Certificate) *Client {
 }
 
 // NewClient returns new client to test server authenticated with identity
-func (t *TestTLSServer) NewClient(identity TestIdentity) (*Client, error) {
+func (t *TestTLSServer) NewClient(identity TestIdentity) (*authclient.Client, error) {
 	tlsConfig, err := t.ClientTLSConfig(identity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	newClient, err := NewClient(client.Config{
+	newClient, err := authclient.NewClient(client.Config{
 		DialInBackground: true,
 		Addrs:            []string{t.Addr().String()},
 		Credentials: []client.Credentials{

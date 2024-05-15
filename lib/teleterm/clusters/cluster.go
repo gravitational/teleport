@@ -28,7 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
@@ -216,7 +216,7 @@ func (c *Cluster) GetRoles(ctx context.Context) ([]*types.Role, error) {
 // GetRequestableRoles returns the requestable roles for the currently logged-in user
 func (c *Cluster) GetRequestableRoles(ctx context.Context, req *api.GetRequestableRolesRequest) (*types.AccessCapabilities, error) {
 	var (
-		authClient  auth.ClientI
+		authClient  authclient.ClientI
 		proxyClient *client.ProxyClient
 		err         error
 		response    *types.AccessCapabilities

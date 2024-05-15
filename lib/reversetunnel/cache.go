@@ -28,7 +28,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
 )
@@ -37,12 +37,12 @@ type certificateCache struct {
 	mu sync.Mutex
 
 	cache      *ttlmap.TTLMap
-	authClient auth.ClientI
+	authClient authclient.ClientI
 }
 
 // newHostCertificateCache creates a shared host certificate cache that is
 // used by the forwarding server.
-func newHostCertificateCache(authClient auth.ClientI) (*certificateCache, error) {
+func newHostCertificateCache(authClient authclient.ClientI) (*certificateCache, error) {
 	native.PrecomputeKeys() // ensure native package is set to precompute keys
 	cache, err := ttlmap.New(defaults.HostCertCacheSize)
 	if err != nil {

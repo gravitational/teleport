@@ -610,7 +610,7 @@ func (process *TeleportProcess) syncOpenSSHRotationState() error {
 	return nil
 }
 
-func registerServer(a *servicecfg.Config, ctx context.Context, client auth.ClientI, lastRotation time.Time) error {
+func registerServer(a *servicecfg.Config, ctx context.Context, client authclient.ClientI, lastRotation time.Time) error {
 	server, err := types.NewServer(a.HostUUID, types.KindNode, types.ServerSpecV2{
 		Addr:     a.OpenSSH.InstanceAddr,
 		Hostname: a.Hostname,
@@ -1054,7 +1054,7 @@ func (process *TeleportProcess) getConnector(clientIdentity, serverIdentity *aut
 // depending on what was specified in the config.
 // For config v1 and v2, it will attempt to direct dial the auth server, and fallback to trying to tunnel
 // to the Auth Server through the proxy.
-func (process *TeleportProcess) newClient(identity *auth.Identity) (*auth.Client, *proto.PingResponse, error) {
+func (process *TeleportProcess) newClient(identity *auth.Identity) (*authclient.Client, *proto.PingResponse, error) {
 	tlsConfig, err := identity.TLSConfig(process.Config.CipherSuites)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -1066,7 +1066,7 @@ func (process *TeleportProcess) newClient(identity *auth.Identity) (*auth.Client
 	}
 
 	authServers := process.Config.AuthServerAddresses()
-	connectToAuthServer := func(logger *logrus.Entry) (*auth.Client, *proto.PingResponse, error) {
+	connectToAuthServer := func(logger *logrus.Entry) (*authclient.Client, *proto.PingResponse, error) {
 		logger.Debug("Attempting to connect to Auth Server directly.")
 		clt, pingResponse, err := process.newClientDirect(authServers, tlsConfig, identity.ID.Role)
 		if err != nil {
@@ -1143,7 +1143,7 @@ func (process *TeleportProcess) newClient(identity *auth.Identity) (*auth.Client
 	return nil, nil, trace.NotImplemented("could not find connection strategy for config version %s", process.Config.Version)
 }
 
-func (process *TeleportProcess) newClientThroughTunnel(tlsConfig *tls.Config, sshConfig *ssh.ClientConfig, role types.SystemRole) (*auth.Client, *proto.PingResponse, error) {
+func (process *TeleportProcess) newClientThroughTunnel(tlsConfig *tls.Config, sshConfig *ssh.ClientConfig, role types.SystemRole) (*authclient.Client, *proto.PingResponse, error) {
 	dialer, err := reversetunnelclient.NewTunnelAuthDialer(reversetunnelclient.TunnelAuthDialerConfig{
 		Resolver:              process.resolver,
 		ClientConfig:          sshConfig,
@@ -1154,7 +1154,7 @@ func (process *TeleportProcess) newClientThroughTunnel(tlsConfig *tls.Config, ss
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	clt, err := auth.NewClient(apiclient.Config{
+	clt, err := authclient.NewClient(apiclient.Config{
 		Context: process.ExitContext(),
 		Dialer:  dialer,
 		Credentials: []apiclient.Credentials{
@@ -1179,7 +1179,7 @@ func (process *TeleportProcess) newClientThroughTunnel(tlsConfig *tls.Config, ss
 	return clt, &resp, nil
 }
 
-func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tlsConfig *tls.Config, role types.SystemRole) (*auth.Client, *proto.PingResponse, error) {
+func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tlsConfig *tls.Config, role types.SystemRole) (*authclient.Client, *proto.PingResponse, error) {
 	var cltParams []roundtrip.ClientParam
 	if process.Config.Testing.ClientTimeout != 0 {
 		cltParams = []roundtrip.ClientParam{
@@ -1200,7 +1200,7 @@ func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tls
 		}...)
 	}
 
-	clt, err := auth.NewClient(apiclient.Config{
+	clt, err := authclient.NewClient(apiclient.Config{
 		Context: process.ExitContext(),
 		Addrs:   utils.NetAddrsToStrings(authServers),
 		Credentials: []apiclient.Credentials{

@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/bot"
@@ -57,7 +58,7 @@ type identityService struct {
 	resolver          reversetunnelclient.Resolver
 
 	mu     sync.Mutex
-	client *auth.Client
+	client *authclient.Client
 	facade *identity.Facade
 }
 
@@ -70,7 +71,7 @@ func (s *identityService) GetIdentity() *identity.Identity {
 
 // GetClient returns the facaded client for the Bot identity for use by other
 // components of `tbot`. Consumers should not call `Close` on the client.
-func (s *identityService) GetClient() *auth.Client {
+func (s *identityService) GetClient() *authclient.Client {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.client
@@ -341,7 +342,7 @@ func botIdentityFromAuth(
 	ctx context.Context,
 	log logrus.FieldLogger,
 	ident *identity.Identity,
-	client *auth.Client,
+	client *authclient.Client,
 	ttl time.Duration,
 ) (*identity.Identity, error) {
 	ctx, span := tracer.Start(ctx, "botIdentityFromAuth")
