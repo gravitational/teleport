@@ -1562,7 +1562,7 @@ func TestSSOPasswordBypass(t *testing.T) {
 		adminClient, err := testServer.NewClient(TestBuiltin(types.RoleAdmin))
 		require.NoError(t, err, "NewClient failed")
 
-		_, err = adminClient.CreateResetPasswordToken(ctx, CreateUserTokenRequest{
+		_, err = adminClient.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 			Name: mfa.User,
 			TTL:  1 * time.Hour,
 			Type: UserTokenTypeResetPassword,

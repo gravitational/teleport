@@ -3168,7 +3168,7 @@ func TestChangeUserAuthenticationSettings(t *testing.T) {
 		_, _, err = CreateUserAndRole(clt, username, []string{"role1"}, nil)
 		require.NoError(t, err)
 
-		token, err := testSrv.Auth().CreateResetPasswordToken(ctx, CreateUserTokenRequest{
+		token, err := testSrv.Auth().CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 			Name: username,
 			TTL:  time.Hour,
 		})
@@ -3195,7 +3195,7 @@ func TestChangeUserAuthenticationSettings(t *testing.T) {
 		var tokenID string
 		var resp *proto.MFARegisterResponse
 		for i := 0; i < 5; i++ {
-			token, err := testSrv.Auth().CreateResetPasswordToken(ctx, CreateUserTokenRequest{
+			token, err := testSrv.Auth().CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 				Name: username,
 				TTL:  time.Hour,
 			})

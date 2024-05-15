@@ -2937,7 +2937,7 @@ func TestDeleteMFADeviceSync(t *testing.T) {
 	deleteTOTP1 := registerDevice(t, "delete-totp1", proto.DeviceType_DEVICE_TYPE_TOTP)
 	deleteTOTP2 := registerDevice(t, "delete-totp2", proto.DeviceType_DEVICE_TYPE_TOTP)
 
-	deleteReqUsingToken := func(tokenReq CreateUserTokenRequest) func(t *testing.T) *proto.DeleteMFADeviceSyncRequest {
+	deleteReqUsingToken := func(tokenReq authclient.CreateUserTokenRequest) func(t *testing.T) *proto.DeleteMFADeviceSyncRequest {
 		return func(t *testing.T) *proto.DeleteMFADeviceSyncRequest {
 			token, err := authServer.newUserToken(tokenReq)
 			require.NoError(t, err, "newUserToken")
@@ -2976,7 +2976,7 @@ func TestDeleteMFADeviceSync(t *testing.T) {
 	}{
 		{
 			name: "recovery approved token",
-			createDeleteReq: deleteReqUsingToken(CreateUserTokenRequest{
+			createDeleteReq: deleteReqUsingToken(authclient.CreateUserTokenRequest{
 				Name: username,
 				TTL:  5 * time.Minute,
 				Type: UserTokenTypeRecoveryApproved,
@@ -2985,7 +2985,7 @@ func TestDeleteMFADeviceSync(t *testing.T) {
 		},
 		{
 			name: "privilege token",
-			createDeleteReq: deleteReqUsingToken(CreateUserTokenRequest{
+			createDeleteReq: deleteReqUsingToken(authclient.CreateUserTokenRequest{
 				Name: username,
 				TTL:  5 * time.Minute,
 				Type: UserTokenTypePrivilege,
@@ -3076,7 +3076,7 @@ func TestDeleteMFADeviceSync_WithErrors(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		tokenRequest *CreateUserTokenRequest
+		tokenRequest *authclient.CreateUserTokenRequest
 		deleteReq    *proto.DeleteMFADeviceSyncRequest
 		wantErr      string
 		assertErr    func(error) bool
@@ -3092,7 +3092,7 @@ func TestDeleteMFADeviceSync_WithErrors(t *testing.T) {
 		},
 		{
 			name: "invalid token type",
-			tokenRequest: &CreateUserTokenRequest{
+			tokenRequest: &authclient.CreateUserTokenRequest{
 				Name: username,
 				TTL:  5 * time.Minute,
 				Type: "unknown-token-type",
@@ -3103,7 +3103,7 @@ func TestDeleteMFADeviceSync_WithErrors(t *testing.T) {
 		},
 		{
 			name: "device not found",
-			tokenRequest: &CreateUserTokenRequest{
+			tokenRequest: &authclient.CreateUserTokenRequest{
 				Name: username,
 				TTL:  5 * time.Minute,
 				Type: UserTokenTypeRecoveryApproved,
@@ -3353,7 +3353,7 @@ func TestAddMFADeviceSync(t *testing.T) {
 			wantErr: true,
 			getReq: func(t *testing.T, deviceName string) *proto.AddMFADeviceSyncRequest {
 				// Obtain a non privilege token.
-				token, err := authServer.newUserToken(CreateUserTokenRequest{
+				token, err := authServer.newUserToken(authclient.CreateUserTokenRequest{
 					Name: u.username,
 					TTL:  5 * time.Minute,
 					Type: UserTokenTypeResetPassword,
@@ -3512,7 +3512,7 @@ func TestGetMFADevices_WithToken(t *testing.T) {
 	tests := []struct {
 		name         string
 		wantErr      bool
-		tokenRequest *CreateUserTokenRequest
+		tokenRequest *authclient.CreateUserTokenRequest
 	}{
 		{
 			name:    "token not found",
@@ -3521,7 +3521,7 @@ func TestGetMFADevices_WithToken(t *testing.T) {
 		{
 			name:    "invalid token type",
 			wantErr: true,
-			tokenRequest: &CreateUserTokenRequest{
+			tokenRequest: &authclient.CreateUserTokenRequest{
 				Name: username,
 				TTL:  5 * time.Minute,
 				Type: UserTokenTypeResetPassword,
@@ -3529,7 +3529,7 @@ func TestGetMFADevices_WithToken(t *testing.T) {
 		},
 		{
 			name: "valid token",
-			tokenRequest: &CreateUserTokenRequest{
+			tokenRequest: &authclient.CreateUserTokenRequest{
 				Name: username,
 				TTL:  5 * time.Minute,
 				Type: UserTokenTypeRecoveryApproved,
@@ -3858,7 +3858,7 @@ func TestGetTokens(t *testing.T) {
 
 	_, _, err := CreateUserAndRole(s.a, "username", []string{"username"}, nil)
 	require.NoError(t, err)
-	_, err = s.a.CreateResetPasswordToken(ctx, CreateUserTokenRequest{
+	_, err = s.a.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 		Name: "username",
 		TTL:  time.Minute,
 		Type: UserTokenTypeResetPasswordInvite,

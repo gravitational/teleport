@@ -74,11 +74,8 @@ const (
 	userTokenTypePrivilegeOTP = "privilege_otp"
 )
 
-// CreateUserTokenRequest is a request to create a new user token.
-type CreateUserTokenRequest = authclient.CreateUserTokenRequest
-
 // CreateResetPasswordToken creates a reset password token
-func (a *Server) CreateResetPasswordToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error) {
+func (a *Server) CreateResetPasswordToken(ctx context.Context, req authclient.CreateUserTokenRequest) (types.UserToken, error) {
 	err := req.CheckAndSetDefaults()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -243,7 +240,7 @@ func (a *Server) newTOTPKey(user string) (*otp.Key, *totp.GenerateOpts, error) {
 	return key, &opts, nil
 }
 
-func (a *Server) newUserToken(req CreateUserTokenRequest) (types.UserToken, error) {
+func (a *Server) newUserToken(req authclient.CreateUserTokenRequest) (types.UserToken, error) {
 	var err error
 	var proxyHost string
 
@@ -358,7 +355,7 @@ func (a *Server) createRecoveryToken(ctx context.Context, username, tokenType st
 		return nil, trace.BadParameter("invalid recovery token usage type %s", usage.String())
 	}
 
-	req := CreateUserTokenRequest{
+	req := authclient.CreateUserTokenRequest{
 		Name: username,
 		Type: tokenType,
 	}
@@ -439,7 +436,7 @@ func (a *Server) createPrivilegeToken(ctx context.Context, username, tokenKind s
 		return nil, trace.BadParameter("invalid privilege token type")
 	}
 
-	req := CreateUserTokenRequest{
+	req := authclient.CreateUserTokenRequest{
 		Name: username,
 		Type: tokenKind,
 	}

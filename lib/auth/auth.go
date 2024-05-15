@@ -3430,7 +3430,7 @@ func (a *Server) CreateRegisterChallenge(ctx context.Context, req *proto.CreateR
 }
 
 func (a *Server) createTOTPPrivilegeToken(ctx context.Context, username string) (types.UserToken, error) {
-	tokenReq := CreateUserTokenRequest{
+	tokenReq := authclient.CreateUserTokenRequest{
 		Name: username,
 		Type: userTokenTypePrivilegeOTP,
 	}

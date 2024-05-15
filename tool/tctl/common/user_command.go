@@ -174,7 +174,7 @@ func (u *UserCommand) TryRun(ctx context.Context, cmd string, client *authclient
 
 // ResetPassword resets user password and generates a token to setup new password
 func (u *UserCommand) ResetPassword(ctx context.Context, client *authclient.Client) error {
-	req := auth.CreateUserTokenRequest{
+	req := authclient.CreateUserTokenRequest{
 		Name: u.login,
 		TTL:  u.ttl,
 		Type: auth.UserTokenTypeResetPassword,
@@ -316,7 +316,7 @@ func (u *UserCommand) Add(ctx context.Context, client *authclient.Client) error 
 		return trace.Wrap(err)
 	}
 
-	token, err := client.CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
+	token, err := client.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 		Name: u.login,
 		TTL:  u.ttl,
 		Type: auth.UserTokenTypeResetPasswordInvite,

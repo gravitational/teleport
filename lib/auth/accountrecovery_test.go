@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -1028,7 +1029,7 @@ func TestGetAccountRecoveryToken(t *testing.T) {
 			name:    "invalid token type",
 			wantErr: true,
 			getRequest: func() *proto.GetAccountRecoveryTokenRequest {
-				wrongTokenType, err := srv.Auth().newUserToken(CreateUserTokenRequest{
+				wrongTokenType, err := srv.Auth().newUserToken(authclient.CreateUserTokenRequest{
 					Name: "llama",
 					TTL:  5 * time.Minute,
 					Type: UserTokenTypeResetPassword,
@@ -1294,7 +1295,7 @@ func createUserWithSecondFactors(testServer *TestTLSServer) (*userAuthCreds, err
 	}
 
 	// Reset password and register a Webauthn device.
-	resetToken, err := authServer.CreateResetPasswordToken(ctx, CreateUserTokenRequest{
+	resetToken, err := authServer.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 		Name: username,
 	})
 	if err != nil {
