@@ -1126,7 +1126,7 @@ func (s *sessionCache) upsertSessionContext(user string) *sessionResources {
 func (s *sessionCache) newSessionContext(ctx context.Context, user, sessionID string) (*SessionContext, error) {
 	session, err := s.proxyClient.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
 		Username: user,
-		Session: &auth.SessionCreds{
+		Session: &authclient.SessionCreds{
 			ID: sessionID,
 		},
 	})

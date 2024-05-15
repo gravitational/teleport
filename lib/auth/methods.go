@@ -54,9 +54,6 @@ const (
 	maxUserAgentLen = 2048
 )
 
-// SessionCreds is a web session credentials
-type SessionCreds = authclient.SessionCreds
-
 // authenticateUserLogin implements the bulk of user login authentication.
 // Used by the top-level local login methods, [Server.AuthenticateSSHUser] and
 // [Server.AuthenticateWebUser]
