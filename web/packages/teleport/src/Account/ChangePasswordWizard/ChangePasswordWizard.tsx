@@ -36,11 +36,12 @@ import { Auth2faType } from 'shared/services';
 
 import Box from 'design/Box';
 
+import { StepHeader } from 'design/StepSlider';
+
 import { ChangePasswordReq } from 'teleport/services/auth';
 import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
 import { MfaDevice } from 'teleport/services/mfa';
 
-import { HeaderWithSteps } from '../../components/HeaderWithSteps';
 
 export interface ChangePasswordWizardProps {
   /** MFA type setting, as configured in the cluster's configuration. */
@@ -188,7 +189,7 @@ export function ReauthenticateStep({
   return (
     <StepContainer ref={refCallback} data-testid="reauthenticate-step">
       <Box mb={4}>
-        <HeaderWithSteps
+        <StepHeader
           stepIndex={stepIndex}
           flowLength={flowLength}
           title="Verify Identity"
@@ -280,7 +281,7 @@ export function ChangePasswordStep({
   return (
     <StepContainer ref={refCallback} data-testid="change-password-step">
       <Box mb={4}>
-        <HeaderWithSteps
+        <StepHeader
           stepIndex={stepIndex}
           flowLength={flowLength}
           title="Change Password"
