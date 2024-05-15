@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/pingconn"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -67,7 +66,7 @@ type ProxyConfig struct {
 	// IdentityTLSConfig is the TLS ProxyRole identity used in servers with localhost SANs values.
 	IdentityTLSConfig *tls.Config
 	// AccessPoint is the auth server client.
-	AccessPoint auth.ReadProxyAccessPoint
+	AccessPoint authclient.CAGetter
 	// ClusterName is the name of the teleport cluster.
 	ClusterName string
 	// PingInterval defines the ping interval for ping-wrapped connections.
