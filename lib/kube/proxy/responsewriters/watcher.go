@@ -197,10 +197,10 @@ func (w *WatcherResponseWriter) Flush() {
 	w.mtx.Lock()
 	defer w.mtx.Unlock()
 
-	w.flushUnlocked()
+	w.flushLocked()
 }
 
-func (w *WatcherResponseWriter) flushUnlocked() {
+func (w *WatcherResponseWriter) flushLocked() {
 	if flusher, ok := w.target.(http.Flusher); ok {
 		flusher.Flush()
 	}
@@ -267,7 +267,7 @@ func (w *WatcherResponseWriter) watchDecoder(contentType string, writer io.Write
 		// an abort.
 		// To avoid this, we flush the response after each event to ensure that
 		// the user receives the event as a chunk.
-		w.flushUnlocked()
+		w.flushLocked()
 		return nil
 	}
 
