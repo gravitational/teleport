@@ -21,6 +21,7 @@ package accessrequest
 import (
 	"context"
 	"fmt"
+	"maps"
 	"slices"
 	"sync"
 	"time"
@@ -479,10 +480,7 @@ func (a *App) recipientsFromAccessMonitoringRules(ctx context.Context, req types
 		return &recipientSet
 	}
 
-	a.accessMonitoringRules.RLock()
-	defer a.accessMonitoringRules.RUnlock()
-
-	for _, rule := range a.accessMonitoringRules.rules {
+	for _, rule := range a.getAccessMonitoringRules() {
 		match, err := matchAccessRequest(rule.Spec.Condition, req)
 		if err != nil {
 			log.WithError(err).WithField("rule", rule.Metadata.Name).
@@ -610,4 +608,10 @@ func (a *App) getAllAccessMonitoringRules(ctx context.Context) ([]*accessmonitor
 		}
 	}
 	return resources, nil
+}
+
+func (a *App) getAccessMonitoringRules() map[string]*accessmonitoringrulesv1.AccessMonitoringRule {
+	a.accessMonitoringRules.RLock()
+	defer a.accessMonitoringRules.RUnlock()
+	return maps.Clone(a.accessMonitoringRules.rules)
 }
