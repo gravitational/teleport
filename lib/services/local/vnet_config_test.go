@@ -178,7 +178,7 @@ func TestVnetConfigValidation(t *testing.T) {
 					Ipv4CidrRange: "192.168.1.0/24",
 					CustomDnsZones: []*vnet.CustomDNSZone{
 						&vnet.CustomDNSZone{
-							Suffix: "$#@!",
+							Suffix: "invalid.character$",
 						},
 					},
 				},
