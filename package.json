@@ -14,7 +14,7 @@
     "storybook-smoke-test": "yarn storybook --ci --smoke-test",
     "test": "jest",
     "test-coverage": "jest --coverage && web/scripts/print-coverage-link.sh",
-    "test-update-snapshot": "yarn test -- --updateSnapshot",
+    "test-update-snapshot": "yarn test --updateSnapshot",
     "tdd": "jest --watch",
     "lint": "yarn prettier-check && yarn eslint",
     "eslint": "eslint --quiet '+(e|web)/**/*.{ts,tsx,js,jsx}'",
