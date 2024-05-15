@@ -1297,9 +1297,13 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		// TODO(espadolini): get rid of this deliberate leak once in-process
 		// restarts are vanquished and signal management can be made more sane
 
-		//nolint:staticcheck // SA1017: we don't care about the channel being
-		//unbuffered because we're never going to receive from it anyway
-		signal.Notify(make(chan os.Signal), syscall.SIGHUP)
+		// staticcheck complains about unbuffered channels given to
+		// [signal.Notify], and it's technically slightly faster to do a
+		// nonblocking send on a buffered channel that's full (see chansend in
+		// runtime/chan.go)
+		c := make(chan os.Signal, 1)
+		c <- nil
+		signal.Notify(c, syscall.SIGHUP)
 
 		if err := createLockedPIDFile(cfg.PIDFile); err != nil {
 			return nil, trace.Wrap(err, "creating pidfile")
