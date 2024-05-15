@@ -35,7 +35,18 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-var sshConfigTemplate = template.Must(template.New("ssh-config").Parse(
+var sshConfigTemplate = template.Must(template.New("ssh-config").Funcs(template.FuncMap{
+	// shellQuote prepares a string for insertion into the ssh_config
+	"shellQuote": func(s string) string {
+		s = `'` + strings.ReplaceAll(s, `'`, `'"'"'`) + `'`
+		// escape any percent signs which could trigger the percent expansion
+		// for ProxyCommand.
+		s = strings.ReplaceAll(s, `%`, `%%`)
+		// escape any newlines which could impact the parsing of ssh_config
+		s = strings.ReplaceAll(s, "\n", `'"\n"'`)
+		return s
+	},
+}).Parse(
 	`# Begin generated Teleport configuration for {{ .ProxyHost }} by {{ .AppName }}
 {{$dot := . }}
 {{- range $clusterName := .ClusterNames }}
@@ -57,7 +68,7 @@ Host *.{{ $clusterName }} !{{ $dot.ProxyHost }}
 {{- end }}
 {{- if eq $dot.AppName "tbot" }}
 {{- if $dot.PureTBotProxyCommand }}
-    ProxyCommand "{{ $dot.ExecutablePath }}" ssh-proxy-command --destination-dir={{ $dot.DestinationDir }} --proxy-server={{ $dot.ProxyHost }}:{{ $dot.ProxyPort }} --cluster={{ $clusterName }} {{if $dot.TLSRouting }}--tls-routing{{ else }}--no-tls-routing{{ end }} {{if $dot.ConnectionUpgrade }}--connection-upgrade{{ else }}--no-connection-upgrade{{ end }} {{if $dot.Resume }}--resume{{ else }}--no-resume{{end}} --user=%r --host=%h --port=%p
+    ProxyCommand {{ shellQuote $dot.ExecutablePath }} ssh-proxy-command --destination-dir={{ shellQuote $dot.DestinationDir }} --proxy-server={{ shellQuote (print $dot.ProxyHost ":" $dot.ProxyPort) }} --cluster={{ shellQuote $clusterName }} {{if $dot.TLSRouting }}--tls-routing{{ else }}--no-tls-routing{{ end }} {{if $dot.ConnectionUpgrade }}--connection-upgrade{{ else }}--no-connection-upgrade{{ end }} {{if $dot.Resume }}--resume{{ else }}--no-resume{{end}} --user=%r --host=%h --port=%p
 {{- else}}
     ProxyCommand "{{ $dot.ExecutablePath }}" proxy --destination-dir={{ $dot.DestinationDir }} --proxy-server={{ $dot.ProxyHost }}:{{ $dot.ProxyPort }} ssh --cluster={{ $clusterName }}  %r@%h:%p
 {{- end }}
