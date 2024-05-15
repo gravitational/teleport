@@ -457,7 +457,7 @@ func (a *Server) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, 
 	return remoteClusters, trace.Wrap(err)
 }
 
-func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *authclient.ValidateTrustedClusterRequest) (resp *ValidateTrustedClusterResponse, err error) {
+func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *authclient.ValidateTrustedClusterRequest) (resp *authclient.ValidateTrustedClusterResponse, err error) {
 	defer func() {
 		if err != nil {
 			log.WithError(err).Info("Trusted cluster validation failed")
@@ -529,7 +529,7 @@ func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *au
 	}
 
 	// export local cluster certificate authority and return it to the cluster
-	validateResponse := ValidateTrustedClusterResponse{}
+	validateResponse := authclient.ValidateTrustedClusterResponse{}
 
 	validateResponse.CAs, err = getLeafClusterCAs(ctx, a, domainName)
 	if err != nil {
@@ -574,7 +574,7 @@ func (a *Server) validateTrustedClusterToken(ctx context.Context, tokenName stri
 	return provisionToken.GetMetadata().Labels, nil
 }
 
-func (a *Server) sendValidateRequestToProxy(host string, validateRequest *authclient.ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
+func (a *Server) sendValidateRequestToProxy(host string, validateRequest *authclient.ValidateTrustedClusterRequest) (*authclient.ValidateTrustedClusterResponse, error) {
 	proxyAddr := url.URL{
 		Scheme: "https",
 		Host:   host,
@@ -634,8 +634,6 @@ func (a *Server) sendValidateRequestToProxy(host string, validateRequest *authcl
 
 	return validateResponse, nil
 }
-
-type ValidateTrustedClusterResponse = authclient.ValidateTrustedClusterResponse
 
 type ValidateTrustedClusterResponseRaw = authclient.ValidateTrustedClusterResponseRaw
 
