@@ -171,7 +171,7 @@ func (s *Service) ListAccessMonitoringRules(ctx context.Context, req *accessmoni
 }
 
 // ListAccessMonitoringRulesWithFilter lists current access monitoring rules.
-func (s *Service) ListAccessMonitoringRulesWithFilter(ctx context.Context, req *accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest) (*accessmonitoringrulesv1.ListAccessMonitoringRulesResponse, error) {
+func (s *Service) ListAccessMonitoringRulesWithFilter(ctx context.Context, req *accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest) (*accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterResponse, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -183,7 +183,7 @@ func (s *Service) ListAccessMonitoringRulesWithFilter(ctx context.Context, req *
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &accessmonitoringrulesv1.ListAccessMonitoringRulesResponse{
+	return &accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterResponse{
 		Rules:         results,
 		NextPageToken: nextToken,
 	}, nil
