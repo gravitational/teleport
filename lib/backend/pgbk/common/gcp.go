@@ -26,11 +26,12 @@ import (
 
 	credentials "cloud.google.com/go/iam/credentials/apiv1"
 	"cloud.google.com/go/iam/credentials/apiv1/credentialspb"
-	"github.com/gravitational/teleport/lib/utils/gcp"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgx/v5"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
+
+	"github.com/gravitational/teleport/lib/utils/gcp"
 )
 
 // GCPSQLBeforeConnect returns a pgx BeforeConnect function suitable for GCP
@@ -40,7 +41,7 @@ func GCPSQLBeforeConnect(ctx context.Context, logger *slog.Logger) (func(ctx con
 }
 
 // GCPAlloyDBBeforeConnect returns a pgx BeforeConnect function suitable for GCP
-// AlloyDB (PostgreSQL-compatiable) with IAM authentication.
+// AlloyDB (PostgreSQL-compatible) with IAM authentication.
 func GCPAlloyDBBeforeConnect(ctx context.Context, logger *slog.Logger) (func(ctx context.Context, config *pgx.ConnConfig) error, error) {
 	return gcpOAuthAccessTokenBeforeConnect(ctx, gcpAccessTokenGetterImpl{}, gcpAlloyDBOAuthScope, logger)
 }

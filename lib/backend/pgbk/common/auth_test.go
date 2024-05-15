@@ -24,9 +24,10 @@ import (
 	"os"
 	"testing"
 
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestMain(m *testing.M) {
