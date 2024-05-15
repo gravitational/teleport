@@ -92,18 +92,26 @@ func TestServiceAccess(t *testing.T) {
 			},
 		},
 		{
-			name:          "UpsertVnetConfig",
-			allowedStates: []authz.AdminActionAuthState{authz.AdminActionAuthNotRequired, authz.AdminActionAuthMFAVerified},
-			allowedVerbs:  []string{types.VerbCreate, types.VerbUpdate},
+			name: "UpsertVnetConfig",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			allowedVerbs: []string{types.VerbCreate, types.VerbUpdate},
 			action: func(service *Service) error {
 				_, err := service.UpsertVnetConfig(ctx, &vnet.UpsertVnetConfigRequest{VnetConfig: vnetConfig})
 				return trace.Wrap(err)
 			},
 		},
 		{
-			name:          "UpsertVnetConfig with existing",
-			allowedStates: []authz.AdminActionAuthState{authz.AdminActionAuthNotRequired, authz.AdminActionAuthMFAVerified},
-			allowedVerbs:  []string{types.VerbCreate, types.VerbUpdate},
+			name: "UpsertVnetConfig with existing",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			allowedVerbs: []string{types.VerbCreate, types.VerbUpdate},
 			action: func(service *Service) error {
 				if _, err := service.storage.CreateVnetConfig(ctx, vnetConfig); err != nil {
 					return trace.Wrap(err, "creating vnet_config as pre-req for Upsert test")

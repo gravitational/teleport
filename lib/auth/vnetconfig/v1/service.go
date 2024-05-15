@@ -115,7 +115,8 @@ func (s *Service) UpsertVnetConfig(ctx context.Context, req *vnet.UpsertVnetConf
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.AuthorizeAdminAction(); err != nil {
+	// Support reused MFA for bulk tctl create requests.
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
