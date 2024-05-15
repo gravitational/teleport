@@ -32,15 +32,12 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
-// KubeCSR is a kubernetes CSR request
-type KubeCSR = authclient.KubeCSR
-
 // KubeCSRResponse is a response to kubernetes CSR request
 type KubeCSRResponse = authclient.KubeCSRResponse
 
 // ProcessKubeCSR processes CSR request against Kubernetes CA, returns
 // signed certificate if successful.
-func (a *Server) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
+func (a *Server) ProcessKubeCSR(req authclient.KubeCSR) (*KubeCSRResponse, error) {
 	ctx := context.TODO()
 	if err := enforceLicense(types.KindKubernetesCluster); err != nil {
 		return nil, trace.Wrap(err)

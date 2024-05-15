@@ -5044,7 +5044,7 @@ func (a *ServerWithRoles) DeleteSemaphore(ctx context.Context, filter types.Sema
 
 // ProcessKubeCSR processes CSR request against Kubernetes CA, returns
 // signed certificate if successful.
-func (a *ServerWithRoles) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
+func (a *ServerWithRoles) ProcessKubeCSR(req authclient.KubeCSR) (*KubeCSRResponse, error) {
 	// limits the requests types to proxies to make it harder to break
 	if !a.hasBuiltinRole(types.RoleProxy) {
 		return nil, trace.AccessDenied("this request can be only executed by a proxy")
@@ -5072,7 +5072,7 @@ func (a *ServerWithRoles) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) 
 	return a.authServer.ProcessKubeCSR(req)
 }
 
-func extractOriginalClusterNameFromCSR(req KubeCSR) (string, error) {
+func extractOriginalClusterNameFromCSR(req authclient.KubeCSR) (string, error) {
 	csr, err := tlsca.ParseCertificateRequestPEM(req.CSR)
 	if err != nil {
 		return "", trace.Wrap(err)

@@ -1000,7 +1000,7 @@ func (s *APIServer) deleteRemoteCluster(auth *ServerWithRoles, w http.ResponseWr
 }
 
 func (s *APIServer) processKubeCSR(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req KubeCSR
+	var req authclient.KubeCSR
 
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
