@@ -74,7 +74,7 @@ func TestAgentCertChecker(t *testing.T) {
 				"test",
 				utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 				handler,
-				[]ssh.Signer{cert},
+				sshutils.StaticHostSigners(cert),
 				sshutils.AuthMethods{NoClient: true},
 				sshutils.SetInsecureSkipHostValidation(),
 			)

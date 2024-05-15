@@ -392,7 +392,7 @@ func setupMockSSHNode(t *testing.T, ctx context.Context, sshListener net.Listene
 		"test",
 		utils.NetAddr{AddrNetwork: "tcp", Addr: sshListener.Addr().String()},
 		handler,
-		[]ssh.Signer{cert},
+		sshutils.StaticHostSigners(cert),
 		sshutils.AuthMethods{
 			NoClient: true,
 		},
