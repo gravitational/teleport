@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -487,7 +488,7 @@ func TestCreateAuthenticateChallenge_mfaVerification(t *testing.T) {
 	require.NoError(t, err, "UpsertRole(%q)", joinNoMFARole.GetName())
 
 	const normalLogin = "llama"
-	createUser := func(role types.Role) *Client {
+	createUser := func(role types.Role) *authclient.Client {
 		// Create a user with MFA devices...
 		userCreds, err := createUserWithSecondFactors(testServer)
 		require.NoError(t, err, "createUserWithSecondFactors")
@@ -530,7 +531,7 @@ func TestCreateAuthenticateChallenge_mfaVerification(t *testing.T) {
 
 	tests := []struct {
 		name            string
-		userClient      *Client
+		userClient      *authclient.Client
 		req             *proto.CreateAuthenticateChallengeRequest
 		wantMFARequired proto.MFARequired
 		wantChallenges  bool

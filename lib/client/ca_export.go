@@ -30,7 +30,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 )
@@ -75,17 +75,17 @@ type ExportAuthoritiesRequest struct {
 // For example:
 // > @cert-authority *.cluster-a ssh-rsa AAA... type=host
 // URL encoding is used to pass the CA type and allowed logins into the comment field.
-func ExportAuthorities(ctx context.Context, client auth.ClientI, req ExportAuthoritiesRequest) (string, error) {
+func ExportAuthorities(ctx context.Context, client authclient.ClientI, req ExportAuthoritiesRequest) (string, error) {
 	return exportAuth(ctx, client, req, false /* exportSecrets */)
 }
 
 // ExportAuthoritiesSecrets exports the Authority Certificate secrets (private keys).
 // See ExportAuthorities for more information.
-func ExportAuthoritiesSecrets(ctx context.Context, client auth.ClientI, req ExportAuthoritiesRequest) (string, error) {
+func ExportAuthoritiesSecrets(ctx context.Context, client authclient.ClientI, req ExportAuthoritiesRequest) (string, error) {
 	return exportAuth(ctx, client, req, true /* exportSecrets */)
 }
 
-func exportAuth(ctx context.Context, client auth.ClientI, req ExportAuthoritiesRequest, exportSecrets bool) (string, error) {
+func exportAuth(ctx context.Context, client authclient.ClientI, req ExportAuthoritiesRequest, exportSecrets bool) (string, error) {
 	var typesToExport []types.CertAuthType
 
 	if exportSecrets {
@@ -272,7 +272,7 @@ type exportTLSAuthorityRequest struct {
 	ExportPrivateKeys bool
 }
 
-func exportTLSAuthority(ctx context.Context, client auth.ClientI, req exportTLSAuthorityRequest) (string, error) {
+func exportTLSAuthority(ctx context.Context, client authclient.ClientI, req exportTLSAuthorityRequest) (string, error) {
 	clusterName, err := client.GetDomainName(ctx)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -330,7 +330,7 @@ func userOrOpenSSHCAFormat(ca types.CertAuthority, keyBytes []byte) (string, err
 //	@cert-authority *.cluster-a ssh-rsa AAA... type=host
 //
 // URL encoding is used to pass the CA type and allowed logins into the comment field.
-func hostCAFormat(ca types.CertAuthority, keyBytes []byte, client auth.ClientI) (string, error) {
+func hostCAFormat(ca types.CertAuthority, keyBytes []byte, client authclient.ClientI) (string, error) {
 	roles, err := services.FetchRoles(ca.GetRoles(), client, nil /* traits */)
 	if err != nil {
 		return "", trace.Wrap(err)

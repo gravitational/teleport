@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -88,7 +89,7 @@ func TestRejectedClients(t *testing.T) {
 	tlsConfig, err := tlsServer.ClientTLSConfig(TestUser(user.GetName()))
 	require.NoError(t, err)
 
-	clt, err := NewClient(client.Config{
+	clt, err := authclient.NewClient(client.Config{
 		DialInBackground: true,
 		Addrs:            []string{tlsServer.Addr().String()},
 		Credentials: []client.Credentials{
@@ -1765,9 +1766,9 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 		assert.ElementsMatch(t, expectResources, gotResources)
 	}
 
-	type extendSessionFunc func(*testing.T, *Client, types.WebSession) (*Client, types.WebSession)
+	type extendSessionFunc func(*testing.T, *authclient.Client, types.WebSession) (*authclient.Client, types.WebSession)
 	assumeRequest := func(request types.AccessRequest) extendSessionFunc {
-		return func(t *testing.T, clt *Client, sess types.WebSession) (*Client, types.WebSession) {
+		return func(t *testing.T, clt *authclient.Client, sess types.WebSession) (*authclient.Client, types.WebSession) {
 			newSess, err := clt.ExtendWebSession(ctx, WebSessionReq{
 				User:            username,
 				PrevSessionID:   sess.GetName(),
@@ -1781,7 +1782,7 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 		}
 	}
 	failToAssumeRequest := func(request types.AccessRequest) extendSessionFunc {
-		return func(t *testing.T, clt *Client, sess types.WebSession) (*Client, types.WebSession) {
+		return func(t *testing.T, clt *authclient.Client, sess types.WebSession) (*authclient.Client, types.WebSession) {
 			_, err := clt.ExtendWebSession(ctx, WebSessionReq{
 				User:            username,
 				PrevSessionID:   sess.GetName(),
@@ -1791,7 +1792,7 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 			return clt, sess
 		}
 	}
-	switchBack := func(t *testing.T, clt *Client, sess types.WebSession) (*Client, types.WebSession) {
+	switchBack := func(t *testing.T, clt *authclient.Client, sess types.WebSession) (*authclient.Client, types.WebSession) {
 		newSess, err := clt.ExtendWebSession(ctx, WebSessionReq{
 			User:          username,
 			PrevSessionID: sess.GetName(),
@@ -3247,7 +3248,7 @@ func TestCipherSuites(t *testing.T) {
 		otherServer.Addr().String(),
 		testSrv.Addr().String(),
 	}
-	client, err := NewClient(client.Config{
+	client, err := authclient.NewClient(client.Config{
 		Addrs: addrs,
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
@@ -3279,7 +3280,7 @@ func TestTLSFailover(t *testing.T) {
 		otherServer.Addr().String(),
 		testSrv.Addr().String(),
 	}
-	client, err := NewClient(client.Config{
+	client, err := authclient.NewClient(client.Config{
 		Addrs: addrs,
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),

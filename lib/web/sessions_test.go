@@ -28,7 +28,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 )
 
@@ -74,13 +74,13 @@ func (m *mockRemoteSite) GetName() string {
 	return m.name
 }
 
-func newMockClientI(openCount *atomic.Int32, closeErr error) auth.ClientI {
+func newMockClientI(openCount *atomic.Int32, closeErr error) authclient.ClientI {
 	openCount.Add(1)
 	return &mockClientI{openCount: openCount, closeErr: closeErr}
 }
 
 type mockClientI struct {
-	auth.ClientI
+	authclient.ClientI
 	openCount *atomic.Int32
 	closeErr  error
 }
@@ -102,7 +102,7 @@ func TestGetUserClient(t *testing.T) {
 	sctx := SessionContext{
 		cfg: SessionContextConfig{
 			RootClusterName: "local",
-			newRemoteClient: func(ctx context.Context, sessionContext *SessionContext, site reversetunnelclient.RemoteSite) (auth.ClientI, error) {
+			newRemoteClient: func(ctx context.Context, sessionContext *SessionContext, site reversetunnelclient.RemoteSite) (authclient.ClientI, error) {
 				return newMockClientI(&openCount, nil), nil
 			},
 		},
@@ -142,7 +142,7 @@ func TestGetUserClient(t *testing.T) {
 	// and ensure that the first request creates the client
 	// and the second request is provided the cached value
 	type result struct {
-		clt auth.ClientI
+		clt authclient.ClientI
 		err error
 	}
 
@@ -158,7 +158,7 @@ func TestGetUserClient(t *testing.T) {
 	}()
 
 	timeout := time.After(10 * time.Second)
-	clients := make([]auth.ClientI, 2)
+	clients := make([]authclient.ClientI, 2)
 	for i := 0; i < 2; i++ {
 		select {
 		case res := <-resultCh:

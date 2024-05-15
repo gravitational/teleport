@@ -43,7 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -106,7 +106,7 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 }
 
 // TryRun attempts to run subcommands.
-func (c *BotsCommand) TryRun(ctx context.Context, cmd string, client *auth.Client) (match bool, err error) {
+func (c *BotsCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
 	switch cmd {
 	case c.botsList.FullCommand():
 		err = c.ListBots(ctx, client)
@@ -126,7 +126,7 @@ func (c *BotsCommand) TryRun(ctx context.Context, cmd string, client *auth.Clien
 }
 
 // TODO(noah): DELETE IN 16.0.0
-func (c *BotsCommand) listBotsLegacy(ctx context.Context, client *auth.Client) error {
+func (c *BotsCommand) listBotsLegacy(ctx context.Context, client *authclient.Client) error {
 	users, err := client.GetBotUsers(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -164,7 +164,7 @@ func (c *BotsCommand) listBotsLegacy(ctx context.Context, client *auth.Client) e
 
 // ListBots writes a listing of the cluster's certificate renewal bots
 // to standard out.
-func (c *BotsCommand) ListBots(ctx context.Context, client *auth.Client) error {
+func (c *BotsCommand) ListBots(ctx context.Context, client *authclient.Client) error {
 	var bots []*machineidv1pb.Bot
 	req := &machineidv1pb.ListBotsRequest{}
 	for {
@@ -244,7 +244,7 @@ Please note:
 `))
 
 // TODO(noah): DELETE IN 16.0.0
-func (c *BotsCommand) addBotLegacy(ctx context.Context, client *auth.Client) error {
+func (c *BotsCommand) addBotLegacy(ctx context.Context, client *authclient.Client) error {
 	roles := splitEntries(c.botRoles)
 	if len(roles) == 0 {
 		log.Warning("No roles specified. The bot will not be able to produce outputs until a role is added to the bot.")
@@ -301,7 +301,7 @@ func (c *BotsCommand) addBotLegacy(ctx context.Context, client *auth.Client) err
 }
 
 // AddBot adds a new certificate renewal bot to the cluster.
-func (c *BotsCommand) AddBot(ctx context.Context, client *auth.Client) error {
+func (c *BotsCommand) AddBot(ctx context.Context, client *authclient.Client) error {
 	// Prompt for admin action MFA if required, allowing reuse for UpsertToken and CreateBot.
 	mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client.PerformMFACeremony, true /*allowReuse*/)
 	if err == nil {
@@ -448,7 +448,7 @@ func (c *BotsCommand) AddBot(ctx context.Context, client *auth.Client) error {
 	return startMessageTemplate.Execute(os.Stdout, templateData)
 }
 
-func (c *BotsCommand) RemoveBot(ctx context.Context, client *auth.Client) error {
+func (c *BotsCommand) RemoveBot(ctx context.Context, client *authclient.Client) error {
 	_, err := client.BotServiceClient().DeleteBot(ctx, &machineidv1pb.DeleteBotRequest{
 		BotName: c.botName,
 	})
@@ -469,7 +469,7 @@ func (c *BotsCommand) RemoveBot(ctx context.Context, client *auth.Client) error 
 	return nil
 }
 
-func (c *BotsCommand) LockBot(ctx context.Context, client *auth.Client) error {
+func (c *BotsCommand) LockBot(ctx context.Context, client *authclient.Client) error {
 	lockExpiry, err := computeLockExpiry(c.lockExpires, c.lockTTL)
 	if err != nil {
 		return trace.Wrap(err)
@@ -622,7 +622,7 @@ func (c *BotsCommand) updateBotRoles(ctx context.Context, client clientRoleGette
 }
 
 // UpdateBot performs various updates to existing bot users and roles.
-func (c *BotsCommand) UpdateBot(ctx context.Context, client *auth.Client) error {
+func (c *BotsCommand) UpdateBot(ctx context.Context, client *authclient.Client) error {
 	bot, err := client.BotServiceClient().GetBot(ctx, &machineidv1pb.GetBotRequest{
 		BotName: c.botName,
 	})
