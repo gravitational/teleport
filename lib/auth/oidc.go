@@ -141,7 +141,3 @@ func (a *Server) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*a
 	resp, err := a.oidcAuthService.ValidateOIDCAuthCallback(ctx, q)
 	return resp, trace.Wrap(err)
 }
-
-// OIDCAuthRawResponse is returned when auth server validated callback parameters
-// returned from OIDC provider
-type OIDCAuthRawResponse = authclient.OIDCAuthRawResponse
