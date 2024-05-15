@@ -402,12 +402,20 @@ jobs:
     if: inputs.repo-type == 'apt' && inputs.package-to-test != ''
     needs: deploy
     runs-on: ubuntu-latest
+    environment: ${{ inputs.environment}}
     # A container is used here to maintain consistency in the testing methodology for both APT and YUM
     strategy:
       fail-fast: false
       matrix:
         # Multiple images are used to test for the ever recurring libc version issue
-        container-image: ["ubuntu:22.04", "ubuntu:20.04", "ubuntu:18.04", "debian:10", "debian:11", "debian:12"]
+        container-image: 
+          - "ubuntu:24.04"
+          - "ubuntu:22.04"
+          - "ubuntu:20.04"
+          - "ubuntu:18.04"
+          - "debian:10"
+          - "debian:11"
+          - "debian:12"
     container:
       image: ${{ matrix.container-image }}
     defaults:
@@ -523,8 +531,10 @@ jobs:
           fi
       - name: Test update
         if: inputs.do-teleport-package-tests && inputs.package-to-test == 'teleport-ent-updater'
+        env:
+          AUTO_UPDATES_DOMAIN_NAME: ${{ vars.AUTO_UPDATES_DOMAIN_NAME }}
         run: |
-          TARGET_VERSION=$(curl https://${{ vars.AUTO_UPDATES_DOMAIN_NAME }}/v1/stable/cloud/version)
+          TARGET_VERSION=$(curl "https://${AUTO_UPDATES_DOMAIN_NAME}/v1/stable/cloud/version")
           echo 'apt' > /etc/teleport-upgrade.d/installer
           teleport-upgrade force
           REPORTED_VERSION=$(teleport version --raw)
@@ -551,6 +561,7 @@ jobs:
     if: inputs.repo-type == 'yum' && inputs.package-to-test != ''
     needs: deploy
     runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
     # A container is used here to maintain consistency in the testing methodology for both APT and YUM
     strategy:
       fail-fast: false
@@ -678,8 +689,10 @@ jobs:
           fi
       - name: Test update
         if: inputs.do-teleport-package-tests && inputs.package-to-test == 'teleport-ent-updater'
+        env:
+          AUTO_UPDATES_DOMAIN_NAME: ${{ vars.AUTO_UPDATES_DOMAIN_NAME }}
         run: |
-          TARGET_VERSION=$(curl https://${{ vars.AUTO_UPDATES_DOMAIN_NAME }}/v1/stable/cloud/version)
+          TARGET_VERSION=$(curl "https://${AUTO_UPDATES_DOMAIN_NAME}/v1/stable/cloud/version")
           echo 'yum' > /etc/teleport-upgrade.d/installer
           teleport-upgrade force
           REPORTED_VERSION=$(teleport version --raw)
@@ -706,6 +719,7 @@ jobs:
     if: inputs.repo-type == 'yum' && inputs.package-to-test != ''
     needs: deploy
     runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
     # A container is used here to maintain consistency in the testing methodology for both APT, YUM, and Zypper
     strategy:
       fail-fast: false
@@ -852,8 +866,10 @@ jobs:
           fi
       - name: Test update
         if: inputs.do-teleport-package-tests && inputs.package-to-test == 'teleport-ent-updater'
+        env:
+          AUTO_UPDATES_DOMAIN_NAME: ${{ vars.AUTO_UPDATES_DOMAIN_NAME }}
         run: |
-          TARGET_VERSION=$(curl https://${{ vars.AUTO_UPDATES_DOMAIN_NAME }}/v1/stable/cloud/version)
+          TARGET_VERSION=$(curl "https://${AUTO_UPDATES_DOMAIN_NAME}/v1/stable/cloud/version")
           echo 'zypper' > /etc/teleport-upgrade.d/installer
           teleport-upgrade force
           REPORTED_VERSION=$(teleport version --raw)
