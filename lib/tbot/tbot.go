@@ -21,6 +21,7 @@ package tbot
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"sync"
 	"time"
@@ -29,6 +30,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/singleflight"
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport"
@@ -576,39 +578,45 @@ func (p *proxyPingCache) ping(ctx context.Context) (*webclient.PingResponse, err
 	return p.cachedValue, nil
 }
 
-type alpnConnUpgradeParams struct {
-	addr     string
-	insecure bool
-}
-
 type alpnProxyConnUpgradeRequiredCache struct {
 	botCfg *config.BotConfig
 	log    *slog.Logger
 
-	mu    sync.RWMutex
-	cache map[alpnConnUpgradeParams]bool
+	mu    sync.Mutex
+	cache map[string]bool
+	group singleflight.Group
+}
+
+func alpnArgString(addr string, insecure bool) string {
+	return fmt.Sprintf("%s-%t", addr, insecure)
 }
 
 func (a *alpnProxyConnUpgradeRequiredCache) isUpgradeRequired(ctx context.Context, addr string, insecure bool) (bool, error) {
 	a.mu.Lock()
-	defer a.mu.Unlock()
 	if a.cache == nil {
-		a.cache = make(map[alpnConnUpgradeParams]bool)
+		a.cache = make(map[string]bool)
 	}
-	v, ok := a.cache[alpnConnUpgradeParams{addr, insecure}]
+	v, ok := a.cache[alpnArgString(addr, insecure)]
 	if ok {
+		a.mu.Unlock()
 		return v, nil
 	}
+	a.mu.Unlock()
 
-	a.log.DebugContext(ctx, "Testing ALPN upgrade necessary", "addr", addr, "insecure", insecure)
-	v = client.IsALPNConnUpgradeRequired(ctx, addr, insecure)
-	a.log.DebugContext(ctx, "Tested ALPN upgrade necessary", "addr", addr, "insecure", insecure, "result", v)
-	if err := ctx.Err(); err != nil {
-		// Check for case where false is returned because client canceled ctx.
-		// We don't want to cache this result.
-		return v, trace.Wrap(err)
-	}
+	val, err, _ := a.group.Do(alpnArgString(addr, insecure), func() (interface{}, error) {
+		a.log.DebugContext(ctx, "Testing ALPN upgrade necessary", "addr", addr, "insecure", insecure)
+		v := client.IsALPNConnUpgradeRequired(ctx, addr, insecure)
+		a.log.DebugContext(ctx, "Tested ALPN upgrade necessary", "addr", addr, "insecure", insecure, "result", v)
+		if err := ctx.Err(); err != nil {
+			// Check for case where false is returned because client canceled ctx.
+			// We don't want to cache this result.
+			return v, trace.Wrap(err)
+		}
 
-	a.cache[alpnConnUpgradeParams{addr, insecure}] = v
-	return v, nil
+		a.mu.Lock()
+		a.cache[alpnArgString(addr, insecure)] = v
+		a.mu.Unlock()
+		return v, nil
+	})
+	return val.(bool), err
 }
