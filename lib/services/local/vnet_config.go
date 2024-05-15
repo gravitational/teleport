@@ -62,7 +62,8 @@ func NewVnetConfigService(backend backend.Backend) (*VnetConfigService, error) {
 
 // GetVnetConfig returns the singleton VnetConfig resource.
 func (s *VnetConfigService) GetVnetConfig(ctx context.Context) (*vnet.VnetConfig, error) {
-	return s.svc.GetResource(ctx, vnetConfigSingletonName)
+	vnetConfig, err := s.svc.GetResource(ctx, vnetConfigSingletonName)
+	return vnetConfig, trace.Wrap(err)
 }
 
 // CreateVnetConfig does basic validation and creates a VnetConfig resource.
@@ -70,7 +71,8 @@ func (s *VnetConfigService) CreateVnetConfig(ctx context.Context, vnetConfig *vn
 	if err := validateVnetConfig(vnetConfig); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return s.svc.CreateResource(ctx, vnetConfig)
+	vnetConfig, err := s.svc.CreateResource(ctx, vnetConfig)
+	return vnetConfig, trace.Wrap(err)
 }
 
 // UpdateVnetConfig does basic validation and updates a VnetConfig resource.
@@ -78,7 +80,8 @@ func (s *VnetConfigService) UpdateVnetConfig(ctx context.Context, vnetConfig *vn
 	if err := validateVnetConfig(vnetConfig); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return s.svc.ConditionalUpdateResource(ctx, vnetConfig)
+	vnetConfig, err := s.svc.ConditionalUpdateResource(ctx, vnetConfig)
+	return vnetConfig, trace.Wrap(err)
 }
 
 // UpsertVnetConfig does basic validation and upserts a VnetConfig resource.
@@ -86,12 +89,13 @@ func (s *VnetConfigService) UpsertVnetConfig(ctx context.Context, vnetConfig *vn
 	if err := validateVnetConfig(vnetConfig); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return s.svc.UpsertResource(ctx, vnetConfig)
+	vnetConfig, err := s.svc.UpsertResource(ctx, vnetConfig)
+	return vnetConfig, trace.Wrap(err)
 }
 
 // DeleteVnetConfig deletes the singleton VnetConfig resource.
 func (s *VnetConfigService) DeleteVnetConfig(ctx context.Context) error {
-	return s.svc.DeleteResource(ctx, vnetConfigSingletonName)
+	return trace.Wrap(s.svc.DeleteResource(ctx, vnetConfigSingletonName))
 }
 
 func validateVnetConfig(vnetConfig *vnet.VnetConfig) error {
