@@ -20,6 +20,7 @@ package vnetconfig
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -172,6 +173,15 @@ func TestServiceAccess(t *testing.T) {
 					})
 				}
 			})
+
+			// test the method with storage-layer errors
+			t.Run("storage error", func(t *testing.T) {
+				service := newServiceWithStorage(t, tc.allowedStates[0],
+					fakeChecker{allowedVerbs: tc.allowedVerbs}, badStorage{})
+				err := tc.action(service)
+				// the returned error should wrap the unexpected storage-layer error.
+				require.ErrorIs(t, err, errBadStorage)
+			})
 		})
 	}
 
@@ -239,6 +249,12 @@ func newService(t *testing.T, authState authz.AdminActionAuthState, checker serv
 	storage, err := local.NewVnetConfigService(bk)
 	require.NoError(t, err)
 
+	return newServiceWithStorage(t, authState, checker, storage)
+}
+
+func newServiceWithStorage(t *testing.T, authState authz.AdminActionAuthState, checker services.AccessChecker, storage services.VnetConfigService) *Service {
+	t.Helper()
+
 	authorizer := authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
 		user, err := types.NewUser("alice")
 		if err != nil {
@@ -252,4 +268,28 @@ func newService(t *testing.T, authState authz.AdminActionAuthState, checker serv
 	})
 
 	return NewService(storage, authorizer)
+}
+
+var errBadStorage = errors.New("bad storage")
+
+type badStorage struct{}
+
+func (badStorage) GetVnetConfig(context.Context) (*vnet.VnetConfig, error) {
+	return nil, trace.Wrap(errBadStorage)
+}
+
+func (badStorage) CreateVnetConfig(ctx context.Context, vnetConfig *vnet.VnetConfig) (*vnet.VnetConfig, error) {
+	return nil, trace.Wrap(errBadStorage)
+}
+
+func (badStorage) UpdateVnetConfig(ctx context.Context, vnetConfig *vnet.VnetConfig) (*vnet.VnetConfig, error) {
+	return nil, trace.Wrap(errBadStorage)
+}
+
+func (badStorage) UpsertVnetConfig(ctx context.Context, vnetConfig *vnet.VnetConfig) (*vnet.VnetConfig, error) {
+	return nil, trace.Wrap(errBadStorage)
+}
+
+func (badStorage) DeleteVnetConfig(ctx context.Context) error {
+	return trace.Wrap(errBadStorage)
 }
