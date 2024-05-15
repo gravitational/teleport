@@ -1242,7 +1242,7 @@ func triggerLoginLock(t *testing.T, srv *Server, username string) {
 	for i := 1; i <= defaults.MaxLoginAttempts; i++ {
 		_, _, _, err := srv.authenticateUser(
 			context.Background(),
-			AuthenticateUserRequest{
+			authclient.AuthenticateUserRequest{
 				Username: username,
 				OTP:      &OTPCreds{},
 			},

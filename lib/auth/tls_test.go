@@ -1657,7 +1657,7 @@ func TestWebSessionWithoutAccessRequest(t *testing.T) {
 	proxy, err := testSrv.NewClient(TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
 
-	req := AuthenticateUserRequest{
+	req := authclient.AuthenticateUserRequest{
 		Username: user,
 		Pass: &PassCreds{
 			Password: pass,
@@ -1784,7 +1784,7 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 	// Create a web session and client for the user.
 	proxyClient, err := testSrv.NewClient(TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
-	baseWebSession, err := proxyClient.AuthenticateWebUser(ctx, AuthenticateUserRequest{
+	baseWebSession, err := proxyClient.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
 		Username: username,
 		Pass: &PassCreds{
 			Password: password,
@@ -1945,7 +1945,7 @@ func TestWebSessionWithApprovedAccessRequestAndSwitchback(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a user to create a web session for.
-	req := AuthenticateUserRequest{
+	req := authclient.AuthenticateUserRequest{
 		Username: user,
 		Pass: &PassCreds{
 			Password: pass,
@@ -2057,7 +2057,7 @@ func TestExtendWebSessionWithReloadUser(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create user authn creds and web session.
-	req := AuthenticateUserRequest{
+	req := authclient.AuthenticateUserRequest{
 		Username: user,
 		Pass: &PassCreds{
 			Password: pass,
@@ -2129,7 +2129,7 @@ func TestExtendWebSessionWithMaxDuration(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a user to create a web session for.
-	req := AuthenticateUserRequest{
+	req := authclient.AuthenticateUserRequest{
 		Username: user,
 		Pass: &PassCreds{
 			Password: pass,
@@ -2929,7 +2929,7 @@ func TestCertificateFormat(t *testing.T) {
 
 		// authentication attempt fails with password auth only
 		re, err := proxyClient.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
-			AuthenticateUserRequest: AuthenticateUserRequest{
+			authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 				Username: user.GetName(),
 				Pass: &PassCreds{
 					Password: pass,
@@ -3042,21 +3042,21 @@ func TestAuthenticateWebUserOTP(t *testing.T) {
 	require.NoError(t, err)
 
 	// authentication attempt fails with wrong password
-	_, err = proxy.AuthenticateWebUser(ctx, AuthenticateUserRequest{
+	_, err = proxy.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
 		Username: user,
 		OTP:      &OTPCreds{Password: []byte("wrong password"), Token: validToken},
 	})
 	require.True(t, trace.IsAccessDenied(err))
 
 	// authentication attempt fails with wrong otp
-	_, err = proxy.AuthenticateWebUser(ctx, AuthenticateUserRequest{
+	_, err = proxy.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
 		Username: user,
 		OTP:      &OTPCreds{Password: pass, Token: "wrong123"},
 	})
 	require.True(t, trace.IsAccessDenied(err))
 
 	// authentication attempt fails with password auth only
-	_, err = proxy.AuthenticateWebUser(ctx, AuthenticateUserRequest{
+	_, err = proxy.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
 		Username: user,
 		Pass: &PassCreds{
 			Password: pass,
@@ -3065,7 +3065,7 @@ func TestAuthenticateWebUserOTP(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 
 	// authentication succeeds
-	ws, err := proxy.AuthenticateWebUser(ctx, AuthenticateUserRequest{
+	ws, err := proxy.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
 		Username: user,
 		OTP:      &OTPCreds{Password: pass, Token: validToken},
 	})
@@ -3107,7 +3107,7 @@ func TestLoginAttempts(t *testing.T) {
 	err = testSrv.Auth().UpsertPassword(user, pass)
 	require.NoError(t, err)
 
-	req := AuthenticateUserRequest{
+	req := authclient.AuthenticateUserRequest{
 		Username: user,
 		Pass: &PassCreds{
 			Password: []byte("wrong password"),
@@ -3257,7 +3257,7 @@ func TestLoginNoLocalAuth(t *testing.T) {
 	require.NoError(t, err)
 
 	// Make sure access is denied for web login.
-	_, err = testSrv.Auth().AuthenticateWebUser(ctx, AuthenticateUserRequest{
+	_, err = testSrv.Auth().AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
 		Username: user,
 		Pass: &PassCreds{
 			Password: pass,
@@ -3269,7 +3269,7 @@ func TestLoginNoLocalAuth(t *testing.T) {
 	_, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 	_, err = testSrv.Auth().AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
-		AuthenticateUserRequest: AuthenticateUserRequest{
+		authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 			Username: user,
 			Pass: &PassCreds{
 				Password: pass,

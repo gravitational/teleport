@@ -903,7 +903,7 @@ func (s *sessionCache) AuthWithOTP(
 	user, pass, otpToken string,
 	clientMeta *auth.ForwardedClientMetadata,
 ) (types.WebSession, error) {
-	return s.proxyClient.AuthenticateWebUser(ctx, auth.AuthenticateUserRequest{
+	return s.proxyClient.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
 		Username: user,
 		Pass:     &auth.PassCreds{Password: []byte(pass)},
 		OTP: &auth.OTPCreds{
@@ -919,7 +919,7 @@ func (s *sessionCache) AuthWithOTP(
 func (s *sessionCache) AuthWithoutOTP(
 	ctx context.Context, user, pass string, clientMeta *auth.ForwardedClientMetadata,
 ) (types.WebSession, error) {
-	return s.proxyClient.AuthenticateWebUser(ctx, auth.AuthenticateUserRequest{
+	return s.proxyClient.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
 		Username: user,
 		Pass: &auth.PassCreds{
 			Password: []byte(pass),
@@ -931,7 +931,7 @@ func (s *sessionCache) AuthWithoutOTP(
 func (s *sessionCache) AuthenticateWebUser(
 	ctx context.Context, req *client.AuthenticateWebUserRequest, clientMeta *auth.ForwardedClientMetadata,
 ) (types.WebSession, error) {
-	authReq := auth.AuthenticateUserRequest{
+	authReq := authclient.AuthenticateUserRequest{
 		Username:       req.User,
 		ClientMetadata: clientMeta,
 	}
@@ -944,7 +944,7 @@ func (s *sessionCache) AuthenticateWebUser(
 func (s *sessionCache) AuthenticateSSHUser(
 	ctx context.Context, c client.AuthenticateSSHUserRequest, clientMeta *auth.ForwardedClientMetadata,
 ) (*auth.SSHLoginResponse, error) {
-	authReq := auth.AuthenticateUserRequest{
+	authReq := authclient.AuthenticateUserRequest{
 		Username:       c.User,
 		ClientMetadata: clientMeta,
 		PublicKey:      c.PubKey,
@@ -1124,7 +1124,7 @@ func (s *sessionCache) upsertSessionContext(user string) *sessionResources {
 
 // newSessionContext creates a new web session context for the specified user/session ID
 func (s *sessionCache) newSessionContext(ctx context.Context, user, sessionID string) (*SessionContext, error) {
-	session, err := s.proxyClient.AuthenticateWebUser(ctx, auth.AuthenticateUserRequest{
+	session, err := s.proxyClient.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
 		Username: user,
 		Session: &auth.SessionCreds{
 			ID: sessionID,

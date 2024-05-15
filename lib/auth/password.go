@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
@@ -120,7 +121,7 @@ func (a *Server) ChangePassword(ctx context.Context, req *proto.ChangePasswordRe
 
 	// Authenticate.
 	user := req.User
-	authReq := AuthenticateUserRequest{
+	authReq := authclient.AuthenticateUserRequest{
 		Username: user,
 		Webauthn: wantypes.CredentialAssertionResponseFromProto(req.Webauthn),
 	}

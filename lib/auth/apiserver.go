@@ -477,7 +477,7 @@ func (s *APIServer) createWebSession(auth *ServerWithRoles, w http.ResponseWrite
 }
 
 func (s *APIServer) authenticateWebUser(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req AuthenticateUserRequest
+	var req authclient.AuthenticateUserRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}

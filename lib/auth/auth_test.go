@@ -221,7 +221,7 @@ func TestSessions(t *testing.T) {
 	user := "user1"
 	pass := []byte("abcdef123456")
 
-	_, err := s.a.AuthenticateWebUser(ctx, AuthenticateUserRequest{
+	_, err := s.a.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
 		Username: user,
 		Pass:     &PassCreds{Password: pass},
 	})
@@ -233,7 +233,7 @@ func TestSessions(t *testing.T) {
 	err = s.a.UpsertPassword(user, pass)
 	require.NoError(t, err)
 
-	ws, err := s.a.AuthenticateWebUser(ctx, AuthenticateUserRequest{
+	ws, err := s.a.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
 		Username: user,
 		Pass:     &PassCreds{Password: pass},
 	})
@@ -303,7 +303,7 @@ func TestAuthenticateWebUser_deviceWebToken(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	validReq := &AuthenticateUserRequest{
+	validReq := &authclient.AuthenticateUserRequest{
 		Username: user,
 		Pass: &PassCreds{
 			Password: []byte(pass),
@@ -317,7 +317,7 @@ func TestAuthenticateWebUser_deviceWebToken(t *testing.T) {
 	tests := []struct {
 		name          string
 		makeTokenFunc func(t *testing.T) CreateDeviceWebTokenFunc
-		req           *AuthenticateUserRequest
+		req           *authclient.AuthenticateUserRequest
 		wantErr       string
 		wantToken     bool
 	}{
@@ -335,7 +335,7 @@ func TestAuthenticateWebUser_deviceWebToken(t *testing.T) {
 		{
 			name:          "empty ClientMetadata.UserAgent",
 			makeTokenFunc: makeTokenSuccess,
-			req: func() *AuthenticateUserRequest {
+			req: func() *authclient.AuthenticateUserRequest {
 				req := *validReq
 				req.ClientMetadata = &ForwardedClientMetadata{
 					RemoteAddr: remoteAddr, // AuthenticateWebUser fails if RemoteAddr is missing.
@@ -346,7 +346,7 @@ func TestAuthenticateWebUser_deviceWebToken(t *testing.T) {
 		{
 			name:          "nil ClientMetadata",
 			makeTokenFunc: makeTokenSuccess,
-			req: func() *AuthenticateUserRequest {
+			req: func() *authclient.AuthenticateUserRequest {
 				req := *validReq
 				req.ClientMetadata = nil
 				return &req
@@ -405,7 +405,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 
 	// Try to login as an unknown user.
 	_, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
-		AuthenticateUserRequest: AuthenticateUserRequest{
+		authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 			Username: user,
 			Pass:     &PassCreds{Password: pass},
 		},
@@ -431,7 +431,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 
 	// Login to the root cluster.
 	resp, err := s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
-		AuthenticateUserRequest: AuthenticateUserRequest{
+		authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 			Username:  user,
 			Pass:      &PassCreds{Password: pass},
 			PublicKey: pub,
@@ -470,7 +470,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 
 	// Login to the leaf cluster.
 	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
-		AuthenticateUserRequest: AuthenticateUserRequest{
+		authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 			Username:  user,
 			Pass:      &PassCreds{Password: pass},
 			PublicKey: pub,
@@ -516,7 +516,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 
 	// Login specifying a valid kube cluster. It should appear in the TLS cert.
 	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
-		AuthenticateUserRequest: AuthenticateUserRequest{
+		authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 			Username:  user,
 			Pass:      &PassCreds{Password: pass},
 			PublicKey: pub,
@@ -547,7 +547,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 
 	// Login without specifying kube cluster. Kube cluster in the certificate should be empty.
 	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
-		AuthenticateUserRequest: AuthenticateUserRequest{
+		authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 			Username:  user,
 			Pass:      &PassCreds{Password: pass},
 			PublicKey: pub,
@@ -579,7 +579,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 
 	// Login specifying a valid kube cluster. It should appear in the TLS cert.
 	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
-		AuthenticateUserRequest: AuthenticateUserRequest{
+		authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 			Username:  user,
 			Pass:      &PassCreds{Password: pass},
 			PublicKey: pub,
@@ -610,7 +610,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 
 	// Login without specifying kube cluster. Kube cluster in the certificate should be empty.
 	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
-		AuthenticateUserRequest: AuthenticateUserRequest{
+		authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 			Username:  user,
 			Pass:      &PassCreds{Password: pass},
 			PublicKey: pub,
@@ -642,7 +642,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 
 	// Login specifying an invalid kube cluster. This should fail.
 	_, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
-		AuthenticateUserRequest: AuthenticateUserRequest{
+		authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 			Username:  user,
 			Pass:      &PassCreds{Password: pass},
 			PublicKey: pub,
@@ -721,7 +721,7 @@ func TestAuthenticateUser_mfaDeviceLocked(t *testing.T) {
 		}
 
 		return proxyClient.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
-			AuthenticateUserRequest: AuthenticateUserRequest{
+			authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 				Username:  user,
 				PublicKey: pubKey,
 				Pass: &PassCreds{
@@ -790,7 +790,7 @@ func TestUserLock(t *testing.T) {
 	username := "user1"
 	pass := []byte("abcdef123456")
 
-	_, err := s.a.AuthenticateWebUser(ctx, AuthenticateUserRequest{
+	_, err := s.a.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
 		Username: username,
 		Pass:     &PassCreds{Password: pass},
 	})
@@ -803,7 +803,7 @@ func TestUserLock(t *testing.T) {
 	require.NoError(t, err)
 
 	// successful log in
-	ws, err := s.a.AuthenticateWebUser(ctx, AuthenticateUserRequest{
+	ws, err := s.a.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
 		Username: username,
 		Pass:     &PassCreds{Password: pass},
 	})
@@ -814,7 +814,7 @@ func TestUserLock(t *testing.T) {
 	s.a.SetClock(fakeClock)
 
 	for i := 0; i <= defaults.MaxLoginAttempts; i++ {
-		_, err = s.a.AuthenticateWebUser(ctx, AuthenticateUserRequest{
+		_, err = s.a.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
 			Username: username,
 			Pass:     &PassCreds{Password: []byte("wrong password")},
 		})
@@ -828,7 +828,7 @@ func TestUserLock(t *testing.T) {
 	// advance time and make sure we can login again
 	fakeClock.Advance(defaults.AccountLockInterval + time.Second)
 
-	_, err = s.a.AuthenticateWebUser(ctx, AuthenticateUserRequest{
+	_, err = s.a.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
 		Username: username,
 		Pass:     &PassCreds{Password: pass},
 	})
@@ -1373,7 +1373,7 @@ func TestServer_AugmentContextUserCertificates(t *testing.T) {
 	_, pub, err := testauthority.New().GetNewKeyPairFromPool()
 	require.NoError(t, err, "GetNewKeyPairFromPool failed")
 	authResp, err := authServer.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
-		AuthenticateUserRequest: AuthenticateUserRequest{
+		authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 			Username: username,
 			Pass: &PassCreds{
 				Password: []byte(pass),
@@ -1548,7 +1548,7 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 		require.NoError(t, err, "NewPublicKey failed")
 
 		authResp, err := authServer.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
-			AuthenticateUserRequest: AuthenticateUserRequest{
+			authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 				Username: user,
 				Pass: &PassCreds{
 					Password: []byte(pass),
@@ -2184,7 +2184,7 @@ func setupUserForAugmentWebSessionCertificatesTest(t *testing.T, testServer *Tes
 	user.pubKey = ssh.MarshalAuthorizedKey(pubKeySSH)
 
 	// Prepare a WebSession to be augmented.
-	authnReq := AuthenticateUserRequest{
+	authnReq := authclient.AuthenticateUserRequest{
 		Username:  user.user,
 		PublicKey: user.pubKey,
 		Pass: &PassCreds{
@@ -2262,7 +2262,7 @@ func TestGenerateUserCertIPPinning(t *testing.T) {
 	}
 
 	baseAuthRequest := AuthenticateSSHRequest{
-		AuthenticateUserRequest: AuthenticateUserRequest{
+		authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 			Pass:      &PassCreds{Password: pass},
 			PublicKey: pub,
 		},

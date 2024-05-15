@@ -878,23 +878,23 @@ func TestServer_AuthenticateUser_passwordOnly(t *testing.T) {
 
 	// makeRun is used to test both SSH and Web login by switching the
 	// authenticate function.
-	makeRun := func(authenticate func(*Server, AuthenticateUserRequest) error) func(t *testing.T) {
+	makeRun := func(authenticate func(*Server, authclient.AuthenticateUserRequest) error) func(t *testing.T) {
 		return func(t *testing.T) {
-			require.NoError(t, authenticate(authServer, AuthenticateUserRequest{
+			require.NoError(t, authenticate(authServer, authclient.AuthenticateUserRequest{
 				Username: "bowman",
 				Pass:     &PassCreds{Password: []byte("it's full of stars!")},
 			}))
 		}
 	}
-	t.Run("ssh", makeRun(func(s *Server, req AuthenticateUserRequest) error {
+	t.Run("ssh", makeRun(func(s *Server, req authclient.AuthenticateUserRequest) error {
 		req.PublicKey = []byte(sshPubKey)
 		_, err := s.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
-			AuthenticateUserRequest: req,
-			TTL:                     24 * time.Hour,
+			authclient.AuthenticateUserRequest: req,
+			TTL:                                24 * time.Hour,
 		})
 		return err
 	}))
-	t.Run("web", makeRun(func(s *Server, req AuthenticateUserRequest) error {
+	t.Run("web", makeRun(func(s *Server, req authclient.AuthenticateUserRequest) error {
 		_, err := s.AuthenticateWebUser(ctx, req)
 		return err
 	}))
@@ -944,7 +944,7 @@ func TestServer_AuthenticateUser_passwordOnly_failure(t *testing.T) {
 	for _, test := range tests {
 		// makeRun is used to test both SSH and Web login by switching the
 		// authenticate function.
-		makeRun := func(authenticate func(*Server, AuthenticateUserRequest) error) func(t *testing.T) {
+		makeRun := func(authenticate func(*Server, authclient.AuthenticateUserRequest) error) func(t *testing.T) {
 			return func(t *testing.T) {
 				_, _, err := CreateUserAndRole(authServer, username, nil, nil)
 				require.NoError(t, err)
@@ -953,7 +953,7 @@ func TestServer_AuthenticateUser_passwordOnly_failure(t *testing.T) {
 				})
 				test.setup(t, authServer)
 
-				err = authenticate(authServer, AuthenticateUserRequest{
+				err = authenticate(authServer, authclient.AuthenticateUserRequest{
 					Username: test.authUser,
 					Pass:     &PassCreds{Password: []byte(test.authPassword)},
 				})
@@ -961,15 +961,15 @@ func TestServer_AuthenticateUser_passwordOnly_failure(t *testing.T) {
 				assert.True(t, trace.IsAccessDenied(err), "got %T: %v, want AccessDenied", trace.Unwrap(err), err)
 			}
 		}
-		t.Run(test.name+"/ssh", makeRun(func(s *Server, req AuthenticateUserRequest) error {
+		t.Run(test.name+"/ssh", makeRun(func(s *Server, req authclient.AuthenticateUserRequest) error {
 			req.PublicKey = []byte(sshPubKey)
 			_, err := s.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
-				AuthenticateUserRequest: req,
-				TTL:                     24 * time.Hour,
+				authclient.AuthenticateUserRequest: req,
+				TTL:                                24 * time.Hour,
 			})
 			return err
 		}))
-		t.Run(test.name+"/web", makeRun(func(s *Server, req AuthenticateUserRequest) error {
+		t.Run(test.name+"/web", makeRun(func(s *Server, req authclient.AuthenticateUserRequest) error {
 			_, err := s.AuthenticateWebUser(ctx, req)
 			return err
 		}))
@@ -991,7 +991,7 @@ func TestServer_AuthenticateUser_setsPasswordState(t *testing.T) {
 
 	// makeRun is used to test both SSH and Web login by switching the
 	// authenticate function.
-	makeRun := func(authenticate func(*Server, AuthenticateUserRequest) error) func(t *testing.T) {
+	makeRun := func(authenticate func(*Server, authclient.AuthenticateUserRequest) error) func(t *testing.T) {
 		return func(t *testing.T) {
 			// Enforce unspecified password state.
 			u, err := authServer.Identity.UpdateAndSwapUser(ctx, username, false, /* withSecrets */
@@ -1003,7 +1003,7 @@ func TestServer_AuthenticateUser_setsPasswordState(t *testing.T) {
 			assert.Equal(t, types.PasswordState_PASSWORD_STATE_UNSPECIFIED, u.GetPasswordState())
 
 			// Finish login - either SSH or Web
-			require.NoError(t, authenticate(authServer, AuthenticateUserRequest{
+			require.NoError(t, authenticate(authServer, authclient.AuthenticateUserRequest{
 				Username: "bowman",
 				Pass: &PassCreds{
 					Password: []byte("it's full of stars!"),
@@ -1016,15 +1016,15 @@ func TestServer_AuthenticateUser_setsPasswordState(t *testing.T) {
 			assert.Equal(t, types.PasswordState_PASSWORD_STATE_SET, u.GetPasswordState())
 		}
 	}
-	t.Run("ssh", makeRun(func(s *Server, req AuthenticateUserRequest) error {
+	t.Run("ssh", makeRun(func(s *Server, req authclient.AuthenticateUserRequest) error {
 		req.PublicKey = []byte(sshPubKey)
 		_, err := s.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
-			AuthenticateUserRequest: req,
-			TTL:                     24 * time.Hour,
+			authclient.AuthenticateUserRequest: req,
+			TTL:                                24 * time.Hour,
 		})
 		return err
 	}))
-	t.Run("web", makeRun(func(s *Server, req AuthenticateUserRequest) error {
+	t.Run("web", makeRun(func(s *Server, req authclient.AuthenticateUserRequest) error {
 		_, err := s.AuthenticateWebUser(ctx, req)
 		return err
 	}))
@@ -1051,7 +1051,7 @@ func TestServer_AuthenticateUser_mfaDevices(t *testing.T) {
 		test := test
 		// makeRun is used to test both SSH and Web login by switching the
 		// authenticate function.
-		makeRun := func(authenticate func(*Server, AuthenticateUserRequest) error) func(t *testing.T) {
+		makeRun := func(authenticate func(*Server, authclient.AuthenticateUserRequest) error) func(t *testing.T) {
 			return func(t *testing.T) {
 				// 1st step: acquire challenge
 				challenge, err := authServer.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
@@ -1064,7 +1064,7 @@ func TestServer_AuthenticateUser_mfaDevices(t *testing.T) {
 
 				// Solve challenge (client-side)
 				resp, err := test.solveChallenge(challenge)
-				authReq := AuthenticateUserRequest{
+				authReq := authclient.AuthenticateUserRequest{
 					Username:  username,
 					PublicKey: []byte(sshPubKey),
 				}
@@ -1086,14 +1086,14 @@ func TestServer_AuthenticateUser_mfaDevices(t *testing.T) {
 				require.NoError(t, authenticate(authServer, authReq))
 			}
 		}
-		t.Run(test.name+"/ssh", makeRun(func(s *Server, req AuthenticateUserRequest) error {
+		t.Run(test.name+"/ssh", makeRun(func(s *Server, req authclient.AuthenticateUserRequest) error {
 			_, err := s.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
-				AuthenticateUserRequest: req,
-				TTL:                     24 * time.Hour,
+				authclient.AuthenticateUserRequest: req,
+				TTL:                                24 * time.Hour,
 			})
 			return err
 		}))
-		t.Run(test.name+"/web", makeRun(func(s *Server, req AuthenticateUserRequest) error {
+		t.Run(test.name+"/web", makeRun(func(s *Server, req authclient.AuthenticateUserRequest) error {
 			_, err := s.AuthenticateWebUser(ctx, req)
 			return err
 		}))
@@ -1190,7 +1190,7 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 			name: "ssh",
 			authenticate: func(t *testing.T, resp *wantypes.CredentialAssertionResponse) {
 				loginResp, err := proxyClient.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
-					AuthenticateUserRequest: AuthenticateUserRequest{
+					authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 						Webauthn:  resp,
 						PublicKey: []byte(sshPubKey),
 					},
@@ -1210,7 +1210,7 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 			},
 			authenticate: func(t *testing.T, resp *wantypes.CredentialAssertionResponse) {
 				loginResp, err := proxyClient.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
-					AuthenticateUserRequest: AuthenticateUserRequest{
+					authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 						Webauthn:  resp,
 						PublicKey: []byte(sshPubKey),
 					},
@@ -1225,7 +1225,7 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 		{
 			name: "web",
 			authenticate: func(t *testing.T, resp *wantypes.CredentialAssertionResponse) {
-				session, err := proxyClient.AuthenticateWebUser(ctx, AuthenticateUserRequest{
+				session, err := proxyClient.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
 					Webauthn: resp,
 				})
 				require.NoError(t, err, "Failed to perform passwordless authentication")
@@ -1238,7 +1238,7 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 				loginHook,
 			},
 			authenticate: func(t *testing.T, resp *wantypes.CredentialAssertionResponse) {
-				session, err := proxyClient.AuthenticateWebUser(ctx, AuthenticateUserRequest{
+				session, err := proxyClient.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
 					Webauthn: resp,
 				})
 				require.NoError(t, err, "Failed to perform passwordless authentication")
@@ -1256,7 +1256,7 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 
 			// Fail a login attempt so have a non-empty list of attempts.
 			_, err := proxyClient.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
-				AuthenticateUserRequest: AuthenticateUserRequest{
+				authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 					Username:  user,
 					Webauthn:  &wantypes.CredentialAssertionResponse{}, // bad response
 					PublicKey: []byte(sshPubKey),
@@ -1341,7 +1341,7 @@ func TestPasswordlessProhibitedForSSO(t *testing.T) {
 		{
 			name: "web not allowed",
 			authenticate: func(car *wantypes.CredentialAssertionResponse) error {
-				_, err := proxyClient.AuthenticateWebUser(ctx, AuthenticateUserRequest{
+				_, err := proxyClient.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
 					Webauthn: car,
 				})
 				return err
@@ -1351,7 +1351,7 @@ func TestPasswordlessProhibitedForSSO(t *testing.T) {
 			name: "ssh not allowed",
 			authenticate: func(car *wantypes.CredentialAssertionResponse) error {
 				_, err := proxyClient.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
-					AuthenticateUserRequest: AuthenticateUserRequest{
+					authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 						PublicKey: []byte(sshPubKey),
 						Webauthn:  car,
 					},
@@ -1513,7 +1513,7 @@ func TestSSOPasswordBypass(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			req := AuthenticateSSHRequest{
-				AuthenticateUserRequest: AuthenticateUserRequest{
+				authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 					Username:  mfa.User,
 					PublicKey: []byte(sshPubKey),
 					// test.setSecondFactor sets either Pass, OTP or Webauthn.
@@ -1708,7 +1708,7 @@ func TestServer_Authenticate_nonPasswordlessRequiresUsername(t *testing.T) {
 			mfaResp, err := test.dev.SolveAuthn(mfaChallenge)
 			require.NoError(t, err)
 
-			req := AuthenticateUserRequest{
+			req := authclient.AuthenticateUserRequest{
 				PublicKey: []byte(sshPubKey),
 			}
 			switch {
@@ -1723,8 +1723,8 @@ func TestServer_Authenticate_nonPasswordlessRequiresUsername(t *testing.T) {
 
 			// SSH.
 			_, err = proxyClient.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
-				AuthenticateUserRequest: req,
-				TTL:                     24 * time.Hour,
+				authclient.AuthenticateUserRequest: req,
+				TTL:                                24 * time.Hour,
 			})
 			require.Error(t, err, "SSH authentication expected fail (missing username)")
 			require.Contains(t, err.Error(), test.wantErr)
@@ -1797,7 +1797,7 @@ func TestServer_Authenticate_headless(t *testing.T) {
 
 			// Fail a login attempt so we have a non-empty list of attempts.
 			_, err = proxyClient.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
-				AuthenticateUserRequest: AuthenticateUserRequest{
+				authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 					Username:  username,
 					Webauthn:  &wantypes.CredentialAssertionResponse{}, // bad response
 					PublicKey: []byte(sshPubKey),
@@ -1840,7 +1840,7 @@ func TestServer_Authenticate_headless(t *testing.T) {
 			}()
 
 			_, err = proxyClient.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
-				AuthenticateUserRequest: AuthenticateUserRequest{
+				authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 					// HeadlessAuthenticationID should take precedence over WebAuthn and OTP fields.
 					HeadlessAuthenticationID: headlessID,
 					Webauthn:                 &wantypes.CredentialAssertionResponse{},
