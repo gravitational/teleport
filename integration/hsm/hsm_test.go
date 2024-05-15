@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/etcdbk"
@@ -179,7 +180,7 @@ func TestHSMRotation(t *testing.T) {
 	require.NoError(t, allServices.waitForRestart(ctx))
 }
 
-func getAdminClient(authDataDir string, authAddr string) (*auth.Client, error) {
+func getAdminClient(authDataDir string, authAddr string) (*authclient.Client, error) {
 	identity, err := auth.ReadLocalIdentity(
 		filepath.Join(authDataDir, teleport.ComponentProcess),
 		auth.IdentityID{Role: types.RoleAdmin})
@@ -192,7 +193,7 @@ func getAdminClient(authDataDir string, authAddr string) (*auth.Client, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := auth.NewClient(client.Config{
+	clt, err := authclient.NewClient(client.Config{
 		Addrs: []string{authAddr},
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),

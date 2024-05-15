@@ -1702,7 +1702,7 @@ func TestIdentityChecker(t *testing.T) {
 				"test",
 				utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 				handler,
-				[]ssh.Signer{test.cert},
+				sshutils.StaticHostSigners(test.cert),
 				sshutils.AuthMethods{NoClient: true},
 				sshutils.SetInsecureSkipHostValidation(),
 			)

@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -611,7 +612,7 @@ func (process *TeleportProcess) syncOpenSSHRotationState() error {
 	return nil
 }
 
-func registerServer(a *servicecfg.Config, ctx context.Context, client auth.ClientI, lastRotation time.Time) error {
+func registerServer(a *servicecfg.Config, ctx context.Context, client authclient.ClientI, lastRotation time.Time) error {
 	server, err := types.NewServerWithLabels(
 		a.HostUUID,
 		types.KindNode,
@@ -841,11 +842,11 @@ func checkServerIdentity(ctx context.Context, conn *Connector, additionalPrincip
 	// certificate need to be updated.
 	if len(additionalPrincipals) != 0 && !conn.ServerIdentity.HasPrincipals(principalsToCheck) {
 		principalsChanged = true
-		logger.DebugContext(ctx, "Rotation in progress, updating SSH principals.", "additional_principals", additionalPrincipals, "current_principals", conn.ServerIdentity.Cert.ValidPrincipals)
+		logger.InfoContext(ctx, "Rotation in progress, updating SSH principals.", "identity", conn.ServerIdentity.ID.Role, "additional_principals", additionalPrincipals, "current_principals", conn.ServerIdentity.Cert.ValidPrincipals)
 	}
 	if len(dnsNames) != 0 && !conn.ServerIdentity.HasDNSNames(dnsNames) {
 		dnsNamesChanged = true
-		logger.DebugContext(ctx, "Rotation in progress, updating DNS names.", "additional_dns_names", dnsNames, "current_dns_names", conn.ServerIdentity.XCert.DNSNames)
+		logger.InfoContext(ctx, "Rotation in progress, updating DNS names.", "identity", conn.ServerIdentity.ID.Role, "additional_dns_names", dnsNames, "current_dns_names", conn.ServerIdentity.XCert.DNSNames)
 	}
 
 	return principalsChanged || dnsNamesChanged
@@ -1052,7 +1053,7 @@ func (process *TeleportProcess) getConnector(clientIdentity, serverIdentity *aut
 // depending on what was specified in the config.
 // For config v1 and v2, it will attempt to direct dial the auth server, and fallback to trying to tunnel
 // to the Auth Server through the proxy.
-func (process *TeleportProcess) newClient(identity *auth.Identity) (*auth.Client, *proto.PingResponse, error) {
+func (process *TeleportProcess) newClient(identity *auth.Identity) (*authclient.Client, *proto.PingResponse, error) {
 	tlsConfig, err := identity.TLSConfig(process.Config.CipherSuites)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -1064,7 +1065,7 @@ func (process *TeleportProcess) newClient(identity *auth.Identity) (*auth.Client
 	}
 
 	authServers := process.Config.AuthServerAddresses()
-	connectToAuthServer := func(logger *slog.Logger) (*auth.Client, *proto.PingResponse, error) {
+	connectToAuthServer := func(logger *slog.Logger) (*authclient.Client, *proto.PingResponse, error) {
 		logger.DebugContext(process.ExitContext(), "Attempting to connect to Auth Server directly.")
 		clt, pingResponse, err := process.newClientDirect(authServers, tlsConfig, identity.ID.Role)
 		if err != nil {
@@ -1141,7 +1142,7 @@ func (process *TeleportProcess) newClient(identity *auth.Identity) (*auth.Client
 	return nil, nil, trace.NotImplemented("could not find connection strategy for config version %s", process.Config.Version)
 }
 
-func (process *TeleportProcess) newClientThroughTunnel(tlsConfig *tls.Config, sshConfig *ssh.ClientConfig, role types.SystemRole) (*auth.Client, *proto.PingResponse, error) {
+func (process *TeleportProcess) newClientThroughTunnel(tlsConfig *tls.Config, sshConfig *ssh.ClientConfig, role types.SystemRole) (*authclient.Client, *proto.PingResponse, error) {
 	dialer, err := reversetunnelclient.NewTunnelAuthDialer(reversetunnelclient.TunnelAuthDialerConfig{
 		Resolver:              process.resolver,
 		ClientConfig:          sshConfig,
@@ -1152,7 +1153,7 @@ func (process *TeleportProcess) newClientThroughTunnel(tlsConfig *tls.Config, ss
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	clt, err := auth.NewClient(apiclient.Config{
+	clt, err := authclient.NewClient(apiclient.Config{
 		Context: process.ExitContext(),
 		Dialer:  dialer,
 		Credentials: []apiclient.Credentials{
@@ -1177,12 +1178,12 @@ func (process *TeleportProcess) newClientThroughTunnel(tlsConfig *tls.Config, ss
 	return clt, &resp, nil
 }
 
-func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tlsConfig *tls.Config, role types.SystemRole) (*auth.Client, *proto.PingResponse, error) {
+func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tlsConfig *tls.Config, role types.SystemRole) (*authclient.Client, *proto.PingResponse, error) {
 	var cltParams []roundtrip.ClientParam
 	if process.Config.Testing.ClientTimeout != 0 {
 		cltParams = []roundtrip.ClientParam{
-			auth.ClientParamIdleConnTimeout(process.Config.Testing.ClientTimeout),
-			auth.ClientParamResponseHeaderTimeout(process.Config.Testing.ClientTimeout),
+			authclient.ClientParamIdleConnTimeout(process.Config.Testing.ClientTimeout),
+			authclient.ClientParamResponseHeaderTimeout(process.Config.Testing.ClientTimeout),
 		}
 	}
 
@@ -1198,7 +1199,7 @@ func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tls
 		}...)
 	}
 
-	clt, err := auth.NewClient(apiclient.Config{
+	clt, err := authclient.NewClient(apiclient.Config{
 		Context: process.ExitContext(),
 		Addrs:   utils.NetAddrsToStrings(authServers),
 		Credentials: []apiclient.Credentials{

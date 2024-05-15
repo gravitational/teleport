@@ -33,8 +33,8 @@ use rdpdr::path::UnixPath;
 use rdpdr::tdp::{
     FileSystemObject, FileType, SharedDirectoryAcknowledge, SharedDirectoryCreateResponse,
     SharedDirectoryDeleteResponse, SharedDirectoryInfoResponse, SharedDirectoryListResponse,
-    SharedDirectoryMoveResponse, SharedDirectoryReadResponse, SharedDirectoryWriteResponse,
-    TdpErrCode,
+    SharedDirectoryMoveResponse, SharedDirectoryReadResponse, SharedDirectoryTruncateResponse,
+    SharedDirectoryWriteResponse, TdpErrCode,
 };
 use std::ffi::CString;
 use std::fmt::Debug;
@@ -344,6 +344,24 @@ pub unsafe extern "C" fn client_handle_tdp_sd_move_response(
         cgo_handle,
         "client_handle_tdp_sd_move_response",
         move |client_handle| client_handle.handle_tdp_sd_move_response(res),
+    )
+}
+
+/// client_handle_tdp_sd_truncate_response handles a TDP Shared Directory Truncate Response
+/// message
+///
+/// # Safety
+///
+/// `cgo_handle` must be a valid handle.
+#[no_mangle]
+pub unsafe extern "C" fn client_handle_tdp_sd_truncate_response(
+    cgo_handle: CgoHandle,
+    res: CGOSharedDirectoryTruncateResponse,
+) -> CGOErrCode {
+    handle_operation(
+        cgo_handle,
+        "client_handle_tdp_sd_truncate_response",
+        move |client_handle| client_handle.handle_tdp_sd_truncate_response(res),
     )
 }
 
@@ -667,6 +685,16 @@ pub struct CGOSharedDirectoryListRequest {
     pub path: *const c_char,
 }
 
+#[repr(C)]
+pub struct CGOSharedDirectoryTruncateRequest {
+    pub completion_id: u32,
+    pub directory_id: u32,
+    pub path: *const c_char,
+    pub end_of_file: u32,
+}
+
+pub type CGOSharedDirectoryTruncateResponse = SharedDirectoryTruncateResponse;
+
 // These functions are defined on the Go side.
 // Look for functions with '//export funcname' comments.
 extern "C" {
@@ -710,6 +738,10 @@ extern "C" {
     fn cgo_tdp_sd_move_request(
         cgo_handle: CgoHandle,
         req: *mut CGOSharedDirectoryMoveRequest,
+    ) -> CGOErrCode;
+    fn cgo_tdp_sd_truncate_request(
+        cgo_handle: CgoHandle,
+        req: *mut CGOSharedDirectoryTruncateRequest,
     ) -> CGOErrCode;
 }
 

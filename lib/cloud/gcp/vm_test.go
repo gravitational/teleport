@@ -53,7 +53,7 @@ func newMockInstance(t *testing.T, hostSigner ssh.Signer, listener net.Listener)
 		"gcp-vm-server",
 		utils.NetAddr{AddrNetwork: "tcp", Addr: listener.Addr().String()},
 		mock,
-		[]ssh.Signer{hostSigner},
+		sshutils.StaticHostSigners(hostSigner),
 		sshutils.AuthMethods{
 			PublicKey: mock.userKeyAuth,
 		},

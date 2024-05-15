@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -81,7 +82,7 @@ type ConnectionsHandlerConfig struct {
 	HostID string
 
 	// AuthClient is a client directly connected to the Auth server.
-	AuthClient auth.ClientI
+	AuthClient authclient.ClientI
 
 	// AccessPoint is a caching client connected to the Auth Server.
 	AccessPoint auth.AppsAccessPoint

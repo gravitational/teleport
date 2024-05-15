@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth
+package authclient
 
 import (
 	"context"
@@ -60,7 +60,7 @@ func (c *Client) GenerateHostCert(
 		switch {
 		case trace.IsNotImplemented(err):
 			// Fall back to HTTP implementation.
-			return c.generateHostCertHTTP(
+			return c.GenerateHostCertHTTP(
 				ctx, key, hostID, nodeName, principals, clusterName, role, ttl,
 			)
 		default:
@@ -70,8 +70,18 @@ func (c *Client) GenerateHostCert(
 	return res.SshCertificate, nil
 }
 
+type generateHostCertReq struct {
+	Key         []byte            `json:"key"`
+	HostID      string            `json:"hostname"`
+	NodeName    string            `json:"node_name"`
+	Principals  []string          `json:"principals"`
+	ClusterName string            `json:"auth_domain"`
+	Roles       types.SystemRoles `json:"roles"`
+	TTL         time.Duration     `json:"ttl"`
+}
+
 // TODO(noah): DELETE IN 16.0.0
-func (c *Client) generateHostCertHTTP(
+func (c *Client) GenerateHostCertHTTP(
 	ctx context.Context,
 	key []byte,
 	hostID, nodeName string,
@@ -111,6 +121,10 @@ func (c *Client) RotateCertAuthority(ctx context.Context, req types.RotateReques
 	}
 
 	return trace.Wrap(err)
+}
+
+type rotateExternalCertAuthorityRawReq struct {
+	CA json.RawMessage `json:"ca"`
 }
 
 // TODO(Joerger): DELETE IN 16.0.0

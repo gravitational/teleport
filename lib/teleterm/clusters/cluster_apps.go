@@ -28,7 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/utils"
@@ -65,7 +65,7 @@ type AppOrSAMLIdPServiceProvider struct {
 }
 
 // GetApps returns a paginated apps list
-func (c *Cluster) GetApps(ctx context.Context, authClient auth.ClientI, r *api.GetAppsRequest) (*GetAppsResponse, error) {
+func (c *Cluster) GetApps(ctx context.Context, authClient authclient.ClientI, r *api.GetAppsRequest) (*GetAppsResponse, error) {
 	var (
 		page apiclient.ResourcePage[types.AppServerOrSAMLIdPServiceProvider]
 		err  error
@@ -124,7 +124,7 @@ type GetAppsResponse struct {
 	TotalCount int
 }
 
-func (c *Cluster) getApp(ctx context.Context, authClient auth.ClientI, appName string) (types.Application, error) {
+func (c *Cluster) getApp(ctx context.Context, authClient authclient.ClientI, appName string) (types.Application, error) {
 	var app types.Application
 	err := AddMetadataToRetryableError(ctx, func() error {
 		apps, err := apiclient.GetAllResources[types.AppServer](ctx, authClient, &proto.ListResourcesRequest{
