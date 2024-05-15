@@ -1,4 +1,4 @@
-.version: &version "16.0.0-dev.fred-plugins.4"
+.version: &version "16.0.0-dev.fred-plugins.5"
 
 name: teleport-operator
 apiVersion: v2
