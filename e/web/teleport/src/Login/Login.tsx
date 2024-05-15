@@ -1,10 +1,8 @@
 import React from 'react';
 import LoginForm from 'teleport/components/FormLogin';
-import Logo from 'teleport/components/LogoHero';
+import { LogoHero } from 'teleport/components/LogoHero';
 import history from 'teleport/services/history';
 import useLogin, { State } from 'teleport/Login/useLogin';
-
-import logoSrc from 'design/assets/images/teleport-medallion.svg';
 
 import Motd from 'teleport/Login/Motd';
 
@@ -49,7 +47,7 @@ export function Login({
   }
   return (
     <>
-      <Logo src={logoSrc} />
+      <LogoHero />
       {showMotd ? (
         <Motd message={motd} onClick={acknowledgeMotd} />
       ) : (

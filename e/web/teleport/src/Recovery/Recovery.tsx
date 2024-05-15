@@ -1,7 +1,7 @@
 import React from 'react';
 import { Route, Switch } from 'teleport/components/Router';
 
-import LogoHero from 'teleport/components/LogoHero';
+import { LogoHero } from 'teleport/components/LogoHero';
 
 import cfg from 'e-teleport/config';
 
