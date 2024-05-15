@@ -31,9 +31,10 @@ import { OnboardCard } from 'design/Onboard/OnboardCard';
 
 import { Attempt } from 'shared/hooks/useAttemptNext';
 
+import { StepHeader } from 'design/StepSlider';
+
 import { PasskeyIcons } from 'teleport/components/Passkeys';
 
-import { HeaderWithSteps } from '../HeaderWithSteps';
 
 export interface NewMfaDeviceFormProps {
   title: string;
@@ -153,7 +154,7 @@ export function NewMfaDeviceForm({
                 style={{ cursor: 'pointer' }}
               />
             )}
-            <HeaderWithSteps
+            <StepHeader
               stepIndex={stepIndex}
               flowLength={flowLength}
               title={title}
