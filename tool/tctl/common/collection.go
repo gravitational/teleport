@@ -1479,7 +1479,11 @@ func (c *vnetConfigCollection) writeText(w io.Writer, verbose bool) error {
 	for _, dnsZone := range c.vnetConfig.Spec.CustomDnsZones {
 		dnsZoneSuffixes = append(dnsZoneSuffixes, dnsZone.Suffix)
 	}
-	fmt.Fprintln(w, "ipv4_cidr_range: ", c.vnetConfig.Spec.Ipv4CidrRange)
-	fmt.Fprintln(w, "custom_dns_zones:", strings.Join(dnsZoneSuffixes, ", "))
-	return nil
+	t := asciitable.MakeTable([]string{"IPv4 CIDR range", "Custom DNS Zones"})
+	t.AddRow([]string{
+		c.vnetConfig.GetSpec().GetIpv4CidrRange(),
+		strings.Join(dnsZoneSuffixes, ", "),
+	})
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
 }
