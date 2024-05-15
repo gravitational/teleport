@@ -36,6 +36,8 @@ type UserListEntry struct {
 	// Different from "userTraits" where "userTraits"
 	// "selectively" returns traits.
 	AllTraits map[string][]string `json:"allTraits"`
+	// Origin is the type of upstream IdP that manages the user. May be empty.
+	Origin string `json:"origin"`
 }
 
 type userTraits struct {
@@ -79,6 +81,7 @@ func NewUserListEntry(teleUser types.User) (*UserListEntry, error) {
 		Name:      teleUser.GetName(),
 		Roles:     teleUser.GetRoles(),
 		AuthType:  authType,
+		Origin:    teleUser.Origin(),
 		AllTraits: teleUser.GetTraits(),
 	}, nil
 }
