@@ -679,10 +679,6 @@ func (a *Server) AuthenticateWebUser(ctx context.Context, req authclient.Authent
 	return sess, nil
 }
 
-// TrustedCerts contains host certificates, it preserves backwards compatibility
-// on the wire, which is the primary reason for non-matching json tags
-type TrustedCerts = authclient.TrustedCerts
-
 // AuthoritiesToTrustedCerts serializes authorities to TrustedCerts data structure
 func AuthoritiesToTrustedCerts(authorities []types.CertAuthority) []authclient.TrustedCerts {
 	return authclient.AuthoritiesToTrustedCerts(authorities)
