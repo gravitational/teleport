@@ -679,11 +679,6 @@ func (a *Server) AuthenticateWebUser(ctx context.Context, req authclient.Authent
 	return sess, nil
 }
 
-// AuthoritiesToTrustedCerts serializes authorities to TrustedCerts data structure
-func AuthoritiesToTrustedCerts(authorities []types.CertAuthority) []authclient.TrustedCerts {
-	return authclient.AuthoritiesToTrustedCerts(authorities)
-}
-
 // AuthenticateSSHUser authenticates an SSH user and returns SSH and TLS
 // certificates for the public key in req.
 func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.AuthenticateSSHRequest) (*authclient.SSHLoginResponse, error) {
@@ -769,7 +764,7 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.Authent
 		Username:    user.GetName(),
 		Cert:        certs.SSH,
 		TLSCert:     certs.TLS,
-		HostSigners: AuthoritiesToTrustedCerts(hostCertAuthorities),
+		HostSigners: authclient.AuthoritiesToTrustedCerts(hostCertAuthorities),
 	}, nil
 }
 

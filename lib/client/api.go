@@ -3313,7 +3313,7 @@ func (tc *TeleportClient) AttemptDeviceLogin(ctx context.Context, key *Key, root
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	trustedCerts := auth.AuthoritiesToTrustedCerts(hostCerts)
+	trustedCerts := authclient.AuthoritiesToTrustedCerts(hostCerts)
 
 	// Update the CA pool and known hosts for all CAs the cluster knows about.
 	return trace.Wrap(tc.localAgent.SaveTrustedCerts(trustedCerts))
@@ -4179,7 +4179,7 @@ func (tc *TeleportClient) UpdateTrustedCA(ctx context.Context, getter services.A
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	trustedCerts := auth.AuthoritiesToTrustedCerts(hostCerts)
+	trustedCerts := authclient.AuthoritiesToTrustedCerts(hostCerts)
 
 	// Update the CA pool and known hosts for all CAs the cluster knows about.
 	err = tc.localAgent.SaveTrustedCerts(trustedCerts)
@@ -4372,7 +4372,7 @@ func (tc *TeleportClient) AddTrustedCA(ctx context.Context, ca types.CertAuthori
 		return trace.BadParameter("TeleportClient.AddTrustedCA called on a client without localAgent")
 	}
 
-	err := tc.localAgent.SaveTrustedCerts(auth.AuthoritiesToTrustedCerts([]types.CertAuthority{ca}))
+	err := tc.localAgent.SaveTrustedCerts(authclient.AuthoritiesToTrustedCerts([]types.CertAuthority{ca}))
 	if err != nil {
 		return trace.Wrap(err)
 	}

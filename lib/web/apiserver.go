@@ -1992,7 +1992,7 @@ func ConstructSSHResponse(response AuthParams) (*url.URL, error) {
 		Username:    response.Username,
 		Cert:        response.Cert,
 		TLSCert:     response.TLSCert,
-		HostSigners: auth.AuthoritiesToTrustedCerts(response.HostSigners),
+		HostSigners: authclient.AuthoritiesToTrustedCerts(response.HostSigners),
 	}
 	out, err := json.Marshal(consoleResponse)
 	if err != nil {

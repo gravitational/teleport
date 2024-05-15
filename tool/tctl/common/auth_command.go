@@ -525,7 +525,7 @@ func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI certifica
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	key.TrustedCerts = auth.AuthoritiesToTrustedCerts(hostCAs)
+	key.TrustedCerts = authclient.AuthoritiesToTrustedCerts(hostCAs)
 
 	// if no name was given, take the first name on the list of principals
 	filePath := a.output
@@ -943,7 +943,7 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI certifica
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	key.TrustedCerts = auth.AuthoritiesToTrustedCerts(hostCAs)
+	key.TrustedCerts = authclient.AuthoritiesToTrustedCerts(hostCAs)
 
 	// Is TLS routing enabled?
 	proxyListenerMode := types.ProxyListenerMode_Separate

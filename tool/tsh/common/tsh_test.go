@@ -3604,7 +3604,7 @@ func mockSSOLogin(authServer *auth.Server, user types.User) client.SSOLoginFunc 
 			Username:    user.GetName(),
 			Cert:        sshCert,
 			TLSCert:     tlsCert,
-			HostSigners: auth.AuthoritiesToTrustedCerts([]types.CertAuthority{authority}),
+			HostSigners: authclient.AuthoritiesToTrustedCerts([]types.CertAuthority{authority}),
 		}, nil
 	}
 }
@@ -3636,7 +3636,7 @@ func mockHeadlessLogin(t *testing.T, authServer *auth.Server, user types.User) c
 			Username:    user.GetName(),
 			Cert:        sshCert,
 			TLSCert:     tlsCert,
-			HostSigners: auth.AuthoritiesToTrustedCerts([]types.CertAuthority{authority}),
+			HostSigners: authclient.AuthoritiesToTrustedCerts([]types.CertAuthority{authority}),
 		}, nil
 	}
 }

@@ -397,7 +397,7 @@ func TestWithRsync(t *testing.T) {
 						Username:    s.user.GetName(),
 						Cert:        sshCert,
 						TLSCert:     tlsCert,
-						HostSigners: auth.AuthoritiesToTrustedCerts([]types.CertAuthority{authority}),
+						HostSigners: authclient.AuthoritiesToTrustedCerts([]types.CertAuthority{authority}),
 					}
 					encResp, err := json.Marshal(resp)
 					if !assert.NoError(t, err) {

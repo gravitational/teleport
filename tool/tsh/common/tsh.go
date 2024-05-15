@@ -1972,7 +1972,7 @@ func onLogin(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		key.TrustedCerts = auth.AuthoritiesToTrustedCerts(authorities)
+		key.TrustedCerts = authclient.AuthoritiesToTrustedCerts(authorities)
 		// If we're in multiplexed mode get SNI name for kube from single multiplexed proxy addr
 		kubeTLSServerName := ""
 		if tc.TLSRoutingEnabled {
