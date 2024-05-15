@@ -621,7 +621,7 @@ func (a *Server) sendValidateRequestToProxy(host string, validateRequest *authcl
 		return nil, trace.Wrap(err)
 	}
 
-	var validateResponseRaw ValidateTrustedClusterResponseRaw
+	var validateResponseRaw authclient.ValidateTrustedClusterResponseRaw
 	err = json.Unmarshal(out.Bytes(), &validateResponseRaw)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -634,8 +634,6 @@ func (a *Server) sendValidateRequestToProxy(host string, validateRequest *authcl
 
 	return validateResponse, nil
 }
-
-type ValidateTrustedClusterResponseRaw = authclient.ValidateTrustedClusterResponseRaw
 
 // activateCertAuthority will activate both the user and host certificate
 // authority given in the services.TrustedCluster resource.
