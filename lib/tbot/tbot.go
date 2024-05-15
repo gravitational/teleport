@@ -603,10 +603,10 @@ func (a *alpnProxyConnUpgradeRequiredCache) isUpgradeRequired(ctx context.Contex
 	a.log.DebugContext(ctx, "Testing ALPN upgrade necessary", "addr", addr, "insecure", insecure)
 	v = client.IsALPNConnUpgradeRequired(ctx, addr, insecure)
 	a.log.DebugContext(ctx, "Tested ALPN upgrade necessary", "addr", addr, "insecure", insecure, "result", v)
-	if ctx.Err() != nil {
+	if err := ctx.Err(); err != nil {
 		// Check for case where false is returned because client canceled ctx.
 		// We don't want to cache this result.
-		return v, ctx.Err()
+		return v, trace.Wrap(err)
 	}
 
 	a.cache[alpnConnUpgradeParams{addr, insecure}] = v
