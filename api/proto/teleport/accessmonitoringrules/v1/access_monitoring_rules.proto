@@ -115,3 +115,12 @@ message ListAccessMonitoringRulesResponse {
   // more results in the list.
   string next_page_token = 2;
 }
+
+// ListAccessMonitoringRulesWithFilterResponse is the response from ListAccessMonitoringRulesWithFilter.
+message ListAccessMonitoringRulesWithFilterResponse {
+  // The page of AccessMonitoringRule that matched the request.
+  repeated AccessMonitoringRule rules = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
+}

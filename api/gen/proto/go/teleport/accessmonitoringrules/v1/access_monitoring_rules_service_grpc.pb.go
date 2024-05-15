@@ -60,7 +60,7 @@ type AccessMonitoringRulesServiceClient interface {
 	// ListAccessMonitoringRules lists current access monitoring rules.
 	ListAccessMonitoringRules(ctx context.Context, in *ListAccessMonitoringRulesRequest, opts ...grpc.CallOption) (*ListAccessMonitoringRulesResponse, error)
 	// ListAccessMonitoringRulesWithFilter lists current access monitoring rules that match the provided filter.
-	ListAccessMonitoringRulesWithFilter(ctx context.Context, in *ListAccessMonitoringRulesWithFilterRequest, opts ...grpc.CallOption) (*ListAccessMonitoringRulesResponse, error)
+	ListAccessMonitoringRulesWithFilter(ctx context.Context, in *ListAccessMonitoringRulesWithFilterRequest, opts ...grpc.CallOption) (*ListAccessMonitoringRulesWithFilterResponse, error)
 }
 
 type accessMonitoringRulesServiceClient struct {
@@ -125,8 +125,8 @@ func (c *accessMonitoringRulesServiceClient) ListAccessMonitoringRules(ctx conte
 	return out, nil
 }
 
-func (c *accessMonitoringRulesServiceClient) ListAccessMonitoringRulesWithFilter(ctx context.Context, in *ListAccessMonitoringRulesWithFilterRequest, opts ...grpc.CallOption) (*ListAccessMonitoringRulesResponse, error) {
-	out := new(ListAccessMonitoringRulesResponse)
+func (c *accessMonitoringRulesServiceClient) ListAccessMonitoringRulesWithFilter(ctx context.Context, in *ListAccessMonitoringRulesWithFilterRequest, opts ...grpc.CallOption) (*ListAccessMonitoringRulesWithFilterResponse, error) {
+	out := new(ListAccessMonitoringRulesWithFilterResponse)
 	err := c.cc.Invoke(ctx, AccessMonitoringRulesService_ListAccessMonitoringRulesWithFilter_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -151,7 +151,7 @@ type AccessMonitoringRulesServiceServer interface {
 	// ListAccessMonitoringRules lists current access monitoring rules.
 	ListAccessMonitoringRules(context.Context, *ListAccessMonitoringRulesRequest) (*ListAccessMonitoringRulesResponse, error)
 	// ListAccessMonitoringRulesWithFilter lists current access monitoring rules that match the provided filter.
-	ListAccessMonitoringRulesWithFilter(context.Context, *ListAccessMonitoringRulesWithFilterRequest) (*ListAccessMonitoringRulesResponse, error)
+	ListAccessMonitoringRulesWithFilter(context.Context, *ListAccessMonitoringRulesWithFilterRequest) (*ListAccessMonitoringRulesWithFilterResponse, error)
 	mustEmbedUnimplementedAccessMonitoringRulesServiceServer()
 }
 
@@ -177,7 +177,7 @@ func (UnimplementedAccessMonitoringRulesServiceServer) DeleteAccessMonitoringRul
 func (UnimplementedAccessMonitoringRulesServiceServer) ListAccessMonitoringRules(context.Context, *ListAccessMonitoringRulesRequest) (*ListAccessMonitoringRulesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListAccessMonitoringRules not implemented")
 }
-func (UnimplementedAccessMonitoringRulesServiceServer) ListAccessMonitoringRulesWithFilter(context.Context, *ListAccessMonitoringRulesWithFilterRequest) (*ListAccessMonitoringRulesResponse, error) {
+func (UnimplementedAccessMonitoringRulesServiceServer) ListAccessMonitoringRulesWithFilter(context.Context, *ListAccessMonitoringRulesWithFilterRequest) (*ListAccessMonitoringRulesWithFilterResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListAccessMonitoringRulesWithFilter not implemented")
 }
 func (UnimplementedAccessMonitoringRulesServiceServer) mustEmbedUnimplementedAccessMonitoringRulesServiceServer() {
