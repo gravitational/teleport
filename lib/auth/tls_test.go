@@ -2928,7 +2928,7 @@ func TestCertificateFormat(t *testing.T) {
 		require.NoError(t, err)
 
 		// authentication attempt fails with password auth only
-		re, err := proxyClient.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
+		re, err := proxyClient.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 			authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 				Username: user.GetName(),
 				Pass: &authclient.PassCreds{
@@ -3268,7 +3268,7 @@ func TestLoginNoLocalAuth(t *testing.T) {
 	// Make sure access is denied for SSH login.
 	_, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
-	_, err = testSrv.Auth().AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
+	_, err = testSrv.Auth().AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 		authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 			Username: user,
 			Pass: &authclient.PassCreds{

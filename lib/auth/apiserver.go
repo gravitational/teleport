@@ -490,7 +490,7 @@ func (s *APIServer) authenticateWebUser(auth *ServerWithRoles, w http.ResponseWr
 }
 
 func (s *APIServer) authenticateSSHUser(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req AuthenticateSSHRequest
+	var req authclient.AuthenticateSSHRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}

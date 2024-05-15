@@ -404,7 +404,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	pass := []byte("abcdef123456")
 
 	// Try to login as an unknown user.
-	_, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
+	_, err = s.a.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 		authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 			Username: user,
 			Pass:     &authclient.PassCreds{Password: pass},
@@ -430,7 +430,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	require.NoError(t, err)
 
 	// Login to the root cluster.
-	resp, err := s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
+	resp, err := s.a.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 		authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 			Username:  user,
 			Pass:      &authclient.PassCreds{Password: pass},
@@ -469,7 +469,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	require.Equal(t, wantID, *gotID)
 
 	// Login to the leaf cluster.
-	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
+	resp, err = s.a.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 		authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 			Username:  user,
 			Pass:      &authclient.PassCreds{Password: pass},
@@ -515,7 +515,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	require.NoError(t, err)
 
 	// Login specifying a valid kube cluster. It should appear in the TLS cert.
-	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
+	resp, err = s.a.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 		authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 			Username:  user,
 			Pass:      &authclient.PassCreds{Password: pass},
@@ -546,7 +546,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	require.Equal(t, wantID, *gotID)
 
 	// Login without specifying kube cluster. Kube cluster in the certificate should be empty.
-	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
+	resp, err = s.a.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 		authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 			Username:  user,
 			Pass:      &authclient.PassCreds{Password: pass},
@@ -578,7 +578,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	require.Equal(t, wantID, *gotID)
 
 	// Login specifying a valid kube cluster. It should appear in the TLS cert.
-	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
+	resp, err = s.a.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 		authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 			Username:  user,
 			Pass:      &authclient.PassCreds{Password: pass},
@@ -609,7 +609,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	require.Equal(t, wantID, *gotID)
 
 	// Login without specifying kube cluster. Kube cluster in the certificate should be empty.
-	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
+	resp, err = s.a.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 		authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 			Username:  user,
 			Pass:      &authclient.PassCreds{Password: pass},
@@ -641,7 +641,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	require.Equal(t, wantID, *gotID)
 
 	// Login specifying an invalid kube cluster. This should fail.
-	_, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
+	_, err = s.a.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 		authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 			Username:  user,
 			Pass:      &authclient.PassCreds{Password: pass},
@@ -720,7 +720,7 @@ func TestAuthenticateUser_mfaDeviceLocked(t *testing.T) {
 			return nil, fmt.Errorf("solve challenge: %w", err)
 		}
 
-		return proxyClient.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
+		return proxyClient.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 			authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 				Username:  user,
 				PublicKey: pubKey,
@@ -1372,7 +1372,7 @@ func TestServer_AugmentContextUserCertificates(t *testing.T) {
 	// Authenticate and create certificates.
 	_, pub, err := testauthority.New().GetNewKeyPairFromPool()
 	require.NoError(t, err, "GetNewKeyPairFromPool failed")
-	authResp, err := authServer.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
+	authResp, err := authServer.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 		authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 			Username: username,
 			Pass: &authclient.PassCreds{
@@ -1547,7 +1547,7 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 		sPubKey, err := ssh.NewPublicKey(privKey.Public())
 		require.NoError(t, err, "NewPublicKey failed")
 
-		authResp, err := authServer.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
+		authResp, err := authServer.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 			authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 				Username: user,
 				Pass: &authclient.PassCreds{
@@ -2261,7 +2261,7 @@ func TestGenerateUserCertIPPinning(t *testing.T) {
 		{desc: "no client ip, pinned", user: pinnedUser, loginIP: "", wantPinned: true},
 	}
 
-	baseAuthRequest := AuthenticateSSHRequest{
+	baseAuthRequest := authclient.AuthenticateSSHRequest{
 		authclient.AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 			Pass:      &authclient.PassCreds{Password: pass},
 			PublicKey: pub,

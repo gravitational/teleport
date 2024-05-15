@@ -3974,7 +3974,7 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 		return nil, trace.Wrap(err)
 	}
 
-	authSSHUserReq := auth.AuthenticateSSHRequest{
+	authSSHUserReq := authclient.AuthenticateSSHRequest{
 		AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 			Username:       req.User,
 			PublicKey:      req.PubKey,

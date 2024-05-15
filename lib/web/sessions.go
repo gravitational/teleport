@@ -961,7 +961,7 @@ func (s *sessionCache) AuthenticateSSHUser(
 			Token:    c.TOTPCode,
 		}
 	}
-	return s.proxyClient.AuthenticateSSHUser(ctx, auth.AuthenticateSSHRequest{
+	return s.proxyClient.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 		AuthenticateUserRequest: authReq,
 		CompatibilityMode:       c.Compatibility,
 		TTL:                     c.TTL,

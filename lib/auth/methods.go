@@ -679,9 +679,6 @@ func (a *Server) AuthenticateWebUser(ctx context.Context, req authclient.Authent
 	return sess, nil
 }
 
-// AuthenticateSSHRequest is a request to authenticate SSH client user via CLI
-type AuthenticateSSHRequest = authclient.AuthenticateSSHRequest
-
 // SSHLoginResponse is a response returned by web proxy, it preserves backwards compatibility
 // on the wire, which is the primary reason for non-matching json tags
 type SSHLoginResponse = authclient.SSHLoginResponse
@@ -697,7 +694,7 @@ func AuthoritiesToTrustedCerts(authorities []types.CertAuthority) []authclient.T
 
 // AuthenticateSSHUser authenticates an SSH user and returns SSH and TLS
 // certificates for the public key in req.
-func (a *Server) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHRequest) (*SSHLoginResponse, error) {
+func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.AuthenticateSSHRequest) (*SSHLoginResponse, error) {
 	username := req.Username // Empty if passwordless.
 
 	authPref, err := a.GetAuthPreference(ctx)
