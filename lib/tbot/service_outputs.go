@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
@@ -63,7 +64,7 @@ type outputsService struct {
 	proxyPingCache    *proxyPingCache
 	authPingCache     *authPingCache
 	alpnUpgradeCache  *alpnProxyConnUpgradeRequiredCache
-	botClient         *auth.Client
+	botClient         *authclient.Client
 	getBotIdentity    getBotIdentityFn
 	cfg               *config.BotConfig
 	resolver          reversetunnelclient.Resolver
@@ -307,7 +308,7 @@ type identityConfigurator = func(req *proto.UserCertsRequest)
 // certs.
 func generateIdentity(
 	ctx context.Context,
-	client *auth.Client,
+	client *authclient.Client,
 	currentIdentity *identity.Identity,
 	roles []string,
 	ttl time.Duration,
@@ -391,7 +392,7 @@ func generateIdentity(
 	return newIdentity, nil
 }
 
-func getKubeCluster(ctx context.Context, clt *auth.Client, name string) (types.KubeCluster, error) {
+func getKubeCluster(ctx context.Context, clt *authclient.Client, name string) (types.KubeCluster, error) {
 	ctx, span := tracer.Start(ctx, "getKubeCluster")
 	defer span.End()
 
@@ -415,7 +416,7 @@ func getKubeCluster(ctx context.Context, clt *auth.Client, name string) (types.K
 	return cluster, trace.Wrap(err)
 }
 
-func getApp(ctx context.Context, clt *auth.Client, appName string) (types.Application, error) {
+func getApp(ctx context.Context, clt *authclient.Client, appName string) (types.Application, error) {
 	ctx, span := tracer.Start(ctx, "getApp")
 	defer span.End()
 
@@ -442,7 +443,7 @@ func getApp(ctx context.Context, clt *auth.Client, appName string) (types.Applic
 	return apps[0], nil
 }
 
-func (s *outputsService) getRouteToApp(ctx context.Context, botIdentity *identity.Identity, client *auth.Client, output *config.ApplicationOutput) (proto.RouteToApp, error) {
+func (s *outputsService) getRouteToApp(ctx context.Context, botIdentity *identity.Identity, client *authclient.Client, output *config.ApplicationOutput) (proto.RouteToApp, error) {
 	ctx, span := tracer.Start(ctx, "outputsService/getRouteToApp")
 	defer span.End()
 
@@ -471,11 +472,11 @@ func (s *outputsService) getRouteToApp(ctx context.Context, botIdentity *identit
 // impersonated identity.
 func (s *outputsService) generateImpersonatedIdentity(
 	ctx context.Context,
-	botClient *auth.Client,
+	botClient *authclient.Client,
 	botIdentity *identity.Identity,
 	output config.Output,
 	defaultRoles []string,
-) (impersonatedIdentity *identity.Identity, impersonatedClient *auth.Client, err error) {
+) (impersonatedIdentity *identity.Identity, impersonatedClient *authclient.Client, err error) {
 	ctx, span := tracer.Start(ctx, "outputsService/generateImpersonatedIdentity")
 	defer span.End()
 
@@ -659,11 +660,11 @@ func fetchDefaultRoles(ctx context.Context, roleGetter services.RoleGetter, iden
 // requests for the same information. This is shared between all of the
 // outputs.
 type outputRenewalCache struct {
-	client           *auth.Client
-	cfg              *config.BotConfig
-	proxyPingCache   *proxyPingCache
-	authPingCache    *authPingCache
-	alpnUpgradeCache *alpnProxyConnUpgradeRequiredCache
+	client         *authclient.Client
+	cfg            *config.BotConfig
+	proxyPingCache *proxyPingCache
+	authPingCache  *authPingCache
+  alpnUpgradeCache *alpnProxyConnUpgradeRequiredCache
 
 	mu sync.Mutex
 	// These are protected by getter/setters with mutex locks
@@ -745,7 +746,7 @@ type outputProvider struct {
 	*outputRenewalCache
 	// impersonatedClient is a client using the impersonated identity configured
 	// for that output.
-	impersonatedClient *auth.Client
+	impersonatedClient *authclient.Client
 }
 
 // GetRemoteClusters uses the impersonatedClient to call GetRemoteClusters.

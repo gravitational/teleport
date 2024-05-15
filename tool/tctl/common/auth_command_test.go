@@ -38,7 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/fixtures"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -381,7 +381,7 @@ func (p *pingSrv) ServeHTTP(wr http.ResponseWriter, req *http.Request) {
 }
 
 type mockClient struct {
-	*auth.Client
+	*authclient.Client
 
 	clusterName    types.ClusterName
 	userCerts      *proto.Certs

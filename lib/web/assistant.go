@@ -35,7 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/ai/model/tools"
 	"github.com/gravitational/teleport/lib/ai/tokens"
 	"github.com/gravitational/teleport/lib/assist"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 )
 
@@ -90,7 +90,7 @@ func (h *Handler) reserveTokens(usedTokens *tokens.TokenCount) (int, int) {
 }
 
 // reportTokenUsage sends a token usage event for an action.
-func (h *Handler) reportActionTokenUsage(authClient auth.ClientI, usedTokens *tokens.TokenCount, action string) {
+func (h *Handler) reportActionTokenUsage(authClient authclient.ClientI, usedTokens *tokens.TokenCount, action string) {
 	// Create a new context to not be bounded by the request timeout.
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -114,7 +114,7 @@ func (h *Handler) reportActionTokenUsage(authClient auth.ClientI, usedTokens *to
 	}
 }
 
-func checkAssistEnabled(a auth.ClientI, ctx context.Context) error {
+func checkAssistEnabled(a authclient.ClientI, ctx context.Context) error {
 	enabled, err := a.IsAssistEnabled(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -229,7 +229,7 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 }
 
 // assistGenAuditQueryLoop reads the user's input and generates an audit query.
-func (h *Handler) assistGenAuditQueryLoop(ctx context.Context, assistClient *assist.Assist, authClient auth.ClientI, ws *websocket.Conn, username string) error {
+func (h *Handler) assistGenAuditQueryLoop(ctx context.Context, assistClient *assist.Assist, authClient authclient.ClientI, ws *websocket.Conn, username string) error {
 	for {
 		_, payload, err := ws.ReadMessage()
 		if err != nil {
@@ -260,7 +260,7 @@ func (h *Handler) assistGenAuditQueryLoop(ctx context.Context, assistClient *ass
 }
 
 // assistSSHExplainOutputLoop reads the user's input and generates a command summary.
-func (h *Handler) assistSSHExplainOutputLoop(ctx context.Context, assistClient *assist.Assist, authClient auth.ClientI, ws *websocket.Conn) error {
+func (h *Handler) assistSSHExplainOutputLoop(ctx context.Context, assistClient *assist.Assist, authClient authclient.ClientI, ws *websocket.Conn) error {
 	_, payload, err := ws.ReadMessage()
 	if err != nil {
 		if wsIsClosed(err) {
@@ -298,7 +298,7 @@ func (h *Handler) assistSSHExplainOutputLoop(ctx context.Context, assistClient *
 }
 
 // assistSSHCommandLoop reads the user's input and generates a Linux command.
-func (h *Handler) assistGenSSHCommandLoop(ctx context.Context, assistClient *assist.Assist, authClient auth.ClientI, ws *websocket.Conn, username string) error {
+func (h *Handler) assistGenSSHCommandLoop(ctx context.Context, assistClient *assist.Assist, authClient authclient.ClientI, ws *websocket.Conn, username string) error {
 	chat, err := assistClient.NewLightweightChat(username)
 	if err != nil {
 		return trace.Wrap(err)

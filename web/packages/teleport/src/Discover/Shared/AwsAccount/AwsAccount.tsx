@@ -112,14 +112,12 @@ export function AwsAccount() {
   function fetchAwsIntegrations() {
     run(() =>
       integrationService.fetchIntegrations().then(res => {
-        const options = res.items.map(i => {
-          if (i.kind === 'aws-oidc') {
-            return {
-              value: i,
-              label: i.name,
-            };
-          }
-        });
+        const options = res.items
+          .filter(i => i.kind === 'aws-oidc')
+          .map(i => ({
+            value: i,
+            label: i.name,
+          }));
         setAwsIntegrations(options);
 
         // Auto select the only option.

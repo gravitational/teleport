@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/forward"
@@ -71,10 +72,10 @@ type remoteSite struct {
 
 	// localClient provides access to the Auth Server API of the cluster
 	// within which reversetunnelclient.Server is running.
-	localClient auth.ClientI
+	localClient authclient.ClientI
 	// remoteClient provides access to the Auth Server API of the remote cluster that
 	// this site belongs to.
-	remoteClient auth.ClientI
+	remoteClient authclient.ClientI
 	// localAccessPoint provides access to a cached subset of the Auth Server API of
 	// the local cluster.
 	localAccessPoint auth.ProxyAccessPoint
@@ -100,7 +101,7 @@ type remoteSite struct {
 	proxySyncInterval time.Duration
 }
 
-func (s *remoteSite) getRemoteClient() (auth.ClientI, bool, error) {
+func (s *remoteSite) getRemoteClient() (authclient.ClientI, bool, error) {
 	// check if all cert authorities are initiated and if everything is OK
 	ca, err := s.srv.localAccessPoint.GetCertAuthority(s.ctx, types.CertAuthID{Type: types.HostCA, DomainName: s.domainName}, false)
 	if err != nil {
@@ -122,7 +123,7 @@ func (s *remoteSite) getRemoteClient() (auth.ClientI, bool, error) {
 		// connecting to the remote one (it is used to find the right certificate
 		// authority to verify)
 		tlsConfig.ServerName = apiutils.EncodeClusterName(s.srv.ClusterName)
-		clt, err := auth.NewClient(client.Config{
+		clt, err := authclient.NewClient(client.Config{
 			Dialer: client.ContextDialerFunc(s.authServerContextDialer),
 			Credentials: []client.Credentials{
 				client.LoadTLS(tlsConfig),
@@ -157,7 +158,7 @@ func (s *remoteSite) NodeWatcher() (*services.NodeWatcher, error) {
 	return s.nodeWatcher, nil
 }
 
-func (s *remoteSite) GetClient() (auth.ClientI, error) {
+func (s *remoteSite) GetClient() (authclient.ClientI, error) {
 	return s.remoteClient, nil
 }
 

@@ -144,7 +144,7 @@ type GRPCServer struct {
 
 	// usersService is used to forward deprecated users requests to
 	// the new service so that logic only needs to exist in one place.
-	// TODO(tross) DELETE IN 16.0.0
+	// TODO(tross) DELETE IN 17.0.0
 	usersService *usersv1.Service
 
 	// botService is used to forward requests to deprecated bot RPCs to the
@@ -822,7 +822,7 @@ func (g *GRPCServer) ClearAlertAcks(ctx context.Context, req *authpb.ClearAlertA
 }
 
 // GetUser returns a user matching the provided name if one exists.
-// TODO(tross): DELETE IN 16.0.0
+// TODO(tross): DELETE IN 17.0.0
 // Deprecated: use [usersv1.Service.GetUser] instead.
 func (g *GRPCServer) GetUser(ctx context.Context, req *authpb.GetUserRequest) (*types.UserV2, error) {
 	resp, err := g.usersService.GetUser(ctx, &userspb.GetUserRequest{Name: req.Name, WithSecrets: req.WithSecrets})
@@ -834,7 +834,7 @@ func (g *GRPCServer) GetUser(ctx context.Context, req *authpb.GetUserRequest) (*
 }
 
 // GetCurrentUser returns the currently authenticated user.
-// TODO(tross): DELETE IN 16.0.0
+// TODO(tross): DELETE IN 17.0.0
 // Deprecated: use [usersv1.Service.GetUser] instead.
 func (g *GRPCServer) GetCurrentUser(ctx context.Context, req *emptypb.Empty) (*types.UserV2, error) {
 	resp, err := g.usersService.GetUser(ctx, &userspb.GetUserRequest{CurrentUser: true})
@@ -868,7 +868,7 @@ func (g *GRPCServer) GetCurrentUserRoles(_ *emptypb.Empty, stream authpb.AuthSer
 }
 
 // GetUsers returns all users.
-// TODO(tross): DELETE IN 16.0.0
+// TODO(tross): DELETE IN 17.0.0
 // Deprecated: use [usersv1.Service.ListUsers] instead.
 func (g *GRPCServer) GetUsers(req *authpb.GetUsersRequest, stream authpb.AuthService_GetUsersServer) error {
 	auth, err := g.authenticate(stream.Context())
@@ -1163,7 +1163,7 @@ func (g *GRPCServer) Ping(ctx context.Context, req *authpb.PingRequest) (*authpb
 }
 
 // CreateUser inserts a new user entry in a backend.
-// TODO(tross): DELETE IN 16.0.0
+// TODO(tross): DELETE IN 17.0.0
 // Deprecated: use [usersv1.Service.CreateUser] instead.
 func (g *GRPCServer) CreateUser(ctx context.Context, req *types.UserV2) (*emptypb.Empty, error) {
 	resp, err := g.usersService.CreateUser(ctx, &userspb.CreateUserRequest{User: req})
@@ -1180,7 +1180,7 @@ func (g *GRPCServer) CreateUser(ctx context.Context, req *types.UserV2) (*emptyp
 // users service like other user CRUD methods to preserve update semantics.
 // This results in all updates blindly overwriting the existing user. Updating
 // users with [usersv1.Service.UpdateUser] is protected by optimistic locking.
-// TODO(tross): DELETE IN 16.0.0
+// TODO(tross): DELETE IN 17.0.0
 // Deprecated: use [usersv1.Service.UpdateUser] instead.
 func (g *GRPCServer) UpdateUser(ctx context.Context, req *types.UserV2) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
@@ -2205,7 +2205,7 @@ func (g *GRPCServer) DeleteRole(ctx context.Context, req *authpb.DeleteRoleReque
 //
 // This function bypasses the `ServerWithRoles` RBAC layer. This is not
 // usually how the gRPC layer accesses the underlying auth server API's but it's done
-// here to avoid bloating the ClientI interface with special logic that isn't designed to be touched
+// here to avoid bloating the [authclient.ClientI]  interface with special logic that isn't designed to be touched
 // by anyone external to this process. This is not the norm and caution should be taken
 // when looking at or modifying this function. This is the same approach taken by other MFA
 // related gRPC API endpoints.
