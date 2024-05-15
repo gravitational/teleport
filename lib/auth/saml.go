@@ -198,9 +198,6 @@ func (a *Server) ValidateSAMLResponse(ctx context.Context, samlResponse, connect
 	return resp, trace.Wrap(err)
 }
 
-// SAMLAuthRequest is a SAML auth request that supports standard json marshaling.
-type SAMLAuthRequest = authclient.SAMLAuthRequest
-
 // ValidateSAMLResponseReq is the request made by the proxy to validate
 // and activate a login via SAML.
 type ValidateSAMLResponseReq = authclient.ValidateSAMLResponseReq
