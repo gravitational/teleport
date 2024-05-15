@@ -507,11 +507,11 @@ do_upgrade() {
         apt)
             log_info "attempting apt install $package_name=$target_version..."
             # update index for teleport repo
-            apt update \
+            apt-get update \
                 -o Dir::Etc::sourcelist="sources.list.d/teleport.list" \
                 -o Dir::Etc::sourceparts="-" \
                 -o APT::Get::List-Cleanup="0"
-            apt install -y --allow-downgrades --allow-change-held-packages "$package_name=$target_version"
+            DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-downgrades --allow-change-held-packages "$package_name=$target_version"
             ensure_version_lock || true
             do_reload_or_restart
             return 0
