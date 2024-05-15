@@ -52,13 +52,13 @@ import (
 // ErrGithubNoTeams results from a github user not belonging to any teams.
 var ErrGithubNoTeams = trace.BadParameter("user does not belong to any teams configured in connector; the configuration may have typos.")
 
-// GithubConverter is a thin wrapper around the ClientI interface that
+// GithubConverter is a thin wrapper around the [authclient.ClientI] interface that
 // ensures GitHub auth connectors use the registered implementation.
 type GithubConverter struct {
 	authclient.ClientI
 }
 
-// WithGithubConnectorConversions takes a ClientI and returns one that
+// WithGithubConnectorConversions takes a [authclient.ClientI]  and returns one that
 // ensures returned or passed [types.GithubConnector] interfaces
 // use the registered implementation for the following methods:
 //

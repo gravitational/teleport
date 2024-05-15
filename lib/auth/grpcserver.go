@@ -2205,7 +2205,7 @@ func (g *GRPCServer) DeleteRole(ctx context.Context, req *authpb.DeleteRoleReque
 //
 // This function bypasses the `ServerWithRoles` RBAC layer. This is not
 // usually how the gRPC layer accesses the underlying auth server API's but it's done
-// here to avoid bloating the ClientI interface with special logic that isn't designed to be touched
+// here to avoid bloating the [authclient.ClientI]  interface with special logic that isn't designed to be touched
 // by anyone external to this process. This is not the norm and caution should be taken
 // when looking at or modifying this function. This is the same approach taken by other MFA
 // related gRPC API endpoints.

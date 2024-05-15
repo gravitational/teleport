@@ -46,7 +46,7 @@ import (
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client"
@@ -218,7 +218,7 @@ const (
 	SNISuffix = ".desktop." + constants.APIDomain
 )
 
-func (h *Handler) desktopTLSConfig(ctx context.Context, ws *websocket.Conn, clusterClient auth.ClientI, sessCtx *SessionContext, desktopName, username, siteName string) (_ *tls.Config, err error) {
+func (h *Handler) desktopTLSConfig(ctx context.Context, ws *websocket.Conn, clusterClient authclient.ClientI, sessCtx *SessionContext, desktopName, username, siteName string) (_ *tls.Config, err error) {
 	ctx, span := h.tracer.Start(ctx, "desktop/TLSConfig")
 	defer func() {
 		span.RecordError(err)
@@ -299,7 +299,7 @@ func (h *Handler) desktopTLSConfig(ctx context.Context, ws *websocket.Conn, clus
 // performMFACeremony completes the mfa ceremony and returns the raw TLS certificate
 // on success. The user will be prompted to tap their security key by the UI
 // in order to perform the assertion.
-func (h *Handler) performMFACeremony(ctx context.Context, authClient auth.ClientI, ws *websocket.Conn, certsReq *proto.UserCertsRequest) (_ []byte, err error) {
+func (h *Handler) performMFACeremony(ctx context.Context, authClient authclient.ClientI, ws *websocket.Conn, certsReq *proto.UserCertsRequest) (_ []byte, err error) {
 	ctx, span := h.tracer.Start(ctx, "desktop/performMFACeremony")
 	defer func() {
 		span.RecordError(err)
@@ -379,7 +379,7 @@ func readClientScreenSpec(ws *websocket.Conn) (*tdp.ClientScreenSpec, error) {
 
 type connector struct {
 	log           *logrus.Entry
-	clt           auth.ClientI
+	clt           authclient.ClientI
 	site          reversetunnelclient.RemoteSite
 	clientSrcAddr net.Addr
 	clientDstAddr net.Addr
