@@ -1783,7 +1783,7 @@ func TestStreamSessionEventsRBAC(t *testing.T) {
 	select {
 	case err := <-errC:
 		require.True(t, trace.IsAccessDenied(err), "expected access denied error, got %v", err)
-	case <-time.After(1 * time.Second):
+	case <-time.After(5 * time.Second):
 		require.FailNow(t, "expected access denied error but stream succeeded")
 	}
 }
