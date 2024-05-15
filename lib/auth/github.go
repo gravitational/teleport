@@ -395,9 +395,6 @@ func (a *Server) deleteGithubConnector(ctx context.Context, connectorName string
 	return nil
 }
 
-// GithubAuthRequest is an Github auth request that supports standard json marshaling
-type GithubAuthRequest = authclient.GithubAuthRequest
-
 // GithubAuthRequestFromProto converts the types.GithubAuthRequest to GithubAuthRequest.
 func GithubAuthRequestFromProto(req *types.GithubAuthRequest) authclient.GithubAuthRequest {
 	return authclient.GithubAuthRequest{
