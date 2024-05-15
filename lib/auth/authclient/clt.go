@@ -72,6 +72,12 @@ const (
 	MissingNamespaceError = "missing required parameter: namespace"
 )
 
+// ErrNoMFADevices is returned when an MFA ceremony is performed without possible devices to
+// complete the challenge with.
+var ErrNoMFADevices = &trace.AccessDeniedError{
+	Message: "MFA is required to access this resource but user has no MFA devices; use 'tsh mfa add' to register MFA devices",
+}
+
 // HostFQDN consists of host UUID and cluster name joined via '.'.
 func HostFQDN(hostUUID, clusterName string) string {
 	return fmt.Sprintf("%v.%v", hostUUID, clusterName)
