@@ -198,10 +198,6 @@ func (a *Server) ValidateSAMLResponse(ctx context.Context, samlResponse, connect
 	return resp, trace.Wrap(err)
 }
 
-// ValidateSAMLResponseReq is the request made by the proxy to validate
-// and activate a login via SAML.
-type ValidateSAMLResponseReq = authclient.ValidateSAMLResponseReq
-
 // SAMLAuthRawResponse is returned when auth server validated callback parameters
 // returned from SAML provider
 type SAMLAuthRawResponse = authclient.SAMLAuthRawResponse
