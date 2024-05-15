@@ -307,6 +307,7 @@
     "awsconsole",
     "awsdatabases",
     "awskms",
+    "awsoidc",
     "awsuser",
     "azblob",
     "azuread",
