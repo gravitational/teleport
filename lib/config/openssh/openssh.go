@@ -57,7 +57,7 @@ Host *.{{ $clusterName }} !{{ $dot.ProxyHost }}
 {{- end }}
 {{- if eq $dot.AppName "tbot" }}
 {{- if $dot.PureTBotProxyCommand }}
-    ProxyCommand "{{ $dot.ExecutablePath }}" ssh-proxy-command --destination-dir={{ $dot.DestinationDir }} --proxy-server={{ $dot.ProxyHost }}:{{ $dot.ProxyPort }} --cluster={{ $clusterName }} --tls-routing={{ $dot.TLSRouting }} --connection-upgrade={{ $dot.ConnectionUpgrade }} --resume={{ $dot.Resume }} --user=%r --host=%h --port=%p
+    ProxyCommand "{{ $dot.ExecutablePath }}" ssh-proxy-command --destination-dir={{ $dot.DestinationDir }} --proxy-server={{ $dot.ProxyHost }}:{{ $dot.ProxyPort }} --cluster={{ $clusterName }} {{if $dot.TLSRouting }}--tls-routing{{ else }}--no-tls-routing{{ end }} {{if $dot.ConnectionUpgrade }}--connection-upgrade{{ else }}--no-connection-upgrade{{ end }} {{if $dot.Resume }}--resume{{ else }}--no-resume{{end}} --user=%r --host=%h --port=%p
 {{- else}}
     ProxyCommand "{{ $dot.ExecutablePath }}" proxy --destination-dir={{ $dot.DestinationDir }} --proxy-server={{ $dot.ProxyHost }}:{{ $dot.ProxyPort }} ssh --cluster={{ $clusterName }}  %r@%h:%p
 {{- end }}
