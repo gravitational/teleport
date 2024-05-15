@@ -3046,7 +3046,7 @@ func (rc *ResourceCommand) updateAccessMonitoringRule(ctx context.Context, clien
 	return nil
 }
 
-func (rc *ResourceCommand) createVnetConfig(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
+func (rc *ResourceCommand) createVnetConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	vnetConfig, err := services.UnmarshalProtoResource[*vnet.VnetConfig](raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -3065,7 +3065,7 @@ func (rc *ResourceCommand) createVnetConfig(ctx context.Context, client *auth.Cl
 	return nil
 }
 
-func (rc *ResourceCommand) updateVnetConfig(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
+func (rc *ResourceCommand) updateVnetConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	vnetConfig, err := services.UnmarshalProtoResource[*vnet.VnetConfig](raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
