@@ -361,7 +361,7 @@ describe('new request behavior', () => {
       expect(screen.getByTestId('usage-info')).toBeInTheDocument();
     });
 
-    let ctaTexts = screen.getAllByText(/with identity governance/i);
+    let ctaTexts = screen.getAllByText(/with teleport identity/i);
     expect(ctaTexts).toHaveLength(2);
 
     let upsellLinks = await screen.findAllByRole('link');
@@ -397,7 +397,7 @@ describe('new request behavior', () => {
       expect(screen.getByTestId('usage-info')).toBeInTheDocument();
     });
 
-    const ctaTexts = screen.getAllByText(/with identity governance/i);
+    const ctaTexts = screen.getAllByText(/with teleport identity/i);
     expect(ctaTexts).toHaveLength(2);
     expect(
       screen.queryByText(/with teleport enterprise/i)

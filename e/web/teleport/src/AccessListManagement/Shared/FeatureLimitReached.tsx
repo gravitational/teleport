@@ -16,7 +16,7 @@ export function FeatureLimitReached() {
       <FeatureLimitReachedCard>
         <Text mb={3}>
           This cluster has reached its limit for creating access lists. <br />
-          Unlock Access List with Identity Governance & Security
+          Unlock additional Access Lists with Teleport Identity
         </Text>
         <ButtonLockedFeature width="200px" event={CtaEvent.CTA_ACCESS_LIST}>
           Contact Sales

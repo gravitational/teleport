@@ -299,7 +299,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
               mt={2}
               mb={3}
             >
-              Unlock User Synchronization with Identity Governance & Security
+              Unlock User Synchronization with Teleport Identity
             </ButtonLockedFeature>
           )}
         </Box>

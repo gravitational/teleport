@@ -159,6 +159,7 @@ exports[`render screen for first timer recovery tab in account settings 1`] = `
       </div>
       <div
         class="c9"
+        data-testid="indicator-wrapper"
         style="visibility: hidden;"
       />
       <div
@@ -294,6 +295,7 @@ exports[`render screen for recovery tab for users without a valid email as usern
       </div>
       <div
         class="c9"
+        data-testid="indicator-wrapper"
         style="visibility: hidden;"
       />
       <div
@@ -480,6 +482,7 @@ exports[`render screen for recovery tab in account settings 1`] = `
       </div>
       <div
         class="c9"
+        data-testid="indicator-wrapper"
         style="visibility: hidden;"
       />
       <div

@@ -113,7 +113,7 @@ const MenuListComponent = props => {
             event={CtaEvent.CTA_ACCESS_MONITORING}
             noIcon={true}
           >
-            Unlock higher range with Identity Governance & Security
+            Unlock higher range with Teleport Identity
           </ButtonLockedFeature>
         </Box>
       )}
