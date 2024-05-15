@@ -660,11 +660,11 @@ func fetchDefaultRoles(ctx context.Context, roleGetter services.RoleGetter, iden
 // requests for the same information. This is shared between all of the
 // outputs.
 type outputRenewalCache struct {
-	client         *authclient.Client
-	cfg            *config.BotConfig
-	proxyPingCache *proxyPingCache
-	authPingCache  *authPingCache
-  alpnUpgradeCache *alpnProxyConnUpgradeRequiredCache
+	client           *authclient.Client
+	cfg              *config.BotConfig
+	proxyPingCache   *proxyPingCache
+	authPingCache    *authPingCache
+	alpnUpgradeCache *alpnProxyConnUpgradeRequiredCache
 
 	mu sync.Mutex
 	// These are protected by getter/setters with mutex locks
