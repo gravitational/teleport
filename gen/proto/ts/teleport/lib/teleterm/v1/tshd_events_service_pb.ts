@@ -31,9 +31,9 @@ import { UnknownFieldHandler } from "@protobuf-ts/runtime";
 import type { PartialMessage } from "@protobuf-ts/runtime";
 import { reflectionMergePartial } from "@protobuf-ts/runtime";
 import { MessageType } from "@protobuf-ts/runtime";
-// Relogin
-
 /**
+ * Request for Relogin.
+ *
  * @generated from protobuf message teleport.lib.teleterm.v1.ReloginRequest
  */
 export interface ReloginRequest {
@@ -98,13 +98,19 @@ export interface VnetCertExpired {
     targetUri: string;
 }
 /**
+ * Response for Relogin.
+ *
  * @generated from protobuf message teleport.lib.teleterm.v1.ReloginResponse
  */
 export interface ReloginResponse {
 }
-// SendNotification
-
 /**
+ * SendNotificationRequest includes details behind a notification.
+ *
+ * Rather than including arbitrary text strings, SendNotificationRequest should contain minimal
+ * details. The Electron app can then consume and format them as needed, without having to change
+ * what is sent over the wire.
+ *
  * @generated from protobuf message teleport.lib.teleterm.v1.SendNotificationRequest
  */
 export interface SendNotificationRequest {
@@ -166,13 +172,15 @@ export interface CannotProxyVnetConnection {
     error: string;
 }
 /**
+ * Response for SendNotification.
+ *
  * @generated from protobuf message teleport.lib.teleterm.v1.SendNotificationResponse
  */
 export interface SendNotificationResponse {
 }
-// SendPendingHeadlessAuthentication
-
 /**
+ * Request for SendPendingHeadlessAuthentication.
+ *
  * @generated from protobuf message teleport.lib.teleterm.v1.SendPendingHeadlessAuthenticationRequest
  */
 export interface SendPendingHeadlessAuthenticationRequest {
@@ -190,13 +198,15 @@ export interface SendPendingHeadlessAuthenticationRequest {
     headlessAuthenticationClientIp: string;
 }
 /**
+ * Response for SendPendingHeadlessAuthentication.
+ *
  * @generated from protobuf message teleport.lib.teleterm.v1.SendPendingHeadlessAuthenticationResponse
  */
 export interface SendPendingHeadlessAuthenticationResponse {
 }
-// PromptMFA
-
 /**
+ * Request for PromptMFA.
+ *
  * @generated from protobuf message teleport.lib.teleterm.v1.PromptMFARequest
  */
 export interface PromptMFARequest {
@@ -218,6 +228,8 @@ export interface PromptMFARequest {
     webauthn: boolean;
 }
 /**
+ * Response for PromptMFA.
+ *
  * @generated from protobuf message teleport.lib.teleterm.v1.PromptMFAResponse
  */
 export interface PromptMFAResponse {
