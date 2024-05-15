@@ -142,9 +142,6 @@ func (a *Server) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*a
 	return resp, trace.Wrap(err)
 }
 
-// OIDCAuthRequest is an OIDC auth request that supports standard json marshaling.
-type OIDCAuthRequest = authclient.OIDCAuthRequest
-
 // ValidateOIDCAuthCallbackReq is the request made by the proxy to validate
 // and activate a login via OIDC.
 type ValidateOIDCAuthCallbackReq = authclient.ValidateOIDCAuthCallbackReq
