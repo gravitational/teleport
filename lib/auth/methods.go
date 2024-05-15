@@ -54,9 +54,6 @@ const (
 	maxUserAgentLen = 2048
 )
 
-// OTPCreds is a two-factor authentication credentials
-type OTPCreds = authclient.OTPCreds
-
 // SessionCreds is a web session credentials
 type SessionCreds = authclient.SessionCreds
 

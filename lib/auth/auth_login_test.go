@@ -1074,7 +1074,7 @@ func TestServer_AuthenticateUser_mfaDevices(t *testing.T) {
 				case resp.GetWebauthn() != nil:
 					authReq.Webauthn = wantypes.CredentialAssertionResponseFromProto(resp.GetWebauthn())
 				case resp.GetTOTP() != nil:
-					authReq.OTP = &OTPCreds{
+					authReq.OTP = &authclient.OTPCreds{
 						Password: []byte(password),
 						Token:    resp.GetTOTP().Code,
 					}
@@ -1463,7 +1463,7 @@ func TestSSOPasswordBypass(t *testing.T) {
 				mfaResp, err := mfa.TOTPDev.SolveAuthn(chal)
 				require.NoError(t, err, "SolveAuthn failed")
 
-				req.OTP = &OTPCreds{
+				req.OTP = &authclient.OTPCreds{
 					Password: []byte(mfa.Password),
 					Token:    mfaResp.GetTOTP().GetCode(),
 				}
@@ -1715,7 +1715,7 @@ func TestServer_Authenticate_nonPasswordlessRequiresUsername(t *testing.T) {
 			case mfaResp.GetWebauthn() != nil:
 				req.Webauthn = wantypes.CredentialAssertionResponseFromProto(mfaResp.GetWebauthn())
 			case mfaResp.GetTOTP() != nil:
-				req.OTP = &OTPCreds{
+				req.OTP = &authclient.OTPCreds{
 					Password: []byte(password),
 					Token:    mfaResp.GetTOTP().Code,
 				}
@@ -1844,7 +1844,7 @@ func TestServer_Authenticate_headless(t *testing.T) {
 					// HeadlessAuthenticationID should take precedence over WebAuthn and OTP fields.
 					HeadlessAuthenticationID: headlessID,
 					Webauthn:                 &wantypes.CredentialAssertionResponse{},
-					OTP:                      &OTPCreds{},
+					OTP:                      &authclient.OTPCreds{},
 					Username:                 username,
 					PublicKey:                []byte(sshPubKey),
 					ClientMetadata: &authclient.ForwardedClientMetadata{

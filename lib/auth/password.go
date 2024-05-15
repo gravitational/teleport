@@ -139,7 +139,7 @@ func (a *Server) ChangePassword(ctx context.Context, req *proto.ChangePasswordRe
 		requiredExt.UserVerificationRequirement = string(protocol.VerificationRequired)
 	}
 	if req.SecondFactorToken != "" {
-		authReq.OTP = &OTPCreds{
+		authReq.OTP = &authclient.OTPCreds{
 			Password: req.OldPassword,
 			Token:    req.SecondFactorToken,
 		}

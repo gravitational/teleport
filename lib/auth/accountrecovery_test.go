@@ -1244,7 +1244,7 @@ func triggerLoginLock(t *testing.T, srv *Server, username string) {
 			context.Background(),
 			authclient.AuthenticateUserRequest{
 				Username: username,
-				OTP:      &OTPCreds{},
+				OTP:      &authclient.OTPCreds{},
 			},
 			mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN},
 		)

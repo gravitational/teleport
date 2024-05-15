@@ -906,7 +906,7 @@ func (s *sessionCache) AuthWithOTP(
 	return s.proxyClient.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
 		Username: user,
 		Pass:     &authclient.PassCreds{Password: []byte(pass)},
-		OTP: &auth.OTPCreds{
+		OTP: &authclient.OTPCreds{
 			Password: []byte(pass),
 			Token:    otpToken,
 		},
@@ -956,7 +956,7 @@ func (s *sessionCache) AuthenticateSSHUser(
 		authReq.Webauthn = c.WebauthnChallengeResponse
 	}
 	if c.TOTPCode != "" {
-		authReq.OTP = &auth.OTPCreds{
+		authReq.OTP = &authclient.OTPCreds{
 			Password: []byte(c.Password),
 			Token:    c.TOTPCode,
 		}
