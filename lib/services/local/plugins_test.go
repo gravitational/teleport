@@ -205,4 +205,14 @@ func TestListPlugins(t *testing.T) {
 			cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 		))
 	})
+
+	t.Run("zero page size uses default value", func(t *testing.T) {
+		fetchedPlugins, nextKey, err := service.ListPlugins(ctx, 0, "", true)
+		require.NoError(t, err)
+		require.Empty(t, nextKey)
+
+		require.Empty(t, cmp.Diff(insertedPlugins, fetchedPlugins,
+			cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		))
+	})
 }
