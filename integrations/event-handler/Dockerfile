@@ -1,30 +1,39 @@
-# Build the plugin binary
-ARG GO_VERSION
+ARG BUILDBOX
 ARG BASE_IMAGE=gcr.io/distroless/static-debian12
 
-FROM golang:${GO_VERSION}-bookworm as builder
+# BUILDPLATFORM is provided by Docker/buildx
+FROM --platform=$BUILDPLATFORM $BUILDBOX as builder
 
+WORKDIR /go/src/github.com/gravitational/teleport/
+
+# Copy dependencies and go.mod
+COPY api/ api/
+COPY version.go constants.go gitref.go go.mod go.sum ./
+COPY lib/ ./lib/
+COPY build.assets/images.mk build.assets/arch.mk ./build.assets/
+COPY integrations/lib/ ./integrations/lib/
+
+COPY integrations/event-handler/go.mod ./integrations/event-handler/go.mod
+COPY integrations/event-handler/go.sum ./integrations/event-handler/go.sum
+
+RUN cd integrations/event-handler && go mod download
+
+COPY integrations/event-handler ./integrations/event-handler
+
+ARG TARGETOS
+ARG TARGETARCH
 ARG GITREF
 ARG VERSION
 
-WORKDIR /workspace
+WORKDIR /go/src/github.com/gravitational/teleport/integrations/event-handler
 
-# Copy the Go Modules manifests
-COPY go.mod go.mod
-COPY go.sum go.sum
+# Build the program. We rely on golang's cross-compilation capabilities for multiarch building.
+RUN make build GITREF=$GITREF VERSION=$VERSION
 
-RUN --mount=type=cache,target=/go/pkg/mod go mod download
-
-# Copy the go source
-COPY event-handler event-handler
-
-# Build
-RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build make -C event-handler GITREF=${GITREF} VERSION=${VERSION}
-
-# Use distroless as minimal base image to package the manager binary
-# Refer to https://github.com/GoogleContainerTools/distroless for more details
-FROM $BASE_IMAGE
-
-COPY --from=builder /workspace/event-handler/build/teleport-event-handler /usr/local/bin/teleport-event-handler
+# Create the image with the build operator on the $TARGETPLATFORM
+# TARGETPLATFORM is provided by Docker/buildx
+FROM --platform=$TARGETPLATFORM $BASE_IMAGE
+WORKDIR /
+COPY --from=builder /go/src/github.com/gravitational/teleport/integrations/event-handler/build/teleport-event-handler /usr/local/bin/teleport-event-handler
 
 ENTRYPOINT ["/usr/local/bin/teleport-event-handler"]

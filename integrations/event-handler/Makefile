@@ -1,4 +1,6 @@
-VERSION?=15.2.0
+include ../../build.assets/images.mk
+
+VERSION ?= $(shell go run ../hack/get-version/get-version.go)
 GO_VERSION=1.21.9
 
 GITTAG=v$(VERSION)
@@ -32,8 +34,7 @@ DOCKER_IMAGE_BASE = $(DOCKER_PRIVATE_REGISTRY)/gravitational
 DOCKER_IMAGE = $(DOCKER_IMAGE_BASE)/$(DOCKER_NAME):$(DOCKER_VERSION)
 DOCKER_ECR_PUBLIC_REGISTRY = public.ecr.aws/gravitational
 DOCKER_IMAGE_ECR_PUBLIC = $(DOCKER_ECR_PUBLIC_REGISTRY)/$(DOCKER_NAME):$(DOCKER_VERSION)
-DOCKER_BUILD_ARGS = --build-arg GO_VERSION=${GO_VERSION} --build-arg GITREF=$(GITREF) --build-arg VERSION=$(VERSION)
-
+DOCKER_BUILD_ARGS = --build-arg GO_VERSION=${GO_VERSION} --build-arg GITREF=$(GITREF) --build-arg VERSION=$(VERSION) --build-arg VERSION=$(VERSION) --load --platform="$(OS)/$(ARCH)" --build-arg BUILDBOX=$(BUILDBOX)
 RELEASE_NAME = teleport-event-handler
 RELEASE = $(RELEASE_NAME)-v$(VERSION)-$(OS)-$(ARCH)-bin
 RELEASE_MESSAGE = "Building with GOOS=$(OS) GOARCH=$(ARCH)."
@@ -62,7 +63,7 @@ clean:
 
 .PHONY: docker-build
 docker-build: ## Build docker image with the plugin.
-	docker build ${DOCKER_BUILD_ARGS} -t ${DOCKER_IMAGE} -f ./Dockerfile ../
+	docker build ${DOCKER_BUILD_ARGS} -t ${DOCKER_IMAGE} -f ./Dockerfile ../..
 
 .PHONY: docker-push
 docker-push:
