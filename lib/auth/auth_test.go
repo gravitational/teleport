@@ -702,7 +702,7 @@ func TestAuthenticateUser_mfaDeviceLocked(t *testing.T) {
 	proxyClient, err := testServer.NewClient(TestBuiltin(types.RoleProxy))
 	require.NoError(t, err, "NewClient")
 
-	authenticateSSH := func(dev *TestDevice) (*SSHLoginResponse, error) {
+	authenticateSSH := func(dev *TestDevice) (*authclient.SSHLoginResponse, error) {
 		chal, err := proxyClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 			Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{
 				UserCredentials: &proto.UserCredentials{

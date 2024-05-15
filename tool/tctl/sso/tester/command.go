@@ -31,7 +31,6 @@ import (
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -171,7 +170,7 @@ type AuthRequestInfo struct {
 	RequestCreateErr error
 }
 
-func (cmd *SSOTestCommand) runSSOLoginFlow(ctx context.Context, protocol string, c *authclient.Client, config *client.RedirectorConfig) (*auth.SSHLoginResponse, error) {
+func (cmd *SSOTestCommand) runSSOLoginFlow(ctx context.Context, protocol string, c *authclient.Client, config *client.RedirectorConfig) (*authclient.SSHLoginResponse, error) {
 	key, err := client.GenerateRSAKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -221,7 +220,7 @@ func GetDiagMessage(present bool, show bool, msg string) string {
 	return ""
 }
 
-func (cmd *SSOTestCommand) reportLoginResult(authKind string, diag *types.SSODiagnosticInfo, infoErr error, loginResponse *auth.SSHLoginResponse, loginErr error) (errResult error) {
+func (cmd *SSOTestCommand) reportLoginResult(authKind string, diag *types.SSODiagnosticInfo, infoErr error, loginResponse *authclient.SSHLoginResponse, loginErr error) (errResult error) {
 	success := diag != nil && diag.Success
 
 	// check for errors

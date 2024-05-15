@@ -3014,7 +3014,7 @@ func TestConstructSSHResponse(t *testing.T) {
 	plaintext, err := key.Open([]byte(rawresp.Query().Get("response")))
 	require.NoError(t, err)
 
-	var resp *auth.SSHLoginResponse
+	var resp *authclient.SSHLoginResponse
 	err = json.Unmarshal(plaintext, &resp)
 	require.NoError(t, err)
 	require.Equal(t, "foo", resp.Username)
@@ -3057,7 +3057,7 @@ func TestConstructSSHResponseLegacy(t *testing.T) {
 	plaintext, err := lemma.Open(sealedData)
 	require.NoError(t, err)
 
-	var resp *auth.SSHLoginResponse
+	var resp *authclient.SSHLoginResponse
 	err = json.Unmarshal(plaintext, &resp)
 	require.NoError(t, err)
 	require.Equal(t, "foo", resp.Username)

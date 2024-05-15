@@ -679,10 +679,6 @@ func (a *Server) AuthenticateWebUser(ctx context.Context, req authclient.Authent
 	return sess, nil
 }
 
-// SSHLoginResponse is a response returned by web proxy, it preserves backwards compatibility
-// on the wire, which is the primary reason for non-matching json tags
-type SSHLoginResponse = authclient.SSHLoginResponse
-
 // TrustedCerts contains host certificates, it preserves backwards compatibility
 // on the wire, which is the primary reason for non-matching json tags
 type TrustedCerts = authclient.TrustedCerts
@@ -694,7 +690,7 @@ func AuthoritiesToTrustedCerts(authorities []types.CertAuthority) []authclient.T
 
 // AuthenticateSSHUser authenticates an SSH user and returns SSH and TLS
 // certificates for the public key in req.
-func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.AuthenticateSSHRequest) (*SSHLoginResponse, error) {
+func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.AuthenticateSSHRequest) (*authclient.SSHLoginResponse, error) {
 	username := req.Username // Empty if passwordless.
 
 	authPref, err := a.GetAuthPreference(ctx)
@@ -773,7 +769,7 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.Authent
 		return nil, trace.Wrap(err)
 	}
 	UserLoginCount.Inc()
-	return &SSHLoginResponse{
+	return &authclient.SSHLoginResponse{
 		Username:    user.GetName(),
 		Cert:        certs.SSH,
 		TLSCert:     certs.TLS,
