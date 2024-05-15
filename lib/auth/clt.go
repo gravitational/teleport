@@ -42,6 +42,6 @@ type ClientI = authclient.ClientI
 // NOTE: This client is being deprecated in favor of the gRPC Client in
 // teleport/api/client. This Client should only be used internally, or for
 // functionality that hasn't been ported to the new client yet.
-func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, error) {
+func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*authclient.Client, error) {
 	return authclient.NewClient(cfg, params...)
 }

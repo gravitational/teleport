@@ -61,6 +61,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -2817,7 +2818,7 @@ func TestDeleteMFADeviceSync_lastDevice(t *testing.T) {
 		require.NoError(t, err, "UpsertAuthPreference")
 	}
 
-	deleteSync := func(userClient *Client, testDev *TestDevice) error {
+	deleteSync := func(userClient *authclient.Client, testDev *TestDevice) error {
 		// Issue and solve authn challenge.
 		authnChal, err := userClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 			Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
@@ -2838,7 +2839,7 @@ func TestDeleteMFADeviceSync_lastDevice(t *testing.T) {
 		})
 	}
 
-	deleteStream := func(userClient *Client, testDev *TestDevice) error {
+	deleteStream := func(userClient *authclient.Client, testDev *TestDevice) error {
 		return deleteMFADeviceStream(ctx, userClient, testDev)
 	}
 
@@ -3303,7 +3304,7 @@ func TestDeleteMFADevice(t *testing.T) {
 }
 
 //nolint:staticcheck // SA1019. Kept for backward compatibility testing.
-func deleteMFADeviceStream(ctx context.Context, userClient *Client, testDev *TestDevice) error {
+func deleteMFADeviceStream(ctx context.Context, userClient *authclient.Client, testDev *TestDevice) error {
 	stream, err := userClient.DeleteMFADevice(ctx)
 	if err != nil {
 		return err

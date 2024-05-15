@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/api/metadata"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -460,7 +459,7 @@ func clientForFacade(
 	log *slog.Logger,
 	cfg *config.BotConfig,
 	facade *identity.Facade,
-	resolver reversetunnelclient.Resolver) (_ *auth.Client, err error) {
+	resolver reversetunnelclient.Resolver) (_ *authclient.Client, err error) {
 	ctx, span := tracer.Start(ctx, "clientForFacade")
 	defer func() { apitracing.EndSpan(span, err) }()
 
@@ -507,7 +506,7 @@ func clientForFacade(
 }
 
 type authPingCache struct {
-	client *auth.Client
+	client *authclient.Client
 	log    *slog.Logger
 
 	mu          sync.RWMutex

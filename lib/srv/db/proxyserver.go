@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -83,7 +84,7 @@ type ConnMonitor interface {
 // ProxyServerConfig is the proxy configuration.
 type ProxyServerConfig struct {
 	// AuthClient is the authenticated client to the auth server.
-	AuthClient *auth.Client
+	AuthClient *authclient.Client
 	// AccessPoint is the caching client connected to the auth server.
 	AccessPoint auth.ReadDatabaseAccessPoint
 	// Authorizer is responsible for authorizing user identities.

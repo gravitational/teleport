@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -1512,7 +1513,7 @@ func (w *OktaWrapper) Close() error {
 
 // NewRemoteProxyCachingAccessPoint returns new caching access point using
 // access point policy
-type NewRemoteProxyCachingAccessPoint func(clt ClientI, cacheName []string) (RemoteProxyAccessPoint, error)
+type NewRemoteProxyCachingAccessPoint func(clt authclient.ClientI, cacheName []string) (RemoteProxyAccessPoint, error)
 
 // notImplementedMessage is the message to return for endpoints that are not
 // implemented. This is due to how service interfaces are used with Teleport.
