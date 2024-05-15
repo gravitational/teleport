@@ -39,7 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -83,7 +83,7 @@ func onAppLogin(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	appCertParams.RouteToApp.SessionID, err = auth.TryCreateAppSessionForClientCertV15(cf.Context, rootClient, tc.Username, appCertParams.RouteToApp)
+	appCertParams.RouteToApp.SessionID, err = authclient.TryCreateAppSessionForClientCertV15(cf.Context, rootClient, tc.Username, appCertParams.RouteToApp)
 	if err != nil {
 		return trace.Wrap(err)
 	}

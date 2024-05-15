@@ -899,7 +899,7 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI certifica
 		}
 
 		// TODO (Joerger): DELETE IN v17.0.0
-		routeToApp.SessionID, err = auth.TryCreateAppSessionForClientCertV15(ctx, clusterAPI, a.genUser, routeToApp)
+		routeToApp.SessionID, err = authclient.TryCreateAppSessionForClientCertV15(ctx, clusterAPI, a.genUser, routeToApp)
 		if err != nil {
 			return trace.Wrap(err)
 		}
