@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/okta"
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
@@ -137,7 +138,7 @@ func (p *Plugin) GetName() string {
 }
 
 // GetProxyClient returns the proxy client.
-func (p *Plugin) GetProxyClient() auth.ClientI {
+func (p *Plugin) GetProxyClient() authclient.ClientI {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	return p.h.GetProxyClient()
@@ -519,18 +520,18 @@ func (p *Plugin) withCloud(fn cloudPublicHandler) httprouter.Handle {
 	})
 }
 
-func (p *Plugin) getAuthClient() (*auth.Client, error) {
+func (p *Plugin) getAuthClient() (*authclient.Client, error) {
 	proxyClient := p.h.GetProxyClient()
 
 	// TODO(mcbattirola): Move away from type assertions to a more robust solution.
 	switch c := proxyClient.(type) {
 	case *auth.GithubConverter:
-		authClient, ok := c.ClientI.(*auth.Client)
+		authClient, ok := c.ClientI.(*authclient.Client)
 		if !ok {
 			return nil, trace.BadParameter("unexpected underlying type for GithubConverter: %T", c.ClientI)
 		}
 		return authClient, nil
-	case *auth.Client:
+	case *authclient.Client:
 		return c, nil
 	default:
 		return nil, trace.BadParameter("unexpected underlying type for proxyClient: %T", proxyClient)

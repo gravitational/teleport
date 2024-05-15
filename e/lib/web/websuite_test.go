@@ -63,7 +63,7 @@ type webSuite struct {
 	testAuthServer       *auth.TestServer
 	webPlugin            *Plugin
 	authPlugin           *eauth.Plugin
-	proxyClient          *auth.Client
+	proxyClient          *authclient.Client
 	clock                clockwork.FakeClock
 	accessGraphGrpcFile  *atomic.Int32
 	accessGraphGrpcQuery *atomic.Int32
@@ -290,7 +290,7 @@ func (s *webSuite) clientNoRedirects(opts ...roundtrip.ClientParam) *client.WebC
 	return wc
 }
 
-func (s *webSuite) newAdminAuthClient(ctx context.Context, t *testing.T) auth.ClientI {
+func (s *webSuite) newAdminAuthClient(ctx context.Context, t *testing.T) authclient.ClientI {
 	tlsConfig, err := s.testAuthServer.TLS.ClientTLSConfig(auth.TestIdentity{
 		I: authz.BuiltinRole{
 			Role:     types.RoleAdmin,

@@ -19,6 +19,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/accessrequest"
 	"github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -90,7 +91,7 @@ func TestCreateAccessRequest_SearchBased(t *testing.T) {
 }
 
 type mockAuthClient struct {
-	auth.ClientI
+	authclient.ClientI
 	resources []types.ResourceWithLabels
 }
 
@@ -104,7 +105,7 @@ type mockClusterClientProvider struct {
 	resourcesByCluster map[string][]types.ResourceWithLabels
 }
 
-func (m *mockClusterClientProvider) UserClientForCluster(ctx context.Context, clusterName string) (auth.ClientI, error) {
+func (m *mockClusterClientProvider) UserClientForCluster(ctx context.Context, clusterName string) (authclient.ClientI, error) {
 	return &mockAuthClient{
 		resources: m.resourcesByCluster[clusterName],
 	}, nil

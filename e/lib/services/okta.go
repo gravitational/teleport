@@ -17,6 +17,7 @@ import (
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/service"
@@ -254,14 +255,14 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, sett
 
 // combinedOktaClient is an auth.Client client with services.Okta added to it.
 type combinedOktaClient struct {
-	auth.ClientI
+	authclient.ClientI
 	services.AccessLists
 	services.Okta
 }
 
 // newLocalCacheForOkta returns a new instance of access point for an Okta service. Returns
 // a cleanup function for the cache as well.
-func newLocalCacheForOkta(process *service.TeleportProcess, clt auth.ClientI, cacheName []string) (auth.OktaAccessPoint, func() error, error) {
+func newLocalCacheForOkta(process *service.TeleportProcess, clt authclient.ClientI, cacheName []string) (auth.OktaAccessPoint, func() error, error) {
 	accessListClient := clt.AccessListClient()
 	oktaClient := clt.OktaClient()
 	client := combinedOktaClient{clt, accessListClient, oktaClient}

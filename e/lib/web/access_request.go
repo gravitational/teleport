@@ -19,7 +19,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/accessrequest"
 	"github.com/gravitational/teleport/e/lib/web/ui"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -149,7 +149,7 @@ func (p *Plugin) getResourceRequestRolesHandle(w http.ResponseWriter, r *http.Re
 
 // getResourceRequestRoles returns the list of necessary roles to access a list of resources
 // given their resource IDs.
-func getResourceRequestRoles(ctx context.Context, clt auth.ClientI, req []ui.ResourceID, user string) ([]string, error) {
+func getResourceRequestRoles(ctx context.Context, clt authclient.ClientI, req []ui.ResourceID, user string) ([]string, error) {
 	// Creates new list of type types.ResourceID from the request of type ui.ResourceID.
 	// This is done because the json field name for `ClusterName` is different in both.
 	var resourceIDs []types.ResourceID
