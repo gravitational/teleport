@@ -68,8 +68,8 @@ Host *.{{ $clusterName }} !{{ $dot.ProxyHost }}
 {{- end }}
 {{- if eq $dot.AppName "tbot" }}
 {{- if $dot.PureTBotProxyCommand }}
-    ProxyCommand {{ shellQuote $dot.ExecutablePath }} ssh-proxy-command --destination-dir={{ shellQuote $dot.DestinationDir }} --proxy-server={{ shellQuote (print $dot.ProxyHost ":" $dot.ProxyPort) }} --cluster={{ shellQuote $clusterName }} {{if $dot.TLSRouting }}--tls-routing{{ else }}--no-tls-routing{{ end }} {{if $dot.ConnectionUpgrade }}--connection-upgrade{{ else }}--no-connection-upgrade{{ end }} {{if $dot.Resume }}--resume{{ else }}--no-resume{{end}} --user=%r --host=%h --port=%p
-{{- else}}
+    ProxyCommand {{ shellQuote $dot.ExecutablePath }} ssh-proxy-command --destination-dir={{ shellQuote $dot.DestinationDir }} --proxy-server={{ shellQuote (print $dot.ProxyHost ":" $dot.ProxyPort) }} --cluster={{ shellQuote $clusterName }} {{ if $dot.TLSRouting }}--tls-routing{{ else }}--no-tls-routing{{ end }} {{ if $dot.ConnectionUpgrade }}--connection-upgrade{{ else }}--no-connection-upgrade{{ end }} {{ if $dot.Resume }}--resume{{ else }}--no-resume{{ end }} --user=%r --host=%h --port=%p
+{{- else }}
     ProxyCommand "{{ $dot.ExecutablePath }}" proxy --destination-dir={{ $dot.DestinationDir }} --proxy-server={{ $dot.ProxyHost }}:{{ $dot.ProxyPort }} ssh --cluster={{ $clusterName }}  %r@%h:%p
 {{- end }}
 {{- end }}
