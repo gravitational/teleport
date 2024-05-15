@@ -29,14 +29,12 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/subtle"
-	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
-	"math"
 	"math/big"
 	insecurerand "math/rand"
 	"os"
@@ -54,7 +52,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"golang.org/x/crypto/bcrypt"
@@ -1894,9 +1891,9 @@ func (a *Server) generateHostCert(
 		// and `Node` fields if the role is `Node` so that the previous behavior
 		// is preserved.
 		// This is a legacy behavior that we need to support for backwards compatibility.
-		locks = []types.LockTarget{{ServerID: p.HostID, Node: p.HostID}, {ServerID: authclient.HostFQDN(p.HostID, p.ClusterName), Node: authclient.HostFQDN(p.HostID, p.ClusterName)}}
+		locks = []types.LockTarget{{ServerID: p.HostID, Node: p.HostID}, {ServerID: HostFQDN(p.HostID, p.ClusterName), Node: HostFQDN(p.HostID, p.ClusterName)}}
 	default:
-		locks = []types.LockTarget{{ServerID: p.HostID}, {ServerID: authclient.HostFQDN(p.HostID, p.ClusterName)}}
+		locks = []types.LockTarget{{ServerID: p.HostID}, {ServerID: HostFQDN(p.HostID, p.ClusterName)}}
 	}
 	if lockErr := a.checkLockInForce(authPref.GetLockingMode(),
 		locks,
@@ -6907,57 +6904,6 @@ func oauth2ConfigsEqual(a, b oauth2.Config) bool {
 		return false
 	}
 	return true
-}
-
-// WithClusterCAs returns a TLS hello callback that returns a copy of the provided
-// TLS config with client CAs pool of the specified cluster.
-func WithClusterCAs(tlsConfig *tls.Config, ap AccessCache, currentClusterName string, log logrus.FieldLogger) func(*tls.ClientHelloInfo) (*tls.Config, error) {
-	return func(info *tls.ClientHelloInfo) (*tls.Config, error) {
-		var clusterName string
-		var err error
-		if info.ServerName != "" {
-			// Newer clients will set SNI that encodes the cluster name.
-			clusterName, err = apiutils.DecodeClusterName(info.ServerName)
-			if err != nil {
-				if !trace.IsNotFound(err) {
-					log.Debugf("Ignoring unsupported cluster name name %q.", info.ServerName)
-					clusterName = ""
-				}
-			}
-		}
-		pool, totalSubjectsLen, err := DefaultClientCertPool(ap, clusterName)
-		if err != nil {
-			log.WithError(err).Errorf("Failed to retrieve client pool for %q.", clusterName)
-			// this falls back to the default config
-			return nil, nil
-		}
-
-		// Per https://tools.ietf.org/html/rfc5246#section-7.4.4 the total size of
-		// the known CA subjects sent to the client can't exceed 2^16-1 (due to
-		// 2-byte length encoding). The crypto/tls stack will panic if this
-		// happens.
-		//
-		// This usually happens on the root cluster with a very large (>500) number
-		// of leaf clusters. In these cases, the client cert will be signed by the
-		// current (root) cluster.
-		//
-		// If the number of CAs turns out too large for the handshake, drop all but
-		// the current cluster CA. In the unlikely case where it's wrong, the
-		// client will be rejected.
-		if totalSubjectsLen >= int64(math.MaxUint16) {
-			log.Debugf("Number of CAs in client cert pool is too large and cannot be encoded in a TLS handshake; this is due to a large number of trusted clusters; will use only the CA of the current cluster to validate.")
-
-			pool, _, err = DefaultClientCertPool(ap, currentClusterName)
-			if err != nil {
-				log.WithError(err).Errorf("Failed to retrieve client pool for %q.", currentClusterName)
-				// this falls back to the default config
-				return nil, nil
-			}
-		}
-		tlsCopy := tlsConfig.Clone()
-		tlsCopy.ClientCAs = pool
-		return tlsCopy, nil
-	}
 }
 
 // DefaultDNSNamesForRole returns default DNS names for the specified role.

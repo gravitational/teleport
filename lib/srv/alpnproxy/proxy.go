@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/pingconn"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -280,7 +281,7 @@ func (c *ProxyConfig) CheckAndSetDefaults() error {
 	}
 	c.IdentityTLSConfig = c.IdentityTLSConfig.Clone()
 	c.IdentityTLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
-	fn := auth.WithClusterCAs(c.IdentityTLSConfig, c.AccessPoint, c.ClusterName, c.Log)
+	fn := authclient.WithClusterCAs(c.IdentityTLSConfig, c.AccessPoint, c.ClusterName, c.Log)
 	c.IdentityTLSConfig.GetConfigForClient = fn
 
 	return nil

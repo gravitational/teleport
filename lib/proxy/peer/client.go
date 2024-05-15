@@ -149,7 +149,7 @@ func (c *ClientConfig) checkAndSetDefaults() error {
 	}
 
 	if c.getConfigForServer == nil {
-		c.getConfigForServer = getConfigForServer(c.TLSConfig, c.AccessPoint, c.Log, c.ClusterName)
+		c.getConfigForServer = getConfigForServer(c.Context, c.TLSConfig, c.AccessPoint, c.Log, c.ClusterName)
 	}
 
 	return nil

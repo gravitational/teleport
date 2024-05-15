@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -171,7 +172,7 @@ func getConfigForClient(tlsConfig *tls.Config, ap auth.AccessCache, log logrus.F
 	return func(info *tls.ClientHelloInfo) (*tls.Config, error) {
 		tlsCopy := tlsConfig.Clone()
 
-		pool, err := getCertPool(ap, clusterName)
+		pool, err := getCertPool(info.Context(), ap, clusterName)
 		if err != nil {
 			log.WithError(err).Error("Failed to retrieve client CA pool.")
 			return tlsCopy, nil
@@ -185,11 +186,11 @@ func getConfigForClient(tlsConfig *tls.Config, ap auth.AccessCache, log logrus.F
 
 // getConfigForServer clones and updates the client's tls config with the
 // appropriate server certificate authorities.
-func getConfigForServer(tlsConfig *tls.Config, ap auth.AccessCache, log logrus.FieldLogger, clusterName string) func() (*tls.Config, error) {
+func getConfigForServer(ctx context.Context, tlsConfig *tls.Config, ap auth.AccessCache, log logrus.FieldLogger, clusterName string) func() (*tls.Config, error) {
 	return func() (*tls.Config, error) {
 		tlsCopy := tlsConfig.Clone()
 
-		pool, err := getCertPool(ap, clusterName)
+		pool, err := getCertPool(ctx, ap, clusterName)
 		if err != nil {
 			log.WithError(err).Error("Failed to retrieve server CA pool.")
 			return tlsCopy, nil
@@ -201,8 +202,8 @@ func getConfigForServer(tlsConfig *tls.Config, ap auth.AccessCache, log logrus.F
 }
 
 // getCertPool returns a new cert pool from cache if any.
-func getCertPool(ap auth.AccessCache, clusterName string) (*x509.CertPool, error) {
-	pool, _, err := auth.ClientCertPool(ap, clusterName, types.HostCA)
+func getCertPool(ctx context.Context, ap auth.AccessCache, clusterName string) (*x509.CertPool, error) {
+	pool, _, err := authclient.ClientCertPool(ctx, ap, clusterName, types.HostCA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
