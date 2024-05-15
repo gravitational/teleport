@@ -72,6 +72,31 @@ func (s *PluginsService) DeletePlugin(ctx context.Context, name string) error {
 	return nil
 }
 
+// UpdatePlugin updates a plugin resource.
+func (s *PluginsService) UpdatePlugin(ctx context.Context, plugin types.Plugin) (types.Plugin, error) {
+	if err := services.CheckAndSetDefaults(plugin); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	value, err := services.MarshalPlugin(plugin)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	item := backend.Item{
+		Key:      backend.Key(pluginsPrefix, plugin.GetName()),
+		Value:    value,
+		Expires:  plugin.Expiry(),
+		Revision: plugin.GetRevision(),
+	}
+	lease, err := s.backend.ConditionalUpdate(ctx, item)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := types.SetRevision(plugin, lease.Revision); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return plugin, nil
+}
+
 // DeleteAllPlugins implements service.Plugins
 func (s *PluginsService) DeleteAllPlugins(ctx context.Context) error {
 	startKey := backend.ExactKey(pluginsPrefix)

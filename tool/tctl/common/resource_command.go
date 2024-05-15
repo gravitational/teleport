@@ -48,6 +48,7 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/mfa"
@@ -160,6 +161,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindAccessMonitoringRule:     rc.createAccessMonitoringRule,
 		types.KindCrownJewel:               rc.createCrownJewel,
 		types.KindVnetConfig:               rc.createVnetConfig,
+		types.KindPlugin:                   rc.createPlugin,
 	}
 	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
 		types.KindUser:                    rc.updateUser,
@@ -173,6 +175,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindAccessMonitoringRule:    rc.updateAccessMonitoringRule,
 		types.KindCrownJewel:              rc.updateCrownJewel,
 		types.KindVnetConfig:              rc.updateVnetConfig,
+		types.KindPlugin:                  rc.updatePlugin,
 	}
 	rc.config = config
 
@@ -466,6 +469,7 @@ func (rc *ResourceCommand) createRole(ctx context.Context, client *authclient.Cl
 	}
 
 	warnAboutKubernetesResources(rc.config.Log, role)
+
 	roleName := role.GetName()
 	_, err = client.GetRole(ctx, roleName)
 	if err != nil && !trace.IsNotFound(err) {
@@ -2776,6 +2780,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return &accessListCollection{accessLists: []*accesslist.AccessList{resource}}, nil
 		}
 		accessLists, err := client.AccessListClient().GetAccessLists(ctx)
+
 		return &accessListCollection{accessLists: accessLists}, trace.Wrap(err)
 	case types.KindVnetConfig:
 		vnetConfig, err := client.VnetConfigServiceClient().GetVnetConfig(ctx, &vnet.GetVnetConfigRequest{})
@@ -2786,6 +2791,34 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 	case types.KindAccessRequest:
 		resource, err := client.GetAccessRequests(ctx, types.AccessRequestFilter{ID: rc.ref.Name})
 		return &accessRequestCollection{accessRequests: resource}, trace.Wrap(err)
+	case types.KindPlugin:
+		if rc.ref.Name != "" {
+			plugin, err := client.PluginsClient().GetPlugin(ctx, &pluginsv1.GetPluginRequest{Name: rc.ref.Name})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &pluginCollection{plugins: []types.Plugin{plugin}}, nil
+		}
+		var plugins []types.Plugin
+		startKey := ""
+		for {
+			resp, err := client.PluginsClient().ListPlugins(ctx, &pluginsv1.ListPluginsRequest{
+				PageSize:    100,
+				StartKey:    startKey,
+				WithSecrets: rc.withSecrets,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			for _, v := range resp.Plugins {
+				plugins = append(plugins, v)
+			}
+			if resp.NextKey == "" {
+				break
+			}
+			startKey = resp.NextKey
+		}
+		return &pluginCollection{plugins: plugins}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }
@@ -3073,5 +3106,34 @@ func (rc *ResourceCommand) updateVnetConfig(ctx context.Context, client *authcli
 		return trace.Wrap(err)
 	}
 	fmt.Println("vnet_config has been updated")
+	return nil
+}
+
+func (rc *ResourceCommand) updatePlugin(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	item := pluginResourceWrapper{PluginV1: types.PluginV1{}}
+	if err := utils.FastUnmarshal(raw.Raw, &item); err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := client.PluginsClient().UpdatePlugin(ctx, &pluginsv1.UpdatePluginRequest{Plugin: &item.PluginV1}); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (rc *ResourceCommand) createPlugin(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	item := pluginResourceWrapper{
+		PluginV1: types.PluginV1{},
+	}
+	if err := utils.FastUnmarshal(raw.Raw, &item); err != nil {
+		return trace.Wrap(err)
+	}
+	if !rc.IsForced() {
+		// Plugin needs to be installed before it can be updated.
+		return trace.BadParameter("Only plugin update operation is supported. Please use 'tctl plugins install' instead\n")
+	}
+	if _, err := client.PluginsClient().UpdatePlugin(ctx, &pluginsv1.UpdatePluginRequest{Plugin: &item.PluginV1}); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("plugin %q has been updated\n", item.GetName())
 	return nil
 }
