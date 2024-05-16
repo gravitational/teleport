@@ -83,6 +83,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/backend"
@@ -287,11 +288,11 @@ const (
 type Connector struct {
 	// ClientIdentity is the identity to be used in internal cluster
 	// clients to the auth service.
-	ClientIdentity *auth.Identity
+	ClientIdentity *state.Identity
 
 	// ServerIdentity is the identity to be used in servers - serving SSH
 	// and x509 certificates to clients.
-	ServerIdentity *auth.Identity
+	ServerIdentity *state.Identity
 
 	// Client is authenticated client with credentials from ClientIdentity.
 	Client *authclient.Client
@@ -372,7 +373,7 @@ type TeleportProcess struct {
 	instanceRoles map[types.SystemRole]string
 
 	// identities of this process (credentials to auth sever, basically)
-	Identities map[types.SystemRole]*auth.Identity
+	Identities map[types.SystemRole]*state.Identity
 
 	// connectors is a list of connected clients and their identities
 	connectors map[types.SystemRole]*Connector
@@ -394,7 +395,7 @@ type TeleportProcess struct {
 	forkedPIDs []int
 
 	// storage is a server local storage
-	storage *auth.ProcessStorage
+	storage *state.ProcessStorage
 
 	// id is a process id - used to identify different processes
 	// during in-process reloads.
@@ -474,7 +475,7 @@ func (process *TeleportProcess) OnHeartbeat(component string) func(err error) {
 	}
 }
 
-func (process *TeleportProcess) findStaticIdentity(id auth.IdentityID) (*auth.Identity, error) {
+func (process *TeleportProcess) findStaticIdentity(id state.IdentityID) (*state.Identity, error) {
 	for i := range process.Config.Identities {
 		identity := process.Config.Identities[i]
 		if identity.ID.Equals(id) {
@@ -608,7 +609,7 @@ func (process *TeleportProcess) getAuthSubjectiveAddr() string {
 // GetIdentity returns the process identity (credentials to the auth server) for a given
 // teleport Role. A teleport process can have any combination of 3 roles: auth, node, proxy
 // and they have their own identities
-func (process *TeleportProcess) GetIdentity(role types.SystemRole) (i *auth.Identity, err error) {
+func (process *TeleportProcess) GetIdentity(role types.SystemRole) (i *state.Identity, err error) {
 	var found bool
 
 	process.Lock()
@@ -618,8 +619,8 @@ func (process *TeleportProcess) GetIdentity(role types.SystemRole) (i *auth.Iden
 	if found {
 		return i, nil
 	}
-	i, err = process.storage.ReadIdentity(auth.IdentityCurrent, role)
-	id := auth.IdentityID{
+	i, err = process.storage.ReadIdentity(state.IdentityCurrent, role)
+	id := state.IdentityID{
 		Role:     role,
 		HostUUID: process.Config.HostUUID,
 		NodeName: process.Config.Hostname,
@@ -647,7 +648,7 @@ func (process *TeleportProcess) GetIdentity(role types.SystemRole) (i *auth.Iden
 				return nil, trace.Wrap(err)
 			}
 			process.log.Infof("Found static identity %v in the config file, writing to disk.", &id)
-			if err = process.storage.WriteIdentity(auth.IdentityCurrent, *i); err != nil {
+			if err = process.storage.WriteIdentity(state.IdentityCurrent, *i); err != nil {
 				return nil, trace.Wrap(err)
 			}
 		}
@@ -852,7 +853,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	}
 
 	supervisor := NewSupervisor(processID, cfg.Log)
-	storage, err := auth.NewProcessStorage(supervisor.ExitContext(), filepath.Join(cfg.DataDir, teleport.ComponentProcess))
+	storage, err := state.NewProcessStorage(supervisor.ExitContext(), filepath.Join(cfg.DataDir, teleport.ComponentProcess))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -945,7 +946,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		Config:                 cfg,
 		instanceConnectorReady: make(chan struct{}),
 		instanceRoles:          make(map[types.SystemRole]string),
-		Identities:             make(map[types.SystemRole]*auth.Identity),
+		Identities:             make(map[types.SystemRole]*state.Identity),
 		connectors:             make(map[types.SystemRole]*Connector),
 		importedDescriptors:    cfg.FileDescriptors,
 		storage:                storage,
@@ -1764,7 +1765,7 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 	}
 	clusterName := cfg.Auth.ClusterName.GetClusterName()
-	ident, err := process.storage.ReadIdentity(auth.IdentityCurrent, types.RoleAdmin)
+	ident, err := process.storage.ReadIdentity(state.IdentityCurrent, types.RoleAdmin)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
@@ -4121,7 +4122,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			Context:          process.GracefulExitContext(),
 			StaticFS:         fs,
 			ClusterFeatures:  process.GetClusterFeatures(),
-			GetProxyIdentity: func() (*auth.Identity, error) {
+			GetProxyIdentity: func() (*state.Identity, error) {
 				return process.GetIdentity(types.RoleProxy)
 			},
 			UI:              cfg.Proxy.UI,
@@ -4875,7 +4876,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	return nil
 }
 
-func (process *TeleportProcess) getPROXYSigner(ident *auth.Identity) (multiplexer.PROXYHeaderSigner, error) {
+func (process *TeleportProcess) getPROXYSigner(ident *state.Identity) (multiplexer.PROXYHeaderSigner, error) {
 	signer, err := utils.ParsePrivateKeyPEM(ident.KeyBytes)
 	if err != nil {
 		return nil, trace.Wrap(err, "could not parse identity's private key")

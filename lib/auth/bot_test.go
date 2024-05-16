@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -227,7 +228,7 @@ func TestRegisterBotCertificateGenerationCheck(t *testing.T) {
 
 	certs, err := Register(ctx, RegisterParams{
 		Token: bot.TokenID,
-		ID: IdentityID{
+		ID: state.IdentityID{
 			Role: types.RoleBot,
 		},
 		AuthServers:  []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
@@ -285,7 +286,7 @@ func TestRegisterBotCertificateGenerationStolen(t *testing.T) {
 
 	certs, err := Register(ctx, RegisterParams{
 		Token: bot.TokenID,
-		ID: IdentityID{
+		ID: state.IdentityID{
 			Role: types.RoleBot,
 		},
 		AuthServers:  []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
@@ -346,7 +347,7 @@ func TestRegisterBotCertificateExtensions(t *testing.T) {
 
 	certs, err := Register(ctx, RegisterParams{
 		Token: bot.TokenID,
-		ID: IdentityID{
+		ID: state.IdentityID{
 			Role: types.RoleBot,
 		},
 		AuthServers:  []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
