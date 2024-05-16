@@ -1,43 +1,16 @@
 ---
-title: Self-Hosted Deployment Reference
-description: Guides to self-hosting Teleport on various cloud platforms.
+title: Self-Hosted Cluster Reference
+description: REference guides for maintaining a self-hosted Teleport cluster.
 ---
 
-The guides in this section provide references for self-hosted Teleport
-deployments.
+{/*GENERATED MENU PAGE. DO NOT EDIT. RECREATE WITH THIS COMMAND:
+undefined*/}
 
-In Kubernetes environments, you can complete much of the deployment process
-automatically using the `teleport-cluster` Helm chart. Read about using the
-chart in the [Helm Deployment
-Guides](../admin-guides/self-hosted-teleport/helm-deployments.mdx).
+REference guides for maintaining a self-hosted Teleport cluster.
 
-## Configuring self-hosted deployments
-
-- [Teleport License File](./reference/self-hosted/license.mdx): How to obtain a
-  license file for self-hosted deployments and make it available to your
-  Teleport cluster.
-- [Backend Refernece](./reference/self-hosted//backends.mdx): Configuring your
-  self-hosted cluster to manage its backend on your infrastructure of choice.
-
-## Deployment guides
-
-architectural explanations for High Availability deployments of self-hosted
-Teleport clusters. Read these guides to begin planning your self-hosted
-deployment. We recommend [contacting the Teleport
-team](https://goteleport.com/contact-us/) for help in architecting your
-self-hosted Teleport cluster.
-
-## High Availability deployments
-
-Read [High Availability Teleport
-Clusters](./reference/self-hosted-deployments/high-availability.mdx)
-for the general architectural priniciples behind High Availability self-hosted
-Teleport deployments.
-
-## Cloud-specific deployment guides
-
-Plan deployments on specific cloud providers:
-
-- [Google Cloud](./reference/self-hosted-deployments/gcp.mdx)
-- [IBM Cloud](./reference/self-hosted-deployments/ibm.mdx)
-- [AWS Multi-Region Proxy Deployment](./reference/self-hosted-deployments/aws-gslb-proxy-peering-ha-deployment.mdx)
+- [AWS Multi-Region Proxy Deployment](self-hosted/aws-gslb-proxy-peering-ha-deployment.mdx): Deploying a high-availability Teleport cluster using Proxy Peering and Route 53 to create global server load balancing.
+- [Storage backends](self-hosted/backends.mdx): How to configure Teleport deployment for high-availability using storage backends
+- [Running Teleport on GCP](self-hosted/gcp.mdx): How to install and configure Teleport on GCP
+- [Deploying a High Availability Teleport Cluster](self-hosted/high-availability.mdx): Deploying a High Availability Teleport Cluster
+- [Running Teleport on IBM Cloud](self-hosted/ibm.mdx): How to install and configure Gravitational Teleport on IBM cloud for SSH and Kubernetes access.
+- [Enterprise License File](self-hosted/license.mdx): How to manage your Teleport Enterprise license file.

@@ -11,20 +11,27 @@ const args = yargs(hideBin(process.argv))
     describe:
       'Comma-separated list of root directory paths from which to generate topic page partials. We expect each root directory to include the output in a page called "all-topics.mdx"',
   })
-  .option('out', {
-    describe:
-      'Relative path to a directory in which to place topic page partials, which are named after their corresponding root input directories. For example, use "docs/pages/includes/topic-pages.',
-  })
-  .demandOption(['in', 'out'])
+  .demandOption(['in'])
   .help()
   .parse();
+
+const addTopicsForDir = (dirPath, command) => {
+  const frag = new TopicContentsFragment(command, fs, dirPath, '');
+  const parts = path.parse(dirPath);
+  const newPath = path.join(parts.dir, parts.name + '.mdx');
+  fs.writeFileSync(newPath, frag.makeTopicPage());
+
+  fs.readdirSync(dirPath).forEach(filePath => {
+    const fullPath = path.join(dirPath, filePath) 
+    const stats = fs.statSync(fullPath);
+    if (stats.isDirectory()) {
+      addTopicsForDir(fullPath);
+    }
+  });
+};
 
 args.in.split(',').forEach(p => {
   const command =
     'node docs/gen-topic-pages/index.js ' + hideBin(process.argv).join(' ');
-  const prefix = path.relative(args.out, p);
-  const frag = new TopicContentsFragment(command, fs, p, prefix);
-  const parts = path.parse(p);
-  const newPath = path.join(args.out, parts.name + '.mdx');
-  fs.writeFileSync(newPath, frag.makeTopicTree());
+  addTopicsForDir(p);
 });

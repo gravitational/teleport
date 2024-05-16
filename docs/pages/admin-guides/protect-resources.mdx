@@ -1,33 +1,21 @@
 ---
 title: Protect Infrastructure Resources with Teleport
-description: Provides instructions for enrolling servers, Kubernetes clusters, databases, applications, and Windows desktops in your Teleport cluster.
+description: Learn how to enroll servers, databases, and other infrastructure resources in your Teleport cluster.
 ---
 
-Teleport makes it possible to manage access to a range of infrastructure
-resources, from Kubernetes clusters to cloud provider APIs. The guides in this
-section show you how to enroll infrastructure resources in your Teleport
-cluster.
+{/*GENERATED MENU PAGE. DO NOT EDIT. RECREATE WITH THIS COMMAND:
+undefined*/}
 
-## Deploy Teleport agents
+Learn how to enroll servers, databases, and other infrastructure resources in your Teleport cluster.
 
-Teleport agents route traffic between the Teleport Proxy Service and resources
-in your infrastructure, perform RBAC checks, and produce audit log messages.
-Read the [Teleport Agents Overview](./protect-resources/agents.mdx) for a
-description of how Teleport agents run in your cluster. 
-
-Teleport makes a number of methods available for joining a Teleport agent to a
-cluster. Read [Join Services to your
-Cluster](./protect-resources/join-services-to-your-cluster.mdx) to find the most
-appropraite method for your infrastructure. You can also read [Deploy Teleport
-Agents with Terraform](./protect-resources/deploy-agents-terraform.mdx) for how
-to manage a pool of agents using Infrastructure as Code.
-
-Once you understand how you deploy Teleport agents, read the following guides
-for running specific services on the agent in order to enroll infrastructure
-resources with Teleport:
-
-- [Applications](./protect-resources/application-access.mdx)
-- [Databases](./protect-resources/database-access.mdx)
-- [Kubernetes clusters](./protect-resources/kubernetes-access.mdx)
-- [Servers](./protect-resources/server-access.mdx)
-- [Windows desktops](./protect-resources/desktop-access.mdx)
+- [Teleport Agents Overview](protect-resources/agents.mdx): Deploy agents to enroll resources in your infrastructure with Teleport. You can run multiple Teleport services per agent."
+- [Protect Applications with Teleport](protect-resources/application-access.mdx): Run the Teleport Application Service to enable secure access to applications.
+- [Auto-Discovery](protect-resources/auto-discovery.mdx): The Teleport Discovery Service can enroll resources in Teleport automatically by communicating with cloud APIs.
+- [Protect Databases with Teleport](protect-resources/database-access.mdx): How to enrolls databases in your Teleport cluster for secure access.
+- [Deploy Teleport Agents with Terraform](protect-resources/deploy-agents-terraform.mdx): In this guide, we will show you how to deploy a pool of Teleport agents so you can apply dynamic resources to enroll your infrastructure with Teleport.
+- [Protect Desktops with Teleport](protect-resources/desktop-access.mdx): Enroll Windows Desktops in your Teleport cluster for secure acces.
+- [Join Services to your Cluster](protect-resources/join-services-to-your-cluster.mdx): Methods for establishing trust between Teleport services and the Teleport Auth Service.
+- [Protect Kubernetes Clusters with Teleport](protect-resources/kubernetes-access.mdx): Enroll Kubernetes clusters in your Teleport cluster for secure acces.
+- [Machine ID](protect-resources/machine-id.mdx): Learn how to provide secure access to infrastructure resources from bots and service accounts.
+- [Protect Infrastructure Resources with Teleport](protect-resources/overview.mdx): Provides instructions for enrolling servers, Kubernetes clusters, databases, applications, and Windows desktops in your Teleport cluster.
+- [Protect SSH Servers with Teleport](protect-resources/server-access.mdx): Enroll SSH servers in your Teleport cluster for secure acces.

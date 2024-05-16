@@ -1,36 +1,17 @@
 ---
 title: Protect SSH Servers with Teleport
-description: Teleport server access features and introduction.
-videoBanner: EsEvO5ndNDI
+description: Enroll SSH servers in your Teleport cluster for secure acces.
 ---
 
-Teleport consolidates SSH access across all environments, decreases
-configuration complexity, supports industry best practices and compliance while
-giving complete visibility over all sessions and events.
+{/*GENERATED MENU PAGE. DO NOT EDIT. RECREATE WITH THIS COMMAND:
+undefined*/}
 
-Teleport server access is designed for the following kinds of scenarios:
+Enroll SSH servers in your Teleport cluster for secure acces.
 
-- When up to a vast number of clusters must be managed using the command-line (`tsh`) or programmatically (through the Teleport API) and you want to simplify your stack, security, and configuration complexity.
-- When security team members must track and audit every user session. 
-- When Teleport users require a complete, dedicated, and secure SSH option (Teleport Node running in SSH mode) and more than a certificate authority (Teleport Auth) with proxy (Teleport Proxy).
-- When resource and network security must be maximized: SSH certificates over secret keys, multi-factor authentication (MFA), Single Sign-On (SSO), and short-lived certificates.
-
-![Server access architecture](../../img/server-access/architecture.png)
-
-## Getting started
-
-- [Get started](getting-started.mdx): Get started using Teleport server access
-  in 10 minutes. Server access for most common SSH use-cases.
-
-## Enrolling OpenSSH servers
-
-You can protect OpenSSH servers with Teleport, which makes it easier to protect
-legacy infrastructure, using an [agentless architecture](./openssh/openssh.mdx).
-Read the [Teleport OpenSSH guides](./openssh.mdx) to learn more.
-
-## Guides
-
-- [Using Teleport with PAM](./guides/ssh-pam.mdx): How to configure Teleport SSH with PAM (Pluggable Authentication Modules).
-- [Recording Proxy Mode](./guides/recording-proxy-mode.mdx): How to use Teleport Recording Proxy Mode to capture activity on OpenSSH servers.
-- [BPF Session Recording](./guides/bpf-session-recording.mdx): How to use BPF to record SSH session commands, modified files and network connections.
-- [Visual Studio Code](./guides/vscode.mdx): How to remotely develop with Visual Studio Code and Teleport.
+- [Server Access Getting Started Guide](server-access/getting-started.mdx): Getting started with Teleport server access.
+- [Server Access Guides](server-access/guides.mdx): How to enroll SSH servers in your Teleport cluster.
+- [Teleport Server Access Features and Introduction](server-access/introduction.mdx): Teleport server access features and introduction.
+- [Enroll OpenSSH Servers with Teleport](server-access/openssh.mdx): How to enroll legacy OpenSSH servers in your Teleport cluster.
+- [Protect SSH Servers with Teleport](server-access/overview.mdx): Teleport server access features and introduction.
+- [Access Controls for Servers](server-access/rbac.mdx): Role-based access control (RBAC) for Teleport server access.
+- [Troubleshooting Server Access](server-access/troubleshooting-server.mdx): Describes common issues and solutions for access to servers.

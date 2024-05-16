@@ -1,0 +1,2 @@
+title: Automatic Database User Provisioning
+description: Create an ephemeral database user automatically when a Teleport user connects to a database for more secure access.

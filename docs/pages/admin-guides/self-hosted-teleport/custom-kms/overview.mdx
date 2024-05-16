@@ -1,0 +1,13 @@
+---
+title: Running Teleport with a Key Management Service
+description: Use your own key management service to sign certificates that Teleport uses to connect to infrastructure resources.
+---
+
+If you run a self-hosted Teleport cluster, you can configure technology managed
+outside of Teleport to handle the private key material the Teleport Auth Service
+uses to sign certificates. Read the following guides to set up Teleport with
+your key management service or on-premise infrastructure:
+
+- [AWS Key Management Service](./custom-cas/aws-kms.mdx)
+- [Google Cloud Key Management Service](./custom-cas/gcp-kms.mdx)
+- [Hardwdare Security Module](./custom-cas/hsm.mdx)

@@ -1,42 +1,43 @@
 # Topic page generator
 
-The topic page generator creates an "All Topics" partial that lists all docs
-guides in a user-specified directory tree.
+The topic page generator automatically generates menu pages at each level of a
+chosen directory tree. Each menu page has the same name as its corresponding
+directory, and lists the contents of that directory within the docs. 
 
 ## Usage examples
 
-Create a partial called `docs/pages/includes/topic-pages/management.mdx` based
-on the directory tree rooted at `docs/pages/management`:
+Create two menu pages for each subdirectory within the directory trees rooted at
+`docs/pages/management` and `docs/pages/security`:
 
+```bash
+$ node docs/gen-topic-pages/index.js --in docs/pages/management,docs/pages/security
 ```
-$ node docs/gen-topic-pages/index.js --in docs/pages/management --out docs/pages/includes/topic-pages
-```
 
-We can then include this partial in `docs/pages/management/all-topics.mdx`.
+Let's assume that `docs/pages/management` contains the following subdirectories:
 
-## Flags
+- `docs/pages/management/authentication`
+- `docs/pages/management/authorization`
 
-To use the script, run the script at `index.js` with two flags:
+In this case, the script creates the following menu pages:
 
-|Flag|Description|
-|---|---|
-|`in`|Comma-separated list of root directory paths from which to generate topic page partials. We expect each root directory to include the output in a page called `all-topics.mdx`|
-|`out`|Relative path to a directory in which to place topic page partials, which are named after their corresponding root input directories. For example, use `docs/pages/includes/topic-pages.`|
+- `docs/pages/management.mdx`
+- `docs/pages/security.mdx`
+- `docs/pages/management/authentication.mdx`
+- `docs/pages/management/authorization.mdx`
 
-The script generates a partial for each directory tree passed to the `in` flag.
-Each partial lists the MDX files in each directory level as table rows under a
-heading within the table of contents.
+## Configuration
 
-## Assumptions
+Each directory in the tree has a corresponding `yaml` file with the same name as
+the directory that configures the menu page for that directory. For example,
+`docs/pages/management` would have a menu page called
+`docs/pages/management.yaml`. 
 
-The script makes the following assumptions about the docs directory tree:
+The `yaml` file has the following fields:
 
-- Each MDX page includes frontmatter with keys `title` and `description`. The
-  script uses this information to populate the table of contents.
-- Each subdirectory of the docs has a menu page, named after the subdirectory,
-  that provides information about the subdirectory. For example, a subdirectory
-  called `guides` would have a menu page called `guides.mdx` at the same
-  directory level.
-- A page called `all-topics.mdx` at each root directory includes the output of
-  the script. The script does _not_ create links to pages called
-  `all-topics.mdx`.
+- `title`: The title of the menu page.
+- `description`: The description of the menu page, which the generator uses as
+  the page's introductory paragraph.
+
+The script assumes that each MDX page includes frontmatter with keys `title` and
+`description`. The script uses this information to populate each menu of links.
+directory level.

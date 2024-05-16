@@ -1,0 +1,2 @@
+title: Login Rules
+description: When a user logs in to Teleport with a Single Sign-On provider, Login Rules dynamically set traits for the user.
