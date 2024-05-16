@@ -128,10 +128,12 @@ resource "aws_lb" "auth" {
 
 // Target group is associated with auto scale group
 resource "aws_lb_target_group" "auth" {
-  name     = "${var.cluster_name}-auth"
-  port     = 3025
-  vpc_id   = aws_vpc.teleport.id
-  protocol = "TCP"
+  name              = "${var.cluster_name}-auth"
+  port              = 3025
+  vpc_id            = aws_vpc.teleport.id
+  protocol          = "TCP"
+  // required to allow the use of IP pinning
+  proxy_protocol_v2 = true
 }
 
 // 3025 is the Auth servers API server listener.
