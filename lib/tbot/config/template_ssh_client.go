@@ -29,7 +29,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/config/openssh"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/identity"
@@ -247,7 +247,7 @@ func fetchKnownHosts(ctx context.Context, bot provider, clusterNames []string, p
 	}
 
 	var sb strings.Builder
-	for _, auth := range auth.AuthoritiesToTrustedCerts(certAuthorities) {
+	for _, auth := range authclient.AuthoritiesToTrustedCerts(certAuthorities) {
 		pubKeys, err := auth.SSHCertPublicKeys()
 		if err != nil {
 			return "", trace.Wrap(err)

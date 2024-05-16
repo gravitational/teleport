@@ -282,7 +282,7 @@ func (a *Server) establishTrust(ctx context.Context, trustedCluster types.Truste
 	}
 
 	// create a request to validate a trusted cluster (token and local certificate authorities)
-	validateRequest := ValidateTrustedClusterRequest{
+	validateRequest := authclient.ValidateTrustedClusterRequest{
 		Token:           trustedCluster.GetToken(),
 		CAs:             localCertAuthorities,
 		TeleportVersion: teleport.Version,
@@ -456,7 +456,7 @@ func (a *Server) GetRemoteClusters(opts ...services.MarshalOption) ([]types.Remo
 	return remoteClusters, trace.Wrap(err)
 }
 
-func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *ValidateTrustedClusterRequest) (resp *ValidateTrustedClusterResponse, err error) {
+func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *authclient.ValidateTrustedClusterRequest) (resp *authclient.ValidateTrustedClusterResponse, err error) {
 	defer func() {
 		if err != nil {
 			log.WithError(err).Info("Trusted cluster validation failed")
@@ -528,7 +528,7 @@ func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *Va
 	}
 
 	// export local cluster certificate authority and return it to the cluster
-	validateResponse := ValidateTrustedClusterResponse{}
+	validateResponse := authclient.ValidateTrustedClusterResponse{}
 
 	validateResponse.CAs, err = getLeafClusterCAs(ctx, a, domainName, validateRequest)
 	if err != nil {
@@ -542,7 +542,7 @@ func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *Va
 }
 
 // getLeafClusterCAs returns a slice with Cert Authorities that should be returned in response to ValidateTrustedClusterRequest.
-func getLeafClusterCAs(ctx context.Context, srv *Server, domainName string, validateRequest *ValidateTrustedClusterRequest) ([]types.CertAuthority, error) {
+func getLeafClusterCAs(ctx context.Context, srv *Server, domainName string, validateRequest *authclient.ValidateTrustedClusterRequest) ([]types.CertAuthority, error) {
 	certTypes, err := getCATypesForLeaf(validateRequest)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -565,7 +565,7 @@ func getLeafClusterCAs(ctx context.Context, srv *Server, domainName string, vali
 }
 
 // getCATypesForLeaf returns the list of CA certificates that should be sync in response to ValidateTrustedClusterRequest.
-func getCATypesForLeaf(validateRequest *ValidateTrustedClusterRequest) ([]types.CertAuthType, error) {
+func getCATypesForLeaf(validateRequest *authclient.ValidateTrustedClusterRequest) ([]types.CertAuthType, error) {
 	var (
 		err                error
 		openSSHCASupported bool
@@ -603,7 +603,7 @@ func (a *Server) validateTrustedClusterToken(ctx context.Context, tokenName stri
 	return provisionToken.GetMetadata().Labels, nil
 }
 
-func (a *Server) sendValidateRequestToProxy(host string, validateRequest *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
+func (a *Server) sendValidateRequestToProxy(host string, validateRequest *authclient.ValidateTrustedClusterRequest) (*authclient.ValidateTrustedClusterResponse, error) {
 	proxyAddr := url.URL{
 		Scheme: "https",
 		Host:   host,
@@ -650,7 +650,7 @@ func (a *Server) sendValidateRequestToProxy(host string, validateRequest *Valida
 		return nil, trace.Wrap(err)
 	}
 
-	var validateResponseRaw ValidateTrustedClusterResponseRaw
+	var validateResponseRaw authclient.ValidateTrustedClusterResponseRaw
 	err = json.Unmarshal(out.Bytes(), &validateResponseRaw)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -663,14 +663,6 @@ func (a *Server) sendValidateRequestToProxy(host string, validateRequest *Valida
 
 	return validateResponse, nil
 }
-
-type ValidateTrustedClusterRequest = authclient.ValidateTrustedClusterRequest
-
-type ValidateTrustedClusterRequestRaw = authclient.ValidateTrustedClusterRequestRaw
-
-type ValidateTrustedClusterResponse = authclient.ValidateTrustedClusterResponse
-
-type ValidateTrustedClusterResponseRaw = authclient.ValidateTrustedClusterResponseRaw
 
 // activateCertAuthority will activate both the user and host certificate
 // authority given in the services.TrustedCluster resource.

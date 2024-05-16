@@ -28,7 +28,6 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/proxy/peer"
 	"github.com/gravitational/teleport/lib/services"
@@ -122,7 +121,7 @@ type RemoteSite interface {
 	GetClient() (authclient.ClientI, error)
 	// CachingAccessPoint returns access point that is lightweight
 	// but is resilient to auth server crashes
-	CachingAccessPoint() (auth.RemoteProxyAccessPoint, error)
+	CachingAccessPoint() (authclient.RemoteProxyAccessPoint, error)
 	// NodeWatcher returns the node watcher that maintains the node set for the site
 	NodeWatcher() (*services.NodeWatcher, error)
 	// GetTunnelsCount returns the amount of active inbound tunnels
