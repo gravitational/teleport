@@ -236,7 +236,7 @@ type Config struct {
 	FIPS bool
 
 	// AccessPoint holds a cache to the Auth Server.
-	AccessPoint auth.ProxyAccessPoint
+	AccessPoint authclient.ProxyAccessPoint
 
 	// Emitter is event emitter
 	Emitter apievents.Emitter
@@ -1052,7 +1052,7 @@ func (h *Handler) GetProxyIdentity() (*state.Identity, error) {
 }
 
 // GetAccessPoint returns the caching access point.
-func (h *Handler) GetAccessPoint() auth.ProxyAccessPoint {
+func (h *Handler) GetAccessPoint() authclient.ProxyAccessPoint {
 	return h.cfg.AccessPoint
 }
 
