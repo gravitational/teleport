@@ -2348,7 +2348,7 @@ func (process *TeleportProcess) newLocalCacheForNode(clt authclient.ClientI, cac
 		return nil, trace.Wrap(err)
 	}
 
-	return auth.NewNodeWrapper(clt, cache), nil
+	return authclient.NewNodeWrapper(clt, cache), nil
 }
 
 // newLocalCacheForKubernetes returns new instance of access point configured for a kubernetes service.
@@ -2363,7 +2363,7 @@ func (process *TeleportProcess) newLocalCacheForKubernetes(clt authclient.Client
 		return nil, trace.Wrap(err)
 	}
 
-	return auth.NewKubernetesWrapper(clt, cache), nil
+	return authclient.NewKubernetesWrapper(clt, cache), nil
 }
 
 // newLocalCacheForDatabase returns new instance of access point configured for a database service.
@@ -2378,7 +2378,7 @@ func (process *TeleportProcess) newLocalCacheForDatabase(clt authclient.ClientI,
 		return nil, trace.Wrap(err)
 	}
 
-	return auth.NewDatabaseWrapper(clt, cache), nil
+	return authclient.NewDatabaseWrapper(clt, cache), nil
 }
 
 type eksClustersEnroller interface {
@@ -2413,7 +2413,7 @@ func (process *TeleportProcess) newLocalCacheForDiscovery(clt authclient.ClientI
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return auth.NewDiscoveryWrapper(client, cache), nil
+	return authclient.NewDiscoveryWrapper(client, cache), nil
 }
 
 // newLocalCacheForProxy returns new instance of access point configured for a local proxy.
@@ -2428,7 +2428,7 @@ func (process *TeleportProcess) newLocalCacheForProxy(clt authclient.ClientI, ca
 		return nil, trace.Wrap(err)
 	}
 
-	return auth.NewProxyWrapper(clt, cache), nil
+	return authclient.NewProxyWrapper(clt, cache), nil
 }
 
 // newLocalCacheForRemoteProxy returns new instance of access point configured for a remote proxy.
@@ -2443,7 +2443,7 @@ func (process *TeleportProcess) newLocalCacheForRemoteProxy(clt authclient.Clien
 		return nil, trace.Wrap(err)
 	}
 
-	return auth.NewRemoteProxyWrapper(clt, cache), nil
+	return authclient.NewRemoteProxyWrapper(clt, cache), nil
 }
 
 // DELETE IN: 8.0.0
@@ -2461,7 +2461,7 @@ func (process *TeleportProcess) newLocalCacheForOldRemoteProxy(clt authclient.Cl
 		return nil, trace.Wrap(err)
 	}
 
-	return auth.NewRemoteProxyWrapper(clt, cache), nil
+	return authclient.NewRemoteProxyWrapper(clt, cache), nil
 }
 
 // newLocalCacheForApps returns new instance of access point configured for a remote proxy.
@@ -2476,7 +2476,7 @@ func (process *TeleportProcess) newLocalCacheForApps(clt authclient.ClientI, cac
 		return nil, trace.Wrap(err)
 	}
 
-	return auth.NewAppsWrapper(clt, cache), nil
+	return authclient.NewAppsWrapper(clt, cache), nil
 }
 
 // newLocalCacheForWindowsDesktop returns new instance of access point configured for a windows desktop service.
@@ -2491,7 +2491,7 @@ func (process *TeleportProcess) newLocalCacheForWindowsDesktop(clt authclient.Cl
 		return nil, trace.Wrap(err)
 	}
 
-	return auth.NewWindowsDesktopWrapper(clt, cache), nil
+	return authclient.NewWindowsDesktopWrapper(clt, cache), nil
 }
 
 // accessPointWrapper is a wrapper around [authclient.ClientI]  that reduces the surface area of the
