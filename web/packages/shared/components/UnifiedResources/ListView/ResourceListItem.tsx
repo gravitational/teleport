@@ -116,6 +116,7 @@ export function ResourceListItem({
           css={`
             grid-area: icon;
             place-self: center center;
+            opacity: ${requiresRequest ? '0.5' : '1'};
           `}
         />
 
