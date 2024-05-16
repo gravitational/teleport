@@ -50,7 +50,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -584,7 +583,7 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 		// challenge and will terminate the stream with an auth.ErrNoMFADevices error.
 		// In this case for all protocols other than SSH fall back to reissuing
 		// certs without MFA.
-		if errors.Is(err, auth.ErrNoMFADevices) {
+		if errors.Is(err, authclient.ErrNoMFADevices) {
 			if params.usage() != proto.UserCertsRequest_SSH {
 				return proxy.reissueUserCerts(ctx, CertCacheKeep, params)
 			}
@@ -885,7 +884,7 @@ func (proxy *ProxyClient) CreateAppSession(ctx context.Context, req types.Create
 	}
 	defer accessPoint.Close()
 
-	err = auth.WaitForAppSession(ctx, ws.GetName(), ws.GetUser(), accessPoint)
+	err = authclient.WaitForAppSession(ctx, ws.GetName(), ws.GetUser(), accessPoint)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

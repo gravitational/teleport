@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -60,7 +61,7 @@ func TestProcessKubeCSR(t *testing.T) {
 
 	pemCSR, err := newTestCSR(subj)
 	require.NoError(t, err)
-	csr := KubeCSR{
+	csr := authclient.KubeCSR{
 		Username:    username,
 		ClusterName: s.clusterName.GetClusterName(),
 		CSR:         pemCSR,

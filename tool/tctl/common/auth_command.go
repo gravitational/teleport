@@ -34,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/windows"
@@ -386,7 +385,7 @@ func (a *AuthCommand) generateSnowflakeKey(ctx context.Context, clusterAPI certi
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	key.TrustedCerts = []auth.TrustedCerts{{TLSCertificates: services.GetTLSCerts(dbClientCA)}}
+	key.TrustedCerts = []authclient.TrustedCerts{{TLSCertificates: services.GetTLSCerts(dbClientCA)}}
 
 	filesWritten, err := identityfile.Write(ctx, identityfile.WriteConfig{
 		OutputPath:           a.output,
@@ -405,7 +404,7 @@ func (a *AuthCommand) generateSnowflakeKey(ctx context.Context, clusterAPI certi
 
 // RotateCertAuthority starts or restarts certificate authority rotation process
 func (a *AuthCommand) RotateCertAuthority(ctx context.Context, client *authclient.Client) error {
-	req := auth.RotateRequest{
+	req := authclient.RotateRequest{
 		Type:        types.CertAuthType(a.rotateType),
 		GracePeriod: &a.rotateGracePeriod,
 		TargetPhase: a.rotateTargetPhase,
@@ -502,7 +501,7 @@ func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI certifica
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	key.TrustedCerts = auth.AuthoritiesToTrustedCerts(hostCAs)
+	key.TrustedCerts = authclient.AuthoritiesToTrustedCerts(hostCAs)
 
 	// if no name was given, take the first name on the list of principals
 	filePath := a.output
@@ -923,7 +922,7 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI certifica
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	key.TrustedCerts = auth.AuthoritiesToTrustedCerts(hostCAs)
+	key.TrustedCerts = authclient.AuthoritiesToTrustedCerts(hostCAs)
 
 	// Is TLS routing enabled?
 	proxyListenerMode := types.ProxyListenerMode_Separate

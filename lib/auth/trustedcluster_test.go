@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -222,7 +223,7 @@ func TestValidateTrustedCluster(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("invalid cluster token", func(t *testing.T) {
-		_, err = a.validateTrustedCluster(ctx, &ValidateTrustedClusterRequest{
+		_, err = a.validateTrustedCluster(ctx, &authclient.ValidateTrustedClusterRequest{
 			Token: "invalidtoken",
 			CAs:   []types.CertAuthority{},
 		})
@@ -231,7 +232,7 @@ func TestValidateTrustedCluster(t *testing.T) {
 	})
 
 	t.Run("missing CA", func(t *testing.T) {
-		_, err = a.validateTrustedCluster(ctx, &ValidateTrustedClusterRequest{
+		_, err = a.validateTrustedCluster(ctx, &authclient.ValidateTrustedClusterRequest{
 			Token: validToken,
 			CAs:   []types.CertAuthority{},
 		})
@@ -240,7 +241,7 @@ func TestValidateTrustedCluster(t *testing.T) {
 	})
 
 	t.Run("more than one CA", func(t *testing.T) {
-		_, err = a.validateTrustedCluster(ctx, &ValidateTrustedClusterRequest{
+		_, err = a.validateTrustedCluster(ctx, &authclient.ValidateTrustedClusterRequest{
 			Token: validToken,
 			CAs: []types.CertAuthority{
 				suite.NewTestCA(types.HostCA, "rc1"),
@@ -252,7 +253,7 @@ func TestValidateTrustedCluster(t *testing.T) {
 	})
 
 	t.Run("wrong CA type", func(t *testing.T) {
-		_, err = a.validateTrustedCluster(ctx, &ValidateTrustedClusterRequest{
+		_, err = a.validateTrustedCluster(ctx, &authclient.ValidateTrustedClusterRequest{
 			Token: validToken,
 			CAs: []types.CertAuthority{
 				suite.NewTestCA(types.UserCA, "rc3"),
@@ -263,7 +264,7 @@ func TestValidateTrustedCluster(t *testing.T) {
 	})
 
 	t.Run("wrong CA name", func(t *testing.T) {
-		_, err = a.validateTrustedCluster(ctx, &ValidateTrustedClusterRequest{
+		_, err = a.validateTrustedCluster(ctx, &authclient.ValidateTrustedClusterRequest{
 			Token: validToken,
 			CAs: []types.CertAuthority{
 				suite.NewTestCA(types.HostCA, localClusterName),
@@ -282,7 +283,7 @@ func TestValidateTrustedCluster(t *testing.T) {
 		_, err = a.Services.UpsertTrustedCluster(ctx, trustedCluster)
 		require.NoError(t, err)
 
-		_, err = a.validateTrustedCluster(ctx, &ValidateTrustedClusterRequest{
+		_, err = a.validateTrustedCluster(ctx, &authclient.ValidateTrustedClusterRequest{
 			Token: validToken,
 			CAs: []types.CertAuthority{
 				suite.NewTestCA(types.HostCA, trustedCluster.GetName()),
@@ -294,7 +295,7 @@ func TestValidateTrustedCluster(t *testing.T) {
 
 	t.Run("all CAs are returned when v10+", func(t *testing.T) {
 		leafClusterCA := types.CertAuthority(suite.NewTestCA(types.HostCA, "leafcluster"))
-		resp, err := a.validateTrustedCluster(ctx, &ValidateTrustedClusterRequest{
+		resp, err := a.validateTrustedCluster(ctx, &authclient.ValidateTrustedClusterRequest{
 			Token:           validToken,
 			CAs:             []types.CertAuthority{leafClusterCA},
 			TeleportVersion: teleport.Version,
@@ -361,7 +362,7 @@ func TestValidateTrustedCluster(t *testing.T) {
 
 	t.Run("Host User and Database CA are returned by default", func(t *testing.T) {
 		leafClusterCA := types.CertAuthority(suite.NewTestCA(types.HostCA, "leafcluster"))
-		resp, err := a.validateTrustedCluster(ctx, &ValidateTrustedClusterRequest{
+		resp, err := a.validateTrustedCluster(ctx, &authclient.ValidateTrustedClusterRequest{
 			Token:           validToken,
 			CAs:             []types.CertAuthority{leafClusterCA},
 			TeleportVersion: "",
@@ -396,7 +397,7 @@ func TestValidateTrustedCluster(t *testing.T) {
 			TestFeatures: modules.Features{Cloud: true},
 		})
 
-		req := &ValidateTrustedClusterRequest{
+		req := &authclient.ValidateTrustedClusterRequest{
 			Token: "invalidtoken",
 			CAs:   []types.CertAuthority{},
 		}
@@ -477,7 +478,7 @@ func TestUpsertTrustedCluster(t *testing.T) {
 	require.NoError(t, err)
 
 	leafClusterCA := types.CertAuthority(suite.NewTestCA(types.HostCA, "trustedcluster"))
-	_, err = a.validateTrustedCluster(ctx, &ValidateTrustedClusterRequest{
+	_, err = a.validateTrustedCluster(ctx, &authclient.ValidateTrustedClusterRequest{
 		Token:           validToken,
 		CAs:             []types.CertAuthority{leafClusterCA},
 		TeleportVersion: teleport.Version,

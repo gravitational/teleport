@@ -36,7 +36,6 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -444,7 +443,7 @@ func (s *outputsService) getRouteToApp(ctx context.Context, botIdentity *identit
 		return proto.RouteToApp{}, trace.Wrap(err)
 	}
 
-	err = auth.WaitForAppSession(ctx, ws.GetName(), ws.GetUser(), client)
+	err = authclient.WaitForAppSession(ctx, ws.GetName(), ws.GetUser(), client)
 	if err != nil {
 		return proto.RouteToApp{}, trace.Wrap(err)
 	}

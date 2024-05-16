@@ -9331,7 +9331,7 @@ func testModeratedSessions(t *testing.T, suite *integrationTestSuite) {
 
 		require.NoError(t, asrv.CreateUser(ctx, u))
 
-		token, err := asrv.CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
+		token, err := asrv.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 			Name: user,
 		})
 		require.NoError(t, err)

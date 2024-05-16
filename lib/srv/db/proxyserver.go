@@ -664,7 +664,7 @@ func getConfigForClient(conf *tls.Config, ap auth.ReadDatabaseAccessPoint, log l
 				log.Debugf("Ignoring unsupported cluster name %q.", info.ServerName)
 			}
 		}
-		pool, _, err := auth.ClientCertPool(ap, clusterName, caTypes...)
+		pool, _, err := authclient.ClientCertPool(info.Context(), ap, clusterName, caTypes...)
 		if err != nil {
 			log.WithError(err).Error("Failed to retrieve client CA pool.")
 			return nil, nil // Fall back to the default config.

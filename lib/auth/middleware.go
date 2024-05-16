@@ -791,11 +791,6 @@ func ClientCertPool(client AccessCache, clusterName string, caTypes ...types.Cer
 	return pool, totalSubjectsLen, nil
 }
 
-// DefaultClientCertPool returns default trusted x509 certificate authority pool.
-func DefaultClientCertPool(client AccessCache, clusterName string) (*x509.CertPool, int64, error) {
-	return ClientCertPool(client, clusterName, types.HostCA, types.UserCA)
-}
-
 // isProxyRole returns true if the certificate role is a proxy role.
 func isProxyRole(identity authz.IdentityGetter) bool {
 	switch id := identity.(type) {

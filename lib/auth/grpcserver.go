@@ -64,6 +64,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/assist/assistv1"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
 	"github.com/gravitational/teleport/lib/auth/discoveryconfig/discoveryconfigv1"
 	integrationService "github.com/gravitational/teleport/lib/auth/integration/integrationv1"
@@ -1091,7 +1092,7 @@ func (g *GRPCServer) CreateResetPasswordToken(ctx context.Context, req *authpb.C
 		req = &authpb.CreateResetPasswordTokenRequest{}
 	}
 
-	token, err := auth.CreateResetPasswordToken(ctx, CreateUserTokenRequest{
+	token, err := auth.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 		Name: req.Name,
 		TTL:  time.Duration(req.TTL),
 		Type: req.Type,
@@ -2986,10 +2987,6 @@ func isLocalProxyCertReq(req *authpb.UserCertsRequest) bool {
 			req.RequesterName == authpb.UserCertsRequest_TSH_KUBE_LOCAL_PROXY)
 }
 
-// ErrNoMFADevices is returned when an MFA ceremony is performed without possible devices to
-// complete the challenge with.
-var ErrNoMFADevices = trace.AccessDenied("MFA is required to access this resource but user has no MFA devices; use 'tsh mfa add' to register MFA devices")
-
 func userSingleUseCertsAuthChallenge(gctx *grpcContext, stream authpb.AuthService_GenerateUserSingleUseCertsServer, mfaRequired authpb.MFARequired) (*types.MFADevice, error) {
 	ctx := stream.Context()
 	auth := gctx.authServer
@@ -3001,7 +2998,7 @@ func userSingleUseCertsAuthChallenge(gctx *grpcContext, stream authpb.AuthServic
 		return nil, trace.Wrap(err)
 	}
 	if challenge.TOTP == nil && challenge.WebauthnChallenge == nil {
-		return nil, ErrNoMFADevices
+		return nil, trace.Wrap(authclient.ErrNoMFADevices)
 	}
 
 	challenge.MFARequired = mfaRequired

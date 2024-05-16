@@ -481,8 +481,8 @@ func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease 
 	return agent, nil
 }
 
-func (p *AgentPool) getClusterCAs(_ context.Context) (*x509.CertPool, error) {
-	clusterCAs, _, err := auth.ClientCertPool(p.AccessPoint, p.Cluster, types.HostCA)
+func (p *AgentPool) getClusterCAs(ctx context.Context) (*x509.CertPool, error) {
+	clusterCAs, _, err := authclient.ClientCertPool(ctx, p.AccessPoint, p.Cluster, types.HostCA)
 	return clusterCAs, trace.Wrap(err)
 }
 

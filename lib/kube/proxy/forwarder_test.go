@@ -1219,7 +1219,7 @@ type mockCSRClient struct {
 
 	clock           clockwork.Clock
 	ca              *tlsca.CertAuthority
-	gotCSR          auth.KubeCSR
+	gotCSR          authclient.KubeCSR
 	lastCert        *x509.Certificate
 	leafClusterName string
 }
@@ -1252,7 +1252,7 @@ func (c *mockCSRClient) GetCertAuthority(ctx context.Context, id types.CertAuthI
 	return nil, trace.NotFound("cluster not found")
 }
 
-func (c *mockCSRClient) ProcessKubeCSR(csr auth.KubeCSR) (*auth.KubeCSRResponse, error) {
+func (c *mockCSRClient) ProcessKubeCSR(csr authclient.KubeCSR) (*authclient.KubeCSRResponse, error) {
 	c.gotCSR = csr
 
 	x509CSR, err := tlsca.ParseCertificateRequestPEM(csr.CSR)
@@ -1275,7 +1275,7 @@ func (c *mockCSRClient) ProcessKubeCSR(csr auth.KubeCSR) (*auth.KubeCSRResponse,
 	if err != nil {
 		return nil, err
 	}
-	return &auth.KubeCSRResponse{
+	return &authclient.KubeCSRResponse{
 		Cert:            cert,
 		CertAuthorities: [][]byte{[]byte(fixtures.TLSCACertPEM)},
 		TargetAddr:      "mock addr",

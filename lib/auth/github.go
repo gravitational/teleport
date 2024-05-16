@@ -315,12 +315,6 @@ func (a *Server) deleteGithubConnector(ctx context.Context, connectorName string
 	return nil
 }
 
-// GithubAuthResponse represents Github auth callback validation response
-type GithubAuthResponse = authclient.GithubAuthResponse
-
-// GithubAuthRequest is an Github auth request that supports standard json marshaling
-type GithubAuthRequest = authclient.GithubAuthRequest
-
 // GithubAuthRequestFromProto converts the types.GithubAuthRequest to GithubAuthRequest.
 func GithubAuthRequestFromProto(req *types.GithubAuthRequest) authclient.GithubAuthRequest {
 	return authclient.GithubAuthRequest{
@@ -333,16 +327,16 @@ func GithubAuthRequestFromProto(req *types.GithubAuthRequest) authclient.GithubA
 }
 
 type githubManager interface {
-	validateGithubAuthCallback(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*GithubAuthResponse, error)
+	validateGithubAuthCallback(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*authclient.GithubAuthResponse, error)
 }
 
 // ValidateGithubAuthCallback validates Github auth callback redirect
-func (a *Server) ValidateGithubAuthCallback(ctx context.Context, q url.Values) (*GithubAuthResponse, error) {
+func (a *Server) ValidateGithubAuthCallback(ctx context.Context, q url.Values) (*authclient.GithubAuthResponse, error) {
 	diagCtx := NewSSODiagContext(types.KindGithub, a)
 	return validateGithubAuthCallbackHelper(ctx, a, diagCtx, q, a.emitter)
 }
 
-func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, diagCtx *SSODiagContext, q url.Values, emitter apievents.Emitter) (*GithubAuthResponse, error) {
+func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, diagCtx *SSODiagContext, q url.Values, emitter apievents.Emitter) (*authclient.GithubAuthResponse, error) {
 	event := &apievents.UserLogin{
 		Metadata: apievents.Metadata{
 			Type: events.UserLoginEvent,
@@ -477,7 +471,7 @@ func (a *Server) getGithubOAuth2Client(connector types.GithubConnector) (*oauth2
 }
 
 // ValidateGithubAuthCallback validates Github auth callback redirect
-func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*GithubAuthResponse, error) {
+func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*authclient.GithubAuthResponse, error) {
 	logger := log.WithFields(logrus.Fields{trace.Component: "github"})
 
 	if errParam := q.Get("error"); errParam != "" {
@@ -610,7 +604,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 	}
 
 	// Auth was successful, return session, certificate, etc. to caller.
-	auth := GithubAuthResponse{
+	auth := authclient.GithubAuthResponse{
 		Req: GithubAuthRequestFromProto(req),
 		Identity: types.ExternalIdentity{
 			ConnectorID: params.ConnectorName,

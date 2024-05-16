@@ -34,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -170,10 +169,10 @@ func (u *UserCommand) TryRun(ctx context.Context, cmd string, client *authclient
 
 // ResetPassword resets user password and generates a token to setup new password
 func (u *UserCommand) ResetPassword(ctx context.Context, client *authclient.Client) error {
-	req := auth.CreateUserTokenRequest{
+	req := authclient.CreateUserTokenRequest{
 		Name: u.login,
 		TTL:  u.ttl,
-		Type: auth.UserTokenTypeResetPassword,
+		Type: authclient.UserTokenTypeResetPassword,
 	}
 	token, err := client.CreateResetPasswordToken(ctx, req)
 	if err != nil {
@@ -306,10 +305,10 @@ func (u *UserCommand) Add(ctx context.Context, client *authclient.Client) error 
 		return trace.Wrap(err)
 	}
 
-	token, err := client.CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
+	token, err := client.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 		Name: u.login,
 		TTL:  u.ttl,
-		Type: auth.UserTokenTypeResetPasswordInvite,
+		Type: authclient.UserTokenTypeResetPasswordInvite,
 	})
 	if err != nil {
 		return trace.Wrap(err)
