@@ -195,11 +195,11 @@ resource "aws_lb" "proxy_acm" {
 
 // Proxy is for SSH proxy - jumphost target endpoint.
 resource "aws_lb_target_group" "proxy_proxy" {
-  name              = "${var.cluster_name}-proxy-proxy"
-  port              = 3023
-  vpc_id            = aws_vpc.teleport.id
-  protocol          = "TCP"
-  count             = var.use_tls_routing ? 0 : 1
+  name     = "${var.cluster_name}-proxy-proxy"
+  port     = 3023
+  vpc_id   = aws_vpc.teleport.id
+  protocol = "TCP"
+  count    = var.use_tls_routing ? 0 : 1
   // required to allow the use of IP pinning
   // this can only be enabled when ACM is not being used
   proxy_protocol_v2 = var.use_acm ? false : true
@@ -220,12 +220,12 @@ resource "aws_lb_listener" "proxy_proxy" {
 // Tunnel endpoint/listener on LB - this is only used with ACM (as
 // Teleport web/tunnel multiplexing can be used with Let's Encrypt)
 resource "aws_lb_target_group" "proxy_tunnel" {
-  name              = "${var.cluster_name}-proxy-tunnel"
-  port              = 3024
-  vpc_id            = aws_vpc.teleport.id
-  protocol          = "TCP"
+  name     = "${var.cluster_name}-proxy-tunnel"
+  port     = 3024
+  vpc_id   = aws_vpc.teleport.id
+  protocol = "TCP"
   // only create this if TLS routing is disabled
-  count             = var.use_tls_routing ? 0 : 1
+  count = var.use_tls_routing ? 0 : 1
   // required to allow the use of IP pinning
   // this can only be enabled when ACM is not being used
   proxy_protocol_v2 = var.use_acm ? false : true
@@ -246,11 +246,11 @@ resource "aws_lb_listener" "proxy_tunnel" {
 
 // Proxy is for Kube proxy - jumphost target endpoint.
 resource "aws_lb_target_group" "proxy_kube" {
-  name              = "${var.cluster_name}-proxy-kube"
-  port              = 3026
-  vpc_id            = aws_vpc.teleport.id
-  protocol          = "TCP"
-  count             = var.use_tls_routing ? 0 : 1
+  name     = "${var.cluster_name}-proxy-kube"
+  port     = 3026
+  vpc_id   = aws_vpc.teleport.id
+  protocol = "TCP"
+  count    = var.use_tls_routing ? 0 : 1
   // required to allow the use of IP pinning
   // this can only be enabled when ACM is not being used
   proxy_protocol_v2 = var.use_acm ? false : true
@@ -336,11 +336,11 @@ resource "aws_lb_listener" "proxy_mongodb" {
 
 // Proxy web target group (using Let's Encrypt)
 resource "aws_lb_target_group" "proxy_web" {
-  name              = "${var.cluster_name}-proxy-web"
-  port              = 3080
-  vpc_id            = aws_vpc.teleport.id
-  count             = var.use_acm ? 0 : 1
-  protocol          = "TCP"
+  name     = "${var.cluster_name}-proxy-web"
+  port     = 3080
+  vpc_id   = aws_vpc.teleport.id
+  count    = var.use_acm ? 0 : 1
+  protocol = "TCP"
   // required to allow the use of IP pinning
   proxy_protocol_v2 = "true"
 }
