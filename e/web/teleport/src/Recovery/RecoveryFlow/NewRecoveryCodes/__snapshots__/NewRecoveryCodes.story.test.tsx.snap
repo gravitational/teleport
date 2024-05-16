@@ -14,8 +14,11 @@ exports[`render failed state for recovery codes 1`] = `
   overflow: auto;
   word-break: break-word;
   line-height: 1.5;
-  background: #FF6257;
-  color: #000000;
+  background: rgba(255,98,87,0.1);
+  border: 2px solid #FF6257;
+  border-radius: 8px;
+  box-shadow: none;
+  justify-content: normal;
 }
 
 .c0 a {
@@ -24,7 +27,7 @@ exports[`render failed state for recovery codes 1`] = `
 
 <div
   class="c0"
-  kind="danger"
+  kind="outline-danger"
   style="width: 504px; margin: auto;"
 >
   failed to get new recovery codes

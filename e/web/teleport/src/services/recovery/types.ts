@@ -1,3 +1,5 @@
+import { NewCredentialRequest } from 'teleport/services/auth';
+
 export type StartRecoveryRequest = {
   username: string;
   recoveryCode: string;
@@ -17,4 +19,9 @@ export type RecoveryToken = {
   isRecoverPassword: boolean;
   isApproved: boolean;
   qrCode: string;
+};
+
+export type NewWebAuthnDeviceRequest = {
+  credentialRequest: NewCredentialRequest;
+  credential: Credential;
 };

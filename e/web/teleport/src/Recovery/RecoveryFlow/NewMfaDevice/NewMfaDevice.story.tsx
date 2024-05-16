@@ -1,7 +1,6 @@
 import React from 'react';
 
-import { NewMfaDevice } from './NewMfaDevice';
-import { State } from './useNewMfaDevice';
+import { NewMfaDevice, NewMfaDeviceProps } from './NewMfaDevice';
 
 export default {
   title: 'TeleportE/Recovery/Flow/Step 2/New MFA Device',
@@ -16,28 +15,39 @@ export const LoadedWebauthn = () => (
   <NewMfaDevice {...props} auth2faType="webauthn" />
 );
 
+export const LoadedWebauthnSetName = () => (
+  <NewMfaDevice
+    {...props}
+    auth2faType="webauthn"
+    credential={{
+      id: 'some-credential',
+      type: 'public-key',
+    }}
+  />
+);
+
 export const ProcessingWebauthn = () => (
   <NewMfaDevice
     {...props}
     auth2faType="webauthn"
-    attempt={{ status: 'processing' }}
+    submitAttempt={{ status: 'processing' }}
   />
 );
 
 export const Failed = () => (
   <NewMfaDevice
     {...props}
-    attempt={{ status: 'failed', statusText: 'failed to add device' }}
+    submitAttempt={{ status: 'failed', statusText: 'failed to add device' }}
   />
 );
 
-const props: State = {
-  attempt: { status: '' },
+const props: NewMfaDeviceProps = {
+  submitAttempt: { status: '' },
   clearSubmitAttempt: () => null,
-  setNewTotpDevice: () => null,
-  setNewWebauthnDevice: () => null,
+  createNewWebAuthnDevice: () => null,
+  onSubmit: () => null,
+  onSubmitWithWebAuthn: () => null,
   auth2faType: 'on',
-  preferredMfaType: 'webauthn',
   qrCode:
     'iVBORw0KGgoAAAANSUhEUgAAAcgAAAHIEAAAAAC/Wvl1AAAJV0lEQVR4nOzdsW4jORZA0fbC///LXowV' +
     'TFIWmqAefUtzTrDJeEtltS+YPDx+fn39ASL+99svAPzr85//+fj47df4ycr5ff1bXD9h/2f3vcenTf0L' +

@@ -1,7 +1,8 @@
 import React from 'react';
 import { Box, Indicator } from 'design';
-import { Danger } from 'design/Alert';
 import RecoveryCodes from 'teleport/components/RecoveryCodes';
+
+import { OutlineDanger } from 'design/Alert/Alert';
 
 import useNewRecoveryCodes, { State, Props } from './useNewRecoveryCodes';
 
@@ -21,9 +22,9 @@ export function NewRecoveryCodes({ attempt, recoveryCodes, redirect }: State) {
 
   if (attempt.status === 'failed') {
     return (
-      <Danger style={{ width: '504px', margin: 'auto' }}>
+      <OutlineDanger style={{ width: '504px', margin: 'auto' }}>
         {attempt.statusText}
-      </Danger>
+      </OutlineDanger>
     );
   }
 

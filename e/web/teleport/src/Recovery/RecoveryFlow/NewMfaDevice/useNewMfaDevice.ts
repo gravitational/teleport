@@ -1,7 +1,10 @@
 import useAttempt from 'shared/hooks/useAttemptNext';
 
-import cfg from 'e-teleport/config';
+import { useState } from 'react';
+import auth from 'teleport/services/auth/auth';
+
 import RecoveryService from 'e-teleport/services/recovery';
+import cfg from 'e-teleport/config';
 
 export default function useNewMfaDevice({
   recoveryService,
@@ -9,38 +12,51 @@ export default function useNewMfaDevice({
   qrCode,
   onNext,
 }: Props) {
-  const { attempt, setAttempt, handleError } = useAttempt('');
+  const submitAttempt = useAttempt('');
   const auth2faType = cfg.oss.getAuth2faType();
+  const [credential, setCredential] = useState<Credential | undefined>();
+
+  function createNewWebAuthnDevice() {
+    submitAttempt.run(async () => {
+      setCredential(
+        await auth.createNewWebAuthnDevice({ tokenId, deviceUsage: 'mfa' })
+      );
+    });
+  }
 
   function setNewTotpDevice(otpCode: string, deviceName: string) {
-    setAttempt({ status: 'processing' });
-    recoveryService
-      .setNewTotpDeviceOrPassword({
+    submitAttempt.run(async () => {
+      await recoveryService.setNewTotpDeviceOrPassword({
         tokenId,
         otpCode,
         deviceName,
-      })
-      .then(onNext)
-      .catch(handleError);
+      });
+      onNext();
+    });
   }
 
   function setNewWebauthnDevice(deviceName: string) {
-    setAttempt({ status: 'processing' });
-    recoveryService
-      .setNewWebauthnDevice({ tokenId, deviceName })
-      .then(onNext)
-      .catch(handleError);
+    submitAttempt.run(async () => {
+      await recoveryService.setNewWebauthnDevice({
+        credentialRequest: { tokenId, deviceName },
+        credential,
+      });
+      onNext();
+    });
   }
 
   function clearSubmitAttempt() {
-    setAttempt({ status: '' });
+    submitAttempt.setAttempt({ status: '' });
+    setCredential(undefined);
   }
 
   return {
-    attempt,
+    attempt: submitAttempt.attempt,
     clearSubmitAttempt,
+    createNewWebAuthnDevice,
     setNewTotpDevice,
     setNewWebauthnDevice,
+    credential,
     qrCode,
     auth2faType,
     preferredMfaType: cfg.oss.getPreferredMfaType(),

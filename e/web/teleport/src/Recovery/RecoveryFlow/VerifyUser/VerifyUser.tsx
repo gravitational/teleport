@@ -1,15 +1,18 @@
 import React, { useState, useMemo } from 'react';
 import { Card, Text, ButtonPrimary, Box, Flex } from 'design';
-import { Danger } from 'design/Alert';
 import { Auth2faType } from 'shared/services';
 import Validation, { Validator } from 'shared/components/Validation';
 import FieldInput from 'shared/components/FieldInput';
 import {
+  requiredField,
   requiredPassword,
-  requiredToken,
 } from 'shared/components/Validation/rules';
 import FieldSelect from 'shared/components/FieldSelect';
 import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
+
+import { StepHeader } from 'design/StepSlider';
+
+import { OutlineDanger } from 'design/Alert/Alert';
 
 import useVerifyUser, { State, Props } from './useVerifyUser';
 
@@ -21,11 +24,11 @@ export default function Container(props: Props) {
 function getMethodDescription(auth2faType: Auth2faType) {
   switch (auth2faType) {
     case 'on':
-      return 'two-factor device';
+      return 'multi-factor device';
     case 'otp':
       return 'authenticator app';
     case 'webauthn':
-      return 'hardware key';
+      return 'passkey or security key';
     default:
       return 'unknown device type';
   }
@@ -81,85 +84,88 @@ export function VerifyUser({
 
   const title = isRecoverPassword
     ? 'Password Recovery'
-    : 'Two-Factor Device Recovery';
+    : 'Multi-Factor Device Recovery';
 
   const instructions = `Verify your identity using your ${
     isRecoverPassword ? getMethodDescription(auth2faType) : 'password'
   }.`;
 
   return (
-    <Card as="form" mx="auto" width="512px">
+    <Card as="form" mx="auto" width="512px" p={4}>
       <Validation>
         {({ validator }) => (
           <>
-            <Text typography="h3" pt={5} textAlign="center" color="text.main">
-              {title}
-            </Text>
-            <Text textAlign="center" color="text.slightlyMuted">
-              Step 1 of {isRecoverPassword ? 3 : 4}
-            </Text>
-            <Box p={5}>
-              <Text mb={3} textAlign="center" color="text.slightlyMuted">
-                {instructions}
-              </Text>
-              {attempt.status === 'failed' && (
-                <Danger width="100%">{attempt.statusText}</Danger>
-              )}
-              <FieldInput
-                label="Username"
-                value={username}
-                onChange={() => null}
-                readonly
+            <Box mb={4}>
+              <StepHeader
+                flowLength={isRecoverPassword ? 3 : 4}
+                stepIndex={0}
+                title={title}
               />
-              {!isRecoverPassword ? (
-                <FieldInput
-                  rule={requiredPassword}
-                  label="Password"
-                  placeholder="Password"
-                  value={password}
-                  type="password"
-                  onChange={e => setPassword(e.target.value)}
-                  readonly={attempt.status === 'processing'}
-                />
-              ) : (
-                <Flex alignItems="center">
-                  <FieldSelect
-                    maxWidth="50%"
-                    width="100%"
-                    label="Two-factor Type"
-                    value={mfaOption}
-                    options={mfaOptions}
-                    onChange={(o: MfaOption) => setMfaOption(o)}
-                    mr={3}
-                    isDisabled={attempt.status === 'processing'}
-                    elevated={true}
-                  />
-                  {mfaOption.value === 'otp' && (
-                    <FieldInput
-                      width="50%"
-                      label="Authenticator Code"
-                      rule={requiredToken}
-                      inputMode="numeric"
-                      autoComplete="one-time-code"
-                      value={otpToken}
-                      onChange={e => setOtpToken(e.target.value)}
-                      placeholder="123 456"
-                      readonly={attempt.status === 'processing'}
-                    />
-                  )}
-                </Flex>
-              )}
-              <ButtonPrimary
-                mt={3}
-                size="large"
-                width="100%"
-                type="submit"
-                onClick={e => onSubmitCreds(e, validator)}
-                disabled={attempt.status === 'processing'}
-              >
-                Continue
-              </ButtonPrimary>
             </Box>
+
+            <Text mb={3} color="text.slightlyMuted">
+              {instructions}
+            </Text>
+            {attempt.status === 'failed' && (
+              <OutlineDanger width="100%">{attempt.statusText}</OutlineDanger>
+            )}
+            <FieldInput
+              label="Username"
+              value={username}
+              onChange={() => null}
+              readonly
+              mb={3}
+            />
+            {!isRecoverPassword ? (
+              <FieldInput
+                rule={requiredPassword}
+                label="Password"
+                placeholder="Password"
+                value={password}
+                type="password"
+                onChange={e => setPassword(e.target.value)}
+                readonly={attempt.status === 'processing'}
+                mb={3}
+              />
+            ) : (
+              <Flex alignItems="center">
+                <FieldSelect
+                  maxWidth="50%"
+                  width="100%"
+                  label="Multi-Factor Type"
+                  value={mfaOption}
+                  options={mfaOptions}
+                  onChange={(o: MfaOption) => setMfaOption(o)}
+                  mr={3}
+                  isDisabled={attempt.status === 'processing'}
+                  elevated={true}
+                  mb={3}
+                />
+                {mfaOption.value === 'otp' && (
+                  <FieldInput
+                    width="50%"
+                    label="Authenticator Code"
+                    rule={requiredField('Authenticator Code is required')}
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    value={otpToken}
+                    onChange={e => setOtpToken(e.target.value)}
+                    placeholder="123 456"
+                    readonly={attempt.status === 'processing'}
+                    mb={3}
+                  />
+                )}
+              </Flex>
+            )}
+            <ButtonPrimary
+              size="large"
+              width="100%"
+              type="submit"
+              onClick={e => onSubmitCreds(e, validator)}
+              disabled={attempt.status === 'processing'}
+            >
+              Continue
+            </ButtonPrimary>
           </>
         )}
       </Validation>

@@ -5,17 +5,17 @@ exports[`render correct form for clicking forgot mfa device 1`] = `
   box-sizing: border-box;
   margin-left: auto;
   margin-right: auto;
-  width: 704px;
+  width: 650px;
 }
 
 .c3 {
   box-sizing: border-box;
-  padding: 32px;
+  padding: 24px;
 }
 
 .c5 {
   box-sizing: border-box;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
   width: 100%;
 }
 
@@ -43,7 +43,6 @@ exports[`render correct form for clicking forgot mfa device 1`] = `
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
-  margin-top: 16px;
   width: 100%;
 }
 
@@ -75,7 +74,7 @@ exports[`render correct form for clicking forgot mfa device 1`] = `
   font-size: 22px;
   line-height: 32px;
   margin: 0px;
-  padding-top: 32px;
+  padding-top: 24px;
   color: #FFFFFF;
   text-align: center;
 }
@@ -138,13 +137,13 @@ exports[`render correct form for clicking forgot mfa device 1`] = `
 
 <form
   class="c0 c1"
-  width="704px"
+  width="650px"
 >
   <div
     class="c2"
     color="text.main"
   >
-    Two-Factor Device Recovery
+    Multi-Factor Device Recovery
   </div>
   <div
     class="c3"
@@ -208,17 +207,17 @@ exports[`render correct form for clicking forgot password 1`] = `
   box-sizing: border-box;
   margin-left: auto;
   margin-right: auto;
-  width: 704px;
+  width: 650px;
 }
 
 .c3 {
   box-sizing: border-box;
-  padding: 32px;
+  padding: 24px;
 }
 
 .c5 {
   box-sizing: border-box;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
   width: 100%;
 }
 
@@ -246,7 +245,6 @@ exports[`render correct form for clicking forgot password 1`] = `
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
-  margin-top: 16px;
   width: 100%;
 }
 
@@ -278,7 +276,7 @@ exports[`render correct form for clicking forgot password 1`] = `
   font-size: 22px;
   line-height: 32px;
   margin: 0px;
-  padding-top: 32px;
+  padding-top: 24px;
   color: #FFFFFF;
   text-align: center;
 }
@@ -341,7 +339,7 @@ exports[`render correct form for clicking forgot password 1`] = `
 
 <form
   class="c0 c1"
-  width="704px"
+  width="650px"
 >
   <div
     class="c2"

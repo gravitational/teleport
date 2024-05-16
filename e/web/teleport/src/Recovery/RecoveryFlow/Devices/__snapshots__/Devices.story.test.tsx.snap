@@ -5,15 +5,16 @@ exports[`render device list 1`] = `
   box-sizing: border-box;
   margin-left: auto;
   margin-right: auto;
+  padding: 24px;
   width: 604px;
 }
 
-.c4 {
+.c2 {
   box-sizing: border-box;
-  padding: 32px;
+  margin-bottom: 24px;
 }
 
-.c6 {
+.c3 {
   box-sizing: border-box;
 }
 
@@ -41,7 +42,6 @@ exports[`render device list 1`] = `
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
-  margin-top: 40px;
   width: 100%;
 }
 
@@ -114,27 +114,26 @@ exports[`render device list 1`] = `
   background-color: #222C59;
 }
 
-.c2 {
+.c4 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
-  padding-top: 32px;
-  color: #FFFFFF;
-  text-align: center;
-}
-
-.c3 {
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 24px;
   margin: 0px;
   color: rgba(255,255,255,0.72);
-  text-align: center;
 }
 
 .c5 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 18px;
+  line-height: 32px;
+  margin: 0px;
+}
+
+.c6 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -267,231 +266,237 @@ exports[`render device list 1`] = `
 >
   <div
     class="c2"
-    color="text.main"
   >
-    Device Successfully Enrolled
+    <div
+      class="c3"
+    >
+      <div
+        class="c4"
+        color="text.slightlyMuted"
+      >
+        Step 
+        3
+         of 
+        4
+      </div>
+      <div
+        class="c5"
+      >
+        Device Successfully Enrolled
+      </div>
+    </div>
   </div>
   <div
-    class="c3"
+    class="c6"
     color="text.slightlyMuted"
   >
-    Step 3 of 4
+    Take a look at your enrolled devices below and remove any that you don't need anymore.
   </div>
   <div
-    class="c4"
+    class="c2"
   >
-    <div
-      class="c5"
-      color="text.slightlyMuted"
+    <table
+      class="c7 c8"
+      style="overflow: hidden; border-radius: 8px;"
     >
-      Take a look at your enrolled devices below and remove any that you don't need anymore.
-    </div>
-    <div
-      class="c6"
-    >
-      <table
-        class="c7 c8"
-        style="overflow: hidden; border-radius: 8px;"
-      >
-        <thead>
-          <tr>
-            <th
-              style="cursor: default;"
+      <thead>
+        <tr>
+          <th
+            style="cursor: default;"
+          >
+            Type
+          </th>
+          <th
+            style="cursor: default;"
+          >
+            Device Name
+          </th>
+          <th>
+            <a
+              style="display: flex; align-items: center;"
             >
-              Type
-            </th>
-            <th
-              style="cursor: default;"
-            >
-              Device Name
-            </th>
-            <th>
-              <a
-                style="display: flex; align-items: center;"
+              Registered
+              <span
+                class="c9 icon icon-chevrondown"
+                title="sort items desc"
               >
-                Registered
-                <span
-                  class="c9 icon icon-chevrondown"
-                  title="sort items desc"
+                <svg
+                  fill="currentColor"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  width="24"
                 >
-                  <svg
-                    fill="currentColor"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    width="24"
-                  >
-                    <path
-                      clip-rule="evenodd"
-                      d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
-                      fill-rule="evenodd"
-                    />
-                  </svg>
-                </span>
-              </a>
-            </th>
-            <th>
-              <a
-                style="display: flex; align-items: center;"
+                  <path
+                    clip-rule="evenodd"
+                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
+            </a>
+          </th>
+          <th>
+            <a
+              style="display: flex; align-items: center;"
+            >
+              Last Used
+              <span
+                class="c9 icon icon-chevronsvertical"
+                title="sort items"
               >
-                Last Used
-                <span
-                  class="c9 icon icon-chevronsvertical"
-                  title="sort items"
+                <svg
+                  fill="currentColor"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  width="24"
                 >
-                  <svg
-                    fill="currentColor"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    width="24"
-                  >
-                    <path
-                      d="M12.5303 2.46967C12.2374 2.17678 11.7626 2.17678 11.4697 2.46967L6.96967 6.96967C6.67678 7.26256 6.67678 7.73744 6.96967 8.03033C7.26256 8.32322 7.73744 8.32322 8.03033 8.03033L12 4.06066L15.9697 8.03033C16.2626 8.32322 16.7374 8.32322 17.0303 8.03033C17.3232 7.73744 17.3232 7.26256 17.0303 6.96967L12.5303 2.46967Z"
-                    />
-                    <path
-                      d="M8.03033 15.9697C7.73744 15.6768 7.26256 15.6768 6.96967 15.9697C6.67678 16.2626 6.67678 16.7374 6.96967 17.0303L11.4697 21.5303C11.7626 21.8232 12.2374 21.8232 12.5303 21.5303L17.0303 17.0303C17.3232 16.7374 17.3232 16.2626 17.0303 15.9697C16.7374 15.6768 16.2626 15.6768 15.9697 15.9697L12 19.9393L8.03033 15.9697Z"
-                    />
-                  </svg>
-                </span>
-              </a>
-            </th>
-            <th
-              style="cursor: default;"
-            />
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>
-              Authenticator App
-            </td>
-            <td
-              title="iphone 12"
+                  <path
+                    d="M12.5303 2.46967C12.2374 2.17678 11.7626 2.17678 11.4697 2.46967L6.96967 6.96967C6.67678 7.26256 6.67678 7.73744 6.96967 8.03033C7.26256 8.32322 7.73744 8.32322 8.03033 8.03033L12 4.06066L15.9697 8.03033C16.2626 8.32322 16.7374 8.32322 17.0303 8.03033C17.3232 7.73744 17.3232 7.26256 17.0303 6.96967L12.5303 2.46967Z"
+                  />
+                  <path
+                    d="M8.03033 15.9697C7.73744 15.6768 7.26256 15.6768 6.96967 15.9697C6.67678 16.2626 6.67678 16.7374 6.96967 17.0303L11.4697 21.5303C11.7626 21.8232 12.2374 21.8232 12.5303 21.5303L17.0303 17.0303C17.3232 16.7374 17.3232 16.2626 17.0303 15.9697C16.7374 15.6768 16.2626 15.6768 15.9697 15.9697L12 19.9393L8.03033 15.9697Z"
+                  />
+                </svg>
+              </span>
+            </a>
+          </th>
+          <th
+            style="cursor: default;"
+          />
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            Authenticator App
+          </td>
+          <td
+            title="iphone 12"
+          >
+            <div
+              class="c10"
+              style="max-width: 96px; white-space: nowrap;"
             >
-              <div
-                class="c10"
-                style="max-width: 96px; white-space: nowrap;"
-              >
-                iphone 12
-              </div>
-            </td>
-            <td>
-              2021-08-12
-            </td>
-            <td>
-              2021-08-12
-            </td>
-            <td
-              align="right"
-            />
-          </tr>
-          <tr>
-            <td>
-              Hardware Key
-            </td>
-            <td
-              title="solokey"
+              iphone 12
+            </div>
+          </td>
+          <td>
+            2021-08-12
+          </td>
+          <td>
+            2021-08-12
+          </td>
+          <td
+            align="right"
+          />
+        </tr>
+        <tr>
+          <td>
+            Hardware Key
+          </td>
+          <td
+            title="solokey"
+          >
+            <div
+              class="c10"
+              style="max-width: 96px; white-space: nowrap;"
             >
-              <div
-                class="c10"
-                style="max-width: 96px; white-space: nowrap;"
-              >
-                solokey
-              </div>
-            </td>
-            <td>
-              2021-06-15
-            </td>
-            <td>
-              2021-06-18
-            </td>
-            <td
-              align="right"
+              solokey
+            </div>
+          </td>
+          <td>
+            2021-06-15
+          </td>
+          <td>
+            2021-06-18
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c11"
+              kind="border"
+              title=""
             >
-              <button
-                class="c11"
-                kind="border"
-                title=""
-              >
-                Remove
-              </button>
-            </td>
-          </tr>
-          <tr>
-            <td>
-              Hardware Key
-            </td>
-            <td
-              title="backup yubikey"
+              Remove
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            Hardware Key
+          </td>
+          <td
+            title="backup yubikey"
+          >
+            <div
+              class="c10"
+              style="max-width: 96px; white-space: nowrap;"
             >
-              <div
-                class="c10"
-                style="max-width: 96px; white-space: nowrap;"
-              >
-                backup yubikey
-              </div>
-            </td>
-            <td>
-              2021-04-18
-            </td>
-            <td>
-              2021-07-16
-            </td>
-            <td
-              align="right"
+              backup yubikey
+            </div>
+          </td>
+          <td>
+            2021-04-18
+          </td>
+          <td>
+            2021-07-16
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c11"
+              kind="border"
+              title=""
             >
-              <button
-                class="c11"
-                kind="border"
-                title=""
-              >
-                Remove
-              </button>
-            </td>
-          </tr>
-          <tr>
-            <td>
-              Hardware Key
-            </td>
-            <td
-              title="yubikey"
+              Remove
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            Hardware Key
+          </td>
+          <td
+            title="yubikey"
+          >
+            <div
+              class="c10"
+              style="max-width: 96px; white-space: nowrap;"
             >
-              <div
-                class="c10"
-                style="max-width: 96px; white-space: nowrap;"
-              >
-                yubikey
-              </div>
-            </td>
-            <td>
-              2021-02-05
-            </td>
-            <td>
-              2021-02-28
-            </td>
-            <td
-              align="right"
+              yubikey
+            </div>
+          </td>
+          <td>
+            2021-02-05
+          </td>
+          <td>
+            2021-02-28
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c11"
+              kind="border"
+              title=""
             >
-              <button
-                class="c11"
-                kind="border"
-                title=""
-              >
-                Remove
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-    <button
-      class="c12"
-      kind="primary"
-      type="submit"
-      width="100%"
-    >
-      Continue
-    </button>
+              Remove
+            </button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
   </div>
+  <button
+    class="c12"
+    kind="primary"
+    type="submit"
+    width="100%"
+  >
+    Continue
+  </button>
 </div>
 `;
 
@@ -746,8 +751,11 @@ exports[`render failed state for device list 1`] = `
   word-break: break-word;
   line-height: 1.5;
   margin: 0px;
-  background: #FF6257;
-  color: #000000;
+  background: rgba(255,98,87,0.1);
+  border: 2px solid #FF6257;
+  border-radius: 8px;
+  box-shadow: none;
+  justify-content: normal;
 }
 
 .c7 a {
@@ -758,15 +766,16 @@ exports[`render failed state for device list 1`] = `
   box-sizing: border-box;
   margin-left: auto;
   margin-right: auto;
+  padding: 24px;
   width: 604px;
 }
 
-.c4 {
+.c2 {
   box-sizing: border-box;
-  padding: 32px;
+  margin-bottom: 24px;
 }
 
-.c6 {
+.c3 {
   box-sizing: border-box;
 }
 
@@ -794,7 +803,6 @@ exports[`render failed state for device list 1`] = `
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
-  margin-top: 40px;
   width: 100%;
 }
 
@@ -819,27 +827,26 @@ exports[`render failed state for device list 1`] = `
   background-color: #222C59;
 }
 
-.c2 {
+.c4 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
-  padding-top: 32px;
-  color: #FFFFFF;
-  text-align: center;
-}
-
-.c3 {
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 24px;
   margin: 0px;
   color: rgba(255,255,255,0.72);
-  text-align: center;
 }
 
 .c5 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 18px;
+  line-height: 32px;
+  margin: 0px;
+}
+
+.c6 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -857,43 +864,49 @@ exports[`render failed state for device list 1`] = `
 >
   <div
     class="c2"
-    color="text.main"
-  >
-    Device Successfully Enrolled
-  </div>
-  <div
-    class="c3"
-    color="text.slightlyMuted"
-  >
-    Step 3 of 4
-  </div>
-  <div
-    class="c4"
   >
     <div
-      class="c5"
-      color="text.slightlyMuted"
-    >
-      Take a look at your enrolled devices below and remove any that you don't need anymore.
-    </div>
-    <div
-      class="c6"
+      class="c3"
     >
       <div
-        class="c7"
-        kind="danger"
+        class="c4"
+        color="text.slightlyMuted"
       >
-        failed to fetch devices
+        Step 
+        3
+         of 
+        4
+      </div>
+      <div
+        class="c5"
+      >
+        Device Successfully Enrolled
       </div>
     </div>
-    <button
-      class="c8"
-      kind="primary"
-      type="submit"
-      width="100%"
-    >
-      Continue
-    </button>
   </div>
+  <div
+    class="c6"
+    color="text.slightlyMuted"
+  >
+    Take a look at your enrolled devices below and remove any that you don't need anymore.
+  </div>
+  <div
+    class="c2"
+  >
+    <div
+      class="c7"
+      kind="outline-danger"
+    >
+      failed to fetch devices
+    </div>
+  </div>
+  <button
+    class="c8"
+    kind="primary"
+    type="submit"
+    width="100%"
+  >
+    Continue
+  </button>
 </div>
 `;

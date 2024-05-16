@@ -51,17 +51,17 @@ export function RecoveryStart({ submit, attempt, recoveryType }: State) {
   const title =
     recoveryType === 'password'
       ? 'Password Recovery'
-      : 'Two-Factor Device Recovery';
+      : 'Multi-Factor Device Recovery';
 
   return (
-    <Card as="form" mx="auto" width="704px">
+    <Card as="form" mx="auto" width="650px">
       <Validation>
         {({ validator }) => (
           <>
-            <Text typography="h3" pt={5} textAlign="center" color="text.main">
+            <Text typography="h3" pt={4} textAlign="center" color="text.main">
               {title}
             </Text>
-            <Box p={5}>
+            <Box p={4}>
               {attempt.status === 'failed' && (
                 <Danger width="100%">{attempt.statusText}</Danger>
               )}
@@ -78,6 +78,7 @@ export function RecoveryStart({ submit, attempt, recoveryType }: State) {
                 onChange={e => setUsername(e.target.value)}
                 type="text"
                 width="100%"
+                mb={3}
               />
               <FieldInput
                 rule={requiredField('Recovery code is required')}
@@ -86,9 +87,9 @@ export function RecoveryStart({ submit, attempt, recoveryType }: State) {
                 onChange={e => setRecoveryCode(e.target.value)}
                 type="text"
                 width="100%"
+                mb={3}
               />
               <ButtonPrimary
-                mt={3}
                 size="large"
                 type="submit"
                 onClick={e => onBtnClick(e, validator)}

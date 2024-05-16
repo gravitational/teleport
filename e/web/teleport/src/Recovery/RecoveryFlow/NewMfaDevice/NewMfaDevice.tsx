@@ -1,184 +1,48 @@
-import React, { useState, useMemo } from 'react';
-import { ButtonPrimary, Text, Flex, Image, Box, Link } from 'design';
-import { Danger } from 'design/Alert';
-import FieldInput from 'shared/components/FieldInput';
-import FieldSelect from 'shared/components/FieldSelect';
-import Validation, { Validator } from 'shared/components/Validation';
-import {
-  requiredToken,
-  requiredField,
-} from 'shared/components/Validation/rules';
-import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
+import React from 'react';
 
-import secKeyGraphic from 'design/assets/images/sec-key-graphic.svg';
+import { NewMfaDeviceForm } from 'teleport/components/NewMfaDeviceForm';
+import { Attempt } from 'shared/hooks/useAttemptNext';
+import { Auth2faType } from 'shared/services';
 
-import { OnboardCard } from 'design/Onboard/OnboardCard';
-
-import useNewMfaDevice, { State, Props } from './useNewMfaDevice';
+import useNewMfaDevice, { Props } from './useNewMfaDevice';
 
 export default function Container(props: Props) {
   const state = useNewMfaDevice(props);
-  return <NewMfaDevice {...state} />;
+  return (
+    <NewMfaDevice
+      submitAttempt={state.attempt}
+      clearSubmitAttempt={state.clearSubmitAttempt}
+      qrCode={props.qrCode}
+      auth2faType={state.auth2faType}
+      credential={state.credential}
+      createNewWebAuthnDevice={state.createNewWebAuthnDevice}
+      onSubmitWithWebAuthn={state.setNewWebauthnDevice}
+      onSubmit={state.setNewTotpDevice}
+    />
+  );
 }
 
-export function NewMfaDevice({
-  attempt,
-  clearSubmitAttempt,
-  qrCode,
-  setNewTotpDevice,
-  setNewWebauthnDevice,
-  auth2faType,
-  preferredMfaType,
-}: State) {
-  const [otpToken, setOtpToken] = useState('');
-  const [deviceName, setDeviceName] = useState('');
+export interface NewMfaDeviceProps {
+  submitAttempt: Attempt;
+  clearSubmitAttempt: () => void;
+  qrCode: string;
+  auth2faType: Auth2faType;
+  credential?: Credential;
+  createNewWebAuthnDevice: () => void;
+  onSubmitWithWebAuthn: (deviceName: string) => void;
+  onSubmit: (otpCode: string, deviceName: string) => void;
+  prev?: () => void;
+}
 
-  const mfaOptions = useMemo<MfaOption[]>(
-    () =>
-      createMfaOptions({
-        auth2faType: auth2faType,
-        preferredType: preferredMfaType,
-      }),
-    []
-  );
-
-  const [mfaOption, setMfaOption] = useState<MfaOption>(mfaOptions[0]);
-
-  function onSetMfaOption(option: MfaOption, validator: Validator) {
-    setOtpToken('');
-    clearSubmitAttempt();
-    validator.reset();
-    setMfaOption(option);
-  }
-
-  function onSubmit(
-    e: React.MouseEvent<HTMLButtonElement>,
-    validator: Validator
-  ) {
-    e.preventDefault();
-    if (!validator.validate()) {
-      return;
-    }
-
-    if (mfaOption.value === 'otp') {
-      setNewTotpDevice(otpToken, deviceName);
-    } else if (mfaOption.value === 'webauthn') {
-      setNewWebauthnDevice(deviceName);
-    }
-  }
-
-  const imgSrc =
-    mfaOption.value === 'otp'
-      ? `data:image/png;base64,${qrCode}`
-      : secKeyGraphic;
-
-  let hardwareInstructions = 'Enter a name for your hardware key.';
-  if (attempt.status === 'processing') {
-    hardwareInstructions = 'Follow the prompts from your browser.';
-  }
-
+export function NewMfaDevice(props: NewMfaDeviceProps) {
   return (
-    <OnboardCard>
-      <Validation>
-        {({ validator }) => (
-          <>
-            <Text typography="h3" pt={5} textAlign="center" color="text.main">
-              Enroll New Two-Factor Device
-            </Text>
-            <Text textAlign="center" color="text.slightlyMuted">
-              Step 2 of 4
-            </Text>
-            <Box p={5}>
-              {attempt.status === 'failed' && (
-                <Danger width="100%">{attempt.statusText}</Danger>
-              )}
-              <Flex
-                flexDirection="column"
-                justifyContent="center"
-                alignItems="center"
-                borderRadius={8}
-                height="256px"
-                p={3}
-                mb={4}
-                css={`
-                  background: ${props => props.theme.colors.spotBackground[0]};
-                `}
-              >
-                <Image
-                  src={imgSrc}
-                  width="152px"
-                  style={{
-                    border: mfaOption.value === 'otp' ? '8px solid' : 'none',
-                  }}
-                />
-                {mfaOption.value === 'otp' && (
-                  <Text fontSize={1} textAlign="center" mt={2}>
-                    Scan the QR Code with any authenticator app and enter the
-                    generated code.{' '}
-                    <Text color="text.slightlyMuted">
-                      We recommend{' '}
-                      <Link href="https://authy.com/download/" target="_blank">
-                        Authy
-                      </Link>
-                      .
-                    </Text>
-                  </Text>
-                )}
-                {mfaOption.value === 'webauthn' && (
-                  <Text mt={3}>{hardwareInstructions}</Text>
-                )}
-              </Flex>
-              <Flex alignItems="center">
-                <FieldSelect
-                  maxWidth="50%"
-                  width="100%"
-                  label="Two-factor Type"
-                  value={mfaOption}
-                  options={mfaOptions}
-                  onChange={(o: MfaOption) => onSetMfaOption(o, validator)}
-                  mr={3}
-                  isDisabled={attempt.status === 'processing'}
-                  elevated={true}
-                />
-                {mfaOption.value === 'otp' && (
-                  <FieldInput
-                    width="50%"
-                    label="Authenticator Code"
-                    rule={requiredToken}
-                    inputMode="numeric"
-                    autoComplete="one-time-code"
-                    value={otpToken}
-                    onChange={e => setOtpToken(e.target.value)}
-                    placeholder="123 456"
-                    readonly={attempt.status === 'processing'}
-                  />
-                )}
-              </Flex>
-              <FieldInput
-                rule={requiredField('Device name is required')}
-                label="Device Name"
-                placeholder="Name"
-                width="100%"
-                autoFocus
-                value={deviceName}
-                type="text"
-                onChange={e => setDeviceName(e.target.value)}
-                readonly={attempt.status === 'processing'}
-              />
-              <ButtonPrimary
-                mt={3}
-                size="large"
-                width="100%"
-                type="submit"
-                onClick={e => onSubmit(e, validator)}
-                disabled={attempt.status === 'processing'}
-              >
-                Continue
-              </ButtonPrimary>
-            </Box>
-          </>
-        )}
-      </Validation>
-    </OnboardCard>
+    <NewMfaDeviceForm
+      title="Enroll New MFA Method"
+      submitButtonText="Continue"
+      shouldFocus={true}
+      stepIndex={1}
+      flowLength={4}
+      {...props}
+    />
   );
 }

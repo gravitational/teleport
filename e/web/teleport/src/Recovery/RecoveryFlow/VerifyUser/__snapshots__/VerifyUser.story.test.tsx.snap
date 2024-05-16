@@ -1,7 +1,7 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`render failed state form for authenticating with multi option 1`] = `
-.c6 {
+.c7 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -14,12 +14,15 @@ exports[`render failed state form for authenticating with multi option 1`] = `
   overflow: auto;
   word-break: break-word;
   line-height: 1.5;
-  background: #FF6257;
-  color: #000000;
+  background: rgba(255,98,87,0.1);
+  border: 2px solid #FF6257;
+  border-radius: 8px;
+  box-shadow: none;
+  justify-content: normal;
   width: 100%;
 }
 
-.c6 a {
+.c7 a {
   color: #FFFFFF;
 }
 
@@ -27,27 +30,28 @@ exports[`render failed state form for authenticating with multi option 1`] = `
   box-sizing: border-box;
   margin-left: auto;
   margin-right: auto;
+  padding: 24px;
   width: 512px;
 }
 
-.c4 {
-  box-sizing: border-box;
-  padding: 32px;
-}
-
-.c7 {
+.c2 {
   box-sizing: border-box;
   margin-bottom: 24px;
 }
 
-.c10 {
+.c3 {
   box-sizing: border-box;
+}
+
+.c8 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
 }
 
 .c12 {
   box-sizing: border-box;
   max-width: 50%;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
   margin-right: 16px;
   width: 100%;
 }
@@ -76,7 +80,6 @@ exports[`render failed state form for authenticating with multi option 1`] = `
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
-  margin-top: 16px;
   width: 100%;
 }
 
@@ -101,36 +104,34 @@ exports[`render failed state form for authenticating with multi option 1`] = `
   background-color: #222C59;
 }
 
-.c2 {
+.c4 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
-  padding-top: 32px;
-  color: #FFFFFF;
-  text-align: center;
-}
-
-.c3 {
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 24px;
   margin: 0px;
   color: rgba(255,255,255,0.72);
-  text-align: center;
 }
 
 .c5 {
   overflow: hidden;
   text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 18px;
+  line-height: 32px;
+  margin: 0px;
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
   margin: 0px;
   margin-bottom: 16px;
   color: rgba(255,255,255,0.72);
-  text-align: center;
 }
 
-.c9 {
+.c10 {
   appearance: none;
   border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
@@ -146,31 +147,31 @@ exports[`render failed state form for authenticating with multi option 1`] = `
   margin-top: 4px;
 }
 
-.c9:hover,
-.c9:focus,
-.c9:active {
+.c10:hover,
+.c10:focus,
+.c10:active {
   border: 1px solid rgba(255,255,255,0.72);
 }
 
-.c9::-ms-clear {
+.c10::-ms-clear {
   display: none;
 }
 
-.c9::placeholder {
+.c10::placeholder {
   color: rgba(255,255,255,0.54);
   opacity: 1;
 }
 
-.c9:read-only {
+.c10:read-only {
   cursor: not-allowed;
 }
 
-.c9:disabled {
+.c10:disabled {
   color: rgba(255,255,255,0.36);
   border-color: rgba(255,255,255,0.36);
 }
 
-.c8 {
+.c9 {
   color: #FFFFFF;
   display: block;
   font-size: 12px;
@@ -357,134 +358,139 @@ exports[`render failed state form for authenticating with multi option 1`] = `
 >
   <div
     class="c2"
-    color="text.main"
-  >
-    Password Recovery
-  </div>
-  <div
-    class="c3"
-    color="text.slightlyMuted"
-  >
-    Step 1 of 
-    3
-  </div>
-  <div
-    class="c4"
   >
     <div
-      class="c5"
-      color="text.slightlyMuted"
-    >
-      Verify your identity using your two-factor device.
-    </div>
-    <div
-      class="c6"
-      kind="danger"
-      width="100%"
-    >
-      error message
-    </div>
-    <div
-      class="c7"
-    >
-      <label
-        class="c8"
-        font-size="0"
-      >
-        Username
-        <input
-          autocomplete="off"
-          class="c9"
-          inputmode="text"
-          readonly=""
-          type="text"
-          value="joe@example.com"
-        />
-      </label>
-    </div>
-    <div
-      class="c10 c11"
+      class="c3"
     >
       <div
-        class="c12"
-        width="100%"
+        class="c4"
+        color="text.slightlyMuted"
       >
-        <label
-          class="c13"
-          font-size="0"
-          for="select"
-        >
-          Two-factor Type
-        </label>
+        Step 
+        1
+         of 
+        3
+      </div>
+      <div
+        class="c5"
+      >
+        Password Recovery
+      </div>
+    </div>
+  </div>
+  <div
+    class="c6"
+    color="text.slightlyMuted"
+  >
+    Verify your identity using your multi-factor device.
+  </div>
+  <div
+    class="c7"
+    kind="outline-danger"
+    width="100%"
+  >
+    error message
+  </div>
+  <div
+    class="c8"
+  >
+    <label
+      class="c9"
+      font-size="0"
+    >
+      Username
+      <input
+        autocomplete="off"
+        class="c10"
+        inputmode="text"
+        readonly=""
+        type="text"
+        value="joe@example.com"
+      />
+    </label>
+  </div>
+  <div
+    class="c3 c11"
+  >
+    <div
+      class="c12"
+      width="100%"
+    >
+      <label
+        class="c13"
+        font-size="0"
+        for="select"
+      >
+        Multi-Factor Type
+      </label>
+      <div
+        class="c14"
+      >
         <div
-          class="c14"
+          class="react-select-container css-2b097c-container"
         >
           <div
-            class="react-select-container css-2b097c-container"
+            class="react-select__control css-yk16xz-control"
           >
             <div
-              class="react-select__control css-yk16xz-control"
+              class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
             >
               <div
-                class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
+                class="react-select__single-value css-1uccc91-singleValue"
               >
-                <div
-                  class="react-select__single-value css-1uccc91-singleValue"
-                >
-                  Passkey or Security Key
-                </div>
-                <input
-                  aria-autocomplete="list"
-                  class="css-62g3xt-dummyInput"
-                  id="select"
-                  readonly=""
-                  tabindex="0"
-                  value=""
-                />
+                Passkey or Security Key
               </div>
+              <input
+                aria-autocomplete="list"
+                class="css-62g3xt-dummyInput"
+                id="select"
+                readonly=""
+                tabindex="0"
+                value=""
+              />
+            </div>
+            <div
+              class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+            >
+              <span
+                class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+              />
               <div
-                class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+                aria-hidden="true"
+                class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
               >
-                <span
-                  class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
-                />
-                <div
+                <svg
                   aria-hidden="true"
-                  class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                  class="css-6q0nyr-Svg"
+                  focusable="false"
+                  height="20"
+                  viewBox="0 0 20 20"
+                  width="20"
                 >
-                  <svg
-                    aria-hidden="true"
-                    class="css-6q0nyr-Svg"
-                    focusable="false"
-                    height="20"
-                    viewBox="0 0 20 20"
-                    width="20"
-                  >
-                    <path
-                      d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
-                    />
-                  </svg>
-                </div>
+                  <path
+                    d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                  />
+                </svg>
               </div>
             </div>
           </div>
         </div>
       </div>
     </div>
-    <button
-      class="c15"
-      kind="primary"
-      type="submit"
-      width="100%"
-    >
-      Continue
-    </button>
   </div>
+  <button
+    class="c15"
+    kind="primary"
+    type="submit"
+    width="100%"
+  >
+    Continue
+  </button>
 </form>
 `;
 
 exports[`render failed state form for authenticating with password 1`] = `
-.c6 {
+.c7 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -497,12 +503,15 @@ exports[`render failed state form for authenticating with password 1`] = `
   overflow: auto;
   word-break: break-word;
   line-height: 1.5;
-  background: #FF6257;
-  color: #000000;
+  background: rgba(255,98,87,0.1);
+  border: 2px solid #FF6257;
+  border-radius: 8px;
+  box-shadow: none;
+  justify-content: normal;
   width: 100%;
 }
 
-.c6 a {
+.c7 a {
   color: #FFFFFF;
 }
 
@@ -510,20 +519,25 @@ exports[`render failed state form for authenticating with password 1`] = `
   box-sizing: border-box;
   margin-left: auto;
   margin-right: auto;
+  padding: 24px;
   width: 512px;
 }
 
-.c4 {
-  box-sizing: border-box;
-  padding: 32px;
-}
-
-.c7 {
+.c2 {
   box-sizing: border-box;
   margin-bottom: 24px;
 }
 
-.c10 {
+.c3 {
+  box-sizing: border-box;
+}
+
+.c8 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+}
+
+.c11 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -547,20 +561,19 @@ exports[`render failed state form for authenticating with password 1`] = `
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
-  margin-top: 16px;
   width: 100%;
 }
 
-.c10:hover,
-.c10:focus {
+.c11:hover,
+.c11:focus {
   background: #B29DFF;
 }
 
-.c10:active {
+.c11:active {
   background: #C5B6FF;
 }
 
-.c10:disabled {
+.c11:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
@@ -572,36 +585,34 @@ exports[`render failed state form for authenticating with password 1`] = `
   background-color: #222C59;
 }
 
-.c2 {
+.c4 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
-  padding-top: 32px;
-  color: #FFFFFF;
-  text-align: center;
-}
-
-.c3 {
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 24px;
   margin: 0px;
   color: rgba(255,255,255,0.72);
-  text-align: center;
 }
 
 .c5 {
   overflow: hidden;
   text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 18px;
+  line-height: 32px;
+  margin: 0px;
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
   margin: 0px;
   margin-bottom: 16px;
   color: rgba(255,255,255,0.72);
-  text-align: center;
 }
 
-.c9 {
+.c10 {
   appearance: none;
   border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
@@ -617,31 +628,31 @@ exports[`render failed state form for authenticating with password 1`] = `
   margin-top: 4px;
 }
 
-.c9:hover,
-.c9:focus,
-.c9:active {
+.c10:hover,
+.c10:focus,
+.c10:active {
   border: 1px solid rgba(255,255,255,0.72);
 }
 
-.c9::-ms-clear {
+.c10::-ms-clear {
   display: none;
 }
 
-.c9::placeholder {
+.c10::placeholder {
   color: rgba(255,255,255,0.54);
   opacity: 1;
 }
 
-.c9:read-only {
+.c10:read-only {
   cursor: not-allowed;
 }
 
-.c9:disabled {
+.c10:disabled {
   color: rgba(255,255,255,0.36);
   border-color: rgba(255,255,255,0.36);
 }
 
-.c8 {
+.c9 {
   color: #FFFFFF;
   display: block;
   font-size: 12px;
@@ -655,83 +666,88 @@ exports[`render failed state form for authenticating with password 1`] = `
 >
   <div
     class="c2"
-    color="text.main"
   >
-    Two-Factor Device Recovery
+    <div
+      class="c3"
+    >
+      <div
+        class="c4"
+        color="text.slightlyMuted"
+      >
+        Step 
+        1
+         of 
+        4
+      </div>
+      <div
+        class="c5"
+      >
+        Multi-Factor Device Recovery
+      </div>
+    </div>
   </div>
   <div
-    class="c3"
+    class="c6"
     color="text.slightlyMuted"
   >
-    Step 1 of 
-    4
+    Verify your identity using your password.
   </div>
   <div
-    class="c4"
+    class="c7"
+    kind="outline-danger"
+    width="100%"
   >
-    <div
-      class="c5"
-      color="text.slightlyMuted"
-    >
-      Verify your identity using your password.
-    </div>
-    <div
-      class="c6"
-      kind="danger"
-      width="100%"
-    >
-      wrong password
-    </div>
-    <div
-      class="c7"
-    >
-      <label
-        class="c8"
-        font-size="0"
-      >
-        Username
-        <input
-          autocomplete="off"
-          class="c9"
-          inputmode="text"
-          readonly=""
-          type="text"
-          value="joe@example.com"
-        />
-      </label>
-    </div>
-    <div
-      class="c7"
-    >
-      <label
-        class="c8"
-        font-size="0"
-      >
-        Password
-        <input
-          autocomplete="off"
-          class="c9"
-          inputmode="text"
-          placeholder="Password"
-          type="password"
-          value=""
-        />
-      </label>
-    </div>
-    <button
-      class="c10"
-      kind="primary"
-      type="submit"
-      width="100%"
-    >
-      Continue
-    </button>
+    wrong password
   </div>
+  <div
+    class="c8"
+  >
+    <label
+      class="c9"
+      font-size="0"
+    >
+      Username
+      <input
+        autocomplete="off"
+        class="c10"
+        inputmode="text"
+        readonly=""
+        type="text"
+        value="joe@example.com"
+      />
+    </label>
+  </div>
+  <div
+    class="c8"
+  >
+    <label
+      class="c9"
+      font-size="0"
+    >
+      Password
+      <input
+        autocomplete="off"
+        class="c10"
+        inputmode="text"
+        placeholder="Password"
+        type="password"
+        value=""
+      />
+    </label>
+  </div>
+  <button
+    class="c11"
+    kind="primary"
+    type="submit"
+    width="100%"
+  >
+    Continue
+  </button>
 </form>
 `;
 
 exports[`render failed state form for authenticating with totp 1`] = `
-.c6 {
+.c7 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -744,12 +760,15 @@ exports[`render failed state form for authenticating with totp 1`] = `
   overflow: auto;
   word-break: break-word;
   line-height: 1.5;
-  background: #FF6257;
-  color: #000000;
+  background: rgba(255,98,87,0.1);
+  border: 2px solid #FF6257;
+  border-radius: 8px;
+  box-shadow: none;
+  justify-content: normal;
   width: 100%;
 }
 
-.c6 a {
+.c7 a {
   color: #FFFFFF;
 }
 
@@ -757,34 +776,35 @@ exports[`render failed state form for authenticating with totp 1`] = `
   box-sizing: border-box;
   margin-left: auto;
   margin-right: auto;
+  padding: 24px;
   width: 512px;
 }
 
-.c4 {
-  box-sizing: border-box;
-  padding: 32px;
-}
-
-.c7 {
+.c2 {
   box-sizing: border-box;
   margin-bottom: 24px;
 }
 
-.c10 {
+.c3 {
   box-sizing: border-box;
+}
+
+.c8 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
 }
 
 .c12 {
   box-sizing: border-box;
   max-width: 50%;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
   margin-right: 16px;
   width: 100%;
 }
 
 .c15 {
   box-sizing: border-box;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
   width: 50%;
 }
 
@@ -812,7 +832,6 @@ exports[`render failed state form for authenticating with totp 1`] = `
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
-  margin-top: 16px;
   width: 100%;
 }
 
@@ -837,36 +856,34 @@ exports[`render failed state form for authenticating with totp 1`] = `
   background-color: #222C59;
 }
 
-.c2 {
+.c4 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
-  padding-top: 32px;
-  color: #FFFFFF;
-  text-align: center;
-}
-
-.c3 {
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 24px;
   margin: 0px;
   color: rgba(255,255,255,0.72);
-  text-align: center;
 }
 
 .c5 {
   overflow: hidden;
   text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 18px;
+  line-height: 32px;
+  margin: 0px;
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
   margin: 0px;
   margin-bottom: 16px;
   color: rgba(255,255,255,0.72);
-  text-align: center;
 }
 
-.c9 {
+.c10 {
   appearance: none;
   border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
@@ -882,31 +899,31 @@ exports[`render failed state form for authenticating with totp 1`] = `
   margin-top: 4px;
 }
 
-.c9:hover,
-.c9:focus,
-.c9:active {
+.c10:hover,
+.c10:focus,
+.c10:active {
   border: 1px solid rgba(255,255,255,0.72);
 }
 
-.c9::-ms-clear {
+.c10::-ms-clear {
   display: none;
 }
 
-.c9::placeholder {
+.c10::placeholder {
   color: rgba(255,255,255,0.54);
   opacity: 1;
 }
 
-.c9:read-only {
+.c10:read-only {
   cursor: not-allowed;
 }
 
-.c9:disabled {
+.c10:disabled {
   color: rgba(255,255,255,0.36);
   border-color: rgba(255,255,255,0.36);
 }
 
-.c8 {
+.c9 {
   color: #FFFFFF;
   display: block;
   font-size: 12px;
@@ -1093,153 +1110,158 @@ exports[`render failed state form for authenticating with totp 1`] = `
 >
   <div
     class="c2"
-    color="text.main"
-  >
-    Password Recovery
-  </div>
-  <div
-    class="c3"
-    color="text.slightlyMuted"
-  >
-    Step 1 of 
-    3
-  </div>
-  <div
-    class="c4"
   >
     <div
-      class="c5"
-      color="text.slightlyMuted"
-    >
-      Verify your identity using your authenticator app.
-    </div>
-    <div
-      class="c6"
-      kind="danger"
-      width="100%"
-    >
-      wrong totp token
-    </div>
-    <div
-      class="c7"
-    >
-      <label
-        class="c8"
-        font-size="0"
-      >
-        Username
-        <input
-          autocomplete="off"
-          class="c9"
-          inputmode="text"
-          readonly=""
-          type="text"
-          value="joe@example.com"
-        />
-      </label>
-    </div>
-    <div
-      class="c10 c11"
+      class="c3"
     >
       <div
-        class="c12"
-        width="100%"
+        class="c4"
+        color="text.slightlyMuted"
       >
-        <label
-          class="c13"
-          font-size="0"
-          for="select"
-        >
-          Two-factor Type
-        </label>
+        Step 
+        1
+         of 
+        3
+      </div>
+      <div
+        class="c5"
+      >
+        Password Recovery
+      </div>
+    </div>
+  </div>
+  <div
+    class="c6"
+    color="text.slightlyMuted"
+  >
+    Verify your identity using your authenticator app.
+  </div>
+  <div
+    class="c7"
+    kind="outline-danger"
+    width="100%"
+  >
+    wrong totp token
+  </div>
+  <div
+    class="c8"
+  >
+    <label
+      class="c9"
+      font-size="0"
+    >
+      Username
+      <input
+        autocomplete="off"
+        class="c10"
+        inputmode="text"
+        readonly=""
+        type="text"
+        value="joe@example.com"
+      />
+    </label>
+  </div>
+  <div
+    class="c3 c11"
+  >
+    <div
+      class="c12"
+      width="100%"
+    >
+      <label
+        class="c13"
+        font-size="0"
+        for="select"
+      >
+        Multi-Factor Type
+      </label>
+      <div
+        class="c14"
+      >
         <div
-          class="c14"
+          class="react-select-container css-2b097c-container"
         >
           <div
-            class="react-select-container css-2b097c-container"
+            class="react-select__control css-yk16xz-control"
           >
             <div
-              class="react-select__control css-yk16xz-control"
+              class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
             >
               <div
-                class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
+                class="react-select__single-value css-1uccc91-singleValue"
               >
-                <div
-                  class="react-select__single-value css-1uccc91-singleValue"
-                >
-                  Authenticator App
-                </div>
-                <input
-                  aria-autocomplete="list"
-                  class="css-62g3xt-dummyInput"
-                  id="select"
-                  readonly=""
-                  tabindex="0"
-                  value=""
-                />
+                Authenticator App
               </div>
+              <input
+                aria-autocomplete="list"
+                class="css-62g3xt-dummyInput"
+                id="select"
+                readonly=""
+                tabindex="0"
+                value=""
+              />
+            </div>
+            <div
+              class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+            >
+              <span
+                class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+              />
               <div
-                class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+                aria-hidden="true"
+                class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
               >
-                <span
-                  class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
-                />
-                <div
+                <svg
                   aria-hidden="true"
-                  class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                  class="css-6q0nyr-Svg"
+                  focusable="false"
+                  height="20"
+                  viewBox="0 0 20 20"
+                  width="20"
                 >
-                  <svg
-                    aria-hidden="true"
-                    class="css-6q0nyr-Svg"
-                    focusable="false"
-                    height="20"
-                    viewBox="0 0 20 20"
-                    width="20"
-                  >
-                    <path
-                      d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
-                    />
-                  </svg>
-                </div>
+                  <path
+                    d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                  />
+                </svg>
               </div>
             </div>
           </div>
         </div>
       </div>
-      <div
-        class="c15"
-        width="50%"
-      >
-        <label
-          class="c8"
-          font-size="0"
-        >
-          Authenticator Code
-          <input
-            autocomplete="one-time-code"
-            class="c9"
-            inputmode="numeric"
-            placeholder="123 456"
-            type="text"
-            value=""
-          />
-        </label>
-      </div>
     </div>
-    <button
-      class="c16"
-      kind="primary"
-      type="submit"
-      width="100%"
+    <div
+      class="c15"
+      width="50%"
     >
-      Continue
-    </button>
+      <label
+        class="c9"
+        font-size="0"
+      >
+        Authenticator Code
+        <input
+          autocomplete="one-time-code"
+          class="c10"
+          inputmode="numeric"
+          placeholder="123 456"
+          type="text"
+          value=""
+        />
+      </label>
+    </div>
   </div>
+  <button
+    class="c16"
+    kind="primary"
+    type="submit"
+    width="100%"
+  >
+    Continue
+  </button>
 </form>
 `;
 
 exports[`render failed state form for authenticating with webauthn 1`] = `
-.c6 {
+.c7 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1252,12 +1274,15 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
   overflow: auto;
   word-break: break-word;
   line-height: 1.5;
-  background: #FF6257;
-  color: #000000;
+  background: rgba(255,98,87,0.1);
+  border: 2px solid #FF6257;
+  border-radius: 8px;
+  box-shadow: none;
+  justify-content: normal;
   width: 100%;
 }
 
-.c6 a {
+.c7 a {
   color: #FFFFFF;
 }
 
@@ -1265,27 +1290,28 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
   box-sizing: border-box;
   margin-left: auto;
   margin-right: auto;
+  padding: 24px;
   width: 512px;
 }
 
-.c4 {
-  box-sizing: border-box;
-  padding: 32px;
-}
-
-.c7 {
+.c2 {
   box-sizing: border-box;
   margin-bottom: 24px;
 }
 
-.c10 {
+.c3 {
   box-sizing: border-box;
+}
+
+.c8 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
 }
 
 .c12 {
   box-sizing: border-box;
   max-width: 50%;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
   margin-right: 16px;
   width: 100%;
 }
@@ -1314,7 +1340,6 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
-  margin-top: 16px;
   width: 100%;
 }
 
@@ -1339,36 +1364,34 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
   background-color: #222C59;
 }
 
-.c2 {
+.c4 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
-  padding-top: 32px;
-  color: #FFFFFF;
-  text-align: center;
-}
-
-.c3 {
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 24px;
   margin: 0px;
   color: rgba(255,255,255,0.72);
-  text-align: center;
 }
 
 .c5 {
   overflow: hidden;
   text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 18px;
+  line-height: 32px;
+  margin: 0px;
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
   margin: 0px;
   margin-bottom: 16px;
   color: rgba(255,255,255,0.72);
-  text-align: center;
 }
 
-.c9 {
+.c10 {
   appearance: none;
   border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
@@ -1384,31 +1407,31 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
   margin-top: 4px;
 }
 
-.c9:hover,
-.c9:focus,
-.c9:active {
+.c10:hover,
+.c10:focus,
+.c10:active {
   border: 1px solid rgba(255,255,255,0.72);
 }
 
-.c9::-ms-clear {
+.c10::-ms-clear {
   display: none;
 }
 
-.c9::placeholder {
+.c10::placeholder {
   color: rgba(255,255,255,0.54);
   opacity: 1;
 }
 
-.c9:read-only {
+.c10:read-only {
   cursor: not-allowed;
 }
 
-.c9:disabled {
+.c10:disabled {
   color: rgba(255,255,255,0.36);
   border-color: rgba(255,255,255,0.36);
 }
 
-.c8 {
+.c9 {
   color: #FFFFFF;
   display: block;
   font-size: 12px;
@@ -1595,129 +1618,134 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
 >
   <div
     class="c2"
-    color="text.main"
-  >
-    Password Recovery
-  </div>
-  <div
-    class="c3"
-    color="text.slightlyMuted"
-  >
-    Step 1 of 
-    3
-  </div>
-  <div
-    class="c4"
   >
     <div
-      class="c5"
-      color="text.slightlyMuted"
-    >
-      Verify your identity using your hardware key.
-    </div>
-    <div
-      class="c6"
-      kind="danger"
-      width="100%"
-    >
-      invalid device
-    </div>
-    <div
-      class="c7"
-    >
-      <label
-        class="c8"
-        font-size="0"
-      >
-        Username
-        <input
-          autocomplete="off"
-          class="c9"
-          inputmode="text"
-          readonly=""
-          type="text"
-          value="joe@example.com"
-        />
-      </label>
-    </div>
-    <div
-      class="c10 c11"
+      class="c3"
     >
       <div
-        class="c12"
-        width="100%"
+        class="c4"
+        color="text.slightlyMuted"
       >
-        <label
-          class="c13"
-          font-size="0"
-          for="select"
-        >
-          Two-factor Type
-        </label>
+        Step 
+        1
+         of 
+        3
+      </div>
+      <div
+        class="c5"
+      >
+        Password Recovery
+      </div>
+    </div>
+  </div>
+  <div
+    class="c6"
+    color="text.slightlyMuted"
+  >
+    Verify your identity using your passkey or security key.
+  </div>
+  <div
+    class="c7"
+    kind="outline-danger"
+    width="100%"
+  >
+    invalid device
+  </div>
+  <div
+    class="c8"
+  >
+    <label
+      class="c9"
+      font-size="0"
+    >
+      Username
+      <input
+        autocomplete="off"
+        class="c10"
+        inputmode="text"
+        readonly=""
+        type="text"
+        value="joe@example.com"
+      />
+    </label>
+  </div>
+  <div
+    class="c3 c11"
+  >
+    <div
+      class="c12"
+      width="100%"
+    >
+      <label
+        class="c13"
+        font-size="0"
+        for="select"
+      >
+        Multi-Factor Type
+      </label>
+      <div
+        class="c14"
+      >
         <div
-          class="c14"
+          class="react-select-container css-2b097c-container"
         >
           <div
-            class="react-select-container css-2b097c-container"
+            class="react-select__control css-yk16xz-control"
           >
             <div
-              class="react-select__control css-yk16xz-control"
+              class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
             >
               <div
-                class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
+                class="react-select__single-value css-1uccc91-singleValue"
               >
-                <div
-                  class="react-select__single-value css-1uccc91-singleValue"
-                >
-                  Passkey or Security Key
-                </div>
-                <input
-                  aria-autocomplete="list"
-                  class="css-62g3xt-dummyInput"
-                  id="select"
-                  readonly=""
-                  tabindex="0"
-                  value=""
-                />
+                Passkey or Security Key
               </div>
+              <input
+                aria-autocomplete="list"
+                class="css-62g3xt-dummyInput"
+                id="select"
+                readonly=""
+                tabindex="0"
+                value=""
+              />
+            </div>
+            <div
+              class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+            >
+              <span
+                class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+              />
               <div
-                class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+                aria-hidden="true"
+                class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
               >
-                <span
-                  class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
-                />
-                <div
+                <svg
                   aria-hidden="true"
-                  class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                  class="css-6q0nyr-Svg"
+                  focusable="false"
+                  height="20"
+                  viewBox="0 0 20 20"
+                  width="20"
                 >
-                  <svg
-                    aria-hidden="true"
-                    class="css-6q0nyr-Svg"
-                    focusable="false"
-                    height="20"
-                    viewBox="0 0 20 20"
-                    width="20"
-                  >
-                    <path
-                      d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
-                    />
-                  </svg>
-                </div>
+                  <path
+                    d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                  />
+                </svg>
               </div>
             </div>
           </div>
         </div>
       </div>
     </div>
-    <button
-      class="c15"
-      kind="primary"
-      type="submit"
-      width="100%"
-    >
-      Continue
-    </button>
   </div>
+  <button
+    class="c15"
+    kind="primary"
+    type="submit"
+    width="100%"
+  >
+    Continue
+  </button>
 </form>
 `;
 
@@ -1726,27 +1754,28 @@ exports[`render form for authenticating with multi option 1`] = `
   box-sizing: border-box;
   margin-left: auto;
   margin-right: auto;
+  padding: 24px;
   width: 512px;
 }
 
-.c4 {
-  box-sizing: border-box;
-  padding: 32px;
-}
-
-.c6 {
+.c2 {
   box-sizing: border-box;
   margin-bottom: 24px;
 }
 
-.c9 {
+.c3 {
   box-sizing: border-box;
+}
+
+.c7 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
 }
 
 .c11 {
   box-sizing: border-box;
   max-width: 50%;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
   margin-right: 16px;
   width: 100%;
 }
@@ -1775,7 +1804,6 @@ exports[`render form for authenticating with multi option 1`] = `
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
-  margin-top: 16px;
   width: 100%;
 }
 
@@ -1800,36 +1828,34 @@ exports[`render form for authenticating with multi option 1`] = `
   background-color: #222C59;
 }
 
-.c2 {
+.c4 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
-  padding-top: 32px;
-  color: #FFFFFF;
-  text-align: center;
-}
-
-.c3 {
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 24px;
   margin: 0px;
   color: rgba(255,255,255,0.72);
-  text-align: center;
 }
 
 .c5 {
   overflow: hidden;
   text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 18px;
+  line-height: 32px;
+  margin: 0px;
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
   margin: 0px;
   margin-bottom: 16px;
   color: rgba(255,255,255,0.72);
-  text-align: center;
 }
 
-.c8 {
+.c9 {
   appearance: none;
   border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
@@ -1845,31 +1871,31 @@ exports[`render form for authenticating with multi option 1`] = `
   margin-top: 4px;
 }
 
-.c8:hover,
-.c8:focus,
-.c8:active {
+.c9:hover,
+.c9:focus,
+.c9:active {
   border: 1px solid rgba(255,255,255,0.72);
 }
 
-.c8::-ms-clear {
+.c9::-ms-clear {
   display: none;
 }
 
-.c8::placeholder {
+.c9::placeholder {
   color: rgba(255,255,255,0.54);
   opacity: 1;
 }
 
-.c8:read-only {
+.c9:read-only {
   cursor: not-allowed;
 }
 
-.c8:disabled {
+.c9:disabled {
   color: rgba(255,255,255,0.36);
   border-color: rgba(255,255,255,0.36);
 }
 
-.c7 {
+.c8 {
   color: #FFFFFF;
   display: block;
   font-size: 12px;
@@ -2056,122 +2082,127 @@ exports[`render form for authenticating with multi option 1`] = `
 >
   <div
     class="c2"
-    color="text.main"
-  >
-    Password Recovery
-  </div>
-  <div
-    class="c3"
-    color="text.slightlyMuted"
-  >
-    Step 1 of 
-    3
-  </div>
-  <div
-    class="c4"
   >
     <div
-      class="c5"
-      color="text.slightlyMuted"
-    >
-      Verify your identity using your two-factor device.
-    </div>
-    <div
-      class="c6"
-    >
-      <label
-        class="c7"
-        font-size="0"
-      >
-        Username
-        <input
-          autocomplete="off"
-          class="c8"
-          inputmode="text"
-          readonly=""
-          type="text"
-          value="joe@example.com"
-        />
-      </label>
-    </div>
-    <div
-      class="c9 c10"
+      class="c3"
     >
       <div
-        class="c11"
-        width="100%"
+        class="c4"
+        color="text.slightlyMuted"
       >
-        <label
-          class="c12"
-          font-size="0"
-          for="select"
-        >
-          Two-factor Type
-        </label>
+        Step 
+        1
+         of 
+        3
+      </div>
+      <div
+        class="c5"
+      >
+        Password Recovery
+      </div>
+    </div>
+  </div>
+  <div
+    class="c6"
+    color="text.slightlyMuted"
+  >
+    Verify your identity using your multi-factor device.
+  </div>
+  <div
+    class="c7"
+  >
+    <label
+      class="c8"
+      font-size="0"
+    >
+      Username
+      <input
+        autocomplete="off"
+        class="c9"
+        inputmode="text"
+        readonly=""
+        type="text"
+        value="joe@example.com"
+      />
+    </label>
+  </div>
+  <div
+    class="c3 c10"
+  >
+    <div
+      class="c11"
+      width="100%"
+    >
+      <label
+        class="c12"
+        font-size="0"
+        for="select"
+      >
+        Multi-Factor Type
+      </label>
+      <div
+        class="c13"
+      >
         <div
-          class="c13"
+          class="react-select-container css-2b097c-container"
         >
           <div
-            class="react-select-container css-2b097c-container"
+            class="react-select__control css-yk16xz-control"
           >
             <div
-              class="react-select__control css-yk16xz-control"
+              class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
             >
               <div
-                class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
+                class="react-select__single-value css-1uccc91-singleValue"
               >
-                <div
-                  class="react-select__single-value css-1uccc91-singleValue"
-                >
-                  Passkey or Security Key
-                </div>
-                <input
-                  aria-autocomplete="list"
-                  class="css-62g3xt-dummyInput"
-                  id="select"
-                  readonly=""
-                  tabindex="0"
-                  value=""
-                />
+                Passkey or Security Key
               </div>
+              <input
+                aria-autocomplete="list"
+                class="css-62g3xt-dummyInput"
+                id="select"
+                readonly=""
+                tabindex="0"
+                value=""
+              />
+            </div>
+            <div
+              class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+            >
+              <span
+                class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+              />
               <div
-                class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+                aria-hidden="true"
+                class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
               >
-                <span
-                  class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
-                />
-                <div
+                <svg
                   aria-hidden="true"
-                  class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                  class="css-6q0nyr-Svg"
+                  focusable="false"
+                  height="20"
+                  viewBox="0 0 20 20"
+                  width="20"
                 >
-                  <svg
-                    aria-hidden="true"
-                    class="css-6q0nyr-Svg"
-                    focusable="false"
-                    height="20"
-                    viewBox="0 0 20 20"
-                    width="20"
-                  >
-                    <path
-                      d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
-                    />
-                  </svg>
-                </div>
+                  <path
+                    d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                  />
+                </svg>
               </div>
             </div>
           </div>
         </div>
       </div>
     </div>
-    <button
-      class="c14"
-      kind="primary"
-      type="submit"
-      width="100%"
-    >
-      Continue
-    </button>
   </div>
+  <button
+    class="c14"
+    kind="primary"
+    type="submit"
+    width="100%"
+  >
+    Continue
+  </button>
 </form>
 `;
 
@@ -2180,20 +2211,25 @@ exports[`render form for authenticating with password to recover mfa device 1`] 
   box-sizing: border-box;
   margin-left: auto;
   margin-right: auto;
+  padding: 24px;
   width: 512px;
 }
 
-.c4 {
-  box-sizing: border-box;
-  padding: 32px;
-}
-
-.c6 {
+.c2 {
   box-sizing: border-box;
   margin-bottom: 24px;
 }
 
-.c9 {
+.c3 {
+  box-sizing: border-box;
+}
+
+.c7 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+}
+
+.c10 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -2217,20 +2253,19 @@ exports[`render form for authenticating with password to recover mfa device 1`] 
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
-  margin-top: 16px;
   width: 100%;
 }
 
-.c9:hover,
-.c9:focus {
+.c10:hover,
+.c10:focus {
   background: #B29DFF;
 }
 
-.c9:active {
+.c10:active {
   background: #C5B6FF;
 }
 
-.c9:disabled {
+.c10:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
@@ -2242,36 +2277,34 @@ exports[`render form for authenticating with password to recover mfa device 1`] 
   background-color: #222C59;
 }
 
-.c2 {
+.c4 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
-  padding-top: 32px;
-  color: #FFFFFF;
-  text-align: center;
-}
-
-.c3 {
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 24px;
   margin: 0px;
   color: rgba(255,255,255,0.72);
-  text-align: center;
 }
 
 .c5 {
   overflow: hidden;
   text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 18px;
+  line-height: 32px;
+  margin: 0px;
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
   margin: 0px;
   margin-bottom: 16px;
   color: rgba(255,255,255,0.72);
-  text-align: center;
 }
 
-.c8 {
+.c9 {
   appearance: none;
   border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
@@ -2287,31 +2320,31 @@ exports[`render form for authenticating with password to recover mfa device 1`] 
   margin-top: 4px;
 }
 
-.c8:hover,
-.c8:focus,
-.c8:active {
+.c9:hover,
+.c9:focus,
+.c9:active {
   border: 1px solid rgba(255,255,255,0.72);
 }
 
-.c8::-ms-clear {
+.c9::-ms-clear {
   display: none;
 }
 
-.c8::placeholder {
+.c9::placeholder {
   color: rgba(255,255,255,0.54);
   opacity: 1;
 }
 
-.c8:read-only {
+.c9:read-only {
   cursor: not-allowed;
 }
 
-.c8:disabled {
+.c9:disabled {
   color: rgba(255,255,255,0.36);
   border-color: rgba(255,255,255,0.36);
 }
 
-.c7 {
+.c8 {
   color: #FFFFFF;
   display: block;
   font-size: 12px;
@@ -2325,71 +2358,76 @@ exports[`render form for authenticating with password to recover mfa device 1`] 
 >
   <div
     class="c2"
-    color="text.main"
   >
-    Two-Factor Device Recovery
+    <div
+      class="c3"
+    >
+      <div
+        class="c4"
+        color="text.slightlyMuted"
+      >
+        Step 
+        1
+         of 
+        4
+      </div>
+      <div
+        class="c5"
+      >
+        Multi-Factor Device Recovery
+      </div>
+    </div>
   </div>
   <div
-    class="c3"
+    class="c6"
     color="text.slightlyMuted"
   >
-    Step 1 of 
-    4
+    Verify your identity using your password.
   </div>
   <div
-    class="c4"
+    class="c7"
   >
-    <div
-      class="c5"
-      color="text.slightlyMuted"
+    <label
+      class="c8"
+      font-size="0"
     >
-      Verify your identity using your password.
-    </div>
-    <div
-      class="c6"
-    >
-      <label
-        class="c7"
-        font-size="0"
-      >
-        Username
-        <input
-          autocomplete="off"
-          class="c8"
-          inputmode="text"
-          readonly=""
-          type="text"
-          value="joe@example.com"
-        />
-      </label>
-    </div>
-    <div
-      class="c6"
-    >
-      <label
-        class="c7"
-        font-size="0"
-      >
-        Password
-        <input
-          autocomplete="off"
-          class="c8"
-          inputmode="text"
-          placeholder="Password"
-          type="password"
-          value=""
-        />
-      </label>
-    </div>
-    <button
-      class="c9"
-      kind="primary"
-      type="submit"
-      width="100%"
-    >
-      Continue
-    </button>
+      Username
+      <input
+        autocomplete="off"
+        class="c9"
+        inputmode="text"
+        readonly=""
+        type="text"
+        value="joe@example.com"
+      />
+    </label>
   </div>
+  <div
+    class="c7"
+  >
+    <label
+      class="c8"
+      font-size="0"
+    >
+      Password
+      <input
+        autocomplete="off"
+        class="c9"
+        inputmode="text"
+        placeholder="Password"
+        type="password"
+        value=""
+      />
+    </label>
+  </div>
+  <button
+    class="c10"
+    kind="primary"
+    type="submit"
+    width="100%"
+  >
+    Continue
+  </button>
 </form>
 `;
 
@@ -2398,34 +2436,35 @@ exports[`render form for authenticating with totp 1`] = `
   box-sizing: border-box;
   margin-left: auto;
   margin-right: auto;
+  padding: 24px;
   width: 512px;
 }
 
-.c4 {
-  box-sizing: border-box;
-  padding: 32px;
-}
-
-.c6 {
+.c2 {
   box-sizing: border-box;
   margin-bottom: 24px;
 }
 
-.c9 {
+.c3 {
   box-sizing: border-box;
+}
+
+.c7 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
 }
 
 .c11 {
   box-sizing: border-box;
   max-width: 50%;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
   margin-right: 16px;
   width: 100%;
 }
 
 .c14 {
   box-sizing: border-box;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
   width: 50%;
 }
 
@@ -2453,7 +2492,6 @@ exports[`render form for authenticating with totp 1`] = `
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
-  margin-top: 16px;
   width: 100%;
 }
 
@@ -2478,36 +2516,34 @@ exports[`render form for authenticating with totp 1`] = `
   background-color: #222C59;
 }
 
-.c2 {
+.c4 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
-  padding-top: 32px;
-  color: #FFFFFF;
-  text-align: center;
-}
-
-.c3 {
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 24px;
   margin: 0px;
   color: rgba(255,255,255,0.72);
-  text-align: center;
 }
 
 .c5 {
   overflow: hidden;
   text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 18px;
+  line-height: 32px;
+  margin: 0px;
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
   margin: 0px;
   margin-bottom: 16px;
   color: rgba(255,255,255,0.72);
-  text-align: center;
 }
 
-.c8 {
+.c9 {
   appearance: none;
   border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
@@ -2523,31 +2559,31 @@ exports[`render form for authenticating with totp 1`] = `
   margin-top: 4px;
 }
 
-.c8:hover,
-.c8:focus,
-.c8:active {
+.c9:hover,
+.c9:focus,
+.c9:active {
   border: 1px solid rgba(255,255,255,0.72);
 }
 
-.c8::-ms-clear {
+.c9::-ms-clear {
   display: none;
 }
 
-.c8::placeholder {
+.c9::placeholder {
   color: rgba(255,255,255,0.54);
   opacity: 1;
 }
 
-.c8:read-only {
+.c9:read-only {
   cursor: not-allowed;
 }
 
-.c8:disabled {
+.c9:disabled {
   color: rgba(255,255,255,0.36);
   border-color: rgba(255,255,255,0.36);
 }
 
-.c7 {
+.c8 {
   color: #FFFFFF;
   display: block;
   font-size: 12px;
@@ -2734,141 +2770,146 @@ exports[`render form for authenticating with totp 1`] = `
 >
   <div
     class="c2"
-    color="text.main"
-  >
-    Password Recovery
-  </div>
-  <div
-    class="c3"
-    color="text.slightlyMuted"
-  >
-    Step 1 of 
-    3
-  </div>
-  <div
-    class="c4"
   >
     <div
-      class="c5"
-      color="text.slightlyMuted"
-    >
-      Verify your identity using your authenticator app.
-    </div>
-    <div
-      class="c6"
-    >
-      <label
-        class="c7"
-        font-size="0"
-      >
-        Username
-        <input
-          autocomplete="off"
-          class="c8"
-          inputmode="text"
-          readonly=""
-          type="text"
-          value="joe@example.com"
-        />
-      </label>
-    </div>
-    <div
-      class="c9 c10"
+      class="c3"
     >
       <div
-        class="c11"
-        width="100%"
+        class="c4"
+        color="text.slightlyMuted"
       >
-        <label
-          class="c12"
-          font-size="0"
-          for="select"
-        >
-          Two-factor Type
-        </label>
+        Step 
+        1
+         of 
+        3
+      </div>
+      <div
+        class="c5"
+      >
+        Password Recovery
+      </div>
+    </div>
+  </div>
+  <div
+    class="c6"
+    color="text.slightlyMuted"
+  >
+    Verify your identity using your authenticator app.
+  </div>
+  <div
+    class="c7"
+  >
+    <label
+      class="c8"
+      font-size="0"
+    >
+      Username
+      <input
+        autocomplete="off"
+        class="c9"
+        inputmode="text"
+        readonly=""
+        type="text"
+        value="joe@example.com"
+      />
+    </label>
+  </div>
+  <div
+    class="c3 c10"
+  >
+    <div
+      class="c11"
+      width="100%"
+    >
+      <label
+        class="c12"
+        font-size="0"
+        for="select"
+      >
+        Multi-Factor Type
+      </label>
+      <div
+        class="c13"
+      >
         <div
-          class="c13"
+          class="react-select-container css-2b097c-container"
         >
           <div
-            class="react-select-container css-2b097c-container"
+            class="react-select__control css-yk16xz-control"
           >
             <div
-              class="react-select__control css-yk16xz-control"
+              class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
             >
               <div
-                class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
+                class="react-select__single-value css-1uccc91-singleValue"
               >
-                <div
-                  class="react-select__single-value css-1uccc91-singleValue"
-                >
-                  Authenticator App
-                </div>
-                <input
-                  aria-autocomplete="list"
-                  class="css-62g3xt-dummyInput"
-                  id="select"
-                  readonly=""
-                  tabindex="0"
-                  value=""
-                />
+                Authenticator App
               </div>
+              <input
+                aria-autocomplete="list"
+                class="css-62g3xt-dummyInput"
+                id="select"
+                readonly=""
+                tabindex="0"
+                value=""
+              />
+            </div>
+            <div
+              class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+            >
+              <span
+                class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+              />
               <div
-                class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+                aria-hidden="true"
+                class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
               >
-                <span
-                  class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
-                />
-                <div
+                <svg
                   aria-hidden="true"
-                  class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                  class="css-6q0nyr-Svg"
+                  focusable="false"
+                  height="20"
+                  viewBox="0 0 20 20"
+                  width="20"
                 >
-                  <svg
-                    aria-hidden="true"
-                    class="css-6q0nyr-Svg"
-                    focusable="false"
-                    height="20"
-                    viewBox="0 0 20 20"
-                    width="20"
-                  >
-                    <path
-                      d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
-                    />
-                  </svg>
-                </div>
+                  <path
+                    d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                  />
+                </svg>
               </div>
             </div>
           </div>
         </div>
       </div>
-      <div
-        class="c14"
-        width="50%"
-      >
-        <label
-          class="c7"
-          font-size="0"
-        >
-          Authenticator Code
-          <input
-            autocomplete="one-time-code"
-            class="c8"
-            inputmode="numeric"
-            placeholder="123 456"
-            type="text"
-            value=""
-          />
-        </label>
-      </div>
     </div>
-    <button
-      class="c15"
-      kind="primary"
-      type="submit"
-      width="100%"
+    <div
+      class="c14"
+      width="50%"
     >
-      Continue
-    </button>
+      <label
+        class="c8"
+        font-size="0"
+      >
+        Authenticator Code
+        <input
+          autocomplete="one-time-code"
+          class="c9"
+          inputmode="numeric"
+          placeholder="123 456"
+          type="text"
+          value=""
+        />
+      </label>
+    </div>
   </div>
+  <button
+    class="c15"
+    kind="primary"
+    type="submit"
+    width="100%"
+  >
+    Continue
+  </button>
 </form>
 `;
 
@@ -2877,27 +2918,28 @@ exports[`render form for authenticating with webauthn 1`] = `
   box-sizing: border-box;
   margin-left: auto;
   margin-right: auto;
+  padding: 24px;
   width: 512px;
 }
 
-.c4 {
-  box-sizing: border-box;
-  padding: 32px;
-}
-
-.c6 {
+.c2 {
   box-sizing: border-box;
   margin-bottom: 24px;
 }
 
-.c9 {
+.c3 {
   box-sizing: border-box;
+}
+
+.c7 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
 }
 
 .c11 {
   box-sizing: border-box;
   max-width: 50%;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
   margin-right: 16px;
   width: 100%;
 }
@@ -2926,7 +2968,6 @@ exports[`render form for authenticating with webauthn 1`] = `
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
-  margin-top: 16px;
   width: 100%;
 }
 
@@ -2951,36 +2992,34 @@ exports[`render form for authenticating with webauthn 1`] = `
   background-color: #222C59;
 }
 
-.c2 {
+.c4 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
-  padding-top: 32px;
-  color: #FFFFFF;
-  text-align: center;
-}
-
-.c3 {
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 24px;
   margin: 0px;
   color: rgba(255,255,255,0.72);
-  text-align: center;
 }
 
 .c5 {
   overflow: hidden;
   text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 18px;
+  line-height: 32px;
+  margin: 0px;
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
   margin: 0px;
   margin-bottom: 16px;
   color: rgba(255,255,255,0.72);
-  text-align: center;
 }
 
-.c8 {
+.c9 {
   appearance: none;
   border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
@@ -2996,31 +3035,31 @@ exports[`render form for authenticating with webauthn 1`] = `
   margin-top: 4px;
 }
 
-.c8:hover,
-.c8:focus,
-.c8:active {
+.c9:hover,
+.c9:focus,
+.c9:active {
   border: 1px solid rgba(255,255,255,0.72);
 }
 
-.c8::-ms-clear {
+.c9::-ms-clear {
   display: none;
 }
 
-.c8::placeholder {
+.c9::placeholder {
   color: rgba(255,255,255,0.54);
   opacity: 1;
 }
 
-.c8:read-only {
+.c9:read-only {
   cursor: not-allowed;
 }
 
-.c8:disabled {
+.c9:disabled {
   color: rgba(255,255,255,0.36);
   border-color: rgba(255,255,255,0.36);
 }
 
-.c7 {
+.c8 {
   color: #FFFFFF;
   display: block;
   font-size: 12px;
@@ -3207,121 +3246,126 @@ exports[`render form for authenticating with webauthn 1`] = `
 >
   <div
     class="c2"
-    color="text.main"
-  >
-    Password Recovery
-  </div>
-  <div
-    class="c3"
-    color="text.slightlyMuted"
-  >
-    Step 1 of 
-    3
-  </div>
-  <div
-    class="c4"
   >
     <div
-      class="c5"
-      color="text.slightlyMuted"
-    >
-      Verify your identity using your hardware key.
-    </div>
-    <div
-      class="c6"
-    >
-      <label
-        class="c7"
-        font-size="0"
-      >
-        Username
-        <input
-          autocomplete="off"
-          class="c8"
-          inputmode="text"
-          readonly=""
-          type="text"
-          value="joe@example.com"
-        />
-      </label>
-    </div>
-    <div
-      class="c9 c10"
+      class="c3"
     >
       <div
-        class="c11"
-        width="100%"
+        class="c4"
+        color="text.slightlyMuted"
       >
-        <label
-          class="c12"
-          font-size="0"
-          for="select"
-        >
-          Two-factor Type
-        </label>
+        Step 
+        1
+         of 
+        3
+      </div>
+      <div
+        class="c5"
+      >
+        Password Recovery
+      </div>
+    </div>
+  </div>
+  <div
+    class="c6"
+    color="text.slightlyMuted"
+  >
+    Verify your identity using your passkey or security key.
+  </div>
+  <div
+    class="c7"
+  >
+    <label
+      class="c8"
+      font-size="0"
+    >
+      Username
+      <input
+        autocomplete="off"
+        class="c9"
+        inputmode="text"
+        readonly=""
+        type="text"
+        value="joe@example.com"
+      />
+    </label>
+  </div>
+  <div
+    class="c3 c10"
+  >
+    <div
+      class="c11"
+      width="100%"
+    >
+      <label
+        class="c12"
+        font-size="0"
+        for="select"
+      >
+        Multi-Factor Type
+      </label>
+      <div
+        class="c13"
+      >
         <div
-          class="c13"
+          class="react-select-container css-2b097c-container"
         >
           <div
-            class="react-select-container css-2b097c-container"
+            class="react-select__control css-yk16xz-control"
           >
             <div
-              class="react-select__control css-yk16xz-control"
+              class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
             >
               <div
-                class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
+                class="react-select__single-value css-1uccc91-singleValue"
               >
-                <div
-                  class="react-select__single-value css-1uccc91-singleValue"
-                >
-                  Passkey or Security Key
-                </div>
-                <input
-                  aria-autocomplete="list"
-                  class="css-62g3xt-dummyInput"
-                  id="select"
-                  readonly=""
-                  tabindex="0"
-                  value=""
-                />
+                Passkey or Security Key
               </div>
+              <input
+                aria-autocomplete="list"
+                class="css-62g3xt-dummyInput"
+                id="select"
+                readonly=""
+                tabindex="0"
+                value=""
+              />
+            </div>
+            <div
+              class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+            >
+              <span
+                class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+              />
               <div
-                class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+                aria-hidden="true"
+                class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
               >
-                <span
-                  class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
-                />
-                <div
+                <svg
                   aria-hidden="true"
-                  class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                  class="css-6q0nyr-Svg"
+                  focusable="false"
+                  height="20"
+                  viewBox="0 0 20 20"
+                  width="20"
                 >
-                  <svg
-                    aria-hidden="true"
-                    class="css-6q0nyr-Svg"
-                    focusable="false"
-                    height="20"
-                    viewBox="0 0 20 20"
-                    width="20"
-                  >
-                    <path
-                      d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
-                    />
-                  </svg>
-                </div>
+                  <path
+                    d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                  />
+                </svg>
               </div>
             </div>
           </div>
         </div>
       </div>
     </div>
-    <button
-      class="c14"
-      kind="primary"
-      type="submit"
-      width="100%"
-    >
-      Continue
-    </button>
   </div>
+  <button
+    class="c14"
+    kind="primary"
+    type="submit"
+    width="100%"
+  >
+    Continue
+  </button>
 </form>
 `;

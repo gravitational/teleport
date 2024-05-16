@@ -9,7 +9,11 @@ import auth, {
 import cfg from 'e-teleport/config';
 
 import makeRecoveryToken from './makeRecoveryToken';
-import { StartRecoveryRequest, VerifyUserRequest } from './types';
+import {
+  NewWebAuthnDeviceRequest,
+  StartRecoveryRequest,
+  VerifyUserRequest,
+} from './types';
 
 class RecoveryService {
   // startRecovery validates the recovery code and sends the email
@@ -56,23 +60,12 @@ class RecoveryService {
     });
   }
 
-  setNewWebauthnDevice(data: NewCredentialRequest) {
-    return auth
-      .checkWebauthnSupport()
-      .then(() => auth.createMfaRegistrationChallenge(data.tokenId, 'webauthn'))
-      .then(res =>
-        navigator.credentials.create({
-          publicKey: res.webauthnPublicKey,
-        })
-      )
-      .then(res => {
-        const request = {
-          ...data,
-          webauthnCreationResponse: makeWebauthnCreationResponse(res),
-        };
-
-        return api.post(cfg.api.recoveryNewCredentialsPath, request);
-      });
+  setNewWebauthnDevice(req: NewWebAuthnDeviceRequest) {
+    const request = {
+      ...req.credentialRequest,
+      webauthnCreationResponse: makeWebauthnCreationResponse(req.credential),
+    };
+    return api.post(cfg.api.recoveryNewCredentialsPath, request);
   }
 
   generateRecoveryCodes(tokenId: string) {

@@ -5,40 +5,41 @@ exports[`render correct form to add TOTP device 1`] = `
   box-sizing: border-box;
 }
 
-.c5 {
-  box-sizing: border-box;
-  padding: 32px;
-}
-
-.c6 {
+.c3 {
   box-sizing: border-box;
   margin-bottom: 24px;
-  padding: 16px;
-  height: 256px;
+}
+
+.c8 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+}
+
+.c13 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
   border-radius: 8px;
 }
 
-.c14 {
+.c15 {
   box-sizing: border-box;
-  max-width: 50%;
-  margin-bottom: 24px;
-  margin-right: 16px;
-  width: 100%;
+  margin-bottom: 0px;
 }
 
-.c17 {
+.c18 {
   box-sizing: border-box;
-  margin-bottom: 24px;
-  width: 50%;
+  padding: 16px;
+  border: 1px solid;
+  border-radius: 8px;
+  border-color: rgba(255,255,255,0.18);
 }
 
-.c20 {
+.c23 {
   box-sizing: border-box;
-  margin-bottom: 24px;
-  width: 100%;
+  flex: 1;
 }
 
-.c21 {
+.c25 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -62,20 +63,19 @@ exports[`render correct form to add TOTP device 1`] = `
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
-  margin-top: 16px;
   width: 100%;
 }
 
-.c21:hover,
-.c21:focus {
+.c25:hover,
+.c25:focus {
   background: #B29DFF;
 }
 
-.c21:active {
+.c25:active {
   background: #C5B6FF;
 }
 
-.c21:disabled {
+.c25:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
@@ -87,43 +87,43 @@ exports[`render correct form to add TOTP device 1`] = `
   background-color: #222C59;
 }
 
-.c3 {
+.c5 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 24px;
+  margin: 0px;
+  color: rgba(255,255,255,0.72);
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 18px;
   line-height: 32px;
   margin: 0px;
-  padding-top: 32px;
+}
+
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 24px;
+  margin: 0px;
+  margin-bottom: 4px;
   color: #FFFFFF;
-  text-align: center;
 }
 
-.c4 {
+.c24 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
-  color: rgba(255,255,255,0.72);
-  text-align: center;
 }
 
-.c10 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: 12px;
-  margin: 0px;
-  margin-top: 8px;
-  text-align: center;
-}
-
-.c11 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  color: rgba(255,255,255,0.72);
-}
-
-.c19 {
+.c17 {
   appearance: none;
   border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
@@ -139,39 +139,31 @@ exports[`render correct form to add TOTP device 1`] = `
   margin-top: 4px;
 }
 
-.c19:hover,
-.c19:focus,
-.c19:active {
+.c17:hover,
+.c17:focus,
+.c17:active {
   border: 1px solid rgba(255,255,255,0.72);
 }
 
-.c19::-ms-clear {
+.c17::-ms-clear {
   display: none;
 }
 
-.c19::placeholder {
+.c17::placeholder {
   color: rgba(255,255,255,0.54);
   opacity: 1;
 }
 
-.c19:read-only {
+.c17:read-only {
   cursor: not-allowed;
 }
 
-.c19:disabled {
+.c17:disabled {
   color: rgba(255,255,255,0.36);
   border-color: rgba(255,255,255,0.36);
 }
 
-.c15 {
-  color: #FFFFFF;
-  display: block;
-  font-size: 12px;
-  width: 100%;
-  margin-bottom: 4px;
-}
-
-.c18 {
+.c16 {
   color: #FFFFFF;
   display: block;
   font-size: 12px;
@@ -179,190 +171,55 @@ exports[`render correct form to add TOTP device 1`] = `
   margin-bottom: 0px;
 }
 
-.c12 {
-  color: #009EFF;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
+.c20 {
+  display: block;
+  outline: none;
+  width: 168px;
+  height: 168px;
+}
+
+.c4 {
+  display: flex;
+  align-items: center;
 }
 
 .c9 {
-  display: block;
-  outline: none;
-  width: 152px;
+  display: flex;
+  flex-direction: row;
+  gap: 16px;
 }
 
-.c7 {
+.c14 {
   display: flex;
-  align-items: center;
   justify-content: center;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.c19 {
+  display: flex;
+  gap: 16px;
+}
+
+.c22 {
+  display: flex;
   flex-direction: column;
 }
 
-.c13 {
+.c10 {
   display: flex;
   align-items: center;
-}
-
-.c16 .react-select-container {
-  box-sizing: border-box;
-  display: block;
-  font-size: 14px;
-  outline: none;
-  width: 100%;
-  color: #FFFFFF;
-  background-color: transparent;
-  margin-bottom: 0px;
-  border-radius: 4px;
-}
-
-.c16 .react-select__control {
-  outline: none;
-  min-height: 40px;
-  height: fit-content;
-  border: 1px solid rgba(255,255,255,0.54);
-  border-radius: 4px;
-  background-color: transparent;
-  box-shadow: none;
-}
-
-.c16 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.54);
-}
-
-.c16 .react-select__control:hover,
-.c16 .react-select__control:focus,
-.c16 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.72);
-  background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
 
-.c16 .react-select__control:hover .react-select__dropdown-indicator,
-.c16 .react-select__control:focus .react-select__dropdown-indicator,
-.c16 .react-select__control:active .react-select__dropdown-indicator {
-  color: #FFFFFF;
+.c11 {
+  margin: 0 8px 0 0;
+  accent-color: #9F85FF;
+  cursor: inherit;
 }
 
-.c16 .react-select__control .react-select__indicator:hover,
-.c16 .react-select__control .react-select__dropdown-indicator:hover,
-.c16 .react-select__control .react-select__indicator:focus,
-.c16 .react-select__control .react-select__dropdown-indicator:focus,
-.c16 .react-select__control .react-select__indicator:active,
-.c16 .react-select__control .react-select__dropdown-indicator:active {
-  color: #FFFFFF;
-}
-
-.c16 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.72);
-  background-color: rgba(255,255,255,0.07);
-  cursor: pointer;
-}
-
-.c16 .react-select__control--is-focused .react-select__dropdown-indicator {
-  color: #FFFFFF;
-}
-
-.c16 .react-select__single-value {
-  color: #FFFFFF;
-}
-
-.c16 .react-select__placeholder {
-  color: rgba(255,255,255,0.54);
-}
-
-.c16 .react-select__multi-value {
-  background-color: rgba(255,255,255,0.13);
-}
-
-.c16 .react-select__multi-value .react-select__multi-value__label {
-  color: #FFFFFF;
-  padding: 0 6px;
-}
-
-.c16 .react-select__multi-value .react-select__multi-value__remove {
-  color: #FFFFFF;
-}
-
-.c16 .react-select__multi-value .react-select__multi-value__remove:hover {
-  background-color: rgba(255,255,255,0.07);
-  color: #FF6257;
-}
-
-.c16 .react-select__option:hover {
-  cursor: pointer;
-  background-color: rgba(255,255,255,0.07);
-}
-
-.c16 .react-select__option--is-focused {
-  background-color: rgba(255,255,255,0.07);
-}
-
-.c16 .react-select__option--is-focused:hover {
-  cursor: pointer;
-  background-color: rgba(255,255,255,0.07);
-}
-
-.c16 .react-select__option--is-selected {
-  background-color: rgba(255,255,255,0.13);
-  color: inherit;
-  font-weight: 500;
-}
-
-.c16 .react-select__option--is-selected:hover {
-  background-color: rgba(255,255,255,0.13);
-}
-
-.c16 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.72);
-}
-
-.c16 .react-select__clear-indicator:hover,
-.c16 .react-select__clear-indicator:focus {
-  background-color: rgba(255,255,255,0.07);
-}
-
-.c16 .react-select__clear-indicator:hover svg,
-.c16 .react-select__clear-indicator:focus svg {
-  color: #FF6257;
-}
-
-.c16 .react-select__menu {
-  margin-top: 0px;
-  background-color: #4A5688;
-  box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
-}
-
-.c16 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
-  background: rgba(255,255,255,0.13);
-  border-radius: 4px;
-}
-
-.c16 .react-select__indicator-separator {
-  display: none;
-}
-
-.c16 .react-select__loading-indicator {
-  display: none;
-}
-
-.c16 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.36);
-  border: 1px solid rgba(255,255,255,0.36);
-}
-
-.c16 .react-select__control--is-disabled .react-select__single-value,
-.c16 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.36);
-}
-
-.c16 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.36);
-}
-
-.c16 .react-select__input {
-  color: #FFFFFF;
+.c12 {
+  opacity: 1;
 }
 
 .c2 {
@@ -373,8 +230,11 @@ exports[`render correct form to add TOTP device 1`] = `
   overflow-y: auto;
 }
 
-.c8 {
-  background: rgba(255,255,255,0.07);
+.c21 {
+  border: 4px solid white;
+  box-sizing: border-box;
+  border: 8px solid white;
+  border-radius: 8px;
 }
 
 @media screen and (max-width:800px) {
@@ -394,170 +254,127 @@ exports[`render correct form to add TOTP device 1`] = `
   class="c0 c1 c2"
 >
   <div
-    class="c3"
+    class="c3 c4"
+  >
+    <div
+      class="c0"
+    >
+      <div
+        class="c5"
+        color="text.slightlyMuted"
+      >
+        Step 
+        2
+         of 
+        4
+      </div>
+      <div
+        class="c6"
+      >
+        Enroll New MFA Method
+      </div>
+    </div>
+  </div>
+  <div
+    class="c7"
     color="text.main"
   >
-    Enroll New Two-Factor Device
+    Multi-factor type
   </div>
   <div
-    class="c4"
-    color="text.slightlyMuted"
-  >
-    Step 2 of 4
-  </div>
-  <div
-    class="c5"
+    class="c8"
   >
     <div
-      class="c6 c7 c8"
-      height="256px"
-    >
-      <img
-        class="c9"
-        src="data:image/png;base64,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"
-        style="border: 8px solid;"
-        width="152px"
-      />
-      <div
-        class="c10"
-        font-size="1"
-      >
-        Scan the QR Code with any authenticator app and enter the generated code.
-         
-        <div
-          class="c11"
-          color="text.slightlyMuted"
-        >
-          We recommend
-           
-          <a
-            class="c12"
-            href="https://authy.com/download/"
-            rel="noreferrer"
-            target="_blank"
-          >
-            Authy
-          </a>
-          .
-        </div>
-      </div>
-    </div>
-    <div
-      class="c0 c13"
-    >
-      <div
-        class="c14"
-        width="100%"
-      >
-        <label
-          class="c15"
-          font-size="0"
-          for="select"
-        >
-          Two-factor Type
-        </label>
-        <div
-          class="c16"
-        >
-          <div
-            class="react-select-container css-2b097c-container"
-          >
-            <div
-              class="react-select__control css-yk16xz-control"
-            >
-              <div
-                class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
-              >
-                <div
-                  class="react-select__single-value css-1uccc91-singleValue"
-                >
-                  Authenticator App
-                </div>
-                <input
-                  aria-autocomplete="list"
-                  class="css-62g3xt-dummyInput"
-                  id="select"
-                  readonly=""
-                  tabindex="0"
-                  value=""
-                />
-              </div>
-              <div
-                class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
-              >
-                <span
-                  class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
-                />
-                <div
-                  aria-hidden="true"
-                  class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
-                >
-                  <svg
-                    aria-hidden="true"
-                    class="css-6q0nyr-Svg"
-                    focusable="false"
-                    height="20"
-                    viewBox="0 0 20 20"
-                    width="20"
-                  >
-                    <path
-                      d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
-                    />
-                  </svg>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div
-        class="c17"
-        width="50%"
-      >
-        <label
-          class="c18"
-          font-size="0"
-        >
-          Authenticator Code
-          <input
-            autocomplete="one-time-code"
-            class="c19"
-            inputmode="numeric"
-            placeholder="123 456"
-            type="text"
-            value=""
-          />
-        </label>
-      </div>
-    </div>
-    <div
-      class="c20"
-      width="100%"
+      class="c0 c9"
     >
       <label
-        class="c18"
+        class="c10"
+      >
+        <input
+          checked=""
+          class="c11"
+          name="mfaType"
+          type="radio"
+          value="otp"
+        />
+        <span
+          class="c12"
+        >
+          Authenticator App
+        </span>
+      </label>
+    </div>
+  </div>
+  <div
+    class="c13 c14"
+  >
+    <div
+      class="c15"
+    >
+      <label
+        class="c16"
         font-size="0"
       >
-        Device Name
+        MFA method name
         <input
           autocomplete="off"
-          class="c19"
+          class="c17"
           inputmode="text"
           placeholder="Name"
           type="text"
-          value=""
+          value="otp-device"
         />
       </label>
     </div>
-    <button
-      class="c21"
-      kind="primary"
-      type="submit"
-      width="100%"
+    <div
+      class="c18 c19"
     >
-      Continue
-    </button>
+      <img
+        class="c20 c21"
+        height="168px"
+        src="data:image/png;base64,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"
+        width="168px"
+      />
+      <div
+        class="c0 c22"
+      >
+        <div
+          class="c23"
+        >
+          <div
+            class="c24"
+          >
+            Scan the QR Code with any authenticator app and enter the generated code.
+          </div>
+        </div>
+        <div
+          class="c15"
+        >
+          <label
+            class="c16"
+            font-size="0"
+          >
+            Authenticator Code
+            <input
+              autocomplete="one-time-code"
+              class="c17"
+              inputmode="numeric"
+              placeholder="123 456"
+              type="text"
+              value=""
+            />
+          </label>
+        </div>
+      </div>
+    </div>
   </div>
+  <button
+    class="c25"
+    kind="primary"
+    width="100%"
+  >
+    Continue
+  </button>
 </div>
 `;
 
@@ -566,1053 +383,28 @@ exports[`render correct form to add Webauthn device 1`] = `
   box-sizing: border-box;
 }
 
-.c5 {
-  box-sizing: border-box;
-  padding: 32px;
-}
-
-.c6 {
+.c3 {
   box-sizing: border-box;
   margin-bottom: 24px;
-  padding: 16px;
-  height: 256px;
+}
+
+.c8 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+}
+
+.c13 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
   border-radius: 8px;
-}
-
-.c12 {
-  box-sizing: border-box;
-  max-width: 50%;
-  margin-bottom: 24px;
-  margin-right: 16px;
-  width: 100%;
 }
 
 .c15 {
   box-sizing: border-box;
-  margin-bottom: 24px;
-  width: 100%;
-}
-
-.c18 {
-  line-height: 1.5;
-  margin: 0;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  box-sizing: border-box;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 600;
-  outline: none;
-  position: relative;
-  text-align: center;
-  text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  color: #000000;
-  background: #9F85FF;
-  min-height: 40px;
-  font-size: 12px;
-  padding: 0px 40px;
-  margin-top: 16px;
-  width: 100%;
-}
-
-.c18:hover,
-.c18:focus {
-  background: #B29DFF;
-}
-
-.c18:active {
-  background: #C5B6FF;
-}
-
-.c18:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
-  cursor: auto;
-}
-
-.c1 {
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
-  border-radius: 8px;
-  background-color: #222C59;
-}
-
-.c3 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
-  padding-top: 32px;
-  color: #FFFFFF;
-  text-align: center;
-}
-
-.c4 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  color: rgba(255,255,255,0.72);
-  text-align: center;
-}
-
-.c10 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  margin-top: 16px;
-}
-
-.c17 {
-  appearance: none;
-  border: 1px solid rgba(255,255,255,0.54);
-  border-radius: 4px;
-  box-sizing: border-box;
-  display: block;
-  height: 40px;
-  font-size: 16px;
-  padding: 0 16px;
-  outline: none;
-  width: 100%;
-  background: #222C59;
-  color: #FFFFFF;
-  margin-top: 4px;
-}
-
-.c17:hover,
-.c17:focus,
-.c17:active {
-  border: 1px solid rgba(255,255,255,0.72);
-}
-
-.c17::-ms-clear {
-  display: none;
-}
-
-.c17::placeholder {
-  color: rgba(255,255,255,0.54);
-  opacity: 1;
-}
-
-.c17:read-only {
-  cursor: not-allowed;
-}
-
-.c17:disabled {
-  color: rgba(255,255,255,0.36);
-  border-color: rgba(255,255,255,0.36);
-}
-
-.c13 {
-  color: #FFFFFF;
-  display: block;
-  font-size: 12px;
-  width: 100%;
-  margin-bottom: 4px;
-}
-
-.c16 {
-  color: #FFFFFF;
-  display: block;
-  font-size: 12px;
-  width: 100%;
-  margin-bottom: 0px;
-}
-
-.c9 {
-  display: block;
-  outline: none;
-  width: 152px;
-}
-
-.c7 {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-}
-
-.c11 {
-  display: flex;
-  align-items: center;
-}
-
-.c14 .react-select-container {
-  box-sizing: border-box;
-  display: block;
-  font-size: 14px;
-  outline: none;
-  width: 100%;
-  color: #FFFFFF;
-  background-color: transparent;
-  margin-bottom: 0px;
-  border-radius: 4px;
-}
-
-.c14 .react-select__control {
-  outline: none;
-  min-height: 40px;
-  height: fit-content;
-  border: 1px solid rgba(255,255,255,0.54);
-  border-radius: 4px;
-  background-color: transparent;
-  box-shadow: none;
-}
-
-.c14 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.54);
-}
-
-.c14 .react-select__control:hover,
-.c14 .react-select__control:focus,
-.c14 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.72);
-  background-color: rgba(255,255,255,0.07);
-  cursor: pointer;
-}
-
-.c14 .react-select__control:hover .react-select__dropdown-indicator,
-.c14 .react-select__control:focus .react-select__dropdown-indicator,
-.c14 .react-select__control:active .react-select__dropdown-indicator {
-  color: #FFFFFF;
-}
-
-.c14 .react-select__control .react-select__indicator:hover,
-.c14 .react-select__control .react-select__dropdown-indicator:hover,
-.c14 .react-select__control .react-select__indicator:focus,
-.c14 .react-select__control .react-select__dropdown-indicator:focus,
-.c14 .react-select__control .react-select__indicator:active,
-.c14 .react-select__control .react-select__dropdown-indicator:active {
-  color: #FFFFFF;
-}
-
-.c14 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.72);
-  background-color: rgba(255,255,255,0.07);
-  cursor: pointer;
-}
-
-.c14 .react-select__control--is-focused .react-select__dropdown-indicator {
-  color: #FFFFFF;
-}
-
-.c14 .react-select__single-value {
-  color: #FFFFFF;
-}
-
-.c14 .react-select__placeholder {
-  color: rgba(255,255,255,0.54);
-}
-
-.c14 .react-select__multi-value {
-  background-color: rgba(255,255,255,0.13);
-}
-
-.c14 .react-select__multi-value .react-select__multi-value__label {
-  color: #FFFFFF;
-  padding: 0 6px;
-}
-
-.c14 .react-select__multi-value .react-select__multi-value__remove {
-  color: #FFFFFF;
-}
-
-.c14 .react-select__multi-value .react-select__multi-value__remove:hover {
-  background-color: rgba(255,255,255,0.07);
-  color: #FF6257;
-}
-
-.c14 .react-select__option:hover {
-  cursor: pointer;
-  background-color: rgba(255,255,255,0.07);
-}
-
-.c14 .react-select__option--is-focused {
-  background-color: rgba(255,255,255,0.07);
-}
-
-.c14 .react-select__option--is-focused:hover {
-  cursor: pointer;
-  background-color: rgba(255,255,255,0.07);
-}
-
-.c14 .react-select__option--is-selected {
-  background-color: rgba(255,255,255,0.13);
-  color: inherit;
-  font-weight: 500;
-}
-
-.c14 .react-select__option--is-selected:hover {
-  background-color: rgba(255,255,255,0.13);
-}
-
-.c14 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.72);
-}
-
-.c14 .react-select__clear-indicator:hover,
-.c14 .react-select__clear-indicator:focus {
-  background-color: rgba(255,255,255,0.07);
-}
-
-.c14 .react-select__clear-indicator:hover svg,
-.c14 .react-select__clear-indicator:focus svg {
-  color: #FF6257;
-}
-
-.c14 .react-select__menu {
-  margin-top: 0px;
-  background-color: #4A5688;
-  box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
-}
-
-.c14 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
-  background: rgba(255,255,255,0.13);
-  border-radius: 4px;
-}
-
-.c14 .react-select__indicator-separator {
-  display: none;
-}
-
-.c14 .react-select__loading-indicator {
-  display: none;
-}
-
-.c14 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.36);
-  border: 1px solid rgba(255,255,255,0.36);
-}
-
-.c14 .react-select__control--is-disabled .react-select__single-value,
-.c14 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.36);
-}
-
-.c14 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.36);
-}
-
-.c14 .react-select__input {
-  color: #FFFFFF;
-}
-
-.c2 {
-  width: 600px;
-  padding: 24px;
-  text-align: left;
-  margin: 16px auto 16px auto;
-  overflow-y: auto;
-}
-
-.c8 {
-  background: rgba(255,255,255,0.07);
-}
-
-@media screen and (max-width:800px) {
-  .c2 {
-    width: auto;
-    margin: 20px;
-  }
-}
-
-@media screen and (max-height:760px) {
-  .c2 {
-    height: calc(100vh - 250px);
-  }
-}
-
-<div
-  class="c0 c1 c2"
->
-  <div
-    class="c3"
-    color="text.main"
-  >
-    Enroll New Two-Factor Device
-  </div>
-  <div
-    class="c4"
-    color="text.slightlyMuted"
-  >
-    Step 2 of 4
-  </div>
-  <div
-    class="c5"
-  >
-    <div
-      class="c6 c7 c8"
-      height="256px"
-    >
-      <img
-        class="c9"
-        src="file_stub"
-        width="152px"
-      />
-      <div
-        class="c10"
-      >
-        Enter a name for your hardware key.
-      </div>
-    </div>
-    <div
-      class="c0 c11"
-    >
-      <div
-        class="c12"
-        width="100%"
-      >
-        <label
-          class="c13"
-          font-size="0"
-          for="select"
-        >
-          Two-factor Type
-        </label>
-        <div
-          class="c14"
-        >
-          <div
-            class="react-select-container css-2b097c-container"
-          >
-            <div
-              class="react-select__control css-yk16xz-control"
-            >
-              <div
-                class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
-              >
-                <div
-                  class="react-select__single-value css-1uccc91-singleValue"
-                >
-                  Passkey or Security Key
-                </div>
-                <input
-                  aria-autocomplete="list"
-                  class="css-62g3xt-dummyInput"
-                  id="select"
-                  readonly=""
-                  tabindex="0"
-                  value=""
-                />
-              </div>
-              <div
-                class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
-              >
-                <span
-                  class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
-                />
-                <div
-                  aria-hidden="true"
-                  class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
-                >
-                  <svg
-                    aria-hidden="true"
-                    class="css-6q0nyr-Svg"
-                    focusable="false"
-                    height="20"
-                    viewBox="0 0 20 20"
-                    width="20"
-                  >
-                    <path
-                      d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
-                    />
-                  </svg>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div
-      class="c15"
-      width="100%"
-    >
-      <label
-        class="c16"
-        font-size="0"
-      >
-        Device Name
-        <input
-          autocomplete="off"
-          class="c17"
-          inputmode="text"
-          placeholder="Name"
-          type="text"
-          value=""
-        />
-      </label>
-    </div>
-    <button
-      class="c18"
-      kind="primary"
-      type="submit"
-      width="100%"
-    >
-      Continue
-    </button>
-  </div>
-</div>
-`;
-
-exports[`render correct form to add with multi option 1`] = `
-.c0 {
-  box-sizing: border-box;
-}
-
-.c5 {
-  box-sizing: border-box;
-  padding: 32px;
-}
-
-.c6 {
-  box-sizing: border-box;
-  margin-bottom: 24px;
   padding: 16px;
-  height: 256px;
+  border: 1px solid;
   border-radius: 8px;
-}
-
-.c12 {
-  box-sizing: border-box;
-  max-width: 50%;
-  margin-bottom: 24px;
-  margin-right: 16px;
-  width: 100%;
-}
-
-.c15 {
-  box-sizing: border-box;
-  margin-bottom: 24px;
-  width: 100%;
-}
-
-.c18 {
-  line-height: 1.5;
-  margin: 0;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  box-sizing: border-box;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 600;
-  outline: none;
-  position: relative;
-  text-align: center;
-  text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  color: #000000;
-  background: #9F85FF;
-  min-height: 40px;
-  font-size: 12px;
-  padding: 0px 40px;
-  margin-top: 16px;
-  width: 100%;
-}
-
-.c18:hover,
-.c18:focus {
-  background: #B29DFF;
-}
-
-.c18:active {
-  background: #C5B6FF;
-}
-
-.c18:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
-  cursor: auto;
-}
-
-.c1 {
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
-  border-radius: 8px;
-  background-color: #222C59;
-}
-
-.c3 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
-  padding-top: 32px;
-  color: #FFFFFF;
-  text-align: center;
-}
-
-.c4 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  color: rgba(255,255,255,0.72);
-  text-align: center;
-}
-
-.c10 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  margin-top: 16px;
-}
-
-.c17 {
-  appearance: none;
-  border: 1px solid rgba(255,255,255,0.54);
-  border-radius: 4px;
-  box-sizing: border-box;
-  display: block;
-  height: 40px;
-  font-size: 16px;
-  padding: 0 16px;
-  outline: none;
-  width: 100%;
-  background: #222C59;
-  color: #FFFFFF;
-  margin-top: 4px;
-}
-
-.c17:hover,
-.c17:focus,
-.c17:active {
-  border: 1px solid rgba(255,255,255,0.72);
-}
-
-.c17::-ms-clear {
-  display: none;
-}
-
-.c17::placeholder {
-  color: rgba(255,255,255,0.54);
-  opacity: 1;
-}
-
-.c17:read-only {
-  cursor: not-allowed;
-}
-
-.c17:disabled {
-  color: rgba(255,255,255,0.36);
-  border-color: rgba(255,255,255,0.36);
-}
-
-.c13 {
-  color: #FFFFFF;
-  display: block;
-  font-size: 12px;
-  width: 100%;
-  margin-bottom: 4px;
-}
-
-.c16 {
-  color: #FFFFFF;
-  display: block;
-  font-size: 12px;
-  width: 100%;
-  margin-bottom: 0px;
-}
-
-.c9 {
-  display: block;
-  outline: none;
-  width: 152px;
-}
-
-.c7 {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-}
-
-.c11 {
-  display: flex;
-  align-items: center;
-}
-
-.c14 .react-select-container {
-  box-sizing: border-box;
-  display: block;
-  font-size: 14px;
-  outline: none;
-  width: 100%;
-  color: #FFFFFF;
-  background-color: transparent;
-  margin-bottom: 0px;
-  border-radius: 4px;
-}
-
-.c14 .react-select__control {
-  outline: none;
-  min-height: 40px;
-  height: fit-content;
-  border: 1px solid rgba(255,255,255,0.54);
-  border-radius: 4px;
-  background-color: transparent;
-  box-shadow: none;
-}
-
-.c14 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.54);
-}
-
-.c14 .react-select__control:hover,
-.c14 .react-select__control:focus,
-.c14 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.72);
-  background-color: rgba(255,255,255,0.07);
-  cursor: pointer;
-}
-
-.c14 .react-select__control:hover .react-select__dropdown-indicator,
-.c14 .react-select__control:focus .react-select__dropdown-indicator,
-.c14 .react-select__control:active .react-select__dropdown-indicator {
-  color: #FFFFFF;
-}
-
-.c14 .react-select__control .react-select__indicator:hover,
-.c14 .react-select__control .react-select__dropdown-indicator:hover,
-.c14 .react-select__control .react-select__indicator:focus,
-.c14 .react-select__control .react-select__dropdown-indicator:focus,
-.c14 .react-select__control .react-select__indicator:active,
-.c14 .react-select__control .react-select__dropdown-indicator:active {
-  color: #FFFFFF;
-}
-
-.c14 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.72);
-  background-color: rgba(255,255,255,0.07);
-  cursor: pointer;
-}
-
-.c14 .react-select__control--is-focused .react-select__dropdown-indicator {
-  color: #FFFFFF;
-}
-
-.c14 .react-select__single-value {
-  color: #FFFFFF;
-}
-
-.c14 .react-select__placeholder {
-  color: rgba(255,255,255,0.54);
-}
-
-.c14 .react-select__multi-value {
-  background-color: rgba(255,255,255,0.13);
-}
-
-.c14 .react-select__multi-value .react-select__multi-value__label {
-  color: #FFFFFF;
-  padding: 0 6px;
-}
-
-.c14 .react-select__multi-value .react-select__multi-value__remove {
-  color: #FFFFFF;
-}
-
-.c14 .react-select__multi-value .react-select__multi-value__remove:hover {
-  background-color: rgba(255,255,255,0.07);
-  color: #FF6257;
-}
-
-.c14 .react-select__option:hover {
-  cursor: pointer;
-  background-color: rgba(255,255,255,0.07);
-}
-
-.c14 .react-select__option--is-focused {
-  background-color: rgba(255,255,255,0.07);
-}
-
-.c14 .react-select__option--is-focused:hover {
-  cursor: pointer;
-  background-color: rgba(255,255,255,0.07);
-}
-
-.c14 .react-select__option--is-selected {
-  background-color: rgba(255,255,255,0.13);
-  color: inherit;
-  font-weight: 500;
-}
-
-.c14 .react-select__option--is-selected:hover {
-  background-color: rgba(255,255,255,0.13);
-}
-
-.c14 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.72);
-}
-
-.c14 .react-select__clear-indicator:hover,
-.c14 .react-select__clear-indicator:focus {
-  background-color: rgba(255,255,255,0.07);
-}
-
-.c14 .react-select__clear-indicator:hover svg,
-.c14 .react-select__clear-indicator:focus svg {
-  color: #FF6257;
-}
-
-.c14 .react-select__menu {
-  margin-top: 0px;
-  background-color: #4A5688;
-  box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
-}
-
-.c14 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
-  background: rgba(255,255,255,0.13);
-  border-radius: 4px;
-}
-
-.c14 .react-select__indicator-separator {
-  display: none;
-}
-
-.c14 .react-select__loading-indicator {
-  display: none;
-}
-
-.c14 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.36);
-  border: 1px solid rgba(255,255,255,0.36);
-}
-
-.c14 .react-select__control--is-disabled .react-select__single-value,
-.c14 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.36);
-}
-
-.c14 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.36);
-}
-
-.c14 .react-select__input {
-  color: #FFFFFF;
-}
-
-.c2 {
-  width: 600px;
-  padding: 24px;
-  text-align: left;
-  margin: 16px auto 16px auto;
-  overflow-y: auto;
-}
-
-.c8 {
-  background: rgba(255,255,255,0.07);
-}
-
-@media screen and (max-width:800px) {
-  .c2 {
-    width: auto;
-    margin: 20px;
-  }
-}
-
-@media screen and (max-height:760px) {
-  .c2 {
-    height: calc(100vh - 250px);
-  }
-}
-
-<div
-  class="c0 c1 c2"
->
-  <div
-    class="c3"
-    color="text.main"
-  >
-    Enroll New Two-Factor Device
-  </div>
-  <div
-    class="c4"
-    color="text.slightlyMuted"
-  >
-    Step 2 of 4
-  </div>
-  <div
-    class="c5"
-  >
-    <div
-      class="c6 c7 c8"
-      height="256px"
-    >
-      <img
-        class="c9"
-        src="file_stub"
-        width="152px"
-      />
-      <div
-        class="c10"
-      >
-        Enter a name for your hardware key.
-      </div>
-    </div>
-    <div
-      class="c0 c11"
-    >
-      <div
-        class="c12"
-        width="100%"
-      >
-        <label
-          class="c13"
-          font-size="0"
-          for="select"
-        >
-          Two-factor Type
-        </label>
-        <div
-          class="c14"
-        >
-          <div
-            class="react-select-container css-2b097c-container"
-          >
-            <div
-              class="react-select__control css-yk16xz-control"
-            >
-              <div
-                class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
-              >
-                <div
-                  class="react-select__single-value css-1uccc91-singleValue"
-                >
-                  Passkey or Security Key
-                </div>
-                <input
-                  aria-autocomplete="list"
-                  class="css-62g3xt-dummyInput"
-                  id="select"
-                  readonly=""
-                  tabindex="0"
-                  value=""
-                />
-              </div>
-              <div
-                class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
-              >
-                <span
-                  class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
-                />
-                <div
-                  aria-hidden="true"
-                  class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
-                >
-                  <svg
-                    aria-hidden="true"
-                    class="css-6q0nyr-Svg"
-                    focusable="false"
-                    height="20"
-                    viewBox="0 0 20 20"
-                    width="20"
-                  >
-                    <path
-                      d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
-                    />
-                  </svg>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div
-      class="c15"
-      width="100%"
-    >
-      <label
-        class="c16"
-        font-size="0"
-      >
-        Device Name
-        <input
-          autocomplete="off"
-          class="c17"
-          inputmode="text"
-          placeholder="Name"
-          type="text"
-          value=""
-        />
-      </label>
-    </div>
-    <button
-      class="c18"
-      kind="primary"
-      type="submit"
-      width="100%"
-    >
-      Continue
-    </button>
-  </div>
-</div>
-`;
-
-exports[`render failed state for form to add with multi option 1`] = `
-.c6 {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 2px;
-  box-sizing: border-box;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.24);
-  margin: 0 0 24px 0;
-  min-height: 40px;
-  padding: 8px 16px;
-  overflow: auto;
-  word-break: break-word;
-  line-height: 1.5;
-  background: #FF6257;
-  color: #000000;
-  width: 100%;
-}
-
-.c6 a {
-  color: #FFFFFF;
-}
-
-.c0 {
-  box-sizing: border-box;
-}
-
-.c5 {
-  box-sizing: border-box;
-  padding: 32px;
-}
-
-.c7 {
-  box-sizing: border-box;
-  margin-bottom: 24px;
-  padding: 16px;
-  height: 256px;
-  border-radius: 8px;
-}
-
-.c13 {
-  box-sizing: border-box;
-  max-width: 50%;
-  margin-bottom: 24px;
-  margin-right: 16px;
-  width: 100%;
-}
-
-.c16 {
-  box-sizing: border-box;
-  margin-bottom: 24px;
-  width: 100%;
+  border-color: rgba(255,255,255,0.18);
 }
 
 .c19 {
@@ -1639,7 +431,6 @@ exports[`render failed state for form to add with multi option 1`] = `
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
-  margin-top: 16px;
   width: 100%;
 }
 
@@ -1658,271 +449,88 @@ exports[`render failed state for form to add with multi option 1`] = `
   cursor: auto;
 }
 
+.c17 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+}
+
 .c1 {
   box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
   background-color: #222C59;
 }
 
-.c3 {
+.c5 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
-  padding-top: 32px;
-  color: #FFFFFF;
-  text-align: center;
-}
-
-.c4 {
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 24px;
   margin: 0px;
   color: rgba(255,255,255,0.72);
-  text-align: center;
 }
 
-.c11 {
+.c6 {
   overflow: hidden;
   text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 18px;
+  line-height: 32px;
   margin: 0px;
-  margin-top: 16px;
+}
+
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 24px;
+  margin: 0px;
+  margin-bottom: 4px;
+  color: #FFFFFF;
 }
 
 .c18 {
-  appearance: none;
-  border: 1px solid rgba(255,255,255,0.54);
-  border-radius: 4px;
-  box-sizing: border-box;
-  display: block;
-  height: 40px;
-  font-size: 16px;
-  padding: 0 16px;
-  outline: none;
-  width: 100%;
-  background: #222C59;
-  color: #FFFFFF;
-  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-top: 8px;
 }
 
-.c18:hover,
-.c18:focus,
-.c18:active {
-  border: 1px solid rgba(255,255,255,0.72);
+.c4 {
+  display: flex;
+  align-items: center;
 }
 
-.c18::-ms-clear {
-  display: none;
-}
-
-.c18::placeholder {
-  color: rgba(255,255,255,0.54);
-  opacity: 1;
-}
-
-.c18:read-only {
-  cursor: not-allowed;
-}
-
-.c18:disabled {
-  color: rgba(255,255,255,0.36);
-  border-color: rgba(255,255,255,0.36);
+.c9 {
+  display: flex;
+  flex-direction: row;
+  gap: 16px;
 }
 
 .c14 {
-  color: #FFFFFF;
-  display: block;
-  font-size: 12px;
-  width: 100%;
-  margin-bottom: 4px;
-}
-
-.c17 {
-  color: #FFFFFF;
-  display: block;
-  font-size: 12px;
-  width: 100%;
-  margin-bottom: 0px;
+  display: flex;
+  justify-content: center;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .c10 {
-  display: block;
-  outline: none;
-  width: 152px;
-}
-
-.c8 {
   display: flex;
   align-items: center;
-  justify-content: center;
-  flex-direction: column;
+  cursor: pointer;
+}
+
+.c11 {
+  margin: 0 8px 0 0;
+  accent-color: #9F85FF;
+  cursor: inherit;
 }
 
 .c12 {
-  display: flex;
-  align-items: center;
-}
-
-.c15 .react-select-container {
-  box-sizing: border-box;
-  display: block;
-  font-size: 14px;
-  outline: none;
-  width: 100%;
-  color: #FFFFFF;
-  background-color: transparent;
-  margin-bottom: 0px;
-  border-radius: 4px;
-}
-
-.c15 .react-select__control {
-  outline: none;
-  min-height: 40px;
-  height: fit-content;
-  border: 1px solid rgba(255,255,255,0.54);
-  border-radius: 4px;
-  background-color: transparent;
-  box-shadow: none;
-}
-
-.c15 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.54);
-}
-
-.c15 .react-select__control:hover,
-.c15 .react-select__control:focus,
-.c15 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.72);
-  background-color: rgba(255,255,255,0.07);
-  cursor: pointer;
-}
-
-.c15 .react-select__control:hover .react-select__dropdown-indicator,
-.c15 .react-select__control:focus .react-select__dropdown-indicator,
-.c15 .react-select__control:active .react-select__dropdown-indicator {
-  color: #FFFFFF;
-}
-
-.c15 .react-select__control .react-select__indicator:hover,
-.c15 .react-select__control .react-select__dropdown-indicator:hover,
-.c15 .react-select__control .react-select__indicator:focus,
-.c15 .react-select__control .react-select__dropdown-indicator:focus,
-.c15 .react-select__control .react-select__indicator:active,
-.c15 .react-select__control .react-select__dropdown-indicator:active {
-  color: #FFFFFF;
-}
-
-.c15 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.72);
-  background-color: rgba(255,255,255,0.07);
-  cursor: pointer;
-}
-
-.c15 .react-select__control--is-focused .react-select__dropdown-indicator {
-  color: #FFFFFF;
-}
-
-.c15 .react-select__single-value {
-  color: #FFFFFF;
-}
-
-.c15 .react-select__placeholder {
-  color: rgba(255,255,255,0.54);
-}
-
-.c15 .react-select__multi-value {
-  background-color: rgba(255,255,255,0.13);
-}
-
-.c15 .react-select__multi-value .react-select__multi-value__label {
-  color: #FFFFFF;
-  padding: 0 6px;
-}
-
-.c15 .react-select__multi-value .react-select__multi-value__remove {
-  color: #FFFFFF;
-}
-
-.c15 .react-select__multi-value .react-select__multi-value__remove:hover {
-  background-color: rgba(255,255,255,0.07);
-  color: #FF6257;
-}
-
-.c15 .react-select__option:hover {
-  cursor: pointer;
-  background-color: rgba(255,255,255,0.07);
-}
-
-.c15 .react-select__option--is-focused {
-  background-color: rgba(255,255,255,0.07);
-}
-
-.c15 .react-select__option--is-focused:hover {
-  cursor: pointer;
-  background-color: rgba(255,255,255,0.07);
-}
-
-.c15 .react-select__option--is-selected {
-  background-color: rgba(255,255,255,0.13);
-  color: inherit;
-  font-weight: 500;
-}
-
-.c15 .react-select__option--is-selected:hover {
-  background-color: rgba(255,255,255,0.13);
-}
-
-.c15 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.72);
-}
-
-.c15 .react-select__clear-indicator:hover,
-.c15 .react-select__clear-indicator:focus {
-  background-color: rgba(255,255,255,0.07);
-}
-
-.c15 .react-select__clear-indicator:hover svg,
-.c15 .react-select__clear-indicator:focus svg {
-  color: #FF6257;
-}
-
-.c15 .react-select__menu {
-  margin-top: 0px;
-  background-color: #4A5688;
-  box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
-}
-
-.c15 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
-  background: rgba(255,255,255,0.13);
-  border-radius: 4px;
-}
-
-.c15 .react-select__indicator-separator {
-  display: none;
-}
-
-.c15 .react-select__loading-indicator {
-  display: none;
-}
-
-.c15 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.36);
-  border: 1px solid rgba(255,255,255,0.36);
-}
-
-.c15 .react-select__control--is-disabled .react-select__single-value,
-.c15 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.36);
-}
-
-.c15 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.36);
-}
-
-.c15 .react-select__input {
-  color: #FFFFFF;
+  opacity: 1;
 }
 
 .c2 {
@@ -1933,8 +541,13 @@ exports[`render failed state for form to add with multi option 1`] = `
   overflow-y: auto;
 }
 
-.c9 {
-  background: rgba(255,255,255,0.07);
+.c16 {
+  display: inline-block;
+  background: #222C59;
+  border: 1px solid;
+  border-color: rgba(255,255,255,0.18);
+  border-radius: 50%;
+  margin-right: -6px;
 }
 
 @media screen and (max-width:800px) {
@@ -1954,138 +567,1025 @@ exports[`render failed state for form to add with multi option 1`] = `
   class="c0 c1 c2"
 >
   <div
-    class="c3"
+    class="c3 c4"
+  >
+    <div
+      class="c0"
+    >
+      <div
+        class="c5"
+        color="text.slightlyMuted"
+      >
+        Step 
+        2
+         of 
+        4
+      </div>
+      <div
+        class="c6"
+      >
+        Enroll New MFA Method
+      </div>
+    </div>
+  </div>
+  <div
+    class="c7"
     color="text.main"
   >
-    Enroll New Two-Factor Device
+    Multi-factor type
   </div>
   <div
-    class="c4"
-    color="text.slightlyMuted"
-  >
-    Step 2 of 4
-  </div>
-  <div
-    class="c5"
+    class="c8"
   >
     <div
-      class="c6"
-      kind="danger"
-      width="100%"
-    >
-      failed to add device
-    </div>
-    <div
-      class="c7 c8 c9"
-      height="256px"
-    >
-      <img
-        class="c10"
-        src="file_stub"
-        width="152px"
-      />
-      <div
-        class="c11"
-      >
-        Enter a name for your hardware key.
-      </div>
-    </div>
-    <div
-      class="c0 c12"
-    >
-      <div
-        class="c13"
-        width="100%"
-      >
-        <label
-          class="c14"
-          font-size="0"
-          for="select"
-        >
-          Two-factor Type
-        </label>
-        <div
-          class="c15"
-        >
-          <div
-            class="react-select-container css-2b097c-container"
-          >
-            <div
-              class="react-select__control css-yk16xz-control"
-            >
-              <div
-                class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
-              >
-                <div
-                  class="react-select__single-value css-1uccc91-singleValue"
-                >
-                  Passkey or Security Key
-                </div>
-                <input
-                  aria-autocomplete="list"
-                  class="css-62g3xt-dummyInput"
-                  id="select"
-                  readonly=""
-                  tabindex="0"
-                  value=""
-                />
-              </div>
-              <div
-                class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
-              >
-                <span
-                  class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
-                />
-                <div
-                  aria-hidden="true"
-                  class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
-                >
-                  <svg
-                    aria-hidden="true"
-                    class="css-6q0nyr-Svg"
-                    focusable="false"
-                    height="20"
-                    viewBox="0 0 20 20"
-                    width="20"
-                  >
-                    <path
-                      d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
-                    />
-                  </svg>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div
-      class="c16"
-      width="100%"
+      class="c0 c9"
     >
       <label
-        class="c17"
-        font-size="0"
+        class="c10"
       >
-        Device Name
         <input
-          autocomplete="off"
-          class="c18"
-          inputmode="text"
-          placeholder="Name"
-          type="text"
-          value=""
+          checked=""
+          class="c11"
+          name="mfaType"
+          type="radio"
+          value="webauthn"
         />
+        <span
+          class="c12"
+        >
+          Passkey or Security Key
+        </span>
       </label>
     </div>
-    <button
-      class="c19"
-      kind="primary"
-      type="submit"
-      width="100%"
-    >
-      Continue
-    </button>
   </div>
+  <div
+    class="c13 c14"
+  >
+    <div
+      class="c15"
+    >
+      <span
+        class="c16"
+      >
+        <span
+          class="c17 icon icon-fingerprintsimple"
+        >
+          <svg
+            fill="currentColor"
+            height="24"
+            viewBox="0 0 24 24"
+            width="24"
+          >
+            <path
+              clip-rule="evenodd"
+              d="M10.1264 7.09652C11.1195 6.71717 12.2044 6.64823 13.2375 6.89884C14.2706 7.14945 15.2033 7.70779 15.9122 8.50001C16.1884 8.80869 16.1621 9.28283 15.8534 9.55904C15.5448 9.83525 15.0706 9.80893 14.7944 9.50026C14.2881 8.93439 13.6218 8.53557 12.8839 8.35656C12.146 8.17756 11.3711 8.2268 10.6617 8.49777C9.96462 8.76405 9.36312 9.23213 8.93383 9.84176C8.43452 10.7802 8.38127 11.5959 8.30971 12.6921C8.29564 12.9076 8.28086 13.134 8.26184 13.3743C8.14535 14.8463 7.85803 16.5799 6.45592 18.9225C6.2432 19.2779 5.78263 19.3936 5.42721 19.1809C5.0718 18.9681 4.95612 18.5076 5.16885 18.1521C6.42332 16.0562 6.66323 14.561 6.76651 13.256C6.78214 13.0585 6.79437 12.8593 6.80672 12.6582C6.87558 11.5365 6.94802 10.3567 7.63431 9.09119C7.64696 9.06786 7.66084 9.04522 7.67589 9.02337C8.27881 8.14779 9.13334 7.47588 10.1264 7.09652Z"
+              fill-rule="evenodd"
+            />
+            <path
+              d="M9.24916 4.21937C8.85849 4.35704 8.43019 4.15195 8.29252 3.76128C8.15485 3.37061 8.35995 2.94231 8.75061 2.80464C10.2214 2.28635 11.795 2.12816 13.3395 2.34331C14.884 2.55847 16.3544 3.14072 17.6275 4.04125C18.9007 4.94179 19.9394 6.13437 20.6566 7.51905C21.3739 8.90374 21.7488 10.4402 21.7499 11.9996C21.7511 14.0742 21.5203 16.1425 21.062 18.1658C20.9705 18.5698 20.5688 18.8231 20.1648 18.7316C19.7608 18.6401 19.5075 18.2384 19.599 17.8344C20.0327 15.9202 20.251 13.9634 20.2499 12.0007C20.248 9.34598 18.9286 6.7989 16.7613 5.26586C14.594 3.73284 11.7529 3.33706 9.24916 4.21937Z"
+            />
+            <path
+              d="M5.45674 4.77313C5.74238 4.47316 6.21711 4.46154 6.51708 4.74718C6.81609 5.03191 6.82232 5.51279 6.54008 5.81064C6.24734 6.12128 5.96861 6.44567 5.6997 6.77705C5.22735 7.35915 4.72407 8.05482 4.46255 8.63049C3.81632 10.053 4.09735 11.6882 3.72771 13.1806C3.51687 14.0318 3.1524 15.1819 2.9838 15.704C2.95342 15.7981 2.92285 15.8922 2.89187 15.986C2.76166 16.3793 2.33735 16.5925 1.94413 16.4623C1.55092 16.3321 1.33771 15.9077 1.4679 15.5145C1.57247 15.1976 1.67353 14.8795 1.77251 14.5608C1.94298 14.0118 2.14251 13.3416 2.27171 12.82C2.43969 12.1418 2.46871 11.5725 2.50028 10.9533C2.5066 10.8293 2.51303 10.7033 2.52069 10.5741C2.56636 9.80353 2.65788 8.97642 3.09687 8.01008C3.44208 7.25018 4.04889 6.43087 4.53494 5.83189C4.78379 5.52522 5.01254 5.26237 5.17928 5.07595C5.27053 4.97392 5.36244 4.87237 5.45674 4.77313Z"
+            />
+            <path
+              clip-rule="evenodd"
+              d="M16.4989 11.2501C16.9131 11.2496 17.2493 11.5849 17.2499 11.9992C17.2538 15.0296 16.6636 18.0315 15.5127 20.835C15.3554 21.2181 14.9173 21.4013 14.5341 21.2439C14.1509 21.0866 13.9678 20.6485 14.1251 20.2653C15.2016 17.6432 15.7536 14.8355 15.7499 12.0011C15.7493 11.5869 16.0847 11.2507 16.4989 11.2501Z"
+              fill-rule="evenodd"
+            />
+            <path
+              clip-rule="evenodd"
+              d="M10.675 18.8168C11.0524 18.9876 11.2199 19.4319 11.0491 19.8093C10.8529 20.243 10.6383 20.6682 10.4055 21.0848C10.2034 21.4463 9.74651 21.5757 9.38493 21.3736C9.02336 21.1715 8.89405 20.7146 9.09613 20.353C9.30832 19.9733 9.50377 19.586 9.68252 19.1909C9.85328 18.8136 10.2976 18.6461 10.675 18.8168Z"
+              fill-rule="evenodd"
+            />
+            <path
+              clip-rule="evenodd"
+              d="M11.9986 11.2501C12.4128 11.2494 12.7492 11.5846 12.7499 11.9988C12.7527 13.5797 12.5558 15.1545 12.164 16.686C12.0613 17.0873 11.6528 17.3294 11.2515 17.2267C10.8502 17.1241 10.6081 16.7155 10.7108 16.3142C11.0713 14.9051 11.2524 13.456 11.2499 12.0014C11.2492 11.5872 11.5844 11.2509 11.9986 11.2501Z"
+              fill-rule="evenodd"
+            />
+          </svg>
+        </span>
+      </span>
+      <span
+        class="c16"
+      >
+        <span
+          class="c17 icon icon-usbdrive"
+        >
+          <svg
+            fill="currentColor"
+            height="24"
+            viewBox="0 0 24 24"
+            width="24"
+          >
+            <path
+              d="M17.0301 5.96948C16.7372 5.67659 16.2624 5.67659 15.9695 5.96948C15.6766 6.26237 15.6766 6.73725 15.9695 7.03014L16.7281 7.78877C17.021 8.08166 17.4959 8.08166 17.7888 7.78877C18.0816 7.49588 18.0816 7.021 17.7888 6.72811L17.0301 5.96948Z"
+            />
+            <path
+              d="M8.96585 15.0346C9.59432 15.6631 10.6133 15.6631 11.2417 15.0346C11.8702 14.4062 11.8702 13.3872 11.2417 12.7587C10.6133 12.1303 9.59432 12.1303 8.96585 12.7587C8.33738 13.3872 8.33738 14.4062 8.96585 15.0346Z"
+            />
+            <path
+              clip-rule="evenodd"
+              d="M15.4782 2.59067L11.6295 6.43932C10.738 6.32356 9.8045 6.60808 9.11968 7.29289L2.96022 13.4524C1.78865 14.6239 1.78865 16.5234 2.96022 17.695L6.30388 21.0386C7.47545 22.2102 9.37494 22.2102 10.5465 21.0386L16.706 14.8792C17.3255 14.2596 17.6174 13.4365 17.5817 12.6252L21.5472 8.65971C22.3282 7.87866 22.3282 6.61233 21.5472 5.83128L18.3066 2.59067C17.5255 1.80962 16.2592 1.80962 15.4782 2.59067ZM20.4865 6.89194L17.2459 3.65133C17.0507 3.45607 16.7341 3.45607 16.5388 3.65133L13.1212 7.06898L13.1612 7.10897C13.2303 7.16668 13.2974 7.22799 13.3623 7.29289L16.706 10.6365C16.7709 10.7014 16.8322 10.7686 16.8899 10.8377L17.0689 11.0167L20.4865 7.59905C20.6818 7.40378 20.6818 7.0872 20.4865 6.89194ZM10.1803 8.35355C10.7201 7.8138 11.5689 7.77138 12.1572 8.22631L15.7726 11.8417C16.2275 12.43 16.1851 13.2788 15.6453 13.8185L9.48586 19.978C8.90007 20.5638 7.95032 20.5638 7.36454 19.978L4.02088 16.6343C3.4351 16.0485 3.4351 15.0988 4.02088 14.513L10.1803 8.35355Z"
+              fill-rule="evenodd"
+            />
+          </svg>
+        </span>
+      </span>
+      <span
+        class="c16"
+      >
+        <span
+          class="c17 icon icon-userfocus"
+        >
+          <svg
+            fill="currentColor"
+            height="24"
+            viewBox="0 0 24 24"
+            width="24"
+          >
+            <path
+              d="M16.875 3C16.4608 3 16.125 3.33579 16.125 3.75C16.125 4.16421 16.4608 4.5 16.875 4.5L19.5 4.5V7.125C19.5 7.53921 19.8358 7.875 20.25 7.875C20.6642 7.875 21 7.53921 21 7.125V4.5C21 4.10218 20.842 3.72065 20.5607 3.43934C20.2794 3.15804 19.8978 3 19.5 3H16.875Z"
+            />
+            <path
+              d="M21 16.875C21 16.4608 20.6642 16.125 20.25 16.125C19.8358 16.125 19.5 16.4608 19.5 16.875V19.5H16.875C16.4608 19.5 16.125 19.8358 16.125 20.25C16.125 20.6642 16.4608 21 16.875 21H19.5C19.8978 21 20.2794 20.842 20.5607 20.5607C20.842 20.2794 21 19.8978 21 19.5V16.875Z"
+            />
+            <path
+              d="M3.75 16.125C4.16421 16.125 4.5 16.4608 4.5 16.875V19.5H7.125C7.53921 19.5 7.875 19.8358 7.875 20.25C7.875 20.6642 7.53921 21 7.125 21H4.5C4.10218 21 3.72065 20.842 3.43934 20.5607C3.15804 20.2794 3 19.8978 3 19.5V16.875C3 16.4608 3.33579 16.125 3.75 16.125Z"
+            />
+            <path
+              d="M4.5 3C4.10217 3 3.72064 3.15804 3.43934 3.43934C3.15804 3.72064 3 4.10217 3 4.5V7.125C3 7.53921 3.33579 7.875 3.75 7.875C4.16421 7.875 4.5 7.53921 4.5 7.125L4.5 4.5L7.125 4.5C7.53921 4.5 7.875 4.16421 7.875 3.75C7.875 3.33579 7.53921 3 7.125 3H4.5Z"
+            />
+            <path
+              clip-rule="evenodd"
+              d="M8.25 10.5C8.25 8.42893 9.92893 6.75 12 6.75C14.0711 6.75 15.75 8.42893 15.75 10.5C15.75 11.5981 15.278 12.5859 14.5259 13.2717C14.6355 13.319 14.7439 13.3695 14.851 13.423C15.7362 13.8656 16.5062 14.5083 17.1 15.3C17.3486 15.6314 17.2814 16.1015 16.95 16.35C16.6187 16.5985 16.1486 16.5314 15.9 16.2C15.446 15.5945 14.8571 15.1031 14.1802 14.7647C13.5033 14.4262 12.7569 14.25 12 14.25C11.2432 14.25 10.4968 14.4262 9.81988 14.7647C9.14296 15.1031 8.55414 15.5945 8.10004 16.2C7.85152 16.5314 7.38141 16.5985 7.05004 16.35C6.71867 16.1015 6.65152 15.6314 6.90004 15.3C7.49386 14.5083 8.26385 13.8656 9.14906 13.423C9.25613 13.3695 9.36453 13.3191 9.47413 13.2718C8.72198 12.5859 8.25 11.5981 8.25 10.5ZM12 8.25C10.7574 8.25 9.75 9.25736 9.75 10.5C9.75 11.7426 10.7574 12.75 12 12.75C13.2426 12.75 14.25 11.7426 14.25 10.5C14.25 9.25736 13.2426 8.25 12 8.25Z"
+              fill-rule="evenodd"
+            />
+          </svg>
+        </span>
+      </span>
+      <span
+        class="c16"
+      >
+        <span
+          class="c17 icon icon-devicemobilecamera"
+        >
+          <svg
+            fill="currentColor"
+            height="24"
+            viewBox="0 0 24 24"
+            width="24"
+          >
+            <path
+              clip-rule="evenodd"
+              d="M17.25 3.75C17.25 3.33579 16.9142 3 16.5 3H7.5C7.08579 3 6.75 3.33579 6.75 3.75V20.25C6.75 20.6642 7.08579 21 7.5 21H16.5C16.9142 21 17.25 20.6642 17.25 20.25V3.75ZM16.5 1.5C17.7426 1.5 18.75 2.50736 18.75 3.75V20.25C18.75 21.4926 17.7426 22.5 16.5 22.5H7.5C6.25736 22.5 5.25 21.4926 5.25 20.25V3.75C5.25 2.50736 6.25736 1.5 7.5 1.5H16.5Z"
+              fill-rule="evenodd"
+            />
+            <path
+              d="M12 6.5625C12.5178 6.5625 12.9375 6.14277 12.9375 5.625C12.9375 5.10723 12.5178 4.6875 12 4.6875C11.4822 4.6875 11.0625 5.10723 11.0625 5.625C11.0625 6.14277 11.4822 6.5625 12 6.5625Z"
+            />
+          </svg>
+        </span>
+      </span>
+      <div
+        class="c18"
+      >
+        You can use Touch ID, Face ID, Windows Hello, a hardware device, or an authenticator app as an MFA method.
+      </div>
+    </div>
+  </div>
+  <button
+    class="c19"
+    kind="primary"
+    width="100%"
+  >
+    Create an MFA method
+  </button>
+</div>
+`;
+
+exports[`render correct form to add with multi option 1`] = `
+.c0 {
+  box-sizing: border-box;
+}
+
+.c3 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+}
+
+.c8 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+}
+
+.c13 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  border-radius: 8px;
+}
+
+.c15 {
+  box-sizing: border-box;
+  padding: 16px;
+  border: 1px solid;
+  border-radius: 8px;
+  border-color: rgba(255,255,255,0.18);
+}
+
+.c19 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  color: #000000;
+  background: #9F85FF;
+  min-height: 40px;
+  font-size: 12px;
+  padding: 0px 40px;
+  width: 100%;
+}
+
+.c19:hover,
+.c19:focus {
+  background: #B29DFF;
+}
+
+.c19:active {
+  background: #C5B6FF;
+}
+
+.c19:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+  cursor: auto;
+}
+
+.c17 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+}
+
+.c1 {
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  border-radius: 8px;
+  background-color: #222C59;
+}
+
+.c5 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 24px;
+  margin: 0px;
+  color: rgba(255,255,255,0.72);
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 18px;
+  line-height: 32px;
+  margin: 0px;
+}
+
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 24px;
+  margin: 0px;
+  margin-bottom: 4px;
+  color: #FFFFFF;
+}
+
+.c18 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-top: 8px;
+}
+
+.c4 {
+  display: flex;
+  align-items: center;
+}
+
+.c9 {
+  display: flex;
+  flex-direction: row;
+  gap: 16px;
+}
+
+.c14 {
+  display: flex;
+  justify-content: center;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.c10 {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.c11 {
+  margin: 0 8px 0 0;
+  accent-color: #9F85FF;
+  cursor: inherit;
+}
+
+.c12 {
+  opacity: 1;
+}
+
+.c2 {
+  width: 600px;
+  padding: 24px;
+  text-align: left;
+  margin: 16px auto 16px auto;
+  overflow-y: auto;
+}
+
+.c16 {
+  display: inline-block;
+  background: #222C59;
+  border: 1px solid;
+  border-color: rgba(255,255,255,0.18);
+  border-radius: 50%;
+  margin-right: -6px;
+}
+
+@media screen and (max-width:800px) {
+  .c2 {
+    width: auto;
+    margin: 20px;
+  }
+}
+
+@media screen and (max-height:760px) {
+  .c2 {
+    height: calc(100vh - 250px);
+  }
+}
+
+<div
+  class="c0 c1 c2"
+>
+  <div
+    class="c3 c4"
+  >
+    <div
+      class="c0"
+    >
+      <div
+        class="c5"
+        color="text.slightlyMuted"
+      >
+        Step 
+        2
+         of 
+        4
+      </div>
+      <div
+        class="c6"
+      >
+        Enroll New MFA Method
+      </div>
+    </div>
+  </div>
+  <div
+    class="c7"
+    color="text.main"
+  >
+    Multi-factor type
+  </div>
+  <div
+    class="c8"
+  >
+    <div
+      class="c0 c9"
+    >
+      <label
+        class="c10"
+      >
+        <input
+          checked=""
+          class="c11"
+          name="mfaType"
+          type="radio"
+          value="webauthn"
+        />
+        <span
+          class="c12"
+        >
+          Passkey or Security Key
+        </span>
+      </label>
+      <label
+        class="c10"
+      >
+        <input
+          class="c11"
+          name="mfaType"
+          type="radio"
+          value="otp"
+        />
+        <span
+          class="c12"
+        >
+          Authenticator App
+        </span>
+      </label>
+    </div>
+  </div>
+  <div
+    class="c13 c14"
+  >
+    <div
+      class="c15"
+    >
+      <span
+        class="c16"
+      >
+        <span
+          class="c17 icon icon-fingerprintsimple"
+        >
+          <svg
+            fill="currentColor"
+            height="24"
+            viewBox="0 0 24 24"
+            width="24"
+          >
+            <path
+              clip-rule="evenodd"
+              d="M10.1264 7.09652C11.1195 6.71717 12.2044 6.64823 13.2375 6.89884C14.2706 7.14945 15.2033 7.70779 15.9122 8.50001C16.1884 8.80869 16.1621 9.28283 15.8534 9.55904C15.5448 9.83525 15.0706 9.80893 14.7944 9.50026C14.2881 8.93439 13.6218 8.53557 12.8839 8.35656C12.146 8.17756 11.3711 8.2268 10.6617 8.49777C9.96462 8.76405 9.36312 9.23213 8.93383 9.84176C8.43452 10.7802 8.38127 11.5959 8.30971 12.6921C8.29564 12.9076 8.28086 13.134 8.26184 13.3743C8.14535 14.8463 7.85803 16.5799 6.45592 18.9225C6.2432 19.2779 5.78263 19.3936 5.42721 19.1809C5.0718 18.9681 4.95612 18.5076 5.16885 18.1521C6.42332 16.0562 6.66323 14.561 6.76651 13.256C6.78214 13.0585 6.79437 12.8593 6.80672 12.6582C6.87558 11.5365 6.94802 10.3567 7.63431 9.09119C7.64696 9.06786 7.66084 9.04522 7.67589 9.02337C8.27881 8.14779 9.13334 7.47588 10.1264 7.09652Z"
+              fill-rule="evenodd"
+            />
+            <path
+              d="M9.24916 4.21937C8.85849 4.35704 8.43019 4.15195 8.29252 3.76128C8.15485 3.37061 8.35995 2.94231 8.75061 2.80464C10.2214 2.28635 11.795 2.12816 13.3395 2.34331C14.884 2.55847 16.3544 3.14072 17.6275 4.04125C18.9007 4.94179 19.9394 6.13437 20.6566 7.51905C21.3739 8.90374 21.7488 10.4402 21.7499 11.9996C21.7511 14.0742 21.5203 16.1425 21.062 18.1658C20.9705 18.5698 20.5688 18.8231 20.1648 18.7316C19.7608 18.6401 19.5075 18.2384 19.599 17.8344C20.0327 15.9202 20.251 13.9634 20.2499 12.0007C20.248 9.34598 18.9286 6.7989 16.7613 5.26586C14.594 3.73284 11.7529 3.33706 9.24916 4.21937Z"
+            />
+            <path
+              d="M5.45674 4.77313C5.74238 4.47316 6.21711 4.46154 6.51708 4.74718C6.81609 5.03191 6.82232 5.51279 6.54008 5.81064C6.24734 6.12128 5.96861 6.44567 5.6997 6.77705C5.22735 7.35915 4.72407 8.05482 4.46255 8.63049C3.81632 10.053 4.09735 11.6882 3.72771 13.1806C3.51687 14.0318 3.1524 15.1819 2.9838 15.704C2.95342 15.7981 2.92285 15.8922 2.89187 15.986C2.76166 16.3793 2.33735 16.5925 1.94413 16.4623C1.55092 16.3321 1.33771 15.9077 1.4679 15.5145C1.57247 15.1976 1.67353 14.8795 1.77251 14.5608C1.94298 14.0118 2.14251 13.3416 2.27171 12.82C2.43969 12.1418 2.46871 11.5725 2.50028 10.9533C2.5066 10.8293 2.51303 10.7033 2.52069 10.5741C2.56636 9.80353 2.65788 8.97642 3.09687 8.01008C3.44208 7.25018 4.04889 6.43087 4.53494 5.83189C4.78379 5.52522 5.01254 5.26237 5.17928 5.07595C5.27053 4.97392 5.36244 4.87237 5.45674 4.77313Z"
+            />
+            <path
+              clip-rule="evenodd"
+              d="M16.4989 11.2501C16.9131 11.2496 17.2493 11.5849 17.2499 11.9992C17.2538 15.0296 16.6636 18.0315 15.5127 20.835C15.3554 21.2181 14.9173 21.4013 14.5341 21.2439C14.1509 21.0866 13.9678 20.6485 14.1251 20.2653C15.2016 17.6432 15.7536 14.8355 15.7499 12.0011C15.7493 11.5869 16.0847 11.2507 16.4989 11.2501Z"
+              fill-rule="evenodd"
+            />
+            <path
+              clip-rule="evenodd"
+              d="M10.675 18.8168C11.0524 18.9876 11.2199 19.4319 11.0491 19.8093C10.8529 20.243 10.6383 20.6682 10.4055 21.0848C10.2034 21.4463 9.74651 21.5757 9.38493 21.3736C9.02336 21.1715 8.89405 20.7146 9.09613 20.353C9.30832 19.9733 9.50377 19.586 9.68252 19.1909C9.85328 18.8136 10.2976 18.6461 10.675 18.8168Z"
+              fill-rule="evenodd"
+            />
+            <path
+              clip-rule="evenodd"
+              d="M11.9986 11.2501C12.4128 11.2494 12.7492 11.5846 12.7499 11.9988C12.7527 13.5797 12.5558 15.1545 12.164 16.686C12.0613 17.0873 11.6528 17.3294 11.2515 17.2267C10.8502 17.1241 10.6081 16.7155 10.7108 16.3142C11.0713 14.9051 11.2524 13.456 11.2499 12.0014C11.2492 11.5872 11.5844 11.2509 11.9986 11.2501Z"
+              fill-rule="evenodd"
+            />
+          </svg>
+        </span>
+      </span>
+      <span
+        class="c16"
+      >
+        <span
+          class="c17 icon icon-usbdrive"
+        >
+          <svg
+            fill="currentColor"
+            height="24"
+            viewBox="0 0 24 24"
+            width="24"
+          >
+            <path
+              d="M17.0301 5.96948C16.7372 5.67659 16.2624 5.67659 15.9695 5.96948C15.6766 6.26237 15.6766 6.73725 15.9695 7.03014L16.7281 7.78877C17.021 8.08166 17.4959 8.08166 17.7888 7.78877C18.0816 7.49588 18.0816 7.021 17.7888 6.72811L17.0301 5.96948Z"
+            />
+            <path
+              d="M8.96585 15.0346C9.59432 15.6631 10.6133 15.6631 11.2417 15.0346C11.8702 14.4062 11.8702 13.3872 11.2417 12.7587C10.6133 12.1303 9.59432 12.1303 8.96585 12.7587C8.33738 13.3872 8.33738 14.4062 8.96585 15.0346Z"
+            />
+            <path
+              clip-rule="evenodd"
+              d="M15.4782 2.59067L11.6295 6.43932C10.738 6.32356 9.8045 6.60808 9.11968 7.29289L2.96022 13.4524C1.78865 14.6239 1.78865 16.5234 2.96022 17.695L6.30388 21.0386C7.47545 22.2102 9.37494 22.2102 10.5465 21.0386L16.706 14.8792C17.3255 14.2596 17.6174 13.4365 17.5817 12.6252L21.5472 8.65971C22.3282 7.87866 22.3282 6.61233 21.5472 5.83128L18.3066 2.59067C17.5255 1.80962 16.2592 1.80962 15.4782 2.59067ZM20.4865 6.89194L17.2459 3.65133C17.0507 3.45607 16.7341 3.45607 16.5388 3.65133L13.1212 7.06898L13.1612 7.10897C13.2303 7.16668 13.2974 7.22799 13.3623 7.29289L16.706 10.6365C16.7709 10.7014 16.8322 10.7686 16.8899 10.8377L17.0689 11.0167L20.4865 7.59905C20.6818 7.40378 20.6818 7.0872 20.4865 6.89194ZM10.1803 8.35355C10.7201 7.8138 11.5689 7.77138 12.1572 8.22631L15.7726 11.8417C16.2275 12.43 16.1851 13.2788 15.6453 13.8185L9.48586 19.978C8.90007 20.5638 7.95032 20.5638 7.36454 19.978L4.02088 16.6343C3.4351 16.0485 3.4351 15.0988 4.02088 14.513L10.1803 8.35355Z"
+              fill-rule="evenodd"
+            />
+          </svg>
+        </span>
+      </span>
+      <span
+        class="c16"
+      >
+        <span
+          class="c17 icon icon-userfocus"
+        >
+          <svg
+            fill="currentColor"
+            height="24"
+            viewBox="0 0 24 24"
+            width="24"
+          >
+            <path
+              d="M16.875 3C16.4608 3 16.125 3.33579 16.125 3.75C16.125 4.16421 16.4608 4.5 16.875 4.5L19.5 4.5V7.125C19.5 7.53921 19.8358 7.875 20.25 7.875C20.6642 7.875 21 7.53921 21 7.125V4.5C21 4.10218 20.842 3.72065 20.5607 3.43934C20.2794 3.15804 19.8978 3 19.5 3H16.875Z"
+            />
+            <path
+              d="M21 16.875C21 16.4608 20.6642 16.125 20.25 16.125C19.8358 16.125 19.5 16.4608 19.5 16.875V19.5H16.875C16.4608 19.5 16.125 19.8358 16.125 20.25C16.125 20.6642 16.4608 21 16.875 21H19.5C19.8978 21 20.2794 20.842 20.5607 20.5607C20.842 20.2794 21 19.8978 21 19.5V16.875Z"
+            />
+            <path
+              d="M3.75 16.125C4.16421 16.125 4.5 16.4608 4.5 16.875V19.5H7.125C7.53921 19.5 7.875 19.8358 7.875 20.25C7.875 20.6642 7.53921 21 7.125 21H4.5C4.10218 21 3.72065 20.842 3.43934 20.5607C3.15804 20.2794 3 19.8978 3 19.5V16.875C3 16.4608 3.33579 16.125 3.75 16.125Z"
+            />
+            <path
+              d="M4.5 3C4.10217 3 3.72064 3.15804 3.43934 3.43934C3.15804 3.72064 3 4.10217 3 4.5V7.125C3 7.53921 3.33579 7.875 3.75 7.875C4.16421 7.875 4.5 7.53921 4.5 7.125L4.5 4.5L7.125 4.5C7.53921 4.5 7.875 4.16421 7.875 3.75C7.875 3.33579 7.53921 3 7.125 3H4.5Z"
+            />
+            <path
+              clip-rule="evenodd"
+              d="M8.25 10.5C8.25 8.42893 9.92893 6.75 12 6.75C14.0711 6.75 15.75 8.42893 15.75 10.5C15.75 11.5981 15.278 12.5859 14.5259 13.2717C14.6355 13.319 14.7439 13.3695 14.851 13.423C15.7362 13.8656 16.5062 14.5083 17.1 15.3C17.3486 15.6314 17.2814 16.1015 16.95 16.35C16.6187 16.5985 16.1486 16.5314 15.9 16.2C15.446 15.5945 14.8571 15.1031 14.1802 14.7647C13.5033 14.4262 12.7569 14.25 12 14.25C11.2432 14.25 10.4968 14.4262 9.81988 14.7647C9.14296 15.1031 8.55414 15.5945 8.10004 16.2C7.85152 16.5314 7.38141 16.5985 7.05004 16.35C6.71867 16.1015 6.65152 15.6314 6.90004 15.3C7.49386 14.5083 8.26385 13.8656 9.14906 13.423C9.25613 13.3695 9.36453 13.3191 9.47413 13.2718C8.72198 12.5859 8.25 11.5981 8.25 10.5ZM12 8.25C10.7574 8.25 9.75 9.25736 9.75 10.5C9.75 11.7426 10.7574 12.75 12 12.75C13.2426 12.75 14.25 11.7426 14.25 10.5C14.25 9.25736 13.2426 8.25 12 8.25Z"
+              fill-rule="evenodd"
+            />
+          </svg>
+        </span>
+      </span>
+      <span
+        class="c16"
+      >
+        <span
+          class="c17 icon icon-devicemobilecamera"
+        >
+          <svg
+            fill="currentColor"
+            height="24"
+            viewBox="0 0 24 24"
+            width="24"
+          >
+            <path
+              clip-rule="evenodd"
+              d="M17.25 3.75C17.25 3.33579 16.9142 3 16.5 3H7.5C7.08579 3 6.75 3.33579 6.75 3.75V20.25C6.75 20.6642 7.08579 21 7.5 21H16.5C16.9142 21 17.25 20.6642 17.25 20.25V3.75ZM16.5 1.5C17.7426 1.5 18.75 2.50736 18.75 3.75V20.25C18.75 21.4926 17.7426 22.5 16.5 22.5H7.5C6.25736 22.5 5.25 21.4926 5.25 20.25V3.75C5.25 2.50736 6.25736 1.5 7.5 1.5H16.5Z"
+              fill-rule="evenodd"
+            />
+            <path
+              d="M12 6.5625C12.5178 6.5625 12.9375 6.14277 12.9375 5.625C12.9375 5.10723 12.5178 4.6875 12 4.6875C11.4822 4.6875 11.0625 5.10723 11.0625 5.625C11.0625 6.14277 11.4822 6.5625 12 6.5625Z"
+            />
+          </svg>
+        </span>
+      </span>
+      <div
+        class="c18"
+      >
+        You can use Touch ID, Face ID, Windows Hello, a hardware device, or an authenticator app as an MFA method.
+      </div>
+    </div>
+  </div>
+  <button
+    class="c19"
+    kind="primary"
+    width="100%"
+  >
+    Create an MFA method
+  </button>
+</div>
+`;
+
+exports[`render failed state for form to add with multi option 1`] = `
+.c7 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  box-sizing: border-box;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.24);
+  margin: 0 0 24px 0;
+  min-height: 40px;
+  padding: 8px 16px;
+  overflow: auto;
+  word-break: break-word;
+  line-height: 1.5;
+  background: #FF6257;
+  color: #000000;
+}
+
+.c7 a {
+  color: #FFFFFF;
+}
+
+.c0 {
+  box-sizing: border-box;
+}
+
+.c3 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+}
+
+.c9 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+}
+
+.c14 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  border-radius: 8px;
+}
+
+.c16 {
+  box-sizing: border-box;
+  padding: 16px;
+  border: 1px solid;
+  border-radius: 8px;
+  border-color: rgba(255,255,255,0.18);
+}
+
+.c20 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  color: #000000;
+  background: #9F85FF;
+  min-height: 40px;
+  font-size: 12px;
+  padding: 0px 40px;
+  width: 100%;
+}
+
+.c20:hover,
+.c20:focus {
+  background: #B29DFF;
+}
+
+.c20:active {
+  background: #C5B6FF;
+}
+
+.c20:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+  cursor: auto;
+}
+
+.c18 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+}
+
+.c1 {
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  border-radius: 8px;
+  background-color: #222C59;
+}
+
+.c5 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 24px;
+  margin: 0px;
+  color: rgba(255,255,255,0.72);
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 18px;
+  line-height: 32px;
+  margin: 0px;
+}
+
+.c8 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 24px;
+  margin: 0px;
+  margin-bottom: 4px;
+  color: #FFFFFF;
+}
+
+.c19 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-top: 8px;
+}
+
+.c4 {
+  display: flex;
+  align-items: center;
+}
+
+.c10 {
+  display: flex;
+  flex-direction: row;
+  gap: 16px;
+}
+
+.c15 {
+  display: flex;
+  justify-content: center;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.c11 {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.c12 {
+  margin: 0 8px 0 0;
+  accent-color: #9F85FF;
+  cursor: inherit;
+}
+
+.c13 {
+  opacity: 1;
+}
+
+.c2 {
+  width: 600px;
+  padding: 24px;
+  text-align: left;
+  margin: 16px auto 16px auto;
+  overflow-y: auto;
+}
+
+.c17 {
+  display: inline-block;
+  background: #222C59;
+  border: 1px solid;
+  border-color: rgba(255,255,255,0.18);
+  border-radius: 50%;
+  margin-right: -6px;
+}
+
+@media screen and (max-width:800px) {
+  .c2 {
+    width: auto;
+    margin: 20px;
+  }
+}
+
+@media screen and (max-height:760px) {
+  .c2 {
+    height: calc(100vh - 250px);
+  }
+}
+
+<div
+  class="c0 c1 c2"
+>
+  <div
+    class="c3 c4"
+  >
+    <div
+      class="c0"
+    >
+      <div
+        class="c5"
+        color="text.slightlyMuted"
+      >
+        Step 
+        2
+         of 
+        4
+      </div>
+      <div
+        class="c6"
+      >
+        Enroll New MFA Method
+      </div>
+    </div>
+  </div>
+  <div
+    class="c7"
+    kind="danger"
+  >
+    failed to add device
+  </div>
+  <div
+    class="c8"
+    color="text.main"
+  >
+    Multi-factor type
+  </div>
+  <div
+    class="c9"
+  >
+    <div
+      class="c0 c10"
+    >
+      <label
+        class="c11"
+      >
+        <input
+          checked=""
+          class="c12"
+          name="mfaType"
+          type="radio"
+          value="webauthn"
+        />
+        <span
+          class="c13"
+        >
+          Passkey or Security Key
+        </span>
+      </label>
+      <label
+        class="c11"
+      >
+        <input
+          class="c12"
+          name="mfaType"
+          type="radio"
+          value="otp"
+        />
+        <span
+          class="c13"
+        >
+          Authenticator App
+        </span>
+      </label>
+    </div>
+  </div>
+  <div
+    class="c14 c15"
+  >
+    <div
+      class="c16"
+    >
+      <span
+        class="c17"
+      >
+        <span
+          class="c18 icon icon-fingerprintsimple"
+        >
+          <svg
+            fill="currentColor"
+            height="24"
+            viewBox="0 0 24 24"
+            width="24"
+          >
+            <path
+              clip-rule="evenodd"
+              d="M10.1264 7.09652C11.1195 6.71717 12.2044 6.64823 13.2375 6.89884C14.2706 7.14945 15.2033 7.70779 15.9122 8.50001C16.1884 8.80869 16.1621 9.28283 15.8534 9.55904C15.5448 9.83525 15.0706 9.80893 14.7944 9.50026C14.2881 8.93439 13.6218 8.53557 12.8839 8.35656C12.146 8.17756 11.3711 8.2268 10.6617 8.49777C9.96462 8.76405 9.36312 9.23213 8.93383 9.84176C8.43452 10.7802 8.38127 11.5959 8.30971 12.6921C8.29564 12.9076 8.28086 13.134 8.26184 13.3743C8.14535 14.8463 7.85803 16.5799 6.45592 18.9225C6.2432 19.2779 5.78263 19.3936 5.42721 19.1809C5.0718 18.9681 4.95612 18.5076 5.16885 18.1521C6.42332 16.0562 6.66323 14.561 6.76651 13.256C6.78214 13.0585 6.79437 12.8593 6.80672 12.6582C6.87558 11.5365 6.94802 10.3567 7.63431 9.09119C7.64696 9.06786 7.66084 9.04522 7.67589 9.02337C8.27881 8.14779 9.13334 7.47588 10.1264 7.09652Z"
+              fill-rule="evenodd"
+            />
+            <path
+              d="M9.24916 4.21937C8.85849 4.35704 8.43019 4.15195 8.29252 3.76128C8.15485 3.37061 8.35995 2.94231 8.75061 2.80464C10.2214 2.28635 11.795 2.12816 13.3395 2.34331C14.884 2.55847 16.3544 3.14072 17.6275 4.04125C18.9007 4.94179 19.9394 6.13437 20.6566 7.51905C21.3739 8.90374 21.7488 10.4402 21.7499 11.9996C21.7511 14.0742 21.5203 16.1425 21.062 18.1658C20.9705 18.5698 20.5688 18.8231 20.1648 18.7316C19.7608 18.6401 19.5075 18.2384 19.599 17.8344C20.0327 15.9202 20.251 13.9634 20.2499 12.0007C20.248 9.34598 18.9286 6.7989 16.7613 5.26586C14.594 3.73284 11.7529 3.33706 9.24916 4.21937Z"
+            />
+            <path
+              d="M5.45674 4.77313C5.74238 4.47316 6.21711 4.46154 6.51708 4.74718C6.81609 5.03191 6.82232 5.51279 6.54008 5.81064C6.24734 6.12128 5.96861 6.44567 5.6997 6.77705C5.22735 7.35915 4.72407 8.05482 4.46255 8.63049C3.81632 10.053 4.09735 11.6882 3.72771 13.1806C3.51687 14.0318 3.1524 15.1819 2.9838 15.704C2.95342 15.7981 2.92285 15.8922 2.89187 15.986C2.76166 16.3793 2.33735 16.5925 1.94413 16.4623C1.55092 16.3321 1.33771 15.9077 1.4679 15.5145C1.57247 15.1976 1.67353 14.8795 1.77251 14.5608C1.94298 14.0118 2.14251 13.3416 2.27171 12.82C2.43969 12.1418 2.46871 11.5725 2.50028 10.9533C2.5066 10.8293 2.51303 10.7033 2.52069 10.5741C2.56636 9.80353 2.65788 8.97642 3.09687 8.01008C3.44208 7.25018 4.04889 6.43087 4.53494 5.83189C4.78379 5.52522 5.01254 5.26237 5.17928 5.07595C5.27053 4.97392 5.36244 4.87237 5.45674 4.77313Z"
+            />
+            <path
+              clip-rule="evenodd"
+              d="M16.4989 11.2501C16.9131 11.2496 17.2493 11.5849 17.2499 11.9992C17.2538 15.0296 16.6636 18.0315 15.5127 20.835C15.3554 21.2181 14.9173 21.4013 14.5341 21.2439C14.1509 21.0866 13.9678 20.6485 14.1251 20.2653C15.2016 17.6432 15.7536 14.8355 15.7499 12.0011C15.7493 11.5869 16.0847 11.2507 16.4989 11.2501Z"
+              fill-rule="evenodd"
+            />
+            <path
+              clip-rule="evenodd"
+              d="M10.675 18.8168C11.0524 18.9876 11.2199 19.4319 11.0491 19.8093C10.8529 20.243 10.6383 20.6682 10.4055 21.0848C10.2034 21.4463 9.74651 21.5757 9.38493 21.3736C9.02336 21.1715 8.89405 20.7146 9.09613 20.353C9.30832 19.9733 9.50377 19.586 9.68252 19.1909C9.85328 18.8136 10.2976 18.6461 10.675 18.8168Z"
+              fill-rule="evenodd"
+            />
+            <path
+              clip-rule="evenodd"
+              d="M11.9986 11.2501C12.4128 11.2494 12.7492 11.5846 12.7499 11.9988C12.7527 13.5797 12.5558 15.1545 12.164 16.686C12.0613 17.0873 11.6528 17.3294 11.2515 17.2267C10.8502 17.1241 10.6081 16.7155 10.7108 16.3142C11.0713 14.9051 11.2524 13.456 11.2499 12.0014C11.2492 11.5872 11.5844 11.2509 11.9986 11.2501Z"
+              fill-rule="evenodd"
+            />
+          </svg>
+        </span>
+      </span>
+      <span
+        class="c17"
+      >
+        <span
+          class="c18 icon icon-usbdrive"
+        >
+          <svg
+            fill="currentColor"
+            height="24"
+            viewBox="0 0 24 24"
+            width="24"
+          >
+            <path
+              d="M17.0301 5.96948C16.7372 5.67659 16.2624 5.67659 15.9695 5.96948C15.6766 6.26237 15.6766 6.73725 15.9695 7.03014L16.7281 7.78877C17.021 8.08166 17.4959 8.08166 17.7888 7.78877C18.0816 7.49588 18.0816 7.021 17.7888 6.72811L17.0301 5.96948Z"
+            />
+            <path
+              d="M8.96585 15.0346C9.59432 15.6631 10.6133 15.6631 11.2417 15.0346C11.8702 14.4062 11.8702 13.3872 11.2417 12.7587C10.6133 12.1303 9.59432 12.1303 8.96585 12.7587C8.33738 13.3872 8.33738 14.4062 8.96585 15.0346Z"
+            />
+            <path
+              clip-rule="evenodd"
+              d="M15.4782 2.59067L11.6295 6.43932C10.738 6.32356 9.8045 6.60808 9.11968 7.29289L2.96022 13.4524C1.78865 14.6239 1.78865 16.5234 2.96022 17.695L6.30388 21.0386C7.47545 22.2102 9.37494 22.2102 10.5465 21.0386L16.706 14.8792C17.3255 14.2596 17.6174 13.4365 17.5817 12.6252L21.5472 8.65971C22.3282 7.87866 22.3282 6.61233 21.5472 5.83128L18.3066 2.59067C17.5255 1.80962 16.2592 1.80962 15.4782 2.59067ZM20.4865 6.89194L17.2459 3.65133C17.0507 3.45607 16.7341 3.45607 16.5388 3.65133L13.1212 7.06898L13.1612 7.10897C13.2303 7.16668 13.2974 7.22799 13.3623 7.29289L16.706 10.6365C16.7709 10.7014 16.8322 10.7686 16.8899 10.8377L17.0689 11.0167L20.4865 7.59905C20.6818 7.40378 20.6818 7.0872 20.4865 6.89194ZM10.1803 8.35355C10.7201 7.8138 11.5689 7.77138 12.1572 8.22631L15.7726 11.8417C16.2275 12.43 16.1851 13.2788 15.6453 13.8185L9.48586 19.978C8.90007 20.5638 7.95032 20.5638 7.36454 19.978L4.02088 16.6343C3.4351 16.0485 3.4351 15.0988 4.02088 14.513L10.1803 8.35355Z"
+              fill-rule="evenodd"
+            />
+          </svg>
+        </span>
+      </span>
+      <span
+        class="c17"
+      >
+        <span
+          class="c18 icon icon-userfocus"
+        >
+          <svg
+            fill="currentColor"
+            height="24"
+            viewBox="0 0 24 24"
+            width="24"
+          >
+            <path
+              d="M16.875 3C16.4608 3 16.125 3.33579 16.125 3.75C16.125 4.16421 16.4608 4.5 16.875 4.5L19.5 4.5V7.125C19.5 7.53921 19.8358 7.875 20.25 7.875C20.6642 7.875 21 7.53921 21 7.125V4.5C21 4.10218 20.842 3.72065 20.5607 3.43934C20.2794 3.15804 19.8978 3 19.5 3H16.875Z"
+            />
+            <path
+              d="M21 16.875C21 16.4608 20.6642 16.125 20.25 16.125C19.8358 16.125 19.5 16.4608 19.5 16.875V19.5H16.875C16.4608 19.5 16.125 19.8358 16.125 20.25C16.125 20.6642 16.4608 21 16.875 21H19.5C19.8978 21 20.2794 20.842 20.5607 20.5607C20.842 20.2794 21 19.8978 21 19.5V16.875Z"
+            />
+            <path
+              d="M3.75 16.125C4.16421 16.125 4.5 16.4608 4.5 16.875V19.5H7.125C7.53921 19.5 7.875 19.8358 7.875 20.25C7.875 20.6642 7.53921 21 7.125 21H4.5C4.10218 21 3.72065 20.842 3.43934 20.5607C3.15804 20.2794 3 19.8978 3 19.5V16.875C3 16.4608 3.33579 16.125 3.75 16.125Z"
+            />
+            <path
+              d="M4.5 3C4.10217 3 3.72064 3.15804 3.43934 3.43934C3.15804 3.72064 3 4.10217 3 4.5V7.125C3 7.53921 3.33579 7.875 3.75 7.875C4.16421 7.875 4.5 7.53921 4.5 7.125L4.5 4.5L7.125 4.5C7.53921 4.5 7.875 4.16421 7.875 3.75C7.875 3.33579 7.53921 3 7.125 3H4.5Z"
+            />
+            <path
+              clip-rule="evenodd"
+              d="M8.25 10.5C8.25 8.42893 9.92893 6.75 12 6.75C14.0711 6.75 15.75 8.42893 15.75 10.5C15.75 11.5981 15.278 12.5859 14.5259 13.2717C14.6355 13.319 14.7439 13.3695 14.851 13.423C15.7362 13.8656 16.5062 14.5083 17.1 15.3C17.3486 15.6314 17.2814 16.1015 16.95 16.35C16.6187 16.5985 16.1486 16.5314 15.9 16.2C15.446 15.5945 14.8571 15.1031 14.1802 14.7647C13.5033 14.4262 12.7569 14.25 12 14.25C11.2432 14.25 10.4968 14.4262 9.81988 14.7647C9.14296 15.1031 8.55414 15.5945 8.10004 16.2C7.85152 16.5314 7.38141 16.5985 7.05004 16.35C6.71867 16.1015 6.65152 15.6314 6.90004 15.3C7.49386 14.5083 8.26385 13.8656 9.14906 13.423C9.25613 13.3695 9.36453 13.3191 9.47413 13.2718C8.72198 12.5859 8.25 11.5981 8.25 10.5ZM12 8.25C10.7574 8.25 9.75 9.25736 9.75 10.5C9.75 11.7426 10.7574 12.75 12 12.75C13.2426 12.75 14.25 11.7426 14.25 10.5C14.25 9.25736 13.2426 8.25 12 8.25Z"
+              fill-rule="evenodd"
+            />
+          </svg>
+        </span>
+      </span>
+      <span
+        class="c17"
+      >
+        <span
+          class="c18 icon icon-devicemobilecamera"
+        >
+          <svg
+            fill="currentColor"
+            height="24"
+            viewBox="0 0 24 24"
+            width="24"
+          >
+            <path
+              clip-rule="evenodd"
+              d="M17.25 3.75C17.25 3.33579 16.9142 3 16.5 3H7.5C7.08579 3 6.75 3.33579 6.75 3.75V20.25C6.75 20.6642 7.08579 21 7.5 21H16.5C16.9142 21 17.25 20.6642 17.25 20.25V3.75ZM16.5 1.5C17.7426 1.5 18.75 2.50736 18.75 3.75V20.25C18.75 21.4926 17.7426 22.5 16.5 22.5H7.5C6.25736 22.5 5.25 21.4926 5.25 20.25V3.75C5.25 2.50736 6.25736 1.5 7.5 1.5H16.5Z"
+              fill-rule="evenodd"
+            />
+            <path
+              d="M12 6.5625C12.5178 6.5625 12.9375 6.14277 12.9375 5.625C12.9375 5.10723 12.5178 4.6875 12 4.6875C11.4822 4.6875 11.0625 5.10723 11.0625 5.625C11.0625 6.14277 11.4822 6.5625 12 6.5625Z"
+            />
+          </svg>
+        </span>
+      </span>
+      <div
+        class="c19"
+      >
+        You can use Touch ID, Face ID, Windows Hello, a hardware device, or an authenticator app as an MFA method.
+      </div>
+    </div>
+  </div>
+  <button
+    class="c20"
+    kind="primary"
+    width="100%"
+  >
+    Create an MFA method
+  </button>
 </div>
 `;

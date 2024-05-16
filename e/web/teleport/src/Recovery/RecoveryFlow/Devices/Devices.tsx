@@ -1,8 +1,11 @@
 import React, { useMemo } from 'react';
 import { Card, Text, Box, ButtonPrimary, Indicator } from 'design';
-import { Danger } from 'design/Alert';
 import MfaService from 'teleport/services/mfa';
 import MfaDeviceList, { RemoveDialog } from 'teleport/components/MfaDeviceList';
+
+import { StepHeader } from 'design/StepSlider';
+
+import { OutlineDanger } from 'design/Alert/Alert';
 
 import useDevices, { State, Props } from './useDevices';
 
@@ -30,51 +33,46 @@ export function Devices({
   );
 
   return (
-    <Card mx="auto" width="604px">
-      <Text typography="h3" pt={5} textAlign="center" color="text.main">
-        Device Successfully Enrolled
-      </Text>
-      <Text textAlign="center" color="text.slightlyMuted">
-        Step 3 of 4
-      </Text>
-      <Box p={5}>
-        <Text
-          typography="body2"
-          mb={3}
-          textAlign="center"
-          color="text.slightlyMuted"
-        >
-          Take a look at your enrolled devices below and remove any that you
-          don't need anymore.
-        </Text>
-        <Box>
-          {attempt.status === 'processing' && (
-            <Box textAlign="center">
-              <Indicator />
-            </Box>
-          )}
-          {attempt.status === 'failed' && (
-            <Danger m={0}>{attempt.statusText}</Danger>
-          )}
-          {attempt.status === 'success' && (
-            <MfaDeviceList
-              devices={devices}
-              remove={setDeviceToRemove}
-              mostRecentDevice={mostRecentDevice}
-              style={{ overflow: 'hidden', borderRadius: '8px' }}
-            />
-          )}
-        </Box>
-        <ButtonPrimary
-          mt={6}
-          size="large"
-          width="100%"
-          type="submit"
-          onClick={onNext}
-        >
-          Continue
-        </ButtonPrimary>
+    <Card mx="auto" width="604px" p={4}>
+      <Box mb={4}>
+        <StepHeader
+          stepIndex={2}
+          flowLength={4}
+          title="Device Successfully Enrolled"
+        />
       </Box>
+
+      <Text
+        typography="body2"
+        mb={3}
+        textAlign="center"
+        color="text.slightlyMuted"
+      >
+        Take a look at your enrolled devices below and remove any that you don't
+        need anymore.
+      </Text>
+      <Box mb={4}>
+        {attempt.status === 'processing' && (
+          <Box textAlign="center">
+            <Indicator />
+          </Box>
+        )}
+        {attempt.status === 'failed' && (
+          <OutlineDanger m={0}>{attempt.statusText}</OutlineDanger>
+        )}
+        {attempt.status === 'success' && (
+          <MfaDeviceList
+            devices={devices}
+            remove={setDeviceToRemove}
+            mostRecentDevice={mostRecentDevice}
+            style={{ overflow: 'hidden', borderRadius: '8px' }}
+          />
+        )}
+      </Box>
+      <ButtonPrimary size="large" width="100%" type="submit" onClick={onNext}>
+        Continue
+      </ButtonPrimary>
+
       {deviceToRemove && (
         <RemoveDialog
           onClose={closeDialog}
