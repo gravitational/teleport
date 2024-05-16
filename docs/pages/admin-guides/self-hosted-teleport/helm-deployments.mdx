@@ -1,38 +1,19 @@
 ---
-title: Guides for running Teleport using Helm
-description: How to install and configure Teleport in Kubernetes using Helm
-layout: tocless-doc
+title: Deploy Self-Hosted Teleport with Helm
+description: Learn how to use the `teleport-cluster` Helm chart on your cloud provider.
 ---
 
-The `teleport-cluster` Helm chart enables you deploy and manage a self-hosted,
-high-availability Teleport cluster. This chart launches the Teleport Auth
-Service, Teleport Proxy Service, and the Kubernetes infrastructure required to
-support these services. The guides in this section show you how to use the
-`teleport-cluster` Helm chart in your environment.
+{/*GENERATED MENU PAGE. DO NOT EDIT. RECREATE WITH THIS COMMAND:
+undefined*/}
 
-You do not need to deploy the Auth Service and Proxy Service on Kubernetes in
-order to protect a Kubernetes cluster with Teleport, and it is possible to
-enroll a Kubernetes cluster on Teleport Cloud or by running the Teleport
-Kubernetes Service on a Linux server. For instructions on enrolling a Kubernetes
-cluster with Teleport, read the [Kubernetes
-Access](../kubernetes-access/introduction.mdx) documentation.
+Learn how to use the `teleport-cluster` Helm chart on your cloud provider.
 
-## Helm deployment guides
-
-These guides show you how to set up a full self-hosted Teleport deployment using
-our `teleport-cluster` Helm chart.
-
-- [Deploy Teleport on Kubernetes](./helm-deployments/kubernetes-cluster.mdx): Run a Teleport cluster in a Kubernetes cluster using
-  the default configuration. This deployment is a great starting point to try a self-hosted 
-  Teleport with minimal resources. 
-- [HA AWS Teleport Cluster](./helm-deployments/aws.mdx): Running an HA Teleport cluster in Kubernetes using an AWS EKS Cluster
-- [HA Azure Teleport Cluster](./helm-deployments/azure.mdx): Running an HA Teleport cluster in Kubernetes using an Azure AKS Cluster
-- [HA GCP Teleport Cluster](./helm-deployments/gcp.mdx): Running an HA Teleport cluster in Kubernetes using a Google Cloud GKE Cluster
-- [DigitalOcean Kubernetes Cluster](./helm-deployments/digitalocean.mdx):
-  Running Teleport on DigitalOcean Kubernetes.
-- [Custom Teleport config](./helm-deployments/custom.mdx): Running a Teleport cluster in Kubernetes with a custom Teleport config
-
-## Migration Guides
-
-- [Migrating from v11 to v12](./helm-deployments/migration-v12.mdx)
-- [Kubernetes 1.25 and PSP removal](./helm-deployments/migration-kubernetes-1-25-psp.mdx)
+- [Running an HA Teleport cluster using AWS, EKS, and Helm](helm-deployments/aws.mdx): Install and configure an HA Teleport cluster using an AWS EKS cluster
+- [Running an HA Teleport cluster using Microsoft Azure, AKS, and Helm](helm-deployments/azure.mdx): Install and configure an HA Teleport cluster using a Microsoft Azure AKS cluster.
+- [Running Teleport with a Custom Configuration using Helm](helm-deployments/custom.mdx): Install and configure a Teleport cluster with a custom configuration using Helm
+- [Get started with Teleport on DigitalOcean Kubernetes](helm-deployments/digitalocean.mdx): How to get started with Teleport on DigitalOcean Kubernetes
+- [Running an HA Teleport cluster using GCP, GKE, and Helm](helm-deployments/gcp.mdx): Install and configure an HA Teleport cluster using a Google Cloud GKE cluster.
+- [Deploy Teleport on Kubernetes](helm-deployments/kubernetes-cluster.mdx): This guide shows you how to deploy Teleport on a Kubernetes cluster using Helm.
+- [Kubernetes 1.25 and PSP removal](helm-deployments/migration-kubernetes-1-25-psp.mdx): How to prepare for the PodSecurityPolicy removal happening in Kubernetes 1.25
+- [Migrating to teleport-cluster v12](helm-deployments/migration-v12.mdx): How to upgrade to teleport-cluster Helm chart version 12
+- [Guides for running Teleport using Helm](helm-deployments/overview.mdx): How to install and configure Teleport in Kubernetes using Helm

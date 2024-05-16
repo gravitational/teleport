@@ -1,70 +1,25 @@
 ---
 title: Protect Databases with Teleport
-description: Teleport database access introduction, demo and resources.
+description: How to enrolls databases in your Teleport cluster for secure access.
 ---
 
-Teleport can provide secure connections to your databases while improving both
-access control and visibility.
+{/*GENERATED MENU PAGE. DO NOT EDIT. RECREATE WITH THIS COMMAND:
+undefined*/}
 
-Some of the things you can do with database access:
+How to enrolls databases in your Teleport cluster for secure access.
 
-- Enable users to retrieve short-lived database certificates using a Single Sign-On
-  flow, thus maintaining their organization-wide identity.
-- Configure role-based access controls for databases and implement custom
-  [Access Request](../access-controls/access-requests.mdx) workflows.
-- Capture database activity in the Teleport audit log.
-
-## Demo
-
-Let's connect to a PostgreSQL server with `psql` and pgAdmin 4 after authenticating
-with GitHub, execute a few SQL queries and observe them in the audit log:
-
-<video
-  autoPlay
-  loop
-  muted
-  playsInline
-  controls
->
-  <source
-    src="../../img/database-access/dbaccessdemo.mp4"
-    type="video/mp4"
-  />
-
-  <source
-    src="../../img/database-access/dbaccessdemo.webm"
-    type="video/webm"
-  />
-
-  Your browser does not support the video tag.
-</video>
-
-## Getting started
-
-- [Getting started](./getting-started.mdx): Connect Aurora PostgreSQL in a 10
-  minute guide.
-
-(!docs/pages/includes/database-access/guides.mdx!)
-
-## Resources
-
-To learn more about configuring role-based access control for database access,
-check out the [RBAC](./rbac.mdx) section.
-
-Learn how to configure [automatic user
-provisioning](./auto-user-provisioning.mdx), which removes the need for creating
-individual user accounts in advance or using the same set of shared database
-accounts for all users.
-
-The [Architecture](./architecture.mdx) section provides a more in-depth look at
-Teleport Database Service internals such as networking and security.
-
-See [Reference](./reference.mdx) for an overview of
-database access-related configuration and CLI commands.
-
-If you hit any issues, check out the [Troubleshooting
-documentation](./troubleshooting.mdx) for common problems and solutions.
-
-## FAQ
-
-Finally, check out [Frequently Asked Questions](./faq.mdx).
+- [Database Access Architecture](database-access/architecture.mdx): How Teleport enables secure access to databases.
+- [Automatic Database User Provisioning](database-access/auto-user-provisioning.mdx): Create an ephemeral database user automatically when a Teleport user connects to a database for more secure access.
+- [Protect AWS Databases with Teleport](database-access/enroll-aws-databases.mdx): Learn how to use Teleport to protect databases hosted on AWS.
+- [Protect Azure Databases with Teleport](database-access/enroll-azure-databases.mdx): Learn how to use Teleport to protect databases hosted on Azure.
+- [Protect Google Cloud Databases with Teleport](database-access/enroll-google-cloud-databases.mdx): Learn how to use Teleport to protect databases hosted on Google Cloud.
+- [Protect Managed Databases with Teleport](database-access/enroll-managed-databases.mdx): Learn how to use Teleport to protect databases hosted as dedicated cloud services.
+- [Protect Self-Hosted Databases with Teleport](database-access/enroll-self-hosted-databases.mdx): Learn how to use Teleport to protect databases hosted on your own infrastructure.
+- [Database Access FAQ](database-access/faq.mdx): Frequently asked questions about Teleport database access.
+- [Database Access Getting Started Guide](database-access/getting-started.mdx): Getting started with Teleport database access and AWS Aurora PostgreSQL.
+- [Database Access Guides](database-access/guides.mdx): Guides for using the Teleport Database Service.
+- [Database Access](database-access/introduction.mdx): Teleport database access introduction, demo and resources.
+- [Protect Databases with Teleport](database-access/overview.mdx): Teleport database access introduction, demo and resources.
+- [Database Access RBAC](database-access/rbac.mdx): Role-based access control (RBAC) for Teleport database access.
+- [Database Access Reference](database-access/reference.mdx): How to configure the Teleport Database Service
+- [Troubleshooting Database Access](database-access/troubleshooting.mdx): Common issues and resolutions for Teleport's Database Access

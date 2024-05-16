@@ -1,0 +1,2 @@
+title: Configure Teleport as an Identity Provider
+description: Learn how to set up Teleport as an identity provider so users can authenticate to third-party applications using Teleport identities.

@@ -1,0 +1,2 @@
+title: Set up Single Sign-On with Teleport
+description: Allow Teleport users to authenticate with a Single Sign-On provider like Okta or GitHub.

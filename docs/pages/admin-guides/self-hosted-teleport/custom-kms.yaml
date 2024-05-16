@@ -1,0 +1,2 @@
+title: Use Teleport with a Custom Key Management System
+description: Get control over the private key material that the Teleport Auth Service uses to sign certificates with a custom KMS.

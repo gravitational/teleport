@@ -1,0 +1,24 @@
+---
+title: Self-Hosting Teleport
+description: Provides guides to hosting your own Teleport cluster
+---
+
+If your organization has specific security needs that make it prohibitive to use
+cloud-hosted Teleport Enterprise, you can host the Teleport Auth Service and
+Proxy Service on your own infrastructure. The guides in this section show you
+how to self-host a Teleport cluster. 
+
+For most organizations, we recommend using cloud-hosted Teleport Enterprise. If
+self-hosting Teleport is the only option, [contact the Teleport
+team](https://goteleport.com/contact-us/) for help architecting your self-hosted
+cluster.
+
+- [Teleport Single-Instance Deployment on AWS](./self-hosted-teleport/aws-starter-cluster-terraform.mdx)
+- [Teleport in High Availability Mode on AWS](./self-hosted-teleport/aws-ha-autoscale-cluster-terraform.mdx)
+- [Deploy a Self-Hosted Teleport Cluster with Helm](./self-hosted-teleport/helm-deployments.mdx)
+
+As you plan to deploy a self-hosted cluster, read the following guides for
+additonal considerations:
+
+- [Scaling](./self-hosted-teleport/scaling.mdx)
+- [Using a Custom Key Management Service](./self-hosted-teleport/custom-kms.mdx)

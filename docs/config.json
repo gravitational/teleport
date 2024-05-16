@@ -40,7 +40,7 @@
         },
         {
           "title": "All Topics",
-          "slug": "/user-guides/all-topics/"
+          "slug": "/user-guides/"
         }
       ]
     },
@@ -54,7 +54,7 @@
         },
         {
           "title": "Set up Single Sign-On",
-          "slug": "/admin-guides/sso/"
+          "slug": "/admin-guides/access-controls/authentication/sso/"
         },
         {
           "title": "Use Infrastructure as Code Tools",
@@ -62,7 +62,7 @@
         },
         {
           "title": "All Topics",
-          "slug": "/admin-guides/all-topics/"
+          "slug": "/admin-guides/"
         }
       ]
     },
@@ -84,7 +84,7 @@
         },
         {
           "title": "All Topics",
-          "slug": "/reference/all-topics/"
+          "slug": "/reference/"
         }
       ]
     }

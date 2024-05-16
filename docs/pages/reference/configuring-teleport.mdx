@@ -1,43 +1,18 @@
 ---
-title: Configuring Teleport
-description: Contains reference guides for setting up your Teleport cluster.
+title: Teleport Configuration References
+description: Comprehensive reference guides for configuration fields, including both static and dynamic configurations.
 ---
 
-There are two ways to configure a Teleport cluster: 
-- **Dynamic resources:** Configuration objects that administrators can apply
-  remotely and change without restarting Teleport. You can manage dynamic
-  resources with [Infrastructure as Code
-  tools](../admin-guides/infrastructure-as-code.mdx).
-- **Static configuration files:** Files that a Teleport process reads on
-  startup. Teleport agents, Auth Service instances, and Proxy Service instances
-  read static configuration files, though Auth Service and Proxy Service
-  configuration files are only available to edit in self-hosted Teleport
-  clusters.
+{/*GENERATED MENU PAGE. DO NOT EDIT. RECREATE WITH THIS COMMAND:
+undefined*/}
 
-## Static configuration files
+Comprehensive reference guides for configuration fields, including both static and dynamic configurations.
 
-Read the [Configuration Reference](./configuring-teleport/config.mdx) for a
-guide to static configuration fields.
-
-## Dynamic resources
-
-- [Terraform Provider
-  Reference](./configuring-teleport//terraform-provider.mdx): Resources
-  available to manage with the Teleport Terraform provider.
-- [Predicate Language](.configuring-teleport/predicate-language.mdx):
-  Expressions available for filtering in role fields and `tsh` commands. 
-- [Dynamic Resource Reference](./configuring-teleport/resources.mdx): Resources
-  you can manage with `tctl`.
-- [Access Controls](./configuring-teleport/access-controls.mdx): A
-  comprehensive guide to the Teleport role resource.
-
-## Guides to resource concepts
-
-- [User Types](./configuring-teleport/user-types.mdx):
-  Explains the kinds of users available to manage in Teleport.
-- [Authentication](./configuring-teleport/authentication.mdx): Authentication
-  methods available in Teleport and configuration otpions available for managing
-  them.
-- [Join Methods](./configuring-teleport/join-methods.mdx): Methods for joining
-  Teleport agents and Proxy Service instances to a cluster.
-
+- [Teleport Access Controls Reference](configuring-teleport/access-controls.mdx): Explains the configuration settings that you can include in a Teleport role, which enables you to apply access controls for your infrastructure.
+- [Authentication options](configuring-teleport/authentication.mdx): A reference for Teleport's authentication connectors
+- [Teleport Configuration Reference](configuring-teleport/config.mdx): The detailed guide and reference documentation for configuring Teleport for SSH and Kubernetes access.
+- [Join Methods and Token Reference](configuring-teleport/join-methods.mdx): Describes the different ways to configure a Teleport to join a cluster.
+- [Predicate Language](configuring-teleport/predicate-language.mdx): How to use Teleport's predicate language to define filter conditions.
+- [Teleport Resource Reference](configuring-teleport/resources.mdx): Reference documentation for Teleport resources
+- [Terraform provider resources](configuring-teleport/terraform-provider.mdx): Terraform provider resources reference
+- [User Types](configuring-teleport/user-types.mdx): Describes the different types of Teleport users and their properties.

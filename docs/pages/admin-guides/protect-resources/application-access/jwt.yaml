@@ -1,0 +1,2 @@
+title: Protecting JWT Applications with Teleport
+description: Configure your Teleport cluster to issue JSON web tokens to enable secure connectivity to web applications.
