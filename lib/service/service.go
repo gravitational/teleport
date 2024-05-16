@@ -2337,7 +2337,7 @@ func (process *TeleportProcess) newAccessCache(cfg accesspoint.AccessCacheConfig
 }
 
 // newLocalCacheForNode returns new instance of access point configured for a local proxy.
-func (process *TeleportProcess) newLocalCacheForNode(clt authclient.ClientI, cacheName []string) (auth.NodeAccessPoint, error) {
+func (process *TeleportProcess) newLocalCacheForNode(clt authclient.ClientI, cacheName []string) (authclient.NodeAccessPoint, error) {
 	// if caching is disabled, return access point
 	if !process.Config.CachePolicy.Enabled {
 		return clt, nil
