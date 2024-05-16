@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -1214,7 +1215,7 @@ func newMockForwader(ctx context.Context, t *testing.T) *Forwarder {
 // mockCSRClient to intercept ProcessKubeCSR requests, record them and return a
 // stub response.
 type mockCSRClient struct {
-	auth.ClientI
+	authclient.ClientI
 
 	clock           clockwork.Clock
 	ca              *tlsca.CertAuthority
@@ -1406,7 +1407,7 @@ func newTestForwarder(ctx context.Context, cfg ForwarderConfig) *Forwarder {
 }
 
 type mockSemaphoreClient struct {
-	auth.ClientI
+	authclient.ClientI
 	sem   types.Semaphores
 	roles map[string]types.Role
 }

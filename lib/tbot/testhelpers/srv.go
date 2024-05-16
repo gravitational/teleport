@@ -124,7 +124,7 @@ func MakeAndRunTestAuthServer(t *testing.T, log utils.Logger, fc *config.FileCon
 // MakeDefaultAuthClient reimplements the bare minimum needed to create a
 // default root-level auth client for a Teleport server started by
 // MakeAndRunTestAuthServer.
-func MakeDefaultAuthClient(t *testing.T, log utils.Logger, fc *config.FileConfig) *auth.Client {
+func MakeDefaultAuthClient(t *testing.T, log utils.Logger, fc *config.FileConfig) *authclient.Client {
 	t.Helper()
 
 	cfg := servicecfg.MakeDefaultConfig()
@@ -170,7 +170,7 @@ func MakeDefaultAuthClient(t *testing.T, log utils.Logger, fc *config.FileConfig
 }
 
 // MakeBot creates a server-side bot and returns joining parameters.
-func MakeBot(t *testing.T, client *auth.Client, name string, roles ...string) *proto.CreateBotResponse {
+func MakeBot(t *testing.T, client *authclient.Client, name string, roles ...string) *proto.CreateBotResponse {
 	t.Helper()
 
 	bot, err := client.CreateBot(context.Background(), &proto.CreateBotRequest{

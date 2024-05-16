@@ -48,7 +48,7 @@ import (
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/types/secreports"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/devicetrust"
@@ -59,7 +59,7 @@ import (
 )
 
 // ResourceCreateHandler is the generic implementation of a resource creation handler
-type ResourceCreateHandler func(context.Context, *auth.Client, services.UnknownResource) error
+type ResourceCreateHandler func(context.Context, *authclient.Client, services.UnknownResource) error
 
 // ResourceKind is the string form of a resource, i.e. "oidc"
 type ResourceKind string
@@ -184,7 +184,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 
 // TryRun takes the CLI command as an argument (like "auth gen") and executes it
 // or returns match=false if 'cmd' does not belong to it
-func (rc *ResourceCommand) TryRun(ctx context.Context, cmd string, client *auth.Client) (match bool, err error) {
+func (rc *ResourceCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
 	switch cmd {
 	// tctl get
 	case rc.getCmd.FullCommand():
@@ -216,7 +216,7 @@ func (rc *ResourceCommand) GetRef() services.Ref {
 }
 
 // Get prints one or many resources of a certain type
-func (rc *ResourceCommand) Get(ctx context.Context, client *auth.Client) error {
+func (rc *ResourceCommand) Get(ctx context.Context, client *authclient.Client) error {
 	if rc.refs.IsAll() {
 		return rc.GetAll(ctx, client)
 	}
@@ -242,7 +242,7 @@ func (rc *ResourceCommand) Get(ctx context.Context, client *auth.Client) error {
 	return trace.BadParameter("unsupported format")
 }
 
-func (rc *ResourceCommand) GetMany(ctx context.Context, client *auth.Client) error {
+func (rc *ResourceCommand) GetMany(ctx context.Context, client *authclient.Client) error {
 	if rc.format != teleport.YAML {
 		return trace.BadParameter("mixed resource types only support YAML formatting")
 	}
@@ -261,7 +261,7 @@ func (rc *ResourceCommand) GetMany(ctx context.Context, client *auth.Client) err
 	return nil
 }
 
-func (rc *ResourceCommand) GetAll(ctx context.Context, client *auth.Client) error {
+func (rc *ResourceCommand) GetAll(ctx context.Context, client *authclient.Client) error {
 	rc.withSecrets = true
 	allKinds := services.GetResourceMarshalerKinds()
 	allRefs := make([]services.Ref, 0, len(allKinds))
@@ -276,7 +276,7 @@ func (rc *ResourceCommand) GetAll(ctx context.Context, client *auth.Client) erro
 }
 
 // Create updates or inserts one or many resources
-func (rc *ResourceCommand) Create(ctx context.Context, client *auth.Client) (err error) {
+func (rc *ResourceCommand) Create(ctx context.Context, client *authclient.Client) (err error) {
 	var reader io.Reader
 	if rc.filename == "" {
 		reader = os.Stdin
@@ -321,7 +321,7 @@ func (rc *ResourceCommand) Create(ctx context.Context, client *auth.Client) (err
 }
 
 // createTrustedCluster implements `tctl create cluster.yaml` command
-func (rc *ResourceCommand) createTrustedCluster(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
+func (rc *ResourceCommand) createTrustedCluster(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	tc, err := services.UnmarshalTrustedCluster(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -359,7 +359,7 @@ func (rc *ResourceCommand) createTrustedCluster(ctx context.Context, client *aut
 }
 
 // createCertAuthority creates certificate authority
-func (rc *ResourceCommand) createCertAuthority(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
+func (rc *ResourceCommand) createCertAuthority(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	certAuthority, err := services.UnmarshalCertAuthority(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -372,7 +372,7 @@ func (rc *ResourceCommand) createCertAuthority(ctx context.Context, client *auth
 }
 
 // createGithubConnector creates a Github connector
-func (rc *ResourceCommand) createGithubConnector(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
+func (rc *ResourceCommand) createGithubConnector(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	connector, err := services.UnmarshalGithubConnector(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -398,7 +398,7 @@ func (rc *ResourceCommand) createGithubConnector(ctx context.Context, client *au
 }
 
 // createRole implements `tctl create role.yaml` command.
-func (rc *ResourceCommand) createRole(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
+func (rc *ResourceCommand) createRole(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	role, err := services.UnmarshalRole(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -475,7 +475,7 @@ func warnAboutDynamicLabelsInDenyRule(logger utils.Logger, r types.Role) {
 }
 
 // createUser implements `tctl create user.yaml` command.
-func (rc *ResourceCommand) createUser(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
+func (rc *ResourceCommand) createUser(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	user, err := services.UnmarshalUser(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -513,7 +513,7 @@ func (rc *ResourceCommand) createUser(ctx context.Context, client *auth.Client, 
 }
 
 // createAuthPreference implements `tctl create cap.yaml` command.
-func (rc *ResourceCommand) createAuthPreference(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
+func (rc *ResourceCommand) createAuthPreference(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	newAuthPref, err := services.UnmarshalAuthPreference(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -535,7 +535,7 @@ func (rc *ResourceCommand) createAuthPreference(ctx context.Context, client *aut
 }
 
 // createClusterNetworkingConfig implements `tctl create netconfig.yaml` command.
-func (rc *ResourceCommand) createClusterNetworkingConfig(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
+func (rc *ResourceCommand) createClusterNetworkingConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	newNetConfig, err := services.UnmarshalClusterNetworkingConfig(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -556,7 +556,7 @@ func (rc *ResourceCommand) createClusterNetworkingConfig(ctx context.Context, cl
 	return nil
 }
 
-func (rc *ResourceCommand) createClusterMaintenanceConfig(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
+func (rc *ResourceCommand) createClusterMaintenanceConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	var cmc types.ClusterMaintenanceConfigV1
 	if err := utils.FastUnmarshal(raw.Raw, &cmc); err != nil {
 		return trace.Wrap(err)
@@ -580,7 +580,7 @@ func (rc *ResourceCommand) createClusterMaintenanceConfig(ctx context.Context, c
 }
 
 // createSessionRecordingConfig implements `tctl create recconfig.yaml` command.
-func (rc *ResourceCommand) createSessionRecordingConfig(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
+func (rc *ResourceCommand) createSessionRecordingConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	newRecConfig, err := services.UnmarshalSessionRecordingConfig(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -602,7 +602,7 @@ func (rc *ResourceCommand) createSessionRecordingConfig(ctx context.Context, cli
 }
 
 // createExternalAuditStorage implements `tctl create external_audit_storage` command.
-func (rc *ResourceCommand) createExternalAuditStorage(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
+func (rc *ResourceCommand) createExternalAuditStorage(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	draft, err := services.UnmarshalExternalAuditStorage(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -623,7 +623,7 @@ func (rc *ResourceCommand) createExternalAuditStorage(ctx context.Context, clien
 }
 
 // createLock implements `tctl create lock.yaml` command.
-func (rc *ResourceCommand) createLock(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
+func (rc *ResourceCommand) createLock(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	lock, err := services.UnmarshalLock(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -649,7 +649,7 @@ func (rc *ResourceCommand) createLock(ctx context.Context, client *auth.Client, 
 }
 
 // createNetworkRestrictions implements `tctl create net_restrict.yaml` command.
-func (rc *ResourceCommand) createNetworkRestrictions(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
+func (rc *ResourceCommand) createNetworkRestrictions(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	newNetRestricts, err := services.UnmarshalNetworkRestrictions(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -662,7 +662,7 @@ func (rc *ResourceCommand) createNetworkRestrictions(ctx context.Context, client
 	return nil
 }
 
-func (rc *ResourceCommand) createWindowsDesktop(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
+func (rc *ResourceCommand) createWindowsDesktop(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	wd, err := services.UnmarshalWindowsDesktop(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -676,7 +676,7 @@ func (rc *ResourceCommand) createWindowsDesktop(ctx context.Context, client *aut
 	return nil
 }
 
-func (rc *ResourceCommand) createApp(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
+func (rc *ResourceCommand) createApp(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	app, err := services.UnmarshalApp(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -698,7 +698,7 @@ func (rc *ResourceCommand) createApp(ctx context.Context, client *auth.Client, r
 	return nil
 }
 
-func (rc *ResourceCommand) createKubeCluster(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
+func (rc *ResourceCommand) createKubeCluster(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	cluster, err := services.UnmarshalKubeCluster(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -720,7 +720,7 @@ func (rc *ResourceCommand) createKubeCluster(ctx context.Context, client *auth.C
 	return nil
 }
 
-func (rc *ResourceCommand) createDatabase(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
+func (rc *ResourceCommand) createDatabase(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	database, err := services.UnmarshalDatabase(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -743,7 +743,7 @@ func (rc *ResourceCommand) createDatabase(ctx context.Context, client *auth.Clie
 	return nil
 }
 
-func (rc *ResourceCommand) createToken(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
+func (rc *ResourceCommand) createToken(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	token, err := services.UnmarshalProvisionToken(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -757,7 +757,7 @@ func (rc *ResourceCommand) createToken(ctx context.Context, client *auth.Client,
 	return nil
 }
 
-func (rc *ResourceCommand) createInstaller(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
+func (rc *ResourceCommand) createInstaller(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	inst, err := services.UnmarshalInstaller(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -771,7 +771,7 @@ func (rc *ResourceCommand) createInstaller(ctx context.Context, client *auth.Cli
 	return nil
 }
 
-func (rc *ResourceCommand) createUIConfig(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
+func (rc *ResourceCommand) createUIConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	uic, err := services.UnmarshalUIConfig(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -785,7 +785,7 @@ func (rc *ResourceCommand) createUIConfig(ctx context.Context, client *auth.Clie
 
 }
 
-func (rc *ResourceCommand) createNode(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
+func (rc *ResourceCommand) createNode(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	server, err := services.UnmarshalServer(raw.Raw, types.KindNode)
 	if err != nil {
 		return trace.Wrap(err)
@@ -816,7 +816,7 @@ func (rc *ResourceCommand) createNode(ctx context.Context, client *auth.Client, 
 	return nil
 }
 
-func (rc *ResourceCommand) createOIDCConnector(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
+func (rc *ResourceCommand) createOIDCConnector(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	conn, err := services.UnmarshalOIDCConnector(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -841,7 +841,7 @@ func (rc *ResourceCommand) createOIDCConnector(ctx context.Context, client *auth
 	return nil
 }
 
-func (rc *ResourceCommand) createSAMLConnector(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
+func (rc *ResourceCommand) createSAMLConnector(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	// Create services.SAMLConnector from raw YAML to extract the connector name.
 	conn, err := services.UnmarshalSAMLConnector(raw.Raw)
 	if err != nil {
@@ -876,7 +876,7 @@ func (rc *ResourceCommand) createSAMLConnector(ctx context.Context, client *auth
 	return nil
 }
 
-func (rc *ResourceCommand) createLoginRule(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
+func (rc *ResourceCommand) createLoginRule(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	rule, err := loginrule.UnmarshalLoginRule(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -903,7 +903,7 @@ func (rc *ResourceCommand) createLoginRule(ctx context.Context, client *auth.Cli
 	return nil
 }
 
-func (rc *ResourceCommand) createSAMLIdPServiceProvider(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
+func (rc *ResourceCommand) createSAMLIdPServiceProvider(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	// Create services.SAMLIdPServiceProvider from raw YAML to extract the service provider name.
 	sp, err := services.UnmarshalSAMLIdPServiceProvider(raw.Raw)
 	if err != nil {
@@ -943,7 +943,7 @@ func (rc *ResourceCommand) createSAMLIdPServiceProvider(ctx context.Context, cli
 	return nil
 }
 
-func (rc *ResourceCommand) createDevice(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
+func (rc *ResourceCommand) createDevice(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	res, err := services.UnmarshalDevice(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -983,7 +983,7 @@ func (rc *ResourceCommand) createDevice(ctx context.Context, client *auth.Client
 	return nil
 }
 
-func (rc *ResourceCommand) createOktaImportRule(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
+func (rc *ResourceCommand) createOktaImportRule(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	importRule, err := services.UnmarshalOktaImportRule(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1008,7 +1008,7 @@ func (rc *ResourceCommand) createOktaImportRule(ctx context.Context, client *aut
 	return nil
 }
 
-func (rc *ResourceCommand) createIntegration(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
+func (rc *ResourceCommand) createIntegration(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	integration, err := services.UnmarshalIntegration(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1056,7 +1056,7 @@ func (rc *ResourceCommand) createIntegration(ctx context.Context, client *auth.C
 	return nil
 }
 
-func (rc *ResourceCommand) createDiscoveryConfig(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
+func (rc *ResourceCommand) createDiscoveryConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	discoveryConfig, err := services.UnmarshalDiscoveryConfig(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1081,7 +1081,7 @@ func (rc *ResourceCommand) createDiscoveryConfig(ctx context.Context, client *au
 	return nil
 }
 
-func (rc *ResourceCommand) createAccessList(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
+func (rc *ResourceCommand) createAccessList(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	accessList, err := services.UnmarshalAccessList(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1105,7 +1105,7 @@ func (rc *ResourceCommand) createAccessList(ctx context.Context, client *auth.Cl
 	return nil
 }
 
-func (rc *ResourceCommand) createServerInfo(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
+func (rc *ResourceCommand) createServerInfo(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	si, err := services.UnmarshalServerInfo(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1134,7 +1134,7 @@ func (rc *ResourceCommand) createServerInfo(ctx context.Context, client *auth.Cl
 }
 
 // Delete deletes resource by name
-func (rc *ResourceCommand) Delete(ctx context.Context, client *auth.Client) (err error) {
+func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client) (err error) {
 	singletonResources := []string{
 		types.KindClusterAuthPreference,
 		types.KindClusterMaintenanceConfig,
@@ -1497,7 +1497,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *auth.Client) (err
 	return nil
 }
 
-func resetAuthPreference(ctx context.Context, client *auth.Client) error {
+func resetAuthPreference(ctx context.Context, client *authclient.Client) error {
 	storedAuthPref, err := client.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1511,7 +1511,7 @@ func resetAuthPreference(ctx context.Context, client *auth.Client) error {
 	return trace.Wrap(client.ResetAuthPreference(ctx))
 }
 
-func resetClusterNetworkingConfig(ctx context.Context, client *auth.Client) error {
+func resetClusterNetworkingConfig(ctx context.Context, client *authclient.Client) error {
 	storedNetConfig, err := client.GetClusterNetworkingConfig(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1525,7 +1525,7 @@ func resetClusterNetworkingConfig(ctx context.Context, client *auth.Client) erro
 	return trace.Wrap(client.ResetClusterNetworkingConfig(ctx))
 }
 
-func resetSessionRecordingConfig(ctx context.Context, client *auth.Client) error {
+func resetSessionRecordingConfig(ctx context.Context, client *authclient.Client) error {
 	storedRecConfig, err := client.GetSessionRecordingConfig(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1539,12 +1539,12 @@ func resetSessionRecordingConfig(ctx context.Context, client *auth.Client) error
 	return trace.Wrap(client.ResetSessionRecordingConfig(ctx))
 }
 
-func resetNetworkRestrictions(ctx context.Context, client *auth.Client) error {
+func resetNetworkRestrictions(ctx context.Context, client *authclient.Client) error {
 	return trace.Wrap(client.DeleteNetworkRestrictions(ctx))
 }
 
 // Update updates select resource fields: expiry and labels
-func (rc *ResourceCommand) Update(ctx context.Context, clt *auth.Client) error {
+func (rc *ResourceCommand) Update(ctx context.Context, clt *authclient.Client) error {
 	if rc.ref.Kind == "" || rc.ref.Name == "" {
 		return trace.BadParameter("provide a full resource name to update, for example:\n$ tctl update rc/remote --set-labels=env=prod\n")
 	}
@@ -1601,7 +1601,7 @@ func (rc *ResourceCommand) IsForced() bool {
 }
 
 // getCollection lists all resources of a given type
-func (rc *ResourceCommand) getCollection(ctx context.Context, client *auth.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
 	if rc.ref.Kind == "" {
 		return nil, trace.BadParameter("specify resource to list, e.g. 'tctl get roles'")
 	}
@@ -2381,7 +2381,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *auth.Clien
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }
 
-func getSAMLConnectors(ctx context.Context, client *auth.Client, name string, withSecrets bool) ([]types.SAMLConnector, error) {
+func getSAMLConnectors(ctx context.Context, client *authclient.Client, name string, withSecrets bool) ([]types.SAMLConnector, error) {
 	if name == "" {
 		connectors, err := client.GetSAMLConnectors(ctx, withSecrets)
 		if err != nil {
@@ -2396,7 +2396,7 @@ func getSAMLConnectors(ctx context.Context, client *auth.Client, name string, wi
 	return []types.SAMLConnector{connector}, nil
 }
 
-func getOIDCConnectors(ctx context.Context, client *auth.Client, name string, withSecrets bool) ([]types.OIDCConnector, error) {
+func getOIDCConnectors(ctx context.Context, client *authclient.Client, name string, withSecrets bool) ([]types.OIDCConnector, error) {
 	if name == "" {
 		connectors, err := client.GetOIDCConnectors(ctx, withSecrets)
 		if err != nil {
@@ -2411,7 +2411,7 @@ func getOIDCConnectors(ctx context.Context, client *auth.Client, name string, wi
 	return []types.OIDCConnector{connector}, nil
 }
 
-func getGithubConnectors(ctx context.Context, client *auth.Client, name string, withSecrets bool) ([]types.GithubConnector, error) {
+func getGithubConnectors(ctx context.Context, client *authclient.Client, name string, withSecrets bool) ([]types.GithubConnector, error) {
 	if name == "" {
 		connectors, err := client.GetGithubConnectors(ctx, withSecrets)
 		if err != nil {
@@ -2570,7 +2570,7 @@ $ tctl rm %s`,
 		ref.String(), resDesc, strings.Join(names, "\n"), exampleRef.String())
 }
 
-func (rc *ResourceCommand) createAuditQuery(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
+func (rc *ResourceCommand) createAuditQuery(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	in, err := services.UnmarshalAuditQuery(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -2586,7 +2586,7 @@ func (rc *ResourceCommand) createAuditQuery(ctx context.Context, client *auth.Cl
 	return nil
 }
 
-func (rc *ResourceCommand) createSecurityReport(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
+func (rc *ResourceCommand) createSecurityReport(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	in, err := services.UnmarshalSecurityReport(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)

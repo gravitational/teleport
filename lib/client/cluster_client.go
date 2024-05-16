@@ -25,7 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	proxyclient "github.com/gravitational/teleport/api/client/proxy"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -34,7 +34,7 @@ import (
 type ClusterClient struct {
 	tc          *TeleportClient
 	ProxyClient *proxyclient.Client
-	AuthClient  auth.ClientI
+	AuthClient  authclient.ClientI
 	Tracer      oteltrace.Tracer
 	cluster     string
 	root        string
@@ -49,7 +49,7 @@ func (c *ClusterClient) ClusterName() string {
 // CurrentCluster returns an authenticated auth server client for the local cluster.
 // The returned auth server client does not need to be closed, it will be closed
 // when the ClusterClient is closed.
-func (c *ClusterClient) CurrentCluster() auth.ClientI {
+func (c *ClusterClient) CurrentCluster() authclient.ClientI {
 	// The auth.ClientI is wrapped in an sharedAuthClient to prevent callers from
 	// being able to close the client. The auth.ClientI is only to be closed
 	// when the ClusterClient is closed.
@@ -58,19 +58,19 @@ func (c *ClusterClient) CurrentCluster() auth.ClientI {
 
 // ConnectToRootCluster connects to the auth server of the root cluster
 // via proxy. It returns connected and authenticated auth server client.
-func (c *ClusterClient) ConnectToRootCluster(ctx context.Context) (auth.ClientI, error) {
+func (c *ClusterClient) ConnectToRootCluster(ctx context.Context) (authclient.ClientI, error) {
 	root, err := c.ConnectToCluster(ctx, c.root)
 	return root, trace.Wrap(err)
 }
 
 // ConnectToCluster connects to the auth server of the given cluster via proxy. It returns connected and authenticated auth server client
-func (c *ClusterClient) ConnectToCluster(ctx context.Context, clusterName string) (auth.ClientI, error) {
+func (c *ClusterClient) ConnectToCluster(ctx context.Context, clusterName string) (authclient.ClientI, error) {
 	if c.cluster == clusterName {
 		return c.CurrentCluster(), nil
 	}
 
 	clientConfig := c.ProxyClient.ClientConfig(ctx, clusterName)
-	authClient, err := auth.NewClient(clientConfig)
+	authClient, err := authclient.NewClient(clientConfig)
 	return authClient, trace.Wrap(err)
 }
 
@@ -128,7 +128,7 @@ func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, targe
 
 	mfaClt := c
 	if target.Cluster != rootClusterName {
-		authClient, err := auth.NewClient(c.ProxyClient.ClientConfig(ctx, rootClusterName))
+		authClient, err := authclient.NewClient(c.ProxyClient.ClientConfig(ctx, rootClusterName))
 		if err != nil {
 			return nil, trace.Wrap(MFARequiredUnknown(err))
 		}

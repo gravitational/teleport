@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -96,7 +97,7 @@ func (p *clusterPeers) NodeWatcher() (*services.NodeWatcher, error) {
 	return peer.NodeWatcher()
 }
 
-func (p *clusterPeers) GetClient() (auth.ClientI, error) {
+func (p *clusterPeers) GetClient() (authclient.ClientI, error) {
 	peer, err := p.pickPeer()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -204,7 +205,7 @@ func (s *clusterPeer) NodeWatcher() (*services.NodeWatcher, error) {
 	return nil, trace.ConnectionProblem(nil, "unable to fetch node watcher, this proxy %v has not been discovered yet, try again later", s)
 }
 
-func (s *clusterPeer) GetClient() (auth.ClientI, error) {
+func (s *clusterPeer) GetClient() (authclient.ClientI, error) {
 	return nil, trace.ConnectionProblem(nil, "unable to fetch client, this proxy %v has not been discovered yet, try again later", s)
 }
 
