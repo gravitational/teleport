@@ -238,6 +238,36 @@ export interface PromptMFAResponse {
      */
     totpCode: string;
 }
+/**
+ * Request for GetUsageReportingSettings.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.v1.GetUsageReportingSettingsRequest
+ */
+export interface GetUsageReportingSettingsRequest {
+}
+/**
+ * Response for GetUsageReportingSettings.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.v1.GetUsageReportingSettingsResponse
+ */
+export interface GetUsageReportingSettingsResponse {
+    /**
+     * @generated from protobuf field: teleport.lib.teleterm.v1.UsageReportingSettings usage_reporting_settings = 1;
+     */
+    usageReportingSettings?: UsageReportingSettings;
+}
+/**
+ * UsageReportingSettings contains information about usage reporting as understood by the Electron
+ * app.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.v1.UsageReportingSettings
+ */
+export interface UsageReportingSettings {
+    /**
+     * @generated from protobuf field: bool enabled = 1;
+     */
+    enabled: boolean;
+}
 // @generated message type with reflection information, may provide speed optimized methods
 class ReloginRequest$Type extends MessageType<ReloginRequest> {
     constructor() {
@@ -842,6 +872,124 @@ class PromptMFAResponse$Type extends MessageType<PromptMFAResponse> {
  * @generated MessageType for protobuf message teleport.lib.teleterm.v1.PromptMFAResponse
  */
 export const PromptMFAResponse = new PromptMFAResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class GetUsageReportingSettingsRequest$Type extends MessageType<GetUsageReportingSettingsRequest> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.GetUsageReportingSettingsRequest", []);
+    }
+    create(value?: PartialMessage<GetUsageReportingSettingsRequest>): GetUsageReportingSettingsRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<GetUsageReportingSettingsRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetUsageReportingSettingsRequest): GetUsageReportingSettingsRequest {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: GetUsageReportingSettingsRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.GetUsageReportingSettingsRequest
+ */
+export const GetUsageReportingSettingsRequest = new GetUsageReportingSettingsRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class GetUsageReportingSettingsResponse$Type extends MessageType<GetUsageReportingSettingsResponse> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.GetUsageReportingSettingsResponse", [
+            { no: 1, name: "usage_reporting_settings", kind: "message", T: () => UsageReportingSettings }
+        ]);
+    }
+    create(value?: PartialMessage<GetUsageReportingSettingsResponse>): GetUsageReportingSettingsResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<GetUsageReportingSettingsResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetUsageReportingSettingsResponse): GetUsageReportingSettingsResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* teleport.lib.teleterm.v1.UsageReportingSettings usage_reporting_settings */ 1:
+                    message.usageReportingSettings = UsageReportingSettings.internalBinaryRead(reader, reader.uint32(), options, message.usageReportingSettings);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: GetUsageReportingSettingsResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* teleport.lib.teleterm.v1.UsageReportingSettings usage_reporting_settings = 1; */
+        if (message.usageReportingSettings)
+            UsageReportingSettings.internalBinaryWrite(message.usageReportingSettings, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.GetUsageReportingSettingsResponse
+ */
+export const GetUsageReportingSettingsResponse = new GetUsageReportingSettingsResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class UsageReportingSettings$Type extends MessageType<UsageReportingSettings> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.UsageReportingSettings", [
+            { no: 1, name: "enabled", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+        ]);
+    }
+    create(value?: PartialMessage<UsageReportingSettings>): UsageReportingSettings {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.enabled = false;
+        if (value !== undefined)
+            reflectionMergePartial<UsageReportingSettings>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UsageReportingSettings): UsageReportingSettings {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* bool enabled */ 1:
+                    message.enabled = reader.bool();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: UsageReportingSettings, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* bool enabled = 1; */
+        if (message.enabled !== false)
+            writer.tag(1, WireType.Varint).bool(message.enabled);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.UsageReportingSettings
+ */
+export const UsageReportingSettings = new UsageReportingSettings$Type();
 /**
  * @generated ServiceType for protobuf service teleport.lib.teleterm.v1.TshdEventsService
  */
@@ -849,5 +997,6 @@ export const TshdEventsService = new ServiceType("teleport.lib.teleterm.v1.TshdE
     { name: "Relogin", options: {}, I: ReloginRequest, O: ReloginResponse },
     { name: "SendNotification", options: {}, I: SendNotificationRequest, O: SendNotificationResponse },
     { name: "SendPendingHeadlessAuthentication", options: {}, I: SendPendingHeadlessAuthenticationRequest, O: SendPendingHeadlessAuthenticationResponse },
-    { name: "PromptMFA", options: {}, I: PromptMFARequest, O: PromptMFAResponse }
+    { name: "PromptMFA", options: {}, I: PromptMFARequest, O: PromptMFAResponse },
+    { name: "GetUsageReportingSettings", options: {}, I: GetUsageReportingSettingsRequest, O: GetUsageReportingSettingsResponse }
 ]);
