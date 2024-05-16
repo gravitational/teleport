@@ -880,6 +880,19 @@ func (s *Service) UpdateAndDialTshdEventsServerAddress(serverAddress string) err
 	return nil
 }
 
+// TshdEventsClient returns the client if it was initialized earlied by calling
+// UpdateAndDialTshdEventsServerAddress, otherwise it returns an error.
+//
+// The startup of Connect is orchestrated in a way that makes it safe to call this method from any
+// RPC. Code inside daemon.Service should just use s.tshdEventsClient directly.
+func (s *Service) TshdEventsClient() (api.TshdEventsServiceClient, error) {
+	if s.tshdEventsClient == nil {
+		return nil, trace.NotFound("tshd events client has not been initialized yet")
+	}
+
+	return s.tshdEventsClient, nil
+}
+
 // NotifyApp sends a notification (usually an error) to the Electron App.
 func (s *Service) NotifyApp(ctx context.Context, notification *api.SendNotificationRequest) error {
 	tshdEventsCtx, cancelTshdEventsCtx := context.WithTimeout(ctx, tshdEventsTimeout)
