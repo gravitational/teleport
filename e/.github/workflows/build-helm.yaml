@@ -51,6 +51,14 @@ jobs:
         teleport-cluster
         teleport-kube-agent
         teleport-cluster/charts/teleport-operator
+        access/discord
+        access/pagerduty
+        access/msteams
+        access/jira
+        access/slack
+        access/mattermost
+        access/email
+        event-handler
     steps:
       - name: Checkout Teleport
         uses: gravitational/teleport.e/.github/actions/checkout-teleport@master

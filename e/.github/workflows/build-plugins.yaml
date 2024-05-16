@@ -1,0 +1,146 @@
+---
+name: Build Teleport Plugins
+
+on:
+  workflow_call:
+    inputs:
+      oss-teleport-repo:
+        description: The name of the OSS teleport repo to checkout.
+        type: string
+        default: gravitational/teleport
+
+      oss-teleport-ref:
+        description: Git SHA, tag or branch of the revision of OSS teleport to build.
+        type: string
+        required: true
+
+      teleport-version:
+        description: |
+          The semver version of Teleport version that we're building for.
+        type: string
+
+      environment:
+        description: |
+          GitHub Actions environment in which to run the build. Can be either
+          `build-stage` or `build-prod`.
+        type: string
+        default: build-stage
+
+jobs:
+  build-plugins:
+    runs-on: ubuntu-22.04-32core
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      ARTIFACT_DIRECTORY: /tmp/build
+    steps:
+      # Setup
+      - name: Checkout Teleport
+        uses: gravitational/teleport.e/.github/actions/checkout-teleport@master
+        with:
+          oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
+          oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
+          edition: oss  # We don't need teleport.e even when building enterprise AMI
+          repo-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
+          repo-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+          oss-fetch-depth: 0  # This is required by some of the commands in the makefiles
+          
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: "./go.mod"
+          check-latest: true
+
+      - name: Set environment variables for Makefiles
+        env:
+          VERSION_TAG: ${{ inputs.teleport-version || inputs.oss-teleport-ref }}
+        run: |
+          echo "VERSION=${VERSION_TAG##v}" >> "$GITHUB_ENV"
+
+      # File artifacts
+      - name: Build the release tarballs
+        run: |
+          # Download Go dependencies once
+          go mod download
+
+          # Build Binaries
+          make -C integrations/access/discord/ OS=linux ARCH=amd64 release
+          make -C integrations/access/email/ OS=linux ARCH=amd64 release
+          make -C integrations/access/jira/ OS=linux ARCH=amd64 release
+          make -C integrations/access/mattermost/ OS=linux ARCH=amd64 release
+          make -C integrations/access/msteams/ OS=linux ARCH=amd64 release
+          make -C integrations/access/pagerduty/ OS=linux ARCH=amd64 release
+          make -C integrations/access/slack/ OS=linux ARCH=amd64 release
+          
+          # Terraform provider and event handler, as appropriate
+          go install github.com/konoui/lipo@latest  # At some point this should be merged into the buildbox
+          make -C integrations/terraform release OS=linux ARCH=amd64
+          make -C integrations/terraform release OS=linux ARCH=arm64
+          make -C integrations/terraform release OS=darwin ARCH=amd64
+          make -C integrations/terraform release OS=darwin ARCH=arm64
+          make -C integrations/terraform release OS=darwin ARCH=universal
+          make -C integrations/event-handler release OS=darwin ARCH=amd64
+          make -C integrations/event-handler release OS=darwin ARCH=amd64
+
+      - name: Collect the build files
+        run: |
+          mkdir -pv "$ARTIFACT_DIRECTORY"
+          find . -name '*.tar.gz' -type f -exec cp {} "$ARTIFACT_DIRECTORY" \;
+
+      - name: Generate checksum files for built files
+        working-directory: ${{ env.ARTIFACT_DIRECTORY }}
+        run: |
+          shopt -s nullglob
+          for tarball in *.tar.gz; do
+            sha256sum "$(basename "$tarball")" > "${tarball}.sha256"
+          done
+          echo "Artifacts:"
+          ls -lh
+
+      - name: Assume AWS role for uploading the artifacts
+        uses: aws-actions/configure-aws-credentials@010d0da01d0b5a38af31e9c3470dbfdabdecca3a # v4.0.1
+        with:
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+          role-to-assume: ${{ vars.ARTIFACT_UPLOAD_AWS_ROLE }}
+          role-session-name: "tag-build-artifact-upload-${{ github.run_attempt }}"
+          role-duration-seconds: 900
+
+      - name: Upload artifacts to S3
+        working-directory: ${{ env.ARTIFACT_DIRECTORY }}
+        env:
+          PENDING_BUCKET: ${{ vars.ARTIFACT_SOURCE_BUCKET }}
+        run: |
+          aws s3 cp . "s3://$PENDING_BUCKET/teleport-plugins/tag/$VERSION/" --recursive
+
+      # Container artifacts
+      - name: Assume AWS role for pushing the container images
+        uses: aws-actions/configure-aws-credentials@010d0da01d0b5a38af31e9c3470dbfdabdecca3a # v4.0.1
+        with:
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+          role-to-assume: ${{ vars.OCI_ECR_AWS_ROLE }}
+          role-session-name: "tag-build-container-image-upload-${{ github.run_attempt }}"
+          role-duration-seconds: 900
+
+      - name: Authenticate with ECR
+        env:
+          CONTAINER_IMAGE_PRIVATE_REGISTRY: ${{ vars.ECR_PENDING_REPO_BASE }}
+        run: |
+          aws ecr get-login-password | docker login -u="AWS" --password-stdin "$CONTAINER_IMAGE_PRIVATE_REGISTRY"
+
+      - name: Build and push the container images
+        env:
+          DOCKER_IMAGE_BASE: ${{ vars.ECR_PENDING_REPO_BASE }}
+        run: |
+          # Access plugins and event handler
+          make -C integrations/access/discord/ OS=linux ARCH=amd64 docker-build
+          make -C integrations/access/email/ OS=linux ARCH=amd64 docker-build
+          make -C integrations/access/jira/ OS=linux ARCH=amd64 docker-build
+          make -C integrations/access/mattermost/ OS=linux ARCH=amd64 docker-build
+          make -C integrations/access/msteams/ OS=linux ARCH=amd64 docker-build
+          make -C integrations/access/pagerduty/ OS=linux ARCH=amd64 docker-build
+          make -C integrations/access/slack/ OS=linux ARCH=amd64 docker-build
+          make -C integrations/event-handler/ OS=linux ARCH=amd64 docker-build

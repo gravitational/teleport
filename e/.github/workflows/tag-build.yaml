@@ -47,6 +47,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.determine-version.outputs.full }}
+      is-latest-major: ${{ steps.determine-latest.outputs.is-latest }}
     steps:
       - name: Determine Teleport version
         id: determine-version
@@ -54,6 +55,11 @@ jobs:
         with:
           ref: ${{ inputs.oss-teleport-ref }}
           version: ${{ inputs.teleport-version }}
+      - name: Determine if this is the latest major version
+        id: determine-latest
+        uses: gravitational/teleport.e/.github/actions/latest-version@master
+        with:
+          check-version: ${{ steps.determine-version.outputs.full }}
       - name: Reject non-cloud prereleases being sent to production
         if: ${{ contains(inputs.environment, 'prod') && !contains(fromJson('["", "cloud"]'), steps.determine-version.outputs.pre-release) }}
         env:
@@ -270,4 +276,19 @@ jobs:
       oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
       oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
       source-tag: ${{ needs.setup.outputs.version }}
+      environment: ${{ inputs.environment }}
+
+  build-plugins:
+    name: Build Teleport Plugins
+    if: ${{ !inputs.cloud-only && needs.setup.outputs.is-latest-major}}
+    needs: setup
+    secrets: inherit
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/build-plugins.yaml
+    with:
+      oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
+      oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
+      teleport-version: ${{ needs.setup.outputs.version }}
       environment: ${{ inputs.environment }}

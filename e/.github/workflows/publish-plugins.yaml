@@ -1,0 +1,185 @@
+---
+name: Publish Teleport Plugins
+
+on:
+  workflow_call:
+    inputs:
+      oss-teleport-repo:
+        description: The name of the OSS teleport repo to checkout.
+        type: string
+        default: gravitational/teleport
+
+      oss-teleport-ref:
+        description: Git SHA, tag or branch of the revision of OSS teleport to build.
+        type: string
+        required: true
+
+      teleport-version:
+        description: |
+          The semver version of Teleport version that we're building for.
+        type: string
+
+      environment:
+        description: GitHub environment to publish to.
+        type: string
+        default: publish-stage
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    # Unfortuntely this cannot be set as a global env var as they are not evaluated until runtime
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      ARTIFACT_TAG: ${{ inputs.teleport-version }}
+      LOCAL_ARTIFACTS_PATH: /tmp/artifacts
+      LOCAL_TERRAFORM_REGISTRY_PATH: /tmp/terraform-registry
+      ENVIRONMENT_NAME: ${{ inputs.environment }}
+    steps:
+      # This is needed to download the Terraform promotion tool, and for makefiles
+      - name: Checkout Teleport
+        uses: gravitational/teleport.e/.github/actions/checkout-teleport@master
+        with:
+          oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
+          oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
+          edition: enterprise
+          repo-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
+          repo-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+
+      - name: Setup tooling Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: "./e/tooling/plugins/go.mod"
+          cache-dependency-path: "./e/tooling/plugins/go.sum"
+          check-latest: true
+
+      # Sync artifacts down (required by everything)
+      - name: Assume AWS role for uploading the artifacts
+        uses: aws-actions/configure-aws-credentials@010d0da01d0b5a38af31e9c3470dbfdabdecca3a # v4.0.1
+        with:
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+          role-to-assume: ${{ vars.ARTIFACT_DOWNLOAD_AWS_ROLE }}
+          role-session-name: "tag-publish-plugins-artifact-download-${{ github.run_attempt }}"
+          role-duration-seconds: 900
+
+      - name: Download artifacts from S3
+        env:
+          PENDING_BUCKET: ${{ vars.ARTIFACT_SOURCE_BUCKET }}
+        run: |
+          aws s3 cp "s3://$PENDING_BUCKET/teleport-plugins/tag/$ARTIFACT_TAG/" "$LOCAL_ARTIFACTS_PATH" --recursive
+
+      # Binary artifact promotion
+      # These will soon be replaced with release server steps
+      - name: Assume AWS role for uploading the artifacts
+        # This step is only supported in production as there is no staging version of Houston
+        if: ${{ inputs.environment == 'publish-prod' }}
+        uses: aws-actions/configure-aws-credentials@010d0da01d0b5a38af31e9c3470dbfdabdecca3a # v4.0.1
+        with:
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+          role-to-assume: ${{ vars.HOUSTON_UPLOAD_AWS_ROLE }}
+          role-session-name: "tag-publish-plugins-houston-upload-${{ github.run_attempt }}"
+          role-duration-seconds: 900
+
+      - name: Upload artifacts to Houston
+        # This step is only supported in production as there is no staging version of Houston
+        if: ${{ inputs.environment == 'publish-prod' }}
+        env:
+          HOUSTON_BUCKET: ${{ vars.HOUSTON_BUCKET }}
+        run: |
+          aws s3 sync --acl public-read "$LOCAL_ARTIFACTS_PATH" "s3://$HOUSTON_BUCKET/teleport-plugins/${ARTIFACT_TAG##v}/" \
+            --include "*" \
+            --exclude "*.tgz*"  # Exclude helm chart artifacts
+
+      # Image promotion
+      # This should all move to the distroless workflows at some point, which would also
+      # bring multiarch image support
+      - name: Assume AWS role for pulling the container images
+        uses: aws-actions/configure-aws-credentials@010d0da01d0b5a38af31e9c3470dbfdabdecca3a # v4.0.1
+        with:
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+          role-to-assume: ${{ vars.ECR_OCI_PENDING_PULL_ROLE_ARN }}
+          role-session-name: "tag-publish-plugins-container-image-pulling-${{ github.run_attempt }}"
+          role-duration-seconds: 900
+
+      - name: Authenticate with private ECR
+        env:
+          CONTAINER_IMAGE_PRIVATE_REGISTRY: ${{ vars.ECR_PENDING_REPO_BASE }}
+        run: |
+          aws ecr get-login-password | docker login -u="AWS" --password-stdin "$CONTAINER_IMAGE_PRIVATE_REGISTRY"
+
+      - name: Assume AWS role for pushing the container images
+        uses: aws-actions/configure-aws-credentials@010d0da01d0b5a38af31e9c3470dbfdabdecca3a # v4.0.1
+        with:
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+          role-to-assume: ${{ vars.ECR_OCI_PUSH_ROLE_ARN }}
+          role-session-name: "tag-publish-plugins-container-image-pushing-${{ github.run_attempt }}"
+          role-duration-seconds: 900
+
+      - name: Authenticate with public ECR
+        run: |
+          aws ecr-public get-login-password --region us-east-1 | docker login -u="AWS" --password-stdin public.ecr.aws
+
+      - name: Publish access and event-handler images
+        env:
+          CONTAINER_IMAGE_PRIVATE_REGISTRY: ${{ vars.ECR_PENDING_REPO_BASE }}
+          CONTAINER_IMAGE_PUBLIC_REGISTRY: ${{ vars.OCI_PUBLIC_REPO_BASE }}
+          PLUGIN_SUBDIRECTORIES: >-
+            access/discord
+            access/pagerduty
+            access/msteams
+            access/jira
+            access/slack
+            access/mattermost
+            access/email
+            event-handler
+        run: |
+          read -ra charts <<<"${PLUGIN_SUBDIRECTORIES}"
+          for plugin in "${plugins[@]}"; do
+            make -C "integrations/access/$plugin/" \
+              OS=linux ARCH=amd64 VERSION=${ARTIFACT_TAG##v} \
+              DOCKER_IMAGE_BASE="$CONTAINER_IMAGE_PRIVATE_REGISTRY" \
+              DOCKER_ECR_PUBLIC_REGISTRY="$CONTAINER_IMAGE_PUBLIC_REGISTRY" \
+              docker-publish
+          done
+
+      # Terraform promotion
+      - name: Assume AWS role for syncing the Terraform artifacts
+        uses: aws-actions/configure-aws-credentials@010d0da01d0b5a38af31e9c3470dbfdabdecca3a # v4.0.1
+        with:
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+          role-to-assume: ${{ vars.TERRAFORM_PUBLISHING_SYNC_AWS_ROLE }}
+          role-session-name: "tag-publish-plugins-terraform-publishing-sync-${{ github.run_attempt }}"
+          role-duration-seconds: 900
+
+      - name: Download the Terraform repo from S3
+        env:
+          TERRAFORM_REGISTRY_BUCKET: ${{ vars.TERRAFORM_REGISTRY_BUCKET }}
+        run: |
+          aws s3 cp "s3://$TERRAFORM_REGISTRY_BUCKET/" "$LOCAL_TERRAFORM_REGISTRY_PATH" --recursive
+
+      - name: Run the terraform-publish tool
+        env:
+          TERRAFORM_REGISTRY_URL: ${{ vars.TERRAFORM_REGISTRY_URL }}
+          SIGNING_KEY: ${{ secrets.TERRAFORM_SIGNING_KEY }}
+        run: |
+          go run -C e/tooling/plugins ./cmd/promote-terraform \
+            --tag "$ARTIFACT_TAG" \
+            --artifact-directory-path "$LOCAL_ARTIFACTS_PATH" \
+            --registry-directory-path "$LOCAL_TERRAFORM_REGISTRY_PATH" \
+            --protocol 6 \
+            --registry-url "$TERRAFORM_REGISTRY_URL" \
+            --namespace gravitational \
+            --name teleport
+
+      - name: Upload the Terraform repo to S3
+        env:
+          TERRAFORM_REGISTRY_BUCKET: ${{ vars.TERRAFORM_REGISTRY_BUCKET }}
+        run: |
+          aws s3 sync "$LOCAL_TERRAFORM_REGISTRY_PATH" "s3://$TERRAFORM_REGISTRY_BUCKET/"
