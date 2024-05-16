@@ -82,11 +82,7 @@ func (s *HandlerConfig) CheckAndSetDefaults(ctx context.Context) error {
 		s.Logger = slog.Default().With(teleport.ComponentKey, ComponentKey)
 	}
 	if s.getAccessToken == nil {
-		credProvider, err := findDefaultCredentialProvider(ctx, s.Logger)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		s.getAccessToken = getAccessTokenFromCredentialProvider(credProvider)
+		s.getAccessToken = lazyGetAccessTokenFromDefaultCredentialProvider(s.Logger)
 	}
 	return nil
 }
@@ -308,6 +304,8 @@ func (s *handler) getToken(ctx context.Context, managedIdentity string, scope st
 	select {
 	case <-timeoutChan:
 		return nil, trace.Wrap(context.DeadlineExceeded, "timeout waiting for access token for %v", getTokenTimeout)
+	case <-ctx.Done():
+		return nil, ctx.Err()
 	case <-cancelCtx.Done():
 		return tokenResult, errorResult
 	}
