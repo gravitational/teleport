@@ -16,7 +16,7 @@ COPY api/ api/
 RUN go mod download
 
 # Copy in code
-COPY version.go constants.go gitref.go ./
+COPY version.go constants.go ./
 COPY lib/ ./lib/
 COPY build.assets/images.mk build.assets/arch.mk ./build.assets/
 COPY integrations/lib/ ./integrations/lib/

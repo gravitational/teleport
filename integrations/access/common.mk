@@ -23,7 +23,10 @@ DOCKER_IMAGE_BASE = $(DOCKER_PRIVATE_REGISTRY)/gravitational
 DOCKER_IMAGE = $(DOCKER_IMAGE_BASE)/$(DOCKER_NAME):$(DOCKER_VERSION)
 DOCKER_ECR_PUBLIC_REGISTRY = public.ecr.aws/gravitational
 DOCKER_IMAGE_ECR_PUBLIC = $(DOCKER_ECR_PUBLIC_REGISTRY)/$(DOCKER_NAME):$(DOCKER_VERSION)
-DOCKER_BUILD_ARGS = --load --platform="$(OS)/$(ARCH)" --build-arg ACCESS_PLUGIN=$(ACCESS_PLUGIN) --VERSION=$(VERSION) --build-arg BUILDBOX=$(BUILDBOX)
+DOCKER_BUILD_ARGS = --load --platform="$(OS)/$(ARCH)" --build-arg ACCESS_PLUGIN=$(ACCESS_PLUGIN) --build-arg VERSION=$(VERSION) --build-arg BUILDBOX=$(BUILDBOX)
+# In staging
+# DOCKER_PRIVATE_REGISTRY = 603330915152.dkr.ecr.us-west-2.amazonaws.com
+# DOCKER_ECR_PUBLIC_REGISTRY = public.ecr.aws/gravitational-staging
 
 .PHONY: $(BINARY)
 $(BINARY):
@@ -60,3 +63,9 @@ docker-build: ## Build docker image with the plugin.
 .PHONY: docker-push
 docker-push: ## Push docker image with the plugin.
 	docker push ${DOCKER_IMAGE}
+
+.PHONY: docker-publish
+docker-publish: ## Publishes a docker image from the private ECR registry to the public one.
+	docker pull ${DOCKER_IMAGE}
+	docker tag ${DOCKER_IMAGE} ${DOCKER_IMAGE_ECR_PUBLIC}
+	docker push ${DOCKER_IMAGE_ECR_PUBLIC}
