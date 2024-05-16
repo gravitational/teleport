@@ -16,9 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package common
+package fido2
 
 import (
+	"context"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
@@ -31,42 +32,59 @@ import (
 	"github.com/go-webauthn/webauthn/protocol/webauthncbor"
 	"github.com/go-webauthn/webauthn/protocol/webauthncose"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 )
 
-type fido2Command struct {
-	diag   *fido2DiagCommand
-	attobj *fido2AttobjCommand
+// Command implements the "fido2" hidden/utility commands.
+type Command struct {
+	Diag   *DiagCommand
+	Attobj *AttobjCommand
 }
 
-func newFIDO2Command(app *kingpin.Application) *fido2Command {
-	root := &fido2Command{
-		diag:   &fido2DiagCommand{},
-		attobj: &fido2AttobjCommand{},
+// NewCommand creates a new [Command] instance.
+func NewCommand(app *kingpin.Application) *Command {
+	root := &Command{
+		Diag:   &DiagCommand{},
+		Attobj: &AttobjCommand{},
 	}
 
 	f2 := app.Command("fido2", "FIDO2 commands").Hidden()
 
 	diag := f2.Command("diag", "Run FIDO2 diagnostics").Hidden()
-	root.diag.CmdClause = diag
+	root.Diag.CmdClause = diag
 
 	attObj := f2.Command("attobj", "Parse a stored attestation object").Hidden()
 	attObj.
 		Arg("att-obj", "Attestation object encoded in base64 standard or RawURL").
 		Required().
-		StringVar(&root.attobj.attObjB64)
-	root.attobj.CmdClause = attObj
+		StringVar(&root.Attobj.attObjB64)
+	root.Attobj.CmdClause = attObj
 
 	return root
 }
 
-type fido2DiagCommand struct {
+// TryRun attempts to execute a "fido2" command. Used by tctl.
+func (c *Command) TryRun(ctx context.Context, selectedCommand string) (match bool, err error) {
+	switch selectedCommand {
+	case c.Diag.FullCommand():
+		return true, trace.Wrap(c.Diag.Run(ctx))
+	case c.Attobj.FullCommand():
+		return true, trace.Wrap(c.Attobj.Run())
+	default:
+		return false, nil
+	}
+}
+
+// DiagCommand implements the "fido2 diag" command.
+type DiagCommand struct {
 	*kingpin.CmdClause
 }
 
-func (*fido2DiagCommand) run(cf *CLIConf) error {
-	diag, err := wancli.FIDO2Diag(cf.Context, os.Stdout)
+// Run executes the "fido2 diag" command.
+func (*DiagCommand) Run(ctx context.Context) error {
+	diag, err := wancli.FIDO2Diag(ctx, os.Stdout)
 	// Abort if we got a nil diagnostic, otherwise print as much as we can.
 	if diag == nil {
 		return trace.Wrap(err)
@@ -82,13 +100,15 @@ func (*fido2DiagCommand) run(cf *CLIConf) error {
 	return trace.Wrap(err)
 }
 
-type fido2AttobjCommand struct {
+// AttobjCommand implements the "fido2 attobj" command.
+type AttobjCommand struct {
 	*kingpin.CmdClause
 
 	attObjB64 string
 }
 
-func (c *fido2AttobjCommand) run(_ *CLIConf) error {
+// Run executes the "fido2 attobj" command.
+func (c *AttobjCommand) Run() error {
 	var aoRaw []byte
 	for _, enc := range []*base64.Encoding{
 		base64.StdEncoding,

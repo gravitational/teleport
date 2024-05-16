@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -85,7 +86,7 @@ type server struct {
 
 	// localAuthClient provides access to the full Auth Server API for the
 	// local cluster.
-	localAuthClient auth.ClientI
+	localAuthClient authclient.ClientI
 	// localAccessPoint provides access to a cached subset of the Auth
 	// Server API.
 	localAccessPoint auth.ProxyAccessPoint
@@ -142,7 +143,7 @@ type Config struct {
 	// Limiter is optional request limiter
 	Limiter *limiter.Limiter
 	// LocalAuthClient provides access to a full AuthClient for the local cluster.
-	LocalAuthClient auth.ClientI
+	LocalAuthClient authclient.ClientI
 	// AccessPoint provides access to a subset of AuthClient of the cluster.
 	// AccessPoint caches values and can still return results during connection
 	// problems.
@@ -1289,7 +1290,7 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 // **WARNING**: Ensure that the version below matches the version in which backward incompatible
 // changes were introduced so that the cache is created successfully. Otherwise, the remote cache may
 // never become healthy due to unknown resources.
-func createRemoteAccessPoint(srv *server, clt auth.ClientI, version, domainName string) (auth.RemoteProxyAccessPoint, error) {
+func createRemoteAccessPoint(srv *server, clt authclient.ClientI, version, domainName string) (auth.RemoteProxyAccessPoint, error) {
 	ok, err := utils.MinVerWithoutPreRelease(version, utils.VersionBeforeAlpha("13.0.0"))
 	if err != nil {
 		return nil, trace.Wrap(err)

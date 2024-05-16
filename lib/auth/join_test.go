@@ -35,6 +35,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
+	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -372,7 +373,7 @@ func TestRegister_Bot(t *testing.T) {
 			start := srv.Clock().Now()
 			certs, err := Register(ctx, RegisterParams{
 				Token: test.token.GetName(),
-				ID: IdentityID{
+				ID: state.IdentityID{
 					Role: types.RoleBot,
 				},
 				AuthServers:  []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
@@ -475,7 +476,7 @@ func TestRegister_Bot_Expiry(t *testing.T) {
 
 			certs, err := Register(ctx, RegisterParams{
 				Token: tok.GetName(),
-				ID: IdentityID{
+				ID: state.IdentityID{
 					Role: types.RoleBot,
 				},
 				AuthServers:  []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},

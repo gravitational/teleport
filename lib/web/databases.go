@@ -35,7 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -437,7 +437,7 @@ func encodeCRLPEM(contents []byte) []byte {
 // that fetches the DatabaseClientCA if the auth service supports it or falls back
 // to the DatabaseCA if auth service does not support it.
 // TODO(gavin): DELETE IN 16.0.0
-func getCAForSQLServerConfigureADScript(ctx context.Context, clusterAPI auth.ClientI) (types.CertAuthority, error) {
+func getCAForSQLServerConfigureADScript(ctx context.Context, clusterAPI authclient.ClientI) (types.CertAuthority, error) {
 	domainName, err := clusterAPI.GetDomainName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)

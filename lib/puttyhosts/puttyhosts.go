@@ -31,7 +31,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/sshutils"
 )
@@ -175,7 +175,7 @@ func getAllHostCAs(tc *client.TeleportClient, cfContext context.Context) ([]type
 	var err error
 	// get all CAs for the cluster (including trusted clusters)
 	var cas []types.CertAuthority
-	err = tc.WithRootClusterClient(cfContext, func(clt auth.ClientI) error {
+	err = tc.WithRootClusterClient(cfContext, func(clt authclient.ClientI) error {
 		cas, err = clt.GetCertAuthorities(cfContext, types.HostCA, false /* exportSecrets */)
 		if err != nil {
 			return trace.Wrap(err)

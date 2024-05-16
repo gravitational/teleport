@@ -76,6 +76,24 @@ func onIntegrationConfEICEIAM(ctx context.Context, params config.IntegrationConf
 	return trace.Wrap(awsoidc.ConfigureEICEIAM(ctx, iamClient, confReq))
 }
 
+func onIntegrationConfEC2SSMIAM(ctx context.Context, params config.IntegrationConfEC2SSMIAM) error {
+	// Ensure we print output to the user. LogLevel at this point was set to Error.
+	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
+
+	awsClt, err := awsoidc.NewEC2SSMConfigureClient(ctx, params.Region)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	confReq := awsoidc.EC2SSMIAMConfigureRequest{
+		Region:          params.Region,
+		IntegrationRole: params.RoleName,
+		SSMDocumentName: params.SSMDocumentName,
+		ProxyPublicURL:  params.ProxyPublicURL,
+	}
+	return trace.Wrap(awsoidc.ConfigureEC2SSM(ctx, awsClt, confReq))
+}
+
 func onIntegrationConfAWSAppAccessIAM(ctx context.Context, params config.IntegrationConfAWSAppAccessIAM) error {
 	// Ensure we print output to the user. LogLevel at this point was set to Error.
 	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)

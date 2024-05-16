@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -745,7 +746,7 @@ func New(
 	dataDir string,
 	advertiseAddr string,
 	proxyPublicAddr utils.NetAddr,
-	auth auth.ClientI,
+	auth authclient.ClientI,
 	options ...ServerOption,
 ) (*Server, error) {
 	// read the host UUID:
