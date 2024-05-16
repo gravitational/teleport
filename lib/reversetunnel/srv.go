@@ -41,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -150,7 +149,7 @@ type Config struct {
 	LocalAccessPoint authclient.ProxyAccessPoint
 	// NewCachingAccessPoint returns new caching access points
 	// per remote cluster
-	NewCachingAccessPoint auth.NewRemoteProxyCachingAccessPoint
+	NewCachingAccessPoint authclient.NewRemoteProxyCachingAccessPoint
 	// Context is a signaling context
 	Context context.Context
 	// Clock is a clock used in the server, set up to
@@ -198,7 +197,7 @@ type Config struct {
 	// NewCachingAccessPointOldProxy is an access point that can be configured
 	// with the old access point policy until all clusters are migrated to 7.0.0
 	// and above.
-	NewCachingAccessPointOldProxy auth.NewRemoteProxyCachingAccessPoint
+	NewCachingAccessPointOldProxy authclient.NewRemoteProxyCachingAccessPoint
 
 	// PeerClient is a client to peer proxy servers.
 	PeerClient *peer.Client
