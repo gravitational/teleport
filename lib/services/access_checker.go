@@ -790,7 +790,7 @@ func (a *accessChecker) GetAllowedLoginsForResource(resource AccessCheckable) ([
 			}
 			// For Apps, only AWS currently supports listing the possible logins.
 			if !resourceAsApp.IsAWSConsole() {
-				return []string{}, nil
+				return nil, nil
 			}
 
 			loginGetter = role.GetAWSRoleARNs
