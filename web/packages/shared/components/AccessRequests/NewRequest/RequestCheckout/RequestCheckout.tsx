@@ -34,8 +34,8 @@ import {
   ArrowBack,
   ChevronDown,
   ChevronRight,
-  Trash,
   Warning,
+  Cross,
 } from 'design/Icon';
 import Table, { Cell } from 'design/DataTable';
 import { CheckboxInput, CheckboxWrapper } from 'design/Checkbox';
@@ -255,7 +255,7 @@ export function RequestCheckout({
                     altKey: 'delete-btn',
                     render: resource => (
                       <Cell align="right">
-                        <Trash
+                        <Cross
                           size="small"
                           borderRadius={2}
                           p={2}
