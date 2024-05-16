@@ -2352,7 +2352,7 @@ func (process *TeleportProcess) newLocalCacheForNode(clt authclient.ClientI, cac
 }
 
 // newLocalCacheForKubernetes returns new instance of access point configured for a kubernetes service.
-func (process *TeleportProcess) newLocalCacheForKubernetes(clt authclient.ClientI, cacheName []string) (auth.KubernetesAccessPoint, error) {
+func (process *TeleportProcess) newLocalCacheForKubernetes(clt authclient.ClientI, cacheName []string) (authclient.KubernetesAccessPoint, error) {
 	// if caching is disabled, return access point
 	if !process.Config.CachePolicy.Enabled {
 		return clt, nil
