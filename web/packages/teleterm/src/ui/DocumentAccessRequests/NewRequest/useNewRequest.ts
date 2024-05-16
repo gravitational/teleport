@@ -78,8 +78,6 @@ export default function useNewRequest() {
 
   const [page, setPage] = useState<Page>({ keys: [], index: 0 });
 
-  const [toResource, setToResource] = useState<string | null>(null);
-
   const retry = <T>(action: () => Promise<T>) =>
     retryWithRelogin(ctx, clusterUri, action);
 
@@ -196,12 +194,6 @@ export default function useNewRequest() {
     });
   }
 
-  function handleConfirmChangeResource(kind: ResourceKind) {
-    accessRequestsService.clearPendingAccessRequest();
-    updateResourceKind(kind);
-    setToResource(null);
-  }
-
   function addOrRemoveResource(
     kind: ResourceKind,
     resourceId: string,
@@ -309,9 +301,6 @@ export default function useNewRequest() {
     fetchStatus,
     updateQuery,
     updateSearch,
-    toResource,
-    handleConfirmChangeResource,
-    setToResource,
     onAgentLabelClick,
     selectedResource,
     updateResourceKind,

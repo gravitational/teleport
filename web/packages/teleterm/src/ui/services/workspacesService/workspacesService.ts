@@ -46,6 +46,7 @@ import {
 import {
   AccessRequestsService,
   getEmptyPendingAccessRequest,
+  PendingAccessRequest,
 } from './accessRequestsService';
 
 import {
@@ -187,6 +188,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
       this.accessRequestsServicesCache.set(
         clusterUri,
         new AccessRequestsService(
+          this.modalsService,
           () => {
             return this.state.workspaces[clusterUri].accessRequests;
           },

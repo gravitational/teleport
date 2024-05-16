@@ -25,9 +25,11 @@ import {
   KubeUri,
   AppUri,
 } from 'teleterm/ui/uri';
+import { ModalsService } from 'teleterm/ui/services/modals';
 
 export class AccessRequestsService {
   constructor(
+    private modalsService: ModalsService,
     private getState: () => {
       isBarCollapsed: boolean;
       pending: PendingAccessRequest;
@@ -76,6 +78,9 @@ export class AccessRequestsService {
     kind,
     resource,
   }: ResourceRequest): Promise<void> {
+    if (!(await this.canUpdateRequest('resource'))) {
+      return;
+    }
     this.setState(draftState => {
       if (draftState.pending.kind !== 'resource') {
         draftState.pending = {
@@ -106,6 +111,9 @@ export class AccessRequestsService {
   }
 
   async addOrRemoveRole(role: string): Promise<void> {
+    if (!(await this.canUpdateRequest('role'))) {
+      return;
+    }
     this.setState(draftState => {
       if (draftState.pending.kind !== 'role') {
         draftState.pending = {
@@ -121,6 +129,30 @@ export class AccessRequestsService {
         roles.add(role);
       }
     });
+  }
+
+  /**
+   * Combining role access request and resource access request is not allowed.
+   * If the user already has an item for one group, we need to ask
+   * if they want to clear the request before adding items from another group.
+   */
+  private async canUpdateRequest(
+    newRequestKind: 'resource' | 'role'
+  ): Promise<boolean> {
+    let shouldProceed = true;
+    if (
+      this.getState().pending.kind !== newRequestKind &&
+      this.getAddedResourceCount() > 0
+    ) {
+      shouldProceed = await new Promise(resolve =>
+        this.modalsService.openRegularDialog({
+          kind: 'change-access-request-kind',
+          onCancel: () => resolve(false),
+          onConfirm: () => resolve(true),
+        })
+      );
+    }
+    return shouldProceed;
   }
 }
 

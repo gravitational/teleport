@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
 import { Text, ButtonIcon, ButtonWarning } from 'design';
 import DialogConfirmation, {
   DialogContent,
@@ -26,51 +24,43 @@ import DialogConfirmation, {
 } from 'design/DialogConfirmation';
 import { Cross } from 'design/Icon';
 
-const updateSelectedResourceWarning =
-  'Resource Access Request cannot be combined with Role Access Request. The current items will be cleared. Are you sure you want to continue?';
-
-export default function ChangeResourceDialog({
-  toResource,
-  onClose,
+export function ChangeAccessRequestKind({
+  onCancel,
   onConfirm,
-}: Props) {
+}: {
+  onCancel(): void;
+  onConfirm(): void;
+}) {
   return (
     <DialogConfirmation
-      open={!!toResource}
-      onClose={onClose}
+      open={true}
+      onClose={onCancel}
       dialogCss={() => ({
         maxWidth: '400px',
         width: '100%',
       })}
     >
       <DialogHeader justifyContent="space-between" mb={0}>
-        <Text typography="h5" bold style={{ whiteSpace: 'nowrap' }}>
-          Remove selected resources?
+        <Text typography="h5" bold>
+          Replace selected resources?
         </Text>
-        <ButtonIcon onClick={onClose} color="text.slightlyMuted">
+        <ButtonIcon onClick={onCancel} color="text.slightlyMuted">
           <Cross size="small" />
         </ButtonIcon>
       </DialogHeader>
       <DialogContent mb={4}>
         <Text color="text.slightlyMuted" typography="body1">
-          {updateSelectedResourceWarning}
+          Resource Access Request cannot be combined with Role Access Request.
+          The current items will be cleared.
+          <br />
+          Do you want to continue?
         </Text>
       </DialogContent>
       <DialogFooter>
-        <ButtonWarning
-          size="large"
-          block={true}
-          onClick={() => onConfirm(toResource)}
-        >
+        <ButtonWarning size="large" block={true} onClick={onConfirm}>
           Confirm
         </ButtonWarning>
       </DialogFooter>
     </DialogConfirmation>
   );
 }
-
-type Props = {
-  toResource: string;
-  onClose: () => void;
-  onConfirm: (resource: string) => void;
-};

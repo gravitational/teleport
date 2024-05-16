@@ -35,7 +35,6 @@ import {
 } from 'teleterm/ui/services/workspacesService/accessRequestsService';
 
 import useNewRequest, { ResourceKind } from './useNewRequest';
-import ChangeResourceDialog from './ChangeResourceDialog';
 
 const agentOptions: ResourceOption[] = [
   { value: 'role', label: 'Roles' },
@@ -66,9 +65,6 @@ export function NewRequest() {
     updateSearch,
     selectedResource,
     customSort,
-    handleConfirmChangeResource,
-    toResource,
-    setToResource,
     fetchStatus,
     onAgentLabelClick,
     addedResources,
@@ -83,21 +79,6 @@ export function NewRequest() {
   } = useNewRequest();
 
   const requestStarted = addedItemsCount > 0;
-
-  function handleUpdateSelectedResource(kind: ResourceKind) {
-    const numAddedAgents = getNumAddedResources(addedResources);
-
-    const numAddedRoles = Object.keys(addedResources.role).length;
-
-    if (
-      (kind === 'role' && numAddedAgents > 0) ||
-      (kind !== 'role' && numAddedRoles > 0)
-    ) {
-      setToResource(kind);
-    } else {
-      updateResourceKind(kind);
-    }
-  }
 
   // Leaf clusters do not allow role requests, so we do not show that option in the UI if leaf
   const filteredAgentOptions = useMemo(
@@ -115,11 +96,6 @@ export function NewRequest() {
       {attempt.status === 'failed' && (
         <Alert kind="danger" children={attempt.statusText} />
       )}
-      <ChangeResourceDialog
-        toResource={toResource}
-        onClose={() => setToResource(null)}
-        onConfirm={handleConfirmChangeResource}
-      />
       <StyledMain>
         <Flex mt={3} mb={3}>
           {filteredAgentOptions.map(agent => (
@@ -128,7 +104,7 @@ export function NewRequest() {
               mr={6}
               p={1}
               active={selectedResource === agent.value}
-              onClick={() => handleUpdateSelectedResource(agent.value)}
+              onClick={() => updateResourceKind(agent.value)}
             >
               {agent.label}
             </StyledNavButton>

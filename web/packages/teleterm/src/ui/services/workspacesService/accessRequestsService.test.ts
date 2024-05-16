@@ -25,6 +25,7 @@ import {
   makeKube,
   makeDatabase,
 } from 'teleterm/services/tshd/testHelpers';
+import { ModalsService } from 'teleterm/ui/services/modals';
 
 import {
   AccessRequestsService,
@@ -67,11 +68,18 @@ function getTestSetup(pending: PendingAccessRequest) {
     isBarCollapsed: false,
     pending,
   };
+  jest.mock('../modals');
+  const ModalsServiceMock = ModalsService as jest.MockedClass<
+    typeof ModalsService
+  >;
+  const modalsService = new ModalsServiceMock();
   return {
     accessRequestsService: new AccessRequestsService(
+      modalsService,
       () => store.state,
       draftState => store.setState(draftState)
     ),
+    modalsService,
   };
 }
 
@@ -216,4 +224,77 @@ test('resources from different clusters but with the same ID can be combined in 
       },
     ],
   ]);
+});
+
+test('does not update the request when the user tries to mix roles with resources and does not agree to clear the current request', async () => {
+  const { accessRequestsService, modalsService } = getTestSetup(
+    getMockPendingRoleAccessRequest()
+  );
+
+  // Cancel the modal immediately.
+  jest.spyOn(modalsService, 'openRegularDialog').mockImplementation(dialog => {
+    if (dialog.kind === 'change-access-request-kind') {
+      dialog.onCancel();
+    } else {
+      throw new Error(`Got unexpected dialog ${dialog.kind}`);
+    }
+
+    return {
+      closeDialog: () => {},
+    };
+  });
+
+  const server1 = makeServer({
+    uri: `/clusters/${rootClusterUri}/servers/foo1`,
+    hostname: 'foo1',
+  });
+  await accessRequestsService.addOrRemoveResource({
+    kind: 'server',
+    resource: server1,
+  });
+
+  const pendingRequest = accessRequestsService.getPendingAccessRequest();
+  expect(
+    pendingRequest.kind === 'role' && Array.from(pendingRequest.roles.keys())
+  ).toStrictEqual(['admin']);
+});
+
+test('updates the request when the user tries to mix roles with resources and agrees to clear the current request', async () => {
+  const { accessRequestsService, modalsService } = getTestSetup(
+    getMockPendingRoleAccessRequest()
+  );
+
+  // Cancel the modal immediately.
+  jest.spyOn(modalsService, 'openRegularDialog').mockImplementation(dialog => {
+    if (dialog.kind === 'change-access-request-kind') {
+      dialog.onConfirm();
+    } else {
+      throw new Error(`Got unexpected dialog ${dialog.kind}`);
+    }
+
+    return {
+      closeDialog: () => {},
+    };
+  });
+
+  const server = makeServer({
+    uri: `/clusters/${rootClusterUri}/servers/foo1`,
+    hostname: 'foo1',
+  });
+  await accessRequestsService.addOrRemoveResource({
+    kind: 'server',
+    resource: server,
+  });
+
+  const pendingRequest = accessRequestsService.getPendingAccessRequest();
+  expect(
+    pendingRequest.kind === 'resource' &&
+      pendingRequest.resources.get(server.uri)
+  ).toStrictEqual({
+    kind: 'server',
+    resource: {
+      hostname: server.hostname,
+      uri: server.uri,
+    },
+  });
 });
