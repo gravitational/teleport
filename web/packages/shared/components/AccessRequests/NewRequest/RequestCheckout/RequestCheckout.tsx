@@ -245,11 +245,11 @@ export function RequestCheckout({
                 columns={[
                   {
                     key: 'kind',
-                    headerText: 'Resource Kind',
+                    headerText: 'Type',
                   },
                   {
                     key: 'name',
-                    headerText: 'Resource Name',
+                    headerText: 'Name',
                   },
                   {
                     altKey: 'delete-btn',
