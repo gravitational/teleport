@@ -85,7 +85,7 @@ type ConnectionsHandlerConfig struct {
 	AuthClient authclient.ClientI
 
 	// AccessPoint is a caching client connected to the Auth Server.
-	AccessPoint auth.AppsAccessPoint
+	AccessPoint authclient.AppsAccessPoint
 
 	// Cloud provides cloud provider access related functionality.
 	Cloud Cloud
