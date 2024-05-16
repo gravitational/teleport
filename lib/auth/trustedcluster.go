@@ -31,11 +31,11 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
 	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/events"
@@ -531,7 +531,7 @@ func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *Va
 	// export local cluster certificate authority and return it to the cluster
 	validateResponse := ValidateTrustedClusterResponse{}
 
-	validateResponse.CAs, err = getLeafClusterCAs(ctx, a, domainName, validateRequest)
+	validateResponse.CAs, err = getLeafClusterCAs(ctx, a, domainName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -542,16 +542,12 @@ func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *Va
 	return &validateResponse, nil
 }
 
-// getLeafClusterCAs returns a slice with Cert Authorities that should be returned in response to ValidateTrustedClusterRequest.
-func getLeafClusterCAs(ctx context.Context, srv *Server, domainName string, validateRequest *ValidateTrustedClusterRequest) ([]types.CertAuthority, error) {
-	certTypes, err := getCATypesForLeaf(validateRequest)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+var caTypes = []types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA, types.OpenSSHCA}
 
-	caCerts := make([]types.CertAuthority, 0, len(certTypes))
-
-	for _, caType := range certTypes {
+// getLeafClusterCAs returns a slice with Cert Authorities that should be returned.
+func getLeafClusterCAs(ctx context.Context, srv *Server, domainName string) ([]types.CertAuthority, error) {
+	caCerts := make([]types.CertAuthority, 0, len(caTypes))
+	for _, caType := range caTypes {
 		certAuthority, err := srv.GetCertAuthority(
 			ctx,
 			types.CertAuthID{Type: caType, DomainName: domainName},
@@ -563,32 +559,6 @@ func getLeafClusterCAs(ctx context.Context, srv *Server, domainName string, vali
 	}
 
 	return caCerts, nil
-}
-
-// getCATypesForLeaf returns the list of CA certificates that should be sync in response to ValidateTrustedClusterRequest.
-func getCATypesForLeaf(validateRequest *ValidateTrustedClusterRequest) ([]types.CertAuthType, error) {
-	var (
-		err                error
-		openSSHCASupported bool
-	)
-
-	if validateRequest.TeleportVersion != "" {
-		// (*ValidateTrustedClusterRequest).TeleportVersion was added in Teleport 10.0. If the request comes from an older
-		// cluster this field will be empty.
-		openSSHCASupported, err = utils.MinVerWithoutPreRelease(validateRequest.TeleportVersion, constants.OpenSSHCAMinVersion)
-		if err != nil {
-			return nil, trace.Wrap(err, "failed to parse Teleport version: %q", validateRequest.TeleportVersion)
-		}
-	}
-
-	certTypes := []types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA}
-	if openSSHCASupported {
-		// OpenSSH CA was introduced in Teleport 12.0. Do not send it to older clusters
-		// as they don't understand it.
-		certTypes = append(certTypes, types.OpenSSHCA)
-	}
-
-	return certTypes, nil
 }
 
 func (a *Server) validateTrustedClusterToken(ctx context.Context, tokenName string) (map[string]string, error) {
@@ -665,97 +635,13 @@ func (a *Server) sendValidateRequestToProxy(host string, validateRequest *Valida
 	return validateResponse, nil
 }
 
-type ValidateTrustedClusterRequest struct {
-	Token           string                `json:"token"`
-	CAs             []types.CertAuthority `json:"certificate_authorities"`
-	TeleportVersion string                `json:"teleport_version"`
-}
+type ValidateTrustedClusterRequest = authclient.ValidateTrustedClusterRequest
 
-func (v *ValidateTrustedClusterRequest) ToRaw() (*ValidateTrustedClusterRequestRaw, error) {
-	cas := [][]byte{}
+type ValidateTrustedClusterRequestRaw = authclient.ValidateTrustedClusterRequestRaw
 
-	for _, certAuthority := range v.CAs {
-		data, err := services.MarshalCertAuthority(certAuthority)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+type ValidateTrustedClusterResponse = authclient.ValidateTrustedClusterResponse
 
-		cas = append(cas, data)
-	}
-
-	return &ValidateTrustedClusterRequestRaw{
-		Token:           v.Token,
-		CAs:             cas,
-		TeleportVersion: v.TeleportVersion,
-	}, nil
-}
-
-type ValidateTrustedClusterRequestRaw struct {
-	Token           string   `json:"token"`
-	CAs             [][]byte `json:"certificate_authorities"`
-	TeleportVersion string   `json:"teleport_version"`
-}
-
-func (v *ValidateTrustedClusterRequestRaw) ToNative() (*ValidateTrustedClusterRequest, error) {
-	cas := []types.CertAuthority{}
-
-	for _, rawCertAuthority := range v.CAs {
-		certAuthority, err := services.UnmarshalCertAuthority(rawCertAuthority)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		cas = append(cas, certAuthority)
-	}
-
-	return &ValidateTrustedClusterRequest{
-		Token:           v.Token,
-		CAs:             cas,
-		TeleportVersion: v.TeleportVersion,
-	}, nil
-}
-
-type ValidateTrustedClusterResponse struct {
-	CAs []types.CertAuthority `json:"certificate_authorities"`
-}
-
-func (v *ValidateTrustedClusterResponse) ToRaw() (*ValidateTrustedClusterResponseRaw, error) {
-	cas := [][]byte{}
-
-	for _, certAuthority := range v.CAs {
-		data, err := services.MarshalCertAuthority(certAuthority)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		cas = append(cas, data)
-	}
-
-	return &ValidateTrustedClusterResponseRaw{
-		CAs: cas,
-	}, nil
-}
-
-type ValidateTrustedClusterResponseRaw struct {
-	CAs [][]byte `json:"certificate_authorities"`
-}
-
-func (v *ValidateTrustedClusterResponseRaw) ToNative() (*ValidateTrustedClusterResponse, error) {
-	cas := []types.CertAuthority{}
-
-	for _, rawCertAuthority := range v.CAs {
-		certAuthority, err := services.UnmarshalCertAuthority(rawCertAuthority)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		cas = append(cas, certAuthority)
-	}
-
-	return &ValidateTrustedClusterResponse{
-		CAs: cas,
-	}, nil
-}
+type ValidateTrustedClusterResponseRaw = authclient.ValidateTrustedClusterResponseRaw
 
 // activateCertAuthority will activate both the user and host certificate
 // authority given in the services.TrustedCluster resource.

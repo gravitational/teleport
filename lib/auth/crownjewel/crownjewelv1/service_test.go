@@ -180,7 +180,7 @@ type fakeChecker struct {
 
 func (f fakeChecker) CheckAccessToRule(_ services.RuleContext, _ string, resource string, verb string) error {
 	if resource == types.KindCrownJewel {
-		for slices.Contains(f.allowedVerbs, verb) {
+		if slices.Contains(f.allowedVerbs, verb) {
 			return nil
 		}
 	}

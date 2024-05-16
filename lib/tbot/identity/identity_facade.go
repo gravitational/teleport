@@ -129,18 +129,23 @@ func (f *Facade) TLSConfig() (*tls.Config, error) {
 			if f.insecure {
 				return nil
 			}
-			f.mu.RLock()
-			defer f.mu.RUnlock()
+			caPool := func() *x509.CertPool {
+				f.mu.RLock()
+				defer f.mu.RUnlock()
+				return f.identity.TLSCAPool
+			}()
 			opts := x509.VerifyOptions{
-				DNSName:       state.ServerName,
-				Intermediates: x509.NewCertPool(),
-				Roots:         f.identity.TLSCAPool,
+				DNSName: state.ServerName,
+				Roots:   caPool,
 			}
-			for _, cert := range state.PeerCertificates[1:] {
-				// Whilst we don't currently use intermediate certs at
-				// Teleport, including this here means that we are
-				// future-proofed in case we do.
-				opts.Intermediates.AddCert(cert)
+			if len(state.PeerCertificates) > 1 {
+				opts.Intermediates = x509.NewCertPool()
+				for _, cert := range state.PeerCertificates[1:] {
+					// Whilst we don't currently use intermediate certs at
+					// Teleport, including this here means that we are
+					// future-proofed in case we do.
+					opts.Intermediates.AddCert(cert)
+				}
 			}
 			_, err := state.PeerCertificates[0].Verify(opts)
 			return err

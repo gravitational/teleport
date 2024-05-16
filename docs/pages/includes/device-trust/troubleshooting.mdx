@@ -26,17 +26,10 @@ https://github.com/tpm2-software/tpm2-tss/blob/ede63dd1ac1f0a46029d457304edcac21
 
 ### App access and "access to this app requires a trusted device"
 
-A Teleport admin configured the particular app you are trying to access to
-require a trusted device.
+Follow the instructions in the [Web UI troubleshooting section](
+#web-ui-fails-to-authenticate-trusted-device) below (Teleport v16 or later).
 
-There are a few situations that might cause the error:
-
-1. You are trying to access the app using the Web UI.
-
-2. You are trying to access the app using an untrusted device.
-
-The Web UI is currently not capable of device authentication. To access apps
-protected by device trust you need to use one of the tsh commands described by
+Alternatively, you may use one of the tsh commands described by
 [App Access support](
 ../../access-controls/device-trust/enforcing-device-trust.mdx#app-access-support).
 For example, for an app called `myapp`, run `tsh proxy app myapp -p 8888`, then
@@ -46,3 +39,26 @@ If you are already running `tsh proxy app`, or using the certificates acquired
 from `tsh app login`, then it's likely your device isn't registered or enrolled.
 In this case, follow the advice from the [unauthorized device section](
 #unauthorized-device-errors-using-a-trusted-device) above.
+
+### Desktop access and "access to this app requires a trusted device"
+
+Follow the instructions in the [Web UI troubleshooting section](
+#web-ui-fails-to-authenticate-trusted-device) below.
+
+### Web UI fails to authenticate trusted device
+
+The Web UI attempts to authenticate your device using Teleport Connect during
+login. If you are not asked to authenticate your device immediately after login,
+follow the steps below:
+
+1. Make sure your device is [registered and enrolled](
+   ../../access-controls/device-trust/device-management.mdx#register-a-trusted-device)
+2. Install [Teleport Connect](
+   ../../connect-your-client/teleport-connect.mdx#installation--upgrade)
+3. Make sure Teleport Connect can access the same resource you are trying to
+   access on the Web
+4. Ask your cluster administrator if device trust is enabled (cluster mode
+   "optional" or higher)
+
+If all of the above steps are done, try logging out from the Web UI and logging
+in again.

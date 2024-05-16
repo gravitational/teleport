@@ -62,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -207,6 +208,7 @@ func newAuthSuite(t *testing.T) *testPack {
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
 	native.PrecomputeTestKeys(m)
+	modules.SetInsecureTestMode(true)
 	os.Exit(m.Run())
 }
 
@@ -3191,7 +3193,7 @@ func TestDeleteMFADeviceSync_lastDevice(t *testing.T) {
 		require.NoError(t, err, "UpsertAuthPreference")
 	}
 
-	deleteDevice := func(userClient *Client, testDev *TestDevice) error {
+	deleteDevice := func(userClient *authclient.Client, testDev *TestDevice) error {
 		// Issue and solve authn challenge.
 		authnChal, err := userClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 			Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{

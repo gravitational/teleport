@@ -24,6 +24,7 @@ import (
 	"context"
 	"crypto"
 	"fmt"
+	"os"
 	"runtime"
 	"sync"
 	"time"
@@ -290,7 +291,7 @@ type Modules interface {
 	Features() Features
 	// SetFeatures set features queried from Cloud
 	SetFeatures(Features)
-	// BuildType returns build type (OSS or Enterprise)
+	// BuildType returns build type (OSS, Community or Enterprise)
 	BuildType() string
 	// AttestHardwareKey attests a hardware key and returns its associated private key policy.
 	AttestHardwareKey(context.Context, interface{}, *keys.AttestationStatement, crypto.PublicKey, time.Duration) (*keys.AttestationData, error)
@@ -313,6 +314,10 @@ const (
 	BuildOSS = "oss"
 	// BuildEnterprise specifies enterprise build type
 	BuildEnterprise = "ent"
+	// BuildCommunity identifies builds of Teleport Community Edition,
+	// which are distributed on goteleport.com/download under our
+	// Teleport Community license agreement.
+	BuildCommunity = "community"
 )
 
 // SetModules sets the modules interface
@@ -331,17 +336,25 @@ func GetModules() Modules {
 
 // ValidateResource performs additional resource checks.
 func ValidateResource(res types.Resource) error {
+	// todo(lxea): DELETE IN 17 [remove env var, leave insecure test mode]
+	if GetModules().Features().Cloud ||
+		(os.Getenv(teleport.EnvVarAllowNoSecondFactor) != "yes" && !IsInsecureTestMode()) {
+
+		switch r := res.(type) {
+		case types.AuthPreference:
+			switch r.GetSecondFactor() {
+			case constants.SecondFactorOff, constants.SecondFactorOptional:
+				return trace.BadParameter("cannot disable two-factor authentication")
+			}
+		}
+	}
+
 	// All checks below are Cloud-specific.
 	if !GetModules().Features().Cloud {
 		return nil
 	}
 
 	switch r := res.(type) {
-	case types.AuthPreference:
-		switch r.GetSecondFactor() {
-		case constants.SecondFactorOff, constants.SecondFactorOptional:
-			return trace.BadParameter("cannot disable two-factor authentication on Cloud")
-		}
 	case types.SessionRecordingConfig:
 		switch r.GetMode() {
 		case types.RecordAtProxy, types.RecordAtProxySync:
@@ -359,9 +372,11 @@ type defaultModules struct {
 	loadDynamicValues sync.Once
 }
 
-// BuildType returns build type (OSS or Enterprise)
+var teleportBuildType = BuildOSS
+
+// BuildType returns build type (OSS, Community or Enterprise)
 func (p *defaultModules) BuildType() string {
-	return BuildOSS
+	return teleportBuildType
 }
 
 // PrintVersion prints the Teleport version.
@@ -436,3 +451,27 @@ var (
 	mutex   sync.Mutex
 	modules Modules = &defaultModules{}
 )
+
+var (
+	// flagLock protects access to accessing insecure test mode below
+	flagLock sync.Mutex
+
+	// insecureTestAllow is used to allow disabling second factor auth
+	// in test environments. Not user configurable.
+	insecureTestAllowNoSecondFactor bool
+)
+
+// SetInsecureTestMode is used to set insecure test mode on, to allow
+// second factor to be disabled
+func SetInsecureTestMode(m bool) {
+	flagLock.Lock()
+	defer flagLock.Unlock()
+	insecureTestAllowNoSecondFactor = m
+}
+
+// IsInsecureTestMode retrieves the current insecure test mode value
+func IsInsecureTestMode() bool {
+	flagLock.Lock()
+	defer flagLock.Unlock()
+	return insecureTestAllowNoSecondFactor
+}

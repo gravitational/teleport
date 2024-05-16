@@ -48,7 +48,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
@@ -136,7 +136,7 @@ type ReissueParams struct {
 	// It can be nil.
 	MFACheck *proto.IsMFARequiredResponse
 	// AuthClient is the client used for the MFACheck that can be reused
-	AuthClient auth.ClientI
+	AuthClient authclient.ClientI
 	// RequesterName identifies who is sending the cert reissue request.
 	RequesterName proto.UserCertsRequest_Requester
 }
@@ -229,7 +229,7 @@ type PromptMFAChallengeHandler func(ctx context.Context, proxyAddr string, c *pr
 // sharedAuthClient is a wrapper around auth.ClientI which
 // prevents the underlying client from being closed.
 type sharedAuthClient struct {
-	auth.ClientI
+	authclient.ClientI
 }
 
 // Close is a no-op
@@ -888,7 +888,7 @@ func (c *NodeClient) Close() error {
 }
 
 // GetPaginatedSessions grabs up to 'max' sessions.
-func GetPaginatedSessions(ctx context.Context, fromUTC, toUTC time.Time, pageSize int, order types.EventOrder, max int, authClient auth.ClientI) ([]apievents.AuditEvent, error) {
+func GetPaginatedSessions(ctx context.Context, fromUTC, toUTC time.Time, pageSize int, order types.EventOrder, max int, authClient authclient.ClientI) ([]apievents.AuditEvent, error) {
 	prevEventKey := ""
 	var sessions []apievents.AuditEvent
 	for {

@@ -65,6 +65,18 @@ endif
 		--terraform_out=config=protoc-gen-terraform-teleport.yaml:./tfschema \
 		teleport/legacy/types/types.proto
 
+	mv ./tfschema/github.com/gravitational/teleport/api/types/types_terraform.go ./tfschema/
+
+	@protoc \
+		-I=../../api/proto \
+		-I=$(PROTOBUF_MOD_PATH) \
+		--plugin=$(GENTERRAFORMPATH)/protoc-gen-terraform \
+		--terraform_out=config=protoc-gen-terraform-teleport-token.yaml:./tfschema \
+		teleport/legacy/types/types.proto
+
+	mkdir -p ./tfschema/token
+	mv ./tfschema/github.com/gravitational/teleport/api/types/types_terraform.go ./tfschema/token/
+
 	@protoc \
 		-I=../../api/proto \
 		-I=$(PROTOBUF_MOD_PATH) \
@@ -86,7 +98,6 @@ endif
 		--terraform_out=config=protoc-gen-terraform-accesslist.yaml:./tfschema \
 		teleport/accesslist/v1/accesslist.proto
 
-	mv ./tfschema/github.com/gravitational/teleport/api/types/types_terraform.go ./tfschema/
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1/loginrule_terraform.go ./tfschema/loginrule/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1/accesslist_terraform.go ./tfschema/accesslist/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/types/device_terraform.go ./tfschema/devicetrust/v1/

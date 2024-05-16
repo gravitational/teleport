@@ -28,6 +28,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"sort"
 	"sync/atomic"
 	"testing"
@@ -52,12 +53,14 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -88,6 +91,11 @@ func fakeClusterFeatures() proto.Features {
 	return proto.Features{
 		Kubernetes: true,
 	}
+}
+
+func TestMain(m *testing.M) {
+	modules.SetInsecureTestMode(true)
+	os.Exit(m.Run())
 }
 
 func TestAuthenticate(t *testing.T) {
@@ -1122,7 +1130,7 @@ func newMockForwader(ctx context.Context, t *testing.T) *Forwarder {
 // mockCSRClient to intercept ProcessKubeCSR requests, record them and return a
 // stub response.
 type mockCSRClient struct {
-	auth.ClientI
+	authclient.ClientI
 
 	clock           clockwork.Clock
 	ca              *tlsca.CertAuthority
@@ -1314,7 +1322,7 @@ func newTestForwarder(ctx context.Context, cfg ForwarderConfig) *Forwarder {
 }
 
 type mockSemaphoreClient struct {
-	auth.ClientI
+	authclient.ClientI
 	sem   types.Semaphores
 	roles map[string]types.Role
 }

@@ -22,6 +22,10 @@ import (
 	"testing"
 )
 
+func ptr[T any](v T) *T {
+	return &v
+}
+
 func TestSPIFFEWorkloadAPIService_YAML(t *testing.T) {
 	t.Parallel()
 
@@ -30,13 +34,29 @@ func TestSPIFFEWorkloadAPIService_YAML(t *testing.T) {
 			name: "full",
 			in: SPIFFEWorkloadAPIService{
 				Listen: "unix:///var/run/spiffe.sock",
-				SVIDs: []SVIDRequest{
+				SVIDs: []SVIDRequestWithRules{
 					{
-						Path: "/foo",
-						Hint: "hint",
-						SANS: SVIDRequestSANs{
-							DNS: []string{"example.com"},
-							IP:  []string{"10.0.0.1", "10.42.0.1"},
+						SVIDRequest: SVIDRequest{
+							Path: "/foo",
+							Hint: "hint",
+							SANS: SVIDRequestSANs{
+								DNS: []string{"example.com"},
+								IP:  []string{"10.0.0.1", "10.42.0.1"},
+							},
+						},
+						Rules: []SVIDRequestRule{
+							{
+								Unix: SVIDRequestRuleUnix{
+									PID: ptr(100),
+									UID: ptr(1000),
+									GID: ptr(1234),
+								},
+							},
+							{
+								Unix: SVIDRequestRuleUnix{
+									PID: ptr(100),
+								},
+							},
 						},
 					},
 				},
@@ -46,9 +66,11 @@ func TestSPIFFEWorkloadAPIService_YAML(t *testing.T) {
 			name: "minimal",
 			in: SPIFFEWorkloadAPIService{
 				Listen: "unix:///var/run/spiffe.sock",
-				SVIDs: []SVIDRequest{
+				SVIDs: []SVIDRequestWithRules{
 					{
-						Path: "/foo",
+						SVIDRequest: SVIDRequest{
+							Path: "/foo",
+						},
 					},
 				},
 			},
@@ -66,13 +88,15 @@ func TestSPIFFEWorkloadAPIService_CheckAndSetDefaults(t *testing.T) {
 			in: func() *SPIFFEWorkloadAPIService {
 				return &SPIFFEWorkloadAPIService{
 					Listen: "unix:///var/run/spiffe.sock",
-					SVIDs: []SVIDRequest{
+					SVIDs: []SVIDRequestWithRules{
 						{
-							Path: "/foo",
-							Hint: "hint",
-							SANS: SVIDRequestSANs{
-								DNS: []string{"example.com"},
-								IP:  []string{"10.0.0.1", "10.42.0.1"},
+							SVIDRequest: SVIDRequest{
+								Path: "/foo",
+								Hint: "hint",
+								SANS: SVIDRequestSANs{
+									DNS: []string{"example.com"},
+									IP:  []string{"10.0.0.1", "10.42.0.1"},
+								},
 							},
 						},
 					},
@@ -84,13 +108,15 @@ func TestSPIFFEWorkloadAPIService_CheckAndSetDefaults(t *testing.T) {
 			in: func() *SPIFFEWorkloadAPIService {
 				return &SPIFFEWorkloadAPIService{
 					Listen: "unix:///var/run/spiffe.sock",
-					SVIDs: []SVIDRequest{
+					SVIDs: []SVIDRequestWithRules{
 						{
-							Path: "",
-							Hint: "hint",
-							SANS: SVIDRequestSANs{
-								DNS: []string{"example.com"},
-								IP:  []string{"10.0.0.1", "10.42.0.1"},
+							SVIDRequest: SVIDRequest{
+								Path: "",
+								Hint: "hint",
+								SANS: SVIDRequestSANs{
+									DNS: []string{"example.com"},
+									IP:  []string{"10.0.0.1", "10.42.0.1"},
+								},
 							},
 						},
 					},
@@ -103,13 +129,15 @@ func TestSPIFFEWorkloadAPIService_CheckAndSetDefaults(t *testing.T) {
 			in: func() *SPIFFEWorkloadAPIService {
 				return &SPIFFEWorkloadAPIService{
 					Listen: "unix:///var/run/spiffe.sock",
-					SVIDs: []SVIDRequest{
+					SVIDs: []SVIDRequestWithRules{
 						{
-							Path: "foo",
-							Hint: "hint",
-							SANS: SVIDRequestSANs{
-								DNS: []string{"example.com"},
-								IP:  []string{"10.0.0.1", "10.42.0.1"},
+							SVIDRequest: SVIDRequest{
+								Path: "foo",
+								Hint: "hint",
+								SANS: SVIDRequestSANs{
+									DNS: []string{"example.com"},
+									IP:  []string{"10.0.0.1", "10.42.0.1"},
+								},
 							},
 						},
 					},
@@ -122,13 +150,15 @@ func TestSPIFFEWorkloadAPIService_CheckAndSetDefaults(t *testing.T) {
 			in: func() *SPIFFEWorkloadAPIService {
 				return &SPIFFEWorkloadAPIService{
 					Listen: "",
-					SVIDs: []SVIDRequest{
+					SVIDs: []SVIDRequestWithRules{
 						{
-							Path: "foo",
-							Hint: "hint",
-							SANS: SVIDRequestSANs{
-								DNS: []string{"example.com"},
-								IP:  []string{"10.0.0.1", "10.42.0.1"},
+							SVIDRequest: SVIDRequest{
+								Path: "foo",
+								Hint: "hint",
+								SANS: SVIDRequestSANs{
+									DNS: []string{"example.com"},
+									IP:  []string{"10.0.0.1", "10.42.0.1"},
+								},
 							},
 						},
 					},
@@ -141,13 +171,15 @@ func TestSPIFFEWorkloadAPIService_CheckAndSetDefaults(t *testing.T) {
 			in: func() *SPIFFEWorkloadAPIService {
 				return &SPIFFEWorkloadAPIService{
 					Listen: "unix:///var/run/spiffe.sock",
-					SVIDs: []SVIDRequest{
+					SVIDs: []SVIDRequestWithRules{
 						{
-							Path: "/foo",
-							Hint: "hint",
-							SANS: SVIDRequestSANs{
-								DNS: []string{"example.com"},
-								IP:  []string{"invalid ip"},
+							SVIDRequest: SVIDRequest{
+								Path: "/foo",
+								Hint: "hint",
+								SANS: SVIDRequestSANs{
+									DNS: []string{"example.com"},
+									IP:  []string{"invalid ip"},
+								},
 							},
 						},
 					},

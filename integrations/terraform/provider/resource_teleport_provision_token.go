@@ -34,7 +34,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/jonboulle/clockwork"
 
-	"github.com/gravitational/teleport/integrations/terraform/tfschema"
+	token "github.com/gravitational/teleport/integrations/terraform/tfschema/token"
 )
 
 // resourceTeleportProvisionTokenType is the resource metadata type
@@ -47,7 +47,7 @@ type resourceTeleportProvisionToken struct {
 
 // GetSchema returns the resource schema
 func (r resourceTeleportProvisionTokenType) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return tfschema.GenSchemaProvisionTokenV2(ctx)
+	return token.GenSchemaProvisionTokenV2(ctx)
 }
 
 // NewResource creates the empty resource
@@ -72,7 +72,7 @@ func (r resourceTeleportProvisionToken) Create(ctx context.Context, req tfsdk.Cr
 	}
 
 	provisionToken := &apitypes.ProvisionTokenV2{}
-	diags = tfschema.CopyProvisionTokenV2FromTerraform(ctx, plan, provisionToken)
+	diags = token.CopyProvisionTokenV2FromTerraform(ctx, plan, provisionToken)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -151,7 +151,7 @@ func (r resourceTeleportProvisionToken) Create(ctx context.Context, req tfsdk.Cr
 	}
 	provisionToken = provisionTokenResource
 
-	diags = tfschema.CopyProvisionTokenV2ToTerraform(ctx, provisionToken, &plan)
+	diags = token.CopyProvisionTokenV2ToTerraform(ctx, provisionToken, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -194,7 +194,7 @@ func (r resourceTeleportProvisionToken) Read(ctx context.Context, req tfsdk.Read
 	}
 	
 	provisionToken := provisionTokenI.(*apitypes.ProvisionTokenV2)
-	diags = tfschema.CopyProvisionTokenV2ToTerraform(ctx, provisionToken, &state)
+	diags = token.CopyProvisionTokenV2ToTerraform(ctx, provisionToken, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -222,7 +222,7 @@ func (r resourceTeleportProvisionToken) Update(ctx context.Context, req tfsdk.Up
 	}
 
 	provisionToken := &apitypes.ProvisionTokenV2{}
-	diags = tfschema.CopyProvisionTokenV2FromTerraform(ctx, plan, provisionToken)
+	diags = token.CopyProvisionTokenV2FromTerraform(ctx, plan, provisionToken)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -280,7 +280,7 @@ func (r resourceTeleportProvisionToken) Update(ctx context.Context, req tfsdk.Up
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading ProvisionToken", trace.Errorf("Can not convert %T to ProvisionTokenV2", provisionTokenI), "token"))
 		return
 	}
-	diags = tfschema.CopyProvisionTokenV2ToTerraform(ctx, provisionToken, &plan)
+	diags = token.CopyProvisionTokenV2ToTerraform(ctx, provisionToken, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -330,7 +330,7 @@ func (r resourceTeleportProvisionToken) ImportState(ctx context.Context, req tfs
 		return
 	}
 
-	diags = tfschema.CopyProvisionTokenV2ToTerraform(ctx, provisionTokenResource, &state)
+	diags = token.CopyProvisionTokenV2ToTerraform(ctx, provisionTokenResource, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return

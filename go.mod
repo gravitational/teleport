@@ -57,6 +57,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/glue v1.80.0
 	github.com/aws/aws-sdk-go-v2/service/iam v1.32.0
 	github.com/aws/aws-sdk-go-v2/service/rds v1.78.0
+	github.com/aws/aws-sdk-go-v2/service/redshift v1.44.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.53.1
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.28.6
 	github.com/aws/aws-sdk-go-v2/service/sns v1.29.4
@@ -169,7 +170,6 @@ require (
 	github.com/schollz/progressbar/v3 v3.14.2
 	github.com/scim2/filter-parser/v2 v2.2.0
 	github.com/segmentio/parquet-go v0.0.0-20230712180008-5d42db8f0d47
-	github.com/sethvargo/go-diceware v0.3.0
 	github.com/sigstore/cosign/v2 v2.2.4
 	github.com/sigstore/sigstore v1.8.3
 	github.com/sijms/go-ora/v2 v2.8.10
@@ -178,7 +178,6 @@ require (
 	github.com/spf13/cobra v1.8.0
 	github.com/spiffe/go-spiffe/v2 v2.2.0
 	github.com/stretchr/testify v1.9.0
-	github.com/tiktoken-go/tokenizer v0.1.0
 	github.com/ucarion/urlpath v0.0.0-20200424170820-7ccc79b76bbb
 	github.com/vulcand/predicate v1.2.0 // replaced
 	github.com/xanzy/go-gitlab v0.103.0
@@ -279,6 +278,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.9.6 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.11.7 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.17.5 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssm v1.50.0
 	github.com/aws/aws-sdk-go-v2/service/sso v1.20.5 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.23.4 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
@@ -308,7 +308,6 @@ require (
 	github.com/di-wu/parser v0.3.0 // indirect
 	github.com/di-wu/xsd-datetime v1.0.0 // indirect
 	github.com/digitorus/timestamp v0.0.0-20231217203849-220c5c2851b7 // indirect
-	github.com/dlclark/regexp2 v1.11.0 // indirect
 	github.com/dmarkham/enumer v1.5.9 // indirect
 	github.com/docker/cli v25.0.1+incompatible // indirect
 	github.com/docker/distribution v2.8.3+incompatible // indirect

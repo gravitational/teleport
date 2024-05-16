@@ -81,8 +81,9 @@ type AccessChecker interface {
 
 	// CheckAccessToSAMLIdP checks access to the SAML IdP.
 	//
+	// TODO(Joerger): make Access state non-variadic once /e is updated to provide it.
 	//nolint:revive // Because we want this to be IdP.
-	CheckAccessToSAMLIdP(types.AuthPreference) error
+	CheckAccessToSAMLIdP(types.AuthPreference, ...AccessState) error
 
 	// AdjustSessionTTL will reduce the requested ttl to lowest max allowed TTL
 	// for this role set, otherwise it returns ttl unchanged

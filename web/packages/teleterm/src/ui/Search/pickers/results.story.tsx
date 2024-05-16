@@ -21,6 +21,8 @@ import { makeSuccessAttempt } from 'shared/hooks/useAsync';
 
 import { Flex } from 'design';
 
+import { App } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
+
 import { routing } from 'teleterm/ui/uri';
 import {
   makeDatabase,
@@ -31,6 +33,7 @@ import {
   makeApp,
 } from 'teleterm/services/tshd/testHelpers';
 import { ResourceSearchError } from 'teleterm/ui/services/resources';
+import { getAppAddrWithProtocol } from 'teleterm/services/tshd/app';
 
 import { SearchResult } from '../searchResult';
 import { makeResourceResult } from '../testHelpers';
@@ -102,6 +105,11 @@ export const ResultsNarrow = () => {
   return <Results maxWidth="300px" />;
 };
 
+function makeAppWithAddr(props: Partial<App>) {
+  const app = makeApp(props);
+  return { ...app, addrWithProtocol: getAppAddrWithProtocol(app) };
+}
+
 const SearchResultItems = () => {
   const searchResults: SearchResult[] = [
     makeResourceResult({
@@ -168,11 +176,10 @@ const SearchResultItems = () => {
     }),
     makeResourceResult({
       kind: 'app',
-      resource: makeApp({
+      resource: makeAppWithAddr({
         uri: `${clusterUri}/apps/web-app`,
         name: 'web-app',
         endpointUri: 'http://localhost:3000',
-        addrWithProtocol: 'http://local-app.example.com:3000',
         desc: '',
         labels: makeLabelsList({
           access: 'cloudwatch-metrics,ec2,s3,cloudtrail',
@@ -185,11 +192,10 @@ const SearchResultItems = () => {
     }),
     makeResourceResult({
       kind: 'app',
-      resource: makeApp({
+      resource: makeAppWithAddr({
         uri: `${clusterUri}/apps/saml-app`,
         name: 'saml-app',
         endpointUri: '',
-        addrWithProtocol: '',
         samlApp: true,
         desc: 'SAML Application',
         labels: makeLabelsList({
@@ -203,7 +209,7 @@ const SearchResultItems = () => {
     }),
     makeResourceResult({
       kind: 'app',
-      resource: makeApp({
+      resource: makeAppWithAddr({
         uri: `${clusterUri}/apps/no-desc`,
         name: 'no-desc',
         desc: '',
@@ -218,7 +224,7 @@ const SearchResultItems = () => {
     }),
     makeResourceResult({
       kind: 'app',
-      resource: makeApp({
+      resource: makeAppWithAddr({
         uri: `${clusterUri}/apps/short-desc`,
         name: 'short-desc',
         desc: 'Lorem ipsum',
@@ -233,7 +239,7 @@ const SearchResultItems = () => {
     }),
     makeResourceResult({
       kind: 'app',
-      resource: makeApp({
+      resource: makeAppWithAddr({
         uri: `${clusterUri}/apps/long-desc`,
         name: 'long-desc',
         desc: 'Eget dignissim lectus nisi vitae nunc',
@@ -248,7 +254,7 @@ const SearchResultItems = () => {
     }),
     makeResourceResult({
       kind: 'app',
-      resource: makeApp({
+      resource: makeAppWithAddr({
         uri: `${clusterUri}/apps/super-long-desc`,
         name: 'super-long-desc',
         desc: 'Duis id tortor at purus tincidunt finibus. Mauris eu semper orci, non commodo lacus. Praesent sollicitudin magna id laoreet porta. Nunc lobortis varius sem vel fringilla.',
@@ -263,7 +269,7 @@ const SearchResultItems = () => {
     }),
     makeResourceResult({
       kind: 'app',
-      resource: makeApp({
+      resource: makeAppWithAddr({
         name: 'super-long-app-with-uuid-1f96e498-88ec-442f-a25b-569fa915041c',
         desc: 'short-desc',
         uri: `${longClusterUri}/apps/super-long-desc`,
@@ -528,7 +534,6 @@ const AuxiliaryItems = () => {
             errors={[
               new ResourceSearchError(
                 '/clusters/foo',
-                'server',
                 new Error(
                   '14 UNAVAILABLE: connection error: desc = "transport: authentication handshake failed: EOF"'
                 )
@@ -542,14 +547,12 @@ const AuxiliaryItems = () => {
             errors={[
               new ResourceSearchError(
                 '/clusters/bar',
-                'database',
                 new Error(
                   '2 UNKNOWN: Unable to connect to ssh proxy at teleport.local:443. Confirm connectivity and availability.\n	dial tcp: lookup teleport.local: no such host'
                 )
               ),
               new ResourceSearchError(
                 '/clusters/foo',
-                'server',
                 new Error(
                   '14 UNAVAILABLE: connection error: desc = "transport: authentication handshake failed: EOF"'
                 )

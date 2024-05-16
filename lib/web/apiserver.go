@@ -57,6 +57,7 @@ import (
 	"golang.org/x/mod/semver"
 	"golang.org/x/time/rate"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
@@ -64,6 +65,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
@@ -72,6 +74,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
@@ -215,7 +218,7 @@ type Config struct {
 	// DomainName is a domain name served by web handler
 	DomainName string
 	// ProxyClient is a client that authenticated as proxy
-	ProxyClient auth.ClientI
+	ProxyClient authclient.ClientI
 	// ProxySSHAddr points to the SSH address of the proxy
 	ProxySSHAddr utils.NetAddr
 	// ProxyKubeAddr points to the Kube address of the proxy
@@ -577,24 +580,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 			session.XCSRF = csrfToken
 
 			httplib.SetNoCacheHeaders(w.Header())
-
-			// DELETE IN 17.0: Delete the first if block. Keep the else case.
-			// Kept for backwards compatibility.
-			//
-			// This case only adds an additional CSP `content-src` value of the
-			// app URL which allows requesting to the app domain required by
-			// the legacy app access.
-			if strings.HasPrefix(r.URL.Path, "/web/launch/") {
-				// legacy app access needs to make a CORS fetch request,
-				// so we only set the default CSP on that page
-				parts := strings.Split(r.URL.Path, "/")
-				// grab the FQDN from the URL to allow in the connect-src CSP
-				applicationURL := "https://" + parts[3] + ":*"
-
-				httplib.SetAppLaunchContentSecurityPolicy(w.Header(), applicationURL)
-			} else {
-				httplib.SetIndexContentSecurityPolicy(w.Header(), cfg.ClusterFeatures, r.URL.Path)
-			}
+			httplib.SetIndexContentSecurityPolicy(w.Header(), cfg.ClusterFeatures, r.URL.Path)
 
 			if err := indexPage.Execute(w, session); err != nil {
 				h.log.WithError(err).Error("Failed to execute index page template.")
@@ -769,6 +755,8 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/connect/ws", h.WithClusterAuthWebSocket(true, h.siteNodeConnect))   // connect to an active session (via websocket, with auth over websocket)
 	h.GET("/webapi/sites/:site/sessions", h.WithClusterAuth(h.clusterActiveAndPendingSessionsGet)) // get list of active and pending sessions
 
+	h.GET("/webapi/sites/:site/kube/:clusterName/connect/ws", h.WithClusterAuthWebSocket(true, h.podConnect)) // connect to a pod with exec (via websocket, with auth over websocket)
+
 	// Audit events handlers.
 	h.GET("/webapi/sites/:site/events/search", h.WithClusterAuth(h.clusterSearchEvents))                 // search site events
 	h.GET("/webapi/sites/:site/events/search/sessions", h.WithClusterAuth(h.clusterSearchSessionEvents)) // search site session events
@@ -929,6 +917,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/scripts/integrations/configure/access-graph-cloud-sync-iam.sh", h.WithLimiter(h.accessGraphCloudSyncOIDC))
 	h.GET("/webapi/scripts/integrations/configure/aws-app-access-iam.sh", h.WithLimiter(h.awsOIDCConfigureAWSAppAccessIAM))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/aws-app-access", h.WithClusterAuth(h.awsOIDCCreateAWSAppAccess))
+	h.GET("/webapi/scripts/integrations/configure/ec2-ssm-iam.sh", h.WithLimiter(h.awsOIDCConfigureEC2SSMIAM))
 
 	// SAML IDP integration endpoints
 	h.GET("/webapi/scripts/integrations/configure/gcp-workforce-saml.sh", h.WithLimiter(h.gcpWorkforceConfigScript))
@@ -994,10 +983,17 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.PUT("/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.updateBot))
 	// Delete Machine ID bot
 	h.DELETE("/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.deleteBot))
+
+	// GET a paginated list of notifications for a user
+	h.GET("/webapi/sites/:site/notifications", h.WithClusterAuth(h.notificationsGet))
+	// Upsert the timestamp of the latest notification that the user has seen.
+	h.PUT("/webapi/sites/:site/lastseennotification", h.WithClusterAuth(h.notificationsUpsertLastSeenTimestamp))
+	// Upsert a notification state when to mark a notification as read or hide it.
+	h.PUT("/webapi/sites/:site/notificationstate", h.WithClusterAuth(h.notificationsUpsertNotificationState))
 }
 
 // GetProxyClient returns authenticated auth server client
-func (h *Handler) GetProxyClient() auth.ClientI {
+func (h *Handler) GetProxyClient() authclient.ClientI {
 	return h.cfg.ProxyClient
 }
 
@@ -1263,7 +1259,7 @@ func deviceTrustDisabled(cap types.AuthPreference) bool {
 	return dtconfig.GetEffectiveMode(cap.GetDeviceTrust()) == constants.DeviceTrustModeOff
 }
 
-func getAuthSettings(ctx context.Context, authClient auth.ClientI) (webclient.AuthenticationSettings, error) {
+func getAuthSettings(ctx context.Context, authClient authclient.ClientI) (webclient.AuthenticationSettings, error) {
 	authPreference, err := authClient.GetAuthPreference(ctx)
 	if err != nil {
 		return webclient.AuthenticationSettings{}, trace.Wrap(err)
@@ -1687,6 +1683,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	isTeam := clusterFeatures.GetProductType() == proto.ProductType_PRODUCT_TYPE_TEAM
 
 	webCfg := webclient.WebConfig{
+		Edition:                        modules.GetModules().BuildType(),
 		Auth:                           authSettings,
 		CanJoinSessions:                canJoinSessions,
 		IsCloud:                        clusterFeatures.GetCloud(),
@@ -2674,6 +2671,7 @@ func makeUnifiedResourceRequest(r *http.Request) (*proto.ListUnifiedResourcesReq
 	}
 
 	startKey := values.Get("startKey")
+	includeRequestable := values.Get("includeRequestable") == "true"
 	return &proto.ListUnifiedResourcesRequest{
 		Kinds:               kinds,
 		Limit:               limit,
@@ -2682,9 +2680,12 @@ func makeUnifiedResourceRequest(r *http.Request) (*proto.ListUnifiedResourcesReq
 		PinnedOnly:          values.Get("pinnedOnly") == "true",
 		PredicateExpression: values.Get("query"),
 		SearchKeywords:      client.ParseSearchKeywords(values.Get("search"), ' '),
-		UseSearchAsRoles:    values.Get("searchAsRoles") == "yes",
-		IncludeLogins:       true,
-		IncludeRequestable:  values.Get("includeRequestable") == "true",
+		// includeRequestable requires a searchAsRoles request, but we set it here instead of the frontend
+		// to protect the frontend from accidentally requesting a "SearchAsRoles" request to older proxy versions
+		// and then returning a bunch of resources that won't include "Requires Request" flags.
+		UseSearchAsRoles:   values.Get("searchAsRoles") == "yes" || includeRequestable,
+		IncludeLogins:      true,
+		IncludeRequestable: includeRequestable,
 	}, nil
 }
 
@@ -2948,6 +2949,127 @@ func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p http
 		StartKey:   page.NextKey,
 		TotalCount: page.Total,
 	}, nil
+}
+
+// iso8601MilliFormat is the time format of dates returned from the frontend using Date().
+const iso8601MilliFormat = "2006-01-02T15:04:05.000Z0700"
+
+// notificationsGet returns a paginated list of notifications for a user.
+func (h *Handler) notificationsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+	clt, err := sctx.GetUserClient(r.Context(), site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	values := r.URL.Query()
+
+	limit, err := QueryLimitAsInt32(values, "limit", defaults.MaxIterationLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	startKey := values.Get("startKey")
+
+	response, err := clt.NotificationServiceClient().ListNotifications(r.Context(), &notificationsv1.ListNotificationsRequest{
+		PageSize:  limit,
+		PageToken: startKey,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var uiNotifications []ui.Notification
+
+	for _, notification := range response.Notifications {
+		uiNotif := ui.MakeNotification(notification)
+		uiNotifications = append(uiNotifications, uiNotif)
+	}
+
+	return GetNotificationsResponse{
+		Notifications:            uiNotifications,
+		NextKey:                  response.NextPageToken,
+		UserLastSeenNotification: response.UserLastSeenNotificationTimestamp.AsTime().Format(iso8601MilliFormat),
+	}, nil
+}
+
+type GetNotificationsResponse struct {
+	Notifications            []ui.Notification `json:"notifications"`
+	NextKey                  string            `json:"nextKey"`
+	UserLastSeenNotification string            `json:"userLastSeenNotification"`
+}
+
+// notificationsUpsertLastSeenTimestamp upserts a user's last seen notification timestamp.
+func (h *Handler) notificationsUpsertLastSeenTimestamp(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+	clt, err := sctx.GetUserClient(r.Context(), site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var req *UpsertUserLastSeenNotificationRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	lastSeenTime, err := time.Parse(iso8601MilliFormat, req.Time)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := clt.NotificationServiceClient().UpsertUserLastSeenNotification(r.Context(), &notificationsv1.UpsertUserLastSeenNotificationRequest{
+		Username: sctx.GetUser(),
+		UserLastSeenNotification: &notificationsv1.UserLastSeenNotification{
+			Status: &notificationsv1.UserLastSeenNotificationStatus{
+				LastSeenTime: timestamppb.New(lastSeenTime),
+			},
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &UpsertUserLastSeenNotificationRequest{
+		Time: resp.Status.LastSeenTime.AsTime().Format(iso8601MilliFormat),
+	}, nil
+}
+
+type UpsertUserLastSeenNotificationRequest struct {
+	Time string `json:"time"`
+}
+
+// notificationsUpsertNotificationState upserts a user notification state.
+func (h *Handler) notificationsUpsertNotificationState(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+	clt, err := sctx.GetUserClient(r.Context(), site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var req *upsertUserNotificationStateRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := clt.NotificationServiceClient().UpsertUserNotificationState(r.Context(), &notificationsv1.UpsertUserNotificationStateRequest{
+		Username: sctx.GetUser(),
+		UserNotificationState: &notificationsv1.UserNotificationState{
+			Spec: &notificationsv1.UserNotificationStateSpec{
+				NotificationId: req.NotificationId,
+			},
+			Status: &notificationsv1.UserNotificationStateStatus{
+				NotificationState: req.NotificationState,
+			},
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &upsertUserNotificationStateRequest{
+		NotificationId:    resp.GetSpec().GetNotificationId(),
+		NotificationState: resp.GetStatus().GetNotificationState(),
+	}, nil
+}
+
+type upsertUserNotificationStateRequest struct {
+	NotificationId    string                            `json:"notificationId"`
+	NotificationState notificationsv1.NotificationState `json:"notificationState"`
 }
 
 type getLoginAlertsResponse struct {
@@ -3237,6 +3359,114 @@ func (h *Handler) siteNodeConnect(
 	return nil, nil
 }
 
+func (h *Handler) podConnect(
+	w http.ResponseWriter,
+	r *http.Request,
+	p httprouter.Params,
+	sctx *SessionContext,
+	site reversetunnelclient.RemoteSite,
+	ws *websocket.Conn,
+) (interface{}, error) {
+	q := r.URL.Query()
+	params := q.Get("params")
+	if params == "" {
+		return nil, trace.BadParameter("missing params")
+	}
+
+	var execReq PodExecRequest
+	if err := json.Unmarshal([]byte(params), &execReq); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := sctx.GetUserClient(r.Context(), site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clusterName := site.GetName()
+
+	accessChecker, err := sctx.GetUserAccessChecker()
+	if err != nil {
+		return session.Session{}, trace.Wrap(err)
+	}
+	policySets := accessChecker.SessionPolicySets()
+	accessEvaluator := auth.NewSessionAccessEvaluator(policySets, types.KubernetesSessionKind, sctx.GetUser())
+
+	sess := session.Session{
+		Kind:                  types.KubernetesSessionKind,
+		Login:                 sctx.GetUser(),
+		ClusterName:           clusterName,
+		KubernetesClusterName: execReq.KubeCluster,
+		Moderated:             accessEvaluator.IsModerated(),
+		ID:                    session.NewID(),
+		Created:               h.clock.Now().UTC(),
+		LastActive:            h.clock.Now().UTC(),
+		Namespace:             apidefaults.Namespace,
+		Owner:                 sctx.GetUser(),
+	}
+
+	h.log.Debugf("New kube exec request for namespace=%s pod=%s container=%s, sid=%s, websid=%s.",
+		execReq.Namespace, execReq.Pod, execReq.Container, sess.ID, sctx.GetSessionID())
+
+	authAccessPoint, err := site.CachingAccessPoint()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	netConfig, err := authAccessPoint.GetClusterNetworkingConfig(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	keepAliveInterval := netConfig.GetKeepAliveInterval()
+
+	serverAddr, tlsServerName, err := h.getKubeExecClusterData(netConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	hostCA, err := h.auth.accessPoint.GetCertAuthority(r.Context(), types.CertAuthID{
+		Type:       types.HostCA,
+		DomainName: h.auth.clusterName,
+	}, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ph := podHandler{
+		req:                 execReq,
+		sess:                sess,
+		sctx:                sctx,
+		teleportCluster:     site.GetName(),
+		ws:                  ws,
+		keepAliveInterval:   keepAliveInterval,
+		log:                 h.log.WithField(teleport.ComponentKey, "pod"),
+		userClient:          clt,
+		localCA:             hostCA,
+		configServerAddr:    serverAddr,
+		configTLSServerName: tlsServerName,
+	}
+
+	ph.ServeHTTP(w, r)
+	return nil, nil
+}
+
+func (h *Handler) getKubeExecClusterData(netConfig types.ClusterNetworkingConfig) (string, string, error) {
+	if netConfig.GetProxyListenerMode() == types.ProxyListenerMode_Separate {
+		return "https://" + h.kubeProxyHostPort(), "", nil
+	}
+
+	proxyAddr := createHostPort(h.cfg.ProxyWebAddr, defaults.HTTPListenPort)
+	host, port, err := utils.SplitHostPort(proxyAddr)
+	if err != nil {
+		return "", "", trace.Wrap(err, "failed to split proxy address %q", proxyAddr)
+	}
+
+	tlsServerName := client.GetKubeTLSServerName(host)
+
+	return "https://" + net.JoinHostPort(host, port), tlsServerName, nil
+}
+
 func (h *Handler) generateSession(req *TerminalRequest, clusterName string, scx *SessionContext) (session.Session, error) {
 	owner := scx.cfg.User
 	h.log.Infof("Generating new session for %s\n", clusterName)
@@ -3270,7 +3500,7 @@ func (h *Handler) generateSession(req *TerminalRequest, clusterName string, scx 
 }
 
 // fetchExistingSession fetches an active or pending SSH session by the SessionID passed in the TerminalRequest.
-func (h *Handler) fetchExistingSession(ctx context.Context, clt auth.ClientI, req *TerminalRequest, siteName string) (session.Session, types.SessionTracker, error) {
+func (h *Handler) fetchExistingSession(ctx context.Context, clt authclient.ClientI, req *TerminalRequest, siteName string) (session.Session, types.SessionTracker, error) {
 	sessionID, err := session.ParseID(req.SessionID.String())
 	if err != nil {
 		return session.Session{}, nil, trace.Wrap(err)
@@ -3428,7 +3658,7 @@ func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p 
 		eventTypes = strings.Split(include, ",")
 	}
 
-	searchEvents := func(clt auth.ClientI, from, to time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
+	searchEvents := func(clt authclient.ClientI, from, to time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
 		return clt.SearchEvents(r.Context(), events.SearchEventsRequest{
 			From:       from,
 			To:         to,
@@ -3456,7 +3686,7 @@ func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p 
 //	            for ascending and descending respectively.
 //	            If no order is provided it defaults to descending.
 func (h *Handler) clusterSearchSessionEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
-	searchSessionEvents := func(clt auth.ClientI, from, to time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
+	searchSessionEvents := func(clt authclient.ClientI, from, to time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
 		return clt.SearchSessionEvents(r.Context(), events.SearchSessionEventsRequest{
 			From:     from,
 			To:       to,
@@ -3470,7 +3700,7 @@ func (h *Handler) clusterSearchSessionEvents(w http.ResponseWriter, r *http.Requ
 
 // clusterEventsList returns a list of audit events obtained using the provided
 // searchEvents method.
-func clusterEventsList(ctx context.Context, sctx *SessionContext, site reversetunnelclient.RemoteSite, values url.Values, searchEvents func(clt auth.ClientI, from, to time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error)) (interface{}, error) {
+func clusterEventsList(ctx context.Context, sctx *SessionContext, site reversetunnelclient.RemoteSite, values url.Values, searchEvents func(clt authclient.ClientI, from, to time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error)) (interface{}, error) {
 	from, err := queryTime(values, "from", time.Now().UTC().AddDate(0, -1, 0))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3762,8 +3992,8 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 		// a new client to avoid applying the callback timeout to other concurrent requests. To
 		// this end, we create a clone of the HTTP Client with the desired timeout instead.
 		httpClient, err := authClient.CloneHTTPClient(
-			auth.ClientParamTimeout(defaults.HeadlessLoginTimeout),
-			auth.ClientParamResponseHeaderTimeout(defaults.HeadlessLoginTimeout),
+			authclient.ClientParamTimeout(defaults.HeadlessLoginTimeout),
+			authclient.ClientParamResponseHeaderTimeout(defaults.HeadlessLoginTimeout),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -4037,7 +4267,7 @@ type ClusterClientProvider interface {
 	// UserClientForCluster returns a client to the local or remote cluster
 	// identified by clusterName and is authenticated with the identity of the
 	// user.
-	UserClientForCluster(ctx context.Context, clusterName string) (auth.ClientI, error)
+	UserClientForCluster(ctx context.Context, clusterName string) (authclient.ClientI, error)
 }
 
 type clusterClientProvider struct {
@@ -4047,7 +4277,7 @@ type clusterClientProvider struct {
 
 // UserClientForCluster returns a client to the local or remote cluster
 // identified by clusterName and is authenticated with the identity of the user.
-func (r clusterClientProvider) UserClientForCluster(ctx context.Context, clusterName string) (auth.ClientI, error) {
+func (r clusterClientProvider) UserClientForCluster(ctx context.Context, clusterName string) (authclient.ClientI, error) {
 	site, err := r.h.getSiteByClusterName(r.ctx, clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -4117,7 +4347,7 @@ func (h *Handler) WithProvisionTokenAuth(fn ProvisionTokenHandler) httprouter.Ha
 // This is possible because the latest call - DeleteToken - returns an error if the resource doesn't exist
 // This is currently true for all the backends as explained here
 // https://github.com/gravitational/teleport/commit/24fcadc375d8359e80790b3ebeaa36bd8dd2822f
-func consumeTokenForAPICall(ctx context.Context, proxyClient auth.ClientI, tokenName string) (types.ProvisionToken, error) {
+func consumeTokenForAPICall(ctx context.Context, proxyClient authclient.ClientI, tokenName string) (types.ProvisionToken, error) {
 	token, err := proxyClient.GetToken(ctx, tokenName)
 	if err != nil {
 		return nil, trace.Wrap(err)

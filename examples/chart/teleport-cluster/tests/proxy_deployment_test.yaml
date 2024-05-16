@@ -1029,3 +1029,16 @@ tests:
       - equal:
           path: spec.template.metadata.labels.baz
           value: overridden
+
+  - it: sets clusterDomain on Deployment Pods
+    template: proxy/deployment.yaml
+    values:
+      - ../.lint/annotations.yaml
+    set:
+      global:
+        clusterDomain: test.com
+    asserts:
+      - matchSnapshot: {}
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[3]
+          pattern: ".svc.test.com$"
