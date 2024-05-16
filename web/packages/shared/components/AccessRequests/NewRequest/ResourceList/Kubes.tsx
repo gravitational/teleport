@@ -26,6 +26,7 @@ export function Kubes(props: ListProps & { kubes: Kube[] }) {
   const {
     kubes = [],
     addedResources,
+    requestStarted,
     customSort,
     onLabelClick,
     addOrRemoveResource,
@@ -52,6 +53,7 @@ export function Kubes(props: ListProps & { kubes: Kube[] }) {
           render: agent =>
             renderActionCell(
               Boolean(addedResources.kube_cluster[agent.name]),
+              requestStarted,
               () => addOrRemoveResource('kube_cluster', agent.name)
             ),
         },

@@ -17,6 +17,7 @@
  */
 
 import { render, screen, waitFor } from 'design/utils/testing';
+import { within } from '@testing-library/react';
 
 import userEvent from '@testing-library/user-event';
 
@@ -45,7 +46,13 @@ async function renderComponent(ctx: TeleportContext) {
     </ContextProvider>
   );
   await waitFor(() => {
-    expect(screen.queryByTestId('indicator')).not.toBeInTheDocument();
+    // We can't use getAllByTestId('indicator') directly, because it's
+    // unreliable: the indicators are displayed only after a default timeout
+    // passes to minimize UI disruptions. That's why we need to make use of
+    // their wrappers to indicate whether they are visible or not.
+    for (const iwr of screen.getAllByTestId('indicator-wrapper')) {
+      expect(iwr).not.toBeVisible();
+    }
   });
 }
 
@@ -103,10 +110,10 @@ const onePasskey = [
 
 test.each`
   pwdless  | passkeys      | state
-  ${true}  | ${onePasskey} | ${'active'}
-  ${true}  | ${[]}         | ${''}
-  ${false} | ${onePasskey} | ${'inactive'}
-  ${false} | ${[]}         | ${''}
+  ${true}  | ${onePasskey} | ${/^active$/}
+  ${true}  | ${[]}         | ${null}
+  ${false} | ${onePasskey} | ${/^inactive$/}
+  ${false} | ${[]}         | ${null}
 `(
   "Passkey state pill: passwordless=$pwdless, $passkeys.length passkey(s) => state='$state'",
   async ({ pwdless, passkeys, state }) => {
@@ -143,10 +150,10 @@ const oneMfaMethod = [
 
 test.each`
   mfa      | methods         | state
-  ${'on'}  | ${oneMfaMethod} | ${'active'}
-  ${'on'}  | ${[]}           | ${'inactive'}
-  ${'off'} | ${oneMfaMethod} | ${'inactive'}
-  ${'off'} | ${[]}           | ${'inactive'}
+  ${'on'}  | ${oneMfaMethod} | ${/^active$/}
+  ${'on'}  | ${[]}           | ${/^inactive$/}
+  ${'off'} | ${oneMfaMethod} | ${/^inactive$/}
+  ${'off'} | ${[]}           | ${/^inactive$/}
 `(
   "MFA state pill: mfa=$mfa, $methods.length MFA method(s) => state='$state'",
   async ({ mfa, methods, state }) => {
@@ -162,9 +169,9 @@ test.each`
 
 test.each`
   passwordState                               | state
-  ${PasswordState.PASSWORD_STATE_UNSPECIFIED} | ${''}
-  ${PasswordState.PASSWORD_STATE_UNSET}       | ${'inactive'}
-  ${PasswordState.PASSWORD_STATE_SET}         | ${'active'}
+  ${PasswordState.PASSWORD_STATE_UNSPECIFIED} | ${/^$/}
+  ${PasswordState.PASSWORD_STATE_UNSET}       | ${/^inactive$/}
+  ${PasswordState.PASSWORD_STATE_SET}         | ${/^active$/}
 `(
   "Password state $passwordState => state='$state'",
   async ({ passwordState, state }) => {
@@ -203,4 +210,32 @@ test('password change', async () => {
   // EXpect the dialog to disappear, and the state pill to change value.
   expect(screen.queryByLabelText('New Password')).not.toBeInTheDocument();
   expect(screen.getByTestId('password-state-pill')).toHaveTextContent('active');
+});
+
+test('loading state', async () => {
+  const ctx = createTeleportContext();
+  jest
+    .spyOn(ctx.mfaService, 'fetchDevices')
+    .mockReturnValue(new Promise(() => {})); // Never resolve
+  cfg.auth.second_factor = 'on';
+  cfg.auth.allowPasswordless = true;
+
+  render(
+    <ContextProvider ctx={ctx}>
+      <Account />
+    </ContextProvider>
+  );
+
+  expect(
+    within(screen.getByTestId('passkey-list')).getByTestId('indicator-wrapper')
+  ).toBeVisible();
+  expect(
+    within(screen.getByTestId('mfa-list')).getByTestId('indicator-wrapper')
+  ).toBeVisible();
+  expect(screen.getByText(/add a passkey/i)).toBeDisabled();
+  expect(screen.getByText(/add mfa/i)).toBeDisabled();
+  expect(
+    screen.queryByTestId('passwordless-state-pill')
+  ).not.toBeInTheDocument();
+  expect(screen.getByTestId('mfa-state-pill')).toBeEmptyDOMElement();
 });

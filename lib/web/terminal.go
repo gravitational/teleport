@@ -557,6 +557,14 @@ func (t *TerminalHandler) makeClient(ctx context.Context, stream *TerminalStream
 	// to allow future window changes.
 	tc.OnShellCreated = func(s *tracessh.Session, c *tracessh.Client, _ io.ReadWriteCloser) (bool, error) {
 		t.stream.sessionCreated(s)
+
+		// The web session was closed by the client while the ssh connection was being established.
+		// Attempt to close the SSH session instead of proceeding with the window change request.
+		if t.closedByClient.Load() {
+			t.log.Debug("websocket was closed by client, terminating established ssh connection to host")
+			return false, trace.Wrap(s.Close())
+		}
+
 		if err := s.WindowChange(ctx, t.term.H, t.term.W); err != nil {
 			t.log.Error(err)
 		}
@@ -811,8 +819,16 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 		t.stream.writeError(err.Error())
 		return
 	}
-
 	defer nc.Close()
+
+	// If the session was terminated by client while the connection to the host
+	// was being established, then return early before creating the shell. Any terminations
+	// by the client from here on out should either get caught in the OnShellCreated callback
+	// set on the [tc] or in [TerminalHandler.Close].
+	if t.closedByClient.Load() {
+		t.log.Debug("websocket was closed by client, aborting establishing ssh connection to host")
+		return
+	}
 
 	if err := t.writeSessionData(ctx); err != nil {
 		t.log.WithError(err).Warn("Unable to stream terminal - failure sending session data")
@@ -857,7 +873,7 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 	}
 
 	if err := t.stream.Close(); err != nil {
-		t.log.WithError(err).Error("Unable to send close event to web client.")
+		t.log.WithError(err).Error("Unable to close client web socket.")
 		return
 	}
 

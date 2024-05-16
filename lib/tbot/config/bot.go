@@ -61,4 +61,10 @@ type provider interface {
 
 	// SignX509SVIDs uses the impersonatedClient to call SignX509SVIDs.
 	SignX509SVIDs(ctx context.Context, in *machineidv1pb.SignX509SVIDsRequest, opts ...grpc.CallOption) (*machineidv1pb.SignX509SVIDsResponse, error)
+
+	// IsALPNConnUpgradeRequired returns a (possibly cached) test of whether ALPN
+	// routing is required.
+	IsALPNConnUpgradeRequired(
+		ctx context.Context, addr string, insecure bool,
+	) (bool, error)
 }

@@ -99,6 +99,7 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	tlsutils "github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -156,7 +157,7 @@ type WebSuite struct {
 
 	mockU2F     *mocku2f.Key
 	server      *auth.TestServer
-	proxyClient *auth.Client
+	proxyClient *authclient.Client
 	clock       clockwork.FakeClock
 }
 
@@ -330,7 +331,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		nodeID,
-		[]ssh.Signer{signer},
+		sshutils.StaticHostSigners(signer),
 		nodeClient,
 		nodeDataDir,
 		"",
@@ -394,7 +395,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		Listener:              revTunListener,
 		ClientTLS:             s.proxyClient.TLSConfig(),
 		ClusterName:           s.server.ClusterName(),
-		HostSigners:           []ssh.Signer{signer},
+		GetHostSigners:        sshutils.StaticHostSigners(signer),
 		LocalAuthClient:       s.proxyClient,
 		LocalAccessPoint:      s.proxyClient,
 		Emitter:               s.proxyClient,
@@ -434,7 +435,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		s.server.ClusterName(),
-		[]ssh.Signer{signer},
+		sshutils.StaticHostSigners(signer),
 		s.proxyClient,
 		t.TempDir(),
 		"",
@@ -610,7 +611,7 @@ func (s *WebSuite) addNode(t *testing.T, uuid string, hostname string, address s
 		context.Background(),
 		utils.NetAddr{AddrNetwork: "tcp", Addr: address},
 		hostname,
-		[]ssh.Signer{signer},
+		sshutils.StaticHostSigners(signer),
 		nodeClient,
 		t.TempDir(),
 		"",
@@ -636,7 +637,7 @@ func (s *WebSuite) addNode(t *testing.T, uuid string, hostname string, address s
 	return node
 }
 
-func noCache(clt auth.ClientI, cacheName []string) (auth.RemoteProxyAccessPoint, error) {
+func noCache(clt authclient.ClientI, cacheName []string) (auth.RemoteProxyAccessPoint, error) {
 	return clt, nil
 }
 
@@ -2206,7 +2207,7 @@ func TestDesktopAccessMFARequiresMfa(t *testing.T) {
 		name           string
 		authPref       types.AuthPreferenceSpecV2
 		mfaHandler     func(t *testing.T, ws *websocket.Conn, dev *auth.TestDevice)
-		registerDevice func(t *testing.T, ctx context.Context, clt *auth.Client) *auth.TestDevice
+		registerDevice func(t *testing.T, ctx context.Context, clt *authclient.Client) *auth.TestDevice
 	}{
 		{
 			name: "webauthn",
@@ -2219,7 +2220,7 @@ func TestDesktopAccessMFARequiresMfa(t *testing.T) {
 				RequireMFAType: types.RequireMFAType_SESSION,
 			},
 			mfaHandler: handleDesktopMFAWebauthnChallenge,
-			registerDevice: func(t *testing.T, ctx context.Context, clt *auth.Client) *auth.TestDevice {
+			registerDevice: func(t *testing.T, ctx context.Context, clt *authclient.Client) *auth.TestDevice {
 				webauthnDev, err := auth.RegisterTestDevice(ctx, clt, "webauthn", authproto.DeviceType_DEVICE_TYPE_WEBAUTHN, nil /* authenticator */)
 				require.NoError(t, err)
 				return webauthnDev
@@ -4517,6 +4518,7 @@ func TestGetWebConfig(t *testing.T) {
 		AssistEnabled:      false,
 		AutomaticUpgrades:  false,
 		JoinActiveSessions: true,
+		Edition:            modules.BuildOSS, // testBuildType is empty
 	}
 
 	// Make a request.
@@ -4567,6 +4569,7 @@ func TestGetWebConfig(t *testing.T) {
 	expectedCfg.AutomaticUpgradesTargetVersion = "v" + teleport.Version
 	expectedCfg.AssistEnabled = false
 	expectedCfg.JoinActiveSessions = false
+	expectedCfg.Edition = "" // testBuildType is empty
 
 	// request and verify enabled features are enabled.
 	re, err = clt.Get(ctx, endpoint, nil)
@@ -7743,7 +7746,7 @@ func newWebPack(t *testing.T, numProxies int, opts ...proxyOption) *webPack {
 		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		nodeID,
-		hostSigners,
+		sshutils.StaticHostSigners(hostSigners...),
 		nodeClient,
 		nodeDataDir,
 		"",
@@ -7795,7 +7798,7 @@ func newWebPack(t *testing.T, numProxies int, opts ...proxyOption) *webPack {
 // wrappedAuthClient is used when tests need to mock or replace parts of the
 // underlying auth.Client used by the Proxy.
 type wrappedAuthClient struct {
-	*auth.Client
+	*authclient.Client
 	devicesClient devicepb.DeviceTrustServiceClient
 }
 
@@ -7834,7 +7837,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	t.Cleanup(func() { require.NoError(t, authClient.Close()) })
 
 	// Replace underlying devicesClient, if the option was supplied.
-	var client auth.ClientI
+	var client authclient.ClientI
 	if cfg.devicesClientOverride != nil {
 		client = &wrappedAuthClient{
 			Client:        authClient,
@@ -7882,7 +7885,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		Listener:              revTunListener,
 		ClientTLS:             authClient.TLSConfig(),
 		ClusterName:           authServer.ClusterName(),
-		HostSigners:           hostSigners,
+		GetHostSigners:        sshutils.StaticHostSigners(hostSigners...),
 		LocalAuthClient:       client,
 		LocalAccessPoint:      client,
 		Emitter:               client,
@@ -8017,7 +8020,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		ctx,
 		utils.NetAddr{AddrNetwork: proxyListener.Addr().Network(), Addr: mux.SSH().Addr().String()},
 		authServer.ClusterName(),
-		hostSigners,
+		sshutils.StaticHostSigners(hostSigners...),
 		client,
 		t.TempDir(),
 		"",
@@ -8135,7 +8138,7 @@ type webPack struct {
 
 type testProxy struct {
 	clock   clockwork.FakeClock
-	client  auth.ClientI
+	client  authclient.ClientI
 	auth    *auth.TestTLSServer
 	revTun  reversetunnelclient.Server
 	node    *regular.Server
@@ -9618,7 +9621,7 @@ func TestSimultaneousAuthenticateRequest(t *testing.T) {
 
 // mockedPingTestProxy is a test proxy with a mocked Ping method
 type mockedPingTestProxy struct {
-	auth.ClientI
+	authclient.ClientI
 	mockedPing func(ctx context.Context) (authproto.PingResponse, error)
 }
 
@@ -9875,7 +9878,7 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 }
 
 type proxyClientMock struct {
-	auth.ClientI
+	authclient.ClientI
 	tokens map[string]types.ProvisionToken
 }
 
@@ -10217,4 +10220,110 @@ type loginGetterFunc func(resource services.AccessCheckable) ([]string, error)
 
 func (f loginGetterFunc) GetAllowedLoginsForResource(resource services.AccessCheckable) ([]string, error) {
 	return f(resource)
+}
+
+func TestWebSocketClosedBeforeSSHSessionCreated(t *testing.T) {
+	t.Parallel()
+	s := newWebSuiteWithConfig(t, webSuiteConfig{disableDiskBasedRecording: true})
+
+	ctx, cancel := context.WithCancel(s.ctx)
+	t.Cleanup(cancel)
+
+	pack := s.authPack(t, "foo")
+
+	req := TerminalRequest{
+		Server: s.node.ID(),
+		Login:  pack.login,
+		Term: session.TerminalParams{
+			W: 100,
+			H: 100,
+		},
+	}
+
+	data, err := json.Marshal(req)
+	require.NoError(t, err)
+
+	u := url.URL{
+		Host:   s.webServer.Listener.Addr().String(),
+		Scheme: client.WSS,
+		Path:   "/v1/webapi/sites/-current-/connect/ws",
+	}
+
+	q := u.Query()
+	q.Set("params", string(data))
+	u.RawQuery = q.Encode()
+
+	header := http.Header{}
+	header.Add("Origin", "http://localhost")
+	for _, cookie := range pack.cookies {
+		header.Add("Cookie", cookie.String())
+	}
+
+	dialer := websocket.Dialer{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: true,
+		},
+	}
+
+	ws, resp, err := dialer.Dial(u.String(), header)
+	if err != nil {
+		var sb strings.Builder
+		sb.WriteString("websocket dial")
+		if resp != nil {
+			fmt.Fprintf(&sb, "; status code %v;", resp.StatusCode)
+			fmt.Fprintf(&sb, "headers: %v; body: ", resp.Header)
+			io.Copy(&sb, resp.Body)
+		}
+		require.NoError(t, err, sb.String())
+	}
+	require.NoError(t, resp.Body.Close())
+
+	require.NoError(t, makeAuthReqOverWS(ws, pack.session.Token))
+
+	wsClosedChan := make(chan struct{})
+
+	// Create a stream that closes the web socket when the server writes the session metadata
+	// to the client. At this point, the SSH connection to the target should be in flight but
+	// not yet established.
+	stream := NewTerminalStream(ctx, TerminalStreamConfig{
+		WS:     ws,
+		Logger: utils.NewLogger(),
+		Handlers: map[string]WSHandlerFunc{
+			defaults.WebsocketSessionMetadata: func(ctx context.Context, envelope Envelope) {
+				if envelope.Type != defaults.WebsocketSessionMetadata {
+					return
+				}
+
+				var sessResp siteSessionGenerateResponse
+				if err := json.Unmarshal([]byte(envelope.Payload), &sessResp); err != nil {
+					return
+				}
+
+				assert.NoError(t, ws.WriteControl(websocket.CloseMessage, nil, time.Now().Add(time.Second)))
+				close(wsClosedChan)
+			},
+		},
+	})
+	t.Cleanup(func() { require.NoError(t, stream.Close()) })
+
+	// Set a read deadline to unblock ReadAll below in the event of a bug
+	// preventing the ws from closing above.
+	require.NoError(t, stream.SetReadDeadline(time.Now().Add(30*time.Second)))
+
+	// Wait for the web socket to be closed above.
+	select {
+	case <-wsClosedChan:
+	case <-time.After(10 * time.Second):
+		t.Fatal("timed out waiting for session metadata")
+	}
+
+	// Validate that the SSH connection is terminated in response to the WS closing.
+	require.Eventually(t, func() bool {
+		return s.node.ActiveConnections() == 0
+	}, 10*time.Second, 100*time.Millisecond)
+
+	// Validate that reading nothing was permitted.
+	out, err := io.ReadAll(stream)
+	require.NoError(t, err)
+	require.Empty(t, out)
 }

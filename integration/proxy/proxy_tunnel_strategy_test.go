@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -59,7 +60,7 @@ type proxyTunnelStrategy struct {
 	node    *helpers.TeleInstance
 
 	db           *helpers.TeleInstance
-	dbAuthClient *auth.Client
+	dbAuthClient *authclient.Client
 	postgresDB   *postgres.TestServer
 
 	log *logrus.Logger
@@ -461,7 +462,7 @@ func (p *proxyTunnelStrategy) makeDatabase(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	var client *auth.Client
+	var client *authclient.Client
 	for _, event := range receivedEvents {
 		if event.Name == service.DatabasesIdentityEvent {
 			conn, ok := (event.Payload).(*service.Connector)
