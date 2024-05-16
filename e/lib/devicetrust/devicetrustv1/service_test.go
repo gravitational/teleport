@@ -2377,6 +2377,73 @@ func TestService_EnrollDevice_issuesDevicesLimitEvent(t *testing.T) {
 	assert.Equal(t, wantLimitEvent, emittedEvents)
 }
 
+func TestService_deviceModeOff(t *testing.T) {
+	const user = "llama"
+	allUsers := []string{user}
+
+	env := testenv.NewUsingT(t,
+		testenv.WithAuthPreferenceSpec(types.AuthPreferenceSpecV2{
+			Type:         constants.Local,
+			SecondFactor: constants.SecondFactorOff, // unimportant
+			DeviceTrust: &types.DeviceTrust{
+				Mode: constants.DeviceTrustModeOff, // device authn disabled by default
+			},
+		}),
+		testenv.WithAuthorizer(&userAwareAuthorizer{
+			knownUsers:      allUsers,
+			authorizedUsers: allUsers,
+		}),
+	)
+
+	devicesClient := env.DevicesClient
+	identity := env.IdentityService
+	service := env.DevicesService
+	ctx := context.Background()
+
+	// Create user.
+	u, err := types.NewUser(user)
+	if err != nil {
+		t.Fatalf("NewUser() failed: %v", err)
+	}
+	if _, err := identity.CreateUser(ctx, u); err != nil {
+		t.Fatalf("CreateUser() failed: %v", err)
+	}
+
+	// Create and enroll a device for the user.
+	userCtx := contextWithUser(ctx, user)
+	dev, key, err := createAndEnroll(userCtx, devicesClient, &devicepb.Device{
+		OsType:   devicepb.OSType_OS_TYPE_MACOS,
+		AssetTag: "llama-mac1",
+	})
+	if err != nil {
+		t.Fatalf("createAndEnroll failed: %v", err)
+	}
+
+	t.Run("AuthenticateDevice", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := authenticateSimulator(userCtx, devicesClient, key.simulator(), dev, nil /* initCerts */)
+		assert.ErrorContains(t, err, "device trust disabled", "AuthenticateDevice error mismatch")
+	})
+
+	t.Run("CreateDeviceWebToken", func(t *testing.T) {
+		t.Parallel()
+
+		token, err := service.CreateDeviceWebToken(ctx, &devicepb.DeviceWebToken{
+			WebSessionId:     "my-web-session-id",
+			BrowserUserAgent: sampleUserAgentMacOS,
+			BrowserIp:        sampleIP,
+			User:             user,
+		})
+		if err != nil {
+			t.Fatalf("CreateDeviceWebToken failed unexpectedly: %v", err)
+		}
+		if token != nil {
+			t.Errorf("CreateDeviceWebToken=%v, want nil", token)
+		}
+	})
+}
+
 func TestService_CreateDeviceWebToken(t *testing.T) {
 	const userLlama = "llama"
 	const userAlpaca = "alpaca"
@@ -2559,207 +2626,6 @@ func TestService_CreateDeviceWebToken(t *testing.T) {
 						t.Errorf("Audit event user mismatch: got=%q, want %q", event.User, test.token.User)
 					}
 				}
-			}
-		})
-	}
-}
-
-func TestService_CreateDeviceWebToken_deviceTrustDisabled(t *testing.T) {
-	const userLlama = "llama"
-	const userAlpaca = "alpaca"
-	allUsers := []string{userLlama, userAlpaca}
-
-	env := testenv.NewUsingT(t,
-		testenv.WithAuthPreferenceSpec(types.AuthPreferenceSpecV2{
-			Type:         constants.Local,
-			SecondFactor: constants.SecondFactorOff, // unimportant
-			DeviceTrust: &types.DeviceTrust{
-				Mode: constants.DeviceTrustModeOff, // device authn disabled by default
-			},
-		}),
-		testenv.WithAuthorizer(&userAwareAuthorizer{
-			knownUsers:      allUsers,
-			authorizedUsers: allUsers,
-		}),
-	)
-
-	devicesClient := env.DevicesClient
-	access := env.AccessService
-	identity := env.IdentityService
-	service := env.DevicesService
-	ctx := context.Background()
-
-	// Create testing roles.
-	const roleLlama = "llama"
-	const roleAlpaca = "alpaca"
-	const roleDeviceOff = "deviceOff"
-	const roleDeviceOptional = "deviceOptional"
-	const roleDeviceRequired = "deviceRequired"
-	for _, s := range []struct {
-		name string
-		spec types.RoleSpecV6
-	}{
-		{
-			name: roleLlama,
-			// Specifics don't matter, just make it a somewhat-believable user role.
-			spec: types.RoleSpecV6{
-				Allow: types.RoleConditions{
-					Logins: []string{"llama"},
-				},
-			},
-		},
-		{
-			name: roleAlpaca,
-			spec: types.RoleSpecV6{
-				Allow: types.RoleConditions{
-					Logins: []string{"alpaca"},
-				},
-			},
-		},
-		{
-			name: roleDeviceOff,
-			// The DeviceTrustMode is what matters here, other parts are just it's
-			// more realistic.
-			// Same for other device roles.
-			spec: types.RoleSpecV6{
-				Options: types.RoleOptions{
-					DeviceTrustMode: constants.DeviceTrustModeOff,
-				},
-				Allow: types.RoleConditions{
-					Logins: []string{"admin"},
-					NodeLabels: types.Labels{
-						"*": []string{"*"},
-					},
-				},
-			},
-		},
-		{
-			name: roleDeviceOptional,
-			spec: types.RoleSpecV6{
-				Options: types.RoleOptions{
-					DeviceTrustMode: constants.DeviceTrustModeOptional,
-				},
-				Allow: types.RoleConditions{
-					Logins: []string{"admin"},
-					NodeLabels: types.Labels{
-						"*": []string{"*"},
-					},
-				},
-			},
-		},
-		{
-			name: roleDeviceRequired,
-			spec: types.RoleSpecV6{
-				Options: types.RoleOptions{
-					DeviceTrustMode: constants.DeviceTrustModeRequired,
-				},
-				Allow: types.RoleConditions{
-					Logins: []string{"admin"},
-					NodeLabels: types.Labels{
-						"*": []string{"*"},
-					},
-				},
-			},
-		},
-	} {
-		role, err := types.NewRole(s.name, s.spec)
-		if err != nil {
-			t.Fatalf("NewRole(%q) failed: %v", s.name, err)
-		}
-		if _, err := access.CreateRole(ctx, role); err != nil {
-			t.Fatalf("CreateRole(%q) failed: %v", s.name, err)
-		}
-	}
-
-	// Create users with their respective roles.
-	for _, s := range []struct {
-		user  string
-		roles []string
-	}{
-		{
-			user: userLlama,
-			roles: []string{
-				roleLlama,
-				roleDeviceOff,      // no effect
-				roleDeviceOptional, // enables device authn
-				roleDeviceRequired, // enables device authn
-			},
-		},
-		{
-			user:  userAlpaca,
-			roles: []string{roleAlpaca},
-		},
-	} {
-		u, err := types.NewUser(s.user)
-		if err != nil {
-			t.Fatalf("NewUser(%q) failed: %v", s.user, err)
-		}
-		u.SetRoles(s.roles)
-		if _, err := identity.CreateUser(ctx, u); err != nil {
-			t.Fatalf("CreateUser(%q) failed: %v", s.user, err)
-		}
-	}
-
-	createAndEnrollForUser := func(t *testing.T, user string, dev *devicepb.Device) (*devicepb.Device, *fakeEnclaveKey) {
-		userCtx := contextWithUser(ctx, user)
-		dev, key, err := createAndEnroll(userCtx, devicesClient, dev)
-		if err != nil {
-			t.Fatalf("createAndEnroll failed: %v", err)
-		}
-		return dev, key
-	}
-
-	// Both users have a trusted device.
-	_, _ = createAndEnrollForUser(t, userLlama, &devicepb.Device{
-		OsType:   devicepb.OSType_OS_TYPE_MACOS,
-		AssetTag: "llama-mac1",
-	})
-	_, _ = createAndEnrollForUser(t, userAlpaca, &devicepb.Device{
-		OsType:   devicepb.OSType_OS_TYPE_MACOS,
-		AssetTag: "alpaca-mac1",
-	})
-
-	makeToken := func(owner string) *devicepb.DeviceWebToken {
-		return &devicepb.DeviceWebToken{
-			WebSessionId:     "my-web-session-id",
-			BrowserUserAgent: sampleUserAgentMacOS,
-			BrowserIp:        sampleIP,
-			User:             owner,
-		}
-	}
-
-	tests := []struct {
-		name      string
-		token     *devicepb.DeviceWebToken
-		wantToken bool // true if a non-nil token is expected
-	}{
-		{
-			name:      "token creation allowed by roles",
-			token:     makeToken(userLlama),
-			wantToken: true,
-		},
-		{
-			name:  "token creation disallowed",
-			token: makeToken(userAlpaca),
-			// want `nil, nil`
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			token, err := service.CreateDeviceWebToken(ctx, test.token)
-			if err != nil {
-				t.Fatalf("CreateDeviceWebToken failed unexpectedly: %v", err)
-			}
-
-			if test.wantToken {
-				if token == nil {
-					t.Error("CreateDeviceWebToken=nil, want non-nil")
-				}
-				return
-			}
-
-			if token != nil {
-				t.Errorf("CreateDeviceWebToken=%v, want nil", token)
 			}
 		})
 	}

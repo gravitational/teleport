@@ -105,9 +105,14 @@ var (
 	}
 )
 
-var errInvalidDeviceConfirmationToken = &trace.AccessDeniedError{
-	Message: "invalid device confirmation token",
-}
+var (
+	errDeviceTrustDisabled = &trace.BadParameterError{
+		Message: "device trust disabled by cluster settings",
+	}
+	errInvalidDeviceConfirmationToken = &trace.AccessDeniedError{
+		Message: "invalid device confirmation token",
+	}
+)
 
 // AuthServer represents the [auth.Server] methods used by [Service].
 type AuthServer interface {
@@ -804,7 +809,7 @@ func (s *Service) AuthenticateDevice(stream devicepb.DeviceTrustService_Authenti
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := s.isDeviceAuthnAllowed(authPref.GetDeviceTrust(), authCtx.Checker.Roles()); err != nil {
+	if err := s.isDeviceAuthnAllowed(authPref.GetDeviceTrust()); err != nil {
 		authnDisabledLogOnce.Do(func() {
 			s.logger.WarnContext(ctx, "Device authentication attempted, but device trust is disabled by cluster settings")
 		})
@@ -861,19 +866,11 @@ func (s *Service) AuthenticateDevice(stream devicepb.DeviceTrustService_Authenti
 	return trace.Wrap(err)
 }
 
-func (s *Service) isDeviceAuthnAllowed(dt *types.DeviceTrust, userRoles []types.Role) error {
-	if dtconfig.GetEffectiveMode(dt) != constants.DeviceTrustModeOff {
-		return nil // OK, allowed by cluster.
+func (s *Service) isDeviceAuthnAllowed(dt *types.DeviceTrust) error {
+	if dtconfig.GetEffectiveMode(dt) == constants.DeviceTrustModeOff {
+		return trace.Wrap(errDeviceTrustDisabled)
 	}
-
-	for _, role := range userRoles {
-		deviceMode := role.GetOptions().DeviceTrustMode
-		if deviceMode != "" && deviceMode != constants.DeviceTrustModeOff {
-			return nil // OK, allowed by roles.
-		}
-	}
-
-	return trace.BadParameter("device trust disabled by cluster settings")
+	return nil
 }
 
 func (s *Service) ConfirmDeviceWebAuthentication(ctx context.Context, req *devicepb.ConfirmDeviceWebAuthenticationRequest) (_ *devicepb.ConfirmDeviceWebAuthenticationResponse, err error) {
@@ -1116,17 +1113,12 @@ func (s *Service) CreateDeviceWebToken(ctx context.Context, token *devicepb.Devi
 	// Fields we don't use directly in this method are validated by the storage
 	// write.
 
+	// Is device authentication allowed? Don't continue otherwise.
 	authPref, err := s.authServer.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	user, roles, err := s.getUserAndRoles(ctx, token.User)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Is device authentication allowed? Don't continue otherwise.
-	if err := s.isDeviceAuthnAllowed(authPref.GetDeviceTrust(), roles); err != nil {
+	if err := s.isDeviceAuthnAllowed(authPref.GetDeviceTrust()); err != nil {
 		// Device authn not allowed, simply return a nil token.
 		// err swallowed on purpose.
 		return nil, nil
@@ -1139,6 +1131,10 @@ func (s *Service) CreateDeviceWebToken(ctx context.Context, token *devicepb.Devi
 	}
 
 	// Fetch user devices.
+	user, err := s.cachedUsers.GetUser(ctx, token.User, false /* withSecrets */)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	userDevices, err := s.getDevicesByID(ctx, user.GetTrustedDeviceIDs())
 	switch {
 	case err != nil && len(userDevices) == 0:
@@ -1211,38 +1207,6 @@ func (s *Service) CreateDeviceWebToken(ctx context.Context, token *devicepb.Devi
 	})
 
 	return created, nil
-}
-
-func (s *Service) getUserAndRoles(ctx context.Context, username string) (types.User, []types.Role, error) {
-	user, err := s.cachedUsers.GetUser(ctx, username, false /* withSecrets */)
-	if err != nil {
-		return nil, nil, trace.Wrap(err, "read user")
-	}
-
-	g, gCtx := errgroup.WithContext(ctx)
-	// We are hoping for cache hits here, so no need to go high on the concurrency.
-	const maxGoroutines = 4
-	g.SetLimit(maxGoroutines)
-
-	roleNames := user.GetRoles()
-	roles := make([]types.Role, len(roleNames))
-	for i, roleName := range roleNames {
-		i := i
-		roleName := roleName
-		g.Go(func() error {
-			role, err := s.cachedRoles.GetRole(gCtx, roleName)
-			if err == nil {
-				roles[i] = role
-			}
-			return trace.Wrap(err, "read role %s", roleName)
-		})
-	}
-
-	if err := g.Wait(); err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	return user, roles, nil
 }
 
 // getDevicesByID reads devices from storage concurrently.
