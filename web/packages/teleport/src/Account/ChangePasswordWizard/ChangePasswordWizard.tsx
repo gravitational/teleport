@@ -42,7 +42,6 @@ import { ChangePasswordReq } from 'teleport/services/auth';
 import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
 import { MfaDevice } from 'teleport/services/mfa';
 
-
 export interface ChangePasswordWizardProps {
   /** MFA type setting, as configured in the cluster's configuration. */
   auth2faType: Auth2faType;

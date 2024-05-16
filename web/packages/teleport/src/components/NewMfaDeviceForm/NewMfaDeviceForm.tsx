@@ -35,7 +35,6 @@ import { StepHeader } from 'design/StepSlider';
 
 import { PasskeyIcons } from 'teleport/components/Passkeys';
 
-
 export interface NewMfaDeviceFormProps {
   title: string;
   submitButtonText: string;
