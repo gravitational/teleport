@@ -205,6 +205,29 @@ func (u *UIDiscoverDatabaseRDSEnrollEvent) Anonymize(a utils.Anonymizer) prehogv
 	}
 }
 
+// UIDiscoverKubeEKSEnrollEvent is emitted when a user is finished with
+// the step that asks user to select from a list of EKS clusters.
+type UIDiscoverKubeEKSEnrollEvent prehogv1a.UIDiscoverKubeEKSEnrollEvent
+
+func (u *UIDiscoverKubeEKSEnrollEvent) CheckAndSetDefaults() error {
+	return trace.Wrap(validateDiscoverBaseEventFields(u.Metadata, u.Resource, u.Status))
+}
+
+func (u *UIDiscoverKubeEKSEnrollEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UiDiscoverKubeEksEnrollEvent{
+			UiDiscoverKubeEksEnrollEvent: &prehogv1a.UIDiscoverKubeEKSEnrollEvent{
+				Metadata: &prehogv1a.DiscoverMetadata{
+					Id:       u.Metadata.Id,
+					UserName: a.AnonymizeString(u.Metadata.UserName),
+				},
+				Resource: u.Resource,
+				Status:   u.Status,
+			},
+		},
+	}
+}
+
 // UIDiscoverDeployServiceEvent is emitted after the user installs a Teleport Agent.
 // For SSH this is the Teleport 'install-node' script.
 //

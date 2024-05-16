@@ -562,6 +562,29 @@ func TestConvertUsageEvent(t *testing.T) {
 				},
 			}},
 		},
+		{
+			name: "discover kube eks enroll",
+			event: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverKubeEksEnrollEvent{
+				UiDiscoverKubeEksEnrollEvent: &usageeventsv1.UIDiscoverKubeEKSEnrollEvent{
+					Metadata: &usageeventsv1.DiscoverMetadata{Id: "someid"},
+					Resource: &usageeventsv1.DiscoverResourceMetadata{Resource: usageeventsv1.DiscoverResource_DISCOVER_RESOURCE_KUBERNETES_EKS},
+					Status:   &usageeventsv1.DiscoverStepStatus{Status: usageeventsv1.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
+				},
+			}},
+			identityUsername: "myuser",
+			errCheck:         require.NoError,
+			expected: &prehogv1a.SubmitEventRequest{Event: &prehogv1a.SubmitEventRequest_UiDiscoverKubeEksEnrollEvent{
+				UiDiscoverKubeEksEnrollEvent: &prehogv1a.UIDiscoverKubeEKSEnrollEvent{
+					Metadata: &prehogv1a.DiscoverMetadata{
+						Id:       "someid",
+						UserName: expectedAnonymizedUserString,
+						Sso:      false,
+					},
+					Resource: &prehogv1a.DiscoverResourceMetadata{Resource: prehogv1a.DiscoverResource_DISCOVER_RESOURCE_KUBERNETES_EKS},
+					Status:   &prehogv1a.DiscoverStepStatus{Status: prehogv1a.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
+				},
+			}},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			tt := tt

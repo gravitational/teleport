@@ -50,6 +50,7 @@ const (
 	uiDiscoverResourceSelectionEvent                  = "tp.ui.discover.resourceSelection"
 	uiDiscoverIntegrationAWSOIDCConnectEvent          = "tp.ui.discover.integration.awsoidc.connect"
 	uiDiscoverDatabaseRDSEnrollEvent                  = "tp.ui.discover.database.enroll.rds"
+	uiDiscoverKubeEKSEnrollEvent                      = "tp.ui.discover.kube.enroll.eks"
 	uiDiscoverDeployServiceEvent                      = "tp.ui.discover.deployService"
 	uiDiscoverDatabaseRegisterEvent                   = "tp.ui.discover.database.register"
 	uiDiscoverDatabaseConfigureMTLSEvent              = "tp.ui.discover.database.configure.mtls"
@@ -89,6 +90,7 @@ var eventsWithDataRequired = []string{
 	uiDiscoverCompletedEvent,
 	uiDiscoverIntegrationAWSOIDCConnectEvent,
 	uiDiscoverDatabaseRDSEnrollEvent,
+	uiDiscoverKubeEKSEnrollEvent,
 	uiIntegrationEnrollStartEvent,
 	uiIntegrationEnrollCompleteEvent,
 	uiDiscoverCreateDiscoveryConfigEvent,
@@ -286,6 +288,7 @@ func ConvertUserEventRequestToUsageEvent(req CreateUserEventRequest) (*usageeven
 		uiDiscoverResourceSelectionEvent,
 		uiDiscoverIntegrationAWSOIDCConnectEvent,
 		uiDiscoverDatabaseRDSEnrollEvent,
+		uiDiscoverKubeEKSEnrollEvent,
 		uiDiscoverDeployServiceEvent,
 		uiDiscoverDatabaseRegisterEvent,
 		uiDiscoverDatabaseConfigureMTLSEvent,

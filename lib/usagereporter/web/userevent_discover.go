@@ -131,6 +131,15 @@ func (d *DiscoverEventData) ToUsageEvent(eventName string) (*usageeventsv1.Usage
 			},
 		}}, nil
 
+	case uiDiscoverKubeEKSEnrollEvent:
+		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverKubeEksEnrollEvent{
+			UiDiscoverKubeEksEnrollEvent: &usageeventsv1.UIDiscoverKubeEKSEnrollEvent{
+				Metadata: metadata,
+				Resource: resource,
+				Status:   status,
+			},
+		}}, nil
+
 	case uiDiscoverDeployServiceEvent:
 		deployMethodEnum, ok := usageeventsv1.UIDiscoverDeployServiceEvent_DeployMethod_value[d.ServiceDeploy.Method]
 		if !ok {

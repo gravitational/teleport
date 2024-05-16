@@ -1243,6 +1243,17 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 		}
 
 		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UiDiscoverKubeEksEnrollEvent:
+		ret := &UIDiscoverKubeEKSEnrollEvent{
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverKubeEksEnrollEvent.Metadata, userMD),
+			Resource: discoverResourceToPrehog(e.UiDiscoverKubeEksEnrollEvent.Resource),
+			Status:   discoverStatusToPrehog(e.UiDiscoverKubeEksEnrollEvent.Status),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_UiCallToActionClickEvent:
 		return &UICallToActionClickEvent{
 			UserName: userMD.Username,
