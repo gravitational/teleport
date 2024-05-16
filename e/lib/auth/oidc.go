@@ -26,6 +26,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -335,7 +336,7 @@ func (oas *OIDCAuthService) CreateOIDCAuthRequest(ctx context.Context, req types
 // ValidateOIDCAuthCallback is called by the proxy to check OIDC query parameters
 // returned by OIDC Provider, if everything checks out, auth server
 // will respond with OIDCAuthResponse, otherwise it will return error
-func (oas *OIDCAuthService) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*auth.OIDCAuthResponse, error) {
+func (oas *OIDCAuthService) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*authclient.OIDCAuthResponse, error) {
 	if oas.license.IsDisabled() {
 		return nil, ErrLicenseExpired
 	}
@@ -432,7 +433,7 @@ func checkEmailVerifiedClaim(claims jose.Claims) error {
 }
 
 func validateOIDCAuthCallbackWeb(authClient *auth.ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req *auth.ValidateOIDCAuthCallbackReq
+	var req *authclient.ValidateOIDCAuthCallbackReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -440,7 +441,7 @@ func validateOIDCAuthCallbackWeb(authClient *auth.ServerWithRoles, w http.Respon
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	raw := auth.OIDCAuthRawResponse{
+	raw := authclient.OIDCAuthRawResponse{
 		Username: response.Username,
 		Identity: response.Identity,
 		Cert:     response.Cert,
@@ -465,7 +466,7 @@ func validateOIDCAuthCallbackWeb(authClient *auth.ServerWithRoles, w http.Respon
 	return &raw, nil
 }
 
-func (oas *OIDCAuthService) validateOIDCAuthCallback(ctx context.Context, diagCtx *auth.SSODiagContext, q url.Values) (*auth.OIDCAuthResponse, string, error) {
+func (oas *OIDCAuthService) validateOIDCAuthCallback(ctx context.Context, diagCtx *auth.SSODiagContext, q url.Values) (*authclient.OIDCAuthResponse, string, error) {
 	if errParam := q.Get("error"); errParam != "" {
 		// try to find request so the error gets logged against it.
 		state := q.Get("state")
@@ -611,7 +612,7 @@ func (oas *OIDCAuthService) validateOIDCAuthCallback(ctx context.Context, diagCt
 	}
 
 	// Auth was successful, return session, certificate, etc. to caller.
-	resp := &auth.OIDCAuthResponse{
+	resp := &authclient.OIDCAuthResponse{
 		Req: OIDCAuthRequestFromProto(req),
 		Identity: types.ExternalIdentity{
 			ConnectorID: params.ConnectorName,
@@ -677,8 +678,8 @@ func (oas *OIDCAuthService) validateOIDCAuthCallback(ctx context.Context, diagCt
 }
 
 // OIDCAuthRequestFromProto converts the types.OIDCAuthRequest to OIDCAuthRequest.
-func OIDCAuthRequestFromProto(req *types.OIDCAuthRequest) auth.OIDCAuthRequest {
-	return auth.OIDCAuthRequest{
+func OIDCAuthRequestFromProto(req *types.OIDCAuthRequest) authclient.OIDCAuthRequest {
+	return authclient.OIDCAuthRequest{
 		ConnectorID:       req.ConnectorID,
 		PublicKey:         req.PublicKey,
 		CSRFToken:         req.CSRFToken,

@@ -28,6 +28,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -383,8 +384,8 @@ func ParseSAMLInResponseTo(response string) (string, error) {
 }
 
 // SAMLAuthRequestFromProto converts the types.SAMLAuthRequest to SAMLAuthRequestData.
-func SAMLAuthRequestFromProto(req *types.SAMLAuthRequest) auth.SAMLAuthRequest {
-	return auth.SAMLAuthRequest{
+func SAMLAuthRequestFromProto(req *types.SAMLAuthRequest) authclient.SAMLAuthRequest {
+	return authclient.SAMLAuthRequest{
 		ID:                req.ID,
 		PublicKey:         req.PublicKey,
 		CSRFToken:         req.CSRFToken,
@@ -394,7 +395,7 @@ func SAMLAuthRequestFromProto(req *types.SAMLAuthRequest) auth.SAMLAuthRequest {
 }
 
 // ValidateSAMLResponse consumes attribute statements from SAML identity provider
-func (sas *SAMLAuthService) ValidateSAMLResponse(ctx context.Context, samlResponse, connectorID, clientIP string) (*auth.SAMLAuthResponse, error) {
+func (sas *SAMLAuthService) ValidateSAMLResponse(ctx context.Context, samlResponse, connectorID, clientIP string) (*authclient.SAMLAuthResponse, error) {
 	if sas.license.IsDisabled() {
 		return nil, ErrLicenseExpired
 	}
@@ -472,7 +473,7 @@ func (sas *SAMLAuthService) checkIDPInitiatedSAML(ctx context.Context, connector
 	return trace.Wrap(err)
 }
 
-func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *auth.SSODiagContext, samlResponse, connectorID, clientIP string) (*auth.SAMLAuthResponse, string, error) {
+func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *auth.SSODiagContext, samlResponse, connectorID, clientIP string) (*authclient.SAMLAuthResponse, string, error) {
 	idpInitiated := false
 	var connector types.SAMLConnector
 	var provider *saml2.SAMLServiceProvider
@@ -632,7 +633,7 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 	}
 
 	// Auth was successful, return session, certificate, etc. to caller.
-	resp := &auth.SAMLAuthResponse{
+	resp := &authclient.SAMLAuthResponse{
 		Identity: types.ExternalIdentity{
 			ConnectorID: user.GetCreatedBy().Connector.ID,
 			Username:    user.GetName(),
@@ -643,7 +644,7 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 	if request != nil {
 		resp.Req = SAMLAuthRequestFromProto(request)
 	} else {
-		resp.Req = auth.SAMLAuthRequest{
+		resp.Req = authclient.SAMLAuthRequest{
 			CreateWebSession: true,
 		}
 	}
@@ -764,7 +765,7 @@ func (sas *SAMLAuthService) getUserState(ctx context.Context, user types.User, c
 // SAMLAuthService.ValidateSAMLResponse. It is called by a teleport proxy in
 // response to it receiving the SAML callback (ACS) from the identity provider.
 func validateSAMLResponseWeb(authClient *auth.ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req *auth.ValidateSAMLResponseReq
+	var req *authclient.ValidateSAMLResponseReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -772,7 +773,7 @@ func validateSAMLResponseWeb(authClient *auth.ServerWithRoles, w http.ResponseWr
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	raw := auth.SAMLAuthRawResponse{
+	raw := authclient.SAMLAuthRawResponse{
 		Username: response.Username,
 		Identity: response.Identity,
 		Cert:     response.Cert,

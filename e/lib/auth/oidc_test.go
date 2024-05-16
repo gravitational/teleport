@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/loginrule"
 	"github.com/gravitational/teleport/e/lib/loginrule/storage"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
@@ -387,7 +388,7 @@ func TestSSODiagnostic(t *testing.T) {
 
 			require.NoError(t, err)
 			require.NotNil(t, resp)
-			require.Equal(t, &auth.OIDCAuthResponse{
+			require.Equal(t, &authclient.OIDCAuthResponse{
 				Username: "superuser@example.com",
 				Identity: types.ExternalIdentity{
 					ConnectorID: "-sso-test-okta",
@@ -406,7 +407,7 @@ func TestSSODiagnostic(t *testing.T) {
 			resp, loginIP, err := s.oas.validateOIDCAuthCallback(ctx, &diagCtx, values)
 			require.NoError(t, err)
 			require.NotNil(t, resp)
-			require.Equal(t, &auth.OIDCAuthResponse{
+			require.Equal(t, &authclient.OIDCAuthResponse{
 				Username: "superuser@example.com",
 				Identity: types.ExternalIdentity{
 					ConnectorID: "-sso-test-okta",

@@ -14,6 +14,7 @@ import (
 	"github.com/gravitational/teleport/e/api/cloud"
 	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/web"
 	"github.com/gravitational/teleport/lib/web/ui"
@@ -43,7 +44,7 @@ type userAPIGetter interface {
 
 	CreateUser(ctx context.Context, user types.User) (types.User, error)
 
-	CreateResetPasswordToken(ctx context.Context, req auth.CreateUserTokenRequest) (types.UserToken, error)
+	CreateResetPasswordToken(ctx context.Context, req authclient.CreateUserTokenRequest) (types.UserToken, error)
 }
 
 type cloudAPIGetter interface {
@@ -77,7 +78,7 @@ func createAndInviteUsers(r *http.Request, authClt userAPIGetter, cloudClt cloud
 		}
 
 		token, err := authClt.CreateResetPasswordToken(r.Context(),
-			auth.CreateUserTokenRequest{
+			authclient.CreateUserTokenRequest{
 				Name: recipient,
 
 				// We'll only ever support password reset tokens here, so we can use
@@ -154,7 +155,7 @@ func sendTeleportCredentialResetLink(r *http.Request, authClt userAPIGetter, clo
 	}
 
 	token, err := authClt.CreateResetPasswordToken(r.Context(),
-		auth.CreateUserTokenRequest{
+		authclient.CreateUserTokenRequest{
 			Name: req.Recipient,
 
 			// We'll only ever support password reset tokens here, so we can use
