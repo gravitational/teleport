@@ -419,8 +419,8 @@ func (a *App) getMessageRecipients(ctx context.Context, req types.AccessRequest)
 	for _, recipient := range recipients.ToSlice() {
 		recipientSet.Add(recipient)
 	}
-	if len(recipientSet.ToSlice()) != 0 {
-		return recipientSet.ToSlice()
+	if s := recipientSet.ToSlice(); len(s) != 0 {
+		return s
 	}
 
 	switch a.pluginType {
