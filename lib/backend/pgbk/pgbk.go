@@ -31,7 +31,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype/zeronull"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -150,22 +149,22 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	log := logrus.WithField(teleport.ComponentKey, componentName)
-	logger := slog.Default().With(teleport.ComponentKey, componentName)
+	log := slog.With(teleport.ComponentKey, componentName)
 
-	if err := cfg.AuthConfig.ApplyToPoolConfigs(ctx, logger, poolConfig, feedConfig); err != nil {
+	if err := cfg.AuthConfig.ApplyToPoolConfigs(ctx, log, poolConfig, feedConfig); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	const defaultTxIsoParamName = "default_transaction_isolation"
 	if defaultTxIso := poolConfig.ConnConfig.RuntimeParams[defaultTxIsoParamName]; defaultTxIso != "" {
-		log.WithField(defaultTxIsoParamName, defaultTxIso).
-			Error("The " + defaultTxIsoParamName + " parameter was overridden in the connection string; proceeding with an unsupported configuration.")
+		const message = "The " + defaultTxIsoParamName + " parameter was overridden in the connection string; proceeding with an unsupported configuration."
+		log.ErrorContext(ctx, message,
+			defaultTxIsoParamName, defaultTxIso)
 	} else {
 		poolConfig.ConnConfig.RuntimeParams[defaultTxIsoParamName] = "serializable"
 	}
 
-	log.Info("Setting up backend.")
+	log.InfoContext(ctx, "Setting up backend.")
 
 	pgcommon.TryEnsureDatabase(ctx, poolConfig, log)
 
@@ -212,7 +211,7 @@ type Backend struct {
 	cfg        Config
 	feedConfig *pgxpool.Config
 
-	log  logrus.FieldLogger
+	log  *slog.Logger
 	pool *pgxpool.Pool
 	buf  *backend.CircularBuffer
 

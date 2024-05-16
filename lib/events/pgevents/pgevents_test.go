@@ -132,7 +132,6 @@ func TestConfig(t *testing.T) {
 
 		require.NoError(t, actualConfig.CheckAndSetDefaults())
 		actualConfig.Log = nil
-		actualConfig.Logger = nil
 		actualConfig.PoolConfig = nil
 
 		require.Equal(t, expectedConfig, &actualConfig)

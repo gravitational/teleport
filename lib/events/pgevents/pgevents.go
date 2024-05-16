@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -71,8 +70,7 @@ const (
 type Config struct {
 	pgcommon.AuthConfig
 
-	Log        logrus.FieldLogger
-	Logger     *slog.Logger
+	Log        *slog.Logger
 	PoolConfig *pgxpool.Config
 
 	DisableCleanup  bool
@@ -159,10 +157,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 
 	if c.Log == nil {
-		c.Log = logrus.WithField(teleport.ComponentKey, componentName)
-	}
-	if c.Logger == nil {
-		c.Logger = slog.Default().With(teleport.ComponentKey, componentName)
+		c.Log = slog.With(teleport.ComponentKey, componentName)
 	}
 
 	return nil
@@ -175,11 +170,11 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := cfg.AuthConfig.ApplyToPoolConfigs(ctx, cfg.Logger, cfg.PoolConfig); err != nil {
+	if err := cfg.AuthConfig.ApplyToPoolConfigs(ctx, cfg.Log, cfg.PoolConfig); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	cfg.Log.Info("Setting up events backend.")
+	cfg.Log.InfoContext(ctx, "Setting up events backend.")
 
 	pgcommon.TryEnsureDatabase(ctx, cfg.PoolConfig, cfg.Log)
 
@@ -205,14 +200,14 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		go l.periodicCleanup(periodicCtx, cfg.CleanupInterval, cfg.RetentionPeriod)
 	}
 
-	l.log.Info("Started events backend.")
+	l.log.InfoContext(ctx, "Started events backend.")
 
 	return l, nil
 }
 
 // Log is an external [events.AuditLogger] backed by a PostgreSQL database.
 type Log struct {
-	log  logrus.FieldLogger
+	log  *slog.Logger
 	pool *pgxpool.Pool
 
 	cancel context.CancelFunc
@@ -257,7 +252,7 @@ func (l *Log) periodicCleanup(ctx context.Context, cleanupInterval, retentionPer
 		case <-tk.C:
 		}
 
-		l.log.Debug("Executing periodic cleanup.")
+		l.log.DebugContext(ctx, "Executing periodic cleanup.")
 		deleted, err := pgcommon.RetryIdempotent(ctx, l.log, func() (int64, error) {
 			tag, err := l.pool.Exec(ctx,
 				"DELETE FROM events WHERE creation_time < (now() - $1::interval)",
@@ -270,9 +265,9 @@ func (l *Log) periodicCleanup(ctx context.Context, cleanupInterval, retentionPer
 			return tag.RowsAffected(), nil
 		})
 		if err != nil {
-			l.log.WithError(err).Error("Failed to execute periodic cleanup.")
+			l.log.ErrorContext(ctx, "Failed to execute periodic cleanup.", "error", err)
 		} else {
-			l.log.WithField("deleted_rows", deleted).Debug("Executed periodic cleanup.")
+			l.log.DebugContext(ctx, "Executed periodic cleanup.", "deleted", deleted)
 		}
 	}
 }
