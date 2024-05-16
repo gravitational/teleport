@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -766,7 +767,7 @@ func TestDesktopAccessFIPS(t *testing.T) {
 }
 
 type mockAccessPoint struct {
-	auth.ProxyAccessPoint
+	authclient.ProxyAccessPoint
 }
 
 // NewWatcher needs to be defined so that we can test proxy TLS config setup without panicing.

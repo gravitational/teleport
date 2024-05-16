@@ -33,7 +33,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/inventory/metadata"
@@ -55,7 +55,7 @@ type HeartbeatV2Config[T any] struct {
 	// if the control stream is unavailable.
 	//
 	// DELETE IN: 11.0 (only exists for back-compat with v9 auth servers)
-	Announcer auth.Announcer
+	Announcer authclient.Announcer
 	// OnHeartbeat is a per-attempt callback (optional).
 	OnHeartbeat func(error)
 	// AnnounceInterval is the interval at which heartbeats are attempted (optional).
@@ -483,7 +483,7 @@ type metadataGetter func(ctx context.Context) (*metadata.Metadata, error)
 type sshServerHeartbeatV2 struct {
 	getServer   func(ctx context.Context) *types.ServerV2
 	getMetadata metadataGetter
-	announcer   auth.Announcer
+	announcer   authclient.Announcer
 	prev        *types.ServerV2
 }
 
@@ -528,7 +528,7 @@ func (h *sshServerHeartbeatV2) Announce(ctx context.Context, sender inventory.Do
 // appServerHeartbeatV2 is the heartbeatV2 implementation for app servers.
 type appServerHeartbeatV2 struct {
 	getServer func(ctx context.Context) *types.AppServerV3
-	announcer auth.Announcer
+	announcer authclient.Announcer
 	prev      *types.AppServerV3
 }
 

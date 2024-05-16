@@ -638,7 +638,7 @@ func (s *WebSuite) addNode(t *testing.T, uuid string, hostname string, address s
 	return node
 }
 
-func noCache(clt authclient.ClientI, cacheName []string) (auth.RemoteProxyAccessPoint, error) {
+func noCache(clt authclient.ClientI, cacheName []string) (authclient.RemoteProxyAccessPoint, error) {
 	return clt, nil
 }
 
@@ -3567,7 +3567,7 @@ func TestSignMTLS_failsAccessDenied(t *testing.T) {
 	_, err = pack.clt.PostJSON(context.Background(), endpointResetToken, authclient.CreateUserTokenRequest{
 		Name: username,
 		TTL:  time.Minute,
-		Type: auth.UserTokenTypeResetPassword,
+		Type: authclient.UserTokenTypeResetPassword,
 	})
 	require.NoError(t, err)
 
@@ -9317,7 +9317,7 @@ func initGRPCServer(t *testing.T, env *webPack, listener net.Listener) {
 
 // copyAndConfigureTLS can be used to copy and modify an existing *tls.Config
 // for Teleport application proxy servers.
-func copyAndConfigureTLS(config *tls.Config, log logrus.FieldLogger, accessPoint auth.AccessCache, clusterName string) *tls.Config {
+func copyAndConfigureTLS(config *tls.Config, log logrus.FieldLogger, accessPoint authclient.AccessCache, clusterName string) *tls.Config {
 	tlsConfig := config.Clone()
 
 	// Require clients to present a certificate

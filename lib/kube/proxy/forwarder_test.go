@@ -52,7 +52,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
@@ -1208,7 +1207,7 @@ type mockRemoteSite struct {
 func (s mockRemoteSite) GetName() string { return s.name }
 
 type mockAccessPoint struct {
-	auth.KubernetesAccessPoint
+	authclient.KubernetesAccessPoint
 
 	netConfig       types.ClusterNetworkingConfig
 	recordingConfig types.SessionRecordingConfig

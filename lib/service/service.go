@@ -2337,7 +2337,7 @@ func (process *TeleportProcess) newAccessCache(cfg accesspoint.AccessCacheConfig
 }
 
 // newLocalCacheForNode returns new instance of access point configured for a local proxy.
-func (process *TeleportProcess) newLocalCacheForNode(clt authclient.ClientI, cacheName []string) (auth.NodeAccessPoint, error) {
+func (process *TeleportProcess) newLocalCacheForNode(clt authclient.ClientI, cacheName []string) (authclient.NodeAccessPoint, error) {
 	// if caching is disabled, return access point
 	if !process.Config.CachePolicy.Enabled {
 		return clt, nil
@@ -2348,11 +2348,11 @@ func (process *TeleportProcess) newLocalCacheForNode(clt authclient.ClientI, cac
 		return nil, trace.Wrap(err)
 	}
 
-	return auth.NewNodeWrapper(clt, cache), nil
+	return authclient.NewNodeWrapper(clt, cache), nil
 }
 
 // newLocalCacheForKubernetes returns new instance of access point configured for a kubernetes service.
-func (process *TeleportProcess) newLocalCacheForKubernetes(clt authclient.ClientI, cacheName []string) (auth.KubernetesAccessPoint, error) {
+func (process *TeleportProcess) newLocalCacheForKubernetes(clt authclient.ClientI, cacheName []string) (authclient.KubernetesAccessPoint, error) {
 	// if caching is disabled, return access point
 	if !process.Config.CachePolicy.Enabled {
 		return clt, nil
@@ -2363,11 +2363,11 @@ func (process *TeleportProcess) newLocalCacheForKubernetes(clt authclient.Client
 		return nil, trace.Wrap(err)
 	}
 
-	return auth.NewKubernetesWrapper(clt, cache), nil
+	return authclient.NewKubernetesWrapper(clt, cache), nil
 }
 
 // newLocalCacheForDatabase returns new instance of access point configured for a database service.
-func (process *TeleportProcess) newLocalCacheForDatabase(clt authclient.ClientI, cacheName []string) (auth.DatabaseAccessPoint, error) {
+func (process *TeleportProcess) newLocalCacheForDatabase(clt authclient.ClientI, cacheName []string) (authclient.DatabaseAccessPoint, error) {
 	// if caching is disabled, return access point
 	if !process.Config.CachePolicy.Enabled {
 		return clt, nil
@@ -2378,7 +2378,7 @@ func (process *TeleportProcess) newLocalCacheForDatabase(clt authclient.ClientI,
 		return nil, trace.Wrap(err)
 	}
 
-	return auth.NewDatabaseWrapper(clt, cache), nil
+	return authclient.NewDatabaseWrapper(clt, cache), nil
 }
 
 type eksClustersEnroller interface {
@@ -2398,7 +2398,7 @@ type combinedDiscoveryClient struct {
 }
 
 // newLocalCacheForDiscovery returns a new instance of access point for a discovery service.
-func (process *TeleportProcess) newLocalCacheForDiscovery(clt authclient.ClientI, cacheName []string) (auth.DiscoveryAccessPoint, error) {
+func (process *TeleportProcess) newLocalCacheForDiscovery(clt authclient.ClientI, cacheName []string) (authclient.DiscoveryAccessPoint, error) {
 	client := combinedDiscoveryClient{
 		ClientI:               clt,
 		discoveryConfigClient: clt.DiscoveryConfigClient(),
@@ -2413,11 +2413,11 @@ func (process *TeleportProcess) newLocalCacheForDiscovery(clt authclient.ClientI
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return auth.NewDiscoveryWrapper(client, cache), nil
+	return authclient.NewDiscoveryWrapper(client, cache), nil
 }
 
 // newLocalCacheForProxy returns new instance of access point configured for a local proxy.
-func (process *TeleportProcess) newLocalCacheForProxy(clt authclient.ClientI, cacheName []string) (auth.ProxyAccessPoint, error) {
+func (process *TeleportProcess) newLocalCacheForProxy(clt authclient.ClientI, cacheName []string) (authclient.ProxyAccessPoint, error) {
 	// if caching is disabled, return access point
 	if !process.Config.CachePolicy.Enabled {
 		return clt, nil
@@ -2428,11 +2428,11 @@ func (process *TeleportProcess) newLocalCacheForProxy(clt authclient.ClientI, ca
 		return nil, trace.Wrap(err)
 	}
 
-	return auth.NewProxyWrapper(clt, cache), nil
+	return authclient.NewProxyWrapper(clt, cache), nil
 }
 
 // newLocalCacheForRemoteProxy returns new instance of access point configured for a remote proxy.
-func (process *TeleportProcess) newLocalCacheForRemoteProxy(clt authclient.ClientI, cacheName []string) (auth.RemoteProxyAccessPoint, error) {
+func (process *TeleportProcess) newLocalCacheForRemoteProxy(clt authclient.ClientI, cacheName []string) (authclient.RemoteProxyAccessPoint, error) {
 	// if caching is disabled, return access point
 	if !process.Config.CachePolicy.Enabled {
 		return clt, nil
@@ -2443,14 +2443,14 @@ func (process *TeleportProcess) newLocalCacheForRemoteProxy(clt authclient.Clien
 		return nil, trace.Wrap(err)
 	}
 
-	return auth.NewRemoteProxyWrapper(clt, cache), nil
+	return authclient.NewRemoteProxyWrapper(clt, cache), nil
 }
 
 // DELETE IN: 8.0.0
 //
 // newLocalCacheForOldRemoteProxy returns new instance of access point
 // configured for an old remote proxy.
-func (process *TeleportProcess) newLocalCacheForOldRemoteProxy(clt authclient.ClientI, cacheName []string) (auth.RemoteProxyAccessPoint, error) {
+func (process *TeleportProcess) newLocalCacheForOldRemoteProxy(clt authclient.ClientI, cacheName []string) (authclient.RemoteProxyAccessPoint, error) {
 	// if caching is disabled, return access point
 	if !process.Config.CachePolicy.Enabled {
 		return clt, nil
@@ -2461,11 +2461,11 @@ func (process *TeleportProcess) newLocalCacheForOldRemoteProxy(clt authclient.Cl
 		return nil, trace.Wrap(err)
 	}
 
-	return auth.NewRemoteProxyWrapper(clt, cache), nil
+	return authclient.NewRemoteProxyWrapper(clt, cache), nil
 }
 
 // newLocalCacheForApps returns new instance of access point configured for a remote proxy.
-func (process *TeleportProcess) newLocalCacheForApps(clt authclient.ClientI, cacheName []string) (auth.AppsAccessPoint, error) {
+func (process *TeleportProcess) newLocalCacheForApps(clt authclient.ClientI, cacheName []string) (authclient.AppsAccessPoint, error) {
 	// if caching is disabled, return access point
 	if !process.Config.CachePolicy.Enabled {
 		return clt, nil
@@ -2476,11 +2476,11 @@ func (process *TeleportProcess) newLocalCacheForApps(clt authclient.ClientI, cac
 		return nil, trace.Wrap(err)
 	}
 
-	return auth.NewAppsWrapper(clt, cache), nil
+	return authclient.NewAppsWrapper(clt, cache), nil
 }
 
 // newLocalCacheForWindowsDesktop returns new instance of access point configured for a windows desktop service.
-func (process *TeleportProcess) newLocalCacheForWindowsDesktop(clt authclient.ClientI, cacheName []string) (auth.WindowsDesktopAccessPoint, error) {
+func (process *TeleportProcess) newLocalCacheForWindowsDesktop(clt authclient.ClientI, cacheName []string) (authclient.WindowsDesktopAccessPoint, error) {
 	// if caching is disabled, return access point
 	if !process.Config.CachePolicy.Enabled {
 		return clt, nil
@@ -2491,7 +2491,7 @@ func (process *TeleportProcess) newLocalCacheForWindowsDesktop(clt authclient.Cl
 		return nil, trace.Wrap(err)
 	}
 
-	return auth.NewWindowsDesktopWrapper(clt, cache), nil
+	return authclient.NewWindowsDesktopWrapper(clt, cache), nil
 }
 
 // accessPointWrapper is a wrapper around [authclient.ClientI]  that reduces the surface area of the
@@ -3669,7 +3669,7 @@ func (l *dbListeners) Close() {
 }
 
 // setupProxyListeners sets up web proxy listeners based on the configuration
-func (process *TeleportProcess) setupProxyListeners(networkingConfig types.ClusterNetworkingConfig, accessPoint auth.ProxyAccessPoint, clusterName string) (*proxyListeners, error) {
+func (process *TeleportProcess) setupProxyListeners(networkingConfig types.ClusterNetworkingConfig, accessPoint authclient.ProxyAccessPoint, clusterName string) (*proxyListeners, error) {
 	cfg := process.Config
 	process.logger.DebugContext(process.ExitContext(), "Setting up Proxy listeners", "web_address", cfg.Proxy.WebAddr.Addr, "tunnel_address", cfg.Proxy.ReverseTunnelListenAddr.Addr)
 	var err error
@@ -5168,7 +5168,7 @@ func kubeDialAddr(config servicecfg.ProxyConfig, mode types.ProxyListenerMode) u
 	return config.Kube.ListenAddr
 }
 
-func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv reversetunnelclient.Server, accessPoint auth.ReadProxyAccessPoint, clusterName string) (*tls.Config, error) {
+func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv reversetunnelclient.Server, accessPoint authclient.ReadProxyAccessPoint, clusterName string) (*tls.Config, error) {
 	cfg := process.Config
 	var tlsConfig *tls.Config
 	acmeCfg := process.Config.Proxy.ACME
@@ -5234,7 +5234,7 @@ func setupTLSConfigALPNProtocols(tlsConfig *tls.Config) {
 	tlsConfig.NextProtos = apiutils.Deduplicate(append(tlsConfig.NextProtos, alpncommon.ProtocolsToString(alpncommon.SupportedProtocols)...))
 }
 
-func (process *TeleportProcess) setupTLSConfigClientCAGeneratorForCluster(tlsConfig *tls.Config, accessPoint auth.ReadProxyAccessPoint, clusterName string) error {
+func (process *TeleportProcess) setupTLSConfigClientCAGeneratorForCluster(tlsConfig *tls.Config, accessPoint authclient.ReadProxyAccessPoint, clusterName string) error {
 	// create a local copy of the TLS config so we can change some settings that are only
 	// relevant to the config returned by GetConfigForClient.
 	tlsClone := tlsConfig.Clone()
@@ -5273,7 +5273,7 @@ func (process *TeleportProcess) setupTLSConfigClientCAGeneratorForCluster(tlsCon
 	return nil
 }
 
-func (process *TeleportProcess) setupALPNTLSConfigForWeb(serverTLSConfig *tls.Config, accessPoint auth.ReadProxyAccessPoint, clusterName string) (*tls.Config, error) {
+func (process *TeleportProcess) setupALPNTLSConfigForWeb(serverTLSConfig *tls.Config, accessPoint authclient.ReadProxyAccessPoint, clusterName string) (*tls.Config, error) {
 	tlsConfig := utils.TLSConfig(process.Config.CipherSuites)
 	tlsConfig.Certificates = serverTLSConfig.Certificates
 
@@ -6033,7 +6033,7 @@ func dumperHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // getPublicAddr waits for a proxy to be registered with Teleport.
-func getPublicAddr(authClient auth.ReadAppsAccessPoint, a servicecfg.App) (string, error) {
+func getPublicAddr(authClient authclient.ReadAppsAccessPoint, a servicecfg.App) (string, error) {
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 	timeout := time.NewTimer(5 * time.Second)
@@ -6337,14 +6337,14 @@ type initSecureGRPCServerCfg struct {
 	conn        *Connector
 	limiter     *limiter.Limiter
 	listener    net.Listener
-	accessPoint auth.ProxyAccessPoint
+	accessPoint authclient.ProxyAccessPoint
 	lockWatcher *services.LockWatcher
 	emitter     apievents.Emitter
 }
 
 // copyAndConfigureTLS can be used to copy and modify an existing *tls.Config
 // for Teleport application proxy servers.
-func copyAndConfigureTLS(config *tls.Config, log logrus.FieldLogger, accessPoint auth.AccessCache, clusterName string) *tls.Config {
+func copyAndConfigureTLS(config *tls.Config, log logrus.FieldLogger, accessPoint authclient.AccessCache, clusterName string) *tls.Config {
 	tlsConfig := config.Clone()
 
 	// Require clients to present a certificate

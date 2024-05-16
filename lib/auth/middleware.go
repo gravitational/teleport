@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -65,6 +66,13 @@ const (
 	// TeleportImpersonateIPHeader is a header that specifies the real user IP address.
 	TeleportImpersonateIPHeader = "Teleport-Impersonate-IP"
 )
+
+// AccessCacheWithEvents extends the [authclient.AccessCache] interface with [types.Events].
+// Useful for trust-related components that need to watch for changes.
+type AccessCacheWithEvents interface {
+	authclient.AccessCache
+	types.Events
+}
 
 // TLSServerConfig is a configuration for TLS server
 type TLSServerConfig struct {
@@ -804,7 +812,7 @@ func (a *Middleware) WrapContextWithUserFromTLSConnState(ctx context.Context, tl
 // In addition, it returns the total length of all subjects added to the cert pool, allowing
 // the caller to validate that the pool doesn't exceed the maximum 2-byte length prefix before
 // using it.
-func ClientCertPool(client AccessCache, clusterName string, caTypes ...types.CertAuthType) (*x509.CertPool, int64, error) {
+func ClientCertPool(client authclient.AccessCache, clusterName string, caTypes ...types.CertAuthType) (*x509.CertPool, int64, error) {
 	if len(caTypes) == 0 {
 		return nil, 0, trace.BadParameter("at least one CA type is required")
 	}
