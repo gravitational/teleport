@@ -153,7 +153,7 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 	log := logrus.WithField(teleport.ComponentKey, componentName)
 	logger := slog.Default().With(teleport.ComponentKey, componentName)
 
-	if err := cfg.AuthMode.ConfigurePoolConfigs(ctx, logger, poolConfig, feedConfig); err != nil {
+	if err := cfg.AuthMode.ApplyToPoolConfigs(ctx, logger, poolConfig, feedConfig); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

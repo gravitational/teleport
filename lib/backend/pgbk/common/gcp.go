@@ -31,25 +31,36 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/gcp"
 )
 
-// GCPSQLBeforeConnect returns a pgx BeforeConnect function suitable for GCP
-// SQL PostgreSQL with IAM authentication.
-func GCPSQLBeforeConnect(ctx context.Context, logger *slog.Logger) (func(ctx context.Context, config *pgx.ConnConfig) error, error) {
-	return gcpOAuthAccessTokenBeforeConnect(ctx, gcpAccessTokenGetterImpl{}, gcpSQLOAuthScope, logger)
+// GCPCloudSQLBeforeConnect returns a pgx BeforeConnect function suitable for
+// GCP Cloud SQL PostgreSQL with IAM authentication.
+func GCPCloudSQLBeforeConnect(ctx context.Context, logger *slog.Logger) (func(ctx context.Context, config *pgx.ConnConfig) error, error) {
+	tokenGetter, err := newGCPAccessTokenGetterImpl(ctx, logger)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return gcpOAuthAccessTokenBeforeConnect(ctx, tokenGetter, gcpCloudSQLOAuthScope, logger)
 }
 
 // GCPAlloyDBBeforeConnect returns a pgx BeforeConnect function suitable for GCP
 // AlloyDB (PostgreSQL-compatible) with IAM authentication.
 func GCPAlloyDBBeforeConnect(ctx context.Context, logger *slog.Logger) (func(ctx context.Context, config *pgx.ConnConfig) error, error) {
-	return gcpOAuthAccessTokenBeforeConnect(ctx, gcpAccessTokenGetterImpl{}, gcpAlloyDBOAuthScope, logger)
+	tokenGetter, err := newGCPAccessTokenGetterImpl(ctx, logger)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return gcpOAuthAccessTokenBeforeConnect(ctx, tokenGetter, gcpAlloyDBOAuthScope, logger)
 }
 
 const (
-	// gcpSQLOAuthScope is the scope used for GCP SQL IAM authentication.
+	// gcpCloudSQLOAuthScope is the scope used for GCP Cloud SQL IAM authentication.
 	// https://developers.google.com/identity/protocols/oauth2/scopes#sqladmin
-	gcpSQLOAuthScope = "https://www.googleapis.com/auth/sqlservice.admin"
+	gcpCloudSQLOAuthScope = "https://www.googleapis.com/auth/sqlservice.admin"
 	// gcpAlloyDBOAuthScope is the scope used for GCP AlloyDB IAM authentication.
 	// https://cloud.google.com/alloydb/docs/connect-iam
 	gcpAlloyDBOAuthScope = "https://www.googleapis.com/auth/alloydb.login"
@@ -109,29 +120,54 @@ func gcpOAuthAccessTokenBeforeConnect(ctx context.Context, tokenGetter gcpAccess
 }
 
 type gcpAccessTokenGetterImpl struct {
+	cache  *utils.FnCache
+	logger *slog.Logger
 }
 
-func (g gcpAccessTokenGetterImpl) getFromCredentials(ctx context.Context, credentials *google.Credentials) (*oauth2.Token, error) {
+func newGCPAccessTokenGetterImpl(ctx context.Context, logger *slog.Logger) (*gcpAccessTokenGetterImpl, error) {
+	cache, err := utils.NewFnCache(utils.FnCacheConfig{
+		Context: ctx,
+		TTL:     time.Minute,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &gcpAccessTokenGetterImpl{
+		cache:  cache,
+		logger: logger,
+	}, nil
+}
+
+func (g *gcpAccessTokenGetterImpl) getFromCredentials(ctx context.Context, credentials *google.Credentials) (*oauth2.Token, error) {
+	// Token() only refreshes when necessary so no need for cache.
 	token, err := credentials.TokenSource.Token()
 	return token, trace.Wrap(err)
 }
 
-func (g gcpAccessTokenGetterImpl) generateForServiceAccount(ctx context.Context, serviceAccount, scope string) (string, time.Time, error) {
-	gcpIAM, err := credentials.NewIamCredentialsClient(ctx)
-	if err != nil {
-		return "", time.Time{}, trace.Wrap(err)
-	}
+func (g *gcpAccessTokenGetterImpl) generateForServiceAccount(ctx context.Context, serviceAccount, scope string) (string, time.Time, error) {
+	key := fmt.Sprintf("%s@%s", serviceAccount, scope)
+	resp, err := utils.FnCacheGet(ctx, g.cache, key, func(ctx context.Context) (*credentialspb.GenerateAccessTokenResponse, error) {
+		g.logger.DebugContext(ctx, "Generating GCP access token with IAM credentials client.", "service_account", serviceAccount, "scope", scope)
 
-	defer func() {
-		if err := gcpIAM.Close(); err != nil {
-			slog.DebugContext(ctx, "Failed to close GCP IAM Credentials client.", "err", err)
+		gcpIAM, err := credentials.NewIamCredentialsClient(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
-	}()
 
-	resp, err := gcpIAM.GenerateAccessToken(ctx, &credentialspb.GenerateAccessTokenRequest{
-		Name:  fmt.Sprintf("projects/-/serviceAccounts/%v", serviceAccount),
-		Scope: []string{scope},
+		defer func() {
+			if err := gcpIAM.Close(); err != nil {
+				g.logger.DebugContext(ctx, "Failed to close GCP IAM Credentials client.", "err", err)
+			}
+		}()
+
+		resp, err := gcpIAM.GenerateAccessToken(ctx, &credentialspb.GenerateAccessTokenRequest{
+			Name:  fmt.Sprintf("projects/-/serviceAccounts/%v", serviceAccount),
+			Scope: []string{scope},
+		})
+		return resp, trace.Wrap(err)
 	})
+
 	if err != nil {
 		return "", time.Time{}, trace.Wrap(err)
 	}

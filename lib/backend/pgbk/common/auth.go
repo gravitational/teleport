@@ -20,14 +20,14 @@ package pgcommon
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"slices"
-	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	apiutils "github.com/gravitational/teleport/api/utils"
 )
 
 // AuthMode determines if we should use some environment-specific authentication
@@ -41,9 +41,9 @@ const (
 	// AzureADAuth gets a connection token from Azure and uses it as the
 	// password when connecting.
 	AzureADAuth AuthMode = "azure"
-	// GCPSQLIAMAuth fetches an access token and uses it as password when
-	// connecting to GCP SQL PostgreSQL.
-	GCPSQLIAMAuth AuthMode = "gcp-sql"
+	// GCPCloudSQLIAMAuth fetches an access token and uses it as password when
+	// connecting to GCP Cloud SQL PostgreSQL.
+	GCPCloudSQLIAMAuth AuthMode = "gcp-cloudsql"
 	// GCPAlloyDBIAMAuth fetches an access token and uses it as password when
 	// connecting to GCP AlloyDB (PostgreSQL-compatible).
 	GCPAlloyDBIAMAuth AuthMode = "gcp-alloydb"
@@ -52,7 +52,7 @@ const (
 var supportedAuthModes = []AuthMode{
 	StaticAuth,
 	AzureADAuth,
-	GCPSQLIAMAuth,
+	GCPCloudSQLIAMAuth,
 	GCPAlloyDBIAMAuth,
 }
 
@@ -62,20 +62,17 @@ func (a AuthMode) Check() error {
 		return nil
 	}
 
-	quotedModes := make([]string, 0, len(supportedAuthModes))
-	for _, mode := range supportedAuthModes {
-		quotedModes = append(quotedModes, fmt.Sprintf("%q", mode))
-	}
-
-	return trace.BadParameter("invalid authentication mode %q, should be one of %s", a, strings.Join(quotedModes, ", "))
+	return trace.BadParameter("invalid authentication mode %q, should be one of \"%v\"", a, apiutils.JoinStrings(supportedAuthModes, `", "`))
 }
 
-// ConfigurePoolConfigs configures pgxpool.Config based on the authMode.
-func (a AuthMode) ConfigurePoolConfigs(ctx context.Context, logger *slog.Logger, configs ...*pgxpool.Config) error {
-	if bc, err := a.getBeforeConnect(ctx, logger); err != nil {
+// ApplyToPoolConfigs configures pgxpool.Config based on the authMode.
+func (a AuthMode) ApplyToPoolConfigs(ctx context.Context, logger *slog.Logger, configs ...*pgxpool.Config) error {
+	bc, err := a.getBeforeConnect(ctx, logger)
+	if err != nil {
 		return trace.Wrap(err)
-	} else if bc != nil {
-		for _, config := range configs {
+	}
+	for _, config := range configs {
+		if config != nil {
 			config.BeforeConnect = bc
 		}
 	}
@@ -87,12 +84,15 @@ func (a AuthMode) getBeforeConnect(ctx context.Context, logger *slog.Logger) (fu
 	case AzureADAuth:
 		bc, err := AzureBeforeConnect(ctx, logger)
 		return bc, trace.Wrap(err)
-	case GCPSQLIAMAuth:
-		bc, err := GCPSQLBeforeConnect(ctx, logger)
+	case GCPCloudSQLIAMAuth:
+		bc, err := GCPCloudSQLBeforeConnect(ctx, logger)
 		return bc, trace.Wrap(err)
 	case GCPAlloyDBIAMAuth:
 		bc, err := GCPAlloyDBBeforeConnect(ctx, logger)
 		return bc, trace.Wrap(err)
+	case StaticAuth:
+		return nil, nil
+	default:
+		return nil, trace.BadParameter("invalid authentication mode %q", a)
 	}
-	return nil, nil
 }

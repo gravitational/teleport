@@ -171,7 +171,7 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := cfg.AuthMode.ConfigurePoolConfigs(ctx, cfg.Logger, cfg.PoolConfig); err != nil {
+	if err := cfg.AuthMode.ApplyToPoolConfigs(ctx, cfg.Logger, cfg.PoolConfig); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

@@ -50,33 +50,33 @@ func TestAuthMode(t *testing.T) {
 	}
 
 	tests := []struct {
-		authMode                       AuthMode
-		requireCheckError              require.ErrorAssertionFunc
-		verifyPoolConfigAfterConfigure func(*testing.T, *pgxpool.Config)
+		authMode                   AuthMode
+		requireCheckError          require.ErrorAssertionFunc
+		verifyPoolConfigAfterApply func(*testing.T, *pgxpool.Config)
 	}{
 		{
 			authMode:          AuthMode("unknown-mode"),
 			requireCheckError: require.Error,
 		},
 		{
-			authMode:                       StaticAuth,
-			requireCheckError:              require.NoError,
-			verifyPoolConfigAfterConfigure: verifyNothingIsSet,
+			authMode:                   StaticAuth,
+			requireCheckError:          require.NoError,
+			verifyPoolConfigAfterApply: verifyNothingIsSet,
 		},
 		{
-			authMode:                       AzureADAuth,
-			requireCheckError:              require.NoError,
-			verifyPoolConfigAfterConfigure: verifyBeforeConnectIsSet,
+			authMode:                   AzureADAuth,
+			requireCheckError:          require.NoError,
+			verifyPoolConfigAfterApply: verifyBeforeConnectIsSet,
 		},
 		{
-			authMode:                       GCPSQLIAMAuth,
-			requireCheckError:              require.NoError,
-			verifyPoolConfigAfterConfigure: verifyBeforeConnectIsSet,
+			authMode:                   GCPCloudSQLIAMAuth,
+			requireCheckError:          require.NoError,
+			verifyPoolConfigAfterApply: verifyBeforeConnectIsSet,
 		},
 		{
-			authMode:                       GCPAlloyDBIAMAuth,
-			requireCheckError:              require.NoError,
-			verifyPoolConfigAfterConfigure: verifyBeforeConnectIsSet,
+			authMode:                   GCPAlloyDBIAMAuth,
+			requireCheckError:          require.NoError,
+			verifyPoolConfigAfterApply: verifyBeforeConnectIsSet,
 		},
 	}
 
@@ -91,17 +91,17 @@ func TestAuthMode(t *testing.T) {
 			}
 			tc.requireCheckError(t, err)
 
-			if tc.verifyPoolConfigAfterConfigure != nil {
+			if tc.verifyPoolConfigAfterApply != nil {
 				configs := []*pgxpool.Config{
 					&pgxpool.Config{},
 					&pgxpool.Config{},
 				}
 
-				err := tc.authMode.ConfigurePoolConfigs(ctx, logger, configs...)
+				err := tc.authMode.ApplyToPoolConfigs(ctx, logger, configs...)
 				require.NoError(t, err)
 
 				for _, config := range configs {
-					tc.verifyPoolConfigAfterConfigure(t, config)
+					tc.verifyPoolConfigAfterApply(t, config)
 				}
 			}
 		})
