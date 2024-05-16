@@ -40,12 +40,8 @@ import (
 )
 
 func TestAWSIAMPollSAMLProviders(t *testing.T) {
-	const (
-		accountID = "12345678"
-	)
-	var (
-		regions = []string{"eu-west-1"}
-	)
+	const accountID = "12345678"
+	var regions = []string{"eu-west-1"}
 
 	timestamp1 := time.Date(2024, time.May, 1, 1, 2, 3, 0, time.UTC)
 	timestamp2 := timestamp1.AddDate(1, 0, 0)

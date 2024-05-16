@@ -5791,6 +5791,8 @@ message PluginSpecV1 {
     PluginGitlabSettings gitlab = 12;
     // Settings for the Entra ID plugin
     PluginEntraIDSettings entra_id = 13;
+    // Settings for the SCIM plugin
+    PluginSCIMSettings scim = 14;
   }
 
   // generation contains a unique ID that should:
@@ -6016,6 +6018,19 @@ message PluginEntraIDAppSSOSettings {
 
   // FederatedSSOV2 contains the cached, gzip-compressed payload from the /ApplicationSso/{servicePrincipalId}/FederatedSSOV2 endpoint.
   bytes FederatedSSOV2 = 1;
+}
+
+// PluginSCIMSettings defines the settings for a SCIM integration plugin
+message PluginSCIMSettings {
+  option (gogoproto.equal) = true;
+
+  // SamlConnectorName is the name of the SAML Connector that users provisioned
+  // by this SCIM plugin will use to log in to Teleport.
+  string saml_connector_name = 1;
+
+  // DefaultRole is the default role assigned to users provisioned by this
+  // plugin.
+  string default_role = 2;
 }
 
 message PluginBootstrapCredentialsV1 {

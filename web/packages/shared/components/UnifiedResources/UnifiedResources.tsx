@@ -104,7 +104,7 @@ const tabs: { label: string; value: DefaultTab }[] = [
  * BulkAction describes a component that allows you to perform an action
  * on multiple selected resources
  */
-type BulkAction = {
+export type BulkAction = {
   /*
    * key is an arbitrary name of what the bulk action is, as well
    * as the key used when mapping our action components
@@ -484,7 +484,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
                         `}
                       >
                         <Icon size="small" color="brand" mr={2} />
-                        {text}
+                        <Text className="BulkActionText">{text}</Text>
                       </ButtonBorder>
                     );
                     return (

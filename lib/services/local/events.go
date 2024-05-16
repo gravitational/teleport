@@ -2049,7 +2049,6 @@ func (p *userNotificationParser) parse(event backend.Event) (types.Resource, err
 			Version: types.V1,
 			Spec: &notificationsv1.NotificationSpec{
 				Username: parts[2],
-				Id:       parts[3],
 			},
 			Metadata: &headerv1.Metadata{
 				Name: parts[3],
@@ -2100,9 +2099,7 @@ func (p *globalNotificationParser) parse(event backend.Event) (types.Resource, e
 			Version: types.V1,
 			Spec: &notificationsv1.GlobalNotificationSpec{
 				Notification: &notificationsv1.Notification{
-					Spec: &notificationsv1.NotificationSpec{
-						Id: parts[2],
-					},
+					Spec: &notificationsv1.NotificationSpec{},
 				},
 			},
 			Metadata: &headerv1.Metadata{

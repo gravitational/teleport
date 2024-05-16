@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/windows"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -165,7 +166,7 @@ type WindowsServiceConfig struct {
 	// AccessPoint is the Auth API client (with caching).
 	AccessPoint auth.WindowsDesktopAccessPoint
 	// AuthClient is the Auth API client (without caching).
-	AuthClient auth.ClientI
+	AuthClient authclient.ClientI
 	// ConnLimiter limits the number of active connections per client IP.
 	ConnLimiter *limiter.ConnectionsLimiter
 	// Heartbeat contains configuration for service heartbeats.

@@ -31,7 +31,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/modules"
@@ -48,7 +48,7 @@ func TestEditResources(t *testing.T) {
 
 	tests := []struct {
 		kind string
-		edit func(t *testing.T, fc *config.FileConfig, clt *auth.Client)
+		edit func(t *testing.T, fc *config.FileConfig, clt *authclient.Client)
 	}{
 		{
 			kind: types.KindGithubConnector,
@@ -83,7 +83,7 @@ func TestEditResources(t *testing.T) {
 	}
 }
 
-func testEditGithubConnector(t *testing.T, fc *config.FileConfig, clt *auth.Client) {
+func testEditGithubConnector(t *testing.T, fc *config.FileConfig, clt *authclient.Client) {
 	ctx := context.Background()
 
 	expected, err := types.NewGithubConnector("github", types.GithubConnectorSpecV3{
@@ -133,7 +133,7 @@ func testEditGithubConnector(t *testing.T, fc *config.FileConfig, clt *auth.Clie
 	require.ErrorIs(t, err, backend.ErrIncorrectRevision, "expected an incorrect revision error, got %T", err)
 }
 
-func testEditRole(t *testing.T, fc *config.FileConfig, clt *auth.Client) {
+func testEditRole(t *testing.T, fc *config.FileConfig, clt *authclient.Client) {
 	ctx := context.Background()
 
 	expected, err := types.NewRole("test-role", types.RoleSpecV6{})
@@ -171,7 +171,7 @@ func testEditRole(t *testing.T, fc *config.FileConfig, clt *auth.Client) {
 	require.ErrorIs(t, err, backend.ErrIncorrectRevision, "expected an incorrect revision error, got %T", err)
 }
 
-func testEditUser(t *testing.T, fc *config.FileConfig, clt *auth.Client) {
+func testEditUser(t *testing.T, fc *config.FileConfig, clt *authclient.Client) {
 	ctx := context.Background()
 
 	expected, err := types.NewUser("llama")
@@ -210,7 +210,7 @@ func testEditUser(t *testing.T, fc *config.FileConfig, clt *auth.Client) {
 	require.ErrorIs(t, err, backend.ErrIncorrectRevision, "expected an incorrect revision error, got %T", err)
 }
 
-func testEditClusterNetworkingConfig(t *testing.T, fc *config.FileConfig, clt *auth.Client) {
+func testEditClusterNetworkingConfig(t *testing.T, fc *config.FileConfig, clt *authclient.Client) {
 	ctx := context.Background()
 
 	expected := types.DefaultClusterNetworkingConfig()
@@ -250,7 +250,7 @@ func testEditClusterNetworkingConfig(t *testing.T, fc *config.FileConfig, clt *a
 	require.ErrorIs(t, err, backend.ErrIncorrectRevision, "expected an incorrect revision error, got %T", err)
 }
 
-func testEditAuthPreference(t *testing.T, fc *config.FileConfig, clt *auth.Client) {
+func testEditAuthPreference(t *testing.T, fc *config.FileConfig, clt *authclient.Client) {
 	ctx := context.Background()
 
 	expected := types.DefaultAuthPreference()
@@ -288,7 +288,7 @@ func testEditAuthPreference(t *testing.T, fc *config.FileConfig, clt *auth.Clien
 	require.ErrorIs(t, err, backend.ErrIncorrectRevision, "expected an incorrect revision error, got %T", err)
 }
 
-func testEditSessionRecordingConfig(t *testing.T, fc *config.FileConfig, clt *auth.Client) {
+func testEditSessionRecordingConfig(t *testing.T, fc *config.FileConfig, clt *authclient.Client) {
 	ctx := context.Background()
 
 	expected := types.DefaultSessionRecordingConfig()
@@ -346,7 +346,7 @@ func TestEditEnterpriseResources(t *testing.T) {
 
 	tests := []struct {
 		kind string
-		edit func(t *testing.T, fc *config.FileConfig, clt *auth.Client)
+		edit func(t *testing.T, fc *config.FileConfig, clt *authclient.Client)
 	}{
 		{
 			kind: types.KindOIDCConnector,
@@ -365,7 +365,7 @@ func TestEditEnterpriseResources(t *testing.T) {
 	}
 }
 
-func testEditOIDCConnector(t *testing.T, fc *config.FileConfig, clt *auth.Client) {
+func testEditOIDCConnector(t *testing.T, fc *config.FileConfig, clt *authclient.Client) {
 	ctx := context.Background()
 	expected, err := types.NewOIDCConnector("oidc", types.OIDCConnectorSpecV3{
 		ClientID:     "12345",
@@ -417,7 +417,7 @@ func testEditOIDCConnector(t *testing.T, fc *config.FileConfig, clt *auth.Client
 	require.ErrorIs(t, err, backend.ErrIncorrectRevision, "expected an incorrect revision error, got %T", err)
 }
 
-func testEditSAMLConnector(t *testing.T, fc *config.FileConfig, clt *auth.Client) {
+func testEditSAMLConnector(t *testing.T, fc *config.FileConfig, clt *authclient.Client) {
 	ctx := context.Background()
 
 	expected, err := types.NewSAMLConnector("saml", types.SAMLConnectorSpecV2{

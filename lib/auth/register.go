@@ -43,7 +43,9 @@ import (
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/aws"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/circleci"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
@@ -61,7 +63,7 @@ import (
 // LocalRegister is used to generate host keys when a node or proxy is running
 // within the same process as the Auth Server and as such, does not need to
 // use provisioning tokens.
-func LocalRegister(id IdentityID, authServer *Server, additionalPrincipals, dnsNames []string, remoteAddr string, systemRoles []types.SystemRole) (*Identity, error) {
+func LocalRegister(id state.IdentityID, authServer *Server, additionalPrincipals, dnsNames []string, remoteAddr string, systemRoles []types.SystemRole) (*state.Identity, error) {
 	priv, pub, err := native.GenerateKeyPair()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -94,7 +96,7 @@ func LocalRegister(id IdentityID, authServer *Server, additionalPrincipals, dnsN
 		return nil, trace.Wrap(err)
 	}
 
-	identity, err := ReadIdentityFromKeyPair(priv, certs)
+	identity, err := state.ReadIdentityFromKeyPair(priv, certs)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -115,7 +117,7 @@ type RegisterParams struct {
 	// Token is a secure token to join the cluster
 	Token string
 	// ID is identity ID
-	ID IdentityID
+	ID state.IdentityID
 	// AuthServers is a list of auth servers to dial
 	AuthServers []utils.NetAddr
 	// ProxyServer is a proxy server to dial
@@ -395,7 +397,7 @@ func registerThroughAuth(
 	ctx, span := tracer.Start(ctx, "registerThroughAuth")
 	defer func() { tracing.EndSpan(span, err) }()
 
-	var client *Client
+	var client *authclient.Client
 	// Build a client for the Auth Server with different certificate validation
 	// depending on the configured values for Insecure, CAPins and CAPath.
 	switch {
@@ -521,7 +523,7 @@ func verifyALPNUpgradedConn(clock clockwork.Clock) func(tls.ConnectionState) err
 // insecureRegisterClient attempts to connects to the Auth Server using the
 // CA on disk. If no CA is found on disk, Teleport will not verify the Auth
 // Server it is connecting to.
-func insecureRegisterClient(params RegisterParams) (*Client, error) {
+func insecureRegisterClient(params RegisterParams) (*authclient.Client, error) {
 	log.Warnf("Joining cluster without validating the identity of the Auth " +
 		"Server. This may open you up to a Man-In-The-Middle (MITM) attack if an " +
 		"attacker can gain privileged network access. To remedy this, use the CA pin " +
@@ -532,7 +534,7 @@ func insecureRegisterClient(params RegisterParams) (*Client, error) {
 	tlsConfig.Time = params.Clock.Now
 	tlsConfig.InsecureSkipVerify = true
 
-	client, err := NewClient(client.Config{
+	client, err := authclient.NewClient(client.Config{
 		Addrs: getHostAddresses(params),
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
@@ -567,13 +569,13 @@ func readCA(path string) (*x509.Certificate, error) {
 // know we are connecting to the expected Auth Server.
 func pinRegisterClient(
 	ctx context.Context, params RegisterParams,
-) (*Client, error) {
+) (*authclient.Client, error) {
 	// Build a insecure client to the Auth Server. This is safe because even if
 	// an attacker were to MITM this connection the CA pin will not match below.
 	tlsConfig := utils.TLSConfig(params.CipherSuites)
 	tlsConfig.InsecureSkipVerify = true
 	tlsConfig.Time = params.Clock.Now
-	authClient, err := NewClient(client.Config{
+	authClient, err := authclient.NewClient(client.Config{
 		Addrs: getHostAddresses(params),
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
@@ -624,7 +626,7 @@ func pinRegisterClient(
 	}
 	tlsConfig.RootCAs = certPool
 
-	authClient, err = NewClient(client.Config{
+	authClient, err = authclient.NewClient(client.Config{
 		Addrs: getHostAddresses(params),
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
@@ -638,7 +640,7 @@ func pinRegisterClient(
 	return authClient, nil
 }
 
-func caPathRegisterClient(params RegisterParams) (*Client, error) {
+func caPathRegisterClient(params RegisterParams) (*authclient.Client, error) {
 	tlsConfig := utils.TLSConfig(params.CipherSuites)
 	tlsConfig.Time = params.Clock.Now
 
@@ -662,7 +664,7 @@ func caPathRegisterClient(params RegisterParams) (*Client, error) {
 
 	log.Infof("Joining remote cluster %v, validating connection with certificate on disk.", cert.Subject.CommonName)
 
-	client, err := NewClient(client.Config{
+	client, err := authclient.NewClient(client.Config{
 		Addrs: getHostAddresses(params),
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
@@ -839,9 +841,9 @@ func registerUsingTPMMethod(
 // in the cluster (rotating certificates for existing members)
 type ReRegisterParams struct {
 	// Client is an authenticated client using old credentials
-	Client ClientI
+	Client authclient.ClientI
 	// ID is identity ID
-	ID IdentityID
+	ID state.IdentityID
 	// AdditionalPrincipals is a list of additional principals to dial
 	AdditionalPrincipals []string
 	// DNSNames is a list of DNS Names to add to the x509 client certificate
@@ -859,7 +861,7 @@ type ReRegisterParams struct {
 }
 
 // ReRegister renews the certificates and private keys based on the client's existing identity.
-func ReRegister(ctx context.Context, params ReRegisterParams) (*Identity, error) {
+func ReRegister(ctx context.Context, params ReRegisterParams) (*state.Identity, error) {
 	var rotation *types.Rotation
 	if !params.Rotation.IsZero() {
 		// older auths didn't distinguish between empty and nil rotation
@@ -883,5 +885,5 @@ func ReRegister(ctx context.Context, params ReRegisterParams) (*Identity, error)
 		return nil, trace.Wrap(err)
 	}
 
-	return ReadIdentityFromKeyPair(params.PrivateKey, certs)
+	return state.ReadIdentityFromKeyPair(params.PrivateKey, certs)
 }

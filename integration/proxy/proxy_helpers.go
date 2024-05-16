@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -665,7 +666,7 @@ func mustRegisterUsingIAMMethod(t *testing.T, proxyAddr utils.NetAddr, token str
 	node := uuid.NewString()
 	_, err = auth.Register(context.TODO(), auth.RegisterParams{
 		Token: token,
-		ID: auth.IdentityID{
+		ID: state.IdentityID{
 			Role:     types.RoleNode,
 			HostUUID: node,
 			NodeName: node,
