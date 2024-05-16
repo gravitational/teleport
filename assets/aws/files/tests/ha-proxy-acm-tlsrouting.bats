@@ -142,3 +142,10 @@ load fixtures/common
     echo "${PROXY_BLOCK?}"
     echo "${PROXY_BLOCK?}" | grep -E "^  trust_x_forwarded_for: true"
 }
+
+@test "[${TEST_SUITE?}] proxy_service.proxy_protocol is not set to on" {
+    load ${TELEPORT_CONFD_DIR?}/conf
+    echo "${PROXY_BLOCK?}"
+    # this test inverts the regular behaviour of grep -q, so only succeeds if the line _isn't_ present
+    echo "${PROXY_BLOCK?}" | { ! grep -qE "^  proxy_protocol: on"; }
+}
