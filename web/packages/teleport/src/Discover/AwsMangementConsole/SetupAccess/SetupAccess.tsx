@@ -68,7 +68,8 @@ export function SetupAccess() {
     }
   }
 
-  function handleOnProceed() {
+  function handleOnProceed(validator: Validator) {
+    if (!validator.validate()) return;
     onProceed({ awsRoleArns: selectedArns });
   }
 
@@ -101,7 +102,7 @@ export function SetupAccess() {
           traitKind="ARN"
           traitDescription=""
           hasTraits={hasTraits}
-          onProceed={handleOnProceed}
+          onProceed={() => handleOnProceed(validator)}
           preContent={preContent}
           onPrev={null}
         >
@@ -160,7 +161,9 @@ export const validArns = (createdArns: Option[]) => () => {
   }
 
   const badFilters = createdArns.filter(o => {
-    return !IAM_ROLE_ARN_REGEX.test(o.value);
+    // Ignore statically (role) configured arns since
+    // user cannot fix it on this screen.
+    return !o.isFixed && !IAM_ROLE_ARN_REGEX.test(o.value);
   });
 
   if (badFilters.length > 0) {

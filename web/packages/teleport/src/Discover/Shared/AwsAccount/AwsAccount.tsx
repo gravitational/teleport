@@ -265,6 +265,7 @@ export function AwsAccount() {
           ...agentMeta,
           awsIntegration: selectedAwsIntegration.value,
           app: foundApp,
+          awsRoleArns: foundApp.awsRoles.map(r => r.arn),
         });
         // skips the next step (creating an app server)
         // since it already exists

@@ -20,9 +20,10 @@ import React, { useState } from 'react';
 import { Text, Box, Link } from 'design';
 import Select from 'shared/components/Select';
 import { OutlineInfo } from 'design/Alert/Alert';
+import { TextSelectCopy } from 'shared/components/TextSelectCopy';
 
 import cfg from 'teleport/config';
-import { openNewTab } from 'teleport/lib/util';
+import { generateTshLoginCommand, openNewTab } from 'teleport/lib/util';
 import {
   Header,
   ActionButtons,
@@ -30,12 +31,18 @@ import {
   StyledBox,
   Mark,
 } from 'teleport/Discover/Shared';
+import useTeleport from 'teleport/useTeleport';
+import { splitAwsIamArn } from 'teleport/services/integrations/aws';
 
 import { AppMeta, useDiscover } from '../../useDiscover';
 
 import type { Option } from 'shared/components/Select';
 
 export function TestConnection() {
+  const ctx = useTeleport();
+  const { username, authType } = ctx.storeUser.state;
+  const clusterId = ctx.storeUser.getClusterId();
+
   const { nextStep, prevStep, agentMeta } = useDiscover();
   const { app, awsRoleArns } = agentMeta as AppMeta;
 
@@ -54,6 +61,13 @@ export function TestConnection() {
     openNewTab(appUrl);
   }
 
+  let arnResourceName = '<IAM-Role-Name>';
+  const splittedArn = splitAwsIamArn(selectedOpt?.value);
+  if (splittedArn.arnResourceName) {
+    arnResourceName = splittedArn.arnResourceName;
+  }
+  const tshCmd = `tsh apps login --aws-role ${arnResourceName} ${app.name}`;
+
   return (
     <Box>
       <Header>Test Connection</Header>
@@ -62,6 +76,9 @@ export function TestConnection() {
         you just added.
       </HeaderSubtitle>
       <StyledBox mb={5}>
+        <Text bold mb={3}>
+          Access the AWS Management Console
+        </Text>
         <Text typography="subtitle1" mb={2}>
           Select the AWS role ARN to test.
         </Text>
@@ -79,6 +96,26 @@ export function TestConnection() {
               launchUrl(o.value);
             }}
           />
+        </Box>
+      </StyledBox>
+      <StyledBox mb={5}>
+        <Text bold mb={3}>
+          Access the AWS CLI
+        </Text>
+        <Box mb={2}>
+          Log into your Teleport cluster
+          <TextSelectCopy
+            mt="1"
+            text={generateTshLoginCommand({
+              authType,
+              username,
+              clusterId,
+            })}
+          />
+        </Box>
+        <Box mb={2}>
+          Connect to your application
+          <TextSelectCopy mt="1" text={tshCmd} />
         </Box>
       </StyledBox>
       <OutlineInfo mb={3} linkColor="buttons.link.default" width="800px">
