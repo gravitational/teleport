@@ -151,7 +151,7 @@ func TestDiscoverEventDataToUsageEvent(t *testing.T) {
 				ID:                    "someid",
 				Resource:              "DISCOVER_RESOURCE_EC2_INSTANCE",
 				StepStatus:            "DISCOVER_STATUS_SUCCESS",
-				DiscoveryConfigMethod: "CONFIG_METHOD_SSM",
+				DiscoveryConfigMethod: "CONFIG_METHOD_AWS_EC2_SSM",
 			},
 			expected: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverCreateDiscoveryConfig{
 				UiDiscoverCreateDiscoveryConfig: &usageeventsv1.UIDiscoverCreateDiscoveryConfigEvent{
@@ -160,7 +160,7 @@ func TestDiscoverEventDataToUsageEvent(t *testing.T) {
 					Status: &usageeventsv1.DiscoverStepStatus{
 						Status: usageeventsv1.DiscoverStatus_DISCOVER_STATUS_SUCCESS,
 					},
-					ConfigMethod: usageeventsv1.UIDiscoverCreateDiscoveryConfigEvent_CONFIG_METHOD_SSM,
+					ConfigMethod: usageeventsv1.UIDiscoverCreateDiscoveryConfigEvent_CONFIG_METHOD_AWS_EC2_SSM,
 				},
 			}},
 		},

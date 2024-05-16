@@ -885,17 +885,35 @@ export interface UIDiscoverCreateDiscoveryConfigEvent {
  */
 export enum UIDiscoverCreateDiscoveryConfigEvent_ConfigMethod {
     /**
-     * CONFIG_METHOD_UNSPECIFIED means the default auto discovery config.
+     * CONFIG_METHOD_UNSPECIFIED means config method unspecified/unset.
      *
      * @generated from protobuf enum value: CONFIG_METHOD_UNSPECIFIED = 0;
      */
     UNSPECIFIED = 0,
     /**
-     * CONFIG_METHOD_SSM means auto discovery configured with ssm.
+     * CONFIG_METHOD_SSM means EC2 auto discovery configured with ssm.
      *
-     * @generated from protobuf enum value: CONFIG_METHOD_SSM = 1;
+     * @generated from protobuf enum value: CONFIG_METHOD_AWS_EC2_SSM = 1;
      */
-    SSM = 1
+    AWS_EC2_SSM = 1,
+    /**
+     * CONFIG_METHOD_SSM means auto discovery configured for EC2 using EICE.
+     *
+     * @generated from protobuf enum value: CONFIG_METHOD_AWS_EC2_EICE = 2;
+     */
+    AWS_EC2_EICE = 2,
+    /**
+     * CONFIG_METHOD_SSM means auto discovery configured for RDS using ECS.
+     *
+     * @generated from protobuf enum value: CONFIG_METHOD_AWS_RDS_ECS = 3;
+     */
+    AWS_RDS_ECS = 3,
+    /**
+     * CONFIG_METHOD_SSM means auto discovery configured for EKS.
+     *
+     * @generated from protobuf enum value: CONFIG_METHOD_AWS_EKS = 4;
+     */
+    AWS_EKS = 4
 }
 /**
  * UIDiscoverDatabaseRegisterEvent is emitted when a user is finished with the step that registers a database resource.

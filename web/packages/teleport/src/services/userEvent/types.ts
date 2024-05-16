@@ -240,7 +240,10 @@ export enum DiscoverServiceDeployType {
 
 export enum DiscoverDiscoveryConfigMethod {
   Unspecified = 'CONFIG_METHOD_UNSPECIFIED',
-  Ssm = 'CONFIG_METHOD_SSM',
+  AwsEc2Ssm = 'CONFIG_METHOD_AWS_EC2_SSM',
+  AwsEc2Eice = 'CONFIG_METHOD_AWS_EC2_EICE',
+  AwsRdsEcs = 'CONFIG_METHOD_AWS_RDS_ECS',
+  AwsEks = 'CONFIG_METHOD_AWS_EKS',
 }
 
 export enum CtaEvent {

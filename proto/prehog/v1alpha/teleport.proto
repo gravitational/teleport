@@ -579,10 +579,16 @@ message UIDiscoverCreateDiscoveryConfigEvent {
 
   // ConfigMethod describes how the discovery config is configured.
   enum ConfigMethod {
-    // CONFIG_METHOD_UNSPECIFIED means the default auto discovery config.
+    // CONFIG_METHOD_UNSPECIFIED means config method unspecified/unset.
     CONFIG_METHOD_UNSPECIFIED = 0;
-    // CONFIG_METHOD_SSM means auto discovery configured with ssm.
-    CONFIG_METHOD_SSM = 1;
+    // CONFIG_METHOD_SSM means EC2 auto discovery configured with ssm.
+    CONFIG_METHOD_AWS_EC2_SSM = 1;
+    // CONFIG_METHOD_SSM means auto discovery configured for EC2 using EICE.
+    CONFIG_METHOD_AWS_EC2_EICE = 2;
+    // CONFIG_METHOD_SSM means auto discovery configured for RDS using ECS.
+    CONFIG_METHOD_AWS_RDS_ECS = 3;
+    // CONFIG_METHOD_SSM means auto discovery configured for EKS.
+    CONFIG_METHOD_AWS_EKS = 4;
   }
 
   ConfigMethod config_method = 4;
