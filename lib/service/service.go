@@ -2398,7 +2398,7 @@ type combinedDiscoveryClient struct {
 }
 
 // newLocalCacheForDiscovery returns a new instance of access point for a discovery service.
-func (process *TeleportProcess) newLocalCacheForDiscovery(clt authclient.ClientI, cacheName []string) (auth.DiscoveryAccessPoint, error) {
+func (process *TeleportProcess) newLocalCacheForDiscovery(clt authclient.ClientI, cacheName []string) (authclient.DiscoveryAccessPoint, error) {
 	client := combinedDiscoveryClient{
 		ClientI:               clt,
 		discoveryConfigClient: clt.DiscoveryConfigClient(),
