@@ -235,6 +235,29 @@ func (u *UIDiscoverDeployServiceEvent) Anonymize(a utils.Anonymizer) prehogv1a.S
 	}
 }
 
+// UIDiscoverCreateDiscoveryConfigEvent is emitted after a discovery config was created.
+type UIDiscoverCreateDiscoveryConfigEvent prehogv1a.UIDiscoverCreateDiscoveryConfigEvent
+
+func (u *UIDiscoverCreateDiscoveryConfigEvent) CheckAndSetDefaults() error {
+	return trace.Wrap(validateDiscoverBaseEventFields(u.Metadata, u.Resource, u.Status))
+}
+
+func (u *UIDiscoverCreateDiscoveryConfigEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UiDiscoverCreateDiscoveryConfig{
+			UiDiscoverCreateDiscoveryConfig: &prehogv1a.UIDiscoverCreateDiscoveryConfigEvent{
+				Metadata: &prehogv1a.DiscoverMetadata{
+					Id:       u.Metadata.Id,
+					UserName: a.AnonymizeString(u.Metadata.UserName),
+				},
+				Resource:     u.Resource,
+				Status:       u.Status,
+				ConfigMethod: u.ConfigMethod,
+			},
+		},
+	}
+}
+
 // UIDiscoverDatabaseRegisterEvent is emitted when a user registers a database resource
 // and goes to the next step.
 type UIDiscoverDatabaseRegisterEvent prehogv1a.UIDiscoverDatabaseRegisterEvent

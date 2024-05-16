@@ -60,6 +60,7 @@ const (
 	uiDiscoverEC2InstanceSelectionEvent               = "tp.ui.discover.selectedEC2Instance"
 	uiDiscoverDeployEICEEvent                         = "tp.ui.discover.deployEICE"
 	uiDiscoverCreateNodeEvent                         = "tp.ui.discover.createNode"
+	uiDiscoverCreateDiscoveryConfigEvent              = "tp.ui.discover.createDiscoveryConfig"
 	uiDiscoverPrincipalsConfigureEvent                = "tp.ui.discover.principals.configure"
 	uiDiscoverTestConnectionEvent                     = "tp.ui.discover.testConnection"
 	uiDiscoverCompletedEvent                          = "tp.ui.discover.completed"
@@ -90,6 +91,7 @@ var eventsWithDataRequired = []string{
 	uiDiscoverDatabaseRDSEnrollEvent,
 	uiIntegrationEnrollStartEvent,
 	uiIntegrationEnrollCompleteEvent,
+	uiDiscoverCreateDiscoveryConfigEvent,
 }
 
 // CreatePreUserEventRequest contains the event and properties associated with a user event
@@ -296,6 +298,7 @@ func ConvertUserEventRequestToUsageEvent(req CreateUserEventRequest) (*usageeven
 		uiDiscoverEC2InstanceSelectionEvent,
 		uiDiscoverDeployEICEEvent,
 		uiDiscoverCreateNodeEvent,
+		uiDiscoverCreateDiscoveryConfigEvent,
 		uiDiscoverCompletedEvent:
 
 		var discoverEvent DiscoverEventData

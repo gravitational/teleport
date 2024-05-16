@@ -1262,6 +1262,18 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 		}
 
 		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UiDiscoverCreateDiscoveryConfig:
+		ret := &UIDiscoverCreateDiscoveryConfigEvent{
+			Metadata:     discoverMetadataToPrehog(e.UiDiscoverCreateDiscoveryConfig.Metadata, userMD),
+			Resource:     discoverResourceToPrehog(e.UiDiscoverCreateDiscoveryConfig.Resource),
+			Status:       discoverStatusToPrehog(e.UiDiscoverCreateDiscoveryConfig.Status),
+			ConfigMethod: prehogv1a.UIDiscoverCreateDiscoveryConfigEvent_ConfigMethod(e.UiDiscoverCreateDiscoveryConfig.ConfigMethod),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_UiDiscoverDatabaseRegisterEvent:
 		ret := &UIDiscoverDatabaseRegisterEvent{
 			Metadata: discoverMetadataToPrehog(e.UiDiscoverDatabaseRegisterEvent.Metadata, userMD),

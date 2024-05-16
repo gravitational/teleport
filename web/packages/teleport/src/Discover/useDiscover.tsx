@@ -28,6 +28,7 @@ import {
   DiscoverServiceDeployMethod,
   DiscoverServiceDeploy,
   DiscoverServiceDeployType,
+  DiscoverDiscoveryConfigMethod,
 } from 'teleport/services/userEvent';
 import cfg from 'teleport/config';
 import { DiscoveryConfig } from 'teleport/services/discovery';
@@ -83,6 +84,7 @@ type CustomEventInput = {
   autoDiscoverResourcesCount?: number;
   selectedResourcesCount?: number;
   serviceDeploy?: DiscoverServiceDeploy;
+  discoveryConfigMethod?: DiscoverDiscoveryConfigMethod;
 };
 
 type DiscoverProviderProps = {
@@ -146,6 +148,15 @@ export function DiscoverProvider({
         }
       }
 
+      let discoveryConfigMethod: DiscoverDiscoveryConfigMethod;
+      if (event === DiscoverEvent.CreateDiscoveryConfig) {
+        if (custom?.discoveryConfigMethod) {
+          discoveryConfigMethod = custom.discoveryConfigMethod;
+        } else {
+          discoveryConfigMethod = DiscoverDiscoveryConfigMethod.Unspecified;
+        }
+      }
+
       userEventService.captureDiscoverEvent({
         event,
         eventData: {
@@ -154,6 +165,7 @@ export function DiscoverProvider({
           autoDiscoverResourcesCount: custom?.autoDiscoverResourcesCount,
           selectedResourcesCount: custom?.selectedResourcesCount,
           serviceDeploy,
+          discoveryConfigMethod,
           ...status,
         },
       });

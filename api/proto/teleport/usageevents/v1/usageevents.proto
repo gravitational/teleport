@@ -143,6 +143,8 @@ enum DiscoverResource {
   DISCOVER_RESOURCE_DOC_WINDOWS_DESKTOP_NON_AD = 39;
 
   DISCOVER_RESOURCE_KUBERNETES_EKS = 40;
+
+  DISCOVER_RESOURCE_APPLICATION_AWS_CONSOLE = 41;
 }
 
 // DiscoverResourceMetadata contains common metadata identifying resource type being added.
@@ -272,6 +274,23 @@ message UIDiscoverDeployServiceEvent {
   }
 
   DeployType deploy_type = 5;
+}
+
+// UIDiscoverCreateDiscoveryConfigEvent is emitted when a discovery config is successfully created.
+message UIDiscoverCreateDiscoveryConfigEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
+
+  // ConfigMethod describes how the discovery config is configured.
+  enum ConfigMethod {
+    // CONFIG_METHOD_UNSPECIFIED means the default auto discovery config.
+    CONFIG_METHOD_UNSPECIFIED = 0;
+    // CONFIG_METHOD_SSM means auto discovery configured with ssm.
+    CONFIG_METHOD_SSM = 1;
+  }
+
+  ConfigMethod config_method = 4;
 }
 
 // UIDiscoverDatabaseRegisterEvent is emitted when a user is finished with the step that registers a database resource.
@@ -702,6 +721,7 @@ message UsageEventOneOf {
     AccessListReviewCreate access_list_review_create = 52;
     AccessListReviewDelete access_list_review_delete = 53;
     DiscoveryFetchEvent discovery_fetch_event = 54;
+    UIDiscoverCreateDiscoveryConfigEvent ui_discover_create_discovery_config = 55;
   }
   reserved 2; //UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";

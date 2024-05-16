@@ -265,6 +265,31 @@ func TestConvertUsageEvent(t *testing.T) {
 			}},
 		},
 		{
+			name: "discover create discovery config event",
+			event: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverCreateDiscoveryConfig{
+				UiDiscoverCreateDiscoveryConfig: &usageeventsv1.UIDiscoverCreateDiscoveryConfigEvent{
+					Metadata:     &usageeventsv1.DiscoverMetadata{Id: "someid"},
+					Resource:     &usageeventsv1.DiscoverResourceMetadata{Resource: usageeventsv1.DiscoverResource_DISCOVER_RESOURCE_EC2_INSTANCE},
+					Status:       &usageeventsv1.DiscoverStepStatus{Status: usageeventsv1.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
+					ConfigMethod: usageeventsv1.UIDiscoverCreateDiscoveryConfigEvent_CONFIG_METHOD_SSM,
+				},
+			}},
+			identityUsername: "myuser",
+			errCheck:         require.NoError,
+			expected: &prehogv1a.SubmitEventRequest{Event: &prehogv1a.SubmitEventRequest_UiDiscoverCreateDiscoveryConfig{
+				UiDiscoverCreateDiscoveryConfig: &prehogv1a.UIDiscoverCreateDiscoveryConfigEvent{
+					Metadata: &prehogv1a.DiscoverMetadata{
+						Id:       "someid",
+						UserName: expectedAnonymizedUserString,
+						Sso:      false,
+					},
+					Resource:     &prehogv1a.DiscoverResourceMetadata{Resource: prehogv1a.DiscoverResource_DISCOVER_RESOURCE_EC2_INSTANCE},
+					Status:       &prehogv1a.DiscoverStepStatus{Status: prehogv1a.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
+					ConfigMethod: prehogv1a.UIDiscoverCreateDiscoveryConfigEvent_CONFIG_METHOD_SSM,
+				},
+			}},
+		},
+		{
 			name: "discover create node event",
 			event: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverCreateNode{
 				UiDiscoverCreateNode: &usageeventsv1.UIDiscoverCreateNodeEvent{

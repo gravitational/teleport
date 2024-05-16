@@ -143,6 +143,27 @@ func TestDiscoverEventDataToUsageEvent(t *testing.T) {
 				},
 			}},
 		},
+		{
+			name:     uiDiscoverCreateDiscoveryConfigEvent + "/success_test",
+			event:    uiDiscoverCreateDiscoveryConfigEvent,
+			errCheck: require.NoError,
+			req: DiscoverEventData{
+				ID:                    "someid",
+				Resource:              "DISCOVER_RESOURCE_EC2_INSTANCE",
+				StepStatus:            "DISCOVER_STATUS_SUCCESS",
+				DiscoveryConfigMethod: "CONFIG_METHOD_SSM",
+			},
+			expected: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverCreateDiscoveryConfig{
+				UiDiscoverCreateDiscoveryConfig: &usageeventsv1.UIDiscoverCreateDiscoveryConfigEvent{
+					Metadata: &usageeventsv1.DiscoverMetadata{Id: "someid"},
+					Resource: &usageeventsv1.DiscoverResourceMetadata{Resource: usageeventsv1.DiscoverResource_DISCOVER_RESOURCE_EC2_INSTANCE},
+					Status: &usageeventsv1.DiscoverStepStatus{
+						Status: usageeventsv1.DiscoverStatus_DISCOVER_STATUS_SUCCESS,
+					},
+					ConfigMethod: usageeventsv1.UIDiscoverCreateDiscoveryConfigEvent_CONFIG_METHOD_SSM,
+				},
+			}},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			tt := tt

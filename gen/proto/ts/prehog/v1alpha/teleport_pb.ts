@@ -836,6 +836,48 @@ export enum UIDiscoverDeployServiceEvent_DeployType {
     AMAZON_ECS = 2
 }
 /**
+ * UIDiscoverCreateDiscoveryConfigEvent is emitted when a discovery config is successfully created.
+ *
+ * @generated from protobuf message prehog.v1alpha.UIDiscoverCreateDiscoveryConfigEvent
+ */
+export interface UIDiscoverCreateDiscoveryConfigEvent {
+    /**
+     * @generated from protobuf field: prehog.v1alpha.DiscoverMetadata metadata = 1;
+     */
+    metadata?: DiscoverMetadata;
+    /**
+     * @generated from protobuf field: prehog.v1alpha.DiscoverResourceMetadata resource = 2;
+     */
+    resource?: DiscoverResourceMetadata;
+    /**
+     * @generated from protobuf field: prehog.v1alpha.DiscoverStepStatus status = 3;
+     */
+    status?: DiscoverStepStatus;
+    /**
+     * @generated from protobuf field: prehog.v1alpha.UIDiscoverCreateDiscoveryConfigEvent.ConfigMethod config_method = 4;
+     */
+    configMethod: UIDiscoverCreateDiscoveryConfigEvent_ConfigMethod;
+}
+/**
+ * ConfigMethod describes how the discovery config is configured.
+ *
+ * @generated from protobuf enum prehog.v1alpha.UIDiscoverCreateDiscoveryConfigEvent.ConfigMethod
+ */
+export enum UIDiscoverCreateDiscoveryConfigEvent_ConfigMethod {
+    /**
+     * CONFIG_METHOD_UNSPECIFIED means the default auto discovery config.
+     *
+     * @generated from protobuf enum value: CONFIG_METHOD_UNSPECIFIED = 0;
+     */
+    UNSPECIFIED = 0,
+    /**
+     * CONFIG_METHOD_SSM means auto discovery configured with ssm.
+     *
+     * @generated from protobuf enum value: CONFIG_METHOD_SSM = 1;
+     */
+    SSM = 1
+}
+/**
  * UIDiscoverDatabaseRegisterEvent is emitted when a user is finished with the step that registers a database resource.
  *
  * @generated from protobuf message prehog.v1alpha.UIDiscoverDatabaseRegisterEvent
@@ -2735,6 +2777,12 @@ export interface SubmitEventRequest {
          */
         databaseUserPermissionsUpdated: DatabaseUserPermissionsUpdateEvent;
     } | {
+        oneofKind: "uiDiscoverCreateDiscoveryConfig";
+        /**
+         * @generated from protobuf field: prehog.v1alpha.UIDiscoverCreateDiscoveryConfigEvent ui_discover_create_discovery_config = 83;
+         */
+        uiDiscoverCreateDiscoveryConfig: UIDiscoverCreateDiscoveryConfigEvent;
+    } | {
         oneofKind: undefined;
     };
 }
@@ -3040,7 +3088,11 @@ export enum DiscoverResource {
     /**
      * @generated from protobuf enum value: DISCOVER_RESOURCE_KUBERNETES_EKS = 40;
      */
-    KUBERNETES_EKS = 40
+    KUBERNETES_EKS = 40,
+    /**
+     * @generated from protobuf enum value: DISCOVER_RESOURCE_APPLICATION_AWS_CONSOLE = 41;
+     */
+    APPLICATION_AWS_CONSOLE = 41
 }
 /**
  * DiscoverStatus represents a Discover Step outcome.
@@ -5074,6 +5126,74 @@ class UIDiscoverDeployServiceEvent$Type extends MessageType<UIDiscoverDeployServ
  * @generated MessageType for protobuf message prehog.v1alpha.UIDiscoverDeployServiceEvent
  */
 export const UIDiscoverDeployServiceEvent = new UIDiscoverDeployServiceEvent$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class UIDiscoverCreateDiscoveryConfigEvent$Type extends MessageType<UIDiscoverCreateDiscoveryConfigEvent> {
+    constructor() {
+        super("prehog.v1alpha.UIDiscoverCreateDiscoveryConfigEvent", [
+            { no: 1, name: "metadata", kind: "message", T: () => DiscoverMetadata },
+            { no: 2, name: "resource", kind: "message", T: () => DiscoverResourceMetadata },
+            { no: 3, name: "status", kind: "message", T: () => DiscoverStepStatus },
+            { no: 4, name: "config_method", kind: "enum", T: () => ["prehog.v1alpha.UIDiscoverCreateDiscoveryConfigEvent.ConfigMethod", UIDiscoverCreateDiscoveryConfigEvent_ConfigMethod, "CONFIG_METHOD_"] }
+        ]);
+    }
+    create(value?: PartialMessage<UIDiscoverCreateDiscoveryConfigEvent>): UIDiscoverCreateDiscoveryConfigEvent {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.configMethod = 0;
+        if (value !== undefined)
+            reflectionMergePartial<UIDiscoverCreateDiscoveryConfigEvent>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UIDiscoverCreateDiscoveryConfigEvent): UIDiscoverCreateDiscoveryConfigEvent {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* prehog.v1alpha.DiscoverMetadata metadata */ 1:
+                    message.metadata = DiscoverMetadata.internalBinaryRead(reader, reader.uint32(), options, message.metadata);
+                    break;
+                case /* prehog.v1alpha.DiscoverResourceMetadata resource */ 2:
+                    message.resource = DiscoverResourceMetadata.internalBinaryRead(reader, reader.uint32(), options, message.resource);
+                    break;
+                case /* prehog.v1alpha.DiscoverStepStatus status */ 3:
+                    message.status = DiscoverStepStatus.internalBinaryRead(reader, reader.uint32(), options, message.status);
+                    break;
+                case /* prehog.v1alpha.UIDiscoverCreateDiscoveryConfigEvent.ConfigMethod config_method */ 4:
+                    message.configMethod = reader.int32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: UIDiscoverCreateDiscoveryConfigEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* prehog.v1alpha.DiscoverMetadata metadata = 1; */
+        if (message.metadata)
+            DiscoverMetadata.internalBinaryWrite(message.metadata, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.DiscoverResourceMetadata resource = 2; */
+        if (message.resource)
+            DiscoverResourceMetadata.internalBinaryWrite(message.resource, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.DiscoverStepStatus status = 3; */
+        if (message.status)
+            DiscoverStepStatus.internalBinaryWrite(message.status, writer.tag(3, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.UIDiscoverCreateDiscoveryConfigEvent.ConfigMethod config_method = 4; */
+        if (message.configMethod !== 0)
+            writer.tag(4, WireType.Varint).int32(message.configMethod);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.UIDiscoverCreateDiscoveryConfigEvent
+ */
+export const UIDiscoverCreateDiscoveryConfigEvent = new UIDiscoverCreateDiscoveryConfigEvent$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class UIDiscoverDatabaseRegisterEvent$Type extends MessageType<UIDiscoverDatabaseRegisterEvent> {
     constructor() {
@@ -8695,7 +8815,8 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
             { no: 79, name: "spiffe_svid_issued", kind: "message", oneof: "event", T: () => SPIFFESVIDIssuedEvent },
             { no: 80, name: "okta_access_list_sync", kind: "message", oneof: "event", T: () => OktaAccessListSyncEvent },
             { no: 81, name: "database_user_created", kind: "message", oneof: "event", T: () => DatabaseUserCreatedEvent },
-            { no: 82, name: "database_user_permissions_updated", kind: "message", oneof: "event", T: () => DatabaseUserPermissionsUpdateEvent }
+            { no: 82, name: "database_user_permissions_updated", kind: "message", oneof: "event", T: () => DatabaseUserPermissionsUpdateEvent },
+            { no: 83, name: "ui_discover_create_discovery_config", kind: "message", oneof: "event", T: () => UIDiscoverCreateDiscoveryConfigEvent }
         ]);
     }
     create(value?: PartialMessage<SubmitEventRequest>): SubmitEventRequest {
@@ -9191,6 +9312,12 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
                         databaseUserPermissionsUpdated: DatabaseUserPermissionsUpdateEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).databaseUserPermissionsUpdated)
                     };
                     break;
+                case /* prehog.v1alpha.UIDiscoverCreateDiscoveryConfigEvent ui_discover_create_discovery_config */ 83:
+                    message.event = {
+                        oneofKind: "uiDiscoverCreateDiscoveryConfig",
+                        uiDiscoverCreateDiscoveryConfig: UIDiscoverCreateDiscoveryConfigEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).uiDiscoverCreateDiscoveryConfig)
+                    };
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -9446,6 +9573,9 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
         /* prehog.v1alpha.DatabaseUserPermissionsUpdateEvent database_user_permissions_updated = 82; */
         if (message.event.oneofKind === "databaseUserPermissionsUpdated")
             DatabaseUserPermissionsUpdateEvent.internalBinaryWrite(message.event.databaseUserPermissionsUpdated, writer.tag(82, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.UIDiscoverCreateDiscoveryConfigEvent ui_discover_create_discovery_config = 83; */
+        if (message.event.oneofKind === "uiDiscoverCreateDiscoveryConfig")
+            UIDiscoverCreateDiscoveryConfigEvent.internalBinaryWrite(message.event.uiDiscoverCreateDiscoveryConfig, writer.tag(83, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
