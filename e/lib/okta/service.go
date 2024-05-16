@@ -28,7 +28,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/integrations/access/common"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -94,7 +94,7 @@ type Config struct {
 
 	// AccessPoint is the caching access point used by the Okta service to
 	// manipulate the Teleport cluster.
-	AccessPoint auth.OktaAccessPoint
+	AccessPoint authclient.OktaAccessPoint
 
 	// Access is the service for interacting with roles.
 	Access services.Access
@@ -347,7 +347,7 @@ type Service struct {
 
 	// accessPoint is a caching AccessPoint with Okta Extensions, used by this
 	// service to interact with the Teleport cluster.
-	accessPoint  auth.OktaAccessPoint
+	accessPoint  authclient.OktaAccessPoint
 	onHeartbeat  func(error)
 	client       OktaClient
 	emitter      apievents.Emitter

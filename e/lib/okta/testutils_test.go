@@ -24,7 +24,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/e/lib/teleport"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events"
@@ -69,7 +69,7 @@ type testAccessPoint struct {
 	mu            sync.Mutex
 }
 
-var _ auth.OktaAccessPoint = (*testAccessPoint)(nil)
+var _ authclient.OktaAccessPoint = (*testAccessPoint)(nil)
 
 func (*testAccessPoint) NewKeepAliver(context.Context) (types.KeepAliver, error) { return nil, nil }
 

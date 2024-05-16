@@ -30,6 +30,7 @@ import (
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
@@ -145,7 +146,7 @@ func (p *Plugin) GetProxyClient() authclient.ClientI {
 }
 
 // GetProxyIdentity returns the proxy identity.
-func (p *Plugin) GetProxyIdentity() (*auth.Identity, error) {
+func (p *Plugin) GetProxyIdentity() (*state.Identity, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	rsp, err := p.h.GetProxyIdentity()
@@ -153,7 +154,7 @@ func (p *Plugin) GetProxyIdentity() (*auth.Identity, error) {
 }
 
 // GetAccessPoint returns the proxy caching access point.
-func (p *Plugin) GetAccessPoint() auth.ProxyAccessPoint {
+func (p *Plugin) GetAccessPoint() authclient.ProxyAccessPoint {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	return p.h.GetAccessPoint()

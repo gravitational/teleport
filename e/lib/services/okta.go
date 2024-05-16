@@ -16,7 +16,6 @@ import (
 	"github.com/gravitational/teleport/e/lib/okta"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/integrations/access/common"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cache"
@@ -262,7 +261,7 @@ type combinedOktaClient struct {
 
 // newLocalCacheForOkta returns a new instance of access point for an Okta service. Returns
 // a cleanup function for the cache as well.
-func newLocalCacheForOkta(process *service.TeleportProcess, clt authclient.ClientI, cacheName []string) (auth.OktaAccessPoint, func() error, error) {
+func newLocalCacheForOkta(process *service.TeleportProcess, clt authclient.ClientI, cacheName []string) (authclient.OktaAccessPoint, func() error, error) {
 	accessListClient := clt.AccessListClient()
 	oktaClient := clt.OktaClient()
 	client := combinedOktaClient{clt, accessListClient, oktaClient}
@@ -274,7 +273,7 @@ func newLocalCacheForOkta(process *service.TeleportProcess, clt authclient.Clien
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	return auth.NewOktaWrapper(client, cache), cache.Close, nil
+	return authclient.NewOktaWrapper(client, cache), cache.Close, nil
 }
 
 // closeOktaService will close the Okta service.

@@ -15,7 +15,7 @@ import (
 	"github.com/gravitational/teleport/e/api/cloud"
 	v1 "github.com/gravitational/teleport/e/api/cloud/v1"
 	enterpriseui "github.com/gravitational/teleport/e/lib/web/ui"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/web"
@@ -35,7 +35,7 @@ func (p *Plugin) getAccountRecoveryTokenHandle(w http.ResponseWriter, r *http.Re
 	uiToken := enterpriseui.RecoveryToken{
 		User:              token.GetUser(),
 		IsRecoverPassword: token.GetUsage() == types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD,
-		IsApproved:        token.GetSubKind() == auth.UserTokenTypeRecoveryApproved,
+		IsApproved:        token.GetSubKind() == authclient.UserTokenTypeRecoveryApproved,
 		TokenID:           token.GetName(),
 	}
 

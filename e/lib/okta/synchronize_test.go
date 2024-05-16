@@ -16,7 +16,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/e/lib/teleport"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/events"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -440,7 +440,7 @@ func addApp(t *testing.T, name, origin, orgURL string, svc *Service) {
 	svc.apps.Store(name, app)
 }
 
-func addGroup(t *testing.T, name, origin, orgURL string, ap auth.OktaAccessPoint) {
+func addGroup(t *testing.T, name, origin, orgURL string, ap authclient.OktaAccessPoint) {
 	labels := map[string]string{
 		types.OriginLabel: types.OriginOkta,
 	}

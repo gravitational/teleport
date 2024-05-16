@@ -13,7 +13,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/api/cloud"
 	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/web"
@@ -83,7 +82,7 @@ func createAndInviteUsers(r *http.Request, authClt userAPIGetter, cloudClt cloud
 
 				// We'll only ever support password reset tokens here, so we can use
 				// the constant.
-				Type: auth.UserTokenTypeResetPasswordInvite,
+				Type: authclient.UserTokenTypeResetPasswordInvite,
 			})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -160,7 +159,7 @@ func sendTeleportCredentialResetLink(r *http.Request, authClt userAPIGetter, clo
 
 			// We'll only ever support password reset tokens here, so we can use
 			// the constant.
-			Type: auth.UserTokenTypeResetPassword,
+			Type: authclient.UserTokenTypeResetPassword,
 		})
 	if err != nil {
 		return trace.Wrap(err)
