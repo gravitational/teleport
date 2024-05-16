@@ -2480,7 +2480,7 @@ func (process *TeleportProcess) newLocalCacheForApps(clt authclient.ClientI, cac
 }
 
 // newLocalCacheForWindowsDesktop returns new instance of access point configured for a windows desktop service.
-func (process *TeleportProcess) newLocalCacheForWindowsDesktop(clt authclient.ClientI, cacheName []string) (auth.WindowsDesktopAccessPoint, error) {
+func (process *TeleportProcess) newLocalCacheForWindowsDesktop(clt authclient.ClientI, cacheName []string) (authclient.WindowsDesktopAccessPoint, error) {
 	// if caching is disabled, return access point
 	if !process.Config.CachePolicy.Enabled {
 		return clt, nil
