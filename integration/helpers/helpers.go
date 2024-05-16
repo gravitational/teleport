@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
@@ -207,7 +208,7 @@ func MustCreateUserIdentityFile(t *testing.T, tc *TeleInstance, username string,
 
 	hostCAs, err := tc.Process.GetAuthServer().GetCertAuthorities(context.Background(), types.HostCA, false)
 	require.NoError(t, err)
-	key.TrustedCerts = auth.AuthoritiesToTrustedCerts(hostCAs)
+	key.TrustedCerts = authclient.AuthoritiesToTrustedCerts(hostCAs)
 
 	idPath := filepath.Join(t.TempDir(), "user_identity")
 	_, err = identityfile.Write(context.Background(), identityfile.WriteConfig{
