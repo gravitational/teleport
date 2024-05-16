@@ -1304,6 +1304,26 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), awsAppServer)
 	require.NoError(t, err)
 
+	app, err := types.NewAppV3(
+		types.Metadata{
+			Name: "my-app",
+			Labels: map[string]string{
+				"env": "prod",
+			},
+		},
+		types.AppSpecV3{
+			URI: "localhost:8080",
+		})
+	require.NoError(t, err)
+	appServer, err := types.NewAppServerV3FromApp(
+		app,
+		"localhost",
+		"host-id",
+	)
+	require.NoError(t, err)
+	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), appServer)
+	require.NoError(t, err)
+
 	// Add nodes
 	for i := 0; i < 20; i++ {
 		name := fmt.Sprintf("server-%d", i)
@@ -1356,7 +1376,8 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	res := clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
 	require.Equal(t, types.KindApp, res.Items[0].Kind)
-	require.Equal(t, types.KindDatabase, res.Items[1].Kind)
+	require.Equal(t, types.KindApp, res.Items[1].Kind)
+	require.Equal(t, types.KindDatabase, res.Items[2].Kind)
 
 	// test sort type desc
 	query = url.Values{"sort": []string{"kind:desc"}}
@@ -1395,10 +1416,10 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	require.NoError(t, err)
 	res = clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
-	require.Len(t, res.Items, 9)
+	require.Len(t, res.Items, 10)
 	require.Equal(t, "", res.StartKey)
 
-	// Inly list valid AWS Roles for AWS Apps are listed
+	// Only list valid AWS Roles for AWS Apps
 	query = url.Values{
 		"search": []string{"my-aws-app"},
 		"sort":   []string{"name"},

@@ -785,8 +785,12 @@ func (a *accessChecker) GetAllowedLoginsForResource(resource AccessCheckable) ([
 		case types.KindWindowsDesktop:
 			loginGetter = role.GetWindowsLogins
 		case types.KindApp:
-			if !resourceIsApp || !resourceAsApp.IsAWSConsole() {
+			if !resourceIsApp {
 				return nil, trace.BadParameter("received unsupported resource type for Application kind: %T", resource)
+			}
+			// For Apps, only AWS currently supports listing the possible logins.
+			if !resourceAsApp.IsAWSConsole() {
+				return []string{}, nil
 			}
 
 			loginGetter = role.GetAWSRoleARNs
