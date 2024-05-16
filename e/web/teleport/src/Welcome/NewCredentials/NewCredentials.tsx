@@ -11,6 +11,7 @@ import { NewCredentials } from 'teleport/Welcome/NewCredentials/NewCredentials';
 import cfg from 'e-teleport/config';
 import { Questionnaire } from 'e-teleport/Welcome/Questionnaire/Questionnaire';
 import { InviteCollaboratorsCard } from 'e-teleport/Welcome/InviteCollaborators/InviteCollaboratorsCard';
+import { RecoveryCodes } from 'e-teleport/RecoveryCodes';
 
 /**
  *
@@ -52,6 +53,7 @@ export function Container({
       displayInviteCollaborators={displayInviteCollaborators}
       setDisplayInviteCollaborators={setDisplayInviteCollaborators}
       InviteCollaborators={InviteCollaboratorsCard}
+      RecoveryCodes={RecoveryCodes}
     />
   );
 }

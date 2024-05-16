@@ -1,8 +1,9 @@
 import React from 'react';
 import { Box, Indicator } from 'design';
-import RecoveryCodes from 'teleport/components/RecoveryCodes';
 
 import { OutlineDanger } from 'design/Alert/Alert';
+
+import { RecoveryCodes } from 'e-teleport/RecoveryCodes';
 
 import useNewRecoveryCodes, { State, Props } from './useNewRecoveryCodes';
 

@@ -2,9 +2,10 @@ import React from 'react';
 import { Indicator, ButtonPrimary, ButtonSecondary } from 'design';
 import Dialog, { DialogHeader, DialogTitle, DialogFooter } from 'design/Dialog';
 import { Danger } from 'design/Alert';
-import RecoveryCodes from 'teleport/components/RecoveryCodes';
 
 import useTeleportE from 'e-teleport/useTeleportE';
+
+import { RecoveryCodes } from 'e-teleport/RecoveryCodes';
 
 import useRecoveryCodesDialog, { State, Props } from './useRecoveryCodesDialog';
 
@@ -49,7 +50,12 @@ export function RecoveryCodesDialog({
       dialogCss={() => ({
         padding: '0px',
         background: 'none',
-        ...(attempt.status === 'processing' && { boxShadow: 'none' }),
+        ...(attempt.status === 'processing' && {
+          boxShadow: 'none',
+          // Prevents the spinning indicator from overflowing the component and
+          // switching the scrollbars on and off.
+          overflow: 'hidden',
+        }),
       })}
       onClose={closeWithDateRefresh}
       open={true}
