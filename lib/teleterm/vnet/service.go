@@ -59,7 +59,7 @@ type Service struct {
 	mu             sync.Mutex
 	status         status
 	processManager *vnet.ProcessManager
-	usageReporter  *usageReporter
+	usageReporter  usageReporter
 }
 
 // New creates an instance of Service.
@@ -116,25 +116,38 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 		return &api.StartResponse{}, nil
 	}
 
-	usageReporter, err := NewUsageReporter(UsageReporterConfig{
-		ClientCache:    s.cfg.DaemonService,
-		EventConsumer:  s.cfg.DaemonService,
-		ClusterIDCache: s.cfg.ClusterIDCache,
-		InstallationID: s.cfg.InstallationID,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer func() {
-		if s.status != statusRunning {
-			usageReporter.Stop()
-		}
-	}()
-
 	appProvider := &appProvider{
 		daemonService:      s.cfg.DaemonService,
 		insecureSkipVerify: s.cfg.InsecureSkipVerify,
-		usageReporter:      usageReporter,
+		usageReporter:      &disabledTelemetryUsageReporter{},
+	}
+
+	// Generally, the usage reporting setting cannot be changed without restarting the app, so
+	// technically this information could have been passed through argv to tsh daemon.
+	// However, there is one exception: during the first launch of the app, the user is asked if they
+	// want to enable telemetry. Agreeing to that changes the setting without restarting the app.
+	// As such, this service needs to ask for this setting on every launch.
+	isUsageReportingEnabled, err := s.isUsageReportingEnabled(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err, "getting usage reporting settings")
+	}
+
+	if isUsageReportingEnabled {
+		usageReporter, err := newDaemonUsageReporter(daemonUsageReporterConfig{
+			ClientCache:    s.cfg.DaemonService,
+			EventConsumer:  s.cfg.DaemonService,
+			ClusterIDCache: s.cfg.ClusterIDCache,
+			InstallationID: s.cfg.InstallationID,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		defer func() {
+			if s.status != statusRunning {
+				usageReporter.Stop()
+			}
+		}()
+		appProvider.usageReporter = usageReporter
 	}
 
 	processManager, err := vnet.SetupAndRun(ctx, appProvider)
@@ -163,7 +176,7 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 	}()
 
 	s.processManager = processManager
-	s.usageReporter = usageReporter
+	s.usageReporter = appProvider.usageReporter
 	s.status = statusRunning
 	return &api.StartResponse{}, nil
 }
@@ -216,9 +229,23 @@ func (s *Service) Close() error {
 	return nil
 }
 
+func (s *Service) isUsageReportingEnabled(ctx context.Context) (bool, error) {
+	tshdEventsClient, err := s.cfg.DaemonService.TshdEventsClient()
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	resp, err := tshdEventsClient.GetUsageReportingSettings(ctx, &apiteleterm.GetUsageReportingSettingsRequest{})
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	return resp.UsageReportingSettings.Enabled, nil
+}
+
 type appProvider struct {
 	daemonService      *daemon.Service
-	usageReporter      *usageReporter
+	usageReporter      usageReporter
 	insecureSkipVerify bool
 }
 
@@ -339,8 +366,13 @@ func (p *appProvider) OnNewConnection(ctx context.Context, profileName, leafClus
 	return nil
 }
 
-type usageReporter struct {
-	cfg UsageReporterConfig
+type usageReporter interface {
+	ReportApp(uri.ResourceURI) error
+	Stop()
+}
+
+type daemonUsageReporter struct {
+	cfg daemonUsageReporterConfig
 	// reportedApps contains a set of URIs for apps which usage has been already reported.
 	// App gateways (local proxies) in Connect report a single event per gateway created per app. VNet
 	// needs to replicate this behavior, hence why it keeps track of reported apps to report only one
@@ -363,7 +395,7 @@ type eventConsumer interface {
 	ReportUsageEvent(*apiteleterm.ReportUsageEventRequest) error
 }
 
-type UsageReporterConfig struct {
+type daemonUsageReporterConfig struct {
 	ClientCache   clientCache
 	EventConsumer eventConsumer
 	// clusterIDCache stores cluster ID that needs to be included with each usage event. It's updated
@@ -373,7 +405,7 @@ type UsageReporterConfig struct {
 	InstallationID string
 }
 
-func (c *UsageReporterConfig) CheckAndSetDefaults() error {
+func (c *daemonUsageReporterConfig) CheckAndSetDefaults() error {
 	if c.ClientCache == nil {
 		return trace.BadParameter("missing ClientCache")
 	}
@@ -393,12 +425,12 @@ func (c *UsageReporterConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-func NewUsageReporter(cfg UsageReporterConfig) (*usageReporter, error) {
+func newDaemonUsageReporter(cfg daemonUsageReporterConfig) (*daemonUsageReporter, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &usageReporter{
+	return &daemonUsageReporter{
 		cfg:          cfg,
 		reportedApps: make(map[string]struct{}),
 		close:        make(chan struct{}),
@@ -407,7 +439,7 @@ func NewUsageReporter(cfg UsageReporterConfig) (*usageReporter, error) {
 
 // ReportApp adds an event related to the given app to the events queue, if the app wasn't reported
 // already. Only one invocation of ReportApp can be in flight at a time.
-func (r *usageReporter) ReportApp(appURI uri.ResourceURI) error {
+func (r *daemonUsageReporter) ReportApp(appURI uri.ResourceURI) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -475,7 +507,7 @@ func (r *usageReporter) ReportApp(appURI uri.ResourceURI) error {
 
 // Stop aborts the reporting of an event that's currently in progress and prevents further events
 // from being reported. It blocks until the current ReportApp call aborts.
-func (r *usageReporter) Stop() {
+func (r *daemonUsageReporter) Stop() {
 	if r.closed.Load() {
 		return
 	}
@@ -488,3 +520,12 @@ func (r *usageReporter) Stop() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 }
+
+type disabledTelemetryUsageReporter struct{}
+
+func (r *disabledTelemetryUsageReporter) ReportApp(appURI uri.ResourceURI) error {
+	log.DebugContext(context.Background(), "Skipping usage event, usage reporting is turned off", "app", appURI.String())
+	return nil
+}
+
+func (r *disabledTelemetryUsageReporter) Stop() {}
