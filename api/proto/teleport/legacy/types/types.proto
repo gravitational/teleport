@@ -5984,6 +5984,10 @@ message PluginEntraIDSettings {
 
   // SyncSettings controls the user and access list sync settings for EntraID.
   PluginEntraIDSyncSettings sync_settings = 1;
+
+  // AccessGraphSettings controls settings for syncing access graph specific data.
+  // When this is null, Entra ID integration with Access Graph is disabled.
+  PluginEntraIDAccessGraphSettings access_graph_settings = 2;
 }
 
 // Defines settings for syncing users and access lists from Entra ID.
@@ -5992,6 +5996,28 @@ message PluginEntraIDSyncSettings {
 
   // DefaultOwners are the default owners for all imported access lists.
   repeated string default_owners = 1;
+}
+
+// AccessGraphSettings controls settings for syncing access graph specific data.
+message PluginEntraIDAccessGraphSettings {
+  option (gogoproto.equal) = true;
+
+  // AppSsoSettingsCache is a map where keys are Entra Enterprise Application "app IDs",
+  // and values are single sign-on settings for the enterprise application indentified by that ID.
+  //
+  // This data is stored here because it is not available through traditional methods (MS Graph API).
+  // Instead, it is fetched once during the plugin's set up using the user's credentials to connect to Azure's private API.
+  map<string, PluginEntraIDAppSSOSettings> app_sso_settings_cache = 1;
+}
+
+// PluginEntraIDAppSSOSettings is a container for a single Entra ID enterprise application's
+// cached SSO settings.
+// As this data is only parsed by TAG, each value is stored as an opaque JSON blob.
+message PluginEntraIDAppSSOSettings {
+  option (gogoproto.equal) = true;
+
+  // FederatedSSOV2 contains the cached, gzip-compressed payload from the /ApplicationSso/{servicePrincipalId}/FederatedSSOV2 endpoint.
+  bytes FederatedSSOV2 = 1;
 }
 
 // PluginSCIMSettings defines the settings for a SCIM integration plugin
