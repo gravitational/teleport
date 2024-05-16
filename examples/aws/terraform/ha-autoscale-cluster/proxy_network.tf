@@ -270,10 +270,10 @@ resource "aws_lb_listener" "proxy_kube" {
 
 // MySQL port
 resource "aws_lb_target_group" "proxy_mysql" {
-  name              = "${var.cluster_name}-proxy-mysql"
-  port              = 3036
-  vpc_id            = aws_vpc.teleport.id
-  protocol          = "TCP"
+  name     = "${var.cluster_name}-proxy-mysql"
+  port     = 3036
+  vpc_id   = aws_vpc.teleport.id
+  protocol = "TCP"
 }
 
 resource "aws_lb_listener" "proxy_mysql" {
@@ -291,10 +291,10 @@ resource "aws_lb_listener" "proxy_mysql" {
 
 // Postgres port
 resource "aws_lb_target_group" "proxy_postgres" {
-  name              = "${var.cluster_name}-proxy-postgres"
-  port              = 5432
-  vpc_id            = aws_vpc.teleport.id
-  protocol          = "TCP"
+  name     = "${var.cluster_name}-proxy-postgres"
+  port     = 5432
+  vpc_id   = aws_vpc.teleport.id
+  protocol = "TCP"
 }
 
 resource "aws_lb_listener" "proxy_postgres" {
@@ -312,10 +312,10 @@ resource "aws_lb_listener" "proxy_postgres" {
 
 // MongoDB port
 resource "aws_lb_target_group" "proxy_mongodb" {
-  name              = "${var.cluster_name}-proxy-mongodb"
-  port              = 27017
-  vpc_id            = aws_vpc.teleport.id
-  protocol          = "TCP"
+  name     = "${var.cluster_name}-proxy-mongodb"
+  port     = 27017
+  vpc_id   = aws_vpc.teleport.id
+  protocol = "TCP"
 }
 
 resource "aws_lb_listener" "proxy_mongodb" {
