@@ -5201,6 +5201,14 @@ message SSMRun {
 
   // Region is the AWS region the command was ran in.
   string Region = 7 [(gogoproto.jsontag) = "region"];
+
+  // StandardOutput contains the stdout of the executed command.
+  // Only the first 24000 chars are returned.
+  string StandardOutput = 8 [(gogoproto.jsontag) = "stdout"];
+
+  // StandardError contains the stderr of the executed command.
+  // Only the first 24000 chars are returned.
+  string StandardError = 9 [(gogoproto.jsontag) = "stderr"];
 }
 
 // CassandraSession is emitted when a Cassandra client sends
