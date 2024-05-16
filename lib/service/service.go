@@ -6033,7 +6033,7 @@ func dumperHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // getPublicAddr waits for a proxy to be registered with Teleport.
-func getPublicAddr(authClient auth.ReadAppsAccessPoint, a servicecfg.App) (string, error) {
+func getPublicAddr(authClient authclient.ReadAppsAccessPoint, a servicecfg.App) (string, error) {
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 	timeout := time.NewTimer(5 * time.Second)
