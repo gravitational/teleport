@@ -22,7 +22,6 @@ import (
     "crypto/rand"
     "encoding/hex"
 	"fmt"
-	"strconv"
 
 	apitypes "github.com/gravitational/teleport/api/types"
 	
@@ -157,7 +156,7 @@ func (r resourceTeleportProvisionToken) Create(ctx context.Context, req tfsdk.Cr
 		return
 	}
 
-	plan.Attrs["id"] = types.String{Value: strconv.FormatInt(provisionToken.Metadata.ID, 10)}
+	plan.Attrs["id"] = types.String{Value: provisionToken.Metadata.Revision}
 
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)

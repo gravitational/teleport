@@ -255,7 +255,7 @@ func (s *IdentityService) GetUsers(ctx context.Context, withSecrets bool) ([]typ
 			continue
 		}
 		u, err := services.UnmarshalUser(
-			item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+			item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -359,7 +359,6 @@ func (s *IdentityService) LegacyUpdateUser(ctx context.Context, user types.User)
 		Key:      backend.Key(webPrefix, usersPrefix, user.GetName(), paramsPrefix),
 		Value:    value,
 		Expires:  user.Expiry(),
-		ID:       user.GetResourceID(),
 		Revision: rev,
 	}
 	lease, err := s.Update(ctx, item)
@@ -372,7 +371,6 @@ func (s *IdentityService) LegacyUpdateUser(ctx context.Context, user types.User)
 		}
 	}
 	user.SetRevision(lease.Revision)
-	user.SetResourceID(lease.ID)
 	return user, nil
 }
 
@@ -391,7 +389,6 @@ func (s *IdentityService) UpdateUser(ctx context.Context, user types.User) (type
 		Key:      backend.Key(webPrefix, usersPrefix, user.GetName(), paramsPrefix),
 		Value:    value,
 		Expires:  user.Expiry(),
-		ID:       user.GetResourceID(),
 		Revision: rev,
 	}
 	lease, err := s.Backend.ConditionalUpdate(ctx, item)
@@ -404,7 +401,6 @@ func (s *IdentityService) UpdateUser(ctx context.Context, user types.User) (type
 		}
 	}
 	user.SetRevision(lease.Revision)
-	user.SetResourceID(lease.ID)
 	return user, nil
 }
 
@@ -457,7 +453,6 @@ func (s *IdentityService) UpsertUser(ctx context.Context, user types.User) (type
 		Key:      backend.Key(webPrefix, usersPrefix, user.GetName(), paramsPrefix),
 		Value:    value,
 		Expires:  user.Expiry(),
-		ID:       user.GetResourceID(),
 		Revision: rev,
 	}
 	lease, err := s.Put(ctx, item)
@@ -568,7 +563,7 @@ func (s *IdentityService) getUser(ctx context.Context, user string, withSecrets 
 	}
 
 	u, err := services.UnmarshalUser(
-		item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+		item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -1260,7 +1255,6 @@ func (s *IdentityService) UpsertOIDCConnector(ctx context.Context, connector typ
 		Key:      backend.Key(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix, connector.GetName()),
 		Value:    value,
 		Expires:  connector.Expiry(),
-		ID:       connector.GetResourceID(),
 		Revision: rev,
 	}
 	lease, err := s.Put(ctx, item)
@@ -1281,7 +1275,6 @@ func (s *IdentityService) CreateOIDCConnector(ctx context.Context, connector typ
 		Key:     backend.Key(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix, connector.GetName()),
 		Value:   value,
 		Expires: connector.Expiry(),
-		ID:      connector.GetResourceID(),
 	}
 	lease, err := s.Create(ctx, item)
 	if err != nil {
@@ -1301,7 +1294,6 @@ func (s *IdentityService) UpdateOIDCConnector(ctx context.Context, connector typ
 		Key:      backend.Key(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix, connector.GetName()),
 		Value:    value,
 		Expires:  connector.Expiry(),
-		ID:       connector.GetResourceID(),
 		Revision: connector.GetRevision(),
 	}
 	lease, err := s.ConditionalUpdate(ctx, item)
@@ -1444,7 +1436,6 @@ func (s *IdentityService) UpdateSAMLConnector(ctx context.Context, connector typ
 		Key:      backend.Key(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix, connector.GetName()),
 		Value:    value,
 		Expires:  connector.Expiry(),
-		ID:       connector.GetResourceID(),
 		Revision: connector.GetRevision(),
 	}
 	lease, err := s.ConditionalUpdate(ctx, item)
@@ -1649,7 +1640,6 @@ func (s *IdentityService) UpsertGithubConnector(ctx context.Context, connector t
 		Key:      backend.Key(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, connector.GetName()),
 		Value:    value,
 		Expires:  connector.Expiry(),
-		ID:       connector.GetResourceID(),
 		Revision: rev,
 	}
 	lease, err := s.Put(ctx, item)
@@ -1673,7 +1663,6 @@ func (s *IdentityService) UpdateGithubConnector(ctx context.Context, connector t
 		Key:      backend.Key(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, connector.GetName()),
 		Value:    value,
 		Expires:  connector.Expiry(),
-		ID:       connector.GetResourceID(),
 		Revision: connector.GetRevision(),
 	}
 	lease, err := s.ConditionalUpdate(ctx, item)
@@ -1697,7 +1686,6 @@ func (s *IdentityService) CreateGithubConnector(ctx context.Context, connector t
 		Key:     backend.Key(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, connector.GetName()),
 		Value:   value,
 		Expires: connector.Expiry(),
-		ID:      connector.GetResourceID(),
 	}
 	lease, err := s.Create(ctx, item)
 	if err != nil {

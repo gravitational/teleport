@@ -167,16 +167,6 @@ func (ws *WebSessionV2) GetMetadata() Metadata {
 	return ws.Metadata
 }
 
-// GetResourceID gets ResourceID
-func (ws *WebSessionV2) GetResourceID() int64 {
-	return ws.Metadata.GetID()
-}
-
-// SetResourceID sets ResourceID
-func (ws *WebSessionV2) SetResourceID(id int64) {
-	ws.Metadata.SetID(id)
-}
-
 // GetRevision returns the revision
 func (ws *WebSessionV2) GetRevision() string {
 	return ws.Metadata.GetRevision()
@@ -521,16 +511,6 @@ func (r *WebTokenV3) GetName() string {
 // SetName sets the token value
 func (r *WebTokenV3) SetName(name string) {
 	r.Metadata.Name = name
-}
-
-// GetResourceID returns the token resource ID
-func (r *WebTokenV3) GetResourceID() int64 {
-	return r.Metadata.GetID()
-}
-
-// SetResourceID sets the token resource ID
-func (r *WebTokenV3) SetResourceID(id int64) {
-	r.Metadata.SetID(id)
 }
 
 // GetRevision returns the revision
