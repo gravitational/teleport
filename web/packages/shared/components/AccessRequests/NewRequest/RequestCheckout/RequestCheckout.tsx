@@ -354,11 +354,14 @@ export function RequestCheckout({
                         bottom: 0;
                         background: ${({ theme }) =>
                           theme.colors.levels.sunken};
+                        border-top: 1px solid
+                          ${props => props.theme.colors.spotBackground[1]};
                       `}
                     >
                       <ButtonPrimary
                         width="100%"
                         size="large"
+                        textTransform="none"
                         onClick={() => handleOnSubmit(validator)}
                         disabled={submitBtnDisabled}
                       >
@@ -366,6 +369,7 @@ export function RequestCheckout({
                       </ButtonPrimary>
                       <ButtonSecondary
                         width="100%"
+                        textTransform="none"
                         size="large"
                         onClick={() => {
                           reset();
