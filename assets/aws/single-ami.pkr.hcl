@@ -147,12 +147,14 @@ source "amazon-ebs" "teleport-aws-linux" {
       volume_type = "gp3"
       volume_size = 10
       throughput  = 1000
+      iops        = 5000
   }
   ami_block_device_mappings {
       device_name = "/dev/xvda"
       volume_type = "gp3"
       volume_size = 10
       throughput  = 1000
+      iops        = 5000
   }
   metadata_options {
     http_endpoint               = "enabled"
