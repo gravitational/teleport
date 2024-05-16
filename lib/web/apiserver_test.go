@@ -99,6 +99,7 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	tlsutils "github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -156,7 +157,7 @@ type WebSuite struct {
 
 	mockU2F     *mocku2f.Key
 	server      *auth.TestServer
-	proxyClient *auth.Client
+	proxyClient *authclient.Client
 	clock       clockwork.FakeClock
 }
 
@@ -636,7 +637,7 @@ func (s *WebSuite) addNode(t *testing.T, uuid string, hostname string, address s
 	return node
 }
 
-func noCache(clt auth.ClientI, cacheName []string) (auth.RemoteProxyAccessPoint, error) {
+func noCache(clt authclient.ClientI, cacheName []string) (auth.RemoteProxyAccessPoint, error) {
 	return clt, nil
 }
 
@@ -2206,7 +2207,7 @@ func TestDesktopAccessMFARequiresMfa(t *testing.T) {
 		name           string
 		authPref       types.AuthPreferenceSpecV2
 		mfaHandler     func(t *testing.T, ws *websocket.Conn, dev *auth.TestDevice)
-		registerDevice func(t *testing.T, ctx context.Context, clt *auth.Client) *auth.TestDevice
+		registerDevice func(t *testing.T, ctx context.Context, clt *authclient.Client) *auth.TestDevice
 	}{
 		{
 			name: "webauthn",
@@ -2219,7 +2220,7 @@ func TestDesktopAccessMFARequiresMfa(t *testing.T) {
 				RequireMFAType: types.RequireMFAType_SESSION,
 			},
 			mfaHandler: handleDesktopMFAWebauthnChallenge,
-			registerDevice: func(t *testing.T, ctx context.Context, clt *auth.Client) *auth.TestDevice {
+			registerDevice: func(t *testing.T, ctx context.Context, clt *authclient.Client) *auth.TestDevice {
 				webauthnDev, err := auth.RegisterTestDevice(ctx, clt, "webauthn", authproto.DeviceType_DEVICE_TYPE_WEBAUTHN, nil /* authenticator */)
 				require.NoError(t, err)
 				return webauthnDev
@@ -4517,6 +4518,7 @@ func TestGetWebConfig(t *testing.T) {
 		AssistEnabled:      false,
 		AutomaticUpgrades:  false,
 		JoinActiveSessions: true,
+		Edition:            modules.BuildOSS, // testBuildType is empty
 	}
 
 	// Make a request.
@@ -4567,6 +4569,7 @@ func TestGetWebConfig(t *testing.T) {
 	expectedCfg.AutomaticUpgradesTargetVersion = "v" + teleport.Version
 	expectedCfg.AssistEnabled = false
 	expectedCfg.JoinActiveSessions = false
+	expectedCfg.Edition = "" // testBuildType is empty
 
 	// request and verify enabled features are enabled.
 	re, err = clt.Get(ctx, endpoint, nil)
@@ -7795,7 +7798,7 @@ func newWebPack(t *testing.T, numProxies int, opts ...proxyOption) *webPack {
 // wrappedAuthClient is used when tests need to mock or replace parts of the
 // underlying auth.Client used by the Proxy.
 type wrappedAuthClient struct {
-	*auth.Client
+	*authclient.Client
 	devicesClient devicepb.DeviceTrustServiceClient
 }
 
@@ -7834,7 +7837,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	t.Cleanup(func() { require.NoError(t, authClient.Close()) })
 
 	// Replace underlying devicesClient, if the option was supplied.
-	var client auth.ClientI
+	var client authclient.ClientI
 	if cfg.devicesClientOverride != nil {
 		client = &wrappedAuthClient{
 			Client:        authClient,
@@ -8135,7 +8138,7 @@ type webPack struct {
 
 type testProxy struct {
 	clock   clockwork.FakeClock
-	client  auth.ClientI
+	client  authclient.ClientI
 	auth    *auth.TestTLSServer
 	revTun  reversetunnelclient.Server
 	node    *regular.Server
@@ -9618,7 +9621,7 @@ func TestSimultaneousAuthenticateRequest(t *testing.T) {
 
 // mockedPingTestProxy is a test proxy with a mocked Ping method
 type mockedPingTestProxy struct {
-	auth.ClientI
+	authclient.ClientI
 	mockedPing func(ctx context.Context) (authproto.PingResponse, error)
 }
 
@@ -9875,7 +9878,7 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 }
 
 type proxyClientMock struct {
-	auth.ClientI
+	authclient.ClientI
 	tokens map[string]types.ProvisionToken
 }
 

@@ -27,6 +27,13 @@ policy [example](docs/pages/includes/dynamodb-iam-policy.mdx).
 
 Support for disabling second factor authentication has been removed
 
+#### Machine ID and OpenSSH client config changes
+
+Users with custom `ssh_config` should modify their ProxyCommand to use the new,
+more performant, `tbot ssh-proxy-command`. See
+https://goteleport.com/docs/machine-id/reference/v16-upgrade-guide/ for more
+details.
+
 ## 15.0.0 (xx/xx/24)
 
 ### New features

@@ -32,6 +32,7 @@ import (
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 )
@@ -60,14 +61,14 @@ func TestUserNotificationCRUD(t *testing.T) {
 	notification, err := service.CreateUserNotification(ctx, userNotification1)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(userNotification1, notification, protocmp.Transform()))
-	notification1Id := notification.Spec.Id
+	notification1Id := notification.GetMetadata().GetName()
 	// Prevent flakiness caused by notifications being created too close one after the other, which causes their UUID timestamps to be the same
 	// and the lexicographical ordering to possibly be wrong as it then relies on the random section of the UUID.
 	time.Sleep(250 * time.Millisecond)
 	notification, err = service.CreateUserNotification(ctx, userNotification2)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(userNotification2, notification, protocmp.Transform()))
-	notification2Id := notification.Spec.Id
+	notification2Id := notification.GetMetadata().GetName()
 
 	// Test deleting a notification.
 	err = service.DeleteUserNotification(ctx, testUsername, notification1Id)
@@ -87,7 +88,7 @@ func TestUserNotificationCRUD(t *testing.T) {
 	userNotification1 = newUserNotification(t, testUsername, "test-notification-1")
 	_, err = service.CreateUserNotification(ctx, userNotification1)
 	require.NoError(t, err)
-	notification1Id = notification.Spec.Id
+	notification1Id = notification.GetMetadata().GetName()
 	err = service.DeleteAllUserNotificationsForUser(ctx, testUsername)
 	require.NoError(t, err)
 	// Verify that the notifications don't exist anymore by attempting to delete them.
@@ -148,7 +149,7 @@ func TestGlobalNotificationCRUD(t *testing.T) {
 	notification, err := service.CreateGlobalNotification(ctx, globalNotification1)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(globalNotification1, notification, protocmp.Transform()))
-	globalNotification1Id := notification.Spec.Notification.Spec.Id
+	globalNotification1Id := notification.GetMetadata().GetName()
 	notification, err = service.CreateGlobalNotification(ctx, globalNotification2)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(globalNotification2, notification, protocmp.Transform()))
@@ -188,13 +189,13 @@ func TestUserNotificationStateCRUD(t *testing.T) {
 	userNotification2 := newUserNotification(t, testUsername, "test-notification-2")
 	notification, err := service.CreateUserNotification(ctx, userNotification1)
 	require.NoError(t, err)
-	notification1Id := notification.Spec.Id
+	notification1Id := notification.GetMetadata().GetName()
 	// Prevent flakiness caused by notifications being created too close one after the other, which causes their UUID timestamps to be the same
 	// and the lexicographical ordering to possibly be wrong as it then relies on the random section of the UUID.
 	time.Sleep(250 * time.Millisecond)
 	notification, err = service.CreateUserNotification(ctx, userNotification2)
 	require.NoError(t, err)
-	notification2Id := notification.Spec.Id
+	notification2Id := notification.GetMetadata().GetName()
 
 	userNotificationState1 := &notificationsv1.UserNotificationState{
 		Spec: &notificationsv1.UserNotificationStateSpec{
@@ -374,7 +375,7 @@ func TestUserLastSeenNotificationCRUD(t *testing.T) {
 	require.True(t, trace.IsNotFound(err), "got error %T, expected a not found error due to user_last_seen_notification for test-username not existing", err)
 }
 
-func newUserNotification(t *testing.T, username string, description string) *notificationsv1.Notification {
+func newUserNotification(t *testing.T, username string, title string) *notificationsv1.Notification {
 	t.Helper()
 
 	notification := notificationsv1.Notification{
@@ -383,14 +384,16 @@ func newUserNotification(t *testing.T, username string, description string) *not
 			Username: username,
 		},
 		Metadata: &headerv1.Metadata{
-			Labels: map[string]string{"description": description},
+			Labels: map[string]string{
+				types.NotificationTitleLabel: title,
+			},
 		},
 	}
 
 	return &notification
 }
 
-func newGlobalNotification(t *testing.T, description string) *notificationsv1.GlobalNotification {
+func newGlobalNotification(t *testing.T, title string) *notificationsv1.GlobalNotification {
 	t.Helper()
 
 	notification := notificationsv1.GlobalNotification{
@@ -402,7 +405,9 @@ func newGlobalNotification(t *testing.T, description string) *notificationsv1.Gl
 				SubKind: "test-subkind",
 				Spec:    &notificationsv1.NotificationSpec{},
 				Metadata: &headerv1.Metadata{
-					Labels: map[string]string{"description": description},
+					Labels: map[string]string{
+						types.NotificationTitleLabel: title,
+					},
 				},
 			},
 		},

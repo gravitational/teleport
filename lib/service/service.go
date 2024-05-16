@@ -37,6 +37,7 @@ import (
 	"net/http/httputil"
 	"net/http/pprof"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -86,6 +87,7 @@ import (
 	"github.com/gravitational/teleport/lib/auditd"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/accesspoint"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/authz"
@@ -304,7 +306,7 @@ type Connector struct {
 	ServerIdentity *auth.Identity
 
 	// Client is authenticated client with credentials from ClientIdentity.
-	Client *auth.Client
+	Client *authclient.Client
 
 	// ReusedClient, if true, indicates that the client reference is owned by
 	// a different connector and should not be closed.
@@ -675,7 +677,7 @@ type Process interface {
 	// Start starts the process in a non-blocking way
 	Start() error
 	// WaitForSignals waits for and handles system process signals.
-	WaitForSignals(context.Context) error
+	WaitForSignals(context.Context, <-chan os.Signal) error
 	// ExportFileDescriptors exports service listeners
 	// file descriptors used by the process.
 	ExportFileDescriptors() ([]*servicecfg.FileDescriptor, error)
@@ -703,6 +705,12 @@ func newTeleportProcess(cfg *servicecfg.Config) (Process, error) {
 // Run starts teleport processes, waits for signals
 // and handles internal process reloads.
 func Run(ctx context.Context, cfg servicecfg.Config, newTeleport NewProcess) error {
+	sigC := make(chan os.Signal, 1024)
+	// this should happen before the very first newTeleport, as that's the point
+	// where we MUST handle all the relevant OS signals
+	signal.Notify(sigC, teleportSignals...)
+	defer signal.Stop(sigC)
+
 	if newTeleport == nil {
 		newTeleport = newTeleportProcess
 	}
@@ -719,7 +727,7 @@ func Run(ctx context.Context, cfg servicecfg.Config, newTeleport NewProcess) err
 	}
 	// Wait and reload until called exit.
 	for {
-		srv, err = waitAndReload(ctx, cfg, srv, newTeleport)
+		srv, err = waitAndReload(ctx, sigC, cfg, srv, newTeleport)
 		if err != nil {
 			// This error means that was a clean shutdown
 			// and no reload is necessary.
@@ -731,8 +739,8 @@ func Run(ctx context.Context, cfg servicecfg.Config, newTeleport NewProcess) err
 	}
 }
 
-func waitAndReload(ctx context.Context, cfg servicecfg.Config, srv Process, newTeleport NewProcess) (Process, error) {
-	err := srv.WaitForSignals(ctx)
+func waitAndReload(ctx context.Context, sigC <-chan os.Signal, cfg servicecfg.Config, srv Process, newTeleport NewProcess) (Process, error) {
+	err := srv.WaitForSignals(ctx, sigC)
 	if err == nil {
 		return nil, ErrTeleportExited
 	}
@@ -1367,7 +1375,7 @@ func (process *TeleportProcess) getInstanceConnector() *Connector {
 // instance client has yet to be created, or this is an auth-only instance. Auth-only instances cannot use
 // the instance client because auth servers need to be able to fully initialize without a valid CA in order
 // to support HSMs.
-func (process *TeleportProcess) getInstanceClient() *auth.Client {
+func (process *TeleportProcess) getInstanceClient() *authclient.Client {
 	conn := process.getInstanceConnector()
 	if conn == nil {
 		return nil
@@ -2328,7 +2336,7 @@ func (process *TeleportProcess) newAccessCache(cfg accesspoint.AccessCacheConfig
 }
 
 // newLocalCacheForNode returns new instance of access point configured for a local proxy.
-func (process *TeleportProcess) newLocalCacheForNode(clt auth.ClientI, cacheName []string) (auth.NodeAccessPoint, error) {
+func (process *TeleportProcess) newLocalCacheForNode(clt authclient.ClientI, cacheName []string) (auth.NodeAccessPoint, error) {
 	// if caching is disabled, return access point
 	if !process.Config.CachePolicy.Enabled {
 		return clt, nil
@@ -2343,7 +2351,7 @@ func (process *TeleportProcess) newLocalCacheForNode(clt auth.ClientI, cacheName
 }
 
 // newLocalCacheForKubernetes returns new instance of access point configured for a kubernetes service.
-func (process *TeleportProcess) newLocalCacheForKubernetes(clt auth.ClientI, cacheName []string) (auth.KubernetesAccessPoint, error) {
+func (process *TeleportProcess) newLocalCacheForKubernetes(clt authclient.ClientI, cacheName []string) (auth.KubernetesAccessPoint, error) {
 	// if caching is disabled, return access point
 	if !process.Config.CachePolicy.Enabled {
 		return clt, nil
@@ -2358,7 +2366,7 @@ func (process *TeleportProcess) newLocalCacheForKubernetes(clt auth.ClientI, cac
 }
 
 // newLocalCacheForDatabase returns new instance of access point configured for a database service.
-func (process *TeleportProcess) newLocalCacheForDatabase(clt auth.ClientI, cacheName []string) (auth.DatabaseAccessPoint, error) {
+func (process *TeleportProcess) newLocalCacheForDatabase(clt authclient.ClientI, cacheName []string) (auth.DatabaseAccessPoint, error) {
 	// if caching is disabled, return access point
 	if !process.Config.CachePolicy.Enabled {
 		return clt, nil
@@ -2383,13 +2391,13 @@ type discoveryConfigClient interface {
 
 // combinedDiscoveryClient is an auth.Client client with other, specific, services added to it.
 type combinedDiscoveryClient struct {
-	auth.ClientI
+	authclient.ClientI
 	discoveryConfigClient
 	eksClustersEnroller
 }
 
 // newLocalCacheForDiscovery returns a new instance of access point for a discovery service.
-func (process *TeleportProcess) newLocalCacheForDiscovery(clt auth.ClientI, cacheName []string) (auth.DiscoveryAccessPoint, error) {
+func (process *TeleportProcess) newLocalCacheForDiscovery(clt authclient.ClientI, cacheName []string) (auth.DiscoveryAccessPoint, error) {
 	client := combinedDiscoveryClient{
 		ClientI:               clt,
 		discoveryConfigClient: clt.DiscoveryConfigClient(),
@@ -2408,7 +2416,7 @@ func (process *TeleportProcess) newLocalCacheForDiscovery(clt auth.ClientI, cach
 }
 
 // newLocalCacheForProxy returns new instance of access point configured for a local proxy.
-func (process *TeleportProcess) newLocalCacheForProxy(clt auth.ClientI, cacheName []string) (auth.ProxyAccessPoint, error) {
+func (process *TeleportProcess) newLocalCacheForProxy(clt authclient.ClientI, cacheName []string) (auth.ProxyAccessPoint, error) {
 	// if caching is disabled, return access point
 	if !process.Config.CachePolicy.Enabled {
 		return clt, nil
@@ -2423,7 +2431,7 @@ func (process *TeleportProcess) newLocalCacheForProxy(clt auth.ClientI, cacheNam
 }
 
 // newLocalCacheForRemoteProxy returns new instance of access point configured for a remote proxy.
-func (process *TeleportProcess) newLocalCacheForRemoteProxy(clt auth.ClientI, cacheName []string) (auth.RemoteProxyAccessPoint, error) {
+func (process *TeleportProcess) newLocalCacheForRemoteProxy(clt authclient.ClientI, cacheName []string) (auth.RemoteProxyAccessPoint, error) {
 	// if caching is disabled, return access point
 	if !process.Config.CachePolicy.Enabled {
 		return clt, nil
@@ -2441,7 +2449,7 @@ func (process *TeleportProcess) newLocalCacheForRemoteProxy(clt auth.ClientI, ca
 //
 // newLocalCacheForOldRemoteProxy returns new instance of access point
 // configured for an old remote proxy.
-func (process *TeleportProcess) newLocalCacheForOldRemoteProxy(clt auth.ClientI, cacheName []string) (auth.RemoteProxyAccessPoint, error) {
+func (process *TeleportProcess) newLocalCacheForOldRemoteProxy(clt authclient.ClientI, cacheName []string) (auth.RemoteProxyAccessPoint, error) {
 	// if caching is disabled, return access point
 	if !process.Config.CachePolicy.Enabled {
 		return clt, nil
@@ -2456,7 +2464,7 @@ func (process *TeleportProcess) newLocalCacheForOldRemoteProxy(clt auth.ClientI,
 }
 
 // newLocalCacheForApps returns new instance of access point configured for a remote proxy.
-func (process *TeleportProcess) newLocalCacheForApps(clt auth.ClientI, cacheName []string) (auth.AppsAccessPoint, error) {
+func (process *TeleportProcess) newLocalCacheForApps(clt authclient.ClientI, cacheName []string) (auth.AppsAccessPoint, error) {
 	// if caching is disabled, return access point
 	if !process.Config.CachePolicy.Enabled {
 		return clt, nil
@@ -2471,7 +2479,7 @@ func (process *TeleportProcess) newLocalCacheForApps(clt auth.ClientI, cacheName
 }
 
 // newLocalCacheForWindowsDesktop returns new instance of access point configured for a windows desktop service.
-func (process *TeleportProcess) newLocalCacheForWindowsDesktop(clt auth.ClientI, cacheName []string) (auth.WindowsDesktopAccessPoint, error) {
+func (process *TeleportProcess) newLocalCacheForWindowsDesktop(clt authclient.ClientI, cacheName []string) (auth.WindowsDesktopAccessPoint, error) {
 	// if caching is disabled, return access point
 	if !process.Config.CachePolicy.Enabled {
 		return clt, nil
@@ -2485,12 +2493,12 @@ func (process *TeleportProcess) newLocalCacheForWindowsDesktop(clt auth.ClientI,
 	return auth.NewWindowsDesktopWrapper(clt, cache), nil
 }
 
-// accessPointWrapper is a wrapper around auth.ClientI that reduces the surface area of the
+// accessPointWrapper is a wrapper around [authclient.ClientI]  that reduces the surface area of the
 // auth.ClientI.DiscoveryConfigClient interface to services.DiscoveryConfigs.
-// Cache doesn't implement the full auth.ClientI interface, so we need to wrap auth.ClientI
+// Cache doesn't implement the full [authclient.ClientI]  interface, so we need to wrap [authclient.ClientI]
 // to make it compatible with the services.DiscoveryConfigs interface.
 type accessPointWrapper struct {
-	auth.ClientI
+	authclient.ClientI
 }
 
 func (a accessPointWrapper) CrownJewelClient() services.CrownJewels {
@@ -2502,7 +2510,7 @@ func (a accessPointWrapper) DiscoveryConfigClient() services.DiscoveryConfigs {
 }
 
 // NewLocalCache returns new instance of access point
-func (process *TeleportProcess) NewLocalCache(clt auth.ClientI, setupConfig cache.SetupConfigFn, cacheName []string) (*cache.Cache, error) {
+func (process *TeleportProcess) NewLocalCache(clt authclient.ClientI, setupConfig cache.SetupConfigFn, cacheName []string) (*cache.Cache, error) {
 	return process.newAccessCache(accesspoint.AccessCacheConfig{
 		Services:  &accessPointWrapper{ClientI: clt},
 		Setup:     setupConfig,
@@ -5672,6 +5680,7 @@ func (process *TeleportProcess) initApps() {
 			OnHeartbeat:          process.OnHeartbeat(teleport.ComponentApp),
 			ConnectedProxyGetter: proxyGetter,
 			ConnectionsHandler:   connectionsHandler,
+			InventoryHandle:      process.inventoryHandle,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -5738,7 +5747,7 @@ func (process *TeleportProcess) initApps() {
 		})
 
 		// Block and wait while the server and agent pool are running.
-		if err := appServer.Wait(); err != nil {
+		if err := appServer.Wait(); err != nil && !errors.Is(err, context.Canceled) {
 			return trace.Wrap(err)
 		}
 		agentPool.Wait()

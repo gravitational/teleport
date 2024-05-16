@@ -235,13 +235,23 @@ func TestCredentialsCache(t *testing.T) {
 		}
 	}
 
+	const (
+		// Using a longer wait time to avoid test flakes observed with 1s wait.
+		waitFor = 10 * time.Second
+		// We're using a short sleep (1ms) to allow the refresh loop goroutine to get scheduled.
+		// This keeps the test fast under normal conditions. If there's CPU starvation in CI,
+		// neither the test goroutine nor the refresh loop are likely getting scheduled often,
+		// so this shouldn't result in a busy loop.
+		tick = 1 * time.Millisecond
+	)
+
 	// Assert that credentials can be retrieved when everything is happy.
 	// EventuallyWithT is necessary to allow credentialsCache.run to be
 	// scheduled after SetGenerateOIDCTokenFn above.
 	initialCredentialExpiry := clock.Now().Add(TokenLifetime)
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		checkRetrieveCredentialsWithExpiry(t, initialCredentialExpiry)
-	}, time.Second, time.Millisecond)
+	}, waitFor, tick)
 
 	// Assert that the good cached credentials are still used even if sts starts
 	// returning errors.
@@ -264,7 +274,7 @@ func TestCredentialsCache(t *testing.T) {
 	clock.Advance(2 * time.Minute)
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		checkRetrieveCredentials(t, stsError)
-	}, time.Second, time.Millisecond)
+	}, waitFor, tick)
 
 	// Fix STS and make sure we stop getting errors within refreshCheckInterval
 	stsClient.setError(nil)
@@ -272,31 +282,33 @@ func TestCredentialsCache(t *testing.T) {
 	newCredentialExpiry := clock.Now().Add(TokenLifetime)
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		checkRetrieveCredentialsWithExpiry(t, newCredentialExpiry)
-	}, time.Second, time.Millisecond)
+	}, waitFor, tick)
 
-	// Test that even if STS is returning errors for 5 minutes surrounding the
-	// expected refresh time and the expiry time, no errors are observed.
+	// Test a scenario where STS is returning errors in two different 10-minute windows: the first surrounding
+	// the expected cert refresh time, and the second surrounding the cert expiry time.
+	// In this case the credentials cache should refresh the certs somewhere between those two outages, and
+	// clients should never see an error retrieving credentials.
 	expectedRefreshTime := newCredentialExpiry.Add(-refreshBeforeExpirationPeriod)
 	credentialsUpdated := false
 	for done := newCredentialExpiry.Add(10 * time.Minute); clock.Now().Before(done); clock.Advance(time.Minute) {
 		if clock.Now().Sub(expectedRefreshTime).Abs() < 5*time.Minute ||
 			clock.Now().Sub(newCredentialExpiry).Abs() < 5*time.Minute {
+			// Within one of the 10-minute outage windows, make the STS client return errors.
 			stsClient.setError(stsError)
 		} else {
+			// Not within an outage window, STS client should not return errors.
 			stsClient.setError(nil)
+
 			if !credentialsUpdated && clock.Now().After(expectedRefreshTime) {
-				// For the test we need to make sure the credentials actually get
-				// updated during the window between expectedRefreshTime and
-				// newCredentialExpiry where STS is not returning errors, and we might
-				// need to sleep a bit to give the cache run loop time to get scheduled
-				// and updated the cached creds. To solve that we wait for the current
-				// credential expiry to match the newer value.
-				expectedExpiry := expectedRefreshTime.Add(5*time.Minute + TokenLifetime)
+				// This is after the expected refresh time and not within an outage window, for the test to
+				// not be flaky we need to wait for the cache run loop to get a chance to refresh the
+				// credentials.
+				expectedExpiry := clock.Now().Add(TokenLifetime)
 				require.EventuallyWithT(t, func(t *assert.CollectT) {
 					creds, err := provider.Retrieve(ctx)
 					assert.NoError(t, err)
-					assert.WithinDuration(t, expectedExpiry, creds.Expires, 2*time.Minute)
-				}, time.Second, time.Millisecond)
+					assert.WithinDuration(t, expectedExpiry, creds.Expires, time.Minute)
+				}, waitFor, tick)
 				credentialsUpdated = true
 			}
 		}

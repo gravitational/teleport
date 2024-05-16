@@ -46,7 +46,7 @@ import (
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client"
@@ -465,7 +465,7 @@ func readClientScreenSpec(ws *websocket.Conn) (*tdp.ClientScreenSpec, error) {
 
 type connector struct {
 	log           *logrus.Entry
-	clt           auth.ClientI
+	clt           authclient.ClientI
 	site          reversetunnelclient.RemoteSite
 	clientSrcAddr net.Addr
 	clientDstAddr net.Addr

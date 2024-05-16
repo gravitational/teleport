@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
@@ -356,25 +357,25 @@ func TestInstaller(t *testing.T) {
 	for _, tc := range []struct {
 		roles           []string
 		assert          require.ErrorAssertionFunc
-		installerAction func(*Client) error
+		installerAction func(*authclient.Client) error
 	}{{
 		roles:  []string{"test-empty"},
 		assert: require.Error,
-		installerAction: func(c *Client) error {
+		installerAction: func(c *authclient.Client) error {
 			_, err := c.GetInstaller(ctx, installers.InstallerScriptName)
 			return err
 		},
 	}, {
 		roles:  []string{"test-read"},
 		assert: require.NoError,
-		installerAction: func(c *Client) error {
+		installerAction: func(c *authclient.Client) error {
 			_, err := c.GetInstaller(ctx, installers.InstallerScriptName)
 			return err
 		},
 	}, {
 		roles:  []string{"test-update"},
 		assert: require.NoError,
-		installerAction: func(c *Client) error {
+		installerAction: func(c *authclient.Client) error {
 			inst, err := types.NewInstallerV1(installers.InstallerScriptName, "new-contents")
 			require.NoError(t, err)
 			return c.SetInstaller(ctx, inst)
@@ -382,7 +383,7 @@ func TestInstaller(t *testing.T) {
 	}, {
 		roles:  []string{"test-delete"},
 		assert: require.NoError,
-		installerAction: func(c *Client) error {
+		installerAction: func(c *authclient.Client) error {
 			err := c.DeleteInstaller(ctx, installers.InstallerScriptName)
 			return err
 		},
@@ -2162,7 +2163,7 @@ func TestDatabasesCRUDRBAC(t *testing.T) {
 	})
 }
 
-func mustGetDatabases(t *testing.T, client *Client, wantDatabases []types.Database) {
+func mustGetDatabases(t *testing.T, client *authclient.Client, wantDatabases []types.Database) {
 	t.Helper()
 
 	actualDatabases, err := client.GetDatabases(context.Background())
@@ -3585,7 +3586,7 @@ func TestListResources_SearchAsRoles(t *testing.T) {
 
 	for _, tc := range []struct {
 		desc                   string
-		clt                    *Client
+		clt                    *authclient.Client
 		requestOpt             func(*proto.ListResourcesRequest)
 		expectNodes            []string
 		expectSearchEvent      bool
@@ -4180,7 +4181,7 @@ func TestDeleteUserAppSessions(t *testing.T) {
 	t.Cleanup(func() { srv.Close() })
 
 	// Generates a new user client.
-	userClient := func(username string) *Client {
+	userClient := func(username string) *authclient.Client {
 		user, _, err := CreateUserAndRole(srv.Auth(), username, nil, nil)
 		require.NoError(t, err)
 		identity := TestUser(user.GetName())
@@ -4792,7 +4793,7 @@ func TestListUnifiedResources_IncludeRequestable(t *testing.T) {
 
 	for _, tc := range []struct {
 		desc              string
-		clt               *Client
+		clt               *authclient.Client
 		requestOpt        func(*proto.ListUnifiedResourcesRequest)
 		expectedResources []expected
 	}{

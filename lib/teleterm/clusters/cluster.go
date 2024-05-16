@@ -32,7 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
@@ -85,7 +85,7 @@ func (c *Cluster) Connected() bool {
 // GetWithDetails makes requests to the auth server to return details of the current
 // Cluster that cannot be found on the disk only, including details about the user
 // and enabled enterprise features. This method requires a valid cert.
-func (c *Cluster) GetWithDetails(ctx context.Context, authClient auth.ClientI) (*ClusterWithDetails, error) {
+func (c *Cluster) GetWithDetails(ctx context.Context, authClient authclient.ClientI) (*ClusterWithDetails, error) {
 	var (
 		clusterPingResponse *webclient.PingResponse
 		authPingResponse    proto.PingResponse
@@ -231,7 +231,7 @@ func (c *Cluster) GetRoles(ctx context.Context) ([]*types.Role, error) {
 }
 
 // GetRequestableRoles returns the requestable roles for the currently logged-in user
-func (c *Cluster) GetRequestableRoles(ctx context.Context, req *api.GetRequestableRolesRequest, authClient auth.ClientI) (*types.AccessCapabilities, error) {
+func (c *Cluster) GetRequestableRoles(ctx context.Context, req *api.GetRequestableRolesRequest, authClient authclient.ClientI) (*types.AccessCapabilities, error) {
 	var (
 		err      error
 		response *types.AccessCapabilities

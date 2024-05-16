@@ -23,10 +23,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 )
 
-// MissingNamespaceError indicates that the client failed to
-// provide the namespace in the request.
-const MissingNamespaceError = authclient.MissingNamespaceError
-
 type APIClient = authclient.Client
 type Client = authclient.Client
 type ClientI = authclient.ClientI
@@ -37,9 +33,9 @@ type ClientI = authclient.ClientI
 // no dialer is given, the first address will be used. This address must
 // be an auth server address.
 //
-// NOTE: This client is being deprecated in favor of the gRPC Client in
-// teleport/api/client. This Client should only be used internally, or for
+// NOTE: This client is being deprecated in favor of the [grpc.Client] in
+// teleport/api/client. The [authclient.Client] should only be used internally, or for
 // functionality that hasn't been ported to the new client yet.
-func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, error) {
+func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*authclient.Client, error) {
 	return authclient.NewClient(cfg, params...)
 }
