@@ -46,7 +46,7 @@ export function useClusters() {
       return false;
     }
 
-    const count = accessRequestsService.getAddedResourceCount();
+    const count = accessRequestsService.getAddedItemsCount();
     return count > 0;
   }
 

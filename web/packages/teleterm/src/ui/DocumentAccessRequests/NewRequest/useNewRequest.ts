@@ -319,7 +319,7 @@ export default function useNewRequest() {
     nextPage: page.keys[page.index + 1] ? fetchNext : null,
     prevPage: page.index > 0 ? fetchPrev : null,
     requestableRoles,
-    addedItemsCount: accessRequestsService.getAddedResourceCount(),
+    addedItemsCount: accessRequestsService.getAddedItemsCount(),
   };
 }
 

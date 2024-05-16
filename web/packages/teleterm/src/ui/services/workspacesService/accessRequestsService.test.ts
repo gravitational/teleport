@@ -109,13 +109,13 @@ test('clearPendingAccessRequest() clears pending access request', () => {
   );
 });
 
-test('getAddedResourceCount() returns added resource count for pending request', () => {
+test('getAddedItemsCount() returns added resource count for pending request', () => {
   const { accessRequestsService: service } = getTestSetup(
     getMockPendingResourceAccessRequest()
   );
-  expect(service.getAddedResourceCount()).toBe(5);
+  expect(service.getAddedItemsCount()).toBe(5);
   service.clearPendingAccessRequest();
-  expect(service.getAddedResourceCount()).toBe(0);
+  expect(service.getAddedItemsCount()).toBe(0);
 });
 
 test('addOrRemoveResource() adds resource to pending request', async () => {

@@ -62,7 +62,7 @@ export class AccessRequestsService {
     });
   }
 
-  getAddedResourceCount(): number {
+  getAddedItemsCount(): number {
     const pendingAccessRequest = this.getState().pending;
     if (pendingAccessRequest.kind === 'role') {
       return pendingAccessRequest.roles.size;
@@ -142,7 +142,7 @@ export class AccessRequestsService {
     let shouldProceed = true;
     if (
       this.getState().pending.kind !== newRequestKind &&
-      this.getAddedResourceCount() > 0
+      this.getAddedItemsCount() > 0
     ) {
       shouldProceed = await new Promise(resolve =>
         this.modalsService.openRegularDialog({
