@@ -16,7 +16,7 @@ COPY api/ api/
 RUN go mod download
 
 # Copy in code
-COPY version.go constants.go gitref.go ./
+COPY version.go constants.go ./
 COPY lib/ ./lib/
 COPY build.assets/images.mk build.assets/arch.mk ./build.assets/
 COPY integrations/lib/ ./integrations/lib/
@@ -27,11 +27,12 @@ RUN pwd && ls -la
 ARG TARGETOS
 ARG TARGETARCH
 ARG ACCESS_PLUGIN
+ARG VERSION
 
 WORKDIR /go/src/github.com/gravitational/teleport/integrations/access/$ACCESS_PLUGIN
 
 # Build the program. We rely on golang's cross-compilation capabilities for multiarch building.
-RUN make build/teleport-$ACCESS_PLUGIN
+RUN make build/teleport-$ACCESS_PLUGIN VERSION=$VERSION
 
 # Create the image with the build operator on the $TARGETPLATFORM
 # TARGETPLATFORM is provided by Docker/buildx

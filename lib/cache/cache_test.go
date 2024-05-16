@@ -3626,14 +3626,14 @@ func newUserNotification(t *testing.T, name string) *notificationsv1.Notificatio
 			Username: name,
 		},
 		Metadata: &headerv1.Metadata{
-			Labels: map[string]string{"description": "test-description"},
+			Labels: map[string]string{types.NotificationTitleLabel: "test-title"},
 		},
 	}
 
 	return notification
 }
 
-func newGlobalNotification(t *testing.T, description string) *notificationsv1.GlobalNotification {
+func newGlobalNotification(t *testing.T, title string) *notificationsv1.GlobalNotification {
 	t.Helper()
 
 	notification := &notificationsv1.GlobalNotification{
@@ -3645,7 +3645,7 @@ func newGlobalNotification(t *testing.T, description string) *notificationsv1.Gl
 				SubKind: "test-subkind",
 				Spec:    &notificationsv1.NotificationSpec{},
 				Metadata: &headerv1.Metadata{
-					Labels: map[string]string{"description": description},
+					Labels: map[string]string{types.NotificationTitleLabel: title},
 				},
 			},
 		},

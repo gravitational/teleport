@@ -910,18 +910,19 @@ func (s *session) haltTerminal() {
 // prematurely can result in missing audit events, session recordings, and other
 // unexpected errors.
 func (s *session) Close() error {
-	s.Stop()
-
 	s.BroadcastMessage("Closing session...")
 	s.log.Infof("Closing session")
 
-	serverSessions.Dec()
-
-	// Remove session parties and close client connections.
+	// Remove session parties and close client connections. Since terminals
+	// might await for all the parties to be released, we must close them first.
+	// Closing the parties will cause their SSH channel to be closed, meaning
+	// any goroutine reading from it will be released.
 	for _, p := range s.getParties() {
 		p.Close()
 	}
 
+	s.Stop()
+	serverSessions.Dec()
 	s.registry.removeSession(s)
 
 	// Complete the session recording

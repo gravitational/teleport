@@ -41,6 +41,7 @@ import (
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/windows"
 	"github.com/gravitational/teleport/lib/client"
@@ -78,6 +79,7 @@ type AuthCommand struct {
 	dbUser                     string
 	windowsUser                string
 	windowsDomain              string
+	windowsPKIDomain           string
 	windowsSID                 string
 	signOverwrite              bool
 	password                   string
@@ -148,6 +150,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 	a.authSign.Flag("db-name", `Database name placed on the identity file. Only used when "--db-service" is set.`).StringVar(&a.dbName)
 	a.authSign.Flag("windows-user", `Window user placed on the identity file. Only used when --format is set to "windows"`).StringVar(&a.windowsUser)
 	a.authSign.Flag("windows-domain", `Active Directory domain for which this cert is valid. Only used when --format is set to "windows"`).StringVar(&a.windowsDomain)
+	a.authSign.Flag("windows-pki-domain", `Active Directory domain where CRLs will be located. Only used when --format is set to "windows"`).StringVar(&a.windowsPKIDomain)
 	a.authSign.Flag("windows-sid", `Optional Security Identifier to embed in the certificate. Only used when --format is set to "windows"`).StringVar(&a.windowsSID)
 
 	a.authRotate = auth.Command("rotate", "Rotate certificate authorities in the cluster.")
@@ -167,7 +170,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 
 // TryRun takes the CLI command as an argument (like "auth gen") and executes it
 // or returns match=false if 'cmd' does not belong to it
-func (a *AuthCommand) TryRun(ctx context.Context, cmd string, client *auth.Client) (match bool, err error) {
+func (a *AuthCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
 	switch cmd {
 	case a.authGenerate.FullCommand():
 		err = a.GenerateKeys(ctx)
@@ -215,7 +218,7 @@ var allowedCRLCertificateTypes = []string{
 // ExportAuthorities outputs the list of authorities in OpenSSH compatible formats
 // If --type flag is given, only prints keys for CAs of this type, otherwise
 // prints all keys
-func (a *AuthCommand) ExportAuthorities(ctx context.Context, clt *auth.Client) error {
+func (a *AuthCommand) ExportAuthorities(ctx context.Context, clt *authclient.Client) error {
 	exportFunc := client.ExportAuthorities
 	if a.exportPrivateKeys {
 		exportFunc = client.ExportAuthoritiesSecrets
@@ -340,6 +343,11 @@ func (a *AuthCommand) generateWindowsCert(ctx context.Context, clusterAPI certif
 		return trace.Wrap(err)
 	}
 
+	domain := a.windowsDomain
+	if a.windowsPKIDomain != "" {
+		domain = a.windowsPKIDomain
+	}
+
 	certDER, _, err := windows.GenerateWindowsDesktopCredentials(ctx, &windows.GenerateCredentialsRequest{
 		CAType:             types.UserCA,
 		Username:           a.windowsUser,
@@ -347,7 +355,7 @@ func (a *AuthCommand) generateWindowsCert(ctx context.Context, clusterAPI certif
 		ActiveDirectorySID: a.windowsSID,
 		TTL:                a.genTTL,
 		ClusterName:        cn.GetClusterName(),
-		LDAPConfig:         windows.LDAPConfig{Domain: a.windowsDomain},
+		LDAPConfig:         windows.LDAPConfig{Domain: domain},
 		AuthClient:         clusterAPI,
 	})
 	if err != nil {
@@ -411,7 +419,7 @@ func (a *AuthCommand) generateSnowflakeKey(ctx context.Context, clusterAPI certi
 }
 
 // RotateCertAuthority starts or restarts certificate authority rotation process
-func (a *AuthCommand) RotateCertAuthority(ctx context.Context, client *auth.Client) error {
+func (a *AuthCommand) RotateCertAuthority(ctx context.Context, client *authclient.Client) error {
 	req := types.RotateRequest{
 		Type:        types.CertAuthType(a.rotateType),
 		GracePeriod: &a.rotateGracePeriod,
@@ -435,7 +443,7 @@ func (a *AuthCommand) RotateCertAuthority(ctx context.Context, client *auth.Clie
 }
 
 // ListAuthServers prints a list of connected auth servers
-func (a *AuthCommand) ListAuthServers(ctx context.Context, clusterAPI *auth.Client) error {
+func (a *AuthCommand) ListAuthServers(ctx context.Context, clusterAPI *authclient.Client) error {
 	servers, err := clusterAPI.GetAuthServers()
 	if err != nil {
 		return trace.Wrap(err)

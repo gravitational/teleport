@@ -253,13 +253,29 @@ func TestBotConfig_YAML(t *testing.T) {
 				Services: []ServiceConfig{
 					&SPIFFEWorkloadAPIService{
 						Listen: "unix:///var/run/spiffe.sock",
-						SVIDs: []SVIDRequest{
+						SVIDs: []SVIDRequestWithRules{
 							{
-								Path: "/bar",
-								Hint: "my hint",
-								SANS: SVIDRequestSANs{
-									DNS: []string{"foo.bar"},
-									IP:  []string{"10.0.0.1"},
+								SVIDRequest: SVIDRequest{
+									Path: "/bar",
+									Hint: "my hint",
+									SANS: SVIDRequestSANs{
+										DNS: []string{"foo.bar"},
+										IP:  []string{"10.0.0.1"},
+									},
+								},
+								Rules: []SVIDRequestRule{
+									{
+										Unix: SVIDRequestRuleUnix{
+											PID: ptr(100),
+											UID: ptr(1000),
+											GID: ptr(1234),
+										},
+									},
+									{
+										Unix: SVIDRequestRuleUnix{
+											PID: ptr(100),
+										},
+									},
 								},
 							},
 						},

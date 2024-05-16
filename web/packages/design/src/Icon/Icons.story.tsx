@@ -166,6 +166,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.Planet} text="Planet" />
     <IconBox IconCmpt={Icon.Plus} text="Plus" />
     <IconBox IconCmpt={Icon.PowerSwitch} text="PowerSwitch" />
+    <IconBox IconCmpt={Icon.Printer} text="Printer" />
     <IconBox IconCmpt={Icon.Profile} text="Profile" />
     <IconBox IconCmpt={Icon.PushPin} text="PushPin" />
     <IconBox IconCmpt={Icon.PushPinFilled} text="PushPinFilled" />

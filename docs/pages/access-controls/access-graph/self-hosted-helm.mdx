@@ -22,10 +22,10 @@ to Teleport Enterprise customers.
 
 - Kubernetes >= v1.21
 - Helm >= (=helm.version=)
-- A running Teleport Enterprise cluster v14.3.4 or later.
+- A running Teleport Enterprise cluster v14.3.6 or later.
   - For the purposes of this guide, we assume that the Teleport cluster is set up
     [using the `teleport-cluster` Helm chart](../../deploy-a-cluster/helm-deployments.mdx)
-    in the same Kubernetes cluster that will be used to deploy Teleport Access Graph .
+    in the same Kubernetes cluster that will be used to deploy Teleport Access Graph.
 - An updated `license.pem` with Teleport Policy enabled.
 - A PostgreSQL database server v14 or later.
   - Access Graph needs a dedicated [database](https://www.postgresql.org/docs/current/sql-createdatabase.html) to store its data.
@@ -34,7 +34,7 @@ to Teleport Enterprise customers.
   - Amazon RDS for PostgreSQL is supported.
 - A TLS certificate for the Access Graph service
   - The TLS certificate must be issued for "server authentication" key usage,
-    and must contain a X.509 v3 `subjectAltName` extension with the Kubernetes service name for TAG
+    and must contain an X.509 v3 `subjectAltName` extension with the Kubernetes service name for TAG
     (<span style="white-space: nowrap;">`teleport-access-graph.teleport-access-graph.svc.cluster.local`</span> by default).
 
 

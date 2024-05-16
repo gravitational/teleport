@@ -54,7 +54,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
-	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
@@ -62,6 +61,7 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -488,7 +488,7 @@ func (d *mfaDevices) webAuthHandler(t *testing.T, challenge *proto.MFAAuthentica
 	return mfaResp
 }
 
-func addOneOfEachMFADevice(t *testing.T, userClient *Client, clock clockwork.Clock, origin string) mfaDevices {
+func addOneOfEachMFADevice(t *testing.T, userClient *authclient.Client, clock clockwork.Clock, origin string) mfaDevices {
 	const totpName = "totp-dev"
 	const webName = "webauthn-dev"
 
@@ -524,7 +524,7 @@ type mfaAddTestOpts struct {
 	assertRegisteredDev func(*testing.T, *types.MFADevice)
 }
 
-func testAddMFADevice(ctx context.Context, t *testing.T, authClient *Client, opts mfaAddTestOpts) {
+func testAddMFADevice(ctx context.Context, t *testing.T, authClient *authclient.Client, opts mfaAddTestOpts) {
 	authChal, err := authClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 			ContextUser: &proto.ContextUser{},
@@ -564,7 +564,7 @@ type mfaDeleteTestOpts struct {
 	checkErr    require.ErrorAssertionFunc
 }
 
-func testDeleteMFADevice(ctx context.Context, t *testing.T, authClient *Client, opts mfaDeleteTestOpts) {
+func testDeleteMFADevice(ctx context.Context, t *testing.T, authClient *authclient.Client, opts mfaDeleteTestOpts) {
 	// Issue and solve authn challenge.
 	authnChal, err := authClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
@@ -870,7 +870,7 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 	}
 
 	// generateCertsMFA is used to generate single-use, MFA-enabled certificates.
-	generateCertsMFA := func(t *testing.T, client *Client, req proto.UserCertsRequest) (cert *proto.Certs, err error) {
+	generateCertsMFA := func(t *testing.T, client *authclient.Client, req proto.UserCertsRequest) (cert *proto.Certs, err error) {
 		defer func() {
 			// Translate gRPC to trace errors, as our clients do.
 			err = trail.FromGRPC(err)
@@ -893,7 +893,7 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 	tests := []struct {
 		name               string
 		clusterDeviceMode  string
-		client             *Client
+		client             *authclient.Client
 		req                proto.UserCertsRequest
 		skipLoginCerts     bool // aka non-MFA issuance.
 		skipSingleUseCerts bool // aka MFA/streaming issuance.
@@ -1034,7 +1034,7 @@ func TestRegisterFirstDevice_deviceAuthz(t *testing.T) {
 	tests := []struct {
 		name               string
 		clusterDeviceMode  string
-		client             *Client
+		client             *authclient.Client
 		skipLoginCerts     bool // aka non-MFA issuance.
 		skipSingleUseCerts bool // aka MFA/streaming issuance.
 		assertErr          func(t *testing.T, err error)
@@ -1237,7 +1237,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 
 	tests := []struct {
 		desc      string
-		newClient func() (*Client, error) // optional, makes a new client for the test.
+		newClient func() (*authclient.Client, error) // optional, makes a new client for the test.
 		opts      generateUserSingleUseCertsTestOpts
 	}{
 		{
@@ -1610,7 +1610,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 		},
 		{
 			desc: "device extensions copied SSH cert",
-			newClient: func() (*Client, error) {
+			newClient: func() (*authclient.Client, error) {
 				u := TestUser(user.GetName())
 				u.TTL = 1 * time.Hour
 
@@ -1657,7 +1657,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 		},
 		{
 			desc: "device extensions copied TLS cert",
-			newClient: func() (*Client, error) {
+			newClient: func() (*authclient.Client, error) {
 				u := TestUser(user.GetName())
 				u.TTL = 1 * time.Hour
 
@@ -1896,7 +1896,7 @@ type generateUserSingleUseCertsTestOpts struct {
 	verifyCert         func(*testing.T, *proto.Certs)
 }
 
-func testGenerateUserSingleUseCerts(ctx context.Context, t *testing.T, cl *Client, opts generateUserSingleUseCertsTestOpts) {
+func testGenerateUserSingleUseCerts(ctx context.Context, t *testing.T, cl *authclient.Client, opts generateUserSingleUseCertsTestOpts) {
 	authnChal, err := cl.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 			ContextUser: &proto.ContextUser{},
@@ -2331,7 +2331,7 @@ func TestIsMFARequired_App(t *testing.T) {
 
 // testOriginDynamicStored tests setting a ResourceWithOrigin via the server
 // API always results in the resource being stored with OriginDynamic.
-func testOriginDynamicStored(t *testing.T, setWithOrigin func(*Client, string) error, getStored func(*Server) (types.ResourceWithOrigin, error)) {
+func testOriginDynamicStored(t *testing.T, setWithOrigin func(*authclient.Client, string) error, getStored func(*Server) (types.ResourceWithOrigin, error)) {
 	srv := newTestTLSServer(t)
 
 	// Create a fake user.
@@ -2356,7 +2356,7 @@ func TestAuthPreferenceOriginDynamic(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	setWithOrigin := func(cl *Client, origin string) error {
+	setWithOrigin := func(cl *authclient.Client, origin string) error {
 		authPref := types.DefaultAuthPreference()
 		authPref.SetOrigin(origin)
 		_, err := cl.UpsertAuthPreference(ctx, authPref)
@@ -2374,7 +2374,7 @@ func TestClusterNetworkingConfigOriginDynamic(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	setWithOrigin := func(cl *Client, origin string) error {
+	setWithOrigin := func(cl *authclient.Client, origin string) error {
 		netConfig := types.DefaultClusterNetworkingConfig()
 		netConfig.SetOrigin(origin)
 		_, err := cl.UpsertClusterNetworkingConfig(ctx, netConfig)
@@ -2392,7 +2392,7 @@ func TestSessionRecordingConfigOriginDynamic(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	setWithOrigin := func(cl *Client, origin string) error {
+	setWithOrigin := func(cl *authclient.Client, origin string) error {
 		recConfig := types.DefaultSessionRecordingConfig()
 		recConfig.SetOrigin(origin)
 		_, err := cl.UpsertSessionRecordingConfig(ctx, recConfig)
@@ -3470,11 +3470,11 @@ func TestListResources(t *testing.T) {
 
 	testCases := map[string]struct {
 		resourceType   string
-		createResource func(name string, clt *Client) error
+		createResource func(name string, clt *authclient.Client) error
 	}{
 		"DatabaseServers": {
 			resourceType: types.KindDatabaseServer,
-			createResource: func(name string, clt *Client) error {
+			createResource: func(name string, clt *authclient.Client) error {
 				server, err := types.NewDatabaseServerV3(types.Metadata{
 					Name: name,
 				}, types.DatabaseServerSpecV3{
@@ -3492,7 +3492,7 @@ func TestListResources(t *testing.T) {
 		},
 		"ApplicationServers": {
 			resourceType: types.KindAppServer,
-			createResource: func(name string, clt *Client) error {
+			createResource: func(name string, clt *authclient.Client) error {
 				app, err := types.NewAppV3(types.Metadata{
 					Name: name,
 				}, types.AppSpecV3{
@@ -3519,7 +3519,7 @@ func TestListResources(t *testing.T) {
 		},
 		"KubeServer": {
 			resourceType: types.KindKubeServer,
-			createResource: func(name string, clt *Client) error {
+			createResource: func(name string, clt *authclient.Client) error {
 				kube, err := types.NewKubernetesClusterV3(
 					types.Metadata{
 						Name:   name,
@@ -3541,7 +3541,7 @@ func TestListResources(t *testing.T) {
 		},
 		"Node": {
 			resourceType: types.KindNode,
-			createResource: func(name string, clt *Client) error {
+			createResource: func(name string, clt *authclient.Client) error {
 				server, err := types.NewServer(name, types.KindNode, types.ServerSpecV2{})
 				if err != nil {
 					return err
@@ -3553,7 +3553,7 @@ func TestListResources(t *testing.T) {
 		},
 		"WindowsDesktops": {
 			resourceType: types.KindWindowsDesktop,
-			createResource: func(name string, clt *Client) error {
+			createResource: func(name string, clt *authclient.Client) error {
 				desktop, err := types.NewWindowsDesktopV3(name, nil,
 					types.WindowsDesktopSpecV3{Addr: "_", HostID: "_"})
 				if err != nil {
@@ -3650,11 +3650,11 @@ func TestCustomRateLimiting(t *testing.T) {
 	tests := []struct {
 		name  string
 		burst int
-		fn    func(*Client) error
+		fn    func(*authclient.Client) error
 	}{
 		{
 			name: "RPC ChangeUserAuthentication",
-			fn: func(clt *Client) error {
+			fn: func(clt *authclient.Client) error {
 				_, err := clt.ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{})
 				return err
 			},
@@ -3662,28 +3662,28 @@ func TestCustomRateLimiting(t *testing.T) {
 		{
 			name:  "RPC CreateAuthenticateChallenge",
 			burst: defaults.LimiterBurst,
-			fn: func(clt *Client) error {
+			fn: func(clt *authclient.Client) error {
 				_, err := clt.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{})
 				return err
 			},
 		},
 		{
 			name: "RPC GetAccountRecoveryToken",
-			fn: func(clt *Client) error {
+			fn: func(clt *authclient.Client) error {
 				_, err := clt.GetAccountRecoveryToken(ctx, &proto.GetAccountRecoveryTokenRequest{})
 				return err
 			},
 		},
 		{
 			name: "RPC StartAccountRecovery",
-			fn: func(clt *Client) error {
+			fn: func(clt *authclient.Client) error {
 				_, err := clt.StartAccountRecovery(ctx, &proto.StartAccountRecoveryRequest{})
 				return err
 			},
 		},
 		{
 			name: "RPC VerifyAccountRecovery",
-			fn: func(clt *Client) error {
+			fn: func(clt *authclient.Client) error {
 				_, err := clt.VerifyAccountRecovery(ctx, &proto.VerifyAccountRecoveryRequest{})
 				return err
 			},
@@ -4196,74 +4196,6 @@ func TestGRPCServer_GetInstallers(t *testing.T) {
 			require.Equal(t, tc.expectedInstallers, outputInstallers)
 		})
 	}
-}
-
-// DELETE IN 16.0
-// TestPing_VersionCheck_AccessMonitoringFlag tests that client versions <=14.2.0
-// sets the IGS flag. Old clients will expect IGS == access monitoring.
-func TestPing_VersionCheck_AccessMonitoringFlag(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
-		TestFeatures: modules.Features{
-			AccessMonitoring: modules.AccessMonitoringFeature{
-				Enabled: true,
-			},
-		},
-	})
-
-	srv := newTestTLSServer(t)
-	srv.Auth().accessMonitoringEnabled = true
-
-	user, _, err := CreateUserAndRoleWithoutRoles(srv.Auth(), "user", nil)
-	require.NoError(t, err)
-
-	client, err := srv.NewClient(TestUser(user.GetName()))
-	require.NoError(t, err)
-
-	// Test with latest major version that supports access monitoring field.
-	// Should NOT enable IGS.
-	ctx := context.Background()
-	ctx = metadata.AddMetadataToContext(ctx, map[string]string{
-		metadata.VersionKey: "15.0.0",
-	})
-	ping, err := client.Ping(ctx)
-	require.NoError(t, err)
-	require.False(t, ping.ServerFeatures.IdentityGovernance, "expected field IdentityGovernance to be false")
-	require.True(t, ping.ServerFeatures.AccessMonitoring.Enabled, "expected field AccessMonitoring.Enabled to be true")
-
-	// Test with minimum major/minor/patch version that supports access monitoring field.
-	// Should NOT enable IGS.
-	ctx2 := context.Background()
-	ctx2 = metadata.AddMetadataToContext(ctx2, map[string]string{
-		metadata.VersionKey: "14.2.1",
-	})
-	ping, err = client.Ping(ctx2)
-	require.NoError(t, err)
-	require.False(t, ping.ServerFeatures.IdentityGovernance, "expected field IdentityGovernance to be false")
-	require.True(t, ping.ServerFeatures.AccessMonitoring.Enabled, "expected field AccessMonitoring.Enabled to be true")
-
-	// Test with version that does NOT support access monitoring field.
-	// Should return with IGS enabled to mean access monitoring was enabled
-	// (because that's what older clients expect)
-	ctx3 := context.Background()
-	ctx3 = metadata.AddMetadataToContext(ctx3, map[string]string{
-		metadata.VersionKey: "14.2.0",
-	})
-	ping, err = client.Ping(ctx3)
-	require.NoError(t, err)
-	require.True(t, ping.ServerFeatures.IdentityGovernance, "expected field IdentityGovernance to be true")
-	require.True(t, ping.ServerFeatures.AccessMonitoring.Enabled, "expected field AccessMonitoring.Enabled to be true")
-
-	// Test with an older version.
-	// Should return with IGS enabled to mean access monitoring was enabled
-	// (because that's what older clients expect)
-	ctx4 := context.Background()
-	ctx4 = metadata.AddMetadataToContext(ctx4, map[string]string{
-		metadata.VersionKey: "13.3.0",
-	})
-	ping, err = client.Ping(ctx4)
-	require.NoError(t, err)
-	require.True(t, ping.ServerFeatures.IdentityGovernance, "expected field IdentityGovernance to be true")
-	require.True(t, ping.ServerFeatures.AccessMonitoring.Enabled, "expected field AccessMonitoring.Enabled to be true")
 }
 
 func TestUpsertApplicationServerOrigin(t *testing.T) {

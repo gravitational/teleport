@@ -35,9 +35,12 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -485,7 +488,7 @@ func TestCreateAuthenticateChallenge_mfaVerification(t *testing.T) {
 	require.NoError(t, err, "UpsertRole(%q)", joinNoMFARole.GetName())
 
 	const normalLogin = "llama"
-	createUser := func(role types.Role) *Client {
+	createUser := func(role types.Role) *authclient.Client {
 		// Create a user with MFA devices...
 		userCreds, err := createUserWithSecondFactors(testServer)
 		require.NoError(t, err, "createUserWithSecondFactors")
@@ -528,7 +531,7 @@ func TestCreateAuthenticateChallenge_mfaVerification(t *testing.T) {
 
 	tests := []struct {
 		name            string
-		userClient      *Client
+		userClient      *authclient.Client
 		req             *proto.CreateAuthenticateChallengeRequest
 		wantMFARequired proto.MFARequired
 		wantChallenges  bool
@@ -606,6 +609,50 @@ func TestCreateAuthenticateChallenge_mfaVerification(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestCreateAuthenticateChallenge_failedLoginAudit tests a password+webauthn
+// login scenario where the user types the wrong password.
+// This should issue a "Local Login Failed" audit event.
+func TestCreateAuthenticateChallenge_failedLoginAudit(t *testing.T) {
+	t.Parallel()
+
+	testServer := newTestTLSServer(t)
+	emitter := &eventstest.MockRecorderEmitter{}
+	authServer := testServer.Auth()
+	authServer.SetEmitter(emitter)
+
+	ctx := context.Background()
+
+	// Set the cluster to require 2nd factor, create the user, set a password and
+	// register a webauthn device.
+	// password+OTP logins go through another route.
+	mfa := configureForMFA(t, testServer)
+
+	// Proxy identity is used during login.
+	proxyClient, err := testServer.NewClient(TestBuiltin(types.RoleProxy))
+	require.NoError(t, err, "NewClient(RoleProxy) failed")
+
+	t.Run("emits audit event", func(t *testing.T) {
+		emitter.Reset()
+		_, err := proxyClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+			Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{
+				UserCredentials: &proto.UserCredentials{
+					Username: mfa.User,
+					Password: []byte(mfa.Password + "BAD"),
+				},
+			},
+			ChallengeExtensions: &mfav1.ChallengeExtensions{
+				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+			},
+		})
+		assert.ErrorContains(t, err, "password", "CreateAuthenticateChallenge error mismatch")
+
+		event := emitter.LastEvent()
+		require.NotNil(t, event, "No audit event emitted")
+		assert.Equal(t, events.UserLoginEvent, event.GetType(), "event.Type mismatch")
+		assert.Equal(t, events.UserLocalLoginFailureCode, event.GetCode(), "event.Code mismatch")
+	})
 }
 
 func TestCreateRegisterChallenge(t *testing.T) {
@@ -1841,7 +1888,6 @@ func configureForMFA(t *testing.T, srv *TestTLSServer) *configureMFAResp {
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
 		},
-		// Use default Webauthn config.
 	})
 	require.NoError(t, err)
 

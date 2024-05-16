@@ -940,10 +940,10 @@ func (s *adminActionTestSuite) testEditCommand(t *testing.T, ctx context.Context
 type adminActionTestSuite struct {
 	authServer *auth.Server
 	// userClientWithMFA supports MFA prompt for admin actions.
-	userClientWithMFA *auth.Client
+	userClientWithMFA *authclient.Client
 	// userClientWithMFA does not support MFA prompt for admin actions.
-	userClientNoMFA  *auth.Client
-	localAdminClient *auth.Client
+	userClientNoMFA  *authclient.Client
+	localAdminClient *authclient.Client
 }
 
 func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
@@ -1039,7 +1039,7 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	)
 	require.NoError(t, err)
 
-	userClientNoMFA, err := auth.NewClient(client.Config{
+	userClientNoMFA, err := authclient.NewClient(client.Config{
 		Addrs: []string{authAddr.String()},
 		Credentials: []client.Credentials{
 			client.LoadProfile(tshHome, ""),
@@ -1053,7 +1053,7 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	})
 	require.NoError(t, err)
 
-	userClientWithMFA, err := auth.NewClient(client.Config{
+	userClientWithMFA, err := authclient.NewClient(client.Config{
 		Addrs: []string{authAddr.String()},
 		Credentials: []client.Credentials{
 			client.LoadProfile(tshHome, ""),
@@ -1125,7 +1125,7 @@ func (s *adminActionTestSuite) testCommand(t *testing.T, ctx context.Context, tc
 	})
 }
 
-func runTestCase(t *testing.T, ctx context.Context, client *auth.Client, tc adminActionTestCase) error {
+func runTestCase(t *testing.T, ctx context.Context, client *authclient.Client, tc adminActionTestCase) error {
 	t.Helper()
 
 	if tc.setup != nil {

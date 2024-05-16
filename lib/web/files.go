@@ -32,7 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/multiplexer"
@@ -158,7 +158,7 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 type fileTransfer struct {
 	// sctx is a web session context for the currently logged in user.
 	sctx          *SessionContext
-	authClient    auth.ClientI
+	authClient    authclient.ClientI
 	proxyHostPort string
 }
 
