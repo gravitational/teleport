@@ -73,6 +73,7 @@ import (
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/state"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
@@ -226,7 +227,7 @@ type Config struct {
 	// ProxyPublicAddr contains web proxy public addresses.
 	ProxyPublicAddrs []utils.NetAddr
 	// GetProxyIdentity returns the identity of the proxy.
-	GetProxyIdentity func() (*auth.Identity, error)
+	GetProxyIdentity func() (*state.Identity, error)
 	// CipherSuites is the list of cipher suites Teleport suppports.
 	CipherSuites []uint16
 
@@ -1041,7 +1042,7 @@ func (h *Handler) GetProxyClient() authclient.ClientI {
 }
 
 // GetProxyIdentity returns the identity of the proxy
-func (h *Handler) GetProxyIdentity() (*auth.Identity, error) {
+func (h *Handler) GetProxyIdentity() (*state.Identity, error) {
 	if h.cfg.GetProxyIdentity == nil {
 		return nil, trace.BadParameter("GetProxyIdentity function is not set")
 	}

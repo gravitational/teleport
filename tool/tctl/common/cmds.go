@@ -64,5 +64,8 @@ func OSSCommands() []CLICommand {
 	return []CLICommand{
 		&configure.SSOConfigureCommand{},
 		&tester.SSOTestCommand{},
+		&fido2Command{},
+		&webauthnwinCommand{},
+		&touchIDCommand{},
 	}
 }
