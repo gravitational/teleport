@@ -86,6 +86,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 func init() {
@@ -687,8 +688,11 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 			return trace.Errorf("RDPResponsePDU failed: %v", errCode)
 		}
 	default:
-		c.cfg.Logger.WarnContext(context.Background(),
-			fmt.Sprintf("Skipping unimplemented TDP message type %T", msg))
+		c.cfg.Logger.WarnContext(
+			context.Background(),
+			"Skipping unimplemented TDP message",
+			"type", logutils.TypeAttr(msg),
+		)
 	}
 
 	return nil
