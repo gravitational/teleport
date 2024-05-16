@@ -35,6 +35,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/windows"
 	"github.com/gravitational/teleport/lib/client"
@@ -161,7 +162,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 
 // TryRun takes the CLI command as an argument (like "auth gen") and executes it
 // or returns match=false if 'cmd' does not belong to it
-func (a *AuthCommand) TryRun(ctx context.Context, cmd string, client *auth.Client) (match bool, err error) {
+func (a *AuthCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
 	switch cmd {
 	case a.authGenerate.FullCommand():
 		err = a.GenerateKeys(ctx)
@@ -208,7 +209,7 @@ var allowedCRLCertificateTypes = []string{
 // ExportAuthorities outputs the list of authorities in OpenSSH compatible formats
 // If --type flag is given, only prints keys for CAs of this type, otherwise
 // prints all keys
-func (a *AuthCommand) ExportAuthorities(ctx context.Context, clt *auth.Client) error {
+func (a *AuthCommand) ExportAuthorities(ctx context.Context, clt *authclient.Client) error {
 	exportFunc := client.ExportAuthorities
 	if a.exportPrivateKeys {
 		exportFunc = client.ExportAuthoritiesSecrets
@@ -396,7 +397,7 @@ func (a *AuthCommand) generateSnowflakeKey(ctx context.Context, clusterAPI certi
 }
 
 // RotateCertAuthority starts or restarts certificate authority rotation process
-func (a *AuthCommand) RotateCertAuthority(ctx context.Context, client *auth.Client) error {
+func (a *AuthCommand) RotateCertAuthority(ctx context.Context, client *authclient.Client) error {
 	req := auth.RotateRequest{
 		Type:        types.CertAuthType(a.rotateType),
 		GracePeriod: &a.rotateGracePeriod,
@@ -420,7 +421,7 @@ func (a *AuthCommand) RotateCertAuthority(ctx context.Context, client *auth.Clie
 }
 
 // ListAuthServers prints a list of connected auth servers
-func (a *AuthCommand) ListAuthServers(ctx context.Context, clusterAPI *auth.Client) error {
+func (a *AuthCommand) ListAuthServers(ctx context.Context, clusterAPI *authclient.Client) error {
 	servers, err := clusterAPI.GetAuthServers()
 	if err != nil {
 		return trace.Wrap(err)

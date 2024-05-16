@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
@@ -387,7 +388,7 @@ func TestListAccessRequests(t *testing.T) {
 	require.Len(t, reqs, requestsPerUser)
 
 	// verify that access-control filtering is applied and exercise a different combination of sort params
-	for _, clt := range []ClientI{clientA, clientB} {
+	for _, clt := range []authclient.ClientI{clientA, clientB} {
 		reqs = nil
 		nextKey = ""
 		for {
@@ -1008,9 +1009,9 @@ func testMultiAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 	requesterClient, err := testPack.tlsServer.NewClient(requester)
 	require.NoError(t, err)
 
-	type newClientFunc func(*testing.T, *Client, *proto.Certs) (*Client, *proto.Certs)
+	type newClientFunc func(*testing.T, *authclient.Client, *proto.Certs) (*authclient.Client, *proto.Certs)
 	updateClientWithNewAndDroppedRequests := func(newRequests, dropRequests []string) newClientFunc {
-		return func(t *testing.T, clt *Client, _ *proto.Certs) (*Client, *proto.Certs) {
+		return func(t *testing.T, clt *authclient.Client, _ *proto.Certs) (*authclient.Client, *proto.Certs) {
 			certs, err := clt.GenerateUserCerts(ctx, proto.UserCertsRequest{
 				PublicKey:          testPack.pubKey,
 				Username:           username,
@@ -1031,7 +1032,7 @@ func testMultiAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 		return updateClientWithNewAndDroppedRequests(nil, dropRequests)
 	}
 	failToApplyAccessRequests := func(reqs ...string) newClientFunc {
-		return func(t *testing.T, clt *Client, certs *proto.Certs) (*Client, *proto.Certs) {
+		return func(t *testing.T, clt *authclient.Client, certs *proto.Certs) (*authclient.Client, *proto.Certs) {
 			// assert that this request fails
 			_, err := clt.GenerateUserCerts(ctx, proto.UserCertsRequest{
 				PublicKey:      testPack.pubKey,
@@ -1631,7 +1632,7 @@ func TestAssumeStartTime_SetAccessRequestState(t *testing.T) {
 
 type accessRequestWithStartTime struct {
 	testPack                      *accessRequestTestPack
-	requesterClient               *Client
+	requesterClient               *authclient.Client
 	invalidMaxedAssumeStartTime   time.Time
 	invalidExpiredAssumeStartTime time.Time
 	validStartTime                time.Time

@@ -38,6 +38,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -50,7 +51,7 @@ type Suite struct {
 	ca             *tlsca.CertAuthority
 	authServer     *auth.TestAuthServer
 	tlsServer      *auth.TestTLSServer
-	accessPoint    *auth.Client
+	accessPoint    *authclient.Client
 }
 
 func NewSuite(t *testing.T) *Suite {

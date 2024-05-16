@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -197,7 +198,7 @@ func rotate( //nolint:unused // used in skipped test
 }
 
 func setupServerForCARotationTest(ctx context.Context, log utils.Logger, t *testing.T, wg *sync.WaitGroup, //nolint:unused // used in skipped test
-) (*auth.Client, func() *service.TeleportProcess, *config.FileConfig) {
+) (*authclient.Client, func() *service.TeleportProcess, *config.FileConfig) {
 	fc, fds := testhelpers.DefaultConfig(t)
 
 	cfg := servicecfg.MakeDefaultConfig()

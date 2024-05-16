@@ -28,10 +28,11 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 )
 
 type mockAuthClient struct {
-	auth.ClientI
+	authclient.ClientI
 	server *auth.Server
 
 	unsupportedCATypes []types.CertAuthType

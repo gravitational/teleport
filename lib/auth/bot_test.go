@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -179,7 +180,7 @@ func renewBotCerts(
 	botUser string,
 	publicKey []byte,
 	privateKey []byte,
-) (*Client, *proto.Certs, tls.Certificate, error) {
+) (*authclient.Client, *proto.Certs, tls.Certificate, error) {
 	client := srv.NewClientWithCert(tlsCert)
 
 	certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{

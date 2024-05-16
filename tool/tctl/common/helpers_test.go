@@ -36,7 +36,6 @@ import (
 
 	"github.com/gravitational/teleport/api/breaker"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/config"
@@ -64,7 +63,7 @@ func withInsecure(insecure bool) optionsFunc {
 	}
 }
 
-func getAuthClient(ctx context.Context, t *testing.T, fc *config.FileConfig, opts ...optionsFunc) *auth.Client {
+func getAuthClient(ctx context.Context, t *testing.T, fc *config.FileConfig, opts ...optionsFunc) *authclient.Client {
 	var options options
 	for _, v := range opts {
 		v(&options)
@@ -94,7 +93,7 @@ func getAuthClient(ctx context.Context, t *testing.T, fc *config.FileConfig, opt
 
 type cliCommand interface {
 	Initialize(app *kingpin.Application, cfg *servicecfg.Config)
-	TryRun(ctx context.Context, cmd string, client *auth.Client) (bool, error)
+	TryRun(ctx context.Context, cmd string, client *authclient.Client) (bool, error)
 }
 
 func runCommand(t *testing.T, fc *config.FileConfig, cmd cliCommand, args []string, opts ...optionsFunc) error {

@@ -45,6 +45,7 @@ import (
 	clientproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
@@ -406,7 +407,7 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 // GetSiteAPI is a helper which returns an API endpoint to a site with
 // a given name. i endpoint implements HTTP-over-SSH access to the
 // site's auth server.
-func (i *TeleInstance) GetSiteAPI(siteName string) auth.ClientI {
+func (i *TeleInstance) GetSiteAPI(siteName string) authclient.ClientI {
 	siteTunnel, err := i.Tunnel.GetSite(siteName)
 	if err != nil {
 		log.Warn(err)
@@ -847,7 +848,7 @@ func (i *TeleInstance) StartApps(configs []*servicecfg.Config) ([]*service.Telep
 }
 
 // StartDatabase starts the database access service with the provided config.
-func (i *TeleInstance) StartDatabase(conf *servicecfg.Config) (*service.TeleportProcess, *auth.Client, error) {
+func (i *TeleInstance) StartDatabase(conf *servicecfg.Config) (*service.TeleportProcess, *authclient.Client, error) {
 	dataDir, err := os.MkdirTemp("", "cluster-"+i.Secrets.SiteName)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -890,7 +891,7 @@ func (i *TeleInstance) StartDatabase(conf *servicecfg.Config) (*service.Teleport
 	}
 
 	// Retrieve auth server connector.
-	var client *auth.Client
+	var client *authclient.Client
 	for _, event := range receivedEvents {
 		if event.Name == service.DatabasesIdentityEvent {
 			conn, ok := (event.Payload).(*service.Connector)

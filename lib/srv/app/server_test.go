@@ -49,6 +49,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
@@ -73,7 +74,7 @@ type Suite struct {
 	dataDir      string
 	authServer   *auth.TestAuthServer
 	tlsServer    *auth.TestTLSServer
-	authClient   *auth.Client
+	authClient   *authclient.Client
 	appServer    *Server
 	hostCertPool *x509.CertPool
 

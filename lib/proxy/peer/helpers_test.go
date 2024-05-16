@@ -32,6 +32,7 @@ import (
 	clientapi "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -39,7 +40,7 @@ import (
 )
 
 type mockAuthClient struct {
-	auth.ClientI
+	authclient.ClientI
 }
 
 func (c mockAuthClient) GetProxies() ([]types.Server, error) {

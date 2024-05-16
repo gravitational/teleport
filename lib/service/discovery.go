@@ -26,7 +26,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv/discovery"
@@ -145,7 +145,7 @@ func (process *TeleportProcess) integrationOnlyCredentials() bool {
 
 // buildAccessGraphFromTAGOrFallbackToAuth builds the AccessGraphConfig from the Teleport Agent configuration or falls back to the Auth server's configuration.
 // If the AccessGraph configuration is not enabled locally, it will fall back to the Auth server's configuration.
-func buildAccessGraphFromTAGOrFallbackToAuth(ctx context.Context, config *servicecfg.Config, client auth.ClientI, logger logrus.FieldLogger) (discovery.AccessGraphConfig, error) {
+func buildAccessGraphFromTAGOrFallbackToAuth(ctx context.Context, config *servicecfg.Config, client authclient.ClientI, logger logrus.FieldLogger) (discovery.AccessGraphConfig, error) {
 	var (
 		accessGraphCAData []byte
 		err               error

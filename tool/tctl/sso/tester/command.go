@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -45,7 +46,7 @@ type SSOTestCommand struct {
 	connectorFileName string
 
 	// Handlers is a mapping between auth kind and appropriate handling function
-	Handlers map[string]func(c *auth.Client, connBytes []byte) (*AuthRequestInfo, error)
+	Handlers map[string]func(c *authclient.Client, connBytes []byte) (*AuthRequestInfo, error)
 	// GetDiagInfoFields provides auth kind-specific diagnostic info fields.
 	GetDiagInfoFields map[string]func(diag *types.SSODiagnosticInfo, debug bool) []string
 	// Browser to use in login flow.
@@ -76,7 +77,7 @@ Examples:
 
   > tctl sso configure github ... | tee connector.yaml | tctl sso test`)
 
-	cmd.Handlers = map[string]func(c *auth.Client, connBytes []byte) (*AuthRequestInfo, error){
+	cmd.Handlers = map[string]func(c *authclient.Client, connBytes []byte) (*AuthRequestInfo, error){
 		types.KindGithubConnector: handleGithubConnector,
 	}
 
@@ -95,7 +96,7 @@ func (cmd *SSOTestCommand) getSupportedKinds() []string {
 	return kinds
 }
 
-func (cmd *SSOTestCommand) ssoTestCommand(ctx context.Context, c *auth.Client) error {
+func (cmd *SSOTestCommand) ssoTestCommand(ctx context.Context, c *authclient.Client) error {
 	reader := os.Stdin
 	if cmd.connectorFileName != "" {
 		f, err := utils.OpenFileAllowingUnsafeLinks(cmd.connectorFileName)
@@ -145,7 +146,7 @@ func (cmd *SSOTestCommand) ssoTestCommand(ctx context.Context, c *auth.Client) e
 
 // TryRun is executed after the CLI parsing is done. The command must
 // determine if selectedCommand belongs to it and return match=true
-func (cmd *SSOTestCommand) TryRun(ctx context.Context, selectedCommand string, c *auth.Client) (match bool, err error) {
+func (cmd *SSOTestCommand) TryRun(ctx context.Context, selectedCommand string, c *authclient.Client) (match bool, err error) {
 	if selectedCommand == cmd.ssoTestCmd.FullCommand() {
 		return true, cmd.ssoTestCommand(ctx, c)
 	}
@@ -162,7 +163,7 @@ type AuthRequestInfo struct {
 	RequestCreateErr error
 }
 
-func (cmd *SSOTestCommand) runSSOLoginFlow(ctx context.Context, protocol string, c *auth.Client, config *client.RedirectorConfig) (*auth.SSHLoginResponse, error) {
+func (cmd *SSOTestCommand) runSSOLoginFlow(ctx context.Context, protocol string, c *authclient.Client, config *client.RedirectorConfig) (*auth.SSHLoginResponse, error) {
 	key, err := client.GenerateRSAKey()
 	if err != nil {
 		return nil, trace.Wrap(err)

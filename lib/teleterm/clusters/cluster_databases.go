@@ -26,7 +26,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
@@ -101,7 +101,7 @@ func (c *Cluster) getAllDatabases(ctx context.Context) ([]Database, error) {
 func (c *Cluster) GetDatabases(ctx context.Context, r *api.GetDatabasesRequest) (*GetDatabasesResponse, error) {
 	var (
 		page        apiclient.ResourcePage[types.DatabaseServer]
-		authClient  auth.ClientI
+		authClient  authclient.ClientI
 		proxyClient *client.ProxyClient
 		err         error
 	)
@@ -201,7 +201,7 @@ func (c *Cluster) reissueDBCerts(ctx context.Context, routeToDatabase tlsca.Rout
 
 // GetAllowedDatabaseUsers returns allowed users for the given database based on the role set.
 func (c *Cluster) GetAllowedDatabaseUsers(ctx context.Context, dbURI string) ([]string, error) {
-	var authClient auth.ClientI
+	var authClient authclient.ClientI
 	var proxyClient *client.ProxyClient
 
 	dbResourceURI, err := uri.ParseDBURI(dbURI)

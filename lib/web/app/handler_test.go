@@ -42,7 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -730,7 +730,7 @@ type testServer struct {
 	serverURL *url.URL
 }
 
-func setup(t *testing.T, clock clockwork.FakeClock, authClient auth.ClientI, proxyClient reversetunnelclient.Tunnel, proxyPublicAddrs []utils.NetAddr) *testServer {
+func setup(t *testing.T, clock clockwork.FakeClock, authClient authclient.ClientI, proxyClient reversetunnelclient.Tunnel, proxyPublicAddrs []utils.NetAddr) *testServer {
 	appHandler, err := NewHandler(context.Background(), &HandlerConfig{
 		Clock:            clock,
 		AuthClient:       authClient,
@@ -790,7 +790,7 @@ func (p *testServer) makeRequest(t *testing.T, method, endpoint string, reqBody 
 }
 
 type mockAuthClient struct {
-	auth.ClientI
+	authclient.ClientI
 	clusterName   string
 	appSession    types.WebSession
 	sessionError  error

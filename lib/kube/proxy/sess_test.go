@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
@@ -184,7 +185,7 @@ func Test_session_trackSession(t *testing.T) {
 		Name:    "name",
 	}
 	type args struct {
-		authClient auth.ClientI
+		authClient authclient.ClientI
 		policies   []*types.SessionTrackerPolicySet
 	}
 	tests := []struct {
@@ -280,7 +281,7 @@ func Test_session_trackSession(t *testing.T) {
 }
 
 type mockSessionTrackerService struct {
-	auth.ClientI
+	authclient.ClientI
 	returnErr bool
 }
 

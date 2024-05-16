@@ -48,6 +48,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/multiplexer"
@@ -91,7 +92,7 @@ type SessionContextConfig struct {
 
 	// RootClient holds a connection to the root auth. Note that requests made using this
 	// client are made with the identity of the user and are NOT cached.
-	RootClient *auth.Client
+	RootClient *authclient.Client
 
 	// UnsafeCachedAuthClient holds a read-only cache to root auth. Note this access
 	// point cache is authenticated with the identity of the node, not of the
@@ -110,7 +111,7 @@ type SessionContextConfig struct {
 	Session types.WebSession
 
 	// newRemoteClient is used by tests to override how remote clients are constructed to allow for fake sites
-	newRemoteClient func(ctx context.Context, sessionContext *SessionContext, site reversetunnelclient.RemoteSite) (auth.ClientI, error)
+	newRemoteClient func(ctx context.Context, sessionContext *SessionContext, site reversetunnelclient.RemoteSite) (authclient.ClientI, error)
 }
 
 func (c *SessionContextConfig) CheckAndSetDefaults() error {
@@ -207,7 +208,7 @@ func (c *SessionContext) validateBearerToken(ctx context.Context, token string) 
 }
 
 // GetClient returns the client connected to the auth server
-func (c *SessionContext) GetClient() (auth.ClientI, error) {
+func (c *SessionContext) GetClient() (authclient.ClientI, error) {
 	return c.cfg.RootClient, nil
 }
 
@@ -220,7 +221,7 @@ func (c *SessionContext) GetClientConnection() *grpc.ClientConn {
 // the requested site. If the site is local a client with the users local role
 // is returned. If the site is remote a client with the users remote role is
 // returned.
-func (c *SessionContext) GetUserClient(ctx context.Context, site reversetunnelclient.RemoteSite) (auth.ClientI, error) {
+func (c *SessionContext) GetUserClient(ctx context.Context, site reversetunnelclient.RemoteSite) (authclient.ClientI, error) {
 	// if we're trying to access the local cluster, pass back the local client.
 	if c.cfg.RootClusterName == site.GetName() {
 		return c.cfg.RootClient, nil
@@ -239,7 +240,7 @@ func (c *SessionContext) GetUserClient(ctx context.Context, site reversetunnelcl
 //
 // A [singleflight.Group] is leveraged to prevent duplicate requests for remote
 // clients at the same time to race.
-func (c *SessionContext) remoteClient(ctx context.Context, site reversetunnelclient.RemoteSite) (auth.ClientI, error) {
+func (c *SessionContext) remoteClient(ctx context.Context, site reversetunnelclient.RemoteSite) (authclient.ClientI, error) {
 	cltI, err, _ := c.remoteClientGroup.Do(site.GetName(), func() (interface{}, error) {
 		// check if we already have a connection to this cluster
 		if clt, ok := c.remoteClientCache.getRemoteClient(site); ok {
@@ -266,7 +267,7 @@ func (c *SessionContext) remoteClient(ctx context.Context, site reversetunnelcli
 		return nil, trace.Wrap(err)
 	}
 
-	clt, ok := cltI.(auth.ClientI)
+	clt, ok := cltI.(authclient.ClientI)
 	if !ok {
 		return nil, trace.BadParameter("unexpected type %T received for auth client", cltI)
 	}
@@ -275,7 +276,7 @@ func (c *SessionContext) remoteClient(ctx context.Context, site reversetunnelcli
 }
 
 // newRemoteClient returns a client to a remote cluster with the role of current user.
-func newRemoteClient(ctx context.Context, sctx *SessionContext, site reversetunnelclient.RemoteSite) (auth.ClientI, error) {
+func newRemoteClient(ctx context.Context, sctx *SessionContext, site reversetunnelclient.RemoteSite) (authclient.ClientI, error) {
 	clt, err := sctx.newRemoteTLSClient(ctx, site)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -391,7 +392,7 @@ func (c *SessionContext) ClientTLSConfig(ctx context.Context, clusterName ...str
 	return tlsConfig, nil
 }
 
-func (c *SessionContext) newRemoteTLSClient(ctx context.Context, cluster reversetunnelclient.RemoteSite) (auth.ClientI, error) {
+func (c *SessionContext) newRemoteTLSClient(ctx context.Context, cluster reversetunnelclient.RemoteSite) (authclient.ClientI, error) {
 	tlsConfig, err := c.ClientTLSConfig(ctx, cluster.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -399,7 +400,7 @@ func (c *SessionContext) newRemoteTLSClient(ctx context.Context, cluster reverse
 
 	clientSrcAddr, clientDstAddr := authz.ClientAddrsFromContext(ctx)
 
-	return auth.NewClient(apiclient.Config{
+	return authclient.NewClient(apiclient.Config{
 		Context: ctx,
 		Dialer:  clusterDialer(cluster, clientSrcAddr, clientDstAddr),
 		Credentials: []apiclient.Credentials{
@@ -611,7 +612,7 @@ func (c *SessionContext) expired(ctx context.Context) bool {
 const cachedSessionLingeringThreshold = 2 * time.Minute
 
 type sessionCacheOptions struct {
-	proxyClient  auth.ClientI
+	proxyClient  authclient.ClientI
 	accessPoint  auth.ReadProxyAccessPoint
 	servers      []utils.NetAddr
 	cipherSuites []uint16
@@ -661,7 +662,7 @@ func newSessionCache(ctx context.Context, config sessionCacheOptions) (*sessionC
 // and holds in-memory contexts associated with each session
 type sessionCache struct {
 	log         logrus.FieldLogger
-	proxyClient auth.ClientI
+	proxyClient authclient.ClientI
 	authServers []utils.NetAddr
 	accessPoint auth.ReadProxyAccessPoint
 	closer      *utils.CloseBroadcaster
@@ -978,7 +979,7 @@ func (s *sessionCache) newSessionContextFromSession(ctx context.Context, session
 		return nil, trace.Wrap(err)
 	}
 
-	userClient, err := auth.NewClient(apiclient.Config{
+	userClient, err := authclient.NewClient(apiclient.Config{
 		Addrs:                utils.NetAddrsToStrings(s.authServers),
 		Credentials:          []apiclient.Credentials{apiclient.LoadTLS(tlsConfig)},
 		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
@@ -1160,17 +1161,17 @@ func (h *Handler) waitForWebSession(ctx context.Context, req types.GetWebSession
 type remoteClientCache struct {
 	sync.Mutex
 	clients map[string]struct {
-		auth.ClientI
+		authclient.ClientI
 		reversetunnelclient.RemoteSite
 	}
 }
 
-func (c *remoteClientCache) addRemoteClient(site reversetunnelclient.RemoteSite, remoteClient auth.ClientI) error {
+func (c *remoteClientCache) addRemoteClient(site reversetunnelclient.RemoteSite, remoteClient authclient.ClientI) error {
 	c.Lock()
 	defer c.Unlock()
 	if c.clients == nil {
 		c.clients = make(map[string]struct {
-			auth.ClientI
+			authclient.ClientI
 			reversetunnelclient.RemoteSite
 		})
 	}
@@ -1179,13 +1180,13 @@ func (c *remoteClientCache) addRemoteClient(site reversetunnelclient.RemoteSite,
 		err = c.clients[site.GetName()].ClientI.Close()
 	}
 	c.clients[site.GetName()] = struct {
-		auth.ClientI
+		authclient.ClientI
 		reversetunnelclient.RemoteSite
 	}{remoteClient, site}
 	return err
 }
 
-func (c *remoteClientCache) getRemoteClient(site reversetunnelclient.RemoteSite) (auth.ClientI, bool) {
+func (c *remoteClientCache) getRemoteClient(site reversetunnelclient.RemoteSite) (authclient.ClientI, bool) {
 	c.Lock()
 	defer c.Unlock()
 	remoteClt, ok := c.clients[site.GetName()]

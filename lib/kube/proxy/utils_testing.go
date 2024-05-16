@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
@@ -64,7 +65,7 @@ type TestContext struct {
 	ClusterName          string
 	TLSServer            *auth.TestTLSServer
 	AuthServer           *auth.Server
-	AuthClient           *auth.Client
+	AuthClient           *authclient.Client
 	Authz                authz.Authorizer
 	KubeServer           *TLSServer
 	KubeProxy            *TLSServer
@@ -554,7 +555,7 @@ func (c *TestContext) NewJoiningSession(cfg *rest.Config, sessionID string, mode
 // and ResumeAuditStream methods to use a events.TeeStreamer to leverage the StreamEmitter
 // even when recording mode is *-sync.
 type authClientWithStreamer struct {
-	*auth.Client
+	*authclient.Client
 	streamer events.Streamer
 }
 
@@ -572,7 +573,7 @@ func (a *authClientWithStreamer) ResumeAuditStream(ctx context.Context, sID sess
 }
 
 type fakeClient struct {
-	auth.ClientI
+	authclient.ClientI
 	closeC chan struct{}
 }
 
