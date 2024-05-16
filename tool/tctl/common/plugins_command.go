@@ -33,7 +33,7 @@ import (
 	"github.com/gravitational/teleport"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
@@ -198,7 +198,7 @@ func (p *PluginsCommand) initDelete(parent *kingpin.CmdClause) {
 }
 
 // Delete implements `tctl plugins delete`, deleting a plugin from the Teleport cluster
-func (p *PluginsCommand) Delete(ctx context.Context, client *auth.Client) error {
+func (p *PluginsCommand) Delete(ctx context.Context, client *authclient.Client) error {
 	log := p.config.Logger.With("plugin", p.delete.name)
 	plugins := client.PluginsClient()
 
@@ -215,7 +215,7 @@ func (p *PluginsCommand) Delete(ctx context.Context, client *auth.Client) error 
 }
 
 // Cleanup cleans up the given plugin.
-func (p *PluginsCommand) Cleanup(ctx context.Context, clusterAPI *auth.Client) error {
+func (p *PluginsCommand) Cleanup(ctx context.Context, clusterAPI *authclient.Client) error {
 	needsCleanup, err := clusterAPI.PluginsClient().NeedsCleanup(ctx, &pluginsv1.NeedsCleanupRequest{
 		Type: p.pluginType,
 	})
@@ -397,7 +397,7 @@ func (p *PluginsCommand) InstallOkta(ctx context.Context, args installPluginArgs
 
 // InstallSCIM implements `tctl plugins install scim`, installing a SCIM integration
 // plugin into the teleport cluster
-func (p *PluginsCommand) InstallSCIM(ctx context.Context, client *auth.Client) error {
+func (p *PluginsCommand) InstallSCIM(ctx context.Context, client *authclient.Client) error {
 	log := p.config.Logger.With(logFieldPlugin, p.install.name)
 
 	log.DebugContext(ctx, "Fetching cluster info...")
@@ -484,7 +484,7 @@ func (p *PluginsCommand) InstallSCIM(ctx context.Context, client *auth.Client) e
 }
 
 // TryRun runs the plugins command
-func (p *PluginsCommand) TryRun(ctx context.Context, cmd string, client *auth.Client) (match bool, err error) {
+func (p *PluginsCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
 	switch cmd {
 	case p.cleanupCmd.FullCommand():
 		err = p.Cleanup(ctx, client)

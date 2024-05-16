@@ -523,6 +523,9 @@ const (
 	// KindUserNotificationState is a resource which tracks whether a user has clicked on or dismissed a notification.
 	KindUserNotificationState = "user_notification_state"
 
+	// KindVnetConfig is a resource which holds cluster-wide configuration for VNet.
+	KindVnetConfig = "vnet_config"
+
 	// V7 is the seventh version of resources.
 	V7 = "v7"
 
@@ -984,6 +987,15 @@ const (
 
 	// PluginGenerationLabel is the label for the current generation of the plugin.
 	PluginGenerationLabel = TeleportInternalLabelPrefix + "plugin-generation"
+)
+
+const (
+	// NotificationTitleLabel is the label which contains the title of the notification.
+	NotificationTitleLabel = TeleportInternalLabelPrefix + "title"
+	// NotificationClickedLabel is the label which contains whether the notification has been clicked on by the user.
+	NotificationClickedLabel = TeleportInternalLabelPrefix + "clicked"
+	// NotificationScope is the label which contains the scope of the notification, either "user" or "global"
+	NotificationScope = TeleportInternalLabelPrefix + "scope"
 )
 
 const (

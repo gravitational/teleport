@@ -19,22 +19,45 @@
 import React from 'react';
 import { useTheme } from 'styled-components';
 import Image from 'design/Image';
+import AGPLLogoLight from 'design/assets/images/agpl-light.svg';
+import AGPLLogoDark from 'design/assets/images/agpl-dark.svg';
+import CommunityLogoLight from 'design/assets/images/community-light.svg';
+import CommunityLogoDark from 'design/assets/images/community-dark.svg';
+import EnterpriseLogoLight from 'design/assets/images/enterprise-light.svg';
+import EnterpriseLogoDark from 'design/assets/images/enterprise-dark.svg';
 
-import LogoHeroLight from './LogoHeroLight.svg';
-import LogoHeroDark from './LogoHeroDark.svg';
+import cfg, { TeleportEdition } from 'teleport/config';
 
-const LogoHero = ({ ...rest }) => {
+type LogoMap = {
+  light: string;
+  dark: string;
+};
+
+export const logos: Record<TeleportEdition, LogoMap> = {
+  oss: {
+    light: AGPLLogoLight,
+    dark: AGPLLogoDark,
+  },
+  community: {
+    light: CommunityLogoLight,
+    dark: CommunityLogoDark,
+  },
+  ent: {
+    light: EnterpriseLogoLight,
+    dark: EnterpriseLogoDark,
+  },
+};
+
+export const LogoHero = ({ ...rest }) => {
   const theme = useTheme();
-  const src = theme.type === 'light' ? LogoHeroLight : LogoHeroDark;
+  const src = logos[cfg.edition][theme.type];
   return <Image {...rest} src={src} />;
 };
 
 LogoHero.defaultProps = {
-  src: LogoHeroDark,
+  src: AGPLLogoDark,
   maxHeight: '120px',
   maxWidth: '200px',
   my: '48px',
   mx: 'auto',
 };
-
-export default LogoHero;
