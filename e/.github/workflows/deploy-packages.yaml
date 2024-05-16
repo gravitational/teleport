@@ -513,7 +513,7 @@ jobs:
         if: inputs.do-teleport-package-tests && inputs.package-to-test == 'teleport-ent-updater'
         env:
           # Arbitrary teleport version for initial teleport installation
-          TELEPORT_TAG: v13.4.0
+          TELEPORT_TAG: v14.3.17
         run: echo "TELEPORT_VERSION=${TELEPORT_TAG#v}" >> "$GITHUB_ENV"
       - name: Install the teleport and teleport updater packages
         if: inputs.do-teleport-package-tests && inputs.package-to-test == 'teleport-ent-updater'
@@ -536,6 +536,7 @@ jobs:
         run: |
           TARGET_VERSION=$(curl "https://${AUTO_UPDATES_DOMAIN_NAME}/v1/stable/cloud/version")
           echo 'apt' > /etc/teleport-upgrade.d/installer
+          echo "${AUTO_UPDATES_DOMAIN_NAME}/v1/stable/cloud" > /etc/teleport-upgrade.d/endpoint
           teleport-upgrade force
           REPORTED_VERSION=$(teleport version --raw)
           if [ "$REPORTED_VERSION" != "${TARGET_VERSION#v}" ]; then
@@ -671,7 +672,7 @@ jobs:
         if: inputs.do-teleport-package-tests && inputs.package-to-test == 'teleport-ent-updater'
         env:
           # Arbitrary teleport version for initial teleport installation
-          TELEPORT_TAG: v13.4.0
+          TELEPORT_TAG: v14.3.17
         run: echo "TELEPORT_VERSION=$(echo "${TELEPORT_TAG#v}" | sed 's/-/_/g')" >> "$GITHUB_ENV"
       - name: Install the teleport and teleport updater packages
         if: inputs.do-teleport-package-tests && inputs.package-to-test == 'teleport-ent-updater'
@@ -694,6 +695,7 @@ jobs:
         run: |
           TARGET_VERSION=$(curl "https://${AUTO_UPDATES_DOMAIN_NAME}/v1/stable/cloud/version")
           echo 'yum' > /etc/teleport-upgrade.d/installer
+          echo "${AUTO_UPDATES_DOMAIN_NAME}/v1/stable/cloud" > /etc/teleport-upgrade.d/endpoint
           teleport-upgrade force
           REPORTED_VERSION=$(teleport version --raw)
           if [ "$REPORTED_VERSION" != "${TARGET_VERSION#v}" ]; then
@@ -848,7 +850,7 @@ jobs:
         if: inputs.do-teleport-package-tests && inputs.package-to-test == 'teleport-ent-updater'
         env:
           # Arbitrary teleport version for initial teleport installation
-          TELEPORT_TAG: v13.4.0
+          TELEPORT_TAG: v14.3.17
         run: echo "TELEPORT_VERSION=$(echo "${TELEPORT_TAG#v}" | sed 's/-/_/g')-1" >> "$GITHUB_ENV"
       - name: Install the teleport and teleport updater packages
         if: inputs.do-teleport-package-tests && inputs.package-to-test == 'teleport-ent-updater'
@@ -871,6 +873,7 @@ jobs:
         run: |
           TARGET_VERSION=$(curl "https://${AUTO_UPDATES_DOMAIN_NAME}/v1/stable/cloud/version")
           echo 'zypper' > /etc/teleport-upgrade.d/installer
+          echo "${AUTO_UPDATES_DOMAIN_NAME}/v1/stable/cloud" > /etc/teleport-upgrade.d/endpoint
           teleport-upgrade force
           REPORTED_VERSION=$(teleport version --raw)
           if [ "$REPORTED_VERSION" != "${TARGET_VERSION#v}" ]; then
