@@ -138,7 +138,7 @@ func TestCreateResetPasswordTokenErrors(t *testing.T) {
 			req: authclient.CreateUserTokenRequest{
 				Name: username,
 				TTL:  defaults.MaxSignupTokenTTL + time.Hour,
-				Type: UserTokenTypeResetPasswordInvite,
+				Type: authclient.UserTokenTypeResetPasswordInvite,
 			},
 		},
 	}
@@ -269,7 +269,7 @@ func TestUserTokenCreationSettings(t *testing.T) {
 	req := authclient.CreateUserTokenRequest{
 		Name: username,
 		TTL:  time.Hour,
-		Type: UserTokenTypeResetPasswordInvite,
+		Type: authclient.UserTokenTypeResetPasswordInvite,
 	}
 
 	token, err := srv.Auth().newUserToken(req)
@@ -316,14 +316,14 @@ func TestCreatePrivilegeToken(t *testing.T) {
 	}{
 		{
 			name:      "privilege exception token",
-			tokenType: UserTokenTypePrivilegeException,
+			tokenType: authclient.UserTokenTypePrivilegeException,
 			getReq: func() *proto.CreatePrivilegeTokenRequest {
 				return &proto.CreatePrivilegeTokenRequest{}
 			},
 		},
 		{
 			name:      "privilege token",
-			tokenType: UserTokenTypePrivilege,
+			tokenType: authclient.UserTokenTypePrivilege,
 			getReq: func() *proto.CreatePrivilegeTokenRequest {
 				// Upsert a TOTP device to authn with.
 				otpSecret := base32.StdEncoding.EncodeToString([]byte("def456"))

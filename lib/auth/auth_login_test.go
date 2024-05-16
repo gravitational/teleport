@@ -347,7 +347,7 @@ func TestCreateAuthenticateChallenge_WithRecoveryStartToken(t *testing.T) {
 			name:    "invalid token type",
 			wantErr: true,
 			getRequest: func() *proto.CreateAuthenticateChallengeRequest {
-				wrongToken, err := srv.Auth().createRecoveryToken(ctx, u.username, UserTokenTypeRecoveryApproved, types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD)
+				wrongToken, err := srv.Auth().createRecoveryToken(ctx, u.username, authclient.UserTokenTypeRecoveryApproved, types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD)
 				require.NoError(t, err)
 
 				return &proto.CreateAuthenticateChallengeRequest{
@@ -367,7 +367,7 @@ func TestCreateAuthenticateChallenge_WithRecoveryStartToken(t *testing.T) {
 		{
 			name: "valid token",
 			getRequest: func() *proto.CreateAuthenticateChallengeRequest {
-				startToken, err := srv.Auth().createRecoveryToken(ctx, u.username, UserTokenTypeRecoveryStart, types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD)
+				startToken, err := srv.Auth().createRecoveryToken(ctx, u.username, authclient.UserTokenTypeRecoveryStart, types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD)
 				require.NoError(t, err)
 
 				return &proto.CreateAuthenticateChallengeRequest{
@@ -664,7 +664,7 @@ func TestCreateRegisterChallenge(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test invalid token type.
-	wrongToken, err := srv.Auth().createRecoveryToken(ctx, u.username, UserTokenTypeRecoveryStart, types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD)
+	wrongToken, err := srv.Auth().createRecoveryToken(ctx, u.username, authclient.UserTokenTypeRecoveryStart, types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD)
 	require.NoError(t, err)
 	_, err = srv.Auth().CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
 		TokenID:    wrongToken.GetName(),
@@ -673,7 +673,7 @@ func TestCreateRegisterChallenge(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 
 	// Create a valid token.
-	validToken, err := srv.Auth().createRecoveryToken(ctx, u.username, UserTokenTypeRecoveryApproved, types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD)
+	validToken, err := srv.Auth().createRecoveryToken(ctx, u.username, authclient.UserTokenTypeRecoveryApproved, types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD)
 	require.NoError(t, err)
 
 	// Test unspecified token returns error.
@@ -1565,7 +1565,7 @@ func TestSSOPasswordBypass(t *testing.T) {
 		_, err = adminClient.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 			Name: mfa.User,
 			TTL:  1 * time.Hour,
-			Type: UserTokenTypeResetPassword,
+			Type: authclient.UserTokenTypeResetPassword,
 		})
 		assert.ErrorContains(t, err, "only local", "CreateResetPasswordToken error mismatch")
 	})

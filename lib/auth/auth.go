@@ -3329,7 +3329,7 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 			return nil, trace.AccessDenied("invalid token")
 		}
 
-		if err := a.verifyUserToken(token, UserTokenTypeRecoveryStart); err != nil {
+		if err := a.verifyUserToken(token, authclient.UserTokenTypeRecoveryStart); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -3381,11 +3381,11 @@ func (a *Server) CreateRegisterChallenge(ctx context.Context, req *proto.CreateR
 		}
 
 		allowedTokenTypes := []string{
-			UserTokenTypePrivilege,
-			UserTokenTypePrivilegeException,
-			UserTokenTypeResetPassword,
-			UserTokenTypeResetPasswordInvite,
-			UserTokenTypeRecoveryApproved,
+			authclient.UserTokenTypePrivilege,
+			authclient.UserTokenTypePrivilegeException,
+			authclient.UserTokenTypeResetPassword,
+			authclient.UserTokenTypeResetPasswordInvite,
+			authclient.UserTokenTypeRecoveryApproved,
 		}
 		if err := a.verifyUserToken(token, allowedTokenTypes...); err != nil {
 			return nil, trace.AccessDenied("invalid token")
@@ -3547,7 +3547,7 @@ func (a *Server) GetMFADevices(ctx context.Context, req *proto.GetMFADevicesRequ
 			return nil, trace.AccessDenied("invalid token")
 		}
 
-		if err := a.verifyUserToken(token, UserTokenTypeRecoveryApproved); err != nil {
+		if err := a.verifyUserToken(token, authclient.UserTokenTypeRecoveryApproved); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -3584,7 +3584,7 @@ func (a *Server) DeleteMFADeviceSync(ctx context.Context, req *proto.DeleteMFADe
 		}
 		user = token.GetUser()
 
-		if err := a.verifyUserToken(token, UserTokenTypeRecoveryApproved, UserTokenTypePrivilege); err != nil {
+		if err := a.verifyUserToken(token, authclient.UserTokenTypeRecoveryApproved, authclient.UserTokenTypePrivilege); err != nil {
 			return trace.Wrap(err)
 		}
 
@@ -3744,8 +3744,8 @@ func (a *Server) AddMFADeviceSync(ctx context.Context, req *proto.AddMFADeviceSy
 
 		if err := a.verifyUserToken(
 			privilegeToken,
-			UserTokenTypePrivilege,
-			UserTokenTypePrivilegeException,
+			authclient.UserTokenTypePrivilege,
+			authclient.UserTokenTypePrivilegeException,
 			userTokenTypePrivilegeOTP,
 		); err != nil {
 			return nil, trace.Wrap(err)

@@ -45,26 +45,32 @@ import (
 const (
 	// UserTokenTypeResetPasswordInvite is a token type used for the UI invite flow that
 	// allows users to change their password and set second factor (if enabled).
+	// TODO(tross): remove once e is updated
 	UserTokenTypeResetPasswordInvite = authclient.UserTokenTypeResetPasswordInvite
 	// UserTokenTypeResetPassword is a token type used for the UI flow where user
 	// re-sets their password and second factor (if enabled).
+	// TODO(tross): remove once e is updated
 	UserTokenTypeResetPassword = authclient.UserTokenTypeResetPassword
 	// UserTokenTypeRecoveryStart describes a recovery token issued to users who
 	// successfully verified their recovery code.
+	// TODO(tross): remove once e is updated
 	UserTokenTypeRecoveryStart = authclient.UserTokenTypeRecoveryStart
 	// UserTokenTypeRecoveryApproved describes a recovery token issued to users who
 	// successfully verified their second auth credential (either password or a second factor) and
 	// can now start changing their password or add a new second factor device.
 	// This token is also used to allow users to delete exisiting second factor devices
 	// and retrieve their new set of recovery codes as part of the recovery flow.
+	// TODO(tross): remove once e is updated
 	UserTokenTypeRecoveryApproved = authclient.UserTokenTypeRecoveryApproved
 	// UserTokenTypePrivilege describes a token type that grants access to a privileged action
 	// that requires users to re-authenticate with their second factor while looged in. This
 	// token is issued to users who has successfully re-authenticated.
+	// TODO(tross): remove once e is updated
 	UserTokenTypePrivilege = authclient.UserTokenTypePrivilege
 	// UserTokenTypePrivilegeException describes a token type that allowed a user to bypass
 	// second factor re-authentication which in other cases would be required eg:
 	// allowing user to add a mfa device if they don't have any registered.
+	// TODO(tross): remove once e is updated
 	UserTokenTypePrivilegeException = authclient.UserTokenTypePrivilegeException
 
 	// userTokenTypePrivilegeOTP is used to hold OTP data during (otherwise)
@@ -81,7 +87,7 @@ func (a *Server) CreateResetPasswordToken(ctx context.Context, req authclient.Cr
 		return nil, trace.Wrap(err)
 	}
 
-	if req.Type != UserTokenTypeResetPassword && req.Type != UserTokenTypeResetPasswordInvite {
+	if req.Type != authclient.UserTokenTypeResetPassword && req.Type != authclient.UserTokenTypeResetPasswordInvite {
 		return nil, trace.BadParameter("invalid reset password token request type")
 	}
 
@@ -245,7 +251,7 @@ func (a *Server) newUserToken(req authclient.CreateUserTokenRequest) (types.User
 	var proxyHost string
 
 	tokenLenBytes := defaults.TokenLenBytes
-	if req.Type == UserTokenTypeRecoveryStart {
+	if req.Type == authclient.UserTokenTypeRecoveryStart {
 		tokenLenBytes = defaults.RecoveryTokenLenBytes
 	}
 
@@ -296,13 +302,13 @@ func formatUserTokenURL(proxyHost string, tokenID string, reqType string) (strin
 
 	// Defines different UI flows that process user tokens.
 	switch reqType {
-	case UserTokenTypeResetPasswordInvite:
+	case authclient.UserTokenTypeResetPasswordInvite:
 		u.Path = fmt.Sprintf("/web/invite/%v", tokenID)
 
-	case UserTokenTypeResetPassword:
+	case authclient.UserTokenTypeResetPassword:
 		u.Path = fmt.Sprintf("/web/reset/%v", tokenID)
 
-	case UserTokenTypeRecoveryStart:
+	case authclient.UserTokenTypeRecoveryStart:
 		u.Path = fmt.Sprintf("/web/recovery/steps/%v/verify", tokenID)
 	}
 
@@ -338,7 +344,7 @@ func (a *Server) getResetPasswordToken(ctx context.Context, tokenID string) (typ
 		return nil, trace.Wrap(err)
 	}
 
-	if token.GetSubKind() != UserTokenTypeResetPassword && token.GetSubKind() != UserTokenTypeResetPasswordInvite {
+	if token.GetSubKind() != authclient.UserTokenTypeResetPassword && token.GetSubKind() != authclient.UserTokenTypeResetPasswordInvite {
 		return nil, trace.BadParameter("invalid token")
 	}
 
@@ -347,7 +353,7 @@ func (a *Server) getResetPasswordToken(ctx context.Context, tokenID string) (typ
 
 // createRecoveryToken creates a user token for account recovery.
 func (a *Server) createRecoveryToken(ctx context.Context, username, tokenType string, usage types.UserTokenUsage) (types.UserToken, error) {
-	if tokenType != UserTokenTypeRecoveryStart && tokenType != UserTokenTypeRecoveryApproved {
+	if tokenType != authclient.UserTokenTypeRecoveryStart && tokenType != authclient.UserTokenTypeRecoveryApproved {
 		return nil, trace.BadParameter("invalid recovery token type: %s", tokenType)
 	}
 
@@ -413,13 +419,13 @@ func (a *Server) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePriv
 		return nil, trace.AccessDenied("second factor must be enabled")
 	}
 
-	tokenKind := UserTokenTypePrivilege
+	tokenKind := authclient.UserTokenTypePrivilege
 	requiredExt := &mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES}
 	switch hasDevices, err := a.validateMFAAuthResponseForRegister(ctx, req.GetExistingMFAResponse(), username, requiredExt); {
 	case err != nil:
 		return nil, trace.Wrap(err)
 	case !hasDevices:
-		tokenKind = UserTokenTypePrivilegeException
+		tokenKind = authclient.UserTokenTypePrivilegeException
 	}
 
 	// Delete any existing user tokens for user before creating.
@@ -432,7 +438,7 @@ func (a *Server) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePriv
 }
 
 func (a *Server) createPrivilegeToken(ctx context.Context, username, tokenKind string) (*types.UserTokenV3, error) {
-	if tokenKind != UserTokenTypePrivilege && tokenKind != UserTokenTypePrivilegeException {
+	if tokenKind != authclient.UserTokenTypePrivilege && tokenKind != authclient.UserTokenTypePrivilegeException {
 		return nil, trace.BadParameter("invalid privilege token type")
 	}
 
