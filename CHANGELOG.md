@@ -30,9 +30,9 @@ Support for disabling second factor authentication has been removed
 #### Machine ID and OpenSSH client config changes
 
 Users with custom `ssh_config` should modify their ProxyCommand to use the new,
-more performant, `tbot ssh-proxy-command`. See
-https://goteleport.com/docs/machine-id/reference/v16-upgrade-guide/ for more
-details.
+more performant, `tbot ssh-proxy-command`. See the
+[v16 upgrade guide](docs/pages/machine-id/reference/v16-upgrade-guide.mdx) for
+more details.
 
 ## 15.0.0 (xx/xx/24)
 
