@@ -1290,7 +1290,7 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 // **WARNING**: Ensure that the version below matches the version in which backward incompatible
 // changes were introduced so that the cache is created successfully. Otherwise, the remote cache may
 // never become healthy due to unknown resources.
-func createRemoteAccessPoint(srv *server, clt authclient.ClientI, version, domainName string) (auth.RemoteProxyAccessPoint, error) {
+func createRemoteAccessPoint(srv *server, clt authclient.ClientI, version, domainName string) (authclient.RemoteProxyAccessPoint, error) {
 	ok, err := utils.MinVerWithoutPreRelease(version, utils.VersionBeforeAlpha("13.0.0"))
 	if err != nil {
 		return nil, trace.Wrap(err)

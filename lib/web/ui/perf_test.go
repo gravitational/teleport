@@ -30,7 +30,6 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -161,7 +160,7 @@ type mockRemoteSite struct {
 	accessPoint authclient.ProxyAccessPoint
 }
 
-func (m *mockRemoteSite) CachingAccessPoint() (auth.RemoteProxyAccessPoint, error) {
+func (m *mockRemoteSite) CachingAccessPoint() (authclient.RemoteProxyAccessPoint, error) {
 	return m.accessPoint, nil
 }
 
