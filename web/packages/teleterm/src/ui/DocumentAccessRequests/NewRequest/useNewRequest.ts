@@ -39,6 +39,7 @@ import {
 import { routing } from 'teleterm/ui/uri';
 import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
 import { getAppAddrWithProtocol } from 'teleterm/services/tshd/app';
+import { toResourceRequest } from 'teleterm/ui/services/workspacesService/accessRequestsService';
 
 import type {
   ResourceLabel,
@@ -206,7 +207,29 @@ export default function useNewRequest() {
     resourceId: string,
     resourceName?: string
   ) {
-    accessRequestsService.addOrRemoveResource(kind, resourceId, resourceName);
+    if (kind === 'role') {
+      accessRequestsService.addOrRemoveRole(resourceId);
+      return;
+    }
+
+    if (
+      kind === 'app' ||
+      kind === 'db' ||
+      kind === 'kube_cluster' ||
+      kind === 'node'
+    ) {
+      accessRequestsService.addOrRemoveResource(
+        toResourceRequest({
+          kind,
+          resourceId,
+          resourceName,
+          clusterUri,
+        })
+      );
+      return;
+    }
+
+    throw new Error(`Unsupported resource kind ${kind}.`);
   }
 
   async function fetchNext() {
@@ -307,6 +330,7 @@ export default function useNewRequest() {
     nextPage: page.keys[page.index + 1] ? fetchNext : null,
     prevPage: page.index > 0 ? fetchPrev : null,
     requestableRoles,
+    addedItemsCount: accessRequestsService.getAddedResourceCount(),
   };
 }
 
