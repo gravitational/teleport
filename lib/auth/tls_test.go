@@ -57,6 +57,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -3396,7 +3397,7 @@ func TestRegisterCAPin(t *testing.T) {
 	_, err = Register(ctx, RegisterParams{
 		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
 		Token:       token,
-		ID: IdentityID{
+		ID: state.IdentityID{
 			HostUUID: "once",
 			NodeName: "node-name",
 			Role:     types.RoleProxy,
@@ -3414,7 +3415,7 @@ func TestRegisterCAPin(t *testing.T) {
 	_, err = Register(ctx, RegisterParams{
 		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
 		Token:       token,
-		ID: IdentityID{
+		ID: state.IdentityID{
 			HostUUID: "once",
 			NodeName: "node-name",
 			Role:     types.RoleProxy,
@@ -3431,7 +3432,7 @@ func TestRegisterCAPin(t *testing.T) {
 	_, err = Register(ctx, RegisterParams{
 		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
 		Token:       token,
-		ID: IdentityID{
+		ID: state.IdentityID{
 			HostUUID: "once",
 			NodeName: "node-name",
 			Role:     types.RoleProxy,
@@ -3448,7 +3449,7 @@ func TestRegisterCAPin(t *testing.T) {
 	_, err = Register(ctx, RegisterParams{
 		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
 		Token:       token,
-		ID: IdentityID{
+		ID: state.IdentityID{
 			HostUUID: "once",
 			NodeName: "node-name",
 			Role:     types.RoleProxy,
@@ -3484,7 +3485,7 @@ func TestRegisterCAPin(t *testing.T) {
 	_, err = Register(ctx, RegisterParams{
 		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
 		Token:       token,
-		ID: IdentityID{
+		ID: state.IdentityID{
 			HostUUID: "once",
 			NodeName: "node-name",
 			Role:     types.RoleProxy,
@@ -3529,7 +3530,7 @@ func TestRegisterCAPath(t *testing.T) {
 	_, err = Register(ctx, RegisterParams{
 		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
 		Token:       token,
-		ID: IdentityID{
+		ID: state.IdentityID{
 			HostUUID: "once",
 			NodeName: "node-name",
 			Role:     types.RoleProxy,
@@ -3558,7 +3559,7 @@ func TestRegisterCAPath(t *testing.T) {
 	_, err = Register(ctx, RegisterParams{
 		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
 		Token:       token,
-		ID: IdentityID{
+		ID: state.IdentityID{
 			HostUUID: "once",
 			NodeName: "node-name",
 			Role:     types.RoleProxy,

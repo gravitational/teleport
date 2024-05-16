@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth
+package state
 
 import (
 	"context"
@@ -31,7 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// stateBackend implements abstraction over local or remote storage backend methods
+// backend implements abstraction over local or remote storage backend methods
 // required for Identity/State storage.
 // As in backend.Backend, Item keys are assumed to be valid UTF8, which may be enforced by the
 // various Backend implementations.
