@@ -49,7 +49,6 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -107,7 +106,7 @@ type Server struct {
 
 	proxyMode        bool
 	proxyTun         reversetunnelclient.Tunnel
-	proxyAccessPoint auth.ReadProxyAccessPoint
+	proxyAccessPoint authclient.ReadProxyAccessPoint
 	peerAddr         string
 
 	advertiseAddr   *utils.NetAddr
@@ -445,7 +444,7 @@ func SetRotationGetter(getter services.RotationGetter) ServerOption {
 }
 
 // SetProxyMode starts this server in SSH proxying mode
-func SetProxyMode(peerAddr string, tsrv reversetunnelclient.Tunnel, ap auth.ReadProxyAccessPoint, router *proxy.Router) ServerOption {
+func SetProxyMode(peerAddr string, tsrv reversetunnelclient.Tunnel, ap authclient.ReadProxyAccessPoint, router *proxy.Router) ServerOption {
 	return func(s *Server) error {
 		// always set proxy mode to true,
 		// because in some tests reverse tunnel is disabled,

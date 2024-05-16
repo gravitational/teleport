@@ -47,7 +47,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client"
@@ -101,7 +100,7 @@ type SessionContextConfig struct {
 	// This access point should only be used if the identity of the caller will
 	// not affect the result of the RPC. For example, never use it to call
 	// "GetNodes".
-	UnsafeCachedAuthClient auth.ReadProxyAccessPoint
+	UnsafeCachedAuthClient authclient.ReadProxyAccessPoint
 
 	Parent *sessionCache
 	// Resources is a persistent resource store this context is bound to.
@@ -613,7 +612,7 @@ const cachedSessionLingeringThreshold = 2 * time.Minute
 
 type sessionCacheOptions struct {
 	proxyClient  authclient.ClientI
-	accessPoint  auth.ReadProxyAccessPoint
+	accessPoint  authclient.ReadProxyAccessPoint
 	servers      []utils.NetAddr
 	cipherSuites []uint16
 	clock        clockwork.Clock
@@ -664,7 +663,7 @@ type sessionCache struct {
 	log         logrus.FieldLogger
 	proxyClient authclient.ClientI
 	authServers []utils.NetAddr
-	accessPoint auth.ReadProxyAccessPoint
+	accessPoint authclient.ReadProxyAccessPoint
 	closer      *utils.CloseBroadcaster
 	clusterName string
 	clock       clockwork.Clock

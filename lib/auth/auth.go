@@ -753,7 +753,7 @@ type Server struct {
 	// implements its methods), thus any implemented GetFoo method on both Cache
 	// and Services will call the one from Cache. To bypass the cache, call the
 	// method on Services instead.
-	Cache
+	authclient.Cache
 
 	// privateKey is used in tests to use pre-generated private keys
 	privateKey []byte

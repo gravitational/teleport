@@ -479,7 +479,7 @@ func TestVerifyAccountRecovery_WithLock(t *testing.T) {
 	require.NoError(t, err)
 
 	// Acquire another start token, as last success would have deleted it.
-	startToken, err = srv.Auth().createRecoveryToken(ctx, u.username, UserTokenTypeRecoveryStart, types.UserTokenUsage_USER_TOKEN_RECOVER_MFA)
+	startToken, err = srv.Auth().createRecoveryToken(ctx, u.username, authclient.UserTokenTypeRecoveryStart, types.UserTokenUsage_USER_TOKEN_RECOVER_MFA)
 	require.NoError(t, err)
 
 	// Trigger max failed recovery attempts.

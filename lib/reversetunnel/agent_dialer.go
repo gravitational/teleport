@@ -28,7 +28,7 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
@@ -48,7 +48,7 @@ func isProxyAlreadyClaimed(err error) bool {
 
 // agentDialer dials an ssh server on behalf of an agent.
 type agentDialer struct {
-	client      auth.AccessCache
+	client      authclient.AccessCache
 	username    string
 	authMethods []ssh.AuthMethod
 	fips        bool

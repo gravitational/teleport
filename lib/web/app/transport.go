@@ -32,7 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -44,7 +44,7 @@ import (
 // transportConfig is configuration for a rewriting transport.
 type transportConfig struct {
 	proxyClient  reversetunnelclient.Tunnel
-	accessPoint  auth.ReadProxyAccessPoint
+	accessPoint  authclient.ReadProxyAccessPoint
 	cipherSuites []uint16
 	identity     *tlsca.Identity
 	servers      []types.AppServer
