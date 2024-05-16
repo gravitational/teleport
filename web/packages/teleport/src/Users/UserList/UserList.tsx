@@ -85,9 +85,13 @@ export default function UserList({
     />
   );
 
-  function renderAuthType(authType: string, origin: UserOrigin, isBot?: boolean) {
+  function renderAuthType(
+    authType: string,
+    origin: UserOrigin,
+    isBot?: boolean
+  ) {
     if (isBot) {
-        return 'Bot';
+      return 'Bot';
     }
 
     switch (authType) {
