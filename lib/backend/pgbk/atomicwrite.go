@@ -101,9 +101,9 @@ func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.Conditiona
 		return trace.Wrap(row.Scan(&success))
 	}
 
-	var tries int
+	var attempts int
 	err = pgcommon.RetryTx(ctx, b.log, b.pool, pgx.TxOptions{}, false, func(tx pgx.Tx) error {
-		tries++
+		attempts++
 
 		var condBatch, actBatch pgx.Batch
 		for _, bi := range condBatchItems {
@@ -130,14 +130,14 @@ func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.Conditiona
 		return nil
 	})
 
-	if tries > 1 {
-		backend.AtomicWriteContention.WithLabelValues(b.GetName()).Add(float64(tries - 1))
+	if attempts > 1 {
+		backend.AtomicWriteContention.WithLabelValues(b.GetName()).Add(float64(attempts - 1))
 	}
 
-	if tries > 2 {
+	if attempts > 2 {
 		b.log.WarnContext(ctx,
 			"AtomicWrite was retried several times due to transaction contention. Some conflict is expected, but persistent conflict warnings may indicate an unhealthy state.",
-			"tries", tries,
+			"attempts", attempts,
 		)
 	}
 
