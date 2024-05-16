@@ -32,7 +32,8 @@ import (
 // Config is the APIServer configuration
 type Config struct {
 	// HostAddr is the APIServer host address
-	HostAddr string
+	HostAddr           string
+	InsecureSkipVerify bool
 	// Daemon is the terminal daemon service
 	Daemon      *daemon.Service
 	ClientStore *client.Store

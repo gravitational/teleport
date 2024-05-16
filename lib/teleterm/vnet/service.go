@@ -76,8 +76,9 @@ func New(cfg Config) (*Service, error) {
 }
 
 type Config struct {
-	DaemonService *daemon.Service
-	ClientStore   *client.Store
+	DaemonService      *daemon.Service
+	ClientStore        *client.Store
+	InsecureSkipVerify bool
 }
 
 // CheckAndSetDefaults checks and sets the defaults
@@ -115,8 +116,9 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 	}()
 
 	appProvider := &appProvider{
-		daemonService: s.cfg.DaemonService,
-		clientStore:   s.cfg.ClientStore,
+		daemonService:      s.cfg.DaemonService,
+		clientStore:        s.cfg.ClientStore,
+		insecureSkipVerify: s.cfg.InsecureSkipVerify,
 	}
 
 	manager, adminCommandErrCh, err := vnet.Setup(ctx, longCtx, appProvider)
@@ -201,8 +203,9 @@ func (s *Service) Close() error {
 }
 
 type appProvider struct {
-	daemonService *daemon.Service
-	clientStore   *client.Store
+	daemonService      *daemon.Service
+	clientStore        *client.Store
+	insecureSkipVerify bool
 }
 
 func (p *appProvider) ListProfiles() ([]string, error) {
@@ -242,6 +245,7 @@ func (p *appProvider) GetDialOptions(ctx context.Context, profileName string) (*
 	dialOpts := &vnet.DialOptions{
 		WebProxyAddr:            profile.WebProxyAddr,
 		ALPNConnUpgradeRequired: profile.TLSRoutingConnUpgradeRequired,
+		InsecureSkipVerify:      p.insecureSkipVerify,
 	}
 	if dialOpts.ALPNConnUpgradeRequired {
 		dialOpts.RootClusterCACertPool, err = p.getRootClusterCACertPool(ctx, profileName)
