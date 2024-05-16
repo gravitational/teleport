@@ -1,6 +1,7 @@
 package saml
 
 import (
+	"encoding/json"
 	"encoding/xml"
 	"fmt"
 
@@ -10,9 +11,11 @@ import (
 	"github.com/gravitational/trace/trail"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/idp/saml/attribute"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -191,6 +194,21 @@ func (s *Service) MakeAssertion(req *saml.IdpAuthnRequest, session *saml.Session
 	// Make the SAML IdP response on the auth server.
 	ctx := req.HTTPRequest.Context()
 
+	var mfaProtoResponse *proto.MFAAuthenticateResponse
+	if webauthnQuery := req.HTTPRequest.URL.Query().Get("webauthn"); webauthnQuery != "" {
+		var webauthn mfaResponse
+
+		if err := json.Unmarshal([]byte(webauthnQuery), &webauthn); err != nil {
+			return trace.Wrap(err)
+		}
+
+		mfaProtoResponse = &proto.MFAAuthenticateResponse{
+			Response: &proto.MFAAuthenticateResponse_Webauthn{
+				Webauthn: wantypes.CredentialAssertionResponseToProto(webauthn.WebauthnAssertionResponse),
+			},
+		}
+	}
+
 	resp, err := s.client.SAMLIdPClient().ProcessSAMLIdPRequest(ctx, &samlidppb.ProcessSAMLIdPRequestRequest{
 		Assertion:                    assertionBytes,
 		Destination:                  req.ACSEndpoint.Location,
@@ -199,6 +217,7 @@ func (s *Service) MakeAssertion(req *saml.IdpAuthnRequest, session *saml.Session
 		MetadataUrl:                  s.metadataURL.String(),
 		SignatureMethod:              s.signatureMethod,
 		ServiceProviderSsoDescriptor: spssoDescriptor,
+		MfaResponse:                  mfaProtoResponse,
 	})
 	if err != nil {
 		return trail.FromGRPC(err)
@@ -216,6 +235,12 @@ func (s *Service) MakeAssertion(req *saml.IdpAuthnRequest, session *saml.Session
 	req.ResponseEl = respDoc.Root()
 
 	return nil
+}
+
+// copied from lib/web/files.go
+type mfaResponse struct {
+	// WebauthnResponse is the response from authenticators.
+	WebauthnAssertionResponse *wantypes.CredentialAssertionResponse `json:"webauthnAssertionResponse"`
 }
 
 // addAttribute will add an attribute to the given slice if the number of values is non-zero. If there is one element,

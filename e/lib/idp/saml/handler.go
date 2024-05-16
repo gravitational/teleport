@@ -5,13 +5,16 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -45,7 +48,7 @@ func (s *Service) initRouter() (*httprouter.Router, error) {
 	router := httprouter.New()
 
 	router.GET("/metadata", s.withHighLimiter(s.handleMetadata))
-	router.GET("/metadata-values", s.withAuthCtx(s.handleMetadataValues))
+	router.GET("/metadata-values", s.withHighLimiter(s.handleMetadataValues))
 	router.GET("/sso", s.withAuthCtx(s.handleSSO))
 	router.POST("/sso", s.withAuthCtx(s.handleSSO))
 
@@ -68,8 +71,20 @@ func (h *Service) withHighLimiter(fn httprouter.Handle) httprouter.Handle {
 
 func (s *Service) withAuthCtx(fn httprouter.Handle) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-		identity, err := s.authorize(r.Context())
+		identity, err := s.authorize(r)
 		if err != nil {
+			if errors.Is(err, services.ErrSessionMFARequired) {
+				// redirect user to /web/saml-idp-login to provide mfa and try again.
+				redirectURI := (&url.URL{
+					Scheme:   "https",
+					Host:     r.Host,
+					Path:     IdPRoute + r.URL.Path,
+					RawQuery: url.QueryEscape(r.URL.Query().Encode()),
+				}).String()
+				http.Redirect(w, r, "/web/saml-idp/login?redirect_uri="+redirectURI, http.StatusSeeOther)
+				return
+			}
+
 			if !trace.IsAccessDenied(err) { // access denied are expected
 				s.log.Errorf("error authorizing user for SAML IdP: %s", err.Error())
 			}
@@ -86,8 +101,8 @@ func (s *Service) withAuthCtx(fn httprouter.Handle) httprouter.Handle {
 	}
 }
 
-func (s *Service) authorize(ctx context.Context) (*tlsca.Identity, error) {
-	authCtx, err := s.authorizer.Authorize(ctx)
+func (s *Service) authorize(r *http.Request) (*tlsca.Identity, error) {
+	authCtx, err := s.authorizer.Authorize(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -102,13 +117,21 @@ func (s *Service) authorize(ctx context.Context) (*tlsca.Identity, error) {
 		return &identity, trace.BadParameter("unsupported user type: %T", user)
 	}
 
-	authPref, err := s.accessPoint.GetAuthPreference(ctx)
+	authPref, err := s.accessPoint.GetAuthPreference(r.Context())
 	if err != nil && !trace.IsNotFound(err) {
 		return &identity, trace.Wrap(err)
 	}
 
+	accessState := authCtx.Checker.GetAccessState(authPref)
+	if r.URL.Query().Get("webauthn") != "" {
+		// For now, authorize the user on the assumption that the provided MFA
+		// Response is valid. It will be passed to the Auth Server for verification
+		// before the final assertion is signed.
+		accessState.MFAVerified = true
+	}
+
 	// If the auth preference is not found, the CheckAccessToSAMLIdP function will handle it.
-	if err := authCtx.Checker.CheckAccessToSAMLIdP(authPref); err != nil {
+	if err := authCtx.Checker.CheckAccessToSAMLIdP(authPref, accessState); err != nil {
 		return &identity, trace.Wrap(err)
 	}
 

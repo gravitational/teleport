@@ -451,7 +451,7 @@ func (p *Plugin) withSAMLAuth() httprouter.Handle {
 		}
 
 		// skip authenticating request for metadata endpoint
-		if r.URL.Path == "/enterprise/saml-idp/metadata" {
+		if r.URL.Path == "/enterprise/saml-idp/metadata" || r.URL.Path == "/enterprise/saml-idp/metadata-values" {
 			samlIdP.ServeHTTP(w, r)
 			return nil, nil
 		}

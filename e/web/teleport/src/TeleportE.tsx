@@ -16,6 +16,7 @@ import { ENewCredentials } from 'e-teleport/Welcome/NewCredentials';
 import { Recovery } from './Recovery';
 import { Login } from './Login';
 import { Main } from './Main';
+import { SAMLIdPLogin as SAMLIdPLogin } from './SAMLIdPLogin';
 
 const TeleportE: React.FC<Props> = ({ history, ctx }) => {
   return (
@@ -62,6 +63,7 @@ function privateERoutes() {
   return (
     <WaitingRoom>
       <Switch>
+        <Route path={cfg.routes.samlIdPLogin} component={SAMLIdPLogin} />
         {getSharedPrivateRoutes()}
         <Route path={ossConfig.routes.root} component={Main} />
       </Switch>

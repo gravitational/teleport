@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/crewjam/saml"
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
@@ -96,15 +95,10 @@ func newTEnvWithURL(ctx context.Context, t *testing.T, clock clockwork.Clock, ba
 	return &tEnvWithSAMLService{testServices: svcs, samlIdPService: samlIdPService}
 }
 
-type fakeMFAAuthenticator struct {
-	validCodes map[string]string // map of users to valid tokens
-}
+type fakeMFAAuthenticator struct{}
 
 func (a *fakeMFAAuthenticator) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, requiredExtensions *mfav1.ChallengeExtensions) (*authz.MFAAuthData, error) {
-	validCode, ok := a.validCodes[user]
-	if !ok || resp.GetTOTP().GetCode() != validCode {
-		return nil, trace.AccessDenied("invalid MFA")
-	}
+	// Always succeed
 	return nil, nil
 }
 
