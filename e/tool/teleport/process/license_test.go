@@ -103,11 +103,11 @@ func TestIsLicenseDeprecated(t *testing.T) {
 		expected bool
 	}{
 		{
-			name: "non-cloud 100 year license is deprecated",
+			name: "non-cloud 100 year license generated in 2023 is deprecated",
 			license: &licensefile.LicenseFile{
 				KeyPair: &license.License{
 					Cert: &x509.Certificate{
-						NotBefore: time.Now(),
+						NotBefore: time.Date(2023, 12, 1, 0, 0, 0, 0, time.UTC),
 						NotAfter:  time.Now().AddDate(100, 0, 0),
 					},
 				},
@@ -115,11 +115,11 @@ func TestIsLicenseDeprecated(t *testing.T) {
 			expected: true,
 		},
 		{
-			name: "cloud 100 year license is not deprecated",
+			name: "cloud 100 year license generated in 2023 is not deprecated",
 			license: &licensefile.LicenseFile{
 				KeyPair: &license.License{
 					Cert: &x509.Certificate{
-						NotBefore: time.Now(),
+						NotBefore: time.Date(2023, 12, 1, 0, 0, 0, 0, time.UTC),
 						NotAfter:  time.Now().AddDate(100, 0, 0),
 					},
 				},
@@ -149,34 +149,17 @@ func TestIsLicenseDeprecated(t *testing.T) {
 			expected: false,
 		},
 		{
-			name: "non-cloud licenses valid for more than 4 year is deprecated",
-			license: &licensefile.LicenseFile{
-				KeyPair: &license.License{
-					Cert: &x509.Certificate{
-						NotBefore: time.Now(),
-						NotAfter:  time.Now().AddDate(4, 0, 1),
-					},
-				},
-				License: &types.LicenseV3{
-					Spec: types.LicenseSpecV3{
-						Cloud: false,
-					},
-				},
-			},
-			expected: true,
-		},
-		{
-			name: "licenses generated before 2024 are deprecated",
+			name: "licenses generated before 2024 valid for less than 4 years are not deprecated",
 			license: &licensefile.LicenseFile{
 				KeyPair: &license.License{
 					Cert: &x509.Certificate{
 						NotBefore: time.Date(2023, 12, 31, 23, 59, 59, 0, time.UTC),
-						NotAfter:  time.Now().AddDate(3, 11, 15),
+						NotAfter:  time.Date(2023, 12, 31, 23, 59, 59, 0, time.UTC).AddDate(3, 11, 15),
 					},
 				},
 				License: &types.LicenseV3{},
 			},
-			expected: true,
+			expected: false,
 		},
 	}
 

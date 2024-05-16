@@ -63,23 +63,24 @@ func servicesNeedLicense(cfg *servicecfg.Config) bool {
 	return cfg.Auth.Enabled
 }
 
+// isLicenseDeprecated checks if the given license is considered deprecated.
+// It returns false for cloud licenses, which are not deprecated.
+// For self-hosted enterprise licenses, it considers licenses with a validity
+// of 4 years or more, issued before January 1, 2024, as deprecated.
 func isLicenseDeprecated(license *licensefile.LicenseFile) bool {
 	// Cloud licenses are not deprecated
 	if license.License != nil && license.License.GetCloud() {
 		return false
 	}
 
-	// During a period, self-hosted enterprise lisences were generated as being valid for
-	// long periods, sometimes for 100 years.
-	// Since now all licenses are valid for up to 3 years, we consider
-	// any license valid for 4 years or more to be deprecated.
 	validityDuration := license.KeyPair.Cert.NotAfter.Sub(license.KeyPair.Cert.NotBefore)
 	fourYears := time.Hour * ((24 * 365) + 1) * 4
-	if validityDuration >= fourYears {
+
+	cutoffDate := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	isOldLicense := license.KeyPair.Cert.NotBefore.Before(cutoffDate)
+
+	if validityDuration >= fourYears && isOldLicense {
 		return true
 	}
-
-	// Any license issued before Jan 1 2024 is deprecated
-	cutoffDate := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
-	return license.KeyPair.Cert.NotBefore.Before(cutoffDate)
+	return false
 }
