@@ -53,9 +53,9 @@ func lazyGetAccessTokenFromDefaultCredentialProvider(logger *slog.Logger) getAcc
 			credProvider, err := findDefaultCredentialProvider(ctx, logger)
 			if err != nil {
 				initError = err
-			} else {
-				next = getAccessTokenFromCredentialProvider(credProvider)
+				return
 			}
+			next = getAccessTokenFromCredentialProvider(credProvider)
 		})
 		if initError != nil {
 			return nil, trace.Wrap(initError)
