@@ -16,9 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package common
+package webauthnwin
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -28,31 +29,40 @@ import (
 	wanwin "github.com/gravitational/teleport/lib/auth/webauthnwin"
 )
 
-type webauthnwinCommand struct {
-	diag *webauthnwinDiagCommand
+// Command implements the "webauthnwin" hidden/utility commands.
+type Command struct {
+	Diag *DiagCommand
 }
 
-// newWebauthnwinCommand returns webauthnwin subcommands.
-// `diag` is always available.
-func newWebauthnwinCommand(app *kingpin.Application) *webauthnwinCommand {
+// NewCommand creates a new [Command] instance.
+func NewCommand(app *kingpin.Application) *Command {
 	wid := app.Command("webauthnwin", "Manage Windows WebAuthn").Hidden()
-	cmd := &webauthnwinCommand{
-		diag: newWebauthnwinDiagCommand(wid),
+	cmd := &Command{
+		Diag: newDiagCommand(wid),
 	}
 	return cmd
 }
 
-type webauthnwinDiagCommand struct {
+// TryRun attempts to execute a "webauthnwin" command. Used by tctl.
+func (c *Command) TryRun(ctx context.Context, selectedCommand string) (match bool, err error) {
+	if c.Diag.FullCommand() == selectedCommand {
+		return true, trace.Wrap(c.Diag.Run(ctx))
+	}
+	return false, nil
+}
+
+// DiagCommand implements the "webauthnwin diag" command.
+type DiagCommand struct {
 	*kingpin.CmdClause
 }
 
-func newWebauthnwinDiagCommand(app *kingpin.CmdClause) *webauthnwinDiagCommand {
-	return &webauthnwinDiagCommand{
+func newDiagCommand(app *kingpin.CmdClause) *DiagCommand {
+	return &DiagCommand{
 		CmdClause: app.Command("diag", "Run windows webauthn diagnostics").Hidden(),
 	}
 }
 
-func (w *webauthnwinDiagCommand) run(cf *CLIConf) error {
+func (w *DiagCommand) Run(ctx context.Context) error {
 	diag := wanwin.CheckSupport()
 	fmt.Printf("\nWebauthnWin available: %v\n", diag.IsAvailable)
 	fmt.Printf("Compile support: %v\n", diag.HasCompileSupport)
@@ -67,7 +77,7 @@ func (w *webauthnwinDiagCommand) run(cf *CLIConf) error {
 	defer func() { wanwin.PromptWriter = promptBefore }()
 	wanwin.PromptWriter = os.Stderr
 
-	resp, err := wanwin.Diag(cf.Context)
+	resp, err := wanwin.Diag(ctx)
 	// Abort if we got a nil diagnostic, otherwise print as much as we can.
 	if resp == nil {
 		return trace.Wrap(err)
