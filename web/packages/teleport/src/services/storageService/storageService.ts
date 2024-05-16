@@ -22,6 +22,8 @@ import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 
 import { OnboardUserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
 
+import { getPrefersDark } from 'design/ThemeProvider';
+
 import { BearerToken } from 'teleport/services/websession';
 import { OnboardDiscover } from 'teleport/services/user';
 
@@ -171,13 +173,11 @@ export const storageService = {
 
   getThemePreference(): Theme {
     const userPreferences = storageService.getUserPreferences();
-    if (userPreferences) {
+    if (userPreferences && userPreferences.theme !== Theme.UNSPECIFIED) {
       return userPreferences.theme;
     }
 
-    const prefersDark =
-      window.matchMedia &&
-      window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const prefersDark = getPrefersDark();
     return prefersDark ? Theme.DARK : Theme.LIGHT;
   },
 
