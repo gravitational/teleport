@@ -460,6 +460,10 @@ function ResourceRequestRoles({
     }
     setSelectedRoles(selectedRoles.filter(role => role !== roleName));
   }
+  // only show the role selector if there is more than one role that can be selected
+  if (roles.length < 2) {
+    return;
+  }
 
   return (
     <Box mt={7} width="100%">
