@@ -38,12 +38,16 @@ import Box from 'design/Box';
 
 import { StepHeader } from 'design/StepSlider';
 
-import useReAuthenticate from 'teleport/components/ReAuthenticate/useReAuthenticate';
 import auth from 'teleport/services/auth/auth';
 import { DeviceUsage } from 'teleport/services/auth';
 import useTeleport from 'teleport/useTeleport';
 
 import { PasskeyBlurb } from '../../../components/Passkeys/PasskeyBlurb';
+
+import {
+  ReauthenticateStep,
+  ReauthenticateStepProps,
+} from './ReauthenticateStep';
 
 interface AddAuthDeviceWizardProps {
   /** Indicates usage of the device to be added: MFA or a passkey. */
@@ -112,120 +116,10 @@ const wizardFlows = {
   withoutReauthentication: [CreateDeviceStep, SaveDeviceStep],
 };
 
-type AddAuthDeviceWizardStepProps = StepComponentProps &
+export type AddAuthDeviceWizardStepProps = StepComponentProps &
   ReauthenticateStepProps &
   CreateDeviceStepProps &
   SaveKeyStepProps;
-
-interface ReauthenticateStepProps {
-  auth2faType: Auth2faType;
-  onAuthenticated(privilegeToken: string): void;
-  onClose(): void;
-}
-
-export function ReauthenticateStep({
-  next,
-  refCallback,
-  stepIndex,
-  flowLength,
-  auth2faType,
-  onClose,
-  onAuthenticated: onAuthenticatedProp,
-}: AddAuthDeviceWizardStepProps) {
-  const onAuthenticated = (privilegeToken: string) => {
-    onAuthenticatedProp(privilegeToken);
-    next();
-  };
-  const { attempt, clearAttempt, submitWithTotp, submitWithWebauthn } =
-    useReAuthenticate({
-      onAuthenticated,
-    });
-  const mfaOptions = createMfaOptions({
-    auth2faType,
-    required: true,
-  });
-
-  const [mfaOption, setMfaOption] = useState<Auth2faType>(mfaOptions[0].value);
-  const [authCode, setAuthCode] = useState('');
-
-  const onAuthCodeChanged = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setAuthCode(e.target.value);
-  };
-
-  const onReauthenticate = (
-    e: FormEvent<HTMLFormElement>,
-    validator: Validator
-  ) => {
-    e.preventDefault();
-    if (!validator.validate()) return;
-    if (mfaOption === 'webauthn') {
-      submitWithWebauthn();
-    }
-    if (mfaOption === 'otp') {
-      submitWithTotp(authCode);
-    }
-  };
-
-  // This message relies on the status message produced by the auth server in
-  // lib/auth/Server.checkOTP function. Please keep these in sync.
-  const errorMessage =
-    attempt.statusText === 'invalid totp token'
-      ? 'Invalid authenticator code'
-      : attempt.statusText;
-
-  return (
-    <div ref={refCallback} data-testid="reauthenticate-step">
-      <StepHeader
-        stepIndex={stepIndex}
-        flowLength={flowLength}
-        title="Verify Identity"
-      />
-      {attempt.status === 'failed' && (
-        <OutlineDanger>{errorMessage}</OutlineDanger>
-      )}
-      Multi-factor type
-      <Validation>
-        {({ validator }) => (
-          <form onSubmit={e => onReauthenticate(e, validator)}>
-            <RadioGroup
-              name="mfaOption"
-              options={mfaOptions}
-              value={mfaOption}
-              autoFocus
-              flexDirection="row"
-              gap={3}
-              mb={4}
-              onChange={o => {
-                setMfaOption(o as Auth2faType);
-                clearAttempt();
-              }}
-            />
-            {mfaOption === 'otp' && (
-              <FieldInput
-                label="Authenticator Code"
-                rule={requiredField('Authenticator code is required')}
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                value={authCode}
-                placeholder="123 456"
-                onChange={onAuthCodeChanged}
-                readonly={attempt.status === 'processing'}
-              />
-            )}
-            <Flex gap={2}>
-              <ButtonPrimary type="submit" block={true}>
-                Verify my identity
-              </ButtonPrimary>
-              <ButtonSecondary type="button" block={true} onClick={onClose}>
-                Cancel
-              </ButtonSecondary>
-            </Flex>
-          </form>
-        )}
-      </Validation>
-    </div>
-  );
-}
 
 interface CreateDeviceStepProps {
   usage: DeviceUsage;
@@ -269,13 +163,17 @@ export function CreateDeviceStep({
 
   return (
     <div ref={refCallback} data-testid="create-step">
-      <StepHeader
-        stepIndex={stepIndex}
-        flowLength={flowLength}
-        title={
-          usage === 'passwordless' ? 'Create a Passkey' : 'Create an MFA Method'
-        }
-      />
+      <Box mb={4}>
+        <StepHeader
+          stepIndex={stepIndex}
+          flowLength={flowLength}
+          title={
+            usage === 'passwordless'
+              ? 'Create a Passkey'
+              : 'Create an MFA Method'
+          }
+        />
+      </Box>
 
       {createPasskeyAttempt.attempt.status === 'failed' && (
         <OutlineDanger>{createPasskeyAttempt.attempt.statusText}</OutlineDanger>
@@ -462,13 +360,17 @@ export function SaveDeviceStep({
 
   return (
     <div ref={refCallback} data-testid="save-step">
-      <StepHeader
-        stepIndex={stepIndex}
-        flowLength={flowLength}
-        title={
-          usage === 'passwordless' ? 'Save the Passkey' : 'Save the MFA method'
-        }
-      />
+      <Box mb={4}>
+        <StepHeader
+          stepIndex={stepIndex}
+          flowLength={flowLength}
+          title={
+            usage === 'passwordless'
+              ? 'Save the Passkey'
+              : 'Save the MFA method'
+          }
+        />
+      </Box>
 
       {saveAttempt.attempt.status === 'failed' && (
         <OutlineDanger>{saveAttempt.attempt.statusText}</OutlineDanger>

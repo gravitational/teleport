@@ -17,3 +17,4 @@
  */
 
 export { AddAuthDeviceWizard } from './AddAuthDeviceWizard';
+export { DeleteAuthDeviceWizard } from './DeleteAuthDeviceWizard';
