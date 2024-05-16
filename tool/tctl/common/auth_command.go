@@ -381,7 +381,15 @@ func (a *AuthCommand) generateSnowflakeKey(ctx context.Context, clusterAPI certi
 		return trace.Wrap(err)
 	}
 
-	dbClientCA, err := getDatabaseClientCA(ctx, clusterAPI)
+	cn, err := clusterAPI.GetClusterName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	certAuthID := types.CertAuthID{
+		Type:       types.DatabaseClientCA,
+		DomainName: cn.GetClusterName(),
+	}
+	dbClientCA, err := clusterAPI.GetCertAuthority(ctx, certAuthID, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1210,34 +1218,4 @@ func (a *AuthCommand) helperMsgDst() io.Writer {
 		return os.Stderr
 	}
 	return os.Stdout
-}
-
-type caGetter interface {
-	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
-	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
-}
-
-// TODO(gavin): DELETE IN 16.0.0
-func getDatabaseClientCA(ctx context.Context, clusterAPI caGetter) (types.CertAuthority, error) {
-	cn, err := clusterAPI.GetClusterName()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	dbClientCA, err := clusterAPI.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.DatabaseClientCA,
-		DomainName: cn.GetClusterName(),
-	}, false)
-	if err == nil {
-		return dbClientCA, nil
-	}
-	if !types.IsUnsupportedAuthorityErr(err) {
-		return nil, trace.Wrap(err)
-	}
-
-	// fallback to DatabaseCA if DatabaseClientCA isn't supported by backend.
-	dbServerCA, err := clusterAPI.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.DatabaseCA,
-		DomainName: cn.GetClusterName(),
-	}, false)
-	return dbServerCA, trace.Wrap(err)
 }

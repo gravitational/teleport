@@ -49,7 +49,6 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
@@ -315,6 +314,36 @@ func TestAuthPreference(t *testing.T) {
 			require.NoError(t, err)
 			return authPref
 		},
+	})
+}
+
+func TestAuthPreferenceSecondFactorOnly(t *testing.T) {
+	modules.SetInsecureTestMode(false)
+	defer modules.SetInsecureTestMode(true)
+	ctx := context.Background()
+
+	t.Run("starting with second_factor disabled fails", func(t *testing.T) {
+		conf := setupConfig(t)
+		authPref, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
+			SecondFactor: constants.SecondFactorOff,
+		})
+		require.NoError(t, err)
+
+		conf.AuthPreference = authPref
+		_, err = Init(ctx, conf)
+		require.Error(t, err)
+	})
+
+	t.Run("starting with defaults and dynamically updating to disable second factor fails", func(t *testing.T) {
+		conf := setupConfig(t)
+		s, err := Init(ctx, conf)
+		require.NoError(t, err)
+		authpref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+			SecondFactor: constants.SecondFactorOff,
+		})
+		require.NoError(t, err)
+		_, err = s.UpsertAuthPreference(ctx, authpref)
+		require.Error(t, err)
 	})
 }
 
@@ -1702,7 +1731,7 @@ func TestIdentityChecker(t *testing.T) {
 				"test",
 				utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 				handler,
-				[]ssh.Signer{test.cert},
+				sshutils.StaticHostSigners(test.cert),
 				sshutils.AuthMethods{NoClient: true},
 				sshutils.SetInsecureSkipHostValidation(),
 			)
@@ -1747,27 +1776,4 @@ func TestInitCreatesCertsIfMissing(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, cert, 1)
 	}
-}
-
-func TestMigrateDatabaseClientCA(t *testing.T) {
-	ctx := context.Background()
-	conf := setupConfig(t)
-
-	hostCA := suite.NewTestCA(types.HostCA, "me.localhost")
-	userCA := suite.NewTestCA(types.UserCA, "me.localhost")
-	dbServerCA := suite.NewTestCA(types.DatabaseCA, "me.localhost")
-
-	conf.Authorities = []types.CertAuthority{hostCA, userCA, dbServerCA}
-	auth, err := Init(ctx, conf)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		err = auth.Close()
-		require.NoError(t, err)
-	})
-
-	dbClientCAs, err := auth.GetCertAuthorities(ctx, types.DatabaseClientCA, true)
-	require.NoError(t, err)
-	require.Len(t, dbClientCAs, 1)
-	require.Equal(t, dbServerCA.Spec.ActiveKeys.TLS[0].Cert, dbClientCAs[0].GetActiveKeys().TLS[0].Cert)
-	require.Equal(t, dbServerCA.Spec.ActiveKeys.TLS[0].Key, dbClientCAs[0].GetActiveKeys().TLS[0].Key)
 }

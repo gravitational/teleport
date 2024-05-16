@@ -14,7 +14,6 @@ types:
     - "GithubConnectorV3"
     - "OIDCConnectorV3"
     - "OktaImportRuleV1"
-    - "ProvisionTokenV2"
     - "RoleV6"
     - "SAMLConnectorV2"
     - "ServerV2"
@@ -75,13 +74,6 @@ injected_fields:
       plan_modifiers:
         - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
   OktaImportRuleV1:
-    -
-      name: id
-      type: github.com/hashicorp/terraform-plugin-framework/types.StringType
-      computed: true
-      plan_modifiers:
-        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
-  ProvisionTokenV2:
     -
       name: id
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
@@ -198,11 +190,6 @@ computed_fields:
     # Github connector
     - "GithubConnectorV3.Kind"
 
-    # Provision token
-    - "ProvisionTokenV2.Spec.AWSIIDTTL"
-    - "ProvisionTokenV2.Kind"
-    - "ProvisionTokenV2.Metadata.Name"    
-
     # OIDC connector
     - "OIDCConnectorV3.Kind"
 
@@ -311,12 +298,6 @@ required_fields:
     - "OktaImportRuleV1.Metadata.Name"
     - "OktaImportRuleV1.Version"
 
-    # Provision token
-    - "ProvisionTokenV2.Spec"
-    - "ProvisionTokenV2.Spec.Options"
-    - "ProvisionTokenV2.Spec.Roles"
-    - "ProvisionTokenV2.Version"
-
     # Role
     - "RoleV6.Metadata.Name"
     - "RoleV6.Version"
@@ -347,7 +328,6 @@ required_fields:
 
 # These fields must be marked as sensitive
 sensitive_fields:
-    - "ProvisionTokenV2.Metadata.Name"
     - "SAMLConnectorV2.Spec.Cert"
     - "SAMLConnectorV2.Spec.SigningKeyPair.PrivateKey"
     - "SAMLConnectorV2.Spec.EncryptionKeyPair.PrivateKey"
@@ -368,9 +348,6 @@ plan_modifiers:
     # Force to recreate resource if it's name changes
     Metadata.Name:
       - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"
-    ProvisionTokenV2.Metadata.Name:
-      - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"
-      - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
     ServerV2.Metadata.Name:
       - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
       - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"
@@ -399,8 +376,6 @@ validators:
     - UseVersionBetween(3,3)
   OktaImportRuleV1.Version:
     - UseVersionBetween(1,1)
-  ProvisionTokenV2.Version:
-    - UseVersionBetween(2,2)
   RoleV6.Version:
     - UseVersionBetween(3,7)
   SAMLConnectorV2.Version:
