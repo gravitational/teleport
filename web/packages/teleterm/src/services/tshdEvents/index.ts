@@ -219,6 +219,10 @@ function createService(logger: Logger): {
     promptMFA: (call, callback) => {
       processEvent('promptMFA', call, callback);
     },
+
+    getUsageReportingSettings: (call, callback) => {
+      processEvent('getUsageReportingSettings', call, callback);
+    },
   };
 
   return { service, setupTshdEventContextBridgeService };
