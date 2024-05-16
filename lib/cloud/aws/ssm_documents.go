@@ -24,6 +24,9 @@ import (
 	"github.com/google/uuid"
 )
 
+// EC2DiscoverySSMDocument receives the proxy address and returns an SSM Document.
+// This document downloads and runs a Teleport installer.
+// Requires the proxy endpoint URL, example: https://tenant.teleport.sh
 func EC2DiscoverySSMDocument(proxy string) string {
 	randString := uuid.NewString() // Secure random so the filename can not be guessed to avoid possible script injection
 
