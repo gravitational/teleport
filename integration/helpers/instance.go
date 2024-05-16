@@ -47,9 +47,9 @@ import (
 	"github.com/gravitational/teleport/api/breaker"
 	clientproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keygen"
+	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -255,8 +255,8 @@ func (s *InstanceSecrets) AsSlice() []*InstanceSecrets {
 	return []*InstanceSecrets{s}
 }
 
-func (s *InstanceSecrets) GetIdentity() *auth.Identity {
-	i, err := auth.ReadIdentityFromKeyPair(s.PrivKey, &clientproto.Certs{
+func (s *InstanceSecrets) GetIdentity() *state.Identity {
+	i, err := state.ReadIdentityFromKeyPair(s.PrivKey, &clientproto.Certs{
 		SSH:        s.Cert,
 		TLS:        s.TLSCert,
 		TLSCACerts: [][]byte{s.TLSCACert},
