@@ -36,7 +36,8 @@ import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
 
 import Box from 'design/Box';
 
-import { DialogHeader } from 'teleport/Account/DialogHeader';
+import { StepHeader } from 'design/StepSlider';
+
 import useReAuthenticate from 'teleport/components/ReAuthenticate/useReAuthenticate';
 import auth from 'teleport/services/auth/auth';
 import { DeviceUsage } from 'teleport/services/auth';
@@ -174,7 +175,7 @@ export function ReauthenticateStep({
 
   return (
     <div ref={refCallback} data-testid="reauthenticate-step">
-      <DialogHeader
+      <StepHeader
         stepIndex={stepIndex}
         flowLength={flowLength}
         title="Verify Identity"
@@ -268,7 +269,7 @@ export function CreateDeviceStep({
 
   return (
     <div ref={refCallback} data-testid="create-step">
-      <DialogHeader
+      <StepHeader
         stepIndex={stepIndex}
         flowLength={flowLength}
         title={
@@ -461,7 +462,7 @@ export function SaveDeviceStep({
 
   return (
     <div ref={refCallback} data-testid="save-step">
-      <DialogHeader
+      <StepHeader
         stepIndex={stepIndex}
         flowLength={flowLength}
         title={

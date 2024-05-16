@@ -460,9 +460,14 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 	s.caRotationCh = make(chan []types.Server)
 
 	if s.ec2Installer == nil {
-		s.ec2Installer = server.NewSSMInstaller(server.SSMInstallerConfig{
+		ec2installer, err := server.NewSSMInstaller(server.SSMInstallerConfig{
 			Emitter: s.Emitter,
 		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		s.ec2Installer = ec2installer
 	}
 
 	lr, err := newLabelReconciler(&labelReconcilerConfig{

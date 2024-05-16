@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/bot"
@@ -404,7 +405,7 @@ func botIdentityFromToken(ctx context.Context, log *slog.Logger, cfg *config.Bot
 	expires := time.Now().Add(cfg.CertificateTTL)
 	params := auth.RegisterParams{
 		Token: token,
-		ID: auth.IdentityID{
+		ID: state.IdentityID{
 			Role: types.RoleBot,
 		},
 		PublicTLSKey:       tlsPublicKey,
