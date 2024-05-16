@@ -176,7 +176,10 @@ func RetrieveTAGInfo(ctx context.Context) error {
 		}
 
 		sso, err := getSingleSignOn(ctx, token, *spID)
-		if sso.CurrentSingleSignOnMode != singleSignOnModeFederated {
+		if err != nil {
+			slog.WarnContext(ctx, "failed to get single sign on data", "app_id", *appID)
+			continue
+		} else if sso.CurrentSingleSignOnMode != singleSignOnModeFederated {
 			slog.InfoContext(ctx, "sso not set up for app, will skip it", "app_id", *appID, "sp_id", *spID)
 			continue
 		}
@@ -184,6 +187,7 @@ func RetrieveTAGInfo(ctx context.Context) error {
 		federatedSSOV2, err := privateAPIGet(ctx, token, path.Join("ApplicationSso", *spID, "FederatedSsoV2"))
 		if err != nil {
 			slog.WarnContext(ctx, "getting federated SSO v2 info failed", "error", err)
+			continue
 		}
 
 		apps[*appID] = applicationSSOInfo{
