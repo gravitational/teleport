@@ -36,9 +36,9 @@ import (
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keystore"
+	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/etcdbk"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -181,9 +181,9 @@ func TestHSMRotation(t *testing.T) {
 }
 
 func getAdminClient(authDataDir string, authAddr string) (*authclient.Client, error) {
-	identity, err := auth.ReadLocalIdentity(
+	identity, err := state.ReadLocalIdentity(
 		filepath.Join(authDataDir, teleport.ComponentProcess),
-		auth.IdentityID{Role: types.RoleAdmin})
+		state.IdentityID{Role: types.RoleAdmin})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

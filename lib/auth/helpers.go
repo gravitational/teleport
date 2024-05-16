@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/auth/state"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
@@ -801,7 +802,7 @@ type TestTLSServer struct {
 	// TestTLSServerConfig is a configuration for TLS server
 	TestTLSServerConfig
 	// Identity is a generated TLS/SSH identity used to answer in TLS
-	Identity *Identity
+	Identity *state.Identity
 	// TLSServer is a configured TLS server
 	TLSServer *TLSServer
 }
@@ -1140,7 +1141,7 @@ func (t *TestTLSServer) Stop() error {
 }
 
 // NewServerIdentity generates new server identity, used in tests
-func NewServerIdentity(clt *Server, hostID string, role types.SystemRole) (*Identity, error) {
+func NewServerIdentity(clt *Server, hostID string, role types.SystemRole) (*state.Identity, error) {
 	priv, pub, err := native.GenerateKeyPair()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1163,7 +1164,7 @@ func NewServerIdentity(clt *Server, hostID string, role types.SystemRole) (*Iden
 		return nil, trace.Wrap(err)
 	}
 
-	return ReadIdentityFromKeyPair(priv, certs)
+	return state.ReadIdentityFromKeyPair(priv, certs)
 }
 
 // clt limits required interface to the necessary methods
