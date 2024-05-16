@@ -210,14 +210,11 @@ type instanceIDsSSMState struct {
 func (si *SSMInstaller) describeSSMAgentState(ctx context.Context, req SSMRunRequest, allInstanceIDs []string) (*instanceIDsSSMState, error) {
 	ret := &instanceIDsSSMState{}
 
-	const defaultMaxResults = 10
-
 	ssmInstancesInfo, err := req.SSM.DescribeInstanceInformationWithContext(ctx, &ssm.DescribeInstanceInformationInput{
 		Filters: []*ssm.InstanceInformationStringFilter{
 			{Key: aws.String(ssm.InstanceInformationFilterKeyInstanceIds), Values: aws.StringSlice(allInstanceIDs)},
 		},
-		// AWS returns an error if MaxResults is less than 5.
-		MaxResults: aws.Int64(max(defaultMaxResults, int64(len(allInstanceIDs)))),
+		MaxResults: aws.Int64(awsEC2APIChunkSize),
 	})
 	if err != nil {
 		return nil, trace.Wrap(awslib.ConvertRequestFailureError(err))
