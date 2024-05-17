@@ -41,6 +41,11 @@ import {
 interface DeleteAuthDeviceWizardProps {
   /** MFA type setting, as configured in the cluster's configuration. */
   auth2faType: Auth2faType;
+  /**
+   * A list of user's devices, used for computing the list of available identity
+   * verification options.
+   */
+  devices: MfaDevice[];
   /** Device to be removed. */
   device: MfaDevice;
   onClose(): void;
@@ -50,6 +55,7 @@ interface DeleteAuthDeviceWizardProps {
 /** A wizard for deleting MFA and passkey devices. */
 export function DeleteAuthDeviceWizard({
   auth2faType,
+  devices,
   device,
   onClose,
   onSuccess,
@@ -67,6 +73,7 @@ export function DeleteAuthDeviceWizard({
         flows={wizardFlows}
         currFlow="default"
         // Step properties
+        devices={devices}
         device={device}
         auth2faType={auth2faType}
         privilegeToken={privilegeToken}

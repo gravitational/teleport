@@ -30,7 +30,7 @@ import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 import { useAsync } from 'shared/hooks/useAsync';
-import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
+import useAttempt from 'shared/hooks/useAttemptNext';
 import { Auth2faType } from 'shared/services';
 import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
 
@@ -57,10 +57,14 @@ interface AddAuthDeviceWizardProps {
   /** MFA type setting, as configured in the cluster's configuration. */
   auth2faType: Auth2faType;
   /**
+   * A list of user's devices, used for computing the list of available identity
+   * verification options.
+   */
+  devices: MfaDevice[];
+  /**
    * A privilege token that may have been created previously; if present, the
    * reauthentication step will be skipped.
    */
-  devices: MfaDevice[];
   privilegeToken?: string;
   onClose(): void;
   onSuccess(): void;

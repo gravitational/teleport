@@ -283,6 +283,7 @@ export function Account({
       {deviceToRemove && (
         <DeleteAuthDeviceWizard
           auth2faType={cfg.getAuth2faType()}
+          devices={devices}
           device={deviceToRemove}
           onClose={hideRemoveDevice}
           onSuccess={onDeleteDeviceSuccess}

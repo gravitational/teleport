@@ -102,6 +102,7 @@ const stepProps: DeleteAuthDeviceWizardStepProps = {
   refCallback: () => {},
 
   // Other props
+  devices: [dummyHardwareDevice, dummyPasskey],
   device: dummyPasskey,
   privilegeToken: 'privilege-token',
   auth2faType: 'optional',

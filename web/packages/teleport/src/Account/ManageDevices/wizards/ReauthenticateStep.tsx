@@ -1,3 +1,21 @@
+/**
+ * Teleport
+ * Copyright (C) 2024 Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 import { OutlineDanger } from 'design/Alert/Alert';
 import { ButtonPrimary, ButtonSecondary } from 'design/Button';
 import Flex from 'design/Flex';
@@ -7,25 +25,29 @@ import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 import { Auth2faType } from 'shared/services';
-import createMfaOptions from 'shared/utils/createMfaOptions';
+import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
 import { StepComponentProps, StepHeader } from 'design/StepSlider';
 
 import Box from 'design/Box';
 
+import { Attempt } from 'shared/hooks/useAttemptNext';
+
 import useReAuthenticate from 'teleport/components/ReAuthenticate/useReAuthenticate';
+import { MfaDevice } from 'teleport/services/mfa';
 
 export type ReauthenticateStepProps = StepComponentProps & {
   auth2faType: Auth2faType;
+  devices: MfaDevice[];
   onAuthenticated(privilegeToken: string): void;
   onClose(): void;
 };
-
 export function ReauthenticateStep({
   next,
   refCallback,
   stepIndex,
   flowLength,
   auth2faType,
+  devices,
   onClose,
   onAuthenticated: onAuthenticatedProp,
 }: ReauthenticateStepProps) {
@@ -37,12 +59,11 @@ export function ReauthenticateStep({
     useReAuthenticate({
       onAuthenticated,
     });
-  const mfaOptions = createMfaOptions({
-    auth2faType,
-    required: true,
-  });
+  const mfaOptions = createReauthOptions(auth2faType, devices);
 
-  const [mfaOption, setMfaOption] = useState<Auth2faType>(mfaOptions[0].value);
+  const [mfaOption, setMfaOption] = useState<Auth2faType | undefined>(
+    mfaOptions[0]?.value
+  );
   const [authCode, setAuthCode] = useState('');
 
   const onAuthCodeChanged = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -63,12 +84,11 @@ export function ReauthenticateStep({
     }
   };
 
-  // This message relies on the status message produced by the auth server in
-  // lib/auth/Server.checkOTP function. Please keep these in sync.
-  const errorMessage =
-    attempt.statusText === 'invalid totp token'
-      ? 'Invalid authenticator code'
-      : attempt.statusText;
+  const errorMessage = getReauthenticationErrorMessage(
+    auth2faType,
+    mfaOptions.length,
+    attempt
+  );
 
   return (
     <div ref={refCallback} data-testid="reauthenticate-step">
@@ -79,10 +99,8 @@ export function ReauthenticateStep({
           title="Verify Identity"
         />
       </Box>
-      {attempt.status === 'failed' && (
-        <OutlineDanger>{errorMessage}</OutlineDanger>
-      )}
-      Multi-factor type
+      {errorMessage && <OutlineDanger>{errorMessage}</OutlineDanger>}
+      {mfaOption && 'Multi-factor type'}
       <Validation>
         {({ validator }) => (
           <form onSubmit={e => onReauthenticate(e, validator)}>
@@ -112,9 +130,11 @@ export function ReauthenticateStep({
               />
             )}
             <Flex gap={2}>
-              <ButtonPrimary type="submit" block={true}>
-                Verify my identity
-              </ButtonPrimary>
+              {mfaOption && (
+                <ButtonPrimary type="submit" block={true}>
+                  Verify my identity
+                </ButtonPrimary>
+              )}
               <ButtonSecondary type="button" block={true} onClick={onClose}>
                 Cancel
               </ButtonSecondary>
@@ -123,5 +143,66 @@ export function ReauthenticateStep({
         )}
       </Validation>
     </div>
+  );
+}
+function getReauthenticationErrorMessage(
+  auth2faType: Auth2faType,
+  numMfaOptions: number,
+  attempt: Attempt
+): string {
+  if (numMfaOptions === 0) {
+    switch (auth2faType) {
+      case 'on':
+        return (
+          "Identity verification is required, but you don't have any" +
+          'passkeys or MFA methods registered. This may mean that the' +
+          'server configuration has changed. Please contact your ' +
+          'administrator.'
+        );
+      case 'otp':
+        return (
+          'Identity verification using authenticator app is required, but ' +
+          "you don't have any authenticator apps registered. This may mean " +
+          'that the server configuration has changed. Please contact your ' +
+          'administrator.'
+        );
+      case 'webauthn':
+        return (
+          'Identity verification using a passkey or security key is required, but ' +
+          "you don't have any such devices registered. This may mean " +
+          'that the server configuration has changed. Please contact your ' +
+          'administrator.'
+        );
+      case 'optional':
+      case 'off':
+        // This error message is not useful, but this condition should never
+        // happen, and if it does, it means something is broken, and we don't
+        // have a clue anyway.
+        return 'Unable to verify identity';
+      default:
+        auth2faType satisfies never;
+    }
+  }
+
+  if (attempt.status === 'failed') {
+    // This message relies on the status message produced by the auth server in
+    // lib/auth/Server.checkOTP function. Please keep these in sync.
+    if (attempt.statusText === 'invalid totp token') {
+      return 'Invalid authenticator code';
+    } else {
+      return attempt.statusText;
+    }
+  }
+}
+
+export function createReauthOptions(
+  auth2faType: Auth2faType,
+  devices: MfaDevice[]
+): MfaOption[] {
+  return createMfaOptions({ auth2faType, required: true }).filter(
+    ({ value }) => {
+      const deviceType = value === 'otp' ? 'totp' : value;
+      return devices.some(({ type }) => type === deviceType);
+    }
   );
 }

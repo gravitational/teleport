@@ -24,36 +24,18 @@ import { userEvent, UserEvent } from '@testing-library/user-event';
 
 import TeleportContext from 'teleport/teleportContext';
 import { ContextProvider } from 'teleport';
-import MfaService, { MfaDevice } from 'teleport/services/mfa';
+import MfaService from 'teleport/services/mfa';
 import auth from 'teleport/services/auth';
 
 import { DeleteAuthDeviceWizardStepProps } from './DeleteAuthDeviceWizard';
+
+import { dummyPasskey, dummyHardwareDevice, deviceCases } from './deviceCases';
 
 import { DeleteAuthDeviceWizard } from '.';
 
 let ctx: TeleportContext;
 let user: UserEvent;
 let onSuccess: jest.Mock;
-
-const dummyHardwareDevice: MfaDevice = {
-  id: '2',
-  description: 'Hardware Key',
-  name: 'solokey',
-  registeredDate: new Date(1623722252),
-  lastUsedDate: new Date(1623981452),
-  type: 'webauthn',
-  usage: 'mfa',
-};
-
-const dummyPasskey: MfaDevice = {
-  id: '3',
-  description: 'Hardware Key',
-  name: 'TouchID',
-  registeredDate: new Date(1623722252),
-  lastUsedDate: new Date(1623981452),
-  type: 'webauthn',
-  usage: 'passwordless',
-};
 
 beforeEach(() => {
   ctx = new TeleportContext();
@@ -79,6 +61,7 @@ function TestWizard(props: Partial<DeleteAuthDeviceWizardStepProps>) {
   return (
     <ContextProvider ctx={ctx}>
       <DeleteAuthDeviceWizard
+        devices={deviceCases.all}
         device={dummyPasskey}
         auth2faType="on"
         onClose={() => {}}
