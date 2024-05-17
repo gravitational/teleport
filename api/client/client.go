@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/api/client/accesslist"
 	"github.com/gravitational/teleport/api/client/accessmonitoringrules"
 	crownjewelapi "github.com/gravitational/teleport/api/client/crownjewel"
+	"github.com/gravitational/teleport/api/client/databaseobject"
 	"github.com/gravitational/teleport/api/client/discoveryconfig"
 	"github.com/gravitational/teleport/api/client/externalauditstorage"
 	kubewaitingcontainerclient "github.com/gravitational/teleport/api/client/kubewaitingcontainer"
@@ -3359,27 +3360,6 @@ func (c *Client) GetDatabaseObjectImportRules(ctx context.Context) ([]*dbobjecti
 	return out, nil
 }
 
-// GetDatabaseObjects retrieves all database objects.
-func (c *Client) GetDatabaseObjects(ctx context.Context) ([]*dbobjectv1.DatabaseObject, error) {
-	var out []*dbobjectv1.DatabaseObject
-	req := &dbobjectv1.ListDatabaseObjectsRequest{}
-	client := c.DatabaseObjectClient()
-	for {
-		resp, err := client.ListDatabaseObjects(ctx, req)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		out = append(out, resp.Objects...)
-
-		if resp.NextPageToken == "" {
-			break
-		}
-		req.PageToken = resp.NextPageToken
-	}
-
-	return out, nil
-}
-
 // GetWindowsDesktopServices returns all registered windows desktop services.
 func (c *Client) GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error) {
 	resp, err := c.grpc.GetWindowsDesktopServices(ctx, &emptypb.Empty{})
@@ -4661,9 +4641,9 @@ func (c *Client) DatabaseObjectImportRuleClient() dbobjectimportrulev1.DatabaseO
 	return dbobjectimportrulev1.NewDatabaseObjectImportRuleServiceClient(c.conn)
 }
 
-// DatabaseObjectClient returns a client for managing database objects.
-func (c *Client) DatabaseObjectClient() dbobjectv1.DatabaseObjectServiceClient {
-	return dbobjectv1.NewDatabaseObjectServiceClient(c.conn)
+// DatabaseObjectsClient returns a client for managing database objects.
+func (c *Client) DatabaseObjectsClient() *databaseobject.Client {
+	return databaseobject.NewClient(dbobjectv1.NewDatabaseObjectServiceClient(c.conn))
 }
 
 // DiscoveryConfigClient returns a DiscoveryConfig client.

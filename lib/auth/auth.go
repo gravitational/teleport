@@ -668,6 +668,11 @@ func (r *Services) KubernetesWaitingContainerClient() services.KubeWaitingContai
 	return r
 }
 
+// DatabaseObjectsClient returns the database objects client.
+func (r *Services) DatabaseObjectsClient() services.DatabaseObjects {
+	return r
+}
+
 var (
 	generateRequestsCount = prometheus.NewCounter(
 		prometheus.CounterOpts{

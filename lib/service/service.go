@@ -2506,6 +2506,10 @@ func (a accessPointWrapper) CrownJewelClient() services.CrownJewels {
 	return a.ClientI.CrownJewelServiceClient()
 }
 
+func (a accessPointWrapper) DatabaseObjectsClient() services.DatabaseObjects {
+	return a.ClientI.DatabaseObjectsClient()
+}
+
 func (a accessPointWrapper) DiscoveryConfigClient() services.DiscoveryConfigs {
 	return a.ClientI.DiscoveryConfigClient()
 }
