@@ -130,7 +130,6 @@ func (p *PluginsCommand) initInstallOkta(parent *kingpin.CmdClause) {
 		StringVar(&p.install.okta.apiToken)
 	p.install.okta.cmd.
 		Flag("saml-connector", "SAML connector used for Okta SSO login.").
-		Default("okta-integration").
 		Required().
 		StringVar(&p.install.okta.samlConnector)
 	p.install.okta.cmd.
@@ -293,7 +292,7 @@ func (p *PluginsCommand) InstallOkta(ctx context.Context, args installPluginArgs
 	connector, err := args.samlConnectors.GetSAMLConnector(ctx, oktaSettings.samlConnector, false)
 	if err != nil {
 		log.ErrorContext(ctx, "Failed validating SAML connector",
-			logFieldSAMLConnector, oktaSettings.samlConnector,
+			slog.String(logFieldSAMLConnector, oktaSettings.samlConnector),
 			logErrorMessage(err))
 		return trace.Wrap(err)
 	}
