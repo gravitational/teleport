@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Box,
@@ -28,19 +28,17 @@ import {
   Flex,
 } from 'design';
 import FieldSelect from 'shared/components/FieldSelect';
-import useAttempt from 'shared/hooks/useAttemptNext';
+import { useAsync } from 'shared/hooks/useAsync';
 import { Option as BaseOption } from 'shared/components/Select';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 import TextEditor from 'shared/components/TextEditor';
-import { getErrMessage } from 'shared/utils/errorType';
 
 import { App } from 'teleport/services/apps';
 import cfg from 'teleport/config';
 import {
   Integration,
   IntegrationKind,
-  IntegrationListResponse,
   integrationService,
 } from 'teleport/services/integrations';
 import {
@@ -64,7 +62,6 @@ import { DiscoverUrlLocationState, useDiscover } from '../../useDiscover';
 type Option = BaseOption<Integration>;
 
 export function AwsAccount() {
-  const { storeUser } = useTeleport();
   const {
     prevStep,
     nextStep,
@@ -75,8 +72,6 @@ export function AwsAccount() {
     currentStep,
   } = useDiscover();
 
-  const integrationAccess = storeUser.getIntegrationsAccess();
-
   // if true, requires an additional step where we fetch for
   // apps matching fetched aws integrations to determine
   // if an app already exists for the integration the user
@@ -84,6 +79,27 @@ export function AwsAccount() {
   const isAddingAwsApp =
     resourceSpec.kind === ResourceKind.Application &&
     resourceSpec.appMeta.awsConsole;
+
+  const { storeUser } = useTeleport();
+  const clusterId = storeUser.getClusterId();
+
+  const [attempt, fetch] = useAsync(
+    useCallback(async () => {
+      const response = await fetchAwsIntegrationsWithApps(
+        clusterId,
+        isAddingAwsApp
+      );
+      // Auto select the only option.
+      if (response.awsIntegrations.length === 1) {
+        setSelectedAwsIntegration(
+          makeAwsIntegrationOption(response.awsIntegrations[0])
+        );
+      }
+      return response;
+    }, [clusterId, isAddingAwsApp])
+  );
+
+  const integrationAccess = storeUser.getIntegrationsAccess();
 
   let roleTemplate = integrationRWE;
   let hasAccess =
@@ -121,83 +137,56 @@ export function AwsAccount() {
       appAccess.read;
   }
 
-  const { attempt, setAttempt } = useAttempt(hasAccess ? 'processing' : '');
-
-  // only used if resource we are trying to add is an AWS console.
-  const [fetchedApps, setFetchedApps] = useState<App[]>([]);
-
-  const [awsIntegrations, setAwsIntegrations] = useState<Option[]>([]);
   const [selectedAwsIntegration, setSelectedAwsIntegration] =
     useState<Option>();
 
   useEffect(() => {
-    if (hasAccess) {
-      fetchAwsIntegrationsWithApps();
+    if (hasAccess && attempt.status === '') {
+      fetch();
     }
-  }, []);
+  }, [attempt.status, fetch, hasAccess]);
 
-  function makeAwsIntegrationOptions(res: IntegrationListResponse) {
-    const options = res.items
-      .filter(i => i.kind === 'aws-oidc')
-      .map(i => ({
-        value: i,
-        label: i.name,
-      }));
-    setAwsIntegrations(options);
-
-    // Auto select the only option.
-    if (options.length === 1) {
-      setSelectedAwsIntegration(options[0]);
+  async function fetchAwsIntegrationsWithApps(
+    clusterId: string,
+    isAddingAwsApp: boolean
+  ): Promise<{
+    awsIntegrations: Integration[];
+    apps: App[];
+  }> {
+    const integrationPage = await integrationService.fetchIntegrations();
+    const awsIntegrations = integrationPage.items.filter(
+      i => i.kind === 'aws-oidc'
+    );
+    if (!isAddingAwsApp || awsIntegrations.length === 0) {
+      // Skip fetching for apps
+      return { awsIntegrations, apps: [] };
     }
 
-    return options;
+    const resourceSvc = new ResourceService();
+    // fetch for apps that match fetched integration names.
+    // used later to determine if the integration user selected
+    // already has an application created for it.
+    const query = awsIntegrations
+      .map(i => `resource.spec.integration == "${i.name}"`)
+      .join(' || ');
+
+    const { agents: resources } = await resourceSvc.fetchUnifiedResources(
+      clusterId,
+      {
+        query,
+        limit: awsIntegrations.length,
+        kinds: ['app'],
+        sort: { fieldName: 'name', dir: 'ASC' },
+      }
+    );
+    return { awsIntegrations, apps: resources as App[] };
   }
 
-  async function fetchAwsIntegrationsWithApps() {
-    setAttempt({ status: 'processing' });
-    try {
-      let integrationOptions = awsIntegrations;
-      // checking length, if re-attempting from failure
-      if (integrationOptions.length === 0) {
-        const integrationPage = await integrationService.fetchIntegrations();
-        integrationOptions = makeAwsIntegrationOptions(integrationPage);
-      }
-      if (!isAddingAwsApp || integrationOptions.length === 0) {
-        setAttempt({ status: 'success' });
-        // Skip fetching for apps
-        return;
-      }
-
-      // checking length, if re-attempting from failure
-      if (fetchedApps.length === 0) {
-        const resourceSvc = new ResourceService();
-        // fetch for apps that match fetched integration names.
-        // used later to determine if the integration user selected
-        // already has a application created for it.
-        const query = integrationOptions
-          .map(i => i.value.name)
-          .map(
-            integrationName =>
-              `resource.spec.integration == "${integrationName}"`
-          )
-          .join(' || ');
-
-        const { agents: resources } = await resourceSvc.fetchUnifiedResources(
-          storeUser.getClusterId(),
-          {
-            query,
-            limit: integrationOptions.length,
-            kinds: ['app'],
-            sort: { fieldName: 'name', dir: 'ASC' },
-          }
-        );
-        setFetchedApps(resources.filter(r => r.kind === 'app'));
-        setAttempt({ status: 'success' });
-      }
-    } catch (err) {
-      const errMsg = getErrMessage(err);
-      setAttempt({ status: 'failed', statusText: errMsg });
-    }
+  function makeAwsIntegrationOption(integration: Integration): Option {
+    return {
+      value: integration,
+      label: integration.name,
+    };
   }
 
   if (!hasAccess) {
@@ -224,7 +213,7 @@ export function AwsAccount() {
     );
   }
 
-  if (attempt.status === 'processing') {
+  if (attempt.status === '' || attempt.status === 'processing') {
     return (
       <Box maxWidth="700px">
         <Heading />
@@ -235,12 +224,12 @@ export function AwsAccount() {
     );
   }
 
-  if (attempt.status === 'failed') {
+  if (attempt.status === 'error') {
     return (
       <Box maxWidth="700px">
         <Heading />
         <Alert kind="danger" children={attempt.statusText} />
-        <ButtonPrimary mt={2} onClick={fetchAwsIntegrationsWithApps}>
+        <ButtonPrimary mt={2} onClick={fetch}>
           Retry
         </ButtonPrimary>
       </Box>
@@ -252,10 +241,13 @@ export function AwsAccount() {
       return;
     }
 
-    if (isAddingAwsApp && fetchedApps.length > 0) {
+    if (
+      isAddingAwsApp &&
+      attempt.status === 'success' &&
+      attempt.data.apps.length > 0
+    ) {
       // See if an application already exists for selected integration
-      const foundApp = fetchedApps.find(
-        // app => app.name === selectedAwsIntegration.value.name
+      const foundApp = attempt.data.apps.find(
         app =>
           app.integration === selectedAwsIntegration.value.name &&
           app.awsConsole
@@ -265,7 +257,6 @@ export function AwsAccount() {
           ...agentMeta,
           awsIntegration: selectedAwsIntegration.value,
           app: foundApp,
-          awsRoleArns: foundApp.awsRoles.map(r => r.arn),
         });
         // skips the next step (creating an app server)
         // since it already exists
@@ -282,6 +273,7 @@ export function AwsAccount() {
     nextStep();
   }
 
+  const { awsIntegrations } = attempt.data;
   const hasAwsIntegrations = awsIntegrations.length > 0;
 
   // When a user clicks to create a new AWS integration, we
@@ -320,7 +312,7 @@ export function AwsAccount() {
                       isSimpleValue
                       value={selectedAwsIntegration}
                       onChange={i => setSelectedAwsIntegration(i as Option)}
-                      options={awsIntegrations}
+                      options={awsIntegrations.map(makeAwsIntegrationOption)}
                     />
                   </Box>
                   <ButtonText as={Link} to={locationState} pl={0}>

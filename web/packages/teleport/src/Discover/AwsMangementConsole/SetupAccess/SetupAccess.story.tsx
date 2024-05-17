@@ -20,6 +20,7 @@ import React from 'react';
 import { MemoryRouter } from 'react-router';
 import { initialize, mswLoader } from 'msw-storybook-addon';
 import { rest } from 'msw';
+import { AwsRole } from 'shared/services/apps';
 
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
@@ -46,6 +47,21 @@ export default {
 
 initialize();
 
+const awsRoles: AwsRole[] = [
+  {
+    name: 'test1',
+    display: 'test1',
+    arn: 'arn:aws:iam::123456789012:role/test1',
+    accountId: '123456789012',
+  },
+  {
+    name: 'test2',
+    display: 'test2',
+    arn: 'arn:aws:iam::123456789012:role/test2',
+    accountId: '123456789012',
+  },
+];
+
 const defaultUserGet = rest.get(cfg.api.userWithUsernamePath, (req, res, ctx) =>
   res(
     ctx.json({
@@ -63,7 +79,7 @@ const defaultUserGet = rest.get(cfg.api.userWithUsernamePath, (req, res, ctx) =>
 
 export const NoTraits = () => (
   <MemoryRouter>
-    <Provider arns={[]}>
+    <Provider awsRoles={[]}>
       <SetupAccess />
     </Provider>
   </MemoryRouter>
@@ -76,12 +92,7 @@ NoTraits.parameters = {
 
 export const WithTraits = () => (
   <MemoryRouter>
-    <Provider
-      arns={[
-        'arn:aws:iam::123456789012:role/static1',
-        'arn:aws:iam::123456789012:role/static2',
-      ]}
-    >
+    <Provider awsRoles={awsRoles}>
       <SetupAccess />
     </Provider>
   </MemoryRouter>
@@ -109,13 +120,7 @@ WithTraits.parameters = {
 
 export const NoAccess = () => (
   <MemoryRouter>
-    <Provider
-      arns={[
-        'arn:aws:iam::123456789012:role/test1',
-        'arn:aws:iam::123456789012:role/test2',
-      ]}
-      noAccess={true}
-    >
+    <Provider awsRoles={awsRoles} noAccess={true}>
       <SetupAccess />
     </Provider>
   </MemoryRouter>
@@ -128,13 +133,7 @@ NoAccess.parameters = {
 
 export const SsoUser = () => (
   <MemoryRouter>
-    <Provider
-      arns={[
-        'arn:aws:iam::123456789012:role/test1',
-        'arn:aws:iam::123456789012:role/test2',
-      ]}
-      isSso={true}
-    >
+    <Provider awsRoles={awsRoles} isSso={true}>
       <SetupAccess />
     </Provider>
   </MemoryRouter>
@@ -145,7 +144,17 @@ SsoUser.parameters = {
   },
 };
 
-const Provider = ({ children, arns, noAccess = false, isSso = false }) => {
+const Provider = ({
+  children,
+  awsRoles,
+  noAccess = false,
+  isSso = false,
+}: {
+  children: React.ReactNode;
+  awsRoles: AwsRole[];
+  noAccess?: boolean;
+  isSso?: boolean;
+}) => {
   const ctx = createTeleportContext();
   if (noAccess) {
     ctx.storeUser.state.acl = getAcl({ noAccess: true });
@@ -157,8 +166,10 @@ const Provider = ({ children, arns, noAccess = false, isSso = false }) => {
     prevStep: () => {},
     nextStep: () => {},
     agentMeta: {
-      app,
-      awsRoleArns: arns,
+      app: {
+        ...app,
+        awsRoles,
+      },
       awsIntegration: {
         resourceType: 'integration',
         kind: IntegrationKind.AwsOidc,

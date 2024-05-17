@@ -47,103 +47,101 @@ import { ResourceKind } from '../ResourceKind';
 
 import { AwsAccount } from './AwsAccount';
 
-describe('test AwsAccount.tsx', () => {
-  beforeEach(() => {
-    jest.spyOn(integrationService, 'fetchIntegrations').mockResolvedValue({
-      items: [
-        {
-          resourceType: 'integration',
-          name: 'aws-oidc-1',
-          kind: IntegrationKind.AwsOidc,
-          spec: {
-            roleArn: 'arn:aws:iam::123456789012:role/test1',
-            issuerS3Bucket: '',
-            issuerS3Prefix: '',
-          },
-          statusCode: IntegrationStatusCode.Running,
+beforeEach(() => {
+  jest.spyOn(integrationService, 'fetchIntegrations').mockResolvedValue({
+    items: [
+      {
+        resourceType: 'integration',
+        name: 'aws-oidc-1',
+        kind: IntegrationKind.AwsOidc,
+        spec: {
+          roleArn: 'arn:aws:iam::123456789012:role/test1',
+          issuerS3Bucket: '',
+          issuerS3Prefix: '',
         },
-      ],
+        statusCode: IntegrationStatusCode.Running,
+      },
+    ],
+  });
+
+  jest
+    .spyOn(ResourceService.prototype, 'fetchUnifiedResources')
+    .mockResolvedValue({
+      agents: [app],
     });
+});
 
-    jest
-      .spyOn(ResourceService.prototype, 'fetchUnifiedResources')
-      .mockResolvedValue({
-        agents: [app],
-      });
+afterEach(() => {
+  jest.restoreAllMocks();
+});
+
+test('non application resource kind', async () => {
+  const { ctx, discoverCtx } = getMockedContexts({
+    kind: ResourceKind.Server,
+    name: '',
+    icon: undefined,
+    keywords: '',
+    event: DiscoverEventResource.Server,
   });
 
-  afterEach(() => {
-    jest.restoreAllMocks();
+  renderAwsAccount(ctx, discoverCtx);
+  await screen.findByText(/aws Integrations/i);
+
+  expect(
+    ResourceService.prototype.fetchUnifiedResources
+  ).not.toHaveBeenCalled();
+  expect(integrationService.fetchIntegrations).toHaveBeenCalledTimes(1);
+  expect(screen.getByRole('button', { name: /next/i })).toBeEnabled();
+});
+
+test('with application resource kind for aws console', async () => {
+  const { ctx, discoverCtx } = getMockedContexts({
+    kind: ResourceKind.Application,
+    appMeta: { awsConsole: true },
+    name: '',
+    icon: undefined,
+    keywords: '',
+    event: DiscoverEventResource.ApplicationHttp,
   });
 
-  test('non application resource kind', async () => {
-    const { ctx, discoverCtx } = getMockedContexts({
-      kind: ResourceKind.Server,
-      name: '',
-      icon: undefined,
-      keywords: '',
-      event: DiscoverEventResource.Server,
-    });
+  renderAwsAccount(ctx, discoverCtx);
+  await screen.findByText(/aws Integrations/i);
 
-    renderAwsAccount(ctx, discoverCtx);
-    await screen.findByText(/aws Integrations/i);
+  expect(ResourceService.prototype.fetchUnifiedResources).toHaveBeenCalledTimes(
+    1
+  );
+  expect(integrationService.fetchIntegrations).toHaveBeenCalledTimes(1);
+  expect(screen.getByRole('button', { name: /next/i })).toBeEnabled();
+});
 
-    expect(
-      ResourceService.prototype.fetchUnifiedResources
-    ).not.toHaveBeenCalled();
-    expect(integrationService.fetchIntegrations).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole('button', { name: /next/i })).toBeEnabled();
+test('missing permissions for integrations', async () => {
+  const { ctx, discoverCtx } = getMockedContexts({
+    kind: ResourceKind.Application,
+    appMeta: { awsConsole: true },
+    name: '',
+    icon: undefined,
+    keywords: '',
+    event: DiscoverEventResource.ApplicationHttp,
   });
 
-  test('with application resource kind for aws console', async () => {
-    const { ctx, discoverCtx } = getMockedContexts({
-      kind: ResourceKind.Application,
-      appMeta: { awsConsole: true },
-      name: '',
-      icon: undefined,
-      keywords: '',
-      event: DiscoverEventResource.ApplicationHttp,
-    });
+  ctx.storeUser.state.acl = getAcl({ noAccess: true });
 
-    renderAwsAccount(ctx, discoverCtx);
-    await screen.findByText(/aws Integrations/i);
+  renderAwsAccount(ctx, discoverCtx);
 
-    expect(
-      ResourceService.prototype.fetchUnifiedResources
-    ).toHaveBeenCalledTimes(1);
-    expect(integrationService.fetchIntegrations).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole('button', { name: /next/i })).toBeEnabled();
-  });
+  expect(
+    screen.getByText(/required permissions for integrating/i)
+  ).toBeInTheDocument();
+  expect(screen.queryByText(/aws integrations/i)).not.toBeInTheDocument();
 
-  test('no perm', async () => {
-    const { ctx, discoverCtx } = getMockedContexts({
-      kind: ResourceKind.Application,
-      appMeta: { awsConsole: true },
-      name: '',
-      icon: undefined,
-      keywords: '',
-      event: DiscoverEventResource.ApplicationHttp,
-    });
+  expect(
+    ResourceService.prototype.fetchUnifiedResources
+  ).not.toHaveBeenCalled();
+  expect(integrationService.fetchIntegrations).not.toHaveBeenCalled();
 
-    ctx.storeUser.state.acl = getAcl({ noAccess: true });
-
-    renderAwsAccount(ctx, discoverCtx);
-
-    expect(
-      screen.getByText(/required permissions for integrating/i)
-    ).toBeInTheDocument();
-    expect(screen.queryByText(/aws integrations/i)).not.toBeInTheDocument();
-
-    expect(
-      ResourceService.prototype.fetchUnifiedResources
-    ).not.toHaveBeenCalled();
-    expect(integrationService.fetchIntegrations).not.toHaveBeenCalled();
-
-    expect(
-      screen.queryByRole('button', { name: /next/i })
-    ).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /back/i })).toBeInTheDocument();
-  });
+  expect(
+    screen.queryByRole('button', { name: /next/i })
+  ).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /back/i })).toBeInTheDocument();
 });
 
 function getMockedContexts(resourceSpec: ResourceSpec) {

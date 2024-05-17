@@ -537,11 +537,6 @@ export type EksMeta = BaseMeta & {
  */
 export type AppMeta = BaseMeta & {
   app: App;
-  /**
-   * list of arns extracted from an app from
-   * its field 'awsRoles: AwsRole[]'
-   */
-  awsRoleArns: string[];
 };
 
 // SamlMeta describes the fields for SAML IdP

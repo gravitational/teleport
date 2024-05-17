@@ -19,6 +19,7 @@
 import React from 'react';
 import { MemoryRouter } from 'react-router';
 import { renderHook, act, waitFor } from '@testing-library/react';
+import { AwsRole } from 'shared/services/apps';
 
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { ContextProvider } from 'teleport';
@@ -448,15 +449,31 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
     ]);
   });
 
-  test('awsRoleArns', async () => {
+  test('only update user traits with dynamic awsRoleArns', async () => {
+    const staticAwsRoles: AwsRole[] = [
+      {
+        name: 'static-arn1',
+        arn: 'arn:aws:iam::123456789012:role/static-arn1',
+        display: 'static-arn1',
+        accountId: '123456789012',
+      },
+      {
+        name: 'static-arn2',
+        arn: 'arn:aws:iam::123456789012:role/static-arn2',
+        display: 'static-arn2',
+        accountId: '123456789012',
+      },
+    ];
     const discoverCtx = defaultDiscoverContext({
       resourceSpec: {
         ...defaultResourceSpec(ResourceKind.Application),
         appMeta: { awsConsole: true },
       },
       agentMeta: {
-        awsRoleArns: ['static-arn1', 'static-arn2'],
-        app,
+        app: {
+          ...app,
+          awsRoles: staticAwsRoles,
+        },
       },
     });
     const spyUpdateAgentMeta = jest
@@ -494,10 +511,6 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
       ],
     };
 
-    const expected = {
-      awsRoleArns: [dynamicTraits.awsRoleArns[0]],
-    };
-
     act(() => {
       result.current.onProceed(mockedSelectedOptions);
     });
@@ -510,14 +523,22 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
     const mockUser = getMockUser();
     expect(teleCtx.userService.updateUser).toHaveBeenCalledWith({
       ...mockUser,
-      traits: { ...mockUser.traits, ...expected },
+      traits: {
+        ...mockUser.traits,
+        awsRoleArns: [dynamicTraits.awsRoleArns[0]],
+      },
     });
 
-    // Test that updating meta correctly updated the dynamic traits.
+    // Test that app's awsRoles field got updated with the dynamic trait.
     const updatedMeta = spyUpdateAgentMeta.mock.results[0].value as AppMeta;
-    expect(updatedMeta.awsRoleArns).toStrictEqual([
-      ...staticTraits.awsRoleArns,
-      ...expected.awsRoleArns,
+    expect(updatedMeta.app.awsRoles).toStrictEqual([
+      ...staticAwsRoles,
+      {
+        name: 'dynamicArn1',
+        display: 'dynamicArn1',
+        arn: 'arn:aws:iam::123456789012:role/dynamicArn1',
+        accountId: '123456789012',
+      },
     ]);
   });
 
@@ -714,7 +735,10 @@ function getMockUser() {
       kubeUsers: ['dynamicKbUser1', 'dynamicKbUser2'],
       kubeGroups: ['dynamicKbGroup1', 'dynamicKbGroup2'],
       windowsLogins: [],
-      awsRoleArns: ['arn1', 'arn2'],
+      awsRoleArns: [
+        'arn:aws:iam::123456789012:role/dynamicArn1',
+        'arn:aws:iam::123456789012:role/dynamicArn2',
+      ],
     },
   };
 }

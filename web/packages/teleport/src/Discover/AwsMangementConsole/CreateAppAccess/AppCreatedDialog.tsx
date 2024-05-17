@@ -21,11 +21,11 @@ import { Text, Flex, ButtonPrimary } from 'design';
 import * as Icons from 'design/Icon';
 import Dialog, { DialogContent } from 'design/DialogConfirmation';
 
-export function CreatedDialog({
-  nextStep,
+export function AppCreatedDialog({
+  toNextStep,
   appName,
 }: {
-  nextStep: () => void;
+  toNextStep: () => void;
   appName: string;
 }) {
   return (
@@ -42,7 +42,7 @@ export function CreatedDialog({
             Successfully created an application server named "{appName}"
           </Text>
         </Flex>
-        <ButtonPrimary width="100%" onClick={() => nextStep()}>
+        <ButtonPrimary width="100%" onClick={() => toNextStep()}>
           Next
         </ButtonPrimary>
       </DialogContent>

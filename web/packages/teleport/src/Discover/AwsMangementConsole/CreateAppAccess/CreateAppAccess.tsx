@@ -21,8 +21,8 @@ import styled from 'styled-components';
 import { Box, Text, Flex, Link } from 'design';
 import TextEditor from 'shared/components/TextEditor';
 import { Danger } from 'design/Alert';
-import useAttempt from 'shared/hooks/useAttemptNext';
 import { ToolTipInfo } from 'shared/components/ToolTip';
+import { useAsync } from 'shared/hooks/useAsync';
 
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import { useDiscover } from 'teleport/Discover/useDiscover';
@@ -33,7 +33,7 @@ import { splitAwsIamArn } from 'teleport/services/integrations/aws';
 
 import { ActionButtons, Header, Mark } from '../../Shared';
 
-import { CreatedDialog } from './CreatedDialog';
+import { AppCreatedDialog } from './AppCreatedDialog';
 
 const IAM_POLICY_NAME = 'TeleportAWSAccess';
 
@@ -41,27 +41,22 @@ export function CreateAppAccess() {
   const { agentMeta, updateAgentMeta, emitErrorEvent, nextStep } =
     useDiscover();
   const { awsIntegration } = agentMeta;
-  const { attempt, setAttempt } = useAttempt('');
 
-  function handleOnProceed() {
-    setAttempt({ status: 'processing' });
-
+  const [attempt, createApp] = useAsync(async () =>
     integrationService
       .createAwsAppAccess(awsIntegration.name)
       .then(app => {
         updateAgentMeta({
           ...agentMeta,
           app,
-          awsRoleArns: app.awsRoles.map(r => r.arn),
           resourceName: app.name,
         });
-        setAttempt({ status: 'success' });
       })
       .catch((err: Error) => {
-        setAttempt({ status: 'failed', statusText: err.message });
         emitErrorEvent(err.message);
-      });
-  }
+        throw err;
+      })
+  );
 
   const iamRoleName = splitAwsIamArn(
     agentMeta.awsIntegration.spec.roleArn
@@ -78,7 +73,7 @@ export function CreateAppAccess() {
         Integration <Mark>{agentMeta.awsIntegration.name}</Mark> for proxying
         access.
       </Text>
-      {attempt.status === 'failed' && (
+      {attempt.status === 'error' && (
         <Danger mt={3}>{attempt.statusText}</Danger>
       )}
       <Container>
@@ -115,13 +110,16 @@ export function CreateAppAccess() {
       </Container>
 
       <ActionButtons
-        onProceed={handleOnProceed}
+        onProceed={createApp}
         disableProceed={
           attempt.status === 'processing' || attempt.status === 'success'
         }
       />
       {attempt.status === 'success' && (
-        <CreatedDialog nextStep={nextStep} appName={agentMeta.resourceName} />
+        <AppCreatedDialog
+          toNextStep={nextStep}
+          appName={agentMeta.resourceName}
+        />
       )}
     </Box>
   );

@@ -44,9 +44,9 @@ export function TestConnection() {
   const clusterId = ctx.storeUser.getClusterId();
 
   const { nextStep, prevStep, agentMeta } = useDiscover();
-  const { app, awsRoleArns } = agentMeta as AppMeta;
+  const { app } = agentMeta as AppMeta;
 
-  const arnOpts = awsRoleArns.map(l => ({ value: l, label: l }));
+  const arnOpts = app.awsRoles.map(({ arn }) => ({ value: arn, label: arn }));
   const [selectedOpt, setSelectedOpt] = useState<Option>();
 
   function launchUrl(arn: string) {

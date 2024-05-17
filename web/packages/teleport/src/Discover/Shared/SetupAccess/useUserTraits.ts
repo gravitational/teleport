@@ -23,6 +23,7 @@ import { arrayStrDiff } from 'teleport/lib/util';
 import useTeleport from 'teleport/useTeleport';
 import { Option } from 'teleport/Discover/Shared/SelectCreatable';
 import { useDiscover } from 'teleport/Discover/useDiscover';
+import { splitAwsIamArn } from 'teleport/services/integrations/aws';
 
 import { ResourceKind } from '../ResourceKind';
 
@@ -106,9 +107,9 @@ export function useUserTraits() {
     // Note: specific to AWS CLI access
     case ResourceKind.Application:
       if (resourceSpec.appMeta.awsConsole) {
-        const { awsRoleArns } = agentMeta as AppMeta;
+        const { awsRoles } = (agentMeta as AppMeta).app;
         staticTraits.awsRoleArns = arrayStrDiff(
-          awsRoleArns,
+          awsRoles.map(r => r.arn),
           dynamicTraits.awsRoleArns
         );
         break;
@@ -283,12 +284,26 @@ export function useUserTraits() {
 
       case ResourceKind.Application:
         if (resourceSpec.appMeta.awsConsole) {
+          const app = (meta as AppMeta).app;
+          const arns = [
+            ...staticTraits.awsRoleArns,
+            ...newDynamicTraits.awsRoleArns,
+          ];
+          const awsRoles = arns.map(arn => {
+            const { arnResourceName, awsAccountId } = splitAwsIamArn(arn);
+            return {
+              name: arnResourceName,
+              arn,
+              display: arnResourceName,
+              accountId: awsAccountId,
+            };
+          });
           updateAgentMeta({
             ...meta,
-            awsRoleArns: [
-              ...staticTraits.awsRoleArns,
-              ...newDynamicTraits.awsRoleArns,
-            ],
+            app: {
+              ...app,
+              awsRoles,
+            },
           });
           break;
         }

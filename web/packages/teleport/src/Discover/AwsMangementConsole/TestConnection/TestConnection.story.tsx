@@ -47,11 +47,23 @@ const Provider = ({ children }) => {
     prevStep: () => {},
     nextStep: () => {},
     agentMeta: {
-      app,
-      awsRoleArns: [
-        'arn:aws:iam::123456789012:role/test1',
-        'arn:aws:iam::123456789012:role/test2',
-      ],
+      app: {
+        ...app,
+        awsRoles: [
+          {
+            name: 'static-arn1',
+            arn: 'arn:aws:iam::123456789012:role/static-arn1',
+            display: 'static-arn1',
+            accountId: '123456789012',
+          },
+          {
+            name: 'static-arn2',
+            arn: 'arn:aws:iam::123456789012:role/static-arn2',
+            display: 'static-arn2',
+            accountId: '123456789012',
+          },
+        ],
+      },
     },
     currentStep: 0,
     onSelectResource: () => null,
