@@ -2174,7 +2174,7 @@ func makeRDSInstance(t *testing.T, name, region string, discoveryGroup string) (
 			Port:    aws.Int64(5432),
 		},
 	}
-	database, err := services.NewDatabaseFromRDSInstance(instance)
+	database, err := common.NewDatabaseFromRDSInstance(instance)
 	require.NoError(t, err)
 	database.SetOrigin(types.OriginCloud)
 	staticLabels := database.GetStaticLabels()
@@ -2196,7 +2196,7 @@ func makeRedshiftCluster(t *testing.T, name, region string, discoveryGroup strin
 		},
 	}
 
-	database, err := services.NewDatabaseFromRedshiftCluster(cluster)
+	database, err := common.NewDatabaseFromRedshiftCluster(cluster)
 	require.NoError(t, err)
 	database.SetOrigin(types.OriginCloud)
 	staticLabels := database.GetStaticLabels()
@@ -2219,7 +2219,7 @@ func makeAzureRedisServer(t *testing.T, name, subscription, group, region string
 		},
 	}
 
-	database, err := services.NewDatabaseFromAzureRedis(resourceInfo)
+	database, err := common.NewDatabaseFromAzureRedis(resourceInfo)
 	require.NoError(t, err)
 	database.SetOrigin(types.OriginCloud)
 	staticLabels := database.GetStaticLabels()
