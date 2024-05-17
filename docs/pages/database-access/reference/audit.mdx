@@ -108,3 +108,51 @@ Emitted when a client executes a SQL query.
   "user": "alice" // Teleport user name.
 }
 ```
+
+## db.session.spanner.rpc (TSPN001I/W)
+
+Emitted when a client executes a remote procedure call (RPC), or when an RPC
+execution attempt fails due to access denied.
+
+```json
+{
+  "args": { // RPC arguments (specific to the "procedure" below).
+    "query_options": {},
+    "request_options": {},
+    "seqno": 1,
+    "session": "projects/project-id/instances/instance-id/databases/dev-db/sessions/ABCDEF1234567890",
+    "sql": "select * from TestTable",
+    "transaction": {
+      "Selector": {
+        "SingleUse": {
+          "Mode": {
+            "ReadOnly": {
+              "TimestampBound": {
+                "Strong": true
+              },
+              "return_read_timestamp": true
+            }
+          }
+        }
+      }
+    }
+  },
+  "cluster_name": "root", // Teleport cluster name.
+  "code": "TSPN001I", // Event code.
+  "db_name": "dev-db", // Database name.
+  "db_origin": "dynamic", // Teleport database service config origin.
+  "db_protocol": "spanner", // Database protocol.
+  "db_service": "teleport-spanner", // Database service name.
+  "db_type": "spanner", // Database type.
+  "db_uri": "spanner.googleapis.com:443", // Database service endpoint.
+  "db_user": "some-user", // Database account name, (a GCP IAM service account name without its @<project>.iam.gserviceaccount.com suffix).
+  "ei": 29, // Event index within the session.
+  "event": "db.session.spanner.rpc", // Event name.
+  "procedure": "ExecuteStreamingSql", // Name of the remote procedure call (RPC).
+  "sid": "406b9883-0e16-42f2-9d0b-b3bd956f9cd4", // Unique database session ID.
+  "success": true, // The RPC was allowed by Teleport RBAC.
+  "time": "2024-03-13T00:02:44.739Z", // Event timestamp.
+  "uid": "e0625e79-9399-4ea3-aa8b-dba1eb98658d", // Unique event ID.
+  "user": "alice@example.com" // Teleport user name.
+}
+```
