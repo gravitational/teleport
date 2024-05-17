@@ -11,8 +11,8 @@ Create a local Teleport user with the built-in `access` role:
 ```code
 $ tctl users add \
   --roles=access \
-  --db-users=\* \
-  --db-names=\* \
+  --db-users="*" \
+  --db-names="*" \
   alice
 ```
 </TabItem>
@@ -22,8 +22,8 @@ Create a local Teleport user with the built-in `access` and `requester` roles:
 ```code
 $ tctl users add \
   --roles=access,requester \
-  --db-users=\* \
-  --db-names=\* \
+  --db-users="*" \
+  --db-names="*" \
   alice
 ```
 </TabItem>
