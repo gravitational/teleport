@@ -176,7 +176,7 @@ func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
 	case types.KindAccessRequest:
 		return trace.Wrap(a.handleAcessRequest(ctx, event))
 	}
-	return trace.BadParameter("unexpected kind %s", event.Resource.GetKind())
+	return trace.Errorf("unexpected kind %s", event.Resource.GetKind())
 }
 
 func (a *App) handleAcessRequest(ctx context.Context, event types.Event) error {
@@ -230,7 +230,7 @@ func (a *App) handleAccessMonitoringRule(ctx context.Context, event types.Event)
 
 	e, ok := event.Resource.(types.Resource153Unwrapper)
 	if !ok {
-		return trace.BadParameter("expected AccessMonitoringRule resource type, got %T", event.Resource)
+		return trace.BadParameter("expected Resource153Unwrapper resource type, got %T", event.Resource)
 	}
 	req, ok := e.Unwrap().(*accessmonitoringrulesv1.AccessMonitoringRule)
 	if !ok {
@@ -416,11 +416,11 @@ func (a *App) getMessageRecipients(ctx context.Context, req types.AccessRequest)
 	recipientSet := common.NewRecipientSet()
 
 	recipients := a.recipientsFromAccessMonitoringRules(ctx, req)
-	for _, recipient := range recipients.ToSlice() {
-		recipientSet.Add(recipient)
-	}
-	if s := recipientSet.ToSlice(); len(s) != 0 {
-		return s
+	recipients.ForEach(func(r common.Recipient){
+		recipientSet.Add(r)
+	})
+	if len(recipientSet.ToSlice()) != 0 {
+		return recipientSet.ToSlice()
 	}
 
 	switch a.pluginType {
