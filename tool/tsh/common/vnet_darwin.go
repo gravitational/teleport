@@ -40,7 +40,11 @@ func newVnetCommand(app *kingpin.Application) *vnetCommand {
 }
 
 func (c *vnetCommand) run(cf *CLIConf) error {
-	return trace.Wrap(vnet.Run(cf.Context))
+	appProvider, err := newVnetAppProvider(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(vnet.Run(cf.Context, appProvider))
 }
 
 type vnetAdminSetupCommand struct {

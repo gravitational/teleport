@@ -2508,6 +2508,18 @@ func (a *ServerWithRoles) CreateAccessRequestV2(ctx context.Context, req types.A
 		}
 	}
 
+	if !req.GetState().IsPending() {
+		if authz.IsCurrentUser(a.context, req.GetUser()) {
+			return nil, trace.AccessDenied("cannot create access request for self in non-pending state")
+		}
+
+		if len(a.context.Identity.GetIdentity().ActiveRequests) != 0 {
+			return nil, trace.AccessDenied("cannot create access requests in non-pending state while using an access request")
+		}
+
+		log.Warnf("Use of resource-level access request 'create' permission by user %q to create non-pending access request for user %q. Creation of non-pending requests will be deprecated in future version of teleport. Consider migrating to a workflow with a separate approval step.", a.context.User.GetName(), req.GetUser())
+	}
+
 	if !authz.IsCurrentUser(a.context, req.GetUser()) {
 		// If this request was authorized by allow rules and not ownership, require MFA.
 		if err := a.context.AuthorizeAdminAction(); err != nil {
@@ -2527,12 +2539,32 @@ func (a *ServerWithRoles) SetAccessRequestState(ctx context.Context, params type
 		return trace.Wrap(err)
 	}
 
+	if len(a.context.Identity.GetIdentity().ActiveRequests) != 0 {
+		return trace.AccessDenied("cannot directly update the state of an access request while using an access request")
+	}
+
 	if err := a.context.AuthorizeAdminAction(); err != nil {
 		return trace.Wrap(err)
 	}
 
 	if params.State.IsPromoted() {
 		return trace.BadParameter("state promoted can be only set when promoting to access list")
+	}
+
+	// load the request to verify additional access-control limits
+	reqs, err := a.GetAccessRequests(ctx, types.AccessRequestFilter{
+		ID: params.RequestID,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if len(reqs) < 1 {
+		return trace.NotFound("cannot set state of access request %q (not found)", params.RequestID)
+	}
+
+	if authz.IsCurrentUser(a.context, reqs[0].GetUser()) {
+		return trace.AccessDenied("directly updating the state of your own access requests is not permitted")
 	}
 
 	return a.authServer.SetAccessRequestState(ctx, params)
