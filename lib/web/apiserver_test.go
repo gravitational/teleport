@@ -135,6 +135,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	utilsaws "github.com/gravitational/teleport/lib/utils/aws"
 	websession "github.com/gravitational/teleport/lib/web/session"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
@@ -1261,7 +1262,68 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	t.Parallel()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "test-user@example.com", nil)
+	username := "test-user@example.com"
+
+	u, err := user.Current()
+	require.NoError(t, err)
+	loginUser := u.Username
+
+	role := defaultRoleForNewUser(&types.UserV2{Metadata: types.Metadata{Name: username}}, loginUser)
+	role.SetAWSRoleARNs(types.Allow, []string{"arn:aws:iam::999999999999:role/ProdInstance"})
+	role.SetAppLabels(types.Allow, types.Labels{"env": []string{"prod"}})
+
+	// This role is used to test that DevInstance AWS Role is only available to AppServices that have env:dev label.
+	roleForDev, err := types.NewRole("dev-access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			AWSRoleARNs: []string{"arn:aws:iam::999999999999:role/DevInstance"},
+			AppLabels:   types.Labels{"env": []string{"dev"}},
+		},
+	})
+	require.NoError(t, err)
+
+	pack := proxy.authPack(t, username, []types.Role{role, roleForDev})
+
+	// add aws AppServer
+	awsApp, err := types.NewAppV3(
+		types.Metadata{
+			Name: "my-aws-app",
+			Labels: map[string]string{
+				"env": "prod",
+			},
+		},
+		types.AppSpecV3{
+			URI:   "localhost:8080",
+			Cloud: "AWS",
+		})
+	require.NoError(t, err)
+	awsAppServer, err := types.NewAppServerV3FromApp(
+		awsApp,
+		"localhost",
+		"host-id",
+	)
+	require.NoError(t, err)
+	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), awsAppServer)
+	require.NoError(t, err)
+
+	app, err := types.NewAppV3(
+		types.Metadata{
+			Name: "my-app",
+			Labels: map[string]string{
+				"env": "prod",
+			},
+		},
+		types.AppSpecV3{
+			URI: "localhost:8080",
+		})
+	require.NoError(t, err)
+	appServer, err := types.NewAppServerV3FromApp(
+		app,
+		"localhost",
+		"host-id",
+	)
+	require.NoError(t, err)
+	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), appServer)
+	require.NoError(t, err)
 
 	// Add nodes
 	for i := 0; i < 20; i++ {
@@ -1314,7 +1376,9 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	require.NoError(t, err)
 	res := clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
-	require.Equal(t, types.KindDatabase, res.Items[0].Kind)
+	require.Equal(t, types.KindApp, res.Items[0].Kind)
+	require.Equal(t, types.KindApp, res.Items[1].Kind)
+	require.Equal(t, types.KindDatabase, res.Items[2].Kind)
 
 	// test sort type desc
 	query = url.Values{"sort": []string{"kind:desc"}}
@@ -1353,8 +1417,26 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	require.NoError(t, err)
 	res = clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
-	require.Len(t, res.Items, 8)
+	require.Len(t, res.Items, 10)
 	require.Equal(t, "", res.StartKey)
+
+	// Only list valid AWS Roles for AWS Apps
+	query = url.Values{
+		"search": []string{"my-aws-app"},
+		"sort":   []string{"name"},
+	}
+	re, err = pack.clt.Get(context.Background(), endpoint, query)
+	require.NoError(t, err)
+	listResp := struct {
+		Items []ui.App `json:"Items"`
+	}{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &listResp))
+	require.Len(t, listResp.Items, 1)
+	expectedRoles := []utilsaws.Role{
+		{Name: "ProdInstance", Display: "ProdInstance", ARN: "arn:aws:iam::999999999999:role/ProdInstance", AccountID: "999999999999"},
+	}
+	require.Equal(t, expectedRoles, listResp.Items[0].AWSRoles)
+	t.Log(string(re.Bytes()), listResp)
 }
 
 type clusterAlertsGetResponse struct {

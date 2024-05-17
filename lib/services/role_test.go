@@ -4110,15 +4110,19 @@ func TestGetAllowedLoginsForResource(t *testing.T) {
 					Namespaces:           []string{apidefaults.Namespace},
 					Logins:               allowLogins,
 					WindowsDesktopLogins: allowLogins,
+					AWSRoleARNs:          allowLogins,
 					NodeLabels:           allowLabels,
 					WindowsDesktopLabels: allowLabels,
+					AppLabels:            allowLabels,
 				},
 				Deny: types.RoleConditions{
 					Namespaces:           []string{apidefaults.Namespace},
 					Logins:               denyLogins,
 					WindowsDesktopLogins: denyLogins,
+					AWSRoleARNs:          denyLogins,
 					NodeLabels:           denyLabels,
 					WindowsDesktopLabels: denyLabels,
+					AppLabels:            denyLabels,
 				},
 			},
 		}
@@ -4286,14 +4290,18 @@ func TestGetAllowedLoginsForResource(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			server := mustMakeTestServer(tc.labels)
 			desktop := mustMakeTestWindowsDesktop(tc.labels)
+			app := mustMakeTestAWSApp(tc.labels)
 
 			serverLogins, err := accessChecker.GetAllowedLoginsForResource(server)
 			require.NoError(t, err)
 			desktopLogins, err := accessChecker.GetAllowedLoginsForResource(desktop)
 			require.NoError(t, err)
+			awsARNLogins, err := accessChecker.GetAllowedLoginsForResource(app)
+			require.NoError(t, err)
 
 			require.ElementsMatch(t, tc.expectedLogins, serverLogins)
 			require.ElementsMatch(t, tc.expectedLogins, desktopLogins)
+			require.ElementsMatch(t, tc.expectedLogins, awsARNLogins)
 		})
 	}
 }
@@ -4314,6 +4322,22 @@ func mustMakeTestWindowsDesktop(labels map[string]string) types.WindowsDesktop {
 		panic(err)
 	}
 	return d
+}
+
+func mustMakeTestAWSApp(labels map[string]string) types.Application {
+	app, err := types.NewAppV3(types.Metadata{
+		Name:   "my-app",
+		Labels: labels,
+	},
+		types.AppSpecV3{
+			URI:   "https://some-addr.com",
+			Cloud: "AWS",
+		},
+	)
+	if err != nil {
+		panic(err)
+	}
+	return app
 }
 
 func TestCheckDatabaseRoles(t *testing.T) {
