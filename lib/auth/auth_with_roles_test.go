@@ -6996,6 +6996,17 @@ func TestAccessRequestNonGreedyAnnotations(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
+	nodeRole, err := types.NewRole("nodeRole", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				SearchAsRoles: []string{"resourceReqRole"},
+				Annotations: map[string][]string{
+					"requested": {"resource"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
 	paymentsReviewRole, err := types.NewRole("paymentsReviewRole", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{types.NewRule(types.KindAccessRequest, []string{"update"})},
@@ -7021,10 +7032,28 @@ func TestAccessRequestNonGreedyAnnotations(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	resourceReqRole, err := types.NewRole("resourceReqRole", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			NodeLabels: types.Labels{"*": []string{"*"}},
+			Request: &types.AccessRequestConditions{
+				Annotations: map[string][]string{
+					"requested": {"resource"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
 	srv.Auth().CreateRole(ctx, requestRole)
+	srv.Auth().CreateRole(ctx, nodeRole)
 	srv.Auth().CreateRole(ctx, paymentsRole)
 	srv.Auth().CreateRole(ctx, paymentsReviewRole)
 	srv.Auth().CreateRole(ctx, identityReviewRole)
+	srv.Auth().CreateRole(ctx, resourceReqRole)
+
+	server, err := types.NewServer("server", types.KindNode, types.ServerSpecV2{})
+	require.NoError(t, err)
+	srv.Auth().UpsertNode(ctx, server)
 
 	user, err := srv.Auth().GetUser(ctx, paymentRequestReviewer, true)
 	require.NoError(t, err)
@@ -7041,6 +7070,7 @@ func TestAccessRequestNonGreedyAnnotations(t *testing.T) {
 	user, err = srv.Auth().GetUser(ctx, requester.GetName(), true)
 	require.NoError(t, err)
 	user.AddRole(paymentsRole.GetName())
+	user.AddRole(nodeRole.GetName())
 	_, err = srv.Auth().UpsertUser(ctx, user)
 	require.NoError(t, err)
 
@@ -7055,7 +7085,14 @@ func TestAccessRequestNonGreedyAnnotations(t *testing.T) {
 	// system annotations should only contain annotations from the requested role
 	require.Equal(t, map[string][]string{"pagerduty_services": {"payments"}}, req.GetSystemAnnotations())
 
+	resourceAccessRequest, err := types.NewAccessRequestWithResources(uuid.NewString(), requester.GetName(),
+		[]string{"resourceReqRole"},
+		[]types.ResourceID{{ClusterName: srv.ClusterName(), Kind: types.KindNode, Name: "server"}})
 	require.NoError(t, err)
+	req, err = client.CreateAccessRequestV2(ctx, resourceAccessRequest)
+	require.NoError(t, err)
+	require.Equal(t, map[string][]string{"requested": {"resource"}}, req.GetSystemAnnotations())
+
 }
 
 func mustAccessRequest(t *testing.T, user string, state types.RequestState, created, expires time.Time, roles []string, resourceIDs []types.ResourceID) types.AccessRequest {
