@@ -16,11 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Box from 'design/Box';
-import Text from 'design/Text';
 import React from 'react';
 
-export function DialogHeader({
+import Box from 'design/Box';
+import Text from 'design/Text';
+
+/**
+ * Renders a header with an optional step counter that appears if there's more
+ * than one step. Useful inside a StepSlider, but can be used independently.
+ */
+export function StepHeader({
   stepIndex,
   flowLength,
   title,
@@ -30,9 +35,9 @@ export function DialogHeader({
   title: string;
 }) {
   return (
-    <Box mb={4}>
+    <Box>
       {flowLength > 1 && (
-        <Text typography="body1">
+        <Text typography="body1" color="text.slightlyMuted">
           Step {stepIndex + 1} of {flowLength}
         </Text>
       )}
