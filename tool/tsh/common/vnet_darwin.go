@@ -25,6 +25,7 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/vnet"
@@ -48,18 +49,41 @@ func (c *vnetCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	ctx, cancel := context.WithCancelCause(cf.Context)
-	defer cancel(nil)
+	ctx, cancel := context.WithCancel(cf.Context)
+	defer cancel()
+	g, ctx := errgroup.WithContext(ctx)
 
-	manager, adminCommandErrCh, err := vnet.Setup(ctx, ctx, appProvider)
+	socket, socketPath, err := vnet.CreateSocket(ctx)
 	if err != nil {
-		if errors.Is(err, context.Canceled) {
-			return nil
-		}
 		return trace.Wrap(err)
 	}
 
-	err = vnet.Run(ctx, cancel, manager, adminCommandErrCh)
+	g.Go(func() error {
+		<-ctx.Done()
+
+		return trace.Wrap(socket.Close())
+	})
+
+	ipv6Prefix, err := vnet.NewIPv6Prefix()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	dnsIPv6 := vnet.IPv6WithSuffix(ipv6Prefix, []byte{2})
+
+	g.Go(func() error {
+		return trace.Wrap(vnet.ExecAdminSubcommand(ctx, socketPath, ipv6Prefix.String(), dnsIPv6.String()))
+	})
+
+	manager, err := vnet.Setup(ctx, appProvider, socket, ipv6Prefix, dnsIPv6)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	g.Go(func() error {
+		return trace.Wrap(manager.Run(ctx))
+	})
+
+	err = g.Wait()
 	if errors.Is(err, context.Canceled) {
 		return nil
 	}

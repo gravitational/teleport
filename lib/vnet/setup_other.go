@@ -42,6 +42,14 @@ func sendTUNNameAndFd(socketPath, tunName string, fd uintptr) error {
 	return trace.Wrap(ErrVnetNotImplemented)
 }
 
+func receiveTUNDevice(ctx context.Context, socket *net.UnixListener) (tun.Device, error) {
+	return nil, trace.Wrap(ErrVnetNotImplemented)
+}
+
 func configureOS(ctx context.Context, cfg *osConfig) error {
+	return trace.Wrap(ErrVnetNotImplemented)
+}
+
+func ExecAdminSubcommand(ctx context.Context, socketPath, ipv6Prefix, dnsAddr string) error {
 	return trace.Wrap(ErrVnetNotImplemented)
 }

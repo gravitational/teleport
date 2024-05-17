@@ -119,8 +119,7 @@ func newTestPack(t *testing.T, ctx context.Context, clock clockwork.FakeClock, a
 		NIC:         nicID,
 	}})
 
-	dnsIPv6 := ipv6WithSuffix(vnetIPv6Prefix, []byte{2})
-
+	dnsIPv6 := IPv6WithSuffix(vnetIPv6Prefix, []byte{2})
 	tcpHandlerResolver, err := NewTCPAppResolver(appProvider, withClock(clock))
 	require.NoError(t, err)
 
