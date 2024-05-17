@@ -2705,7 +2705,7 @@ func TestDeleteMFADeviceSync_lastDevice(t *testing.T) {
 			dev := tc.createDevice(username)
 
 			// Acquire an approved token.
-			token, err := srv.Auth().newUserToken(CreateUserTokenRequest{
+			token, err := srv.Auth().newUserToken(authclient.CreateUserTokenRequest{
 				Name: username,
 				TTL:  5 * time.Minute,
 				Type: UserTokenTypeRecoveryApproved,
