@@ -17,7 +17,6 @@ limitations under the License.
 package azure
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -49,16 +48,4 @@ func ConvertResponseError(err error) error {
 
 	}
 	return err // Return unmodified.
-}
-
-// parseMetadataClientError converts a failed instance metadata service call to a trace error.
-func parseMetadataClientError(statusCode int, body []byte) error {
-	err := trace.ReadError(statusCode, body)
-	azureError := struct {
-		Error string `json:"error"`
-	}{}
-	if json.Unmarshal(body, &azureError) != nil {
-		return trace.Wrap(err)
-	}
-	return trace.Wrap(err, azureError.Error)
 }

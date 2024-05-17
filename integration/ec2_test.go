@@ -43,7 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
-	"github.com/gravitational/teleport/lib/cloud"
+	cloudimds "github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/service"
@@ -71,7 +71,7 @@ func newNodeConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, joinM
 	config.SetAuthServerAddress(authAddr)
 	config.Log = newSilentLogger()
 	config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	config.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	config.InstanceMetadataClient = cloudimds.NewDisabledIMDSClient()
 	return config
 }
 
@@ -92,7 +92,7 @@ func newProxyConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, join
 	config.SetAuthServerAddress(authAddr)
 	config.Log = newSilentLogger()
 	config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	config.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	config.InstanceMetadataClient = cloudimds.NewDisabledIMDSClient()
 	return config
 }
 
@@ -125,7 +125,7 @@ func newAuthConfig(t *testing.T, clock clockwork.Clock) *servicecfg.Config {
 	config.Clock = clock
 	config.Log = newSilentLogger()
 	config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	config.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	config.InstanceMetadataClient = cloudimds.NewDisabledIMDSClient()
 	return config
 }
 

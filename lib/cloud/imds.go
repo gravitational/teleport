@@ -22,8 +22,9 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud/aws"
-	"github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/cloud/imds"
+	"github.com/gravitational/teleport/lib/cloud/imds/aws"
+	"github.com/gravitational/teleport/lib/cloud/imds/azure"
 )
 
 const (
@@ -34,46 +35,30 @@ const (
 	discoverInstanceMetadataTimeout = 500 * time.Millisecond
 )
 
-// InstanceMetadata is an interface for fetching information from a cloud
-// service's instance metadata.
-type InstanceMetadata interface {
-	// IsAvailable checks if instance metadata is available.
-	IsAvailable(ctx context.Context) bool
-	// GetTags gets all of the instance's tags.
-	GetTags(ctx context.Context) (map[string]string, error)
-	// GetHostname gets the hostname set by the cloud instance that Teleport
-	// should use, if any.
-	GetHostname(ctx context.Context) (string, error)
-	// GetType gets the cloud instance type.
-	GetType() types.InstanceMetadataType
-	// GetID gets the cloud instance ID.
-	GetID(ctx context.Context) (string, error)
-}
-
-type imConstructor func(ctx context.Context) (InstanceMetadata, error)
+type imConstructor func(ctx context.Context) (imds.Client, error)
 
 var providers = map[types.InstanceMetadataType]imConstructor{
 	types.InstanceMetadataTypeEC2:   initEC2,
 	types.InstanceMetadataTypeAzure: initAzure,
 }
 
-func initEC2(ctx context.Context) (InstanceMetadata, error) {
+func initEC2(ctx context.Context) (imds.Client, error) {
 	im, err := aws.NewInstanceMetadataClient(ctx)
 	return im, trace.Wrap(err)
 }
 
-func initAzure(ctx context.Context) (InstanceMetadata, error) {
+func initAzure(ctx context.Context) (imds.Client, error) {
 	return azure.NewInstanceMetadataClient(), nil
 }
 
 // DiscoverInstanceMetadata checks which cloud instance type Teleport is
 // running on, if any.
-func DiscoverInstanceMetadata(ctx context.Context) (InstanceMetadata, error) {
+func DiscoverInstanceMetadata(ctx context.Context) (imds.Client, error) {
 	ctx, cancel := context.WithTimeout(ctx, discoverInstanceMetadataTimeout)
 	defer cancel()
 
-	c := make(chan InstanceMetadata)
-	clients := make([]InstanceMetadata, 0, len(providers))
+	c := make(chan imds.Client)
+	clients := make([]imds.Client, 0, len(providers))
 	for _, constructor := range providers {
 		im, err := constructor(ctx)
 		if err != nil {
@@ -97,33 +82,4 @@ func DiscoverInstanceMetadata(ctx context.Context) (InstanceMetadata, error) {
 	case <-ctx.Done():
 		return nil, trace.NotFound("no instance metadata service found")
 	}
-}
-
-// DisabledIMDSClient is an EC2 instance metadata client that is always disabled. This is faster
-// than the default client when not testing instance metadata behavior.
-type DisabledIMDSClient struct{}
-
-// NewDisabledIMDSClient creates a new DisabledIMDSClient.
-func NewDisabledIMDSClient() InstanceMetadata {
-	return &DisabledIMDSClient{}
-}
-
-func (d *DisabledIMDSClient) IsAvailable(ctx context.Context) bool {
-	return false
-}
-
-func (d *DisabledIMDSClient) GetTags(ctx context.Context) (map[string]string, error) {
-	return nil, nil
-}
-
-func (d *DisabledIMDSClient) GetHostname(ctx context.Context) (string, error) {
-	return "", nil
-}
-
-func (d *DisabledIMDSClient) GetType() types.InstanceMetadataType {
-	return types.InstanceMetadataTypeDisabled
-}
-
-func (d *DisabledIMDSClient) GetID(ctx context.Context) (string, error) {
-	return "", nil
 }

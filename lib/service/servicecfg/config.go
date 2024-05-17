@@ -37,7 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/plugin"
@@ -237,7 +237,7 @@ type Config struct {
 	AdditionalReadyEvents []string
 
 	// InstanceMetadataClient specifies the instance metadata client.
-	InstanceMetadataClient cloud.InstanceMetadata
+	InstanceMetadataClient imds.Client
 
 	// Testing is a group of properties that are used in tests.
 	Testing ConfigTesting
