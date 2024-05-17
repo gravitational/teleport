@@ -370,6 +370,7 @@ func (a *Server) RegisterUsingAzureMethod(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	joinRequest = req.RegisterUsingTokenRequest
 
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
