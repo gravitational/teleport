@@ -1322,12 +1322,12 @@ func (p *databaseObjectParser) parse(event backend.Event) (types.Resource, error
 	case types.OpDelete:
 		return resourceHeader(event, types.KindDatabaseObject, types.V1, 0)
 	case types.OpPut:
-		resource, err := //nolint:staticcheck // SA1019. Using this unmarshaler for json compatibility.
-			services.FastUnmarshalProtoResourceDeprecated[*dbobjectv1.DatabaseObject](event.Item.Value,
-				services.WithResourceID(event.Item.ID),
-				services.WithExpires(event.Item.Expires),
-				services.WithRevision(event.Item.Revision),
-			)
+		//nolint:staticcheck // SA1019. Using this unmarshaler for json compatibility.
+		resource, err := services.FastUnmarshalProtoResourceDeprecated[*dbobjectv1.DatabaseObject](event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
