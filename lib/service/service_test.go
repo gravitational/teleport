@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -874,7 +875,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				Supervisor: NewSupervisor("process-id", cfg.Log),
 			}
 			conn := &Connector{
-				ServerIdentity: &auth.Identity{
+				ServerIdentity: &state.Identity{
 					Cert: &ssh.Certificate{
 						Permissions: ssh.Permissions{
 							Extensions: map[string]string{},
@@ -1038,7 +1039,7 @@ func Test_readOrGenerateHostID(t *testing.T) {
 	type args struct {
 		kubeBackend   *fakeKubeBackend
 		hostIDContent string
-		identity      []*auth.Identity
+		identity      []*state.Identity
 	}
 	tests := []struct {
 		name             string
@@ -1129,9 +1130,9 @@ func Test_readOrGenerateHostID(t *testing.T) {
 					getErr:  fmt.Errorf("key not found"),
 				},
 
-				identity: []*auth.Identity{
+				identity: []*state.Identity{
 					{
-						ID: auth.IdentityID{
+						ID: state.IdentityID{
 							HostUUID: id,
 						},
 					},
