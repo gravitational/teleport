@@ -109,28 +109,6 @@ func DefaultParserSpec[evaluationEnv any]() typical.ParserSpec[evaluationEnv] {
 				func(input string) (time.Time, error) {
 					return time.Parse(time.RFC3339, input)
 				}),
-		},
-		Methods: map[string]typical.Function{
-			"add": typical.BinaryVariadicFunction[evaluationEnv](
-				func(s Set, values ...string) (Set, error) {
-					return s.add(values...), nil
-				}),
-			"contains": typical.BinaryFunction[evaluationEnv](
-				func(s Set, str string) (bool, error) {
-					return s.contains(str), nil
-				}),
-			"put": typical.TernaryFunction[evaluationEnv](
-				func(d Dict, key string, value Set) (Dict, error) {
-					return d.put(key, value), nil
-				}),
-			"add_values": typical.TernaryVariadicFunction[evaluationEnv](
-				func(d Dict, key string, values ...string) (Dict, error) {
-					return d.addValues(key, values...), nil
-				}),
-			"remove": typical.BinaryVariadicFunction[evaluationEnv](
-				func(r remover, items ...string) (any, error) {
-					return r.remove(items...), nil
-				}),
 			"before": typical.BinaryFunction[evaluationEnv](
 				func(t time.Time, other time.Time) (bool, error) {
 					return t.Before(other), nil
@@ -162,6 +140,28 @@ func DefaultParserSpec[evaluationEnv any]() typical.ParserSpec[evaluationEnv] {
 			"is_empty": typical.UnaryFunction[evaluationEnv](
 				func(s Set) (bool, error) {
 					return len(s) == 0, nil
+				}),
+		},
+		Methods: map[string]typical.Function{
+			"add": typical.BinaryVariadicFunction[evaluationEnv](
+				func(s Set, values ...string) (Set, error) {
+					return s.add(values...), nil
+				}),
+			"contains": typical.BinaryFunction[evaluationEnv](
+				func(s Set, str string) (bool, error) {
+					return s.contains(str), nil
+				}),
+			"put": typical.TernaryFunction[evaluationEnv](
+				func(d Dict, key string, value Set) (Dict, error) {
+					return d.put(key, value), nil
+				}),
+			"add_values": typical.TernaryVariadicFunction[evaluationEnv](
+				func(d Dict, key string, values ...string) (Dict, error) {
+					return d.addValues(key, values...), nil
+				}),
+			"remove": typical.BinaryVariadicFunction[evaluationEnv](
+				func(r remover, items ...string) (any, error) {
+					return r.remove(items...), nil
 				}),
 		},
 	}
