@@ -109,7 +109,6 @@ func (r *TCPAppResolver) resolveTCPHandlerForCluster(
 	clt apiclient.GetResourcesClient,
 	profileName, leafClusterName, fqdn string,
 ) (handler TCPHandler, match bool, err error) {
-
 	// An app public_addr could technically be full-qualified or not, match either way.
 	expr := fmt.Sprintf(`(resource.spec.public_addr == "%s" || resource.spec.public_addr == "%s") && hasPrefix(resource.spec.uri, "tcp://")`,
 		strings.TrimSuffix(fqdn, "."), fqdn)

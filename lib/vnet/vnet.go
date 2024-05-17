@@ -87,9 +87,9 @@ func (c *Config) CheckAndSetDefaults() error {
 //
 // Implementations beware - an FQDN always ends with a '.'.
 type TCPHandlerResolver interface {
-	// ResolveTCPHandler decides if `fqdn` should match a TCP handler.
+	// ResolveTCPHandler decides if [fqdn] should match a TCP handler.
 	//
-	// If [fqdn] matches it must return a TCPHandler for future connections to any assigned IPs.
+	// If [fqdn] matches a Teleport-managed TCP app, it must return a TCPHandler for future connections to any assigned IPs.
 	//
 	// If [fqdn] does not match an app it must return with match == false && err == nil, in this case the DNS
 	// request will be forwarded to upstream nameservers. Only return a non-nil error for truly unexpected
@@ -533,12 +533,14 @@ func (m *Manager) resolveAAAA(ctx context.Context, fqdn string) (dns.Result, err
 	// Do the actual resolution within a [singleflight.Group] keyed by [fqdn] to avoid concurrent requests to
 	// resolve an FQDN and then assign an address to it.
 	resultAny, err, _ := m.resolveHandlerGroup.Do(fqdn, func() (any, error) {
+		// If we've already assigned an IPv6 address to this app, resolve to it.
 		if ip, ok := m.appIPv6(fqdn); ok {
 			return dns.Result{
 				AAAA: ip.As16(),
 			}, nil
 		}
 
+		// If fqdn is a Teleport-managed app, create a new [TCPHandler] for it.
 		tcpHandler, found, err := m.tcpHandlerResolver.ResolveTCPHandler(ctx, fqdn)
 		if err != nil {
 			return dns.Result{}, trace.Wrap(err, "resolving TCP handler for fqdn %q", fqdn)
@@ -548,11 +550,13 @@ func (m *Manager) resolveAAAA(ctx context.Context, fqdn string) (dns.Result, err
 			return dns.Result{}, nil
 		}
 
+		// Assign an unused IPv6 address to this app's [TCPHandler].
 		addr, err := m.assignTCPHandler(tcpHandler, fqdn)
 		if err != nil {
 			return dns.Result{}, trace.Wrap(err, "assigning address to handler for %q", fqdn)
 		}
 
+		// And resolve to the assigned address.
 		return dns.Result{
 			AAAA: addr.As16(),
 		}, nil
