@@ -22,7 +22,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
@@ -93,7 +92,7 @@ type AuthConfig struct {
 	PublicAddrs []utils.NetAddr
 
 	// KeyStore configuration. Handles CA private keys which may be held in a HSM.
-	KeyStore keystore.Config
+	KeyStore KeystoreConfig
 
 	// LoadAllCAs sends the host CAs of all clusters to SSH clients logging in when enabled,
 	// instead of just the host CA for the current cluster.
@@ -178,4 +177,34 @@ type HostedPluginsConfig struct {
 // 3rd party API provider
 type PluginOAuthProviders struct {
 	Slack *oauth2.ClientCredentials
+}
+
+// KeystoreConfig configures the auth keystore.
+type KeystoreConfig struct {
+	// PKCS11 holds configuration parameters specific to PKCS#11 keystores.
+	PKCS11 PKCS11Config
+	// GCPKMS holds configuration parameters specific to GCP KMS keystores.
+	GCPKMS GCPKMSConfig
+	// AWSKMS holds configuration parameter specific to AWS KMS keystores.
+	AWSKMS AWSKMSConfig
+}
+
+type PKCS11Config struct {
+	Path       string
+	SlotNumber *int
+	TokenLabel string
+	Pin        string
+	HostUUID   string
+}
+
+type GCPKMSConfig struct {
+	KeyRing         string
+	ProtectionLevel string
+	HostUUID        string
+}
+
+type AWSKMSConfig struct {
+	Cluster    string
+	AWSAccount string
+	AWSRegion  string
 }

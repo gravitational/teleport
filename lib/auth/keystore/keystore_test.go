@@ -370,12 +370,19 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 	})
 
 	if config, ok := softHSMTestConfig(t); ok {
-		config.PKCS11.HostUUID = hostUUID
-		backend, err := newPKCS11KeyStore(&config.PKCS11, logger)
+		cfg := PKCS11Config{
+			Path:       config.PKCS11.Path,
+			SlotNumber: config.PKCS11.SlotNumber,
+			TokenLabel: config.PKCS11.TokenLabel,
+			Pin:        config.PKCS11.Pin,
+			HostUUID:   hostUUID,
+		}
+
+		backend, err := newPKCS11KeyStore(&cfg, logger)
 		require.NoError(t, err)
 		backends = append(backends, &backendDesc{
 			name:            "softhsm",
-			config:          config,
+			config:          Config{PKCS11: cfg},
 			backend:         backend,
 			expectedKeyType: types.PrivateKeyType_PKCS11,
 			unusedRawKey:    unusedPKCS11Key,
@@ -383,12 +390,19 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 	}
 
 	if config, ok := yubiHSMTestConfig(t); ok {
-		config.PKCS11.HostUUID = hostUUID
-		backend, err := newPKCS11KeyStore(&config.PKCS11, logger)
+		cfg := PKCS11Config{
+			Path:       config.PKCS11.Path,
+			SlotNumber: config.PKCS11.SlotNumber,
+			TokenLabel: config.PKCS11.TokenLabel,
+			Pin:        config.PKCS11.Pin,
+			HostUUID:   hostUUID,
+		}
+
+		backend, err := newPKCS11KeyStore(&cfg, logger)
 		require.NoError(t, err)
 		backends = append(backends, &backendDesc{
 			name:            "yubihsm",
-			config:          config,
+			config:          Config{PKCS11: cfg},
 			backend:         backend,
 			expectedKeyType: types.PrivateKeyType_PKCS11,
 			unusedRawKey:    unusedPKCS11Key,
@@ -396,12 +410,18 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 	}
 
 	if config, ok := cloudHSMTestConfig(t); ok {
-		config.PKCS11.HostUUID = hostUUID
-		backend, err := newPKCS11KeyStore(&config.PKCS11, logger)
+		cfg := PKCS11Config{
+			Path:       config.PKCS11.Path,
+			SlotNumber: config.PKCS11.SlotNumber,
+			TokenLabel: config.PKCS11.TokenLabel,
+			Pin:        config.PKCS11.Pin,
+			HostUUID:   hostUUID,
+		}
+		backend, err := newPKCS11KeyStore(&cfg, logger)
 		require.NoError(t, err)
 		backends = append(backends, &backendDesc{
 			name:            "yubihsm",
-			config:          config,
+			config:          Config{PKCS11: cfg},
 			backend:         backend,
 			expectedKeyType: types.PrivateKeyType_PKCS11,
 			unusedRawKey:    unusedPKCS11Key,
@@ -409,12 +429,17 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 	}
 
 	if config, ok := gcpKMSTestConfig(t); ok {
-		config.GCPKMS.HostUUID = hostUUID
-		backend, err := newGCPKMSKeyStore(ctx, &config.GCPKMS, logger)
+		cfg := GCPKMSConfig{
+			KeyRing:         config.GCPKMS.KeyRing,
+			ProtectionLevel: config.GCPKMS.ProtectionLevel,
+			HostUUID:        hostUUID,
+		}
+
+		backend, err := newGCPKMSKeyStore(ctx, &cfg, logger)
 		require.NoError(t, err)
 		backends = append(backends, &backendDesc{
 			name:            "gcp_kms",
-			config:          config,
+			config:          Config{GCPKMS: cfg},
 			backend:         backend,
 			expectedKeyType: types.PrivateKeyType_GCP_KMS,
 			unusedRawKey: gcpKMSKeyID{

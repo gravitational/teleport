@@ -25,7 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -230,7 +230,7 @@ func newAuthConfig(t *testing.T, log utils.Logger) *servicecfg.Config {
 	config.SSH.Enabled = false
 	config.Proxy.Enabled = false
 	config.Log = log
-	config.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	config.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	config.MaxRetryPeriod = 25 * time.Millisecond
 	config.PollingPeriod = 2 * time.Second
 
@@ -271,7 +271,7 @@ func newProxyConfig(t *testing.T, authAddr utils.NetAddr, log utils.Logger) *ser
 	config.SetToken("foo")
 	config.SetAuthServerAddress(authAddr)
 	config.Log = log
-	config.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	config.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	config.MaxRetryPeriod = 25 * time.Millisecond
 	config.PollingPeriod = 2 * time.Second
 

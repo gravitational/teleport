@@ -504,7 +504,7 @@ func makeEKSKubeCluster(t *testing.T, name, region, accountID, overrideLabel str
 			overrideLabel: aws.String(name),
 		},
 	}
-	kubeCluster, err := services.NewKubeClusterFromAWSEKS(eksCluster)
+	kubeCluster, err := NewKubeClusterFromAWSEKS(eksCluster)
 	require.NoError(t, err)
 	require.True(t, kubeCluster.IsAWS())
 	return kubeCluster
@@ -523,7 +523,7 @@ func makeAKSKubeCluster(t *testing.T, name, location, group, subID string) types
 		},
 		Properties: azure.AKSClusterProperties{},
 	}
-	kubeCluster, err := services.NewKubeClusterFromAzureAKS(aksCluster)
+	kubeCluster, err := NewKubeClusterFromAzureAKS(aksCluster)
 	require.NoError(t, err)
 	require.True(t, kubeCluster.IsAzure())
 	return kubeCluster
@@ -541,7 +541,7 @@ func makeGKEKubeCluster(t *testing.T, name, location, projectID string) types.Ku
 		Description: "desc1",
 	}
 
-	kubeCluster, err := services.NewKubeClusterFromGCPGKE(gkeCluster)
+	kubeCluster, err := NewKubeClusterFromGCPGKE(gkeCluster)
 	require.NoError(t, err)
 	require.True(t, kubeCluster.IsGCP())
 	return kubeCluster
