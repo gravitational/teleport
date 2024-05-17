@@ -31,9 +31,14 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/discoveryconfig"
+	accessgraphui "github.com/gravitational/teleport/e/lib/web/ui/access_graph"
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/services"
@@ -48,6 +53,9 @@ const (
 	accessGraphStaticPathPrefix = "/static"
 	// accessGraphQueryPath is the path to the access graph query endpoint.
 	accessGraphQueryPath = "/query"
+	// accessGraphIntegrationPath is the path to the access graph integration endpoint.
+	// This endpoint is used to retrieve all the integrations that are available and enabled for the access graph.
+	accessGraphIntegrationPath = "/integrations"
 )
 
 func (p *Plugin) accessGraphHandler(h *web.Handler) httprouter.Handle {
@@ -56,6 +64,7 @@ func (p *Plugin) accessGraphHandler(h *web.Handler) httprouter.Handle {
 		accessGraphSupportsHTTP := p.getAccessGraphHTTPForwarder() != nil
 		isStaticFile := strings.HasPrefix(path, accessGraphStaticPathPrefix)
 		isQuery := strings.HasPrefix(path, accessGraphQueryPath)
+		isIntegration := strings.EqualFold(path, accessGraphIntegrationPath)
 		switch {
 		case isStaticFile && !accessGraphSupportsHTTP:
 			h.WithUnauthenticatedHighLimiter(p.getAccessGraphFileFallback)(w, r, params)
@@ -63,11 +72,14 @@ func (p *Plugin) accessGraphHandler(h *web.Handler) httprouter.Handle {
 			h.WithUnauthenticatedHighLimiter(p.getAccessGraphUsingHTTPUnauthenticated)(w, r, params)
 		case isQuery && !accessGraphSupportsHTTP:
 			h.WithAuth(p.queryAccessGraph)(w, r, params)
+		case isIntegration:
+			h.WithAuth(p.listIntegrations)(w, r, params)
 		case !accessGraphSupportsHTTP:
 			p.Log.Warnf("Teleport Proxy received a request but the access graph service is not reachable. Returning 404.")
 			// If the access graph service is not enabled, return 404.
 			w.WriteHeader(http.StatusNotFound)
 			return
+
 		default:
 			// use the new http router.
 			h.WithAuth(p.getAccessGraphUsingHTTPWithAuth)(w, r, params)
@@ -266,4 +278,121 @@ func (p *Plugin) submitUsageReport(usageReport *usageeventsv1.TAGExecuteQueryEve
 			p.Log.WithError(err).Warn("Failed to emit TAG usage event")
 		}
 	}()
+}
+
+// listIntegrations is a handler to list all the integrations that are available
+// and enabled for the access graph.
+func (p *Plugin) listIntegrations(_ http.ResponseWriter, r *http.Request, _ httprouter.Params, webCtx *web.SessionContext) (any, error) {
+	cl, err := webCtx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	integrations, err := listAllIntegrations(r.Context(), cl)
+	if trace.IsAccessDenied(err) {
+		return nil, trace.AccessDenied("not allowed to list integrations")
+	} else if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	discoveryConfigs, err := listAllDiscoveryConfigs(r.Context(), cl)
+	if trace.IsAccessDenied(err) {
+		return nil, trace.AccessDenied("not allowed to list discovery configs")
+	} else if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessGraphPlugins, err := listAllAccessGraphPlugins(r.Context(), cl)
+	if trace.IsAccessDenied(err) {
+		return nil, trace.AccessDenied("not allowed to list access graph plugins")
+	} else if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := accessgraphui.MakeListIntegrationResponse(discoveryConfigs, integrations, accessGraphPlugins)
+
+	return resp, nil
+}
+
+func listAllIntegrations(ctx context.Context, client authclient.ClientI) ([]types.Integration, error) {
+	var (
+		nextPage        string
+		page            []types.Integration
+		err             error
+		allIntegrations []types.Integration
+	)
+	for {
+		page, nextPage, err = client.ListIntegrations(ctx, 0, nextPage)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		allIntegrations = append(allIntegrations, page...)
+		if nextPage == "" {
+			break
+		}
+
+	}
+	return allIntegrations, nil
+}
+
+func listAllDiscoveryConfigs(ctx context.Context, client authclient.ClientI) ([]*discoveryconfig.DiscoveryConfig, error) {
+	dC := client.DiscoveryConfigClient()
+	var (
+		nextPage        string
+		page            []*discoveryconfig.DiscoveryConfig
+		err             error
+		allIntegrations []*discoveryconfig.DiscoveryConfig
+	)
+	for {
+		page, nextPage, err = dC.ListDiscoveryConfigs(ctx, 0, nextPage)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		for _, dc := range page {
+			if dc.Spec.AccessGraph == nil {
+				continue
+			}
+			allIntegrations = append(allIntegrations, dc)
+		}
+
+		if nextPage == "" {
+			break
+		}
+
+	}
+	return allIntegrations, nil
+
+}
+
+func listAllAccessGraphPlugins(ctx context.Context, client authclient.ClientI) ([]*types.PluginV1, error) {
+	var (
+		nextPage   string
+		allPlugins []*types.PluginV1
+	)
+	pluginsC := client.PluginsClient()
+	for {
+		rsp, err := pluginsC.ListPlugins(ctx, &pluginsv1.ListPluginsRequest{
+			PageSize:    apidefaults.DefaultChunkSize,
+			StartKey:    nextPage,
+			WithSecrets: false, /* don't return secrets */
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		for _, plugin := range rsp.GetPlugins() {
+			switch plugin.GetType() {
+			case types.PluginTypeGitlab, types.PluginTypeOkta:
+				allPlugins = append(allPlugins, plugin)
+			}
+		}
+		if rsp.GetNextKey() == "" {
+			break
+		}
+		nextPage = rsp.GetNextKey()
+
+	}
+	return allPlugins, nil
 }

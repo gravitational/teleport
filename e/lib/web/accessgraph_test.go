@@ -17,12 +17,17 @@
 package web
 
 import (
+	"context"
+	_ "embed"
 	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/discoveryconfig"
+	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/lib/modules"
 )
 
@@ -123,4 +128,148 @@ func TestGetAccessGraph(t *testing.T) {
 
 		})
 	}
+}
+
+//go:embed testdata/access_graph_integrations_response.json
+var expectedListIntegrationsResponse string
+
+func TestGetAccessGraphIntegrations(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{IdentityGovernanceSecurity: true, Policy: modules.PolicyFeature{Enabled: true}},
+	})
+
+	s := newWebSuite(t)
+	webPack := s.newAuthWebPack(t, "foo")
+	authClient := s.newAdminAuthClient(s.ctx, t)
+
+	ctx := context.Background()
+
+	disConfig1, err := discoveryconfig.NewDiscoveryConfig(
+		header.Metadata{Name: "discovery-config-1"}, discoveryconfig.Spec{
+			DiscoveryGroup: "discovery-group-1",
+			AccessGraph: &types.AccessGraphSync{
+				AWS: []*types.AccessGraphAWSSync{
+					{
+						Regions: []string{"us-west-1"},
+						AssumeRole: &types.AssumeRole{
+							RoleARN: "arn:aws:iam::123456789012:role/role-name",
+						},
+					},
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	_, err = authClient.DiscoveryConfigClient().UpsertDiscoveryConfig(ctx, disConfig1)
+	require.NoError(t, err)
+
+	disConfig2, err := discoveryconfig.NewDiscoveryConfig(
+		header.Metadata{Name: "discovery-config-2"}, discoveryconfig.Spec{
+			DiscoveryGroup: "discovery-group-1",
+			AccessGraph: &types.AccessGraphSync{
+				AWS: []*types.AccessGraphAWSSync{
+					{
+						Integration: "integration-1",
+						Regions:     []string{"us-west-1"},
+					},
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+	_, err = authClient.DiscoveryConfigClient().UpsertDiscoveryConfig(ctx, disConfig2)
+	require.NoError(t, err)
+
+	_, err = authClient.CreateIntegration(ctx, &types.IntegrationV1{
+		ResourceHeader: types.ResourceHeader{
+			Metadata: types.Metadata{
+				Name: "integration-1",
+			},
+			SubKind: types.IntegrationSubKindAWSOIDC,
+		},
+		Spec: types.IntegrationSpecV1{
+			SubKindSpec: &types.IntegrationSpecV1_AWSOIDC{
+				AWSOIDC: &types.AWSOIDCIntegrationSpecV1{
+					RoleARN: "arn:aws:iam::0987654321:role/role-name",
+				},
+			},
+		},
+	})
+
+	require.NoError(t, err)
+	_, err = authClient.PluginsClient().CreatePlugin(ctx, &pluginsv1.CreatePluginRequest{
+		Plugin: &types.PluginV1{
+			Kind:    types.KindPlugin,
+			SubKind: types.PluginSubkindAccessGraph,
+			Metadata: types.Metadata{
+				Name:   "gitlab",
+				Labels: map[string]string{},
+			},
+			Spec: types.PluginSpecV1{
+				Settings: &types.PluginSpecV1_Gitlab{
+					Gitlab: &types.PluginGitlabSettings{
+						ApiEndpoint: "https://gitlab.com",
+					},
+				},
+			},
+			Status: types.PluginStatusV1{
+				Code: types.PluginStatusCode_RUNNING,
+			},
+		},
+		StaticCredentials: &types.PluginStaticCredentialsV1{
+			ResourceHeader: types.ResourceHeader{
+				Metadata: types.Metadata{
+					Name: "integration-1",
+				},
+			},
+			Spec: &types.PluginStaticCredentialsSpecV1{
+				Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
+					APIToken: "token",
+				},
+			},
+		},
+	})
+
+	require.NoError(t, err)
+
+	_, err = authClient.PluginsClient().CreatePlugin(ctx, &pluginsv1.CreatePluginRequest{
+		Plugin: &types.PluginV1{
+			Kind: types.KindPlugin,
+			Metadata: types.Metadata{
+				Name:   "okta",
+				Labels: map[string]string{},
+			},
+			Spec: types.PluginSpecV1{
+				Settings: &types.PluginSpecV1_Okta{
+					Okta: &types.PluginOktaSettings{
+						OrgUrl: "https://ultraorg.okta.com",
+					},
+				},
+			},
+			Status: types.PluginStatusV1{
+				Code: types.PluginStatusCode_RUNNING,
+			},
+		},
+		StaticCredentials: &types.PluginStaticCredentialsV1{
+			ResourceHeader: types.ResourceHeader{
+				Metadata: types.Metadata{
+					Name: "integration-2",
+				},
+			},
+			Spec: &types.PluginStaticCredentialsSpecV1{
+				Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
+					APIToken: "token",
+				},
+			},
+		},
+	})
+
+	require.NoError(t, err)
+
+	endpoint := webPack.clt.Endpoint("enterprise", "accessgraph", "integrations")
+	resp, err := webPack.clt.Get(s.ctx, endpoint, url.Values{})
+	require.NoError(t, err)
+
+	require.JSONEq(t, expectedListIntegrationsResponse, string(resp.Bytes()))
 }
