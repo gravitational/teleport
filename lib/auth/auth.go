@@ -337,6 +337,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 	}
 
+	if cfg.SCIMResource == nil {
+		cfg.SCIMResource, err = local.NewSCIMService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
 		MaxConnections: defaults.LimiterMaxConcurrentSignatures,
 	})
@@ -423,6 +430,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Notifications:             cfg.Notifications,
 		AccessMonitoringRules:     cfg.AccessMonitoringRules,
 		CrownJewels:               cfg.CrownJewels,
+		SCIMResource:              cfg.SCIMResource,
 	}
 
 	as := Server{
@@ -601,6 +609,7 @@ type Services struct {
 	services.KubeWaitingContainer
 	services.AccessMonitoringRules
 	services.CrownJewels
+	services.SCIMResource
 }
 
 // SecReportsClient returns the security reports client.
@@ -635,6 +644,10 @@ func (r *Services) OktaClient() services.Okta {
 // service on the other end will return "NotImplemented" for every call.
 func (r *Services) SCIMClient() services.SCIM {
 	return r.SCIM
+}
+
+func (r *Services) SCIMResourceClient() services.SCIMResource {
+	return r.SCIMResource
 }
 
 // AccessListClient returns the access list client.

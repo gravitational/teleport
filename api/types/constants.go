@@ -526,6 +526,9 @@ const (
 	// KindVnetConfig is a resource which holds cluster-wide configuration for VNet.
 	KindVnetConfig = "vnet_config"
 
+	// KindSCIMResource is a SCIM resource.
+	KindSCIMResource = "scim"
+
 	// V7 is the seventh version of resources.
 	V7 = "v7"
 

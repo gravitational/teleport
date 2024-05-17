@@ -262,6 +262,9 @@ type InitConfig struct {
 	// UserLoginStates is a service that manages user login states.
 	UserLoginState services.UserLoginStates
 
+	// SCIMResource is a service that manages SCIM resources.
+	SCIMResource services.SCIMResource
+
 	// SecReports is a service that manages security reports.
 	SecReports services.SecReports
 

@@ -23,6 +23,7 @@ import "teleport/discoveryconfig/v1/discoveryconfig.proto";
 import "teleport/kubewaitingcontainer/v1/kubewaitingcontainer.proto";
 import "teleport/legacy/types/types.proto";
 import "teleport/notifications/v1/notifications.proto";
+import "teleport/scim/v1/scim_service.proto";
 import "teleport/secreports/v1/secreports.proto";
 import "teleport/userloginstate/v1/userloginstate.proto";
 
@@ -162,5 +163,7 @@ message Event {
     teleport.notifications.v1.GlobalNotification GlobalNotification = 57;
     // CrownJewel is a Crown Jewel resource.
     teleport.crownjewel.v1.CrownJewel CrownJewel = 58;
+    // SCIMResourceItem is a SCIM resource item.
+    teleport.scim.v1.ResourceItem SCIMResourceItem = 59;
   }
 }

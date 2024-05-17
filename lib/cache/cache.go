@@ -21,6 +21,7 @@ package cache
 import (
 	"context"
 	"fmt"
+	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -176,6 +177,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindNotification},
 		{Kind: types.KindGlobalNotification},
 		{Kind: types.KindAccessMonitoringRule},
+		{Kind: types.KindSCIMResource},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -555,6 +557,7 @@ type Cache struct {
 	kubeWaitingContsCache        *local.KubeWaitingContainerService
 	notificationsCache           services.Notifications
 	accessMontoringRuleCache     services.AccessMonitoringRules
+	scimResourceCache            services.SCIMResource
 
 	// closed indicates that the cache has been closed
 	closed atomic.Bool
@@ -687,6 +690,8 @@ type Config struct {
 	Kubernetes services.Kubernetes
 	// CrownJewels is a CrownJewels service.
 	CrownJewels services.CrownJewels
+	// SCIMResource is a SCIM resource service.
+	SCIMResource services.SCIMResource
 	// DatabaseServices is a DatabaseService service.
 	DatabaseServices services.DatabaseServices
 	// Databases is a databases service.
@@ -954,6 +959,12 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	scimResourceCache, err := local.NewSCIMService(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
 	cs := &Cache{
 		ctx:                          ctx,
 		cancel:                       cancel,
@@ -971,6 +982,7 @@ func New(config Config) (*Cache, error) {
 		appsCache:                    local.NewAppService(config.Backend),
 		kubernetesCache:              local.NewKubernetesService(config.Backend),
 		crownJewelsCache:             crownJewelCache,
+		scimResourceCache:            scimResourceCache,
 		databaseServicesCache:        local.NewDatabaseServicesService(config.Backend),
 		databasesCache:               local.NewDatabasesService(config.Backend),
 		appSessionCache:              local.NewIdentityService(config.Backend),
@@ -3230,4 +3242,30 @@ func (c *Cache) ListResources(ctx context.Context, req proto.ListResourcesReques
 	}
 
 	return rg.reader.ListResources(ctx, req)
+}
+
+// ListSCIMUserResources returns a paginated list of SCIM user resources.
+func (c *Cache) ListSCIMUserResources(ctx context.Context, pageSize int64, lastKey string) ([]*scimpb.ResourceItem, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListSCIMUserResources")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.resourceSCIM)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListSCIMUserResources(ctx, pageSize, lastKey)
+}
+
+// GetSCIMUserResource returns the specified CrownJewel resource.
+func (c *Cache) GetSCIMUserResource(ctx context.Context, name string) (*scimpb.ResourceItem, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetSCIMUserResource")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.resourceSCIM)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.GetSCIMUserResource(ctx, name)
 }

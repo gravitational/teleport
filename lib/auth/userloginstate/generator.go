@@ -20,7 +20,6 @@ package userloginstate
 
 import (
 	"context"
-
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -198,6 +197,7 @@ func (g *Generator) addAccessListsToState(ctx context.Context, user types.User, 
 
 		if err := g.memberChecker.IsAccessListMember(ctx, identity, accessList); err == nil {
 			g.grantRolesAndTraits(identity, accessList.Spec.Grants, state)
+		} else {
 		}
 	}
 

@@ -22,6 +22,7 @@ package cache
 import (
 	"context"
 	"fmt"
+	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
 
 	"github.com/gravitational/trace"
 
@@ -189,6 +190,11 @@ type crownjewelsGetter interface {
 	GetCrownJewel(ctx context.Context, name string) (*crownjewelv1.CrownJewel, error)
 }
 
+type resourcesSCIMGetter interface {
+	ListSCIMUserResources(ctx context.Context, pageSize int64, lastKey string) ([]*scimpb.ResourceItem, string, error)
+	GetSCIMUserResource(ctx context.Context, name string) (*scimpb.ResourceItem, error)
+}
+
 // cacheCollections is a registry of resource collections used by Cache.
 type cacheCollections struct {
 	// byKind is a map of registered collections by resource Kind/SubKind
@@ -246,6 +252,7 @@ type cacheCollections struct {
 	userNotifications        collectionReader[notificationGetter]
 	globalNotifications      collectionReader[notificationGetter]
 	accessMonitoringRules    collectionReader[accessMonitoringRuleGetter]
+	resourceSCIM             collectionReader[resourcesSCIMGetter]
 }
 
 // setupCollections returns a registry of collections.
@@ -720,6 +727,12 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 			}
 			collections.accessMonitoringRules = &genericCollection[*accessmonitoringrulesv1.AccessMonitoringRule, accessMonitoringRuleGetter, accessMonitoringRulesExecutor]{cache: c, watch: watch}
 			collections.byKind[resourceKind] = collections.accessMonitoringRules
+		case types.KindSCIMResource:
+			if c.SCIMResource == nil {
+				return nil, trace.BadParameter("missing parameter ResourcesSCIM")
+			}
+			collections.resourceSCIM = &genericCollection[*scimpb.ResourceItem, resourcesSCIMGetter, resourceSCIMExecutor]{cache: c, watch: watch}
+			collections.byKind[resourceKind] = collections.resourceSCIM
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}
@@ -3171,3 +3184,47 @@ type accessMonitoringRuleGetter interface {
 	GetAccessMonitoringRule(ctx context.Context, name string) (*accessmonitoringrulesv1.AccessMonitoringRule, error)
 	ListAccessMonitoringRules(ctx context.Context, limit int, startKey string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
 }
+
+type resourceSCIMExecutor struct{}
+
+func (resourceSCIMExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*scimpb.ResourceItem, error) {
+	var resources []*scimpb.ResourceItem
+	var nextToken string
+	for {
+		var page []*scimpb.ResourceItem
+		var err error
+		page, nextToken, err = cache.scimResourceCache.ListSCIMUserResources(ctx, 0 /* page size */, nextToken)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resources = append(resources, page...)
+		if nextToken == "" {
+			break
+		}
+	}
+	return resources, nil
+}
+
+func (resourceSCIMExecutor) upsert(ctx context.Context, cache *Cache, resource *scimpb.ResourceItem) error {
+	_, err := cache.scimResourceCache.UpsertSCIMUserResource(ctx, resource)
+	return trace.Wrap(err)
+}
+
+func (resourceSCIMExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.scimResourceCache.DeleteAllSCIMUserResources(ctx)
+}
+
+func (resourceSCIMExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return cache.scimResourceCache.DeleteSCIMUserResource(ctx, resource.GetName())
+}
+
+func (resourceSCIMExecutor) isSingleton() bool { return false }
+
+func (resourceSCIMExecutor) getReader(cache *Cache, cacheOK bool) resourcesSCIMGetter {
+	if cacheOK {
+		return cache.scimResourceCache
+	}
+	return cache.Config.SCIMResource
+}
+
+var _ executor[*scimpb.ResourceItem, resourcesSCIMGetter] = resourceSCIMExecutor{}

@@ -611,6 +611,10 @@ func (c *Client) SCIMClient() services.SCIM {
 	return c.APIClient.SCIMClient()
 }
 
+func (c *Client) SCIMResource() services.SCIMResource {
+	return c.APIClient.SCIMResource()
+}
+
 // SecReportsClient returns a client for security reports.
 func (c *Client) SecReportsClient() *secreport.Client {
 	return c.APIClient.SecReportsClient()
@@ -1564,6 +1568,9 @@ type ClientI interface {
 	// but the back-end service will fail all requests with "Not Implemented" as per the
 	// default GRPC behavior.
 	SCIMClient() services.SCIM
+
+	// SCIMResource returns a SCIM resource client.
+	SCIMResource() services.SCIMResource
 
 	// AccessListClient returns an access list client.
 	// Clients connecting to older Teleport versions still get an access list client

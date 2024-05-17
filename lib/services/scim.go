@@ -18,7 +18,6 @@ package services
 
 import (
 	"context"
-
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
@@ -32,4 +31,14 @@ type SCIM interface {
 	UpdateSCIMResource(context.Context, *scimpb.UpdateSCIMResourceRequest) (*scimpb.Resource, error)
 	CreateSCIMResource(context.Context, *scimpb.CreateSCIMResourceRequest) (*scimpb.Resource, error)
 	DeleteSCIMResource(context.Context, *scimpb.DeleteSCIMResourceRequest) (*emptypb.Empty, error)
+}
+
+type SCIMResource interface {
+	ListSCIMUserResources(ctx context.Context, pageSize int64, lastKey string) ([]*scimpb.ResourceItem, string, error)
+	GetSCIMUserResource(ctx context.Context, name string) (*scimpb.ResourceItem, error)
+	CreateSCIMUserResource(ctx context.Context, item *scimpb.ResourceItem) (*scimpb.ResourceItem, error)
+	UpdateSCIMUserResource(ctx context.Context, item *scimpb.ResourceItem) (*scimpb.ResourceItem, error)
+	UpsertSCIMUserResource(ctx context.Context, item *scimpb.ResourceItem) (*scimpb.ResourceItem, error)
+	DeleteSCIMUserResource(ctx context.Context, name string) error
+	DeleteAllSCIMUserResources(ctx context.Context) error
 }

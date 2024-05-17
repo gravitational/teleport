@@ -19,6 +19,7 @@ package teleport.scim.v1;
 import "google/protobuf/empty.proto";
 import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
+import "teleport/header/v1/metadata.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1;scimv1";
 
@@ -147,4 +148,18 @@ message RequestTarget {
 message Page {
   uint64 start_index = 1;
   uint64 count = 2;
+}
+
+// ResourceItem is a wrapper around a resource that includes a header
+message ResourceItem {
+  // The kind of resource represented.
+  string kind = 1;
+  // Mandatory field for all resources. Not populated for this resource type.
+  string sub_kind = 2;
+  // The version of the resource being represented.
+  string version = 3;
+  // Common metadata that all resources share.
+  teleport.header.v1.Metadata metadata = 4;
+  // Spec is the resource itself
+  Resource spec = 5;
 }

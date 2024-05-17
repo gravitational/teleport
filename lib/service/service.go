@@ -2528,6 +2528,10 @@ type accessPointWrapper struct {
 	authclient.ClientI
 }
 
+func (a accessPointWrapper) SCIMResourceClient() services.SCIMResource {
+	return a.ClientI.SCIMResource()
+}
+
 func (a accessPointWrapper) CrownJewelClient() services.CrownJewels {
 	return a.ClientI.CrownJewelServiceClient()
 }

@@ -47,6 +47,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	scimv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -3154,6 +3155,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindGlobalNotification:      types.Resource153ToLegacy(newGlobalNotification(t, "test")),
 		types.KindAccessMonitoringRule:    types.Resource153ToLegacy(newAccessMonitoringRule(t)),
 		types.KindCrownJewel:              types.Resource153ToLegacy(newCrownJewel(t, "test")),
+		types.KindSCIMResource:            types.Resource153ToLegacy(newSCIMResource(t, "test")),
 	}
 
 	for name, cfg := range cases {
@@ -3615,6 +3617,16 @@ func newCrownJewel(t *testing.T, name string) *crownjewelv1.CrownJewel {
 	}
 
 	return crownJewel
+}
+
+func newSCIMResource(t *testing.T, name string) *scimv1.ResourceItem {
+	t.Helper()
+	item := &scimv1.ResourceItem{
+		Metadata: &headerv1.Metadata{
+			Name: name,
+		},
+	}
+	return item
 }
 
 func newUserNotification(t *testing.T, name string) *notificationsv1.Notification {

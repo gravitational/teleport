@@ -57,6 +57,7 @@ type Services interface {
 	DiscoveryConfigClient() DiscoveryConfigs
 	SecReportsClient() *secreport.Client
 	CrownJewelClient() CrownJewels
+	SCIMResourceClient() SCIMResource
 }
 
 // RotationGetter returns the rotation state.

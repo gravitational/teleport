@@ -134,6 +134,7 @@ func NewAccessCache(cfg AccessCacheConfig) (*cache.Cache, error) {
 		Apps:                    cfg.Services,
 		Kubernetes:              cfg.Services,
 		CrownJewels:             cfg.Services.CrownJewelClient(),
+		SCIMResource:            cfg.Services.SCIMResourceClient(),
 		DatabaseServices:        cfg.Services,
 		Databases:               cfg.Services,
 		AppSession:              cfg.Services,

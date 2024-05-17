@@ -4640,6 +4640,10 @@ func (c *Client) SCIMClient() *scim.Client {
 	return scim.NewClientFromConn(c.conn)
 }
 
+func (c *Client) SCIMResource() *scim.ResourceClient {
+	return &scim.ResourceClient{}
+}
+
 // AccessListClient returns an access list client.
 // Clients connecting to  older Teleport versions, still get an access list client
 // when calling this method, but all RPCs will return "not implemented" errors
