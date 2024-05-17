@@ -72,6 +72,7 @@ type AuthCommand struct {
 	dbUser                     string
 	windowsUser                string
 	windowsDomain              string
+	windowsPKIDomain           string
 	windowsSID                 string
 	signOverwrite              bool
 	password                   string
@@ -142,6 +143,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 	a.authSign.Flag("db-name", `Database name placed on the identity file. Only used when "--db-service" is set.`).StringVar(&a.dbName)
 	a.authSign.Flag("windows-user", `Window user placed on the identity file. Only used when --format is set to "windows"`).StringVar(&a.windowsUser)
 	a.authSign.Flag("windows-domain", `Active Directory domain for which this cert is valid. Only used when --format is set to "windows"`).StringVar(&a.windowsDomain)
+	a.authSign.Flag("windows-pki-domain", `Active Directory domain where CRLs will be located. Only used when --format is set to "windows"`).StringVar(&a.windowsPKIDomain)
 	a.authSign.Flag("windows-sid", `Optional Security Identifier to embed in the certificate. Only used when --format is set to "windows"`).StringVar(&a.windowsSID)
 
 	a.authRotate = auth.Command("rotate", "Rotate certificate authorities in the cluster.")
@@ -333,6 +335,11 @@ func (a *AuthCommand) generateWindowsCert(ctx context.Context, clusterAPI certif
 		return trace.Wrap(err)
 	}
 
+	domain := a.windowsDomain
+	if a.windowsPKIDomain != "" {
+		domain = a.windowsPKIDomain
+	}
+
 	certDER, _, err := windows.GenerateWindowsDesktopCredentials(ctx, &windows.GenerateCredentialsRequest{
 		CAType:             types.UserCA,
 		Username:           a.windowsUser,
@@ -340,7 +347,7 @@ func (a *AuthCommand) generateWindowsCert(ctx context.Context, clusterAPI certif
 		ActiveDirectorySID: a.windowsSID,
 		TTL:                a.genTTL,
 		ClusterName:        cn.GetClusterName(),
-		LDAPConfig:         windows.LDAPConfig{Domain: a.windowsDomain},
+		LDAPConfig:         windows.LDAPConfig{Domain: domain},
 		AuthClient:         clusterAPI,
 	})
 	if err != nil {
