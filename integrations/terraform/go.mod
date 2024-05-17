@@ -33,6 +33,7 @@ require (
 	cloud.google.com/go/iam v1.1.8 // indirect
 	cloud.google.com/go/kms v1.15.9 // indirect
 	cloud.google.com/go/longrunning v0.5.6 // indirect
+	cloud.google.com/go/resourcemanager v1.9.7 // indirect
 	cloud.google.com/go/spanner v1.60.0 // indirect
 	cloud.google.com/go/storage v1.40.0 // indirect
 	connectrpc.com/connect v1.16.1 // indirect
