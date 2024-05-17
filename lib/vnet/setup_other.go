@@ -21,6 +21,7 @@ package vnet
 
 import (
 	"context"
+	"net"
 	"runtime"
 
 	"github.com/gravitational/trace"
@@ -38,11 +39,15 @@ func createAndSetupTUNDeviceWithoutRoot(ctx context.Context, ipv6Prefix, dnsAddr
 	return nil, errCh
 }
 
+func createUnixSocket() (*net.UnixListener, string, error) {
+	return nil, "", trace.Wrap(ErrVnetNotImplemented)
+}
+
 func sendTUNNameAndFd(socketPath, tunName string, fd uintptr) error {
 	return trace.Wrap(ErrVnetNotImplemented)
 }
 
-func receiveTUNDevice(ctx context.Context, socket *net.UnixListener) (tun.Device, error) {
+func receiveTUNDevice(socket *net.UnixListener) (tun.Device, error) {
 	return nil, trace.Wrap(ErrVnetNotImplemented)
 }
 
