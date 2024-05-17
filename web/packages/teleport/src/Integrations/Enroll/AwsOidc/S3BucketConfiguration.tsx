@@ -63,7 +63,8 @@ export function S3BucketConfiguration({
             <Text>
               Bucket name can consist only of lowercase letters and numbers.
               Hyphens (-) are allowed in between letters and numbers. An
-              existing bucket might be used, but it must have ACL enabled.
+              existing bucket might be used, but it must have Access Control
+              Lists (ACL) enabled.
             </Text>
           }
         />
