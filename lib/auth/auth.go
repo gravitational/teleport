@@ -3534,6 +3534,37 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 		return nil, trace.BadParameter("unexpected second factor type: %s", sf)
 	}
 
+	canDeleteLastPasskey := func() (bool, error) {
+		if !authPref.GetAllowPasswordless() || numResidentKeys > 1 || !isResidentKey(deviceToDelete) {
+			return true, nil
+		}
+
+		u, err := a.Services.GetUser(ctx, user, false /* withSecrets */)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		if u.GetPasswordState() != types.PasswordState_PASSWORD_STATE_SET {
+			return false, nil
+		}
+
+		// Minimum number of WebAuthn devices includes the passkey that we attempt
+		// to delete, hence 2.
+		if sfToCount[constants.SecondFactorWebauthn] >= 2 {
+			return true, nil
+		}
+
+		// Whether we take TOTPs into consideration or not depends on whether it's
+		// enabled.
+		switch sf := authPref.GetSecondFactor(); sf {
+		case constants.SecondFactorOTP, constants.SecondFactorOn, constants.SecondFactorOptional:
+			if sfToCount[constants.SecondFactorOTP] >= 1 {
+				return true, nil
+			}
+		}
+
+		return false, nil
+	}
+
 	// Stop users from deleting their last resident key. This prevents
 	// passwordless users from locking themselves out, at the cost of not letting
 	// regular users do it either.
@@ -3544,7 +3575,11 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 	//
 	// TODO(codingllama): Check if the last login type used was passwordless, if
 	//  not then we could let this device be deleted.
-	if authPref.GetAllowPasswordless() && numResidentKeys == 1 && isResidentKey(deviceToDelete) {
+	can, err := canDeleteLastPasskey()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !can {
 		return nil, trace.BadParameter("cannot delete last passwordless credential for user")
 	}
 
