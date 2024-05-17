@@ -417,7 +417,7 @@ func (a *App) getMessageRecipients(ctx context.Context, req types.AccessRequest)
 	recipients.ForEach(func(r common.Recipient) {
 		recipientSet.Add(r)
 	})
-	if len(recipientSet.ToSlice()) != 0 {
+	if recipientSet.Len() != 0 {
 		return recipientSet.ToSlice()
 	}
 
