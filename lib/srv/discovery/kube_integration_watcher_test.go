@@ -499,7 +499,7 @@ func mustConvertEKSToKubeServerV1(t *testing.T, eksCluster *eksV1.Cluster, resou
 	eksCluster.Tags[types.OriginLabel] = aws.String(types.OriginCloud)
 	eksCluster.Tags[types.InternalResourceIDLabel] = aws.String(resourceID)
 
-	kubeCluster, err := services.NewKubeClusterFromAWSEKS(aws.ToString(eksCluster.Name), aws.ToString(eksCluster.Arn), eksCluster.Tags)
+	kubeCluster, err := common.NewKubeClusterFromAWSEKS(aws.ToString(eksCluster.Name), aws.ToString(eksCluster.Arn), eksCluster.Tags)
 	assert.NoError(t, err)
 
 	kubeClusterV3 := kubeCluster.(*types.KubernetesClusterV3)
@@ -518,7 +518,7 @@ func mustConvertEKSToKubeServerV2(t *testing.T, eksCluster *eksTypes.Cluster, re
 	eksTags[types.OriginLabel] = aws.String(types.OriginCloud)
 	eksTags[types.InternalResourceIDLabel] = aws.String(resourceID)
 
-	kubeCluster, err := services.NewKubeClusterFromAWSEKS(aws.ToString(eksCluster.Name), aws.ToString(eksCluster.Arn), eksTags)
+	kubeCluster, err := common.NewKubeClusterFromAWSEKS(aws.ToString(eksCluster.Name), aws.ToString(eksCluster.Arn), eksTags)
 	assert.NoError(t, err)
 
 	kubeClusterV3 := kubeCluster.(*types.KubernetesClusterV3)

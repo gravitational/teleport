@@ -31,7 +31,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/imds"
 )
 
 const (
@@ -52,7 +52,7 @@ const (
 
 // CloudConfig is the configuration for a cloud label service.
 type CloudConfig struct {
-	Client               cloud.InstanceMetadata
+	Client               imds.Client
 	Clock                clockwork.Clock
 	Log                  logrus.FieldLogger
 	namespace            string

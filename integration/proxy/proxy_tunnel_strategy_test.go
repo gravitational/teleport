@@ -38,7 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
@@ -336,7 +336,7 @@ func (p *proxyTunnelStrategy) makeProxy(t *testing.T) {
 	conf.SetToken("token")
 	conf.DataDir = t.TempDir()
 	conf.Log = proxy.Log
-	conf.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	conf.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 
 	conf.Auth.Enabled = false
 	conf.SSH.Enabled = false
@@ -381,7 +381,7 @@ func (p *proxyTunnelStrategy) makeNode(t *testing.T) {
 	conf.SetToken("token")
 	conf.DataDir = t.TempDir()
 	conf.Log = node.Log
-	conf.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	conf.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 
 	conf.Auth.Enabled = false
 	conf.Proxy.Enabled = false
@@ -426,7 +426,7 @@ func (p *proxyTunnelStrategy) makeDatabase(t *testing.T) {
 	conf.SetToken("token")
 	conf.DataDir = t.TempDir()
 	conf.Log = db.Log
-	conf.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	conf.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 
 	conf.Auth.Enabled = false
 	conf.Proxy.Enabled = false
