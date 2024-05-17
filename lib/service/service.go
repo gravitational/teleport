@@ -89,6 +89,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/accesspoint"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keygen"
+	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/authz"
@@ -1890,7 +1891,27 @@ func (process *TeleportProcess) initAuthService() error {
 			OIDCConnectors:          cfg.OIDCConnectors,
 			AuditLog:                process.auditLog,
 			CipherSuites:            cfg.CipherSuites,
-			KeyStoreConfig:          cfg.Auth.KeyStore,
+			KeyStoreConfig: keystore.Config{
+				PKCS11: keystore.PKCS11Config{
+					Path:       cfg.Auth.KeyStore.PKCS11.Path,
+					SlotNumber: cfg.Auth.KeyStore.PKCS11.SlotNumber,
+					TokenLabel: cfg.Auth.KeyStore.PKCS11.TokenLabel,
+					Pin:        cfg.Auth.KeyStore.PKCS11.Pin,
+					HostUUID:   cfg.Auth.KeyStore.PKCS11.HostUUID,
+				},
+				GCPKMS: keystore.GCPKMSConfig{
+					KeyRing:         cfg.Auth.KeyStore.GCPKMS.KeyRing,
+					ProtectionLevel: cfg.Auth.KeyStore.GCPKMS.ProtectionLevel,
+					HostUUID:        cfg.Auth.KeyStore.GCPKMS.HostUUID,
+				},
+				AWSKMS: keystore.AWSKMSConfig{
+					Cluster:      cfg.Auth.KeyStore.AWSKMS.Cluster,
+					AWSAccount:   cfg.Auth.KeyStore.AWSKMS.AWSAccount,
+					AWSRegion:    cfg.Auth.KeyStore.AWSKMS.AWSRegion,
+					CloudClients: cloudClients,
+				},
+				Logger: process.log,
+			},
 			Emitter:                 checkingEmitter,
 			Streamer:                events.NewReportingStreamer(streamer, process.Config.Testing.UploadEventsC),
 			TraceClient:             traceClt,
