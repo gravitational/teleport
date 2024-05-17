@@ -228,27 +228,25 @@ func (a *App) handleAccessMonitoringRule(ctx context.Context, event types.Event)
 		return trace.BadParameter("expected %s resource kind, got %s", types.KindAccessMonitoringRule, kind)
 	}
 
-	e, ok := event.Resource.(types.Resource153Unwrapper)
-	if !ok {
-		return trace.BadParameter("expected Resource153Unwrapper resource type, got %T", event.Resource)
-	}
-	req, ok := e.Unwrap().(*accessmonitoringrulesv1.AccessMonitoringRule)
-	if !ok {
-		return trace.BadParameter("expected AccessMonitoringRule resource type, got %T", event.Resource)
-	}
-
-	if !a.amrAppliesToThisPlugin(req) {
-		return nil
-	}
-
 	a.accessMonitoringRules.Lock()
 	defer a.accessMonitoringRules.Unlock()
 	switch op := event.Type; op {
 	case types.OpPut:
+		e, ok := event.Resource.(types.Resource153Unwrapper)
+		if !ok {
+			return trace.BadParameter("expected Resource153Unwrapper resource type, got %T", event.Resource)
+		}
+		req, ok := e.Unwrap().(*accessmonitoringrulesv1.AccessMonitoringRule)
+		if !ok {
+			return trace.BadParameter("expected AccessMonitoringRule resource type, got %T", event.Resource)
+		}
+		if !a.amrAppliesToThisPlugin(req) {
+			return nil
+		}
 		a.accessMonitoringRules.rules[req.Metadata.Name] = req
 		return nil
 	case types.OpDelete:
-		delete(a.accessMonitoringRules.rules, req.Metadata.Name)
+		delete(a.accessMonitoringRules.rules, event.Resource.GetName())
 		return nil
 	default:
 		return trace.BadParameter("unexpected event operation %s", op)
@@ -416,7 +414,7 @@ func (a *App) getMessageRecipients(ctx context.Context, req types.AccessRequest)
 	recipientSet := common.NewRecipientSet()
 
 	recipients := a.recipientsFromAccessMonitoringRules(ctx, req)
-	recipients.ForEach(func(r common.Recipient){
+	recipients.ForEach(func(r common.Recipient) {
 		recipientSet.Add(r)
 	})
 	if len(recipientSet.ToSlice()) != 0 {
