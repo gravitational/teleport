@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/circleci"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
@@ -62,7 +63,7 @@ import (
 // LocalRegister is used to generate host keys when a node or proxy is running
 // within the same process as the Auth Server and as such, does not need to
 // use provisioning tokens.
-func LocalRegister(id IdentityID, authServer *Server, additionalPrincipals, dnsNames []string, remoteAddr string, systemRoles []types.SystemRole) (*Identity, error) {
+func LocalRegister(id state.IdentityID, authServer *Server, additionalPrincipals, dnsNames []string, remoteAddr string, systemRoles []types.SystemRole) (*state.Identity, error) {
 	priv, pub, err := native.GenerateKeyPair()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -95,7 +96,7 @@ func LocalRegister(id IdentityID, authServer *Server, additionalPrincipals, dnsN
 		return nil, trace.Wrap(err)
 	}
 
-	identity, err := ReadIdentityFromKeyPair(priv, certs)
+	identity, err := state.ReadIdentityFromKeyPair(priv, certs)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -116,7 +117,7 @@ type RegisterParams struct {
 	// Token is a secure token to join the cluster
 	Token string
 	// ID is identity ID
-	ID IdentityID
+	ID state.IdentityID
 	// AuthServers is a list of auth servers to dial
 	AuthServers []utils.NetAddr
 	// ProxyServer is a proxy server to dial
@@ -842,7 +843,7 @@ type ReRegisterParams struct {
 	// Client is an authenticated client using old credentials
 	Client authclient.ClientI
 	// ID is identity ID
-	ID IdentityID
+	ID state.IdentityID
 	// AdditionalPrincipals is a list of additional principals to dial
 	AdditionalPrincipals []string
 	// DNSNames is a list of DNS Names to add to the x509 client certificate
@@ -860,7 +861,7 @@ type ReRegisterParams struct {
 }
 
 // ReRegister renews the certificates and private keys based on the client's existing identity.
-func ReRegister(ctx context.Context, params ReRegisterParams) (*Identity, error) {
+func ReRegister(ctx context.Context, params ReRegisterParams) (*state.Identity, error) {
 	var rotation *types.Rotation
 	if !params.Rotation.IsZero() {
 		// older auths didn't distinguish between empty and nil rotation
@@ -884,5 +885,5 @@ func ReRegister(ctx context.Context, params ReRegisterParams) (*Identity, error)
 		return nil, trace.Wrap(err)
 	}
 
-	return ReadIdentityFromKeyPair(params.PrivateKey, certs)
+	return state.ReadIdentityFromKeyPair(params.PrivateKey, certs)
 }

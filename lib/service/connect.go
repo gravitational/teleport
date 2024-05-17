@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
@@ -176,7 +177,7 @@ func (process *TeleportProcess) connect(role types.SystemRole, opts ...certOptio
 	for _, opt := range opts {
 		opt(&options)
 	}
-	state, err := process.storage.GetState(context.TODO(), role)
+	processState, err := process.storage.GetState(context.TODO(), role)
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
@@ -186,13 +187,13 @@ func (process *TeleportProcess) connect(role types.SystemRole, opts ...certOptio
 		c, err := process.firstTimeConnect(role)
 		return c, trace.Wrap(err)
 	}
-	process.logger.DebugContext(process.ExitContext(), "Got connected state.", "rotation_state", logutils.StringerAttr(&state.Spec.Rotation))
+	process.logger.DebugContext(process.ExitContext(), "Got connected state.", "rotation_state", logutils.StringerAttr(&processState.Spec.Rotation))
 
 	identity, err := process.GetIdentity(role)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	rotation := state.Spec.Rotation
+	rotation := processState.Spec.Rotation
 
 	switch rotation.State {
 	// rotation is on standby, so just use whatever is current
@@ -236,7 +237,7 @@ func (process *TeleportProcess) connect(role types.SystemRole, opts ...certOptio
 		case types.RotationPhaseUpdateClients:
 			// Clients should use updated credentials,
 			// while servers should use old credentials to answer auth requests.
-			newIdentity, err := process.storage.ReadIdentity(auth.IdentityReplacement, role)
+			newIdentity, err := process.storage.ReadIdentity(state.IdentityReplacement, role)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -251,7 +252,7 @@ func (process *TeleportProcess) connect(role types.SystemRole, opts ...certOptio
 		case types.RotationPhaseUpdateServers:
 			// Servers and clients are using new identity credentials, but the
 			// identity is still set up to trust the old certificate authority certificates.
-			newIdentity, err := process.storage.ReadIdentity(auth.IdentityReplacement, role)
+			newIdentity, err := process.storage.ReadIdentity(state.IdentityReplacement, role)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -355,7 +356,7 @@ func (process *TeleportProcess) getCertAuthority(conn *Connector, id types.CertA
 // reRegister receives new identity credentials for proxy, node and auth.
 // In case if auth servers, the role is 'TeleportAdmin' and instead of using
 // TLS client this method uses the local auth server.
-func (process *TeleportProcess) reRegister(conn *Connector, additionalPrincipals []string, dnsNames []string, rotation types.Rotation) (*auth.Identity, error) {
+func (process *TeleportProcess) reRegister(conn *Connector, additionalPrincipals []string, dnsNames []string, rotation types.Rotation) (*state.Identity, error) {
 	id := conn.ClientIdentity.ID
 	if id.NodeName == "" {
 		id.NodeName = process.Config.Hostname
@@ -393,7 +394,7 @@ func (process *TeleportProcess) reRegister(conn *Connector, additionalPrincipals
 }
 
 func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connector, error) {
-	id := auth.IdentityID{
+	id := state.IdentityID{
 		Role:     role,
 		HostUUID: process.Config.HostUUID,
 		NodeName: process.Config.Hostname,
@@ -402,7 +403,7 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var identity *auth.Identity
+	var identity *state.Identity
 	if process.getLocalAuth() != nil {
 		// Auth service is on the same host, no need to go though the invitation
 		// procedure.
@@ -476,7 +477,7 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			return nil, trace.Wrap(err)
 		}
 
-		identity, err = auth.ReadIdentityFromKeyPair(keyPair.PrivateKey, certs)
+		identity, err = state.ReadIdentityFromKeyPair(keyPair.PrivateKey, certs)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -507,12 +508,12 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 		return nil, trace.NewAggregate(err, connector.Close())
 	}
 
-	if err := process.storage.WriteIdentity(auth.IdentityCurrent, *identity); err != nil {
+	if err := process.storage.WriteIdentity(state.IdentityCurrent, *identity); err != nil {
 		process.logger.WarnContext(process.ExitContext(), "Failed to write identity to storage.", "identity", role, "error", err)
 	}
 
-	if err := process.storage.WriteState(role, auth.StateV2{
-		Spec: auth.StateSpecV2{
+	if err := process.storage.WriteState(role, state.StateV2{
+		Spec: state.StateSpecV2{
 			Rotation: ca.GetRotation(),
 		},
 	}); err != nil {
@@ -547,7 +548,7 @@ func (process *TeleportProcess) syncOpenSSHRotationState() error {
 		return trace.Wrap(err)
 	}
 
-	id, err := process.storage.ReadIdentity(auth.IdentityCurrent, types.RoleNode)
+	id, err := process.storage.ReadIdentity(state.IdentityCurrent, types.RoleNode)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -853,7 +854,7 @@ func checkServerIdentity(ctx context.Context, conn *Connector, additionalPrincip
 }
 
 // rotate is called to check if rotation should be triggered.
-func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2, remote types.Rotation) (*rotationStatus, error) {
+func (process *TeleportProcess) rotate(conn *Connector, localState state.StateV2, remote types.Rotation) (*rotationStatus, error) {
 	id := conn.ClientIdentity.ID
 	local := localState.Spec.Rotation
 
@@ -876,7 +877,7 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 
 	const outOfSync = "%v and cluster rotation state (%v) is out of sync with local (%v). Clear local state and re-register this %v."
 
-	writeStateAndIdentity := func(name string, identity *auth.Identity) error {
+	writeStateAndIdentity := func(name string, identity *state.Identity) error {
 		err = storage.WriteIdentity(name, *identity)
 		if err != nil {
 			return trace.Wrap(err)
@@ -902,7 +903,7 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
-				err = storage.WriteIdentity(auth.IdentityCurrent, *identity)
+				err = storage.WriteIdentity(state.IdentityCurrent, *identity)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
@@ -919,7 +920,7 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			err = writeStateAndIdentity(auth.IdentityCurrent, identity)
+			err = writeStateAndIdentity(state.IdentityCurrent, identity)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -956,7 +957,7 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 				return nil, trace.Wrap(err)
 			}
 			process.logger.DebugContext(process.ExitContext(), "Re-registered, received new identity.", "identity", logutils.StringerAttr(identity))
-			err = writeStateAndIdentity(auth.IdentityReplacement, identity)
+			err = writeStateAndIdentity(state.IdentityReplacement, identity)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -969,11 +970,11 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 				return nil, trace.CompareFailed(outOfSync, id.Role, remote, local, id.Role)
 			}
 			// Write the replacement identity as a current identity and reload the server.
-			replacement, err := storage.ReadIdentity(auth.IdentityReplacement, id.Role)
+			replacement, err := storage.ReadIdentity(state.IdentityReplacement, id.Role)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			err = writeStateAndIdentity(auth.IdentityCurrent, replacement)
+			err = writeStateAndIdentity(state.IdentityCurrent, replacement)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -988,7 +989,7 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			err = writeStateAndIdentity(auth.IdentityCurrent, identity)
+			err = writeStateAndIdentity(state.IdentityCurrent, identity)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -1004,7 +1005,7 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 
 // getConnector gets an appropriate [Connector] for the given identity. The returned [Connector] is backed by the
 // instance client is reused if appropriate, otherwise a new client is created.
-func (process *TeleportProcess) getConnector(clientIdentity, serverIdentity *auth.Identity) (*Connector, error) {
+func (process *TeleportProcess) getConnector(clientIdentity, serverIdentity *state.Identity) (*Connector, error) {
 	if clientIdentity.ID.Role != types.RoleInstance {
 		// non-instance roles should wait to see if the instance client can be reused
 		// before acquiring their own client.
@@ -1053,7 +1054,7 @@ func (process *TeleportProcess) getConnector(clientIdentity, serverIdentity *aut
 // depending on what was specified in the config.
 // For config v1 and v2, it will attempt to direct dial the auth server, and fallback to trying to tunnel
 // to the Auth Server through the proxy.
-func (process *TeleportProcess) newClient(identity *auth.Identity) (*authclient.Client, *proto.PingResponse, error) {
+func (process *TeleportProcess) newClient(identity *state.Identity) (*authclient.Client, *proto.PingResponse, error) {
 	tlsConfig, err := identity.TLSConfig(process.Config.CipherSuites)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

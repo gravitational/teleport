@@ -34,7 +34,6 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/labels"
@@ -59,7 +58,7 @@ type Config struct {
 	AuthClient *authclient.Client
 
 	// AccessPoint is a caching client connected to the Auth Server.
-	AccessPoint auth.AppsAccessPoint
+	AccessPoint authclient.AppsAccessPoint
 
 	// Hostname is the hostname where this application agent is running.
 	Hostname string
@@ -465,6 +464,8 @@ func (s *Server) close(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	shouldDeleteApps := services.ShouldDeleteServerHeartbeatsOnShutdown(ctx)
+
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(100)
 	for name := range s.apps {
@@ -476,24 +477,25 @@ func (s *Server) close(ctx context.Context) error {
 		}
 
 		if heartbeat != nil {
-			s.log.Debugf("Stopping app %q.", name)
+			log := s.log.WithField("app", name)
+			log.Debug("Stopping app")
 			if err := heartbeat.Close(); err != nil {
 				s.log.WithError(err).Warnf("Failed to stop app %q.", name)
 			} else {
-				s.log.Debugf("Stopped app %q.", name)
+				log.Debug("Stopped app")
 			}
-		}
 
-		if heartbeat != nil && services.ShouldDeleteServerHeartbeatsOnShutdown(ctx) {
-			g.Go(func() error {
-				s.log.Debugf("Deleting app %q.", name)
-				if err := s.removeAppServer(gctx, name); err != nil {
-					s.log.WithError(err).Warnf("Failed to delete app %q.", name)
-				} else {
-					s.log.Debugf("Deleted app %q.", name)
-				}
-				return nil
-			})
+			if shouldDeleteApps {
+				g.Go(func() error {
+					log.Debug("Deleting app")
+					if err := s.removeAppServer(gctx, name); err != nil {
+						log.WithError(err).Warnf("Failed to delete app %q.", name)
+					} else {
+						log.Debugf("Deleted app")
+					}
+					return nil
+				})
+			}
 		}
 	}
 

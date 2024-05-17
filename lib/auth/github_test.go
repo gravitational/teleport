@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
@@ -189,7 +190,7 @@ func TestValidateGithubAuthCallbackEventsEmitted(t *testing.T) {
 	ctx := authz.ContextWithClientSrcAddr(context.Background(), clientAddr)
 	tt := setupGithubContext(ctx, t)
 
-	auth := &GithubAuthResponse{
+	auth := &authclient.GithubAuthResponse{
 		Username: "test-name",
 	}
 
@@ -215,7 +216,7 @@ func TestValidateGithubAuthCallbackEventsEmitted(t *testing.T) {
 
 	// Test success event, non-test-flow.
 	diagCtx := ssoDiagContextFixture(false /* testFlow */)
-	m.mockValidateGithubAuthCallback = func(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*GithubAuthResponse, error) {
+	m.mockValidateGithubAuthCallback = func(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*authclient.GithubAuthResponse, error) {
 		diagCtx.Info.GithubClaims = claims
 		diagCtx.Info.AppliedLoginRules = []string{"login-rule"}
 		return auth, nil
@@ -231,7 +232,7 @@ func TestValidateGithubAuthCallbackEventsEmitted(t *testing.T) {
 
 	// Test failure event, non-test-flow.
 	diagCtx = ssoDiagContextFixture(false /* testFlow */)
-	m.mockValidateGithubAuthCallback = func(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*GithubAuthResponse, error) {
+	m.mockValidateGithubAuthCallback = func(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*authclient.GithubAuthResponse, error) {
 		diagCtx.Info.GithubClaims = claims
 		return auth, trace.BadParameter("")
 	}
@@ -244,7 +245,7 @@ func TestValidateGithubAuthCallbackEventsEmitted(t *testing.T) {
 
 	// Test success event, test-flow.
 	diagCtx = ssoDiagContextFixture(true /* testFlow */)
-	m.mockValidateGithubAuthCallback = func(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*GithubAuthResponse, error) {
+	m.mockValidateGithubAuthCallback = func(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*authclient.GithubAuthResponse, error) {
 		diagCtx.Info.GithubClaims = claims
 		return auth, nil
 	}
@@ -258,7 +259,7 @@ func TestValidateGithubAuthCallbackEventsEmitted(t *testing.T) {
 
 	// Test failure event, test-flow.
 	diagCtx = ssoDiagContextFixture(true /* testFlow */)
-	m.mockValidateGithubAuthCallback = func(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*GithubAuthResponse, error) {
+	m.mockValidateGithubAuthCallback = func(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*authclient.GithubAuthResponse, error) {
 		diagCtx.Info.GithubClaims = claims
 		return auth, trace.BadParameter("")
 	}
@@ -271,10 +272,10 @@ func TestValidateGithubAuthCallbackEventsEmitted(t *testing.T) {
 }
 
 type mockedGithubManager struct {
-	mockValidateGithubAuthCallback func(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*GithubAuthResponse, error)
+	mockValidateGithubAuthCallback func(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*authclient.GithubAuthResponse, error)
 }
 
-func (m *mockedGithubManager) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*GithubAuthResponse, error) {
+func (m *mockedGithubManager) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*authclient.GithubAuthResponse, error) {
 	if m.mockValidateGithubAuthCallback != nil {
 		return m.mockValidateGithubAuthCallback(ctx, diagCtx, q)
 	}
@@ -385,7 +386,7 @@ func TestCalculateGithubUserWithLoginRules(t *testing.T) {
 
 type mockRoleCache struct {
 	roles map[string]types.Role
-	Cache
+	authclient.Cache
 }
 
 func (m *mockRoleCache) GetRole(_ context.Context, name string) (types.Role, error) {

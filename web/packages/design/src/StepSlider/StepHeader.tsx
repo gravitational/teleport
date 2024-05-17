@@ -1,9 +1,6 @@
-//go:build windows
-// +build windows
-
-/*
+/**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -19,25 +16,32 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth
+import React from 'react';
 
-import (
-	"context"
+import Box from 'design/Box';
+import Text from 'design/Text';
 
-	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/lib/backend/memory"
-)
-
-// NewProcessStorage returns a new instance of the process storage.
-func NewProcessStorage(ctx context.Context, path string) (*ProcessStorage, error) {
-	m, err := memory.New(memory.Config{
-		Context:   ctx,
-		EventsOff: true,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &ProcessStorage{BackendStorage: m, stateStorage: m}, nil
+/**
+ * Renders a header with an optional step counter that appears if there's more
+ * than one step. Useful inside a StepSlider, but can be used independently.
+ */
+export function StepHeader({
+  stepIndex,
+  flowLength,
+  title,
+}: {
+  stepIndex: number;
+  flowLength: number;
+  title: string;
+}) {
+  return (
+    <Box>
+      {flowLength > 1 && (
+        <Text typography="body1" color="text.slightlyMuted">
+          Step {stepIndex + 1} of {flowLength}
+        </Text>
+      )}
+      <Text typography="h4">{title}</Text>
+    </Box>
+  );
 }

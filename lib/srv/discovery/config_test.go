@@ -26,13 +26,13 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 )
 
 func TestConfigCheckAndSetDefaults(t *testing.T) {
 	type fakeSVCs struct {
 		events.Emitter
-		auth.DiscoveryAccessPoint
+		authclient.DiscoveryAccessPoint
 		kubernetes.Clientset
 	}
 

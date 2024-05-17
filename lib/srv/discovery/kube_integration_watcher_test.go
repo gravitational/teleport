@@ -285,7 +285,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 		existingKubeServers          []types.KubeServer
 		awsMatchers                  []types.AWSMatcher
 		expectedServersToExistInAuth []types.KubeServer
-		accessPoint                  func(*testing.T, *auth.Server, authclient.ClientI) auth.DiscoveryAccessPoint
+		accessPoint                  func(*testing.T, *auth.Server, authclient.ClientI) authclient.DiscoveryAccessPoint
 		discoveryConfig              func(*testing.T) *discoveryconfig.DiscoveryConfig
 	}{
 		{
@@ -293,7 +293,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 			discoveryConfig: func(t *testing.T) *discoveryconfig.DiscoveryConfig {
 				return getDc()
 			},
-			accessPoint: func(t *testing.T, authServer *auth.Server, authClient authclient.ClientI) auth.DiscoveryAccessPoint {
+			accessPoint: func(t *testing.T, authServer *auth.Server, authClient authclient.ClientI) authclient.DiscoveryAccessPoint {
 				return &accessPointWrapper{
 					DiscoveryAccessPoint: getDiscoveryAccessPoint(authServer, authClient),
 					enrollEKSClusters: func(ctx context.Context, request *integrationpb.EnrollEKSClustersRequest, _ ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error) {
@@ -321,7 +321,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 			discoveryConfig: func(t *testing.T) *discoveryconfig.DiscoveryConfig {
 				return getDc()
 			},
-			accessPoint: func(t *testing.T, authServer *auth.Server, authClient authclient.ClientI) auth.DiscoveryAccessPoint {
+			accessPoint: func(t *testing.T, authServer *auth.Server, authClient authclient.ClientI) authclient.DiscoveryAccessPoint {
 				return &accessPointWrapper{
 					DiscoveryAccessPoint: getDiscoveryAccessPoint(authServer, authClient),
 					enrollEKSClusters: func(ctx context.Context, request *integrationpb.EnrollEKSClustersRequest, _ ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error) {
@@ -351,7 +351,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 			discoveryConfig: func(t *testing.T) *discoveryconfig.DiscoveryConfig {
 				return getDc()
 			},
-			accessPoint: func(t *testing.T, authServer *auth.Server, authClient authclient.ClientI) auth.DiscoveryAccessPoint {
+			accessPoint: func(t *testing.T, authServer *auth.Server, authClient authclient.ClientI) authclient.DiscoveryAccessPoint {
 				return &accessPointWrapper{
 					DiscoveryAccessPoint: getDiscoveryAccessPoint(authServer, authClient),
 					enrollEKSClusters: func(ctx context.Context, request *integrationpb.EnrollEKSClustersRequest, _ ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error) {
@@ -530,7 +530,7 @@ func mustConvertEKSToKubeServerV2(t *testing.T, eksCluster *eksTypes.Cluster, re
 }
 
 type accessPointWrapper struct {
-	auth.DiscoveryAccessPoint
+	authclient.DiscoveryAccessPoint
 
 	enrollEKSClusters func(context.Context, *integrationpb.EnrollEKSClustersRequest, ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error)
 }
