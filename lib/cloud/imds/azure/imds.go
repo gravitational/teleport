@@ -20,6 +20,7 @@ package azure
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/url"
 	"sync"
@@ -133,6 +134,18 @@ func (client *InstanceMetadataClient) getRawMetadata(ctx context.Context, route 
 		return nil, parseMetadataClientError(resp.StatusCode, body)
 	}
 	return body, nil
+}
+
+// parseMetadataClientError converts a failed instance metadata service call to a trace error.
+func parseMetadataClientError(statusCode int, body []byte) error {
+	err := trace.ReadError(statusCode, body)
+	azureError := struct {
+		Error string `json:"error"`
+	}{}
+	if json.Unmarshal(body, &azureError) != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(err, azureError.Error)
 }
 
 // getVersions gets a list of all API versions supported by this instance.
