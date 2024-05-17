@@ -373,6 +373,7 @@ func (a *Server) RegisterUsingIAMMethod(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	joinRequest = req.RegisterUsingTokenRequest
 
 	// fill in the client remote addr to the register request
 	req.RegisterUsingTokenRequest.RemoteAddr = clientAddr.String()

@@ -376,6 +376,7 @@ func (a *Server) RegisterUsingAzureMethod(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	joinRequest = req.RegisterUsingTokenRequest
 
 	req.RegisterUsingTokenRequest.RemoteAddr = clientAddr.String()
 	if err := req.CheckAndSetDefaults(); err != nil {
