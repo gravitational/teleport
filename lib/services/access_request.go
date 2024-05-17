@@ -1195,7 +1195,7 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 		// incoming requests must have system annotations attached
 		// before being inserted into the backend. this is how the
 		// RBAC system propagates sideband information to plugins.
-		systemAnnotations, err := m.SystemAnnotations(req.GetRoles())
+		systemAnnotations, err := m.SystemAnnotations(req)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1703,7 +1703,7 @@ Outer:
 
 // SystemAnnotations calculates the system annotations for a pending
 // access request.
-func (m *RequestValidator) SystemAnnotations(requestedRoles []string) (map[string][]string, error) {
+func (m *RequestValidator) SystemAnnotations(req types.AccessRequest) (map[string][]string, error) {
 	annotations := make(map[string][]string)
 
 	allowedAnnotations := make(map[string][]string)
@@ -1712,10 +1712,15 @@ func (m *RequestValidator) SystemAnnotations(requestedRoles []string) (map[strin
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
 		acr := role.GetAccessRequestConditions(types.Allow)
 
-		for _, reqRole := range requestedRoles {
-			if slices.Contains(acr.Roles, reqRole) {
+		for _, reqRole := range req.GetRoles() {
+			roles := acr.Roles
+			if len(req.GetRequestedResourceIDs()) != 0 {
+				roles = acr.SearchAsRoles
+			}
+			if slices.Contains(roles, reqRole) {
 				for k, v := range acr.Annotations {
 					vals := allowedAnnotations[k]
 					allowedAnnotations[k] = slices.Concat(vals, v)
