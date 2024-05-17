@@ -573,6 +573,17 @@ func (c *CLIConf) RunCommand(cmd *exec.Cmd) error {
 }
 
 func Main() {
+	name := os.Getenv("TELEPORT_WAIT_FILE")
+	if name != "" {
+		f, err := os.Create(name)
+		if err != nil {
+			log.Fatalf("Failed to create file: %v.", err)
+		}
+		if err := f.Close(); err != nil {
+			log.Fatalf("Failed to close file: %v.", err)
+		}
+	}
+
 	cmdLineOrig := os.Args[1:]
 	var cmdLine []string
 
