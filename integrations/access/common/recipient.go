@@ -145,3 +145,10 @@ func (s *RecipientSet) ToSlice() []Recipient {
 	}
 	return recipientSlice
 }
+
+// ForEach applies run the given func with each recipient in the set as the argument.
+func (s *RecipientSet) ForEach(f func(r Recipient)) {
+	for _, v := range s.recipients {
+		f(v)
+	}
+}

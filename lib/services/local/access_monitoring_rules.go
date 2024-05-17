@@ -154,15 +154,15 @@ func (s *AccessMonitoringRulesService) ListAccessMonitoringRulesWithFilter(ctx c
 }
 
 func match(rule *accessmonitoringrulesv1.AccessMonitoringRule, subjects []string, notificationName string) bool {
+	if notificationName != "" {
+		if rule.Spec.Notification == nil || rule.Spec.Notification.Name != notificationName {
+			return false
+		}
+	}
 	for _, subject := range subjects {
 		if ok := slices.ContainsFunc(rule.Spec.Subjects, func(s string) bool {
 			return s == subject
 		}); !ok {
-			return false
-		}
-	}
-	if notificationName != "" {
-		if rule.Spec.Notification == nil || rule.Spec.Notification.Name != notificationName {
 			return false
 		}
 	}
