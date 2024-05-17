@@ -96,8 +96,6 @@ func TestAppCommands(t *testing.T) {
 		lib.SetInsecureDevMode(isInsecure)
 	})
 
-	localProxyPort := ports.Pop()
-
 	accessUser, err := types.NewUser("access")
 	require.NoError(t, err)
 	accessUser.SetRoles([]string{"access"})
@@ -276,11 +274,13 @@ func TestAppCommands(t *testing.T) {
 
 							// Test connecting to the app through a local proxy.
 							t.Run("tsh proxy app", func(t *testing.T) {
-								proxyCtx, proxyCancel := context.WithTimeout(ctx, time.Second)
+								localProxyPort := ports.Pop()
+								proxyCtx, proxyCancel := context.WithTimeout(ctx, 10*time.Second)
 								defer proxyCancel()
 
+								errC := make(chan error)
 								go func() {
-									Run(proxyCtx, []string{
+									errC <- Run(proxyCtx, []string{
 										"--insecure",
 										"proxy",
 										"app",
@@ -290,9 +290,12 @@ func TestAppCommands(t *testing.T) {
 									}, setHomePath(loginPath), webauthnLoginOpt)
 								}()
 
-								require.EventuallyWithT(t, func(t *assert.CollectT) {
+								assert.EventuallyWithT(t, func(t *assert.CollectT) {
 									testDummyAppConn(t, app.name, fmt.Sprintf("http://127.0.0.1:%v", localProxyPort))
-								}, time.Second, 100*time.Millisecond)
+								}, 10*time.Second, time.Second)
+
+								proxyCancel()
+								assert.NoError(t, <-errC)
 
 								// proxy certs should not be saved to disk.
 								err = Run(context.Background(), []string{
@@ -301,8 +304,7 @@ func TestAppCommands(t *testing.T) {
 									app.name,
 									"--cluster", app.cluster,
 								}, setHomePath(loginPath))
-								require.Error(t, err)
-								require.True(t, trace.IsNotFound(err))
+								assert.True(t, trace.IsNotFound(err), "expected not found error but got: %v", err)
 							})
 						})
 					}

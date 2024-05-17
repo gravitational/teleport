@@ -33,7 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/tctl/sso/configure/flags"
 	"github.com/gravitational/teleport/tool/tctl/sso/tester"
@@ -207,7 +207,9 @@ Examples:
   Generate the configuration and immediately test it using "tctl sso test" command.`, presets))
 
 	preset := &AuthKindCommand{
-		Run: func(ctx context.Context, clt *auth.Client) error { return oidcRunFunc(ctx, cmd, &spec, extra, clt) },
+		Run: func(ctx context.Context, clt *authclient.Client) error {
+			return oidcRunFunc(ctx, cmd, &spec, extra, clt)
+		},
 	}
 
 	sub.Action(func(ctx *kingpin.ParseContext) error {
@@ -218,7 +220,7 @@ Examples:
 	return preset
 }
 
-func oidcRunFunc(ctx context.Context, cmd *SSOConfigureCommand, spec *types.OIDCConnectorSpecV3, flags *oidcExtraFlags, clt *auth.Client) error {
+func oidcRunFunc(ctx context.Context, cmd *SSOConfigureCommand, spec *types.OIDCConnectorSpecV3, flags *oidcExtraFlags, clt *authclient.Client) error {
 	if flags.googleID != "" {
 		if spec.ClientID != "" {
 			return trace.BadParameter("Conflicting flags: --id and --google-id. Provide only one.")

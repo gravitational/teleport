@@ -22,15 +22,12 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // databaseObjectService manages database objects in the backend.
@@ -77,54 +74,13 @@ func NewDatabaseObjectService(backend backend.Backend) (services.DatabaseObjects
 	service, err := generic.NewServiceWrapper(backend,
 		types.KindDatabaseObject,
 		databaseObjectPrefix,
-		marshalDatabaseObject,
-		unmarshalDatabaseObject)
+		//nolint:staticcheck // SA1019. Using this marshaler for json compatibility.
+		services.FastMarshalProtoResourceDeprecated[*dbobjectv1.DatabaseObject],
+		//nolint:staticcheck // SA1019. Using this unmarshaler for json compatibility.
+		services.FastUnmarshalProtoResourceDeprecated[*dbobjectv1.DatabaseObject],
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &databaseObjectService{service: service}, nil
-}
-
-func marshalDatabaseObject(object *dbobjectv1.DatabaseObject, opts ...services.MarshalOption) ([]byte, error) {
-	cfg, err := services.CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if !cfg.PreserveResourceID {
-		object = proto.Clone(object).(*dbobjectv1.DatabaseObject)
-		//nolint:staticcheck // SA1019. Deprecated, but still needed.
-		object.Metadata.Id = 0
-		object.Metadata.Revision = ""
-	}
-	data, err := utils.FastMarshal(object)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return data, nil
-}
-
-func unmarshalDatabaseObject(data []byte, opts ...services.MarshalOption) (*dbobjectv1.DatabaseObject, error) {
-	if len(data) == 0 {
-		return nil, trace.BadParameter("missing DatabaseObject data")
-	}
-	cfg, err := services.CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var obj dbobjectv1.DatabaseObject
-	err = utils.FastUnmarshal(data, &obj)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if cfg.ID != 0 {
-		//nolint:staticcheck // SA1019. Id is deprecated, but still needed.
-		obj.Metadata.Id = cfg.ID
-	}
-	if cfg.Revision != "" {
-		obj.Metadata.Revision = cfg.Revision
-	}
-	if !cfg.Expires.IsZero() {
-		obj.Metadata.Expires = timestamppb.New(cfg.Expires)
-	}
-	return &obj, nil
 }

@@ -316,6 +316,7 @@ test('fetch users, null response values gives empty array', async () => {
       name: '',
       roles: [],
       allTraits: {},
+      origin: '',
       traits: {
         awsRoleArns: [],
         databaseNames: [],

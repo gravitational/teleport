@@ -35,7 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -46,7 +46,7 @@ const (
 
 // ServerConfig configures a Server instance.
 type ServerConfig struct {
-	AccessCache   auth.AccessCache
+	AccessCache   authclient.CAGetter
 	Listener      net.Listener
 	TLSConfig     *tls.Config
 	ClusterDialer ClusterDialer

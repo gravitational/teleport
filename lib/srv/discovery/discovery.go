@@ -46,7 +46,7 @@ import (
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
@@ -114,7 +114,7 @@ type Config struct {
 	// Emitter is events emitter, used to submit discrete events
 	Emitter apievents.Emitter
 	// AccessPoint is a discovery access point
-	AccessPoint auth.DiscoveryAccessPoint
+	AccessPoint authclient.DiscoveryAccessPoint
 	// Log is the logger.
 	Log logrus.FieldLogger
 	// ServerID identifies the Teleport instance where this service runs.
@@ -460,9 +460,14 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 	s.caRotationCh = make(chan []types.Server)
 
 	if s.ec2Installer == nil {
-		s.ec2Installer = server.NewSSMInstaller(server.SSMInstallerConfig{
+		ec2installer, err := server.NewSSMInstaller(server.SSMInstallerConfig{
 			Emitter: s.Emitter,
 		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		s.ec2Installer = ec2installer
 	}
 
 	lr, err := newLabelReconciler(&labelReconcilerConfig{

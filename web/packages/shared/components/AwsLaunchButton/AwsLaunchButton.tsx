@@ -53,7 +53,7 @@ export class AwsLaunchButton extends React.Component<Props> {
       <>
         <ButtonBorder
           textTransform="none"
-          width="90px"
+          width={this.props.width || '90px'}
           size="small"
           setRef={e => (this.anchorEl = e)}
           onClick={this.onOpen}
@@ -111,17 +111,10 @@ function RoleItemList({
   closeMenu: () => void;
   onChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
 }) {
-  // If multiple accounts exist, include the AccountID in the item.
-  const allAccountIDs = new Set(awsRoles.map(a => a.accountId));
-  const includeAccountIDDisplay = allAccountIDs.size > 1;
-
   const awsRoleItems = awsRoles.map((item, key) => {
     const { display, arn, name, accountId } = item;
     const launchUrl = getLaunchUrl(arn);
-    let text = display;
-    if (includeAccountIDDisplay) {
-      text = `${accountId}: ${text}`;
-    }
+    let text = `${accountId}: ${display}`;
     if (display !== name) {
       text = `${text} (${name})`;
     }
@@ -187,6 +180,7 @@ type Props = {
   awsRoles: AwsRole[];
   getLaunchUrl(arn: string): string;
   onLaunchUrl?(arn: string): void;
+  width?: string;
 };
 
 const StyledMenuItem = styled(MenuItem)(

@@ -17,17 +17,17 @@
 package vnet
 
 import (
-	"bufio"
 	"context"
+	"crypto/rand"
 	"errors"
 	"io"
 	"log/slog"
 	"net"
 	"os"
-	"strconv"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -37,6 +37,10 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv6"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -47,6 +51,7 @@ func TestMain(m *testing.M) {
 
 type testPack struct {
 	vnetIPv6Prefix tcpip.Address
+	dnsIPv6        tcpip.Address
 	manager        *Manager
 
 	testStack        *stack.Stack
@@ -54,7 +59,7 @@ type testPack struct {
 	localAddress     tcpip.Address
 }
 
-func newTestPack(t *testing.T, ctx context.Context) *testPack {
+func newTestPack(t *testing.T, ctx context.Context, appProvider AppProvider) *testPack {
 	// Create two sides of an emulated TUN interface: writes to one can be read on the other, and vice versa.
 	tun1, tun2 := newSplitTUN()
 
@@ -63,7 +68,7 @@ func newTestPack(t *testing.T, ctx context.Context) *testPack {
 	// This is a completely separate gvisor network stack than the one that will be created in NewManager -
 	// the two will be connected over a fake TUN interface. This exists so that the test can setup IP routes
 	// without affecting the host running the Test.
-	testStack, linkEndpoint, err := createStack()
+	testStack, testLinkEndpoint, err := createStack()
 	require.NoError(t, err)
 
 	errIsOK := func(err error) bool {
@@ -73,13 +78,13 @@ func newTestPack(t *testing.T, ctx context.Context) *testPack {
 	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
 		Name: "test network stack",
 		Task: func(ctx context.Context) error {
-			if err := forwardBetweenTunAndNetstack(ctx, tun1, linkEndpoint); !errIsOK(err) {
+			if err := forwardBetweenTunAndNetstack(ctx, tun1, testLinkEndpoint); !errIsOK(err) {
 				return trace.Wrap(err)
 			}
 			return nil
 		},
 		Terminate: func() error {
-			linkEndpoint.Close()
+			testLinkEndpoint.Close()
 			return trace.Wrap(tun1.Close())
 		},
 	})
@@ -102,10 +107,17 @@ func newTestPack(t *testing.T, ctx context.Context) *testPack {
 		NIC:         nicID,
 	}})
 
+	dnsIPv6 := ipv6WithSuffix(vnetIPv6Prefix, []byte{2})
+
+	tcpHandlerResolver := NewTCPAppResolver(appProvider)
+
 	// Create the VNet and connect it to the other side of the TUN.
 	manager, err := NewManager(&Config{
-		TUNDevice:  tun2,
-		IPv6Prefix: vnetIPv6Prefix,
+		TUNDevice:                tun2,
+		IPv6Prefix:               vnetIPv6Prefix,
+		DNSIPv6:                  dnsIPv6,
+		TCPHandlerResolver:       tcpHandlerResolver,
+		upstreamNameserverSource: noUpstreamNameservers{},
 	})
 	require.NoError(t, err)
 
@@ -121,15 +133,16 @@ func newTestPack(t *testing.T, ctx context.Context) *testPack {
 
 	return &testPack{
 		vnetIPv6Prefix:   vnetIPv6Prefix,
+		dnsIPv6:          dnsIPv6,
 		manager:          manager,
 		testStack:        testStack,
-		testLinkEndpoint: linkEndpoint,
+		testLinkEndpoint: testLinkEndpoint,
 		localAddress:     localAddress,
 	}
 }
 
-// dial dials the VNet address [addr] from the test virtual netstack.
-func (p *testPack) dial(ctx context.Context, addr tcpip.Address) (*gonet.TCPConn, error) {
+// dialIPPort dials the VNet address [addr] from the test virtual netstack.
+func (p *testPack) dialIPPort(ctx context.Context, addr tcpip.Address, port uint16) (*gonet.TCPConn, error) {
 	conn, err := gonet.DialTCPWithBind(
 		ctx,
 		p.testStack,
@@ -141,7 +154,7 @@ func (p *testPack) dial(ctx context.Context, addr tcpip.Address) (*gonet.TCPConn
 		tcpip.FullAddress{
 			NIC:      nicID,
 			Addr:     addr,
-			Port:     456,
+			Port:     port,
 			LinkAddr: p.manager.linkEndpoint.LinkAddress(),
 		},
 		ipv6.ProtocolNumber,
@@ -149,56 +162,228 @@ func (p *testPack) dial(ctx context.Context, addr tcpip.Address) (*gonet.TCPConn
 	return conn, trace.Wrap(err)
 }
 
-// TestVnetEcho is a preliminary VNet test that manually installs an echo handler on a specific IP, TCP dials
-// it, and makes sure writes are echoed back to the TCP conn.
-func TestVnetEcho(t *testing.T) {
-	ctx := context.Background()
-	p := newTestPack(t, ctx)
-
-	dialAddress, err := p.manager.assignTCPHandler(echoHandler{})
-	require.NoError(t, err)
-
-	for i := 0; i < 10; i++ {
-		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			t.Parallel()
-
-			conn, err := p.dial(ctx, dialAddress)
-			require.NoError(t, err)
-			defer conn.Close()
-
-			// The newline is necessary so that the bufio.Scanner can read a line.
-			testString := "Hello, World!\n"
-			_, err = conn.Write([]byte(testString))
-			require.NoError(t, err)
-			t.Cleanup(func() { require.NoError(t, conn.Close()) })
-
-			scanner := bufio.NewScanner(conn)
-			require.True(t, scanner.Scan(), "scan failed: %v", scanner.Err())
-			line := scanner.Text()
-			require.Equal(t, strings.TrimSuffix(testString, "\n"), line)
-		})
-	}
+func (p *testPack) dialUDP(ctx context.Context, addr tcpip.Address, port uint16) (net.Conn, error) {
+	conn, err := gonet.DialUDP(
+		p.testStack,
+		&tcpip.FullAddress{
+			NIC:      nicID,
+			Addr:     p.localAddress,
+			LinkAddr: p.testLinkEndpoint.LinkAddress(),
+		},
+		&tcpip.FullAddress{
+			NIC:      nicID,
+			Addr:     addr,
+			Port:     port,
+			LinkAddr: p.manager.linkEndpoint.LinkAddress(),
+		},
+		ipv6.ProtocolNumber,
+	)
+	return conn, trace.Wrap(err)
 }
 
-type echoHandler struct{}
-
-func (echoHandler) handleTCP(ctx context.Context, connector tcpConnector) error {
-	conn, err := connector()
-	if err != nil {
-		return trace.Wrap(err)
+func (p *testPack) lookupHost(ctx context.Context, host string) ([]string, error) {
+	resolver := &net.Resolver{
+		PreferGo: true,
+		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+			conn, err := p.dialUDP(ctx, p.dnsIPv6, 53)
+			return conn, err
+		},
 	}
-	defer conn.Close()
-	_, err = io.Copy(conn, conn)
-	return trace.Wrap(err)
+	return resolver.LookupHost(ctx, host)
+}
+
+func (p *testPack) dialHost(ctx context.Context, host string) (net.Conn, error) {
+	addrs, err := p.lookupHost(ctx, host)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var allErrs []error
+	for _, addr := range addrs {
+		netIP := net.ParseIP(addr)
+		ip := tcpip.AddrFromSlice(netIP)
+		conn, err := p.dialIPPort(ctx, ip, 123)
+		if err != nil {
+			allErrs = append(allErrs, trace.Wrap(err, "dialing %s", addr))
+			continue
+		}
+		return conn, nil
+	}
+	return nil, trace.Wrap(trace.NewAggregate(allErrs...), "dialing %s", host)
+}
+
+type noUpstreamNameservers struct{}
+
+func (n noUpstreamNameservers) UpstreamNameservers(ctx context.Context) ([]string, error) {
+	return nil, nil
+}
+
+type echoAppProvider struct {
+	profiles []string
+	clients  map[string]map[string]*client.ClusterClient
+}
+
+// newEchoAppProvider returns a fake app provider with the list of named apps in each profile and leaf cluster.
+func newEchoAppProvider(apps map[string]map[string][]string) *echoAppProvider {
+	p := &echoAppProvider{
+		clients: make(map[string]map[string]*client.ClusterClient, len(apps)),
+	}
+	for profileName, leafClusters := range apps {
+		p.profiles = append(p.profiles, profileName)
+		p.clients[profileName] = make(map[string]*client.ClusterClient, len(leafClusters))
+		for leafClusterName, apps := range leafClusters {
+			clusterName := profileName
+			if leafClusterName != "" {
+				clusterName = leafClusterName
+			}
+			p.clients[profileName][leafClusterName] = &client.ClusterClient{
+				AuthClient: &echoAppAuthClient{
+					clusterName: clusterName,
+					apps:        apps,
+				},
+			}
+		}
+	}
+	return p
+}
+
+// ListProfiles lists the names of all profiles saved for the user.
+func (p *echoAppProvider) ListProfiles() ([]string, error) {
+	return p.profiles, nil
+}
+
+// GetCachedClient returns a [*client.ClusterClient] for the given profile and leaf cluster.
+// [leafClusterName] may be empty when requesting a client for the root cluster. Returned clients are
+// expected to be cached, as this may be called frequently.
+func (p *echoAppProvider) GetCachedClient(ctx context.Context, profileName, leafClusterName string) (*client.ClusterClient, error) {
+	c, ok := p.clients[profileName][leafClusterName]
+	if !ok {
+		return nil, trace.NotFound("no client for %s:%s", profileName, leafClusterName)
+	}
+	return c, nil
+}
+
+// echoAppAuthClient is a fake auth client that answers GetResources requests with a static list of apps and
+// basic/faked predicate filtering.
+type echoAppAuthClient struct {
+	authclient.ClientI
+	clusterName string
+	apps        []string
+}
+
+func (c *echoAppAuthClient) GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error) {
+	resp := &proto.ListResourcesResponse{}
+	for _, app := range c.apps {
+		// Poor-man's predicate expression filter.
+		appPublicAddr := app + "." + c.clusterName
+		if !strings.Contains(req.PredicateExpression, appPublicAddr) {
+			continue
+		}
+		resp.Resources = append(resp.Resources, &proto.PaginatedResource{
+			Resource: &proto.PaginatedResource_AppServer{
+				AppServer: &types.AppServerV3{
+					Kind: types.KindAppServer,
+					Metadata: types.Metadata{
+						Name: app,
+					},
+					Spec: types.AppServerSpecV3{
+						App: &types.AppV3{
+							Metadata: types.Metadata{
+								Name: app,
+							},
+							Spec: types.AppSpecV3{
+								PublicAddr: appPublicAddr,
+							},
+						},
+					},
+				},
+			},
+		})
+	}
+	resp.TotalCount = int32(len(resp.Resources))
+	return resp, nil
+}
+
+func TestDialFakeApp(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	appProvider := newEchoAppProvider(map[string]map[string][]string{
+		"root1.example.com": map[string][]string{
+			"":                 {"echo1", "echo2"},
+			"leaf.example.com": {"echo1"},
+		},
+		"root2.example.com": map[string][]string{
+			"":                  {"echo1", "echo2"},
+			"leaf2.example.com": {"echo1"},
+		},
+	})
+
+	validAppNames := []string{
+		"echo1.root1.example.com",
+		"echo2.root1.example.com",
+		"echo1.root2.example.com",
+		"echo2.root2.example.com",
+		// Leaf clusters not yet supported.
+	}
+
+	invalidAppNames := []string{
+		"not.an.app.example.com.",
+		"echo1.leaf1.example.com.",
+		"echo1.leaf2.example.com.",
+	}
+
+	p := newTestPack(t, ctx, appProvider)
+
+	t.Run("valid", func(t *testing.T) {
+		t.Parallel()
+		for _, app := range validAppNames {
+			app := app
+			t.Run(app, func(t *testing.T) {
+				t.Parallel()
+
+				conn, err := p.dialHost(ctx, app)
+				require.NoError(t, err)
+				t.Cleanup(func() { require.NoError(t, conn.Close()) })
+
+				testString := "Hello, World!"
+				writeBuf := []byte(testString)
+				_, err = conn.Write(writeBuf)
+				require.NoError(t, err)
+
+				readBuf := make([]byte, len(writeBuf))
+				_, err = io.ReadFull(conn, readBuf)
+				require.NoError(t, err)
+				require.Equal(t, string(writeBuf), string(readBuf))
+			})
+		}
+	})
+
+	// Tests with invalid hostnames just check that we don't return an answer and nothing panics.
+	t.Run("invalid", func(t *testing.T) {
+		t.Parallel()
+		for _, app := range invalidAppNames {
+			app := app
+			t.Run("invalid/"+app, func(t *testing.T) {
+				t.Parallel()
+
+				ctx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
+				defer cancel()
+				_, err := p.lookupHost(ctx, app)
+				var dnsError *net.DNSError
+				require.ErrorAs(t, err, &dnsError)
+				require.True(t, dnsError.IsTimeout, "expected DNS timeout error, got %+v", dnsError)
+			})
+		}
+	})
 }
 
 func randomULAAddress() (tcpip.Address, error) {
-	prefix, err := IPv6Prefix()
-	if err != nil {
+	var bytes [16]byte
+	bytes[0] = 0xfd
+	if _, err := rand.Read(bytes[1:16]); err != nil {
 		return tcpip.Address{}, trace.Wrap(err)
 	}
-	bytes := prefix.As16()
-	bytes[15] = 2
 	return tcpip.AddrFrom16(bytes), nil
 }
 

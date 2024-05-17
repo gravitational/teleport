@@ -17,7 +17,7 @@
  */
 
 import React, { useState } from 'react';
-import { Box, Flex, Text } from 'design';
+import { Box, Flex, Indicator, Text } from 'design';
 import styled, { useTheme } from 'styled-components';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import * as Icon from 'design/Icon';
@@ -129,6 +129,11 @@ export function Account({
   const disableAddPasskey = disableAddDevice || !canAddPasskeys;
   const disableAddMfa = disableAddDevice || !canAddMfa;
 
+  let mfaPillState = undefined;
+  if (fetchDevicesAttempt.status !== 'processing') {
+    mfaPillState = canAddMfa && mfaDevices.length > 0 ? 'active' : 'inactive';
+  }
+
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [prevFetchStatus, setPrevFetchStatus] = useState<Attempt['status']>('');
   const [prevTokenStatus, setPrevTokenStatus] = useState<Attempt['status']>('');
@@ -187,7 +192,7 @@ export function Account({
           <FeatureHeaderTitle>Account Settings</FeatureHeaderTitle>
         </FeatureHeader>
         <Flex flexDirection="column" gap={4}>
-          <Box>
+          <Box data-testid="passkey-list">
             <AuthDeviceList
               header={
                 <PasskeysHeader
@@ -213,7 +218,7 @@ export function Account({
               onPasswordChange={onPasswordChange}
             />
           )}
-          <Box>
+          <Box data-testid="mfa-list">
             <AuthDeviceList
               header={
                 <Header
@@ -222,11 +227,7 @@ export function Account({
                       Multi-factor Authentication
                       <StatePill
                         data-testid="mfa-state-pill"
-                        state={
-                          canAddMfa && mfaDevices.length > 0
-                            ? 'active'
-                            : 'inactive'
-                        }
+                        state={mfaPillState}
                       />
                     </Flex>
                   }
@@ -282,6 +283,7 @@ export function Account({
           usage={newDeviceUsage}
           auth2faType={cfg.getAuth2faType()}
           privilegeToken={token}
+          devices={devices}
           onClose={closeAddDeviceWizard}
           onSuccess={onAddDeviceSuccess}
         />
@@ -363,7 +365,16 @@ function PasskeysHeader({
           Passkeys are a password replacement that validates your identity using
           touch, facial recognition, a device password, or a PIN.
         </Text>
-        {button}
+        <RelativeBox>
+          {fetchDevicesAttempt.status === 'processing' && (
+            // This trick allows us to maintain center alignment of the button
+            // and display it along with the indicator.
+            <BoxToTheRight mr={3} data-testid="indicator-wrapper">
+              <Indicator size={40} />
+            </BoxToTheRight>
+          )}
+          {button}
+        </RelativeBox>
       </Flex>
     );
   }
@@ -388,6 +399,16 @@ function PasskeysHeader({
     />
   );
 }
+
+const RelativeBox = styled(Box)`
+  position: relative;
+`;
+
+/** A box that is displayed to the right where it normally would be. */
+const BoxToTheRight = styled(Box)`
+  position: absolute;
+  right: 100%;
+`;
 
 const NotificationContainer = styled.div`
   position: absolute;

@@ -23,13 +23,13 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 )
 
-func handleOIDCConnector(c *auth.Client, connBytes []byte) (*AuthRequestInfo, error) {
+func handleOIDCConnector(c *authclient.Client, connBytes []byte) (*AuthRequestInfo, error) {
 	conn, err := services.UnmarshalOIDCConnector(connBytes)
 	if err != nil {
 		return nil, trace.Wrap(err, "Unable to load OIDC connector. Correct the definition and try again.")
@@ -42,7 +42,7 @@ func handleOIDCConnector(c *auth.Client, connBytes []byte) (*AuthRequestInfo, er
 	return requestInfo, nil
 }
 
-func oidcTest(c *auth.Client, connector types.OIDCConnector) (*AuthRequestInfo, error) {
+func oidcTest(c *authclient.Client, connector types.OIDCConnector) (*AuthRequestInfo, error) {
 	ctx := context.Background()
 	// get connector spec
 	var spec types.OIDCConnectorSpecV3

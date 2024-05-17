@@ -40,10 +40,16 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 )
+
+// AccessPoint is the subset of the auth cache consumed by the [Client].
+type AccessPoint interface {
+	authclient.CAGetter
+	types.Events
+}
 
 // ClientConfig configures a Client instance.
 type ClientConfig struct {
@@ -52,9 +58,9 @@ type ClientConfig struct {
 	// ID is the ID of this server proxy
 	ID string
 	// AuthClient is an auth client
-	AuthClient auth.ClientI
+	AuthClient authclient.ClientI
 	// AccessPoint is a caching auth client
-	AccessPoint auth.ProxyAccessPoint
+	AccessPoint AccessPoint
 	// TLSConfig is the proxy client TLS configuration.
 	TLSConfig *tls.Config
 	// Log is the proxy client logger.
@@ -148,7 +154,7 @@ func (c *ClientConfig) checkAndSetDefaults() error {
 	}
 
 	if c.getConfigForServer == nil {
-		c.getConfigForServer = getConfigForServer(c.TLSConfig, c.AccessPoint, c.Log, c.ClusterName)
+		c.getConfigForServer = getConfigForServer(c.Context, c.TLSConfig, c.AccessPoint, c.Log, c.ClusterName)
 	}
 
 	return nil
@@ -641,7 +647,7 @@ func (c *Client) connect(peerID string, peerAddr string) (*clientConn, error) {
 		return nil, trace.Wrap(err, "Error updating client tls config")
 	}
 
-	expectedPeer := auth.HostFQDN(peerID, c.config.ClusterName)
+	expectedPeer := authclient.HostFQDN(peerID, c.config.ClusterName)
 
 	conn, err := grpc.Dial(
 		peerAddr,
