@@ -35,7 +35,7 @@ import { ActionButtons, Header, Mark } from '../../Shared';
 
 import { AppCreatedDialog } from './AppCreatedDialog';
 
-const IAM_POLICY_NAME = 'TeleportAWSAccess';
+const IAM_POLICY_NAME = 'AWSAppAccess';
 
 export function CreateAppAccess() {
   const { agentMeta, updateAgentMeta, emitErrorEvent, nextStep } =
@@ -67,11 +67,11 @@ export function CreateAppAccess() {
 
   return (
     <Box maxWidth="800px">
-      <Header>Create AWS Application Access</Header>
+      <Header>Enable Access to AWS with Teleport Application Access</Header>
       <Text mt={1} mb={3}>
-        An application server will be created that will use the AWS OIDC
+        An application will be created that will use the selected AWS OIDC
         Integration <Mark>{agentMeta.awsIntegration.name}</Mark> for proxying
-        access.
+        access to AWS Management Console, AWS CLI, and AWS APIs.
       </Text>
       {attempt.status === 'error' && (
         <Danger mt={3}>{attempt.statusText}</Danger>
