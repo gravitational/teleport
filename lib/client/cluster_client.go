@@ -32,7 +32,6 @@ import (
 	proxyclient "github.com/gravitational/teleport/api/client/proxy"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/mfa"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/resumption"
 	"github.com/gravitational/teleport/lib/services"
@@ -594,7 +593,7 @@ func PerformMFACeremony(ctx context.Context, params PerformMFACeremonyParams) (*
 		// TODO(Joerger): CreateAuthenticateChallenge should return
 		// this error directly instead of an empty challenge, without
 		// regressing https://github.com/gravitational/teleport/issues/36482.
-		return nil, nil, auth.ErrNoMFADevices
+		return nil, nil, trace.Wrap(authclient.ErrNoMFADevices)
 	}
 
 	// Prompt user for solution (eg, security key touch).

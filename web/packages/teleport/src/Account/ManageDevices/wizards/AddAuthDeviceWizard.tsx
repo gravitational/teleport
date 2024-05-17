@@ -30,7 +30,7 @@ import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 import { useAsync } from 'shared/hooks/useAsync';
-import useAttempt from 'shared/hooks/useAttemptNext';
+import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
 import { Auth2faType } from 'shared/services';
 import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
 
@@ -41,6 +41,8 @@ import { StepHeader } from 'design/StepSlider';
 import auth from 'teleport/services/auth/auth';
 import { DeviceUsage } from 'teleport/services/auth';
 import useTeleport from 'teleport/useTeleport';
+
+import { MfaDevice } from 'teleport/services/mfa';
 
 import { PasskeyBlurb } from '../../../components/Passkeys/PasskeyBlurb';
 
@@ -58,6 +60,7 @@ interface AddAuthDeviceWizardProps {
    * A privilege token that may have been created previously; if present, the
    * reauthentication step will be skipped.
    */
+  devices: MfaDevice[];
   privilegeToken?: string;
   onClose(): void;
   onSuccess(): void;
@@ -68,6 +71,7 @@ export function AddAuthDeviceWizard({
   privilegeToken: privilegeTokenProp = '',
   usage,
   auth2faType,
+  devices,
   onClose,
   onSuccess,
 }: AddAuthDeviceWizardProps) {
@@ -101,6 +105,7 @@ export function AddAuthDeviceWizard({
         privilegeToken={privilegeToken}
         credential={credential}
         newMfaDeviceType={newMfaDeviceType}
+        devices={devices}
         onClose={onClose}
         onAuthenticated={setPrivilegeToken}
         onNewMfaDeviceTypeChange={setNewMfaDeviceType}
@@ -120,7 +125,6 @@ export type AddAuthDeviceWizardStepProps = StepComponentProps &
   ReauthenticateStepProps &
   CreateDeviceStepProps &
   SaveKeyStepProps;
-
 interface CreateDeviceStepProps {
   usage: DeviceUsage;
   auth2faType: Auth2faType;

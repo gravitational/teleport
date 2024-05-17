@@ -32,7 +32,11 @@ import { ContextProvider } from 'teleport/index';
 
 import cfg from 'teleport/config';
 
-import { CreateDeviceStep, SaveDeviceStep } from './AddAuthDeviceWizard';
+import {
+  AddAuthDeviceWizardStepProps,
+  CreateDeviceStep,
+  SaveDeviceStep,
+} from './AddAuthDeviceWizard';
 import { ReauthenticateStep } from './ReauthenticateStep';
 
 export default {
@@ -56,6 +60,29 @@ initialize();
 
 export function Reauthenticate() {
   return <ReauthenticateStep {...stepProps} />;
+}
+
+export function ReauthenticateLimitedOptions() {
+  return (
+    <ReauthenticateStep
+      {...stepProps}
+      devices={[
+        {
+          id: '1',
+          description: 'Authenticator App',
+          name: 'gizmo',
+          registeredDate: new Date(1628799417000),
+          lastUsedDate: new Date(1628799417000),
+          type: 'totp',
+          usage: 'mfa',
+        },
+      ]}
+    />
+  );
+}
+
+export function ReauthenticateNoOptions() {
+  return <ReauthenticateStep {...stepProps} devices={[]} />;
 }
 
 export function CreatePasskey() {
@@ -127,7 +154,7 @@ export function SaveMfaAuthenticatorApp() {
   return <SaveDeviceStep {...stepProps} usage="mfa" newMfaDeviceType="otp" />;
 }
 
-const stepProps = {
+const stepProps: AddAuthDeviceWizardStepProps = {
   // StepComponentProps
   next: () => {},
   prev: () => {},
@@ -139,13 +166,32 @@ const stepProps = {
   // Other props
   privilegeToken: 'privilege-token',
   usage: 'passwordless' as DeviceUsage,
-  auth2faType: 'optional' as Auth2faType,
+  auth2faType: 'on' as Auth2faType,
   credential: { id: 'cred-id', type: 'public-key' },
   newMfaDeviceType: 'webauthn' as Auth2faType,
+  devices: [
+    {
+      id: '1',
+      description: 'Authenticator App',
+      name: 'gizmo',
+      registeredDate: new Date(1628799417000),
+      lastUsedDate: new Date(1628799417000),
+      type: 'totp',
+      usage: 'mfa',
+    },
+    {
+      id: '2',
+      description: 'Hardware Key',
+      name: 'key',
+      registeredDate: new Date(1623722252000),
+      lastUsedDate: new Date(1623981452000),
+      type: 'webauthn',
+      usage: 'mfa',
+    },
+  ],
   onNewMfaDeviceTypeChange: () => {},
   onDeviceCreated: () => {},
   onAuthenticated: () => {},
   onClose: () => {},
-  onPasskeyCreated: () => {},
   onSuccess: () => {},
 };

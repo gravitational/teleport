@@ -27,7 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/services"
@@ -142,7 +142,7 @@ func GenerateDatabaseServerCertificates(ctx context.Context, req GenerateDatabas
 	}
 
 	req.Key.TLSCert = resp.Cert
-	req.Key.TrustedCerts = []auth.TrustedCerts{{
+	req.Key.TrustedCerts = []authclient.TrustedCerts{{
 		ClusterName:     req.Key.ClusterName,
 		TLSCertificates: resp.CACerts,
 	}}
