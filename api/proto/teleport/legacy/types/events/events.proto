@@ -5215,6 +5215,10 @@ message SSMRun {
   // StandardError contains the stderr of the executed command.
   // Only the first 24000 chars are returned.
   string StandardError = 9 [(gogoproto.jsontag) = "stderr"];
+
+  // InvocationURL is a link to AWS Web Console for this invocation.
+  // An invocation is the execution of a Command in an Instance.
+  string InvocationURL = 10 [(gogoproto.jsontag) = "invocation_url"];
 }
 
 // CassandraSession is emitted when a Cassandra client sends
