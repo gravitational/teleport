@@ -216,8 +216,9 @@ func TestEvents(t *testing.T) {
 	mockEventWatcher.setSearchEventsError(mockErr)
 
 	select {
-	case err := <-chErr:
-		require.Error(t, mockErr, err)
+	case err, ok := <-chErr:
+		require.True(t, ok, "Channel unexpectedly close")
+		require.ErrorIs(t, err, mockErr)
 	case <-time.After(2 * time.Second):
 		t.Fatalf("No events received within deadline")
 	}
@@ -340,8 +341,9 @@ func TestUpdatePage(t *testing.T) {
 	mockEventWatcher.setSearchEventsError(mockErr)
 
 	select {
-	case err := <-chErr:
-		require.Error(t, mockErr, err)
+	case err, ok := <-chErr:
+		require.True(t, ok, "Channel unexpectedly close")
+		require.ErrorIs(t, err, mockErr)
 	case <-time.After(2 * time.Second):
 		t.Fatalf("No events received within deadline")
 	}
@@ -594,8 +596,9 @@ func TestEventsWithWindowSkip(t *testing.T) {
 	mockEventWatcher.setSearchEventsError(mockErr)
 
 	select {
-	case err := <-chErr:
-		require.Error(t, mockErr, err)
+	case err, ok := <-chErr:
+		require.True(t, ok, "Channel unexpectedly close")
+		require.ErrorIs(t, err, mockErr)
 	case <-time.After(2 * time.Second):
 		t.Fatalf("No events received within deadline")
 	}
