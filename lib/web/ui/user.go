@@ -38,6 +38,8 @@ type UserListEntry struct {
 	AllTraits map[string][]string `json:"allTraits"`
 	// Origin is the type of upstream IdP that manages the user. May be empty.
 	Origin string `json:"origin"`
+	// IsBot is true if the user is a Bot User.
+	IsBot bool `json:"isBot"`
 }
 
 type userTraits struct {
@@ -83,6 +85,7 @@ func NewUserListEntry(teleUser types.User) (*UserListEntry, error) {
 		AuthType:  authType,
 		Origin:    teleUser.Origin(),
 		AllTraits: teleUser.GetTraits(),
+		IsBot:     teleUser.IsBot(),
 	}, nil
 }
 
