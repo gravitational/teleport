@@ -104,7 +104,7 @@ func appLogin(
 	ctx context.Context,
 	tc *client.TeleportClient,
 	clusterClient *client.ClusterClient,
-	rootClient auth.ClientI,
+	rootClient authclient.ClientI,
 	appCertParams client.ReissueParams,
 ) (*client.Key, error) {
 	// TODO (Joerger): DELETE IN v17.0.0
