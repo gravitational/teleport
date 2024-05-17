@@ -24,7 +24,6 @@ import (
 	"sync"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
 	vnetproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
@@ -51,18 +50,10 @@ const (
 type Service struct {
 	api.UnimplementedVnetServiceServer
 
-	cfg    Config
-	mu     sync.Mutex
-	status status
-	// stopErrC is used to pass an error from goroutine that runs VNet in the background to the
-	// goroutine which handles RPC for stopping VNet. stopErrC gets closed after VNet stops. Starting
-	// VNet creates a new channel and assigns it as stopErrC.
-	//
-	// It's a buffered channel in case VNet crashes and there's no Stop RPC reading from stopErrC at
-	// that moment.
-	stopErrC chan error
-	// cancel stops the VNet instance running in a separate goroutine.
-	cancel context.CancelFunc
+	cfg            Config
+	mu             sync.Mutex
+	status         status
+	processManager *vnet.ProcessManager
 }
 
 // New creates an instance of Service.
@@ -107,62 +98,34 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 		return &api.StartResponse{}, nil
 	}
 
-	socket, socketPath, err := vnet.CreateSocket(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	longCtx, cancelLongCtx := context.WithCancel(context.Background())
-	s.cancel = cancelLongCtx
-	defer func() {
-		// If by the end of this RPC the service is not running, make sure to cancel the long context.
-		if s.status != statusRunning {
-			cancelLongCtx()
-		}
-	}()
-
-	g, longCtx := errgroup.WithContext(longCtx)
-
-	g.Go(func() error {
-		<-longCtx.Done()
-
-		return trace.Wrap(socket.Close())
-	})
-
-	ipv6Prefix, err := vnet.NewIPv6Prefix()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	dnsIPv6 := vnet.IPv6WithSuffix(ipv6Prefix, []byte{2})
-
-	g.Go(func() error {
-		return trace.Wrap(vnet.ExecAdminSubcommand(longCtx, socketPath, ipv6Prefix.String(), dnsIPv6.String()))
-	})
-
 	appProvider := &appProvider{
 		daemonService:      s.cfg.DaemonService,
 		clientStore:        s.cfg.ClientStore,
 		insecureSkipVerify: s.cfg.InsecureSkipVerify,
 	}
 
-	ns, err := vnet.Setup(ctx, appProvider, socket, ipv6Prefix, dnsIPv6)
+	processManager, err := vnet.SetupAndRun(ctx, appProvider)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	g.Go(func() error {
-		return trace.Wrap(ns.Run(longCtx))
-	})
-
-	s.stopErrC = make(chan error, 1)
+	defer func() {
+		if s.status != statusRunning {
+			err := processManager.Close()
+			if err != nil && !errors.Is(err, context.Canceled) {
+				log.ErrorContext(ctx, "VNet closed with an error", "error", err)
+			} else {
+				log.DebugContext(ctx, "VNet closed")
+			}
+		}
+	}()
 
 	go func() {
-		err := g.Wait()
+		err := processManager.Wait()
 		if err != nil && !errors.Is(err, context.Canceled) {
-			log.ErrorContext(longCtx, "VNet closed with an error", "error", err)
-			s.stopErrC <- err
+			log.ErrorContext(ctx, "VNet closed with an error", "error", err)
+		} else {
+			log.DebugContext(ctx, "VNet closed")
 		}
-		close(s.stopErrC)
 
 		// TODO(ravicious): Notify the Electron app about change of VNet state, but only if it's
 		// running. If it's not running, then the Start RPC has already failed and forwarded the error
@@ -171,9 +134,12 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 		s.mu.Lock()
 		defer s.mu.Unlock()
 
-		s.status = statusNotRunning
+		if s.status == statusRunning {
+			s.status = statusNotRunning
+		}
 	}()
 
+	s.processManager = processManager
 	s.status = statusRunning
 	return &api.StartResponse{}, nil
 }
@@ -183,23 +149,12 @@ func (s *Service) Stop(ctx context.Context, req *api.StopRequest) (*api.StopResp
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	errC := make(chan error)
-
-	go func() {
-		errC <- trace.Wrap(s.stopLocked())
-	}()
-
-	select {
-	case <-ctx.Done():
-		return nil, trace.Wrap(ctx.Err())
-	case err := <-errC:
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return &api.StopResponse{}, nil
+	err := s.stopLocked()
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
+	return &api.StopResponse{}, nil
 }
 
 func (s *Service) stopLocked() error {
@@ -211,10 +166,13 @@ func (s *Service) stopLocked() error {
 		return nil
 	}
 
-	s.cancel()
-	s.status = statusNotRunning
+	err := s.processManager.Close()
+	if err != nil && !errors.Is(err, context.Canceled) {
+		return trace.Wrap(err)
+	}
 
-	return trace.Wrap(<-s.stopErrC)
+	s.status = statusNotRunning
+	return nil
 }
 
 // Close stops VNet service and prevents it from being started again. Blocks until VNet stops.
@@ -224,9 +182,12 @@ func (s *Service) Close() error {
 	defer s.mu.Unlock()
 
 	err := s.stopLocked()
-	s.status = statusClosed
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
-	return trace.Wrap(err)
+	s.status = statusClosed
+	return nil
 }
 
 type appProvider struct {

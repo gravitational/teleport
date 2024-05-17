@@ -19,31 +19,87 @@ package vnet
 import (
 	"context"
 	"log/slog"
-	"net"
 	"os"
 	"time"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/sync/errgroup"
 	"golang.zx2c4.com/wireguard/tun"
-	"gvisor.dev/gvisor/pkg/tcpip"
 )
 
-// CreateSocket creates a socket that's going to be used to receive the TUN device created by the
-// admin subcommand. The admin subcommand quits when it detects that the socket has been closed.
-func CreateSocket(ctx context.Context) (*net.UnixListener, string, error) {
-	socket, socketPath, err := createUnixSocket()
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	slog.DebugContext(ctx, "Created unix socket for admin subcommand", "socket", socketPath)
-	return socket, socketPath, nil
-}
-
-// TODO: Add comment.
-func Setup(ctx context.Context, appProvider AppProvider, socket *net.UnixListener, ipv6Prefix, dnsIPv6 tcpip.Address) (*NetworkStack, error) {
-	tun, err := receiveTUNDevice(ctx, socket)
+// SetupAndRun creates a network stack for VNet and runs it in the background. To do this, it also
+// needs to launch an admin subcommand in the background. It returns [ProcessManager] which controls
+// the lifecycle of both background tasks.
+//
+// The caller is expected to call Close on the process manager to close the network stack and clean
+// up any resources used by it.
+//
+// ctx is used to wait for setup steps that happen before SetupAndRun hands out the control to the
+// process manager. If ctx gets canceled during SetupAndRun, the process manager gets closed along
+// with its background tasks.
+func SetupAndRun(ctx context.Context, appProvider AppProvider) (*ProcessManager, error) {
+	ipv6Prefix, err := NewIPv6Prefix()
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	dnsIPv6 := IPv6WithSuffix(ipv6Prefix, []byte{2})
+
+	pm := newProcessManager()
+	success := false
+	defer func() {
+		if !success {
+			// Closes the socket and background tasks.
+			pm.Close()
+		}
+	}()
+
+	// Create the socket that's used to receive the TUN device from the admin subcommand.
+	socket, socketPath, err := createUnixSocket()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	slog.DebugContext(ctx, "Created unix socket for admin subcommand", "socket", socketPath)
+	pm.AddBackgroundTask(func(ctx context.Context) error {
+		<-ctx.Done()
+		return trace.Wrap(socket.Close())
+	})
+
+	// A channel to capture an error when waiting for a TUN device to be created.
+	//
+	// To create a TUN device, VNet first needs to start the admin subcommand. When the subcommand
+	// starts, osascript shows a password prompt. If the user closes this prompt, execAdminSubcommand
+	// fails and the socket ends up being closed. To make sure that the user sees the error from
+	// osascript about prompt being closed instead of an error from receiveTUNDevice about reading
+	// from a closed socket, we send the error from osascript immediately through this channel, rather
+	// than depending on pm.Wait.
+	tunOrAdminSubcommandErrC := make(chan error, 2)
+	var tun tun.Device
+
+	pm.AddBackgroundTask(func(ctx context.Context) error {
+		err := execAdminSubcommand(ctx, socketPath, ipv6Prefix.String(), dnsIPv6.String())
+		// Pass the osascript error immediately, without having to wait on pm to propagate the error.
+		tunOrAdminSubcommandErrC <- trace.Wrap(err)
+		return trace.Wrap(err)
+	})
+
+	go func() {
+		tunDevice, err := receiveTUNDevice(socket)
+		tun = tunDevice
+		tunOrAdminSubcommandErrC <- err
+	}()
+
+	select {
+	case <-ctx.Done():
+		return nil, trace.Wrap(ctx.Err())
+	case err := <-tunOrAdminSubcommandErrC:
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if tun == nil {
+			// If the execution ever gets there, it's because of a bug.
+			return nil, trace.Errorf("no TUN device created, execAdminSubcommand must have returned early with no error")
+		}
 	}
 
 	appResolver, err := NewTCPAppResolver(appProvider)
@@ -51,7 +107,7 @@ func Setup(ctx context.Context, appProvider AppProvider, socket *net.UnixListene
 		return nil, trace.Wrap(err)
 	}
 
-	ns, err := NewNetworkStack(&Config{
+	ns, err := newNetworkStack(&Config{
 		TUNDevice:          tun,
 		IPv6Prefix:         ipv6Prefix,
 		DNSIPv6:            dnsIPv6,
@@ -61,7 +117,55 @@ func Setup(ctx context.Context, appProvider AppProvider, socket *net.UnixListene
 		return nil, trace.Wrap(err)
 	}
 
-	return ns, nil
+	pm.AddBackgroundTask(func(ctx context.Context) error {
+		return trace.Wrap(ns.Run(ctx))
+	})
+
+	success = true
+	return pm, nil
+}
+
+func newProcessManager() *ProcessManager {
+	ctx, cancel := context.WithCancel(context.Background())
+	g, ctx := errgroup.WithContext(ctx)
+
+	return &ProcessManager{
+		g:      g,
+		ctx:    ctx,
+		cancel: cancel,
+	}
+}
+
+// ProcessManager handles background tasks needed to run VNet.
+// Its semantics are similar to an error group with context.
+type ProcessManager struct {
+	g      *errgroup.Group
+	ctx    context.Context
+	cancel context.CancelFunc
+}
+
+// AddBackgroundTask adds a function to the error group. The context passed to bgTaskFunc is a
+// background context that gets canceled when Close is called or any added bgTaskFunc returns an
+// error.
+func (pm *ProcessManager) AddBackgroundTask(bgTaskFunc func(ctx context.Context) error) {
+	pm.g.Go(func() error {
+		return trace.Wrap(bgTaskFunc(pm.ctx))
+	})
+}
+
+// Wait blocks and waits for the background tasks to finish, which typically happens when another
+// goroutine calls Close on the process manager.
+func (pm *ProcessManager) Wait() error {
+	return trace.Wrap(pm.g.Wait())
+}
+
+// Close stops any active background tasks by canceling the underlying context. It then returns the
+// error from the error group.
+func (pm *ProcessManager) Close() error {
+	go func() {
+		pm.cancel()
+	}()
+	return trace.Wrap(pm.g.Wait())
 }
 
 // AdminSubcommand is the tsh subcommand that should run as root that will create and setup a TUN device and

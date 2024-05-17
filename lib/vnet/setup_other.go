@@ -50,6 +50,6 @@ func configureOS(ctx context.Context, cfg *osConfig) error {
 	return trace.Wrap(ErrVnetNotImplemented)
 }
 
-func ExecAdminSubcommand(ctx context.Context, socketPath, ipv6Prefix, dnsAddr string) error {
+func execAdminSubcommand(ctx context.Context, socketPath, ipv6Prefix, dnsAddr string) error {
 	return trace.Wrap(ErrVnetNotImplemented)
 }

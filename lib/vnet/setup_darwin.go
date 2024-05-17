@@ -40,8 +40,10 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-func receiveTUNDevice(ctx context.Context, socket *net.UnixListener) (tun.Device, error) {
-	tunName, tunFd, err := recvTUNNameAndFd(ctx, socket)
+// receiveTUNDevice is a blocking call which waits for the admin subcommand to pass over the socket
+// the name and fd of the TUN device.
+func receiveTUNDevice(socket *net.UnixListener) (tun.Device, error) {
+	tunName, tunFd, err := recvTUNNameAndFd(socket)
 	if err != nil {
 		return nil, trace.Wrap(err, "receiving TUN name and file descriptor")
 	}
@@ -50,7 +52,7 @@ func receiveTUNDevice(ctx context.Context, socket *net.UnixListener) (tun.Device
 	return tunDevice, trace.Wrap(err, "creating TUN device from file descriptor")
 }
 
-func ExecAdminSubcommand(ctx context.Context, socketPath, ipv6Prefix, dnsAddr string) error {
+func execAdminSubcommand(ctx context.Context, socketPath, ipv6Prefix, dnsAddr string) error {
 	executableName, err := os.Executable()
 	if err != nil {
 		return trace.Wrap(err, "getting executable path")
@@ -160,32 +162,12 @@ func sendTUNNameAndFd(socketPath, tunName string, fd uintptr) error {
 
 // recvTUNNameAndFd receives the name of a TUN device and its open file descriptor over a unix socket, meant
 // for passing the TUN from the root process which must create it to the user process.
-func recvTUNNameAndFd(ctx context.Context, socket *net.UnixListener) (string, uintptr, error) {
-	var conn *net.UnixConn
-	errC := make(chan error, 1)
-
-	go func() {
-		connection, err := socket.AcceptUnix()
-		conn = connection
-		errC <- err
-	}()
-
-	select {
-	case <-ctx.Done():
-		return "", 0, trace.Wrap(ctx.Err())
-	case err := <-errC:
-		if err != nil {
-			return "", 0, trace.Wrap(err, "accepting connection on unix socket")
-		}
+func recvTUNNameAndFd(socket *net.UnixListener) (string, uintptr, error) {
+	conn, err := socket.AcceptUnix()
+	if err != nil {
+		return "", 0, trace.Wrap(err, "accepting connection on unix socket")
 	}
-
-	// Close the connection early to unblock reads if the context is canceled.
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	go func() {
-		<-ctx.Done()
-		conn.Close()
-	}()
+	defer conn.Close()
 
 	msg := make([]byte, 128)
 	oob := make([]byte, unix.CmsgSpace(4)) // Fd is 4 bytes

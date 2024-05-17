@@ -212,10 +212,10 @@ func newState() state {
 	}
 }
 
-// NewNetworkStack creates a new VNet network stack with the given configuration and root context.
+// newNetworkStack creates a new VNet network stack with the given configuration and root context.
 // It takes ownership of [cfg.TUNDevice] and will handle closing it before Run() returns. Call Run()
 // on the returned network stack to start the VNet.
-func NewNetworkStack(cfg *Config) (*NetworkStack, error) {
+func newNetworkStack(cfg *Config) (*NetworkStack, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
