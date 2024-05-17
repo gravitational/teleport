@@ -26,7 +26,7 @@ import * as whatwg from 'whatwg-url';
 import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
 
 import { useVnetContext } from './vnetContext';
-import { VnetSliderStepHeader, AppConnectionItem } from './VnetConnectionItem';
+import { VnetSliderStepHeader } from './VnetConnectionItem';
 
 /**
  * VnetSliderStep is the second step of StepSlider used in TopBar/Connections. It is shown after
@@ -94,19 +94,6 @@ export const VnetSliderStep = (props: StepComponentProps) => {
             <Text p={textSpacing}>
               Proxying TCP connections to {rootProxyHostnames.join(', ')}
             </Text>
-            <Flex flexDirection="column" gap={1}>
-              <AppConnectionItem app="api.company.private" status="on" />
-              <AppConnectionItem app="kafka.teleport-local.dev" status="on" />
-              <AppConnectionItem
-                app="redis.teleport-local.dev"
-                status="error"
-                error={dnsError}
-              />
-              <AppConnectionItem
-                app="aerospike.teleport-local.dev"
-                status="off"
-              />
-            </Flex>
           </>
         ))}
     </Box>
@@ -114,5 +101,3 @@ export const VnetSliderStep = (props: StepComponentProps) => {
 };
 
 const textSpacing = 1;
-
-const dnsError = `DNS query for "redis.teleport-local.dev" in custom DNS zone failed: no matching Teleport app and upstream nameserver did not respond`;
