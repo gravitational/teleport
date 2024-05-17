@@ -12,9 +12,9 @@ of manual overhead, we recommend [signing up](https://goteleport.com/signup) for
 a cloud-hosted Teleport Enterprise account and following [Enroll Agents in
 Automatic Upgrades](./automatic-agent-updates.mdx). 
 
-If you have a self-hosted Teleport cluster or your infrastructure does not
-support automatic agent updates, follow this guide to determine the best
-approach for keeping your Teleport cluster up to date. 
+If your infrastructure does not support automatic agent updates, follow this
+guide to determine the best approach for keeping your Teleport cluster up to
+date. 
 
 Before reading this guide, become familiar with the  [Upgrading Compatibility
 Overview](./overview.mdx) guide, which describes the sequence in which to
@@ -246,97 +246,6 @@ spec
         name: teleport-agent
         namespace: teleport
 ...
-```
-
-## Self-hosted automatic updates
-
-You can enable automatic agent updates in a self-hosted Teleport cluster.
-Before enabling automatic upgrades in your self-hosted Teleport cluster, you
-must enable a **version server**. Automatic upgrades in self-hosted Teleport
-clusters require at least v14.3.7 or v15.1.3.
-
-### Configuring the maintenance schedule
-
-To eanble automatic upgrades in your cluster, you must create a cluster
-maintenance config. This configures maintenance schedule for the Teleport
-cluster that agents use to determine when to check for upgrades.
-
-1. Create a Teleport role that can manage cluster maintenance configurations
-   through the `cluster_maintenance_config` dynamic resource. No preset Teleport
-   roles provide this ability, so you will need to create one.
-
-   Create a file called `cmc-editor.yaml` with the following content:
-
-   ```yaml
-   kind: role
-   version: v7
-   metadata:
-     name: cmc-editor
-   spec:
-     allow:
-       rules:
-       - resources: ['cluster_maintenance_config']
-         verbs: ['create', 'read', 'update', 'delete']
-   ```
-
-   Create the role resource:
-
-   ```code
-   $ tctl create cmd-editor.yaml
-   ```
-
-1. Add the role to your Teleport user:
-
-  (!docs/pages/includes/add-role-to-user.mdx!)
-
-1. Create a cluster maintenance config in a file called `cmc.yaml`. The
-   following example allows maintenance on Monday, Wednesday and Friday between
-   02:00 and 03:00 UTC:
-
-   (!docs/pages/includes/cluster-maintenance-config-spec.mdx!)
-
-1. Apply the manifest using `tctl`:
-
-   ```code
-   $ tctl create cmc.yaml
-   maintenance window has been updated
-   ```
-
-### Changing the version served by the version server
-
-By default, the version server has a single `default` channel, serving the
-version of the Teleport Proxy Service. If you want to override the default
-version or add other channels you can use the `automatic_upgrades_channels`
-field in the Proxy Service configuration file:
-
-```yaml
-proxy_service:
-  enabled: "yes"
-  automatic_upgrades_channels:
-    # Override the default version channel reachable at
-    # https://<Var name="teleport.example.com:443" />/v1/webapi/automaticupgrades/channel/default/version
-    default:
-      static_version: v14.2.1
-    # Define a new version channel with a static version reachable at
-    # https://<Var name="teleport.example.com:443" />/v1/webapi/automaticupgrades/channel/m-static-channel/version
-    my-static-channel:
-      static_version: v14.2.0
-    # Define a new version channel forwarding requests to an upstream version server
-    my-remote-channel:
-      forward_url: https://updates.releases.teleport.dev/v1/stable/cloud
-```
-
-You must ensure all proxies share the same `automatic_upgrades_channels`
-configuration. If Proxy Service instances are configured differently, you will
-experience agents flickering between versions as the version served is not
-consistent across instances.
-
-If your Proxy Service public address is <Var name="teleport.example.com:443" />,
-you can query the version server with the following command:
-
-```code
-$ curl "https://<Var name="teleport.example.com:443" />/v1/webapi/automaticupgrades/channel/default/version"
-(=teleport.version=)
 ```
 
 ## Manual updates

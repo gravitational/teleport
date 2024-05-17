@@ -3,11 +3,11 @@ title: Set up Automatic Agent Updates
 description: Describes how to set up automatic agent updates.
 ---
 
-We strongly recommend that Teleport users set up automatic agent updates to
-ensure that the version of Teleport running on agents remains compatible with
-the version running on the Auth Service and Proxy Service. If an agent does not
-maintain [version compatibility](./overview.mdx) with your Teleport cluster,
-connections to those agents will become degraded or lost.
+On cloud-hosted Teleport Enterprise accounts, users must set up automatic agent
+updates to ensure that the version of Teleport running on agents remains
+compatible with the version running on the Auth Service and Proxy Service. If an
+agent does not maintain [version compatibility](./overview.mdx) with your
+Teleport cluster, connections to those agents will become degraded or lost.
 
 Cloud-hosted Teleport clusters are updated on a weekly basis. Major version
 updates are performed every 4 months. You can monitor and subscribe to the
@@ -19,7 +19,8 @@ using `apt`, `yum`, and `zypper` package managers, as well as Kubernetes
 clusters. 
 
 This guide explains how to enable automatic updates for Teleport agents on
-cloud-hosted Teleport Enterprise clusters. 
+Teleport Enterprise clusters, including both self-hosted and cloud-hosted
+clusters.
 
 ## How it works
 
@@ -32,24 +33,118 @@ regular maintenance window.
 
 ## Prerequisites
 
-- A cloud-hosted Teleport Enterprise cluster. If you do not have one, [sign
+- A Teleport Enterprise cluster. If you do not have one, [sign
   up](https://goteleport.com/signup) for a free trial or consult the [Update
-  Reference](./reference.mdx) to read about manual updates or automatic agent
-  updates for self-hosted clusters.
+  Reference](./reference.mdx) to read about manual updates.
 
 - Familiarity with the [Upgrading Compatibility Overview](./overview.mdx) guide,
   which describes the sequence in which to upgrade components in your cluster.
 
-- (!docs/pages/includes/cloud/tctl-tsh-prerequisite.mdx!)
+- Teleport agents that are not yet enrolled in automatic updates.
+
+- (!docs/pages/includes/tctl-tsh-prerequisite.mdx!)
 
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/3. Find agents to enroll in automatic updates
+## Step 1/4. Enable automatic agent upgrades
+
+If you are running a cloud-hosted Teleport Enterprise cluster, skip to [Step
+2](#step-24-find-agents-to-enroll-in-automatic-updates).
+
+Before enabling automatic upgrades in your self-hosted Teleport cluster, you
+must enable a **version server**. This section shows you how to enable a version
+server in your cluster. Automatic upgrades in self-hosted Teleport clusters
+require at least v14.3.7 or v15.1.3. 
+
+### Configure a maintenance schedule
+
+To enable automatic upgrades in your cluster, you must create a cluster
+maintenance configuration. This configures a maintenance schedule for the
+Teleport cluster that agents use to determine when to check for upgrades.
+
+1. Create a Teleport role that can manage cluster maintenance configurations
+   through the `cluster_maintenance_config` dynamic resource. No preset Teleport
+   roles provide this ability, so you will need to create one.
+
+   Create a file called `cmc-editor.yaml` with the following content:
+
+   ```yaml
+   kind: role
+   version: v7
+   metadata:
+     name: cmc-editor
+   spec:
+     allow:
+       rules:
+       - resources: ['cluster_maintenance_config']
+         verbs: ['create', 'read', 'update', 'delete']
+   ```
+
+   Create the role resource:
+
+   ```code
+   $ tctl create cmd-editor.yaml
+   ```
+
+1. Add the role to your Teleport user:
+
+  (!docs/pages/includes/add-role-to-user.mdx!)
+
+1. Create a cluster maintenance config in a file called `cmc.yaml`. The
+   following example allows maintenance on Monday, Wednesday and Friday between
+   02:00 and 03:00 UTC:
+
+   (!docs/pages/includes/cluster-maintenance-config-spec.mdx!)
+
+1. Apply the manifest using `tctl`:
+
+   ```code
+   $ tctl create cmc.yaml
+   maintenance window has been updated
+   ```
+
+### [Optional] Assign the version served by the version server
+
+By default, the version server has a single `default` channel, serving the
+version of the Teleport Proxy Service. If you want to override the default
+version or add other channels you can use the `automatic_upgrades_channels`
+field in the Proxy Service configuration file:
+
+```yaml
+proxy_service:
+  enabled: "yes"
+  automatic_upgrades_channels:
+    # Override the default version channel reachable at
+    # https://<Var name="teleport.example.com:443" />/v1/webapi/automaticupgrades/channel/default/version
+    default:
+      static_version: v14.2.1
+    # Define a new version channel with a static version reachable at
+    # https://<Var name="teleport.example.com:443" />/v1/webapi/automaticupgrades/channel/m-static-channel/version
+    my-static-channel:
+      static_version: v14.2.0
+    # Define a new version channel forwarding requests to an upstream version server
+    my-remote-channel:
+      forward_url: https://updates.releases.teleport.dev/v1/stable/cloud
+```
+
+You must ensure that all Proxy Service instances share the same
+`automatic_upgrades_channels` configuration. If some Proxy Service instances are
+configured differently, you will experience agents flickering between versions
+as the version served is not consistent across instances.
+
+If your Proxy Service public address is <Var name="teleport.example.com:443" />,
+you can query the version server with the following command:
+
+```code
+$ curl "https://<Var name="teleport.example.com:443" />/v1/webapi/automaticupgrades/channel/default/version"
+(=teleport.version=)
+```
+
+## Step 2/4. Find agents to enroll in automatic updates
 
 Use the `tctl inventory ls` command to list connected agents along with their current
 version. Use the `--upgrader=none` flag to list agents that are not enrolled in automatic
 updates.
-
 
 ```code
 $ tctl inventory ls --upgrader=none
@@ -63,7 +158,7 @@ Note that the `inventory ls` command will also list `teleport-auth` and
 `teleport-proxy` services. These services are managed by the Teleport team, and
 updates will be performed automatically.
 
-## Step 2/3. Enroll agents on Linux servers in automatic updates
+## Step 3/4. Enroll agents on Linux servers in automatic updates
 
 1. For each agent ID returned by the `tctl inventory ls` command, copy the ID
    and run the following `tctl` command to access the host via `tsh`:
@@ -74,24 +169,40 @@ updates will be performed automatically.
    $ tsh ssh "${USER?}@${HOST?}"
    ```
 
-1. Determine the Teleport version to install by querying your cloud-hosted
-   Teleport Enterprise account. This way, the Teleport installation has the same
-   major version as the cloud-hosted automatic updater. Replace 
-   <Var name="example.teleport.sh" /> with the domain name of your cloud-hosted
-   Teleport Enterprise account:
+1. Determine the Teleport version to install by querying the Teleport Proxy
+   Service. This way, the Teleport installation has the same major version as
+   the automatic updater. 
+
+   Replace <Var name="example.teleport.sh" /> with the domain name of the
+   Teleport Proxy Service and <Var name="stable/cloud" /> with the name of your
+   automatic update channel. For cloud-hosted Teleport Enterprise accounts, this
+   is always `stable/cloud`:
 
    ```code
-   $ TELEPORT_VERSION="$(curl https://<Var name="example.teleport.sh" />/v1/webapi/automaticupgrades/channel/stable/cloud/version | sed 's/v//')"
+   $ TELEPORT_VERSION="$(curl https://<Var name="example.teleport.sh" />/v1/webapi/automaticupgrades/channel/<Var name="stable/cloud" />/version | sed 's/v//')"
    ```
 
-1. Ensure that the Teleport repository is properly configured to use the
-   `stable/cloud` channel, and install the `teleport-ent-updater` package. This
-   must be completed on each agent you would like to enroll into automatic
-   updates:
+1. Ensure that the Teleport repository is properly configured to use the <Var
+   name="stable/cloud" /> channel, and install the `teleport-ent-updater`
+   package. You must install `teleport-ent-updater` on each agent you would like
+   to enroll into automatic updates:
+
+   <Tabs>
+   <TabItem label="Cloud-Hosted">
 
    ```code
    $ curl https://goteleport.com/static/install.sh | bash -s ${TELEPORT_VERSION?} cloud
    ```
+
+   </TabItem>
+   <TabItem label="Self-Hosted">
+
+   ```code
+   $ curl https://goteleport.com/static/install.sh | bash -s ${TELEPORT_VERSION?} enterprise
+   ```
+
+   </TabItem>
+   </Tabs>
 
    The installation script detects the package manager on your Linux server and
    uses it to install Teleport binaries. To customize your installation, learn
@@ -136,7 +247,7 @@ $ sudo chown <your-teleport-user> /etc/teleport-upgrade.d/schedule
    schedule. This is expected immediately after install as the maintenance
    schedule might not be exported yet.
 
-## Step 3/3. Enroll Kubernetes agents in automatic updates
+## Step 4/4. Enroll Kubernetes agents in automatic updates
 
 This section assumes that the name of your `teleport-kube-agent` release is
 `teleport-agent`, and that you have installed it in the `teleport` namespace.
@@ -167,11 +278,24 @@ This section assumes that the name of your `teleport-kube-agent` release is
 
 1. Update the Helm chart release with the new values:
 
+   <Tabs>
+   <TabItem label="Cloud-Hosted">
+
    ```code
    $ helm -n <Var name="teleport" />  upgrade <Var name="teleport-agent" /> teleport/teleport-kube-agent \
    --values=values.yaml \
    --version=<Var name="(=cloud.version=)" />
    ```
+   </TabItem>
+   <TabItem label="Self-Hosted">
+
+   ```code
+   $ helm -n <Var name="teleport" />  upgrade <Var name="teleport-agent" /> teleport/teleport-kube-agent \
+   --values=values.yaml \
+   --version=<Var name="(=teleport.version=)" />
+   ```
+   </TabItem>
+   </Tabs>
 
 1. You can validate the updater is running properly by checking if its pod is
    ready:
@@ -198,7 +322,11 @@ Teleport agents are not updated immediately when a new version of Teleport is
 released, and agent updates can lag behind the cluster by a few days.
 
 If the Teleport agent has not been automatically updating for several weeks, you
-can consult the updater logs to help troubleshoot the problem.
+can consult the updater logs to help troubleshoot the problem:
+
+```code
+$ journalctl -u teleport-upgrade
+```
 
 ### Troubleshooting automatic agent upgrades on Kubernetes
 
