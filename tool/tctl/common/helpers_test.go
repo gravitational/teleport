@@ -40,7 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/breaker"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -278,7 +278,7 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 
 	cfg.CachePolicy.Enabled = false
 	cfg.Proxy.DisableWebInterface = true
-	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	if options.fakeClock != nil {
 		cfg.Clock = options.fakeClock
 	}
