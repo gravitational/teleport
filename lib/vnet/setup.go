@@ -63,7 +63,7 @@ func Run(ctx context.Context, appProvider AppProvider) error {
 		return trace.Wrap(err)
 	}
 
-	allErrors := make(chan error, 4)
+	allErrors := make(chan error, 2)
 	g, ctx := errgroup.WithContext(ctx)
 	g.Go(func() error {
 		// Make sure to cancel the context if manager.Run terminates for any reason.
@@ -119,7 +119,7 @@ func AdminSubcommand(ctx context.Context, socketPath, ipv6Prefix, dnsAddr string
 
 	// Stay alive until we get an error on errCh, indicating that the osConfig loop exited.
 	// If the socket is deleted, indicating that the parent process exited, cancel the context and then wait
-	// for an err or errCh.
+	// for the osConfig loop to exit and send an err on errCh.
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 	for {
