@@ -37,11 +37,10 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
+	"github.com/gravitational/teleport/integrations/terraform/provider"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
-
-	"github.com/gravitational/teleport/integrations/terraform/provider"
 )
 
 //go:embed fixtures/*

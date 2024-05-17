@@ -3143,7 +3143,7 @@ func TestAddMFADevice(t *testing.T) {
 	_, _, err = CreateUserAndRole(authServer, username, []string{username}, nil /* allowRules */)
 	require.NoError(t, err, "CreateUserAndRole")
 
-	resetToken, err := authServer.CreateResetPasswordToken(ctx, CreateUserTokenRequest{
+	resetToken, err := authServer.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 		Name: username,
 	})
 	require.NoError(t, err, "CreateResetPasswordToken")
