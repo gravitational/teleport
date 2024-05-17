@@ -947,11 +947,6 @@ func (h *Handler) awsOIDCCreateAWSAppAccess(w http.ResponseWriter, r *http.Reque
 		return nil, trace.BadParameter("only aws oidc integrations are supported")
 	}
 
-	identity, err := sctx.GetIdentity()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	getUserGroupLookup := h.getUserGroupLookup(r.Context(), clt)
 
 	publicAddr := libutils.DefaultAppPublicAddr(integrationName, h.PublicProxyAddr())
@@ -965,13 +960,27 @@ func (h *Handler) awsOIDCCreateAWSAppAccess(w http.ResponseWriter, r *http.Reque
 		return nil, trace.Wrap(err)
 	}
 
+	accessChecker, err := sctx.GetUserAccessChecker()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	allowedAWSRoles, err := accessChecker.GetAllowedLoginsForResource(appServer.GetApp())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	allowedAWSRolesLookup := map[string][]string{
+		appServer.GetName(): allowedAWSRoles,
+	}
+
 	return ui.MakeApp(appServer.GetApp(), ui.MakeAppsConfig{
-		LocalClusterName:  h.auth.clusterName,
-		LocalProxyDNSName: h.proxyDNSName(),
-		AppClusterName:    site.GetName(),
-		Identity:          identity,
-		UserGroupLookup:   getUserGroupLookup(),
-		Logger:            h.log,
+		LocalClusterName:      h.auth.clusterName,
+		LocalProxyDNSName:     h.proxyDNSName(),
+		AppClusterName:        site.GetName(),
+		AllowedAWSRolesLookup: allowedAWSRolesLookup,
+		UserGroupLookup:       getUserGroupLookup(),
+		Logger:                h.log,
 	}), nil
 }
 
