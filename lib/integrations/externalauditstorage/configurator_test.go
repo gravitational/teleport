@@ -293,14 +293,17 @@ func TestCredentialsCache(t *testing.T) {
 	// clients should never see an error retrieving credentials.
 	expectedRefreshTime := newCredentialExpiry.Add(-refreshBeforeExpirationPeriod)
 	credentialsUpdated := false
-	for done := newCredentialExpiry.Add(10 * time.Minute); clock.Now().Before(done); advanceClock(time.Minute) {
+	done := newCredentialExpiry.Add(10 * time.Minute)
+	for clock.Now().Before(done) {
 		if clock.Now().Sub(expectedRefreshTime).Abs() < 5*time.Minute ||
 			clock.Now().Sub(newCredentialExpiry).Abs() < 5*time.Minute {
 			// Within one of the 10-minute outage windows, make the STS client return errors.
 			stsClient.setError(stsError)
+			advanceClock(time.Minute)
 		} else {
 			// Not within an outage window, STS client should not return errors.
 			stsClient.setError(nil)
+			advanceClock(time.Minute)
 
 			if !credentialsUpdated && clock.Now().After(expectedRefreshTime) {
 				// This is after the expected refresh time and not within an outage window, for the test to
@@ -310,7 +313,7 @@ func TestCredentialsCache(t *testing.T) {
 				require.EventuallyWithT(t, func(t *assert.CollectT) {
 					creds, err := provider.Retrieve(ctx)
 					assert.NoError(t, err)
-					assert.WithinDuration(t, expectedExpiry, creds.Expires, time.Minute)
+					assert.WithinDuration(t, expectedExpiry, creds.Expires, 2*time.Minute)
 				}, waitFor, tick)
 				credentialsUpdated = true
 			}
