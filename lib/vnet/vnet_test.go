@@ -39,7 +39,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -265,7 +265,7 @@ func (p *echoAppProvider) GetCachedClient(ctx context.Context, profileName, leaf
 // echoAppAuthClient is a fake auth client that answers GetResources requests with a static list of apps and
 // basic/faked predicate filtering.
 type echoAppAuthClient struct {
-	auth.ClientI
+	authclient.ClientI
 	clusterName string
 	apps        []string
 }
