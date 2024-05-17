@@ -196,25 +196,6 @@ func (s *Storage) addCluster(ctx context.Context, dir, webProxyAddress string) (
 	}, clusterClient, nil
 }
 
-func (s *Storage) NewClusterClient(ctx context.Context, profileName, leafClusterName string) (*client.TeleportClient, error) {
-	profileStore := client.NewFSProfileStore(s.Dir)
-
-	cfg := s.makeDefaultClientConfig()
-	if err := cfg.LoadProfile(profileStore, profileName); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if leafClusterName != "" {
-		cfg.SiteName = leafClusterName
-	}
-
-	clusterClient, err := client.NewClient(cfg)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return clusterClient, nil
-}
-
 // fromProfile creates a new cluster from its profile
 func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, *client.TeleportClient, error) {
 	if profileName == "" {
@@ -223,12 +204,21 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, *c
 
 	clusterNameForKey := profileName
 	clusterURI := uri.NewClusterURI(profileName)
+
+	profileStore := client.NewFSProfileStore(s.Dir)
+
+	cfg := s.makeDefaultClientConfig()
+	if err := cfg.LoadProfile(profileStore, profileName); err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
 	if leafClusterName != "" {
 		clusterNameForKey = leafClusterName
 		clusterURI = clusterURI.AppendLeafCluster(leafClusterName)
+		cfg.SiteName = leafClusterName
 	}
 
-	clusterClient, err := s.NewClusterClient(context.Background(), profileName, leafClusterName)
+	clusterClient, err := client.NewClient(cfg)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
