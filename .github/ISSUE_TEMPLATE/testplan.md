@@ -364,6 +364,8 @@ and cluster v1.30 (does support it by default) and to access them both through k
   * [ ] Cluster v1.29 in kubeconfig mode
   * [ ] Cluster v1.30 in agent mode (should see `X-Stream-Protocol-Version: v5.channel.k8s.io`)
   * [ ] Cluster v1.30 in kubeconfig mode (should see `X-Stream-Protocol-Version: v5.channel.k8s.io`)
+* [ ] Test Kubernetes exec via javascript client - [client](https://github.com/kubernetes-client/javascript/blob/45b68c98e62b6cc4152189b9fd4a27ad32781bc4/examples/typescript/exec/exec-example.ts)
+
 
 ### Kubernetes auto-discovery
 
