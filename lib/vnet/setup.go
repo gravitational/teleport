@@ -40,7 +40,7 @@ func CreateSocket(ctx context.Context) (*net.UnixListener, string, error) {
 }
 
 // TODO: Add comment.
-func Setup(ctx context.Context, appProvider AppProvider, socket *net.UnixListener, ipv6Prefix, dnsIPv6 tcpip.Address) (*Manager, error) {
+func Setup(ctx context.Context, appProvider AppProvider, socket *net.UnixListener, ipv6Prefix, dnsIPv6 tcpip.Address) (*NetworkStack, error) {
 	tun, err := receiveTUNDevice(ctx, socket)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -51,7 +51,7 @@ func Setup(ctx context.Context, appProvider AppProvider, socket *net.UnixListene
 		return nil, trace.Wrap(err)
 	}
 
-	manager, err := NewManager(&Config{
+	ns, err := NewNetworkStack(&Config{
 		TUNDevice:          tun,
 		IPv6Prefix:         ipv6Prefix,
 		DNSIPv6:            dnsIPv6,
@@ -61,7 +61,7 @@ func Setup(ctx context.Context, appProvider AppProvider, socket *net.UnixListene
 		return nil, trace.Wrap(err)
 	}
 
-	return manager, nil
+	return ns, nil
 }
 
 // AdminSubcommand is the tsh subcommand that should run as root that will create and setup a TUN device and

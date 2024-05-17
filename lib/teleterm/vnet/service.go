@@ -145,13 +145,13 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 		insecureSkipVerify: s.cfg.InsecureSkipVerify,
 	}
 
-	manager, err := vnet.Setup(ctx, appProvider, socket, ipv6Prefix, dnsIPv6)
+	ns, err := vnet.Setup(ctx, appProvider, socket, ipv6Prefix, dnsIPv6)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	g.Go(func() error {
-		return trace.Wrap(manager.Run(longCtx))
+		return trace.Wrap(ns.Run(longCtx))
 	})
 
 	s.stopErrC = make(chan error, 1)
