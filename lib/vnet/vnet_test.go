@@ -363,8 +363,8 @@ func TestDialFakeApp(t *testing.T) {
 					return trace.Wrap(err)
 				}
 				go func() {
-					err := utils.ProxyConn(ctx, conn, conn)
-					if errors.Is(err, context.Canceled) {
+					_, err := io.Copy(conn, conn)
+					if utils.IsOKNetworkError(err) {
 						err = nil
 					}
 					assert.NoError(t, err)
@@ -459,7 +459,7 @@ func TestDialFakeApp(t *testing.T) {
 
 func testEchoConnection(t *testing.T, conn net.Conn) {
 	const testString = "1........."
-	writeBuf := bytes.Repeat([]byte(testString), 10)
+	writeBuf := bytes.Repeat([]byte(testString), 200)
 	readBuf := make([]byte, len(writeBuf))
 
 	for i := 0; i < 10; i++ {
