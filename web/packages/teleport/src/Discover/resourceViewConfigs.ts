@@ -19,7 +19,6 @@
 import { ServerResource } from 'teleport/Discover/Server';
 import { DatabaseResource } from 'teleport/Discover/Database';
 import { KubernetesResource } from 'teleport/Discover/Kubernetes';
-import { DesktopResource } from 'teleport/Discover/Desktop';
 import { ConnectMyComputerResource } from 'teleport/Discover/ConnectMyComputer';
 
 import { ResourceViewConfig } from './flow';
@@ -28,6 +27,5 @@ export const viewConfigs: ResourceViewConfig[] = [
   ServerResource,
   DatabaseResource,
   KubernetesResource,
-  DesktopResource,
   ConnectMyComputerResource,
 ];
