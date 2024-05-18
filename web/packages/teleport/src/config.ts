@@ -282,11 +282,6 @@ const cfg = {
 
     dbSign: 'v1/webapi/sites/:clusterId/sign/db',
 
-    installADDSPath: '/v1/webapi/scripts/desktop-access/install-ad-ds.ps1',
-    installADCSPath: '/v1/webapi/scripts/desktop-access/install-ad-cs.ps1',
-    configureADPath:
-      '/v1/webapi/scripts/desktop-access/configure/:token/configure-ad.ps1',
-
     captureUserEventPath: '/v1/webapi/capture',
     capturePreUserEventPath: '/v1/webapi/precapture',
 
@@ -522,18 +517,6 @@ const cfg = {
 
   getDbScriptUrl(token: string) {
     return cfg.baseUrl + generatePath(cfg.api.dbScriptPath, { token });
-  },
-
-  getConfigureADUrl(token: string) {
-    return cfg.baseUrl + generatePath(cfg.api.configureADPath, { token });
-  },
-
-  getInstallADDSPath() {
-    return cfg.baseUrl + cfg.api.installADDSPath;
-  },
-
-  getInstallADCSPath() {
-    return cfg.baseUrl + cfg.api.installADCSPath;
   },
 
   getAppNodeScriptUrl(token: string, name: string, uri: string) {
