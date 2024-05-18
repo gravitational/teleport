@@ -200,7 +200,7 @@ func (t *TeleportEventsWatcher) fetch(ctx context.Context) error {
 // If the cursor is out of the range, it advances the windowStartTime to the next day.
 // It only advances the windowStartTime if no events are found until the last complete day.
 func (t *TeleportEventsWatcher) getEvents(ctx context.Context) (string, error) {
-	rangeSplitByDay := splitRangeByDay(t.getWindowStartTime(), time.Now().UTC())
+	rangeSplitByDay := splitRangeByDay(t.getWindowStartTime(), time.Now().UTC(), t.config.WindowSize)
 	for i := 1; i < len(rangeSplitByDay); i++ {
 		startTime := rangeSplitByDay[i-1]
 		endTime := rangeSplitByDay[i]
@@ -280,10 +280,10 @@ func (t *TeleportEventsWatcher) getEventsInWindow(ctx context.Context, from, to 
 	return evts, cursor, trace.Wrap(err)
 }
 
-func splitRangeByDay(from, to time.Time) []time.Time {
+func splitRangeByDay(from, to time.Time, windowSize time.Duration) []time.Time {
 	// splitRangeByDay splits the range into days
 	var days []time.Time
-	for d := from; d.Before(to); d = d.AddDate(0, 0, 1) {
+	for d := from; d.Before(to); d = d.Add(windowSize) {
 		days = append(days, d)
 	}
 	return append(days, to) // add the last date

@@ -149,6 +149,9 @@ type IngestConfig struct {
 
 	// Concurrency sets the number of concurrent sessions to ingest
 	Concurrency int `help:"Number of concurrent sessions" default:"5"`
+
+	//WindowSize is the size of the window to process events
+	WindowSize time.Duration `help:"Window size to process events" default:"24h"`
 }
 
 // LockConfig represents locking configuration
@@ -253,6 +256,7 @@ func (c *StartCmdConfig) Dump(ctx context.Context) {
 	log.WithField("ca", c.FluentdCA).Info("Using Fluentd ca")
 	log.WithField("cert", c.FluentdCert).Info("Using Fluentd cert")
 	log.WithField("key", c.FluentdKey).Info("Using Fluentd key")
+	log.WithField("window-size", c.WindowSize).Info("Using window size")
 
 	if c.TeleportIdentityFile != "" {
 		log.WithField("file", c.TeleportIdentityFile).Info("Using Teleport identity file")
