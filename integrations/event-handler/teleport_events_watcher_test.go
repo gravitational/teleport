@@ -147,6 +147,7 @@ func newTeleportEventWatcher(t *testing.T, eventsClient TeleportSearchEventsClie
 				ExitOnLastEvent:     true,
 				SkipEventTypes:      skipEventTypes,
 				SkipSessionTypesRaw: skipEventTypesRaw,
+				WindowSize:          24 * time.Hour,
 			},
 		},
 		windowStartTime: startTime,
@@ -211,9 +212,46 @@ func TestEvents(t *testing.T) {
 		t.Fatalf("No events received within deadline")
 	}
 
-	// Events goroutine should return next page errors
+	// Both channels should be closed
+	select {
+	case _, ok := <-chEvt:
+		require.False(t, ok, "Events channel should be closed")
+	case <-time.After(2 * time.Second):
+		t.Fatalf("No events received within deadline")
+	}
+
+	select {
+	case _, ok := <-chErr:
+		require.False(t, ok, "Error channel should be closed")
+	case <-time.After(2 * time.Second):
+		t.Fatalf("No events received within deadline")
+	}
+}
+
+func TestEventsError(t *testing.T) {
+	ctx := context.Background()
+
+	// create fake audit events with ids 0-19
+	testAuditEvents := make([]events.AuditEvent, 20)
+	for i := 0; i < 20; i++ {
+		testAuditEvents[i] = &events.UserCreate{
+			Metadata: events.Metadata{
+				ID:   strconv.Itoa(i),
+				Time: time.Now(),
+				Type: libevents.UserUpdatedEvent,
+			},
+		}
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	// Add the 20 events to a mock event watcher.
 	mockErr := trace.Errorf("error")
-	mockEventWatcher.setSearchEventsError(mockErr)
+	mockEventWatcher := &mockTeleportEventWatcher{events: testAuditEvents, mockSearchErr: mockErr}
+	client := newTeleportEventWatcher(t, mockEventWatcher, time.Now().Add(-48*time.Hour), nil)
+
+	// Start the events goroutine
+	chEvt, chErr := client.Events(ctx)
 
 	select {
 	case err, ok := <-chErr:
@@ -494,7 +532,7 @@ func Test_splitRangeByDay(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := splitRangeByDay(tt.args.from, tt.args.to)
+			got := splitRangeByDay(tt.args.from, tt.args.to, 24*time.Hour)
 			require.Equal(t, tt.want, got)
 		})
 	}
@@ -587,18 +625,6 @@ func TestEventsWithWindowSkip(t *testing.T) {
 	select {
 	case _, ok := <-chErr:
 		require.False(t, ok, "Error channel should be closed")
-	case <-time.After(2 * time.Second):
-		t.Fatalf("No events received within deadline")
-	}
-
-	// Events goroutine should return next page errors
-	mockErr := trace.Errorf("error")
-	mockEventWatcher.setSearchEventsError(mockErr)
-
-	select {
-	case err, ok := <-chErr:
-		require.True(t, ok, "Channel unexpectedly close")
-		require.ErrorIs(t, err, mockErr)
 	case <-time.After(2 * time.Second):
 		t.Fatalf("No events received within deadline")
 	}
