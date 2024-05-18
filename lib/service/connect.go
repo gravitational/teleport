@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/join"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/client"
@@ -442,7 +443,7 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			dataDir = process.Config.DataDir
 		}
 
-		registerParams := auth.RegisterParams{
+		registerParams := join.RegisterParams{
 			Token:                token,
 			ID:                   id,
 			AuthServers:          process.Config.AuthServerAddresses(),
@@ -464,12 +465,12 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			Insecure:             lib.IsInsecureDevMode(),
 		}
 		if registerParams.JoinMethod == types.JoinMethodAzure {
-			registerParams.AzureParams = auth.AzureParams{
+			registerParams.AzureParams = join.AzureParams{
 				ClientID: process.Config.JoinParams.Azure.ClientID,
 			}
 		}
 
-		certs, err := auth.Register(process.ExitContext(), registerParams)
+		certs, err := join.Register(process.ExitContext(), registerParams)
 		if err != nil {
 			if utils.IsUntrustedCertErr(err) {
 				return nil, trace.WrapWithMessage(err, utils.SelfSignedCertsMsg)
