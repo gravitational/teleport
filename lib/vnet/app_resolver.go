@@ -26,6 +26,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"golang.org/x/sync/singleflight"
 
 	"github.com/gravitational/teleport"
@@ -64,6 +65,8 @@ type DialOptions struct {
 	WebProxyAddr string
 	// ALPNConnUpgradeRequired specifies if ALPN connection upgrade is required.
 	ALPNConnUpgradeRequired bool
+	// SNI is a ServerName value set for upstream TLS connection.
+	SNI string
 	// RootClusterCACertPool overrides the x509 certificate pool used to verify the server.
 	RootClusterCACertPool *x509.CertPool
 	// InsecureSkipTLSVerify turns off verification for x509 upstream ALPN proxy service certificate.
@@ -74,6 +77,7 @@ type DialOptions struct {
 type TCPAppResolver struct {
 	appProvider AppProvider
 	slog        *slog.Logger
+	clock       clockwork.Clock
 }
 
 // NewTCPAppResolver returns a new *TCPAppResolver which will resolve full-qualified domain names to
@@ -84,10 +88,23 @@ type TCPAppResolver struct {
 // handled.
 //
 // [appProvider] is also used to get app certificates used to dial the apps.
-func NewTCPAppResolver(appProvider AppProvider) *TCPAppResolver {
-	return &TCPAppResolver{
+func NewTCPAppResolver(appProvider AppProvider, opts ...tcpAppResolverOption) *TCPAppResolver {
+	r := &TCPAppResolver{
 		appProvider: appProvider,
 		slog:        slog.With(teleport.ComponentKey, "VNet.AppResolver"),
+		clock:       clockwork.NewRealClock(),
+	}
+	for _, opt := range opts {
+		opt(r)
+	}
+	return r
+}
+
+type tcpAppResolverOption func(*TCPAppResolver)
+
+func withClock(clock clockwork.Clock) tcpAppResolverOption {
+	return func(r *TCPAppResolver) {
+		r.clock = clock
 	}
 }
 
@@ -152,7 +169,7 @@ func (r *TCPAppResolver) resolveTCPHandlerForCluster(
 		return nil, false, nil
 	}
 	app := resp.Resources[0].GetApp()
-	appHandler, err := newTCPAppHandler(ctx, r.appProvider, profileName, leafClusterName, app)
+	appHandler, err := r.newTCPAppHandler(ctx, profileName, leafClusterName, app)
 	if err != nil {
 		return nil, false, trace.Wrap(err)
 	}
@@ -166,34 +183,35 @@ type tcpAppHandler struct {
 	lp              *alpnproxy.LocalProxy
 }
 
-func newTCPAppHandler(
+func (r *TCPAppResolver) newTCPAppHandler(
 	ctx context.Context,
-	appProvider AppProvider,
 	profileName string,
 	leafClusterName string,
 	app types.Application,
 ) (*tcpAppHandler, error) {
-	dialOpts, err := appProvider.GetDialOptions(ctx, profileName)
+	dialOpts, err := r.appProvider.GetDialOptions(ctx, profileName)
 	if err != nil {
 		return nil, trace.Wrap(err, "getting dial options for profile %q", profileName)
 	}
 
 	appCertIssuer := &appCertIssuer{
-		appProvider:     appProvider,
+		appProvider:     r.appProvider,
 		profileName:     profileName,
 		leafClusterName: leafClusterName,
 		app:             app,
 	}
-	middleware := client.NewCertChecker(appCertIssuer, nil /*clock*/)
+	middleware := client.NewCertChecker(appCertIssuer, r.clock)
 
 	localProxyConfig := alpnproxy.LocalProxyConfig{
 		RemoteProxyAddr:         dialOpts.WebProxyAddr,
 		Protocols:               []alpncommon.Protocol{alpncommon.ProtocolTCP},
 		ParentContext:           ctx,
+		SNI:                     dialOpts.SNI,
 		RootCAs:                 dialOpts.RootClusterCACertPool,
 		ALPNConnUpgradeRequired: dialOpts.ALPNConnUpgradeRequired,
 		Middleware:              middleware,
 		InsecureSkipVerify:      dialOpts.InsecureSkipVerify,
+		Clock:                   r.clock,
 	}
 
 	lp, err := alpnproxy.NewLocalProxy(localProxyConfig)
