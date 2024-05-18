@@ -52,6 +52,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/join"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
@@ -3174,7 +3175,7 @@ func TestRegisterCAPin(t *testing.T) {
 	caPin := caPins[0]
 
 	// Attempt to register with valid CA pin, should work.
-	_, err = Register(ctx, RegisterParams{
+	_, err = join.Register(ctx, join.RegisterParams{
 		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
 		Token:       token,
 		ID: state.IdentityID{
@@ -3192,7 +3193,7 @@ func TestRegisterCAPin(t *testing.T) {
 
 	// Attempt to register with multiple CA pins where the auth server only
 	// matches one, should work.
-	_, err = Register(ctx, RegisterParams{
+	_, err = join.Register(ctx, join.RegisterParams{
 		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
 		Token:       token,
 		ID: state.IdentityID{
@@ -3209,7 +3210,7 @@ func TestRegisterCAPin(t *testing.T) {
 	require.NoError(t, err)
 
 	// Attempt to register with invalid CA pin, should fail.
-	_, err = Register(ctx, RegisterParams{
+	_, err = join.Register(ctx, join.RegisterParams{
 		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
 		Token:       token,
 		ID: state.IdentityID{
@@ -3226,7 +3227,7 @@ func TestRegisterCAPin(t *testing.T) {
 	require.Error(t, err)
 
 	// Attempt to register with multiple invalid CA pins, should fail.
-	_, err = Register(ctx, RegisterParams{
+	_, err = join.Register(ctx, join.RegisterParams{
 		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
 		Token:       token,
 		ID: state.IdentityID{
@@ -3262,7 +3263,7 @@ func TestRegisterCAPin(t *testing.T) {
 	require.Len(t, caPins, 2)
 
 	// Attempt to register with multiple CA pins, should work
-	_, err = Register(ctx, RegisterParams{
+	_, err = join.Register(ctx, join.RegisterParams{
 		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
 		Token:       token,
 		ID: state.IdentityID{
@@ -3307,7 +3308,7 @@ func TestRegisterCAPath(t *testing.T) {
 	require.NoError(t, err)
 
 	// Attempt to register with nothing at the CA path, should work.
-	_, err = Register(ctx, RegisterParams{
+	_, err = join.Register(ctx, join.RegisterParams{
 		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
 		Token:       token,
 		ID: state.IdentityID{
@@ -3336,7 +3337,7 @@ func TestRegisterCAPath(t *testing.T) {
 	require.NoError(t, err)
 
 	// Attempt to register with valid CA path, should work.
-	_, err = Register(ctx, RegisterParams{
+	_, err = join.Register(ctx, join.RegisterParams{
 		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
 		Token:       token,
 		ID: state.IdentityID{

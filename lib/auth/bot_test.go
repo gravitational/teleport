@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/join"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/cloud/azure"
@@ -226,7 +227,7 @@ func TestRegisterBotCertificateGenerationCheck(t *testing.T) {
 	tlsPublicKey, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(sshPrivateKey)
 	require.NoError(t, err)
 
-	certs, err := Register(ctx, RegisterParams{
+	certs, err := join.Register(ctx, join.RegisterParams{
 		Token: bot.TokenID,
 		ID: state.IdentityID{
 			Role: types.RoleBot,
@@ -284,7 +285,7 @@ func TestRegisterBotCertificateGenerationStolen(t *testing.T) {
 	tlsPublicKey, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(sshPrivateKey)
 	require.NoError(t, err)
 
-	certs, err := Register(ctx, RegisterParams{
+	certs, err := join.Register(ctx, join.RegisterParams{
 		Token: bot.TokenID,
 		ID: state.IdentityID{
 			Role: types.RoleBot,
@@ -345,7 +346,7 @@ func TestRegisterBotCertificateExtensions(t *testing.T) {
 	tlsPublicKey, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(sshPrivateKey)
 	require.NoError(t, err)
 
-	certs, err := Register(ctx, RegisterParams{
+	certs, err := join.Register(ctx, join.RegisterParams{
 		Token: bot.TokenID,
 		ID: state.IdentityID{
 			Role: types.RoleBot,
