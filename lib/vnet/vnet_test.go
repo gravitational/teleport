@@ -17,13 +17,18 @@
 package vnet
 
 import (
+	"bytes"
 	"context"
+	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
+	"math/big"
 	"net"
 	"os"
 	"strings"
@@ -32,7 +37,9 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"github.com/zeebo/assert"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 	"gvisor.dev/gvisor/pkg/tcpip/link/channel"
@@ -43,7 +50,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -62,7 +68,7 @@ type testPack struct {
 	localAddress     tcpip.Address
 }
 
-func newTestPack(t *testing.T, ctx context.Context, appProvider AppProvider) *testPack {
+func newTestPack(t *testing.T, ctx context.Context, clock clockwork.FakeClock, appProvider AppProvider) *testPack {
 	// Create two sides of an emulated TUN interface: writes to one can be read on the other, and vice versa.
 	tun1, tun2 := newSplitTUN()
 
@@ -112,14 +118,14 @@ func newTestPack(t *testing.T, ctx context.Context, appProvider AppProvider) *te
 
 	dnsIPv6 := ipv6WithSuffix(vnetIPv6Prefix, []byte{2})
 
-	tcpHandlerResolver := NewTCPAppResolver(appProvider)
+	tcpAppResolver := NewTCPAppResolver(appProvider, withClock(clock))
 
 	// Create the VNet and connect it to the other side of the TUN.
 	manager, err := NewManager(&Config{
 		TUNDevice:                tun2,
 		IPv6Prefix:               vnetIPv6Prefix,
 		DNSIPv6:                  dnsIPv6,
-		TCPHandlerResolver:       tcpHandlerResolver,
+		TCPHandlerResolver:       tcpAppResolver,
 		upstreamNameserverSource: noUpstreamNameservers{},
 	})
 	require.NoError(t, err)
@@ -221,18 +227,18 @@ func (n noUpstreamNameservers) UpstreamNameservers(ctx context.Context) ([]strin
 }
 
 type echoAppProvider struct {
-	profiles   []string
-	clients    map[string]map[string]*client.ClusterClient
-	dialOpts   DialOptions
-	clientCert tls.Certificate
+	profiles       []string
+	clients        map[string]map[string]*client.ClusterClient
+	dialOpts       DialOptions
+	reissueAppCert func() tls.Certificate
 }
 
 // newEchoAppProvider returns an app provider with the list of named apps in each profile and leaf cluster.
-func newEchoAppProvider(apps map[string]map[string][]string, dialOpts DialOptions, clientCert tls.Certificate) *echoAppProvider {
+func newEchoAppProvider(apps map[string]map[string][]string, dialOpts DialOptions, reissueAppCert func() tls.Certificate) *echoAppProvider {
 	p := &echoAppProvider{
-		clients:    make(map[string]map[string]*client.ClusterClient, len(apps)),
-		dialOpts:   dialOpts,
-		clientCert: clientCert,
+		clients:        make(map[string]map[string]*client.ClusterClient, len(apps)),
+		dialOpts:       dialOpts,
+		reissueAppCert: reissueAppCert,
 	}
 	for profileName, leafClusters := range apps {
 		p.profiles = append(p.profiles, profileName)
@@ -270,7 +276,7 @@ func (p *echoAppProvider) GetCachedClient(ctx context.Context, profileName, leaf
 }
 
 func (p *echoAppProvider) ReissueAppCert(ctx context.Context, profileName, leafClusterName string, app types.Application) (tls.Certificate, error) {
-	return p.clientCert, nil
+	return p.reissueAppCert(), nil
 }
 
 func (p *echoAppProvider) GetDialOptions(ctx context.Context, profileName string) (*DialOptions, error) {
@@ -323,14 +329,25 @@ func TestDialFakeApp(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	cert, err := tls.X509KeyPair([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
-	require.NoError(t, err)
+	clock := clockwork.NewFakeClockAt(time.Now())
 
-	tlsConfig := &tls.Config{
-		Certificates: []tls.Certificate{cert},
+	ca := newSelfSignedCA(t)
+
+	roots := x509.NewCertPool()
+	caX509, err := x509.ParseCertificate(ca.Certificate[0])
+	require.NoError(t, err)
+	roots.AddCert(caX509)
+
+	const proxyCN = "testproxy"
+	proxyCert := newServerCert(t, ca, proxyCN, clock.Now().Add(365*24*time.Hour))
+
+	proxyTLSConfig := &tls.Config{
+		Certificates: []tls.Certificate{proxyCert},
+		ClientAuth:   tls.RequireAndVerifyClientCert,
+		ClientCAs:    roots,
 	}
 
-	listener, err := tls.Listen("tcp", "127.0.0.1:0", tlsConfig)
+	listener, err := tls.Listen("tcp", "localhost:0", proxyTLSConfig)
 	require.NoError(t, err)
 
 	// Run a fake web proxy that will accept any client connection and echo the input back.
@@ -345,7 +362,13 @@ func TestDialFakeApp(t *testing.T) {
 					}
 					return trace.Wrap(err)
 				}
-				go utils.ProxyConn(ctx, conn, conn)
+				go func() {
+					err := utils.ProxyConn(ctx, conn, conn)
+					if errors.Is(err, context.Canceled) {
+						err = nil
+					}
+					assert.NoError(t, err)
+				}()
 			}
 		},
 		Terminate: func() error {
@@ -356,13 +379,15 @@ func TestDialFakeApp(t *testing.T) {
 		},
 	})
 
-	roots := x509.NewCertPool()
-	roots.AppendCertsFromPEM([]byte(fixtures.TLSCAKeyPEM))
-
 	dialOpts := DialOptions{
 		WebProxyAddr:          listener.Addr().String(),
 		RootClusterCACertPool: roots,
-		InsecureSkipVerify:    true,
+		SNI:                   proxyCN,
+	}
+
+	const appCertLifetime = time.Hour
+	reissueClientCert := func() tls.Certificate {
+		return newClientCert(t, ca, "testclient", clock.Now().Add(appCertLifetime))
 	}
 
 	appProvider := newEchoAppProvider(map[string]map[string][]string{
@@ -374,7 +399,7 @@ func TestDialFakeApp(t *testing.T) {
 			"":                  {"echo1", "echo2"},
 			"leaf2.example.com": {"echo1"},
 		},
-	}, dialOpts, cert)
+	}, dialOpts, reissueClientCert)
 
 	validAppNames := []string{
 		"echo1.root1.example.com",
@@ -390,7 +415,7 @@ func TestDialFakeApp(t *testing.T) {
 		"echo1.leaf2.example.com.",
 	}
 
-	p := newTestPack(t, ctx, appProvider)
+	p := newTestPack(t, ctx, clock, appProvider)
 
 	t.Run("valid", func(t *testing.T) {
 		t.Parallel()
@@ -399,19 +424,19 @@ func TestDialFakeApp(t *testing.T) {
 			t.Run(app, func(t *testing.T) {
 				t.Parallel()
 
-				conn, err := p.dialHost(ctx, app)
-				require.NoError(t, err)
-				t.Cleanup(func() { require.NoError(t, conn.Close()) })
+				// Connect to each app 3 times, advancing the clock past the cert lifetime between each
+				// connection to trigger a cert refresh.
+				for i := 0; i < 3; i++ {
+					t.Run(fmt.Sprint(i), func(t *testing.T) {
+						conn, err := p.dialHost(ctx, app)
+						require.NoError(t, err)
+						t.Cleanup(func() { require.NoError(t, conn.Close()) })
 
-				testString := "Hello, World!"
-				writeBuf := []byte(testString)
-				_, err = conn.Write(writeBuf)
-				require.NoError(t, err)
+						testEchoConnection(t, conn)
+					})
 
-				readBuf := make([]byte, len(writeBuf))
-				_, err = io.ReadFull(conn, readBuf)
-				require.NoError(t, err)
-				require.Equal(t, string(writeBuf), string(readBuf))
+					clock.Advance(2 * appCertLifetime)
+				}
 			})
 		}
 	})
@@ -430,6 +455,27 @@ func TestDialFakeApp(t *testing.T) {
 			})
 		}
 	})
+}
+
+func testEchoConnection(t *testing.T, conn net.Conn) {
+	const testString = "1........."
+	writeBuf := bytes.Repeat([]byte(testString), 10)
+	readBuf := make([]byte, len(writeBuf))
+
+	for i := 0; i < 10; i++ {
+		written, err := conn.Write(writeBuf)
+		for written < len(writeBuf) && err == nil {
+			var n int
+			n, err = conn.Write(writeBuf[written:])
+			written += n
+		}
+		require.NoError(t, err)
+		require.Equal(t, len(writeBuf), written)
+
+		n, err := io.ReadFull(conn, readBuf)
+		require.NoError(t, err)
+		require.Equal(t, string(writeBuf), string(readBuf[:n]))
+	}
 }
 
 func randomULAAddress() (tcpip.Address, error) {
@@ -516,4 +562,64 @@ func (f *fakeTUN) Read(bufs [][]byte, sizes []int, offset int) (n int, err error
 func (f *fakeTUN) Close() error {
 	f.closeOnce()
 	return nil
+}
+
+func newSelfSignedCA(t *testing.T) tls.Certificate {
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+
+	template := x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject: pkix.Name{
+			CommonName: "test-ca",
+		},
+		NotBefore:             time.Now(),
+		NotAfter:              time.Now().Add(24 * time.Hour),
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature,
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+		MaxPathLenZero:        true,
+	}
+	certBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, pub, priv)
+	require.NoError(t, err)
+
+	return tls.Certificate{
+		Certificate: [][]byte{certBytes},
+		PrivateKey:  priv,
+	}
+}
+
+func newServerCert(t *testing.T, ca tls.Certificate, cn string, expires time.Time) tls.Certificate {
+	return newLeafCert(t, ca, cn, expires, x509.ExtKeyUsageServerAuth)
+}
+
+func newClientCert(t *testing.T, ca tls.Certificate, cn string, expires time.Time) tls.Certificate {
+	return newLeafCert(t, ca, cn, expires, x509.ExtKeyUsageClientAuth)
+}
+
+func newLeafCert(t *testing.T, ca tls.Certificate, cn string, expires time.Time, keyUsage x509.ExtKeyUsage) tls.Certificate {
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+
+	caCert, err := x509.ParseCertificate(ca.Certificate[0])
+	require.NoError(t, err)
+
+	template := x509.Certificate{
+		SerialNumber: big.NewInt(2),
+		Subject: pkix.Name{
+			CommonName: cn,
+		},
+		NotBefore:   time.Now(),
+		NotAfter:    expires,
+		KeyUsage:    x509.KeyUsageDigitalSignature,
+		ExtKeyUsage: []x509.ExtKeyUsage{keyUsage},
+		DNSNames:    []string{cn},
+	}
+	certBytes, err := x509.CreateCertificate(rand.Reader, &template, caCert, pub, ca.PrivateKey)
+	require.NoError(t, err)
+
+	return tls.Certificate{
+		Certificate: [][]byte{certBytes},
+		PrivateKey:  priv,
+	}
 }
