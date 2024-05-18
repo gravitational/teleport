@@ -87,6 +87,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
+	"github.com/gravitational/teleport/lib/web/terminal"
 )
 
 type KubeSuite struct {
@@ -1727,7 +1728,7 @@ func testKubeExecWeb(t *testing.T, suite *KubeSuite) {
 
 		ws := openWebsocketAndReadSession(t, endpoint, req)
 
-		wsStream := web.NewWStream(context.Background(), ws, suite.log, nil)
+		wsStream := terminal.NewWStream(context.Background(), ws, suite.log, nil)
 
 		// Check for the expected string in the output.
 		findTextInReader(t, wsStream, testNamespace, time.Second*2)
@@ -1748,7 +1749,7 @@ func testKubeExecWeb(t *testing.T, suite *KubeSuite) {
 
 		ws := openWebsocketAndReadSession(t, endpoint, req)
 
-		wsStream := web.NewWStream(context.Background(), ws, suite.log, nil)
+		wsStream := terminal.NewWStream(context.Background(), ws, suite.log, nil)
 
 		// Read first prompt from the server.
 		readData := make([]byte, 255)
@@ -1779,12 +1780,12 @@ type executionWebsocketReader struct {
 	*websocket.Conn
 }
 
-func (r executionWebsocketReader) Read() (web.Envelope, error) {
+func (r executionWebsocketReader) Read() (terminal.Envelope, error) {
 	_, data, err := r.ReadMessage()
 	if err != nil {
-		return web.Envelope{}, trace.Wrap(err)
+		return terminal.Envelope{}, trace.Wrap(err)
 	}
-	var envelope web.Envelope
+	var envelope terminal.Envelope
 	return envelope, trace.Wrap(proto.Unmarshal(data, &envelope))
 }
 

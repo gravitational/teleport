@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/web/mfajson"
+	"github.com/gravitational/teleport/lib/web/terminal"
 )
 
 // protobufMFACodec converts MFA challenges and responses to the protobuf
@@ -42,7 +43,7 @@ func (protobufMFACodec) Encode(chal *client.MFAAuthenticateChallenge, envelopeTy
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	envelope := &Envelope{
+	envelope := &terminal.Envelope{
 		Version: defaults.WebsocketVersion,
 		Type:    envelopeType,
 		Payload: string(jsonBytes),

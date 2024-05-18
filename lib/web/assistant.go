@@ -42,7 +42,7 @@ import (
 const (
 	// actionSSHGenerateCommand is a name of the action for generating SSH commands.
 	actionSSHGenerateCommand = "ssh-cmdgen"
-	// actionSSHExplainCommand is a name of the action for explaining terminal output in SSH session.
+	// actionSSHExplainCommand is a name of the action for explaining testTerminal output in SSH session.
 	actionSSHExplainCommand = "ssh-explain"
 	// actionGenerateAuditQuery is the name of the action for generating audit queries.
 	actionGenerateAuditQuery = "audit-query"

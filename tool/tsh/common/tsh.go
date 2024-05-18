@@ -69,7 +69,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/benchmark"
@@ -1941,7 +1940,7 @@ func onLogin(cf *CLIConf) error {
 
 	key, err := tc.Login(cf.Context)
 	if err != nil {
-		if !cf.ExplicitUsername && auth.IsInvalidLocalCredentialError(err) {
+		if !cf.ExplicitUsername && authclient.IsInvalidLocalCredentialError(err) {
 			fmt.Fprintf(os.Stderr, "\nhint: set the --user flag to log in as a specific user, or leave it empty to use the system user (%v)\n\n", tc.Username)
 		}
 		return trace.Wrap(err)

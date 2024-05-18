@@ -66,7 +66,7 @@ import (
 	"github.com/gravitational/teleport/lib/web/terminal"
 )
 
-// TerminalRequest describes a request to create a web-based terminal
+// TerminalRequest describes a request to create a web-based testTerminal
 // to a remote SSH server.
 type TerminalRequest struct {
 	// Server describes a server to connect to (serverId|hostname[:port]).
@@ -107,7 +107,7 @@ type UserAuthClient interface {
 	MaintainSessionPresence(ctx context.Context) (authproto.AuthService_MaintainSessionPresenceClient, error)
 }
 
-// NewTerminal creates a web-based terminal based on WebSockets and returns a
+// NewTerminal creates a web-based testTerminal based on WebSockets and returns a
 // new TerminalHandler.
 func NewTerminal(ctx context.Context, cfg TerminalHandlerConfig) (*TerminalHandler, error) {
 	err := cfg.CheckAndSetDefaults()
@@ -290,7 +290,7 @@ type localAccessPoint interface {
 }
 
 // TerminalHandler connects together an SSH session with a web-based
-// terminal via a web socket.
+// testTerminal via a web socket.
 type TerminalHandler struct {
 	sshBaseHandler
 
@@ -330,7 +330,7 @@ type TerminalHandler struct {
 }
 
 // ServeHTTP builds a connection to the remote node and then pumps back two types of
-// events: raw input/output events for what's happening on the terminal itself
+// events: raw input/output events for what's happening on the testTerminal itself
 // and audit log events relevant to this session.
 func (t *TerminalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// This allows closing of the websocket if the user logs out before exiting
@@ -350,7 +350,7 @@ func (t *TerminalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (t *TerminalHandler) writeSessionData(ctx context.Context) error {
-	envelope := &Envelope{
+	envelope := &terminal.Envelope{
 		Version: defaults.WebsocketVersion,
 		Type:    defaults.WebsocketSessionMetadata,
 	}
@@ -427,7 +427,7 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 		return trace.Wrap(ws.SetReadDeadline(deadlineForInterval(t.keepAliveInterval)))
 	})
 
-	// Create a context for signaling when the terminal session is over and
+	// Create a context for signaling when the testTerminal session is over and
 	// link it first with the trace context from the request context
 	tctx := oteltrace.ContextWithRemoteSpanContext(context.Background(), oteltrace.SpanContextFromContext(r.Context()))
 	ctx, cancel := context.WithCancel(tctx)
@@ -435,7 +435,7 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	t.stream = terminal.NewStream(ctx, terminal.StreamConfig{WS: ws, Logger: t.log})
 
 	// Create a Teleport client, if not able to, show the reason to the user in
-	// the terminal.
+	// the testTerminal.
 	tc, err := t.makeClient(ctx, t.stream, ws.RemoteAddr().String())
 	if err != nil {
 		t.log.WithError(err).Info("Failed creating a client for session")
@@ -462,10 +462,10 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	// Start sending ping frames through websocket to client.
 	go startWSPingLoop(ctx, ws, t.keepAliveInterval, t.log, t.Close)
 
-	// Pump raw terminal in/out and audit events into the websocket.
+	// Pump raw testTerminal in/out and audit events into the websocket.
 	go t.streamEvents(ctx, tc)
 
-	// Block until the terminal session is complete.
+	// Block until the testTerminal session is complete.
 	t.streamTerminal(ctx, tc)
 	t.log.Debug("Closing websocket stream")
 }
@@ -481,7 +481,7 @@ func (s stderrWriter) Write(b []byte) (int, error) {
 
 // makeClient builds a *client.TeleportClient for the connection.
 func (t *TerminalHandler) makeClient(ctx context.Context, stream *terminal.Stream, clientAddr string) (*client.TeleportClient, error) {
-	ctx, span := tracing.DefaultProvider().Tracer("terminal").Start(ctx, "terminal/makeClient")
+	ctx, span := tracing.DefaultProvider().Tracer("testTerminal").Start(ctx, "testTerminal/makeClient")
 	defer span.End()
 
 	clientConfig, err := makeTeleportClientConfig(ctx, t.ctx)
@@ -542,7 +542,7 @@ func (t *TerminalHandler) makeClient(ctx context.Context, stream *terminal.Strea
 // to make use of the userAuthClient already established for the session instead of leveraging
 // the TeleportClient which would require dialing the auth server a second time.
 func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.TeleportClient, wsStream *terminal.WSStream) ([]ssh.AuthMethod, error) {
-	ctx, span := t.tracer.Start(ctx, "terminal/issueSessionMFACerts")
+	ctx, span := t.tracer.Start(ctx, "testTerminal/issueSessionMFACerts")
 	defer span.End()
 
 	log.Debug("Attempting to issue a single-use user certificate with an MFA check.")
@@ -623,7 +623,7 @@ func promptMFAChallenge(stream *terminal.WSStream, codec terminal.MFACodec) mfa.
 				WebauthnChallenge: wantypes.CredentialAssertionFromProto(chal.WebauthnChallenge),
 			}
 		default:
-			return nil, trace.AccessDenied("only hardware keys are supported on the web terminal, please register a hardware device to connect to this server")
+			return nil, trace.AccessDenied("only hardware keys are supported on the web testTerminal, please register a hardware device to connect to this server")
 		}
 
 		if err := stream.WriteChallenge(challenge, codec); err != nil {
@@ -643,7 +643,7 @@ type connectWithMFAFn = func(ctx context.Context, ws terminal.WSConn, tc *client
 // the operations will succeed, and if per session mfa will not gain access to the
 // target it will abort before prompting a user to perform the ceremony.
 func (t *sshBaseHandler) connectToHost(ctx context.Context, ws terminal.WSConn, tc *client.TeleportClient, connectToNodeWithMFA connectWithMFAFn) (*client.NodeClient, error) {
-	ctx, span := t.tracer.Start(ctx, "terminal/connectToHost")
+	ctx, span := t.tracer.Start(ctx, "testTerminal/connectToHost")
 	defer span.End()
 
 	accessChecker, err := t.ctx.GetUserAccessChecker()
@@ -763,21 +763,15 @@ func monitorSessionLatency(ctx context.Context, clock clockwork.Clock, stream *t
 	return nil
 }
 
-// sessionEndEvent is an event sent when a session ends.
-type sessionEndEvent struct {
-	// NodeID is the ID of the server where the session was created.
-	NodeID string `json:"node_id"`
-}
-
 // streamTerminal opens an SSH connection to the remote host and streams
 // events back to the web client.
 func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.TeleportClient) {
-	ctx, span := t.tracer.Start(ctx, "terminal/streamTerminal")
+	ctx, span := t.tracer.Start(ctx, "testTerminal/streamTerminal")
 	defer span.End()
 
 	nc, err := t.connectToHost(ctx, t.stream, tc, t.connectToNodeWithMFA)
 	if err != nil {
-		t.log.WithError(err).Warn("Unable to stream terminal - failure connecting to host")
+		t.log.WithError(err).Warn("Unable to stream testTerminal - failure connecting to host")
 		t.stream.WriteError(err.Error())
 		return
 	}
@@ -793,7 +787,7 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 	}
 
 	if err := t.writeSessionData(ctx); err != nil {
-		t.log.WithError(err).Warn("Unable to stream terminal - failure sending session data")
+		t.log.WithError(err).Warn("Unable to stream testTerminal - failure sending session data")
 	}
 
 	var beforeStart func(io.Writer)
@@ -801,7 +795,7 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 		beforeStart = func(out io.Writer) {
 			nc.OnMFA = func() {
 				if err := t.presenceChecker(ctx, out, t.userAuthClient, t.sessionData.ID.String(), promptMFAChallenge(t.stream.WSStream, protobufMFACodec{})); err != nil {
-					t.log.WithError(err).Warn("Unable to stream terminal - failure performing presence checks")
+					t.log.WithError(err).Warn("Unable to stream testTerminal - failure performing presence checks")
 					return
 				}
 			}
@@ -829,7 +823,7 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 		return
 	}
 
-	// Send close envelope to web terminal upon exit without an error.
+	// Send close envelope to web testTerminal upon exit without an error.
 	if err := t.stream.SendCloseMessage(t.sessionData.ServerID); err != nil {
 		t.log.WithError(err).Error("Unable to send close event to web client.")
 	}
@@ -847,7 +841,7 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 func (t *sshBaseHandler) connectToNode(ctx context.Context, ws terminal.WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent teleagent.Getter, signer agentless.SignerCreator) (*client.NodeClient, error) {
 	conn, err := t.router.DialHost(ctx, ws.RemoteAddr(), ws.LocalAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, getAgent, signer)
 	if err != nil {
-		t.log.WithError(err).Warn("Unable to stream terminal - failed to dial host.")
+		t.log.WithError(err).Warn("Unable to stream testTerminal - failed to dial host.")
 
 		if errors.Is(err, trace.NotFound(teleport.NodeIsAmbiguous)) {
 			const message = "error: ambiguous host could match multiple nodes\n\nHint: try addressing the node by unique id (ex: user@node-id)\n"
@@ -921,7 +915,7 @@ func (t *sshBaseHandler) connectToNodeWithMFABase(ctx context.Context, ws termin
 
 // sendError sends an error message to the client using the provided websocket.
 func (t *sshBaseHandler) sendError(errMsg string, err error, ws terminal.WSConn) {
-	envelope := &Envelope{
+	envelope := &terminal.Envelope{
 		Version: defaults.WebsocketVersion,
 		Type:    defaults.WebsocketError,
 		Payload: fmt.Sprintf("%s: %s", errMsg, err.Error()),
@@ -962,7 +956,7 @@ func (t *TerminalHandler) streamEvents(ctx context.Context, tc *client.TeleportC
 				continue
 			}
 
-		// Once the terminal stream is over (and the close envelope has been sent),
+		// Once the testTerminal stream is over (and the close envelope has been sent),
 		// close stop streaming envelopes.
 		case <-ctx.Done():
 			return
