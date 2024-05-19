@@ -1,4 +1,4 @@
-.version: &version "16.0.0-dev.fred-manifests.7"
+.version: &version "16.0.0-dev.fred-manifests.8"
 
 apiVersion: v2
 name: teleport-plugin-msteams
