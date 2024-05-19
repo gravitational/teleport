@@ -462,11 +462,12 @@ function Write-Version-Objects {
 
     # install go-winres (v0.3.3)
     go install github.com/tc-hib/go-winres@d743268d7ea168077ddd443c4240562d4f5e8c3e
+    $GoWinres = Join-Path -Path $(go env GOPATH) -ChildPath "bin\go-winres.exe"
 
     $Year = (Get-Date).Year
 
     # generate tsh version info
-    go-winres simply --no-suffix --arch amd64 `
+    & $GoWinres simply --no-suffix --arch amd64 `
         --file-description "Teleport tsh command-line client" `
         --original-filename tsh.exe `
         --copyright "Copyright (C) $Year Gravitational, Inc." `
@@ -477,7 +478,7 @@ function Write-Version-Objects {
         --out "$TeleportSourceDirectory\tool\tsh\resource.syso"
 
     # generate tctl version info
-    go-winres simply --no-suffix --arch amd64 `
+    & $GoWinres simply --no-suffix --arch amd64 `
         --file-description "Teleport tctl administrative tool" `
         --original-filename tctl.exe `
         --copyright "Copyright (C) $Year Gravitational, Inc." `
