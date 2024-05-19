@@ -451,12 +451,12 @@ function Write-Version-Objects {
     for tsh and tctl. These files are automatically read by the go
     tool during compilation.
     #>
-    [CmdlesBinding()]
+    [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
         [string] $TeleportSourceDirectory,
         [Parameter(Mandatory)]
-        [string] $TeleportVersion,
+        [string] $TeleportVersion
     )
     Write-Host "Generating version info files for tsh.exe and tctl.exe..."
 
