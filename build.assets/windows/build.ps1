@@ -470,7 +470,7 @@ function Write-Version-Objects {
         --file-description "Teleport tsh command-line client" `
         --original-filename tsh.exe `
         --copyright "Copyright (C) $Year Gravitational, Inc." `
-        --icon "$TeleportSourceDirectory\e\windowsauth\installer\teleport.ico"
+        --icon "$TeleportSourceDirectory\e\windowsauth\installer\teleport.ico" `
         --product-name Teleport `
         --product-version $TeleportVersion `
         --file-version $TeleportVersion `
@@ -481,7 +481,7 @@ function Write-Version-Objects {
         --file-description "Teleport tctl administrative tool" `
         --original-filename tctl.exe `
         --copyright "Copyright (C) $Year Gravitational, Inc." `
-        --icon "$TeleportSourceDirectory\e\windowsauth\installer\teleport.ico"
+        --icon "$TeleportSourceDirectory\e\windowsauth\installer\teleport.ico" `
         --product-name Teleport `
         --product-version $TeleportVersion `
         --file-version $TeleportVersion `
