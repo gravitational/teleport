@@ -23,6 +23,35 @@ issues:
       text: "grpc.Dial is deprecated"
     - linters: [staticcheck]
       text: "grpc.DialContext is deprecated"
+    # Deprecated gRPC dial options. Related to grpc.NewClient.
+    - path: (client/client.go|client/proxy/client_test.go) # api/
+      linters: [staticcheck]
+      # grpc.FailOnNonTempDialError
+      # grpc.WithReturnConnectionError
+      text: "this DialOption is not supported by NewClient"
+    - path: lib/kube/grpc/grpc_test.go
+      linters: [staticcheck]
+      text: "grpc.WithBlock is deprecated"
+    - path: lib/observability/tracing/client.go
+      linters: [staticcheck]
+      text: "grpc.WithBlock is deprecated"
+    - path: integrations/lib/config.go
+      linters: [staticcheck]
+      text: "grpc.WithReturnConnectionError is deprecated"
+    - path: lib/service/service_test.go
+      linters: [staticcheck]
+      # grpc.WithReturnConnectionError
+      # grpc.FailOnNonTempDialError
+      text: "this DialOption is not supported by NewClient"
+    - path: integration/client_test.go
+      linters: [staticcheck]
+      text: "grpc.WithReturnConnectionError is deprecated"
+    - path: integration/integration_test.go
+      linters: [staticcheck]
+      text: "grpc.WithBlock is deprecated"
+    - path: lib/multiplexer/multiplexer_test.go
+      linters: [staticcheck]
+      text: "grpc.WithBlock is deprecated"
   exclude-use-default: true
   max-same-issues: 0
   max-issues-per-linter: 0
