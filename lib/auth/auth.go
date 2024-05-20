@@ -29,13 +29,11 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/subtle"
-	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
-	"math"
 	"math/big"
 	insecurerand "math/rand"
 	"os"
@@ -53,7 +51,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"golang.org/x/crypto/bcrypt"
@@ -81,6 +78,7 @@ import (
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/ai"
 	"github.com/gravitational/teleport/lib/ai/embedding"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/userloginstate"
@@ -3178,7 +3176,7 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 			return nil, trace.AccessDenied("invalid token")
 		}
 
-		if err := a.verifyUserToken(token, UserTokenTypeRecoveryStart); err != nil {
+		if err := a.verifyUserToken(token, authclient.UserTokenTypeRecoveryStart); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -3230,11 +3228,11 @@ func (a *Server) CreateRegisterChallenge(ctx context.Context, req *proto.CreateR
 		}
 
 		allowedTokenTypes := []string{
-			UserTokenTypePrivilege,
-			UserTokenTypePrivilegeException,
-			UserTokenTypeResetPassword,
-			UserTokenTypeResetPasswordInvite,
-			UserTokenTypeRecoveryApproved,
+			authclient.UserTokenTypePrivilege,
+			authclient.UserTokenTypePrivilegeException,
+			authclient.UserTokenTypeResetPassword,
+			authclient.UserTokenTypeResetPasswordInvite,
+			authclient.UserTokenTypeRecoveryApproved,
 		}
 		if err := a.verifyUserToken(token, allowedTokenTypes...); err != nil {
 			return nil, trace.AccessDenied("invalid token")
@@ -3276,7 +3274,7 @@ func (a *Server) CreateRegisterChallenge(ctx context.Context, req *proto.CreateR
 }
 
 func (a *Server) createTOTPPrivilegeToken(ctx context.Context, username string) (types.UserToken, error) {
-	tokenReq := CreateUserTokenRequest{
+	tokenReq := authclient.CreateUserTokenRequest{
 		Name: username,
 		Type: userTokenTypePrivilegeOTP,
 	}
@@ -3400,7 +3398,7 @@ func (a *Server) GetMFADevices(ctx context.Context, req *proto.GetMFADevicesRequ
 			return nil, trace.AccessDenied("invalid token")
 		}
 
-		if err := a.verifyUserToken(token, UserTokenTypeRecoveryApproved); err != nil {
+		if err := a.verifyUserToken(token, authclient.UserTokenTypeRecoveryApproved); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -3437,7 +3435,7 @@ func (a *Server) DeleteMFADeviceSync(ctx context.Context, req *proto.DeleteMFADe
 		}
 		user = token.GetUser()
 
-		if err := a.verifyUserToken(token, UserTokenTypeRecoveryApproved, UserTokenTypePrivilege); err != nil {
+		if err := a.verifyUserToken(token, authclient.UserTokenTypeRecoveryApproved, authclient.UserTokenTypePrivilege); err != nil {
 			return trace.Wrap(err)
 		}
 
@@ -3597,8 +3595,8 @@ func (a *Server) AddMFADeviceSync(ctx context.Context, req *proto.AddMFADeviceSy
 
 		if err := a.verifyUserToken(
 			privilegeToken,
-			UserTokenTypePrivilege,
-			UserTokenTypePrivilegeException,
+			authclient.UserTokenTypePrivilege,
+			authclient.UserTokenTypePrivilegeException,
 			userTokenTypePrivilegeOTP,
 		); err != nil {
 			return nil, trace.Wrap(err)
@@ -3786,7 +3784,7 @@ func (a *Server) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) 
 //
 // If there is a switchback request, the roles will switchback to user's default roles and
 // the expiration time is derived from users recently logged in time.
-func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identity tlsca.Identity) (types.WebSession, error) {
+func (a *Server) ExtendWebSession(ctx context.Context, req authclient.WebSessionReq, identity tlsca.Identity) (types.WebSession, error) {
 	prevSession, err := a.GetWebSession(ctx, types.GetWebSessionRequest{
 		User:      req.User,
 		SessionID: req.PrevSessionID,
@@ -4158,7 +4156,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 
 	// generate host TLS certificate
 	identity := tlsca.Identity{
-		Username:        HostFQDN(req.HostID, clusterName.GetClusterName()),
+		Username:        authclient.HostFQDN(req.HostID, clusterName.GetClusterName()),
 		Groups:          []string{req.Role.String()},
 		TeleportCluster: clusterName.GetClusterName(),
 		SystemRoles:     systemRoles,
@@ -6714,57 +6712,6 @@ func oauth2ConfigsEqual(a, b oauth2.Config) bool {
 		return false
 	}
 	return true
-}
-
-// WithClusterCAs returns a TLS hello callback that returns a copy of the provided
-// TLS config with client CAs pool of the specified cluster.
-func WithClusterCAs(tlsConfig *tls.Config, ap AccessCache, currentClusterName string, log logrus.FieldLogger) func(*tls.ClientHelloInfo) (*tls.Config, error) {
-	return func(info *tls.ClientHelloInfo) (*tls.Config, error) {
-		var clusterName string
-		var err error
-		if info.ServerName != "" {
-			// Newer clients will set SNI that encodes the cluster name.
-			clusterName, err = apiutils.DecodeClusterName(info.ServerName)
-			if err != nil {
-				if !trace.IsNotFound(err) {
-					log.Debugf("Ignoring unsupported cluster name name %q.", info.ServerName)
-					clusterName = ""
-				}
-			}
-		}
-		pool, totalSubjectsLen, err := DefaultClientCertPool(ap, clusterName)
-		if err != nil {
-			log.WithError(err).Errorf("Failed to retrieve client pool for %q.", clusterName)
-			// this falls back to the default config
-			return nil, nil
-		}
-
-		// Per https://tools.ietf.org/html/rfc5246#section-7.4.4 the total size of
-		// the known CA subjects sent to the client can't exceed 2^16-1 (due to
-		// 2-byte length encoding). The crypto/tls stack will panic if this
-		// happens.
-		//
-		// This usually happens on the root cluster with a very large (>500) number
-		// of leaf clusters. In these cases, the client cert will be signed by the
-		// current (root) cluster.
-		//
-		// If the number of CAs turns out too large for the handshake, drop all but
-		// the current cluster CA. In the unlikely case where it's wrong, the
-		// client will be rejected.
-		if totalSubjectsLen >= int64(math.MaxUint16) {
-			log.Debugf("Number of CAs in client cert pool is too large and cannot be encoded in a TLS handshake; this is due to a large number of trusted clusters; will use only the CA of the current cluster to validate.")
-
-			pool, _, err = DefaultClientCertPool(ap, currentClusterName)
-			if err != nil {
-				log.WithError(err).Errorf("Failed to retrieve client pool for %q.", currentClusterName)
-				// this falls back to the default config
-				return nil, nil
-			}
-		}
-		tlsCopy := tlsConfig.Clone()
-		tlsCopy.ClientCAs = pool
-		return tlsCopy, nil
-	}
 }
 
 // DefaultDNSNamesForRole returns default DNS names for the specified role.

@@ -38,7 +38,7 @@ import (
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
 	"github.com/gravitational/teleport/integrations/terraform/provider"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 )
@@ -178,7 +178,7 @@ func (s *TerraformBaseSuite) getTLSCreds(ctx context.Context, user types.User, o
 
 	hostCAs, err := s.client.GetCertAuthorities(ctx, types.HostCA, false)
 	require.NoError(s.T(), err)
-	key.TrustedCerts = auth.AuthoritiesToTrustedCerts(hostCAs)
+	key.TrustedCerts = authclient.AuthoritiesToTrustedCerts(hostCAs)
 
 	// write the cert+private key to the output:
 	_, err = identityfile.Write(ctx, identityfile.WriteConfig{

@@ -33,7 +33,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -320,7 +320,7 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 // waitForAppSession will block until the requested application session shows up in the
 // cache or a timeout occurs.
 func (h *Handler) waitForAppSession(ctx context.Context, sessionID, user string) error {
-	return auth.WaitForAppSession(ctx, sessionID, user, h.cfg.AccessPoint)
+	return authclient.WaitForAppSession(ctx, sessionID, user, h.cfg.AccessPoint)
 }
 
 type resolveAppParams struct {
