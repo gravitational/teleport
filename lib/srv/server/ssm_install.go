@@ -21,7 +21,9 @@ package server
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -137,7 +139,27 @@ func (si *SSMInstaller) Run(ctx context.Context, req SSMRunRequest) error {
 		Parameters:   params,
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		invalidParamErrorMessage := fmt.Sprintf("InvalidParameters: document %s does not support parameters", req.DocumentName)
+		_, hasSSHDConfigParam := params[ParamSSHDConfigPath]
+		if !strings.Contains(err.Error(), invalidParamErrorMessage) || !hasSSHDConfigParam {
+			return trace.Wrap(err)
+		}
+
+		// This might happen when teleport sends Parameters that are not part of the Document.
+		// One example is when it uses the default SSM Document awslib.EC2DiscoverySSMDocument
+		// and Parameters include "sshdConfigPath" (only sent when installTeleport=false).
+		//
+		// As a best effort, we try to call ssm.SendCommand again but this time without the "sshdConfigPath" param
+		// We must not remove the Param "sshdConfigPath" beforehand because customers might be using custom SSM Documents for ec2 auto discovery.
+		delete(params, ParamSSHDConfigPath)
+		output, err = req.SSM.SendCommandWithContext(ctx, &ssm.SendCommandInput{
+			DocumentName: aws.String(req.DocumentName),
+			InstanceIds:  aws.StringSlice(validInstances),
+			Parameters:   params,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	g, ctx := errgroup.WithContext(ctx)
@@ -262,6 +284,13 @@ func skipAWSWaitErr(err error) error {
 	return trace.Wrap(err)
 }
 
+// This list of ssmSteps must match the ones used in awslib.EC2DiscoverySSMDocument
+// These vars are used to obtain specific status of each step when checking a command output.
+var (
+	ssmStepDownloadContent = "downloadContent"
+	ssmStepRunShellScript  = "runShellScript"
+)
+
 func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, commandID, instanceID *string) error {
 	err := req.SSM.WaitUntilCommandExecutedWithContext(ctx, &ssm.GetCommandInvocationInput{
 		CommandId:  commandID,
@@ -272,36 +301,59 @@ func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, com
 		return trace.Wrap(err)
 	}
 
-	cmdOut, err := req.SSM.GetCommandInvocationWithContext(ctx, &ssm.GetCommandInvocationInput{
-		CommandId:  commandID,
-		InstanceId: instanceID,
-	})
+	// Check 1st step: download Content
+	downloadContentStep, err := si.getCommandStepStatusEvent(ctx, &ssmStepDownloadContent, req, commandID, instanceID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	status := aws.StringValue(cmdOut.Status)
 
-	code := libevents.SSMRunFailCode
-	if status == ssm.CommandStatusSuccess {
-		code = libevents.SSMRunSuccessCode
+	// Only check runShellScript step if downloadContent was a success.
+	if downloadContentStep.Metadata.Code != libevents.SSMRunSuccessCode {
+		return trace.Wrap(si.Emitter.EmitAuditEvent(ctx, downloadContentStep))
 	}
 
-	exitCode := aws.Int64Value(cmdOut.ResponseCode)
-	if exitCode == 0 && code == libevents.SSMRunFailCode {
-		exitCode = -1
+	// Check 2nd step: run shell script
+	runShellScriptStep, err := si.getCommandStepStatusEvent(ctx, &ssmStepRunShellScript, req, commandID, instanceID)
+	if err != nil {
+		return trace.Wrap(err)
 	}
-	event := apievents.SSMRun{
+
+	return trace.Wrap(si.Emitter.EmitAuditEvent(ctx, runShellScriptStep))
+}
+
+func (si *SSMInstaller) getCommandStepStatusEvent(ctx context.Context, step *string, req SSMRunRequest, commandID, instanceID *string) (*apievents.SSMRun, error) {
+	stepResult, err := req.SSM.GetCommandInvocationWithContext(ctx, &ssm.GetCommandInvocationInput{
+		CommandId:  commandID,
+		InstanceId: instanceID,
+		PluginName: step,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	status := aws.StringValue(stepResult.Status)
+	exitCode := aws.Int64Value(stepResult.ResponseCode)
+
+	eventCode := libevents.SSMRunSuccessCode
+	if status != ssm.CommandStatusSuccess {
+		eventCode = libevents.SSMRunFailCode
+		if exitCode == 0 {
+			exitCode = -1
+		}
+	}
+
+	return &apievents.SSMRun{
 		Metadata: apievents.Metadata{
 			Type: libevents.SSMRunEvent,
-			Code: code,
+			Code: eventCode,
 		},
-		CommandID:  aws.StringValue(commandID),
-		InstanceID: aws.StringValue(instanceID),
-		AccountID:  req.AccountID,
-		Region:     req.Region,
-		ExitCode:   exitCode,
-		Status:     aws.StringValue(cmdOut.Status),
-	}
-
-	return trace.Wrap(si.Emitter.EmitAuditEvent(ctx, &event))
+		CommandID:      aws.StringValue(commandID),
+		InstanceID:     aws.StringValue(instanceID),
+		AccountID:      req.AccountID,
+		Region:         req.Region,
+		ExitCode:       exitCode,
+		Status:         status,
+		StandardOutput: aws.StringValue(stepResult.StandardOutputContent),
+		StandardError:  aws.StringValue(stepResult.StandardErrorContent),
+	}, nil
 }

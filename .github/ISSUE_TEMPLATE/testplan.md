@@ -995,6 +995,7 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] AWS MemoryDB.
   - [ ] GCP Cloud SQL Postgres.
   - [ ] GCP Cloud SQL MySQL.
+  - [ ] GCP Cloud Spanner.
   - [ ] Snowflake.
   - [ ] Azure Cache for Redis.
   - [ ] Azure single-server MySQL and Postgres (EOL Sep 2024 and Mar 2025, use CLI to create)
@@ -1027,6 +1028,7 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] AWS MemoryDB.
   - [ ] GCP Cloud SQL Postgres.
   - [ ] GCP Cloud SQL MySQL.
+  - [ ] GCP Cloud Spanner.
   - [ ] Snowflake.
   - [ ] Azure Cache for Redis.
   - [ ] Azure single-server MySQL and Postgres
