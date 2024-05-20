@@ -39,9 +39,8 @@ import (
 
 	"github.com/gravitational/teleport/api/breaker"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -74,7 +73,7 @@ func withEditor(editor func(string) error) optionsFunc {
 	}
 }
 
-func getAuthClient(ctx context.Context, t *testing.T, fc *config.FileConfig, opts ...optionsFunc) *auth.Client {
+func getAuthClient(ctx context.Context, t *testing.T, fc *config.FileConfig, opts ...optionsFunc) *authclient.Client {
 	var options options
 	for _, v := range opts {
 		v(&options)
@@ -104,7 +103,7 @@ func getAuthClient(ctx context.Context, t *testing.T, fc *config.FileConfig, opt
 
 type cliCommand interface {
 	Initialize(app *kingpin.Application, cfg *servicecfg.Config)
-	TryRun(ctx context.Context, cmd string, client *auth.Client) (bool, error)
+	TryRun(ctx context.Context, cmd string, client *authclient.Client) (bool, error)
 }
 
 func runCommand(t *testing.T, fc *config.FileConfig, cmd cliCommand, args []string, opts ...optionsFunc) error {
@@ -279,7 +278,7 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 
 	cfg.CachePolicy.Enabled = false
 	cfg.Proxy.DisableWebInterface = true
-	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	if options.fakeClock != nil {
 		cfg.Clock = options.fakeClock
 	}

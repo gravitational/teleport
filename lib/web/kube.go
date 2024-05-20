@@ -45,7 +45,7 @@ import (
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -63,7 +63,7 @@ type podHandler struct {
 	ws                  *websocket.Conn
 	keepAliveInterval   time.Duration
 	log                 *logrus.Entry
-	userClient          auth.ClientI
+	userClient          authclient.ClientI
 	localCA             types.CertAuthority
 
 	// closedByClient indicates if the websocket connection was closed by the

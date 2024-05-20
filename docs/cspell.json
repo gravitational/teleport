@@ -299,6 +299,7 @@
     "awsconsole",
     "awsdatabases",
     "awskms",
+    "awsoidc",
     "awsuser",
     "azblob",
     "azuread",
@@ -883,6 +884,7 @@
     "upgrader",
     "uqcje",
     "urandom",
+    "urlfetch",
     "usename",
     "userdata",
     "userdel",
@@ -935,5 +937,7 @@
     "zxvf",
     "zztop"
   ],
-  "flagWords": ["hte"]
+  "flagWords": [
+    "hte"
+  ]
 }

@@ -523,6 +523,9 @@ const (
 	// KindUserNotificationState is a resource which tracks whether a user has clicked on or dismissed a notification.
 	KindUserNotificationState = "user_notification_state"
 
+	// KindVnetConfig is a resource which holds cluster-wide configuration for VNet.
+	KindVnetConfig = "vnet_config"
+
 	// V7 is the seventh version of resources.
 	V7 = "v7"
 
@@ -987,6 +990,15 @@ const (
 )
 
 const (
+	// NotificationTitleLabel is the label which contains the title of the notification.
+	NotificationTitleLabel = TeleportInternalLabelPrefix + "title"
+	// NotificationClickedLabel is the label which contains whether the notification has been clicked on by the user.
+	NotificationClickedLabel = TeleportInternalLabelPrefix + "clicked"
+	// NotificationScope is the label which contains the scope of the notification, either "user" or "global"
+	NotificationScope = TeleportInternalLabelPrefix + "scope"
+)
+
+const (
 	// InstallMethodAWSOIDCDeployServiceEnvVar is the env var used to detect if the agent was installed
 	// using the DeployService action of the AWS OIDC integration.
 	InstallMethodAWSOIDCDeployServiceEnvVar = "TELEPORT_INSTALL_METHOD_AWSOIDC_DEPLOYSERVICE"
@@ -1005,6 +1017,7 @@ const (
 	InstanceMetadataTypeDisabled InstanceMetadataType = "disabled"
 	InstanceMetadataTypeEC2      InstanceMetadataType = "EC2"
 	InstanceMetadataTypeAzure    InstanceMetadataType = "Azure"
+	InstanceMetadataTypeGCP      InstanceMetadataType = "GCP"
 )
 
 // OriginValues lists all possible origin values.
@@ -1231,4 +1244,40 @@ const (
 	ApplicationProtocolHTTP = "HTTP"
 	// ApplicationProtocolTCP is the TCP apps protocol.
 	ApplicationProtocolTCP = "TCP"
+)
+
+const (
+	// HostedPluginLabel defines the name for the hosted plugin label.
+	// When this label is set to "true" on a Plugin resource,
+	// it indicates that the Plugin should be run by the Cloud service,
+	// rather than self-hosted plugin services.
+	HostedPluginLabel = TeleportNamespace + "/hosted-plugin"
+)
+
+const (
+	// OktaOrgURLLabel is the label used by Okta-managed resources to indicate
+	// the upstream Okta organization that they come from.
+	OktaOrgURLLabel = "okta/org"
+
+	// OktaAppIDLabel is the label for the Okta application ID on appserver objects.
+	OktaAppIDLabel = TeleportInternalLabelPrefix + "okta-app-id"
+
+	// OktaCredPurposeLabel is used by Okta-managed PluginStaticCredentials to
+	// indicate their purpose
+	OktaCredPurposeLabel = "okta/purpose"
+
+	// OktaCredPurposeAuth indicates that the credential is intended for
+	// authenticating with the Okta REST API
+	OktaCredPurposeAuth = "okta-auth"
+
+	// OktaCredPurposeSCIMToken indicates that theis to be used for authenticating
+	// SCIM requests from the upstream organization. The content of the credential
+	// is a bcrypt hash of actual token.
+	OktaCredPurposeSCIMToken = "scim-bearer-token"
+)
+
+const (
+	// SCIMBaseURLLabel defines a label indicating the base URL for
+	// interacting with a plugin via SCIM. Useful for diagnostic display.
+	SCIMBaseURLLabel = TeleportNamespace + "/scim-base-url"
 )

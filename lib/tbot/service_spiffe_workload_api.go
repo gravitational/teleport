@@ -48,7 +48,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -73,7 +73,7 @@ type SPIFFEWorkloadAPIService struct {
 	botCfg      *config.BotConfig
 	cfg         *config.SPIFFEWorkloadAPIService
 	log         *slog.Logger
-	botClient   *auth.Client
+	botClient   *authclient.Client
 	resolver    reversetunnelclient.Resolver
 	// rootReloadBroadcaster allows the service to listen for CA rotations and
 	// update the trust bundle cache.
@@ -83,7 +83,7 @@ type SPIFFEWorkloadAPIService struct {
 	trustBundleBroadcast *channelBroadcaster
 
 	// client holds the impersonated client for the service
-	client *auth.Client
+	client *authclient.Client
 
 	trustDomain string
 
@@ -195,10 +195,31 @@ func createListener(ctx context.Context, log *slog.Logger, addr string) (net.Lis
 			log.WarnContext(ctx, "Failed to remove existing socket file", "error", err)
 		}
 
-		return net.ListenUnix("unix", &net.UnixAddr{
+		l, err := net.ListenUnix("unix", &net.UnixAddr{
 			Net:  "unix",
 			Name: absPath,
 		})
+		if err != nil {
+			return nil, trace.Wrap(err, "creating unix socket", absPath)
+		}
+
+		// On Unix systems, you must have read and write permissions for the
+		// socket to connect to it. The execute permission on the directories
+		// containing the socket must also be granted. This is different to when
+		// we write output artifacts which only require the consumer to have
+		// read access.
+		//
+		// We set the socket perm to 777. Instead of controlling access via
+		// the socket file directly, users will either:
+		// - Configure Unix Workload Attestation to restrict access to specific
+		//   PID/UID/GID combinations.
+		// - Configure the filesystem permissions of the directory containing
+		//   the socket.
+		if err := os.Chmod(absPath, os.ModePerm); err != nil {
+			return nil, trace.Wrap(err, "setting permissions on unix socket", absPath)
+		}
+
+		return l, nil
 	default:
 		return nil, trace.BadParameter("unsupported scheme %q", parsed.Scheme)
 	}

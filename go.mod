@@ -11,6 +11,7 @@ require (
 	cloud.google.com/go/firestore v1.15.0
 	cloud.google.com/go/iam v1.1.8
 	cloud.google.com/go/kms v1.15.9
+	cloud.google.com/go/resourcemanager v1.9.7
 	cloud.google.com/go/spanner v1.60.0
 	cloud.google.com/go/storage v1.40.0
 	connectrpc.com/connect v1.16.1
@@ -57,6 +58,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/glue v1.80.0
 	github.com/aws/aws-sdk-go-v2/service/iam v1.32.0
 	github.com/aws/aws-sdk-go-v2/service/rds v1.78.0
+	github.com/aws/aws-sdk-go-v2/service/redshift v1.44.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.53.1
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.28.6
 	github.com/aws/aws-sdk-go-v2/service/sns v1.29.4

@@ -48,6 +48,7 @@ export function ResourceList(props: ResourceListProps) {
     requestableRoles,
     ...listProps
   } = props;
+
   return (
     <Wrapper className={disableRows ? 'disabled' : ''}>
       {selectedResource === 'app' && (
@@ -90,17 +91,29 @@ const Wrapper = styled(Box)`
 
 export function renderActionCell(
   isAgentAdded: boolean,
+  requestStarted: boolean,
   toggleAgent: () => void
 ) {
+  const text = requestStarted ? '+ Add to request' : '+ Request Access';
   return (
     <Cell align="right">
       {isAgentAdded ? (
-        <ButtonPrimary width="134px" size="small" onClick={toggleAgent}>
+        <ButtonPrimary
+          textTransform="none"
+          width="137px"
+          size="small"
+          onClick={toggleAgent}
+        >
           Remove
         </ButtonPrimary>
       ) : (
-        <ButtonBorder width="134px" size="small" onClick={toggleAgent}>
-          + Add to request
+        <ButtonBorder
+          textTransform="none"
+          width="137px"
+          size="small"
+          onClick={toggleAgent}
+        >
+          {text}
         </ButtonBorder>
       )}
     </Cell>
@@ -109,6 +122,7 @@ export function renderActionCell(
 
 export type ListProps = {
   customSort: CustomSort;
+  requestStarted: boolean;
   onLabelClick: (label: ResourceLabel) => void;
   addedResources: ResourceMap;
   addOrRemoveResource: (

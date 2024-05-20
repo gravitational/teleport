@@ -46,7 +46,7 @@ import (
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
@@ -57,6 +57,11 @@ import (
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
 	"github.com/gravitational/teleport/lib/srv/server"
 	"github.com/gravitational/teleport/lib/utils/spreadwork"
+)
+
+const (
+	// DefaultDiscoveryPollInterval is the default interval that Discovery Services fetches resources.
+	DefaultDiscoveryPollInterval = 5 * time.Minute
 )
 
 var errNoInstances = errors.New("all fetched nodes already enrolled")
@@ -114,7 +119,7 @@ type Config struct {
 	// Emitter is events emitter, used to submit discrete events
 	Emitter apievents.Emitter
 	// AccessPoint is a discovery access point
-	AccessPoint auth.DiscoveryAccessPoint
+	AccessPoint authclient.DiscoveryAccessPoint
 	// Log is the logger.
 	Log logrus.FieldLogger
 	// ServerID identifies the Teleport instance where this service runs.
@@ -135,6 +140,7 @@ type Config struct {
 	ClusterName string
 	// PollInterval is the cadence at which the discovery server will run each of its
 	// discovery cycles.
+	// Default: [github.com/gravitational/teleport/lib/srv.DefaultDiscoveryPollInterval]
 	PollInterval time.Duration
 
 	// ServerCredentials are the credentials used to identify the discovery service
@@ -225,7 +231,7 @@ kubernetes matchers are present.`)
 	}
 
 	if c.PollInterval == 0 {
-		c.PollInterval = 5 * time.Minute
+		c.PollInterval = DefaultDiscoveryPollInterval
 	}
 
 	c.TriggerFetchC = make([]chan struct{}, 0)
@@ -460,9 +466,14 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 	s.caRotationCh = make(chan []types.Server)
 
 	if s.ec2Installer == nil {
-		s.ec2Installer = server.NewSSMInstaller(server.SSMInstallerConfig{
+		ec2installer, err := server.NewSSMInstaller(server.SSMInstallerConfig{
 			Emitter: s.Emitter,
 		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		s.ec2Installer = ec2installer
 	}
 
 	lr, err := newLabelReconciler(&labelReconcilerConfig{
@@ -853,7 +864,7 @@ func (s *Server) heartbeatEICEInstance(instances *server.EC2Instances) {
 	nodesToUpsert := make([]types.Server, 0, len(instances.Instances))
 	// Add EC2 Instances using EICE method
 	for _, ec2Instance := range instances.Instances {
-		eiceNode, err := services.NewAWSNodeFromEC2v1Instance(ec2Instance.OriginalInstance, awsInfo)
+		eiceNode, err := common.NewAWSNodeFromEC2v1Instance(ec2Instance.OriginalInstance, awsInfo)
 		if err != nil {
 			s.Log.WithField("instance_id", ec2Instance.InstanceID).Warnf("Error converting to Teleport EICE Node: %v", err)
 			continue

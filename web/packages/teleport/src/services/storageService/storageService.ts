@@ -43,6 +43,7 @@ const KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT = [
   KeysEnum.SHOW_ASSIST_POPUP,
   KeysEnum.USER_PREFERENCES,
   KeysEnum.RECOMMEND_FEATURE,
+  KeysEnum.LICENSE_ACKNOWLEDGED,
 ];
 
 export const storageService = {
@@ -216,6 +217,16 @@ export const storageService = {
       window.localStorage.getItem(KeysEnum.PINNED_RESOURCES_NOT_SUPPORTED) ===
       'true'
     );
+  },
+
+  getLicenseAcknowledged(): boolean {
+    return (
+      window.localStorage.getItem(KeysEnum.LICENSE_ACKNOWLEDGED) === 'true'
+    );
+  },
+
+  setLicenseAcknowledged() {
+    window.localStorage.setItem(KeysEnum.LICENSE_ACKNOWLEDGED, 'true');
   },
 
   broadcast(messageType, messageBody) {
