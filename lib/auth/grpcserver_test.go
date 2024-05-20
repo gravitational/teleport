@@ -493,10 +493,18 @@ func TestDeletingLastPasswordlessDevice(t *testing.T) {
 			},
 			checkErr: require.Error,
 		},
+		{
+			name: "fails even if there is another MFA, but no password",
+			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *TestDevice) {
+				_, err := RegisterTestDevice(
+					ctx, userClient, "another-dev", proto.DeviceType_DEVICE_TYPE_TOTP, pwdlessDev, WithTestDeviceClock(clock))
+				require.NoError(t, err, "RegisterTestDevice")
+			},
+			checkErr: require.Error,
+		},
 	}
 
 	for i, test := range tests {
-
 		t.Run(test.name, func(t *testing.T) {
 			// Enable MFA support.
 			authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{

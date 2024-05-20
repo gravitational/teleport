@@ -3686,11 +3686,17 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 		return nil, trace.BadParameter("unexpected second factor type: %s", sf)
 	}
 
+	// canDeleteLastPasskey figures out whether the user can safely delete their
+	// credential without locking themselves out in case if it's the last passkey.
+	// It checks whether the credential to delete is a last passkey and whether
+	// the user has other valid local credentials.
 	canDeleteLastPasskey := func() (bool, error) {
 		if !authPref.GetAllowPasswordless() || numResidentKeys > 1 || !isResidentKey(deviceToDelete) {
 			return true, nil
 		}
 
+		// Deleting the last passkey is OK if the user has a password set and an
+		// additional MFA device, otherwise they would be locked out.
 		u, err := a.Services.GetUser(ctx, user, false /* withSecrets */)
 		if err != nil {
 			return false, trace.Wrap(err)
@@ -3717,16 +3723,6 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 		return false, nil
 	}
 
-	// Stop users from deleting their last resident key. This prevents
-	// passwordless users from locking themselves out, at the cost of not letting
-	// regular users do it either.
-	//
-	// A better logic would be to apply this only to passwordless users, but we
-	// cannot distinguish users in that manner.
-	// See https://github.com/gravitational/teleport/issues/13219#issuecomment-1148255979.
-	//
-	// TODO(codingllama): Check if the last login type used was passwordless, if
-	//  not then we could let this device be deleted.
 	can, err := canDeleteLastPasskey()
 	if err != nil {
 		return nil, trace.Wrap(err)
