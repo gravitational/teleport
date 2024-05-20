@@ -145,7 +145,8 @@ func initializeAndWatchAccessGraph(ctx context.Context, log *slog.Logger, config
 			watcher, err := authServer.Cache.NewWatcher(
 				eventWatcherSender.Context(),
 				types.Watch{
-					Kinds: supportedKindsToWatcherKinds(supportedKinds),
+					Kinds:               supportedKindsToWatcherKinds(supportedKinds),
+					AllowPartialSuccess: true,
 				},
 			)
 			if err != nil {

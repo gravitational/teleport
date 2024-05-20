@@ -18,18 +18,37 @@ package accessgraph
 
 import (
 	"context"
+	"crypto/tls"
+	"fmt"
+	"log/slog"
+	"net"
 	"strconv"
 	"sync"
 	"testing"
+	"time"
 
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/health"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/protobuf/proto"
 
-	"github.com/gravitational/teleport/api/client/proto"
+	clientpb "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
+	"github.com/gravitational/teleport/lib/auth"
+	authority "github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 )
 
 type mockTagEventWatcher struct {
@@ -72,19 +91,19 @@ func Test_tagEventWatcher_Send(t *testing.T) {
 	eventWatcher := newTagEventWatcher(ctx, mock)
 
 	// Init should be ignored
-	err := eventWatcher.Send(&proto.Event{Type: proto.Operation_INIT})
+	err := eventWatcher.Send(&clientpb.Event{Type: clientpb.Operation_INIT})
 	require.NoError(t, err)
 
-	err = eventWatcher.Send(&proto.Event{Type: proto.Operation_PUT,
-		Resource: &proto.Event_Server{Server: &types.ServerV2{Metadata: types.Metadata{Name: "1"}}},
+	err = eventWatcher.Send(&clientpb.Event{Type: clientpb.Operation_PUT,
+		Resource: &clientpb.Event_Server{Server: &types.ServerV2{Metadata: types.Metadata{Name: "1"}}},
 	})
 	require.NoError(t, err)
 
 	err = eventWatcher.markReady()
 	require.NoError(t, err)
 
-	err = eventWatcher.Send(&proto.Event{Type: proto.Operation_PUT,
-		Resource: &proto.Event_Server{Server: &types.ServerV2{Metadata: types.Metadata{Name: "2"}}},
+	err = eventWatcher.Send(&clientpb.Event{Type: clientpb.Operation_PUT,
+		Resource: &clientpb.Event_Server{Server: &types.ServerV2{Metadata: types.Metadata{Name: "2"}}},
 	})
 	require.NoError(t, err)
 
@@ -101,12 +120,12 @@ func Test_tagEventWatcher_Send_Concurrent(t *testing.T) {
 	eventWatcher := newTagEventWatcher(ctx, mock)
 
 	// Init should be ignored
-	err := eventWatcher.Send(&proto.Event{Type: proto.Operation_INIT})
+	err := eventWatcher.Send(&clientpb.Event{Type: clientpb.Operation_INIT})
 	require.NoError(t, err)
 
 	for i := 0; i < 100; i++ {
-		err := eventWatcher.Send(&proto.Event{Type: proto.Operation_PUT,
-			Resource: &proto.Event_Server{Server: &types.ServerV2{Metadata: types.Metadata{Name: strconv.Itoa(i)}}},
+		err := eventWatcher.Send(&clientpb.Event{Type: clientpb.Operation_PUT,
+			Resource: &clientpb.Event_Server{Server: &types.ServerV2{Metadata: types.Metadata{Name: strconv.Itoa(i)}}},
 		})
 		assert.NoError(t, err)
 	}
@@ -121,8 +140,8 @@ func Test_tagEventWatcher_Send_Concurrent(t *testing.T) {
 		defer wg.Done()
 
 		for i := 100; i < 200; i++ {
-			err := eventWatcher.Send(&proto.Event{Type: proto.Operation_PUT,
-				Resource: &proto.Event_Server{Server: &types.ServerV2{Metadata: types.Metadata{Name: strconv.Itoa(i)}}},
+			err := eventWatcher.Send(&clientpb.Event{Type: clientpb.Operation_PUT,
+				Resource: &clientpb.Event_Server{Server: &types.ServerV2{Metadata: types.Metadata{Name: strconv.Itoa(i)}}},
 			})
 			assert.NoError(t, err)
 		}
@@ -192,4 +211,188 @@ func TestConvertEvent(t *testing.T) {
 		})
 	}
 
+}
+
+func TestTeleportAccessGraphSync(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	svc := initService(t)
+
+	go func() {
+		err := initializeAndWatchAccessGraph(
+			ctx,
+			slog.Default(),
+			ServiceClientConfig{
+				Addr:     svc.accessGraphListener.Addr().String(),
+				Insecure: true,
+			},
+			ClientCredentials{
+				CertPEM: fixtures.LocalhostCert,
+				KeyPEM:  fixtures.LocalhostKey,
+			},
+			svc.authServer,
+			svc.bk,
+		)
+		assert.NoError(t, err)
+	}()
+
+	require.Eventually(t, func() bool {
+		for _, msg := range svc.accessGraphService.getReceivedMessages() {
+			if msg.GetSync() != nil {
+				return true
+			}
+		}
+		return false
+	}, 10*time.Second, 100*time.Millisecond, "expected to receive sync message before timeout")
+}
+
+func newAccessGraphFakeService(t *testing.T, lis net.Listener) *accessGraphService {
+	localTLSConfig, err := fixtures.LocalTLSConfig()
+	require.NoError(t, err)
+	tlsConfig := localTLSConfig.TLS.Clone()
+	tlsConfig.InsecureSkipVerify = true
+	tlsConfig.ClientAuth = tls.RequestClientCert
+	tlsConfig.RootCAs = nil
+	s := grpc.NewServer(
+		grpc.Creds(
+			credentials.NewTLS(tlsConfig),
+		),
+	)
+	t.Cleanup(s.GracefulStop)
+
+	accessService := &accessGraphService{}
+	accessgraphv1alpha.RegisterAccessGraphServiceServer(s, accessService)
+
+	healthService := health.NewServer()
+	// empty service name is used to represent the health of the whole access graph instance
+	healthService.SetServingStatus("" /* service */, healthpb.HealthCheckResponse_SERVING)
+	healthpb.RegisterHealthServer(s, healthService)
+
+	go s.Serve(lis)
+
+	return accessService
+
+}
+
+type accessGraphService struct {
+	accessgraphv1alpha.UnimplementedAccessGraphServiceServer
+	healthpb.UnimplementedHealthServer
+
+	// mu protects receivedMessages
+	mu               sync.Mutex
+	receivedMessages []*accessgraphv1alpha.EventsStreamV2Request
+}
+
+func (a *accessGraphService) getReceivedMessages() []*accessgraphv1alpha.EventsStreamV2Request {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	messages := make([]*accessgraphv1alpha.EventsStreamV2Request, len(a.receivedMessages))
+	for i, msg := range a.receivedMessages {
+		messages[i] = proto.Clone(msg).(*accessgraphv1alpha.EventsStreamV2Request)
+	}
+	return messages
+}
+
+func (a *accessGraphService) EventsStreamV2(stream accessgraphv1alpha.AccessGraphService_EventsStreamV2Server) error {
+	const supportedResourcesKey = "supported-kinds"
+	if err := stream.SendHeader(metadata.MD{
+		supportedResourcesKey: []string{
+			types.KindUser,
+			types.KindRole,
+			types.KindNode,
+			types.KindKubeServer,
+			types.KindAppServer,
+			types.KindWindowsDesktop,
+			types.KindDatabaseServer,
+			types.KindDatabaseObject,
+			types.KindAccessRequest,
+			"non_supported_kind", /* this kind is not supported  but is here to ensure that the cache runs with allow partials */
+		},
+	}); err != nil {
+		return fmt.Errorf("send header: %w", err)
+	}
+
+	for {
+		recv, err := stream.Recv()
+		if err != nil {
+			return fmt.Errorf("receive: %w", err)
+		}
+		a.mu.Lock()
+		a.receivedMessages = append(a.receivedMessages, recv)
+		a.mu.Unlock()
+	}
+
+}
+
+type testServiceComponents struct {
+	clock               clockwork.FakeClock
+	authServer          *auth.Server
+	bk                  backend.Backend
+	accessGraphListener net.Listener
+	accessGraphService  *accessGraphService
+}
+
+func initService(t *testing.T) testServiceComponents {
+	t.Helper()
+
+	clock := clockwork.NewFakeClock()
+	backend, err := memory.New(memory.Config{
+		Clock: clock,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		err := backend.Close()
+		require.NoError(t, err)
+	})
+
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+		ClusterName: "localhost",
+	})
+	require.NoError(t, err)
+	authConfig := &auth.InitConfig{
+		ClusterName:            clusterName,
+		Backend:                backend,
+		Authority:              authority.New(),
+		SkipPeriodicOperations: true,
+		Clock:                  clock,
+	}
+	authServer, err := auth.NewServer(authConfig)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		err := authServer.Close()
+		require.NoError(t, err)
+	})
+
+	events := local.NewEventsService(backend)
+	cache, err := services.NewUnifiedResourceCache(context.Background(), services.UnifiedResourceCacheConfig{
+		Clock:          clock,
+		ResourceGetter: authServer,
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: "resource-watcher",
+			Client:    events,
+		},
+	})
+	require.NoError(t, err)
+
+	authServer.SetUnifiedResourcesCache(cache)
+
+	accessGraphListener, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		accessGraphListener.Close()
+	})
+
+	// Create a fake access graph service
+	accessGraphService := newAccessGraphFakeService(t, accessGraphListener)
+
+	return testServiceComponents{
+		clock:               clock,
+		authServer:          authServer,
+		bk:                  backend,
+		accessGraphService:  accessGraphService,
+		accessGraphListener: accessGraphListener,
+	}
 }
