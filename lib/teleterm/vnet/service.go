@@ -108,16 +108,6 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer func() {
-		if s.status != statusRunning {
-			err := processManager.Close()
-			if err != nil && !errors.Is(err, context.Canceled) {
-				log.ErrorContext(ctx, "VNet closed with an error", "error", err)
-			} else {
-				log.DebugContext(ctx, "VNet closed")
-			}
-		}
-	}()
 
 	go func() {
 		err := processManager.Wait()
