@@ -23,6 +23,11 @@ import { FetchStatus, SortType } from 'design/DataTable/types';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { makeAdvancedSearchQueryForLabel } from 'shared/utils/advancedSearchLabelQuery';
 
+import {
+  ShowResources,
+  Cluster,
+} from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
   makeDatabase,
@@ -36,7 +41,6 @@ import {
   GetResourcesParams,
   App as tshdApp,
 } from 'teleterm/services/tshd/types';
-import { routing } from 'teleterm/ui/uri';
 import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
 import { getAppAddrWithProtocol } from 'teleterm/services/tshd/app';
 import { toResourceRequest } from 'teleterm/ui/services/workspacesService/accessRequestsService';
@@ -54,14 +58,12 @@ const pageSize = 10;
 
 type AgentFilter = WeakAgentFilter & { sort: SortType };
 
-export default function useNewRequest() {
+export default function useNewRequest(rootCluster: Cluster) {
   const ctx = useAppContext();
   const { accessRequestsService, localClusterUri: clusterUri } =
     useWorkspaceContext();
 
   const loggedInUser = useWorkspaceLoggedInUser();
-
-  const isLeafCluster = routing.isLeafCluster(clusterUri);
 
   const { attempt, setAttempt } = useAttempt('processing');
   const [fetchStatus, setFetchStatus] = useState<FetchStatus>('');
@@ -69,8 +71,9 @@ export default function useNewRequest() {
     ResourcesResponse<UnifiedResource>
   >(getEmptyFetchedDataState());
   const requestableRoles = loggedInUser?.requestableRoles || [];
-  const [selectedResource, setSelectedResource] =
-    useState<ResourceKind>('node');
+  const [selectedResource, setSelectedResource] = useState<ResourceKind>(
+    rootCluster.showResources === ShowResources.REQUESTABLE ? 'role' : 'node'
+  );
   const [agentFilter, setAgentFilter] = useState<AgentFilter>({
     sort: getDefaultSort(selectedResource),
   });
@@ -287,7 +290,6 @@ export default function useNewRequest() {
     agentFilter,
     updateSort,
     attempt,
-    isLeafCluster,
     fetchStatus,
     updateQuery,
     updateSearch,

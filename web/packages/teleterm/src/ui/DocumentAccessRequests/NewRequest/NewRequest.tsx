@@ -16,12 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useMemo } from 'react';
-
 import styled from 'styled-components';
 
-import { Alert, Box, Flex } from 'design';
+import { Alert, Box, Flex, Link, Text, Indicator } from 'design';
 import { space, width } from 'design/system';
+import { Info as InfoIcon } from 'design/Icon';
+
+import {
+  ShowResources,
+  Cluster,
+} from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 
 import { SearchPagination, SearchPanel } from 'shared/components/Search';
 import {
@@ -33,6 +37,9 @@ import {
   PendingAccessRequest,
   extractResourceRequestProperties,
 } from 'teleterm/ui/services/workspacesService/accessRequestsService';
+
+import { useWorkspaceContext } from 'teleterm/ui/Documents';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
 
 import useNewRequest, { ResourceKind } from './useNewRequest';
 
@@ -57,6 +64,17 @@ const agentOptions: ResourceOption[] = [
 ];
 
 export function NewRequest() {
+  const ctx = useAppContext();
+
+  const { rootClusterUri } = useWorkspaceContext();
+  const rootCluster = ctx.clustersService.findCluster(rootClusterUri);
+  if (rootCluster.showResources === ShowResources.UNSPECIFIED) {
+    return <Indicator />;
+  }
+  return <Inner rootCluster={rootCluster} />;
+}
+
+function Inner(props: { rootCluster: Cluster }) {
   const {
     attempt,
     agentFilter,
@@ -72,22 +90,29 @@ export function NewRequest() {
     updateResourceKind,
     prevPage,
     requestableRoles,
-    isLeafCluster,
     nextPage,
     agents,
     addedItemsCount,
-  } = useNewRequest();
+  } = useNewRequest(props.rootCluster);
+  const { documentsService, localClusterUri } = useWorkspaceContext();
 
   const requestStarted = addedItemsCount > 0;
 
-  // Leaf clusters do not allow role requests, so we do not show that option in the UI if leaf
-  const filteredAgentOptions = useMemo(
-    () =>
-      agentOptions.filter(agent =>
-        isLeafCluster ? agent.value !== 'role' : agent
-      ),
-    [isLeafCluster]
-  );
+  function openClusterDocument() {
+    const doc = documentsService.createClusterDocument({
+      clusterUri: localClusterUri,
+    });
+    documentsService.add(doc);
+    documentsService.open(doc.uri);
+  }
+
+  const isRequestingResourcesFromResourcesViewEnabled =
+    props.rootCluster.showResources === ShowResources.REQUESTABLE;
+  // This means that we can only request roles.
+  // Let's hide all tabs in that case.
+  const filteredAgentOptions = isRequestingResourcesFromResourcesViewEnabled
+    ? []
+    : agentOptions;
 
   const isRoleList = selectedResource === 'role';
 
@@ -139,6 +164,24 @@ export function NewRequest() {
           />
         )}
       </StyledMain>
+      {isRequestingResourcesFromResourcesViewEnabled && (
+        <Alert kind="outline-info" mb={2}>
+          <InfoIcon color="info" pr={2} />
+          <Text>
+            To request access to a resource, go to the{' '}
+            <Link
+              css={`
+                cursor: pointer;
+                color: inherit !important;
+              `}
+              onClick={openClusterDocument}
+            >
+              resources view
+            </Link>{' '}
+            or find it in the search bar.
+          </Text>
+        </Alert>
+      )}
     </Layout>
   );
 }
