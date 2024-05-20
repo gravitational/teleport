@@ -7,8 +7,7 @@ discovery_service:
     # managing discovered resources.
     discovery_group: "disc-group"
     # poll_interval is the cadence at which the discovery server will run each of its
-    # discovery cycles.
-    # Default: 5m
+    # discovery cycles. The default is 5m.
     poll_interval: 5m
     aws:
       # AWS resource types. Valid options are:
