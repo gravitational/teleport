@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Ensures local session is logged in with appropriate credentials to 
+# Ensures local session is logged in with appropriate credentials to
 # successfully execute `make` target "cloud-deploy"
 
 TELEPORT_CLUSTER=${TELEPORT_CLUSTER:-platform.teleport.sh}
@@ -12,7 +12,7 @@ TARGET_IMAGE_REPO=${TARGET_IMAGE_REPO:-599519581022.dkr.ecr.us-west-2.amazonaws.
 AWS_SSO_PROFILE=${AWS_SSO_PROFILE:-tc-stage-core}
 AWS_PROFILE=${AWS_PROFILE:-tc-stage-ecr}
 CLOUD_API_APP=${CLOUD_API_APP:-cloud-api-staging}
-TCCTL_PATH=${TCCTL_PATH:-../../cloud/tools/tcctl}
+TCCTL_PATH=${TCCTL_PATH:-../../cloud/tcctl/cmd/tcctl}
 
 function echo_color() {
     local color='\033[0;'$1'm'
@@ -31,7 +31,7 @@ function error() {
 function fail_on_exit_code() {
     local exit_code=${2:-$?}
     local message=${1:-"non-zero exit code on previous command"}
-    
+
     if [ $exit_code -ne 0 ]; then
       error $message
       error "(exit code: $exit_code)"

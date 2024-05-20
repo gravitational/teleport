@@ -1,8 +1,8 @@
 #!/bin/bash
 #
 # Build teleport binaries, create and push a docker image to AWS ECR and
-# patch a Teleport Cloud tenant to run the new image.. 
-# 
+# patch a Teleport Cloud tenant to run the new image..
+#
 
 function echo_color() {
     local color='\033[0;'$1'm'
@@ -21,7 +21,7 @@ function error() {
 function fail_on_exit_code() {
     local exit_code=${2:-$?}
     local message=${1:-"non-zero exit code on previous command"}
-    
+
     if [ $exit_code -ne 0 ]; then
         error $message
         error "(exit code: $exit_code)"
@@ -44,7 +44,7 @@ KUBE_TENANT_CONTEXT=$TELEPORT_CLUSTER-$KUBE_TENANT_CLUSTER
 KUBE_AUTH_CLUSTER=${KUBE_AUTH_CLUSTER:-tc-staging-cs-01-usw2}
 KUBE_AUTH_CONTEXT=$TELEPORT_CLUSTER-$KUBE_AUTH_CLUSTER
 CLOUD_API_APP=${CLOUD_API_APP:-cloud-api-staging}
-TCCTL_PATH=${TCCTL_PATH:-../../cloud/tools/tcctl}
+TCCTL_PATH=${TCCTL_PATH:-../../cloud/tcctl/cmd/tcctl}
 
 [ -z "$TENANT" ] && fail_on_exit_code "Environment variable \"TENANT\" must be set." 1
 echo "-> Checking for tenant \"$TENANT\"..."
