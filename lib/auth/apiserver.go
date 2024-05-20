@@ -110,11 +110,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	// Kubernetes extensions
 	srv.POST("/:version/kube/csr", srv.WithAuth(srv.processKubeCSR))
 
-	// TODO(Joerger): DELETE IN 16.0.0, migrated to gRPC.
-	srv.POST("/:version/authorities/:type/rotate", srv.WithAuth(srv.rotateCertAuthority))
-	// TODO(Joerger): DELETE IN v16.0.0, migrated to gRPC
-	srv.POST("/:version/authorities/:type/rotate/external", srv.WithAuth(srv.rotateExternalCertAuthority))
-
 	// Operations on users
 	// TODO(tross): DELETE IN 17.0.0
 	srv.POST("/:version/users", srv.WithAuth(srv.upsertUser))
@@ -541,38 +536,6 @@ func (s *APIServer) registerUsingToken(auth *ServerWithRoles, w http.ResponseWri
 	}
 
 	return certs, nil
-}
-
-// TODO(Joerger): DELETE IN 16.0.0, migrated to gRPC.
-func (s *APIServer) rotateCertAuthority(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req types.RotateRequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := auth.RotateCertAuthority(r.Context(), req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message("ok"), nil
-}
-
-type rotateExternalCertAuthorityRawReq struct {
-	CA json.RawMessage `json:"ca"`
-}
-
-// TODO(Joerger): DELETE IN v16.0.0, migrated to gRPC
-func (s *APIServer) rotateExternalCertAuthority(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req rotateExternalCertAuthorityRawReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	ca, err := services.UnmarshalCertAuthority(req.CA)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := auth.RotateExternalCertAuthority(r.Context(), ca); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message("ok"), nil
 }
 
 // validateGithubAuthCallbackReq is a request to validate Github OAuth2 callback

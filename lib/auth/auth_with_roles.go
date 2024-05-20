@@ -546,33 +546,6 @@ func (a *ServerWithRoles) GenerateOpenSSHCert(ctx context.Context, req *proto.Op
 	return a.authServer.GenerateOpenSSHCert(ctx, req)
 }
 
-// RotateCertAuthority starts or restarts certificate authority rotation process.
-// TODO(Joerger): DELETE IN 16.0.0, replaced by Trust service.
-func (a *ServerWithRoles) RotateCertAuthority(ctx context.Context, req types.RotateRequest) error {
-	if err := req.CheckAndSetDefaults(a.authServer.clock); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := a.action(apidefaults.Namespace, types.KindCertAuthority, types.VerbCreate, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.RotateCertAuthority(ctx, req)
-}
-
-// RotateExternalCertAuthority rotates external certificate authority,
-// this method is called by a remote trusted cluster and is used to update
-// only public keys and certificates of the certificate authority.
-// TODO(Joerger): DELETE IN v16.0.0, moved to Trust service
-func (a *ServerWithRoles) RotateExternalCertAuthority(ctx context.Context, ca types.CertAuthority) error {
-	if ca == nil {
-		return trace.BadParameter("missing certificate authority")
-	}
-	sctx := &services.Context{User: a.context.User, Resource: ca}
-	if err := a.actionWithContext(sctx, apidefaults.Namespace, types.KindCertAuthority, types.VerbRotate); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.RotateExternalCertAuthority(ctx, ca)
-}
-
 // CompareAndSwapCertAuthority updates existing cert authority if the existing cert authority
 // value matches the value stored in the backend.
 func (a *ServerWithRoles) CompareAndSwapCertAuthority(new, existing types.CertAuthority) error {
