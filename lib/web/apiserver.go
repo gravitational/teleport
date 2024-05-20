@@ -3302,7 +3302,7 @@ func (h *Handler) siteNodeConnect(
 		}
 	}
 
-	h.log.Debugf("New testTerminal request for server=%s, login=%s, sid=%s, websid=%s.",
+	h.log.Debugf("New terminal request for server=%s, login=%s, sid=%s, websid=%s.",
 		req.Server, req.Login, sessionData.ID, sessionCtx.GetSessionID())
 
 	keepAliveInterval := req.KeepAliveInterval
@@ -3360,15 +3360,15 @@ func (h *Handler) siteNodeConnect(
 		},
 	})
 	if err != nil {
-		h.log.WithError(err).Error("Unable to create testTerminal.")
+		h.log.WithError(err).Error("Unable to create terminal.")
 		return nil, trace.Wrap(err)
 	}
 
 	h.userConns.Add(1)
 	defer h.userConns.Add(-1)
 
-	// start the websocket session with a web-based testTerminal:
-	h.log.Infof("Getting testTerminal to %#v.", req)
+	// start the websocket session with a web-based terminal:
+	h.log.Infof("Getting terminal to %#v.", req)
 	httplib.MakeTracingHandler(term, teleport.ComponentProxy).ServeHTTP(w, r)
 
 	return nil, nil
@@ -4744,7 +4744,7 @@ func OK() interface{} {
 }
 
 // makeTeleportClientConfig creates default teleport client configuration
-// that is used to initiate an SSH testTerminal session or SCP file transfer
+// that is used to initiate an SSH terminal session or SCP file transfer
 func makeTeleportClientConfig(ctx context.Context, sctx *SessionContext) (*client.Config, error) {
 	agent, cert, err := sctx.GetAgent()
 	if err != nil {

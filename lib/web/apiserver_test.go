@@ -1610,7 +1610,7 @@ func TestFileTransferEvents(t *testing.T) {
 	ctx, cancel := context.WithCancel(s.ctx)
 	t.Cleanup(cancel)
 
-	// Create a new user "foo", open a testTerminal to a new session
+	// Create a new user "foo", open a terminal to a new session
 	wsMessages := make(chan *terminal.Envelope)
 	term, err := connectToHost(ctx, connectConfig{
 		pack:  s.authPack(t, "foo"),
@@ -1821,7 +1821,7 @@ func TestResizeTerminal(t *testing.T) {
 	ws1Messages := make(chan *terminal.Envelope)
 	ws1Raw := make(chan []byte)
 	ws2Messages := make(chan *terminal.Envelope)
-	// Create a new user "foo", open a testTerminal to a new session
+	// Create a new user "foo", open a terminal to a new session
 	term, err := connectToHost(ctx, connectConfig{
 		pack:  s.authPack(t, "foo"),
 		host:  s.node.ID(),
@@ -1869,9 +1869,9 @@ func TestResizeTerminal(t *testing.T) {
 		ws1Raw <- read
 	}()
 
-	// Consume events from the first testTerminal. We expect to see 2 resize events from the second user
+	// Consume events from the first terminal. We expect to see 2 resize events from the second user
 	// joining the session (one for the default size, and one for the manual resize request). We also
-	// validate at least one raw event with PTY data (indicating testTerminal ready) came through.
+	// validate at least one raw event with PTY data (indicating terminal ready) came through.
 	done := time.After(10 * time.Second)
 	t1ResizeEvents, t1RawEvents := 0, 0
 t1ready:
@@ -1892,17 +1892,17 @@ t1ready:
 		}
 	}
 
-	// we should not expect to see a resize event on testTerminal 2,
+	// we should not expect to see a resize event on terminal 2,
 	// since they are not broadcast back to the originator
 	select {
 	case e := <-ws2Messages:
 		if isResizeEventEnvelope(e) {
-			require.FailNow(t, "testTerminal 2 should not have received a resize event: %v", e)
+			require.FailNow(t, "terminal 2 should not have received a resize event: %v", e)
 		}
 	case <-time.After(1 * time.Second):
 	}
 
-	// Resize the second testTerminal. This should only be reflected in the first testTerminal
+	// Resize the second terminal. This should only be reflected in the first terminal
 	// because resize events are sent to participants but not the originator.
 	params, err := session.NewTerminalParamsFromInt(300, 120)
 	require.NoError(t, err)
@@ -1923,7 +1923,7 @@ t1ready:
 	err = term2.ws.WriteMessage(websocket.BinaryMessage, envelopeBytes)
 	require.NoError(t, err)
 
-	// the first testTerminal should see the resize event
+	// the first terminal should see the resize event
 	done = time.After(5 * time.Second)
 	for {
 		select {
@@ -2193,7 +2193,7 @@ func TestTerminalRequireSessionMFA(t *testing.T) {
 			termCtx, cancel := context.WithCancel(ctx)
 			t.Cleanup(cancel)
 
-			// Open a testTerminal to a new session.
+			// Open a terminal to a new session.
 			term, err := connectToHost(termCtx, connectConfig{
 				pack:  pack,
 				host:  proxy.node.ID(),
@@ -5583,7 +5583,7 @@ func TestWebSessionsRenewDoesNotBreakExistingTerminalSession(t *testing.T) {
 	// Verify that access via the 2nd proxy also works for the same session
 	pack2.validateAPI(context.Background(), t)
 
-	// Check whether the testTerminal session is still active
+	// Check whether the terminal session is still active
 	validateTerminal(t, term)
 }
 
@@ -7627,7 +7627,7 @@ func waitForOutputWithDuration(r ReaderWithDeadline, substr string, timeout time
 	for {
 		select {
 		case <-timeoutCh:
-			return trace.BadParameter("timeout waiting on testTerminal for output: %v", substr)
+			return trace.BadParameter("timeout waiting on terminal for output: %v", substr)
 		default:
 		}
 
@@ -9785,8 +9785,8 @@ func TestModeratedSession(t *testing.T) {
 	// for is not present in the command itself
 	_, err = io.WriteString(peerTerm, "echo llxmx | sed 's/x/a/g'\r\n")
 	require.NoError(t, err)
-	require.NoError(t, waitForOutput(peerTerm, "llama"), "waiting for output on peer testTerminal")
-	require.NoError(t, waitForOutput(moderatorTerm, "llama"), "waiting for output on moderator testTerminal")
+	require.NoError(t, waitForOutput(peerTerm, "llama"), "waiting for output on peer terminal")
+	require.NoError(t, waitForOutput(moderatorTerm, "llama"), "waiting for output on moderator terminal")
 
 	// the moderator terminates the session
 	_, err = io.WriteString(moderatorTerm, "t")
@@ -9922,8 +9922,8 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 	// for is not present in the command itself
 	_, err = io.WriteString(peerTerm, "echo llxmx | sed 's/x/a/g'\r\n")
 	require.NoError(t, err)
-	require.NoError(t, waitForOutput(peerTerm, "llama"), "waiting for output in peer testTerminal")
-	require.NoError(t, waitForOutput(moderatorTerm, "llama"), "waiting for output in moderator testTerminal")
+	require.NoError(t, waitForOutput(peerTerm, "llama"), "waiting for output in peer terminal")
+	require.NoError(t, waitForOutput(moderatorTerm, "llama"), "waiting for output in moderator terminal")
 
 	// run the presence check a few times
 	for i := 0; i < 3; i++ {

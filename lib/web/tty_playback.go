@@ -167,7 +167,7 @@ func (h *Handler) ttyPlaybackHandle(
 		writeSize := func(size string) error {
 			ts, err := session.UnmarshalTerminalParams(size)
 			if err != nil {
-				h.log.Debugf("Ignoring invalid testTerminal size %q", size)
+				h.log.Debugf("Ignoring invalid terminal size %q", size)
 				return nil // don't abort playback due to a bad event
 			}
 
@@ -351,7 +351,7 @@ This message is used to seek to a new position in the recording.
 
 ### 5 - Resize
 
-This message is used to indicate that the testTerminal was resized.
+This message is used to indicate that the terminal was resized.
 
 - Message ID: 5
 - 2-byte width

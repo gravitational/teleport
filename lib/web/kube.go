@@ -53,7 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/web/terminal"
 )
 
-// podHandler connects Kube exec session and web-based testTerminal via a websocket.
+// podHandler connects Kube exec session and web-based terminal via a websocket.
 type podHandler struct {
 	teleportCluster     string
 	configTLSServerName string
@@ -72,7 +72,7 @@ type podHandler struct {
 	closedByClient atomic.Bool
 }
 
-// PodExecRequest describes a request to create a web-based testTerminal
+// PodExecRequest describes a request to create a web-based terminal
 // to exec into a pod.
 type PodExecRequest struct {
 	// Namespace is the namespace of the target pod
@@ -92,7 +92,7 @@ type PodExecRequest struct {
 }
 
 // ServeHTTP sends session metadata to web UI to signal beginning of the session, then
-// handles Kube exec request and connects it to web based testTerminal input/output.
+// handles Kube exec request and connects it to web based terminal input/output.
 func (p *podHandler) ServeHTTP(_ http.ResponseWriter, r *http.Request) {
 	// Allow closing websocket if the user logs out before exiting
 	// the session.
@@ -158,7 +158,7 @@ func (p *podHandler) sendAndLogError(err error) {
 func (p *podHandler) handler(r *http.Request) error {
 	p.log.Debug("Creating websocket stream for a kube exec request")
 
-	// Create a context for signaling when the testTerminal session is over and
+	// Create a context for signaling when the terminal session is over and
 	// link it first with the trace context from the request context
 	tctx := oteltrace.ContextWithRemoteSpanContext(context.Background(), oteltrace.SpanContextFromContext(r.Context()))
 	ctx, cancel := context.WithCancel(tctx)
@@ -286,7 +286,7 @@ func (p *podHandler) handler(r *http.Request) error {
 	// from the document, which doesn't make sense for non-interactive command, since user
 	// never has the chance to see the output.
 	if p.req.IsInteractive {
-		// Send close envelope to web testTerminal upon exit without an error.
+		// Send close envelope to web terminal upon exit without an error.
 		if err := stream.SendCloseMessage(""); err != nil {
 			p.log.WithError(err).Error("unable to send close event to web client.")
 		}
