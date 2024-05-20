@@ -19,10 +19,17 @@
 package auth
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha1"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	_ "embed"
+	"encoding/base64"
+	"encoding/pem"
+	"fmt"
 	"strconv"
+	"text/template"
 
 	"github.com/gravitational/trace"
 
@@ -30,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // GenerateWindowsDesktopCert generates client certificate for Windows RDP
@@ -92,5 +100,69 @@ func (a *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 	}
 	return &proto.WindowsDesktopCertResponse{
 		Cert: cert,
+	}, nil
+}
+
+// desktopAccessConfigureScript is the script that will run on the windows
+// machine and configure Active Directory
+//
+//go:embed windows/configure-ad.ps1
+var desktopAccessScriptConfigure string
+var DesktopAccessScriptConfigure = template.Must(template.New("desktop-access-configure-ad").Parse(desktopAccessScriptConfigure))
+
+func (a *Server) GetDesktopBootstrapScript(ctx context.Context, token string) (*proto.DesktopBootstrapScriptResponse, error) {
+	// Check if the token is valid.
+	_, err := a.GetToken(ctx, token)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	proxyServers, err := a.GetProxies()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if len(proxyServers) == 0 {
+		return nil, trace.NotFound("no proxy servers found")
+	}
+
+	// Use the first proxy server for the template, the user can change it later if needed.
+	proxyServer := proxyServers[0]
+
+	clusterName, err := a.GetDomainName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	certAuthority, err := a.GetCertAuthority(
+		ctx,
+		types.CertAuthID{Type: types.UserCA, DomainName: clusterName},
+		false,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if len(certAuthority.GetActiveKeys().TLS) != 1 {
+		return nil, trace.BadParameter("expected one TLS key pair, got %v", len(certAuthority.GetActiveKeys().TLS))
+	}
+
+	keyPair := certAuthority.GetActiveKeys().TLS[0]
+	block, _ := pem.Decode(keyPair.Cert)
+	if block == nil {
+		return nil, trace.BadParameter("no PEM data in CA data")
+	}
+
+	var buf bytes.Buffer
+	err = DesktopAccessScriptConfigure.Execute(&buf, map[string]string{
+		"caCertPEM":       string(keyPair.Cert),
+		"caCertSHA1":      fmt.Sprintf("%X", sha1.Sum(block.Bytes)),
+		"caCertBase64":    base64.StdEncoding.EncodeToString(utils.CreateCertificateBlob(block.Bytes)),
+		"proxyPublicAddr": proxyServer.GetPublicAddr(),
+		"provisionToken":  token,
+	})
+
+	return &proto.DesktopBootstrapScriptResponse{
+		Script: buf.String(),
 	}, nil
 }

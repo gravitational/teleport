@@ -22,6 +22,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/binary"
 	"encoding/pem"
 	"fmt"
 	"math/big"
@@ -317,3 +318,24 @@ func InitCertLeaf(cert *tls.Certificate) error {
 }
 
 const pemBlockCertificate = "CERTIFICATE"
+
+// createCertificateBlob creates Certificate BLOB
+// It has following structure:
+//
+//	CertificateBlob {
+//		PropertyID: u32, little endian,
+//		Reserved: u32, little endian, must be set to 0x01 0x00 0x00 0x00
+//		Length: u32, little endian
+//		Value: certificate data
+//	}
+func CreateCertificateBlob(certData []byte) []byte {
+	buf := new(bytes.Buffer)
+	buf.Grow(len(certData) + 12)
+	// PropertyID for certificate is 32
+	binary.Write(buf, binary.LittleEndian, int32(32))
+	binary.Write(buf, binary.LittleEndian, int32(1))
+	binary.Write(buf, binary.LittleEndian, int32(len(certData)))
+	buf.Write(certData)
+
+	return buf.Bytes()
+}
