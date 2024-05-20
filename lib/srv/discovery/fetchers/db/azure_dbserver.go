@@ -22,7 +22,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
@@ -71,7 +70,7 @@ func (p *azureDBServerPlugin) NewDatabaseFromServer(server *azure.DBServer, log 
 		return nil
 	}
 
-	database, err := services.NewDatabaseFromAzureServer(server)
+	database, err := common.NewDatabaseFromAzureServer(server)
 	if err != nil {
 		log.Warnf("Could not convert Azure server %q to database resource: %v.",
 			server.Name,
