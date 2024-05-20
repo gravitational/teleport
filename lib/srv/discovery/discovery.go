@@ -135,6 +135,7 @@ type Config struct {
 	ClusterName string
 	// PollInterval is the cadence at which the discovery server will run each of its
 	// discovery cycles.
+	// Default: 5m
 	PollInterval time.Duration
 
 	// ClusterFeatures returns flags for supported/unsupported features.
