@@ -511,12 +511,12 @@ exports[`success state 1`] = `
               </strong>
                - 
               <strong>
-                6
+                7
               </strong>
                of
                
               <strong>
-                6
+                7
               </strong>
             </div>
           </div>
@@ -621,6 +621,31 @@ exports[`success state 1`] = `
                 />
               </button>
             </td>
+          </tr>
+          <tr>
+            <td>
+              bot-little-robot
+            </td>
+            <td>
+              <div
+                class="c22"
+              >
+                <div
+                  class="c23"
+                  kind="secondary"
+                >
+                  bot-little-robot
+                </div>
+              </div>
+            </td>
+            <td
+              style="text-transform: capitalize;"
+            >
+              Bot
+            </td>
+            <td
+              align="right"
+            />
           </tr>
           <tr>
             <td>
