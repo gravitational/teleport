@@ -3521,7 +3521,7 @@ func compareDevices(t *testing.T, ignoreUpdateAndCounter bool, got []*types.MFAD
 }
 
 type mockCache struct {
-	Cache
+	authclient.Cache
 
 	resources      []types.ResourceWithLabels
 	resourcesError error
