@@ -1611,6 +1611,8 @@ Outer:
 func (m *RequestValidator) SystemAnnotations(req types.AccessRequest) (map[string][]string, error) {
 	annotations := make(map[string][]string)
 
+	// allowedAnnotations keeps track of annotations an access request
+	// can be granted by the roles requested.
 	allowedAnnotations := make(map[string][]string)
 	for _, userRole := range m.userState.GetRoles() {
 		role, err := m.getter.GetRole(context.Background(), userRole)
@@ -1621,6 +1623,9 @@ func (m *RequestValidator) SystemAnnotations(req types.AccessRequest) (map[strin
 		acr := role.GetAccessRequestConditions(types.Allow)
 
 		for _, reqRole := range req.GetRoles() {
+			// if the requested role is a resource request, the roles
+			// granted in `search_as_roles` must be used to make the
+			// access request and so only annotations from those roles should be included
 			roles := acr.Roles
 			if len(req.GetRequestedResourceIDs()) != 0 {
 				roles = acr.SearchAsRoles

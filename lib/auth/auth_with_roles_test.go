@@ -6978,120 +6978,248 @@ func TestCreateAccessRequest(t *testing.T) {
 
 func TestAccessRequestNonGreedyAnnotations(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
 
-	srv := newTestTLSServer(t)
-	paymentRequestReviewer, identityRequestReviewer, _ := createSessionTestUsers(t, srv.Auth())
-	requester, _, err := CreateUserAndRole(srv.Auth(), "requester", nil, []types.Rule{})
-	require.NoError(t, err)
-
-	paymentsRole, err := types.NewRole("paymentsRole", types.RoleSpecV6{
+	paymentsRequester, err := types.NewRole("payments-requester", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Request: &types.AccessRequestConditions{
-				Roles: []string{"requestRole"},
 				Annotations: map[string][]string{
-					"pagerduty_services": {"payments"},
+					"services":   {"payments"},
+					"requesting": {"role"},
 				},
+				Roles: []string{"payments-access"},
 			},
 		},
 	})
 	require.NoError(t, err)
-	nodeRole, err := types.NewRole("nodeRole", types.RoleSpecV6{
+
+	paymentsResourceRequester, err := types.NewRole("payments-resource-requester", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Request: &types.AccessRequestConditions{
-				SearchAsRoles: []string{"resourceReqRole"},
 				Annotations: map[string][]string{
-					"requested": {"resource"},
+					"services":   {"payments"},
+					"requesting": {"resources"},
 				},
+				SearchAsRoles: []string{"payments-access"},
 			},
 		},
 	})
 	require.NoError(t, err)
-	paymentsReviewRole, err := types.NewRole("paymentsReviewRole", types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			Rules: []types.Rule{types.NewRule(types.KindAccessRequest, []string{"update"})},
-		},
-	})
-	require.NoError(t, err)
-	identityReviewRole, err := types.NewRole("identityReviewRole", types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			Rules: []types.Rule{types.NewRule(types.KindAccessRequest, []string{"update"})},
-		},
-	})
-	require.NoError(t, err)
 
-	requestRole, err := types.NewRole("requestRole", types.RoleSpecV6{
+	paymentsAccess, err := types.NewRole("payments-access", types.RoleSpecV6{
 		Allow: types.RoleConditions{
+			NodeLabels: types.Labels{"service": []string{"payments"}},
 			Request: &types.AccessRequestConditions{
-				Roles: []string{"requestRole"},
 				Annotations: map[string][]string{
-					"pagerduty_services": {"identity"},
+					"never-get-this": {"true"},
 				},
 			},
 		},
 	})
 	require.NoError(t, err)
 
-	resourceReqRole, err := types.NewRole("resourceReqRole", types.RoleSpecV6{
+	identityRequester, err := types.NewRole("identity-requester", types.RoleSpecV6{
 		Allow: types.RoleConditions{
-			NodeLabels: types.Labels{"*": []string{"*"}},
 			Request: &types.AccessRequestConditions{
 				Annotations: map[string][]string{
-					"requested": {"resource"},
+					"services":   {"identity"},
+					"requesting": {"role"},
+				},
+				Roles: []string{"identity-access"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	identityResourceRequester, err := types.NewRole("identity-resource-requester", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Annotations: map[string][]string{
+					"services":   {"identity"},
+					"requesting": {"resources"},
+				},
+				SearchAsRoles: []string{"identity-access"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	identityAccess, err := types.NewRole("identity-access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			NodeLabels: types.Labels{"service": []string{"identity"}},
+			Request: &types.AccessRequestConditions{
+				Annotations: map[string][]string{
+					"never-get-this": {"true"},
 				},
 			},
 		},
 	})
 	require.NoError(t, err)
 
-	srv.Auth().CreateRole(ctx, requestRole)
-	srv.Auth().CreateRole(ctx, nodeRole)
-	srv.Auth().CreateRole(ctx, paymentsRole)
-	srv.Auth().CreateRole(ctx, paymentsReviewRole)
-	srv.Auth().CreateRole(ctx, identityReviewRole)
-	srv.Auth().CreateRole(ctx, resourceReqRole)
+	anyResourceRequester, err := types.NewRole("any-requester", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Annotations: map[string][]string{
+					"any-requestor": {"true"},
+				},
+				SearchAsRoles: []string{"identity-access", "payments-access"},
+				Roles:         []string{"identity-access", "payments-access"},
+			},
+		},
+	})
 
-	server, err := types.NewServer("server", types.KindNode, types.ServerSpecV2{})
-	require.NoError(t, err)
-	srv.Auth().UpsertNode(ctx, server)
-
-	user, err := srv.Auth().GetUser(ctx, paymentRequestReviewer, true)
-	require.NoError(t, err)
-	user.AddRole(paymentsReviewRole.GetName())
-	_, err = srv.Auth().UpsertUser(ctx, user)
 	require.NoError(t, err)
 
-	user, err = srv.Auth().GetUser(ctx, identityRequestReviewer, true)
-	require.NoError(t, err)
-	user.AddRole(identityReviewRole.GetName())
-	_, err = srv.Auth().UpsertUser(ctx, user)
-	require.NoError(t, err)
+	roles := []types.Role{
+		paymentsRequester, paymentsResourceRequester, paymentsAccess,
+		identityRequester, identityResourceRequester, identityAccess,
+		anyResourceRequester,
+	}
 
-	user, err = srv.Auth().GetUser(ctx, requester.GetName(), true)
+	paymentsServer, err := types.NewServer("server-payments", types.KindNode, types.ServerSpecV2{})
 	require.NoError(t, err)
-	user.AddRole(paymentsRole.GetName())
-	user.AddRole(nodeRole.GetName())
-	_, err = srv.Auth().UpsertUser(ctx, user)
-	require.NoError(t, err)
+	paymentsServer.SetStaticLabels(map[string]string{"service": "payments"})
 
-	client, err := srv.NewClient(TestUser(requester.GetName()))
+	idServer, err := types.NewServer("server-identity", types.KindNode, types.ServerSpecV2{})
 	require.NoError(t, err)
+	idServer.SetStaticLabels(map[string]string{"service": "payments"})
 
-	paymentsAccessRequest, err := types.NewAccessRequest(uuid.NewString(), requester.GetName(), "requestRole")
-	require.NoError(t, err)
-	req, err := client.CreateAccessRequestV2(ctx, paymentsAccessRequest)
-	require.NoError(t, err)
+	for _, tc := range []struct {
+		name                 string
+		roles                []string
+		requestedRoles       []string
+		requestedResourceIDs []string
+		expectedAnnotations  map[string][]string
+		errfn                require.ErrorAssertionFunc
+	}{
+		{
+			name:           "payments-requester requests role, receives payment annotations",
+			roles:          []string{"payments-requester"},
+			requestedRoles: []string{"payments-access"},
+			expectedAnnotations: map[string][]string{
+				"services":   {"payments"},
+				"requesting": {"role"},
+			},
+		},
+		{
+			name:                 "payments-resource-requester requests resource, receives payment annotations",
+			roles:                []string{"payments-resource-requester"},
+			requestedRoles:       []string{"payments-access"},
+			requestedResourceIDs: []string{"server-payments"},
+			expectedAnnotations: map[string][]string{
+				"services":   {"payments"},
+				"requesting": {"resources"},
+			},
+		},
+		{
+			name:           "payments-requester requests identity role, receives error",
+			roles:          []string{"payments-requester"},
+			requestedRoles: []string{"identity-access"},
+			errfn:          require.Error,
+		},
+		{
+			name:                 "payments-resource-requester requests identity resource, receives error",
+			roles:                []string{"payments-resource-requester"},
+			requestedRoles:       []string{"identity-access"},
+			requestedResourceIDs: []string{"server-identity"},
+			errfn:                require.Error,
+		},
+		{
+			name:           "identity-requester requests role, receives payment annotations",
+			roles:          []string{"identity-requester"},
+			requestedRoles: []string{"identity-access"},
+			expectedAnnotations: map[string][]string{
+				"services":   {"identity"},
+				"requesting": {"role"},
+			},
+		},
+		{
+			name:                 "identity-resource-requester requests resource, receives payment annotations",
+			roles:                []string{"identity-resource-requester"},
+			requestedRoles:       []string{"identity-access"},
+			requestedResourceIDs: []string{"server-identity"},
+			expectedAnnotations: map[string][]string{
+				"services":   {"identity"},
+				"requesting": {"resources"},
+			},
+		},
+		{
+			name:           "identity-requester requests identity role, receives error",
+			roles:          []string{"identity-requester"},
+			requestedRoles: []string{"payments-access"},
+			errfn:          require.Error,
+		},
+		{
+			name:                 "identity-resource-requester requests identity resource, receives error",
+			roles:                []string{"identity-resource-requester"},
+			requestedRoles:       []string{"payment-access"},
+			requestedResourceIDs: []string{"server-identity"},
+			errfn:                require.Error,
+		},
+		{
+			name:           "any-requester requests role, receives annotations",
+			roles:          []string{"any-requester"},
+			requestedRoles: []string{"payments-access"},
+			expectedAnnotations: map[string][]string{
+				"any-requestor": {"true"},
+			},
+		},
+		{
+			name:                 "any-requester requests role, receives annotations",
+			roles:                []string{"any-requester"},
+			requestedRoles:       []string{"payments-access"},
+			requestedResourceIDs: []string{"server-payments"},
+			expectedAnnotations: map[string][]string{
+				"any-requestor": {"true"},
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			srv := newTestTLSServer(t)
+			for _, role := range roles {
+				_, err := srv.Auth().CreateRole(ctx, role)
+				require.NoError(t, err)
+			}
 
-	// system annotations should only contain annotations from the requested role
-	require.Equal(t, map[string][]string{"pagerduty_services": {"payments"}}, req.GetSystemAnnotations())
+			for _, server := range []types.Server{paymentsServer, idServer} {
+				_, err := srv.Auth().UpsertNode(ctx, server)
+				require.NoError(t, err)
+			}
 
-	resourceAccessRequest, err := types.NewAccessRequestWithResources(uuid.NewString(), requester.GetName(),
-		[]string{"resourceReqRole"},
-		[]types.ResourceID{{ClusterName: srv.ClusterName(), Kind: types.KindNode, Name: "server"}})
-	require.NoError(t, err)
-	req, err = client.CreateAccessRequestV2(ctx, resourceAccessRequest)
-	require.NoError(t, err)
-	require.Equal(t, map[string][]string{"requested": {"resource"}}, req.GetSystemAnnotations())
+			user, err := types.NewUser("requester")
+			require.NoError(t, err)
+			user.SetRoles(tc.roles)
+			_, err = srv.Auth().CreateUser(ctx, user)
+			require.NoError(t, err)
+
+			var req types.AccessRequest
+			if len(tc.requestedResourceIDs) == 0 {
+				req, err = types.NewAccessRequest(uuid.NewString(), user.GetName(), tc.requestedRoles...)
+			} else {
+				var resourceIds []types.ResourceID
+				for _, id := range tc.requestedResourceIDs {
+					resourceIds = append(resourceIds, types.ResourceID{
+						ClusterName: srv.ClusterName(),
+						Kind:        types.KindNode,
+						Name:        id,
+					})
+				}
+				req, err = types.NewAccessRequestWithResources(uuid.NewString(), user.GetName(), tc.requestedRoles, resourceIds)
+			}
+			require.NoError(t, err)
+
+			client, err := srv.NewClient(TestUser(user.GetName()))
+			require.NoError(t, err)
+			res, err := client.CreateAccessRequestV2(ctx, req)
+			if tc.errfn == nil {
+				require.NoError(t, err)
+				require.Equal(t, tc.expectedAnnotations, res.GetSystemAnnotations())
+			} else {
+				tc.errfn(t, err)
+			}
+
+		})
+	}
 
 }
 
