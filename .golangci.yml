@@ -52,6 +52,9 @@ issues:
     - path: lib/multiplexer/multiplexer_test.go
       linters: [staticcheck]
       text: "grpc.WithBlock is deprecated"
+    - path: provider/provider.go # integrations/terraform
+      linters: [staticcheck]
+      text: "grpc.WithReturnConnectionError is deprecated"
   exclude-use-default: true
   max-same-issues: 0
   max-issues-per-linter: 0
