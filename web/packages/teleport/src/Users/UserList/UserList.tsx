@@ -59,9 +59,9 @@ export default function UserList({
           key: 'authType',
           headerText: 'Type',
           isSortable: true,
-          render: ({ authType }) => (
+          render: ({ authType, isBot }) => (
             <Cell style={{ textTransform: 'capitalize' }}>
-              {renderAuthType(authType)}
+              {renderAuthType(authType, isBot)}
             </Cell>
           ),
         },
@@ -83,7 +83,11 @@ export default function UserList({
     />
   );
 
-  function renderAuthType(authType: string) {
+  function renderAuthType(authType: string, isBot?: boolean) {
+    if (isBot) {
+      return 'Bot';
+    }
+
     switch (authType) {
       case 'github':
         return 'GitHub';
@@ -107,7 +111,7 @@ const ActionCell = ({
   onReset: (user: User) => void;
   onDelete: (user: User) => void;
 }) => {
-  if (!user.isLocal) {
+  if (user.isBot || !user.isLocal) {
     return <Cell align="right" />;
   }
 
