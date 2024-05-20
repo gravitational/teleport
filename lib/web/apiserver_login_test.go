@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -88,7 +89,7 @@ func TestWebauthnLogin_ssh(t *testing.T) {
 		TTL:                       24 * time.Hour,
 	})
 	require.NoError(t, err)
-	loginResp := &auth.SSHLoginResponse{}
+	loginResp := &authclient.SSHLoginResponse{}
 	require.NoError(t, json.Unmarshal(finishResp.Bytes(), loginResp))
 	require.Equal(t, user, loginResp.Username)
 	require.NotEmpty(t, loginResp.Cert)
@@ -228,7 +229,7 @@ func TestAuthenticate_passwordless(t *testing.T) {
 					TTL:                       24 * time.Hour,
 				})
 				require.NoError(t, err, "Passwordless authentication failed")
-				loginResp := &auth.SSHLoginResponse{}
+				loginResp := &authclient.SSHLoginResponse{}
 				require.NoError(t, json.Unmarshal(sshResp.Bytes(), loginResp))
 				require.Equal(t, user, loginResp.Username)
 			},

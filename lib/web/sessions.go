@@ -418,7 +418,7 @@ func (c *SessionContext) GetUser() string {
 // extendWebSession creates a new web session for this user
 // based on the previous session
 func (c *SessionContext) extendWebSession(ctx context.Context, req renewSessionRequest) (types.WebSession, error) {
-	session, err := c.cfg.RootClient.ExtendWebSession(ctx, auth.WebSessionReq{
+	session, err := c.cfg.RootClient.ExtendWebSession(ctx, authclient.WebSessionReq{
 		User:            c.cfg.User,
 		PrevSessionID:   c.cfg.Session.GetName(),
 		AccessRequestID: req.AccessRequestID,
@@ -740,12 +740,12 @@ func (s *sessionCache) clearExpiredSessions(ctx context.Context) {
 func (s *sessionCache) AuthWithOTP(
 	ctx context.Context,
 	user, pass, otpToken string,
-	clientMeta *auth.ForwardedClientMetadata,
+	clientMeta *authclient.ForwardedClientMetadata,
 ) (types.WebSession, error) {
-	return s.proxyClient.AuthenticateWebUser(ctx, auth.AuthenticateUserRequest{
+	return s.proxyClient.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
 		Username: user,
-		Pass:     &auth.PassCreds{Password: []byte(pass)},
-		OTP: &auth.OTPCreds{
+		Pass:     &authclient.PassCreds{Password: []byte(pass)},
+		OTP: &authclient.OTPCreds{
 			Password: []byte(pass),
 			Token:    otpToken,
 		},
@@ -756,11 +756,11 @@ func (s *sessionCache) AuthWithOTP(
 // AuthWithoutOTP authenticates the specified user with the given password.
 // Returns a new web session if successful.
 func (s *sessionCache) AuthWithoutOTP(
-	ctx context.Context, user, pass string, clientMeta *auth.ForwardedClientMetadata,
+	ctx context.Context, user, pass string, clientMeta *authclient.ForwardedClientMetadata,
 ) (types.WebSession, error) {
-	return s.proxyClient.AuthenticateWebUser(ctx, auth.AuthenticateUserRequest{
+	return s.proxyClient.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
 		Username: user,
-		Pass: &auth.PassCreds{
+		Pass: &authclient.PassCreds{
 			Password: []byte(pass),
 		},
 		ClientMetadata: clientMeta,
@@ -768,9 +768,9 @@ func (s *sessionCache) AuthWithoutOTP(
 }
 
 func (s *sessionCache) AuthenticateWebUser(
-	ctx context.Context, req *client.AuthenticateWebUserRequest, clientMeta *auth.ForwardedClientMetadata,
+	ctx context.Context, req *client.AuthenticateWebUserRequest, clientMeta *authclient.ForwardedClientMetadata,
 ) (types.WebSession, error) {
-	authReq := auth.AuthenticateUserRequest{
+	authReq := authclient.AuthenticateUserRequest{
 		Username:       req.User,
 		ClientMetadata: clientMeta,
 	}
@@ -781,26 +781,26 @@ func (s *sessionCache) AuthenticateWebUser(
 }
 
 func (s *sessionCache) AuthenticateSSHUser(
-	ctx context.Context, c client.AuthenticateSSHUserRequest, clientMeta *auth.ForwardedClientMetadata,
-) (*auth.SSHLoginResponse, error) {
-	authReq := auth.AuthenticateUserRequest{
+	ctx context.Context, c client.AuthenticateSSHUserRequest, clientMeta *authclient.ForwardedClientMetadata,
+) (*authclient.SSHLoginResponse, error) {
+	authReq := authclient.AuthenticateUserRequest{
 		Username:       c.User,
 		ClientMetadata: clientMeta,
 		PublicKey:      c.PubKey,
 	}
 	if c.Password != "" {
-		authReq.Pass = &auth.PassCreds{Password: []byte(c.Password)}
+		authReq.Pass = &authclient.PassCreds{Password: []byte(c.Password)}
 	}
 	if c.WebauthnChallengeResponse != nil {
 		authReq.Webauthn = c.WebauthnChallengeResponse
 	}
 	if c.TOTPCode != "" {
-		authReq.OTP = &auth.OTPCreds{
+		authReq.OTP = &authclient.OTPCreds{
 			Password: []byte(c.Password),
 			Token:    c.TOTPCode,
 		}
 	}
-	return s.proxyClient.AuthenticateSSHUser(ctx, auth.AuthenticateSSHRequest{
+	return s.proxyClient.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 		AuthenticateUserRequest: authReq,
 		CompatibilityMode:       c.Compatibility,
 		TTL:                     c.TTL,
@@ -815,7 +815,7 @@ func (s *sessionCache) Ping(ctx context.Context) (proto.PingResponse, error) {
 	return s.proxyClient.Ping(ctx)
 }
 
-func (s *sessionCache) ValidateTrustedCluster(ctx context.Context, validateRequest *auth.ValidateTrustedClusterRequest) (*auth.ValidateTrustedClusterResponse, error) {
+func (s *sessionCache) ValidateTrustedCluster(ctx context.Context, validateRequest *authclient.ValidateTrustedClusterRequest) (*authclient.ValidateTrustedClusterResponse, error) {
 	return s.proxyClient.ValidateTrustedCluster(ctx, validateRequest)
 }
 
@@ -960,9 +960,9 @@ func (s *sessionCache) upsertSessionContext(user string) *sessionResources {
 
 // newSessionContext creates a new web session context for the specified user/session ID
 func (s *sessionCache) newSessionContext(ctx context.Context, user, sessionID string) (*SessionContext, error) {
-	session, err := s.proxyClient.AuthenticateWebUser(ctx, auth.AuthenticateUserRequest{
+	session, err := s.proxyClient.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
 		Username: user,
-		Session: &auth.SessionCreds{
+		Session: &authclient.SessionCreds{
 			ID: sessionID,
 		},
 	})

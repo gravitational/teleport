@@ -2484,7 +2484,7 @@ func (f *Forwarder) requestCertificate(ctx context.Context, authCtx authContext)
 	}
 	csrPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrBytes})
 
-	response, err := f.cfg.AuthClient.ProcessKubeCSR(auth.KubeCSR{
+	response, err := f.cfg.AuthClient.ProcessKubeCSR(authclient.KubeCSR{
 		Username:    authCtx.User.GetName(),
 		ClusterName: authCtx.teleportCluster.name,
 		CSR:         csrPEM,

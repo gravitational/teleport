@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -91,7 +92,7 @@ func (a *Server) StartAccountRecovery(ctx context.Context, req *proto.StartAccou
 		return nil, trace.AccessDenied(startRecoveryGenericErrMsg)
 	}
 
-	token, err := a.createRecoveryToken(ctx, req.GetUsername(), UserTokenTypeRecoveryStart, req.GetRecoverType())
+	token, err := a.createRecoveryToken(ctx, req.GetUsername(), authclient.UserTokenTypeRecoveryStart, req.GetRecoverType())
 	if err != nil {
 		log.Error(trace.DebugReport(err))
 		return nil, trace.AccessDenied(startRecoveryGenericErrMsg)
@@ -238,7 +239,7 @@ func (a *Server) VerifyAccountRecovery(ctx context.Context, req *proto.VerifyAcc
 		return nil, trace.AccessDenied(verifyRecoveryBadAuthnErrMsg)
 	}
 
-	if err := a.verifyUserToken(startToken, UserTokenTypeRecoveryStart); err != nil {
+	if err := a.verifyUserToken(startToken, authclient.UserTokenTypeRecoveryStart); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -274,7 +275,7 @@ func (a *Server) VerifyAccountRecovery(ctx context.Context, req *proto.VerifyAcc
 		return nil, trace.AccessDenied("unsupported authentication method")
 	}
 
-	approvedToken, err := a.createRecoveryToken(ctx, startToken.GetUser(), UserTokenTypeRecoveryApproved, startToken.GetUsage())
+	approvedToken, err := a.createRecoveryToken(ctx, startToken.GetUser(), authclient.UserTokenTypeRecoveryApproved, startToken.GetUsage())
 	if err != nil {
 		return nil, trace.AccessDenied(verifyRecoveryGenericErrMsg)
 	}
@@ -392,7 +393,7 @@ func (a *Server) CompleteAccountRecovery(ctx context.Context, req *proto.Complet
 		return trace.AccessDenied(completeRecoveryGenericErrMsg)
 	}
 
-	if err := a.verifyUserToken(approvedToken, UserTokenTypeRecoveryApproved); err != nil {
+	if err := a.verifyUserToken(approvedToken, authclient.UserTokenTypeRecoveryApproved); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -484,7 +485,7 @@ func (a *Server) CreateAccountRecoveryCodes(ctx context.Context, req *proto.Crea
 		return nil, trace.AccessDenied("only local users may create recovery codes")
 	}
 
-	if err := a.verifyUserToken(token, UserTokenTypeRecoveryApproved, UserTokenTypePrivilege); err != nil {
+	if err := a.verifyUserToken(token, authclient.UserTokenTypeRecoveryApproved, authclient.UserTokenTypePrivilege); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -509,7 +510,7 @@ func (a *Server) GetAccountRecoveryToken(ctx context.Context, req *proto.GetAcco
 		return nil, trace.AccessDenied("access denied")
 	}
 
-	if err := a.verifyUserToken(token, UserTokenTypeRecoveryStart, UserTokenTypeRecoveryApproved); err != nil {
+	if err := a.verifyUserToken(token, authclient.UserTokenTypeRecoveryStart, authclient.UserTokenTypeRecoveryApproved); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

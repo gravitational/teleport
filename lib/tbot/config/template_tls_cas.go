@@ -22,7 +22,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 )
@@ -63,7 +63,7 @@ func (t *templateTLSCAs) describe() []FileDescription {
 
 // concatCACerts borrow's identityfile's CA cert concat method.
 func concatCACerts(cas []types.CertAuthority) []byte {
-	trusted := auth.AuthoritiesToTrustedCerts(cas)
+	trusted := authclient.AuthoritiesToTrustedCerts(cas)
 
 	var caCerts []byte
 	for _, ca := range trusted {

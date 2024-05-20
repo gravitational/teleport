@@ -37,7 +37,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -103,7 +103,7 @@ type Key struct {
 	// Map key is the desktop server name.
 	WindowsDesktopCerts map[string][]byte `json:"WindowsDesktopCerts,omitempty"`
 	// TrustedCerts is a list of trusted certificate authorities
-	TrustedCerts []auth.TrustedCerts
+	TrustedCerts []authclient.TrustedCerts
 }
 
 // Copy returns a shallow copy of k, or nil if k is nil.

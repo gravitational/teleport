@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/connectmycomputer"
@@ -144,7 +143,7 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 		return nil, trace.Wrap(err)
 	}
 
-	key.TrustedCerts = auth.AuthoritiesToTrustedCerts(certAuths)
+	key.TrustedCerts = authclient.AuthoritiesToTrustedCerts(certAuths)
 
 	keyAuthMethod, err := key.AsAuthMethod()
 	if err != nil {
