@@ -32,7 +32,7 @@ type adSingleSignOn struct {
 
 // tagInfoCache is the format for the file produced by CreateTAGCacheFile.
 type tagInfoCache struct {
-	AppSsoSettingsCache map[string]*types.PluginEntraIDAppSSOSettings `json:"app_sso_settings_cache"`
+	AppSsoSettingsCache []*types.PluginEntraIDAppSSOSettings `json:"app_sso_settings_cache"`
 }
 
 // getSingleSignOn uses Azure private API to get basic information about an enterprise applications single sign on mode.
@@ -73,9 +73,7 @@ func CreateTAGCacheFile(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	cache := &tagInfoCache{
-		AppSsoSettingsCache: make(map[string]*types.PluginEntraIDAppSSOSettings),
-	}
+	cache := &tagInfoCache{}
 
 	for _, app := range appResp.GetValue() {
 		appID := app.GetAppId()
@@ -108,9 +106,10 @@ func CreateTAGCacheFile(ctx context.Context) error {
 			continue
 		}
 
-		cache.AppSsoSettingsCache[*appID] = &types.PluginEntraIDAppSSOSettings{
-			FederatedSSOV2: gzipBytes(federatedSSOV2),
-		}
+		cache.AppSsoSettingsCache = append(cache.AppSsoSettingsCache, &types.PluginEntraIDAppSSOSettings{
+			AppId:          *appID,
+			FederatedSsoV2: gzipBytes(federatedSSOV2),
+		})
 	}
 
 	payload, err := json.Marshal(cache)
