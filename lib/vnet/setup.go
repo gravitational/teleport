@@ -45,7 +45,7 @@ func SetupAndRun(ctx context.Context, appProvider AppProvider) (*ProcessManager,
 	}
 	dnsIPv6 := IPv6WithSuffix(ipv6Prefix, []byte{2})
 
-	pm := newProcessManager()
+	pm, processCtx := newProcessManager()
 	success := false
 	defer func() {
 		if !success {
@@ -60,8 +60,10 @@ func SetupAndRun(ctx context.Context, appProvider AppProvider) (*ProcessManager,
 		return nil, trace.Wrap(err)
 	}
 	slog.DebugContext(ctx, "Created unix socket for admin subcommand", "socket", socketPath)
-	pm.AddCriticalBackgroundTask("socket closer", func(ctx context.Context) error {
-		<-ctx.Done()
+	pm.AddCriticalBackgroundTask("socket closer", func() error {
+		// Keep the socket open until the process context is canceled.
+		// Closing the socket signals the admin subcommand to terminate.
+		<-processCtx.Done()
 		return trace.Wrap(socket.Close())
 	})
 
@@ -76,8 +78,8 @@ func SetupAndRun(ctx context.Context, appProvider AppProvider) (*ProcessManager,
 	tunOrAdminSubcommandErrC := make(chan error, 2)
 	var tun tun.Device
 
-	pm.AddCriticalBackgroundTask("admin subcommand", func(ctx context.Context) error {
-		err := execAdminSubcommand(ctx, socketPath, ipv6Prefix.String(), dnsIPv6.String())
+	pm.AddCriticalBackgroundTask("admin subcommand", func() error {
+		err := execAdminSubcommand(processCtx, socketPath, ipv6Prefix.String(), dnsIPv6.String())
 		// Pass the osascript error immediately, without having to wait on pm to propagate the error.
 		tunOrAdminSubcommandErrC <- trace.Wrap(err)
 		return trace.Wrap(err)
@@ -118,23 +120,22 @@ func SetupAndRun(ctx context.Context, appProvider AppProvider) (*ProcessManager,
 		return nil, trace.Wrap(err)
 	}
 
-	pm.AddCriticalBackgroundTask("network stack", func(ctx context.Context) error {
-		return trace.Wrap(ns.Run(ctx))
+	pm.AddCriticalBackgroundTask("network stack", func() error {
+		return trace.Wrap(ns.Run(processCtx))
 	})
 
 	success = true
 	return pm, nil
 }
 
-func newProcessManager() *ProcessManager {
+func newProcessManager() (*ProcessManager, context.Context) {
 	ctx, cancel := context.WithCancel(context.Background())
 	g, ctx := errgroup.WithContext(ctx)
 
 	return &ProcessManager{
 		g:      g,
-		ctx:    ctx,
 		cancel: cancel,
-	}
+	}, ctx
 }
 
 // ProcessManager handles background tasks needed to run VNet.
@@ -142,17 +143,16 @@ func newProcessManager() *ProcessManager {
 // any task returns prematurely, that is, a task exits while the context was not canceled.
 type ProcessManager struct {
 	g      *errgroup.Group
-	ctx    context.Context
 	cancel context.CancelFunc
 }
 
 // AddCriticalBackgroundTask adds a function to the error group. [task] is expected to block until
-// the context gets canceled by calling Close on [ProcessManager]. The context gets canceled if any
-// task returns for any other reason.
-func (pm *ProcessManager) AddCriticalBackgroundTask(name string, task func(ctx context.Context) error) {
+// the context returned by [newProcessManager] gets canceled. The context gets canceled either by
+// calling Close on [ProcessManager] or if any task returns.
+func (pm *ProcessManager) AddCriticalBackgroundTask(name string, task func() error) {
 	pm.g.Go(func() error {
-		err := task(pm.ctx)
-		if err == nil && pm.ctx.Err() == nil {
+		err := task()
+		if err == nil {
 			err = fmt.Errorf("critical task %q exited prematurely", name)
 		}
 		return trace.Wrap(err)
