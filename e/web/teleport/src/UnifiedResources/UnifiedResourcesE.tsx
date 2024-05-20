@@ -29,11 +29,15 @@ import { ClusterResources } from 'teleport/UnifiedResources/UnifiedResources';
 import { UnifiedResource } from 'teleport/services/agents';
 import { ResourceActionButton } from 'teleport/UnifiedResources/ResourceActionButton';
 import cfg from 'teleport/config';
-import { RequestCheckout } from 'shared/components/AccessRequests/NewRequest';
+import {
+  RequestCheckout,
+  ResourceMap,
+} from 'shared/components/AccessRequests/NewRequest';
 import { SharedUnifiedResource } from 'shared/components/UnifiedResources';
 
 import useTeleportE from 'e-teleport/useTeleportE';
 import {
+  deepCopyResourceMap,
   getResourceId,
   useNewRequest,
 } from 'e-teleport/Workflow/NewRequest/useNewRequest';
@@ -55,8 +59,7 @@ export function UnifiedResourcesE() {
     addedResources,
     numAddedResources,
     clearAddedResources,
-    addResource,
-    removeResource,
+    setAddedResources,
   } = useNewRequest(ctx);
   const { clearAttempt, createAttempt, ...requestCheckout } =
     useRequestCheckout({
@@ -107,15 +110,19 @@ export function UnifiedResourcesE() {
       resource: SharedUnifiedResource['resource'];
     }[]
   ) {
+    const newResources: ResourceMap = deepCopyResourceMap(addedResources);
     const allAdded = data.every(
-      ({ resource }) => addedResources[resource.kind][getResourceId(resource)]
+      ({ resource }) => newResources[resource.kind][getResourceId(resource)]
     );
     data.forEach(({ resource }) => {
+      const resourceId = getResourceId(resource);
       if (allAdded) {
-        return removeResource(resource.kind, getResourceId(resource));
+        delete newResources[resource.kind][resourceId];
+      } else {
+        newResources[resource.kind][resourceId] = resourceId;
       }
-      addResource(resource.kind, getResourceId(resource));
     });
+    setAddedResources(newResources);
   }
 
   return (
@@ -160,7 +167,7 @@ export function UnifiedResourcesE() {
               Header={() => (
                 <Box mb={3}>
                   <Text typography="h4" color="text.main" bold>
-                    {numAddedResources}{' '}
+                    New Access Request: {numAddedResources}{' '}
                     {pluralize(numAddedResources, 'Resource')} Selected
                   </Text>
                 </Box>

@@ -345,41 +345,6 @@ export function useNewRequest(ctx: Ctx) {
     [setAttempt]
   );
 
-  function deepCopyResourceMap(resources: ResourceMap): ResourceMap {
-    return {
-      app: { ...resources.app },
-      db: { ...resources.db },
-      kube_cluster: { ...resources.kube_cluster },
-      node: { ...resources.node },
-      user_group: { ...resources.user_group },
-      windows_desktop: { ...resources.windows_desktop },
-      role: { ...resources.role },
-    };
-  }
-
-  // addResource will add the provided resource to the addedresources map
-  // and it already exists in the map, it will continue to do so.
-  function addResource(
-    kind: ResourceKind,
-    resourceId: string,
-    resourceName?: string
-  ) {
-    const newResources: ResourceMap = deepCopyResourceMap(addedResources);
-
-    newResources[kind][resourceId] = resourceName ? resourceName : resourceId;
-    setAddedResources(newResources);
-  }
-
-  // removeResource will only remove resources passed here. If the resource does not exist
-  // in the map, this is a noop
-  function removeResource(kind: ResourceKind, resourceId: string) {
-    const newResources: ResourceMap = deepCopyResourceMap(addedResources);
-    if (newResources[kind][resourceId]) {
-      delete newResources[kind][resourceId];
-      updateAddedAll(kind as ResourceIdKind, false);
-      setAddedResources(newResources);
-    }
-  }
   // addOrRemoveResource adds the resource if it doesn't exist already in the map.
   // Else removes it. "resourceName" is optional, if not provided, it is assumed that
   // "resourceId" is the same as "resourceName" e.g: for resource type "node", we display
@@ -805,8 +770,6 @@ export function useNewRequest(ctx: Ctx) {
     updateResourceKind,
     dryRunAttempt,
     addedResources,
-    addResource,
-    removeResource,
     addOrRemoveResource,
     pageCount: {
       to: toPage,
@@ -821,6 +784,7 @@ export function useNewRequest(ctx: Ctx) {
     nextPage: page.keys[page.index + 1] ? fetchNext : null,
     prevPage: page.index > 0 ? fetchPrev : null,
     clearAddedResources,
+    setAddedResources,
     requestableRoles,
     resourceRequestsDisabled,
     toggleAddCurrentPage,
@@ -873,4 +837,16 @@ export function getResourceId(resource: SharedUnifiedResource['resource']) {
     return resource.id;
   }
   return resource.name;
+}
+
+export function deepCopyResourceMap(resources: ResourceMap): ResourceMap {
+  return {
+    app: { ...resources.app },
+    db: { ...resources.db },
+    kube_cluster: { ...resources.kube_cluster },
+    node: { ...resources.node },
+    user_group: { ...resources.user_group },
+    windows_desktop: { ...resources.windows_desktop },
+    role: { ...resources.role },
+  };
 }
