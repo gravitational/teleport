@@ -114,7 +114,7 @@ type ForwarderConfig struct {
 	// AuthClient is a auth server client.
 	AuthClient authclient.ClientI
 	// CachingAuthClient is a caching auth server client for read-only access.
-	CachingAuthClient auth.ReadKubernetesAccessPoint
+	CachingAuthClient authclient.ReadKubernetesAccessPoint
 	// Emitter is used to emit audit events
 	Emitter apievents.Emitter
 	// DataDir is a data dir to store logs
