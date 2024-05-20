@@ -1033,6 +1033,7 @@ const (
 	InstanceMetadataTypeDisabled InstanceMetadataType = "disabled"
 	InstanceMetadataTypeEC2      InstanceMetadataType = "EC2"
 	InstanceMetadataTypeAzure    InstanceMetadataType = "Azure"
+	InstanceMetadataTypeGCP      InstanceMetadataType = "GCP"
 )
 
 // OriginValues lists all possible origin values.
@@ -1267,6 +1268,28 @@ const (
 	// it indicates that the Plugin should be run by the Cloud service,
 	// rather than self-hosted plugin services.
 	HostedPluginLabel = TeleportNamespace + "/hosted-plugin"
+)
+
+const (
+	// OktaOrgURLLabel is the label used by Okta-managed resources to indicate
+	// the upstream Okta organization that they come from.
+	OktaOrgURLLabel = "okta/org"
+
+	// OktaAppIDLabel is the label for the Okta application ID on appserver objects.
+	OktaAppIDLabel = TeleportInternalLabelPrefix + "okta-app-id"
+
+	// OktaCredPurposeLabel is used by Okta-managed PluginStaticCredentials to
+	// indicate their purpose
+	OktaCredPurposeLabel = "okta/purpose"
+
+	// OktaCredPurposeAuth indicates that the credential is intended for
+	// authenticating with the Okta REST API
+	OktaCredPurposeAuth = "okta-auth"
+
+	// OktaCredPurposeSCIMToken indicates that theis to be used for authenticating
+	// SCIM requests from the upstream organization. The content of the credential
+	// is a bcrypt hash of actual token.
+	OktaCredPurposeSCIMToken = "scim-bearer-token"
 )
 
 const (

@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/authz"
@@ -515,7 +516,7 @@ func (a *ServerWithRoles) UpdateSessionTracker(ctx context.Context, req *proto.U
 
 // AuthenticateWebUser authenticates web user, creates and returns a web session
 // in case authentication is successful
-func (a *ServerWithRoles) AuthenticateWebUser(ctx context.Context, req AuthenticateUserRequest) (types.WebSession, error) {
+func (a *ServerWithRoles) AuthenticateWebUser(ctx context.Context, req authclient.AuthenticateUserRequest) (types.WebSession, error) {
 	// authentication request has it's own authentication, however this limits the requests
 	// types to proxies to make it harder to break
 	if !a.hasBuiltinRole(types.RoleProxy) {
@@ -526,7 +527,7 @@ func (a *ServerWithRoles) AuthenticateWebUser(ctx context.Context, req Authentic
 
 // AuthenticateSSHUser authenticates SSH console user, creates and  returns a pair of signed TLS and SSH
 // short lived certificates as a result
-func (a *ServerWithRoles) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHRequest) (*SSHLoginResponse, error) {
+func (a *ServerWithRoles) AuthenticateSSHUser(ctx context.Context, req authclient.AuthenticateSSHRequest) (*authclient.SSHLoginResponse, error) {
 	// authentication request has it's own authentication, however this limits the requests
 	// types to proxies to make it harder to break
 	if !a.hasBuiltinRole(types.RoleProxy) {
@@ -658,8 +659,8 @@ func (a *ServerWithRoles) GenerateHostCerts(ctx context.Context, req *proto.Host
 		return nil, trace.Wrap(err)
 	}
 	// username is hostID + cluster name, so make sure server requests new keys for itself
-	if a.context.User.GetName() != HostFQDN(req.HostID, clusterName) {
-		return nil, trace.AccessDenied("username mismatch %q and %q", a.context.User.GetName(), HostFQDN(req.HostID, clusterName))
+	if a.context.User.GetName() != authclient.HostFQDN(req.HostID, clusterName) {
+		return nil, trace.AccessDenied("username mismatch %q and %q", a.context.User.GetName(), authclient.HostFQDN(req.HostID, clusterName))
 	}
 
 	if req.Role == types.RoleInstance {
@@ -2244,7 +2245,7 @@ func (a *ServerWithRoles) CreateWebSession(ctx context.Context, user string) (ty
 // ExtendWebSession creates a new web session for a user based on a valid previous session.
 // Additional roles are appended to initial roles if there is an approved access request.
 // The new session expiration time will not exceed the expiration time of the old session.
-func (a *ServerWithRoles) ExtendWebSession(ctx context.Context, req WebSessionReq) (types.WebSession, error) {
+func (a *ServerWithRoles) ExtendWebSession(ctx context.Context, req authclient.WebSessionReq) (types.WebSession, error) {
 	if err := a.currentUserAction(req.User); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2291,6 +2292,10 @@ func (r *webSessionsWithRoles) List(ctx context.Context) ([]types.WebSession, er
 	}
 	return r.ws.List(ctx)
 }
+
+// notImplementedMessage is the message to return for endpoints that are not
+// implemented. This is due to how service interfaces are used with Teleport.
+const notImplementedMessage = "not implemented: can only be called by auth locally"
 
 // Upsert creates a new or updates the existing web session from the specified session.
 // TODO(dmitri): this is currently only implemented for local invocations. This needs to be
@@ -2503,6 +2508,18 @@ func (a *ServerWithRoles) CreateAccessRequestV2(ctx context.Context, req types.A
 		}
 	}
 
+	if !req.GetState().IsPending() {
+		if authz.IsCurrentUser(a.context, req.GetUser()) {
+			return nil, trace.AccessDenied("cannot create access request for self in non-pending state")
+		}
+
+		if len(a.context.Identity.GetIdentity().ActiveRequests) != 0 {
+			return nil, trace.AccessDenied("cannot create access requests in non-pending state while using an access request")
+		}
+
+		log.Warnf("Use of resource-level access request 'create' permission by user %q to create non-pending access request for user %q. Creation of non-pending requests will be deprecated in future version of teleport. Consider migrating to a workflow with a separate approval step.", a.context.User.GetName(), req.GetUser())
+	}
+
 	if !authz.IsCurrentUser(a.context, req.GetUser()) {
 		// If this request was authorized by allow rules and not ownership, require MFA.
 		if err := a.context.AuthorizeAdminAction(); err != nil {
@@ -2522,12 +2539,32 @@ func (a *ServerWithRoles) SetAccessRequestState(ctx context.Context, params type
 		return trace.Wrap(err)
 	}
 
+	if len(a.context.Identity.GetIdentity().ActiveRequests) != 0 {
+		return trace.AccessDenied("cannot directly update the state of an access request while using an access request")
+	}
+
 	if err := a.context.AuthorizeAdminAction(); err != nil {
 		return trace.Wrap(err)
 	}
 
 	if params.State.IsPromoted() {
 		return trace.BadParameter("state promoted can be only set when promoting to access list")
+	}
+
+	// load the request to verify additional access-control limits
+	reqs, err := a.GetAccessRequests(ctx, types.AccessRequestFilter{
+		ID: params.RequestID,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if len(reqs) < 1 {
+		return trace.NotFound("cannot set state of access request %q (not found)", params.RequestID)
+	}
+
+	if authz.IsCurrentUser(a.context, reqs[0].GetUser()) {
+		return trace.AccessDenied("directly updating the state of your own access requests is not permitted")
 	}
 
 	return a.authServer.SetAccessRequestState(ctx, params)
@@ -3265,7 +3302,7 @@ func (a *ServerWithRoles) verifyUserDeviceForCertIssuance(usage proto.UserCertsR
 	return trace.Wrap(dtauthz.VerifyTLSUser(dt, identity))
 }
 
-func (a *ServerWithRoles) CreateResetPasswordToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error) {
+func (a *ServerWithRoles) CreateResetPasswordToken(ctx context.Context, req authclient.CreateUserTokenRequest) (types.UserToken, error) {
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3545,7 +3582,7 @@ func (a *ServerWithRoles) GetOIDCAuthRequest(ctx context.Context, id string) (*t
 	return a.authServer.GetOIDCAuthRequest(ctx, id)
 }
 
-func (a *ServerWithRoles) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*OIDCAuthResponse, error) {
+func (a *ServerWithRoles) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*authclient.OIDCAuthResponse, error) {
 	// auth callback is it's own authz, no need to check extra permissions
 	resp, err := a.authServer.ValidateOIDCAuthCallback(ctx, q)
 	if err != nil {
@@ -3695,7 +3732,7 @@ func (a *ServerWithRoles) CreateSAMLAuthRequest(ctx context.Context, req types.S
 }
 
 // ValidateSAMLResponse validates SAML auth response.
-func (a *ServerWithRoles) ValidateSAMLResponse(ctx context.Context, samlResponse, connectorID, clientIP string) (*SAMLAuthResponse, error) {
+func (a *ServerWithRoles) ValidateSAMLResponse(ctx context.Context, samlResponse, connectorID, clientIP string) (*authclient.SAMLAuthResponse, error) {
 	isProxy := a.hasBuiltinRole(types.RoleProxy)
 	if !isProxy {
 		clientIP = "" // We only trust IP information coming from the Proxy.
@@ -3917,7 +3954,7 @@ func (a *ServerWithRoles) GetGithubAuthRequest(ctx context.Context, stateToken s
 	return a.authServer.GetGithubAuthRequest(ctx, stateToken)
 }
 
-func (a *ServerWithRoles) ValidateGithubAuthCallback(ctx context.Context, q url.Values) (*GithubAuthResponse, error) {
+func (a *ServerWithRoles) ValidateGithubAuthCallback(ctx context.Context, q url.Values) (*authclient.GithubAuthResponse, error) {
 	// auth callback is it's own authz, no need to check extra permissions
 	resp, err := a.authServer.ValidateGithubAuthCallback(ctx, q)
 	if err != nil {
@@ -4882,7 +4919,7 @@ func (a *ServerWithRoles) UpsertTrustedCluster(ctx context.Context, tc types.Tru
 	return a.authServer.UpsertTrustedCluster(ctx, tc)
 }
 
-func (a *ServerWithRoles) ValidateTrustedCluster(ctx context.Context, validateRequest *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
+func (a *ServerWithRoles) ValidateTrustedCluster(ctx context.Context, validateRequest *authclient.ValidateTrustedClusterRequest) (*authclient.ValidateTrustedClusterResponse, error) {
 	// Don't allow a leaf cluster to be added to a Cloud tenant.
 	if modules.GetModules().Features().Cloud {
 		return nil, trace.NotImplemented("leaf clusters cannot be added to cloud tenants")
@@ -5043,7 +5080,7 @@ func (a *ServerWithRoles) DeleteSemaphore(ctx context.Context, filter types.Sema
 
 // ProcessKubeCSR processes CSR request against Kubernetes CA, returns
 // signed certificate if successful.
-func (a *ServerWithRoles) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
+func (a *ServerWithRoles) ProcessKubeCSR(req authclient.KubeCSR) (*authclient.KubeCSRResponse, error) {
 	// limits the requests types to proxies to make it harder to break
 	if !a.hasBuiltinRole(types.RoleProxy) {
 		return nil, trace.AccessDenied("this request can be only executed by a proxy")
@@ -5071,7 +5108,7 @@ func (a *ServerWithRoles) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) 
 	return a.authServer.ProcessKubeCSR(req)
 }
 
-func extractOriginalClusterNameFromCSR(req KubeCSR) (string, error) {
+func extractOriginalClusterNameFromCSR(req authclient.KubeCSR) (string, error) {
 	csr, err := tlsca.ParseCertificateRequestPEM(req.CSR)
 	if err != nil {
 		return "", trace.Wrap(err)

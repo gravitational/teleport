@@ -21,7 +21,7 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/tool/common/webauthnwin"
 )
@@ -35,6 +35,6 @@ func (c *webauthnwinCommand) Initialize(app *kingpin.Application, _ *servicecfg.
 	c.impl = webauthnwin.NewCommand(app)
 }
 
-func (c *webauthnwinCommand) TryRun(ctx context.Context, selectedCommand string, _ *auth.Client) (match bool, err error) {
+func (c *webauthnwinCommand) TryRun(ctx context.Context, selectedCommand string, _ *authclient.Client) (match bool, err error) {
 	return c.impl.TryRun(ctx, selectedCommand)
 }

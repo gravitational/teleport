@@ -1524,7 +1524,7 @@ var eksMockClusters = []*eks.Cluster{
 }
 
 func mustConvertEKSToKubeCluster(t *testing.T, eksCluster *eks.Cluster, discoveryGroup string) types.KubeCluster {
-	cluster, err := services.NewKubeClusterFromAWSEKS(aws.StringValue(eksCluster.Name), aws.StringValue(eksCluster.Arn), eksCluster.Tags)
+	cluster, err := common.NewKubeClusterFromAWSEKS(aws.StringValue(eksCluster.Name), aws.StringValue(eksCluster.Arn), eksCluster.Tags)
 	require.NoError(t, err)
 	cluster.GetStaticLabels()[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
 	common.ApplyEKSNameSuffix(cluster)
@@ -1533,7 +1533,7 @@ func mustConvertEKSToKubeCluster(t *testing.T, eksCluster *eks.Cluster, discover
 }
 
 func mustConvertAKSToKubeCluster(t *testing.T, azureCluster *azure.AKSCluster, discoveryGroup string) types.KubeCluster {
-	cluster, err := services.NewKubeClusterFromAzureAKS(azureCluster)
+	cluster, err := common.NewKubeClusterFromAzureAKS(azureCluster)
 	require.NoError(t, err)
 	cluster.GetStaticLabels()[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
 	common.ApplyAKSNameSuffix(cluster)
@@ -1617,7 +1617,7 @@ var gkeMockClusters = []gcp.GKECluster{
 }
 
 func mustConvertGKEToKubeCluster(t *testing.T, gkeCluster gcp.GKECluster, discoveryGroup string) types.KubeCluster {
-	cluster, err := services.NewKubeClusterFromGCPGKE(gkeCluster)
+	cluster, err := common.NewKubeClusterFromGCPGKE(gkeCluster)
 	require.NoError(t, err)
 	cluster.GetStaticLabels()[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
 	common.ApplyGKENameSuffix(cluster)
@@ -2541,6 +2541,10 @@ func (m *mockGCPClient) GetInstance(_ context.Context, _ *gcp.InstanceRequest) (
 	return nil, trace.NotFound("disabled for test")
 }
 
+func (m *mockGCPClient) GetInstanceTags(_ context.Context, _ *gcp.InstanceRequest) (map[string]string, error) {
+	return nil, nil
+}
+
 func (m *mockGCPClient) AddSSHKey(_ context.Context, _ *gcp.SSHKeyRequest) error {
 	return nil
 }
@@ -2915,13 +2919,13 @@ func (d *combinedDiscoveryClient) UpdateDiscoveryConfigStatus(ctx context.Contex
 	return nil, trace.BadParameter("not implemented.")
 }
 
-func getDiscoveryAccessPoint(authServer *auth.Server, authClient authclient.ClientI) auth.DiscoveryAccessPoint {
+func getDiscoveryAccessPoint(authServer *auth.Server, authClient authclient.ClientI) authclient.DiscoveryAccessPoint {
 	return &combinedDiscoveryClient{Server: authServer, eksClustersEnroller: authClient.IntegrationAWSOIDCClient(), discoveryConfigStatusUpdater: authClient.DiscoveryConfigClient()}
 
 }
 
 type fakeAccessPoint struct {
-	auth.DiscoveryAccessPoint
+	authclient.DiscoveryAccessPoint
 
 	ping              func(context.Context) (proto.PingResponse, error)
 	enrollEKSClusters func(context.Context, *integrationpb.EnrollEKSClustersRequest, ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error)

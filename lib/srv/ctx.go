@@ -44,6 +44,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -87,7 +88,7 @@ func init() {
 // AccessPoint is the access point contract required by a Server
 type AccessPoint interface {
 	// Announcer adds methods used to announce presence
-	auth.Announcer
+	authclient.Announcer
 
 	// Semaphores provides semaphore operations
 	types.Semaphores
@@ -1305,7 +1306,7 @@ func ComputeLockTargets(clusterName, serverID string, id IdentityContext) []type
 		{User: id.TeleportUser},
 		{Login: id.Login},
 		{Node: serverID, ServerID: serverID},
-		{Node: auth.HostFQDN(serverID, clusterName), ServerID: auth.HostFQDN(serverID, clusterName)},
+		{Node: authclient.HostFQDN(serverID, clusterName), ServerID: authclient.HostFQDN(serverID, clusterName)},
 	}
 	if mfaDevice := id.Certificate.Extensions[teleport.CertExtensionMFAVerified]; mfaDevice != "" {
 		lockTargets = append(lockTargets, types.LockTarget{MFADevice: mfaDevice})

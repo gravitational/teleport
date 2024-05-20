@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth
+package authclient
 
 import (
 	"context"
@@ -35,7 +35,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -930,13 +929,6 @@ type AccessCache interface {
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 }
 
-// AccessCacheWithEvents extends the AccessCache interface with events. Useful for trust-related components
-// that need to watch for changes.
-type AccessCacheWithEvents interface {
-	AccessCache
-	types.Events
-}
-
 // Cache is a subset of the auth interface handling
 // access to the discovery API and static tokens
 type Cache interface {
@@ -1526,11 +1518,4 @@ func (w *OktaWrapper) Close() error {
 
 // NewRemoteProxyCachingAccessPoint returns new caching access point using
 // access point policy
-type NewRemoteProxyCachingAccessPoint func(clt authclient.ClientI, cacheName []string) (RemoteProxyAccessPoint, error)
-
-// notImplementedMessage is the message to return for endpoints that are not
-// implemented. This is due to how service interfaces are used with Teleport.
-const notImplementedMessage = "not implemented: can only be called by auth locally"
-
-// LicenseExpiredNotification defines a license expired notification
-const LicenseExpiredNotification = "licenseExpired"
+type NewRemoteProxyCachingAccessPoint func(clt ClientI, cacheName []string) (RemoteProxyAccessPoint, error)

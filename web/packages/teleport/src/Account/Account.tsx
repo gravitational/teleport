@@ -283,6 +283,7 @@ export function Account({
           usage={newDeviceUsage}
           auth2faType={cfg.getAuth2faType()}
           privilegeToken={token}
+          devices={devices}
           onClose={closeAddDeviceWizard}
           onSuccess={onAddDeviceSuccess}
         />

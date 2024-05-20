@@ -539,7 +539,7 @@ func TestShutdown(t *testing.T) {
 			require.Empty(t, cmp.Diff(appServers[0].GetApp(), app0, cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Expires")))
 
 			// Shutdown should not return error.
-			shutdownCtx, cancel := context.WithTimeout(ctx, time.Second*5)
+			shutdownCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 			t.Cleanup(cancel)
 			if test.hasForkedChild {
 				shutdownCtx = services.ProcessForkedContext(shutdownCtx)
@@ -551,7 +551,7 @@ func TestShutdown(t *testing.T) {
 			appServersAfterShutdown, err := s.authClient.GetApplicationServers(ctx, defaults.Namespace)
 			require.NoError(t, err)
 			if test.wantAppServersAfterShutdown {
-				require.Empty(t, cmp.Diff(appServers[0].GetApp(), app0, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+				require.Empty(t, cmp.Diff(appServersAfterShutdown[0].GetApp(), app0, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 			} else {
 				require.Empty(t, appServersAfterShutdown)
 			}

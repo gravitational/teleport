@@ -27,7 +27,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
@@ -211,7 +210,7 @@ var aksMockClusters = map[string][]*azure.AKSCluster{
 func aksClustersToResources(t *testing.T, clusters ...*azure.AKSCluster) types.ResourcesWithLabels {
 	var kubeClusters types.KubeClusters
 	for _, cluster := range clusters {
-		kubeCluster, err := services.NewKubeClusterFromAzureAKS(cluster)
+		kubeCluster, err := common.NewKubeClusterFromAzureAKS(cluster)
 		require.NoError(t, err)
 		require.True(t, kubeCluster.IsAzure())
 		common.ApplyAKSNameSuffix(kubeCluster)

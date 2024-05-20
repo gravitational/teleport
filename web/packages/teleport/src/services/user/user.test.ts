@@ -312,6 +312,7 @@ test('fetch users, null response values gives empty array', async () => {
   expect(response).toStrictEqual([
     {
       authType: '',
+      isBot: undefined,
       isLocal: false,
       name: '',
       roles: [],

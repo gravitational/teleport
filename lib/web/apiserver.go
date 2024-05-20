@@ -238,7 +238,7 @@ type Config struct {
 	FIPS bool
 
 	// AccessPoint holds a cache to the Auth Server.
-	AccessPoint auth.ProxyAccessPoint
+	AccessPoint authclient.ProxyAccessPoint
 
 	// Emitter is event emitter
 	Emitter apievents.Emitter
@@ -1008,7 +1008,7 @@ func (h *Handler) GetProxyIdentity() (*state.Identity, error) {
 }
 
 // GetAccessPoint returns the caching access point.
-func (h *Handler) GetAccessPoint() auth.ProxyAccessPoint {
+func (h *Handler) GetAccessPoint() authclient.ProxyAccessPoint {
 	return h.cfg.AccessPoint
 }
 
@@ -1988,11 +1988,11 @@ func ConstructSSHResponse(response AuthParams) (*url.URL, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	consoleResponse := auth.SSHLoginResponse{
+	consoleResponse := authclient.SSHLoginResponse{
 		Username:    response.Username,
 		Cert:        response.Cert,
 		TLSCert:     response.TLSCert,
-		HostSigners: auth.AuthoritiesToTrustedCerts(response.HostSigners),
+		HostSigners: authclient.AuthoritiesToTrustedCerts(response.HostSigners),
 	}
 	out, err := json.Marshal(consoleResponse)
 	if err != nil {
@@ -2207,8 +2207,8 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 	return res, nil
 }
 
-func clientMetaFromReq(r *http.Request) *auth.ForwardedClientMetadata {
-	return &auth.ForwardedClientMetadata{
+func clientMetaFromReq(r *http.Request) *authclient.ForwardedClientMetadata {
+	return &authclient.ForwardedClientMetadata{
 		UserAgent:  r.UserAgent(),
 		RemoteAddr: r.RemoteAddr,
 	}
@@ -2400,7 +2400,7 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 // createResetPasswordToken allows a UI user to reset a user's password.
 // This handler is also required for after creating new users.
 func (h *Handler) createResetPasswordToken(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *SessionContext) (interface{}, error) {
-	var req auth.CreateUserTokenRequest
+	var req authclient.CreateUserTokenRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2411,7 +2411,7 @@ func (h *Handler) createResetPasswordToken(w http.ResponseWriter, r *http.Reques
 	}
 
 	token, err := clt.CreateResetPasswordToken(r.Context(),
-		auth.CreateUserTokenRequest{
+		authclient.CreateUserTokenRequest{
 			Name: req.Name,
 			Type: req.Type,
 		})
@@ -2830,27 +2830,42 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 			db := ui.MakeDatabase(r.GetDatabase(), dbUsers, dbNames, enriched.RequiresRequest)
 			unifiedResources = append(unifiedResources, db)
 		case types.AppServer:
+			allowedAWSRoles, err := accessChecker.GetAllowedLoginsForResource(r.GetApp())
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			allowedAWSRolesLookup := map[string][]string{
+				r.GetApp().GetName(): allowedAWSRoles,
+			}
+
 			app := ui.MakeApp(r.GetApp(), ui.MakeAppsConfig{
-				LocalClusterName:  h.auth.clusterName,
-				LocalProxyDNSName: h.proxyDNSName(),
-				AppClusterName:    site.GetName(),
-				Identity:          identity,
-				UserGroupLookup:   getUserGroupLookup(),
-				Logger:            h.log,
-				RequiresRequest:   enriched.RequiresRequest,
+				LocalClusterName:      h.auth.clusterName,
+				LocalProxyDNSName:     h.proxyDNSName(),
+				AppClusterName:        site.GetName(),
+				AllowedAWSRolesLookup: allowedAWSRolesLookup,
+				UserGroupLookup:       getUserGroupLookup(),
+				Logger:                h.log,
+				RequiresRequest:       enriched.RequiresRequest,
 			})
 			unifiedResources = append(unifiedResources, app)
 		case types.AppServerOrSAMLIdPServiceProvider:
 			//nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
 			if r.IsAppServer() {
+				allowedAWSRoles, err := accessChecker.GetAllowedLoginsForResource(r.GetAppServer().GetApp())
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				allowedAWSRolesLookup := map[string][]string{
+					r.GetAppServer().GetApp().GetName(): allowedAWSRoles,
+				}
 				app := ui.MakeApp(r.GetAppServer().GetApp(), ui.MakeAppsConfig{
-					LocalClusterName:  h.auth.clusterName,
-					LocalProxyDNSName: h.proxyDNSName(),
-					AppClusterName:    site.GetName(),
-					Identity:          identity,
-					UserGroupLookup:   getUserGroupLookup(),
-					Logger:            h.log,
-					RequiresRequest:   enriched.RequiresRequest,
+					LocalClusterName:      h.auth.clusterName,
+					LocalProxyDNSName:     h.proxyDNSName(),
+					AppClusterName:        site.GetName(),
+					AllowedAWSRolesLookup: allowedAWSRolesLookup,
+					UserGroupLookup:       getUserGroupLookup(),
+					Logger:                h.log,
+					RequiresRequest:       enriched.RequiresRequest,
 				})
 				unifiedResources = append(unifiedResources, app)
 			} else {
@@ -2858,7 +2873,6 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 					LocalClusterName:  h.auth.clusterName,
 					LocalProxyDNSName: h.proxyDNSName(),
 					AppClusterName:    site.GetName(),
-					Identity:          identity,
 					RequiresRequest:   enriched.RequiresRequest,
 				})
 				unifiedResources = append(unifiedResources, app)
@@ -2870,7 +2884,6 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 				LocalClusterName:  h.auth.clusterName,
 				LocalProxyDNSName: h.proxyDNSName(),
 				AppClusterName:    site.GetName(),
-				Identity:          identity,
 				RequiresRequest:   enriched.RequiresRequest,
 			})
 			unifiedResources = append(unifiedResources, app)
@@ -3974,8 +3987,8 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 		return nil, trace.Wrap(err)
 	}
 
-	authSSHUserReq := auth.AuthenticateSSHRequest{
-		AuthenticateUserRequest: auth.AuthenticateUserRequest{
+	authSSHUserReq := authclient.AuthenticateSSHRequest{
+		AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 			Username:       req.User,
 			PublicKey:      req.PubKey,
 			ClientMetadata: clientMetaFromReq(r),
@@ -4017,11 +4030,11 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 
 	switch cap.GetSecondFactor() {
 	case constants.SecondFactorOff:
-		authSSHUserReq.AuthenticateUserRequest.Pass = &auth.PassCreds{
+		authSSHUserReq.AuthenticateUserRequest.Pass = &authclient.PassCreds{
 			Password: []byte(req.Password),
 		}
 	case constants.SecondFactorOTP, constants.SecondFactorOn, constants.SecondFactorOptional:
-		authSSHUserReq.AuthenticateUserRequest.OTP = &auth.OTPCreds{
+		authSSHUserReq.AuthenticateUserRequest.OTP = &authclient.OTPCreds{
 			Password: []byte(req.Password),
 			Token:    req.OTPToken,
 		}
@@ -4053,7 +4066,7 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 //	    "certificate_authorities": ["AQ==", "Ag=="]
 //	}
 func (h *Handler) validateTrustedCluster(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var validateRequestRaw auth.ValidateTrustedClusterRequestRaw
+	var validateRequestRaw authclient.ValidateTrustedClusterRequestRaw
 	if err := httplib.ReadJSON(r, &validateRequestRaw); err != nil {
 		return nil, trace.Wrap(err)
 	}

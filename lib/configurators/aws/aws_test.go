@@ -582,8 +582,10 @@ func TestAWSIAMDocuments(t *testing.T) {
 					Effect: "Allow",
 					Actions: []string{
 						"ec2:DescribeInstances",
+						"ssm:DescribeInstanceInformation",
 						"ssm:GetCommandInvocation",
-						"ssm:SendCommand"},
+						"ssm:SendCommand",
+					},
 					Resources: []string{"*"},
 				},
 			},
@@ -592,8 +594,10 @@ func TestAWSIAMDocuments(t *testing.T) {
 					Effect: "Allow",
 					Actions: []string{
 						"ec2:DescribeInstances",
+						"ssm:DescribeInstanceInformation",
 						"ssm:GetCommandInvocation",
-						"ssm:SendCommand"},
+						"ssm:SendCommand",
+					},
 					Resources: []string{"*"},
 				},
 			},
