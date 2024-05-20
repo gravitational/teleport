@@ -58,7 +58,7 @@ func (c *vnetCommand) run(cf *CLIConf) error {
 
 	go func() {
 		<-cf.Context.Done()
-		_ = processManager.Close()
+		processManager.Close()
 	}()
 
 	err = processManager.Wait()

@@ -156,7 +156,8 @@ func (s *Service) stopLocked() error {
 		return nil
 	}
 
-	err := s.processManager.Close()
+	s.processManager.Close()
+	err := s.processManager.Wait()
 	if err != nil && !errors.Is(err, context.Canceled) {
 		return trace.Wrap(err)
 	}

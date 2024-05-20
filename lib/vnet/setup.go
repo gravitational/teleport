@@ -165,13 +165,9 @@ func (pm *ProcessManager) Wait() error {
 	return trace.Wrap(pm.g.Wait())
 }
 
-// Close stops any active background tasks by canceling the underlying context. It then returns the
-// error from the error group.
-func (pm *ProcessManager) Close() error {
-	go func() {
-		pm.cancel()
-	}()
-	return trace.Wrap(pm.g.Wait())
+// Close stops any active background tasks by canceling the underlying context.
+func (pm *ProcessManager) Close() {
+	pm.cancel()
 }
 
 // AdminSubcommand is the tsh subcommand that should run as root that will create and setup a TUN device and
