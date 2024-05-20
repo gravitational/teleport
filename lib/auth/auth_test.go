@@ -2467,7 +2467,7 @@ func TestDeleteMFADeviceSync(t *testing.T) {
 			tokenReq: authclient.CreateUserTokenRequest{
 				Name: username,
 				TTL:  5 * time.Minute,
-				Type: UserTokenTypeRecoveryApproved,
+				Type: authclient.UserTokenTypeRecoveryApproved,
 			},
 			deviceToDelete: webDev1.MFA.GetName(),
 		},
@@ -2476,7 +2476,7 @@ func TestDeleteMFADeviceSync(t *testing.T) {
 			tokenReq: authclient.CreateUserTokenRequest{
 				Name: username,
 				TTL:  5 * time.Minute,
-				Type: UserTokenTypePrivilege,
+				Type: authclient.UserTokenTypePrivilege,
 			},
 			deviceToDelete: totpDev1.MFA.GetName(),
 		},
@@ -2708,7 +2708,7 @@ func TestDeleteMFADeviceSync_lastDevice(t *testing.T) {
 			token, err := srv.Auth().newUserToken(authclient.CreateUserTokenRequest{
 				Name: username,
 				TTL:  5 * time.Minute,
-				Type: UserTokenTypeRecoveryApproved,
+				Type: authclient.UserTokenTypeRecoveryApproved,
 			})
 			require.NoError(t, err)
 			_, err = srv.Auth().CreateUserToken(context.Background(), token)
@@ -3056,7 +3056,7 @@ func compareDevices(t *testing.T, ignoreUpdateAndCounter bool, got []*types.MFAD
 }
 
 type mockCache struct {
-	Cache
+	authclient.Cache
 
 	resources      []types.ResourceWithLabels
 	resourcesError error

@@ -27,7 +27,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -178,7 +178,7 @@ type HeartbeatConfig struct {
 	// Component is a name of component used in logs
 	Component string
 	// Announcer is used to announce presence
-	Announcer auth.Announcer
+	Announcer authclient.Announcer
 	// GetServerInfo returns server information
 	GetServerInfo GetServerInfoFn
 	// ServerTTL is a server TTL used in announcements
