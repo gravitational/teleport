@@ -5664,7 +5664,6 @@ func (a *ServerWithRoles) CreateSnowflakeSession(ctx context.Context, req types.
 	return snowflakeSession, nil
 }
 
-
 // CreateSAMLIdPSession creates a SAML IdP session.
 // TODO(Joerger): DELETE IN v17.0.0
 func (a *ServerWithRoles) CreateSAMLIdPSession(ctx context.Context, req types.CreateSAMLIdPSessionRequest) (types.WebSession, error) {
