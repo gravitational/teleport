@@ -212,13 +212,6 @@ export const storageService = {
     window.localStorage.removeItem(KeysEnum.THEME);
   },
 
-  arePinnedResourcesDisabled(): boolean {
-    return (
-      window.localStorage.getItem(KeysEnum.PINNED_RESOURCES_NOT_SUPPORTED) ===
-      'true'
-    );
-  },
-
   getLicenseAcknowledged(): boolean {
     return (
       window.localStorage.getItem(KeysEnum.LICENSE_ACKNOWLEDGED) === 'true'

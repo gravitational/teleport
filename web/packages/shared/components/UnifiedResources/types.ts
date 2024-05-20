@@ -181,9 +181,6 @@ export type UnifiedResourcesPinning =
       updateClusterPinnedResources(pinned: string[]): Promise<void>;
     }
   | {
-      kind: 'not-supported';
-    }
-  | {
       kind: 'hidden';
     };
 
