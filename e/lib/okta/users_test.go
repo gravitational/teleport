@@ -169,7 +169,9 @@ func TestUserAssignmentCreator(t *testing.T) {
 		// Create an empty user state, which should cause a cleanup of all assignments since it has no permissions.
 		ap.userState, err = userloginstate.New(header.Metadata{
 			Name: testUser,
-		}, userloginstate.Spec{})
+		}, userloginstate.Spec{
+			UserType: types.UserTypeSSO,
+		})
 		require.NoError(t, err)
 
 		require.NoError(t, uac.OnLogin(ctx, user))
@@ -404,6 +406,9 @@ func initUACSuite(t *testing.T, ctx context.Context, clock clockwork.Clock) *tes
 	user, err := types.NewUser(testUser)
 	require.NoError(t, err)
 	user.SetRoles([]string{role.GetName()})
+	/// Update the user so that it's now an SSO user.
+	// Should get an assignment that has one action for the app./
+	user.SetCreatedBy(types.CreatedBy{Connector: &types.ConnectorRef{}})
 	user, err = ap.CreateUser(ctx, user)
 	require.NoError(t, err)
 	ap.user = user

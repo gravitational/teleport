@@ -37,6 +37,7 @@ const (
 type AccessRequestReconcilerAccessPoint interface {
 	services.UserGroups
 	types.Events
+	services.UserGetter
 
 	// ListResources returns a paginated list of resources.
 	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
@@ -413,6 +414,15 @@ func (a *AccessRequestReconciler) startResourceWatcher(ctx context.Context) (*se
 func (a *AccessRequestReconciler) onCreate(ctx context.Context, newAccessRequest types.AccessRequest) error {
 	// Only create an assignment if the access state is approved.
 	if newAccessRequest.GetState() == types.RequestState_APPROVED {
+		isUserLocal, err := a.isUserLocal(ctx, newAccessRequest.GetUser())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if isUserLocal {
+			a.log.Debugf("Okta assignment cannot be created for user %s as the user is not an SSO user.", newAccessRequest.GetUser())
+			return nil
+		}
+
 		assignment, err := a.accessRequestToOktaAssignment(ctx, newAccessRequest, constants.OktaAssignmentStatusPending)
 		if err != nil {
 			if trace.IsNotFound(err) {
@@ -708,4 +718,18 @@ func copyAccessRequestMapToAccessRequests(accessRequests map[string]types.Access
 	}
 
 	return accessRequestsCopy
+}
+
+// isUserLocal will return true if the given user is a local user. If the user cannot be determined,
+// it will return false, which means it will indicate that the user is an SSO user.
+func (a *AccessRequestReconciler) isUserLocal(ctx context.Context, username string) (bool, error) {
+	user, err := a.accessPoint.GetUser(ctx, username, false /* withSecrets */)
+	if err != nil {
+		// If we can't find the user, just return false, as we can't make a determination.
+		if trace.IsNotFound(err) {
+			return false, nil
+		}
+		return false, trace.Wrap(err)
+	}
+	return user.GetUserType() == types.UserTypeLocal, nil
 }
