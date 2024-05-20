@@ -131,7 +131,7 @@ func ipv4Suffix(addr tcpip.Address) ipv4 {
 	return ipv4(binary.BigEndian.Uint32(bytes))
 }
 
-func IPv6WithSuffix(prefix tcpip.Address, suffix []byte) tcpip.Address {
+func ipv6WithSuffix(prefix tcpip.Address, suffix []byte) tcpip.Address {
 	addrBytes := prefix.As16()
 	offset := len(addrBytes) - len(suffix)
 	for i, b := range suffix {

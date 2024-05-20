@@ -462,7 +462,7 @@ func (ns *NetworkStack) assignTCPHandler(handlerSpec *TCPHandlerSpec, fqdn strin
 	if err := ns.addProtocolAddress(tcpip.AddrFrom4(ip.asArray())); err != nil {
 		return 0, trace.Wrap(err)
 	}
-	if err := ns.addProtocolAddress(IPv6WithSuffix(ns.ipv6Prefix, ip.asSlice())); err != nil {
+	if err := ns.addProtocolAddress(ipv6WithSuffix(ns.ipv6Prefix, ip.asSlice())); err != nil {
 		return 0, trace.Wrap(err)
 	}
 
@@ -575,7 +575,7 @@ func (ns *NetworkStack) ResolveAAAA(ctx context.Context, fqdn string) (dns.Resul
 		return dns.Result{}, trace.Wrap(err)
 	}
 	if result.A != ([4]byte{}) {
-		result.AAAA = IPv6WithSuffix(ns.ipv6Prefix, result.A[:]).As16()
+		result.AAAA = ipv6WithSuffix(ns.ipv6Prefix, result.A[:]).As16()
 		result.A = [4]byte{}
 	}
 	return result, nil

@@ -43,7 +43,7 @@ func SetupAndRun(ctx context.Context, appProvider AppProvider) (*ProcessManager,
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	dnsIPv6 := IPv6WithSuffix(ipv6Prefix, []byte{2})
+	dnsIPv6 := ipv6WithSuffix(ipv6Prefix, []byte{2})
 
 	pm, processCtx := newProcessManager()
 	success := false
