@@ -7,9 +7,11 @@ Teleport leverages Go's diagnostic capabilities to collect and export
 profiling data. Profiles can help identify the cause of spikes in CPU,
 the source of memory leaks, or the reason for a deadlock.
 
-## Using `teleport debug profile`
+## Using Debug Service
 
-(!docs/pages/includes/diagnostics/debug-service-intro.mdx!)
+Teleport's Debug Service enables administrators to collect diagnostic profiles
+without enabling pprof endpoints at startup. The service, enabled by default,
+ensures local-only access and must be consumed from inside the same instance.
 
 `teleport debug profile` collects a list of pprof profiles. It outputs a
 compressed tarball (`.tar.gz`) to STDOUT. You decompress it using `tar` or
@@ -21,7 +23,7 @@ Each profile collected will have a correspondent file inside the tarball. For
 example, collecting `goroutine,trace,heap` will result in `goroutine.pprof`,
 `trace.pprof`, and `heap.pprof` files.
 
-```bash
+```code
 # Collect default profiles and save to a file.
 $ teleport debug profile > pprof.tar.gz
 $ tar xvf pprof.tar.gz
@@ -39,14 +41,14 @@ $ teleport debug profile -s 20 trace > pprof.tar.gz
 If you're running Teleport on a Kubernetes cluster you can directly collect
 profiles to a local directory without an interactive session:
 
-```bash
+```code
 $ kubectl -n teleport exec my-pod -- teleport debug profile > pprof.tar.gz 
 ```
 
 After extracting the contents, you can use `go tool` commands to explore and
 visualize them:
 
-```bash
+```code
 # Opens the terminal interactive explorer
 $ go tool pprof heap.pprof
 
