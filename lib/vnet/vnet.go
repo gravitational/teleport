@@ -21,6 +21,7 @@ import (
 	"errors"
 	"log/slog"
 	"net"
+	"os"
 	"sync"
 
 	"github.com/gravitational/trace"
@@ -592,7 +593,7 @@ func forwardBetweenTunAndNetstack(ctx context.Context, tun TUNDevice, linkEndpoi
 	slog.DebugContext(ctx, "Forwarding IP packets between OS and VNet.")
 	g, ctx := errgroup.WithContext(ctx)
 	g.Go(func() error { return forwardNetstackToTUN(ctx, linkEndpoint, tun) })
-	g.Go(func() error { return forwardTUNtoNetstack(tun, linkEndpoint) })
+	g.Go(func() error { return forwardTUNtoNetstack(ctx, tun, linkEndpoint) })
 	return trace.Wrap(g.Wait())
 }
 
@@ -617,7 +618,9 @@ func forwardNetstackToTUN(ctx context.Context, linkEndpoint *channel.Endpoint, t
 	}
 }
 
-func forwardTUNtoNetstack(tun TUNDevice, linkEndpoint *channel.Endpoint) error {
+// forwardTUNtoNetstack does not abort on ctx being canceled, but it does check the ctx error before
+// returning os.ErrClosed from tun.Read.
+func forwardTUNtoNetstack(ctx context.Context, tun TUNDevice, linkEndpoint *channel.Endpoint) error {
 	const readOffset = device.MessageTransportHeaderSize
 	bufs := make([][]byte, tun.BatchSize())
 	for i := range bufs {
@@ -627,6 +630,10 @@ func forwardTUNtoNetstack(tun TUNDevice, linkEndpoint *channel.Endpoint) error {
 	for {
 		n, err := tun.Read(bufs, sizes, readOffset)
 		if err != nil {
+			// tun.Read might get interrupted due to the TUN device getting closed after ctx cancellation.
+			if errors.Is(err, os.ErrClosed) && ctx.Err() != nil {
+				return ctx.Err()
+			}
 			return trace.Wrap(err, "reading packets from TUN")
 		}
 		for i := range sizes[:n] {
