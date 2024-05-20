@@ -60,48 +60,43 @@ func SetupAndRun(ctx context.Context, appProvider AppProvider) (*ProcessManager,
 		return nil, trace.Wrap(err)
 	}
 	slog.DebugContext(ctx, "Created unix socket for admin subcommand", "socket", socketPath)
-	pm.AddCriticalBackgroundTask("socket closer", func() error {
+	go func() {
 		// Keep the socket open until the process context is canceled.
 		// Closing the socket signals the admin subcommand to terminate.
 		<-processCtx.Done()
-		return trace.Wrap(socket.Close())
-	})
-
-	// A channel to capture an error when waiting for a TUN device to be created.
-	//
-	// To create a TUN device, VNet first needs to start the admin subcommand. When the subcommand
-	// starts, osascript shows a password prompt. If the user closes this prompt, execAdminSubcommand
-	// fails and the socket ends up being closed. To make sure that the user sees the error from
-	// osascript about prompt being closed instead of an error from receiveTUNDevice about reading
-	// from a closed socket, we send the error from osascript immediately through this channel, rather
-	// than depending on pm.Wait.
-	tunOrAdminSubcommandErrC := make(chan error, 2)
-	var tun tun.Device
+		_ = socket.Close()
+	}()
 
 	pm.AddCriticalBackgroundTask("admin subcommand", func() error {
-		err := execAdminSubcommand(processCtx, socketPath, ipv6Prefix.String(), dnsIPv6.String())
-		// Pass the osascript error immediately, without having to wait on pm to propagate the error.
-		tunOrAdminSubcommandErrC <- trace.Wrap(err)
-		return trace.Wrap(err)
+		return trace.Wrap(execAdminSubcommand(processCtx, socketPath, ipv6Prefix.String(), dnsIPv6.String()))
 	})
 
+	recvTUNErr := make(chan error, 1)
+	var tun tun.Device
 	go func() {
+		// Unblocks after receiving a TUN device or when the context gets canceled (and thus socket gets
+		// closed).
 		tunDevice, err := receiveTUNDevice(socket)
 		tun = tunDevice
-		tunOrAdminSubcommandErrC <- err
+		recvTUNErr <- err
 	}()
 
 	select {
 	case <-ctx.Done():
 		return nil, trace.Wrap(ctx.Err())
-	case err := <-tunOrAdminSubcommandErrC:
+	case <-processCtx.Done():
+		return nil, trace.Wrap(context.Cause(processCtx))
+	case err := <-recvTUNErr:
 		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		if tun == nil {
-			// If the execution ever gets there, it's because of a bug.
-			return nil, trace.Errorf("no TUN device created, execAdminSubcommand must have returned early with no error")
+			if processCtx.Err() != nil {
+				// Both errors being present means that VNet failed to receive a TUN device because of a
+				// problem with the admin subcommand.
+				// Returning error from processCtx will be more informative to the user, e.g., the error
+				// will say "password prompt closed by user" instead of "read from closed socket".
+				slog.DebugContext(ctx, "Error from recvTUNErr ignored in favor of processCtx.Err", "error", err)
+				return nil, trace.Wrap(context.Cause(processCtx))
+			}
+			return nil, trace.Wrap(err, "receiving TUN from admin subcommand")
 		}
 	}
 
