@@ -39,7 +39,7 @@ func TestNewUserListEntry(t *testing.T) {
 				Metadata: types.Metadata{
 					Name: "bot-bernard",
 					Labels: map[string]string{
-						types.BotLabel: "true",
+						types.BotGenerationLabel: "0",
 					},
 				},
 				Spec: types.UserSpecV2{

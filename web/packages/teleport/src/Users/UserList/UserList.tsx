@@ -83,10 +83,7 @@ export default function UserList({
     />
   );
 
-  function renderAuthType(
-    authType: string,
-    isBot?: boolean
-  ) {
+  function renderAuthType(authType: string, isBot?: boolean) {
     if (isBot) {
       return 'Bot';
     }
