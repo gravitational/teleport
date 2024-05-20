@@ -106,21 +106,21 @@ export function IntegrationList(props: Props<IntegrationLike>) {
               );
             }
 
-            if (
-              item.resourceType === 'integration' &&
-              // Currently, only AWSOIDC supports editing.
-              item.kind === IntegrationKind.AwsOidc
-            ) {
+            // Normal 'integration' type.
+            if (item.resourceType === 'integration') {
               return (
                 <Cell align="right">
                   <MenuButton>
-                    <MenuItem
-                      onClick={() =>
-                        props.integrationOps.onEditIntegration(item)
-                      }
-                    >
-                      Edit...
-                    </MenuItem>
+                    {/* Currently, only AWSOIDC supports editing. */}
+                    {item.kind === IntegrationKind.AwsOidc && (
+                      <MenuItem
+                        onClick={() =>
+                          props.integrationOps.onEditIntegration(item)
+                        }
+                      >
+                        Edit...
+                      </MenuItem>
+                    )}
                     <MenuItem
                       onClick={() =>
                         props.integrationOps.onDeleteIntegration(item)

@@ -5955,6 +5955,50 @@ message PluginDiscordSettings {
   map<string, DiscordChannels> role_to_recipients = 1;
 }
 
+// PluginEntraIDSettings defines settings for the Entra ID sync plugin
+message PluginEntraIDSettings {
+  option (gogoproto.equal) = true;
+
+  // SyncSettings controls the user and access list sync settings for EntraID.
+  PluginEntraIDSyncSettings sync_settings = 1;
+
+  // AccessGraphSettings controls settings for syncing access graph specific data.
+  // When this is null, Entra ID integration with Access Graph is disabled.
+  PluginEntraIDAccessGraphSettings access_graph_settings = 2;
+}
+
+// Defines settings for syncing users and access lists from Entra ID.
+message PluginEntraIDSyncSettings {
+  option (gogoproto.equal) = true;
+
+  // DefaultOwners are the default owners for all imported access lists.
+  repeated string default_owners = 1;
+}
+
+// AccessGraphSettings controls settings for syncing access graph specific data.
+message PluginEntraIDAccessGraphSettings {
+  option (gogoproto.equal) = true;
+
+  // AppSsoSettingsCache is an array of single sign-on settings for Entra enterprise applications.
+  //
+  // This data is stored here because it is not available through traditional methods (MS Graph API).
+  // Instead, it is fetched once during the plugin's set up using the user's credentials to connect to Azure's private API.
+  repeated PluginEntraIDAppSSOSettings app_sso_settings_cache = 1;
+}
+
+// PluginEntraIDAppSSOSettings is a container for a single Entra ID enterprise application's
+// cached SSO settings.
+// As this data is only parsed by TAG, each value is stored as an opaque JSON blob.
+message PluginEntraIDAppSSOSettings {
+  option (gogoproto.equal) = true;
+
+  // AppID is the `AppID` property of Entra application.
+  string app_id = 1;
+
+  // FederatedSSOV2 contains the cached, gzip-compressed payload from the /ApplicationSso/{servicePrincipalId}/FederatedSSOV2 endpoint.
+  bytes federated_sso_v2 = 2;
+}
+
 // PluginSCIMSettings defines the settings for a SCIM integration plugin
 message PluginSCIMSettings {
   option (gogoproto.equal) = true;
@@ -5966,22 +6010,6 @@ message PluginSCIMSettings {
   // DefaultRole is the default role assigned to users provisioned by this
   // plugin.
   string default_role = 2;
-}
-
-// PluginEntraIDSettings defines settings for the Entra ID sync plugin
-message PluginEntraIDSettings {
-  option (gogoproto.equal) = true;
-
-  // SyncSettings controls the user and access list sync settings for EntraID.
-  PluginEntraIDSyncSettings sync_settings = 1;
-}
-
-// Defines settings for syncing users and access lists from Entra ID.
-message PluginEntraIDSyncSettings {
-  option (gogoproto.equal) = true;
-
-  // DefaultOwners are the default owners for all imported access lists.
-  repeated string default_owners = 1;
 }
 
 message PluginBootstrapCredentialsV1 {
