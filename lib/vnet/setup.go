@@ -31,8 +31,8 @@ import (
 // needs to launch an admin subcommand in the background. It returns [ProcessManager] which controls
 // the lifecycle of both background tasks.
 //
-// The caller is expected to call Close on the process manager to close the network stack and clean
-// up any resources used by it.
+// The caller is expected to call Close on the process manager to close the network stack, clean
+// up any resources used by it and terminate the admin subcommand.
 //
 // ctx is used to wait for setup steps that happen before SetupAndRun hands out the control to the
 // process manager. If ctx gets canceled during SetupAndRun, the process manager gets closed along
