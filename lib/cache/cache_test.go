@@ -122,6 +122,7 @@ type testPack struct {
 	notifications           services.Notifications
 	accessMonitoringRules   services.AccessMonitoringRules
 	crownJewels             services.CrownJewels
+	scimResource            services.SCIMResource
 }
 
 // testFuncs are functions to support testing an object in a cache.
@@ -332,6 +333,12 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	}
 	p.notifications = notificationsSvc
 
+	scimSvc, err := local.NewSCIMService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.scimResource = scimSvc
+
 	return p, nil
 }
 
@@ -377,6 +384,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		Notifications:           p.notifications,
 		AccessMonitoringRules:   p.accessMonitoringRules,
 		CrownJewels:             p.crownJewels,
+		SCIMResource:            p.scimResource,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))

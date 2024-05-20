@@ -205,6 +205,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newGlobalNotificationParser()
 		case types.KindAccessMonitoringRule:
 			parser = newAccessMonitoringRuleParser()
+		case types.KindSCIMResource:
+			parser = newSCIMResourceParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
@@ -239,6 +241,13 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 		return nil, trace.Wrap(err)
 	}
 	return newWatcher(w, e.Entry, parsers, validKinds), nil
+}
+
+func newSCIMResourceParser() resourceParser {
+	return &crownJewelParser{
+		baseParser: newBaseParser(backend.Key(crownJewelsKey)),
+	}
+
 }
 
 func newWatcher(backendWatcher backend.Watcher, l *logrus.Entry, parsers []resourceParser, kinds []types.WatchKind) *watcher {
