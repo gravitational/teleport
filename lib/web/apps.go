@@ -46,11 +46,6 @@ import (
 // clusterAppsGet returns a list of applications in a form the UI can present.
 // This includes Application Servers as well as SAML IdP Service providers.
 func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
-	identity, err := sctx.GetIdentity()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// Get a list of application servers and their proxied apps.
 	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
@@ -97,6 +92,12 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 		userGroupLookup[userGroup.GetName()] = userGroup
 	}
 
+	accessChecker, err := sctx.GetUserAccessChecker()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	allowedAWSRolesLookup := map[string][]string{}
 	var appsAndSPs types.AppServersOrSAMLIdPServiceProviders
 	appsToUserGroups := map[string]types.UserGroups{}
 	for _, appOrSP := range page.Resources {
@@ -104,6 +105,16 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 
 		if appOrSP.IsAppServer() {
 			app := appOrSP.GetAppServer().GetApp()
+
+			if app.IsAWSConsole() {
+				allowedAWSRoles, err := accessChecker.GetAllowedLoginsForResource(app)
+				if err != nil {
+					h.log.Debugf("Unable to find allowed AWS Roles for app %s, skipping", app.GetName())
+					continue
+				}
+
+				allowedAWSRolesLookup[app.GetName()] = allowedAWSRoles
+			}
 
 			ugs := types.UserGroups{}
 			for _, userGroupName := range app.GetUserGroups() {
@@ -125,7 +136,7 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 			LocalClusterName:                     h.auth.clusterName,
 			LocalProxyDNSName:                    h.proxyDNSName(),
 			AppClusterName:                       site.GetName(),
-			Identity:                             identity,
+			AllowedAWSRolesLookup:                allowedAWSRolesLookup,
 			AppsToUserGroups:                     appsToUserGroups,
 			AppServersAndSAMLIdPServiceProviders: appsAndSPs,
 		}),
