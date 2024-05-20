@@ -34,7 +34,7 @@ on:
 env:
   RELCLI_URL: 'https://cdn.teleport.dev/relcli-prod-02bf88c-20231030T134419-windows.exe'
   RELCLI_SHA256: 'e296a736334fd35882624e636c6ab1b0de9f7ebf952fad83135b5060e3cfb48e'
-        
+
 jobs:
   build:
     permissions:
@@ -111,9 +111,9 @@ jobs:
                 if($Name.Length -ge 3 -and $Value -imatch '[a-z]:\\' -and $(Test-Path $Value.Substring(0, 3))) {
                     return "$Name/p"
                 }
-            
+
                 return $Name
-            } 
+            }
           )
           $env:WSLENV = ($WSLENVVars | Where-Object {$_ -ne ""}) -join ":"
 
@@ -295,7 +295,10 @@ jobs:
           $ProgressPreference = 'SilentlyContinue'
           $ErrorActionPreference = 'Stop'
           . "build.assets/windows/build.ps1"
+          Install-BuildRequirements -InstallDirectory "C:\toolchains" -TeleportSourceDirectory "$(Get-Location)"
+          Write-Version-Objects -TeleportSourceDirectory "$(Get-Location)" -TeleportVersion "$env:ARTIFACT_TAG"
           Build-Artifacts -TeleportSourceDirectory "$(Get-Location)" -TeleportVersion "$env:ARTIFACT_TAG" -ArtifactDirectory "$env:ARTIFACT_DIRECTORY"
+
       - name: Assume AWS S3 artifact upload role
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
