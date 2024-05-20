@@ -20,6 +20,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"testing"
 
@@ -44,7 +45,12 @@ type mockSSMClient struct {
 	describeOutput           *ssm.DescribeInstanceInformationOutput
 }
 
+const docWithoutSSHDConfigPathParam = "ssmdocument-without-sshdConfigPath-param"
+
 func (sm *mockSSMClient) SendCommandWithContext(_ context.Context, input *ssm.SendCommandInput, _ ...request.Option) (*ssm.SendCommandOutput, error) {
+	if _, hasExtraParam := input.Parameters["sshdConfigPath"]; hasExtraParam && aws.StringValue(input.DocumentName) == docWithoutSSHDConfigPathParam {
+		return nil, fmt.Errorf("InvalidParameters: document %s does not support parameters", docWithoutSSHDConfigPathParam)
+	}
 	return sm.commandOutput, nil
 }
 
@@ -98,6 +104,50 @@ func TestSSMInstaller(t *testing.T) {
 				},
 				DocumentName: document,
 				Params:       map[string]string{"token": "abcdefg"},
+				SSM: &mockSSMClient{
+					commandOutput: &ssm.SendCommandOutput{
+						Command: &ssm.Command{
+							CommandId: aws.String("command-id-1"),
+						},
+					},
+					invokeOutputStepDownload: &ssm.GetCommandInvocationOutput{
+						Status:       aws.String(ssm.CommandStatusSuccess),
+						ResponseCode: aws.Int64(0),
+					},
+					invokeOutputStepScript: &ssm.GetCommandInvocationOutput{
+						Status:       aws.String(ssm.CommandStatusSuccess),
+						ResponseCode: aws.Int64(0),
+					},
+				},
+				Region:    "eu-central-1",
+				AccountID: "account-id",
+			},
+			conf: SSMInstallerConfig{
+				Emitter: &mockEmitter{},
+			},
+			expectedEvents: []events.AuditEvent{
+				&events.SSMRun{
+					Metadata: events.Metadata{
+						Type: libevent.SSMRunEvent,
+						Code: libevent.SSMRunSuccessCode,
+					},
+					CommandID:  "command-id-1",
+					InstanceID: "instance-id-1",
+					AccountID:  "account-id",
+					Region:     "eu-central-1",
+					ExitCode:   0,
+					Status:     ssm.CommandStatusSuccess,
+				},
+			},
+		},
+		{
+			name: "params include sshdConfigPath",
+			req: SSMRunRequest{
+				Instances: []EC2Instance{
+					{InstanceID: "instance-id-1"},
+				},
+				DocumentName: docWithoutSSHDConfigPathParam,
+				Params:       map[string]string{"sshdConfigPath": "abcdefg"},
 				SSM: &mockSSMClient{
 					commandOutput: &ssm.SendCommandOutput{
 						Command: &ssm.Command{
