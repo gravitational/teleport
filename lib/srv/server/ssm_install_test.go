@@ -29,6 +29,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/ssm"
 	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types/events"
@@ -37,9 +38,10 @@ import (
 
 type mockSSMClient struct {
 	ssmiface.SSMAPI
-	commandOutput  *ssm.SendCommandOutput
-	invokeOutput   *ssm.GetCommandInvocationOutput
-	describeOutput *ssm.DescribeInstanceInformationOutput
+	commandOutput            *ssm.SendCommandOutput
+	invokeOutputStepDownload *ssm.GetCommandInvocationOutput
+	invokeOutputStepScript   *ssm.GetCommandInvocationOutput
+	describeOutput           *ssm.DescribeInstanceInformationOutput
 }
 
 func (sm *mockSSMClient) SendCommandWithContext(_ context.Context, input *ssm.SendCommandInput, _ ...request.Option) (*ssm.SendCommandOutput, error) {
@@ -47,7 +49,13 @@ func (sm *mockSSMClient) SendCommandWithContext(_ context.Context, input *ssm.Se
 }
 
 func (sm *mockSSMClient) GetCommandInvocationWithContext(_ context.Context, input *ssm.GetCommandInvocationInput, _ ...request.Option) (*ssm.GetCommandInvocationOutput, error) {
-	return sm.invokeOutput, nil
+	if aws.StringValue(input.PluginName) == "downloadContent" {
+		return sm.invokeOutputStepDownload, nil
+	}
+	if aws.StringValue(input.PluginName) == "runShellScript" {
+		return sm.invokeOutputStepScript, nil
+	}
+	return nil, trace.NotFound("plugin name is required")
 }
 
 func (sm *mockSSMClient) DescribeInstanceInformationWithContext(_ context.Context, input *ssm.DescribeInstanceInformationInput, _ ...request.Option) (*ssm.DescribeInstanceInformationOutput, error) {
@@ -96,7 +104,11 @@ func TestSSMInstaller(t *testing.T) {
 							CommandId: aws.String("command-id-1"),
 						},
 					},
-					invokeOutput: &ssm.GetCommandInvocationOutput{
+					invokeOutputStepDownload: &ssm.GetCommandInvocationOutput{
+						Status:       aws.String(ssm.CommandStatusSuccess),
+						ResponseCode: aws.Int64(0),
+					},
+					invokeOutputStepScript: &ssm.GetCommandInvocationOutput{
 						Status:       aws.String(ssm.CommandStatusSuccess),
 						ResponseCode: aws.Int64(0),
 					},
@@ -123,7 +135,7 @@ func TestSSMInstaller(t *testing.T) {
 			},
 		},
 		{
-			name: "ssm run failed",
+			name: "ssm run failed in download content",
 			req: SSMRunRequest{
 				DocumentName: document,
 				Instances: []EC2Instance{
@@ -136,9 +148,11 @@ func TestSSMInstaller(t *testing.T) {
 							CommandId: aws.String("command-id-1"),
 						},
 					},
-					invokeOutput: &ssm.GetCommandInvocationOutput{
-						Status:       aws.String(ssm.CommandStatusFailed),
-						ResponseCode: aws.Int64(1),
+					invokeOutputStepDownload: &ssm.GetCommandInvocationOutput{
+						Status:                aws.String(ssm.CommandStatusFailed),
+						ResponseCode:          aws.Int64(1),
+						StandardErrorContent:  aws.String("timeout error"),
+						StandardOutputContent: aws.String(""),
 					},
 				},
 				Region:    "eu-central-1",
@@ -153,12 +167,64 @@ func TestSSMInstaller(t *testing.T) {
 						Type: libevent.SSMRunEvent,
 						Code: libevent.SSMRunFailCode,
 					},
-					CommandID:  "command-id-1",
-					InstanceID: "instance-id-1",
-					AccountID:  "account-id",
-					Region:     "eu-central-1",
-					ExitCode:   1,
-					Status:     ssm.CommandStatusFailed,
+					CommandID:      "command-id-1",
+					InstanceID:     "instance-id-1",
+					AccountID:      "account-id",
+					Region:         "eu-central-1",
+					ExitCode:       1,
+					Status:         ssm.CommandStatusFailed,
+					StandardOutput: "",
+					StandardError:  "timeout error",
+				},
+			},
+		},
+		{
+			name: "ssm run failed in run shell script",
+			req: SSMRunRequest{
+				DocumentName: document,
+				Instances: []EC2Instance{
+					{InstanceID: "instance-id-1"},
+				},
+				Params: map[string]string{"token": "abcdefg"},
+				SSM: &mockSSMClient{
+					commandOutput: &ssm.SendCommandOutput{
+						Command: &ssm.Command{
+							CommandId: aws.String("command-id-1"),
+						},
+					},
+					invokeOutputStepDownload: &ssm.GetCommandInvocationOutput{
+						Status:                aws.String(ssm.CommandStatusSuccess),
+						ResponseCode:          aws.Int64(0),
+						StandardErrorContent:  aws.String("no error"),
+						StandardOutputContent: aws.String(""),
+					},
+					invokeOutputStepScript: &ssm.GetCommandInvocationOutput{
+						Status:                aws.String(ssm.CommandStatusFailed),
+						ResponseCode:          aws.Int64(1),
+						StandardErrorContent:  aws.String("timeout error"),
+						StandardOutputContent: aws.String(""),
+					},
+				},
+				Region:    "eu-central-1",
+				AccountID: "account-id",
+			},
+			conf: SSMInstallerConfig{
+				Emitter: &mockEmitter{},
+			},
+			expectedEvents: []events.AuditEvent{
+				&events.SSMRun{
+					Metadata: events.Metadata{
+						Type: libevent.SSMRunEvent,
+						Code: libevent.SSMRunFailCode,
+					},
+					CommandID:      "command-id-1",
+					InstanceID:     "instance-id-1",
+					AccountID:      "account-id",
+					Region:         "eu-central-1",
+					ExitCode:       1,
+					Status:         ssm.CommandStatusFailed,
+					StandardOutput: "",
+					StandardError:  "timeout error",
 				},
 			},
 		},
@@ -179,7 +245,11 @@ func TestSSMInstaller(t *testing.T) {
 							CommandId: aws.String("command-id-1"),
 						},
 					},
-					invokeOutput: &ssm.GetCommandInvocationOutput{
+					invokeOutputStepDownload: &ssm.GetCommandInvocationOutput{
+						Status:       aws.String(ssm.CommandStatusSuccess),
+						ResponseCode: aws.Int64(0),
+					},
+					invokeOutputStepScript: &ssm.GetCommandInvocationOutput{
 						Status:       aws.String(ssm.CommandStatusSuccess),
 						ResponseCode: aws.Int64(0),
 					},
