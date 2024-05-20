@@ -514,7 +514,6 @@ func TestDeletingLastPasswordlessDevice(t *testing.T) {
 					RPID: "localhost",
 				},
 			})
-			const webOrigin = "https://localhost" // matches RPID above
 			require.NoError(t, err)
 			_, err = authServer.UpsertAuthPreference(ctx, authPref)
 			require.NoError(t, err)
