@@ -3784,6 +3784,12 @@ message BotJoin {
   ];
   // UserName is the name of the user associated with the bot which has joined.
   string UserName = 7 [(gogoproto.jsontag) = "user_name,omitempty"];
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 8 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }
 
 // InstanceJoin records an instance join event.
@@ -3822,6 +3828,12 @@ message InstanceJoin {
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "token_expires"
+  ];
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 10 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
   ];
 }
 

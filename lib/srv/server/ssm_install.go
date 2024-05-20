@@ -262,6 +262,13 @@ func skipAWSWaitErr(err error) error {
 	return trace.Wrap(err)
 }
 
+// This list of ssmSteps must match the ones used in awslib.EC2DiscoverySSMDocument
+// These vars are used to obtain specific status of each step when checking a command output.
+var (
+	ssmStepDownloadContent = "downloadContent"
+	ssmStepRunShellScript  = "runShellScript"
+)
+
 func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, commandID, instanceID *string) error {
 	err := req.SSM.WaitUntilCommandExecutedWithContext(ctx, &ssm.GetCommandInvocationInput{
 		CommandId:  commandID,
@@ -272,36 +279,59 @@ func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, com
 		return trace.Wrap(err)
 	}
 
-	cmdOut, err := req.SSM.GetCommandInvocationWithContext(ctx, &ssm.GetCommandInvocationInput{
-		CommandId:  commandID,
-		InstanceId: instanceID,
-	})
+	// Check 1st step: download Content
+	downloadContentStep, err := si.getCommandStepStatusEvent(ctx, &ssmStepDownloadContent, req, commandID, instanceID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	status := aws.StringValue(cmdOut.Status)
 
-	code := libevents.SSMRunFailCode
-	if status == ssm.CommandStatusSuccess {
-		code = libevents.SSMRunSuccessCode
+	// Only check runShellScript step if downloadContent was a success.
+	if downloadContentStep.Metadata.Code != libevents.SSMRunSuccessCode {
+		return trace.Wrap(si.Emitter.EmitAuditEvent(ctx, downloadContentStep))
 	}
 
-	exitCode := aws.Int64Value(cmdOut.ResponseCode)
-	if exitCode == 0 && code == libevents.SSMRunFailCode {
-		exitCode = -1
+	// Check 2nd step: run shell script
+	runShellScriptStep, err := si.getCommandStepStatusEvent(ctx, &ssmStepRunShellScript, req, commandID, instanceID)
+	if err != nil {
+		return trace.Wrap(err)
 	}
-	event := apievents.SSMRun{
+
+	return trace.Wrap(si.Emitter.EmitAuditEvent(ctx, runShellScriptStep))
+}
+
+func (si *SSMInstaller) getCommandStepStatusEvent(ctx context.Context, step *string, req SSMRunRequest, commandID, instanceID *string) (*apievents.SSMRun, error) {
+	stepResult, err := req.SSM.GetCommandInvocationWithContext(ctx, &ssm.GetCommandInvocationInput{
+		CommandId:  commandID,
+		InstanceId: instanceID,
+		PluginName: step,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	status := aws.StringValue(stepResult.Status)
+	exitCode := aws.Int64Value(stepResult.ResponseCode)
+
+	eventCode := libevents.SSMRunSuccessCode
+	if status != ssm.CommandStatusSuccess {
+		eventCode = libevents.SSMRunFailCode
+		if exitCode == 0 {
+			exitCode = -1
+		}
+	}
+
+	return &apievents.SSMRun{
 		Metadata: apievents.Metadata{
 			Type: libevents.SSMRunEvent,
-			Code: code,
+			Code: eventCode,
 		},
-		CommandID:  aws.StringValue(commandID),
-		InstanceID: aws.StringValue(instanceID),
-		AccountID:  req.AccountID,
-		Region:     req.Region,
-		ExitCode:   exitCode,
-		Status:     aws.StringValue(cmdOut.Status),
-	}
-
-	return trace.Wrap(si.Emitter.EmitAuditEvent(ctx, &event))
+		CommandID:      aws.StringValue(commandID),
+		InstanceID:     aws.StringValue(instanceID),
+		AccountID:      req.AccountID,
+		Region:         req.Region,
+		ExitCode:       exitCode,
+		Status:         status,
+		StandardOutput: aws.StringValue(stepResult.StandardOutputContent),
+		StandardError:  aws.StringValue(stepResult.StandardErrorContent),
+	}, nil
 }
