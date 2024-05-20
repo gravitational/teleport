@@ -1482,6 +1482,7 @@ type Discovery struct {
 	DiscoveryGroup string `yaml:"discovery_group,omitempty"`
 	// PollInterval is the cadence at which the discovery server will run each of its
 	// discovery cycles.
+	// Default: 5m
 	PollInterval time.Duration `yaml:"poll_interval,omitempty"`
 }
 
