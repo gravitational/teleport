@@ -63,6 +63,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/snowflake"
 	"github.com/gravitational/teleport/lib/srv/db/spanner"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver"
+	discoverycommon "github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -1185,7 +1186,7 @@ func fetchMySQLVersion(ctx context.Context, database types.Database) error {
 
 	// Try to extract the engine version for AWS metadata labels.
 	if database.IsRDS() || database.IsAzure() {
-		version := services.GetMySQLEngineVersion(database.GetMetadata().Labels)
+		version := discoverycommon.GetMySQLEngineVersion(database.GetMetadata().Labels)
 		if version != "" {
 			database.SetMySQLServerVersion(version)
 			return nil
