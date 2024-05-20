@@ -327,6 +327,8 @@ function Build-WindowsAuthenticationPackage {
     Write-Host $("Built Windows authentication package in {0:g}" -f $CommandDuration)
 }
 
+$GoBuildFlags = '-trimpath -ldflags="-s -w"'
+
 function Build-Tsh {
     [CmdletBinding()]
     param(
@@ -345,7 +347,7 @@ function Build-Tsh {
     $CommandDuration = Measure-Block {
         Write-Host "::group::Building tsh..."
         $UnsignedBinaryPath = "$BuildDirectory\unsigned-$BinaryName"
-        go build -tags piv -o "$UnsignedBinaryPath" "$TeleportSourceDirectory\tool\tsh"
+        go build -tags piv $GoBuildFlags -o "$UnsignedBinaryPath" "$TeleportSourceDirectory\tool\tsh"
         Write-Host "::endgroup::"
 
         Write-Host "::group::Signing tsh..."
@@ -375,7 +377,7 @@ function Build-Tctl {
     $CommandDuration = Measure-Block {
         Write-Host "::group::Building tctl..."
         $UnsignedBinaryPath = "$BuildDirectory\unsigned-$BinaryName"
-        go build -tags piv -o "$UnsignedBinaryPath" "$TeleportSourceDirectory\tool\tctl"
+        go build -tags piv $GoBuildFlags -o "$UnsignedBinaryPath" "$TeleportSourceDirectory\tool\tctl"
         Write-Host "::endgroup::"
 
         Write-Host "::group::Signing tctl..."
