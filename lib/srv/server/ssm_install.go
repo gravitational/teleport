@@ -21,7 +21,9 @@ package server
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -137,7 +139,27 @@ func (si *SSMInstaller) Run(ctx context.Context, req SSMRunRequest) error {
 		Parameters:   params,
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		invalidParamErrorMessage := fmt.Sprintf("InvalidParameters: document %s does not support parameters", req.DocumentName)
+		_, hasSSHDConfigParam := params[ParamSSHDConfigPath]
+		if !strings.Contains(err.Error(), invalidParamErrorMessage) || !hasSSHDConfigParam {
+			return trace.Wrap(err)
+		}
+
+		// This might happen when teleport sends Parameters that are not part of the Document.
+		// One example is when it uses the default SSM Document awslib.EC2DiscoverySSMDocument
+		// and Parameters include "sshdConfigPath" (only sent when installTeleport=false).
+		//
+		// As a best effort, we try to call ssm.SendCommand again but this time without the "sshdConfigPath" param
+		// We must not remove the Param "sshdConfigPath" beforehand because customers might be using custom SSM Documents for ec2 auto discovery.
+		delete(params, ParamSSHDConfigPath)
+		output, err = req.SSM.SendCommandWithContext(ctx, &ssm.SendCommandInput{
+			DocumentName: aws.String(req.DocumentName),
+			InstanceIds:  aws.StringSlice(validInstances),
+			Parameters:   params,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	g, ctx := errgroup.WithContext(ctx)
