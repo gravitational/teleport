@@ -20,6 +20,7 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -49,11 +50,22 @@ func WithIMDSClient(client *imds.Client) InstanceMetadataClientOption {
 	}
 }
 
+// convertLoadConfigError converts common AWS config loading errors to trace errors.
+func convertLoadConfigError(configErr error) error {
+	var sharedConfigProfileNotExistError config.SharedConfigProfileNotExistError
+	switch {
+	case errors.As(configErr, &sharedConfigProfileNotExistError):
+		return trace.NotFound(configErr.Error())
+	}
+
+	return configErr
+}
+
 // NewInstanceMetadataClient creates a new instance metadata client.
 func NewInstanceMetadataClient(ctx context.Context, opts ...InstanceMetadataClientOption) (*InstanceMetadataClient, error) {
 	cfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
-		return nil, trace.Wrap(ConvertLoadConfigError(err))
+		return nil, trace.Wrap(convertLoadConfigError(err))
 	}
 
 	clt := &InstanceMetadataClient{
@@ -96,6 +108,15 @@ func (client *InstanceMetadataClient) getMetadata(ctx context.Context, path stri
 		return "", trace.Wrap(err)
 	}
 	return string(body), nil
+}
+
+// parseMetadataClientError converts a failed instance metadata service call to a trace error.
+func parseMetadataClientError(err error) error {
+	var httpError interface{ HTTPStatusCode() int }
+	if errors.As(err, &httpError) {
+		return trace.ReadError(httpError.HTTPStatusCode(), nil)
+	}
+	return trace.Wrap(err)
 }
 
 // getTagKeys gets all of the EC2 tag keys.
