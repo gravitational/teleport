@@ -18,6 +18,7 @@ package vnet
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"time"
@@ -59,7 +60,7 @@ func SetupAndRun(ctx context.Context, appProvider AppProvider) (*ProcessManager,
 		return nil, trace.Wrap(err)
 	}
 	slog.DebugContext(ctx, "Created unix socket for admin subcommand", "socket", socketPath)
-	pm.AddBackgroundTask(func(ctx context.Context) error {
+	pm.AddCriticalBackgroundTask("socket closer", func(ctx context.Context) error {
 		<-ctx.Done()
 		return trace.Wrap(socket.Close())
 	})
@@ -75,7 +76,7 @@ func SetupAndRun(ctx context.Context, appProvider AppProvider) (*ProcessManager,
 	tunOrAdminSubcommandErrC := make(chan error, 2)
 	var tun tun.Device
 
-	pm.AddBackgroundTask(func(ctx context.Context) error {
+	pm.AddCriticalBackgroundTask("admin subcommand", func(ctx context.Context) error {
 		err := execAdminSubcommand(ctx, socketPath, ipv6Prefix.String(), dnsIPv6.String())
 		// Pass the osascript error immediately, without having to wait on pm to propagate the error.
 		tunOrAdminSubcommandErrC <- trace.Wrap(err)
@@ -117,7 +118,7 @@ func SetupAndRun(ctx context.Context, appProvider AppProvider) (*ProcessManager,
 		return nil, trace.Wrap(err)
 	}
 
-	pm.AddBackgroundTask(func(ctx context.Context) error {
+	pm.AddCriticalBackgroundTask("network stack", func(ctx context.Context) error {
 		return trace.Wrap(ns.Run(ctx))
 	})
 
@@ -137,19 +138,24 @@ func newProcessManager() *ProcessManager {
 }
 
 // ProcessManager handles background tasks needed to run VNet.
-// Its semantics are similar to an error group with context.
+// Its semantics are similar to an error group with a context, but it cancels the context whenever
+// any task returns prematurely, that is, a task exits while the context was not canceled.
 type ProcessManager struct {
 	g      *errgroup.Group
 	ctx    context.Context
 	cancel context.CancelFunc
 }
 
-// AddBackgroundTask adds a function to the error group. The context passed to bgTaskFunc is a
-// background context that gets canceled when Close is called or any added bgTaskFunc returns an
-// error.
-func (pm *ProcessManager) AddBackgroundTask(bgTaskFunc func(ctx context.Context) error) {
+// AddCriticalBackgroundTask adds a function to the error group. [task] is expected to block until
+// the context gets canceled by calling Close on [ProcessManager]. The context gets canceled if any
+// task returns for any other reason.
+func (pm *ProcessManager) AddCriticalBackgroundTask(name string, task func(ctx context.Context) error) {
 	pm.g.Go(func() error {
-		return trace.Wrap(bgTaskFunc(pm.ctx))
+		err := task(pm.ctx)
+		if err == nil && pm.ctx.Err() == nil {
+			err = fmt.Errorf("critical task %q exited prematurely", name)
+		}
+		return trace.Wrap(err)
 	})
 }
 
