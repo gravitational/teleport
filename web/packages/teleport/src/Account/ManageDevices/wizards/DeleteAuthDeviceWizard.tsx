@@ -17,7 +17,7 @@
  */
 
 import { OutlineDanger } from 'design/Alert/Alert';
-import { ButtonPrimary, ButtonSecondary } from 'design/Button';
+import { ButtonSecondary, ButtonWarning } from 'design/Button';
 import Dialog from 'design/Dialog';
 import Flex from 'design/Flex';
 import { StepComponentProps, StepSlider } from 'design/StepSlider';
@@ -47,7 +47,7 @@ interface DeleteAuthDeviceWizardProps {
    */
   devices: MfaDevice[];
   /** Device to be removed. */
-  device: MfaDevice;
+  deviceToDelete: MfaDevice;
   onClose(): void;
   onSuccess(): void;
 }
@@ -56,7 +56,7 @@ interface DeleteAuthDeviceWizardProps {
 export function DeleteAuthDeviceWizard({
   auth2faType,
   devices,
-  device,
+  deviceToDelete,
   onClose,
   onSuccess,
 }: DeleteAuthDeviceWizardProps) {
@@ -74,7 +74,7 @@ export function DeleteAuthDeviceWizard({
         currFlow="default"
         // Step properties
         devices={devices}
-        device={device}
+        deviceToDelete={deviceToDelete}
         auth2faType={auth2faType}
         privilegeToken={privilegeToken}
         onClose={onClose}
@@ -98,7 +98,7 @@ export type DeleteAuthDeviceWizardStepProps = StepComponentProps &
   DeleteDeviceStepProps;
 
 type DeleteDeviceStepProps = StepComponentProps & {
-  device: MfaDevice;
+  deviceToDelete: MfaDevice;
   privilegeToken: string;
   onClose(): void;
   onSuccess(): void;
@@ -108,7 +108,7 @@ export function DeleteDeviceStep({
   refCallback,
   stepIndex,
   flowLength,
-  device,
+  deviceToDelete,
   privilegeToken,
   onClose,
   onSuccess,
@@ -117,17 +117,19 @@ export function DeleteDeviceStep({
   const { run, attempt } = useAttempt();
   const onDelete = () => {
     run(async () => {
-      await ctx.mfaService.removeDevice(privilegeToken, device.name);
+      await ctx.mfaService.removeDevice(privilegeToken, deviceToDelete.name);
       onSuccess();
     });
   };
 
   const message =
-    device.usage === 'passwordless'
-      ? `Are you sure you want to delete your "${device.name}" passkey?`
-      : `Are you sure you want to delete your "${device.name}" MFA method?`;
+    deviceToDelete.usage === 'passwordless'
+      ? `Are you sure you want to delete your "${deviceToDelete.name}" passkey?`
+      : `Are you sure you want to delete your "${deviceToDelete.name}" MFA method?`;
   const title =
-    device.usage === 'passwordless' ? 'Delete Passkey' : 'Delete MFA Method';
+    deviceToDelete.usage === 'passwordless'
+      ? 'Delete Passkey'
+      : 'Delete MFA Method';
 
   return (
     <div ref={refCallback} data-testid="delete-step">
@@ -143,10 +145,10 @@ export function DeleteDeviceStep({
       )}
       <Box mb={4}>{message}</Box>
       <Flex gap={2}>
-        <ButtonPrimary block={true} onClick={onDelete}>
+        <ButtonWarning block={true} size="large" onClick={onDelete}>
           Delete
-        </ButtonPrimary>
-        <ButtonSecondary block={true} onClick={onClose}>
+        </ButtonWarning>
+        <ButtonSecondary block={true} size="large" onClick={onClose}>
           Cancel
         </ButtonSecondary>
       </Flex>

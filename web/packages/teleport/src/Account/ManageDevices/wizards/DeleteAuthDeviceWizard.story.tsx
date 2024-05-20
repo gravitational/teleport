@@ -58,7 +58,11 @@ export function Reauthenticate() {
 
 export function DeletePasskey() {
   return (
-    <DeleteDeviceStep {...stepProps} stepIndex={1} device={dummyPasskey} />
+    <DeleteDeviceStep
+      {...stepProps}
+      stepIndex={1}
+      deviceToDelete={dummyPasskey}
+    />
   );
 }
 
@@ -67,7 +71,7 @@ export function DeleteMFA() {
     <DeleteDeviceStep
       {...stepProps}
       stepIndex={1}
-      device={dummyHardwareDevice}
+      deviceToDelete={dummyHardwareDevice}
     />
   );
 }
@@ -103,7 +107,7 @@ const stepProps: DeleteAuthDeviceWizardStepProps = {
 
   // Other props
   devices: [dummyHardwareDevice, dummyPasskey],
-  device: dummyPasskey,
+  deviceToDelete: dummyPasskey,
   privilegeToken: 'privilege-token',
   auth2faType: 'optional',
   onAuthenticated: () => {},

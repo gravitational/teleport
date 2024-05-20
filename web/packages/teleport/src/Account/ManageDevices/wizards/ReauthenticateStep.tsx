@@ -131,11 +131,16 @@ export function ReauthenticateStep({
             )}
             <Flex gap={2}>
               {mfaOption && (
-                <ButtonPrimary type="submit" block={true}>
+                <ButtonPrimary type="submit" block={true} size="large">
                   Verify my identity
                 </ButtonPrimary>
               )}
-              <ButtonSecondary type="button" block={true} onClick={onClose}>
+              <ButtonSecondary
+                type="button"
+                block={true}
+                onClick={onClose}
+                size="large"
+              >
                 Cancel
               </ButtonSecondary>
             </Flex>

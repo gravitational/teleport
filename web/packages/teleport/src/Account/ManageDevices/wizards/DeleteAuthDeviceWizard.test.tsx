@@ -62,7 +62,7 @@ function TestWizard(props: Partial<DeleteAuthDeviceWizardStepProps>) {
     <ContextProvider ctx={ctx}>
       <DeleteAuthDeviceWizard
         devices={deviceCases.all}
-        device={dummyPasskey}
+        deviceToDelete={dummyPasskey}
         auth2faType="on"
         onClose={() => {}}
         onSuccess={onSuccess}
@@ -124,7 +124,7 @@ test.each([
 ])(
   'shows correct title and message for $case',
   async ({ device, title, message }) => {
-    render(<TestWizard device={device} />);
+    render(<TestWizard deviceToDelete={device} />);
 
     const reauthenticateStep = within(
       screen.getByTestId('reauthenticate-step')

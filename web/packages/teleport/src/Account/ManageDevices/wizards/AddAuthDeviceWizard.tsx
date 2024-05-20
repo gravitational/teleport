@@ -200,17 +200,17 @@ export function CreateDeviceStep({
         />
       )}
       <Flex gap={2}>
-        <ButtonPrimary block={true} onClick={onCreate}>
+        <ButtonPrimary block={true} size="large" onClick={onCreate}>
           {usage === 'passwordless'
             ? 'Create a passkey'
             : 'Create an MFA method'}
         </ButtonPrimary>
         {stepIndex === 0 ? (
-          <ButtonSecondary block={true} onClick={onClose}>
+          <ButtonSecondary block={true} size="large" onClick={onClose}>
             Cancel
           </ButtonSecondary>
         ) : (
-          <ButtonSecondary block={true} onClick={prev}>
+          <ButtonSecondary block={true} size="large" onClick={prev}>
             Back
           </ButtonSecondary>
         )}
@@ -410,12 +410,17 @@ export function SaveDeviceStep({
               />
             )}
             <Flex gap={2}>
-              <ButtonPrimary type="submit" block={true}>
+              <ButtonPrimary type="submit" block={true} size="large">
                 {usage === 'passwordless'
                   ? 'Save the Passkey'
                   : 'Save the MFA method'}
               </ButtonPrimary>
-              <ButtonSecondary type="button" block={true} onClick={prev}>
+              <ButtonSecondary
+                type="button"
+                block={true}
+                size="large"
+                onClick={prev}
+              >
                 Back
               </ButtonSecondary>
             </Flex>
