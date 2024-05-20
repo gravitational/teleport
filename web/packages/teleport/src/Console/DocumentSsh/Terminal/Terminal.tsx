@@ -57,7 +57,7 @@ interface ActionBarState {
 
 export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
   const termCtrlRef = useRef<XTermCtrl>();
-  const elementRef = useRef<HTMLElement>();
+  const elementRef = useRef<HTMLDivElement>();
 
   const assist = useTerminalAssist();
 

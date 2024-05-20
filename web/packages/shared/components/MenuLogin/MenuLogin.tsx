@@ -21,6 +21,7 @@ import styled from 'styled-components';
 import { NavLink } from 'react-router-dom';
 import Menu, { MenuItem } from 'design/Menu';
 import { space } from 'design/system';
+import { SpaceProps } from 'styled-system';
 
 import { ButtonBorder, Flex, Indicator } from 'design';
 import { ChevronDown } from 'design/Icon';
@@ -209,7 +210,7 @@ const StyledMenuItem = styled(MenuItem)(
 `
 );
 
-const Input = styled.input(
+const Input = styled.input<SpaceProps>(
   ({ theme }) => `
   background: transparent;
   border: 1px solid ${theme.colors.text.muted};

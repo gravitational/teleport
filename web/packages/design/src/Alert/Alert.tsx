@@ -18,10 +18,9 @@
 
 import React from 'react';
 import styled from 'styled-components';
-import { style } from 'styled-system';
-import PropTypes from 'prop-types';
+import { SpaceProps, WidthProps, style } from 'styled-system';
 
-import { space, color, width } from 'design/system';
+import { space, width } from 'design/system';
 import { fade } from 'design/theme/utils/colorManipulator';
 
 const linkColor = style({
@@ -29,6 +28,15 @@ const linkColor = style({
   cssProperty: 'color',
   key: 'colors',
 });
+
+type Kind =
+  | 'danger'
+  | 'info'
+  | 'warning'
+  | 'success'
+  | 'outline-danger'
+  | 'outline-info'
+  | 'outline-warn';
 
 const kind = props => {
   const { kind, theme } = props;
@@ -85,7 +93,12 @@ const kind = props => {
   }
 };
 
-const Alert = styled.div`
+interface AlertProps extends SpaceProps, WidthProps {
+  kind?: Kind;
+  linkColor?: string;
+}
+
+const Alert = styled.div<AlertProps>`
   display: flex;
   align-items: center;
   justify-content: center;
@@ -107,21 +120,6 @@ const Alert = styled.div`
     ${linkColor}
   }
 `;
-
-Alert.propTypes = {
-  kind: PropTypes.oneOf([
-    'danger',
-    'info',
-    'warning',
-    'success',
-    'outline-danger',
-    'outline-info',
-    'outline-warn',
-  ]),
-  ...color.propTypes,
-  ...space.propTypes,
-  ...width.propTypes,
-};
 
 Alert.defaultProps = {
   kind: 'danger',

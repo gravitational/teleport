@@ -17,7 +17,7 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import styled, { useTheme } from 'styled-components';
+import styled, { useTheme } from 'design/themed-components';
 import { Box, Flex } from 'design';
 import { debounce } from 'shared/utils/highbar';
 import {
@@ -51,7 +51,7 @@ type TerminalProps = {
 };
 
 export function Terminal(props: TerminalProps) {
-  const refElement = useRef<HTMLElement>();
+  const refElement = useRef<HTMLDivElement>();
   const refCtrl = useRef<XTermCtrl>();
   const [startPtyProcessAttempt, setStartPtyProcessAttempt] =
     useState<Attempt<void>>(makeEmptyAttempt());

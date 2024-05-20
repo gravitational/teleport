@@ -180,7 +180,6 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
                         </Text>
                         <Input
                           disabled={isLoading}
-                          label="Git Ref"
                           placeholder="main"
                           style={{ borderRadius: '4px 0 0 4px' }}
                           value={repoRules[i].ref}

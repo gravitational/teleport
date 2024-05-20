@@ -238,7 +238,7 @@ function formatDate(date: Date) {
   return `${distance} ago`;
 }
 
-const Container = styled.div`
+const Container = styled.div<{ clicked?: boolean }>`
   box-sizing: border-box;
   display: flex;
   align-items: center;
@@ -335,7 +335,7 @@ function getIconColors(
   }
 }
 
-const MainIconContainer = styled.div`
+const MainIconContainer = styled.div<{ type: NotificationContent['type'] }>`
   display: flex;
   align-items: center;
   justify-content: center;
@@ -354,7 +354,7 @@ const MainIconContainer = styled.div`
     getIconColors(props.theme, props.type).secondary};
 `;
 
-const AccentIconContainer = styled.div`
+const AccentIconContainer = styled.div<{ type: NotificationContent['type'] }>`
   height: 18px;
   width: 18px;
   display: flex;

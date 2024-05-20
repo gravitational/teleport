@@ -63,7 +63,7 @@ const highlight = keyframes`
   }
 `;
 
-const Link = styled(NavLink)`
+const Link = styled(NavLink)<{ isHighlighted?: boolean }>`
   ${commonNavigationItemStyles};
   color: ${props => props.theme.colors.text.main};
   z-index: 1;
@@ -122,7 +122,7 @@ export function NavigationItem(props: NavigationItemProps) {
     params.get('highlight') === props.feature.highlightKey;
 
   const handleKeyDown = useCallback(
-    (event: React.KeyboardEvent<HTMLDivElement>) => {
+    (event: React.KeyboardEvent<HTMLAnchorElement>) => {
       switch (event.key) {
         case 'ArrowDown':
           let nextSibling = event.currentTarget.nextSibling as HTMLDivElement;

@@ -83,7 +83,7 @@ export default function DocumentNodes(props: Props) {
   return (
     <Document visible={visible}>
       <Container mx="auto" mt="4" px="5">
-        <Box justifyContent="space-between" mb="2" alignItems="end">
+        <Box mb="2">
           <ClusterDropdown
             clusterLoader={consoleCtx.clustersService}
             onChange={onChangeCluster}

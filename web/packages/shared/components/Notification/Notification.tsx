@@ -1,3 +1,4 @@
+/// <reference types="styled-components/cssprop" />
 /**
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
@@ -17,7 +18,7 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import styled, { css, useTheme } from 'styled-components';
+import styled, { useTheme } from 'styled-components';
 import { ButtonIcon, Flex, Link, Text } from 'design';
 import { Cross } from 'design/Icon';
 
@@ -131,12 +132,7 @@ function getRenderedContent(
   if (typeof content === 'string') {
     return (
       <Flex alignItems="center" justifyContent="space-between" width="100%">
-        <Text
-          typography="body1"
-          fontSize={13}
-          lineHeight={20}
-          css={longerTextCss}
-        >
+        <Text typography="body1" fontSize={13} css={longerTextCss}>
           {content}
         </Text>
         {removeIcon}
@@ -171,12 +167,7 @@ function getRenderedContent(
             {removeIcon}
           </div>
         </div>
-        <Text
-          fontSize={13}
-          lineHeight={20}
-          color="text.slightlyMuted"
-          css={longerTextCss}
-        >
+        <Text fontSize={13} color="text.slightlyMuted" css={longerTextCss}>
           {content.list && <List items={content.list} />}
           {content.description}
           {content.link && (
@@ -218,13 +209,13 @@ function List(props: { items: string[] }) {
   );
 }
 
-const textCss = css`
+const textCss = `
   line-height: 20px;
   overflow-wrap: anywhere;
   white-space: pre-line;
 `;
 
-const shortTextCss = css`
+const shortTextCss = `
   ${textCss};
   display: -webkit-box;
   -webkit-box-orient: vertical;

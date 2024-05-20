@@ -19,36 +19,40 @@
 import styled from 'styled-components';
 
 import {
-  typography,
-  fontSize,
-  space,
-  color,
-  textAlign,
-  fontWeight,
+  AlignItemsProps,
+  FlexDirectionProps,
+  FlexWrapProps,
+  JustifyContentProps,
+} from 'styled-system';
+
+import {
+  alignItems,
+  justifyContent,
+  flexWrap,
+  flexDirection,
+  gap,
+  GapProps,
 } from 'design/system';
 
-const Text = styled.div`
-  overflow: hidden;
-  text-overflow: ellipsis;
-  ${typography}
-  ${fontSize}
-  ${space}
-  ${color}
-  ${textAlign}
-  ${fontWeight}
+import Box, { BoxProps } from '../Box';
+
+interface FlexProps
+  extends BoxProps,
+    AlignItemsProps,
+    JustifyContentProps,
+    FlexWrapProps,
+    FlexDirectionProps,
+    GapProps {}
+
+const Flex = styled(Box)<FlexProps>`
+  display: flex;
+  ${alignItems}
+  ${justifyContent}
+  ${flexWrap}
+  ${flexDirection}
+  ${gap};
 `;
 
-Text.displayName = 'Text';
+Flex.displayName = 'Flex';
 
-Text.propTypes = {
-  ...space.propTypes,
-  ...fontSize.propTypes,
-  ...textAlign.propTypes,
-  ...typography.propTypes,
-};
-
-Text.defaultProps = {
-  m: 0,
-};
-
-export default Text;
+export default Flex;

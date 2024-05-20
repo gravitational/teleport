@@ -20,6 +20,7 @@ import React, { SetStateAction } from 'react';
 import styled from 'styled-components';
 
 import { height, space, color } from 'design/system';
+import { ColorProps, SpaceProps, HeightProps } from 'styled-system';
 
 // Taken from design.dataTable.InputSearch; will be modified later.
 export function SearchInput({ searchValue, setSearchValue, children }: Props) {
@@ -87,7 +88,9 @@ const WrapperBackground = styled.div`
   height: ${props => props.theme.space[8]}px;
 `;
 
-const StyledInput = styled.input`
+interface StyledInputProps extends ColorProps, SpaceProps, HeightProps {}
+
+const StyledInput = styled.input<StyledInputProps>`
   border: none;
   outline: none;
   box-sizing: border-box;

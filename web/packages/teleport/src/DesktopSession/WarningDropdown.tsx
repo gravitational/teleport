@@ -18,7 +18,7 @@
 
 import React, { useRef, useState } from 'react';
 import { Text, Flex, Button, Card, ButtonIcon } from 'design';
-import styled, { useTheme } from 'styled-components';
+import styled, { useTheme } from 'design/themed-components';
 import { Notification } from 'shared/components/Notification';
 import { Warning, Cross } from 'design/Icon';
 import { useClickOutside } from 'shared/hooks/useClickOutside';

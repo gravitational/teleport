@@ -34,7 +34,7 @@ interface ActionBarProps {
   onCopy: () => void;
 }
 
-const Container = styled.div`
+const Container = styled.div<{ visible?: boolean }>`
   position: absolute;
   background: ${p => p.theme.colors.levels.popout};
   border: 1px solid ${p => p.theme.colors.spotBackground[1]};

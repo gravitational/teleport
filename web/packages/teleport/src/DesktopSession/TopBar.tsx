@@ -17,7 +17,7 @@
  */
 
 import React from 'react';
-import { useTheme } from 'styled-components';
+import { useTheme } from 'design/themed-components';
 import { Text, TopNav, Flex } from 'design';
 import { Clipboard, FolderShared } from 'design/Icon';
 

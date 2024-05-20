@@ -1069,7 +1069,6 @@ function FilterButton(props: { text: string; onClick(): void }) {
         border-radius: ${props => props.theme.radii[2]}px;
       `}
       px="6px"
-      size="small"
     >
       <CloseIcon
         color="buttons.text"

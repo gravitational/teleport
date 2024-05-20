@@ -27,6 +27,8 @@ import { SearchPagination, SearchPanel } from 'shared/components/Search';
 import { ResourceList } from 'shared/components/AccessRequests/NewRequest';
 import { getNumAddedResources } from 'shared/components/AccessRequests/Shared/utils';
 
+import { SpaceProps } from 'styled-system';
+
 import useNewRequest, { ResourceKind } from './useNewRequest';
 import ChangeResourceDialog from './ChangeResourceDialog';
 
@@ -110,7 +112,7 @@ export function NewRequest() {
   const isRoleList = selectedResource === 'role';
 
   return (
-    <Layout mx="auto" px={5} pt={3} height="100%" flexDirection="column">
+    <Layout mx="auto" px={5} pt={3} height="100%">
       {attempt.status === 'failed' && (
         <Alert kind="danger" children={attempt.statusText} />
       )}
@@ -178,7 +180,11 @@ const Layout = styled(Box)`
   }
 `;
 
-const StyledNavButton = styled.button(props => {
+interface StyledNavButtonProps extends SpaceProps {
+  active?: boolean;
+}
+
+const StyledNavButton = styled.button<StyledNavButtonProps>(props => {
   return {
     color: props.active
       ? props.theme.colors.text.main

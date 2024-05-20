@@ -17,7 +17,7 @@
  */
 
 import React, { useEffect, useCallback, useState } from 'react';
-import styled, { useTheme } from 'styled-components';
+import styled, { useTheme } from 'design/themed-components';
 import { Link } from 'react-router-dom';
 import { Flex, Image, Text, TopNav } from 'design';
 import { matchPath, useHistory } from 'react-router';

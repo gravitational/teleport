@@ -18,7 +18,7 @@
 
 import React, { useState } from 'react';
 import { Box, Flex, Indicator, Text } from 'design';
-import styled, { useTheme } from 'styled-components';
+import styled, { useTheme } from 'design/themed-components';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import * as Icon from 'design/Icon';
 import { Notification, NotificationItem } from 'shared/components/Notification';

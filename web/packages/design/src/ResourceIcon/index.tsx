@@ -18,7 +18,7 @@
 
 import React, { ComponentProps } from 'react';
 
-import { useTheme } from 'styled-components';
+import { useTheme } from 'design/themed-components';
 
 import { Image } from 'design';
 

@@ -52,7 +52,7 @@ const StatePillBody = styled.span<StatePillProps>`
   ${statePillStyles}
 `;
 
-function statePillStyles({ state }: StatePillProps): string {
+function statePillStyles({ state }: StatePillProps): ReturnType<typeof css> {
   switch (state) {
     case 'active':
       return css`

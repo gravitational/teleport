@@ -18,7 +18,24 @@
 
 import PropTypes from 'prop-types';
 
-function getTypography(props) {
+import { ResponsiveValue, ThemeValue } from 'styled-system';
+
+import { Theme } from 'design/theme/themes/types';
+
+export interface TypographyProps {
+  caps?: boolean;
+  bold?: boolean;
+  italic?: boolean;
+  mono?: boolean;
+  breakAll?: boolean;
+  typography?: ResponsiveValue<ThemeValue<'typography', Theme>>;
+}
+
+interface TypographyPropsWithTheme extends TypographyProps {
+  theme: Theme;
+}
+
+function getTypography(props: TypographyPropsWithTheme) {
   const { typography, theme } = props;
   return {
     ...theme.typography[typography],
@@ -29,19 +46,19 @@ function getTypography(props) {
   };
 }
 
-function caps(props) {
+function caps(props: TypographyProps) {
   return props.caps ? { textTransform: 'uppercase' } : null;
 }
 
-function mono(props) {
+function mono(props: TypographyPropsWithTheme) {
   return props.mono ? { fontFamily: props.theme.fonts.mono } : null;
 }
 
-function breakAll(props) {
+function breakAll(props: TypographyProps) {
   return props.breakAll ? { wordBreak: 'break-all' } : null;
 }
 
-function bold(props) {
+function bold(props: TypographyPropsWithTheme) {
   return props.bold ? { fontWeight: props.theme.fontWeights.bold } : null;
 }
 

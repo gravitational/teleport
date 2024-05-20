@@ -17,7 +17,7 @@
  */
 
 import { useRef, useState } from 'react';
-import { useTheme } from 'styled-components';
+import { useTheme } from 'design/themed-components';
 
 import { copyToClipboard } from 'design/utils/copyToClipboard';
 import selectElementContent from 'design/utils/selectElementContent';
@@ -58,7 +58,7 @@ export function TextSelectCopy({
     onCopy && onCopy();
   }
 
-  const boxStyles =
+  const boxStyles: React.CSSProperties =
     bash && !allowMultiline
       ? {
           overflow: 'auto',

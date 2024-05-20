@@ -23,6 +23,8 @@ import { ButtonBorder, Flex, Text, Box } from 'design';
 import Menu, { MenuItem } from 'design/Menu';
 import { ChevronDown } from 'design/Icon';
 
+import { SpaceProps } from 'styled-system';
+
 import { AwsRole } from 'shared/services/apps';
 
 export class AwsLaunchButton extends React.Component<Props> {
@@ -200,7 +202,7 @@ const StyledMenuItem = styled(MenuItem)(
 `
 );
 
-const StyledInput = styled.input(
+const StyledInput = styled.input<SpaceProps>(
   ({ theme }) => `
   background: transparent;
   border: 1px solid ${theme.colors.text.muted};

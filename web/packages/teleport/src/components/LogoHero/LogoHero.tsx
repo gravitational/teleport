@@ -17,7 +17,7 @@
  */
 
 import React from 'react';
-import { useTheme } from 'styled-components';
+import { useTheme } from 'design/themed-components';
 import Image from 'design/Image';
 import AGPLLogoLight from 'design/assets/images/agpl-light.svg';
 import AGPLLogoDark from 'design/assets/images/agpl-dark.svg';

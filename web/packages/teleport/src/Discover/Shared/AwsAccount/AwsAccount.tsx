@@ -151,7 +151,7 @@ export function AwsAccount() {
       <Box maxWidth="700px">
         <Heading />
         <Box maxWidth="700px">
-          <Text mt={4} width="100px">
+          <Text mt={4}>
             You don’t have the required permissions for integrating.
             <br />
             Ask your Teleport administrator to update your role with the

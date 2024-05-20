@@ -66,7 +66,7 @@ const Button = styled.div`
   }
 `;
 
-const Background = styled.div`
+const Background = styled.div<{ visible?: boolean }>`
   position: absolute;
   bottom: 32px;
   right: 2px;
@@ -83,7 +83,7 @@ const Background = styled.div`
   box-shadow: 0 5px 10px rgba(0, 0, 0, 0.4);
 `;
 
-const ChatContainer = styled.div`
+const ChatContainer = styled.div<{ visible?: boolean }>`
   position: absolute;
   bottom: 30px;
   right: 2px;
@@ -152,7 +152,7 @@ export const Tooltip = styled.div`
   }
 `;
 
-const HeaderIcon = styled.div`
+const HeaderIcon = styled.div<{ rotated?: boolean }>`
   border-radius: 7px;
   width: 38px;
   height: 38px;

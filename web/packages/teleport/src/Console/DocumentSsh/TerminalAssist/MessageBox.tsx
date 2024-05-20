@@ -57,15 +57,15 @@ export function MessageBox(props: MessageBoxProps) {
   const { close, getLastSuggestedCommand, loading, send, visible } =
     useTerminalAssist();
 
-  const ref = useRef<HTMLTextAreaElement>(null);
+  const ref = useRef<HTMLInputElement>(null);
 
   const [value, setValue] = useState('');
 
-  function handleChange(event: ChangeEvent<HTMLTextAreaElement>) {
+  function handleChange(event: ChangeEvent<HTMLInputElement>) {
     setValue(event.target.value);
   }
 
-  function handleKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
+  function handleKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
     if (!visible || event.key !== 'Enter') {
       return;
     }

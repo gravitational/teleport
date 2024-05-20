@@ -93,7 +93,7 @@ export function AdditionalOptions({
       {expanded && (
         <Box data-testid="reviewers">
           {requestTTLDurationOptions.length > 0 && (
-            <LabelInput typography="body2" color="text.slightlyMuted" mb={3}>
+            <LabelInput color="text.slightlyMuted" mb={3}>
               <Flex alignItems="center">
                 <Text mr={1}>Request expires if not reviewed in</Text>
                 <ToolTipInfo>
@@ -108,7 +108,7 @@ export function AdditionalOptions({
               />
             </LabelInput>
           )}
-          <LabelInput typography="body2" color="text.slightlyMuted">
+          <LabelInput color="text.slightlyMuted">
             <Flex alignItems="center">
               <Text mr={1}>Access Request Lifetime</Text>
               <ToolTipInfo>

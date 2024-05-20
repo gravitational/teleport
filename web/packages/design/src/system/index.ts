@@ -37,13 +37,18 @@ import {
   minHeight,
   minWidth,
   overflow,
-  propTypes,
   size,
   space,
   textAlign,
   width,
   style,
+  Theme,
+  RequiredTheme,
+  ResponsiveValue,
+  TLengthStyledSystem,
 } from 'styled-system';
+
+import * as CSS from 'csstype';
 
 import typography from './typography';
 import borderRadius from './borderRadius';
@@ -56,7 +61,12 @@ const gap = style({
   key: 'space',
 });
 
-propTypes.gap = gap.propTypes;
+export interface GapProps<
+  ThemeType extends Theme = RequiredTheme,
+  TVal = CSS.Property.Gap<TLengthStyledSystem>,
+> {
+  gap?: ResponsiveValue<TVal, ThemeType> | undefined;
+}
 
 export {
   alignItems,
@@ -81,7 +91,6 @@ export {
   minHeight,
   minWidth,
   overflow,
-  propTypes,
   size,
   space,
   textAlign,

@@ -17,7 +17,7 @@
  */
 
 import React, { PropsWithChildren } from 'react';
-import { useTheme } from 'styled-components';
+import { useTheme } from 'design/themed-components';
 
 import { ToolTipBadge } from 'teleport/components/ToolTipBadge';
 
