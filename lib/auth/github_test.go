@@ -386,7 +386,7 @@ func TestCalculateGithubUserWithLoginRules(t *testing.T) {
 
 type mockRoleCache struct {
 	roles map[string]types.Role
-	Cache
+	authclient.Cache
 }
 
 func (m *mockRoleCache) GetRole(_ context.Context, name string) (types.Role, error) {

@@ -43,7 +43,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
@@ -105,7 +104,7 @@ type AgentPoolConfig struct {
 	Client authclient.ClientI
 	// AccessPoint is a lightweight access point
 	// that can optionally cache some values
-	AccessPoint auth.AccessCache
+	AccessPoint authclient.AccessCache
 	// HostSigner is a host signer this agent presents itself as
 	HostSigner ssh.Signer
 	// HostUUID is a unique ID of this host

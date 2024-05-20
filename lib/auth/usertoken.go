@@ -43,36 +43,6 @@ import (
 )
 
 const (
-	// UserTokenTypeResetPasswordInvite is a token type used for the UI invite flow that
-	// allows users to change their password and set second factor (if enabled).
-	// TODO(tross): remove once e is updated
-	UserTokenTypeResetPasswordInvite = authclient.UserTokenTypeResetPasswordInvite
-	// UserTokenTypeResetPassword is a token type used for the UI flow where user
-	// re-sets their password and second factor (if enabled).
-	// TODO(tross): remove once e is updated
-	UserTokenTypeResetPassword = authclient.UserTokenTypeResetPassword
-	// UserTokenTypeRecoveryStart describes a recovery token issued to users who
-	// successfully verified their recovery code.
-	// TODO(tross): remove once e is updated
-	UserTokenTypeRecoveryStart = authclient.UserTokenTypeRecoveryStart
-	// UserTokenTypeRecoveryApproved describes a recovery token issued to users who
-	// successfully verified their second auth credential (either password or a second factor) and
-	// can now start changing their password or add a new second factor device.
-	// This token is also used to allow users to delete exisiting second factor devices
-	// and retrieve their new set of recovery codes as part of the recovery flow.
-	// TODO(tross): remove once e is updated
-	UserTokenTypeRecoveryApproved = authclient.UserTokenTypeRecoveryApproved
-	// UserTokenTypePrivilege describes a token type that grants access to a privileged action
-	// that requires users to re-authenticate with their second factor while looged in. This
-	// token is issued to users who has successfully re-authenticated.
-	// TODO(tross): remove once e is updated
-	UserTokenTypePrivilege = authclient.UserTokenTypePrivilege
-	// UserTokenTypePrivilegeException describes a token type that allowed a user to bypass
-	// second factor re-authentication which in other cases would be required eg:
-	// allowing user to add a mfa device if they don't have any registered.
-	// TODO(tross): remove once e is updated
-	UserTokenTypePrivilegeException = authclient.UserTokenTypePrivilegeException
-
 	// userTokenTypePrivilegeOTP is used to hold OTP data during (otherwise)
 	// token-less registrations.
 	// This kind of token is an internal artifact of Teleport and should only be
