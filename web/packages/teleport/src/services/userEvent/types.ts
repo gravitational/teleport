@@ -85,7 +85,6 @@ export enum DiscoverEvent {
   DatabaseRegister = 'tp.ui.discover.database.register',
   DatabaseConfigureMTLS = 'tp.ui.discover.database.configure.mtls',
   DatabaseConfigureIAMPolicy = 'tp.ui.discover.database.configure.iampolicy',
-  DesktopActiveDirectoryConfigure = 'tp.ui.discover.desktop.activeDirectory.configure',
   EC2InstanceSelection = 'tp.ui.discover.selectedEC2Instance',
   EC2DeployEICE = 'tp.ui.discover.deployEICE',
   CreateNode = 'tp.ui.discover.createNode',
