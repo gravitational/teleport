@@ -74,10 +74,6 @@ export class AccessListSpec extends jspb.Message {
     setGrants(value?: AccessListGrants): AccessListSpec;
     getTitle(): string;
     setTitle(value: string): AccessListSpec;
-    getMembership(): string;
-    setMembership(value: string): AccessListSpec;
-    getOwnership(): string;
-    setOwnership(value: string): AccessListSpec;
 
     hasOwnerGrants(): boolean;
     clearOwnerGrants(): void;
@@ -103,8 +99,6 @@ export namespace AccessListSpec {
         ownershipRequires?: AccessListRequires.AsObject,
         grants?: AccessListGrants.AsObject,
         title: string,
-        membership: string,
-        ownership: string,
         ownerGrants?: AccessListGrants.AsObject,
     }
 }
@@ -320,8 +314,6 @@ export class MemberSpec extends jspb.Message {
     setAddedBy(value: string): MemberSpec;
     getIneligibleStatus(): IneligibleStatus;
     setIneligibleStatus(value: IneligibleStatus): MemberSpec;
-    getMembership(): string;
-    setMembership(value: string): MemberSpec;
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): MemberSpec.AsObject;
@@ -342,7 +334,6 @@ export namespace MemberSpec {
         reason: string,
         addedBy: string,
         ineligibleStatus: IneligibleStatus,
-        membership: string,
     }
 }
 

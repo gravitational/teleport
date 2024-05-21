@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/teleterm/cmd/cmds"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 )
 
@@ -37,14 +38,14 @@ func NewKubeCLICommandProvider() KubeCLICommandProvider {
 
 // GetCommand returns a exec.Cmd with KUBECONFIG environment variable that can
 // be used by kube clients to connect to the kube gateway.
-func (p KubeCLICommandProvider) GetCommand(g gateway.Gateway) (*exec.Cmd, error) {
+func (p KubeCLICommandProvider) GetCommand(g gateway.Gateway) (cmds.Cmds, error) {
 	kube, err := gateway.AsKube(g)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return cmds.Cmds{}, trace.Wrap(err)
 	}
 
 	// Use kubectl version as placeholders. Only env should be used.
 	cmd := exec.Command("kubectl", "version")
 	cmd.Env = []string{fmt.Sprintf("%v=%v", teleport.EnvKubeConfig, kube.KubeconfigPath())}
-	return cmd, nil
+	return cmds.Cmds{Exec: cmd, Preview: cmd}, nil
 }

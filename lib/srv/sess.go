@@ -22,6 +22,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
+	"os/user"
+	"path"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -164,7 +167,6 @@ func NewSessionRegistry(cfg SessionRegistryConfig) (*SessionRegistry, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	sudoers := cfg.Srv.GetHostSudoers()
 	return &SessionRegistry{
 		SessionRegistryConfig: cfg,
 		log: log.WithFields(log.Fields{
@@ -172,7 +174,7 @@ func NewSessionRegistry(cfg SessionRegistryConfig) (*SessionRegistry, error) {
 		}),
 		sessions: make(map[rsession.ID]*session),
 		users:    cfg.Srv.GetHostUsers(),
-		sudoers:  sudoers,
+		sudoers:  cfg.Srv.GetHostSudoers(),
 		sessionsByUser: &userSessions{
 			sessionsByUser: make(map[string]int),
 		},
@@ -435,48 +437,54 @@ func (s *SessionRegistry) GetTerminalSize(sessionID string) (*term.Winsize, erro
 }
 
 func (s *SessionRegistry) isApprovedFileTransfer(scx *ServerContext) (bool, error) {
-	s.sessionsMux.Lock()
-	defer s.sessionsMux.Unlock()
-
-	// get the requested location from env vars
-	location, _ := scx.GetEnv(sftp.FileTransferDstPath)
-	if location == "" {
-		return false, nil
-	}
-	// if a sessID and requestID environment variables were not set, return not approved and no error.
-	// This means the file transfer came from a non-moderated session. sessionID will be passed after a
-	// moderated session approval process has completed.
+	// If the TELEPORT_MODERATED_SESSION_ID environment variable was not
+	// set, return not approved and no error. This means the file
+	// transfer came from a non-moderated session. sessionID will be
+	// passed after a moderated session approval process has completed.
 	sessID, _ := scx.GetEnv(string(sftp.ModeratedSessionID))
 	if sessID == "" {
 		return false, nil
 	}
+
 	// fetch session from registry with sessionID
+	s.sessionsMux.Lock()
 	sess := s.sessions[rsession.ID(sessID)]
+	s.sessionsMux.Unlock()
 	if sess == nil {
 		// If they sent a sessionID and it wasn't found, send an actual error
 		return false, trace.NotFound("Session not found")
 	}
 
-	requestID, _ := scx.GetEnv(string(sftp.FileTransferRequestID))
-	if requestID == "" {
-		return false, nil
-	}
-	// find file transfer request in the session by requestID
-	req := sess.fileTransferRequests[requestID]
-	if req == nil {
-		// If they sent a fileTransferRequestID and it wasn't found, send an actual error
-		return false, trace.NotFound("File transfer request not found")
-	}
+	// acquire the session mutex lock so sess.fileTransferReq doesn't get
+	// written while we're reading it
+	sess.mu.Lock()
+	defer sess.mu.Unlock()
 
-	if req.location != location {
-		return false, trace.AccessDenied("requested destination path does not match the current request")
+	if sess.fileTransferReq == nil {
+		return false, trace.NotFound("Session does not have a pending file transfer request")
 	}
+	if sess.fileTransferReq.Requester != scx.Identity.TeleportUser {
+		// to be safe deny and remove the pending request if the user
+		// doesn't match what we expect
+		req := sess.fileTransferReq
+		sess.fileTransferReq = nil
 
-	if req.requester != scx.Identity.TeleportUser {
+		sess.BroadcastMessage("file transfer request %s denied due to %s attempting to transfer files", req.ID, scx.Identity.TeleportUser)
+		_ = s.NotifyFileTransferRequest(req, FileTransferDenied, scx)
+
 		return false, trace.AccessDenied("Teleport user does not match original requester")
 	}
 
-	return sess.checkIfFileTransferApproved(req)
+	approved, err := sess.checkIfFileTransferApproved(sess.fileTransferReq)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	if approved {
+		scx.setApprovedFileTransferRequest(sess.fileTransferReq)
+		sess.fileTransferReq = nil
+	}
+
+	return approved, nil
 }
 
 // FileTransferRequestEvent is an event used to Notify party members during File Transfer Request approval process
@@ -497,7 +505,7 @@ const (
 
 // NotifyFileTransferRequest is called to notify all members of a party that a file transfer request has been created/approved/denied.
 // The notification is a global ssh request and requires the client to update its UI state accordingly.
-func (s *SessionRegistry) NotifyFileTransferRequest(req *fileTransferRequest, res FileTransferRequestEvent, scx *ServerContext) error {
+func (s *SessionRegistry) NotifyFileTransferRequest(req *FileTransferRequest, res FileTransferRequestEvent, scx *ServerContext) error {
 	session := scx.getSession()
 	if session == nil {
 		s.log.Debugf("Unable to notify %s, no session found in context.", res)
@@ -510,11 +518,11 @@ func (s *SessionRegistry) NotifyFileTransferRequest(req *fileTransferRequest, re
 			ClusterName: scx.ClusterName,
 		},
 		SessionMetadata: session.scx.GetSessionMetadata(),
-		RequestID:       req.id,
-		Requester:       req.requester,
-		Location:        req.location,
-		Filename:        req.filename,
-		Download:        req.download,
+		RequestID:       req.ID,
+		Requester:       req.Requester,
+		Location:        req.Location,
+		Filename:        req.Filename,
+		Download:        req.Download,
 		Approvers:       make([]string, 0),
 	}
 
@@ -657,10 +665,10 @@ type session struct {
 	// participants at the end of a session.
 	participants map[rsession.ID]*party
 
-	// fileTransferRequests is a set of fileTransferRequests that are currently in the approval
-	// process, or already approved and not yet executed during a moderated session. If a request is
-	// denied or, once it's been executed, it should be removed from this map.
-	fileTransferRequests map[string]*fileTransferRequest
+	// fileTransferReq a pending file transfer request for this session.
+	// If the request is denied or approved it should be set to nil to
+	// prevent its reuse.
+	fileTransferReq *FileTransferRequest
 
 	io       *TermManager
 	inWriter io.WriteCloser
@@ -759,7 +767,6 @@ func newSession(ctx context.Context, id rsession.ID, r *SessionRegistry, scx *Se
 		id:                             id,
 		registry:                       r,
 		parties:                        make(map[rsession.ID]*party),
-		fileTransferRequests:           make(map[string]*fileTransferRequest),
 		participants:                   make(map[rsession.ID]*party),
 		login:                          scx.Identity.Login,
 		stopC:                          make(chan struct{}),
@@ -1641,22 +1648,24 @@ func (s *session) checkPresence(ctx context.Context) error {
 	return nil
 }
 
-// fileTransferRequest is a request to upload or download a file from the node.
-type fileTransferRequest struct {
-	id string
-	// requester is the Teleport User that requested the file transfer
-	requester string
-	// download is true if the request is a download, false if its an upload
-	download bool
-	// filename the name of the file to upload.
-	filename string
-	// location of the requested download or where a file will be uploaded
-	location string
+// FileTransferRequest is a request to upload or download a file from a node.
+type FileTransferRequest struct {
+	// ID is a UUID that uniquely identifies a file transfer request
+	// and is unlikely to collide with another file transfer request
+	ID string
+	// Requester is the Teleport User that requested the file transfer
+	Requester string
+	// Download is true if the request is a download, false if its an upload
+	Download bool
+	// Filename is the name of the file to upload.
+	Filename string
+	// Location of the requested download or where a file will be uploaded
+	Location string
 	// approvers is a list of participants of moderator or peer type that have approved the request
 	approvers map[string]*party
 }
 
-func (s *session) checkIfFileTransferApproved(req *fileTransferRequest) (bool, error) {
+func (s *session) checkIfFileTransferApproved(req *FileTransferRequest) (bool, error) {
 	var participants []auth.SessionAccessContext
 
 	for _, party := range req.approvers {
@@ -1680,44 +1689,104 @@ func (s *session) checkIfFileTransferApproved(req *fileTransferRequest) (bool, e
 }
 
 // newFileTransferRequest takes FileTransferParams and creates a new fileTransferRequest struct
-func (s *session) newFileTransferRequest(params *rsession.FileTransferRequestParams) *fileTransferRequest {
-	return &fileTransferRequest{
-		id:        uuid.New().String(),
-		requester: params.Requester,
-		location:  params.Location,
-		filename:  params.Filename,
-		download:  params.Download,
+func (s *session) newFileTransferRequest(params *rsession.FileTransferRequestParams) (*FileTransferRequest, error) {
+	location, err := s.expandFileTransferRequestPath(params.Location)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	req := FileTransferRequest{
+		ID:        uuid.New().String(),
+		Requester: params.Requester,
+		Location:  location,
+		Filename:  params.Filename,
+		Download:  params.Download,
 		approvers: make(map[string]*party),
 	}
+
+	return &req, nil
+}
+
+func (s *session) expandFileTransferRequestPath(p string) (string, error) {
+	expanded := path.Clean(p)
+	dir := path.Dir(expanded)
+
+	var tildePrefixed bool
+	var noBaseDir bool
+	if dir == "~" {
+		tildePrefixed = true
+	} else if dir == "." {
+		noBaseDir = true
+	}
+
+	if tildePrefixed || noBaseDir {
+		localUser, err := user.Lookup(s.login)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+
+		exists, err := CheckHomeDir(localUser)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		homeDir := localUser.HomeDir
+		if !exists {
+			homeDir = string(os.PathSeparator)
+		}
+
+		if tildePrefixed {
+			// expand home dir to make an absolute path
+			expanded = path.Join(homeDir, expanded[2:])
+		} else {
+			// if no directories are specified SFTP will assume the file
+			// to be in the user's home dir
+			expanded = path.Join(homeDir, expanded)
+		}
+	}
+
+	return expanded, nil
 }
 
 // addFileTransferRequest will create a new file transfer request and add it to the current session's fileTransferRequests map
 // and broadcast the appropriate string to the session.
-func (s *session) addFileTransferRequest(params *rsession.FileTransferRequestParams, scx *ServerContext) *fileTransferRequest {
+func (s *session) addFileTransferRequest(params *rsession.FileTransferRequestParams, scx *ServerContext) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	req := s.newFileTransferRequest(params)
-	s.fileTransferRequests[req.id] = req
+	if s.fileTransferReq != nil {
+		return trace.AlreadyExists("a file transfer request already exists for this session")
+	}
+	if !params.Download && params.Filename == "" {
+		return trace.BadParameter("no source file is set for the upload")
+	}
+
+	req, err := s.newFileTransferRequest(params)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	s.fileTransferReq = req
+
 	if params.Download {
 		s.BroadcastMessage("User %s would like to download: %s", params.Requester, params.Location)
 	} else {
 		s.BroadcastMessage("User %s would like to upload %s to: %s", params.Requester, params.Filename, params.Location)
 	}
+	err = s.registry.NotifyFileTransferRequest(s.fileTransferReq, FileTransferUpdate, scx)
 
-	s.registry.NotifyFileTransferRequest(req, FileTransferUpdate, scx)
-	return req
+	return trace.Wrap(err)
 }
 
 // approveFileTransferRequest will add the approver to the approvers map of a file transfer request and notify the members
 // of the session if the updated approvers map would fulfill the moderated policy.
-func (s *session) approveFileTransferRequest(params *rsession.FileTransferDecisionParams, scx *ServerContext) (*fileTransferRequest, error) {
+func (s *session) approveFileTransferRequest(params *rsession.FileTransferDecisionParams, scx *ServerContext) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	fileTransferReq := s.fileTransferRequests[params.RequestID]
-	if fileTransferReq == nil {
-		return nil, trace.NotFound("File Transfer Request %s not found", params.RequestID)
+	if s.fileTransferReq == nil {
+		return trace.NotFound("File Transfer Request %s not found", params.RequestID)
+	}
+	if s.fileTransferReq.ID != params.RequestID {
+		return trace.BadParameter("current file transfer request is not %s", params.RequestID)
 	}
 
 	var approver *party
@@ -1727,16 +1796,16 @@ func (s *session) approveFileTransferRequest(params *rsession.FileTransferDecisi
 		}
 	}
 	if approver == nil {
-		return nil, trace.AccessDenied("cannot approve file transfer requests if not in the current moderated session")
+		return trace.AccessDenied("cannot approve file transfer requests if not in the current moderated session")
 	}
 
-	fileTransferReq.approvers[approver.user] = approver
-	s.BroadcastMessage("%s approved file transfer request %s", scx.Identity.TeleportUser, fileTransferReq.id)
+	s.fileTransferReq.approvers[approver.user] = approver
+	s.BroadcastMessage("%s approved file transfer request %s", scx.Identity.TeleportUser, s.fileTransferReq.ID)
 
 	// check if policy is fulfilled
-	approved, err := s.checkIfFileTransferApproved(fileTransferReq)
+	approved, err := s.checkIfFileTransferApproved(s.fileTransferReq)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
 	var eventType FileTransferRequestEvent
@@ -1745,22 +1814,25 @@ func (s *session) approveFileTransferRequest(params *rsession.FileTransferDecisi
 	} else {
 		eventType = FileTransferUpdate
 	}
+	err = s.registry.NotifyFileTransferRequest(s.fileTransferReq, eventType, scx)
 
-	s.registry.NotifyFileTransferRequest(fileTransferReq, eventType, scx)
-
-	return fileTransferReq, nil
+	return trace.Wrap(err)
 }
 
 // denyFileTransferRequest will deny a file transfer request and remove it from the current session's file transfer requests map.
 // A file transfer request does not persist after deny, so there is no "denied" state. Deny in this case is synonymous with delete
 // with the addition of checking for a valid denier.
-func (s *session) denyFileTransferRequest(params *rsession.FileTransferDecisionParams, scx *ServerContext) (*fileTransferRequest, error) {
+func (s *session) denyFileTransferRequest(params *rsession.FileTransferDecisionParams, scx *ServerContext) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	fileTransferReq := s.fileTransferRequests[params.RequestID]
-	if fileTransferReq == nil {
-		return nil, trace.NotFound("file transfer request %s not found", params.RequestID)
+
+	if s.fileTransferReq == nil {
+		return trace.NotFound("file transfer request %s not found", params.RequestID)
 	}
+	if s.fileTransferReq.ID != params.RequestID {
+		return trace.BadParameter("current file transfer request is not %s", params.RequestID)
+	}
+
 	var denier *party
 	for _, p := range s.parties {
 		if p.ctx.ID() == scx.ID() {
@@ -1768,15 +1840,16 @@ func (s *session) denyFileTransferRequest(params *rsession.FileTransferDecisionP
 		}
 	}
 	if denier == nil {
-		return nil, trace.AccessDenied("cannot deny file transfer requests if not in the current moderated session")
+		return trace.AccessDenied("cannot deny file transfer requests if not in the current moderated session")
 	}
 
-	delete(s.fileTransferRequests, fileTransferReq.id)
+	req := s.fileTransferReq
+	s.fileTransferReq = nil
 
-	s.BroadcastMessage("%s denied file transfer request %s", scx.Identity.TeleportUser, fileTransferReq.id)
-	s.registry.NotifyFileTransferRequest(fileTransferReq, FileTransferDenied, scx)
+	s.BroadcastMessage("%s denied file transfer request %s", scx.Identity.TeleportUser, req.ID)
+	err := s.registry.NotifyFileTransferRequest(req, FileTransferDenied, scx)
 
-	return fileTransferReq, nil
+	return trace.Wrap(err)
 }
 
 func (s *session) checkIfStart() (bool, auth.PolicyOptions, error) {

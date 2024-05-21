@@ -634,8 +634,6 @@ proto.teleport.accesslist.v1.AccessListSpec.toObject = function(includeInstance,
     ownershipRequires: (f = msg.getOwnershipRequires()) && proto.teleport.accesslist.v1.AccessListRequires.toObject(includeInstance, f),
     grants: (f = msg.getGrants()) && proto.teleport.accesslist.v1.AccessListGrants.toObject(includeInstance, f),
     title: jspb.Message.getFieldWithDefault(msg, 8, ""),
-    membership: jspb.Message.getFieldWithDefault(msg, 9, ""),
-    ownership: jspb.Message.getFieldWithDefault(msg, 10, ""),
     ownerGrants: (f = msg.getOwnerGrants()) && proto.teleport.accesslist.v1.AccessListGrants.toObject(includeInstance, f)
   };
 
@@ -705,14 +703,6 @@ proto.teleport.accesslist.v1.AccessListSpec.deserializeBinaryFromReader = functi
     case 8:
       var value = /** @type {string} */ (reader.readString());
       msg.setTitle(value);
-      break;
-    case 9:
-      var value = /** @type {string} */ (reader.readString());
-      msg.setMembership(value);
-      break;
-    case 10:
-      var value = /** @type {string} */ (reader.readString());
-      msg.setOwnership(value);
       break;
     case 11:
       var value = new proto.teleport.accesslist.v1.AccessListGrants;
@@ -799,20 +789,6 @@ proto.teleport.accesslist.v1.AccessListSpec.serializeBinaryToWriter = function(m
   if (f.length > 0) {
     writer.writeString(
       8,
-      f
-    );
-  }
-  f = message.getMembership();
-  if (f.length > 0) {
-    writer.writeString(
-      9,
-      f
-    );
-  }
-  f = message.getOwnership();
-  if (f.length > 0) {
-    writer.writeString(
-      10,
       f
     );
   }
@@ -1046,42 +1022,6 @@ proto.teleport.accesslist.v1.AccessListSpec.prototype.getTitle = function() {
  */
 proto.teleport.accesslist.v1.AccessListSpec.prototype.setTitle = function(value) {
   return jspb.Message.setProto3StringField(this, 8, value);
-};
-
-
-/**
- * optional string membership = 9;
- * @return {string}
- */
-proto.teleport.accesslist.v1.AccessListSpec.prototype.getMembership = function() {
-  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 9, ""));
-};
-
-
-/**
- * @param {string} value
- * @return {!proto.teleport.accesslist.v1.AccessListSpec} returns this
- */
-proto.teleport.accesslist.v1.AccessListSpec.prototype.setMembership = function(value) {
-  return jspb.Message.setProto3StringField(this, 9, value);
-};
-
-
-/**
- * optional string ownership = 10;
- * @return {string}
- */
-proto.teleport.accesslist.v1.AccessListSpec.prototype.getOwnership = function() {
-  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 10, ""));
-};
-
-
-/**
- * @param {string} value
- * @return {!proto.teleport.accesslist.v1.AccessListSpec} returns this
- */
-proto.teleport.accesslist.v1.AccessListSpec.prototype.setOwnership = function(value) {
-  return jspb.Message.setProto3StringField(this, 10, value);
 };
 
 
@@ -2534,8 +2474,7 @@ proto.teleport.accesslist.v1.MemberSpec.toObject = function(includeInstance, msg
     expires: (f = msg.getExpires()) && google_protobuf_timestamp_pb.Timestamp.toObject(includeInstance, f),
     reason: jspb.Message.getFieldWithDefault(msg, 5, ""),
     addedBy: jspb.Message.getFieldWithDefault(msg, 6, ""),
-    ineligibleStatus: jspb.Message.getFieldWithDefault(msg, 7, 0),
-    membership: jspb.Message.getFieldWithDefault(msg, 8, "")
+    ineligibleStatus: jspb.Message.getFieldWithDefault(msg, 7, 0)
   };
 
   if (includeInstance) {
@@ -2601,10 +2540,6 @@ proto.teleport.accesslist.v1.MemberSpec.deserializeBinaryFromReader = function(m
     case 7:
       var value = /** @type {!proto.teleport.accesslist.v1.IneligibleStatus} */ (reader.readEnum());
       msg.setIneligibleStatus(value);
-      break;
-    case 8:
-      var value = /** @type {string} */ (reader.readString());
-      msg.setMembership(value);
       break;
     default:
       reader.skipField();
@@ -2683,13 +2618,6 @@ proto.teleport.accesslist.v1.MemberSpec.serializeBinaryToWriter = function(messa
   if (f !== 0.0) {
     writer.writeEnum(
       7,
-      f
-    );
-  }
-  f = message.getMembership();
-  if (f.length > 0) {
-    writer.writeString(
-      8,
       f
     );
   }
@@ -2857,24 +2785,6 @@ proto.teleport.accesslist.v1.MemberSpec.prototype.getIneligibleStatus = function
  */
 proto.teleport.accesslist.v1.MemberSpec.prototype.setIneligibleStatus = function(value) {
   return jspb.Message.setProto3EnumField(this, 7, value);
-};
-
-
-/**
- * optional string membership = 8;
- * @return {string}
- */
-proto.teleport.accesslist.v1.MemberSpec.prototype.getMembership = function() {
-  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 8, ""));
-};
-
-
-/**
- * @param {string} value
- * @return {!proto.teleport.accesslist.v1.MemberSpec} returns this
- */
-proto.teleport.accesslist.v1.MemberSpec.prototype.setMembership = function(value) {
-  return jspb.Message.setProto3StringField(this, 8, value);
 };
 
 

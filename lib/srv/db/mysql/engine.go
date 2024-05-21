@@ -33,12 +33,12 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/srv/db/mysql/protocol"
+	discoverycommon "github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -234,34 +234,17 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 			return nil, trace.Wrap(err)
 		}
 	case sessionCtx.Database.IsCloudSQL():
-		// For Cloud SQL MySQL there is no IAM auth, so we use one-time passwords
-		// by resetting the database user password for each connection. Thus,
-		// acquire a lock to make sure all connection attempts to the same
-		// database and user are serialized.
-		retryCtx, cancel := context.WithTimeout(ctx, defaults.DatabaseConnectTimeout)
-		defer cancel()
-		lease, err := services.AcquireSemaphoreWithRetry(retryCtx, e.makeAcquireSemaphoreConfig(sessionCtx))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		// Only release the semaphore after the connection has been established
-		// below. If the semaphore fails to release for some reason, it will
-		// expire in a minute on its own.
-		defer func() {
-			err := e.AuthClient.CancelSemaphoreLease(ctx, *lease)
-			if err != nil {
-				e.Log.WithError(err).Errorf("Failed to cancel lease: %v.", lease)
-			}
-		}()
-		password, err = e.Auth.GetCloudSQLPassword(ctx, sessionCtx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
 		// Get the client once for subsequent calls (it acquires a read lock).
 		gcpClient, err := e.CloudClients.GetGCPSQLAdminClient(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		user, password, err = e.getGCPUserAndPassword(ctx, sessionCtx, gcpClient)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		// Detect whether the instance is set to require SSL.
 		// Fallback to not requiring SSL for access denied errors.
 		requireSSL, err := cloud.GetGCPRequireSSL(ctx, sessionCtx, gcpClient)
@@ -284,7 +267,7 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		user = services.MakeAzureDatabaseLoginUsername(sessionCtx.Database, user)
+		user = discoverycommon.MakeAzureDatabaseLoginUsername(sessionCtx.Database, user)
 	}
 
 	// Use default net dialer unless it is already initialized.

@@ -25,7 +25,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -36,7 +35,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/services"
 )
 
 // TestAccessListCRUD tests backend operations with access list resources.
@@ -170,6 +168,40 @@ func TestAccessListCreate_UpsertAccessList_WithoutLimit(t *testing.T) {
 	out, err := service.GetAccessLists(ctx)
 	require.NoError(t, err)
 	require.Len(t, out, 3)
+}
+
+// TestAccessListCreate_UpdateAccessList tests creating access list
+// and updating access list with the same name.
+func TestAccessListCreate_UpdateAccessList(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service := newAccessListService(t, mem, clock, true /* igsEnabled */)
+
+	// No limit to creating access list.
+	result, err := service.UpsertAccessList(ctx, newAccessList(t, "accessList1", clock))
+	require.NoError(t, err)
+	// Fetch all access lists.
+	out, err := service.GetAccessLists(ctx)
+	require.NoError(t, err)
+	require.Len(t, out, 1)
+
+	result.Spec.Description = "changing description"
+	// Update access list with the correct revision.
+	_, err = service.UpdateAccessList(ctx, result)
+	require.NoError(t, err)
+	result.Spec.Description = "changing description again"
+	result.Metadata.Revision = "fake revision"
+	// Update access list with wrong revision should return an error.
+	_, err = service.UpdateAccessList(ctx, result)
+	require.Error(t, err)
+	require.True(t, trace.IsCompareFailed(err), "expected precondition failed error, got %v", err)
 }
 
 // TestAccessListCreate_UpsertAccessList_WithLimit tests creating access list
@@ -572,6 +604,12 @@ func TestAccessListMembersCRUD(t *testing.T) {
 	require.NoError(t, err)
 	_, err = service.UpsertAccessListMember(ctx, accessList1Member2)
 	require.NoError(t, err)
+
+	// try to update a member with the wrong revision.
+	accessList1Member2.Metadata.Revision = "fake revision"
+	_, err = service.UpdateAccessListMember(ctx, accessList1Member2)
+	require.Error(t, err)
+	require.True(t, trace.IsCompareFailed(err), "expected precondition failed error, got %v", err)
 
 	// Delete all members from access list 1.
 	require.NoError(t, service.DeleteAllAccessListMembersForAccessList(ctx, accessList1.GetName()))
@@ -1030,367 +1068,6 @@ func newAccessListReview(t *testing.T, accessList, name string) *accesslist.Revi
 	require.NoError(t, err)
 
 	return review
-}
-
-func TestDynamicAccessListOwnersCRUD(t *testing.T) {
-	ctx := context.Background()
-	clock := clockwork.NewFakeClock()
-
-	mem, err := memory.New(memory.Config{
-		Context: ctx,
-		Clock:   clock,
-	})
-	require.NoError(t, err)
-
-	service, err := NewAccessListService(backend.NewSanitizer(mem), clock)
-	require.NoError(t, err)
-
-	t.Run("inserting without set conditions is an error", func(t *testing.T) {
-		// Given an access list with implicit ownership AND no ownership
-		// conditions set
-		list := newAccessList(t, t.Name(), clock)
-		list.Spec.Ownership = accesslist.InclusionImplicit
-		list.Spec.OwnershipRequires = accesslist.Requires{}
-
-		// When I try to insert that access list
-		_, err := service.UpsertAccessList(ctx, list)
-
-		// Expect that the operation fails
-		require.Error(t, err)
-	})
-
-	t.Run("inserting with explicit owners is an error", func(t *testing.T) {
-		// Given an access list with implicit ownership AND a non-empty owner
-		// list
-		list := newAccessList(t, t.Name(), clock)
-		list.Spec.Ownership = accesslist.InclusionImplicit
-		list.Spec.Owners = []accesslist.Owner{
-			{
-				Name:        "some-user",
-				Description: "just coz",
-			},
-		}
-
-		// When I try to insert that access list
-		_, err := service.UpsertAccessList(ctx, list)
-
-		// Expect that the operation fails
-		require.Error(t, err)
-	})
-}
-
-func TestDynamicAccessListMembersCRUD(t *testing.T) {
-	ctx := context.Background()
-	clock := clockwork.NewFakeClock()
-
-	mem, err := memory.New(memory.Config{
-		Context: ctx,
-		Clock:   clock,
-	})
-	require.NoError(t, err)
-
-	service, err := NewAccessListService(backend.NewSanitizer(mem), clock)
-	require.NoError(t, err)
-
-	t.Run("inserting without set member conditions is an error", func(t *testing.T) {
-		// Given an access list with implicit ownership AND no ownership
-		// conditions set
-		list := newAccessList(t, t.Name(), clock)
-		list.Spec.Membership = accesslist.InclusionImplicit
-		list.Spec.MembershipRequires = accesslist.Requires{}
-
-		// When I try to insert that access list
-		_, err := service.UpsertAccessList(ctx, list)
-
-		// Expect that the operation fails
-		require.Error(t, err)
-	})
-
-	t.Run("listing implicit members returns ImplicitAccessListError", func(t *testing.T) {
-		var err error
-
-		// Given an access list with implicit membership
-		implicitlist := newAccessList(t, t.Name(), clock)
-		implicitlist.Spec.Membership = accesslist.InclusionImplicit
-		implicitlist, err = service.UpsertAccessList(ctx, implicitlist)
-		require.NoError(t, err)
-
-		// When I try to list the members of that list
-		_, _, err = service.ListAccessListMembers(ctx, implicitlist.GetName(), 100, "")
-
-		// The AccessList service lets me know that it has implicit membership
-		// and can't compute the result for me
-		require.ErrorIs(t, err, services.ImplicitAccessListError{})
-	})
-
-	t.Run("getting list members returns ImplicitAccessListError", func(t *testing.T) {
-		var err error
-
-		// Given an access list with implicit membership
-		implicitlist := newAccessList(t, t.Name(), clock)
-		implicitlist.Spec.Membership = accesslist.InclusionImplicit
-		implicitlist, err = service.UpsertAccessList(ctx, implicitlist)
-		require.NoError(t, err)
-
-		// When I try to query a member of that list
-		_, err = service.GetAccessListMember(ctx, implicitlist.GetName(), "somebody")
-
-		// The AccessList service lets me know that it has implicit membership
-		// and can't compute the result for me
-		require.ErrorIs(t, err, services.ImplicitAccessListError{})
-	})
-
-	t.Run("deleting list members returns ImplicitAccessListError", func(t *testing.T) {
-		var err error
-
-		// Given an access list with implicit membership
-		implicitlist := newAccessList(t, t.Name(), clock)
-		implicitlist.Spec.Membership = accesslist.InclusionImplicit
-		implicitlist, err = service.UpsertAccessList(ctx, implicitlist)
-		require.NoError(t, err)
-
-		// When I try to delete a member of that list
-		err = service.DeleteAccessListMember(ctx, implicitlist.GetName(), "somebody")
-
-		// The AccessList service lets me know that the list has implicit
-		// membership and it can't honor the request
-		require.ErrorIs(t, err, services.ImplicitAccessListError{})
-	})
-
-	t.Run("inserting with no members is allowed", func(t *testing.T) {
-		// Given an access list with implicit membership
-		implicitlist := newAccessList(t, t.Name(), clock)
-		implicitlist.Spec.Membership = accesslist.InclusionImplicit
-
-		// When I attempt to upsert the list via UpsertAccessListWithMembers,
-		// but do not supply any members
-		_, _, err = service.UpsertAccessListWithMembers(
-			ctx,
-			implicitlist,
-			[]*accesslist.AccessListMember{})
-
-		// Expect that the overall operation succeeds
-		require.NoError(t, err)
-
-		// ALSO Expect that the AccessList has been inserted
-		_, err = service.GetAccessList(ctx, implicitlist.GetName())
-		require.NoError(t, err)
-	})
-
-	t.Run("inserting list members is an error", func(t *testing.T) {
-		// Given an access list with implicit membership
-		implicitlist := newAccessList(t, t.Name(), clock)
-		implicitlist.Spec.Membership = accesslist.InclusionImplicit
-
-		// And a membership for that list
-		m, err := accesslist.NewAccessListMember(
-			header.Metadata{
-				Name: implicitlist.GetName() + "/" + "some-user",
-			},
-			accesslist.AccessListMemberSpec{
-				AccessList: implicitlist.GetName(),
-				Name:       "some-user",
-				Membership: accesslist.InclusionExplicit,
-				AddedBy:    "system",
-				Joined:     time.Date(2016, time.December, 17, 14, 30, 55, 60, time.UTC),
-			})
-		require.NoError(t, err)
-
-		// When I attempt to upsert the list with members
-		_, _, err = service.UpsertAccessListWithMembers(
-			ctx,
-			implicitlist,
-			[]*accesslist.AccessListMember{m})
-
-		// Expect that the overall operation fails
-		require.Error(t, err)
-
-		// Expect that the AccessList has not been inserted
-		_, err = service.GetAccessList(ctx, implicitlist.GetName())
-		require.Error(t, err)
-		require.True(t, trace.IsNotFound(err))
-	})
-
-	t.Run("deleting all list members is allowed", func(t *testing.T) {
-		var err error
-
-		// Given an access list with implicit membership
-		implicitlist := newAccessList(t, t.Name(), clock)
-		implicitlist.Spec.Membership = accesslist.InclusionImplicit
-		implicitlist, err = service.UpsertAccessList(ctx, implicitlist)
-		require.NoError(t, err)
-
-		// AND a membership record fora user in that list (this can happen if an
-		// existing Explicit list is made Implicit)
-		m := newAccessListMember(t, implicitlist.GetName(), "scooby")
-		m, err = service.memberService.WithPrefix(m.Spec.AccessList).UpsertResource(ctx, m)
-		require.NoError(t, err)
-
-		// When I try to remove all the members of that list
-		err = service.DeleteAllAccessListMembersForAccessList(
-			ctx,
-			implicitlist.GetName())
-
-		// Expect that the operation succeeds
-		require.NoError(t, err)
-
-		// And that the membership record no longer exists
-		_, err = service.memberService.WithPrefix(m.Spec.AccessList).GetResource(ctx, m.GetName())
-		require.Error(t, err)
-		require.True(t, trace.IsNotFound(err))
-	})
-
-}
-
-func TestChangingMembershipModeIsAnError(t *testing.T) {
-	ctx := context.Background()
-	clock := clockwork.NewFakeClock()
-
-	mem, err := memory.New(memory.Config{
-		Context: ctx,
-		Clock:   clock,
-	})
-	require.NoError(t, err)
-
-	service, err := NewAccessListService(backend.NewSanitizer(mem), clock)
-	require.NoError(t, err)
-
-	upsert := func(l *accesslist.AccessList) error {
-		_, err := service.UpsertAccessList(ctx, l)
-		return err
-	}
-
-	upsertWithMembers := func(l *accesslist.AccessList) error {
-		_, _, err := service.UpsertAccessListWithMembers(ctx, l, []*accesslist.AccessListMember{})
-		return err
-	}
-
-	tests := []struct {
-		name     string
-		oldMode  accesslist.Inclusion
-		newMode  accesslist.Inclusion
-		updateFn func(*accesslist.AccessList) error
-	}{
-		{
-			name:     "explicit to implicit",
-			oldMode:  accesslist.InclusionExplicit,
-			newMode:  accesslist.InclusionImplicit,
-			updateFn: upsert,
-		}, {
-			name:     "implicit to explicit",
-			oldMode:  accesslist.InclusionImplicit,
-			newMode:  accesslist.InclusionExplicit,
-			updateFn: upsert,
-		}, {
-			name:     "explicit to implicit (with members)",
-			oldMode:  accesslist.InclusionExplicit,
-			newMode:  accesslist.InclusionImplicit,
-			updateFn: upsertWithMembers,
-		}, {
-			name:     "implicit to explicit (with members)",
-			oldMode:  accesslist.InclusionImplicit,
-			newMode:  accesslist.InclusionExplicit,
-			updateFn: upsertWithMembers,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			// Given an AccessList with a specific Membership Inclusion type
-			list := newAccessList(t, uuid.New().String(), clock)
-			list.Spec.Membership = test.oldMode
-			_, err := service.UpsertAccessList(ctx, list)
-			require.NoError(t, err)
-
-			// When I try to change the membership type...
-			list.Spec.Membership = test.newMode
-			err = test.updateFn(list)
-
-			// Expect that the operation fails with BadParameter
-			require.Error(t, err)
-			require.Truef(t, trace.IsBadParameter(err),
-				"Expected BadParameter, got %s", err.Error())
-		})
-	}
-}
-
-func TestChangingOwnershipModeIsAnError(t *testing.T) {
-	ctx := context.Background()
-	clock := clockwork.NewFakeClock()
-
-	mem, err := memory.New(memory.Config{
-		Context: ctx,
-		Clock:   clock,
-	})
-	require.NoError(t, err)
-
-	service, err := NewAccessListService(backend.NewSanitizer(mem), clock)
-	require.NoError(t, err)
-
-	upsert := func(l *accesslist.AccessList) error {
-		_, err := service.UpsertAccessList(ctx, l)
-		return err
-	}
-
-	upsertWithMembers := func(l *accesslist.AccessList) error {
-		_, _, err := service.UpsertAccessListWithMembers(ctx, l, []*accesslist.AccessListMember{})
-		return err
-	}
-
-	tests := []struct {
-		name     string
-		oldMode  accesslist.Inclusion
-		newMode  accesslist.Inclusion
-		updateFn func(*accesslist.AccessList) error
-	}{
-		{
-			name:     "explicit to implicit",
-			oldMode:  accesslist.InclusionExplicit,
-			newMode:  accesslist.InclusionImplicit,
-			updateFn: upsert,
-		}, {
-			name:     "implicit to explicit",
-			oldMode:  accesslist.InclusionImplicit,
-			newMode:  accesslist.InclusionExplicit,
-			updateFn: upsert,
-		}, {
-			name:     "explicit to implicit (with members)",
-			oldMode:  accesslist.InclusionExplicit,
-			newMode:  accesslist.InclusionImplicit,
-			updateFn: upsertWithMembers,
-		}, {
-			name:     "implicit to explicit (with members)",
-			oldMode:  accesslist.InclusionImplicit,
-			newMode:  accesslist.InclusionExplicit,
-			updateFn: upsertWithMembers,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			// Given an AccessList with a specific Ownership Inclusion type
-			list := newAccessList(t, uuid.New().String(), clock)
-			list.Spec.Ownership = test.oldMode
-			if test.oldMode == accesslist.InclusionImplicit {
-				list.Spec.Owners = []accesslist.Owner{}
-			}
-
-			_, err := service.UpsertAccessList(ctx, list)
-			require.NoError(t, err)
-
-			// When I try to change the ownership type...
-			list.Spec.Ownership = test.newMode
-			if test.newMode == accesslist.InclusionImplicit {
-				list.Spec.Owners = []accesslist.Owner{}
-			}
-			err = test.updateFn(list)
-
-			// Expect that the operation fails with BadParameter
-			require.Error(t, err)
-			require.Truef(t, trace.IsBadParameter(err),
-				"Expected BadParameter, got %s", err.Error())
-		})
-	}
 }
 
 func TestAccessListService_ListAllAccessListMembers(t *testing.T) {

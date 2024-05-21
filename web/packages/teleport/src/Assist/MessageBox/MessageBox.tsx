@@ -22,15 +22,10 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import styled, { keyframes } from 'styled-components';
+import styled from 'styled-components';
+import { rotate360 } from 'design';
 
 import { useAssist } from 'teleport/Assist/context/AssistContext';
-
-const spin = keyframes`
-  to {
-    transform: rotate(360deg);
-  }
-`;
 
 interface MessageBoxProps {
   disabled?: boolean;
@@ -56,7 +51,7 @@ const Spinner = styled.div`
     border: 3px solid ${p => p.theme.colors.text.main};
     border-color: ${p => p.theme.colors.text.main} transparent
       ${p => p.theme.colors.text.main} transparent;
-    animation: ${spin} 1.2s linear infinite;
+    animation: ${rotate360} 1.2s linear infinite;
   }
 `;
 

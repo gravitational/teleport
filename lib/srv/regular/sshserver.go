@@ -49,7 +49,7 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -88,7 +88,6 @@ type Server struct {
 	hostname  string
 
 	srv         *sshutils.Server
-	shell       string
 	getRotation services.RotationGetter
 	authService srv.AccessPoint
 	reg         *srv.SessionRegistry
@@ -107,7 +106,7 @@ type Server struct {
 
 	proxyMode        bool
 	proxyTun         reversetunnelclient.Tunnel
-	proxyAccessPoint auth.ReadProxyAccessPoint
+	proxyAccessPoint authclient.ReadProxyAccessPoint
 	peerAddr         string
 
 	advertiseAddr   *utils.NetAddr
@@ -207,9 +206,6 @@ type Server struct {
 	// connectedProxyGetter gets the proxies teleport is connected to.
 	connectedProxyGetter *reversetunnel.ConnectedProxyGetter
 
-	// nodeWatcher is the server's node watcher.
-	nodeWatcher *services.NodeWatcher
-
 	// createHostUser configures whether a host should allow host user
 	// creation
 	createHostUser bool
@@ -241,8 +237,6 @@ type Server struct {
 
 	// proxySigner is used to generate signed PROXYv2 header so we can securely propagate client IP
 	proxySigner PROXYHeaderSigner
-	// caGetter is used to get host CA of the cluster to verify signed PROXY headers
-	caGetter CertAuthorityGetter
 }
 
 // TargetMetadata returns metadata about the server.
@@ -449,17 +443,8 @@ func SetRotationGetter(getter services.RotationGetter) ServerOption {
 	}
 }
 
-// SetShell sets default shell that will be executed for interactive
-// sessions
-func SetShell(shell string) ServerOption {
-	return func(s *Server) error {
-		s.shell = shell
-		return nil
-	}
-}
-
 // SetProxyMode starts this server in SSH proxying mode
-func SetProxyMode(peerAddr string, tsrv reversetunnelclient.Tunnel, ap auth.ReadProxyAccessPoint, router *proxy.Router) ServerOption {
+func SetProxyMode(peerAddr string, tsrv reversetunnelclient.Tunnel, ap authclient.ReadProxyAccessPoint, router *proxy.Router) ServerOption {
 	return func(s *Server) error {
 		// always set proxy mode to true,
 		// because in some tests reverse tunnel is disabled,
@@ -652,14 +637,6 @@ func SetLockWatcher(lockWatcher *services.LockWatcher) ServerOption {
 	}
 }
 
-// SetNodeWatcher sets the server's node watcher.
-func SetNodeWatcher(nodeWatcher *services.NodeWatcher) ServerOption {
-	return func(s *Server) error {
-		s.nodeWatcher = nodeWatcher
-		return nil
-	}
-}
-
 // SetX11ForwardingConfig sets the server's X11 forwarding configuration
 func SetX11ForwardingConfig(xc *x11.ServerConfig) ServerOption {
 	return func(s *Server) error {
@@ -718,14 +695,6 @@ func SetPROXYSigner(proxySigner PROXYHeaderSigner) ServerOption {
 	}
 }
 
-// SetCAGetter sets the cert authority getter
-func SetCAGetter(caGetter CertAuthorityGetter) ServerOption {
-	return func(s *Server) error {
-		s.caGetter = caGetter
-		return nil
-	}
-}
-
 // SetPublicAddrs sets the server's public addresses
 func SetPublicAddrs(addrs []utils.NetAddr) ServerOption {
 	return func(s *Server) error {
@@ -744,7 +713,7 @@ func New(
 	dataDir string,
 	advertiseAddr string,
 	proxyPublicAddr utils.NetAddr,
-	auth auth.ClientI,
+	auth authclient.ClientI,
 	options ...ServerOption,
 ) (*Server, error) {
 	// read the host UUID:
@@ -887,14 +856,14 @@ func New(
 
 	var heartbeat srv.HeartbeatI
 	if heartbeatMode == srv.HeartbeatModeNode && s.inventoryHandle != nil {
-		s.Logger.Info("debug -> starting control-stream based heartbeat.")
+		s.Logger.Debug("starting control-stream based heartbeat.")
 		heartbeat, err = srv.NewSSHServerHeartbeat(srv.SSHServerHeartbeatConfig{
 			InventoryHandle: s.inventoryHandle,
 			GetServer:       s.getServerInfo,
 			OnHeartbeat:     s.onHeartbeat,
 		})
 	} else {
-		s.Logger.Info("debug -> starting legacy heartbeat.")
+		s.Logger.Debug("starting legacy heartbeat.")
 		heartbeat, err = srv.NewHeartbeat(srv.HeartbeatConfig{
 			Mode:            heartbeatMode,
 			Context:         ctx,
@@ -2225,7 +2194,7 @@ func (s *Server) parseSubsystemRequest(req *ssh.Request, ctx *srv.ServerContext)
 			return nil, trace.Wrap(err)
 		}
 
-		return newSFTPSubsys()
+		return newSFTPSubsys(ctx.ConsumeApprovedFileTransferRequest())
 	default:
 		return nil, trace.BadParameter("unrecognized subsystem: %v", r.Name)
 	}

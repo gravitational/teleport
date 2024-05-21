@@ -18,7 +18,6 @@ package integrationv1
 
 import (
 	"context"
-	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -27,69 +26,38 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
-	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils/oidc"
 )
 
 // GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action.
-func (s *Service) GenerateAWSOIDCToken(ctx context.Context, _ *integrationpb.GenerateAWSOIDCTokenRequest) (*integrationpb.GenerateAWSOIDCTokenResponse, error) {
+func (s *Service) GenerateAWSOIDCToken(ctx context.Context, req *integrationpb.GenerateAWSOIDCTokenRequest) (*integrationpb.GenerateAWSOIDCTokenResponse, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbUse); err != nil {
-		return nil, trace.Wrap(err)
+	for _, allowedRole := range []types.SystemRole{types.RoleDiscovery, types.RoleAuth, types.RoleProxy} {
+		if authz.HasBuiltinRole(*authCtx, string(allowedRole)) {
+			return s.generateAWSOIDCTokenWithoutAuthZ(ctx, req.Integration)
+		}
 	}
-	return s.generateAWSOIDCTokenWithoutAuthZ(ctx)
+
+	return nil, trace.AccessDenied("token generation is only available to auth, proxy or discovery services")
 }
 
 // generateAWSOIDCTokenWithoutAuthZ generates a token to be used when executing an AWS OIDC Integration action.
 // Bypasses authz and should only be used by other methods that validate AuthZ.
-func (s *Service) generateAWSOIDCTokenWithoutAuthZ(ctx context.Context) (*integrationpb.GenerateAWSOIDCTokenResponse, error) {
+func (s *Service) generateAWSOIDCTokenWithoutAuthZ(ctx context.Context, integrationName string) (*integrationpb.GenerateAWSOIDCTokenResponse, error) {
 	username, err := authz.GetClientUsername(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	clusterName, err := s.cache.GetClusterName()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	ca, err := s.cache.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.OIDCIdPCA,
-		DomainName: clusterName.GetClusterName(),
-	}, true)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Extract the JWT signing key and sign the claims.
-	signer, err := s.keyStoreManager.GetJWTSigner(ctx, ca)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	privateKey, err := services.GetJWTSigner(signer, ca.GetClusterName(), s.clock)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	issuer, err := oidc.IssuerForCluster(ctx, s.cache)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	token, err := privateKey.SignAWSOIDC(jwt.SignParams{
-		Username: username,
-		Audience: types.IntegrationAWSOIDCAudience,
-		Subject:  types.IntegrationAWSOIDCSubject,
-		Issuer:   issuer,
-		// Token expiration is not controlled by the Expires property.
-		// It is defined by assumed IAM Role's "Maximum session duration" (usually 1h).
-		Expires: s.clock.Now().Add(time.Minute),
+	token, err := awsoidc.GenerateAWSOIDCToken(ctx, s.cache, s.keyStoreManager, awsoidc.GenerateAWSOIDCTokenRequest{
+		Integration: integrationName,
+		Username:    username,
+		Subject:     types.IntegrationAWSOIDCSubject,
+		Clock:       s.clock,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -180,12 +148,11 @@ func (s *AWSOIDCService) awsClientReq(ctx context.Context, integrationName, regi
 		return nil, trace.BadParameter("integration subkind (%s) mismatch", integration.GetSubKind())
 	}
 
-	awsoidcSpec := integration.GetAWSOIDCIntegrationSpec()
-	if awsoidcSpec == nil {
+	if integration.GetAWSOIDCIntegrationSpec() == nil {
 		return nil, trace.BadParameter("missing spec fields for %q (%q) integration", integration.GetName(), integration.GetSubKind())
 	}
 
-	token, err := s.integrationService.generateAWSOIDCTokenWithoutAuthZ(ctx)
+	token, err := s.integrationService.generateAWSOIDCTokenWithoutAuthZ(ctx, integrationName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

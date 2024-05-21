@@ -83,6 +83,13 @@ const users = [
     authType: 'teleport local user',
     isLocal: true,
   },
+  {
+    name: 'bot-little-robot',
+    roles: ['bot-little-robot'],
+    authType: 'teleport local user',
+    isLocal: true,
+    isBot: true,
+  },
 ];
 
 const roles = ['admin', 'testrole'];
@@ -95,7 +102,7 @@ const sample = {
     message: '',
   },
   users: users,
-  roles: roles,
+  fetchRoles: async (input: string) => roles.filter(r => r.includes(input)),
   operation: {
     type: 'none',
     user: null,

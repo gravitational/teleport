@@ -24,7 +24,7 @@ import (
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 )
 
@@ -154,7 +154,7 @@ type ConnectionTesterConfig struct {
 
 	// UserClient is an auth client that has a User's identity.
 	// This is the user that is running the SSH Connection Test.
-	UserClient auth.ClientI
+	UserClient authclient.ClientI
 
 	// ProxyHostPort is the proxy to use in the `--proxy` format (host:webPort,sshPort)
 	ProxyHostPort string

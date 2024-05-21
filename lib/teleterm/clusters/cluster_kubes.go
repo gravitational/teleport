@@ -27,7 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
@@ -45,7 +45,7 @@ type Kube struct {
 func (c *Cluster) GetKubes(ctx context.Context, r *api.GetKubesRequest) (*GetKubesResponse, error) {
 	var (
 		page        apiclient.ResourcePage[types.KubeCluster]
-		authClient  auth.ClientI
+		authClient  authclient.ClientI
 		proxyClient *client.ProxyClient
 		err         error
 	)

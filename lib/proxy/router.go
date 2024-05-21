@@ -28,7 +28,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 
@@ -38,7 +37,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/agentless"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -222,17 +221,15 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 	defer func() {
 		if err != nil {
 			failedConnectingToNode.Inc()
-			span.RecordError(trace.Unwrap(err))
-			span.SetStatus(codes.Error, err.Error())
 		}
-		span.End()
+		tracing.EndSpan(span, err)
 	}()
 
 	site := r.localSite
 	if clusterName != r.clusterName {
 		remoteSite, err := r.getRemoteCluster(ctx, clusterName, accessChecker)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(err, "looking up remote cluster %q", clusterName)
 		}
 		site = remoteSite
 	}
@@ -396,12 +393,12 @@ func (r *Router) getRemoteCluster(ctx context.Context, clusterName string, check
 
 	site, err := r.siteGetter.GetSite(clusterName)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, utils.OpaqueAccessDenied(err)
 	}
 
 	rc, err := r.clusterGetter.GetRemoteCluster(clusterName)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, utils.OpaqueAccessDenied(err)
 	}
 
 	if err := checker.CheckAccessToRemoteCluster(rc); err != nil {
@@ -448,6 +445,13 @@ func (r remoteSite) GetClusterNetworkingConfig(ctx context.Context, opts ...serv
 // getServer attempts to locate a node matching the provided host and port in
 // the provided site.
 func getServer(ctx context.Context, host, port string, site site) (types.Server, error) {
+	return getServerWithResolver(ctx, host, port, site, nil /* use default resolver */)
+}
+
+// getServerWithResolver attempts to locate a node matching the provided host and port in
+// the provided site. The resolver argument is used in certain tests to mock DNS resolution
+// and can generally be left nil.
+func getServerWithResolver(ctx context.Context, host, port string, site site, resolver apiutils.HostResolver) (types.Server, error) {
 	if site == nil {
 		return nil, trace.BadParameter("invalid remote site provided")
 	}
@@ -459,10 +463,27 @@ func getServer(ctx context.Context, host, port string, site site) (types.Server,
 		caseInsensitiveRouting = cfg.GetCaseInsensitiveRouting()
 	}
 
-	routeMatcher := apiutils.NewSSHRouteMatcher(host, port, caseInsensitiveRouting)
+	routeMatcher, err := apiutils.NewSSHRouteMatcherFromConfig(apiutils.SSHRouteMatcherConfig{
+		Host:            host,
+		Port:            port,
+		CaseInsensitive: caseInsensitiveRouting,
+		Resolver:        resolver,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
+	var maxScore int
+	scores := make(map[string]int)
 	matches, err := site.GetNodes(ctx, func(server services.Node) bool {
-		return routeMatcher.RouteToServer(server)
+		score := routeMatcher.RouteToServerScore(server)
+		if score < 1 {
+			return false
+		}
+
+		scores[server.GetName()] = score
+		maxScore = max(maxScore, score)
+		return true
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -478,6 +499,21 @@ func getServer(ctx context.Context, host, port string, site site) (types.Server,
 				break
 			}
 		}
+	}
+
+	if len(matches) > 1 {
+		// in the event of multiple matches, some matches may be of higher quality than others
+		// (e.g. matching an ip/hostname directly versus matching a resolved ip). if we have a
+		// mix of match qualities, filter out the lower quality matches to reduce ambiguity.
+		filtered := matches[:0]
+		for _, m := range matches {
+			if scores[m.GetName()] < maxScore {
+				continue
+			}
+
+			filtered = append(filtered, m)
+		}
+		matches = filtered
 	}
 
 	var server types.Server
@@ -517,13 +553,7 @@ func (r *Router) DialSite(ctx context.Context, clusterName string, clientSrcAddr
 			attribute.String("cluster", clusterName),
 		),
 	)
-	defer func() {
-		if err != nil {
-			span.RecordError(trace.Unwrap(err))
-			span.SetStatus(codes.Error, err.Error())
-		}
-		span.End()
-	}()
+	defer func() { tracing.EndSpan(span, err) }()
 
 	// default to local cluster if one wasn't provided
 	if clusterName == "" {
@@ -551,7 +581,7 @@ func (r *Router) DialSite(ctx context.Context, clusterName string, clientSrcAddr
 }
 
 // GetSiteClient returns an auth client for the provided cluster.
-func (r *Router) GetSiteClient(ctx context.Context, clusterName string) (auth.ClientI, error) {
+func (r *Router) GetSiteClient(ctx context.Context, clusterName string) (authclient.ClientI, error) {
 	if clusterName == r.clusterName {
 		return r.localSite.GetClient()
 	}

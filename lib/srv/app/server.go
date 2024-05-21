@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -77,10 +78,10 @@ type Config struct {
 	DataDir string
 
 	// AuthClient is a client directly connected to the Auth server.
-	AuthClient *auth.Client
+	AuthClient *authclient.Client
 
 	// AccessPoint is a caching client connected to the Auth Server.
-	AccessPoint auth.AppsAccessPoint
+	AccessPoint authclient.AppsAccessPoint
 
 	// TLSConfig is the *tls.Config for this server.
 	TLSConfig *tls.Config
@@ -1140,7 +1141,7 @@ func (s *Server) sessionStartTime(ctx context.Context) time.Time {
 
 // CopyAndConfigureTLS can be used to copy and modify an existing *tls.Config
 // for Teleport application proxy servers.
-func CopyAndConfigureTLS(log logrus.FieldLogger, client auth.AccessCache, config *tls.Config) *tls.Config {
+func CopyAndConfigureTLS(log logrus.FieldLogger, client authclient.CAGetter, config *tls.Config) *tls.Config {
 	tlsConfig := config.Clone()
 
 	// Require clients to present a certificate
@@ -1155,7 +1156,7 @@ func CopyAndConfigureTLS(log logrus.FieldLogger, client auth.AccessCache, config
 	return tlsConfig
 }
 
-func newGetConfigForClientFn(log logrus.FieldLogger, client auth.AccessCache, tlsConfig *tls.Config) func(*tls.ClientHelloInfo) (*tls.Config, error) {
+func newGetConfigForClientFn(log logrus.FieldLogger, client authclient.CAGetter, tlsConfig *tls.Config) func(*tls.ClientHelloInfo) (*tls.Config, error) {
 	return func(info *tls.ClientHelloInfo) (*tls.Config, error) {
 		var clusterName string
 		var err error
@@ -1172,7 +1173,7 @@ func newGetConfigForClientFn(log logrus.FieldLogger, client auth.AccessCache, tl
 
 		// Fetch list of CAs that could have signed this certificate. If clusterName
 		// is empty, all CAs that this cluster knows about are returned.
-		pool, _, err := auth.DefaultClientCertPool(client, clusterName)
+		pool, _, err := authclient.DefaultClientCertPool(info.Context(), client, clusterName)
 		if err != nil {
 			// If this request fails, return nil and fallback to the default ClientCAs.
 			log.Debugf("Failed to retrieve client pool: %v.", trace.DebugReport(err))

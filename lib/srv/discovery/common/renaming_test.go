@@ -376,7 +376,7 @@ func makeAuroraPrimaryDB(t *testing.T, name, region, accountID, overrideLabel st
 			overrideLabel: name,
 		}),
 	}
-	database, err := services.NewDatabaseFromRDSCluster(cluster, []*rds.DBInstance{})
+	database, err := NewDatabaseFromRDSCluster(cluster, []*rds.DBInstance{})
 	require.NoError(t, err)
 	return database
 }
@@ -397,7 +397,7 @@ func makeRDSInstanceDB(t *testing.T, name, region, accountID, overrideLabel stri
 			overrideLabel: name,
 		}),
 	}
-	database, err := services.NewDatabaseFromRDSInstance(instance)
+	database, err := NewDatabaseFromRDSInstance(instance)
 	require.NoError(t, err)
 	return database
 }
@@ -429,7 +429,7 @@ func makeAzureMySQLFlexDatabase(t *testing.T, name, region, group, subscription 
 		Name: &name,
 		Type: &resourceType,
 	}
-	database, err := services.NewDatabaseFromAzureMySQLFlexServer(server)
+	database, err := NewDatabaseFromAzureMySQLFlexServer(server)
 	require.NoError(t, err)
 	return database
 }
@@ -450,7 +450,7 @@ func makeAzureRedisDB(t *testing.T, name, region, group, subscription string) ty
 			RedisVersion:      to.Ptr("6.0"),
 		},
 	}
-	database, err := services.NewDatabaseFromAzureRedis(resourceInfo)
+	database, err := NewDatabaseFromAzureRedis(resourceInfo)
 	require.NoError(t, err)
 	return database
 }
@@ -480,7 +480,7 @@ func makeAzureRedisEnterpriseDB(t *testing.T, name, region, group, subscription 
 			ClientProtocol:    to.Ptr(armredisenterprise.ProtocolEncrypted),
 		},
 	}
-	database, err := services.NewDatabaseFromAzureRedisEnterprise(armCluster, armDatabase)
+	database, err := NewDatabaseFromAzureRedisEnterprise(armCluster, armDatabase)
 	require.NoError(t, err)
 	return database
 }
@@ -504,7 +504,7 @@ func makeEKSKubeCluster(t *testing.T, name, region, accountID, overrideLabel str
 			overrideLabel: aws.String(name),
 		},
 	}
-	kubeCluster, err := services.NewKubeClusterFromAWSEKS(eksCluster)
+	kubeCluster, err := NewKubeClusterFromAWSEKS(eksCluster)
 	require.NoError(t, err)
 	require.True(t, kubeCluster.IsAWS())
 	return kubeCluster
@@ -523,7 +523,7 @@ func makeAKSKubeCluster(t *testing.T, name, location, group, subID string) types
 		},
 		Properties: azure.AKSClusterProperties{},
 	}
-	kubeCluster, err := services.NewKubeClusterFromAzureAKS(aksCluster)
+	kubeCluster, err := NewKubeClusterFromAzureAKS(aksCluster)
 	require.NoError(t, err)
 	require.True(t, kubeCluster.IsAzure())
 	return kubeCluster
@@ -541,7 +541,7 @@ func makeGKEKubeCluster(t *testing.T, name, location, projectID string) types.Ku
 		Description: "desc1",
 	}
 
-	kubeCluster, err := services.NewKubeClusterFromGCPGKE(gkeCluster)
+	kubeCluster, err := NewKubeClusterFromGCPGKE(gkeCluster)
 	require.NoError(t, err)
 	require.True(t, kubeCluster.IsGCP())
 	return kubeCluster

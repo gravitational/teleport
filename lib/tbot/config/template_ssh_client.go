@@ -27,7 +27,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/config/openssh"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/identity"
@@ -101,14 +101,14 @@ func (c *templateSSHClient) render(
 	)
 	defer span.End()
 
-	ping, err := bot.AuthPing(ctx)
+	ping, err := bot.ProxyPing(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	proxyHost, proxyPort, err := utils.SplitHostPort(ping.ProxyPublicAddr)
+	proxyHost, proxyPort, err := utils.SplitHostPort(ping.Proxy.SSH.PublicAddr)
 	if err != nil {
-		return trace.BadParameter("proxy %+v has no usable public address: %v", ping.ProxyPublicAddr, err)
+		return trace.BadParameter("proxy %+v has no usable public address: %v", ping.Proxy.SSH.PublicAddr, err)
 	}
 
 	clusterNames, err := getClusterNames(bot, ping.ClusterName)
@@ -192,7 +192,7 @@ func fetchKnownHosts(ctx context.Context, bot provider, clusterNames []string, p
 	}
 
 	var sb strings.Builder
-	for _, auth := range auth.AuthoritiesToTrustedCerts(certAuthorities) {
+	for _, auth := range authclient.AuthoritiesToTrustedCerts(certAuthorities) {
 		pubKeys, err := auth.SSHCertPublicKeys()
 		if err != nil {
 			return "", trace.Wrap(err)

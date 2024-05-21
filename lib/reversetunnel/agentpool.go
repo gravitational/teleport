@@ -41,7 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -99,10 +99,10 @@ type AgentPool struct {
 type AgentPoolConfig struct {
 	// Client is client to the auth server this agent connects to receive
 	// a list of pools
-	Client auth.ClientI
+	Client authclient.ClientI
 	// AccessPoint is a lightweight access point
 	// that can optionally cache some values
-	AccessPoint auth.AccessCache
+	AccessPoint authclient.AccessCache
 	// HostSigner is a host signer this agent presents itself as
 	HostSigner ssh.Signer
 	// HostUUID is a unique ID of this host
@@ -480,8 +480,8 @@ func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease 
 	return agent, nil
 }
 
-func (p *AgentPool) getClusterCAs(_ context.Context) (*x509.CertPool, error) {
-	clusterCAs, _, err := auth.ClientCertPool(p.AccessPoint, p.Cluster, types.HostCA)
+func (p *AgentPool) getClusterCAs(ctx context.Context) (*x509.CertPool, error) {
+	clusterCAs, _, err := authclient.ClientCertPool(ctx, p.AccessPoint, p.Cluster, types.HostCA)
 	return clusterCAs, trace.Wrap(err)
 }
 

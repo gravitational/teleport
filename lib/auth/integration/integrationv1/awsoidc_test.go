@@ -24,20 +24,47 @@ import (
 
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/jwt"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestGenerateAWSOIDCToken(t *testing.T) {
 	t.Parallel()
 	clusterName := "test-cluster"
+	integrationNameWithoutIssuer := "my-integration-without-issuer"
+	integrationNameWithIssuer := "my-integration-with-issuer"
 
 	publicURL := "https://example.com"
+	s3BucketURI := "s3://mybucket/my-idp"
+	s3IssuerURL := "https://mybucket.s3.amazonaws.com/my-idp"
 
 	ca := newCertAuthority(t, types.HostCA, clusterName)
 	ctx, localClient, resourceSvc := initSvc(t, ca, clusterName, publicURL)
+
+	ig, err := types.NewIntegrationAWSOIDC(
+		types.Metadata{Name: integrationNameWithoutIssuer},
+		&types.AWSOIDCIntegrationSpecV1{
+			RoleARN: "arn:aws:iam::123456789012:role/OpsTeam",
+		},
+	)
+	require.NoError(t, err)
+	_, err = localClient.CreateIntegration(ctx, ig)
+	require.NoError(t, err)
+
+	ig, err = types.NewIntegrationAWSOIDC(
+		types.Metadata{Name: integrationNameWithIssuer},
+		&types.AWSOIDCIntegrationSpecV1{
+			RoleARN:     "arn:aws:iam::123456789012:role/OpsTeam",
+			IssuerS3URI: s3BucketURI,
+		},
+	)
+	require.NoError(t, err)
+	_, err = localClient.CreateIntegration(ctx, ig)
+	require.NoError(t, err)
 
 	ctx = authorizerForDummyUser(t, ctx, types.RoleSpecV6{
 		Allow: types.RoleConditions{Rules: []types.Rule{
@@ -45,8 +72,41 @@ func TestGenerateAWSOIDCToken(t *testing.T) {
 		}},
 	}, localClient)
 
-	resp, err := resourceSvc.GenerateAWSOIDCToken(ctx, &integrationv1.GenerateAWSOIDCTokenRequest{})
-	require.NoError(t, err)
+	t.Run("requesting with an user should return access denied", func(t *testing.T) {
+		ctx = authorizerForDummyUser(t, ctx, types.RoleSpecV6{
+			Allow: types.RoleConditions{Rules: []types.Rule{
+				{Resources: []string{types.KindIntegration}, Verbs: []string{types.VerbUse}},
+			}},
+		}, localClient)
+
+		_, err := resourceSvc.GenerateAWSOIDCToken(ctx, &integrationv1.GenerateAWSOIDCTokenRequest{})
+		require.True(t, trace.IsAccessDenied(err), "expected AccessDenied error, got %T", err)
+	})
+
+	t.Run("auth, discovery and proxy can request tokens", func(t *testing.T) {
+		for _, allowedRole := range []types.SystemRole{types.RoleAuth, types.RoleDiscovery, types.RoleProxy} {
+			ctx = authz.ContextWithUser(ctx, authz.BuiltinRole{
+				Role:                  types.RoleInstance,
+				AdditionalSystemRoles: []types.SystemRole{allowedRole},
+				Username:              string(allowedRole),
+				Identity: tlsca.Identity{
+					Username: string(allowedRole),
+				},
+			})
+
+			_, err := resourceSvc.GenerateAWSOIDCToken(ctx, &integrationv1.GenerateAWSOIDCTokenRequest{})
+			require.NoError(t, err)
+		}
+	})
+
+	ctx = authz.ContextWithUser(ctx, authz.BuiltinRole{
+		Role:                  types.RoleInstance,
+		AdditionalSystemRoles: []types.SystemRole{types.RoleDiscovery},
+		Username:              string(types.RoleDiscovery),
+		Identity: tlsca.Identity{
+			Username: string(types.RoleDiscovery),
+		},
+	})
 
 	// Get Public Key
 	require.NotEmpty(t, ca.GetActiveKeys().JWT)
@@ -64,18 +124,58 @@ func TestGenerateAWSOIDCToken(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = key.VerifyAWSOIDC(jwt.AWSOIDCVerifyParams{
-		RawToken: resp.GetToken(),
-		Issuer:   publicURL,
-	})
-	require.NoError(t, err)
+	t.Run("without integration (old clients)", func(t *testing.T) {
+		resp, err := resourceSvc.GenerateAWSOIDCToken(ctx, &integrationv1.GenerateAWSOIDCTokenRequest{})
+		require.NoError(t, err)
 
-	// Fails if the issuer is different
-	_, err = key.VerifyAWSOIDC(jwt.AWSOIDCVerifyParams{
-		RawToken: resp.GetToken(),
-		Issuer:   publicURL + "3",
+		_, err = key.VerifyAWSOIDC(jwt.AWSOIDCVerifyParams{
+			RawToken: resp.GetToken(),
+			Issuer:   publicURL,
+		})
+		require.NoError(t, err)
+		// Fails if the issuer is different
+		_, err = key.VerifyAWSOIDC(jwt.AWSOIDCVerifyParams{
+			RawToken: resp.GetToken(),
+			Issuer:   publicURL + "3",
+		})
+		require.Error(t, err)
 	})
-	require.Error(t, err)
+	t.Run("with integration in rpc call but no issuer defined", func(t *testing.T) {
+		resp, err := resourceSvc.GenerateAWSOIDCToken(ctx, &integrationv1.GenerateAWSOIDCTokenRequest{
+			Integration: integrationNameWithoutIssuer,
+		})
+		require.NoError(t, err)
+
+		_, err = key.VerifyAWSOIDC(jwt.AWSOIDCVerifyParams{
+			RawToken: resp.GetToken(),
+			Issuer:   publicURL,
+		})
+		require.NoError(t, err)
+		// Fails if the issuer is different
+		_, err = key.VerifyAWSOIDC(jwt.AWSOIDCVerifyParams{
+			RawToken: resp.GetToken(),
+			Issuer:   publicURL + "3",
+		})
+		require.Error(t, err)
+	})
+	t.Run("with integration in rpc call and issuer defined", func(t *testing.T) {
+		resp, err := resourceSvc.GenerateAWSOIDCToken(ctx, &integrationv1.GenerateAWSOIDCTokenRequest{
+			Integration: integrationNameWithIssuer,
+		})
+		require.NoError(t, err)
+
+		_, err = key.VerifyAWSOIDC(jwt.AWSOIDCVerifyParams{
+			RawToken: resp.GetToken(),
+			Issuer:   s3IssuerURL,
+		})
+		require.NoError(t, err)
+		// Fails if the issuer is different
+		_, err = key.VerifyAWSOIDC(jwt.AWSOIDCVerifyParams{
+			RawToken: resp.GetToken(),
+			Issuer:   publicURL,
+		})
+		require.Error(t, err)
+	})
 }
 
 func TestConvertSecurityGroupRulesToProto(t *testing.T) {

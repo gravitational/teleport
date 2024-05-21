@@ -37,7 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -265,6 +265,7 @@ func withValidationFunc(f func(*suite) bool) testSuiteOptionFunc {
 	}
 }
 
+// deprecated: Use `tools/teleport/testenv.MakeTestServer` instead.
 func newTestSuite(t *testing.T, opts ...testSuiteOptionFunc) *suite {
 	var options testSuiteOptions
 	for _, opt := range opts {
@@ -304,7 +305,7 @@ func runTeleport(t *testing.T, cfg *servicecfg.Config) *service.TeleportProcess 
 		//
 		// It is also found that Azure metadata client can throw "Too many
 		// requests" during CI which fails services.NewTeleport.
-		cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+		cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	}
 	process, err := service.NewTeleport(cfg)
 	require.NoError(t, err, trace.DebugReport(err))

@@ -50,7 +50,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -77,7 +77,7 @@ type ProxyClient struct {
 	// currentCluster is a client for the local teleport auth server that
 	// the proxy is connected to. This should be reused for the duration
 	// of the ProxyClient to ensure the auth server is only dialed once.
-	currentCluster auth.ClientI
+	currentCluster authclient.ClientI
 }
 
 // NodeClient implements ssh client to a ssh node (teleport or any regular ssh node)
@@ -235,7 +235,7 @@ type ReissueParams struct {
 	// It can be nil.
 	MFACheck *proto.IsMFARequiredResponse
 	// AuthClient is the client used for the MFACheck that can be reused
-	AuthClient auth.ClientI
+	AuthClient authclient.ClientI
 	// RequesterName identifies who is sending the cert reissue request.
 	RequesterName proto.UserCertsRequest_Requester
 }
@@ -464,7 +464,7 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 		}
 	}
 
-	var clt auth.ClientI
+	var clt authclient.ClientI
 	// requiredCheck passed from param can be nil.
 	requiredCheck := params.MFACheck
 	if requiredCheck == nil || requiredCheck.Required {
@@ -583,7 +583,7 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 		// challenge and will terminate the stream with an auth.ErrNoMFADevices error.
 		// In this case for all protocols other than SSH fall back to reissuing
 		// certs without MFA.
-		if errors.Is(err, auth.ErrNoMFADevices) {
+		if errors.Is(err, authclient.ErrNoMFADevices) {
 			if params.usage() != proto.UserCertsRequest_SSH {
 				return proxy.reissueUserCerts(ctx, CertCacheKeep, params)
 			}
@@ -884,7 +884,7 @@ func (proxy *ProxyClient) CreateAppSession(ctx context.Context, req types.Create
 	}
 	defer accessPoint.Close()
 
-	err = auth.WaitForAppSession(ctx, ws.GetName(), ws.GetUser(), accessPoint)
+	err = authclient.WaitForAppSession(ctx, ws.GetName(), ws.GetUser(), accessPoint)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1080,7 +1080,7 @@ func (proxy *ProxyClient) ListResources(ctx context.Context, namespace, resource
 // sharedAuthClient is a wrapper around auth.ClientI which
 // prevents the underlying client from being closed.
 type sharedAuthClient struct {
-	auth.ClientI
+	authclient.ClientI
 }
 
 // Close is a no-op
@@ -1089,7 +1089,7 @@ func (a sharedAuthClient) Close() error {
 }
 
 // CurrentCluster returns an authenticated auth server client for the local cluster.
-func (proxy *ProxyClient) CurrentCluster() auth.ClientI {
+func (proxy *ProxyClient) CurrentCluster() authclient.ClientI {
 	// The auth.ClientI is wrapped in an sharedAuthClient to prevent callers from
 	// being able to close the client. The auth.ClientI is only to be closed
 	// when the ProxyClient is closed.
@@ -1098,7 +1098,7 @@ func (proxy *ProxyClient) CurrentCluster() auth.ClientI {
 
 // ConnectToRootCluster connects to the auth server of the root cluster
 // via proxy. It returns connected and authenticated auth server client
-func (proxy *ProxyClient) ConnectToRootCluster(ctx context.Context) (auth.ClientI, error) {
+func (proxy *ProxyClient) ConnectToRootCluster(ctx context.Context) (authclient.ClientI, error) {
 	ctx, span := proxy.Tracer.Start(
 		ctx,
 		"proxyClient/ConnectToRootCluster",
@@ -1120,7 +1120,7 @@ func (proxy *ProxyClient) loadTLS(clusterName string) (*tls.Config, error) {
 // ConnectToAuthServiceThroughALPNSNIProxy uses ALPN proxy service to connect to remote/local auth
 // service and returns auth client. For routing purposes, TLS ServerName is set to destination auth service
 // cluster name with ALPN values set to teleport-auth protocol.
-func (proxy *ProxyClient) ConnectToAuthServiceThroughALPNSNIProxy(ctx context.Context, clusterName, proxyAddr string) (auth.ClientI, error) {
+func (proxy *ProxyClient) ConnectToAuthServiceThroughALPNSNIProxy(ctx context.Context, clusterName, proxyAddr string) (authclient.ClientI, error) {
 	tlsConfig, err := proxy.loadTLS(clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1131,7 +1131,7 @@ func (proxy *ProxyClient) ConnectToAuthServiceThroughALPNSNIProxy(ctx context.Co
 	}
 
 	tlsConfig.InsecureSkipVerify = proxy.teleportClient.InsecureSkipVerify
-	clt, err := auth.NewClient(client.Config{
+	clt, err := authclient.NewClient(client.Config{
 		Context: ctx,
 		Addrs:   []string{proxyAddr},
 		Credentials: []client.Credentials{
@@ -1174,7 +1174,7 @@ func (proxy *ProxyClient) shouldDialWithTLSRouting(ctx context.Context) (string,
 
 // ConnectToCluster connects to the auth server of the given cluster via proxy.
 // It returns connected and authenticated auth server client
-func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName string) (auth.ClientI, error) {
+func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName string) (authclient.ClientI, error) {
 	// If connecting to the local cluster then return the already
 	// established auth client instead of dialing it a second time.
 	if clusterName == proxy.siteName && proxy.currentCluster != nil {
@@ -1214,7 +1214,7 @@ func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName stri
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := auth.NewClient(client.Config{
+	clt, err := authclient.NewClient(client.Config{
 		Context: ctx,
 		Dialer:  dialer,
 		Credentials: []client.Credentials{
@@ -1986,7 +1986,7 @@ func (proxy *ProxyClient) localAgent() *LocalKeyAgent {
 }
 
 // GetPaginatedSessions grabs up to 'max' sessions.
-func GetPaginatedSessions(ctx context.Context, fromUTC, toUTC time.Time, pageSize int, order types.EventOrder, max int, authClient auth.ClientI) ([]apievents.AuditEvent, error) {
+func GetPaginatedSessions(ctx context.Context, fromUTC, toUTC time.Time, pageSize int, order types.EventOrder, max int, authClient authclient.ClientI) ([]apievents.AuditEvent, error) {
 	prevEventKey := ""
 	var sessions []apievents.AuditEvent
 	for {

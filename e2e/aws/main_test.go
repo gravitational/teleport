@@ -29,18 +29,15 @@ const (
 	// discoveryMatcherLabelsEnv is the env variable that specifies the matcher
 	// labels to use in test discovery services.
 	discoveryMatcherLabelsEnv = "DISCOVERY_MATCHER_LABELS"
-	// dbSvcRoleARNEnv is the environment variable that specifies the IAM role
-	// that Teleport Database Service will assume to access databases.
-	// check modules/databases-ci/ from cloud-terraform repo for more details.
-	dbSvcRoleARNEnv = "DATABASE_SERVICE_ASSUME_ROLE"
-	// dbDiscoverySvcRoleARNEnv is the environment variable that specifies the
+	// rdsAccessRoleEnv is the environment variable that specifies the IAM role
+	// that Teleport Database Service will assume to access RDS databases.
+	// See modules/databases-ci/ from cloud-terraform repo for more details.
+	rdsAccessRoleEnv = "RDS_ACCESS_ROLE"
+	// rdsDiscoveryRoleEnv is the environment variable that specifies the
 	// IAM role that Teleport Discovery Service will assume to discover
-	// databases.
-	// check modules/databases-ci/ from cloud-terraform repo for more details.
-	dbDiscoverySvcRoleARNEnv = "DATABASE_DISCOVERY_SERVICE_ASSUME_ROLE"
-	// dbUserEnv is the database user configured in databases for access via
-	// Teleport.
-	dbUserEnv = "DATABASE_USER"
+	// RDS databases.
+	// See modules/databases-ci/ from cloud-terraform repo for more details.
+	rdsDiscoveryRoleEnv = "RDS_DISCOVERY_ROLE"
 	// rdsPostgresInstanceNameEnv is the environment variable that specifies the
 	// name of the RDS Postgres DB instance that will be created by the Teleport
 	// Discovery Service.
@@ -49,6 +46,31 @@ const (
 	// name of the RDS MySQL DB instance that will be created by the Teleport
 	// Discovery Service.
 	rdsMySQLInstanceNameEnv = "RDS_MYSQL_INSTANCE_NAME"
+	// rdsMariaDBInstanceNameEnv is the environment variable that specifies the
+	// name of the RDS MariaDB instance that will be created by the Teleport
+	// Discovery Service.
+	rdsMariaDBInstanceNameEnv = "RDS_MARIADB_INSTANCE_NAME"
+	// rssAccessRoleEnv is the environment variable that specifies the IAM role
+	// that Teleport Database Service will assume to access Redshift Serverless
+	// databases.
+	// See modules/databases-ci/ from cloud-terraform repo for more details.
+	rssAccessRoleEnv = "REDSHIFT_SERVERLESS_ACCESS_ROLE"
+	// rssDiscoveryRoleEnv is the environment variable that specifies the
+	// IAM role that Teleport Discovery Service will assume to discover
+	// Redshift Serverless databases.
+	// See modules/databases-ci/ from cloud-terraform repo for more details.
+	rssDiscoveryRoleEnv = "REDSHIFT_SERVERLESS_DISCOVERY_ROLE"
+	// rssNameEnv is the environment variable that specifies the
+	// name of the Redshift Serverless workgroup that will be created by the
+	// Teleport Discovery Service.
+	rssNameEnv = "REDSHIFT_SERVERLESS_WORKGROUP_NAME"
+	// rssEndpointNameEnv is the environment variable that specifies the
+	// name of the Redshift Serverless workgroup's access endpoint that
+	// will be created by the Teleport Discovery Service.
+	rssEndpointNameEnv = "REDSHIFT_SERVERLESS_ENDPOINT_NAME"
+	// rssDBUserEnv is the name of the IAM role that tests will use as a
+	// database user to connect to Redshift Serverless.
+	rssDBUserEnv = "REDSHIFT_SERVERLESS_IAM_DB_USER"
 	// kubeSvcRoleARNEnv is the environment variable that specifies
 	// the IAM role that Teleport Kubernetes Service will assume to access the EKS cluster.
 	// This role needs to have the following permissions:

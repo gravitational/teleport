@@ -644,7 +644,7 @@ func (a *ahLoginChecker) canLoginWithRBAC(cert *ssh.Certificate, ca types.CertAu
 		auth.RoleSupportsModeratedSessions(accessChecker.Roles()) {
 
 		// allow joining if cluster wide MFA is not required
-		if state.MFARequired != services.MFARequiredAlways {
+		if state.MFARequired == services.MFARequiredNever {
 			return nil
 		}
 

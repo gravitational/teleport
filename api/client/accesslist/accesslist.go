@@ -123,6 +123,18 @@ func (c *Client) UpsertAccessList(ctx context.Context, accessList *accesslist.Ac
 	return responseAccessList, trace.Wrap(err)
 }
 
+// UpdateAccessList updates an access list resource.
+func (c *Client) UpdateAccessList(ctx context.Context, accessList *accesslist.AccessList) (*accesslist.AccessList, error) {
+	resp, err := c.grpcClient.UpdateAccessList(ctx, &accesslistv1.UpdateAccessListRequest{
+		AccessList: conv.ToProto(accessList),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	responseAccessList, err := conv.FromProto(resp)
+	return responseAccessList, trace.Wrap(err)
+}
+
 // DeleteAccessList removes the specified access list resource.
 func (c *Client) DeleteAccessList(ctx context.Context, name string) error {
 	_, err := c.grpcClient.DeleteAccessList(ctx, &accesslistv1.DeleteAccessListRequest{
@@ -219,6 +231,18 @@ func (c *Client) UpsertAccessListMember(ctx context.Context, member *accesslist.
 	return responseMember, trace.Wrap(err)
 }
 
+// UpdateAccessListMember updates an access list member resource using a conditional update.
+func (c *Client) UpdateAccessListMember(ctx context.Context, member *accesslist.AccessListMember) (*accesslist.AccessListMember, error) {
+	resp, err := c.grpcClient.UpdateAccessListMember(ctx, &accesslistv1.UpdateAccessListMemberRequest{
+		Member: conv.ToMemberProto(member),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	responseMember, err := conv.FromMemberProto(resp)
+	return responseMember, trace.Wrap(err)
+}
+
 // DeleteAccessListMember hard deletes the specified access list member resource.
 func (c *Client) DeleteAccessListMember(ctx context.Context, accessList string, memberName string) error {
 	_, err := c.grpcClient.DeleteAccessListMember(ctx, &accesslistv1.DeleteAccessListMemberRequest{
@@ -251,14 +275,18 @@ func (c *Client) UpsertAccessListWithMembers(ctx context.Context, list *accessli
 		return nil, nil, trace.Wrap(err)
 	}
 
-	accessList, err := conv.FromProto(resp.AccessList)
+	accessList, err := conv.FromProto(resp.AccessList, conv.WithOwnersIneligibleStatusField(resp.AccessList.GetSpec().GetOwners()))
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	updatedMembers, err := conv.FromMembersProto(resp.Members)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
+	updatedMembers := make([]*accesslist.AccessListMember, len(resp.Members))
+	for i, member := range resp.Members {
+		var err error
+		updatedMembers[i], err = conv.FromMemberProto(member, conv.WithMemberIneligibleStatusField(member))
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
 	}
 
 	return accessList, updatedMembers, nil
@@ -278,7 +306,7 @@ func (c *Client) ListAccessListReviews(ctx context.Context, accessList string, p
 	resp, err := c.grpcClient.ListAccessListReviews(ctx, &accesslistv1.ListAccessListReviewsRequest{
 		AccessList: accessList,
 		PageSize:   int32(pageSize),
-		NextToken:  nextToken,
+		NextToken:  pageToken,
 	})
 	if err != nil {
 		return nil, "", trace.Wrap(err)
@@ -300,7 +328,7 @@ func (c *Client) ListAccessListReviews(ctx context.Context, accessList string, p
 func (c *Client) ListAllAccessListReviews(ctx context.Context, pageSize int, pageToken string) (reviews []*accesslist.Review, nextToken string, err error) {
 	resp, err := c.grpcClient.ListAllAccessListReviews(ctx, &accesslistv1.ListAllAccessListReviewsRequest{
 		PageSize:  int32(pageSize),
-		NextToken: nextToken,
+		NextToken: pageToken,
 	})
 	if err != nil {
 		return nil, "", trace.Wrap(err)

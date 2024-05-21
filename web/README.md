@@ -16,19 +16,20 @@ You can make production builds locally or you can use Docker to do that.
 
 ### Local Build
 
-Make sure that [you have yarn installed](https://yarnpkg.com/lang/en/docs/install/#debian-stable)
-on your system since this monorepo uses the yarn package manager.
+Make sure that you have [Yarn 1](https://classic.yarnpkg.com/en/docs/install/) installed. The
+Node.js version should match the one reported by executing `make -C build.assets print-node-version`
+from the root directory.
 
-Then you need download and initialize these repository dependencies.
+Then you need to download and initialize JavaScript dependencies.
 
 ```
-$ yarn install
+yarn install
 ```
 
 To build the Teleport open source version
 
 ```
-$ yarn build-ui-oss
+yarn build-ui-oss
 ```
 
 The resulting output will be in the `webassets` folder.
@@ -38,7 +39,7 @@ The resulting output will be in the `webassets` folder.
 To build the Teleport community version
 
 ```
-$ make docker-ui
+make docker-ui
 ```
 
 ## Getting Started with Teleport Connect
@@ -124,13 +125,13 @@ We use [jest](https://jestjs.io/) as our testing framework.
 To run all jest unit-tests:
 
 ```
-$ yarn run test
+yarn run test
 ```
 
 To run jest in watch-mode
 
 ```
-$ yarn run tdd
+yarn run tdd
 ```
 
 ### Interactive Testing
@@ -142,7 +143,7 @@ each component, and interactively develop and test components.
 To start a storybook:
 
 ```
-$ yarn run storybook
+yarn run storybook
 ```
 
 This command will open a new browser window with storybook in it. There
@@ -154,7 +155,7 @@ and iterate on shared functionality.
 We are targeting last 2 versions of all major browsers. To quickly find out which ones exactly, use the following command:
 
 ```
-$ yarn browserslist 'last 2 chrome version, last 2 edge version, last 2 firefox version, last 2 safari version'
+yarn browserslist 'last 2 chrome version, last 2 edge version, last 2 firefox version, last 2 safari version'
 ```
 
 ### Setup Prettier on VSCode

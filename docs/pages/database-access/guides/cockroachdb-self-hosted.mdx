@@ -118,7 +118,7 @@ Next, for each CockroachDB node, export Teleport's `db_client` CA using `tctl`
 `ca-client.crt`:
 
 ```code
-$ tctl auth export --type=db_client >> <Var name="/path/to/cockroachdb/certs/dir" />/ca-client.crt
+$ tctl auth export --type=db-client >> <Var name="/path/to/cockroachdb/certs/dir" />/ca-client.crt
 ```
 
 (!docs/pages/includes/database-access/custom-db-ca.mdx db="CockroachDB" protocol="cockroachdb" port="26257"!)

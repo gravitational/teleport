@@ -18,6 +18,7 @@ package clusters
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"sort"
 
@@ -29,7 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils/keys"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
@@ -38,9 +39,15 @@ import (
 
 // SyncAuthPreference fetches Teleport auth preferences and stores it in the cluster profile
 func (c *Cluster) SyncAuthPreference(ctx context.Context) (*webclient.WebConfigAuthSettings, error) {
-	_, err := c.clusterClient.Ping(ctx)
+	pingResponse, err := c.clusterClient.Ping(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	pingResponseJSON, err := json.Marshal(pingResponse)
+	if err != nil {
+		c.Log.WithError(err).Debugln("Could not marshal ping response to JSON")
+	} else {
+		c.Log.WithField("response", string(pingResponseJSON)).Debugln("Got ping response")
 	}
 
 	if err := c.clusterClient.SaveProfile(false); err != nil {
@@ -168,7 +175,7 @@ func (c *Cluster) updateClientFromPingResponse(ctx context.Context) (*webclient.
 	return pingResp, nil
 }
 
-type SSHLoginFunc func(context.Context, *keys.PrivateKey) (*auth.SSHLoginResponse, error)
+type SSHLoginFunc func(context.Context, *keys.PrivateKey) (*authclient.SSHLoginResponse, error)
 
 func (c *Cluster) login(ctx context.Context, sshLoginFunc client.SSHLoginFunc) error {
 	// TODO(alex-kovoy): SiteName needs to be reset if trying to login to a cluster with
@@ -213,7 +220,7 @@ func (c *Cluster) login(ctx context.Context, sshLoginFunc client.SSHLoginFunc) e
 }
 
 func (c *Cluster) localMFALogin(user, password string) client.SSHLoginFunc {
-	return func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
+	return func(ctx context.Context, priv *keys.PrivateKey) (*authclient.SSHLoginResponse, error) {
 		response, err := client.SSHAgentMFALogin(ctx, client.SSHLoginMFA{
 			SSHLogin: client.SSHLogin{
 				ProxyAddr:         c.clusterClient.WebProxyAddr,
@@ -236,7 +243,7 @@ func (c *Cluster) localMFALogin(user, password string) client.SSHLoginFunc {
 }
 
 func (c *Cluster) localLogin(user, password, otpToken string) client.SSHLoginFunc {
-	return func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
+	return func(ctx context.Context, priv *keys.PrivateKey) (*authclient.SSHLoginResponse, error) {
 		response, err := client.SSHAgentLogin(ctx, client.SSHLoginDirect{
 			SSHLogin: client.SSHLogin{
 				ProxyAddr:         c.clusterClient.WebProxyAddr,
@@ -258,7 +265,7 @@ func (c *Cluster) localLogin(user, password, otpToken string) client.SSHLoginFun
 }
 
 func (c *Cluster) ssoLogin(providerType, providerName string) client.SSHLoginFunc {
-	return func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
+	return func(ctx context.Context, priv *keys.PrivateKey) (*authclient.SSHLoginResponse, error) {
 		response, err := client.SSHAgentSSOLogin(ctx, client.SSHLoginSSO{
 			SSHLogin: client.SSHLogin{
 				ProxyAddr:         c.clusterClient.WebProxyAddr,
@@ -281,7 +288,7 @@ func (c *Cluster) ssoLogin(providerType, providerName string) client.SSHLoginFun
 }
 
 func (c *Cluster) passwordlessLogin(stream api.TerminalService_LoginPasswordlessServer) client.SSHLoginFunc {
-	return func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
+	return func(ctx context.Context, priv *keys.PrivateKey) (*authclient.SSHLoginResponse, error) {
 		response, err := client.SSHAgentPasswordlessLogin(ctx, client.SSHLoginPasswordless{
 			SSHLogin: client.SSHLogin{
 				ProxyAddr:         c.clusterClient.WebProxyAddr,

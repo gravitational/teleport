@@ -140,6 +140,29 @@ export namespace UpsertAccessListRequest {
     }
 }
 
+export class UpdateAccessListRequest extends jspb.Message { 
+
+    hasAccessList(): boolean;
+    clearAccessList(): void;
+    getAccessList(): teleport_accesslist_v1_accesslist_pb.AccessList | undefined;
+    setAccessList(value?: teleport_accesslist_v1_accesslist_pb.AccessList): UpdateAccessListRequest;
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): UpdateAccessListRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: UpdateAccessListRequest): UpdateAccessListRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: UpdateAccessListRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UpdateAccessListRequest;
+    static deserializeBinaryFromReader(message: UpdateAccessListRequest, reader: jspb.BinaryReader): UpdateAccessListRequest;
+}
+
+export namespace UpdateAccessListRequest {
+    export type AsObject = {
+        accessList?: teleport_accesslist_v1_accesslist_pb.AccessList.AsObject,
+    }
+}
+
 export class DeleteAccessListRequest extends jspb.Message { 
     getName(): string;
     setName(value: string): DeleteAccessListRequest;
@@ -452,6 +475,29 @@ export class UpsertAccessListMemberRequest extends jspb.Message {
 }
 
 export namespace UpsertAccessListMemberRequest {
+    export type AsObject = {
+        member?: teleport_accesslist_v1_accesslist_pb.Member.AsObject,
+    }
+}
+
+export class UpdateAccessListMemberRequest extends jspb.Message { 
+
+    hasMember(): boolean;
+    clearMember(): void;
+    getMember(): teleport_accesslist_v1_accesslist_pb.Member | undefined;
+    setMember(value?: teleport_accesslist_v1_accesslist_pb.Member): UpdateAccessListMemberRequest;
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): UpdateAccessListMemberRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: UpdateAccessListMemberRequest): UpdateAccessListMemberRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: UpdateAccessListMemberRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UpdateAccessListMemberRequest;
+    static deserializeBinaryFromReader(message: UpdateAccessListMemberRequest, reader: jspb.BinaryReader): UpdateAccessListMemberRequest;
+}
+
+export namespace UpdateAccessListMemberRequest {
     export type AsObject = {
         member?: teleport_accesslist_v1_accesslist_pb.Member.AsObject,
     }

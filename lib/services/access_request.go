@@ -31,6 +31,7 @@ import (
 
 	"github.com/gravitational/teleport/api/accessrequest"
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -45,9 +46,9 @@ const maxAccessRequestReasonSize = 4096
 // A day is sometimes 23 hours, sometimes 25 hours, usually 24 hours.
 const day = 24 * time.Hour
 
-// maxAccessDuration is the maximum duration that an access request can be
+// MaxAccessDuration is the maximum duration that an access request can be
 // granted for.
-const maxAccessDuration = 7 * day
+const MaxAccessDuration = 7 * day
 
 // ValidateAccessRequest validates the AccessRequest and sets default values
 func ValidateAccessRequest(ar types.AccessRequest) error {
@@ -160,6 +161,9 @@ func (r *RequestIDs) IsEmpty() bool {
 type AccessRequestGetter interface {
 	// GetAccessRequests gets all currently active access requests.
 	GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error)
+
+	// ListAccessRequests is an access request getter with pagination and sorting options.
+	ListAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest) (*proto.ListAccessRequestsResponse, error)
 }
 
 // DynamicAccessCore is the core functionality common to all DynamicAccess implementations.
@@ -365,8 +369,8 @@ func ValidateAccessPredicates(role types.Role) error {
 	}
 
 	if maxDuration := role.GetAccessRequestConditions(types.Allow).MaxDuration; maxDuration.Duration() != 0 &&
-		maxDuration.Duration() > maxAccessDuration {
-		return trace.BadParameter("max access duration must be less or equal 7 days")
+		maxDuration.Duration() > MaxAccessDuration {
+		return trace.BadParameter("max access duration must be less than or equal to %v", MaxAccessDuration)
 	}
 
 	return nil
@@ -414,8 +418,8 @@ func ApplyAccessReview(req types.AccessRequest, rev types.AccessReview, author U
 	req.SetReviews(append(req.GetReviews(), rev))
 
 	if rev.AssumeStartTime != nil {
-		if rev.AssumeStartTime.After(req.GetAccessExpiry()) {
-			return trace.BadParameter("request start time is after expiry")
+		if err := types.ValidateAssumeStartTime(*rev.AssumeStartTime, req.GetAccessExpiry(), req.GetCreationTime()); err != nil {
+			return trace.Wrap(err)
 		}
 		req.SetAssumeStartTime(*rev.AssumeStartTime)
 	}
@@ -1210,6 +1214,13 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 		req.SetAccessExpiry(accessTTL)
 		// Adjusted max access duration is equal to the access expiry time.
 		req.SetMaxDuration(accessTTL)
+
+		if req.GetAssumeStartTime() != nil {
+			assumeStartTime := *req.GetAssumeStartTime()
+			if err := types.ValidateAssumeStartTime(assumeStartTime, accessTTL, req.GetCreationTime()); err != nil {
+				return trace.Wrap(err)
+			}
+		}
 	}
 
 	return nil
@@ -1240,13 +1251,13 @@ func (m *RequestValidator) calculateMaxAccessDuration(req types.AccessRequest) (
 	// This prevents the time drift that can occur as the value is set on the client side.
 	// TODO(jakule): Replace with MaxAccessDuration that is a duration (5h, 4d etc), and not a point in time.
 	if req.GetDryRun() {
-		maxDuration = maxAccessDuration
+		maxDuration = MaxAccessDuration
 	} else if maxDuration < 0 {
 		return 0, trace.BadParameter("invalid maxDuration: must be greater than creation time")
 	}
 
-	if maxDuration > maxAccessDuration {
-		return 0, trace.BadParameter("max_duration must be less or equal 7 days")
+	if maxDuration > MaxAccessDuration {
+		return 0, trace.BadParameter("max_duration must be less than or equal to %v", MaxAccessDuration)
 	}
 
 	minAdjDuration := maxDuration
@@ -1635,7 +1646,7 @@ func ValidateAccessRequestForUser(ctx context.Context, clock clockwork.Clock, ge
 }
 
 // UnmarshalAccessRequest unmarshals the AccessRequest resource from JSON.
-func UnmarshalAccessRequest(data []byte, opts ...MarshalOption) (types.AccessRequest, error) {
+func UnmarshalAccessRequest(data []byte, opts ...MarshalOption) (*types.AccessRequestV3, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)

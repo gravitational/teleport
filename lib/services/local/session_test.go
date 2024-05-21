@@ -38,7 +38,7 @@ func TestDeleteUserAppSessions(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	identity := NewIdentityService(backend)
+	identity := NewTestIdentityService(backend)
 	users := []string{"alice", "bob"}
 	ctx := context.Background()
 
@@ -90,13 +90,13 @@ func TestListAppSessions(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	identity := NewIdentityService(backend)
+	identity := NewTestIdentityService(backend)
 
 	users := []string{"alice", "bob"}
 	ctx := context.Background()
 
 	// the default page size is used if the pageSize
-	// provide to ListAppSessions is 0 || > maxPageSize
+	// provide to ListAppSessions is 0 || > maxSessionPageSize
 	const useDefaultPageSize = 0
 
 	// Validate no sessions exist
@@ -108,7 +108,7 @@ func TestListAppSessions(t *testing.T) {
 	// Create 3 pages worth of sessions. One full
 	// page per user and one partial page with 5
 	// sessions per user.
-	for i := 0; i < maxPageSize+5; i++ {
+	for i := 0; i < maxSessionPageSize+5; i++ {
 		for _, user := range users {
 			session, err := types.NewWebSession(uuid.New().String(), types.KindAppSession, types.WebSessionSpecV2{
 				User:    user,
@@ -121,10 +121,10 @@ func TestListAppSessions(t *testing.T) {
 		}
 	}
 
-	// Validate page size is truncated to maxPageSize
-	sessions, token, err = identity.ListAppSessions(ctx, maxPageSize+maxPageSize*2/3, "", "")
+	// Validate page size is truncated to maxSessionPageSize
+	sessions, token, err = identity.ListAppSessions(ctx, maxSessionPageSize+maxSessionPageSize*2/3, "", "")
 	require.NoError(t, err)
-	require.Len(t, sessions, maxPageSize)
+	require.Len(t, sessions, maxSessionPageSize)
 	require.NotEmpty(t, token)
 
 	// reset token
@@ -139,7 +139,7 @@ func TestListAppSessions(t *testing.T) {
 			require.Len(t, sessions, 10)
 			break
 		} else {
-			require.Len(t, sessions, maxPageSize)
+			require.Len(t, sessions, maxSessionPageSize)
 		}
 	}
 
@@ -177,7 +177,7 @@ func TestDeleteUserSAMLIdPSessions(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	identity := NewIdentityService(backend)
+	identity := NewTestIdentityService(backend)
 	users := []string{"alice", "bob"}
 	ctx := context.Background()
 
@@ -229,13 +229,13 @@ func TestListSAMLIdPSessions(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	identity := NewIdentityService(backend)
+	identity := NewTestIdentityService(backend)
 
 	users := []string{"alice", "bob"}
 	ctx := context.Background()
 
 	// the default page size is used if the pageSize
-	// provide to ListSAMLIdPSessions is 0 || > maxPageSize
+	// provide to ListSAMLIdPSessions is 0 || > maxSessionPageSize
 	const useDefaultPageSize = 0
 
 	// Validate no sessions exist
@@ -247,7 +247,7 @@ func TestListSAMLIdPSessions(t *testing.T) {
 	// Create 3 pages worth of sessions. One full
 	// page per user and one partial page with 5
 	// sessions per user.
-	for i := 0; i < maxPageSize+5; i++ {
+	for i := 0; i < maxSessionPageSize+5; i++ {
 		for _, user := range users {
 			session, err := types.NewWebSession(uuid.New().String(), types.KindSAMLIdPSession, types.WebSessionSpecV2{
 				User:    user,
@@ -260,10 +260,10 @@ func TestListSAMLIdPSessions(t *testing.T) {
 		}
 	}
 
-	// Validate page size is truncated to maxPageSize
-	sessions, token, err = identity.ListSAMLIdPSessions(ctx, maxPageSize+maxPageSize*2/3, "", "")
+	// Validate page size is truncated to maxSessionPageSize
+	sessions, token, err = identity.ListSAMLIdPSessions(ctx, maxSessionPageSize+maxSessionPageSize*2/3, "", "")
 	require.NoError(t, err)
-	require.Len(t, sessions, maxPageSize)
+	require.Len(t, sessions, maxSessionPageSize)
 	require.NotEmpty(t, token)
 
 	// reset token
@@ -278,7 +278,7 @@ func TestListSAMLIdPSessions(t *testing.T) {
 			require.Len(t, sessions, 10)
 			break
 		} else {
-			require.Len(t, sessions, maxPageSize)
+			require.Len(t, sessions, maxSessionPageSize)
 		}
 	}
 

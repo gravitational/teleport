@@ -111,19 +111,15 @@ exports[`success state 1`] = `
 
 .c15:disabled {
   color: rgba(255,255,255,0.36);
-}
-
-.c15:disabled {
-  color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c15:hover:enabled,
-.c15:focus:enabled {
+.c15:not(:disabled):hover,
+.c15:not(:disabled):focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c15:active:enabled {
+.c15:not(:disabled):active {
   background: rgba(255,255,255,0.18);
 }
 
@@ -150,19 +146,15 @@ exports[`success state 1`] = `
 
 .c18:disabled {
   color: rgba(255,255,255,0.36);
-}
-
-.c18:disabled {
-  color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c18:hover:enabled,
-.c18:focus:enabled {
+.c18:not(:disabled):hover,
+.c18:not(:disabled):focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c18:active:enabled {
+.c18:not(:disabled):active {
   background: rgba(255,255,255,0.18);
 }
 
@@ -501,12 +493,12 @@ exports[`success state 1`] = `
               </strong>
                - 
               <strong>
-                6
+                7
               </strong>
                of
                
               <strong>
-                6
+                7
               </strong>
             </div>
           </div>
@@ -697,6 +689,31 @@ exports[`success state 1`] = `
                 </span>
               </button>
             </td>
+          </tr>
+          <tr>
+            <td>
+              bot-little-robot
+            </td>
+            <td>
+              <div
+                class="c20"
+              >
+                <div
+                  class="c21"
+                  kind="secondary"
+                >
+                  bot-little-robot
+                </div>
+              </div>
+            </td>
+            <td
+              style="text-transform: capitalize;"
+            >
+              Bot
+            </td>
+            <td
+              align="right"
+            />
           </tr>
           <tr>
             <td>

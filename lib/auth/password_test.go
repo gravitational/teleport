@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp/totp"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
@@ -35,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
@@ -258,6 +260,52 @@ func TestServer_ChangePassword(t *testing.T) {
 	}
 }
 
+// This test asserts that an attacker is unable to change password without
+// providing the old one if they take over a user's web session and use a
+// different type of WebAuthn challenge that would be normally requested by the
+// Web UI. This is a regression test for
+// https://github.com/gravitational/teleport-private/issues/1369.
+func TestServer_ChangePassword_FailsWithoutOldPassword(t *testing.T) {
+	t.Parallel()
+
+	server := newTestTLSServer(t)
+	mfa := configureForMFA(t, server)
+	authServer := server.Auth()
+	ctx := context.Background()
+
+	username := mfa.User
+	newPass := []byte("capybarasarecool123")
+
+	userClient, err := server.NewClient(TestUser(username))
+	require.NoError(t, err)
+	defer userClient.Close()
+
+	// Acquire and solve an MFA challenge.
+	mfaChallenge, err := userClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
+			ContextUser: &proto.ContextUser{},
+		},
+	})
+	require.NoError(t, err, "creating challenge")
+	mfaResp, err := mfa.WebDev.SolveAuthn(mfaChallenge)
+	require.NoError(t, err, "solving challenge with device")
+
+	// Change password.
+	req := &proto.ChangePasswordRequest{
+		User:        username,
+		NewPassword: newPass,
+		Webauthn:    mfaResp.GetWebauthn(),
+	}
+	err = authServer.ChangePassword(ctx, req)
+	assert.True(t,
+		trace.IsAccessDenied(err),
+		"ChangePassword error mismatch, want=AccessDenied, got=%v (%T)",
+		err, trace.Unwrap(err))
+
+	// Did the password change take effect?
+	assert.Error(t, authServer.checkPasswordWOToken(username, newPass), "password was changed")
+}
+
 func TestChangeUserAuthentication(t *testing.T) {
 	t.Parallel()
 
@@ -456,7 +504,7 @@ func TestChangeUserAuthentication(t *testing.T) {
 
 			c.setAuthPreference()
 
-			token, err := srv.Auth().CreateResetPasswordToken(ctx, CreateUserTokenRequest{
+			token, err := srv.Auth().CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 				Name: username,
 			})
 			require.NoError(t, err)
@@ -515,7 +563,7 @@ func TestChangeUserAuthenticationWithErrors(t *testing.T) {
 	_, _, err = CreateUserAndRole(s.a, username, []string{username}, nil)
 	require.NoError(t, err)
 
-	token, err := s.a.CreateResetPasswordToken(ctx, CreateUserTokenRequest{
+	token, err := s.a.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 		Name: username,
 	})
 	require.NoError(t, err)

@@ -101,6 +101,8 @@ export interface User {
   authType?: string;
   // isLocal is true if json.authType was 'local'.
   isLocal?: boolean;
+  // isBot is true if the user is a Bot User.
+  isBot?: boolean;
   // traits existed before field "externalTraits"
   // and returns only "specific" traits.
   traits?: UserTraits;

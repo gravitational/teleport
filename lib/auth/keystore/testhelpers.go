@@ -26,9 +26,11 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
-func HSMTestConfig(t *testing.T) Config {
+func HSMTestConfig(t *testing.T) servicecfg.KeystoreConfig {
 	if cfg, ok := yubiHSMTestConfig(t); ok {
 		t.Log("Running test with YubiHSM")
 		return cfg
@@ -46,18 +48,18 @@ func HSMTestConfig(t *testing.T) Config {
 		return cfg
 	}
 	t.Skip("No HSM available for test")
-	return Config{}
+	return servicecfg.KeystoreConfig{}
 }
 
-func yubiHSMTestConfig(t *testing.T) (Config, bool) {
+func yubiHSMTestConfig(t *testing.T) (servicecfg.KeystoreConfig, bool) {
 	yubiHSMPath := os.Getenv("TELEPORT_TEST_YUBIHSM_PKCS11_PATH")
 	yubiHSMPin := os.Getenv("TELEPORT_TEST_YUBIHSM_PIN")
 	if yubiHSMPath == "" || yubiHSMPin == "" {
-		return Config{}, false
+		return servicecfg.KeystoreConfig{}, false
 	}
 	slotNumber := 0
-	return Config{
-		PKCS11: PKCS11Config{
+	return servicecfg.KeystoreConfig{
+		PKCS11: servicecfg.PKCS11Config{
 			Path:       yubiHSMPath,
 			SlotNumber: &slotNumber,
 			Pin:        yubiHSMPin,
@@ -65,13 +67,13 @@ func yubiHSMTestConfig(t *testing.T) (Config, bool) {
 	}, true
 }
 
-func cloudHSMTestConfig(t *testing.T) (Config, bool) {
+func cloudHSMTestConfig(t *testing.T) (servicecfg.KeystoreConfig, bool) {
 	cloudHSMPin := os.Getenv("TELEPORT_TEST_CLOUDHSM_PIN")
 	if cloudHSMPin == "" {
-		return Config{}, false
+		return servicecfg.KeystoreConfig{}, false
 	}
-	return Config{
-		PKCS11: PKCS11Config{
+	return servicecfg.KeystoreConfig{
+		PKCS11: servicecfg.PKCS11Config{
 			Path:       "/opt/cloudhsm/lib/libcloudhsm_pkcs11.so",
 			TokenLabel: "cavium",
 			Pin:        cloudHSMPin,
@@ -79,13 +81,13 @@ func cloudHSMTestConfig(t *testing.T) (Config, bool) {
 	}, true
 }
 
-func gcpKMSTestConfig(t *testing.T) (Config, bool) {
+func gcpKMSTestConfig(t *testing.T) (servicecfg.KeystoreConfig, bool) {
 	gcpKeyring := os.Getenv("TELEPORT_TEST_GCP_KMS_KEYRING")
 	if gcpKeyring == "" {
-		return Config{}, false
+		return servicecfg.KeystoreConfig{}, false
 	}
-	return Config{
-		GCPKMS: GCPKMSConfig{
+	return servicecfg.KeystoreConfig{
+		GCPKMS: servicecfg.GCPKMSConfig{
 			KeyRing:         gcpKeyring,
 			ProtectionLevel: "SOFTWARE",
 		},
@@ -93,7 +95,7 @@ func gcpKMSTestConfig(t *testing.T) (Config, bool) {
 }
 
 var (
-	cachedSoftHSMConfig      *Config
+	cachedSoftHSMConfig      *servicecfg.KeystoreConfig
 	cachedSoftHSMConfigMutex sync.Mutex
 )
 
@@ -111,10 +113,10 @@ var (
 // delete the token or the entire token directory. Each test should clean up
 // all keys that it creates because SoftHSM2 gets really slow when there are
 // many keys for a given token.
-func softHSMTestConfig(t *testing.T) (Config, bool) {
+func softHSMTestConfig(t *testing.T) (servicecfg.KeystoreConfig, bool) {
 	path := os.Getenv("SOFTHSM2_PATH")
 	if path == "" {
-		return Config{}, false
+		return servicecfg.KeystoreConfig{}, false
 	}
 
 	cachedSoftHSMConfigMutex.Lock()
@@ -155,8 +157,8 @@ func softHSMTestConfig(t *testing.T) (Config, bool) {
 		require.NoError(t, err, "error attempting to run softhsm2-util")
 	}
 
-	cachedSoftHSMConfig = &Config{
-		PKCS11: PKCS11Config{
+	cachedSoftHSMConfig = &servicecfg.KeystoreConfig{
+		PKCS11: servicecfg.PKCS11Config{
 			Path:       path,
 			TokenLabel: tokenLabel,
 			Pin:        "password",

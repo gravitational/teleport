@@ -23,7 +23,8 @@ import {
 
 import { IntegrationList } from './IntegrationList';
 import { DeleteIntegrationDialog } from './RemoveIntegrationDialog';
-import { EditIntegrationDialog } from './EditIntegrationDialog';
+import { EditAwsOidcIntegrationDialog } from './EditAwsOidcIntegrationDialog';
+import { UpdateAwsOidcThumbprint } from './UpdateAwsOidcThumbprint';
 import { plugins, integrations } from './fixtures';
 
 export default {
@@ -32,6 +33,20 @@ export default {
 
 export function List() {
   return <IntegrationList list={[...plugins, ...integrations]} />;
+}
+
+export function UpdateAwsOidcThumbprintHoverTooltip() {
+  return (
+    <UpdateAwsOidcThumbprint
+      integration={{
+        resourceType: 'integration',
+        name: 'aws',
+        kind: IntegrationKind.AwsOidc,
+        statusCode: IntegrationStatusCode.Running,
+        spec: { roleArn: '', issuerS3Prefix: '', issuerS3Bucket: '' },
+      }}
+    />
+  );
 }
 
 export function DeleteDialog() {
@@ -44,16 +59,40 @@ export function DeleteDialog() {
   );
 }
 
-export function EditDialog() {
+export function EditDialogWithoutS3() {
   return (
-    <EditIntegrationDialog
+    <EditAwsOidcIntegrationDialog
       close={() => null}
       edit={() => null}
       integration={{
         resourceType: 'integration',
         kind: IntegrationKind.AwsOidc,
         name: 'some-integration-name',
-        spec: { roleArn: 'arn:aws:iam::123456789012:roles/johndoe' },
+        spec: {
+          roleArn: 'arn:aws:iam::123456789012:role/johndoe',
+          issuerS3Bucket: '',
+          issuerS3Prefix: '',
+        },
+        statusCode: IntegrationStatusCode.Running,
+      }}
+    />
+  );
+}
+
+export function EditDialogWithS3() {
+  return (
+    <EditAwsOidcIntegrationDialog
+      close={() => null}
+      edit={() => null}
+      integration={{
+        resourceType: 'integration',
+        kind: IntegrationKind.AwsOidc,
+        name: 'some-integration-name',
+        spec: {
+          roleArn: 'arn:aws:iam::123456789012:role/johndoe',
+          issuerS3Bucket: 'named-bucket',
+          issuerS3Prefix: 'named-prefix',
+        },
         statusCode: IntegrationStatusCode.Running,
       }}
     />

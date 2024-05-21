@@ -18,13 +18,14 @@ import { User } from './types';
 
 export default function makeUser(json: any): User {
   json = json || {};
-  const { name, roles, authType, traits = {}, allTraits } = json;
+  const { name, roles, authType, traits = {}, allTraits, isBot } = json;
 
   return {
     name,
     roles: roles ? roles.sort() : [],
     authType: authType === 'local' ? 'teleport local user' : authType,
     isLocal: authType === 'local',
+    isBot,
     traits: {
       logins: traits.logins || [],
       databaseUsers: traits.databaseUsers || [],

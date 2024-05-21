@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -90,10 +91,9 @@ func (a *Server) ChangeUserAuthentication(ctx context.Context, req *proto.Change
 	}, nil
 }
 
-// ResetPassword securely generates a new random password and assigns it to user.
-// This method is used to invalidate existing user password during password
-// reset process.
-func (a *Server) ResetPassword(username string) (string, error) {
+// resetPassword securely generates a new random password and assigns it to user.
+// Used to invalidate existing user password during password reset process.
+func (a *Server) resetPassword(username string) (string, error) {
 	user, err := a.GetUser(username, false)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -121,17 +121,15 @@ func (a *Server) ChangePassword(ctx context.Context, req *proto.ChangePasswordRe
 
 	// Authenticate.
 	user := req.User
-	authReq := AuthenticateUserRequest{
+	authReq := authclient.AuthenticateUserRequest{
 		Username: user,
 		Webauthn: wantypes.CredentialAssertionResponseFromProto(req.Webauthn),
 	}
-	if len(req.OldPassword) > 0 {
-		authReq.Pass = &PassCreds{
-			Password: req.OldPassword,
-		}
+	authReq.Pass = &authclient.PassCreds{
+		Password: req.OldPassword,
 	}
 	if req.SecondFactorToken != "" {
-		authReq.OTP = &OTPCreds{
+		authReq.OTP = &authclient.OTPCreds{
 			Password: req.OldPassword,
 			Token:    req.SecondFactorToken,
 		}

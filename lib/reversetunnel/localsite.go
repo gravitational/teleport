@@ -34,7 +34,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/proxy/peer"
@@ -144,10 +144,10 @@ type localSite struct {
 	srv         *server
 
 	// client provides access to the Auth Server API of the local cluster.
-	client auth.ClientI
+	client authclient.ClientI
 	// accessPoint provides access to a cached subset of the Auth Server API of
 	// the local cluster.
-	accessPoint auth.RemoteProxyAccessPoint
+	accessPoint authclient.RemoteProxyAccessPoint
 
 	// certificateCache caches host certificates for the forwarding server.
 	certificateCache *certificateCache
@@ -185,7 +185,7 @@ func (s *localSite) GetTunnelsCount() int {
 }
 
 // CachingAccessPoint returns an auth.RemoteProxyAccessPoint for this cluster.
-func (s *localSite) CachingAccessPoint() (auth.RemoteProxyAccessPoint, error) {
+func (s *localSite) CachingAccessPoint() (authclient.RemoteProxyAccessPoint, error) {
 	return s.accessPoint, nil
 }
 
@@ -195,7 +195,7 @@ func (s *localSite) NodeWatcher() (*services.NodeWatcher, error) {
 }
 
 // GetClient returns a client to the full Auth Server API.
-func (s *localSite) GetClient() (auth.ClientI, error) {
+func (s *localSite) GetClient() (authclient.ClientI, error) {
 	return s.client, nil
 }
 
@@ -506,7 +506,7 @@ func (s *localSite) setupTunnelForOpenSSHEICENode(ctx context.Context, targetSer
 		return nil, trace.BadParameter("missing aws cloud metadata")
 	}
 
-	token, err := s.client.GenerateAWSOIDCToken(ctx)
+	token, err := s.client.GenerateAWSOIDCToken(ctx, awsInfo.Integration)
 	if err != nil {
 		return nil, trace.BadParameter("failed to generate aws token: %v", err)
 	}
@@ -696,6 +696,8 @@ func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-ch
 		}
 	}()
 
+	offlineThresholdTimer := s.clock.NewTimer(s.offlineThreshold)
+	defer offlineThresholdTimer.Stop()
 	for {
 		select {
 		case <-s.srv.ctx.Done():
@@ -751,8 +753,7 @@ func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-ch
 
 			rconn.setLastHeartbeat(s.clock.Now().UTC())
 			rconn.markValid()
-		// Note that time.After is re-created everytime a request is processed.
-		case t := <-s.clock.After(s.offlineThreshold):
+		case t := <-offlineThresholdTimer.Chan():
 			rconn.markInvalid(trace.ConnectionProblem(nil, "no heartbeats for %v", s.offlineThreshold))
 
 			// terminate and remove the connection if offline, otherwise warn and wait for the next heartbeat
@@ -761,7 +762,15 @@ func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-ch
 				return
 			}
 			logger.Warnf("Deferring closure of unhealthy connection due to %d active connections", rconn.activeSessions())
+
+			offlineThresholdTimer.Reset(s.offlineThreshold)
+			continue
 		}
+
+		if !offlineThresholdTimer.Stop() {
+			<-offlineThresholdTimer.Chan()
+		}
+		offlineThresholdTimer.Reset(s.offlineThreshold)
 	}
 }
 

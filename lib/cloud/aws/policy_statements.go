@@ -23,9 +23,8 @@ import (
 	"github.com/gravitational/trace"
 )
 
-var (
-	allResources = []string{"*"}
-)
+var wildcard = "*"
+var allResources = []string{wildcard}
 
 // StatementForIAMEditRolePolicy returns a IAM Policy Statement which allows editting Role Policy
 // of the resources.
@@ -56,6 +55,9 @@ func StatementForECSManageService() *Statement {
 			"ecs:DescribeClusters", "ecs:CreateCluster", "ecs:PutClusterCapacityProviders",
 			"ecs:DescribeServices", "ecs:CreateService", "ecs:UpdateService", "ecs:ListServices",
 			"ecs:RegisterTaskDefinition", "ecs:DescribeTaskDefinition", "ecs:DeregisterTaskDefinition",
+
+			// Required if the account has Resource Tagging Authorization enabled in Amazon ECS.
+			"ecs:TagResource",
 
 			// EC2 DescribeSecurityGroups is required so that the user can list the SG and then pick which ones they want to apply to the ECS Service.
 			"ec2:DescribeSecurityGroups",
@@ -166,6 +168,23 @@ func StatementForListRDSDatabases() *Statement {
 	}
 }
 
+// StatementForS3BucketPublicRead returns the statement that
+// allows public/anonynous access to s3 bucket/prefix objects.
+func StatementForS3BucketPublicRead(s3bucketName, objectPrefix string) *Statement {
+	return &Statement{
+		Effect: EffectAllow,
+		Principals: StringOrMap{
+			wildcard: SliceOrString{},
+		},
+		Actions: []string{
+			"s3:GetObject",
+		},
+		Resources: []string{
+			fmt.Sprintf("arn:aws:s3:::%s/%s/*", s3bucketName, objectPrefix),
+		},
+	}
+}
+
 // ExternalAuditStoragePolicyConfig holds options for the External Audit Storage
 // IAM policy.
 type ExternalAuditStoragePolicyConfig struct {
@@ -222,7 +241,7 @@ func PolicyDocumentForExternalAuditStorage(cfg *ExternalAuditStoragePolicyConfig
 	return &PolicyDocument{
 		Version: PolicyVersion,
 		Statements: []*Statement{
-			&Statement{
+			{
 				StatementID: "ReadWriteSessionsAndEvents",
 				Effect:      EffectAllow,
 				Actions: []string{
@@ -242,7 +261,7 @@ func PolicyDocumentForExternalAuditStorage(cfg *ExternalAuditStoragePolicyConfig
 				},
 				Resources: cfg.S3ARNs,
 			},
-			&Statement{
+			{
 				StatementID: "AllowAthenaQuery",
 				Effect:      EffectAllow,
 				Actions: []string{
@@ -260,7 +279,7 @@ func PolicyDocumentForExternalAuditStorage(cfg *ExternalAuditStoragePolicyConfig
 					}.String(),
 				},
 			},
-			&Statement{
+			{
 				StatementID: "FullAccessOnGlueTable",
 				Effect:      EffectAllow,
 				Actions: []string{
@@ -295,4 +314,64 @@ func PolicyDocumentForExternalAuditStorage(cfg *ExternalAuditStoragePolicyConfig
 			},
 		},
 	}, nil
+}
+
+// StatementAccessGraphAWSSync returns the statement that allows configuring the AWS Sync feature.
+func StatementAccessGraphAWSSync() *Statement {
+	return &Statement{
+		Effect: EffectAllow,
+		Actions: []string{
+			// EC2 IAM
+			"ec2:DescribeInstances",
+			"ec2:DescribeImages",
+			"ec2:DescribeTags",
+			"ec2:DescribeSnapshots",
+			"ec2:DescribeKeyPairs",
+			// EKS IAM
+			"eks:ListClusters",
+			"eks:DescribeCluster",
+			"eks:ListAccessEntries",
+			"eks:ListAccessPolicies",
+			"eks:ListAssociatedAccessPolicies",
+			"eks:DescribeAccessEntry",
+
+			// RDS IAM
+			"rds:DescribeDBInstances",
+			"rds:DescribeDBClusters",
+			"rds:ListTagsForResource",
+			"rds:DescribeDBProxies",
+
+			// DynamoDB IAM
+			"dynamodb:ListTables",
+			"dynamodb:DescribeTable",
+			// Redshift IAM
+			"redshift:DescribeClusters",
+			"redshift:Describe*",
+			// S3 IAM
+			"s3:ListAllMyBuckets",
+			"s3:GetBucketPolicy",
+			"s3:ListBucket",
+			"s3:GetBucketLocation",
+			// IAM IAM
+			"iam:ListUsers",
+			"iam:GetUser",
+			"iam:ListRoles",
+			"iam:ListGroups",
+			"iam:ListPolicies",
+			"iam:ListGroupsForUser",
+			"iam:ListInstanceProfiles",
+			"iam:ListUserPolicies",
+			"iam:GetUserPolicy",
+			"iam:ListAttachedUserPolicies",
+			"iam:ListGroupPolicies",
+			"iam:GetGroupPolicy",
+			"iam:ListAttachedGroupPolicies",
+			"iam:GetPolicy",
+			"iam:GetPolicyVersion",
+			"iam:ListRolePolicies",
+			"iam:ListAttachedRolePolicies",
+			"iam:GetRolePolicy",
+		},
+		Resources: allResources,
+	}
 }

@@ -75,12 +75,19 @@ func (h *Handler) checkAccessToRegisteredResource(w http.ResponseWriter, r *http
 	}, nil
 }
 
-func (h *Handler) getRolesHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) listRolesHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	values := r.URL.Query()
+	// If limit exists as a query parameter, this means its coming from a "new" webui
+	// and can return the new paginated response.
+	// TODO(gzdunek): DELETE IN 17.0.0: remove "getRoles".
+	if values.Has("limit") {
+		return listRoles(clt, values)
+	}
 	return getRoles(clt)
 }
 
@@ -91,6 +98,40 @@ func getRoles(clt resourcesAPIGetter) ([]ui.ResourceItem, error) {
 	}
 
 	return ui.NewRoles(roles)
+}
+
+func listRoles(clt resourcesAPIGetter, values url.Values) (*listResourcesWithoutCountGetResponse, error) {
+	limit, err := queryLimitAsInt32(values, "limit", defaults.MaxIterationLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	roles, err := clt.ListRoles(context.TODO(), &proto.ListRolesRequest{
+		Limit:    limit,
+		StartKey: values.Get("startKey"),
+		Filter: &types.RoleFilter{
+			SearchKeywords:  client.ParseSearchKeywords(values.Get("search"), ' '),
+			SkipSystemRoles: true,
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var typeRoles []types.Role
+	for _, role := range roles.GetRoles() {
+		typeRoles = append(typeRoles, role)
+	}
+
+	uiRoles, err := ui.NewRoles(typeRoles)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &listResourcesWithoutCountGetResponse{
+		Items:    uiRoles,
+		StartKey: roles.GetNextKey(),
+	}, nil
 }
 
 func (h *Handler) deleteRole(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
@@ -457,6 +498,13 @@ type listResourcesGetResponse struct {
 	TotalCount int `json:"totalCount"`
 }
 
+type listResourcesWithoutCountGetResponse struct {
+	// Items is a list of resources retrieved.
+	Items interface{} `json:"items"`
+	// StartKey is the position to resume search events.
+	StartKey string `json:"startKey"`
+}
+
 type checkAccessToRegisteredResourceResponse struct {
 	// HasResource is a flag to indicate if user has any access
 	// to a registered resource or not.
@@ -468,6 +516,8 @@ type resourcesAPIGetter interface {
 	GetRole(ctx context.Context, name string) (types.Role, error)
 	// GetRoles returns a list of roles
 	GetRoles(ctx context.Context) ([]types.Role, error)
+	// ListRoles returns a paginated list of roles.
+	ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error)
 	// UpsertRole creates or updates role
 	UpsertRole(ctx context.Context, role types.Role) error
 	// UpsertGithubConnector creates or updates a Github connector

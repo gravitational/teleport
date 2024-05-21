@@ -29,7 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
@@ -83,7 +83,7 @@ func (c *InventoryCommand) Initialize(app *kingpin.Application, config *servicec
 }
 
 // TryRun takes the CLI command as an argument (like "inventory status") and executes it.
-func (c *InventoryCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI) (match bool, err error) {
+func (c *InventoryCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
 	switch cmd {
 	case c.inventoryStatus.FullCommand():
 		err = c.Status(ctx, client)
@@ -97,7 +97,7 @@ func (c *InventoryCommand) TryRun(ctx context.Context, cmd string, client auth.C
 	return true, trace.Wrap(err)
 }
 
-func (c *InventoryCommand) Status(ctx context.Context, client auth.ClientI) error {
+func (c *InventoryCommand) Status(ctx context.Context, client *authclient.Client) error {
 	rsp, err := client.GetInventoryStatus(ctx, proto.InventoryStatusRequest{
 		Connected: c.getConnected,
 	})
@@ -172,7 +172,7 @@ func printHierarchicalData(data map[string]any, indent string, depth int) {
 	}
 }
 
-func (c *InventoryCommand) List(ctx context.Context, client auth.ClientI) error {
+func (c *InventoryCommand) List(ctx context.Context, client *authclient.Client) error {
 	var services []types.SystemRole
 	var err error
 	if c.services != "" {
@@ -245,7 +245,7 @@ func (c *InventoryCommand) List(ctx context.Context, client auth.ClientI) error 
 	}
 }
 
-func (c *InventoryCommand) Ping(ctx context.Context, client auth.ClientI) error {
+func (c *InventoryCommand) Ping(ctx context.Context, client *authclient.Client) error {
 	rsp, err := client.PingInventory(ctx, proto.InventoryPingRequest{
 		ServerID:   c.serverID,
 		ControlLog: c.controlLog,

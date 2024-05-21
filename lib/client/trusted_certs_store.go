@@ -37,7 +37,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -48,10 +48,10 @@ type TrustedCertsStore interface {
 	// SaveTrustedCerts adds the given trusted CA TLS certificates and SSH host keys to the store.
 	// Existing TLS certificates for the given trusted certs will be overwritten, while host keys
 	// will be appended to existing entries.
-	SaveTrustedCerts(proxyHost string, cas []auth.TrustedCerts) error
+	SaveTrustedCerts(proxyHost string, cas []authclient.TrustedCerts) error
 
 	// GetTrustedCerts gets the trusted CA TLS certificates and SSH host keys for the given proxyHost.
-	GetTrustedCerts(proxyHost string) ([]auth.TrustedCerts, error)
+	GetTrustedCerts(proxyHost string) ([]authclient.TrustedCerts, error)
 
 	// GetTrustedCertsPEM gets trusted TLS certificates of certificate authorities.
 	// Each returned byte slice contains an individual PEM block.
@@ -69,7 +69,7 @@ type MemTrustedCertsStore struct {
 }
 
 // trustedCertsMap is a two-dimensinoal map indexed by [proxyHost][clusterName]
-type trustedCertsMap map[string]map[string]auth.TrustedCerts
+type trustedCertsMap map[string]map[string]authclient.TrustedCerts
 
 // NewMemTrustedCertsStore creates a new instance of MemTrustedCertsStore.
 func NewMemTrustedCertsStore() *MemTrustedCertsStore {
@@ -79,13 +79,13 @@ func NewMemTrustedCertsStore() *MemTrustedCertsStore {
 }
 
 // SaveTrustedCerts saves trusted TLS certificates of certificate authorities.
-func (ms *MemTrustedCertsStore) SaveTrustedCerts(proxyHost string, cas []auth.TrustedCerts) error {
+func (ms *MemTrustedCertsStore) SaveTrustedCerts(proxyHost string, cas []authclient.TrustedCerts) error {
 	if proxyHost == "" {
 		return trace.BadParameter("proxyHost must be provided to add trusted certs")
 	}
 	_, ok := ms.trustedCerts[proxyHost]
 	if !ok {
-		ms.trustedCerts[proxyHost] = map[string]auth.TrustedCerts{}
+		ms.trustedCerts[proxyHost] = map[string]authclient.TrustedCerts{}
 	}
 	for _, ca := range cas {
 		if ca.ClusterName == "" {
@@ -94,7 +94,7 @@ func (ms *MemTrustedCertsStore) SaveTrustedCerts(proxyHost string, cas []auth.Tr
 
 		entry, ok := ms.trustedCerts[proxyHost][ca.ClusterName]
 		if !ok {
-			entry = auth.TrustedCerts{ClusterName: ca.ClusterName}
+			entry = authclient.TrustedCerts{ClusterName: ca.ClusterName}
 		}
 
 		// If TLS certificates were provided, replace the existing entry's certs.
@@ -114,8 +114,8 @@ func (ms *MemTrustedCertsStore) SaveTrustedCerts(proxyHost string, cas []auth.Tr
 }
 
 // GetTrustedCerts gets the trusted CA TLS certificates and SSH host keys for the given proxyHost.
-func (ms *MemTrustedCertsStore) GetTrustedCerts(proxyHost string) ([]auth.TrustedCerts, error) {
-	var trustedCerts []auth.TrustedCerts
+func (ms *MemTrustedCertsStore) GetTrustedCerts(proxyHost string) ([]authclient.TrustedCerts, error) {
+	var trustedCerts []authclient.TrustedCerts
 	for _, entry := range ms.trustedCerts[proxyHost] {
 		trustedCerts = append(trustedCerts, entry)
 	}
@@ -200,7 +200,7 @@ func (fs *FSTrustedCertsStore) tlsCAsPath(proxy string) string {
 }
 
 // GetTrustedCerts gets the trusted CA TLS certificates and SSH host keys for the given proxyHost.
-func (fs *FSTrustedCertsStore) GetTrustedCerts(proxyHost string) ([]auth.TrustedCerts, error) {
+func (fs *FSTrustedCertsStore) GetTrustedCerts(proxyHost string) ([]authclient.TrustedCerts, error) {
 	tlsCA, err := fs.GetTrustedCertsPEM(proxyHost)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -254,7 +254,7 @@ func (fs *FSTrustedCertsStore) getKnownHostsFile() (knownHosts []byte, retErr er
 }
 
 // SaveTrustedCerts saves trusted TLS certificates of certificate authorities.
-func (fs *FSTrustedCertsStore) SaveTrustedCerts(proxyHost string, cas []auth.TrustedCerts) (retErr error) {
+func (fs *FSTrustedCertsStore) SaveTrustedCerts(proxyHost string, cas []authclient.TrustedCerts) (retErr error) {
 	if proxyHost == "" {
 		return trace.BadParameter("proxyHost must be provided to add trusted certs")
 	}
@@ -282,7 +282,7 @@ func (fs *FSTrustedCertsStore) SaveTrustedCerts(proxyHost string, cas []auth.Tru
 	return nil
 }
 
-func (fs *FSTrustedCertsStore) saveTrustedCertsInCASDir(proxyHost string, cas []auth.TrustedCerts) error {
+func (fs *FSTrustedCertsStore) saveTrustedCertsInCASDir(proxyHost string, cas []authclient.TrustedCerts) error {
 	casDirPath := filepath.Join(fs.casDir(proxyHost))
 	if err := os.MkdirAll(casDirPath, os.ModeDir|profileDirPerms); err != nil {
 		return trace.ConvertSystemError(err)
@@ -323,7 +323,7 @@ func (fs *FSTrustedCertsStore) writeClusterCertificates(proxyHost, clusterName s
 	return nil
 }
 
-func (fs *FSTrustedCertsStore) saveTrustedCertsInLegacyCAFile(proxyHost string, cas []auth.TrustedCerts) (retErr error) {
+func (fs *FSTrustedCertsStore) saveTrustedCertsInLegacyCAFile(proxyHost string, cas []authclient.TrustedCerts) (retErr error) {
 	if err := os.MkdirAll(fs.proxyKeyDir(proxyHost), os.ModeDir|profileDirPerms); err != nil {
 		return trace.ConvertSystemError(err)
 	}
@@ -352,7 +352,7 @@ func (fs *FSTrustedCertsStore) saveTrustedCertsInLegacyCAFile(proxyHost string, 
 }
 
 // addKnownHosts adds new entries to `known_hosts` file for the provided CAs.
-func (fs *FSTrustedCertsStore) addKnownHosts(proxyHost string, cas []auth.TrustedCerts) (retErr error) {
+func (fs *FSTrustedCertsStore) addKnownHosts(proxyHost string, cas []authclient.TrustedCerts) (retErr error) {
 	if err := os.MkdirAll(fs.proxyKeyDir(proxyHost), os.ModeDir|profileDirPerms); err != nil {
 		return trace.ConvertSystemError(err)
 	}
@@ -487,8 +487,8 @@ func (fs *FSTrustedCertsStore) GetTrustedCertsPEM(proxyHost string) ([][]byte, e
 // TrustedCertsFromCACerts converts the given TLS CA certificates and KnownHosts files into
 // a list of Trusted Certs. If a proxyHost is specified, only known hosts with that proxy host
 // as one of its hostnames are returned.
-func TrustedCertsFromCACerts(tlsCACerts [][]byte, knownHosts []sshutils.KnownHost) ([]auth.TrustedCerts, error) {
-	clusterCAs := make(map[string]*auth.TrustedCerts)
+func TrustedCertsFromCACerts(tlsCACerts [][]byte, knownHosts []sshutils.KnownHost) ([]authclient.TrustedCerts, error) {
+	clusterCAs := make(map[string]*authclient.TrustedCerts)
 
 	for _, certPEM := range tlsCACerts {
 		cert, err := tlsca.ParseCertificatePEM(certPEM)
@@ -498,7 +498,7 @@ func TrustedCertsFromCACerts(tlsCACerts [][]byte, knownHosts []sshutils.KnownHos
 
 		clusterName := cert.Issuer.CommonName
 		if entry, ok := clusterCAs[clusterName]; !ok {
-			clusterCAs[clusterName] = &auth.TrustedCerts{
+			clusterCAs[clusterName] = &authclient.TrustedCerts{
 				ClusterName:     clusterName,
 				TLSCertificates: [][]byte{certPEM},
 			}
@@ -512,7 +512,7 @@ func TrustedCertsFromCACerts(tlsCACerts [][]byte, knownHosts []sshutils.KnownHos
 			continue
 		}
 		if entry, ok := clusterCAs[kh.Hostname]; !ok {
-			clusterCAs[kh.Hostname] = &auth.TrustedCerts{
+			clusterCAs[kh.Hostname] = &authclient.TrustedCerts{
 				ClusterName:    kh.Hostname,
 				AuthorizedKeys: [][]byte{kh.AuthorizedKey},
 			}
@@ -521,7 +521,7 @@ func TrustedCertsFromCACerts(tlsCACerts [][]byte, knownHosts []sshutils.KnownHos
 		}
 	}
 
-	var trustedCerts []auth.TrustedCerts
+	var trustedCerts []authclient.TrustedCerts
 	for _, trustedCA := range clusterCAs {
 		trustedCerts = append(trustedCerts, *trustedCA)
 	}

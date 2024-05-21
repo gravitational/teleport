@@ -67,8 +67,8 @@ export function getDbMeta(): DbMeta {
       protocol: 'postgres',
       labels: [],
       hostname: 'some-db-hostname',
-      users: ['staticUser1', 'staticUser2'],
-      names: ['staticName1', 'staticName2'],
+      users: ['staticUser1', 'staticUser2', '*'],
+      names: ['staticName1', 'staticName2', '*'],
     },
     selectedAwsRdsDb: {
       region: 'us-east-1',
@@ -88,20 +88,25 @@ export function getDbMeta(): DbMeta {
       resourceType: 'integration',
       spec: {
         roleArn: 'arn:aws:iam::123456789012:role/test-role-arn',
+        issuerS3Bucket: '',
+        issuerS3Prefix: '',
       },
       statusCode: IntegrationStatusCode.Running,
     },
   };
 }
 
-export const ComponentWrapper: React.FC = ({ children }) => (
+export const ComponentWrapper: React.FC<{
+  resourceSpec?: ResourceSpec;
+  dbMeta?: DbMeta;
+}> = ({ children, resourceSpec, dbMeta }) => (
   <TeleportProvider
-    agentMeta={getDbMeta()}
+    agentMeta={dbMeta || getDbMeta()}
     resourceKind={ResourceKind.Database}
-    resourceSpec={getDbResourceSpec(
-      DatabaseEngine.Postgres,
-      DatabaseLocation.Aws
-    )}
+    resourceSpec={
+      resourceSpec ||
+      getDbResourceSpec(DatabaseEngine.Postgres, DatabaseLocation.Aws)
+    }
   >
     {children}
   </TeleportProvider>

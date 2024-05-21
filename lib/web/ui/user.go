@@ -34,6 +34,8 @@ type UserListEntry struct {
 	// Different from "userTraits" where "userTraits"
 	// "selectively" returns traits.
 	AllTraits map[string][]string `json:"allTraits"`
+	// IsBot is true if the user is a Bot User.
+	IsBot bool `json:"isBot"`
 }
 
 type userTraits struct {
@@ -78,6 +80,7 @@ func NewUserListEntry(teleUser types.User) (*UserListEntry, error) {
 		Roles:     teleUser.GetRoles(),
 		AuthType:  authType,
 		AllTraits: teleUser.GetTraits(),
+		IsBot:     teleUser.IsBot(),
 	}, nil
 }
 

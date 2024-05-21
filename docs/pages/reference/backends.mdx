@@ -321,8 +321,8 @@ to disable the cleanup entirely, by specifying the `retention_period` or the
 `disable_cleanup` parameters in the fragment of the URI:
 
 ```yaml
-storage:
-  teleport:
+teleport:
+  storage:
     audit_events_uri:
       - postgresql://user_name@database-address/teleport_audit?sslmode=verify-full#disable_cleanup=false&retention_period=2160h
 ```
@@ -1055,7 +1055,7 @@ You'll need to replace these values in the policy example below:
         {
             "Action": "sns:Publish",
             "Effect": "Allow",
-            "Resource": "arn:aws:sns:eu-central-1:1234567890:audit-sqs",
+            "Resource": "arn:aws:sns:eu-central-1:1234567890:audit-sns",
             "Sid": "AllowPublishSNS"
         },
         {
@@ -1064,7 +1064,7 @@ You'll need to replace these values in the policy example below:
                 "sqs:DeleteMessage"
             ],
             "Effect": "Allow",
-            "Resource": "arn:aws:sqs:eu-central-1:1234567890:audit-sns",
+            "Resource": "arn:aws:sqs:eu-central-1:1234567890:audit-sqs",
             "Sid": "AllowReceiveSQS"
         },
         {

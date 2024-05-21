@@ -66,6 +66,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -111,9 +112,9 @@ type ForwarderConfig struct {
 	// Authz authenticates user
 	Authz authz.Authorizer
 	// AuthClient is a auth server client.
-	AuthClient auth.ClientI
+	AuthClient authclient.ClientI
 	// CachingAuthClient is a caching auth server client for read-only access.
-	CachingAuthClient auth.ReadKubernetesAccessPoint
+	CachingAuthClient authclient.ReadKubernetesAccessPoint
 	// Emitter is used to emit audit events
 	Emitter apievents.Emitter
 	// DataDir is a data dir to store logs
@@ -291,7 +292,6 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 	}
 
 	router := httprouter.New()
-
 	router.UseRawPath = true
 
 	router.GET("/version", fwd.withAuth(
@@ -312,6 +312,9 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 	router.GET("/api/:ver/namespaces/:podNamespace/pods/:podName/portforward", fwd.withAuth(fwd.portForward))
 
 	router.POST("/apis/authorization.k8s.io/:ver/selfsubjectaccessreviews", fwd.withAuth(fwd.selfSubjectAccessReviews))
+
+	router.PATCH("/api/:ver/namespaces/:podNamespace/pods/:podName/ephemeralcontainers", fwd.withAuth(fwd.ephemeralContainers))
+	router.PUT("/api/:ver/namespaces/:podNamespace/pods/:podName/ephemeralcontainers", fwd.withAuth(fwd.ephemeralContainers))
 
 	router.GET("/api/:ver/teleport/join/:session", fwd.withAuthPassthrough(fwd.join))
 
@@ -1425,22 +1428,8 @@ func (f *Forwarder) acquireConnectionLock(ctx context.Context, user string, role
 }
 
 // execNonInteractive handles all exec sessions without a TTY.
-func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params, request remoteCommandRequest, proxy *remoteCommandProxy, sess *clusterSession) (resp any, err error) {
-	defer proxy.Close()
-
-	roles, err := getRolesByName(f, ctx.Context.Identity.GetIdentity().Groups)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var policySets []*types.SessionTrackerPolicySet
-	for _, role := range roles {
-		policySet := role.GetSessionPolicySet()
-		policySets = append(policySets, &policySet)
-	}
-
-	authorizer := auth.NewSessionAccessEvaluator(policySets, types.KubernetesSessionKind, ctx.User.GetName())
-	canStart, _, err := authorizer.FulfilledFor(nil)
+func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params, request remoteCommandRequest, proxy *remoteCommandProxy, sess *clusterSession) (any, error) {
+	canStart, err := f.canStartSessionAlone(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1562,6 +1551,19 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 	execEvent.Code = events.ExecCode
 
 	return nil, nil
+}
+
+// canStartSessionAlone returns true if the user associated with authCtx
+// is allowed to start a session without moderation.
+func (f *Forwarder) canStartSessionAlone(authCtx *authContext) (bool, error) {
+	policySets := authCtx.Checker.SessionPolicySets()
+	authorizer := auth.NewSessionAccessEvaluator(policySets, types.KubernetesSessionKind, authCtx.User.GetName())
+	canStart, _, err := authorizer.FulfilledFor(nil)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	return canStart, nil
 }
 
 func exitCode(err error) (errMsg, code string) {
@@ -2482,7 +2484,7 @@ func (f *Forwarder) requestCertificate(ctx context.Context, authCtx authContext)
 	}
 	csrPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrBytes})
 
-	response, err := f.cfg.AuthClient.ProcessKubeCSR(auth.KubeCSR{
+	response, err := f.cfg.AuthClient.ProcessKubeCSR(authclient.KubeCSR{
 		Username:    authCtx.User.GetName(),
 		ClusterName: authCtx.teleportCluster.name,
 		CSR:         csrPEM,

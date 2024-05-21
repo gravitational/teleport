@@ -31,7 +31,7 @@ import (
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -59,7 +59,7 @@ func (e *EditCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 	$ tctl edit rc/remote`).SetValue(&e.ref)
 }
 
-func (e *EditCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI) (match bool, err error) {
+func (e *EditCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
 	if cmd != e.cmd.FullCommand() {
 		return false, nil
 	}

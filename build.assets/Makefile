@@ -14,7 +14,6 @@ VERSION ?= $(shell egrep ^VERSION ../Makefile | cut -d= -f2)
 
 ADDFLAGS ?=
 BATSFLAGS :=
-NOROOT=-u $$(id -u):$$(id -g)
 KUBECONFIG ?=
 TEST_KUBE ?=
 
@@ -23,6 +22,7 @@ ARCH ?= amd64
 
 UID := $$(id -u)
 GID := $$(id -g)
+NOROOT := -u $(UID):$(GID)
 
 HOST_ARCH := $(shell uname -m)
 RUNTIME_ARCH_x86_64 := amd64
@@ -124,8 +124,7 @@ build-binaries-fips: buildbox-centos7-fips webassets
 #
 .PHONY:buildbox
 buildbox:
-	$(call PULL_ON_CI,$(BUILDBOX))
-	DOCKER_BUILDKIT=1 docker build --platform=linux/$(RUNTIME_ARCH) \
+	docker buildx build \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
@@ -139,7 +138,9 @@ buildbox:
 		--build-arg NODE_GRPC_TOOLS_VERSION=$(NODE_GRPC_TOOLS_VERSION) \
 		--build-arg NODE_PROTOC_TS_VERSION=$(NODE_PROTOC_TS_VERSION) \
 		--build-arg PROTOC_VERSION=$(PROTOC_VERSION) \
+		--cache-to type=inline \
 		--cache-from $(BUILDBOX) \
+		$(if $(PUSH),--push,--load) \
 		--tag $(BUILDBOX) .
 
 # Builds a Docker buildbox for FIPS
@@ -155,8 +156,7 @@ buildbox-fips: buildbox-centos7-fips
 .PHONY:buildbox-centos7
 buildbox-centos7:
 	$(REQUIRE_HOST_ARCH)
-	$(call PULL_ON_CI,$(BUILDBOX_CENTOS7))
-	DOCKER_BUILDKIT=1 docker build \
+	docker buildx build \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
@@ -166,7 +166,9 @@ buildbox-centos7:
 		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 		--build-arg LIBPCSCLITE_VERSION=$(LIBPCSCLITE_VERSION) \
+		--cache-to type=inline \
 		--cache-from $(BUILDBOX_CENTOS7) \
+		$(if $(PUSH),--push,--load) \
 		--tag $(BUILDBOX_CENTOS7) -f Dockerfile-centos7 .
 
 #
@@ -174,8 +176,7 @@ buildbox-centos7:
 #
 .PHONY:buildbox-centos7-fips
 buildbox-centos7-fips:
-	$(call PULL_ON_CI,$(BUILDBOX_CENTOS7_FIPS))
-	docker build \
+	docker buildx build \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
@@ -184,7 +185,9 @@ buildbox-centos7-fips:
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
 		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
+		--cache-to type=inline \
 		--cache-from $(BUILDBOX_CENTOS7_FIPS) \
+		$(if $(PUSH),--push,--load) \
 		--tag $(BUILDBOX_CENTOS7_FIPS) -f Dockerfile-centos7-fips .
 
 #
@@ -194,16 +197,16 @@ buildbox-centos7-fips:
 #
 .PHONY:buildbox-arm
 buildbox-arm:
-	$(call PULL_ON_CI,$(BUILDBOX_ARM))
-	docker build \
+	docker buildx build \
 		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
-		--cache-from $(BUILDBOX) \
-		--cache-from $(BUILDBOX_ARM) \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
+		--cache-to type=inline \
+		--cache-from $(BUILDBOX_ARM) \
+		$(if $(PUSH),--push,--load) \
 		--tag $(BUILDBOX_ARM) -f Dockerfile-arm .
 
 CONNECT_VERSION ?= $(VERSION)
@@ -212,23 +215,26 @@ CONNECT_VERSION := $(BUILDBOX_VERSION)-dev
 endif
 
 #
-# Builds a Docker buildbox for Linux Connect builds
+# Builds a Docker buildbox for builds that depend on Node.js.
+# This can be used for building webassets as well as Teleport Connect.
 #
-.PHONY:buildbox-connect
-buildbox-connect:
-	if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_CONNECT) 2>&1 >/dev/null; then docker pull $(BUILDBOX_CONNECT) || true; fi; \
-	DOCKER_BUILDKIT=1 docker build \
+.PHONY:buildbox-node
+buildbox-node:
+	docker buildx build \
+		--build-arg UID=$(UID) \
+		--build-arg GID=$(GID) \
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
-		--cache-from $(BUILDBOX_CONNECT) \
-		--tag $(BUILDBOX_CONNECT) -f Dockerfile-connect .
+		--cache-to type=inline \
+		--cache-from $(BUILDBOX_NODE) \
+		$(if $(PUSH),--push,--load) \
+		--tag $(BUILDBOX_NODE) -f Dockerfile-node .
 
 #
 # Builds Teleport Connect inside the buildbox container.
 #
 .PHONY:teleterm
-teleterm: buildbox-connect
-	# Always run this image as user 1000, as the Node base image assumes that.
-	docker run $(DOCKERFLAGS) -u 1000:1000 $(BUILDBOX_CONNECT) \
+teleterm: buildbox-node
+	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_NODE) \
 		bash -c "cd $(SRCDIR) && export CONNECT_TSH_BIN_PATH=\$$PWD/../teleport/build/tsh && yarn install --frozen-lockfile && yarn build-term && yarn package-term -c.extraMetadata.version=$(CONNECT_VERSION)"
 
 # Builds webassets inside Docker.
@@ -237,15 +243,15 @@ ui: buildbox
 	docker run -u $(UID):$(GID) -v "$$(pwd)/../":/teleport $(BUILDBOX) \
 		bash -c "cd ../teleport && yarn install --frozen-lockfile && yarn build-ui"
 
-# Builds webassets inside the buildbox-connect container via the
+# Builds webassets inside the buildbox-node container via the
 # Makefile (instead of calling yarn directly as the ui target above does)
 # as that computes a SHA to prevent unnecessary rebuilds. This is used by
 # the CentOS 7 build that does not have a new enough version of node.js
 # to build webassets. Enterprise webassets will only be built if the e
 # submodule is present.
 .PHONY: webassets
-webassets: buildbox-connect
-	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_CONNECT) \
+webassets: buildbox-node
+	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_NODE) \
 		/usr/bin/make ensure-webassets $(if $(wildcard ../e/Makefile),ensure-webassets-e)
 
 # grpc generates GRPC stubs from inside the buildbox
@@ -313,12 +319,14 @@ test-helm-update-snapshots:
 .PHONY:integration
 integration: buildbox
 	docker run \
+		--env TELEPORT_XAUTH_TEST="yes" \
 		$(DOCKERFLAGS) $(NOROOT) -t $(BUILDBOX) \
 		make -C $(SRCDIR) FLAGS='-cover' integration
 
 .PHONY:integration-root
 integration-root: buildbox
 	docker run $(DOCKERFLAGS) -t $(BUILDBOX) \
+		--env TELEPORT_XAUTH_TEST="yes" \
 		/bin/bash -c "make -C $(SRCDIR) FLAGS='-cover' integration-root"
 
 .PHONY:integration-kube
@@ -382,6 +390,14 @@ enter-root/centos7: buildbox-centos7
 .PHONY: enter/grpcbox
 enter/grpcbox: grpcbox
 	$(GRPCBOX_RUN)
+
+#
+# Starts shell inside the node build container
+#
+.PHONY:enter/node
+enter/node: buildbox-node
+	docker run $(DOCKERFLAGS) -ti $(NOROOT) \
+		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BUILDBOX_NODE) /bin/bash
 
 # #############################################################################
 # Architecture and variant (fips) specific release targets
@@ -452,7 +468,7 @@ release-fips: buildbox-centos7-fips webassets
 
 #
 # Create a Teleport package for CentOS 7 using the build container.
-# We depend on webassets to pre-build them in the buildbox-connect container
+# We depend on webassets to pre-build them in the buildbox-node container
 # as the version of node.js on CentOS 7 is too old.
 #
 # CentOS 7 builds are for amd64 and arm64 and must be built (currently) on
@@ -469,7 +485,7 @@ release-centos7: buildbox-centos7 webassets
 #
 # Create a Teleport FIPS package for CentOS 7 using the build container.
 # This only builds and packages enterprise FIPS binaries, no OSS.
-# We depend on webassets to pre-build them in the buildbox-connect container
+# We depend on webassets to pre-build them in the buildbox-node container
 # as the version of node.js on CentOS 7 is too old. The enterprise Makefile
 # does not clean the web assets on the `release` target so there is no need
 # to call release-unix-preserving-webassets like we do for the non-fips release.

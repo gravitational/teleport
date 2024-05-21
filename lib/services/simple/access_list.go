@@ -138,25 +138,11 @@ func (a *AccessListService) CountAccessListMembers(ctx context.Context, accessLi
 
 // ListAccessListMembers returns a paginated list of all access list members.
 func (a *AccessListService) ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, nextToken string) ([]*accesslist.AccessListMember, string, error) {
-	// We'll make a best effort to determine if the access list is implicit, but will proceed if we can't figure it out.
-	al, err := a.GetAccessList(ctx, accessListName)
-	if err == nil {
-		if al.HasImplicitMembership() {
-			return nil, "", trace.Wrap(services.ImplicitAccessListError{})
-		}
-	}
 	return a.memberService.WithPrefix(accessListName).ListResources(ctx, pageSize, nextToken)
 }
 
 // GetAccessListMember returns the specified access list member resource.
 func (a *AccessListService) GetAccessListMember(ctx context.Context, accessListName string, memberName string) (*accesslist.AccessListMember, error) {
-	// We'll make a best effort to determine if the access list is implicit, but will proceed if we can't figure it out.
-	al, err := a.GetAccessList(ctx, accessListName)
-	if err == nil {
-		if al.HasImplicitMembership() {
-			return nil, trace.Wrap(services.ImplicitAccessListError{})
-		}
-	}
 	return a.memberService.WithPrefix(accessListName).GetResource(ctx, memberName)
 }
 
@@ -195,4 +181,10 @@ func (a *AccessListService) DeleteAccessListReview(ctx context.Context, accessLi
 // DeleteAllAccessListReviews will delete all access list reviews from the backend.
 func (a *AccessListService) DeleteAllAccessListReviews(ctx context.Context) error {
 	return trace.Wrap(a.reviewService.DeleteAllResources(ctx))
+}
+
+// ListAllAccessListMembers returns a paginated list of all access list members for all access lists.
+func (a *AccessListService) ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error) {
+	members, nextToken, err := a.memberService.ListResources(ctx, pageSize, pageToken)
+	return members, nextToken, trace.Wrap(err)
 }

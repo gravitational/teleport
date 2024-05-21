@@ -20,7 +20,7 @@ import { Text, Indicator, Box, Flex } from 'design';
 import * as Icons from 'design/Icon';
 
 import { StyledTable, StyledPanel, StyledTableWrapper } from './StyledTable';
-import { TableProps } from './types';
+import { TableProps, FetchStatus } from './types';
 import { SortHeaderCell, TextCell } from './Cells';
 import { ClientSidePager, ServerSidePager } from './Pager';
 import InputSearch from './InputSearch';
@@ -147,6 +147,7 @@ export function Table<T>({
           prevPage={fetching.onFetchPrev}
           pagination={state.pagination}
           serversideProps={serversideProps}
+          fetchStatus={fetching.fetchStatus}
         />
       </StyledTableWrapper>
     );
@@ -322,6 +323,7 @@ function ServersideTable<T>({
   className,
   style,
   serversideProps,
+  fetchStatus,
 }: ServersideTableProps<T>) {
   return (
     <>
@@ -331,7 +333,11 @@ function ServersideTable<T>({
         {renderBody(data)}
       </StyledTable>
       <StyledPanel showTopBorder={true}>
-        <ServerSidePager nextPage={nextPage} prevPage={prevPage} />
+        <ServerSidePager
+          nextPage={nextPage}
+          prevPage={prevPage}
+          isLoading={fetchStatus === 'loading'}
+        />
       </StyledPanel>
     </>
   );
@@ -438,4 +444,5 @@ type ServersideTableProps<T> = BasicTableProps<T> & {
   prevPage: () => void;
   pagination: State<T>['state']['pagination'];
   serversideProps: State<T>['serversideProps'];
+  fetchStatus?: FetchStatus;
 };

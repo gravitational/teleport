@@ -128,7 +128,7 @@ func NewJiraClient(conf JiraConfig, clusterName, teleportProxyAddr string, statu
 				if resp.IsError() {
 					switch result := resp.Error().(type) {
 					case *ErrorResult:
-						return trace.Errorf("http error code=%v, errors=[%v]", resp.StatusCode(), strings.Join(result.ErrorMessages, ", "))
+						return trace.Errorf("http error code=%v, errors=[%s]", resp.StatusCode(), result)
 					case nil:
 						return nil
 					default:
@@ -239,7 +239,7 @@ func (j *Jira) CreateIssue(ctx context.Context, reqID string, reqData RequestDat
 			},
 		},
 		Fields: IssueFieldsInput{
-			Type:        &IssueType{Name: "Task"},
+			Type:        &IssueType{Name: j.issueType},
 			Project:     &Project{Key: j.project},
 			Summary:     fmt.Sprintf("%s requested %s", reqData.User, strings.Join(reqData.Roles, ", ")),
 			Description: description,

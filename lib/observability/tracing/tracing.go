@@ -197,7 +197,6 @@ func NewTraceProvider(ctx context.Context, cfg Config) (*Provider, error) {
 	attrs = append(attrs, cfg.Attributes...)
 
 	res, err := resource.New(ctx,
-		resource.WithSchemaURL(semconv.SchemaURL),
 		resource.WithFromEnv(),
 		resource.WithProcessExecutableName(),
 		resource.WithProcessRuntimeName(),

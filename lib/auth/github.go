@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -52,7 +53,7 @@ var ErrGithubNoTeams = trace.BadParameter("user does not belong to any teams con
 // GithubConverter is a thin wrapper around the ClientI interface that
 // ensures GitHub auth connectors use the registered implementation.
 type GithubConverter struct {
-	ClientI
+	authclient.ClientI
 }
 
 // WithGithubConnectorConversions takes a ClientI and returns one that
@@ -66,7 +67,7 @@ type GithubConverter struct {
 // This is function is necessary so that the
 // [github.com/gravitational/teleport/api] module does not import
 // [github.com/gravitational/teleport/lib/services].
-func WithGithubConnectorConversions(c ClientI) ClientI {
+func WithGithubConnectorConversions(c authclient.ClientI) authclient.ClientI {
 	return &GithubConverter{
 		ClientI: c,
 	}
@@ -108,10 +109,17 @@ func (g *GithubConverter) UpsertGithubConnector(ctx context.Context, connector t
 
 // CreateGithubAuthRequest creates a new request for Github OAuth2 flow
 func (a *Server) CreateGithubAuthRequest(ctx context.Context, req types.GithubAuthRequest) (*types.GithubAuthRequest, error) {
-	_, client, err := a.getGithubConnectorAndClient(ctx, req)
+	connector, client, err := a.getGithubConnectorAndClient(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if hook := GithubAuthRequestHook; hook != nil {
+		if err := hook(ctx, &req, connector); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	req.StateToken, err = utils.CryptoRandomHex(defaults.TokenLenBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -307,44 +315,9 @@ func (a *Server) deleteGithubConnector(ctx context.Context, connectorName string
 	return nil
 }
 
-// GithubAuthResponse represents Github auth callback validation response
-type GithubAuthResponse struct {
-	// Username is the name of authenticated user
-	Username string `json:"username"`
-	// Identity is the external identity
-	Identity types.ExternalIdentity `json:"identity"`
-	// Session is the created web session
-	Session types.WebSession `json:"session,omitempty"`
-	// Cert is the generated SSH client certificate
-	Cert []byte `json:"cert,omitempty"`
-	// TLSCert is PEM encoded TLS client certificate
-	TLSCert []byte `json:"tls_cert,omitempty"`
-	// Req is the original auth request
-	Req GithubAuthRequest `json:"req"`
-	// HostSigners is a list of signing host public keys
-	// trusted by proxy, used in console login
-	HostSigners []types.CertAuthority `json:"host_signers"`
-}
-
-// GithubAuthRequest is an Github auth request that supports standard json marshaling
-type GithubAuthRequest struct {
-	// ConnectorID is the name of the connector to use.
-	ConnectorID string `json:"connector_id"`
-	// CSRFToken is used to protect against CSRF attacks.
-	CSRFToken string `json:"csrf_token"`
-	// PublicKey is an optional public key to sign in case of successful auth.
-	PublicKey []byte `json:"public_key"`
-	// CreateWebSession indicates that a user wants to generate a web session
-	// after successful authentication.
-	CreateWebSession bool `json:"create_web_session"`
-	// ClientRedirectURL is the URL where client will be redirected after
-	// successful auth.
-	ClientRedirectURL string `json:"client_redirect_url"`
-}
-
 // GithubAuthRequestFromProto converts the types.GithubAuthRequest to GithubAuthRequest.
-func GithubAuthRequestFromProto(req *types.GithubAuthRequest) GithubAuthRequest {
-	return GithubAuthRequest{
+func GithubAuthRequestFromProto(req *types.GithubAuthRequest) authclient.GithubAuthRequest {
+	return authclient.GithubAuthRequest{
 		ConnectorID:       req.ConnectorID,
 		PublicKey:         req.PublicKey,
 		CSRFToken:         req.CSRFToken,
@@ -354,16 +327,16 @@ func GithubAuthRequestFromProto(req *types.GithubAuthRequest) GithubAuthRequest 
 }
 
 type githubManager interface {
-	validateGithubAuthCallback(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*GithubAuthResponse, error)
+	validateGithubAuthCallback(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*authclient.GithubAuthResponse, error)
 }
 
 // ValidateGithubAuthCallback validates Github auth callback redirect
-func (a *Server) ValidateGithubAuthCallback(ctx context.Context, q url.Values) (*GithubAuthResponse, error) {
+func (a *Server) ValidateGithubAuthCallback(ctx context.Context, q url.Values) (*authclient.GithubAuthResponse, error) {
 	diagCtx := NewSSODiagContext(types.KindGithub, a)
 	return validateGithubAuthCallbackHelper(ctx, a, diagCtx, q, a.emitter)
 }
 
-func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, diagCtx *SSODiagContext, q url.Values, emitter apievents.Emitter) (*GithubAuthResponse, error) {
+func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, diagCtx *SSODiagContext, q url.Values, emitter apievents.Emitter) (*authclient.GithubAuthResponse, error) {
 	event := &apievents.UserLogin{
 		Metadata: apievents.Metadata{
 			Type: events.UserLoginEvent,
@@ -498,7 +471,7 @@ func (a *Server) getGithubOAuth2Client(connector types.GithubConnector) (*oauth2
 }
 
 // ValidateGithubAuthCallback validates Github auth callback redirect
-func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*GithubAuthResponse, error) {
+func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*authclient.GithubAuthResponse, error) {
 	logger := log.WithFields(logrus.Fields{trace.Component: "github"})
 
 	if errParam := q.Get("error"); errParam != "" {
@@ -631,7 +604,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 	}
 
 	// Auth was successful, return session, certificate, etc. to caller.
-	auth := GithubAuthResponse{
+	auth := authclient.GithubAuthResponse{
 		Req: GithubAuthRequestFromProto(req),
 		Identity: types.ExternalIdentity{
 			ConnectorID: params.ConnectorName,
@@ -648,7 +621,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 
 	// If the request is coming from a browser, create a web session.
 	if req.CreateWebSession {
-		session, err := a.CreateWebSessionFromReq(ctx, types.NewWebSessionRequest{
+		session, err := a.CreateWebSessionFromReq(ctx, NewWebSessionRequest{
 			User:             userState.GetName(),
 			Roles:            userState.GetRoles(),
 			Traits:           userState.GetTraits(),
@@ -1034,3 +1007,10 @@ var GithubScopes = []string{
 	// read:org grants read-only access to user's team memberships
 	"read:org",
 }
+
+// Hooks for future use in Enterprise-only code.
+var (
+	GithubAuthRequestHook func(context.Context, *types.GithubAuthRequest, types.GithubConnector) error
+	OIDCAuthRequestHook   func(context.Context, *types.OIDCAuthRequest, types.OIDCConnector) error
+	SAMLAuthRequestHook   func(context.Context, *types.SAMLAuthRequest, types.SAMLConnector) error
+)

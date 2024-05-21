@@ -15,6 +15,7 @@
 package utils
 
 import (
+	"context"
 	"testing"
 
 	"github.com/google/uuid"
@@ -241,6 +242,84 @@ func TestRouteToServer(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.assert(t, tc.matcher.RouteToServer(tc.server))
+		})
+	}
+}
+
+type mockHostResolver struct {
+	ips []string
+}
+
+func (r mockHostResolver) LookupHost(ctx context.Context, host string) (addrs []string, err error) {
+	return r.ips, nil
+}
+
+// TestSSHRouteMatcherScoring verifies the expected scoring behavior of SSHRouteMatcher.
+func TestSSHRouteMatcherScoring(t *testing.T) {
+	t.Parallel()
+
+	// set up matcher with mock resolver in order to control ips
+	matcher, err := NewSSHRouteMatcherFromConfig(SSHRouteMatcherConfig{
+		Host: "foo.example.com",
+		Resolver: mockHostResolver{
+			ips: []string{
+				"1.2.3.4",
+				"4.5.6.7",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	tts := []struct {
+		desc     string
+		hostname string
+		addrs    []string
+		score    int
+	}{
+		{
+			desc:     "multi factor match",
+			hostname: "foo.example.com",
+			addrs: []string{
+				"1.2.3.4:0",
+			},
+			score: directMatch,
+		},
+		{
+			desc:     "ip match only",
+			hostname: "bar.example.com",
+			addrs: []string{
+				"1.2.3.4:0",
+			},
+			score: indirectMatch,
+		},
+		{
+			desc:     "hostname match only",
+			hostname: "foo.example.com",
+			addrs: []string{
+				"7.7.7.7:0",
+			},
+			score: directMatch,
+		},
+		{
+			desc:     "not match",
+			hostname: "bar.example.com",
+			addrs: []string{
+				"0.0.0.0:0",
+				"1.1.1.1:0",
+			},
+			score: notMatch,
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.desc, func(t *testing.T) {
+			score := matcher.RouteToServerScore(mockRouteableServer{
+				name:       uuid.NewString(),
+				hostname:   tt.hostname,
+				publicAddr: tt.addrs,
+			})
+
+			require.Equal(t, tt.score, score)
 		})
 	}
 }

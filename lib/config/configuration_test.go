@@ -43,7 +43,6 @@ import (
 	"github.com/gravitational/teleport/api/types/installers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib"
-	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -1782,7 +1781,11 @@ func TestSetDefaultListenerAddresses(t *testing.T) {
 			require.NoError(t, ApplyFileConfig(&tt.fc, cfg))
 			require.NoError(t, Configure(&CommandLineFlags{}, cfg, false))
 
-			require.Empty(t, cmp.Diff(cfg.Proxy, tt.want, cmpopts.EquateEmpty()))
+			opts := cmp.Options{
+				cmpopts.EquateEmpty(),
+				cmpopts.IgnoreFields(servicecfg.ProxyConfig{}, "AutomaticUpgradesChannels"),
+			}
+			require.Empty(t, cmp.Diff(cfg.Proxy, tt.want, opts...))
 		})
 	}
 }
@@ -1852,20 +1855,29 @@ func TestMergingCAPinConfig(t *testing.T) {
 
 func TestLicenseFile(t *testing.T) {
 	testCases := []struct {
-		path   string
-		result string
+		path    string
+		datadir string
+		result  string
 	}{
-		// 0 - no license
+		// 0 - no license, no data dir
 		{
-			path:   "",
-			result: filepath.Join(defaults.DataDir, defaults.LicenseFile),
+			path:    "",
+			datadir: "",
+			result:  filepath.Join(defaults.DataDir, defaults.LicenseFile),
 		},
-		// 1 - relative path
+		// 1 - relative path, default data dir
 		{
-			path:   "lic.pem",
-			result: filepath.Join(defaults.DataDir, "lic.pem"),
+			path:    "lic.pem",
+			datadir: "",
+			result:  filepath.Join(defaults.DataDir, "lic.pem"),
 		},
-		// 2 - absolute path
+		// 2 - relative path, custom data dir
+		{
+			path:    "baz.pem",
+			datadir: filepath.Join("foo", "bar"),
+			result:  filepath.Join("foo", "bar", "baz.pem"),
+		},
+		// 3 - absolute path
 		{
 			path:   "/etc/teleport/license",
 			result: "/etc/teleport/license",
@@ -1873,15 +1885,22 @@ func TestLicenseFile(t *testing.T) {
 	}
 
 	cfg := servicecfg.MakeDefaultConfig()
-	require.Equal(t, filepath.Join(defaults.DataDir, defaults.LicenseFile), cfg.Auth.LicenseFile)
 
-	for _, tc := range testCases {
-		fc := new(FileConfig)
-		require.NoError(t, fc.CheckAndSetDefaults())
-		fc.Auth.LicenseFile = tc.path
-		err := ApplyFileConfig(fc, cfg)
-		require.NoError(t, err)
-		require.Equal(t, tc.result, cfg.Auth.LicenseFile)
+	// the license file should be empty by default, as we can only fill
+	// in the default (<datadir>/license.pem) after we know what the
+	// data dir is supposed to be
+	require.Empty(t, cfg.Auth.LicenseFile)
+
+	for i, tc := range testCases {
+		t.Run(fmt.Sprintf("test%d", i), func(t *testing.T) {
+			fc := new(FileConfig)
+			require.NoError(t, fc.CheckAndSetDefaults())
+			fc.Auth.LicenseFile = tc.path
+			fc.DataDir = tc.datadir
+			err := ApplyFileConfig(fc, cfg)
+			require.NoError(t, err)
+			require.Equal(t, tc.result, cfg.Auth.LicenseFile)
+		})
 	}
 }
 
@@ -2112,7 +2131,11 @@ func TestProxyConfigurationVersion(t *testing.T) {
 			cfg := servicecfg.MakeDefaultConfig()
 			err := ApplyFileConfig(&tt.fc, cfg)
 			tt.checkErr(t, err)
-			require.Empty(t, cmp.Diff(cfg.Proxy, tt.want, cmpopts.EquateEmpty()))
+			opts := cmp.Options{
+				cmpopts.EquateEmpty(),
+				cmpopts.IgnoreFields(servicecfg.ProxyConfig{}, "AutomaticUpgradesChannels"),
+			}
+			require.Empty(t, cmp.Diff(cfg.Proxy, tt.want, opts...))
 		})
 	}
 }
@@ -3095,7 +3118,7 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 
 		auth Auth
 
-		want       keystore.Config
+		want       servicecfg.KeystoreConfig
 		errMessage string
 	}{
 		{
@@ -3117,8 +3140,8 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 					},
 				},
 			},
-			want: keystore.Config{
-				PKCS11: keystore.PKCS11Config{
+			want: servicecfg.KeystoreConfig{
+				PKCS11: servicecfg.PKCS11Config{
 					TokenLabel: "foo",
 					SlotNumber: &slotNumber,
 					Pin:        "pin",
@@ -3138,8 +3161,8 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 					},
 				},
 			},
-			want: keystore.Config{
-				PKCS11: keystore.PKCS11Config{
+			want: servicecfg.KeystoreConfig{
+				PKCS11: servicecfg.PKCS11Config{
 					TokenLabel: "foo",
 					SlotNumber: &slotNumber,
 					Pin:        "secure-pin-file",
@@ -3197,8 +3220,8 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 					},
 				},
 			},
-			want: keystore.Config{
-				GCPKMS: keystore.GCPKMSConfig{
+			want: servicecfg.KeystoreConfig{
+				GCPKMS: servicecfg.GCPKMSConfig{
 					KeyRing:         "/projects/my-project/locations/global/keyRings/my-keyring",
 					ProtectionLevel: "HSM",
 				},
@@ -3508,6 +3531,7 @@ jamf_service:
     sync_period_partial: 4h
     sync_period_full: 48h
     on_missing: NOOP
+    page_size: 10
   - {}`,
 			want: servicecfg.JamfConfig{
 				Spec: &types.JamfSpecV1{
@@ -3523,6 +3547,7 @@ jamf_service:
 							SyncPeriodPartial: types.Duration(4 * time.Hour),
 							SyncPeriodFull:    types.Duration(48 * time.Hour),
 							OnMissing:         "NOOP",
+							PageSize:          10,
 						},
 						{},
 					},
@@ -3814,6 +3839,34 @@ func TestApplyDiscoveryConfig(t *testing.T) {
 						Regions:        []string{"*"},
 						ResourceTags:   types.Labels{"*": []string{"*"}},
 						ResourceGroups: []string{"*"},
+					},
+				},
+			},
+		},
+		{
+			name: "tag matchers",
+			discoveryConfig: Discovery{
+				AccessGraph: &AccessGraphSync{
+					AWS: []AccessGraphAWSSync{
+						{
+							Regions:       []string{"us-west-2", "us-east-1"},
+							AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+							ExternalID:    "externalID123",
+						},
+					},
+				},
+			},
+			expectedDiscovery: servicecfg.DiscoveryConfig{
+				Enabled: true,
+				AccessGraph: &types.AccessGraphSync{
+					AWS: []*types.AccessGraphAWSSync{
+						{
+							Regions: []string{"us-west-2", "us-east-1"},
+							AssumeRole: &types.AssumeRole{
+								RoleARN:    "arn:aws:iam::123456789012:role/DBDiscoverer",
+								ExternalID: "externalID123",
+							},
+						},
 					},
 				},
 			},
@@ -4726,7 +4779,8 @@ func TestDiscoveryConfig(t *testing.T) {
 			mutate: func(cfg cfgMap) {
 				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
 				cfg["discovery_service"].(cfgMap)["azure"] = []cfgMap{
-					{"types": []string{"vm"},
+					{
+						"types":           []string{"vm"},
 						"regions":         []string{"westcentralus"},
 						"resource_groups": []string{"rg1"},
 						"subscriptions":   []string{"88888888-8888-8888-8888-888888888888"},
@@ -4768,7 +4822,8 @@ func TestDiscoveryConfig(t *testing.T) {
 			mutate: func(cfg cfgMap) {
 				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
 				cfg["discovery_service"].(cfgMap)["azure"] = []cfgMap{
-					{"types": []string{"vm"},
+					{
+						"types":           []string{"vm"},
 						"regions":         []string{"westcentralus"},
 						"resource_groups": []string{"rg1"},
 						"subscriptions":   []string{"88888888-8888-8888-8888-888888888888"},

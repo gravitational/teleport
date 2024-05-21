@@ -291,7 +291,7 @@ version: v2
 func TestGetRoles(t *testing.T) {
 	m := &mockedResourceAPIGetter{}
 
-	m.mockGetRoles = func(ctx context.Context) ([]types.Role, error) {
+	m.mockListRoles = func(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error) {
 		role, err := types.NewRole("test", types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				Logins: []string{"test"},
@@ -299,14 +299,17 @@ func TestGetRoles(t *testing.T) {
 		})
 		require.Nil(t, err)
 
-		return []types.Role{role}, nil
+		return &proto.ListRolesResponse{
+			Roles:   []*types.RoleV6{role.(*types.RoleV6)},
+			NextKey: "",
+		}, nil
 	}
 
 	// Test response is converted to ui objects.
-	roles, err := getRoles(m)
+	roles, err := listRoles(m, url.Values{})
 	require.Nil(t, err)
-	require.Len(t, roles, 1)
-	require.Contains(t, roles[0].Content, "name: test")
+	require.Len(t, roles.Items, 1)
+	require.Contains(t, roles.Items.([]ui.ResourceItem)[0].Content, "name: test")
 }
 
 func TestUpsertRole(t *testing.T) {
@@ -640,6 +643,7 @@ func TestListResources(t *testing.T) {
 type mockedResourceAPIGetter struct {
 	mockGetRole               func(ctx context.Context, name string) (types.Role, error)
 	mockGetRoles              func(ctx context.Context) ([]types.Role, error)
+	mockListRoles             func(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error)
 	mockUpsertRole            func(ctx context.Context, role types.Role) error
 	mockUpsertGithubConnector func(ctx context.Context, connector types.GithubConnector) error
 	mockGetGithubConnectors   func(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error)
@@ -664,6 +668,13 @@ func (m *mockedResourceAPIGetter) GetRoles(ctx context.Context) ([]types.Role, e
 		return m.mockGetRoles(ctx)
 	}
 	return nil, trace.NotImplemented("mockGetRoles not implemented")
+}
+
+func (m *mockedResourceAPIGetter) ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error) {
+	if m.mockListRoles != nil {
+		return m.mockListRoles(ctx, req)
+	}
+	return nil, trace.NotImplemented("mockListRoles not implemented")
 }
 
 func (m *mockedResourceAPIGetter) UpsertRole(ctx context.Context, role types.Role) error {

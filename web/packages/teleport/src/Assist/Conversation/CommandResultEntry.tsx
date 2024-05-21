@@ -15,7 +15,8 @@
  */
 
 import React from 'react';
-import styled, { keyframes } from 'styled-components';
+import styled from 'styled-components';
+import { rotate360 } from 'design';
 
 import { MonospacedOutput } from 'teleport/Assist/shared/MonospacedOutput';
 
@@ -45,12 +46,6 @@ const Header = styled.div`
   padding-right: 20px;
 `;
 
-const spin = keyframes`
-  to {
-    transform: rotate(360deg);
-  }
-`;
-
 const Spinner = styled.div`
   width: 20px;
   height: 20px;
@@ -65,7 +60,7 @@ const Spinner = styled.div`
     border: 3px solid ${p => p.theme.colors.text.main};
     border-color: ${p => p.theme.colors.text.main} transparent
       ${p => p.theme.colors.text.main} transparent;
-    animation: ${spin} 1.2s linear infinite;
+    animation: ${rotate360} 1.2s linear infinite;
   }
 `;
 

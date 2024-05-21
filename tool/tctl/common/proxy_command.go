@@ -22,7 +22,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
@@ -45,7 +45,7 @@ func (p *ProxyCommand) Initialize(app *kingpin.Application, config *servicecfg.C
 }
 
 // ListProxies prints currently connected proxies
-func (p *ProxyCommand) ListProxies(ctx context.Context, clusterAPI auth.ClientI) error {
+func (p *ProxyCommand) ListProxies(ctx context.Context, clusterAPI *authclient.Client) error {
 	proxies, err := clusterAPI.GetProxies()
 	if err != nil {
 		return trace.Wrap(err)
@@ -68,7 +68,7 @@ func (p *ProxyCommand) ListProxies(ctx context.Context, clusterAPI auth.ClientI)
 }
 
 // TryRun runs the proxy command
-func (p *ProxyCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI) (match bool, err error) {
+func (p *ProxyCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
 	switch cmd {
 	case p.lsCmd.FullCommand():
 		err = p.ListProxies(ctx, client)

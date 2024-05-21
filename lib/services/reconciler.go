@@ -140,7 +140,10 @@ func (r *Reconciler[T]) processRegisteredResource(ctx context.Context, newResour
 		return nil
 	}
 
-	kind := types.GetKind(registered)
+	kind, err := types.GetKind(registered)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	r.log.Infof("%v %v removed, deleting.", kind, name)
 	if err := r.cfg.OnDelete(ctx, registered); err != nil {
 		return trace.Wrap(err, "failed to delete  %v %v", kind, name)
@@ -157,7 +160,10 @@ func (r *Reconciler[T]) processNewResource(ctx context.Context, currentResources
 	// matches the selector labels and should be registered.
 	registered, ok := currentResources[name]
 	if !ok {
-		kind := types.GetKind(newT)
+		kind, err := types.GetKind(newT)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 		if r.cfg.Matcher(newT) {
 			r.log.Infof("%v %v matches, creating.", kind, name)
 			if err := r.cfg.OnCreate(ctx, newT); err != nil {
@@ -170,8 +176,14 @@ func (r *Reconciler[T]) processNewResource(ctx context.Context, currentResources
 	}
 
 	// Don't overwrite resource of a different origin (e.g., keep static resource from config and ignore dynamic resource)
-	registeredOrigin := types.GetOrigin(registered)
-	newOrigin := types.GetOrigin(newT)
+	registeredOrigin, err := types.GetOrigin(registered)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	newOrigin, err := types.GetOrigin(newT)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	if registeredOrigin != newOrigin {
 		r.log.Warnf("%v has different origin (%v vs %v), not updating.", name, newOrigin, registeredOrigin)
 		return nil
@@ -179,7 +191,10 @@ func (r *Reconciler[T]) processNewResource(ctx context.Context, currentResources
 
 	// If the resource is already registered but was updated, see if its
 	// labels still match.
-	kind := types.GetKind(registered)
+	kind, err := types.GetKind(registered)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	if CompareResources(newT, registered) != Equal {
 		if r.cfg.Matcher(newT) {
 			r.log.Infof("%v %v updated, updating.", kind, name)

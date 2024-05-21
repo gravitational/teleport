@@ -15,8 +15,11 @@ package web
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"slices"
 	"strings"
 
@@ -30,13 +33,14 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/aws"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc/deployserviceconfig"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
+	libutils "github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/oidc"
 	"github.com/gravitational/teleport/lib/web/scripts/oneoff"
 	"github.com/gravitational/teleport/lib/web/ui"
@@ -259,11 +263,11 @@ func (h *Handler) awsOIDCConfigureDeployServiceIAM(w http.ResponseWriter, r *htt
 	// teleport integration configure deployservice-iam
 	argsList := []string{
 		"integration", "configure", "deployservice-iam",
-		fmt.Sprintf("--cluster=%s", clusterName),
-		fmt.Sprintf("--name=%s", integrationName),
-		fmt.Sprintf("--aws-region=%s", awsRegion),
-		fmt.Sprintf("--role=%s", role),
-		fmt.Sprintf("--task-role=%s", taskRole),
+		fmt.Sprintf("--cluster=%s", libutils.UnixShellQuote(clusterName)),
+		fmt.Sprintf("--name=%s", libutils.UnixShellQuote(integrationName)),
+		fmt.Sprintf("--aws-region=%s", libutils.UnixShellQuote(awsRegion)),
+		fmt.Sprintf("--role=%s", libutils.UnixShellQuote(role)),
+		fmt.Sprintf("--task-role=%s", libutils.UnixShellQuote(taskRole)),
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		TeleportArgs:   strings.Join(argsList, " "),
@@ -298,8 +302,8 @@ func (h *Handler) awsOIDCConfigureEICEIAM(w http.ResponseWriter, r *http.Request
 	// teleport integration configure eice-iam
 	argsList := []string{
 		"integration", "configure", "eice-iam",
-		fmt.Sprintf("--aws-region=%s", awsRegion),
-		fmt.Sprintf("--role=%s", role),
+		fmt.Sprintf("--aws-region=%s", libutils.UnixShellQuote(awsRegion)),
+		fmt.Sprintf("--role=%s", libutils.UnixShellQuote(role)),
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		TeleportArgs:   strings.Join(argsList, " "),
@@ -471,7 +475,7 @@ func (h *Handler) awsOIDCRequiredDatabasesVPCS(w http.ResponseWriter, r *http.Re
 	return resp, nil
 }
 
-func awsOIDCListAllDatabases(ctx context.Context, clt auth.ClientI, integration, region string) ([]*types.DatabaseV3, error) {
+func awsOIDCListAllDatabases(ctx context.Context, clt authclient.ClientI, integration, region string) ([]*types.DatabaseV3, error) {
 	nextToken := ""
 	var fetchedRDSs []*types.DatabaseV3
 
@@ -521,7 +525,7 @@ func awsOIDCListAllDatabases(ctx context.Context, clt auth.ClientI, integration,
 	return fetchedRDSs, nil
 }
 
-func awsOIDCRequiredVPCSHelper(ctx context.Context, clt auth.ClientI, req ui.AWSOIDCRequiredVPCSRequest, fetchedRDSs []*types.DatabaseV3) (*ui.AWSOIDCRequiredVPCSResponse, error) {
+func awsOIDCRequiredVPCSHelper(ctx context.Context, clt authclient.ClientI, req ui.AWSOIDCRequiredVPCSRequest, fetchedRDSs []*types.DatabaseV3) (*ui.AWSOIDCRequiredVPCSResponse, error) {
 	// Get all database services with ecs/fargate metadata label.
 	nextToken := ""
 	fetchedDbSvcs := []types.DatabaseService{}
@@ -727,20 +731,58 @@ func (h *Handler) awsOIDCConfigureIdP(w http.ResponseWriter, r *http.Request, p 
 		return nil, trace.BadParameter("invalid role %q", role)
 	}
 
-	proxyAddr, err := oidc.IssuerFromPublicAddress(h.cfg.PublicProxyAddr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// The script must execute the following command:
 	// teleport integration configure awsoidc-idp
 	argsList := []string{
 		"integration", "configure", "awsoidc-idp",
-		fmt.Sprintf("--cluster=%s", clusterName),
-		fmt.Sprintf("--name=%s", integrationName),
-		fmt.Sprintf("--role=%s", role),
-		fmt.Sprintf("--proxy-public-url=%s", proxyAddr),
+		fmt.Sprintf("--cluster=%s", libutils.UnixShellQuote(clusterName)),
+		fmt.Sprintf("--name=%s", libutils.UnixShellQuote(integrationName)),
+		fmt.Sprintf("--role=%s", libutils.UnixShellQuote(role)),
 	}
+
+	// We have two set up modes:
+	// - use the Proxy HTTP endpoint as Identity Provider
+	// - use an S3 Bucket for storing the public keys
+	//
+	// The script will pick a mode depending on the query params received here.
+	// If the S3 location was defined, then it will use that mode and upload the Public Keys to the S3 Bucket.
+	// Otherwise, it will create an IdP pointing to the current Cluster.
+	//
+	// Whatever the chosen mode, the Proxy HTTP endpoint will always return the public keys.
+	s3Bucket := queryParams.Get("s3Bucket")
+	s3Prefix := queryParams.Get("s3Prefix")
+
+	switch {
+	case s3Bucket == "" && s3Prefix == "":
+		proxyAddr, err := oidc.IssuerFromPublicAddress(h.cfg.PublicProxyAddr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		argsList = append(argsList,
+			fmt.Sprintf("--proxy-public-url=%s", libutils.UnixShellQuote(proxyAddr)),
+		)
+
+	default:
+		if s3Bucket == "" || s3Prefix == "" {
+			return nil, trace.BadParameter("s3Bucket and s3Prefix query params are required")
+		}
+		s3URI := url.URL{Scheme: "s3", Host: s3Bucket, Path: s3Prefix}
+
+		jwksContents, err := h.jwks(r.Context(), types.OIDCIdPCA)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		jwksJSON, err := json.Marshal(jwksContents)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		argsList = append(argsList,
+			fmt.Sprintf("--s3-bucket-uri=%s", libutils.UnixShellQuote(s3URI.String())),
+			fmt.Sprintf("--s3-jwks-base64=%s", base64.StdEncoding.EncodeToString(jwksJSON)),
+		)
+	}
+
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		TeleportArgs:   strings.Join(argsList, " "),
 		SuccessMessage: "Success! You can now go back to the browser to use the integration with AWS.",
@@ -773,12 +815,52 @@ func (h *Handler) awsOIDCConfigureListDatabasesIAM(w http.ResponseWriter, r *htt
 	// teleport integration configure listdatabases-iam
 	argsList := []string{
 		"integration", "configure", "listdatabases-iam",
-		fmt.Sprintf("--aws-region=%s", awsRegion),
-		fmt.Sprintf("--role=%s", role),
+		fmt.Sprintf("--aws-region=%s", libutils.UnixShellQuote(awsRegion)),
+		fmt.Sprintf("--role=%s", libutils.UnixShellQuote(role)),
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		TeleportArgs:   strings.Join(argsList, " "),
 		SuccessMessage: "Success! You can now go back to the browser to complete the Database enrollment.",
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	httplib.SetScriptHeaders(w.Header())
+	_, err = fmt.Fprint(w, script)
+
+	return nil, trace.Wrap(err)
+}
+
+// accessGraphCloudSyncOIDC returns a script that configures the required IAM permissions to sync
+// Cloud resources with Teleport Access Graph.
+func (h *Handler) accessGraphCloudSyncOIDC(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+	queryParams := r.URL.Query()
+
+	switch kind := queryParams.Get("kind"); kind {
+	case "aws-iam":
+		return h.awsAccessGraphOIDCSync(w, r, p)
+	default:
+		return nil, trace.BadParameter("unsupported kind provided %q", kind)
+	}
+}
+
+func (h *Handler) awsAccessGraphOIDCSync(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+	queryParams := r.URL.Query()
+	role := queryParams.Get("role")
+	if err := aws.IsValidIAMRoleName(role); err != nil {
+		return nil, trace.BadParameter("invalid role %q", role)
+	}
+
+	// The script must execute the following command:
+	// "teleport integration configure access-graph aws-iam"
+	argsList := []string{
+		"integration", "configure", "access-graph", "aws-iam",
+		fmt.Sprintf("--role=%s", libutils.UnixShellQuote(role)),
+	}
+	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
+		TeleportArgs:   strings.Join(argsList, " "),
+		SuccessMessage: "Success! You can now go back to the browser to complete the Access Graph AWS Sync enrollment.",
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

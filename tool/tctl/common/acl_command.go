@@ -30,7 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -82,7 +82,7 @@ func (c *ACLCommand) Initialize(app *kingpin.Application, _ *servicecfg.Config) 
 }
 
 // TryRun takes the CLI command as an argument (like "acl ls") and executes it.
-func (c *ACLCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI) (match bool, err error) {
+func (c *ACLCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
 	switch cmd {
 	case c.ls.FullCommand():
 		err = c.List(ctx, client)
@@ -101,7 +101,7 @@ func (c *ACLCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI
 }
 
 // List will list access lists visible to the user.
-func (c *ACLCommand) List(ctx context.Context, client auth.ClientI) error {
+func (c *ACLCommand) List(ctx context.Context, client *authclient.Client) error {
 	var accessLists []*accesslist.AccessList
 	var nextKey string
 	for {
@@ -128,7 +128,7 @@ func (c *ACLCommand) List(ctx context.Context, client auth.ClientI) error {
 }
 
 // Get will display information about an access list visible to the user.
-func (c *ACLCommand) Get(ctx context.Context, client auth.ClientI) error {
+func (c *ACLCommand) Get(ctx context.Context, client *authclient.Client) error {
 	accessList, err := client.AccessListClient().GetAccessList(ctx, c.accessListName)
 	if err != nil {
 		return trace.Wrap(err)
@@ -138,7 +138,7 @@ func (c *ACLCommand) Get(ctx context.Context, client auth.ClientI) error {
 }
 
 // UsersAdd will add a user to an access list.
-func (c *ACLCommand) UsersAdd(ctx context.Context, client auth.ClientI) error {
+func (c *ACLCommand) UsersAdd(ctx context.Context, client *authclient.Client) error {
 	var expires time.Time
 	if c.expires != "" {
 		var err error
@@ -175,7 +175,7 @@ func (c *ACLCommand) UsersAdd(ctx context.Context, client auth.ClientI) error {
 }
 
 // UsersRemove will remove a user to an access list.
-func (c *ACLCommand) UsersRemove(ctx context.Context, client auth.ClientI) error {
+func (c *ACLCommand) UsersRemove(ctx context.Context, client *authclient.Client) error {
 	err := client.AccessListClient().DeleteAccessListMember(ctx, c.accessListName, c.userName)
 	if err != nil {
 		return trace.Wrap(err)
@@ -187,7 +187,7 @@ func (c *ACLCommand) UsersRemove(ctx context.Context, client auth.ClientI) error
 }
 
 // UsersList will list the users in an access list.
-func (c *ACLCommand) UsersList(ctx context.Context, client auth.ClientI) error {
+func (c *ACLCommand) UsersList(ctx context.Context, client *authclient.Client) error {
 	members, nextToken, err := client.AccessListClient().ListAccessListMembers(ctx, c.accessListName, 0, "")
 	if err != nil {
 		return trace.Wrap(err)

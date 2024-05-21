@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=14.3.6
+VERSION=14.3.18
 
 DOCKER_IMAGE ?= teleport
 
@@ -162,12 +162,12 @@ TOUCHID_MESSAGE := with-Touch-ID
 TOUCHID_TAG := touchid
 endif
 
-# Enable PIV for testing?
-# Eagerly enable if we detect the dynamic libpcsclite library, we want to test as much as possible.
-ifeq ("$(shell pkg-config libpcsclite 2>/dev/null; echo $$?)", "0")
-# This test tag should not be used for builds/releases, only tests.
-PIV_TEST_TAG := piv
-endif
+# Enable PIV test packages for testing.
+# This test tag should never be used for builds/releases, only tests.
+PIV_TEST_TAG := pivtest
+
+# enable PIV package for linting.
+PIV_LINT_TAG := piv
 
 # Build teleport/api with PIV? This requires the libpcsclite library for linux.
 #
@@ -505,7 +505,6 @@ release-darwin-unsigned: full build-archive
 
 .PHONY: release-darwin
 ifneq ($(ARCH),universal)
-release-darwin: ABSOLUTE_BINARY_PATHS:=$(addprefix $(CURDIR)/,$(BINARIES))
 release-darwin: release-darwin-unsigned
 	$(NOTARIZE_BINARIES)
 	$(MAKE) build-archive
@@ -594,9 +593,6 @@ release-windows: release-windows-unsigned
 # It is used only for MacOS releases. Windows releases do not use this
 # Makefile. Linux uses the `teleterm` target in build.assets/Makefile.
 #
-# Only export the CSC_NAME (developer key ID) when the recipe is run, so
-# that we do not shell out and run the `security` command if not necessary.
-#
 # Either CONNECT_TSH_BIN_PATH or CONNECT_TSH_APP_PATH environment variable
 # should be defined for the `yarn package-term` command to succeed. CI sets
 # this appropriately depending on whether a push build is running, or a
@@ -606,7 +602,6 @@ release-windows: release-windows-unsigned
 
 .PHONY: release-connect
 release-connect: | $(RELEASE_DIR)
-	$(eval export CSC_NAME)
 	yarn install --frozen-lockfile
 	yarn build-term
 	yarn package-term -c.extraMetadata.version=$(VERSION) --$(ELECTRON_BUILDER_ARCH)
@@ -1151,30 +1146,61 @@ update-tag:
 	(cd e && git tag $(GITTAG) && git push origin $(GITTAG))
 	git push $(TAG_REMOTE) $(GITTAG) && git push $(TAG_REMOTE) api/$(GITTAG)
 
+# find-any evaluates to non-empty (true) if any of the strings in $(1) are contained in $(2)
+# e.g.
+#   $(call find-any,-cloud -dev,1.2.3-dev.1) == true
+#   $(call find-any,-cloud -dev,1.2.3-cloud.1) == true
+#   $(call find-any,-cloud -dev,1.2.3) == false
+find-any = $(strip $(foreach str,$(1),$(findstring $(str),$(2))))
+
+# IS_CLOUD_SEMVER is non-empty if $(VERSION) contains a cloud-only pre-release tag,
+# and is empty if not.
+CLOUD_VERSIONS = -cloud. -dev.cloud.
+IS_CLOUD_SEMVER = $(call find-any,$(CLOUD_VERSIONS),$(VERSION))
+
+# IS_PROD_SEMVER is non-empty if $(VERSION) does not contains a pre-release component, or
+# if it does, it is -cloud.
+PROD_VERSIONS = -cloud.
+IS_PROD_SEMVER = $(if $(findstring -,$(VERSION)),$(call find-any,$(PROD_VERSIONS),$(VERSION)),true)
+
 # Builds a tag build on GitHub Actions.
 # Starts a tag publish run using e/.github/workflows/tag-build.yaml
 # for the tag v$(VERSION).
+# If the $(VERSION) variable contains a cloud pre-release component, -cloud. or
+# -dev.cloud., then the tag-build workflow is run with `cloud-only=true`. This can be
+# specified explicitly with `make tag-build CLOUD_ONLY=<true|false>`.
 .PHONY: tag-build
+tag-build: CLOUD_ONLY = $(if $(IS_CLOUD_SEMVER),true,false)
+tag-build: ENVIRONMENT = $(if $(IS_PROD_SEMVER),build-prod,build-stage)
 tag-build:
 	@which gh >/dev/null 2>&1 || { echo 'gh command needed. https://github.com/cli/cli'; exit 1; }
 	gh workflow run tag-build.yaml \
 		--repo gravitational/teleport.e \
 		--ref "v$(VERSION)" \
 		-f "oss-teleport-repo=$(shell gh repo view --json nameWithOwner --jq .nameWithOwner)" \
-		-f "oss-teleport-ref=v$(VERSION)"
+		-f "oss-teleport-ref=v$(VERSION)" \
+		-f "cloud-only=$(CLOUD_ONLY)" \
+		-f "environment=$(ENVIRONMENT)"
 	@echo See runs at: https://github.com/gravitational/teleport.e/actions/workflows/tag-build.yaml
 
 # Publishes a tag build.
 # Starts a tag publish run using e/.github/workflows/tag-publish.yaml
 # for the tag v$(VERSION).
+# If the $(VERSION) variable contains a cloud pre-release component, -cloud. or
+# -dev.cloud., then the tag-publish workflow is run with `cloud-only=true`. This can be
+# specified explicitly with `make tag-publish CLOUD_ONLY=<true|false>`.
 .PHONY: tag-publish
+tag-publish: CLOUD_ONLY = $(if $(IS_CLOUD_SEMVER),true,false)
+tag-publish: ENVIRONMENT = $(if $(IS_PROD_SEMVER),publish-prod,publish-stage)
 tag-publish:
 	@which gh >/dev/null 2>&1 || { echo 'gh command needed. https://github.com/cli/cli'; exit 1; }
 	gh workflow run tag-publish.yaml \
 		--repo gravitational/teleport.e \
 		--ref "v$(VERSION)" \
 		-f "oss-teleport-repo=$(shell gh repo view --json nameWithOwner --jq .nameWithOwner)" \
-		-f "oss-teleport-ref=v$(VERSION)"
+		-f "oss-teleport-ref=v$(VERSION)" \
+		-f "cloud-only=$(CLOUD_ONLY)" \
+		-f "environment=$(ENVIRONMENT)"
 	@echo See runs at: https://github.com/gravitational/teleport.e/actions/workflows/tag-publish.yaml
 
 .PHONY: test-package
@@ -1239,6 +1265,10 @@ enter/centos7:
 enter/grpcbox:
 	make -C build.assets enter/grpcbox
 
+.PHONY:enter/node
+enter/node:
+	make -C build.assets enter/node
+
 BUF := buf
 
 # protos/all runs build, lint and format on all protos.
@@ -1275,6 +1305,23 @@ lint-breaking: protos/breaking
 buf/installed:
 	@if ! type -p $(BUF) >/dev/null; then \
 		echo 'Buf is required to build/format/lint protos. Follow https://docs.buf.build/installation.'; \
+		exit 1; \
+	fi
+
+GODERIVE := $(TOOLINGDIR)/bin/goderive
+# derive will generate derived functions for our API.
+# we need to build goderive first otherwise it will not be able to resolve dependencies
+# in the api/types/discoveryconfig package
+.PHONY: derive
+derive:
+	cd $(TOOLINGDIR) && go build  -o $(GODERIVE) ./cmd/goderive/main.go
+	$(GODERIVE) ./api/types ./api/types/discoveryconfig
+
+# derive-up-to-date checks if the generated derived functions are up to date.
+.PHONY: derive-up-to-date
+derive-up-to-date: must-start-clean/host derive
+	@if ! $(GIT) diff --quiet; then \
+		echo 'Please run make derive.'; \
 		exit 1; \
 	fi
 
@@ -1382,7 +1429,6 @@ endif
 # build .pkg
 .PHONY: pkg
 pkg: | $(RELEASE_DIR)
-	$(eval export DEVELOPER_ID_APPLICATION DEVELOPER_ID_INSTALLER)
 	mkdir -p $(BUILDDIR)/
 	cp ./build.assets/build-package.sh ./build.assets/build-common.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
@@ -1395,7 +1441,6 @@ pkg: | $(RELEASE_DIR)
 # build tsh client-only .pkg
 .PHONY: pkg-tsh
 pkg-tsh: | $(RELEASE_DIR)
-	$(eval export DEVELOPER_ID_APPLICATION DEVELOPER_ID_INSTALLER)
 	./build.assets/build-pkg-tsh.sh -t oss -v $(VERSION) -b $(TSH_BUNDLEID) -a $(ARCH) $(TARBALL_PATH_SECTION)
 	mkdir -p $(BUILDDIR)/
 	mv tsh*.pkg* $(BUILDDIR)/
@@ -1486,7 +1531,12 @@ rustup-install-target-toolchain:
 # changelog generates PR changelog between the provided base tag and the tip of
 # the specified branch.
 #
+# usage: make changelog
+# usage: make changelog BASE_BRANCH=branch/v13 BASE_TAG=13.2.0
 # usage: BASE_BRANCH=branch/v13 BASE_TAG=13.2.0 make changelog
+#
+# BASE_BRANCH and BASE_TAG will be automatically determined if not specified.
+# See ./build.assets/changelog.sh
 .PHONY: changelog
 changelog:
-	@python3 ./build.assets/changelog.py BASE_BRANCH=$(BASE_BRANCH) BASE_TAG=$(BASE_TAG)
+	@BASE_BRANCH=$(BASE_BRANCH) BASE_TAG=$(BASE_TAG) ./build.assets/changelog.sh

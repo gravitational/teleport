@@ -34,11 +34,24 @@ const (
 
 // IntegrationsService manages Integrations in the Backend.
 type IntegrationsService struct {
-	svc generic.Service[types.Integration]
+	svc       generic.Service[types.Integration]
+	backend   backend.Backend
+	cacheMode bool
+}
+
+// IntegrationsServiceOption is a functional option for the IntegrationsService.
+type IntegrationsServiceOption func(*IntegrationsService)
+
+// WithIntegrationsServiceCacheMode configures the IntegrationsService to skip certain checks against deleting
+// integrations referenced by other components and should only be used in e.g. a local cache.
+func WithIntegrationsServiceCacheMode(cacheMode bool) func(*IntegrationsService) {
+	return func(svc *IntegrationsService) {
+		svc.cacheMode = cacheMode
+	}
 }
 
 // NewIntegrationsService creates a new IntegrationsService.
-func NewIntegrationsService(backend backend.Backend) (*IntegrationsService, error) {
+func NewIntegrationsService(backend backend.Backend, opts ...IntegrationsServiceOption) (*IntegrationsService, error) {
 	svc, err := generic.NewService(&generic.ServiceConfig[types.Integration]{
 		Backend:       backend,
 		PageLimit:     defaults.MaxIterationLimit,
@@ -50,10 +63,14 @@ func NewIntegrationsService(backend backend.Backend) (*IntegrationsService, erro
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	return &IntegrationsService{
-		svc: *svc,
-	}, nil
+	integrationsSvc := &IntegrationsService{
+		svc:     *svc,
+		backend: backend,
+	}
+	for _, opt := range opts {
+		opt(integrationsSvc)
+	}
+	return integrationsSvc, nil
 }
 
 // ListIntegrationss returns a paginated list of Integration resources.
@@ -98,10 +115,51 @@ func (s *IntegrationsService) UpdateIntegration(ctx context.Context, ig types.In
 
 // DeleteIntegrations removes the specified Integration resource.
 func (s *IntegrationsService) DeleteIntegration(ctx context.Context, name string) error {
-	return trace.Wrap(s.svc.DeleteResource(ctx, name))
+	if s.cacheMode {
+		// No checks are done in cache mode.
+		return trace.Wrap(s.svc.DeleteResource(ctx, name))
+	}
+
+	// Check that this integration is not referenced by an EAS integration under the externalAuditStorageLock
+	// so that no new EAS integrations can be concurrently created.
+	err := backend.RunWhileLocked(ctx, backend.RunWhileLockedConfig{
+		LockConfiguration: backend.LockConfiguration{
+			Backend:  s.backend,
+			LockName: externalAuditStorageLockName,
+			TTL:      externalAuditStorageLockTTL,
+		},
+	}, func(ctx context.Context) error {
+		if err := notReferencedByEAS(ctx, s.backend, name); err != nil {
+			return trace.Wrap(err)
+		}
+		return trace.Wrap(s.svc.DeleteResource(ctx, name))
+	})
+	return trace.Wrap(err)
 }
 
-// DeleteAllIntegrationss removes all Integration resources.
+// notReferencedByEAS checks that integration [name] is not referenced by any EAS (External Audit Storage)
+// integration. It should be called under the externalAuditStorageLock only.
+func notReferencedByEAS(ctx context.Context, bk backend.Backend, name string) error {
+	for _, key := range [][]byte{draftExternalAuditStorageBackendKey, clusterExternalAuditStorageBackendKey} {
+		eas, err := getExternalAuditStorage(ctx, bk, key)
+		if err != nil {
+			if !trace.IsNotFound(err) {
+				return trace.Wrap(err)
+			}
+			// If this EAS configuration currently doesn't exist, continue.
+			continue
+		}
+		if eas.Spec.IntegrationName == name {
+			return trace.BadParameter("cannot delete AWS OIDC integration currently referenced by External Audit Storage integration")
+		}
+	}
+	return nil
+}
+
+// DeleteAllIntegrations removes all Integration resources. This should only be used in a cache.
 func (s *IntegrationsService) DeleteAllIntegrations(ctx context.Context) error {
+	if !s.cacheMode {
+		return trace.BadParameter("Deleting all integrations is not supported, this is a bug")
+	}
 	return trace.Wrap(s.svc.DeleteAllResources(ctx))
 }

@@ -80,17 +80,22 @@ func TestAppLoginLeaf(t *testing.T) {
 
 	// TODO(tener): consider making this default for tests.
 	configStorage := func(cfg *servicecfg.Config) {
+		cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
 		cfg.Auth.StorageConfig.Params["poll_stream_period"] = 50 * time.Millisecond
 	}
 
-	rootAuth, rootProxy := makeTestServers(t, withClusterName(t, "root"), withBootstrap(connector, alice), withConfig(configStorage))
+	rootAuth, rootProxy := makeTestServers(t,
+		withClusterName(t, "root"),
+		withBootstrap(connector, alice),
+		withConfig(configStorage),
+	)
 	event, err := rootAuth.WaitForEventTimeout(time.Second, service.ProxyReverseTunnelReady)
 	require.NoError(t, err)
 	tunnel, ok := event.Payload.(reversetunnelclient.Server)
 	require.True(t, ok)
 
 	rootAppURL := startDummyHTTPServer(t, "rootapp")
-	rootAppServer := makeTestApplicationServer(t, rootAuth, rootProxy, servicecfg.App{Name: "rootapp", URI: rootAppURL})
+	rootAppServer := makeTestApplicationServer(t, rootProxy, servicecfg.App{Name: "rootapp", URI: rootAppURL})
 	_, err = rootAppServer.WaitForEventTimeout(time.Second*10, service.TeleportReadyEvent)
 	require.NoError(t, err)
 
@@ -117,7 +122,7 @@ func TestAppLoginLeaf(t *testing.T) {
 	leafAuth, leafProxy := makeTestServers(t, withClusterName(t, "leaf"), withConfig(configStorage))
 
 	leafAppURL := startDummyHTTPServer(t, "leafapp")
-	leafAppServer := makeTestApplicationServer(t, leafAuth, leafProxy, servicecfg.App{Name: "leafapp", URI: leafAppURL})
+	leafAppServer := makeTestApplicationServer(t, leafProxy, servicecfg.App{Name: "leafapp", URI: leafAppURL})
 	_, err = leafAppServer.WaitForEventTimeout(time.Second*10, service.TeleportReadyEvent)
 	require.NoError(t, err)
 
@@ -140,7 +145,6 @@ func TestAppLoginLeaf(t *testing.T) {
 			return false
 		}
 		return len(servers) == 1 && servers[0].GetName() == "leafapp"
-
 	}, 10*time.Second, 100*time.Millisecond, "leaf cluster did not come online")
 
 	// helpers
@@ -164,14 +168,11 @@ func TestAppLoginLeaf(t *testing.T) {
 				"login",
 				"--insecure",
 				"--debug",
-				"--auth", connector.GetName(),
 				"--proxy", rootProxyAddr.String(),
-				cluster}
-
-			opt := func(cf *CLIConf) error {
-				cf.MockSSOLogin = mockSSOLogin(t, rootAuth.GetAuthServer(), alice)
-				return nil
+				cluster,
 			}
+
+			opt := setMockSSOLogin(rootAuth.GetAuthServer(), alice, connector.GetName())
 
 			return run(args, opt)
 		}

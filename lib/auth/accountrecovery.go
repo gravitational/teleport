@@ -17,12 +17,13 @@ package auth
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/binary"
 	"net/mail"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sethvargo/go-diceware/diceware"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
 
@@ -30,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -90,7 +92,7 @@ func (a *Server) StartAccountRecovery(ctx context.Context, req *proto.StartAccou
 		return nil, trace.AccessDenied(startRecoveryGenericErrMsg)
 	}
 
-	token, err := a.createRecoveryToken(ctx, req.GetUsername(), UserTokenTypeRecoveryStart, req.GetRecoverType())
+	token, err := a.createRecoveryToken(ctx, req.GetUsername(), authclient.UserTokenTypeRecoveryStart, req.GetRecoverType())
 	if err != nil {
 		log.Error(trace.DebugReport(err))
 		return nil, trace.AccessDenied(startRecoveryGenericErrMsg)
@@ -112,6 +114,8 @@ func (a *Server) verifyCodeWithRecoveryLock(ctx context.Context, username string
 	case err != nil:
 		log.Error(trace.DebugReport(err))
 		return trace.AccessDenied(startRecoveryGenericErrMsg)
+	case user.GetUserType() != types.UserTypeLocal:
+		return trace.AccessDenied("only local users may perform account recovery")
 	}
 
 	status := user.GetStatus()
@@ -235,7 +239,7 @@ func (a *Server) VerifyAccountRecovery(ctx context.Context, req *proto.VerifyAcc
 		return nil, trace.AccessDenied(verifyRecoveryBadAuthnErrMsg)
 	}
 
-	if err := a.verifyUserToken(startToken, UserTokenTypeRecoveryStart); err != nil {
+	if err := a.verifyUserToken(startToken, authclient.UserTokenTypeRecoveryStart); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -271,7 +275,7 @@ func (a *Server) VerifyAccountRecovery(ctx context.Context, req *proto.VerifyAcc
 		return nil, trace.AccessDenied("unsupported authentication method")
 	}
 
-	approvedToken, err := a.createRecoveryToken(ctx, startToken.GetUser(), UserTokenTypeRecoveryApproved, startToken.GetUsage())
+	approvedToken, err := a.createRecoveryToken(ctx, startToken.GetUser(), authclient.UserTokenTypeRecoveryApproved, startToken.GetUsage())
 	if err != nil {
 		return nil, trace.AccessDenied(verifyRecoveryGenericErrMsg)
 	}
@@ -389,7 +393,7 @@ func (a *Server) CompleteAccountRecovery(ctx context.Context, req *proto.Complet
 		return trace.AccessDenied(completeRecoveryGenericErrMsg)
 	}
 
-	if err := a.verifyUserToken(approvedToken, UserTokenTypeRecoveryApproved); err != nil {
+	if err := a.verifyUserToken(approvedToken, authclient.UserTokenTypeRecoveryApproved); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -472,7 +476,16 @@ func (a *Server) CreateAccountRecoveryCodes(ctx context.Context, req *proto.Crea
 		return nil, trace.AccessDenied(unableToCreateCodesMsg)
 	}
 
-	if err := a.verifyUserToken(token, UserTokenTypeRecoveryApproved, UserTokenTypePrivilege); err != nil {
+	// Verify if the user is local.
+	switch user, err := a.GetUser(token.GetUser(), false /* withSecrets */); {
+	case err != nil:
+		// err swallowed on purpose.
+		return nil, trace.AccessDenied(unableToCreateCodesMsg)
+	case user.GetUserType() != types.UserTypeLocal:
+		return nil, trace.AccessDenied("only local users may create recovery codes")
+	}
+
+	if err := a.verifyUserToken(token, authclient.UserTokenTypeRecoveryApproved, authclient.UserTokenTypePrivilege); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -497,7 +510,7 @@ func (a *Server) GetAccountRecoveryToken(ctx context.Context, req *proto.GetAcco
 		return nil, trace.AccessDenied("access denied")
 	}
 
-	if err := a.verifyUserToken(token, UserTokenTypeRecoveryStart, UserTokenTypeRecoveryApproved); err != nil {
+	if err := a.verifyUserToken(token, authclient.UserTokenTypeRecoveryStart, authclient.UserTokenTypeRecoveryApproved); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -529,7 +542,7 @@ func (a *Server) generateAndUpsertRecoveryCodes(ctx context.Context, username st
 
 	hashedCodes := make([]types.RecoveryCode, len(codes))
 	for i, token := range codes {
-		hashedCode, err := utils.BcryptFromPassword([]byte(token), bcrypt.DefaultCost)
+		hashedCode, err := utils.BcryptFromPassword([]byte(token), a.bcryptCost())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -588,20 +601,45 @@ func (a *Server) isAccountRecoveryAllowed(ctx context.Context) error {
 // generateRecoveryCodes returns an array of tokens where each token
 // have 8 random words prefixed with tele and concanatenated with dashes.
 func generateRecoveryCodes() ([]string, error) {
-	gen, err := diceware.NewGenerator(nil /* use default word list */)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	tokenList := make([]string, 0, numOfRecoveryCodes)
 
-	tokenList := make([]string, numOfRecoveryCodes)
 	for i := 0; i < numOfRecoveryCodes; i++ {
-		list, err := gen.Generate(numWordsInRecoveryCode)
-		if err != nil {
+		wordIDs := make([]uint16, numWordsInRecoveryCode)
+		if err := binary.Read(rand.Reader, binary.NativeEndian, wordIDs); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		tokenList[i] = "tele-" + strings.Join(list, "-")
+		words := make([]string, 0, 1+len(wordIDs))
+		words = append(words, "tele")
+		for _, id := range wordIDs {
+			words = append(words, encodeProquint(id))
+		}
+
+		tokenList = append(tokenList, strings.Join(words, "-"))
 	}
 
 	return tokenList, nil
+}
+
+// encodeProquint returns a five-letter word based on a uint16.
+// This proquint implementation is adapted from upspin.io:
+// https://github.com/upspin/upspin/blob/master/key/proquint/proquint.go
+// For the algorithm, see https://arxiv.org/html/0901.4016
+func encodeProquint(x uint16) string {
+	const consonants = "bdfghjklmnprstvz"
+	const vowels = "aiou"
+
+	cons3 := x & 0b1111
+	vow2 := (x >> 4) & 0b11
+	cons2 := (x >> 6) & 0b1111
+	vow1 := (x >> 10) & 0b11
+	cons1 := x >> 12
+
+	return string([]byte{
+		consonants[cons1],
+		vowels[vow1],
+		consonants[cons2],
+		vowels[vow2],
+		consonants[cons3],
+	})
 }

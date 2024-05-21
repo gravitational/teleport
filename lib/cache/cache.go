@@ -28,14 +28,15 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
+	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -134,10 +135,10 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindAccessRequest},
 		{Kind: types.KindAppServer},
 		{Kind: types.KindApp},
-		{Kind: types.KindWebSession, SubKind: types.KindSAMLIdPSession},
-		{Kind: types.KindWebSession, SubKind: types.KindSnowflakeSession},
-		{Kind: types.KindWebSession, SubKind: types.KindAppSession},
-		{Kind: types.KindWebSession, SubKind: types.KindWebSession},
+		{Kind: types.KindWebSession, SubKind: types.KindSAMLIdPSession, LoadSecrets: true},
+		{Kind: types.KindWebSession, SubKind: types.KindSnowflakeSession, LoadSecrets: true},
+		{Kind: types.KindWebSession, SubKind: types.KindAppSession, LoadSecrets: true},
+		{Kind: types.KindWebSession, SubKind: types.KindWebSession, LoadSecrets: true},
 		{Kind: types.KindWebToken},
 		{Kind: types.KindRemoteCluster},
 		{Kind: types.KindDatabaseServer},
@@ -164,6 +165,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindAccessList},
 		{Kind: types.KindAccessListMember},
 		{Kind: types.KindAccessListReview},
+		{Kind: types.KindKubeWaitingContainer},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -195,10 +197,10 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindTunnelConnection},
 		{Kind: types.KindAppServer},
 		{Kind: types.KindApp},
-		{Kind: types.KindWebSession, SubKind: types.KindSAMLIdPSession},
-		{Kind: types.KindWebSession, SubKind: types.KindSnowflakeSession},
-		{Kind: types.KindWebSession, SubKind: types.KindAppSession},
-		{Kind: types.KindWebSession, SubKind: types.KindWebSession},
+		{Kind: types.KindWebSession, SubKind: types.KindSAMLIdPSession, LoadSecrets: true},
+		{Kind: types.KindWebSession, SubKind: types.KindSnowflakeSession, LoadSecrets: true},
+		{Kind: types.KindWebSession, SubKind: types.KindAppSession, LoadSecrets: true},
+		{Kind: types.KindWebSession, SubKind: types.KindWebSession, LoadSecrets: true},
 		{Kind: types.KindWebToken},
 		{Kind: types.KindRemoteCluster},
 		{Kind: types.KindDatabaseServer},
@@ -215,6 +217,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindAuditQuery},
 		{Kind: types.KindSecurityReport},
 		{Kind: types.KindSecurityReportState},
+		{Kind: types.KindKubeWaitingContainer},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -227,7 +230,7 @@ func ForProxy(cfg Config) Config {
 // incompatible changes don't render a remote cluster permanently unhealthy.
 // First, the cfg.Watches of ForOldRemoteProxy must be replaced
 // with the current cfg.Watches of ForRemoteProxy. Next, the
-// version used by `lib/reversetunnel/srv/go` to determine whether
+// version used by `lib/reversetunnel/srv.go` to determine whether
 // to use ForRemoteProxy or ForOldRemoteProxy must be updated
 // to be the release in which the new resource(s) will exist in. Finally,
 // add the new types.WatchKind below. Also note that this only
@@ -338,6 +341,7 @@ func ForKubernetes(cfg Config) Config {
 		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
 		{Kind: types.KindKubeServer},
 		{Kind: types.KindKubernetesCluster},
+		{Kind: types.KindKubeWaitingContainer},
 	}
 	cfg.QueueSize = defaults.KubernetesQueueSize
 	return cfg
@@ -536,6 +540,7 @@ type Cache struct {
 	accessListCache              *simple.AccessListService
 	eventsFanout                 *services.FanoutV2
 	lowVolumeEventsFanout        *utils.RoundRobin[*services.FanoutV2]
+	kubeWaitingContsCache        *local.KubeWaitingContainerService
 
 	// closed indicates that the cache has been closed
 	closed atomic.Bool
@@ -698,6 +703,8 @@ type Config struct {
 	SecReports services.SecReports
 	// AccessLists is the access lists service.
 	AccessLists services.AccessLists
+	// KubeWaitingContainers is the Kubernetes waiting container service.
+	KubeWaitingContainers services.KubeWaitingContainer
 	// Backend is a backend for local cache
 	Backend backend.Backend
 	// MaxRetryPeriod is the maximum period between cache retries on failures
@@ -867,7 +874,7 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	integrationsCache, err := local.NewIntegrationsService(config.Backend)
+	integrationsCache, err := local.NewIntegrationsService(config.Backend, local.WithIntegrationsServiceCacheMode(true))
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
@@ -901,6 +908,12 @@ func New(config Config) (*Cache, error) {
 	lowVolumeFanouts := make([]*services.FanoutV2, 0, config.FanoutShards)
 	for i := 0; i < config.FanoutShards; i++ {
 		lowVolumeFanouts = append(lowVolumeFanouts, services.NewFanoutV2(services.FanoutV2Config{}))
+	}
+
+	kubeWaitingContsCache, err := local.NewKubeWaitingContainerService(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
 	}
 
 	cs := &Cache{
@@ -938,6 +951,7 @@ func New(config Config) (*Cache, error) {
 		accessListCache:              accessListCache,
 		eventsFanout:                 fanout,
 		lowVolumeEventsFanout:        utils.NewRoundRobin(lowVolumeFanouts),
+		kubeWaitingContsCache:        kubeWaitingContsCache,
 		Logger: log.WithFields(log.Fields{
 			trace.Component: config.Component,
 		}),
@@ -970,7 +984,6 @@ func (c *Cache) Start() error {
 		Jitter: retryutils.NewHalfJitter(),
 		Clock:  c.Clock,
 	})
-
 	if err != nil {
 		c.Close()
 		return trace.Wrap(err)
@@ -1506,14 +1519,7 @@ func tracedApplyFn(parent oteltrace.Span, tracer oteltrace.Tracer, kind resource
 			oteltrace.ContextWithSpan(ctx, parent),
 			fmt.Sprintf("cache/apply/%s", kind.String()),
 		)
-
-		defer func() {
-			if err != nil {
-				span.RecordError(err)
-				span.SetStatus(codes.Error, err.Error())
-			}
-			span.End()
-		}()
+		defer func() { apitracing.EndSpan(span, err) }()
 
 		return f(ctx)
 	}
@@ -1545,13 +1551,7 @@ func isControlPlane(target string) bool {
 
 func (c *Cache) fetch(ctx context.Context, confirmedKinds map[resourceKind]types.WatchKind) (fn applyFn, err error) {
 	ctx, fetchSpan := c.Tracer.Start(ctx, "cache/fetch", oteltrace.WithAttributes(attribute.String("target", c.target)))
-	defer func() {
-		if err != nil {
-			fetchSpan.RecordError(err)
-			fetchSpan.SetStatus(codes.Error, err.Error())
-		}
-		fetchSpan.End()
-	}()
+	defer func() { apitracing.EndSpan(fetchSpan, err) }()
 
 	g, ctx := errgroup.WithContext(ctx)
 	g.SetLimit(fetchLimit(c.target))
@@ -1570,13 +1570,7 @@ func (c *Cache) fetch(ctx context.Context, confirmedKinds map[resourceKind]types
 					attribute.String("target", c.target),
 				),
 			)
-			defer func() {
-				if err != nil {
-					span.RecordError(err)
-					span.SetStatus(codes.Error, err.Error())
-				}
-				span.End()
-			}()
+			defer func() { apitracing.EndSpan(span, err) }()
 
 			_, cacheOK := confirmedKinds[resourceKind{kind: kind.kind, subkind: kind.subkind}]
 			applyfn, err := collection.fetch(ctx, cacheOK)
@@ -1885,6 +1879,19 @@ func (c *Cache) GetRoles(ctx context.Context) ([]types.Role, error) {
 	return rg.reader.GetRoles(ctx)
 }
 
+// ListRoles is a paginated role getter.
+func (c *Cache) ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListRoles")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.roles)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListRoles(ctx, req)
+}
+
 // GetRole is a part of auth.Cache implementation
 func (c *Cache) GetRole(ctx context.Context, name string) (types.Role, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetRole")
@@ -2179,6 +2186,36 @@ func (c *Cache) GetKubernetesServers(ctx context.Context) ([]types.KubeServer, e
 	}
 	defer rg.Release()
 	return rg.reader.GetKubernetesServers(ctx)
+}
+
+// ListKubernetesWaitingContainers lists Kubernetes ephemeral
+// containers that are waiting to be created until moderated
+// session conditions are met.
+func (c *Cache) ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListKubernetesWaitingContainers")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.kubeWaitingContainers)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListKubernetesWaitingContainers(ctx, pageSize, pageToken)
+}
+
+// GetKubernetesWaitingContainer returns a Kubernetes ephemeral
+// container that are waiting to be created until moderated
+// session conditions are met.
+func (c *Cache) GetKubernetesWaitingContainer(ctx context.Context, req *kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetKubernetesWaitingContainer")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.kubeWaitingContainers)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.GetKubernetesWaitingContainer(ctx, req)
 }
 
 // GetApplicationServers returns all registered application servers.
@@ -2903,7 +2940,17 @@ func (c *Cache) GetAccessList(ctx context.Context, name string) (*accesslist.Acc
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.reader.GetAccessList(ctx, name)
+	item, err := rg.reader.GetAccessList(ctx, name)
+	if trace.IsNotFound(err) && rg.IsCacheRead() {
+		// release read lock early
+		rg.Release()
+		// fallback is sane because method is never used
+		// in construction of derivative caches.
+		if item, err := c.Config.AccessLists.GetAccessList(ctx, name); err == nil {
+			return item, nil
+		}
+	}
+	return item, trace.Wrap(err)
 }
 
 // CountAccessListMembers will count all access list members.
@@ -2933,6 +2980,19 @@ func (c *Cache) ListAccessListMembers(ctx context.Context, accessListName string
 	}
 	defer rg.Release()
 	return rg.reader.ListAccessListMembers(ctx, accessListName, pageSize, pageToken)
+}
+
+// ListAllAccessListMembers returns a paginated list of all access list members for all access lists.
+func (c *Cache) ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListAllAccessListMembers")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.accessListMembers)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListAllAccessListMembers(ctx, pageSize, pageToken)
 }
 
 // GetAccessListMember returns the specified access list member resource.
@@ -2992,14 +3052,23 @@ func (c *Cache) ListResources(ctx context.Context, req proto.ListResourcesReques
 				return nil, trace.Wrap(err)
 			}
 
-			return local.FakePaginate(servers.AsResources(), local.FakePaginateParams{
-				ResourceType:        req.ResourceType,
-				Limit:               req.Limit,
-				Labels:              req.Labels,
-				SearchKeywords:      req.SearchKeywords,
-				PredicateExpression: req.PredicateExpression,
-				StartKey:            req.StartKey,
-			})
+			params := local.FakePaginateParams{
+				ResourceType:   req.ResourceType,
+				Limit:          req.Limit,
+				Labels:         req.Labels,
+				SearchKeywords: req.SearchKeywords,
+				StartKey:       req.StartKey,
+			}
+
+			if req.PredicateExpression != "" {
+				expression, err := services.NewResourceExpression(req.PredicateExpression)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				params.PredicateExpression = expression
+			}
+
+			return local.FakePaginate(servers.AsResources(), params)
 		}
 	}
 

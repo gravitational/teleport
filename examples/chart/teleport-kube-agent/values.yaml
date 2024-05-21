@@ -105,8 +105,9 @@ databaseResources: []
 
 # kubernetesDiscovery controls configuration for discovery service if it's enabled.
 # discovery service is enabled when the agent `roles` contains "discovery".
-# Default value will try to discovery all apps, use needs to override it to limit
-# scope of the discovered apps.
+# Default value will try to discovery all apps, except for those running in the
+# "kube-system" and "kube-public" namespaces, which are automatically ignored.
+# User needs to override it to limit the scope of the discovered apps.
 kubernetesDiscovery:
   - types: ["app"]
     namespaces: ["*"]
@@ -172,9 +173,38 @@ updater:
   # binary.
   extraArgs: []
 
-# If set, will use an existing volume mounted via extraVolumes
-# as the Teleport data directory.
-# If anything is set under the "storage" key, this will be ignored.
+  # updater.extraVolumes(list) -- contains extra volumes to mount into the Updater pods.
+  # See [the Kubernetes volume documentation](https://kubernetes.io/docs/concepts/storage/volumes/)
+  # for more details.
+  #
+  # For example:
+  # ```yaml
+  # updater:
+  #   extraVolumes:
+  #   - name: myvolume
+  #     secret:
+  #       secretName: testSecret
+  # ```
+  extraVolumes: []
+
+  # updater.extraVolumeMounts(list) -- contains extra volumes mounts for the updater.
+  # See [the Kubernetes volume documentation](https://kubernetes.io/docs/concepts/storage/volumes/)
+  # for more details.
+  #
+  # For example:
+  # ```yaml
+  # updater:
+  #   extraVolumesMounts:
+  #   - name: myvolume
+  #     mountPath: /path/on/host
+  # ```
+  extraVolumeMounts: []
+
+# existingDataVolume(string) -- is the name of an existing Kubernetes Persistent
+# Volume that should be mounted at `/var/lib/teleport`.
+#
+# This is only useful if you had a previous agent running with persistence enabled
+# and want for a new agent to reuse the volume.
 existingDataVolume: ""
 
 # If true, create & use Pod Security Policy resources

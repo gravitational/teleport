@@ -16,7 +16,7 @@
 
 import React from 'react';
 import styled from 'styled-components';
-import { Link } from 'react-router-dom';
+import { Link as InternalRouteLink } from 'react-router-dom';
 
 import { Box, Flex, Image } from 'design';
 import { AWSIcon } from 'design/SVGIcon';
@@ -48,6 +48,7 @@ import {
 import cfg from 'teleport/config';
 
 import { ExternalAuditStorageOpType } from './Operations/useIntegrationOperation';
+import { UpdateAwsOidcThumbprint } from './UpdateAwsOidcThumbprint';
 
 type Props<IntegrationLike> = {
   list: IntegrationLike[];
@@ -103,7 +104,11 @@ export function IntegrationList(props: Props<IntegrationLike>) {
               );
             }
 
-            if (item.resourceType === 'integration') {
+            if (
+              item.resourceType === 'integration' &&
+              // Currently, only AWSOIDC supports editing.
+              item.kind === IntegrationKind.AwsOidc
+            ) {
               return (
                 <Cell align="right">
                   <MenuButton>
@@ -132,7 +137,7 @@ export function IntegrationList(props: Props<IntegrationLike>) {
                 <Cell align="right">
                   <MenuButton>
                     <MenuItem
-                      as={Link}
+                      as={InternalRouteLink}
                       to={{
                         pathname: cfg.getIntegrationEnrollRoute(
                           IntegrationKind.ExternalAuditStorage
@@ -178,8 +183,25 @@ export function IntegrationList(props: Props<IntegrationLike>) {
 
 const StatusCell = ({ item }: { item: IntegrationLike }) => {
   const status = getStatus(item);
-  const statusDescription = getStatusCodeDescription(item.statusCode);
 
+  if (
+    item.resourceType === 'integration' &&
+    item.kind === IntegrationKind.AwsOidc &&
+    (!item.spec.issuerS3Bucket || !item.spec.issuerS3Prefix)
+  ) {
+    return (
+      <Cell>
+        <Flex alignItems="center">
+          <StatusLight status={status} />
+          {getStatusCodeTitle(item.statusCode)}
+          <Box mx="1">
+            <UpdateAwsOidcThumbprint integration={item} />
+          </Box>
+        </Flex>
+      </Cell>
+    );
+  }
+  const statusDescription = getStatusCodeDescription(item.statusCode);
   return (
     <Cell>
       <Flex alignItems="center">

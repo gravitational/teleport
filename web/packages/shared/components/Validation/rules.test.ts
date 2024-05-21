@@ -33,7 +33,7 @@ describe('requiredField', () => {
     ${'not empty value'} | ${{ valid: true, message: '' }}
     ${''}                | ${{ valid: false, message: errMsg }}
     ${null}              | ${{ valid: false, message: errMsg }}
-  `('test input with: $input', ({ input, expected }) => {
+  `('input with: $input', ({ input, expected }) => {
     expect(validator(input)()).toEqual(expected);
   });
 });
@@ -46,7 +46,7 @@ describe('requiredToken', () => {
     ${'some token'} | ${{ valid: true }}
     ${''}           | ${{ valid: false, message: errMsg }}
     ${null}         | ${{ valid: false, message: errMsg }}
-  `('test token value with: $token', ({ token, expected }) => {
+  `('token value with: $token', ({ token, expected }) => {
     expect(requiredToken(token)()).toEqual(expected);
   });
 });
@@ -59,7 +59,7 @@ describe('requiredPassword', () => {
     ${'valid password'} | ${{ valid: true }}
     ${''}               | ${{ valid: false, message: errMsg }}
     ${null}             | ${{ valid: false, message: errMsg }}
-  `('test password value with: $password', ({ password, expected }) => {
+  `('password value with: $password', ({ password, expected }) => {
     expect(requiredPassword(password)()).toEqual(expected);
   });
 });
@@ -78,7 +78,7 @@ describe('requiredRoleArn', () => {
     ${'arn:aws:iam::123456789012:role'}                               | ${false}
     ${''}                                                             | ${false}
     ${null}                                                           | ${false}
-  `('test role arn valid ($valid): $roleArn', ({ roleArn, valid }) => {
+  `('role arn valid ($valid): $roleArn', ({ roleArn, valid }) => {
     const result = requiredRoleArn(roleArn)();
     expect(result.valid).toEqual(valid);
   });
@@ -94,7 +94,7 @@ describe('requiredIamRoleName', () => {
     ${Array.from('x'.repeat(65)).join('')} | ${false}
     ${null}                                | ${false}
     ${''}                                  | ${false}
-  `('test IAM role name valid ($valid): $roleArn', ({ roleArn, valid }) => {
+  `('IAM role name valid ($valid): $roleArn', ({ roleArn, valid }) => {
     const result = requiredIamRoleName(roleArn)();
     expect(result.valid).toEqual(valid);
   });
@@ -112,7 +112,7 @@ describe('requiredConfirmedPassword', () => {
     ${'mistmatch'} | ${null}         | ${{ valid: false, message: confirmError }}
     ${null}        | ${null}         | ${{ valid: false, message: confirmError }}
   `(
-    'test password: $password, confirmPassword: $confirmPassword',
+    'password: $password, confirmPassword: $confirmPassword',
     ({ password, confirmPassword, expected }) => {
       expect(requiredConfirmedPassword(password)(confirmPassword)()).toEqual(
         expected
@@ -130,7 +130,7 @@ describe('requiredEmailLike', () => {
     ${'@example.com'}      | ${{ valid: false, kind: 'invalid' }}
     ${'alice@example'}     | ${{ valid: true }}
     ${'alice@example.com'} | ${{ valid: true }}
-  `('test email: $email', ({ email, expected }) => {
+  `('email: $email', ({ email, expected }) => {
     expect(requiredEmailLike(email)()).toEqual(
       expect.objectContaining(expected)
     );

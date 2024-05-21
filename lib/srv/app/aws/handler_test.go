@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -34,6 +35,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go/service/lambda"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/google/go-cmp/cmp"
@@ -95,6 +97,39 @@ func dynamoRequestWithTransport(url string, provider client.ConfigProvider, tran
 	})
 	_, err := dynamoClient.Scan(&dynamodb.ScanInput{
 		TableName: aws.String("test-table"),
+	})
+	return err
+}
+
+// dont make tests generate huge requests just to test limiting the request
+// size. Use a 1MB limit instead of the actual 70MB limit.
+const maxTestHTTPRequestBodySize = 1 << 20
+
+func maxSizeExceededRequest(url string, provider client.ConfigProvider, _ string) error {
+	// fake an upload that's too large
+	payload := strings.Repeat("x", maxTestHTTPRequestBodySize)
+	return lambdaRequestWithPayload(url, provider, payload)
+}
+
+func lambdaRequest(url string, provider client.ConfigProvider, awsHost string) error {
+	// fake a zip file with 70% of the max limit. Lambda will base64 encode it,
+	// which bloats it up, and our proxy should still handle it.
+	const size = (maxTestHTTPRequestBodySize * 7) / 10
+	payload := strings.Repeat("x", size)
+	return lambdaRequestWithPayload(url, provider, payload)
+}
+
+func lambdaRequestWithPayload(url string, provider client.ConfigProvider, payload string) error {
+	lambdaClient := lambda.New(provider, &aws.Config{
+		Endpoint:   &url,
+		MaxRetries: aws.Int(0),
+		HTTPClient: &http.Client{
+			Timeout: 5 * time.Second,
+		},
+	})
+	_, err := lambdaClient.UpdateFunctionCode(&lambda.UpdateFunctionCodeInput{
+		FunctionName: aws.String("fakeFunc"),
+		ZipFile:      []byte(payload),
 	})
 	return err
 }
@@ -295,6 +330,37 @@ func TestAWSSignerHandler(t *testing.T) {
 			},
 		},
 		{
+			name: "Lambda access",
+			app:  consoleApp,
+			awsClientSession: session.Must(session.NewSession(&aws.Config{
+				Credentials: staticAWSCredentialsForClient,
+				Region:      aws.String("us-east-1"),
+			})),
+			request:             lambdaRequest,
+			wantHost:            "lambda.us-east-1.amazonaws.com",
+			wantAuthCredKeyID:   "AKIDl",
+			wantAuthCredService: "lambda",
+			wantAuthCredRegion:  "us-east-1",
+			wantEventType:       &events.AppSessionRequest{},
+			errAssertionFns: []require.ErrorAssertionFunc{
+				require.NoError,
+			},
+		},
+		{
+			name: "Request exceeding max size",
+			app:  consoleApp,
+			awsClientSession: session.Must(session.NewSession(&aws.Config{
+				Credentials: staticAWSCredentialsForClient,
+				Region:      aws.String("us-east-1"),
+			})),
+			request: maxSizeExceededRequest,
+			errAssertionFns: []require.ErrorAssertionFunc{
+				// TODO(gavin): change this to [http.StatusRequestEntityTooLarge]
+				// after updating [trace.ErrorToCode].
+				hasStatusCode(http.StatusTooManyRequests),
+			},
+		},
+		{
 			name: "AssumeRole success (shorter identity duration)",
 			app:  consoleApp,
 			awsClientSession: session.Must(session.NewSession(&aws.Config{
@@ -351,7 +417,9 @@ func TestAWSSignerHandler(t *testing.T) {
 		},
 	}
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			fakeClock := clockwork.NewFakeClock()
 			mockAwsHandler := func(w http.ResponseWriter, r *http.Request) {
 				// check that we got what the test case expects first.
@@ -419,6 +487,20 @@ func TestAWSSignerHandler(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRewriteRequest(t *testing.T) {
+	expectedReq, err := http.NewRequest("GET", "https://example.com", http.NoBody)
+	require.NoError(t, err)
+	ctx := context.Background()
+
+	inputReq := mustNewRequest(t, "GET", "https://example.com", nil)
+	actualOutReq, err := rewriteRequest(ctx, inputReq, &endpoints.ResolvedEndpoint{})
+	require.NoError(t, err)
+	require.Equal(t, expectedReq, actualOutReq, err)
+
+	_, err = io.ReadAll(actualOutReq.Body)
+	require.NoError(t, err)
 }
 
 func TestURLForResolvedEndpoint(t *testing.T) {
@@ -523,7 +605,8 @@ func createSuite(t *testing.T, mockAWSHandler http.HandlerFunc, app types.Applic
 					return net.Dial(awsAPIMock.Listener.Addr().Network(), awsAPIMock.Listener.Addr().String())
 				},
 			},
-			Clock: clock,
+			Clock:                  clock,
+			MaxHTTPRequestBodySize: maxTestHTTPRequestBodySize,
 		})
 	require.NoError(t, err)
 	mux := http.NewServeMux()

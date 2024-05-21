@@ -39,7 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -83,10 +83,10 @@ type server struct {
 
 	// localAuthClient provides access to the full Auth Server API for the
 	// local cluster.
-	localAuthClient auth.ClientI
+	localAuthClient authclient.ClientI
 	// localAccessPoint provides access to a cached subset of the Auth
 	// Server API.
-	localAccessPoint auth.ProxyAccessPoint
+	localAccessPoint authclient.ProxyAccessPoint
 
 	// srv is the "base class" i.e. the underlying SSH server
 	srv     *sshutils.Server
@@ -140,14 +140,14 @@ type Config struct {
 	// Limiter is optional request limiter
 	Limiter *limiter.Limiter
 	// LocalAuthClient provides access to a full AuthClient for the local cluster.
-	LocalAuthClient auth.ClientI
+	LocalAuthClient authclient.ClientI
 	// AccessPoint provides access to a subset of AuthClient of the cluster.
 	// AccessPoint caches values and can still return results during connection
 	// problems.
-	LocalAccessPoint auth.ProxyAccessPoint
+	LocalAccessPoint authclient.ProxyAccessPoint
 	// NewCachingAccessPoint returns new caching access points
 	// per remote cluster
-	NewCachingAccessPoint auth.NewRemoteProxyCachingAccessPoint
+	NewCachingAccessPoint authclient.NewRemoteProxyCachingAccessPoint
 	// Context is a signaling context
 	Context context.Context
 	// Clock is a clock used in the server, set up to
@@ -195,7 +195,7 @@ type Config struct {
 	// NewCachingAccessPointOldProxy is an access point that can be configured
 	// with the old access point policy until all clusters are migrated to 7.0.0
 	// and above.
-	NewCachingAccessPointOldProxy auth.NewRemoteProxyCachingAccessPoint
+	NewCachingAccessPointOldProxy authclient.NewRemoteProxyCachingAccessPoint
 
 	// PeerClient is a client to peer proxy servers.
 	PeerClient *peer.Client
@@ -1287,7 +1287,7 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 // **WARNING**: Ensure that the version below matches the version in which backward incompatible
 // changes were introduced so that the cache is created successfully. Otherwise, the remote cache may
 // never become healthy due to unknown resources.
-func createRemoteAccessPoint(srv *server, clt auth.ClientI, version, domainName string) (auth.RemoteProxyAccessPoint, error) {
+func createRemoteAccessPoint(srv *server, clt authclient.ClientI, version, domainName string) (authclient.RemoteProxyAccessPoint, error) {
 	ok, err := utils.MinVerWithoutPreRelease(version, utils.VersionBeforeAlpha("13.0.0"))
 	if err != nil {
 		return nil, trace.Wrap(err)

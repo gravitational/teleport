@@ -48,7 +48,7 @@ type eksFetcher struct {
 // EKSClientGetter is an interface for getting an EKS client.
 type EKSClientGetter interface {
 	// GetAWSEKSClient returns AWS EKS client for the specified region.
-	GetAWSEKSClient(ctx context.Context, region string, opts ...cloud.AWSAssumeRoleOptionFn) (eksiface.EKSAPI, error)
+	GetAWSEKSClient(ctx context.Context, region string, opts ...cloud.AWSOptionsFn) (eksiface.EKSAPI, error)
 }
 
 // EKSFetcherConfig configures the EKS fetcher.
@@ -230,7 +230,7 @@ func (a *eksFetcher) getMatchingKubeCluster(ctx context.Context, clusterName str
 		return nil, trace.CompareFailed("EKS cluster %q not enrolled due to its current status: %s", clusterName, st)
 	}
 
-	cluster, err := services.NewKubeClusterFromAWSEKS(rsp.Cluster)
+	cluster, err := common.NewKubeClusterFromAWSEKS(rsp.Cluster)
 	if err != nil {
 		return nil, trace.WrapWithMessage(err, "Unable to convert eks.Cluster cluster into types.KubernetesClusterV3.")
 	}

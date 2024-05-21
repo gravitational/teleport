@@ -35,11 +35,11 @@ type Resource interface {
 	GetName() string
 }
 
-// MarshalFunc is a type signature for a marshaling function.
-type MarshalFunc[T Resource] func(T, ...services.MarshalOption) ([]byte, error)
+// MarshalFunc is a type signature for a marshaling function, which converts from T to []byte, while respecting specified options.
+type MarshalFunc[T any] func(T, ...services.MarshalOption) ([]byte, error)
 
-// UnmarshalFunc is a type signature for an unmarshalling function.
-type UnmarshalFunc[T Resource] func([]byte, ...services.MarshalOption) (T, error)
+// UnmarshalFunc is a type signature for an unmarshalling function, which converts from []byte to T, while respecting specified options.
+type UnmarshalFunc[T any] func([]byte, ...services.MarshalOption) (T, error)
 
 // ServiceConfig is the configuration for the service configuration.
 type ServiceConfig[T Resource] struct {
@@ -49,6 +49,10 @@ type ServiceConfig[T Resource] struct {
 	BackendPrefix string
 	MarshalFunc   MarshalFunc[T]
 	UnmarshalFunc UnmarshalFunc[T]
+	// RunWhileLockedRetryInterval is the interval to retry the RunWhileLocked function.
+	// If set to 0, the default interval of 250ms will be used.
+	// WARNING: If set to a negative value, the RunWhileLocked function will retry immediately.
+	RunWhileLockedRetryInterval time.Duration
 }
 
 func (c *ServiceConfig[T]) CheckAndSetDefaults() error {
@@ -78,12 +82,13 @@ func (c *ServiceConfig[T]) CheckAndSetDefaults() error {
 
 // Service is a generic service for interacting with resources in the backend.
 type Service[T Resource] struct {
-	backend       backend.Backend
-	resourceKind  string
-	pageLimit     uint
-	backendPrefix string
-	marshalFunc   MarshalFunc[T]
-	unmarshalFunc UnmarshalFunc[T]
+	backend                     backend.Backend
+	resourceKind                string
+	pageLimit                   uint
+	backendPrefix               string
+	marshalFunc                 MarshalFunc[T]
+	unmarshalFunc               UnmarshalFunc[T]
+	runWhileLockedRetryInterval time.Duration
 }
 
 // NewService will return a new generic service with the given config. This will
@@ -94,12 +99,13 @@ func NewService[T Resource](cfg *ServiceConfig[T]) (*Service[T], error) {
 	}
 
 	return &Service[T]{
-		backend:       cfg.Backend,
-		resourceKind:  cfg.ResourceKind,
-		pageLimit:     cfg.PageLimit,
-		backendPrefix: cfg.BackendPrefix,
-		marshalFunc:   cfg.MarshalFunc,
-		unmarshalFunc: cfg.UnmarshalFunc,
+		backend:                     cfg.Backend,
+		resourceKind:                cfg.ResourceKind,
+		pageLimit:                   cfg.PageLimit,
+		backendPrefix:               cfg.BackendPrefix,
+		marshalFunc:                 cfg.MarshalFunc,
+		unmarshalFunc:               cfg.UnmarshalFunc,
+		runWhileLockedRetryInterval: cfg.RunWhileLockedRetryInterval,
 	}, nil
 }
 
@@ -336,18 +342,30 @@ func (s *Service[T]) MakeBackendItem(resource T, name string) (backend.Item, err
 		return backend.Item{}, trace.Wrap(err)
 	}
 
-	rev := types.GetRevision(resource)
+	rev, err := types.GetRevision(resource)
+	if err != nil {
+		return backend.Item{}, trace.Wrap(err)
+	}
+
 	value, err := s.marshalFunc(resource)
 	if err != nil {
 		return backend.Item{}, trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     s.MakeKey(name),
-		Value:   value,
-		Expires: types.GetExpiry(resource),
-		//nolint:staticcheck // SA1019. Added for backward compatibility.
-		ID:       types.GetResourceID(resource),
+		Key:      s.MakeKey(name),
+		Value:    value,
 		Revision: rev,
+	}
+
+	item.Expires, err = types.GetExpiry(resource)
+	if err != nil {
+		return backend.Item{}, trace.Wrap(err)
+	}
+
+	//nolint:staticcheck // SA1019. Added for backward compatibility.
+	item.ID, err = types.GetResourceID(resource)
+	if err != nil {
+		return backend.Item{}, trace.Wrap(err)
 	}
 
 	return item, nil
@@ -363,9 +381,10 @@ func (s *Service[T]) RunWhileLocked(ctx context.Context, lockName string, ttl ti
 	return trace.Wrap(backend.RunWhileLocked(ctx,
 		backend.RunWhileLockedConfig{
 			LockConfiguration: backend.LockConfiguration{
-				Backend:  s.backend,
-				LockName: lockName,
-				TTL:      ttl,
+				Backend:       s.backend,
+				LockName:      lockName,
+				TTL:           ttl,
+				RetryInterval: s.runWhileLockedRetryInterval,
 			},
 		}, func(ctx context.Context) error {
 			return fn(ctx, s.backend)

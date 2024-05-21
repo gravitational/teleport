@@ -1058,6 +1058,29 @@ message GetRolesResponse {
   repeated types.RoleV6 Roles = 1;
 }
 
+// ListRolesRequest encodes parameters for paginated role lookup.
+message ListRolesRequest {
+  // Limit is the maximum amount of roles per page.
+  int32 Limit = 1;
+
+  // StartKey is used to resume a query in order to enable pagination.
+  // If the previous response had LastKey set then this should be
+  // set to its value. Otherwise leave empty.
+  string StartKey = 2;
+
+  // Filter matches roles.
+  types.RoleFilter Filter = 3;
+}
+
+// ListRolesResponse is a page of roles.
+message ListRolesResponse {
+  // Roles is a page of roles.
+  repeated types.RoleV6 Roles = 1;
+
+  // NextKey will serve as the StartKey for the next page of roles.
+  string NextKey = 2;
+}
+
 // DeleteRoleRequest is a request to delete a role.
 message DeleteRoleRequest {
   // Name is the role name to delete.
@@ -2376,6 +2399,51 @@ message ExportUpgradeWindowsResponse {
   string SystemdUnitSchedule = 3;
 }
 
+// AccessRequestSort determines access request sort index.
+enum AccessRequestSort {
+  // DEFAULT sorts access requests by their native backend index. this is currently equivalent
+  // to sorting by request ID, but that is subject to change.
+  DEFAULT = 0;
+
+  // CREATED sorts access requests by creation time (this is the sort index typically used in
+  // user interfaces since most users are looking for recently-created requests).
+  CREATED = 1;
+
+  // STATE sorts access requests by their state (PENDING, APPROVED, etc).
+  STATE = 2;
+}
+
+// ListAccessRequestsRequest encodes the parameters for a paginated access request lookup.
+message ListAccessRequestsRequest {
+  // Filter matches access requests.
+  types.AccessRequestFilter Filter = 1;
+
+  // Sort determines the sort order of returned access requests.
+  AccessRequestSort Sort = 2;
+
+  // Descending requests descending sort order if true (teleport APIs generally always
+  // defaults to ascending sort order since that is the native sort order used in the
+  // teleport backend).
+  bool Descending = 3;
+
+  // Limit is the maximum amount of requests per page.
+  int32 Limit = 4;
+
+  // StartKey is used to resume a query in order to enable pagination.
+  // If the previous response had NextKey set then this should be
+  // set to its value. Otherwise leave empty.
+  string StartKey = 5;
+}
+
+// ListAccessRequestsResponse is a page of access requests.
+message ListAccessRequestsResponse {
+  // AccessRequests is a page of access requests.
+  repeated types.AccessRequestV3 AccessRequests = 1;
+
+  // NextKey will serve as the StartKey for the next page of requests.
+  string NextKey = 2;
+}
+
 // AccessRequestAllowedPromotionRequest is the request to AccessRequestAllowedPromotion RPC call.
 message AccessRequestAllowedPromotionRequest {
   // AccessRequest is the access request to get promotions for.
@@ -2473,6 +2541,10 @@ service AuthService {
 
   // GetAccessRequestsV2 gets all pending access requests.
   rpc GetAccessRequestsV2(types.AccessRequestFilter) returns (stream types.AccessRequestV3);
+
+  // ListAccessRequests gets access requests with pagination and sorting.
+  rpc ListAccessRequests(ListAccessRequestsRequest) returns (ListAccessRequestsResponse);
+
   // CreateAccessRequest creates a new access request.
   // Deprecated: use CreateAccessRequestV2 instead.
   // DELETE IN v15.0.0.
@@ -2504,6 +2576,8 @@ service AuthService {
   rpc GetResetPasswordToken(GetResetPasswordTokenRequest) returns (types.UserTokenV3);
   // CreateResetPasswordToken resets users current password and second factors and creates a reset
   // password token.
+  //
+  // Only local users may be reset.
   rpc CreateResetPasswordToken(CreateResetPasswordTokenRequest) returns (types.UserTokenV3);
 
   // CreateBot creates a new bot user.
@@ -2529,6 +2603,8 @@ service AuthService {
   // DeleteUser deletes an existing user in a backend by username.
   rpc DeleteUser(DeleteUserRequest) returns (google.protobuf.Empty);
   // ChangePassword allows a user to change their own password.
+  //
+  // Only local users may change their password.
   rpc ChangePassword(ChangePasswordRequest) returns (google.protobuf.Empty);
 
   // AcquireSemaphore acquires lease with requested resources from semaphore.
@@ -2652,7 +2728,11 @@ service AuthService {
   // GetRole retrieves a role described by the given request.
   rpc GetRole(GetRoleRequest) returns (types.RoleV6);
   // GetRole retrieves all roles.
+  //
+  // DELETE IN 17.0
   rpc GetRoles(google.protobuf.Empty) returns (GetRolesResponse);
+  // ListRoles is a paginated role getter.
+  rpc ListRoles(ListRolesRequest) returns (ListRolesResponse);
   // UpsertRole upserts a role in a backend.
   rpc UpsertRole(types.RoleV6) returns (google.protobuf.Empty);
   // DeleteRole deletes an existing role in a backend described by the given request.
@@ -2904,6 +2984,8 @@ service AuthService {
   // also adds a new MFA device. After successful invocation, a new web session is created as well
   // as a new set of recovery codes (if user meets the requirements to receive them), invalidating
   // any existing codes the user previously had.
+  //
+  // Only local users may be targeted by this RPC.
   rpc ChangeUserAuthentication(ChangeUserAuthenticationRequest) returns (ChangeUserAuthenticationResponse);
 
   // StartAccountRecovery (exclusive to cloud users) is the first out of two step user
@@ -2917,6 +2999,8 @@ service AuthService {
   // user account gets temporarily locked from further recovery attempts and from logging in.
   //
   // Start tokens last RecoveryStartTokenTTL.
+  //
+  // Only local users may perform account recovery
   rpc StartAccountRecovery(StartAccountRecoveryRequest) returns (types.UserTokenV3);
   // VerifyAccountRecovery (exclusive to cloud users) is the second step of the two step
   // verification needed to allow a user to recover their account, after RPC StartAccountRecovery.

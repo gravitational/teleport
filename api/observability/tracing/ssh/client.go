@@ -23,7 +23,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
@@ -105,7 +104,9 @@ func (c *Client) DialContext(ctx context.Context, n, addr string) (net.Conn, err
 // SendRequest sends a global request, and returns the
 // reply. If tracing is enabled, the provided payload
 // is wrapped in an Envelope to forward any tracing context.
-func (c *Client) SendRequest(ctx context.Context, name string, wantReply bool, payload []byte) (bool, []byte, error) {
+func (c *Client) SendRequest(
+	ctx context.Context, name string, wantReply bool, payload []byte,
+) (_ bool, _ []byte, err error) {
 	config := tracing.NewConfig(c.opts)
 	tracer := config.TracerProvider.Tracer(instrumentationName)
 
@@ -123,21 +124,19 @@ func (c *Client) SendRequest(ctx context.Context, name string, wantReply bool, p
 			)...,
 		),
 	)
-	defer span.End()
+	defer func() { tracing.EndSpan(span, err) }()
 
-	ok, resp, err := c.Client.SendRequest(name, wantReply, wrapPayload(ctx, c.capability, config.TextMapPropagator, payload))
-	if err != nil {
-		span.SetStatus(codes.Error, err.Error())
-		span.RecordError(err)
-	}
-
-	return ok, resp, err
+	return c.Client.SendRequest(
+		name, wantReply, wrapPayload(ctx, c.capability, config.TextMapPropagator, payload),
+	)
 }
 
 // OpenChannel tries to open a channel. If tracing is enabled,
 // the provided payload is wrapped in an Envelope to forward
 // any tracing context.
-func (c *Client) OpenChannel(ctx context.Context, name string, data []byte) (*Channel, <-chan *ssh.Request, error) {
+func (c *Client) OpenChannel(
+	ctx context.Context, name string, data []byte,
+) (_ *Channel, _ <-chan *ssh.Request, err error) {
 	config := tracing.NewConfig(c.opts)
 	tracer := config.TracerProvider.Tracer(instrumentationName)
 	ctx, span := tracer.Start(
@@ -153,14 +152,9 @@ func (c *Client) OpenChannel(ctx context.Context, name string, data []byte) (*Ch
 			)...,
 		),
 	)
-	defer span.End()
+	defer func() { tracing.EndSpan(span, err) }()
 
 	ch, reqs, err := c.Client.OpenChannel(name, wrapPayload(ctx, c.capability, config.TextMapPropagator, data))
-	if err != nil {
-		span.SetStatus(codes.Error, err.Error())
-		span.RecordError(err)
-	}
-
 	return &Channel{
 		Channel: ch,
 		opts:    c.opts,
@@ -287,7 +281,7 @@ func (c *clientWrapper) nextContext(name string) context.Context {
 // OpenChannel tries to open a channel. If tracing is enabled,
 // the provided payload is wrapped in an Envelope to forward
 // any tracing context.
-func (c *clientWrapper) OpenChannel(name string, data []byte) (ssh.Channel, <-chan *ssh.Request, error) {
+func (c *clientWrapper) OpenChannel(name string, data []byte) (_ ssh.Channel, _ <-chan *ssh.Request, err error) {
 	config := tracing.NewConfig(c.opts)
 	tracer := config.TracerProvider.Tracer(instrumentationName)
 	ctx, span := tracer.Start(
@@ -303,14 +297,9 @@ func (c *clientWrapper) OpenChannel(name string, data []byte) (ssh.Channel, <-ch
 			)...,
 		),
 	)
-	defer span.End()
+	defer func() { tracing.EndSpan(span, err) }()
 
 	ch, reqs, err := c.Conn.OpenChannel(name, wrapPayload(ctx, c.capability, config.TextMapPropagator, data))
-	if err != nil {
-		span.SetStatus(codes.Error, err.Error())
-		span.RecordError(err)
-	}
-
 	return channelWrapper{
 		Channel: ch,
 		manager: c,
@@ -331,7 +320,7 @@ type channelWrapper struct {
 // It is the callers' responsibility to ensure that addContext is
 // called with the appropriate context.Context prior to any
 // requests being sent along the channel.
-func (c channelWrapper) SendRequest(name string, wantReply bool, payload []byte) (bool, error) {
+func (c channelWrapper) SendRequest(name string, wantReply bool, payload []byte) (_ bool, err error) {
 	config := tracing.NewConfig(c.manager.opts)
 	ctx, span := config.TracerProvider.Tracer(instrumentationName).Start(
 		c.manager.nextContext(name),
@@ -344,13 +333,7 @@ func (c channelWrapper) SendRequest(name string, wantReply bool, payload []byte)
 			semconv.RPCSystemKey.String("ssh"),
 		),
 	)
-	defer span.End()
+	defer func() { tracing.EndSpan(span, err) }()
 
-	ok, err := c.Channel.SendRequest(name, wantReply, wrapPayload(ctx, c.manager.capability, config.TextMapPropagator, payload))
-	if err != nil {
-		span.SetStatus(codes.Error, err.Error())
-		span.RecordError(err)
-	}
-
-	return ok, err
+	return c.Channel.SendRequest(name, wantReply, wrapPayload(ctx, c.manager.capability, config.TextMapPropagator, payload))
 }

@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
@@ -144,7 +145,7 @@ type Server struct {
 	// the server supports. If omitted the defaults will be used.
 	macAlgorithms []string
 
-	authClient      auth.ClientI
+	authClient      authclient.ClientI
 	authService     srv.AccessPoint
 	sessionRegistry *srv.SessionRegistry
 	dataDir         string
@@ -183,7 +184,7 @@ type ServerConfig struct {
 	// LocalAuthClient is a client that provides access to this local cluster.
 	// This is used for actions that should always happen on the local cluster
 	// and not remote clusters, such as session recording.
-	LocalAuthClient auth.ClientI
+	LocalAuthClient authclient.ClientI
 	// TargetClusterAccessPoint is a client that provides access to the cluster
 	// of the server being connected to, whether it is the local cluster or a
 	// remote cluster.
@@ -643,6 +644,13 @@ func (s *Server) Serve() {
 		return
 	}
 
+	// Once the client and server connections are established, ensure we forward
+	// x11 channel requests from the server to the client.
+	if err := x11.ServeChannelRequests(ctx, s.remoteClient.Client, s.handleX11ChannelRequest); err != nil {
+		s.log.Errorf("Unable to forward x11 channel requests: %v.", err)
+		return
+	}
+
 	succeeded = true
 
 	// The keep-alive loop will keep pinging the remote server and after it has
@@ -668,7 +676,7 @@ func (s *Server) sendSSHPublicKeyToTarget(ctx context.Context) (ssh.Signer, erro
 		return nil, trace.BadParameter("missing aws cloud metadata")
 	}
 
-	token, err := s.authClient.GenerateAWSOIDCToken(ctx)
+	token, err := s.authClient.GenerateAWSOIDCToken(ctx, awsInfo.Integration)
 	if err != nil {
 		return nil, trace.BadParameter("failed to generate aws token: %v", err)
 	}
@@ -1287,7 +1295,12 @@ func (s *Server) handleAgentForward(ch ssh.Channel, req *ssh.Request, ctx *srv.S
 // Servers which support X11 forwarding request a separate channel for serving each
 // inbound connection on the X11 socket of the remote session.
 func (s *Server) handleX11ChannelRequest(ctx context.Context, nch ssh.NewChannel) {
-	// accept inbound X11 channel from server
+	// According to RFC 4254, client "implementations MUST reject any X11 channel
+	// open requests if they have not requested X11 forwarding". However, since this
+	// is a forwarding client implementation, we should simply accept and forward,
+	// leaving it up to the remote client to reject the channel request.
+
+	// accept inbound X11 channel from remote server
 	sch, sin, err := nch.Accept()
 	if err != nil {
 		s.log.Errorf("X11 channel fwd failed: %v", err)
@@ -1371,11 +1384,6 @@ func (s *Server) handleX11Forward(ctx context.Context, ch ssh.Channel, req *ssh.
 		return trace.Wrap(err)
 	} else if !ok {
 		return trace.AccessDenied("X11 forwarding request denied by server")
-	}
-
-	err = x11.ServeChannelRequests(ctx, s.remoteClient.Client, s.handleX11ChannelRequest)
-	if err != nil {
-		return trace.Wrap(err)
 	}
 
 	return nil

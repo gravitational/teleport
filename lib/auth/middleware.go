@@ -21,7 +21,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
-	"math"
 	"net"
 	"net/http"
 	"os"
@@ -44,8 +43,8 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -64,6 +63,13 @@ const (
 	TeleportImpersonateIPHeader = "Teleport-Impersonate-IP"
 )
 
+// AccessCacheWithEvents extends the [authclient.AccessCache] interface with [types.Events].
+// Useful for trust-related components that need to watch for changes.
+type AccessCacheWithEvents interface {
+	authclient.AccessCache
+	types.Events
+}
+
 // TLSServerConfig is a configuration for TLS server
 type TLSServerConfig struct {
 	// Listener is a listener to bind to
@@ -75,7 +81,7 @@ type TLSServerConfig struct {
 	// LimiterConfig is limiter config
 	LimiterConfig limiter.Config
 	// AccessPoint is a caching access point
-	AccessPoint AccessCache
+	AccessPoint AccessCacheWithEvents
 	// Component is used for debugging purposes
 	Component string
 	// AcceptedUsage restricts authentication
@@ -138,6 +144,9 @@ type TLSServer struct {
 	// mux is a listener that multiplexes HTTP/2 and HTTP/1.1
 	// on different listeners
 	mux *multiplexer.TLSListener
+	// clientTLSConfigGenerator pre-generates and caches specialized per-cluster
+	// client TLS configs.
+	clientTLSConfigGenerator *ClientTLSConfigGenerator
 }
 
 // NewTLSServer returns new unstarted TLS server
@@ -208,7 +217,18 @@ func NewTLSServer(ctx context.Context, cfg TLSServerConfig) (*TLSServer, error) 
 			trace.Component: cfg.Component,
 		}),
 	}
-	server.cfg.TLS.GetConfigForClient = server.GetConfigForClient
+
+	server.clientTLSConfigGenerator, err = NewClientTLSConfigGenerator(ClientTLSConfigGeneratorConfig{
+		TLS:                  server.cfg.TLS.Clone(),
+		ClusterName:          localClusterName.GetClusterName(),
+		PermitRemoteClusters: true,
+		AccessPoint:          server.cfg.AccessPoint,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	server.cfg.TLS.GetConfigForClient = server.clientTLSConfigGenerator.GetConfigForClient
 
 	server.grpcServer, err = NewGRPCServer(GRPCServerConfig{
 		TLS:                server.cfg.TLS,
@@ -253,6 +273,7 @@ func (t *TLSServer) Close() error {
 		errors = append(errors, <-errC)
 	}
 	errors = append(errors, t.mux.Close())
+	errors = append(errors, t.clientTLSConfigGenerator.Close())
 	return trace.NewAggregate(errors...)
 }
 
@@ -291,62 +312,6 @@ func (t *TLSServer) Serve() error {
 		errors = append(errors, <-errC)
 	}
 	return trace.NewAggregate(errors...)
-}
-
-// GetConfigForClient is getting called on every connection
-// and server's GetConfigForClient reloads the list of trusted
-// local and remote certificate authorities
-func (t *TLSServer) GetConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, error) {
-	var clusterName string
-	var err error
-	switch info.ServerName {
-	case "":
-		// Client does not use SNI, will validate against all known CAs.
-	default:
-		clusterName, err = apiutils.DecodeClusterName(info.ServerName)
-		if err != nil {
-			if !trace.IsNotFound(err) {
-				t.log.Warningf("Client sent unsupported cluster name %q, what resulted in error %v.", info.ServerName, err)
-				return nil, trace.AccessDenied("access is denied")
-			}
-		}
-	}
-
-	// update client certificate pool based on currently trusted TLS
-	// certificate authorities.
-	// TODO(klizhentas) drop connections of the TLS cert authorities
-	// that are not trusted
-	pool, totalSubjectsLen, err := DefaultClientCertPool(t.cfg.AccessPoint, clusterName)
-	if err != nil {
-		var ourClusterName string
-		if clusterName, err := t.cfg.AccessPoint.GetClusterName(); err == nil {
-			ourClusterName = clusterName.GetClusterName()
-		}
-		t.log.Errorf("Failed to retrieve client pool for client %v, client cluster %v, target cluster %v, error:  %v.",
-			info.Conn.RemoteAddr().String(), clusterName, ourClusterName, trace.DebugReport(err))
-		// this falls back to the default config
-		return nil, nil
-	}
-
-	// Per https://tools.ietf.org/html/rfc5246#section-7.4.4 the total size of
-	// the known CA subjects sent to the client can't exceed 2^16-1 (due to
-	// 2-byte length encoding). The crypto/tls stack will panic if this
-	// happens. To make the error less cryptic, catch this condition and return
-	// a better error.
-	//
-	// This may happen with a very large (>500) number of trusted clusters, if
-	// the client doesn't send the correct ServerName in its ClientHelloInfo
-	// (see the switch at the top of this func).
-	if totalSubjectsLen >= int64(math.MaxUint16) {
-		return nil, trace.BadParameter("number of CAs in client cert pool is too large and cannot be encoded in a TLS handshake; this is due to a large number of trusted clusters; try updating tsh to the latest version; if that doesn't help, remove some trusted clusters")
-	}
-
-	tlsCopy := t.cfg.TLS.Clone()
-	tlsCopy.ClientCAs = pool
-	for _, cert := range tlsCopy.Certificates {
-		t.log.Debugf("Server certificate %v.", TLSCertInfo(&cert))
-	}
-	return tlsCopy, nil
 }
 
 // Middleware is authentication middleware checking every request
@@ -533,6 +498,7 @@ func (a *Middleware) UnaryInterceptors() []grpc.UnaryServerInterceptor {
 
 	return append(is,
 		interceptors.GRPCServerUnaryErrorInterceptor,
+		metadata.UnaryServerInterceptor,
 		a.Limiter.UnaryServerInterceptorWithCustomRate(getCustomRate),
 		a.withAuthenticatedUserUnaryInterceptor,
 	)
@@ -552,6 +518,7 @@ func (a *Middleware) StreamInterceptors() []grpc.StreamServerInterceptor {
 
 	return append(is,
 		interceptors.GRPCServerStreamErrorInterceptor,
+		metadata.StreamServerInterceptor,
 		a.Limiter.StreamServerInterceptor,
 		a.withAuthenticatedUserStreamInterceptor,
 	)
@@ -784,7 +751,7 @@ func (a *Middleware) WrapContextWithUserFromTLSConnState(ctx context.Context, tl
 // In addition, it returns the total length of all subjects added to the cert pool, allowing
 // the caller to validate that the pool doesn't exceed the maximum 2-byte length prefix before
 // using it.
-func ClientCertPool(client AccessCache, clusterName string, caTypes ...types.CertAuthType) (*x509.CertPool, int64, error) {
+func ClientCertPool(client authclient.AccessCache, clusterName string, caTypes ...types.CertAuthType) (*x509.CertPool, int64, error) {
 	if len(caTypes) == 0 {
 		return nil, 0, trace.BadParameter("at least one CA type is required")
 	}
@@ -830,11 +797,6 @@ func ClientCertPool(client AccessCache, clusterName string, caTypes ...types.Cer
 		}
 	}
 	return pool, totalSubjectsLen, nil
-}
-
-// DefaultClientCertPool returns default trusted x509 certificate authority pool.
-func DefaultClientCertPool(client AccessCache, clusterName string) (*x509.CertPool, int64, error) {
-	return ClientCertPool(client, clusterName, types.HostCA, types.UserCA)
 }
 
 // isProxyRole returns true if the certificate role is a proxy role.
@@ -919,6 +881,8 @@ func NewImpersonatorRoundTripper(rt http.RoundTripper) *ImpersonatorRoundTripper
 // RoundTrip implements http.RoundTripper interface to include the identity
 // in the request header.
 func (r *ImpersonatorRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	req = req.Clone(req.Context())
+
 	identity, err := authz.UserFromContext(req.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -928,7 +892,6 @@ func (r *ImpersonatorRoundTripper) RoundTrip(req *http.Request) (*http.Response,
 		return nil, trace.Wrap(err)
 	}
 	req.Header.Set(TeleportImpersonateUserHeader, string(b))
-	defer req.Header.Del(TeleportImpersonateUserHeader)
 
 	clientSrcAddr, err := authz.ClientSrcAddrFromContext(req.Context())
 	if err != nil {
@@ -936,7 +899,6 @@ func (r *ImpersonatorRoundTripper) RoundTrip(req *http.Request) (*http.Response,
 	}
 
 	req.Header.Set(TeleportImpersonateIPHeader, clientSrcAddr.String())
-	defer req.Header.Del(TeleportImpersonateIPHeader)
 
 	return r.RoundTripper.RoundTrip(req)
 }

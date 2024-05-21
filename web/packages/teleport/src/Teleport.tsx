@@ -30,6 +30,8 @@ import { NewCredentials } from 'teleport/Welcome/NewCredentials';
 import TeleportContextProvider from './TeleportContextProvider';
 import TeleportContext from './teleportContext';
 import cfg from './config';
+import { LoginTerminalRedirect } from './Login/LoginTerminalRedirect';
+import { LoginClose } from './Login/LoginClose';
 
 import type { History } from 'history';
 
@@ -116,6 +118,18 @@ export function getSharedPublicRoutes() {
       title="Success"
       path={cfg.routes.loginSuccess}
       component={LoginSuccess}
+    />,
+    <Route
+      key="terminal"
+      title="Finish Login in Terminal"
+      path={cfg.routes.loginTerminalRedirect}
+      component={LoginTerminalRedirect}
+    />,
+    <Route
+      key="autoclose"
+      title="Working on SSO login"
+      path={cfg.routes.loginClose}
+      component={LoginClose}
     />,
     <Route
       key="invite"

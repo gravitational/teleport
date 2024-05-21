@@ -22,6 +22,7 @@ import { useDiscover } from 'teleport/Discover/useDiscover';
 import { DiscoverEventStatus } from 'teleport/services/userEvent';
 import auth from 'teleport/services/auth/auth';
 import { getDatabaseProtocol } from 'teleport/Discover/SelectResource';
+import { agentService } from 'teleport/services/agents';
 
 import type {
   ConnectionDiagnostic,
@@ -75,7 +76,7 @@ export function useConnectionDiagnostic() {
         }
       }
 
-      const diag = await ctx.agentService.createConnectionDiagnostic({
+      const diag = await agentService.createConnectionDiagnostic({
         ...req,
         mfaAuthnResponse,
       });

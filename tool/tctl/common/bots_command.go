@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -84,7 +85,7 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 }
 
 // TryRun attempts to run subcommands.
-func (c *BotsCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI) (match bool, err error) {
+func (c *BotsCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
 	switch cmd {
 	case c.botsList.FullCommand():
 		err = c.ListBots(ctx, client)
@@ -103,7 +104,7 @@ func (c *BotsCommand) TryRun(ctx context.Context, cmd string, client auth.Client
 
 // ListBots writes a listing of the cluster's certificate renewal bots
 // to standard out.
-func (c *BotsCommand) ListBots(ctx context.Context, client auth.ClientI) error {
+func (c *BotsCommand) ListBots(ctx context.Context, client *authclient.Client) error {
 	// TODO: consider adding a custom column for impersonator roles, locks, ??
 	users, err := client.GetBotUsers(ctx)
 	if err != nil {
@@ -167,7 +168,7 @@ certificates:
 > tbot start \
    --destination-dir=./tbot-user \
    --token={{.token}} \
-   --auth-server={{.addr}}{{if .join_method}} \
+   --proxy-server={{.addr}}{{if .join_method}} \
    --join-method={{.join_method}}{{end}}
 
 Please note:
@@ -180,7 +181,7 @@ Please note:
 `))
 
 // AddBot adds a new certificate renewal bot to the cluster.
-func (c *BotsCommand) AddBot(ctx context.Context, client auth.ClientI) error {
+func (c *BotsCommand) AddBot(ctx context.Context, client *authclient.Client) error {
 	roles := splitRoles(c.botRoles)
 	if len(roles) == 0 {
 		return trace.BadParameter("at least one role must be specified with --roles")
@@ -236,7 +237,7 @@ func (c *BotsCommand) AddBot(ctx context.Context, client auth.ClientI) error {
 	})
 }
 
-func (c *BotsCommand) RemoveBot(ctx context.Context, client auth.ClientI) error {
+func (c *BotsCommand) RemoveBot(ctx context.Context, client *authclient.Client) error {
 	if err := client.DeleteBot(ctx, c.botName); err != nil {
 		return trace.WrapWithMessage(err, "error deleting bot")
 	}
@@ -246,7 +247,7 @@ func (c *BotsCommand) RemoveBot(ctx context.Context, client auth.ClientI) error 
 	return nil
 }
 
-func (c *BotsCommand) LockBot(ctx context.Context, client auth.ClientI) error {
+func (c *BotsCommand) LockBot(ctx context.Context, client *authclient.Client) error {
 	lockExpiry, err := computeLockExpiry(c.lockExpires, c.lockTTL)
 	if err != nil {
 		return trace.Wrap(err)

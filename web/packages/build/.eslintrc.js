@@ -46,7 +46,7 @@ module.exports = {
       files: ['**/*.test.{ts,tsx,js,jsx}'],
       plugins: ['jest'],
       extends: [
-        'plugin:jest/all',
+        'plugin:jest/recommended',
         'plugin:testing-library/react',
         'plugin:jest-dom/recommended',
       ],

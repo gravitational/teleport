@@ -275,6 +275,7 @@ var supportedBotJoinMethods = []types.JoinMethod{
 	types.JoinMethodKubernetes,
 	types.JoinMethodSpacelift,
 	types.JoinMethodToken,
+	types.JoinMethodTPM,
 }
 
 // checkOrCreateBotToken checks the existing token if given, or creates a new

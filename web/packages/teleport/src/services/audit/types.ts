@@ -224,7 +224,9 @@ export const eventCodes = {
   CERTIFICATE_CREATED: 'TC000I',
   UPGRADE_WINDOW_UPDATED: 'TUW01I',
   BOT_JOIN: 'TJ001I',
+  BOT_JOIN_FAILURE: 'TJ001E',
   INSTANCE_JOIN: 'TJ002I',
+  INSTANCE_JOIN_FAILURE: 'TJ002E',
   LOGIN_RULE_CREATE: 'TLR00I',
   LOGIN_RULE_DELETE: 'TLR01I',
   SAML_IDP_AUTH_ATTEMPT: 'TSI000I',
@@ -1212,7 +1214,22 @@ export type RawEvents = {
       method: string;
     }
   >;
+  [eventCodes.BOT_JOIN_FAILURE]: RawEvent<
+    typeof eventCodes.BOT_JOIN,
+    {
+      bot_name: string;
+      method: string;
+    }
+  >;
   [eventCodes.INSTANCE_JOIN]: RawEvent<
+    typeof eventCodes.INSTANCE_JOIN,
+    {
+      node_name: string;
+      method: string;
+      role: string;
+    }
+  >;
+  [eventCodes.INSTANCE_JOIN_FAILURE]: RawEvent<
     typeof eventCodes.INSTANCE_JOIN,
     {
       node_name: string;

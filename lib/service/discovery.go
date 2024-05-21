@@ -17,11 +17,18 @@ limitations under the License.
 package service
 
 import (
+	"context"
+	"os"
+	"time"
+
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv/discovery"
 )
 
@@ -55,21 +62,47 @@ func (process *TeleportProcess) initDiscoveryService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	// tlsConfig is the DiscoveryService's TLS certificate signed by the cluster's
+	// Host certificate authority.
+	// It is used to authenticate the DiscoveryService to the Access Graph service.
+	tlsConfig, err := conn.ServerIdentity.TLSConfig(process.Config.CipherSuites)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if tlsConfig != nil {
+		tlsConfig.ServerName = "" /* empty the server name to avoid SNI collisions with access graph addr */
+	}
+
+	accessGraphCfg, err := buildAccessGraphFromTAGOrFallbackToAuth(
+		process.ExitContext(),
+		process.Config,
+		conn.Client,
+		log,
+	)
+	if err != nil {
+		return trace.Wrap(err, "failed to build access graph configuration")
+	}
 
 	discoveryService, err := discovery.New(process.ExitContext(), &discovery.Config{
 		IntegrationOnlyCredentials: process.integrationOnlyCredentials(),
 		Matchers: discovery.Matchers{
-			AWS:        process.Config.Discovery.AWSMatchers,
-			Azure:      process.Config.Discovery.AzureMatchers,
-			GCP:        process.Config.Discovery.GCPMatchers,
-			Kubernetes: process.Config.Discovery.KubernetesMatchers,
+			AWS:         process.Config.Discovery.AWSMatchers,
+			Azure:       process.Config.Discovery.AzureMatchers,
+			GCP:         process.Config.Discovery.GCPMatchers,
+			Kubernetes:  process.Config.Discovery.KubernetesMatchers,
+			AccessGraph: process.Config.Discovery.AccessGraph,
 		},
-		DiscoveryGroup: process.Config.Discovery.DiscoveryGroup,
-		Emitter:        asyncEmitter,
-		AccessPoint:    accessPoint,
-		Log:            process.log,
-		ClusterName:    conn.ClientIdentity.ClusterName,
-		PollInterval:   process.Config.Discovery.PollInterval,
+		DiscoveryGroup:    process.Config.Discovery.DiscoveryGroup,
+		Emitter:           asyncEmitter,
+		AccessPoint:       accessPoint,
+		ServerID:          process.Config.HostUUID,
+		Log:               process.log,
+		ClusterName:       conn.ClientIdentity.ClusterName,
+		ClusterFeatures:   process.GetClusterFeatures,
+		PollInterval:      process.Config.Discovery.PollInterval,
+		ServerCredentials: tlsConfig,
+		AccessGraphConfig: accessGraphCfg,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -108,4 +141,46 @@ func (process *TeleportProcess) initDiscoveryService() error {
 // Setting IntegrationOnlyCredentials to true, will prevent usage of the ambient credentials.
 func (process *TeleportProcess) integrationOnlyCredentials() bool {
 	return process.Config.Auth.Enabled && modules.GetModules().Features().Cloud
+}
+
+// buildAccessGraphFromTAGOrFallbackToAuth builds the AccessGraphConfig from the Teleport Agent configuration or falls back to the Auth server's configuration.
+// If the AccessGraph configuration is not enabled locally, it will fall back to the Auth server's configuration.
+func buildAccessGraphFromTAGOrFallbackToAuth(ctx context.Context, config *servicecfg.Config, client authclient.ClientI, logger logrus.FieldLogger) (discovery.AccessGraphConfig, error) {
+	var (
+		accessGraphCAData []byte
+		err               error
+	)
+	if config == nil {
+		return discovery.AccessGraphConfig{}, trace.BadParameter("config is nil")
+	}
+	if config.AccessGraph.CA != "" {
+		accessGraphCAData, err = os.ReadFile(config.AccessGraph.CA)
+		if err != nil {
+			return discovery.AccessGraphConfig{}, trace.Wrap(err, "failed to read access graph CA file")
+		}
+	}
+	accessGraphCfg := discovery.AccessGraphConfig{
+		Enabled:  config.AccessGraph.Enabled,
+		Addr:     config.AccessGraph.Addr,
+		Insecure: config.AccessGraph.Insecure,
+		CA:       accessGraphCAData,
+	}
+	if !accessGraphCfg.Enabled {
+		logger.Debug("Access graph is disabled or not configured. Falling back to the Auth server's access graph configuration.")
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		rsp, err := client.GetClusterAccessGraphConfig(ctx)
+		cancel()
+		switch {
+		case trace.IsNotImplemented(err):
+			logger.Debug("Auth server does not support access graph's GetClusterAccessGraphConfig RPC")
+		case err != nil:
+			return discovery.AccessGraphConfig{}, trace.Wrap(err)
+		default:
+			accessGraphCfg.Enabled = rsp.Enabled
+			accessGraphCfg.Addr = rsp.Address
+			accessGraphCfg.CA = rsp.Ca
+			accessGraphCfg.Insecure = rsp.Insecure
+		}
+	}
+	return accessGraphCfg, nil
 }

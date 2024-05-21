@@ -97,6 +97,7 @@ const props: State = {
     query: '',
     sort: { fieldName: 'hostname', dir: 'ASC' },
   },
+  modifyFetchedData: () => null,
   setParams: () => null,
   setSort: () => null,
   pathname: '',

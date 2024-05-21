@@ -39,6 +39,7 @@ jobs:
       options: --cap-add=SYS_ADMIN --privileged
       env:
         WEBASSETS_SKIP_BUILD: 1
+        TELEPORT_XAUTH_TEST: yes
 
     steps:
       - name: Checkout Teleport

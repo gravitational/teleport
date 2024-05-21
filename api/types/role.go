@@ -46,6 +46,21 @@ const (
 	OnSessionLeavePause OnSessionLeaveAction = "pause"
 )
 
+// Match checks if the given role matches this filter.
+func (f *RoleFilter) Match(role *RoleV6) bool {
+	if f.SkipSystemRoles && IsSystemResource(role) {
+		return false
+	}
+
+	if len(f.SearchKeywords) != 0 {
+		if !role.MatchSearch(f.SearchKeywords) {
+			return false
+		}
+	}
+
+	return true
+}
+
 // Role contains a set of permissions or settings
 type Role interface {
 	// Resource provides common resource methods.

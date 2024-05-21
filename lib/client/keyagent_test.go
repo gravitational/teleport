@@ -41,7 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -57,7 +57,7 @@ type KeyAgentTestSuite struct {
 	hostname    string
 	clusterName string
 	tlsca       *tlsca.CertAuthority
-	tlscaCert   auth.TrustedCerts
+	tlscaCert   authclient.TrustedCerts
 }
 
 type keyAgentTestSuiteFunc func(opt *keyAgentTestSuiteOpt)
@@ -279,7 +279,7 @@ func TestLoadKey(t *testing.T) {
 
 type caType struct {
 	signer       ssh.Signer
-	trustedCerts auth.TrustedCerts
+	trustedCerts authclient.TrustedCerts
 }
 
 func (s *KeyAgentTestSuite) generateCA(t *testing.T, keygen *testauthority.Keygen, lka *LocalKeyAgent, hostnames ...string) []caType {
@@ -358,7 +358,7 @@ func TestHostCertVerification(t *testing.T) {
 
 	// Call SaveTrustedCerts to create cas profile dir - this step is needed to support migration from profile combined
 	// CA file certs.pem to per cluster CA files in cas profile directory.
-	err = lka.clientStore.SaveTrustedCerts(s.hostname, []auth.TrustedCerts{root.trustedCerts, leaf.trustedCerts})
+	err = lka.clientStore.SaveTrustedCerts(s.hostname, []authclient.TrustedCerts{root.trustedCerts, leaf.trustedCerts})
 	require.NoError(t, err)
 
 	// Generate a host certificate for node with role "node".
@@ -579,7 +579,7 @@ func TestHostCertVerificationLoadAllCasProxyAddrEqClusterName(t *testing.T) {
 	cas := s.generateCA(t, keygen, lka, rootClusterName, leafClusterName)
 	rootClusterCA, leafClusterCA := cas[0], cas[1]
 
-	err = lka.clientStore.SaveTrustedCerts(proxyHost, []auth.TrustedCerts{rootClusterCA.trustedCerts, leafClusterCA.trustedCerts})
+	err = lka.clientStore.SaveTrustedCerts(proxyHost, []authclient.TrustedCerts{rootClusterCA.trustedCerts, leafClusterCA.trustedCerts})
 	require.NoError(t, err)
 	leafSSHPubKey := mustGenerateHostPublicCert(t, keygen, leafClusterCA.signer, leafNodeName, leafClusterName)
 
@@ -705,7 +705,7 @@ func TestLocalKeyAgent_AddDatabaseKey(t *testing.T) {
 		// modify key to have db cert
 		addKey := *s.key
 		addKey.DBTLSCerts = map[string][]byte{"some-db": addKey.TLSCert}
-		require.NoError(t, lka.SaveTrustedCerts([]auth.TrustedCerts{s.tlscaCert}))
+		require.NoError(t, lka.SaveTrustedCerts([]authclient.TrustedCerts{s.tlscaCert}))
 		require.NoError(t, lka.AddDatabaseKey(&addKey))
 
 		getKey, err := lka.GetKey(addKey.ClusterName, WithDBCerts{})

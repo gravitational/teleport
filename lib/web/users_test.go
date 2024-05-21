@@ -99,8 +99,8 @@ func TestCRUDs(t *testing.T) {
 
 	// test update
 	u.Roles = []string{"newrole"}
-	user, err = updateUser(newRequest(t, u), m, "")
-	require.Nil(t, err)
+	user, err = updateUser(newRequest(t, u), m)
+	require.NoError(t, err)
 	require.Contains(t, user.Roles, "newrole")
 
 	// test list
@@ -242,7 +242,7 @@ func TestUpdateUser_setTraits(t *testing.T) {
 				return nil
 			}
 
-			_, err = updateUser(newRequest(t, tt.updateReq), m, "")
+			_, err = updateUser(newRequest(t, tt.updateReq), m)
 			require.NoError(t, err)
 
 			// The traits match
@@ -295,7 +295,7 @@ func TestCRUDErrors(t *testing.T) {
 	}
 
 	// update errors
-	user, err := updateUser(newRequest(t, u), m, "")
+	user, err := updateUser(newRequest(t, u), m)
 	require.True(t, trace.IsNotFound(err))
 	require.Nil(t, user)
 

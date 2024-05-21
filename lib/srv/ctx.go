@@ -42,6 +42,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
@@ -86,7 +87,7 @@ func init() {
 // AccessPoint is the access point contract required by a Server
 type AccessPoint interface {
 	// Announcer adds methods used to announce presence
-	auth.Announcer
+	authclient.Announcer
 
 	// Semaphores provides semaphore operations
 	types.Semaphores
@@ -454,6 +455,10 @@ type ServerContext struct {
 
 	// UserCreatedByTeleport is true when the system user was created by Teleport user auto-provision.
 	UserCreatedByTeleport bool
+
+	// approvedFileReq is an approved file transfer request that will only be
+	// set when the session's pending file transfer request is approved.
+	approvedFileReq *FileTransferRequest
 }
 
 // NewServerContext creates a new *ServerContext which is used to pass and
@@ -1303,7 +1308,7 @@ func ComputeLockTargets(clusterName, serverID string, id IdentityContext) []type
 		{User: id.TeleportUser},
 		{Login: id.Login},
 		{Node: serverID, ServerID: serverID},
-		{Node: auth.HostFQDN(serverID, clusterName), ServerID: auth.HostFQDN(serverID, clusterName)},
+		{Node: authclient.HostFQDN(serverID, clusterName), ServerID: authclient.HostFQDN(serverID, clusterName)},
 	}
 	if mfaDevice := id.Certificate.Extensions[teleport.CertExtensionMFAVerified]; mfaDevice != "" {
 		lockTargets = append(lockTargets, types.LockTarget{MFADevice: mfaDevice})
@@ -1381,4 +1386,24 @@ func (c *ServerContext) GetSessionMetadata() apievents.SessionMetadata {
 		WithMFA:          c.Identity.Certificate.Extensions[teleport.CertExtensionMFAVerified],
 		PrivateKeyPolicy: c.Identity.Certificate.Extensions[teleport.CertExtensionPrivateKeyPolicy],
 	}
+}
+
+func (c *ServerContext) setApprovedFileTransferRequest(req *FileTransferRequest) {
+	c.mu.Lock()
+	c.approvedFileReq = req
+	c.mu.Unlock()
+}
+
+// ConsumeApprovedFileTransferRequest will return the approved file transfer
+// request for this session if there is one present. Note that if an
+// approved request is returned future calls to this method will return
+// nil to prevent an approved request getting reused incorrectly.
+func (c *ServerContext) ConsumeApprovedFileTransferRequest() *FileTransferRequest {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	req := c.approvedFileReq
+	c.approvedFileReq = nil
+
+	return req
 }
