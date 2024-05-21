@@ -5935,6 +5935,10 @@ message PluginOktaSyncSettings {
   //   ^app.*$
   //   ^.*service.*$
   repeated string app_filters = 7;
+
+  // AppGroupSyncDisabled disables the sync of groups from Okta apps.
+  // This is useful when only Okta User SCIM integration needs to be enabled.
+  bool app_group_sync_disabled = 8;
 }
 
 // Defines a set of discord channel IDs

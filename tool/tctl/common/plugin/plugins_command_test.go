@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package common
+package plugin
 
 import (
 	"context"
@@ -30,6 +30,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/emptypb"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -78,6 +79,9 @@ func TestPluginsInstallOkta(t *testing.T) {
 						samlConnector: "fake-saml-connector",
 						scimToken:     "i am a scim token",
 						defaultOwners: []string{"admin"},
+						scimEnabled:   true,
+						userSync:      true,
+						apiToken:      "api-token-goes-here",
 					},
 				},
 			},
@@ -111,7 +115,8 @@ func TestPluginsInstallOkta(t *testing.T) {
 							Okta: &types.PluginOktaSettings{
 								OrgUrl: "https://example.okta.com",
 								SyncSettings: &types.PluginOktaSyncSettings{
-									SsoConnectorId: "okta-integration",
+									SsoConnectorId:       "okta-integration",
+									AppGroupSyncDisabled: true,
 								},
 							},
 						},
@@ -151,6 +156,7 @@ func TestPluginsInstallOkta(t *testing.T) {
 						samlConnector:  "saml-connector-name",
 						userSync:       true,
 						accessListSync: true,
+						appGroupSync:   true,
 						defaultOwners:  []string{"admin"},
 						groupFilters:   []string{"group-alpha", "group-beta"},
 						appFilters:     []string{"app-gamma", "app-delta", "app-epsilon"},
@@ -219,6 +225,7 @@ func TestPluginsInstallOkta(t *testing.T) {
 						scimToken:      "i am a scim token",
 						userSync:       true,
 						accessListSync: true,
+						appGroupSync:   true,
 						defaultOwners:  []string{"admin"},
 						groupFilters:   []string{"group-alpha", "group-beta"},
 						appFilters:     []string{"app-gamma", "app-delta", "app-epsilon"},
@@ -327,14 +334,14 @@ func TestPluginsInstallOkta(t *testing.T) {
 			}
 
 			if testCase.expectSAMLConnectorQuery != "" {
-				samlConnectorsClient := &mockSAMLConnectorsClient{}
+				samlConnectorsClient := &mockAuthClient{}
 				t.Cleanup(func() { samlConnectorsClient.AssertExpectations(t) })
 
 				samlConnectorsClient.
 					On("GetSAMLConnector", anyContext, testCase.expectSAMLConnectorQuery, false).
 					Return(&types.SAMLConnectorV2{}, nil)
 
-				args.samlConnectors = samlConnectorsClient
+				args.authClient = samlConnectorsClient
 			}
 
 			ctx, cancel := context.WithCancel(context.Background())
@@ -372,13 +379,18 @@ func (m *mockPluginsClient) CreatePlugin(ctx context.Context, in *pluginsv1.Crea
 	return result.Get(0).(*emptypb.Empty), result.Error(1)
 }
 
-type mockSAMLConnectorsClient struct {
+type mockAuthClient struct {
 	mock.Mock
 }
 
-func (m *mockSAMLConnectorsClient) GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error) {
+func (m *mockAuthClient) GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error) {
 	result := m.Called(ctx, id, withSecrets)
 	return result.Get(0).(types.SAMLConnector), result.Error(1)
+}
+
+func (m *mockAuthClient) Ping(ctx context.Context) (proto.PingResponse, error) {
+	result := m.Called(ctx)
+	return result.Get(0).(proto.PingResponse), result.Error(1)
 }
 
 // anyContext is an argument matcher for testify mocks that matches any context.
