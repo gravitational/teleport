@@ -348,6 +348,7 @@
     "configmap",
     "configurator",
     "connectorname",
+    "connectionupgrade",
     "cqlsh",
     "createkey",
     "createnongalleryapp",
