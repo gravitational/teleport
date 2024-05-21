@@ -11,7 +11,7 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: gravitational/ci-etcd
-  ETCD_VERSION: 3.3.9
+  ETCD_VERSION: 3.5.9
 
 jobs:
   build:
