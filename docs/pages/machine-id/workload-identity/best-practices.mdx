@@ -141,11 +141,10 @@ can then configure Postgres to map this common name to `myuser`.
 There are certain circumstances where you may wish to use Teleport Workload ID
 to authenticate a workload's access to a database.
 
-This differs from using Teleport's Database Access with Machine ID in a few
-ways:
+This differs from using Machine ID with the Database Service in a few ways:
 
 - The connection is made directly from the workload to the database, rather
-  than through Teleport's proxy.
+  than through Teleport's Proxy Service and Database Service.
 - Reduced latency of the connection between the workload and database.
 - Teleport will not record the queries of the workload in the audit log.
 - Teleport will not be able to enforce fine-grained access control policies.
