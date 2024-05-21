@@ -55,11 +55,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/server"
 )
 
-const (
-	// DefaultDiscoveryPollInterval is the default interval that Discovery Services fetches resources.
-	DefaultDiscoveryPollInterval = 5 * time.Minute
-)
-
 var errNoInstances = errors.New("all fetched nodes already enrolled")
 
 // Matchers contains all matchers used by discovery service
@@ -136,7 +131,7 @@ type Config struct {
 	ClusterName string
 	// PollInterval is the cadence at which the discovery server will run each of its
 	// discovery cycles.
-	// Default: [github.com/gravitational/teleport/lib/srv.DefaultDiscoveryPollInterval]
+	// Default: [github.com/gravitational/teleport/lib/srv/discovery/common.DefaultDiscoveryPollInterval]
 	PollInterval time.Duration
 
 	// ServerCredentials are the credentials used to identify the discovery service
@@ -226,7 +221,7 @@ kubernetes matchers are present.`)
 	}
 
 	if c.PollInterval == 0 {
-		c.PollInterval = DefaultDiscoveryPollInterval
+		c.PollInterval = common.DefaultDiscoveryPollInterval
 	}
 
 	c.TriggerFetchC = make([]chan struct{}, 0)
