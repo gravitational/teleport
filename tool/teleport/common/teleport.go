@@ -107,7 +107,12 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	remoteForward := app.Command(teleport.RemoteForwardSubCommand, "Used internally by Teleport to re-exec itself to remote port forward.").Hidden()
 	checkHomeDir := app.Command(teleport.CheckHomeDirSubCommand, "Used internally by Teleport to re-exec itself to check access to a directory.").Hidden()
 	park := app.Command(teleport.ParkSubCommand, "Used internally by Teleport to re-exec itself to do nothing.").Hidden()
+	migrate := app.Command("migrate", "Migrate data between two backends.").Hidden()
 	app.HelpFlag.Short('h')
+
+	migrate.Flag("config", "Path to migration config file.").
+		Short('c').
+		StringVar(&ccf.ConfigFile)
 
 	// define start flags:
 	start.Flag("debug", "Enable verbose logging to stderr").
@@ -663,6 +668,9 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		err = onGetLogLevel(ccf.ConfigFile)
 	case collectProfilesCmd.FullCommand():
 		err = onCollectProfiles(ccf.ConfigFile, ccf.Profiles, ccf.ProfileSeconds)
+		err = onIntegrationConfSAMLIdPGCPWorkforce(ccf.IntegrationConfSAMLIdPGCPWorkforceArguments)
+	case migrate.FullCommand():
+		err = runMigration(context.Background(), ccf.ConfigFile)
 	}
 	if err != nil {
 		utils.FatalError(err)
