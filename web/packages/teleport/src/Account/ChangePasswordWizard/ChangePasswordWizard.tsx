@@ -340,11 +340,11 @@ export function ChangePasswordStep({
                 Save Changes
               </ButtonPrimary>
               {stepIndex === 0 ? (
-                <ButtonSecondary block={true} onClick={onClose}>
+                <ButtonSecondary type="button" block={true} onClick={onClose}>
                   Cancel
                 </ButtonSecondary>
               ) : (
-                <ButtonSecondary block={true} onClick={prev}>
+                <ButtonSecondary type="button" block={true} onClick={prev}>
                   Back
                 </ButtonSecondary>
               )}
