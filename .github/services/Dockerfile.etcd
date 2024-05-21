@@ -1,7 +1,7 @@
 ARG BUILDARCH
 ARG ETCD_VERSION
 
-FROM alpine/openssl AS certgen
+FROM alpine/openssl:3.1.4 AS certgen
 ARG BUILDARCH
 ARG ETCD_VERSION
 WORKDIR /certs
@@ -12,7 +12,7 @@ FROM bitnami/etcd:${ETCD_VERSION}
 ARG BUILDARCH
 ARG ETCD_VERSION
 
-COPY --from=certgen /certs /certs
+COPY --from=certgen --chown=1001:1001 /certs /certs
 
 HEALTHCHECK CMD etcdctl --insecure-discovery --endpoint=https://etcd0:2379 --key-file /certs/client-key.pem --cert-file /certs/client-cert.pem --ca-file /certs/ca-cert.pem cluster-health
 
