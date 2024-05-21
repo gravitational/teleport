@@ -122,11 +122,12 @@ func (w *Watcher) Start() {
 			pollTimer.Reset(w.cfg.Interval)
 
 		case <-w.cfg.TriggerFetchC:
+			w.fetchAndSend()
+
 			// stop and drain timer
 			if !pollTimer.Stop() {
 				<-pollTimer.Chan()
 			}
-			w.fetchAndSend()
 			pollTimer.Reset(w.cfg.Interval)
 
 		case <-w.ctx.Done():

@@ -110,12 +110,12 @@ func (w *Watcher) Run() {
 			pollTimer.Reset(w.pollInterval)
 
 		case <-w.triggerFetchC:
+			w.fetchAndSubmit()
+
 			// stop and drain timer
 			if !pollTimer.Stop() {
 				<-pollTimer.C
 			}
-			w.fetchAndSubmit()
-			// Restart timer after event based trigger.
 			pollTimer.Reset(w.pollInterval)
 
 		case <-w.ctx.Done():
