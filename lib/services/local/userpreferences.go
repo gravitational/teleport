@@ -40,7 +40,7 @@ func DefaultUserPreferences() *userpreferencesv1.UserPreferences {
 			PreferredLogins: []string{},
 			ViewMode:        userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_DOCKED,
 		},
-		Theme: userpreferencesv1.Theme_THEME_LIGHT,
+		Theme: userpreferencesv1.Theme_THEME_UNSPECIFIED,
 		UnifiedResourcePreferences: &userpreferencesv1.UnifiedResourcePreferences{
 			DefaultTab:     userpreferencesv1.DefaultTab_DEFAULT_TAB_ALL,
 			ViewMode:       userpreferencesv1.ViewMode_VIEW_MODE_CARD,

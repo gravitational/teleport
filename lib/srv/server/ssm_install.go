@@ -342,6 +342,14 @@ func (si *SSMInstaller) getCommandStepStatusEvent(ctx context.Context, step *str
 		}
 	}
 
+	// Format for invocation url:
+	// https://<region>.console.aws.amazon.com/systems-manager/run-command/<command-id>/<instance-id>
+	// Example:
+	// https://eu-west-2.console.aws.amazon.com/systems-manager/run-command/3cb11aaa-11aa-1111-aaaa-2188108225de/i-0775091aa11111111
+	invocationURL := fmt.Sprintf("https://%s.console.aws.amazon.com/systems-manager/run-command/%s/%s",
+		req.Region, aws.StringValue(commandID), aws.StringValue(instanceID),
+	)
+
 	return &apievents.SSMRun{
 		Metadata: apievents.Metadata{
 			Type: libevents.SSMRunEvent,
@@ -355,5 +363,6 @@ func (si *SSMInstaller) getCommandStepStatusEvent(ctx context.Context, step *str
 		Status:         status,
 		StandardOutput: aws.StringValue(stepResult.StandardOutputContent),
 		StandardError:  aws.StringValue(stepResult.StandardErrorContent),
+		InvocationURL:  invocationURL,
 	}, nil
 }
