@@ -7188,6 +7188,18 @@ func TestAccessRequestNonGreedyAnnotations(t *testing.T) {
 	require.NoError(t, err)
 	idServer.SetStaticLabels(map[string]string{"service": "payments"})
 
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+	for _, role := range roles {
+		_, err := srv.Auth().CreateRole(ctx, role)
+		require.NoError(t, err)
+	}
+
+	for _, server := range []types.Server{paymentsServer, idServer} {
+		_, err := srv.Auth().UpsertNode(ctx, server)
+		require.NoError(t, err)
+	}
+
 	for _, tc := range []struct {
 		name                 string
 		roles                []string
@@ -7229,7 +7241,7 @@ func TestAccessRequestNonGreedyAnnotations(t *testing.T) {
 			errfn:                require.Error,
 		},
 		{
-			name:           "identity-requester requests role, receives payment annotations",
+			name:           "identity-requester requests role, receives identity annotations",
 			roles:          []string{"identity-requester"},
 			requestedRoles: []string{"identity-access"},
 			expectedAnnotations: map[string][]string{
@@ -7238,7 +7250,7 @@ func TestAccessRequestNonGreedyAnnotations(t *testing.T) {
 			},
 		},
 		{
-			name:                 "identity-resource-requester requests resource, receives payment annotations",
+			name:                 "identity-resource-requester requests resource, receives identity annotations",
 			roles:                []string{"identity-resource-requester"},
 			requestedRoles:       []string{"identity-access"},
 			requestedResourceIDs: []string{"server-identity"},
@@ -7248,13 +7260,13 @@ func TestAccessRequestNonGreedyAnnotations(t *testing.T) {
 			},
 		},
 		{
-			name:           "identity-requester requests identity role, receives error",
+			name:           "identity-requester requests paymen role, receives error",
 			roles:          []string{"identity-requester"},
 			requestedRoles: []string{"payments-access"},
 			errfn:          require.Error,
 		},
 		{
-			name:                 "identity-resource-requester requests identity resource, receives error",
+			name:                 "identity-resource-requester requests payment resource, receives error",
 			roles:                []string{"identity-resource-requester"},
 			requestedRoles:       []string{"payment-access"},
 			requestedResourceIDs: []string{"server-identity"},
@@ -7277,24 +7289,48 @@ func TestAccessRequestNonGreedyAnnotations(t *testing.T) {
 				"any-requestor": {"true"},
 			},
 		},
+		{
+			name:           "both payments and identity-requester requests payments role, receives payments annotations",
+			roles:          []string{"identity-requester", "payments-requester"},
+			requestedRoles: []string{"payments-access"},
+			expectedAnnotations: map[string][]string{
+				"requesting": {"role"},
+				"services":   {"payments"},
+			},
+		},
+		{
+			name: "all requester roles, requests payments role, receives payments and any annotations",
+			roles: []string{
+				"identity-requester", "payments-requester",
+				"identity-resource-requester", "payments-resource-requester",
+				"any-requester"},
+			requestedRoles: []string{"payments-access"},
+			expectedAnnotations: map[string][]string{
+				"requesting":    {"role"},
+				"services":      {"payments"},
+				"any-requestor": {"true"},
+			},
+		},
+		{
+			name: "all requester roles, requests payments resource, receives payments and any annotations",
+			roles: []string{
+				"identity-requester", "payments-requester",
+				"identity-resource-requester", "payments-resource-requester",
+				"any-requester"},
+			requestedRoles:       []string{"payments-access"},
+			requestedResourceIDs: []string{"server-payments"},
+			expectedAnnotations: map[string][]string{
+				"requesting":    {"resources"},
+				"services":      {"payments"},
+				"any-requestor": {"true"},
+			},
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
-			srv := newTestTLSServer(t)
-			for _, role := range roles {
-				_, err := srv.Auth().CreateRole(ctx, role)
-				require.NoError(t, err)
-			}
-
-			for _, server := range []types.Server{paymentsServer, idServer} {
-				_, err := srv.Auth().UpsertNode(ctx, server)
-				require.NoError(t, err)
-			}
-
 			user, err := types.NewUser("requester")
 			require.NoError(t, err)
 			user.SetRoles(tc.roles)
-			_, err = srv.Auth().CreateUser(ctx, user)
+			_, err = srv.Auth().UpsertUser(ctx, user)
 			require.NoError(t, err)
 
 			var req types.AccessRequest
