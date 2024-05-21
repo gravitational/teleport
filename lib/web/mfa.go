@@ -19,6 +19,7 @@
 package web
 
 import (
+	"context"
 	"net/http"
 	"strings"
 
@@ -153,7 +154,7 @@ func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *ht
 
 	var mfaRequiredCheckProto *proto.IsMFARequiredRequest
 	if req.IsMFARequiredRequest != nil {
-		mfaRequiredCheckProto, err = req.IsMFARequiredRequest.checkAndGetProtoRequest()
+		mfaRequiredCheckProto, err = h.checkAndGetProtoRequest(r.Context(), c, req.IsMFARequiredRequest)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -308,10 +309,10 @@ type isMFARequiredRequest struct {
 	// requires MFA check.
 	Kube *isMFARequiredKube `json:"kube,omitempty"`
 	// AdminAction is the name of the admin action RPC to check if MFA is required.
-	AdminAction *isMFARequiredAdminAction `json:"admin_action"`
+	AdminAction *isMFARequiredAdminAction `json:"admin_action,omitempty"`
 }
 
-func (r *isMFARequiredRequest) checkAndGetProtoRequest() (*proto.IsMFARequiredRequest, error) {
+func (h *Handler) checkAndGetProtoRequest(ctx context.Context, scx *SessionContext, r *isMFARequiredRequest) (*proto.IsMFARequiredRequest, error) {
 	numRequests := 0
 	var protoReq *proto.IsMFARequiredRequest
 
@@ -417,7 +418,7 @@ func (h *Handler) isMFARequired(w http.ResponseWriter, r *http.Request, p httpro
 		return nil, trace.Wrap(err)
 	}
 
-	protoReq, err := httpReq.checkAndGetProtoRequest()
+	protoReq, err := h.checkAndGetProtoRequest(r.Context(), sctx, httpReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
