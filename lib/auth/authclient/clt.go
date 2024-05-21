@@ -647,7 +647,7 @@ func (c *Client) NotificationServiceClient() notificationsv1.NotificationService
 
 // DatabaseObjectsClient returns a client for managing the DatabaseObject resource.
 func (c *Client) DatabaseObjectsClient() *databaseobject.Client {
-	return c.APIClient.DatabaseObjectsClient()
+	return databaseobject.NewClient(c.APIClient.DatabaseObjectClient())
 }
 
 // DiscoveryConfigClient returns a client for managing the DiscoveryConfig resource.
