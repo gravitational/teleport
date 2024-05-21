@@ -130,6 +130,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	websession "github.com/gravitational/teleport/lib/web/session"
+	"github.com/gravitational/teleport/lib/web/terminal"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
@@ -1438,7 +1439,7 @@ func TestResolveServerHostPort(t *testing.T) {
 	}
 }
 
-func isFileTransferRequest(e *Envelope) bool {
+func isFileTransferRequest(e *terminal.Envelope) bool {
 	if e.GetType() != defaults.WebsocketAudit {
 		return false
 	}
@@ -1449,7 +1450,7 @@ func isFileTransferRequest(e *Envelope) bool {
 	return ef.GetType() == string(srv.FileTransferUpdate)
 }
 
-func isFileTransferDecision(e *Envelope) bool {
+func isFileTransferDecision(e *terminal.Envelope) bool {
 	if e.GetType() != defaults.WebsocketAudit {
 		return false
 	}
@@ -1460,7 +1461,7 @@ func isFileTransferDecision(e *Envelope) bool {
 	return ef.GetType() == string(srv.FileTransferApproved)
 }
 
-func getRequestId(e *Envelope) (string, error) {
+func getRequestId(e *terminal.Envelope) (string, error) {
 	var ef events.EventFields
 	if err := json.Unmarshal([]byte(e.GetPayload()), &ef); err != nil {
 		return "", err
@@ -1473,7 +1474,7 @@ func TestFileTransferEvents(t *testing.T) {
 	s := newWebSuiteWithConfig(t, webSuiteConfig{disableDiskBasedRecording: true})
 
 	errs := make(chan error, 2)
-	readLoop := func(ctx context.Context, ws *websocket.Conn, ch chan<- *Envelope) {
+	readLoop := func(ctx context.Context, ws *websocket.Conn, ch chan<- *terminal.Envelope) {
 		for {
 			select {
 			case <-ctx.Done():
@@ -1490,7 +1491,7 @@ func TestFileTransferEvents(t *testing.T) {
 				errs <- trace.BadParameter("expected binary message, got %v", typ)
 				return
 			}
-			var envelope Envelope
+			var envelope terminal.Envelope
 			if err := proto.Unmarshal(b, &envelope); err != nil {
 				errs <- trace.Wrap(err)
 				return
@@ -1507,7 +1508,7 @@ func TestFileTransferEvents(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	wsMessages := make(chan *Envelope)
+	wsMessages := make(chan *terminal.Envelope)
 	go readLoop(ctx, ws, wsMessages)
 
 	// Create file transfer event
@@ -1517,7 +1518,7 @@ func TestFileTransferEvents(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	envelope := &Envelope{
+	envelope := &terminal.Envelope{
 		Version: defaults.WebsocketVersion,
 		Type:    defaults.WebsocketFileTransferRequest,
 		Payload: string(data),
@@ -1543,7 +1544,7 @@ func TestFileTransferEvents(t *testing.T) {
 					"approved":  true,
 				})
 				require.NoError(t, err)
-				envelope := &Envelope{
+				envelope := &terminal.Envelope{
 					Version: defaults.WebsocketVersion,
 					Type:    defaults.WebsocketFileTransferDecision,
 					Payload: string(data),
@@ -1702,7 +1703,7 @@ func TestResizeTerminal(t *testing.T) {
 	sid := session.NewID()
 
 	errs := make(chan error, 2)
-	readLoop := func(ctx context.Context, ws *websocket.Conn, ch chan<- *Envelope) {
+	readLoop := func(ctx context.Context, ws *websocket.Conn, ch chan<- *terminal.Envelope) {
 		for {
 			select {
 			case <-ctx.Done():
@@ -1719,7 +1720,7 @@ func TestResizeTerminal(t *testing.T) {
 				errs <- trace.BadParameter("expected binary message, got %v", typ)
 				return
 			}
-			var envelope Envelope
+			var envelope terminal.Envelope
 			if err := proto.Unmarshal(b, &envelope); err != nil {
 				errs <- trace.Wrap(err)
 				return
@@ -1750,8 +1751,8 @@ func TestResizeTerminal(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	ws1Messages := make(chan *Envelope)
-	ws2Messages := make(chan *Envelope)
+	ws1Messages := make(chan *terminal.Envelope)
+	ws2Messages := make(chan *terminal.Envelope)
 	go readLoop(ctx, ws1, ws1Messages)
 	go readLoop(ctx, ws2, ws2Messages)
 
@@ -1804,7 +1805,7 @@ t1ready:
 		events.TerminalSize:   params.Serialize(),
 	})
 	require.NoError(t, err)
-	envelope := &Envelope{
+	envelope := &terminal.Envelope{
 		Version: defaults.WebsocketVersion,
 		Type:    defaults.WebsocketResize,
 		Payload: string(data),
@@ -1830,7 +1831,7 @@ t1ready:
 	}
 }
 
-func isResizeEventEnvelope(e *Envelope) bool {
+func isResizeEventEnvelope(e *terminal.Envelope) bool {
 	if e.GetType() != defaults.WebsocketAudit {
 		return false
 	}
@@ -2017,7 +2018,7 @@ func TestTerminalRouting(t *testing.T) {
 			require.NoError(t, err)
 			t.Cleanup(func() { tt.wsCloseAssertion(t, ws.Close()) })
 
-			stream := NewTerminalStream(s.ctx, ws, utils.NewLoggerForTests())
+			stream := terminal.NewStream(s.ctx, terminal.StreamConfig{WS: ws})
 
 			// here we intentionally run a command where the output we're looking
 			// for is not present in the command itself
@@ -2141,7 +2142,7 @@ func TestTerminalRequireSessionMFA(t *testing.T) {
 				webauthnResBytes, err := json.Marshal(wantypes.CredentialAssertionResponseFromProto(res.GetWebauthn()))
 				require.NoError(t, err)
 
-				envelope := &Envelope{
+				envelope := &terminal.Envelope{
 					Version: defaults.WebsocketVersion,
 					Type:    defaults.WebsocketWebauthnChallenge,
 					Payload: string(webauthnResBytes),
@@ -2168,15 +2169,15 @@ func TestTerminalRequireSessionMFA(t *testing.T) {
 			ty, raw, err := ws.ReadMessage()
 			require.Nil(t, err)
 			require.Equal(t, websocket.BinaryMessage, ty)
-			var env Envelope
+			var env terminal.Envelope
 			require.Nil(t, proto.Unmarshal(raw, &env))
 
 			chals := &client.MFAAuthenticateChallenge{}
 			require.Nil(t, json.Unmarshal([]byte(env.Payload), &chals))
 
 			// Send response over ws.
-			stream := NewTerminalStream(ctx, ws, utils.NewLoggerForTests())
-			err = stream.ws.WriteMessage(websocket.BinaryMessage, tc.getChallengeResponseBytes(chals, dev))
+			stream := terminal.NewStream(ctx, terminal.StreamConfig{WS: ws})
+			err = stream.WriteMessage(websocket.BinaryMessage, tc.getChallengeResponseBytes(chals, dev))
 			require.Nil(t, err)
 
 			// Test we can write.
@@ -2366,7 +2367,7 @@ func TestWebAgentForward(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 
-	stream := NewTerminalStream(s.ctx, ws, utils.NewLoggerForTests())
+	stream := terminal.NewStream(s.ctx, terminal.StreamConfig{WS: ws})
 
 	_, err = io.WriteString(stream, "echo $SSH_AUTH_SOCK\r\n")
 	require.NoError(t, err)
@@ -2478,7 +2479,7 @@ func TestCloseConnectionsOnLogout(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 
-	stream := NewTerminalStream(s.ctx, ws, utils.NewLoggerForTests())
+	stream := terminal.NewStream(s.ctx, terminal.StreamConfig{WS: ws})
 
 	// to make sure we have a session
 	_, err = io.WriteString(stream, "expr 137 + 39\r\n")
@@ -7563,7 +7564,7 @@ func (s *WebSuite) makeTerminal(t *testing.T, pack *authPack, opts ...terminalOp
 		return nil, nil, trace.Wrap(err)
 	}
 	require.Equal(t, websocket.BinaryMessage, ty)
-	var env Envelope
+	var env terminal.Envelope
 
 	err = proto.Unmarshal(raw, &env)
 	if err != nil {
@@ -8325,7 +8326,7 @@ func (r *testProxy) makeTerminal(t *testing.T, pack *authPack, sessionID session
 	ty, raw, err := ws.ReadMessage()
 	require.NoError(t, err)
 	require.Equal(t, websocket.BinaryMessage, ty)
-	var env Envelope
+	var env terminal.Envelope
 	require.NoError(t, proto.Unmarshal(raw, &env))
 
 	var sessResp siteSessionGenerateResponse
@@ -8393,7 +8394,7 @@ func (r *testProxy) makeDesktopSession(t *testing.T, pack *authPack) *websocket.
 
 func validateTerminalStream(t *testing.T, ws *websocket.Conn) {
 	t.Helper()
-	stream := NewTerminalStream(context.Background(), ws, utils.NewLoggerForTests())
+	stream := terminal.NewStream(context.Background(), terminal.StreamConfig{WS: ws})
 
 	// here we intentionally run a command where the output we're looking
 	// for is not present in the command itself
@@ -9527,7 +9528,7 @@ func TestModeratedSession(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, peerWS.Close()) })
 
-	peerStream := NewTerminalStream(ctx, peerWS, utils.NewLoggerForTests())
+	peerStream := terminal.NewStream(ctx, terminal.StreamConfig{WS: peerWS})
 
 	require.NoError(t, waitForOutput(peerStream, "Teleport > User foo joined the session with participant mode: peer."))
 
@@ -9536,7 +9537,7 @@ func TestModeratedSession(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, moderatorWS.Close()) })
 
-	moderatorStream := NewTerminalStream(ctx, moderatorWS, utils.NewLoggerForTests())
+	moderatorStream := terminal.NewStream(ctx, terminal.StreamConfig{WS: moderatorWS})
 
 	require.NoError(t, waitForOutput(peerStream, "Teleport > Connecting to node over SSH"))
 
@@ -9616,7 +9617,7 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 
 	handleMFAWebauthnChallenge(t, peerWS, peer.device)
 
-	peerStream := NewTerminalStream(ctx, peerWS, utils.NewLoggerForTests())
+	peerStream := terminal.NewStream(ctx, terminal.StreamConfig{WS: peerWS})
 
 	require.NoError(t, waitForOutput(peerStream, "Teleport > User foo joined the session with participant mode: peer."))
 
@@ -9626,7 +9627,7 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 
 	handleMFAWebauthnChallenge(t, moderatorWS, moderator.device)
 
-	moderatorStream := NewTerminalStream(ctx, moderatorWS, utils.NewLoggerForTests())
+	moderatorStream := terminal.NewStream(ctx, terminal.StreamConfig{WS: moderatorWS})
 
 	require.NoError(t, waitForOutput(peerStream, "Teleport > Connecting to node over SSH"))
 
@@ -9642,7 +9643,7 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 		s.clock.Advance(30 * time.Second)
 		require.NoError(t, waitForOutput(moderatorStream, "Teleport > Please tap your MFA key"))
 
-		challenge, err := moderatorStream.readChallenge(protobufMFACodec{})
+		challenge, err := moderatorStream.ReadChallenge(protobufMFACodec{})
 		require.NoError(t, err)
 
 		res, err := moderator.device.SolveAuthn(challenge)
@@ -9651,7 +9652,7 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 		webauthnResBytes, err := json.Marshal(wantypes.CredentialAssertionResponseFromProto(res.GetWebauthn()))
 		require.NoError(t, err)
 
-		envelope := &Envelope{
+		envelope := &terminal.Envelope{
 			Version: defaults.WebsocketVersion,
 			Type:    defaults.WebsocketWebauthnChallenge,
 			Payload: string(webauthnResBytes),
@@ -9675,7 +9676,7 @@ func handleMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *auth.Test
 	require.NoError(t, err)
 	require.Equal(t, websocket.BinaryMessage, ty)
 
-	var env Envelope
+	var env terminal.Envelope
 	require.NoError(t, proto.Unmarshal(raw, &env))
 
 	var challenge client.MFAAuthenticateChallenge
@@ -9689,7 +9690,7 @@ func handleMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *auth.Test
 	webauthnResBytes, err := json.Marshal(wantypes.CredentialAssertionResponseFromProto(res.GetWebauthn()))
 	require.NoError(t, err)
 
-	envelope := &Envelope{
+	envelope := &terminal.Envelope{
 		Version: defaults.WebsocketVersion,
 		Type:    defaults.WebsocketWebauthnChallenge,
 		Payload: string(webauthnResBytes),

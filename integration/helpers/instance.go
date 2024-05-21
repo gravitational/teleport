@@ -67,6 +67,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
 	websession "github.com/gravitational/teleport/lib/web/session"
+	"github.com/gravitational/teleport/lib/web/terminal"
 )
 
 const (
@@ -1532,7 +1533,7 @@ func CreateWebSession(proxyHost, user, password string) (*web.CreateSessionRespo
 // SSH establishes an SSH connection via the web api in the same manner that
 // the web UI does. The returned [web.TerminalStream] should be used as stdin/stdout
 // for the session.
-func (w *WebClient) SSH(termReq web.TerminalRequest) (*web.TerminalStream, error) {
+func (w *WebClient) SSH(termReq web.TerminalRequest) (*terminal.Stream, error) {
 	u := url.URL{
 		Host:   w.i.Web,
 		Scheme: client.WSS,
@@ -1574,7 +1575,7 @@ func (w *WebClient) SSH(termReq web.TerminalRequest) (*web.TerminalStream, error
 		return nil, trace.BadParameter("unexpected websocket message; got %d want %d", ty, websocket.BinaryMessage)
 	}
 
-	var env web.Envelope
+	var env terminal.Envelope
 	err = proto.Unmarshal(raw, &env)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1590,7 +1591,7 @@ func (w *WebClient) SSH(termReq web.TerminalRequest) (*web.TerminalStream, error
 		return nil, trace.Wrap(err)
 	}
 
-	stream := web.NewTerminalStream(context.Background(), ws, utils.NewLoggerForTests())
+	stream := terminal.NewStream(context.Background(), terminal.StreamConfig{WS: ws})
 	return stream, nil
 }
 

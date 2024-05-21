@@ -21,33 +21,12 @@ package web
 import (
 	"encoding/json"
 	"io"
-	"net"
 	"sync"
-	"time"
 
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/web/terminal"
 )
-
-// WSConn is a gorilla/websocket minimal interface used by our web implementation.
-// This interface exists to override the default websocket.Conn implementation,
-// currently used by noopCloserWS to prevent WS being closed by wrapping stream.
-type WSConn interface {
-	Close() error
-
-	LocalAddr() net.Addr
-	RemoteAddr() net.Addr
-
-	WriteControl(messageType int, data []byte, deadline time.Time) error
-	WriteMessage(messageType int, data []byte) error
-	ReadMessage() (messageType int, p []byte, err error)
-	SetReadLimit(limit int64)
-	SetReadDeadline(t time.Time) error
-
-	PongHandler() func(appData string) error
-	SetPongHandler(h func(appData string) error)
-	CloseHandler() func(code int, text string) error
-	SetCloseHandler(h func(code int, text string) error)
-}
 
 const (
 	EnvelopeTypeStdout  = "stdout"
@@ -105,7 +84,7 @@ func newPayloadWriter(nodeID, outputName string, stream io.Writer) *payloadWrite
 // by any underlying code as we want to keep the connection open until the command
 // is executed on all nodes and a single failure should not close the connection.
 type noopCloserWS struct {
-	WSConn
+	terminal.WSConn
 }
 
 // Close does nothing.
@@ -123,7 +102,7 @@ func (ws *noopCloserWS) Close() error {
 // This would prevent the pong handler from being called.
 type syncRWWSConn struct {
 	// WSConn the underlying websocket connection.
-	WSConn
+	terminal.WSConn
 	// rmtx is a mutex used to serialize reads.
 	rmtx sync.Mutex
 	// wmtx is a mutex used to serialize writes.

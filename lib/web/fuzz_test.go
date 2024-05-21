@@ -73,7 +73,7 @@ func FuzzTdpMFACodecDecodeChallenge(f *testing.F) {
 	f.Fuzz(func(t *testing.T, buf []byte) {
 		require.NotPanics(t, func() {
 			codec := tdpMFACodec{}
-			_, _ = codec.decodeChallenge(buf, "")
+			_, _ = codec.DecodeChallenge(buf, "")
 		})
 	})
 }
@@ -102,7 +102,7 @@ func FuzzTdpMFACodecDecodeResponse(f *testing.F) {
 	f.Fuzz(func(t *testing.T, buf []byte) {
 		require.NotPanics(t, func() {
 			codec := tdpMFACodec{}
-			_, _ = codec.decodeResponse(buf, "")
+			_, _ = codec.DecodeResponse(buf, "")
 		})
 	})
 }

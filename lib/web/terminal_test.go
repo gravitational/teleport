@@ -29,8 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/web"
+	"github.com/gravitational/teleport/lib/web/terminal"
 )
 
 // TestTerminalReadFromClosedConn verifies that Teleport recovers
@@ -47,7 +46,7 @@ func TestTerminalReadFromClosedConn(t *testing.T) {
 			t.Errorf("couldn't upgrade websocket connection: %v", err)
 		}
 
-		envelope := web.Envelope{
+		envelope := terminal.Envelope{
 			Type:    defaults.WebsocketRaw,
 			Payload: "hello",
 		}
@@ -64,7 +63,7 @@ func TestTerminalReadFromClosedConn(t *testing.T) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
-	stream := web.NewTerminalStream(context.Background(), conn, utils.NewLoggerForTests())
+	stream := terminal.NewStream(context.Background(), terminal.StreamConfig{WS: conn})
 
 	// close the stream before we attempt to read from it,
 	// this will produce a net.ErrClosed error on the read

@@ -191,29 +191,16 @@ func (a *Server) emitAuthAuditEvent(ctx context.Context, props authAuditProps) e
 var (
 	// authenticateHeadlessError is the generic error returned for failed headless
 	// authentication attempts.
-	authenticateHeadlessError = trace.AccessDenied("headless authentication failed")
+	authenticateHeadlessError = &trace.AccessDeniedError{Message: "headless authentication failed"}
 	// authenticateWebauthnError is the generic error returned for failed WebAuthn
 	// authentication attempts.
-	authenticateWebauthnError = trace.AccessDenied("invalid Webauthn response")
-	// invalidUserPassError is the error for when either the provided username or
-	// password is incorrect.
-	invalidUserPassError = trace.AccessDenied("invalid username or password")
-	// invalidUserpass2FError is the error for when either the provided username,
-	// password, or second factor is incorrect.
-	invalidUserPass2FError = trace.AccessDenied("invalid username, password or second factor")
-
+	authenticateWebauthnError = &trace.AccessDeniedError{Message: "invalid Webauthn response"}
 	// errSSOUserLocalAuth is issued for SSO users attempting local authentication
 	// or related actions (like trying to set a password)
 	// Kept purposefully vague, as such actions don't happen during normal
 	// utilization of the system.
 	errSSOUserLocalAuth = &trace.AccessDeniedError{Message: "invalid credentials"}
 )
-
-// IsInvalidLocalCredentialError checks if an error resulted from an incorrect username,
-// password, or second factor.
-func IsInvalidLocalCredentialError(err error) bool {
-	return errors.Is(err, invalidUserPassError) || errors.Is(err, invalidUserPass2FError)
-}
 
 type verifyMFADeviceLocksParams struct {
 	// Checker used to verify locks.
@@ -352,7 +339,7 @@ func (a *Server) authenticateUserInternal(ctx context.Context, req authclient.Au
 			}
 			return res.mfaDev, nil
 		}
-		authErr = invalidUserPass2FError
+		authErr = authclient.InvalidUserPass2FError
 	}
 	if authenticateFn != nil {
 		err := a.WithUserLock(user, func() error {
@@ -420,7 +407,7 @@ func (a *Server) authenticateUserInternal(ctx context.Context, req authclient.Au
 		// provide obscure message on purpose, while logging the real
 		// error server side
 		log.Debugf("User %v failed to authenticate: %v.", user, err)
-		return nil, "", trace.Wrap(invalidUserPassError)
+		return nil, "", trace.Wrap(authclient.InvalidUserPassError)
 	}
 	return nil, user, nil
 }

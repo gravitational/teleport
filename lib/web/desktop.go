@@ -337,7 +337,7 @@ func (h *Handler) performMFACeremony(ctx context.Context, authClient authclient.
 	codec := tdpMFACodec{}
 
 	// Send the challenge over the socket.
-	msg, err := codec.encode(
+	msg, err := codec.Encode(
 		&client.MFAAuthenticateChallenge{
 			WebauthnChallenge: wantypes.CredentialAssertionFromProto(c.WebauthnChallenge),
 		},
@@ -361,7 +361,7 @@ func (h *Handler) performMFACeremony(ctx context.Context, authClient authclient.
 		return nil, trace.BadParameter("received unexpected web socket message type %d", ty)
 	}
 
-	assertion, err := codec.decodeResponse(buf, defaults.WebsocketWebauthnChallenge)
+	assertion, err := codec.DecodeResponse(buf, defaults.WebsocketWebauthnChallenge)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
