@@ -24,7 +24,7 @@ Users in an access list hierarchy will inherit the granted roles and
 traits for members and owners from access lists referencing the lists
 they're in.
 
-# Implementations
+# Implementation
 
 New fields will be introduced into the access_list type:
 
@@ -38,12 +38,14 @@ spec:
     - access
     - auditor
     traits: {}
-  # list of references to other access lists, for users to include in this access list
-  member_access_lists:
-  - name: ea4cbbc7-bee1-49b3-bf78-734b4b27ea38
-  # list of references to other access lists, for owners to include in this access list
-  owner_access_lists:
-  - name: 3e9df1e7-0b8a-4984-b2e8-5bc0d7b356a9
+  dynamic_members:
+    - access_list_members:
+      #  A user becomes an access list member if its a member of the access list
+      - ea4cbbc7-bee1-49b3-bf78-734b4b27ea38
+  dynamic_owners:
+    - access_list_owners:
+      # A user becomes an access list owner if its a member of the access list
+      - 3e9df1e7-0b8a-4984-b2e8-5bc0d7b356a9
   title: access-list-a
 version: v1
 ```
@@ -57,6 +59,8 @@ members in the included access list.
 
 # Implementation considerations
 
+## Cycles within lists
+
 The implementation will not support cycles within the heirarchy as
 this would introduce confusing options for configuration. Teleport
 will return an error if a cycle are introduced. It will also only look
@@ -66,20 +70,36 @@ heirarchies.
 Errors over cycles in the heirarchy will be detected and returned at
 access list insertion/update time.
 
+### Nesting depth
+
 Access list heirarchys will only recurse up to 10 layers deep
 initially.
 
-Access lists will need to be allowed to have empty grants so access
-lists can represent only users and permisisons can be assigned purely
-through membership in other lists.
+## Access list reviews
 
 Access list periodic reviews will include in the member review page,
 the list of nested access lists and an indicator to suggest that its
 an access list not an individual member, but not the full list of
 users.
 
+## Impact on access requests
+
 Access request suggested reviewers will include members included in
 the `owner_access_lists` field.
+
+The suggested lists field will remain operating as it presently does,
+only showing the list that actually grants the resource.
+
+## Membership and Ownership requires
+
+A user in a nested access list will only become a member/owner if the
+user passes the respective membership/ownership requirements
+
+## Other considerations
+
+Access lists will need to be allowed to have empty grants so access
+lists can represent only users and permisisons can be assigned purely
+through membership in other lists.
 
 # Examples
 
