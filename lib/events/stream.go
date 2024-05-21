@@ -735,7 +735,7 @@ func (w *sliceWriter) startUpload(partNumber int64, slice *slice) (*activeUpload
 
 		var retry retryutils.Retry
 		for i := 0; i < defaults.MaxIterationLimit; i++ {
-			log = log.WithField("attempt", i)
+			log := log.WithField("attempt", i)
 
 			reader, err := slice.reader()
 			if err != nil {
