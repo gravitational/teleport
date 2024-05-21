@@ -26,7 +26,6 @@ import (
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/azure"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
@@ -85,7 +84,7 @@ func makeAzurePostgresFlexServer(t *testing.T, name, subscription, group, region
 	for _, opt := range opts {
 		opt(server)
 	}
-	database, err := services.NewDatabaseFromAzurePostgresFlexServer(server)
+	database, err := common.NewDatabaseFromAzurePostgresFlexServer(server)
 	require.NoError(t, err)
 	common.ApplyAzureDatabaseNameSuffix(database, types.AzureMatcherPostgres)
 	return server, database
