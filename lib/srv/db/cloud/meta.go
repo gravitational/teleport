@@ -36,8 +36,8 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	discoverycommon "github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
 // MetadataConfig is the cloud metadata service config.
@@ -181,7 +181,7 @@ func (m *Metadata) fetchRedshiftMetadata(ctx context.Context, database types.Dat
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.MetadataFromRedshiftCluster(cluster)
+	return discoverycommon.MetadataFromRedshiftCluster(cluster)
 }
 
 // fetchRedshiftServerlessMetadata fetches metadata for the provided Redshift
@@ -219,7 +219,7 @@ func (m *Metadata) fetchElastiCacheMetadata(ctx context.Context, database types.
 
 	// Endpoint type does not change.
 	endpointType := meta.ElastiCache.EndpointType
-	return services.MetadataFromElastiCacheCluster(cluster, endpointType)
+	return discoverycommon.MetadataFromElastiCacheCluster(cluster, endpointType)
 }
 
 // fetchMemoryDBMetadata fetches metadata for the provided MemoryDB database.
@@ -239,7 +239,7 @@ func (m *Metadata) fetchMemoryDBMetadata(ctx context.Context, database types.Dat
 
 	// Endpoint type does not change.
 	endpointType := meta.MemoryDB.EndpointType
-	return services.MetadataFromMemoryDBCluster(cluster, endpointType)
+	return discoverycommon.MetadataFromMemoryDBCluster(cluster, endpointType)
 }
 
 // fetchRDSInstanceMetadata fetches metadata about specified RDS instance.
@@ -248,7 +248,7 @@ func fetchRDSInstanceMetadata(ctx context.Context, rdsClient rdsiface.RDSAPI, in
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.MetadataFromRDSInstance(rdsInstance)
+	return discoverycommon.MetadataFromRDSInstance(rdsInstance)
 }
 
 // describeRDSInstance returns AWS RDS instance for the specified ID.
@@ -271,7 +271,7 @@ func fetchRDSClusterMetadata(ctx context.Context, rdsClient rdsiface.RDSAPI, clu
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.MetadataFromRDSCluster(rdsCluster)
+	return discoverycommon.MetadataFromRDSCluster(rdsCluster)
 }
 
 // describeRDSCluster returns AWS Aurora cluster for the specified ID.
@@ -337,7 +337,7 @@ func fetchRDSProxyMetadata(ctx context.Context, rdsClient rdsiface.RDSAPI, proxy
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.MetadataFromRDSProxy(rdsProxy)
+	return discoverycommon.MetadataFromRDSProxy(rdsProxy)
 }
 
 // describeRDSProxy returns AWS RDS Proxy for the specified RDS Proxy name.
@@ -367,7 +367,7 @@ func fetchRDSProxyCustomEndpointMetadata(ctx context.Context, rdsClient rdsiface
 		return nil, trace.Wrap(err)
 	}
 
-	return services.MetadataFromRDSProxyCustomEndpoint(rdsProxy, rdsProxyEndpoint)
+	return discoverycommon.MetadataFromRDSProxyCustomEndpoint(rdsProxy, rdsProxyEndpoint)
 }
 
 // describeRDSProxyCustomEndpointAndFindURI returns AWS RDS Proxy endpoint for
@@ -394,7 +394,7 @@ func fetchRedshiftServerlessWorkgroupMetadata(ctx context.Context, client redshi
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.MetadataFromRedshiftServerlessWorkgroup(workgroup)
+	return discoverycommon.MetadataFromRedshiftServerlessWorkgroup(workgroup)
 }
 func fetchRedshiftServerlessVPCEndpointMetadata(ctx context.Context, client redshiftserverlessiface.RedshiftServerlessAPI, endpointName string) (*types.AWS, error) {
 	endpoint, err := describeRedshiftServerlessVCPEndpoint(ctx, client, endpointName)
@@ -405,7 +405,7 @@ func fetchRedshiftServerlessVPCEndpointMetadata(ctx context.Context, client reds
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.MetadataFromRedshiftServerlessVPCEndpoint(endpoint, workgroup)
+	return discoverycommon.MetadataFromRedshiftServerlessVPCEndpoint(endpoint, workgroup)
 }
 func describeRedshiftServerlessWorkgroup(ctx context.Context, client redshiftserverlessiface.RedshiftServerlessAPI, workgroupName string) (*redshiftserverless.Workgroup, error) {
 	input := new(redshiftserverless.GetWorkgroupInput).SetWorkgroupName(workgroupName)

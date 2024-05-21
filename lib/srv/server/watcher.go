@@ -87,8 +87,8 @@ func (w *Watcher) fetchAndSubmit() {
 
 // Run starts the watcher's main watch loop.
 func (w *Watcher) Run() {
-	ticker := time.NewTicker(w.pollInterval)
-	defer ticker.Stop()
+	pollTimer := time.NewTimer(w.pollInterval)
+	defer pollTimer.Stop()
 
 	if w.triggerFetchC == nil {
 		w.triggerFetchC = make(<-chan struct{})
@@ -102,10 +102,20 @@ func (w *Watcher) Run() {
 			for _, fetcher := range w.fetchersFn() {
 				w.sendInstancesOrLogError(fetcher.GetMatchingInstances(insts, true))
 			}
-		case <-ticker.C:
+
+		case <-pollTimer.C:
 			w.fetchAndSubmit()
+			pollTimer.Reset(w.pollInterval)
+
 		case <-w.triggerFetchC:
 			w.fetchAndSubmit()
+
+			// stop and drain timer
+			if !pollTimer.Stop() {
+				<-pollTimer.C
+			}
+			pollTimer.Reset(w.pollInterval)
+
 		case <-w.ctx.Done():
 			return
 		}

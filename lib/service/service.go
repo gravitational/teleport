@@ -2787,7 +2787,7 @@ func (process *TeleportProcess) initSSH() error {
 					HostUUID:             conn.ServerIdentity.ID.HostUUID,
 					Resolver:             conn.TunnelProxyResolver(),
 					Client:               conn.Client,
-					AccessPoint:          conn.Client,
+					AccessPoint:          authClient,
 					HostSigner:           conn.ServerIdentity.KeySigner,
 					Cluster:              conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
 					Server:               s,
