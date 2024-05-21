@@ -37,18 +37,7 @@ export class ReloginService {
     onRequestCancelled: (callback: () => void) => void
   ): Promise<void> {
     this.mainProcessClient.forceFocusWindow();
-    let reason: ClusterConnectReason;
-
-    if (reloginReasonOneOfIsGatewayCertExpired(request.reason)) {
-      const gateway = this.clustersService.findGateway(
-        request.reason.gatewayCertExpired.gatewayUri
-      );
-      reason = {
-        kind: 'reason.gateway-cert-expired',
-        targetUri: request.reason.gatewayCertExpired.targetUri,
-        gateway: gateway,
-      };
-    }
+    const reason = this.getReason(request);
 
     return new Promise((resolve, reject) => {
       // GatewayCertReissuer in tshd makes sure that we only ever have one concurrent request to the
@@ -65,5 +54,32 @@ export class ReloginService {
 
       onRequestCancelled(closeDialog);
     });
+  }
+
+  private getReason(request: ReloginRequest): ClusterConnectReason {
+    // switch followed by a type guard is awkward, but it helps with ensuring that we get type
+    // errors whenever a new request reason is added.
+    //
+    // Type guards must be called because of how protobuf-ts generates types for oneOf in protos.
+    switch (request.reason.oneofKind) {
+      case 'gatewayCertExpired': {
+        if (!reloginReasonOneOfIsGatewayCertExpired(request.reason)) {
+          return;
+        }
+
+        const gateway = this.clustersService.findGateway(
+          request.reason.gatewayCertExpired.gatewayUri
+        );
+        return {
+          kind: 'reason.gateway-cert-expired',
+          targetUri: request.reason.gatewayCertExpired.targetUri,
+          gateway: gateway,
+        };
+      }
+      default: {
+        request.reason satisfies never;
+        return;
+      }
+    }
   }
 }
