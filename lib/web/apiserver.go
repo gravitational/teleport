@@ -129,6 +129,10 @@ const (
 	// Example values:
 	// - github-actions-ssh: indicates that the resource was added via the Bot GitHub Actions SSH flow
 	webUIFlowLabelKey = "teleport.internal/ui-flow"
+	// IncludedResourceModeAll describes that only requestable resources should be returned.
+	IncludedResourceModeRequestable = "requestable"
+	// IncludedResourceModeAll describes that all resources, requestable and available, should be returned.
+	IncludedResourceModeAll = "all"
 )
 
 // healthCheckAppServerFunc defines a function used to perform a health check
@@ -2652,7 +2656,9 @@ func makeUnifiedResourceRequest(r *http.Request) (*proto.ListUnifiedResourcesReq
 	}
 
 	startKey := values.Get("startKey")
-	includeRequestable := values.Get("includeRequestable") == "true"
+	includeRequestable := values.Get("includedResourceMode") == IncludedResourceModeAll
+	useSearchAsRoles := values.Get("searchAsRoles") == "yes" || values.Get("includedResourceMode") == IncludedResourceModeRequestable
+
 	return &proto.ListUnifiedResourcesRequest{
 		Kinds:               kinds,
 		Limit:               limit,
@@ -2661,12 +2667,9 @@ func makeUnifiedResourceRequest(r *http.Request) (*proto.ListUnifiedResourcesReq
 		PinnedOnly:          values.Get("pinnedOnly") == "true",
 		PredicateExpression: values.Get("query"),
 		SearchKeywords:      client.ParseSearchKeywords(values.Get("search"), ' '),
-		// includeRequestable requires a searchAsRoles request, but we set it here instead of the frontend
-		// to protect the frontend from accidentally requesting a "SearchAsRoles" request to older proxy versions
-		// and then returning a bunch of resources that won't include "Requires Request" flags.
-		UseSearchAsRoles:   values.Get("searchAsRoles") == "yes" || includeRequestable,
-		IncludeLogins:      true,
-		IncludeRequestable: includeRequestable,
+		UseSearchAsRoles:    useSearchAsRoles,
+		IncludeLogins:       true,
+		IncludeRequestable:  includeRequestable,
 	}, nil
 }
 
