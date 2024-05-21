@@ -3115,6 +3115,11 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 					Traits:         accessInfo.Traits,
 					Roles:          accessInfo.Roles,
 					AccessRequests: req.AccessRequests,
+					// App sessions created through generateUserCerts are securely contained
+					// to the Proxy and Auth roles, and thus should pass hardware key requirements
+					// through the "web_session" attestation. User's will be required to provide
+					// MFA instead.
+					AttestWebSession: true,
 				},
 				PublicAddr:        req.RouteToApp.PublicAddr,
 				ClusterName:       req.RouteToApp.ClusterName,
