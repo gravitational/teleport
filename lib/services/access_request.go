@@ -1633,7 +1633,7 @@ func (m *RequestValidator) SystemAnnotations(req types.AccessRequest) (map[strin
 			if slices.Contains(roles, reqRole) {
 				for k, v := range acr.Annotations {
 					vals := allowedAnnotations[k]
-					allowedAnnotations[k] = slices.Concat(vals, v)
+					allowedAnnotations[k] = append(vals, v...)
 				}
 			}
 		}
@@ -1653,7 +1653,8 @@ func (m *RequestValidator) SystemAnnotations(req types.AccessRequest) (map[strin
 		if len(filtered) == 0 {
 			continue
 		}
-		annotations[k] = filtered
+		slices.Sort(filtered)
+		annotations[k] = slices.Compact(filtered)
 	}
 	return annotations, nil
 }
