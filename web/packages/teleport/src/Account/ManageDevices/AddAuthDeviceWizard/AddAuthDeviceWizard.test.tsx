@@ -24,8 +24,13 @@ import { userEvent, UserEvent } from '@testing-library/user-event';
 
 import TeleportContext from 'teleport/teleportContext';
 import { ContextProvider } from 'teleport';
-import MfaService, { DeviceUsage } from 'teleport/services/mfa';
-import auth from 'teleport/services/auth/auth';
+import MfaService from 'teleport/services/mfa';
+import auth from 'teleport/services/auth';
+
+import {
+  AddAuthDeviceWizardStepProps,
+  createReauthOptions,
+} from './AddAuthDeviceWizard';
 
 import { AddAuthDeviceWizard } from '.';
 
@@ -34,13 +39,31 @@ let ctx: TeleportContext;
 let user: UserEvent;
 let onSuccess: jest.Mock;
 
+function twice(arr) {
+  return [...arr, ...arr];
+}
+
+// Repeat devices twice to make sure we support multiple devices of the same
+// type and purpose.
+const deviceCases = {
+  all: twice([
+    { type: 'totp', usage: 'mfa' },
+    { type: 'webauthn', usage: 'mfa' },
+    { type: 'webauthn', usage: 'passwordless' },
+  ]),
+  authApps: twice([{ type: 'totp', usage: 'mfa' }]),
+  mfaDevices: twice([{ type: 'webauthn', usage: 'mfa' }]),
+  passkeys: twice([{ type: 'webauthn', usage: 'passwordless' }]),
+  none: [],
+};
+
 beforeEach(() => {
   ctx = new TeleportContext();
   user = userEvent.setup();
   onSuccess = jest.fn();
 
   jest
-    .spyOn(MfaService.prototype, 'createNewWebAuthnDevice')
+    .spyOn(auth, 'createNewWebAuthnDevice')
     .mockResolvedValueOnce(dummyCredential);
   jest
     .spyOn(MfaService.prototype, 'saveNewWebAuthnDevice')
@@ -64,21 +87,16 @@ beforeEach(() => {
 
 afterEach(jest.resetAllMocks);
 
-function TestWizard({
-  privilegeToken,
-  usage,
-}: {
-  privilegeToken?: string;
-  usage: DeviceUsage;
-}) {
+function TestWizard(props: Partial<AddAuthDeviceWizardStepProps> = {}) {
   return (
     <ContextProvider ctx={ctx}>
       <AddAuthDeviceWizard
-        usage={usage}
+        usage="passwordless"
         auth2faType="optional"
-        privilegeToken={privilegeToken}
+        devices={deviceCases.all}
         onClose={() => {}}
         onSuccess={onSuccess}
+        {...props}
       />
     </ContextProvider>
   );
@@ -94,7 +112,7 @@ describe('flow without reauthentication', () => {
     await user.click(
       createStep.getByRole('button', { name: 'Create a passkey' })
     );
-    expect(ctx.mfaService.createNewWebAuthnDevice).toHaveBeenCalledWith({
+    expect(auth.createNewWebAuthnDevice).toHaveBeenCalledWith({
       tokenId: 'privilege-token',
       deviceUsage: 'passwordless',
     });
@@ -123,7 +141,7 @@ describe('flow without reauthentication', () => {
     await user.click(
       createStep.getByRole('button', { name: 'Create an MFA method' })
     );
-    expect(ctx.mfaService.createNewWebAuthnDevice).toHaveBeenCalledWith({
+    expect(auth.createNewWebAuthnDevice).toHaveBeenCalledWith({
       tokenId: 'privilege-token',
       deviceUsage: 'mfa',
     });
@@ -185,7 +203,7 @@ describe('flow with reauthentication', () => {
     await user.click(
       createStep.getByRole('button', { name: 'Create a passkey' })
     );
-    expect(ctx.mfaService.createNewWebAuthnDevice).toHaveBeenCalledWith({
+    expect(auth.createNewWebAuthnDevice).toHaveBeenCalledWith({
       tokenId: 'webauthn-privilege-token',
       deviceUsage: 'passwordless',
     });
@@ -223,7 +241,7 @@ describe('flow with reauthentication', () => {
     await user.click(
       createStep.getByRole('button', { name: 'Create a passkey' })
     );
-    expect(ctx.mfaService.createNewWebAuthnDevice).toHaveBeenCalledWith({
+    expect(auth.createNewWebAuthnDevice).toHaveBeenCalledWith({
       tokenId: 'totp-privilege-token-654987',
       deviceUsage: 'passwordless',
     });
@@ -243,4 +261,80 @@ describe('flow with reauthentication', () => {
     });
     expect(onSuccess).toHaveBeenCalled();
   });
+
+  test('shows all authentication options', async () => {
+    render(
+      <TestWizard usage="mfa" auth2faType="on" devices={deviceCases.all} />
+    );
+
+    const reauthenticateStep = within(
+      screen.getByTestId('reauthenticate-step')
+    );
+    expect(
+      reauthenticateStep.queryByLabelText(/passkey or security key/i)
+    ).toBeVisible();
+    expect(
+      reauthenticateStep.queryByLabelText(/authenticator app/i)
+    ).toBeVisible();
+  });
+
+  test('limits authentication options to devices owned', async () => {
+    render(
+      <TestWizard usage="mfa" auth2faType="on" devices={deviceCases.authApps} />
+    );
+
+    const reauthenticateStep = within(
+      screen.getByTestId('reauthenticate-step')
+    );
+    expect(
+      reauthenticateStep.queryByLabelText(/passkey or security key/i)
+    ).not.toBeInTheDocument();
+    expect(
+      reauthenticateStep.queryByLabelText(/authenticator app/i)
+    ).toBeVisible();
+  });
+
+  test.each`
+    auth2faType   | deviceCase      | error
+    ${'otp'}      | ${'mfaDevices'} | ${/authenticator app is required/i}
+    ${'webauthn'} | ${'authApps'}   | ${/passkey or security key is required/i}
+    ${'on'}       | ${'none'}       | ${/identity verification is required/i}
+  `(
+    'shows an error if no way to authenticate for MFA type "$auth2faType"',
+    async ({ auth2faType, deviceCase, error }) => {
+      render(
+        <TestWizard
+          usage="mfa"
+          auth2faType={auth2faType}
+          devices={deviceCases[deviceCase]}
+        />
+      );
+
+      expect(screen.getByText(error)).toBeVisible();
+    }
+  );
 });
+
+test.each`
+  auth2faType   | deviceCase      | methods
+  ${'otp'}      | ${'all'}        | ${['otp']}
+  ${'off'}      | ${'all'}        | ${[]}
+  ${'optional'} | ${'all'}        | ${['webauthn', 'otp']}
+  ${'on'}       | ${'all'}        | ${['webauthn', 'otp']}
+  ${'webauthn'} | ${'all'}        | ${['webauthn']}
+  ${'optional'} | ${'authApps'}   | ${['otp']}
+  ${'optional'} | ${'mfaDevices'} | ${['webauthn']}
+  ${'optional'} | ${'passkeys'}   | ${['webauthn']}
+  ${'on'}       | ${'none'}       | ${[]}
+  ${'webauthn'} | ${'authApps'}   | ${[]}
+  ${'otp'}      | ${'mfaDevices'} | ${[]}
+`(
+  'createReauthOptions: auth2faType=$auth2faType, devices=$deviceCase',
+  ({ auth2faType, methods, deviceCase }) => {
+    const devices = deviceCases[deviceCase];
+    const reauthMethods = createReauthOptions(auth2faType, devices).map(
+      o => o.value
+    );
+    expect(reauthMethods).toEqual(methods);
+  }
+);

@@ -2272,6 +2272,27 @@ func (l *windowsLoginMatcher) Match(role types.Role, typ types.RoleConditionType
 	return false, nil
 }
 
+type awsAppLoginMatcher struct {
+	awsRole string
+}
+
+// NewAppAWSLoginMatcher creates a RoleMatcher that checks whether the role's
+// AWS Role ARN match the specified condition.
+func NewAppAWSLoginMatcher(awsRole string) RoleMatcher {
+	return &awsAppLoginMatcher{awsRole: awsRole}
+}
+
+// Match matches an AWS Role ARN login against a role.
+func (l *awsAppLoginMatcher) Match(role types.Role, typ types.RoleConditionType) (bool, error) {
+	awsRoles := role.GetAWSRoleARNs(typ)
+	for _, awsRole := range awsRoles {
+		if l.awsRole == awsRole {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 type kubernetesClusterLabelMatcher struct {
 	clusterLabels map[string]string
 	userTraits    wrappers.Traits
@@ -2422,9 +2443,14 @@ type AccessCheckable interface {
 // It also returns a flag indicating whether debug logging is enabled,
 // allowing the RBAC system to generate more verbose errors in debug mode.
 func rbacDebugLogger() (debugEnabled bool, debugf func(format string, args ...interface{})) {
-	isDebugEnabled := log.IsLevelEnabled(log.TraceLevel)
-	log := log.WithField(trace.Component, teleport.ComponentRBAC)
-	return isDebugEnabled, log.Tracef
+	debugEnabled = log.IsLevelEnabled(log.TraceLevel)
+	debugf = func(format string, args ...interface{}) {}
+
+	if debugEnabled {
+		debugf = log.WithField(teleport.ComponentKey, teleport.ComponentRBAC).Tracef
+	}
+
+	return
 }
 
 func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state AccessState, matchers ...RoleMatcher) error {
@@ -2786,6 +2812,14 @@ func (set RoleSet) CanCopyFiles() bool {
 	return true
 }
 
+// CanJoinSessions returns true if at least one role in the role set
+// allows the user to join active sessions.
+func (set RoleSet) CanJoinSessions() bool {
+	return slices.ContainsFunc(set, func(r types.Role) bool {
+		return len(r.GetSessionJoinPolicies()) > 0
+	})
+}
+
 // CertificateFormat returns the most permissive certificate format in a
 // RoleSet.
 func (set RoleSet) CertificateFormat() string {
@@ -3015,7 +3049,7 @@ func (set RoleSet) checkAccessToRuleImpl(p checkAccessParams) (err error) {
 			}
 			if matched {
 				log.WithFields(log.Fields{
-					trace.Component: teleport.ComponentRBAC,
+					teleport.ComponentKey: teleport.ComponentRBAC,
 				}).Tracef("Access to %v %v in namespace %v denied to %v: deny rule matched.",
 					p.verb, p.resource, p.namespace, role.GetName())
 				return trace.AccessDenied("access denied to perform action %q on %q", p.verb, p.resource)
@@ -3038,7 +3072,7 @@ func (set RoleSet) checkAccessToRuleImpl(p checkAccessParams) (err error) {
 	}
 
 	log.WithFields(log.Fields{
-		trace.Component: teleport.ComponentRBAC,
+		teleport.ComponentKey: teleport.ComponentRBAC,
 	}).Tracef("Access to %v %v in namespace %v denied to %v: no allow rule matched.",
 		p.verb, p.resource, p.namespace, set)
 

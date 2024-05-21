@@ -36,7 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -99,7 +99,7 @@ func (c *NodeCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 }
 
 // TryRun takes the CLI command as an argument (like "nodes ls") and executes it.
-func (c *NodeCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI) (match bool, err error) {
+func (c *NodeCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
 	switch cmd {
 	case c.nodeAdd.FullCommand():
 		err = c.Invite(ctx, client)
@@ -137,7 +137,7 @@ Please note:
 
 // Invite generates a token which can be used to add another SSH node
 // to a cluster
-func (c *NodeCommand) Invite(ctx context.Context, client auth.ClientI) error {
+func (c *NodeCommand) Invite(ctx context.Context, client *authclient.Client) error {
 	// parse --roles flag
 	roles, err := types.ParseTeleportRoles(c.roles)
 	if err != nil {
@@ -230,7 +230,7 @@ func (c *NodeCommand) Invite(ctx context.Context, client auth.ClientI) error {
 
 // ListActive retrieves the list of nodes who recently sent heartbeats to
 // to a cluster and prints it to stdout
-func (c *NodeCommand) ListActive(ctx context.Context, clt auth.ClientI) error {
+func (c *NodeCommand) ListActive(ctx context.Context, clt *authclient.Client) error {
 	labels, err := libclient.ParseLabelSpec(c.labels)
 	if err != nil {
 		return trace.Wrap(err)

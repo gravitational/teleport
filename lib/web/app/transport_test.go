@@ -23,9 +23,12 @@ import (
 	"crypto/x509/pkix"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -80,7 +83,8 @@ func Test_transport_rewriteRedirect(t *testing.T) {
 				caCert:      caCert,
 				clusterName: clusterName,
 			},
-			ws: createAppSession(t, clock, caKey, caCert, clusterName, clusterName),
+			ws:                    createAppSession(t, clock, caKey, caCert, clusterName, clusterName),
+			integrationAppHandler: &mockIntegrationAppHandler{},
 		}
 	}
 
@@ -224,9 +228,9 @@ func TestTransport_DialContextNoServersAvailable(t *testing.T) {
 			},
 			identity: &tlsca.Identity{},
 			servers: []types.AppServer{
-				&types.AppServerV3{},
-				&types.AppServerV3{},
-				&types.AppServerV3{},
+				&types.AppServerV3{Spec: types.AppServerSpecV3{App: &types.AppV3{}}},
+				&types.AppServerV3{Spec: types.AppServerSpecV3{App: &types.AppV3{}}},
+				&types.AppServerV3{Spec: types.AppServerSpecV3{App: &types.AppV3{}}},
 			},
 			log: utils.NewLoggerForTests(),
 		},
@@ -256,4 +260,92 @@ func TestTransport_DialContextNoServersAvailable(t *testing.T) {
 		require.Error(t, res.err)
 		require.Nil(t, res.conn)
 	}
+}
+
+type mockIntegrationAppHandler struct {
+	mu   sync.Mutex
+	conn net.Conn
+}
+
+func (m *mockIntegrationAppHandler) HandleConnection(conn net.Conn) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.conn = conn
+}
+
+func (m *mockIntegrationAppHandler) getConnection() net.Conn {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.conn
+}
+
+func Test_transport_with_integration(t *testing.T) {
+	rootCluster := "root.teleport.example.com"
+
+	caKey, caCert, err := tlsca.GenerateSelfSignedCA(
+		pkix.Name{CommonName: rootCluster},
+		[]string{rootCluster, apiutils.EncodeClusterName(rootCluster)},
+		defaults.CATTL,
+	)
+	require.NoError(t, err)
+
+	appName := "awsconsole"
+	awsApp, err := types.NewAppV3(types.Metadata{Name: appName},
+		types.AppSpecV3{
+			PublicAddr:  fmt.Sprintf("%v.%v", appName, rootCluster),
+			URI:         fmt.Sprintf("https://%v.internal.example.com:8888", appName),
+			Cloud:       types.CloudAWS,
+			Integration: "my-integration",
+		},
+	)
+	require.NoError(t, err)
+
+	awsAppServer, err := types.NewAppServerV3FromApp(awsApp, rootCluster, "awsconsole-server")
+	require.NoError(t, err)
+
+	clock := clockwork.NewFakeClock()
+
+	integrationAppHandler := &mockIntegrationAppHandler{}
+
+	appSession := createAppSession(t, clock, caKey, caCert, rootCluster, rootCluster)
+	tr, err := newTransport(&transportConfig{
+		clusterName: rootCluster,
+		identity: &tlsca.Identity{
+			RouteToApp: tlsca.RouteToApp{
+				ClusterName: rootCluster,
+				AWSRoleARN:  "MyAWSRole",
+			},
+		},
+		servers:      []types.AppServer{awsAppServer},
+		cipherSuites: utils.DefaultCipherSuites(),
+		proxyClient:  &mockProxyClient{},
+		accessPoint: &mockAuthClient{
+			caKey:       caKey,
+			caCert:      caCert,
+			clusterName: rootCluster,
+		},
+		ws:                    appSession,
+		integrationAppHandler: integrationAppHandler,
+	})
+	require.NoError(t, err)
+
+	conn, err := tr.DialContext(context.Background(), "", "")
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		return integrationAppHandler.getConnection() != nil
+	}, 100*time.Millisecond, 10*time.Millisecond)
+
+	message := "hello world"
+	messageSize := len(message)
+
+	go func() {
+		io.WriteString(conn, message)
+	}()
+
+	bs := make([]byte, messageSize)
+	_, err = io.ReadAtLeast(integrationAppHandler.getConnection(), bs, messageSize)
+	require.NoError(t, err)
+
+	require.Equal(t, message, string(bs))
 }

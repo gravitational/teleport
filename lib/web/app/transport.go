@@ -34,7 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -43,16 +43,27 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+// ServerHandler implements an interface which can handle a connection
+// (perform a handshake then process).
+type ServerHandler interface {
+	// HandleConnection performs a handshake then process the connection.
+	HandleConnection(conn net.Conn)
+}
+
 // transportConfig is configuration for a rewriting transport.
 type transportConfig struct {
 	proxyClient  reversetunnelclient.Tunnel
-	accessPoint  auth.ReadProxyAccessPoint
+	accessPoint  authclient.ReadProxyAccessPoint
 	cipherSuites []uint16
 	identity     *tlsca.Identity
 	servers      []types.AppServer
 	ws           types.WebSession
 	clusterName  string
 	log          logrus.FieldLogger
+
+	// integrationAppHandler is used to handle App proxy requests for Apps that are configured to use an Integration.
+	// Instead of proxying the connection to an AppService, the app is immediately proxied from the Proxy.
+	integrationAppHandler ServerHandler
 }
 
 // Check validates configuration.
@@ -77,6 +88,9 @@ func (c *transportConfig) Check() error {
 	}
 	if c.clusterName == "" {
 		return trace.BadParameter("cluster name missing")
+	}
+	if c.integrationAppHandler == nil {
+		return trace.BadParameter("integration app handler missing")
 	}
 
 	return nil
@@ -244,7 +258,14 @@ func (t *transport) DialContext(ctx context.Context, _, _ string) (conn net.Conn
 	var i int
 	for ; i < len(servers); i++ {
 		appServer := servers[i]
-		appServer.GetApp()
+
+		appIntegration := appServer.GetApp().GetIntegration()
+		if appIntegration != "" {
+			src, dst := net.Pipe()
+			go t.c.integrationAppHandler.HandleConnection(src)
+			return dst, nil
+		}
+
 		conn, err = dialAppServer(ctx, t.c.proxyClient, t.c.identity.RouteToApp.ClusterName, appServer)
 		if err != nil && isReverseTunnelDownError(err) {
 			t.c.log.WithFields(logrus.Fields{"app_server": appServer.GetName()}).

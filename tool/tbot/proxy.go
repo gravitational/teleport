@@ -19,6 +19,7 @@
 package main
 
 import (
+	"context"
 	"path/filepath"
 	"slices"
 
@@ -29,13 +30,11 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/tshwrap"
 )
 
-func onProxyCommand(botConfig *config.BotConfig, cf *config.CLIConf) error {
+func onProxyCommand(
+	ctx context.Context, botConfig *config.BotConfig, cf *config.CLIConf,
+) error {
 	wrapper, err := tshwrap.New()
 	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := tshwrap.CheckTSHSupported(wrapper); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -50,13 +49,10 @@ func onProxyCommand(botConfig *config.BotConfig, cf *config.CLIConf) error {
 	}
 
 	identityPath := filepath.Join(destination.Path, config.IdentityFilePath)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 
 	// TODO(timothyb89):  We could consider supporting a --cluster passthrough
 	//  here as in `tbot db ...`.
-	args := []string{"-i", identityPath, "proxy", "--proxy=" + cf.Proxy}
+	args := []string{"-i", identityPath, "proxy", "--proxy=" + cf.ProxyServer}
 	args = append(args, cf.RemainingArgs...)
 
 	// Pass through the debug flag, and prepend to satisfy argument ordering

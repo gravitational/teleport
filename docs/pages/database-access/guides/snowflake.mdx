@@ -3,7 +3,15 @@ title: Database Access with Snowflake
 description: How to configure Teleport database access with Snowflake.
 ---
 
-(!docs/pages/includes/database-access/db-introduction.mdx  dbType="Snowflake" dbConfigure="Snowflake database with key pair authentication" dbName="Snowflake" !)
+(!docs/pages/includes/database-access/db-introduction.mdx dbType="Snowflake" dbConfigure="with key pair authentication"!)
+
+## How it works
+
+The Teleport Database Service communicates with Snowflake using HTTP messages
+that contain JSON web tokens signed by the Teleport certificate authority for
+database clients. Snowflake is configured to trust the Teleport database client
+CA. When a user connects to Snowflake via Teleport, the Database Service
+forwards the user's requests to Snowflake as Teleport-authenticated messages.
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">

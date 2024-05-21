@@ -27,6 +27,21 @@ import (
 // PluginType represents the type of the plugin
 type PluginType string
 
+// AllPluginTypes is a list of all plugins known to Teleport.
+var AllPluginTypes = []PluginType{
+	PluginTypeServiceNow,
+	PluginTypeSlack,
+	PluginTypeOpenAI,
+	PluginTypeOkta,
+	PluginTypeJamf,
+	PluginTypeJira,
+	PluginTypeOpsgenie,
+	PluginTypePagerDuty,
+	PluginTypeMattermost,
+	PluginTypeDiscord,
+	PluginTypeSCIM,
+}
+
 const (
 	// PluginTypeUnknown is returned when no plugin type matches.
 	PluginTypeUnknown PluginType = ""
@@ -50,6 +65,10 @@ const (
 	PluginTypeMattermost = "mattermost"
 	// PluginTypeDiscord indicates the Discord access plugin
 	PluginTypeDiscord = "discord"
+	// PluginTypeGitlab indicates the Gitlab access plugin
+	PluginTypeGitlab = "gitlab"
+	// PluginTypeSCIM indicates a generic SCIM integration
+	PluginTypeSCIM = "scim"
 )
 
 // PluginSubkind represents the type of the plugin, e.g., access request, MDM etc.
@@ -62,6 +81,11 @@ const (
 	PluginSubkindMDM = "mdm"
 	// PluginSubkindAccess represents access request plugins collectively
 	PluginSubkindAccess = "access"
+	// PluginSubkindAccessGraph represents access graph plugins collectively
+	PluginSubkindAccessGraph = "accessgraph"
+	// PluginSubkindProvisioning represents plugins that create and manage
+	// Teleport users and/or other resources from an external source
+	PluginSubkindProvisioning = "provisioning"
 )
 
 // Plugin represents a plugin instance
@@ -263,7 +287,25 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if staticCreds == nil {
 			return trace.BadParameter("ServiceNow plugin must be used with the static credentials ref type")
 		}
+	case *PluginSpecV1_Gitlab:
+		if settings.Gitlab == nil {
+			return trace.BadParameter("missing Gitlab settings")
+		}
+		if err := settings.Gitlab.Validate(); err != nil {
+			return trace.Wrap(err)
+		}
 
+		staticCreds := p.Credentials.GetStaticCredentialsRef()
+		if staticCreds == nil {
+			return trace.BadParameter("Gitlab plugin must be used with the static credentials ref type")
+		}
+	case *PluginSpecV1_Scim:
+		if settings.Scim == nil {
+			return trace.BadParameter("Must be used with SCIM settings")
+		}
+		if err := settings.Scim.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
 	default:
 		return trace.BadParameter("settings are not set or have an unknown type")
 	}
@@ -422,6 +464,10 @@ func (p *PluginV1) GetType() PluginType {
 		return PluginTypeDiscord
 	case *PluginSpecV1_ServiceNow:
 		return PluginTypeServiceNow
+	case *PluginSpecV1_Gitlab:
+		return PluginTypeGitlab
+	case *PluginSpecV1_Scim:
+		return PluginTypeSCIM
 	default:
 		return PluginTypeUnknown
 	}
@@ -572,7 +618,28 @@ func (c *PluginOAuth2AccessTokenCredentials) CheckAndSetDefaults() error {
 	return nil
 }
 
+func (c *PluginSCIMSettings) CheckAndSetDefaults() error {
+	if c.DefaultRole == "" {
+		return trace.BadParameter("default_role must be set")
+	}
+
+	if c.SamlConnectorName == "" {
+		return trace.BadParameter("saml_connector_name must be set")
+	}
+
+	return nil
+}
+
 // GetCode returns the status code
 func (c PluginStatusV1) GetCode() PluginStatusCode {
 	return c.Code
+}
+
+// CheckAndSetDefaults checks that the required fields for the Gitlab plugin are set.
+func (c *PluginGitlabSettings) Validate() error {
+	if c.ApiEndpoint == "" {
+		return trace.BadParameter("API endpoint must be set")
+	}
+
+	return nil
 }

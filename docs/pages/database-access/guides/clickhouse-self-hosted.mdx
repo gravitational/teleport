@@ -6,6 +6,14 @@ description: How to configure Teleport database access with ClickHouse.
 The Teleport Clickhouse integration allows you to enroll ClickHouse databases
 with Teleport.
 
+This guide will help you to:
+
+- Install and configure a Teleport database agent.
+- Set up Teleport to access your self-hosted ClickHouse database.
+- Connect to your database through Teleport.
+
+## How it works
+
 The Teleport Database Service authenticates to ClickHouse using x509
 certificates, which are available for the ClickHouse HTTP and Native (TCP)
 [interfaces](https://clickhouse.com/docs/en/interfaces/overview). The Teleport
@@ -16,12 +24,6 @@ Service.
 Teleport audit logs for query activity are only supported for the ClickHouse
 HTTP interface. Teleport support for ClickHouse's native interfaces does not
 include audit logs for database query activity.
-
-This guide will help you to:
-
-- Install and configure a Teleport database agent.
-- Set up Teleport to access your self-hosted ClickHouse database.
-- Connect to your database through Teleport.
 
 <Tabs>
 <TabItem label="Self-Hosted">
@@ -51,6 +53,9 @@ choose:
 </TabItem>
 </Tabs>
 
+- Optional: a certificate authority that issues certificates for
+  your self-hosted database.
+
 ## Step 1/5. Create a Teleport token and user
 
 (!docs/pages/includes/database-access/token.mdx!)
@@ -59,22 +64,7 @@ choose:
 
 ## Step 2/5. Create a certificate/key pair
 
-(!docs/pages/includes/database-access/tctl-auth-sign.mdx!)
-
-Export Teleport's certificate authority and a generated certificate/key pair
-for host db.example.com with a 1-year validity period:
-
-```code
-$ tctl auth sign --format=db --host=clickhouse.example.com --out=server --ttl=8766h
-```
-
-(!docs/pages/includes/database-access/ttl-note.mdx!)
-
-This command will create three files:
-
-- `server.cas`: Teleport's certificate authority
-- `server.key`: a generated private key
-- `server.crt`: a generated host certificate
+(!docs/pages/includes/database-access/tctl-auth-sign-3-files.mdx!)
 
 ## Step 3/5. Configure ClickHouse
 
@@ -106,7 +96,9 @@ GRANT ALL ON *.* TO alice;
 ## Step 4/5. Configure and start the Database Service
 
 Install and configure Teleport on the host or Kubernetes cluster where you will
-run the Teleport Database Service:
+run the Teleport Database Service. Assign <Var name="protocol" /> to
+`clickhouse-http` for the HTTP protocol and `clickhouse` for the native
+ClickHouse protocol:
 
 <Tabs>
 <TabItem label="Linux Server">
@@ -119,94 +111,148 @@ you're running multiple services add `--output=stdout` to print the config in
 your terminal, and manually adjust `/etc/teleport.yaml`.
 </Admonition>
 
+{/* Inlining docs/pages/includes/database-access/self-hosted-config-start.mdx
+so we can use the Var component for the protocol.*/}
+
 On the host where you will run the Teleport Database Service, start Teleport
 with the appropriate configuration.
 
-Generate a configuration file at `/etc/teleport.yaml` for the Database Service:
+Note that a single Teleport process can run multiple different services, for
+example multiple Database Service agents as well as the SSH Service or Application
+Service. The step below will overwrite an existing configuration file, so if
+you're running multiple services add `--output=stdout` to print the config in
+your terminal, and manually adjust `/etc/teleport.yaml`.
 
-<Tabs>
-<TabItem label="HTTP">
+Run the following command to generate a configuration file at
+`/etc/teleport.yaml` for the Database Service. Update 
+<Var name="teleport.example.com:443" /> to use the host and port of the Teleport Proxy
+Service:
 
 ```code
-$ teleport db configure create \
+$ sudo teleport db configure create \
    -o file \
    --token=/tmp/token \
-   --proxy=<Var name="teleport.example.com" description="Your Teleport Proxy Service or Teleport Cloud tenant address"/>:443 \
+   --proxy=<Var name="teleport.example.com:443" /> \
    --name=example-clickhouse \
-   --protocol=clickhouse-http \
+   --protocol=<Var name="protocol" /> \
    --uri=clickhouse.example.com:8443 \
-   --labels=env=dev
+   --labels=env=dev 
 ```
 
-</TabItem>
-<TabItem label="Native (TCP)">
+To configure the Teleport Database Service to trust a custom CA:
 
-```code
-$ teleport db configure create \
-   -o file \
-   --token=/tmp/token \
-   --proxy=<Var name="teleport.example.com" description="Your Teleport Proxy Service or Teleport Cloud tenant address"/>:443 \
-   --name=example-clickhouse \
-   --protocol=clickhouse \
-   --uri=clickhouse.example.com:9440 \
-   --labels=env=dev
-```
-</TabItem>
-</Tabs>
+1. Export a CA certificate for the custom CA and make it available at
+   `/var/lib/teleport/db.ca` on the Teleport Database Service host.
+
+1. Run a variation of the command above that uses the `--ca-cert-file`
+   flag. This configures the Teleport Database Service to use the CA certificate
+   at `db.ca` to verify traffic from the database:
+
+   ```code
+   $ sudo teleport db configure create \
+      -o file \
+      --token=/tmp/token \
+      --proxy=<Var name="teleport.example.com:443" /> \
+      --name=example-clickhouse \
+      --protocol=<Var name="protocol" /> \
+      --uri=clickhouse.example.com:8443 \
+      --ca-cert-file="/var/lib/teleport/db.ca" \
+      --labels=env=dev
+   ```
 
 (!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)
 
 </TabItem>
 <TabItem label="Kubernetes Cluster">
-  Teleport provides Helm charts for installing the Teleport Database Service in Kubernetes Clusters.
 
-  (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
+Teleport provides Helm charts for installing the Teleport Database Service in
+Kubernetes Clusters.
 
-Install the Teleport Kube Agent into your Kubernetes Cluster
-with the Teleport Database Service configuration.
+(!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
-<Tabs>
-<TabItem label="HTTP">
+{/* Inlining docs/pages/includes/database-access/self-hosted-db-helm-install.mdx
+so we can use the Var component for the protocol*/}
 
-```code
-$ JOIN_TOKEN=$(cat /tmp/token)
-$ helm install teleport-kube-agent teleport/teleport-kube-agent \
-  --create-namespace \
-  --namespace teleport-agent \
-  --set roles=db \
-  --set proxyAddr=<Var name="teleport.example.com" description="Your Teleport Proxy Service or Teleport Cloud tenant address"/>:443 \
-  --set authToken=${JOIN_TOKEN?} \
-  --set "databases[0].name=example-clickhouse" \
-  --set "databases[0].uri=clickhouse.example.com:8443" \
-  --set "databases[0].protocol=clickhouse-http" \
-  --set "labels.env=dev" \
-  --version (=teleport.version=)
+Install a Teleport agent into your Kubernetes Cluster with the Teleport Database
+Service configuration. 
+
+Create a file called `values.yaml` with the following content. Update <Var
+name="teleport.example.com:443" /> to use the host and port of the Teleport Proxy
+Service and <Var name="JOIN_TOKEN" /> to the join token you created earlier:
+
+```yaml
+roles: db
+proxyAddr: <Var name="teleport.example.com:443" />
+# Set to false if using Teleport Community Edition
+enterprise: true
+authToken: <Var name="JOIN_TOKEN" />
+databases:
+  - name: example-clickhouse
+    uri: clickhouse.example.com:8443
+    protocol: <Var name="protocol" />
+labels:
+  env: dev
 ```
 
-</TabItem>
-<TabItem label="Native (TCP)">
+To configure the Teleport Database Service to trust a custom CA:
+
+1. Export a CA certificate for the custom CA and make it available at `db.ca` on
+   your workstation.
+
+1. Create a secret containing the database CA certificate in the same namespace
+   as Teleport using the following command:
+
+   ```code
+   $ kubectl create secret generic db-ca --from-file=ca.pem=/path/to/db.ca
+   ```
+
+1. Add the following to `values.yaml`:
+
+  ```diff
+    roles: db
+    proxyAddr: <Var name="teleport.example.com:443" />
+    # Set to false if using Teleport Community Edition
+    enterprise: true
+    authToken: <Var name="JOIN_TOKEN" />
+    databases:
+      - name: example-clickhouse
+        uri: clickhouse.example.com:8443
+        protocol: <Var name="protocol" />
+  +     tls:
+  +       ca_cert_file: "/etc/teleport-tls-db/db-ca/ca.pem"
+    labels:
+      env: dev
+  + extraVolumes:
+  +   - name: db-ca
+  +     secret:
+  +       secretName: db-ca
+  + extraVolumeMounts:
+  +   - name: db-ca
+  +     mountPath: /etc/teleport-tls-db/db-ca
+  +     readOnly: true
+  ```
+
+Install the chart:
 
 ```code
-$ JOIN_TOKEN=$(cat /tmp/token)
 $ helm install teleport-kube-agent teleport/teleport-kube-agent \
   --create-namespace \
   --namespace teleport-agent \
-  --set roles=db \
-  --set proxyAddr=<Var name="teleport.example.com" description="Your Teleport Proxy Service or Teleport Cloud tenant address"/>:443 \
-  --set authToken=${JOIN_TOKEN?} \
-  --set "databases[0].name=example-clickhouse" \
-  --set "databases[0].uri=clickhouse.example.com:9440" \
-  --set "databases[0].protocol=clickhouse" \
-  --set "labels.env=dev" \
-  --version (=teleport.version=)
+  --version (=teleport.version=) \
+  -f values.yaml
+```
+
+Make sure that the Teleport agent pod is running. You should see one
+`teleport-kube-agent` pod with a single ready container:
+
+```code
+$ kubectl -n teleport-agent get pods
+NAME                    READY   STATUS    RESTARTS   AGE
+teleport-kube-agent-0   1/1     Running   0          32s
 ```
 
 </TabItem>
 </Tabs>
-
-</TabItem>
-</Tabs>
-
 
 (!docs/pages/includes/database-access/multiple-instances-tip.mdx !)
 

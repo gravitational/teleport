@@ -497,6 +497,15 @@ enum ProductType {
   PRODUCT_TYPE_EUB = 2;
 }
 
+// SupportType if the type of support offered.
+enum SupportType {
+  SUPPORT_TYPE_UNSPECIFIED = 0;
+  // SUPPORT_TYPE_FREE is the free tier support
+  SUPPORT_TYPE_FREE = 1;
+  // SUPPORT_TYPE_PREMIUM is the premium tier support
+  SUPPORT_TYPE_PREMIUM = 2;
+}
+
 // Features are auth server features.
 message Features {
   // Kubernetes enables Kubernetes Access product
@@ -568,6 +577,18 @@ message Features {
   // Policy enables the Teleport Policy feature set.
   // At the time of writing, this includes Teleport Access Graph (TAG).
   PolicyFeature Policy = 28 [(gogoproto.jsontag) = "policy,omitempty"];
+  // Questionnaire indicates whether cluster users should get an onboarding questionnaire
+  bool Questionnaire = 29 [(gogoproto.jsontag) = "questionnaire,omitempty"];
+  // IsStripeManaged indicates if the cluster billing is managed via Stripe
+  bool IsStripeManaged = 30 [(gogoproto.jsontag) = "is_stripe_managed,omitempty"];
+  // ExternalAuditStorage indicates whether the EAS feature is enabled in the cluster.
+  bool ExternalAuditStorage = 31 [(gogoproto.jsontag) = "external_audit_storage,omitempty"];
+  // SupportType indicates the type of the customer's support
+  SupportType SupportType = 32 [(gogoproto.jsontag) = "support_type,omitempty"];
+  // JoinActiveSessions indicates whether joining active sessions via web UI is enabled
+  bool JoinActiveSessions = 33 [(gogoproto.jsontag) = "join_active_sessions,omitempty"];
+  // MobileDeviceManagement indicates whether endpoint management (like Jamf Plugin) can be used in the cluster
+  bool MobileDeviceManagement = 34 [(gogoproto.jsontag) = "mobile_device_management,omitempty"];
 }
 
 // DeviceTrustFeature holds the Device Trust feature general and usage-based
@@ -1085,6 +1106,9 @@ message ListRolesRequest {
   // If the previous response had LastKey set then this should be
   // set to its value. Otherwise leave empty.
   string StartKey = 2;
+
+  // Filter matches roles.
+  types.RoleFilter Filter = 3;
 }
 
 // ListRolesResponse is a page of roles.
@@ -1953,6 +1977,9 @@ message PaginatedResource {
     types.AppServerOrSAMLIdPServiceProviderV1 AppServerOrSAMLIdPServiceProvider = 11;
   }
 
+  // Logins allowed for the included resource. Only to be populated for SSH and Desktops.
+  repeated string Logins = 13 [(gogoproto.jsontag) = "logins,omitempty"];
+
   reserved 4;
   reserved "KubeService";
 }
@@ -1993,6 +2020,9 @@ message ListUnifiedResourcesRequest {
   // PinnedOnly indicates that the request will pull only the pinned resources
   // of the requesting user
   bool PinnedOnly = 11 [(gogoproto.jsontag) = "pinned_only,omitempty"];
+  // IncludeLogins indicates that the response should include a users allowed logins
+  // for all returned resources.
+  bool IncludeLogins = 12 [(gogoproto.jsontag) = "include_logins,omitempty"];
 }
 
 // ListUnifiedResourceResponse response of ListUnifiedResources.
@@ -2052,6 +2082,9 @@ message ListResourcesRequest {
   // UsePreviewAsRoles indicates that the response should include all resources
   // the caller would be able to access with their preview_as_roles
   bool UsePreviewAsRoles = 12 [(gogoproto.jsontag) = "use_preview_as_roles,omitempty"];
+  // IncludeLogins indicates that the response should include a users allowed logins
+  // for all returned resources.
+  bool IncludeLogins = 13 [(gogoproto.jsontag) = "include_logins,omitempty"];
 }
 
 // GetSSHTargetsRequest gets all servers that might match an equivalent ssh dial request.
@@ -2386,6 +2419,8 @@ message InventoryHeartbeat {
   // we should be able to cut down on network usage fairly significantly by moving static values
   // to the hello message and only heartbeating dynamic values here).
   types.ServerV2 SSHServer = 1;
+  // AppServer is a complete app server spec to be heartbeated.
+  types.AppServerV3 AppServer = 2;
 }
 
 // InventoryStatusRequest requests inventory status info.
@@ -2565,6 +2600,54 @@ message ExportUpgradeWindowsResponse {
   string SystemdUnitSchedule = 3;
 }
 
+// AccessRequestSort determines access request sort index.
+enum AccessRequestSort {
+  // DEFAULT sorts access requests by their native backend index. this is currently equivalent
+  // to sorting by request ID, but that is subject to change.
+  DEFAULT = 0;
+
+  // CREATED sorts access requests by creation time (this is the sort index typically used in
+  // user interfaces since most users are looking for recently-created requests).
+  CREATED = 1;
+
+  // STATE sorts access requests by their state (PENDING, APPROVED, etc).
+  STATE = 2;
+
+  // USER sorts access requests by their creator's teleport username
+  USER = 3;
+}
+
+// ListAccessRequestsRequest encodes the parameters for a paginated access request lookup.
+message ListAccessRequestsRequest {
+  // Filter matches access requests.
+  types.AccessRequestFilter Filter = 1;
+
+  // Sort determines the sort order of returned access requests.
+  AccessRequestSort Sort = 2;
+
+  // Descending requests descending sort order if true (teleport APIs generally always
+  // defaults to ascending sort order since that is the native sort order used in the
+  // teleport backend).
+  bool Descending = 3;
+
+  // Limit is the maximum amount of requests per page.
+  int32 Limit = 4;
+
+  // StartKey is used to resume a query in order to enable pagination.
+  // If the previous response had NextKey set then this should be
+  // set to its value. Otherwise leave empty.
+  string StartKey = 5;
+}
+
+// ListAccessRequestsResponse is a page of access requests.
+message ListAccessRequestsResponse {
+  // AccessRequests is a page of access requests.
+  repeated types.AccessRequestV3 AccessRequests = 1;
+
+  // NextKey will serve as the StartKey for the next page of requests.
+  string NextKey = 2;
+}
+
 // AccessRequestAllowedPromotionRequest is the request to AccessRequestAllowedPromotion RPC call.
 message AccessRequestAllowedPromotionRequest {
   // AccessRequest is the access request to get promotions for.
@@ -2664,6 +2747,10 @@ service AuthService {
 
   // GetAccessRequestsV2 gets all pending access requests.
   rpc GetAccessRequestsV2(types.AccessRequestFilter) returns (stream types.AccessRequestV3);
+
+  // ListAccessRequests gets access requests with pagination and sorting.
+  rpc ListAccessRequests(ListAccessRequestsRequest) returns (ListAccessRequestsResponse);
+
   // CreateAccessRequest creates a new access request.
   // Deprecated: use CreateAccessRequestV2 instead.
   // DELETE IN v15.0.0.
@@ -2695,6 +2782,8 @@ service AuthService {
   rpc GetResetPasswordToken(GetResetPasswordTokenRequest) returns (types.UserTokenV3);
   // CreateResetPasswordToken resets users current password and second factors and creates a reset
   // password token.
+  //
+  // Only local users may be reset.
   rpc CreateResetPasswordToken(CreateResetPasswordTokenRequest) returns (types.UserTokenV3);
 
   // CreateBot creates a new bot user.
@@ -2756,6 +2845,8 @@ service AuthService {
     option deprecated = true;
   }
   // ChangePassword allows a user to change their own password.
+  //
+  // Only local users may change their password.
   rpc ChangePassword(ChangePasswordRequest) returns (google.protobuf.Empty);
 
   // AcquireSemaphore acquires lease with requested resources from semaphore.
@@ -3062,25 +3153,52 @@ service AuthService {
   rpc GetClusterAuditConfig(google.protobuf.Empty) returns (types.ClusterAuditConfigV2);
 
   // GetClusterNetworkingConfig gets cluster networking configuration.
-  rpc GetClusterNetworkingConfig(google.protobuf.Empty) returns (types.ClusterNetworkingConfigV2);
+  // Deprecated: Use clusterconfigv1.Service.GetClusterNetworkingConfig instead.
+  rpc GetClusterNetworkingConfig(google.protobuf.Empty) returns (types.ClusterNetworkingConfigV2) {
+    option deprecated = true;
+  }
   // SetClusterNetworkingConfig sets cluster networking configuration.
-  rpc SetClusterNetworkingConfig(types.ClusterNetworkingConfigV2) returns (google.protobuf.Empty);
+  // Deprecated: Use clusterconfigv1.Service.Update/UpsertClusterNetworkingConfig instead.
+  rpc SetClusterNetworkingConfig(types.ClusterNetworkingConfigV2) returns (google.protobuf.Empty) {
+    option deprecated = true;
+  }
   // ResetClusterNetworkingConfig resets cluster networking configuration to defaults.
-  rpc ResetClusterNetworkingConfig(google.protobuf.Empty) returns (google.protobuf.Empty);
+  // Deprecated: Use clusterconfigv1.Service.ResetClusterNetworkingConfig instead.
+  rpc ResetClusterNetworkingConfig(google.protobuf.Empty) returns (google.protobuf.Empty) {
+    option deprecated = true;
+  }
 
   // GetSessionRecordingConfig gets session recording configuration.
-  rpc GetSessionRecordingConfig(google.protobuf.Empty) returns (types.SessionRecordingConfigV2);
+  // Deprecated: Use clusterconfigv1.Service.GetSessionRecordingConfig instead.
+  rpc GetSessionRecordingConfig(google.protobuf.Empty) returns (types.SessionRecordingConfigV2) {
+    option deprecated = true;
+  }
   // SetSessionRecordingConfig sets session recording configuration.
-  rpc SetSessionRecordingConfig(types.SessionRecordingConfigV2) returns (google.protobuf.Empty);
+  // Deprecated: Use clusterconfigv1.Service.Upsert/UpdateSessionRecordingConfig instead.
+  rpc SetSessionRecordingConfig(types.SessionRecordingConfigV2) returns (google.protobuf.Empty) {
+    option deprecated = true;
+  }
   // ResetSessionRecordingConfig resets session recording configuration to defaults.
-  rpc ResetSessionRecordingConfig(google.protobuf.Empty) returns (google.protobuf.Empty);
+  // Deprecated: Use clusterconfigv1.Service.ResetSessionRecordingConfig instead.
+  rpc ResetSessionRecordingConfig(google.protobuf.Empty) returns (google.protobuf.Empty) {
+    option deprecated = true;
+  }
 
   // GetAuthPreference gets cluster auth preference.
-  rpc GetAuthPreference(google.protobuf.Empty) returns (types.AuthPreferenceV2);
+  // Deprecated: Use clusterconfigv1.Service.GetAuthPreference instead.
+  rpc GetAuthPreference(google.protobuf.Empty) returns (types.AuthPreferenceV2) {
+    option deprecated = true;
+  }
   // SetAuthPreference sets cluster auth preference.
-  rpc SetAuthPreference(types.AuthPreferenceV2) returns (google.protobuf.Empty);
+  // Deprecated: Use clusterconfigv1.Service.Create/Update/UpsertAuthPreference instead.
+  rpc SetAuthPreference(types.AuthPreferenceV2) returns (google.protobuf.Empty) {
+    option deprecated = true;
+  }
   // ResetAuthPreference resets cluster auth preference to defaults.
-  rpc ResetAuthPreference(google.protobuf.Empty) returns (google.protobuf.Empty);
+  // Deprecated: Use clusterconfigv1.Service.ResetAuthPreference instead.
+  rpc ResetAuthPreference(google.protobuf.Empty) returns (google.protobuf.Empty) {
+    option deprecated = true;
+  }
 
   // GetUIConfig gets the configuration for the UI served by the proxy service
   rpc GetUIConfig(google.protobuf.Empty) returns (types.UIConfigV1);
@@ -3198,6 +3316,8 @@ service AuthService {
   // also adds a new MFA device. After successful invocation, a new web session is created as well
   // as a new set of recovery codes (if user meets the requirements to receive them), invalidating
   // any existing codes the user previously had.
+  //
+  // Only local users may be targeted by this RPC.
   rpc ChangeUserAuthentication(ChangeUserAuthenticationRequest) returns (ChangeUserAuthenticationResponse);
 
   // StartAccountRecovery (exclusive to cloud users) is the first out of two step user
@@ -3211,6 +3331,8 @@ service AuthService {
   // user account gets temporarily locked from further recovery attempts and from logging in.
   //
   // Start tokens last RecoveryStartTokenTTL.
+  //
+  // Only local users may perform account recovery
   rpc StartAccountRecovery(StartAccountRecoveryRequest) returns (types.UserTokenV3);
   // VerifyAccountRecovery (exclusive to cloud users) is the second step of the two step
   // verification needed to allow a user to recover their account, after RPC StartAccountRecovery.

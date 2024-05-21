@@ -49,9 +49,12 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
+	dbobjectpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev12 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	discoveryconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
@@ -68,9 +71,13 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/assist/assistv1"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
+	"github.com/gravitational/teleport/lib/auth/dbobject/dbobjectv1"
 	"github.com/gravitational/teleport/lib/auth/dbobjectimportrule/dbobjectimportrulev1"
 	"github.com/gravitational/teleport/lib/auth/discoveryconfig/discoveryconfigv1"
 	integrationService "github.com/gravitational/teleport/lib/auth/integration/integrationv1"
+	kubewaitingcontainerv1 "github.com/gravitational/teleport/lib/auth/kubewaitingcontainer"
 	"github.com/gravitational/teleport/lib/auth/loginrule"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/okta"
@@ -192,6 +199,17 @@ func (g *GRPCServer) EmitAuditEvent(ctx context.Context, req *apievents.OneOf) (
 	return &emptypb.Empty{}, nil
 }
 
+var (
+	connectedResourceGauges = map[string]prometheus.Gauge{
+		constants.KeepAliveNode:                  connectedResources.WithLabelValues(constants.KeepAliveNode),
+		constants.KeepAliveKube:                  connectedResources.WithLabelValues(constants.KeepAliveKube),
+		constants.KeepAliveApp:                   connectedResources.WithLabelValues(constants.KeepAliveApp),
+		constants.KeepAliveDatabase:              connectedResources.WithLabelValues(constants.KeepAliveDatabase),
+		constants.KeepAliveDatabaseService:       connectedResources.WithLabelValues(constants.KeepAliveDatabaseService),
+		constants.KeepAliveWindowsDesktopService: connectedResources.WithLabelValues(constants.KeepAliveWindowsDesktopService),
+	}
+)
+
 // SendKeepAlives allows node to send a stream of keep alive requests
 func (g *GRPCServer) SendKeepAlives(stream authpb.AuthService_SendKeepAlivesServer) error {
 	defer stream.SendAndClose(&emptypb.Empty{})
@@ -204,11 +222,11 @@ func (g *GRPCServer) SendKeepAlives(stream authpb.AuthService_SendKeepAlivesServ
 		}
 		keepAlive, err := stream.Recv()
 		if errors.Is(err, io.EOF) {
-			g.Debugf("Connection closed.")
+			g.Logger.Debug("Connection closed.")
 			return nil
 		}
 		if err != nil {
-			g.Debugf("Failed to receive heartbeat: %v", err)
+			g.Logger.Debugf("Failed to receive heartbeat: %v", err)
 			return trace.Wrap(err)
 		}
 		err = auth.KeepAliveServer(stream.Context(), *keepAlive)
@@ -216,10 +234,17 @@ func (g *GRPCServer) SendKeepAlives(stream authpb.AuthService_SendKeepAlivesServ
 			return trace.Wrap(err)
 		}
 		if firstIteration {
-			g.Debugf("Got heartbeat connection from %v.", auth.User.GetName())
+			g.Logger.Debugf("Got %s heartbeat connection from %v.", keepAlive.GetType(), auth.User.GetName())
 			heartbeatConnectionsReceived.Inc()
-			connectedResources.WithLabelValues(keepAlive.GetType()).Inc()
-			defer connectedResources.WithLabelValues(keepAlive.GetType()).Dec()
+
+			metric, ok := connectedResourceGauges[keepAlive.GetType()]
+			if ok {
+				metric.Inc()
+				defer metric.Dec()
+			} else {
+				g.Logger.Warnf("missing connected resources gauge for keep alive %s (this is a bug)", keepAlive.GetType())
+			}
+
 			firstIteration = false
 		}
 	}
@@ -335,9 +360,6 @@ func (g *GRPCServer) CreateAuditStream(stream authpb.AuthService_CreateAuditStre
 				}
 			}
 			g.Debugf("Completed stream for session %v", sessionID)
-			if err != nil {
-				return trace.Wrap(err)
-			}
 			return nil
 		} else if flushAndClose := request.GetFlushAndCloseStream(); flushAndClose != nil {
 			if eventStream == nil {
@@ -747,6 +769,7 @@ func (g *GRPCServer) GenerateOpenSSHCert(ctx context.Context, req *authpb.OpenSS
 // purposes. When new services switch to using control-stream based heartbeats, they should be added here.
 var icsServiceToMetricName = map[types.SystemRole]string{
 	types.RoleNode: constants.KeepAliveNode,
+	types.RoleApp:  constants.KeepAliveApp,
 }
 
 func (g *GRPCServer) InventoryControlStream(stream authpb.AuthService_InventoryControlStreamServer) error {
@@ -779,16 +802,6 @@ func (g *GRPCServer) InventoryControlStream(stream authpb.AuthService_InventoryC
 
 	// the heartbeatConnectionsReceived metric counts individual services as individual connections.
 	heartbeatConnectionsReceived.Add(float64(len(metricServices)))
-
-	for _, service := range metricServices {
-		connectedResources.WithLabelValues(service).Inc()
-	}
-
-	defer func() {
-		for _, service := range metricServices {
-			connectedResources.WithLabelValues(service).Dec()
-		}
-	}()
 
 	// hold open the stream until it completes
 	<-ics.Done()
@@ -1039,6 +1052,17 @@ func (g *GRPCServer) GetAccessRequestsV2(f *types.AccessRequestFilter, stream au
 	return nil
 }
 
+func (g *GRPCServer) ListAccessRequests(ctx context.Context, req *authpb.ListAccessRequestsRequest) (*authpb.ListAccessRequestsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rsp, err := auth.ServerWithRoles.ListAccessRequests(ctx, req)
+
+	return rsp, trace.Wrap(err)
+}
+
 func (g *GRPCServer) CreateAccessRequest(ctx context.Context, req *types.AccessRequestV3) (*emptypb.Empty, error) {
 	return nil, trace.NotImplemented("access request creation API has changed, please update your client to v14 or newer")
 }
@@ -1169,7 +1193,7 @@ func (g *GRPCServer) CreateResetPasswordToken(ctx context.Context, req *authpb.C
 		req = &authpb.CreateResetPasswordTokenRequest{}
 	}
 
-	token, err := auth.CreateResetPasswordToken(ctx, CreateUserTokenRequest{
+	token, err := auth.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 		Name: req.Name,
 		TTL:  time.Duration(req.TTL),
 		Type: req.Type,
@@ -2945,10 +2969,6 @@ func isLocalProxyCertReq(req *authpb.UserCertsRequest) bool {
 			req.RequesterName == authpb.UserCertsRequest_TSH_KUBE_LOCAL_PROXY)
 }
 
-// ErrNoMFADevices is returned when an MFA ceremony is performed without possible devices to
-// complete the challenge with.
-var ErrNoMFADevices = trace.AccessDenied("MFA is required to access this resource but user has no MFA devices; use 'tsh mfa add' to register MFA devices")
-
 func userSingleUseCertsAuthChallenge(gctx *grpcContext, stream authpb.AuthService_GenerateUserSingleUseCertsServer, mfaRequired authpb.MFARequired) (*types.MFADevice, error) {
 	ctx := stream.Context()
 	auth := gctx.authServer
@@ -2960,7 +2980,7 @@ func userSingleUseCertsAuthChallenge(gctx *grpcContext, stream authpb.AuthServic
 		return nil, trace.Wrap(err)
 	}
 	if challenge.TOTP == nil && challenge.WebauthnChallenge == nil {
-		return nil, ErrNoMFADevices
+		return nil, trace.Wrap(authclient.ErrNoMFADevices)
 	}
 
 	challenge.MFARequired = mfaRequired
@@ -3921,6 +3941,7 @@ func (g *GRPCServer) GetAuthPreference(ctx context.Context, _ *emptypb.Empty) (*
 }
 
 // SetAuthPreference sets cluster auth preference.
+// Deprecated: Use Update/UpsertAuthPreference where appropriate.
 func (g *GRPCServer) SetAuthPreference(ctx context.Context, authPref *types.AuthPreferenceV2) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -5677,9 +5698,6 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		),
 		grpc.MaxConcurrentStreams(defaults.GRPCMaxConcurrentStreams),
 	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	usersService, err := usersv1.NewService(usersv1.ServiceConfig{
 		Authorizer: cfg.Authorizer,
@@ -5692,6 +5710,8 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	userspb.RegisterUsersServiceServer(server, usersService)
 
 	botService, err := machineidv1.NewBotService(machineidv1.BotServiceConfig{
 		Authorizer: cfg.Authorizer,
@@ -5728,10 +5748,19 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	machineidv1pb.RegisterWorkloadIdentityServiceServer(server, workloadIdentityService)
 
+	dbObjectService, err := dbobjectv1.NewDatabaseObjectService(dbobjectv1.DatabaseObjectServiceConfig{
+		Authorizer: cfg.Authorizer,
+		Backend:    cfg.AuthServer.Services,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating database object service")
+	}
+	dbobjectpb.RegisterDatabaseObjectServiceServer(server, dbObjectService)
+
 	authServer := &GRPCServer{
 		APIConfig: cfg.APIConfig,
 		Entry: logrus.WithFields(logrus.Fields{
-			trace.Component: teleport.Component(teleport.ComponentAuth, teleport.ComponentGRPC),
+			teleport.ComponentKey: teleport.Component(teleport.ComponentAuth, teleport.ComponentGRPC),
 		}),
 		server:       server,
 		usersService: usersService,
@@ -5843,7 +5872,34 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	userloginstatev1.RegisterUserLoginStateServiceServer(server, userLoginStateServer)
 
-	userspb.RegisterUsersServiceServer(server, usersService)
+	clusterConfigService, err := clusterconfigv1.NewService(clusterconfigv1.ServiceConfig{
+		Cache:      cfg.AuthServer.Cache,
+		Backend:    cfg.AuthServer.Services,
+		Authorizer: cfg.Authorizer,
+		Emitter:    cfg.Emitter,
+		AccessGraph: clusterconfigv1.AccessGraphConfig{
+			Enabled:  cfg.APIConfig.AccessGraph.Enabled,
+			CA:       cfg.APIConfig.AccessGraph.CA,
+			Address:  cfg.APIConfig.AccessGraph.Address,
+			Insecure: cfg.APIConfig.AccessGraph.Insecure,
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clusterconfigpb.RegisterClusterConfigServiceServer(server, clusterConfigService)
+
+	// Initialize and register the Kubernetes waiting container service.
+	kubeWaitingContsServer, err := kubewaitingcontainerv1.NewService(kubewaitingcontainerv1.ServiceConfig{
+		Authorizer: cfg.Authorizer,
+		Backend:    cfg.AuthServer.Services,
+		Cache:      cfg.AuthServer.Cache,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	kubewaitingcontainerpb.RegisterKubeWaitingContainersServiceServer(server, kubeWaitingContsServer)
 
 	// Only register the service if this is an open source build. Enterprise builds
 	// register the actual service via an auth plugin, if we register here then all

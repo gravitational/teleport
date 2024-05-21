@@ -36,14 +36,18 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	protobuf "google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/api/types/kubewaitingcontainer"
 	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/api/types/trait"
 	"github.com/gravitational/teleport/api/types/userloginstate"
@@ -109,6 +113,7 @@ type testPack struct {
 	userLoginStates         services.UserLoginStates
 	secReports              services.SecReports
 	accessLists             services.AccessLists
+	kubeWaitingContainers   services.KubeWaitingContainer
 }
 
 // testFuncs are functions to support testing an object in a cache.
@@ -221,19 +226,21 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	idService := local.NewTestIdentityService(p.backend)
+
 	p.trustS = local.NewCAService(p.backend)
 	p.clusterConfigS = clusterConfig
 	p.provisionerS = local.NewProvisioningService(p.backend)
 	p.eventsS = newProxyEvents(local.NewEventsService(p.backend), cfg.ignoreKinds)
 	p.presenceS = local.NewPresenceService(p.backend)
-	p.usersS = local.NewIdentityService(p.backend)
+	p.usersS = idService
 	p.accessS = local.NewAccessService(p.backend)
 	p.dynamicAccessS = local.NewDynamicAccessService(p.backend)
-	p.appSessionS = local.NewIdentityService(p.backend)
-	p.webSessionS = local.NewIdentityService(p.backend).WebSessions()
-	p.snowflakeSessionS = local.NewIdentityService(p.backend)
-	p.samlIdPSessionsS = local.NewIdentityService(p.backend)
-	p.webTokenS = local.NewIdentityService(p.backend).WebTokens()
+	p.appSessionS = idService
+	p.webSessionS = idService.WebSessions()
+	p.snowflakeSessionS = idService
+	p.samlIdPSessionsS = idService
+	p.webTokenS = idService.WebTokens()
 	p.restrictions = local.NewRestrictionsService(p.backend)
 	p.apps = local.NewAppService(p.backend)
 	p.kubernetes = local.NewKubernetesService(p.backend)
@@ -254,7 +261,7 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	}
 	p.okta = oktaSvc
 
-	igSvc, err := local.NewIntegrationsService(p.backend)
+	igSvc, err := local.NewIntegrationsService(p.backend, local.WithIntegrationsServiceCacheMode(true))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -283,6 +290,12 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 	p.accessLists = accessListsSvc
+
+	kubeWaitingContSvc, err := local.NewKubeWaitingContainerService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.kubeWaitingContainers = kubeWaitingContSvc
 
 	return p, nil
 }
@@ -325,6 +338,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		UserLoginStates:         p.userLoginStates,
 		SecReports:              p.secReports,
 		AccessLists:             p.accessLists,
+		KubeWaitingContainers:   p.kubeWaitingContainers,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -723,6 +737,7 @@ func TestCompletenessInit(t *testing.T) {
 			UserLoginStates:         p.userLoginStates,
 			SecReports:              p.secReports,
 			AccessLists:             p.accessLists,
+			KubeWaitingContainers:   p.kubeWaitingContainers,
 			MaxRetryPeriod:          200 * time.Millisecond,
 			EventsC:                 p.eventsC,
 		}))
@@ -795,6 +810,7 @@ func TestCompletenessReset(t *testing.T) {
 		UserLoginStates:         p.userLoginStates,
 		SecReports:              p.secReports,
 		AccessLists:             p.accessLists,
+		KubeWaitingContainers:   p.kubeWaitingContainers,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -979,6 +995,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		UserLoginStates:         p.userLoginStates,
 		SecReports:              p.secReports,
 		AccessLists:             p.accessLists,
+		KubeWaitingContainers:   p.kubeWaitingContainers,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		neverOK:                 true, // ensure reads are never healthy
@@ -1062,6 +1079,7 @@ func initStrategy(t *testing.T) {
 		UserLoginStates:         p.userLoginStates,
 		SecReports:              p.secReports,
 		AccessLists:             p.accessLists,
+		KubeWaitingContainers:   p.kubeWaitingContainers,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -1246,7 +1264,7 @@ func TestAuthPreference(t *testing.T) {
 		MessageOfTheDay: "test MOTD",
 	})
 	require.NoError(t, err)
-	err = p.clusterConfigS.SetAuthPreference(ctx, authPref)
+	authPref, err = p.clusterConfigS.UpsertAuthPreference(ctx, authPref)
 	require.NoError(t, err)
 
 	select {
@@ -1275,7 +1293,7 @@ func TestClusterNetworkingConfig(t *testing.T) {
 		ClientIdleTimeoutMessage: "test idle timeout message",
 	})
 	require.NoError(t, err)
-	err = p.clusterConfigS.SetClusterNetworkingConfig(ctx, netConfig)
+	_, err = p.clusterConfigS.UpsertClusterNetworkingConfig(ctx, netConfig)
 	require.NoError(t, err)
 
 	select {
@@ -1304,7 +1322,7 @@ func TestSessionRecordingConfig(t *testing.T) {
 		ProxyChecksHostKeys: types.NewBoolOption(true),
 	})
 	require.NoError(t, err)
-	err = p.clusterConfigS.SetSessionRecordingConfig(ctx, recConfig)
+	_, err = p.clusterConfigS.UpsertSessionRecordingConfig(ctx, recConfig)
 	require.NoError(t, err)
 
 	select {
@@ -2917,6 +2935,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindAccessList:              newAccessList(t, "access-list", clock),
 		types.KindAccessListMember:        newAccessListMember(t, "access-list", "member"),
 		types.KindAccessListReview:        newAccessListReview(t, "access-list", "review"),
+		types.KindKubeWaitingContainer:    newKubeWaitingContainer(t),
 	}
 
 	for name, cfg := range cases {
@@ -2934,7 +2953,23 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 				event, err := client.EventFromGRPC(protoEvent)
 				require.NoError(t, err)
 
-				require.Empty(t, cmp.Diff(resource, event.Resource))
+				// unwrap the RFD 153 resource if necessary
+				switch r := resource.(type) {
+				case types.Resource153Unwrapper:
+					eventResource, ok := event.Resource.(types.Resource153Unwrapper)
+					require.True(t, ok)
+
+					// if the resource is a protobuf message, pass an option so
+					// attempting to compare the messages does not result in a panic
+					switch r := r.Unwrap().(type) {
+					case protobuf.Message:
+						require.Empty(t, cmp.Diff(r, eventResource.Unwrap(), protocmp.Transform()))
+					default:
+						require.Empty(t, cmp.Diff(r, eventResource.Unwrap()))
+					}
+				default:
+					require.Empty(t, cmp.Diff(resource, event.Resource))
+				}
 			}
 		})
 	}
@@ -3136,8 +3171,10 @@ func newDiscoveryConfig(t *testing.T, name string) *discoveryconfig.DiscoveryCon
 		},
 	)
 	require.NoError(t, err)
+	discoveryConfig.Status.State = "DISCOVERY_CONFIG_STATE_UNSPECIFIED"
 	return discoveryConfig
 }
+
 func newAuditQuery(t *testing.T, name string) *secreports.AuditQuery {
 	t.Helper()
 
@@ -3331,6 +3368,23 @@ func newAccessListReview(t *testing.T, accessList, name string) *accesslist.Revi
 	require.NoError(t, err)
 
 	return review
+}
+
+func newKubeWaitingContainer(t *testing.T) types.Resource {
+	t.Helper()
+
+	waitingCont, err := kubewaitingcontainer.NewKubeWaitingContainer("container", &kubewaitingcontainerpb.KubernetesWaitingContainerSpec{
+		Username:      "user",
+		Cluster:       "cluster",
+		Namespace:     "namespace",
+		PodName:       "pod",
+		ContainerName: "container",
+		Patch:         []byte("patch"),
+		PatchType:     "application/json-patch+json",
+	})
+	require.NoError(t, err)
+
+	return types.Resource153ToLegacy(waitingCont)
 }
 
 func withKeepalive[T any](fn func(context.Context, T) (*types.KeepAlive, error)) func(context.Context, T) error {

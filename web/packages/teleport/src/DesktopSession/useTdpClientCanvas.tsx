@@ -20,6 +20,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { NotificationItem } from 'shared/components/Notification';
+import { debounce } from 'shared/utils/highbar';
 
 import { TdpClient, ButtonState, ScrollAxis } from 'teleport/lib/tdp';
 import {
@@ -88,15 +89,12 @@ export default function useTdpClientCanvas(props: Props) {
     setTdpClient(new TdpClient(addr));
   }, [clusterId, username, desktopName]);
 
-  const syncCanvasResolutionAndSize = (canvas: HTMLCanvasElement) => {
-    const { width, height } = getDisplaySize();
-
-    // Set a fixed canvas resolution and display size. This ensures
-    // that neither of these change when the user resizes the browser
-    // window. Instead, the canvas will remain the same size and the
-    // browser will add scrollbars if necessary. This is the behavior
-    // we want until https://github.com/gravitational/teleport/issues/9702
-    // is resolved.
+  /**
+   * Synchronize the canvas resolution and display size with the
+   * given ClientScreenSpec.
+   */
+  const syncCanvas = (canvas: HTMLCanvasElement, spec: ClientScreenSpec) => {
+    const { width, height } = spec;
     canvas.width = width;
     canvas.height = height;
     console.debug(`set canvas.width x canvas.height to ${width} x ${height}`);
@@ -114,7 +112,7 @@ export default function useTdpClientCanvas(props: Props) {
   ) => {
     // The first image fragment we see signals a successful TDP connection.
     if (!initialTdpConnectionSucceeded.current) {
-      syncCanvasResolutionAndSize(ctx.canvas);
+      syncCanvas(ctx.canvas, getDisplaySize());
       setTdpConnection({ status: 'success' });
       initialTdpConnectionSucceeded.current = true;
     }
@@ -128,7 +126,6 @@ export default function useTdpClientCanvas(props: Props) {
   ) => {
     // The first image fragment we see signals a successful TDP connection.
     if (!initialTdpConnectionSucceeded.current) {
-      syncCanvasResolutionAndSize(ctx.canvas);
       setTdpConnection({ status: 'success' });
       initialTdpConnectionSucceeded.current = true;
     }
@@ -141,15 +138,7 @@ export default function useTdpClientCanvas(props: Props) {
     canvas: HTMLCanvasElement,
     spec: ClientScreenSpec
   ) => {
-    const { width, height } = spec;
-    canvas.width = width;
-    canvas.height = height;
-    console.debug(`set canvas.width x canvas.height to ${width} x ${height}`);
-    canvas.style.width = `${width}px`;
-    canvas.style.height = `${height}px`;
-    console.debug(
-      `set canvas.style.width x canvas.style.height to ${width} x ${height}`
-    );
+    syncCanvas(canvas, spec);
   };
 
   // Default TdpClientEvent.TDP_CLIPBOARD_DATA handler.
@@ -282,6 +271,15 @@ export default function useTdpClientCanvas(props: Props) {
   // on the remote machine.
   const canvasOnContextMenu = () => false;
 
+  const windowOnResize = debounce(
+    (cli: TdpClient) => {
+      const spec = getDisplaySize();
+      cli.resize(spec);
+    },
+    250,
+    { trailing: true }
+  );
+
   const sendLocalClipboardToRemote = async (cli: TdpClient) => {
     if (await sysClipboardGuard(clipboardSharingState, 'read')) {
       navigator.clipboard.readText().then(text => {
@@ -317,6 +315,7 @@ export default function useTdpClientCanvas(props: Props) {
     canvasOnMouseUp,
     canvasOnMouseWheelScroll,
     canvasOnContextMenu,
+    windowOnResize,
   };
 }
 

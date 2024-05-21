@@ -20,6 +20,7 @@
 package servicecfg
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"net"
@@ -39,10 +40,10 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/plugin"
@@ -75,7 +76,7 @@ type Config struct {
 
 	// Identities is an optional list of pre-generated key pairs
 	// for teleport roles, this is helpful when server is preconfigured
-	Identities []*auth.Identity
+	Identities []*state.Identity
 
 	// AdvertiseIP is used to "publish" an alternative IP address or hostname this node
 	// can be reached on, if running behind NAT
@@ -143,7 +144,7 @@ type Config struct {
 	PIDFile string
 
 	// Trust is a service that manages certificate authorities
-	Trust services.Trust
+	Trust services.TrustInternal
 
 	// Presence service is a discovery and heartbeat tracker
 	Presence services.PresenceInternal
@@ -246,7 +247,7 @@ type Config struct {
 	AdditionalReadyEvents []string
 
 	// InstanceMetadataClient specifies the instance metadata client.
-	InstanceMetadataClient cloud.InstanceMetadata
+	InstanceMetadataClient imds.Client
 
 	// Testing is a group of properties that are used in tests.
 	Testing ConfigTesting
@@ -529,7 +530,7 @@ func ApplyDefaults(cfg *Config) {
 	hostname, err := os.Hostname()
 	if err != nil {
 		hostname = "localhost"
-		cfg.Log.Errorf("Failed to determine hostname: %v.", err)
+		cfg.Logger.ErrorContext(context.Background(), "Failed to determine hostname", "error", err)
 	}
 
 	// Global defaults.
@@ -552,7 +553,6 @@ func ApplyDefaults(cfg *Config) {
 	cfg.Auth.SessionRecordingConfig = types.DefaultSessionRecordingConfig()
 	cfg.Auth.Preference = types.DefaultAuthPreference()
 	defaults.ConfigureLimiter(&cfg.Auth.Limiter)
-	cfg.Auth.LicenseFile = filepath.Join(cfg.DataDir, defaults.LicenseFile)
 
 	cfg.Proxy.WebAddr = *defaults.ProxyWebListenAddr()
 	// Proxy service defaults.
@@ -711,7 +711,7 @@ func validateAuthOrProxyServices(cfg *Config) error {
 		if haveProxyServer {
 			port := cfg.ProxyServer.Port(0)
 			if port == defaults.AuthListenPort {
-				cfg.Log.Warnf("config: proxy_server is pointing to port %d, is this the auth server address?", defaults.AuthListenPort)
+				cfg.Logger.WarnContext(context.Background(), "config: proxy_server is pointing to port 3025, is this the auth server address?")
 			}
 		}
 
@@ -720,7 +720,7 @@ func validateAuthOrProxyServices(cfg *Config) error {
 			checkPorts := []int{defaults.HTTPListenPort, teleport.StandardHTTPSPort}
 			for _, port := range checkPorts {
 				if authServerPort == port {
-					cfg.Log.Warnf("config: auth_server is pointing to port %d, is this the proxy server address?", port)
+					cfg.Logger.WarnContext(context.Background(), "config: auth_server is pointing to port 3080 or 443, is this the proxy server address?")
 				}
 			}
 		}

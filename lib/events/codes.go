@@ -153,6 +153,14 @@ const (
 	DatabaseSessionMalformedPacketCode = "TDB06I"
 	// DatabaseSessionPermissionUpdateCode is the db.session.permissions.update event code.
 	DatabaseSessionPermissionUpdateCode = "TDB07I"
+	// DatabaseSessionUserCreateCode is the db.session.user.create event code.
+	DatabaseSessionUserCreateCode = "TDB08I"
+	// DatabaseSessionUserCreateFailureCode is the db.session.user.create event failure code.
+	DatabaseSessionUserCreateFailureCode = "TDB08W"
+	// DatabaseSessionUserDeactivateCode is the db.session.user.deactivate event code.
+	DatabaseSessionUserDeactivateCode = "TDB09I"
+	// DatabaseSessionUserDeactivateFailureCode is the db.session.user.deactivate event failure code.
+	DatabaseSessionUserDeactivateFailureCode = "TDB09W"
 
 	// PostgresParseCode is the db.session.postgres.statements.parse event code.
 	PostgresParseCode = "TPG00I"
@@ -412,8 +420,12 @@ const (
 
 	// BotJoinCode is the 'bot.join' event code.
 	BotJoinCode = "TJ001I"
+	// BotJoinFailureCode is the 'bot.join' event code for failures.
+	BotJoinFailureCode = "TJ001E"
 	// InstanceJoinCode is the 'node.join' event code.
 	InstanceJoinCode = "TJ002I"
+	// InstanceJoinFailureCode is the 'node.join' event code for failures.
+	InstanceJoinFailureCode = "TJ002E"
 
 	// BotCreateCode is the `bot.create` event code.
 	BotCreateCode = "TB001I"
@@ -579,6 +591,13 @@ const (
 	SPIFFESVIDIssuedSuccessCode = "TSPIFFE000I"
 	// SPIFFESVIDIssuedFailureCode is the SPIFFE SVID issued failure code.
 	SPIFFESVIDIssuedFailureCode = "TSPIFFE000E"
+
+	// AuthPreferenceUpdateCode is the auth preference updated event code.
+	AuthPreferenceUpdateCode = "TCAUTH001I"
+	// ClusterNetworkingConfigUpdateCode is the cluster networking config updated event code.
+	ClusterNetworkingConfigUpdateCode = "TCNET002I"
+	// SessionRecordingConfigUpdateCode is the session recording config updated event code.
+	SessionRecordingConfigUpdateCode = "TCREC003I"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode

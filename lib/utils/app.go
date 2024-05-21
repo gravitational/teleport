@@ -35,5 +35,11 @@ func AssembleAppFQDN(localClusterName string, localProxyDNSName string, appClust
 	if isLocalCluster && app.GetPublicAddr() != "" {
 		return app.GetPublicAddr()
 	}
-	return fmt.Sprintf("%v.%v", app.GetName(), localProxyDNSName)
+	return DefaultAppPublicAddr(app.GetName(), localProxyDNSName)
+}
+
+// DefaultAppPublicAddr returns the default publicAddr for an app.
+// Format: <appName>.<localProxyDNSName>
+func DefaultAppPublicAddr(appName, localProxyDNSName string) string {
+	return fmt.Sprintf("%v.%v", appName, localProxyDNSName)
 }

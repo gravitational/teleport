@@ -29,12 +29,11 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/subtle"
-	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"fmt"
 	"io"
-	"math"
+	"log/slog"
 	"math/big"
 	insecurerand "math/rand"
 	"os"
@@ -52,8 +51,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
+	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/maps"
 	"golang.org/x/time/rate"
@@ -78,6 +77,7 @@ import (
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/ai"
 	"github.com/gravitational/teleport/lib/ai/embedding"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/userloginstate"
@@ -110,6 +110,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/tpm"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
@@ -278,6 +279,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.DatabaseObjects == nil {
+		cfg.DatabaseObjects, err = local.NewDatabaseObjectService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 	if cfg.PluginData == nil {
 		cfg.PluginData = local.NewPluginData(cfg.Backend, cfg.DynamicAccessExt)
 	}
@@ -307,6 +314,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 	if cfg.CloudClients == nil {
 		cfg.CloudClients, err = cloud.NewClients()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	if cfg.Notifications == nil {
+		cfg.Notifications, err = local.NewNotificationsService(cfg.Backend, cfg.Clock)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -345,9 +358,23 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	if cfg.KubeWaitingContainers == nil {
+		cfg.KubeWaitingContainers, err = local.NewKubeWaitingContainerService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	if cfg.AccessMonitoringRules == nil {
+		cfg.AccessMonitoringRules, err = local.NewAccessMonitoringRulesService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	services := &Services{
-		Trust:                     cfg.Trust,
+		TrustInternal:             cfg.Trust,
 		PresenceInternal:          cfg.Presence,
 		Provisioner:               cfg.Provisioner,
 		Identity:                  cfg.Identity,
@@ -372,6 +399,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Okta:                      cfg.Okta,
 		AccessLists:               cfg.AccessLists,
 		DatabaseObjectImportRules: cfg.DatabaseObjectImportRules,
+		DatabaseObjects:           cfg.DatabaseObjects,
 		SecReports:                cfg.SecReports,
 		UserLoginStates:           cfg.UserLoginState,
 		StatusInternal:            cfg.Status,
@@ -379,6 +407,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Assistant:                 cfg.Assist,
 		UserPreferences:           cfg.UserPreferences,
 		PluginData:                cfg.PluginData,
+		KubeWaitingContainer:      cfg.KubeWaitingContainers,
+		Notifications:             cfg.Notifications,
+		AccessMonitoringRules:     cfg.AccessMonitoringRules,
 	}
 
 	as := Server{
@@ -405,7 +436,23 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		embedder:                cfg.EmbeddingClient,
 		accessMonitoringEnabled: cfg.AccessMonitoringEnabled,
 	}
-	as.inventory = inventory.NewController(&as, services, inventory.WithAuthServerID(cfg.HostUUID))
+	as.inventory = inventory.NewController(&as, services,
+		inventory.WithAuthServerID(cfg.HostUUID),
+		inventory.WithOnConnect(func(s string) {
+			if g, ok := connectedResourceGauges[s]; ok {
+				g.Inc()
+			} else {
+				log.Warnf("missing connected resources gauge for keep alive %s (this is a bug)", s)
+			}
+		}),
+		inventory.WithOnDisconnect(func(s string) {
+			if g, ok := connectedResourceGauges[s]; ok {
+				g.Dec()
+			} else {
+				log.Warnf("missing connected resources gauge for keep alive %s (this is a bug)", s)
+			}
+		}),
+	)
 	for _, o := range opts {
 		if err := o(&as); err != nil {
 			return nil, trace.Wrap(err)
@@ -462,6 +509,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			)
 		}
 	}
+	if as.tpmValidator == nil {
+		as.tpmValidator = tpm.Validate
+	}
 	if as.k8sTokenReviewValidator == nil {
 		as.k8sTokenReviewValidator = &kubernetestoken.TokenReviewValidator{}
 	}
@@ -499,7 +549,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 }
 
 type Services struct {
-	services.Trust
+	services.TrustInternal
 	services.PresenceInternal
 	services.Provisioner
 	services.Identity
@@ -523,16 +573,20 @@ type Services struct {
 	services.Okta
 	services.AccessLists
 	services.DatabaseObjectImportRules
+	services.DatabaseObjects
 	services.UserLoginStates
 	services.Assistant
 	services.Embeddings
 	services.UserPreferences
 	services.PluginData
 	services.SCIM
+	services.Notifications
 	usagereporter.UsageReporter
 	types.Events
 	events.AuditLogSessionStreamer
 	services.SecReports
+	services.KubeWaitingContainer
+	services.AccessMonitoringRules
 }
 
 // SecReportsClient returns the security reports client.
@@ -553,8 +607,8 @@ func (r *Services) GetWebToken(ctx context.Context, req types.GetWebTokenRequest
 }
 
 // GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
-func (r *Services) GenerateAWSOIDCToken(ctx context.Context) (string, error) {
-	return r.IntegrationsTokenGenerator.GenerateAWSOIDCToken(ctx)
+func (r *Services) GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error) {
+	return r.IntegrationsTokenGenerator.GenerateAWSOIDCToken(ctx, integration)
 }
 
 // OktaClient returns the okta client.
@@ -574,6 +628,11 @@ func (r *Services) AccessListClient() services.AccessLists {
 	return r
 }
 
+// AccessMonitoringRuleClient returns the access monitoring rules client.
+func (r *Services) AccessMonitoringRuleClient() services.AccessMonitoringRules {
+	return r
+}
+
 // DiscoveryConfigClient returns the DiscoveryConfig client.
 func (r *Services) DiscoveryConfigClient() services.DiscoveryConfigs {
 	return r
@@ -581,6 +640,12 @@ func (r *Services) DiscoveryConfigClient() services.DiscoveryConfigs {
 
 // UserLoginStateClient returns the user login state client.
 func (r *Services) UserLoginStateClient() services.UserLoginStates {
+	return r
+}
+
+// KubernetesWaitingContainerClient returns the Kubernetes waiting
+// container client.
+func (r *Services) KubernetesWaitingContainerClient() services.KubeWaitingContainer {
 	return r
 }
 
@@ -631,9 +696,12 @@ var (
 		prometheus.GaugeOpts{
 			Namespace: teleport.MetricNamespace,
 			Name:      teleport.MetricRegisteredServers,
-			Help:      "The number of Teleport services that are connected to an auth server by version.",
+			Help:      "The number of Teleport services that are connected to an auth server.",
 		},
-		[]string{teleport.TagVersion},
+		[]string{
+			teleport.TagVersion,
+			teleport.TagAutomaticUpdates,
+		},
 	)
 
 	registeredAgentsInstallMethod = prometheus.NewGaugeVec(
@@ -765,7 +833,7 @@ type Server struct {
 	// implements its methods), thus any implemented GetFoo method on both Cache
 	// and Services will call the one from Cache. To bypass the cache, call the
 	// method on Services instead.
-	Cache
+	authclient.Cache
 
 	// privateKey is used in tests to use pre-generated private keys
 	privateKey []byte
@@ -794,6 +862,16 @@ type Server struct {
 	// in a unified manner in the web UI.
 	UnifiedResourceCache *services.UnifiedResourceCache
 
+	// UserNotificationCache is a cache of user-specific notifications.
+	UserNotificationCache *services.UserNotificationCache
+
+	// GlobalNotificationCache is a cache of global notifications.
+	GlobalNotificationCache *services.GlobalNotificationCache
+
+	// AccessRequestCache is a cache of access requests that specifically provides
+	// custom sorting options not available via the standard backend.
+	AccessRequestCache *services.AccessRequestCache
+
 	inventory *inventory.Controller
 
 	// githubOrgSSOCache is used to cache whether Github organizations use
@@ -821,6 +899,12 @@ type Server struct {
 	// gitlabIDTokenValidator allows ID tokens from GitLab CI to be validated by
 	// the auth server. It can be overridden for the purpose of tests.
 	gitlabIDTokenValidator gitlabIDTokenValidator
+
+	// tpmValidator allows TPMs to be validated by the auth server. It can be
+	// overridden for the purpose of tests.
+	tpmValidator func(
+		ctx context.Context, log *slog.Logger, params tpm.ValidateParams,
+	) (*tpm.ValidatedTPM, error)
 
 	// circleCITokenValidate allows ID tokens from CircleCI to be validated by
 	// the auth server. It can be overridden for the purpose of tests.
@@ -868,6 +952,11 @@ type Server struct {
 
 	// ulsGenerator is the user login state generator.
 	ulsGenerator *userloginstate.Generator
+
+	// bcryptCostOverride overrides the bcrypt cost for operations executed
+	// directly by [Server].
+	// Used for testing.
+	bcryptCostOverride *int
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -970,6 +1059,27 @@ func (a *Server) SetUnifiedResourcesCache(unifiedResourcesCache *services.Unifie
 	a.UnifiedResourceCache = unifiedResourcesCache
 }
 
+// SetUserNotificationsCache sets the user notification cache.
+func (a *Server) SetUserNotificationCache(userNotificationCache *services.UserNotificationCache) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	a.UserNotificationCache = userNotificationCache
+}
+
+// SetGlobalNotificationsCache sets the global notification cache.
+func (a *Server) SetGlobalNotificationCache(globalNotificationCache *services.GlobalNotificationCache) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	a.GlobalNotificationCache = globalNotificationCache
+}
+
+// SetAccessRequestCache sets the access request cache.
+func (a *Server) SetAccessRequestCache(accessRequestCache *services.AccessRequestCache) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	a.AccessRequestCache = accessRequestCache
+}
+
 func (a *Server) SetLockWatcher(lockWatcher *services.LockWatcher) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
@@ -989,6 +1099,13 @@ func (a *Server) SetHeadlessAuthenticationWatcher(headlessAuthenticationWatcher 
 	a.lock.Lock()
 	defer a.lock.Unlock()
 	a.headlessAuthenticationWatcher = headlessAuthenticationWatcher
+}
+
+func (a *Server) bcryptCost() int {
+	if cost := a.bcryptCostOverride; cost != nil {
+		return *cost
+	}
+	return bcrypt.DefaultCost
 }
 
 // syncUpgradeWindowStartHour attempts to load the cloud UpgradeWindowStartHour value and set
@@ -1071,8 +1188,9 @@ func (a *Server) runPeriodicOperations() {
 		Jitter:   retryutils.NewSeventhJitter(),
 	})
 	promTicker := interval.New(interval.Config{
-		Duration: defaults.PrometheusScrapeInterval,
-		Jitter:   retryutils.NewSeventhJitter(),
+		FirstDuration: 5 * time.Second,
+		Duration:      defaults.PrometheusScrapeInterval,
+		Jitter:        retryutils.NewSeventhJitter(),
 	})
 	missedKeepAliveCount := 0
 	defer ticker.Stop()
@@ -1182,8 +1300,7 @@ func (a *Server) runPeriodicOperations() {
 			// Update prometheus gauge
 			heartbeatsMissedByAuth.Set(float64(missedKeepAliveCount))
 		case <-promTicker.Next():
-			a.updateVersionMetrics()
-			a.updateInstallMethodsMetrics()
+			a.updateAgentMetrics()
 		case <-releaseCheck.Next():
 			a.syncReleaseAlerts(ctx, true)
 		case <-localReleaseCheck.Next():
@@ -1253,8 +1370,6 @@ func (a *Server) doInstancePeriodics(ctx context.Context) {
 		log.Warnf("Failed stream instances for periodics: %v", err)
 		return
 	}
-
-	a.updateUpdaterVersionMetrics()
 
 	// create/delete upgrade enroll prompt as appropriate
 	enrollMsg, shouldPrompt := uep.GenerateEnrollPrompt()
@@ -1441,75 +1556,38 @@ func (a *Server) doReleaseAlertSync(ctx context.Context, current vc.Target, visi
 	}
 }
 
-// updateUpdaterVersionMetrics leverages the inventory control stream to report the
-// number of teleport updaters installed and their versions. To get an accurate representation
-// of versions in an entire cluster the metric must be aggregated with all auth instances.
-func (a *Server) updateUpdaterVersionMetrics() {
+func (a *Server) updateAgentMetrics() {
 	imp := newInstanceMetricsPeriodic()
 
-	// record versions for all connected resources
 	a.inventory.Iter(func(handle inventory.UpstreamHandle) {
-		imp.VisitInstance(handle.Hello())
+		imp.VisitInstance(handle.Hello(), handle.AgentMetadata())
 	})
 
 	totalInstancesMetric.Set(float64(imp.TotalInstances()))
 	enrolledInUpgradesMetric.Set(float64(imp.TotalEnrolledInUpgrades()))
 
 	// reset the gauges so that any versions that fall off are removed from exported metrics
-	upgraderCountsMetric.Reset()
-	for upgraderType, upgraderVersions := range imp.upgraderCounts {
-		for version, count := range upgraderVersions {
-			upgraderCountsMetric.With(prometheus.Labels{
-				teleport.TagUpgrader: upgraderType,
-				teleport.TagVersion:  version,
-			}).Set(float64(count))
-		}
-	}
-}
-
-// updateVersionMetrics leverages the inventory control stream to report the versions of
-// all instances that are connected to a single auth server via prometheus metrics. To
-// get an accurate representation of versions in an entire cluster the metric must be aggregated
-// with all auth instances.
-func (a *Server) updateVersionMetrics() {
-	versionCount := make(map[string]int)
-
-	// record versions for all connected resources
-	a.inventory.Iter(func(handle inventory.UpstreamHandle) {
-		versionCount[handle.Hello().Version]++
-	})
-
-	// reset the gauges so that any versions that fall off are removed from exported metrics
 	registeredAgents.Reset()
-	for version, count := range versionCount {
-		registeredAgents.WithLabelValues(version).Set(float64(count))
+	for agent, count := range imp.RegisteredAgentsCount() {
+		registeredAgents.With(prometheus.Labels{
+			teleport.TagVersion:          agent.version,
+			teleport.TagAutomaticUpdates: agent.automaticUpdates,
+		}).Set(float64(count))
 	}
-}
-
-// updateInstallMethodsMetrics leverages the inventory control stream to report the install methods
-// of all instances that are connected to a single auth server via prometheus metrics.
-// To get an accurate representation of install methods in an entire cluster the metric must be aggregated
-// with all auth instances.
-func (a *Server) updateInstallMethodsMetrics() {
-	installMethodCount := make(map[string]int)
-
-	// record install methods for all connected resources
-	a.inventory.Iter(func(handle inventory.UpstreamHandle) {
-		installMethod := "unknown"
-		installMethods := append([]string{}, handle.AgentMetadata().InstallMethods...)
-
-		if len(installMethods) > 0 {
-			slices.Sort(installMethods)
-			installMethod = strings.Join(installMethods, ",")
-		}
-
-		installMethodCount[installMethod]++
-	})
 
 	// reset the gauges so that any versions that fall off are removed from exported metrics
 	registeredAgentsInstallMethod.Reset()
-	for installMethod, count := range installMethodCount {
+	for installMethod, count := range imp.InstallMethodCounts() {
 		registeredAgentsInstallMethod.WithLabelValues(installMethod).Set(float64(count))
+	}
+
+	// reset the gauges so that any type+version that fall off are removed from exported metrics
+	upgraderCountsMetric.Reset()
+	for metadata, count := range imp.UpgraderCounts() {
+		upgraderCountsMetric.With(prometheus.Labels{
+			teleport.TagUpgrader: metadata.upgraderType,
+			teleport.TagVersion:  metadata.version,
+		}).Set(float64(count))
 	}
 }
 
@@ -1581,6 +1659,24 @@ func (a *Server) Close() error {
 
 	if a.bk != nil {
 		if err := a.bk.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	if a.UserNotificationCache != nil {
+		if err := a.UserNotificationCache.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	if a.GlobalNotificationCache != nil {
+		if err := a.GlobalNotificationCache.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	if a.AccessRequestCache != nil {
+		if err := a.AccessRequestCache.Close(); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -1949,12 +2045,33 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 	}
 	checker := services.NewAccessCheckerWithRoleSet(accessInfo, clusterName.GetClusterName(), roleSet)
 
+	sessionTTL := time.Duration(req.TTL)
+
+	// OpenSSH certs and their corresponding keys are held strictly by the proxy,
+	// so we can attest them as "web_session" to bypass Hardware Key support
+	// requirements that are unattainable from the Proxy.
+	sshPublicKey, _, _, _, err := ssh.ParseAuthorizedKey(req.PublicKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cryptoPublicKey, ok := sshPublicKey.(ssh.CryptoPublicKey)
+	if !ok {
+		return nil, trace.BadParameter("unsupported SSH public key type %q", sshPublicKey.Type())
+	}
+	webAttData, err := services.NewWebSessionAttestationData(cryptoPublicKey.CryptoPublicKey())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err = a.UpsertKeyAttestationData(ctx, webAttData, sessionTTL); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	certs, err := a.generateOpenSSHCert(ctx, certRequest{
 		user:            req.User,
 		publicKey:       req.PublicKey,
 		compatibility:   constants.CertificateFormatStandard,
 		checker:         checker,
-		ttl:             time.Duration(req.TTL),
+		ttl:             sessionTTL,
 		traits:          req.User.GetTraits(),
 		routeToCluster:  req.Cluster,
 		disallowReissue: true,
@@ -1970,13 +2087,14 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 
 // GenerateUserTestCertsRequest is a request to generate test certificates.
 type GenerateUserTestCertsRequest struct {
-	Key            []byte
-	Username       string
-	TTL            time.Duration
-	Compatibility  string
-	RouteToCluster string
-	PinnedIP       string
-	MFAVerified    string
+	Key                  []byte
+	Username             string
+	TTL                  time.Duration
+	Compatibility        string
+	RouteToCluster       string
+	PinnedIP             string
+	MFAVerified          string
+	AttestationStatement *keys.AttestationStatement
 }
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
@@ -1996,16 +2114,17 @@ func (a *Server) GenerateUserTestCerts(req GenerateUserTestCertsRequest) ([]byte
 		return nil, nil, trace.Wrap(err)
 	}
 	certs, err := a.generateUserCert(ctx, certRequest{
-		user:           userState,
-		ttl:            req.TTL,
-		compatibility:  req.Compatibility,
-		publicKey:      req.Key,
-		routeToCluster: req.RouteToCluster,
-		checker:        checker,
-		traits:         userState.GetTraits(),
-		loginIP:        req.PinnedIP,
-		pinIP:          req.PinnedIP != "",
-		mfaVerified:    req.MFAVerified,
+		user:                 userState,
+		ttl:                  req.TTL,
+		compatibility:        req.Compatibility,
+		publicKey:            req.Key,
+		routeToCluster:       req.RouteToCluster,
+		checker:              checker,
+		traits:               userState.GetTraits(),
+		loginIP:              req.PinnedIP,
+		pinIP:                req.PinnedIP != "",
+		mfaVerified:          req.MFAVerified,
+		attestationStatement: req.AttestationStatement,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -2349,12 +2468,13 @@ func (a *Server) AugmentContextUserCertificates(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	notAfter := x509Cert.NotAfter
 	newTLSCert, err := tlsCA.GenerateCertificate(tlsca.CertificateRequest{
 		Clock:     a.clock,
 		PublicKey: x509Cert.PublicKey,
 		Subject:   subj,
 		// Use the same expiration as the original cert.
-		NotAfter: x509Cert.NotAfter,
+		NotAfter: notAfter,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2372,7 +2492,7 @@ func (a *Server) AugmentContextUserCertificates(
 			ValidPrincipals: sshCert.ValidPrincipals,
 			ValidAfter:      uint64(validAfter.Unix()),
 			// Use the same expiration as the x509 cert.
-			ValidBefore: uint64(x509Cert.NotAfter.Unix()),
+			ValidBefore: uint64(notAfter.Unix()),
 			Permissions: sshCert.Permissions,
 		}
 		newSSHCert.Extensions[teleport.CertExtensionDeviceID] = dev.DeviceID
@@ -2383,6 +2503,9 @@ func (a *Server) AugmentContextUserCertificates(
 		}
 		newAuthorizedKey = ssh.MarshalAuthorizedKey(newSSHCert)
 	}
+
+	// Issue audit event on success, same as [Server.generateCert].
+	a.emitCertCreateEvent(ctx, &newIdentity, notAfter)
 
 	return &proto.Certs{
 		SSH: newAuthorizedKey,
@@ -2796,23 +2919,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		}
 	}
 
-	eventIdentity := identity.GetEventIdentity()
-	eventIdentity.Expires = notAfter
-	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.CertificateCreate{
-		Metadata: apievents.Metadata{
-			Type: events.CertificateCreateEvent,
-			Code: events.CertificateCreateCode,
-		},
-		CertificateType: events.CertificateTypeUser,
-		Identity:        &eventIdentity,
-		ClientMetadata: apievents.ClientMetadata{
-			//TODO(greedy52) currently only user-agent from GRPC clients are
-			//fetched. Need to propagate user-agent from HTTP calls.
-			UserAgent: trimUserAgent(metadata.UserAgentFromContext(ctx)),
-		},
-	}); err != nil {
-		log.WithError(err).Warn("Failed to emit certificate create event.")
-	}
+	a.emitCertCreateEvent(ctx, &identity, notAfter)
 
 	// create certs struct to return to user
 	certs := &proto.Certs{
@@ -2916,6 +3023,26 @@ func (a *Server) getSigningCAs(ctx context.Context, domainName string, caType ty
 	return tlsCA, sshSigner, ca, nil
 }
 
+func (a *Server) emitCertCreateEvent(ctx context.Context, identity *tlsca.Identity, notAfter time.Time) {
+	eventIdentity := identity.GetEventIdentity()
+	eventIdentity.Expires = notAfter
+	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.CertificateCreate{
+		Metadata: apievents.Metadata{
+			Type: events.CertificateCreateEvent,
+			Code: events.CertificateCreateCode,
+		},
+		CertificateType: events.CertificateTypeUser,
+		Identity:        &eventIdentity,
+		ClientMetadata: apievents.ClientMetadata{
+			// TODO(greedy52) currently only user-agent from GRPC clients are
+			// fetched. Need to propagate user-agent from HTTP calls.
+			UserAgent: trimUserAgent(metadata.UserAgentFromContext(ctx)),
+		},
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit certificate create event.")
+	}
+}
+
 // WithUserLock executes function authenticateFn that performs user authentication
 // if authenticateFn returns non nil error, the login attempt will be logged in as failed.
 // The only exception to this rule is ConnectionProblemError, in case if it occurs
@@ -2995,7 +3122,7 @@ func (a *Server) PreAuthenticatedSignIn(ctx context.Context, user string, identi
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sess, err := a.NewWebSession(ctx, types.NewWebSessionRequest{
+	sess, err := a.NewWebSession(ctx, NewWebSessionRequest{
 		User:                 user,
 		LoginIP:              identity.LoginIP,
 		Roles:                accessInfo.Roles,
@@ -3006,7 +3133,7 @@ func (a *Server) PreAuthenticatedSignIn(ctx context.Context, user string, identi
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := a.upsertWebSession(ctx, user, sess); err != nil {
+	if err := a.upsertWebSession(ctx, sess); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return sess.WithoutSecrets(), nil
@@ -3038,8 +3165,17 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 		username = req.GetUserCredentials().GetUsername()
 
 		if err := a.WithUserLock(ctx, username, func() error {
-			return a.checkPasswordWOToken(username, req.GetUserCredentials().GetPassword())
+			return a.checkPasswordWOToken(ctx, username, req.GetUserCredentials().GetPassword())
 		}); err != nil {
+			// This is only ever used as a means to acquire a login challenge, so
+			// let's issue an authentication failure event.
+			if err := a.emitAuthAuditEvent(ctx, authAuditProps{
+				username: username,
+				authErr:  err,
+			}); err != nil {
+				log.WithError(err).Warn("Failed to emit login event")
+				// err swallowed on purpose.
+			}
 			return nil, trace.Wrap(err)
 		}
 
@@ -3054,7 +3190,7 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 			return nil, trace.AccessDenied("invalid token")
 		}
 
-		if err := a.verifyUserToken(token, UserTokenTypeRecoveryStart); err != nil {
+		if err := a.verifyUserToken(token, authclient.UserTokenTypeRecoveryStart); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -3080,9 +3216,15 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 
 	challenges, err := a.mfaAuthChallenge(ctx, username, challengeExtensions)
 	if err != nil {
+		// Do not obfuscate config-related errors.
+		if errors.Is(err, types.ErrPasswordlessRequiresWebauthn) || errors.Is(err, types.ErrPasswordlessDisabledBySettings) {
+			return nil, trace.Wrap(err)
+		}
+
 		log.Error(trace.DebugReport(err))
 		return nil, trace.AccessDenied("unable to create MFA challenges")
 	}
+
 	return challenges, nil
 }
 
@@ -3100,11 +3242,11 @@ func (a *Server) CreateRegisterChallenge(ctx context.Context, req *proto.CreateR
 		}
 
 		allowedTokenTypes := []string{
-			UserTokenTypePrivilege,
-			UserTokenTypePrivilegeException,
-			UserTokenTypeResetPassword,
-			UserTokenTypeResetPasswordInvite,
-			UserTokenTypeRecoveryApproved,
+			authclient.UserTokenTypePrivilege,
+			authclient.UserTokenTypePrivilegeException,
+			authclient.UserTokenTypeResetPassword,
+			authclient.UserTokenTypeResetPasswordInvite,
+			authclient.UserTokenTypeRecoveryApproved,
 		}
 		if err := a.verifyUserToken(token, allowedTokenTypes...); err != nil {
 			return nil, trace.AccessDenied("invalid token")
@@ -3146,7 +3288,7 @@ func (a *Server) CreateRegisterChallenge(ctx context.Context, req *proto.CreateR
 }
 
 func (a *Server) createTOTPPrivilegeToken(ctx context.Context, username string) (types.UserToken, error) {
-	tokenReq := CreateUserTokenRequest{
+	tokenReq := authclient.CreateUserTokenRequest{
 		Name: username,
 		Type: userTokenTypePrivilegeOTP,
 	}
@@ -3270,7 +3412,7 @@ func (a *Server) GetMFADevices(ctx context.Context, req *proto.GetMFADevicesRequ
 			return nil, trace.AccessDenied("invalid token")
 		}
 
-		if err := a.verifyUserToken(token, UserTokenTypeRecoveryApproved); err != nil {
+		if err := a.verifyUserToken(token, authclient.UserTokenTypeRecoveryApproved); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -3307,7 +3449,7 @@ func (a *Server) DeleteMFADeviceSync(ctx context.Context, req *proto.DeleteMFADe
 		}
 		user = token.GetUser()
 
-		if err := a.verifyUserToken(token, UserTokenTypeRecoveryApproved, UserTokenTypePrivilege); err != nil {
+		if err := a.verifyUserToken(token, authclient.UserTokenTypeRecoveryApproved, authclient.UserTokenTypePrivilege); err != nil {
 			return trace.Wrap(err)
 		}
 
@@ -3467,8 +3609,8 @@ func (a *Server) AddMFADeviceSync(ctx context.Context, req *proto.AddMFADeviceSy
 
 		if err := a.verifyUserToken(
 			privilegeToken,
-			UserTokenTypePrivilege,
-			UserTokenTypePrivilegeException,
+			authclient.UserTokenTypePrivilege,
+			authclient.UserTokenTypePrivilegeException,
 			userTokenTypePrivilegeOTP,
 		); err != nil {
 			return nil, trace.Wrap(err)
@@ -3656,7 +3798,7 @@ func (a *Server) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) 
 //
 // If there is a switchback request, the roles will switchback to user's default roles and
 // the expiration time is derived from users recently logged in time.
-func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identity tlsca.Identity) (types.WebSession, error) {
+func (a *Server) ExtendWebSession(ctx context.Context, req authclient.WebSessionReq, identity tlsca.Identity) (types.WebSession, error) {
 	prevSession, err := a.GetWebSession(ctx, types.GetWebSessionRequest{
 		User:      req.User,
 		SessionID: req.PrevSessionID,
@@ -3765,7 +3907,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 	}
 
 	sessionTTL := utils.ToTTL(a.clock, expiresAt)
-	sess, err := a.NewWebSession(ctx, types.NewWebSessionRequest{
+	sess, err := a.NewWebSession(ctx, NewWebSessionRequest{
 		User:                 req.User,
 		LoginIP:              identity.LoginIP,
 		Roles:                roles,
@@ -3784,7 +3926,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 
 	sess.SetConsumedAccessRequestID(req.AccessRequestID)
 
-	if err := a.upsertWebSession(ctx, req.User, sess); err != nil {
+	if err := a.upsertWebSession(ctx, sess); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3862,7 +4004,7 @@ func (a *Server) CreateWebSession(ctx context.Context, user string) (types.WebSe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	session, err := a.CreateWebSessionFromReq(ctx, types.NewWebSessionRequest{
+	session, err := a.CreateWebSessionFromReq(ctx, NewWebSessionRequest{
 		User:      user,
 		Roles:     u.GetRoles(),
 		Traits:    u.GetTraits(),
@@ -4028,7 +4170,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 
 	// generate host TLS certificate
 	identity := tlsca.Identity{
-		Username:        HostFQDN(req.HostID, clusterName.GetClusterName()),
+		Username:        authclient.HostFQDN(req.HostID, clusterName.GetClusterName()),
 		Groups:          []string{req.Role.String()},
 		TeleportCluster: clusterName.GetClusterName(),
 		SystemRoles:     systemRoles,
@@ -4376,105 +4518,6 @@ func (a *Server) GetTokens(ctx context.Context, opts ...services.MarshalOption) 
 	return tokens, nil
 }
 
-// NewWebSession creates and returns a new web session for the specified request
-func (a *Server) NewWebSession(ctx context.Context, req types.NewWebSessionRequest) (types.WebSession, error) {
-	userState, err := a.GetUserOrLoginState(ctx, req.User)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if req.LoginIP == "" {
-		// TODO(antonam): consider turning this into error after all use cases are covered (before v14.0 testplan)
-		log.Debug("Creating new web session without login IP specified.")
-	}
-	clusterName, err := a.GetClusterName()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	checker, err := services.NewAccessChecker(&services.AccessInfo{
-		Roles:              req.Roles,
-		Traits:             req.Traits,
-		AllowedResourceIDs: req.RequestedResourceIDs,
-	}, clusterName.GetClusterName(), a)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	netCfg, err := a.GetClusterNetworkingConfig(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if req.PrivateKey == nil {
-		req.PrivateKey, err = native.GeneratePrivateKey()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	sessionTTL := req.SessionTTL
-	if sessionTTL == 0 {
-		sessionTTL = checker.AdjustSessionTTL(apidefaults.CertDuration)
-	}
-
-	if req.AttestWebSession {
-		// Upsert web session attestation data so that this key's certs
-		// will be marked with the web session private key policy.
-		webAttData, err := services.NewWebSessionAttestationData(req.PrivateKey.Public())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if err = a.UpsertKeyAttestationData(ctx, webAttData, sessionTTL); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	certs, err := a.generateUserCert(ctx, certRequest{
-		user:           userState,
-		loginIP:        req.LoginIP,
-		ttl:            sessionTTL,
-		publicKey:      req.PrivateKey.MarshalSSHPublicKey(),
-		checker:        checker,
-		traits:         req.Traits,
-		activeRequests: services.RequestIDs{AccessRequests: req.AccessRequests},
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	token, err := utils.CryptoRandomHex(defaults.SessionTokenBytes)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	bearerToken, err := utils.CryptoRandomHex(defaults.SessionTokenBytes)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	bearerTokenTTL := min(sessionTTL, defaults.BearerTokenTTL)
-
-	startTime := a.clock.Now()
-	if !req.LoginTime.IsZero() {
-		startTime = req.LoginTime
-	}
-
-	sessionSpec := types.WebSessionSpecV2{
-		User:               req.User,
-		Priv:               req.PrivateKey.PrivateKeyPEM(),
-		Pub:                certs.SSH,
-		TLSCert:            certs.TLS,
-		Expires:            startTime.UTC().Add(sessionTTL),
-		BearerToken:        bearerToken,
-		BearerTokenExpires: startTime.UTC().Add(bearerTokenTTL),
-		LoginTime:          req.LoginTime,
-		IdleTimeout:        types.Duration(netCfg.GetWebIdleTimeout()),
-	}
-	UserLoginCount.Inc()
-
-	sess, err := types.NewWebSession(token, types.KindWebSession, sessionSpec)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return sess, nil
-}
-
 // GetWebSessionInfo returns the web session specified with sessionID for the given user.
 // The session is stripped of any authentication details.
 // Implements auth.WebUIService
@@ -4563,6 +4606,25 @@ Outer:
 	return filtered, nextKey, nil
 }
 
+// ListAccessRequests is an access request getter with pagination and sorting options.
+func (a *Server) ListAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest) (*proto.ListAccessRequestsResponse, error) {
+	// most access request methods target the backend directly since access requests are frequently read
+	// immediately after writing, but listing requires support for custom sort orders so we route it to
+	// a special cache. note that the access request cache will still end up forwarding single-request
+	// reads to the real backend due to the read after write issue.
+	return a.AccessRequestCache.ListAccessRequests(ctx, req)
+}
+
+// ListMatchingAccessRequests is equivalent to ListAccessRequests except that it adds the ability to provide an arbitrary matcher function. This method
+// should be preferred when using custom filtering (e.g. access-controls), since the paginations keys used by the access request cache are non-standard.
+func (a *Server) ListMatchingAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest, match func(*types.AccessRequestV3) bool) (*proto.ListAccessRequestsResponse, error) {
+	// most access request methods target the backend directly since access requests are frequently read
+	// immediately after writing, but listing requires support for custom sort orders so we route it to
+	// a special cache. note that the access request cache will still end up forwarding single-request
+	// reads to the real backend due to the read after write issue.
+	return a.AccessRequestCache.ListMatchingAccessRequests(ctx, req, match)
+}
+
 func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequest, identity tlsca.Identity) (types.AccessRequest, error) {
 	now := a.clock.Now().UTC()
 
@@ -4636,6 +4698,16 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	if _, err := a.Services.CreateAccessRequestV2(ctx, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	var annotations *apievents.Struct
+	if sa := req.GetSystemAnnotations(); len(sa) > 0 {
+		var err error
+		annotations, err = apievents.EncodeMapStrings(sa)
+		if err != nil {
+			log.WithError(err).Debug("Failed to encode access request annotations.")
+		}
+	}
+
 	err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.AccessRequestCreate{
 		Metadata: apievents.Metadata{
 			Type: events.AccessRequestCreateEvent,
@@ -4651,6 +4723,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		RequestState:         req.GetState().String(),
 		Reason:               req.GetRequestReason(),
 		MaxDuration:          req.GetMaxDuration(),
+		Annotations:          annotations,
 	})
 	if err != nil {
 		log.WithError(err).Warn("Failed to emit access request create event.")
@@ -4676,7 +4749,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 // the error and return whatever it has. The caller is expected to deal with the possibility of a nil promotions object.
 func (a *Server) generateAccessRequestPromotions(ctx context.Context, req types.AccessRequest) (types.AccessRequest, *types.AccessRequestAllowedPromotions) {
 	reqCopy := req.Copy()
-	promotions, err := modules.GetModules().GenerateAccessRequestPromotions(ctx, a.Services, reqCopy)
+	promotions, err := modules.GetModules().GenerateAccessRequestPromotions(ctx, a.Cache, reqCopy)
 	if err != nil {
 		// Do not fail the request if the promotions failed to generate.
 		// The request promotion will be blocked, but the request can still be approved.
@@ -4750,6 +4823,13 @@ func (a *Server) SetAccessRequestState(ctx context.Context, params types.AccessR
 		Reason:          params.Reason,
 		Roles:           params.Roles,
 		AssumeStartTime: params.AssumeStartTime,
+	}
+	if sa := req.GetSystemAnnotations(); len(sa) > 0 {
+		var err error
+		event.Annotations, err = apievents.EncodeMapStrings(sa)
+		if err != nil {
+			log.WithError(err).Debug("Failed to encode access request annotations.")
+		}
 	}
 
 	if delegator := apiutils.GetDelegator(ctx); delegator != "" {
@@ -4855,10 +4935,15 @@ func (a *Server) submitAccessReview(
 }
 
 func (a *Server) GetAccessCapabilities(ctx context.Context, req types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error) {
-	caps, err := services.CalculateAccessCapabilities(ctx, a.clock, a, req)
+	user, err := authz.UserFromContext(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	caps, err := services.CalculateAccessCapabilities(ctx, a.clock, a, user.GetIdentity(), req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return caps, nil
 }
 
@@ -5739,6 +5824,21 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			return nil, trace.BadParameter("empty Login field")
 		}
 
+		// state.MFARequired is "per-role", so if the user is joining
+		// a session, MFA is required no matter what node they are
+		// connecting to. We don't preform an RBAC check like we do
+		// below when users are starting a session to selectively
+		// require MFA because we don't know what session the user
+		// is joining, nor do we know what role allowed the session
+		// creator to start the session that is attempting to be joined.
+		// We need this info to be able to selectively skip MFA in
+		// this case.
+		if t.Node.Login == teleport.SSHSessionJoinPrincipal {
+			return &proto.IsMFARequiredResponse{
+				MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
+			}, nil
+		}
+
 		// Find the target node and check whether MFA is required.
 		matches, err := client.GetResourcesWithFilters(ctx, a, proto.ListResourcesRequest{
 			ResourceType:   types.KindNode,
@@ -5935,8 +6035,12 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, challengeExt
 	// Handle passwordless separately, it works differently from MFA.
 	if isPasswordless {
 		if !enableWebauthn {
-			return nil, trace.BadParameter("passwordless requires WebAuthn")
+			return nil, trace.Wrap(types.ErrPasswordlessRequiresWebauthn)
 		}
+		if !apref.GetAllowPasswordless() {
+			return nil, trace.Wrap(types.ErrPasswordlessDisabledBySettings)
+		}
+
 		webLogin := &wanlib.PasswordlessFlow{
 			Webauthn: webConfig,
 			Identity: a.Services,
@@ -6095,7 +6199,66 @@ func (a *Server) validateMFAAuthResponseForRegister(ctx context.Context, resp *p
 // required challenge extensions will be checked against the stored challenge when
 // applicable (webauthn only). Returns the authentication data derived from the solved
 // challenge.
-func (a *Server) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, requiredExtensions *mfav1.ChallengeExtensions) (mfaAuthData *authz.MFAAuthData, err error) {
+func (a *Server) ValidateMFAAuthResponse(
+	ctx context.Context,
+	resp *proto.MFAAuthenticateResponse,
+	user string,
+	requiredExtensions *mfav1.ChallengeExtensions,
+) (*authz.MFAAuthData, error) {
+
+	authData, validateErr := a.validateMFAAuthResponseInternal(ctx, resp, user, requiredExtensions)
+	// validateErr handled after audit.
+
+	// Read ClusterName for audit.
+	var clusterName string
+	if cn, err := a.GetClusterName(); err != nil {
+		log.WithError(err).Warn("Failed to read cluster name")
+		// err swallowed on purpose.
+	} else {
+		clusterName = cn.GetClusterName()
+	}
+
+	// Take the user from the authData if the user param is empty.
+	// This happens for passwordless.
+	if user == "" && authData != nil {
+		user = authData.User
+	}
+
+	// Emit audit event.
+	auditEvent := &apievents.ValidateMFAAuthResponse{
+		Metadata: apievents.Metadata{
+			Type:        events.ValidateMFAAuthResponseEvent,
+			ClusterName: clusterName,
+		},
+		UserMetadata:   authz.ClientUserMetadataWithUser(ctx, user),
+		ChallengeScope: requiredExtensions.Scope.String(),
+	}
+	if validateErr != nil {
+		auditEvent.Code = events.ValidateMFAAuthResponseFailureCode
+		auditEvent.Success = false
+		auditEvent.UserMessage = validateErr.Error()
+		auditEvent.Error = validateErr.Error()
+	} else {
+		auditEvent.Code = events.ValidateMFAAuthResponseCode
+		auditEvent.Success = true
+		deviceMetadata := mfaDeviceEventMetadata(authData.Device)
+		auditEvent.MFADevice = &deviceMetadata
+		auditEvent.ChallengeAllowReuse = authData.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES
+	}
+	if err := a.emitter.EmitAuditEvent(ctx, auditEvent); err != nil {
+		log.WithError(err).Warn("Failed to emit ValidateMFAAuthResponse event")
+		// err swallowed on purpose.
+	}
+
+	return authData, trace.Wrap(validateErr)
+}
+
+func (a *Server) validateMFAAuthResponseInternal(
+	ctx context.Context,
+	resp *proto.MFAAuthenticateResponse,
+	user string,
+	requiredExtensions *mfav1.ChallengeExtensions,
+) (*authz.MFAAuthData, error) {
 	if requiredExtensions == nil {
 		return nil, trace.BadParameter("required challenge extensions parameter required")
 	}
@@ -6106,38 +6269,6 @@ func (a *Server) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAut
 	if user == "" && !isPasswordless {
 		return nil, trace.BadParameter("user required")
 	}
-
-	clusterName, err := a.GetClusterName()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	defer func() {
-		auditEvent := &apievents.ValidateMFAAuthResponse{
-			Metadata: apievents.Metadata{
-				Type:        events.ValidateMFAAuthResponseEvent,
-				ClusterName: clusterName.GetClusterName(),
-			},
-			UserMetadata:   authz.ClientUserMetadataWithUser(ctx, user),
-			ChallengeScope: requiredExtensions.Scope.String(),
-		}
-		if err != nil {
-			auditEvent.Code = events.ValidateMFAAuthResponseFailureCode
-			auditEvent.Success = false
-			auditEvent.UserMessage = err.Error()
-			auditEvent.Error = err.Error()
-		} else {
-			auditEvent.Code = events.ValidateMFAAuthResponseCode
-			auditEvent.Status.Success = true
-			deviceMetadata := mfaDeviceEventMetadata(mfaAuthData.Device)
-			auditEvent.MFADevice = &deviceMetadata
-			auditEvent.ChallengeAllowReuse = mfaAuthData.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES
-		}
-
-		if err := a.emitter.EmitAuditEvent(ctx, auditEvent); err != nil {
-			log.WithError(err).Warn("Failed to emit ValidateMFAAuthResponse event.")
-		}
-	}()
 
 	switch res := resp.Response.(type) {
 	// cases in order of preference
@@ -6166,6 +6297,18 @@ func (a *Server) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAut
 				Identity: a.Services,
 			}
 			loginData, err = webLogin.Finish(ctx, assertionResp)
+
+			// Disallow non-local users from logging in with passwordless.
+			if err == nil {
+				u, getErr := a.GetUser(ctx, loginData.User, false /* withSecrets */)
+				if getErr != nil {
+					err = trace.Wrap(getErr)
+				} else if u.GetUserType() != types.UserTypeLocal {
+					// Return the error unmodified, without the "MFA response validation
+					// failed" prefix.
+					return nil, trace.Wrap(types.ErrPassswordlessLoginBySSOUser)
+				}
+			}
 		} else {
 			webLogin := &wanlib.LoginFlow{
 				U2F:      u2f,
@@ -6202,23 +6345,6 @@ func (a *Server) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAut
 	}
 }
 
-func (a *Server) upsertWebSession(ctx context.Context, user string, session types.WebSession) error {
-	if err := a.WebSessions().Upsert(ctx, session); err != nil {
-		return trace.Wrap(err)
-	}
-	token, err := types.NewWebToken(session.GetBearerTokenExpiryTime(), types.WebTokenSpecV3{
-		User:  session.GetUser(),
-		Token: session.GetBearerToken(),
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := a.WebTokens().Upsert(ctx, token); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
 func mergeKeySets(a, b types.CAKeySet) types.CAKeySet {
 	newKeySet := a.Clone()
 	newKeySet.SSH = append(newKeySet.SSH, b.SSH...)
@@ -6227,50 +6353,36 @@ func mergeKeySets(a, b types.CAKeySet) types.CAKeySet {
 	return newKeySet
 }
 
-// addAdditionalTrustedKeysAtomic performs an atomic CompareAndSwap to update
+// addAdditionalTrustedKeysAtomic performs an atomic update to
 // the given CA with newKeys added to the AdditionalTrustedKeys
-func (a *Server) addAdditionalTrustedKeysAtomic(
-	ctx context.Context,
-	currentCA types.CertAuthority,
-	newKeys types.CAKeySet,
-	needsUpdate func(types.CertAuthority) (bool, error),
-) error {
-	for {
-		select {
-		case <-ctx.Done():
-			return trace.Wrap(ctx.Err())
-		default:
+func (a *Server) addAdditionalTrustedKeysAtomic(ctx context.Context, ca types.CertAuthority, newKeys types.CAKeySet, needsUpdate func(types.CertAuthority) (bool, error)) error {
+	const maxIterations = 64
+
+	for i := 0; i < maxIterations; i++ {
+		if update, err := needsUpdate(ca); err != nil || !update {
+			return trace.Wrap(err)
 		}
-		updateRequired, err := needsUpdate(currentCA)
+
+		err := ca.SetAdditionalTrustedKeys(mergeKeySets(
+			ca.GetAdditionalTrustedKeys(),
+			newKeys,
+		))
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if !updateRequired {
-			return nil
-		}
 
-		newCA := currentCA.Clone()
-		currentKeySet := newCA.GetAdditionalTrustedKeys()
-		mergedKeySet := mergeKeySets(currentKeySet, newKeys)
-		if err := newCA.SetAdditionalTrustedKeys(mergedKeySet); err != nil {
+		if _, err := a.UpdateCertAuthority(ctx, ca); err == nil {
+			return nil
+		} else if !errors.Is(err, backend.ErrIncorrectRevision) {
 			return trace.Wrap(err)
 		}
 
-		err = a.CompareAndSwapCertAuthority(newCA, currentCA)
-		if err != nil && !trace.IsCompareFailed(err) {
-			return trace.Wrap(err)
-		}
-		if err == nil {
-			// success!
-			return nil
-		}
-		// else trace.IsCompareFailed(err) == true (CA was concurrently updated)
-
-		currentCA, err = a.Services.GetCertAuthority(ctx, currentCA.GetID(), true)
+		ca, err = a.Services.GetCertAuthority(ctx, ca.GetID(), true)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
+	return trace.Errorf("too many conflicts attempting to set additional trusted keys for ca %q of type %q", ca.GetClusterName(), ca.GetType())
 }
 
 // newKeySet generates a new sets of keys for a given CA type.
@@ -6614,57 +6726,6 @@ func oauth2ConfigsEqual(a, b oauth2.Config) bool {
 		return false
 	}
 	return true
-}
-
-// WithClusterCAs returns a TLS hello callback that returns a copy of the provided
-// TLS config with client CAs pool of the specified cluster.
-func WithClusterCAs(tlsConfig *tls.Config, ap AccessCache, currentClusterName string, log logrus.FieldLogger) func(*tls.ClientHelloInfo) (*tls.Config, error) {
-	return func(info *tls.ClientHelloInfo) (*tls.Config, error) {
-		var clusterName string
-		var err error
-		if info.ServerName != "" {
-			// Newer clients will set SNI that encodes the cluster name.
-			clusterName, err = apiutils.DecodeClusterName(info.ServerName)
-			if err != nil {
-				if !trace.IsNotFound(err) {
-					log.Debugf("Ignoring unsupported cluster name name %q.", info.ServerName)
-					clusterName = ""
-				}
-			}
-		}
-		pool, totalSubjectsLen, err := DefaultClientCertPool(ap, clusterName)
-		if err != nil {
-			log.WithError(err).Errorf("Failed to retrieve client pool for %q.", clusterName)
-			// this falls back to the default config
-			return nil, nil
-		}
-
-		// Per https://tools.ietf.org/html/rfc5246#section-7.4.4 the total size of
-		// the known CA subjects sent to the client can't exceed 2^16-1 (due to
-		// 2-byte length encoding). The crypto/tls stack will panic if this
-		// happens.
-		//
-		// This usually happens on the root cluster with a very large (>500) number
-		// of leaf clusters. In these cases, the client cert will be signed by the
-		// current (root) cluster.
-		//
-		// If the number of CAs turns out too large for the handshake, drop all but
-		// the current cluster CA. In the unlikely case where it's wrong, the
-		// client will be rejected.
-		if totalSubjectsLen >= int64(math.MaxUint16) {
-			log.Debugf("Number of CAs in client cert pool is too large and cannot be encoded in a TLS handshake; this is due to a large number of trusted clusters; will use only the CA of the current cluster to validate.")
-
-			pool, _, err = DefaultClientCertPool(ap, currentClusterName)
-			if err != nil {
-				log.WithError(err).Errorf("Failed to retrieve client pool for %q.", currentClusterName)
-				// this falls back to the default config
-				return nil, nil
-			}
-		}
-		tlsCopy := tlsConfig.Clone()
-		tlsCopy.ClientCAs = pool
-		return tlsCopy, nil
-	}
 }
 
 // DefaultDNSNamesForRole returns default DNS names for the specified role.

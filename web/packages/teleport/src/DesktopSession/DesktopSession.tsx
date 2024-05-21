@@ -40,7 +40,7 @@ import TopBar from './TopBar';
 import type { State, WebsocketAttempt } from './useDesktopSession';
 import type { WebAuthnState } from 'teleport/lib/useWebAuthn';
 
-export default function Container() {
+export function DesktopSessionContainer() {
   const state = useDesktopSession();
   return <DesktopSession {...state} />;
 }
@@ -77,6 +77,7 @@ export function DesktopSession(props: State) {
     canvasOnMouseUp,
     canvasOnMouseWheelScroll,
     canvasOnContextMenu,
+    windowOnResize,
     clientScreenSpecToRequest,
     clipboardSharingState,
     onShareDirectory,
@@ -169,6 +170,7 @@ export function DesktopSession(props: State) {
         canvasOnMouseUp={canvasOnMouseUp}
         canvasOnMouseWheelScroll={canvasOnMouseWheelScroll}
         canvasOnContextMenu={canvasOnContextMenu}
+        windowOnResize={windowOnResize}
         updatePointer={true}
       />
     </Flex>

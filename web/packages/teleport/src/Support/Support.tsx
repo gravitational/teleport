@@ -29,16 +29,12 @@ import cfg from 'teleport/config';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import { CtaEvent } from 'teleport/services/userEvent';
 
-export default function Container({
-  children,
-}: {
-  children?: React.ReactNode;
-}) {
+export function SupportContainer({ children }: { children?: React.ReactNode }) {
   const ctx = useTeleport();
   const cluster = ctx.storeUser.state.cluster;
 
   // showCTA returns the premium support value for enterprise customers and true for OSS users
-  const showCTA = cfg.isEnterprise ? ctx.lockedFeatures.premiumSupport : true;
+  const showCTA = cfg.isEnterprise ? !cfg.premiumSupport : true;
 
   return (
     <Support

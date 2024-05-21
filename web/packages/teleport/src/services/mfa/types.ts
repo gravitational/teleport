@@ -17,25 +17,23 @@
  */
 
 import { WebauthnAssertionResponse } from '../auth';
+import { DeviceUsage } from '../auth/types';
+import { CreateNewHardwareDeviceRequest } from '../auth/types';
 
-export type MfaDevice = {
+export interface MfaDevice {
   id: string;
   name: string;
   description: string;
   registeredDate: Date;
   lastUsedDate: Date;
-  residentKey: boolean;
-};
+  type: DeviceType;
+  usage: DeviceUsage;
+}
 
 export type AddNewTotpDeviceRequest = {
   tokenId: string;
   deviceName: string;
   secondFactorToken: string;
-};
-
-export type CreateNewHardwareDeviceRequest = {
-  tokenId: string;
-  deviceUsage?: DeviceUsage;
 };
 
 export type AddNewHardwareDeviceRequest = CreateNewHardwareDeviceRequest & {
@@ -48,9 +46,6 @@ export type SaveNewHardwareDeviceRequest = {
 };
 
 export type DeviceType = 'totp' | 'webauthn';
-
-// DeviceUsage is the intended usage of the device (MFA, Passwordless, etc).
-export type DeviceUsage = 'passwordless' | 'mfa';
 
 // MfaAuthnResponse is a response to a MFA device challenge.
 export type MfaAuthnResponse =

@@ -1483,6 +1483,9 @@ type Discovery struct {
 	// KubernetesMatchers are used to match services inside Kubernetes cluster for auto discovery
 	KubernetesMatchers []KubernetesMatcher `yaml:"kubernetes,omitempty"`
 
+	// AccessGraph is used to configure the cloud sync into AccessGraph.
+	AccessGraph *AccessGraphSync `yaml:"access_graph,omitempty"`
+
 	// DiscoveryGroup is the name of the discovery group that the current
 	// discovery service is a part of.
 	// It is used to filter out discovered resources that belong to another
@@ -1513,6 +1516,23 @@ type GCPMatcher struct {
 	// InstallParams sets the join method when installing on
 	// discovered GCP VMs.
 	InstallParams *InstallParams `yaml:"install,omitempty"`
+}
+
+// AccessGraphSync represents the configuration for the AccessGraph Sync service.
+type AccessGraphSync struct {
+	// AWS is the AWS configuration for the AccessGraph Sync service.
+	AWS []AccessGraphAWSSync `yaml:"aws,omitempty"`
+}
+
+// AccessGraphAWSSync represents the configuration for the AWS AccessGraph Sync service.
+type AccessGraphAWSSync struct {
+	// Regions are AWS regions to poll for resources.
+	Regions []string `yaml:"regions,omitempty"`
+	// AssumeRoleARN is the AWS role to assume for database discovery.
+	AssumeRoleARN string `yaml:"assume_role_arn,omitempty"`
+	// ExternalID is the AWS external ID to use when assuming a role for
+	// database discovery in an external AWS account.
+	ExternalID string `yaml:"external_id,omitempty"`
 }
 
 // CommandLabel is `command` section of `ssh_service` in the config file
@@ -1665,6 +1685,12 @@ type AWSMatcher struct {
 	// SSM provides options to use when sending a document command to
 	// an EC2 node
 	SSM AWSSSM `yaml:"ssm,omitempty"`
+	// Integration is the integration name used to generate credentials to interact with AWS APIs.
+	// Environment credentials will not be used when this value is set.
+	Integration string `yaml:"integration"`
+	// KubeAppDiscovery controls whether Kubernetes App Discovery will be enabled for agents running on
+	// discovered clusters, currently only affects AWS EKS discovery in integration mode.
+	KubeAppDiscovery bool `yaml:"kube_app_discovery"`
 }
 
 // InstallParams sets join method to use on discovered nodes
@@ -1684,7 +1710,18 @@ type InstallParams struct {
 	PublicProxyAddr string `yaml:"public_proxy_addr,omitempty"`
 	// Azure is te set of installation parameters specific to Azure.
 	Azure *AzureInstallParams `yaml:"azure,omitempty"`
+	// EnrollMode indicates the mode used to enroll the node into Teleport.
+	// Valid values: script, eice.
+	// Optional.
+	EnrollMode string `yaml:"enroll_mode"`
 }
+
+const (
+	installEnrollModeEICE   = "eice"
+	installEnrollModeScript = "script"
+)
+
+var validInstallEnrollModes = []string{installEnrollModeEICE, installEnrollModeScript}
 
 func (ip *InstallParams) parse() (*types.InstallerParams, error) {
 	install := &types.InstallerParams{
@@ -1693,6 +1730,18 @@ func (ip *InstallParams) parse() (*types.InstallerParams, error) {
 		ScriptName:      ip.ScriptName,
 		InstallTeleport: true,
 		SSHDConfig:      ip.SSHDConfig,
+		EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_UNSPECIFIED,
+	}
+
+	switch ip.EnrollMode {
+	case installEnrollModeEICE:
+		install.EnrollMode = types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE
+	case installEnrollModeScript:
+		install.EnrollMode = types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT
+	case "":
+		install.EnrollMode = types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_UNSPECIFIED
+	default:
+		return nil, trace.BadParameter("enroll mode %q is invalid, valid values: %v", ip.EnrollMode, validInstallEnrollModes)
 	}
 
 	if ip.InstallTeleport == "" {
@@ -2528,6 +2577,9 @@ type JamfInventoryEntry struct {
 	// OnMissing is the trigger for devices missing from the MDM inventory view.
 	// See [types.JamfInventoryEntry.OnMissing].
 	OnMissing string `yaml:"on_missing,omitempty"`
+	// Custom page size for inventory queries.
+	// A server default is used if zeroed or negative.
+	PageSize int32 `yaml:"page_size,omitempty"`
 }
 
 func (j *JamfService) toJamfSpecV1() (*types.JamfSpecV1, error) {
@@ -2562,6 +2614,7 @@ func (j *JamfService) toJamfSpecV1() (*types.JamfSpecV1, error) {
 			SyncPeriodPartial: types.Duration(e.SyncPeriodPartial),
 			SyncPeriodFull:    types.Duration(e.SyncPeriodFull),
 			OnMissing:         e.OnMissing,
+			PageSize:          e.PageSize,
 		}
 	}
 	spec := &types.JamfSpecV1{

@@ -117,7 +117,7 @@ func canPruneOldHostsEntry(oldEntry *knownHostEntry, newEntries []*knownHostEntr
 // duplicate entry exists. This may modify order of host keys, but will not
 // change their content.
 func pruneOldHostKeys(output []string) []string {
-	log := logrus.WithField(trace.Component, teleport.ComponentMigrate)
+	log := logrus.WithField(teleport.ComponentKey, teleport.ComponentMigrate)
 
 	var (
 		oldEntries   = make([]*knownHostEntry, 0)

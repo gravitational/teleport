@@ -62,7 +62,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	kubeclient "github.com/gravitational/teleport/lib/client/kube"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -728,7 +728,12 @@ func (c *kubeCredentialsCommand) issueCert(cf *CLIConf) error {
 				if cf.MockSSOLogin != nil {
 					lockTimeout = utils.FSLockRetryDelay
 				}
-				unlockKubeCred, err = takeKubeCredLock(cf.Context, cf.HomePath, cf.Proxy, lockTimeout)
+				proxy := cf.Proxy
+				// if proxy is empty, fallback to WebProxyAddr
+				if proxy == "" {
+					proxy = tc.WebProxyAddr
+				}
+				unlockKubeCred, err = takeKubeCredLock(cf.Context, cf.HomePath, proxy, lockTimeout)
 				return trace.Wrap(err)
 			},
 		),
@@ -1594,25 +1599,32 @@ func (c *kubeLoginCommand) accessRequestForKubeCluster(ctx context.Context, cf *
 		}
 	}
 
-	// Roles to request will be automatically determined on the backend.
-	req, err := services.NewAccessRequestWithResources(tc.Username, nil /* roles */, requestResourceIDs)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	var req types.AccessRequest
+	fmt.Println("request mode", cf.RequestMode)
+	switch cf.RequestMode {
+	case accessRequestModeResource, "":
+		// Roles to request will be automatically determined on the backend.
+		req, err = services.NewAccessRequestWithResources(tc.Username, nil /* roles */, requestResourceIDs)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 
-	// Set the DryRun flag and send the request to auth for full validation. If
-	// the user has no search_as_roles or is not allowed to connect to the Kube cluster
-	// we will get an error here.
-	req.SetDryRun(true)
-	req.SetRequestReason("Dry run, this request will not be created. If you see this, there is a bug.")
-	if err := tc.WithRootClusterClient(ctx, func(clt auth.ClientI) error {
-		req, err = clt.CreateAccessRequestV2(ctx, req)
-		return trace.Wrap(err)
-	}); err != nil {
-		return nil, trace.Wrap(err)
+		// Set the DryRun flag and send the request to auth for full validation. If
+		// the user has no search_as_roles or is not allowed to connect to the Kube cluster
+		// we will get an error here.
+		req.SetDryRun(true)
+		req.SetRequestReason("Dry run, this request will not be created. If you see this, there is a bug.")
+		if err := tc.WithRootClusterClient(ctx, func(clt authclient.ClientI) error {
+			req, err = clt.CreateAccessRequestV2(ctx, req)
+			return trace.Wrap(err)
+		}); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		req.SetDryRun(false)
+		req.SetRequestReason("")
+	default:
+		return nil, trace.BadParameter("unexpected request mode %q", cf.RequestMode)
 	}
-	req.SetDryRun(false)
-	req.SetRequestReason("")
 
 	return req, nil
 }

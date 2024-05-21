@@ -44,7 +44,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -633,6 +633,14 @@ func TestMatchApplicationServers(t *testing.T) {
 func TestHealthCheckAppServer(t *testing.T) {
 	ctx := context.Background()
 	clusterName := "test-cluster"
+	publicAddr := "valid.example.com"
+
+	key, cert, err := tlsca.GenerateSelfSignedCA(
+		pkix.Name{CommonName: clusterName},
+		[]string{publicAddr, apiutils.EncodeClusterName(clusterName)},
+		defaults.CATTL,
+	)
+	require.NoError(t, err)
 
 	for _, tc := range []struct {
 		desc                string
@@ -674,15 +682,9 @@ func TestHealthCheckAppServer(t *testing.T) {
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			key, cert, err := tlsca.GenerateSelfSignedCA(
-				pkix.Name{CommonName: clusterName},
-				[]string{tc.publicAddr, apiutils.EncodeClusterName(clusterName)},
-				defaults.CATTL,
-			)
-			require.NoError(t, err)
+			fakeClock := clockwork.NewFakeClock()
+			appSession := createAppSession(t, fakeClock, key, cert, clusterName, publicAddr)
 
-			fakeClock := clockwork.NewFakeClockAt(time.Date(2017, 05, 10, 18, 53, 0, 0, time.UTC))
-			appSession := createAppSession(t, fakeClock, key, cert, clusterName, tc.publicAddr)
 			authClient := &mockAuthClient{
 				clusterName: clusterName,
 				appSession:  appSession,
@@ -713,11 +715,12 @@ func TestHealthCheckAppServer(t *testing.T) {
 			}
 
 			appHandler, err := NewHandler(ctx, &HandlerConfig{
-				Clock:        fakeClock,
-				AuthClient:   authClient,
-				AccessPoint:  authClient,
-				ProxyClient:  tunnel,
-				CipherSuites: utils.DefaultCipherSuites(),
+				Clock:                 fakeClock,
+				AuthClient:            authClient,
+				AccessPoint:           authClient,
+				ProxyClient:           tunnel,
+				CipherSuites:          utils.DefaultCipherSuites(),
+				IntegrationAppHandler: &mockIntegrationAppHandler{},
 			})
 			require.NoError(t, err)
 
@@ -732,14 +735,15 @@ type testServer struct {
 	serverURL *url.URL
 }
 
-func setup(t *testing.T, clock clockwork.FakeClock, authClient auth.ClientI, proxyClient reversetunnelclient.Tunnel, proxyPublicAddrs []utils.NetAddr) *testServer {
+func setup(t *testing.T, clock clockwork.FakeClock, authClient authclient.ClientI, proxyClient reversetunnelclient.Tunnel, proxyPublicAddrs []utils.NetAddr) *testServer {
 	appHandler, err := NewHandler(context.Background(), &HandlerConfig{
-		Clock:            clock,
-		AuthClient:       authClient,
-		AccessPoint:      authClient,
-		ProxyClient:      proxyClient,
-		CipherSuites:     utils.DefaultCipherSuites(),
-		ProxyPublicAddrs: proxyPublicAddrs,
+		Clock:                 clock,
+		AuthClient:            authClient,
+		AccessPoint:           authClient,
+		ProxyClient:           proxyClient,
+		CipherSuites:          utils.DefaultCipherSuites(),
+		ProxyPublicAddrs:      proxyPublicAddrs,
+		IntegrationAppHandler: &mockIntegrationAppHandler{},
 	})
 	require.NoError(t, err)
 
@@ -792,7 +796,7 @@ func (p *testServer) makeRequest(t *testing.T, method, endpoint string, reqBody 
 }
 
 type mockAuthClient struct {
-	auth.ClientI
+	authclient.ClientI
 	clusterName   string
 	appSession    types.WebSession
 	sessionError  error
@@ -855,6 +859,14 @@ func (c *mockAuthClient) GetCertAuthority(ctx context.Context, id types.CertAuth
 	}
 
 	return ca, nil
+}
+
+func (c *mockAuthClient) NewWatcher(context.Context, types.Watch) (types.Watcher, error) {
+	return nil, trace.NotImplemented("")
+}
+
+func (c *mockAuthClient) GetProxies() ([]types.Server, error) {
+	return []types.Server{}, nil
 }
 
 // fakeRemoteListener Implements a `net.Listener` that return `net.Conn` from

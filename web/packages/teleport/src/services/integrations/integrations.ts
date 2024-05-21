@@ -235,18 +235,21 @@ export const integrationService = {
         return {
           endpoints: endpoints.map(makeEc2InstanceConnectEndpoint),
           nextToken: json?.nextToken,
+          dashboardLink: json?.dashboardLink,
         };
       });
   },
 
   // Deploys an EC2 Instance Connect Endpoint.
-  deployAwsEc2InstanceConnectEndpoint(
+  deployAwsEc2InstanceConnectEndpoints(
     integrationName,
     req: DeployEc2InstanceConnectEndpointRequest
   ): Promise<DeployEc2InstanceConnectEndpointResponse> {
     return api
       .post(cfg.getDeployEc2InstanceConnectEndpointUrl(integrationName), req)
-      .then(json => ({ name: json?.name }));
+      .then(resp => {
+        return resp ?? [];
+      });
   },
 
   // Returns a list of VPC Security Groups using the ListSecurityGroups action of the AWS OIDC Integration.
@@ -281,6 +284,8 @@ function makeIntegration(json: any): Integration {
     kind: subKind,
     spec: {
       roleArn: awsoidc?.roleArn,
+      issuerS3Bucket: awsoidc?.issuerS3Bucket,
+      issuerS3Prefix: awsoidc?.issuerS3Prefix,
     },
     // The integration resource does not have a "status" field, but is
     // a required field for the table that lists both plugin and
@@ -311,7 +316,7 @@ export function makeAwsDatabase(json: any): AwsRdsDatabase {
 
 function makeEc2InstanceConnectEndpoint(json: any): Ec2InstanceConnectEndpoint {
   json = json ?? {};
-  const { name, state, stateMessage, dashboardLink, subnetId } = json;
+  const { name, state, stateMessage, dashboardLink, subnetId, vpcId } = json;
 
   return {
     name,
@@ -319,6 +324,7 @@ function makeEc2InstanceConnectEndpoint(json: any): Ec2InstanceConnectEndpoint {
     stateMessage,
     dashboardLink,
     subnetId,
+    vpcId,
   };
 }
 

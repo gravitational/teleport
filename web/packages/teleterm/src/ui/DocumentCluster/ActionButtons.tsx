@@ -16,12 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useRef } from 'react';
 import { MenuLogin, MenuLoginProps } from 'shared/components/MenuLogin';
 import { AwsLaunchButton } from 'shared/components/AwsLaunchButton';
-import { ButtonBorder, MenuItem, Flex } from 'design';
-import * as icons from 'design/Icon';
-import Menu from 'design/Menu';
+import { ButtonBorder, ButtonWithMenu, MenuItem } from 'design';
 
 import {
   connectToServer,
@@ -215,9 +212,6 @@ function AppButton(props: {
   connect(): void;
   onLaunchUrl(): void;
 }) {
-  const ref = useRef<HTMLButtonElement>();
-  const [isOpen, setIsOpen] = useState(false);
-
   if (props.app.awsConsole) {
     return (
       <AwsLaunchButton
@@ -256,68 +250,22 @@ function AppButton(props: {
 
   if (isWebApp(props.app)) {
     return (
-      <Flex>
-        <ButtonBorder
-          textTransform="none"
-          size="small"
-          forwardedAs="a"
-          href={getWebAppLaunchUrl({
-            app: props.app,
-            rootCluster: props.rootCluster,
-            cluster: props.cluster,
-          })}
-          onClick={props.onLaunchUrl}
-          target="_blank"
-          title="Launch the app in the browser"
-          css={`
-            border-top-right-radius: 0;
-            border-bottom-right-radius: 0;
-          `}
-        >
-          Launch
-        </ButtonBorder>
-        <ButtonBorder
-          css={`
-            border-left: none;
-            border-top-left-radius: 0;
-            border-bottom-left-radius: 0;
-          `}
-          setRef={ref}
-          px={1}
-          size="small"
-          onClick={() => setIsOpen(true)}
-        >
-          {/*
-            Using MoreVert instead of ChevronDown to make this button visually distinct from the
-            button that launches an AWS app.
-          */}
-          <icons.MoreVert size="small" color="text.slightlyMuted" />
-        </ButtonBorder>
-        <Menu
-          anchorEl={ref.current}
-          open={isOpen}
-          onClose={() => setIsOpen(false)}
-          // hack to properly position the menu
-          getContentAnchorEl={null}
-          anchorOrigin={{
-            vertical: 'bottom',
-            horizontal: 'right',
-          }}
-          transformOrigin={{
-            vertical: 'top',
-            horizontal: 'right',
-          }}
-        >
-          <MenuItem
-            onClick={() => {
-              setIsOpen(false);
-              props.connect();
-            }}
-          >
-            Set up connection
-          </MenuItem>
-        </Menu>
-      </Flex>
+      <ButtonWithMenu
+        text="Launch"
+        textTransform="none"
+        size="small"
+        forwardedAs="a"
+        href={getWebAppLaunchUrl({
+          app: props.app,
+          rootCluster: props.rootCluster,
+          cluster: props.cluster,
+        })}
+        onClick={props.onLaunchUrl}
+        target="_blank"
+        title="Launch the app in the browser"
+      >
+        <MenuItem onClick={props.connect}>Set up connection</MenuItem>
+      </ButtonWithMenu>
     );
   }
 

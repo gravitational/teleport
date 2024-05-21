@@ -37,7 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/fixtures"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -380,7 +380,7 @@ func (p *pingSrv) ServeHTTP(wr http.ResponseWriter, req *http.Request) {
 }
 
 type mockClient struct {
-	auth.ClientI
+	*authclient.Client
 
 	clusterName    types.ClusterName
 	userCerts      *proto.Certs
@@ -404,7 +404,7 @@ func (c *mockClient) GetClusterName(...services.MarshalOption) (types.ClusterNam
 	return c.clusterName, nil
 }
 
-func (c *mockClient) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
+func (c *mockClient) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
 	if c.networkConfig == nil {
 		return &types.ClusterNetworkingConfigV2{}, nil
 	}

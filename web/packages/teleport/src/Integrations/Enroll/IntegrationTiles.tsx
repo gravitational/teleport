@@ -39,7 +39,7 @@ export function IntegrationTiles({
   hasIntegrationAccess?: boolean;
   hasExternalAuditStorage?: boolean;
 }) {
-  const isCloudEnterprise = cfg.isCloud && !cfg.isTeam;
+  const externalAuditStorageEnabled = cfg.externalAuditStorage;
   const isOnpremEnterprise = cfg.isEnterprise && !cfg.isCloud;
 
   return (
@@ -76,7 +76,7 @@ export function IntegrationTiles({
       </IntegrationTile>
       {!isOnpremEnterprise && (
         <IntegrationTile
-          disabled={!hasExternalAuditStorage || !isCloudEnterprise}
+          disabled={!hasExternalAuditStorage || !externalAuditStorageEnabled}
           as={hasExternalAuditStorage ? Link : null}
           to={
             hasExternalAuditStorage
@@ -93,7 +93,7 @@ export function IntegrationTiles({
           <Text>AWS External Audit Storage</Text>
           {renderExternalAuditStorageBadge(
             hasExternalAuditStorage,
-            isCloudEnterprise
+            externalAuditStorageEnabled
           )}
         </IntegrationTile>
       )}

@@ -90,6 +90,17 @@ const typography = {
     fontWeight: regular,
     lineHeight: '14px',
   },
+  table: {
+    fontWeight: light,
+    fontSize: '14px',
+    lineHeight: '20px',
+    letterSpacing: '0.035px',
+  },
+  dropdownTitle: {
+    fontWeight: bold,
+    fontSize: '14px',
+    lineHeight: '20px',
+  },
 };
 
 export default typography;

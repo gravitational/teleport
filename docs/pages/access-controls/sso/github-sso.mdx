@@ -12,9 +12,8 @@ Teleport.
 
 - A GitHub organization with at least one team. 
 
-  In Teleport Community Edition and Teleport Team, this organization must not
-  have external SSO set up, or Teleport will refuse to create the GitHub
-  authentication connector.
+  In Teleport Community Edition, this organization must not have external SSO
+  set up, or Teleport will refuse to create the GitHub authentication connector.
 
   In Teleport Enterprise and Enterprise Cloud, organization can be hosted from
   either GitHub Cloud or GitHub Enterprise Server.
@@ -26,7 +25,7 @@ Teleport.
 
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/3. Create a GitHub OAuth app
+## Step 1/4. Create a GitHub OAuth app
 
 Create and register a GitHub OAuth App. When you do so, ensure that your OAuth
 App's "Authentication callback URL" is the following:
@@ -48,7 +47,7 @@ Create a client secret to use along with the client ID in the next step:
 
 ![A GitHub Oauth App, highlighting Client ID and secret](../../../img/sso/github-app-vars.png)
 
-## Step 2/3. Create a GitHub authentication connector
+## Step 2/4. Create a GitHub authentication connector
 
 In this section, you will define a GitHub authentication connector using `tctl`.
 
@@ -74,8 +73,9 @@ $ tctl sso configure github \
 ```
 <Admonition type="tip">
   GitHub organizations and teams should be referred to by their slug, not display name.
-  To create the slug, GitHub replaces special characters in the name string, changes all words to lowercase,
+  To create the team slug, GitHub replaces special characters in the name string, changes all words to lowercase,
   and replaces spaces with a `-` separator. For example, `My TEam Näme` would become `my-team-name`.
+  The organization slug is treated the same except the organization is not changed to lowercase.
   You can confirm the slug in GitHub Web application URLs or via the GitHub API.
   Example: navigate to the team `My Team` in the GitHub web application.
   The URL `https://github.com/orgs/org-name/teams/my-team`

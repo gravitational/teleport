@@ -239,7 +239,7 @@ func (c *Client) readClientSize() error {
 			continue
 		}
 
-		if c.cfg.Width != 0 && c.cfg.Height != 0 {
+		if c.cfg.hasSizeOverride() {
 			// Some desktops have a screen size in their resource definition.
 			// If non-zero then we always request this screen size.
 			c.cfg.Log.Debugf("Forcing a screen size of %dx%d", c.cfg.Width, c.cfg.Height)
@@ -393,6 +393,21 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 		c.UpdateClientActivity()
 
 		switch m := msg.(type) {
+		case tdp.ClientScreenSpec:
+			// If the client has specified a fixed screen size, we don't
+			// need to send a screen resize event.
+			if c.cfg.hasSizeOverride() {
+				continue
+			}
+
+			c.cfg.Log.Debugf("Client changed screen size: %d x %d", m.Width, m.Height)
+			if errCode := C.client_write_screen_resize(
+				C.ulong(c.handle),
+				C.uint32_t(m.Width),
+				C.uint32_t(m.Height),
+			); errCode != C.ErrCodeSuccess {
+				return trace.Errorf("ClientScreenSpec: client_write_screen_resize: %v", errCode)
+			}
 		case tdp.MouseMove:
 			mouseX, mouseY = m.X, m.Y
 			if errCode := C.client_write_rdp_pointer(
@@ -622,6 +637,15 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 					return trace.Errorf("SharedDirectoryMoveResponse failed: %v", errCode)
 				}
 			}
+		case tdp.SharedDirectoryTruncateResponse:
+			if c.cfg.AllowDirectorySharing {
+				if errCode := C.client_handle_tdp_sd_truncate_response(C.ulong(c.handle), C.CGOSharedDirectoryTruncateResponse{
+					completion_id: C.uint32_t(m.CompletionID),
+					err_code:      m.ErrCode,
+				}); errCode != C.ErrCodeSuccess {
+					return trace.Errorf("SharedDirectoryTruncateResponse failed: %v", errCode)
+				}
+			}
 		case tdp.RDPResponsePDU:
 			pduLen := uint32(len(m))
 			if pduLen == 0 {
@@ -684,8 +708,8 @@ func (c *Client) handleRDPFastPathPDU(data []byte) C.CGOErrCode {
 	return C.ErrCodeSuccess
 }
 
-//export cgo_handle_rdp_connection_initialized
-func cgo_handle_rdp_connection_initialized(
+//export cgo_handle_rdp_connection_activated
+func cgo_handle_rdp_connection_activated(
 	handle C.uintptr_t,
 	io_channel_id C.uint16_t,
 	user_channel_id C.uint16_t,
@@ -696,17 +720,17 @@ func cgo_handle_rdp_connection_initialized(
 	if err != nil {
 		return C.ErrCodeFailure
 	}
-	return client.handleRDPConnectionInitialized(io_channel_id, user_channel_id, screen_width, screen_height)
+	return client.handleRDPConnectionActivated(io_channel_id, user_channel_id, screen_width, screen_height)
 }
 
-func (c *Client) handleRDPConnectionInitialized(ioChannelID, userChannelID, screenWidth, screenHeight C.uint16_t) C.CGOErrCode {
+func (c *Client) handleRDPConnectionActivated(ioChannelID, userChannelID, screenWidth, screenHeight C.uint16_t) C.CGOErrCode {
 	c.cfg.Log.Debugf("Received RDP channel IDs: io_channel_id=%d, user_channel_id=%d", ioChannelID, userChannelID)
 
 	// Note: RDP doesn't always use the resolution we asked for.
 	// This is especially true when we request dimensions that are not a multiple of 4.
 	c.cfg.Log.Debugf("RDP server provided resolution of %dx%d", screenWidth, screenHeight)
 
-	if err := c.cfg.Conn.WriteMessage(tdp.ConnectionInitialized{
+	if err := c.cfg.Conn.WriteMessage(tdp.ConnectionActivated{
 		IOChannelID:   uint16(ioChannelID),
 		UserChannelID: uint16(userChannelID),
 		ScreenWidth:   uint16(screenWidth),
@@ -957,6 +981,33 @@ func (c *Client) sharedDirectoryMoveRequest(req tdp.SharedDirectoryMoveRequest) 
 
 	if err := c.cfg.Conn.WriteMessage(req); err != nil {
 		c.cfg.Log.Errorf("failed to send SharedDirectoryMoveRequest: %v", err)
+		return C.ErrCodeFailure
+	}
+	return C.ErrCodeSuccess
+
+}
+
+//export cgo_tdp_sd_truncate_request
+func cgo_tdp_sd_truncate_request(handle C.uintptr_t, req *C.CGOSharedDirectoryTruncateRequest) C.CGOErrCode {
+	client, err := toClient(handle)
+	if err != nil {
+		return C.ErrCodeFailure
+	}
+	return client.sharedDirectoryTruncateRequest(tdp.SharedDirectoryTruncateRequest{
+		CompletionID: uint32(req.completion_id),
+		DirectoryID:  uint32(req.directory_id),
+		Path:         C.GoString(req.path),
+		EndOfFile:    uint32(req.end_of_file),
+	})
+}
+
+func (c *Client) sharedDirectoryTruncateRequest(req tdp.SharedDirectoryTruncateRequest) C.CGOErrCode {
+	if !c.cfg.AllowDirectorySharing {
+		return C.ErrCodeFailure
+	}
+
+	if err := c.cfg.Conn.WriteMessage(req); err != nil {
+		c.cfg.Log.Errorf("failed to send SharedDirectoryTruncateRequest: %v", err)
 		return C.ErrCodeFailure
 	}
 	return C.ErrCodeSuccess

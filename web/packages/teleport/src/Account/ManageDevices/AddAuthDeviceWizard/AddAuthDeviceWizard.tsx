@@ -17,11 +17,9 @@
  */
 
 import { OutlineDanger } from 'design/Alert/Alert';
-import Box from 'design/Box';
 import { ButtonPrimary, ButtonSecondary } from 'design/Button';
 import Dialog from 'design/Dialog';
 import Flex from 'design/Flex';
-import * as Icon from 'design/Icon';
 import Image from 'design/Image';
 import Indicator from 'design/Indicator';
 import Link from 'design/Link';
@@ -33,15 +31,22 @@ import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 import { useAsync } from 'shared/hooks/useAsync';
-import useAttempt from 'shared/hooks/useAttemptNext';
+import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
 import { Auth2faType } from 'shared/services';
 import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
-import styled from 'styled-components';
+
+import Box from 'design/Box';
+
+import { StepHeader } from 'design/StepSlider';
 
 import useReAuthenticate from 'teleport/components/ReAuthenticate/useReAuthenticate';
-import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
-import { DeviceUsage } from 'teleport/services/mfa';
+import auth from 'teleport/services/auth/auth';
+import { DeviceUsage } from 'teleport/services/auth';
 import useTeleport from 'teleport/useTeleport';
+
+import { MfaDevice } from 'teleport/services/mfa';
+
+import { PasskeyBlurb } from '../../../components/Passkeys/PasskeyBlurb';
 
 interface AddAuthDeviceWizardProps {
   /** Indicates usage of the device to be added: MFA or a passkey. */
@@ -52,6 +57,7 @@ interface AddAuthDeviceWizardProps {
    * A privilege token that may have been created previously; if present, the
    * reauthentication step will be skipped.
    */
+  devices: MfaDevice[];
   privilegeToken?: string;
   onClose(): void;
   onSuccess(): void;
@@ -62,6 +68,7 @@ export function AddAuthDeviceWizard({
   privilegeToken: privilegeTokenProp = '',
   usage,
   auth2faType,
+  devices,
   onClose,
   onSuccess,
 }: AddAuthDeviceWizardProps) {
@@ -95,6 +102,7 @@ export function AddAuthDeviceWizard({
         privilegeToken={privilegeToken}
         credential={credential}
         newMfaDeviceType={newMfaDeviceType}
+        devices={devices}
         onClose={onClose}
         onAuthenticated={setPrivilegeToken}
         onNewMfaDeviceTypeChange={setNewMfaDeviceType}
@@ -110,8 +118,14 @@ const wizardFlows = {
   withoutReauthentication: [CreateDeviceStep, SaveDeviceStep],
 };
 
+export type AddAuthDeviceWizardStepProps = StepComponentProps &
+  ReauthenticateStepProps &
+  CreateDeviceStepProps &
+  SaveKeyStepProps;
+
 interface ReauthenticateStepProps extends StepComponentProps {
   auth2faType: Auth2faType;
+  devices: MfaDevice[];
   onAuthenticated(privilegeToken: string): void;
   onClose(): void;
 }
@@ -122,10 +136,10 @@ export function ReauthenticateStep({
   stepIndex,
   flowLength,
   auth2faType,
+  devices,
   onClose,
   onAuthenticated: onAuthenticatedProp,
 }: ReauthenticateStepProps) {
-  const challengeScope = MfaChallengeScope.MANAGE_DEVICES;
   const onAuthenticated = (privilegeToken: string) => {
     onAuthenticatedProp(privilegeToken);
     next();
@@ -133,14 +147,12 @@ export function ReauthenticateStep({
   const { attempt, clearAttempt, submitWithTotp, submitWithWebauthn } =
     useReAuthenticate({
       onAuthenticated,
-      challengeScope,
     });
-  const mfaOptions = createMfaOptions({
-    auth2faType,
-    required: true,
-  });
+  const mfaOptions = createReauthOptions(auth2faType, devices);
 
-  const [mfaOption, setMfaOption] = useState<Auth2faType>(mfaOptions[0].value);
+  const [mfaOption, setMfaOption] = useState<Auth2faType | undefined>(
+    mfaOptions[0]?.value
+  );
   const [authCode, setAuthCode] = useState('');
 
   const onAuthCodeChanged = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -154,31 +166,27 @@ export function ReauthenticateStep({
     e.preventDefault();
     if (!validator.validate()) return;
     if (mfaOption === 'webauthn') {
-      submitWithWebauthn(challengeScope);
+      submitWithWebauthn();
     }
     if (mfaOption === 'otp') {
       submitWithTotp(authCode);
     }
   };
 
-  // This message relies on the status message produced by the auth server in
-  // lib/auth/Server.checkOTP function. Please keep these in sync.
-  const errorMessage =
-    attempt.statusText === 'invalid totp token'
-      ? 'Invalid authenticator code'
-      : attempt.statusText;
-
+  const errorMessage = getReauthenticationErrorMessage(
+    auth2faType,
+    mfaOptions.length,
+    attempt
+  );
   return (
     <div ref={refCallback} data-testid="reauthenticate-step">
-      <DialogHeader
+      <StepHeader
         stepIndex={stepIndex}
         flowLength={flowLength}
         title="Verify Identity"
       />
-      {attempt.status === 'failed' && (
-        <OutlineDanger>{errorMessage}</OutlineDanger>
-      )}
-      Multi-factor type
+      {errorMessage && <OutlineDanger>{errorMessage}</OutlineDanger>}
+      {mfaOption && 'Multi-factor type'}
       <Validation>
         {({ validator }) => (
           <form onSubmit={e => onReauthenticate(e, validator)}>
@@ -208,9 +216,11 @@ export function ReauthenticateStep({
               />
             )}
             <Flex gap={2}>
-              <ButtonPrimary type="submit" block={true}>
-                Verify my identity
-              </ButtonPrimary>
+              {mfaOption && (
+                <ButtonPrimary type="submit" block={true}>
+                  Verify my identity
+                </ButtonPrimary>
+              )}
               <ButtonSecondary type="button" block={true} onClick={onClose}>
                 Cancel
               </ButtonSecondary>
@@ -219,6 +229,68 @@ export function ReauthenticateStep({
         )}
       </Validation>
     </div>
+  );
+}
+
+function getReauthenticationErrorMessage(
+  auth2faType: Auth2faType,
+  numMfaOptions: number,
+  attempt: Attempt
+): string {
+  if (numMfaOptions === 0) {
+    switch (auth2faType) {
+      case 'on':
+        return (
+          "Identity verification is required, but you don't have any" +
+          'passkeys or MFA methods registered. This may mean that the' +
+          'server configuration has changed. Please contact your ' +
+          'administrator.'
+        );
+      case 'otp':
+        return (
+          'Identity verification using authenticator app is required, but ' +
+          "you don't have any authenticator apps registered. This may mean " +
+          'that the server configuration has changed. Please contact your ' +
+          'administrator.'
+        );
+      case 'webauthn':
+        return (
+          'Identity verification using a passkey or security key is required, but ' +
+          "you don't have any such devices registered. This may mean " +
+          'that the server configuration has changed. Please contact your ' +
+          'administrator.'
+        );
+      case 'optional':
+      case 'off':
+        // This error message is not useful, but this condition should never
+        // happen, and if it does, it means something is broken, and we don't
+        // have a clue anyway.
+        return 'Unable to verify identity';
+      default:
+        auth2faType satisfies never;
+    }
+  }
+
+  if (attempt.status === 'failed') {
+    // This message relies on the status message produced by the auth server in
+    // lib/auth/Server.checkOTP function. Please keep these in sync.
+    if (attempt.statusText === 'invalid totp token') {
+      return 'Invalid authenticator code';
+    } else {
+      return attempt.statusText;
+    }
+  }
+}
+
+export function createReauthOptions(
+  auth2faType: Auth2faType,
+  devices: MfaDevice[]
+): MfaOption[] {
+  return createMfaOptions({ auth2faType, required: true }).filter(
+    ({ value }) => {
+      const deviceType = value === 'otp' ? 'totp' : value;
+      return devices.some(({ type }) => type === deviceType);
+    }
   );
 }
 
@@ -246,12 +318,11 @@ export function CreateDeviceStep({
   onClose,
   onDeviceCreated,
 }: CreateDeviceStepProps) {
-  const ctx = useTeleport();
   const createPasskeyAttempt = useAttempt();
   const onCreate = () => {
     if (usage === 'passwordless' || newMfaDeviceType === 'webauthn') {
       createPasskeyAttempt.run(async () => {
-        const credential = await ctx.mfaService.createNewWebAuthnDevice({
+        const credential = await auth.createNewWebAuthnDevice({
           tokenId: privilegeToken,
           deviceUsage: usage,
         });
@@ -265,7 +336,7 @@ export function CreateDeviceStep({
 
   return (
     <div ref={refCallback} data-testid="create-step">
-      <DialogHeader
+      <StepHeader
         stepIndex={stepIndex}
         flowLength={flowLength}
         title={
@@ -276,7 +347,11 @@ export function CreateDeviceStep({
       {createPasskeyAttempt.attempt.status === 'failed' && (
         <OutlineDanger>{createPasskeyAttempt.attempt.statusText}</OutlineDanger>
       )}
-      {usage === 'passwordless' && <PasskeyBlurb />}
+      {usage === 'passwordless' && (
+        <Box mb={4}>
+          <PasskeyBlurb />
+        </Box>
+      )}
       {usage === 'mfa' && (
         <CreateMfaBox
           auth2faType={auth2faType}
@@ -455,9 +530,12 @@ export function SaveDeviceStep({
     setAuthCode(e.target.value);
   };
 
+  const label =
+    usage === 'passwordless' ? 'Passkey Nickname' : 'MFA Method Name';
+
   return (
     <div ref={refCallback} data-testid="save-step">
-      <DialogHeader
+      <StepHeader
         stepIndex={stepIndex}
         flowLength={flowLength}
         title={
@@ -472,12 +550,8 @@ export function SaveDeviceStep({
         {({ validator }) => (
           <form onSubmit={e => onSave(e, validator)}>
             <FieldInput
-              label={
-                usage === 'passwordless'
-                  ? 'Passkey Nickname'
-                  : 'MFA Method Name'
-              }
-              rule={requiredField('Passkey nickname is required')}
+              label={label}
+              rule={requiredField(`${label} is required`)}
               value={deviceName}
               placeholder="ex. my-macbookpro"
               autoFocus
@@ -514,64 +588,3 @@ export function SaveDeviceStep({
     </div>
   );
 }
-
-function DialogHeader({
-  stepIndex,
-  flowLength,
-  title,
-}: {
-  stepIndex: number;
-  flowLength: number;
-  title: string;
-}) {
-  return (
-    <Box mb={4}>
-      <Text typography="body1">
-        Step {stepIndex + 1} of {flowLength}
-      </Text>
-      <Text typography="h4">{title}</Text>
-    </Box>
-  );
-}
-
-function PasskeyBlurb() {
-  return (
-    <Box
-      mb={4}
-      border={1}
-      borderColor="interactive.tonal.neutral.2"
-      borderRadius={3}
-      p={3}
-    >
-      <OverlappingChip>
-        <Icon.FingerprintSimple p={2} />
-      </OverlappingChip>
-      <OverlappingChip>
-        <Icon.UsbDrive p={2} />
-      </OverlappingChip>
-      <OverlappingChip>
-        <Icon.UserFocus p={2} />
-      </OverlappingChip>
-      <OverlappingChip>
-        <Icon.DeviceMobileCamera p={2} />
-      </OverlappingChip>
-      <p>
-        Teleport supports passkeys, a password replacement that validates your
-        identity using touch, facial recognition, a device password, or a PIN.
-      </p>
-      <p style={{ marginBottom: 0 }}>
-        Passkeys can be used to sign in as a simple and secure alternative to
-        your password and multi-factor credentials.
-      </p>
-    </Box>
-  );
-}
-
-const OverlappingChip = styled.span`
-  display: inline-block;
-  background: ${props => props.theme.colors.levels.surface};
-  border: ${props => props.theme.borders[1]};
-  border-color: ${props => props.theme.colors.interactive.tonal.neutral[2]};
-  border-radius: 50%;
-  margin-right: -6px;
-`;

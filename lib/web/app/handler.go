@@ -38,7 +38,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -51,9 +51,9 @@ type HandlerConfig struct {
 	// Clock is used to control time in tests.
 	Clock clockwork.Clock
 	// AuthClient is a direct client to auth.
-	AuthClient auth.ClientI
+	AuthClient authclient.ClientI
 	// AccessPoint is caching client to auth.
-	AccessPoint auth.ProxyAccessPoint
+	AccessPoint authclient.ProxyAccessPoint
 	// ProxyClient holds connections to leaf clusters.
 	ProxyClient reversetunnelclient.Tunnel
 	// ProxyPublicAddrs contains web proxy public addresses.
@@ -63,6 +63,9 @@ type HandlerConfig struct {
 	CipherSuites []uint16
 	// WebPublicAddr
 	WebPublicAddr string
+	// IntegrationAppHandler handles App Access requests directly - not requiring an AppService.
+	// Only available for AWS OIDC Integrations.
+	IntegrationAppHandler ServerHandler
 }
 
 // CheckAndSetDefaults validates configuration.
@@ -79,6 +82,9 @@ func (c *HandlerConfig) CheckAndSetDefaults() error {
 	}
 	if len(c.CipherSuites) == 0 {
 		return trace.BadParameter("ciphersuites missing")
+	}
+	if c.IntegrationAppHandler == nil {
+		return trace.BadParameter("integration app handler missing")
 	}
 
 	return nil
@@ -110,7 +116,7 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 		c:            c,
 		closeContext: ctx,
 		log: logrus.WithFields(logrus.Fields{
-			trace.Component: teleport.ComponentAppProxy,
+			teleport.ComponentKey: teleport.ComponentAppProxy,
 		}),
 	}
 

@@ -29,7 +29,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
 	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
@@ -76,7 +75,7 @@ func (f *rdsDBProxyPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConf
 			continue
 		}
 
-		if !services.IsRDSProxyAvailable(dbProxy) {
+		if !libcloudaws.IsRDSProxyAvailable(dbProxy) {
 			cfg.Log.Debugf("The current status of RDS Proxy %q is %q. Skipping.",
 				aws.StringValue(dbProxy.DBProxyName),
 				aws.StringValue(dbProxy.Status))
@@ -91,7 +90,7 @@ func (f *rdsDBProxyPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConf
 		}
 
 		// Add a database from RDS Proxy (default endpoint).
-		database, err := services.NewDatabaseFromRDSProxy(dbProxy, tags)
+		database, err := common.NewDatabaseFromRDSProxy(dbProxy, tags)
 		if err != nil {
 			cfg.Log.Debugf("Could not convert RDS Proxy %q to database resource: %v.",
 				aws.StringValue(dbProxy.DBProxyName), err)
@@ -101,7 +100,7 @@ func (f *rdsDBProxyPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConf
 
 		// Add custom endpoints.
 		for _, customEndpoint := range customEndpointsByProxyName[aws.StringValue(dbProxy.DBProxyName)] {
-			if !services.IsRDSProxyCustomEndpointAvailable(customEndpoint) {
+			if !libcloudaws.IsRDSProxyCustomEndpointAvailable(customEndpoint) {
 				cfg.Log.Debugf("The current status of custom endpoint %q of RDS Proxy %q is %q. Skipping.",
 					aws.StringValue(customEndpoint.DBProxyEndpointName),
 					aws.StringValue(customEndpoint.DBProxyName),
@@ -109,7 +108,7 @@ func (f *rdsDBProxyPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConf
 				continue
 			}
 
-			database, err = services.NewDatabaseFromRDSProxyCustomEndpoint(dbProxy, customEndpoint, tags)
+			database, err = common.NewDatabaseFromRDSProxyCustomEndpoint(dbProxy, customEndpoint, tags)
 			if err != nil {
 				cfg.Log.Debugf("Could not convert custom endpoint %q of RDS Proxy %q to database resource: %v.",
 					aws.StringValue(customEndpoint.DBProxyEndpointName),

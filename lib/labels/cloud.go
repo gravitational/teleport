@@ -29,8 +29,9 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/imds"
 )
 
 const (
@@ -51,7 +52,7 @@ const (
 
 // CloudConfig is the configuration for a cloud label service.
 type CloudConfig struct {
-	Client               cloud.InstanceMetadata
+	Client               imds.Client
 	Clock                clockwork.Clock
 	Log                  logrus.FieldLogger
 	namespace            string
@@ -66,7 +67,7 @@ func (conf *CloudConfig) checkAndSetDefaults() error {
 		conf.Clock = clockwork.NewRealClock()
 	}
 	if conf.Log == nil {
-		conf.Log = logrus.WithField(trace.Component, "cloudlabels")
+		conf.Log = logrus.WithField(teleport.ComponentKey, "cloudlabels")
 	}
 	return nil
 }

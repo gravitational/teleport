@@ -32,7 +32,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
@@ -128,7 +127,7 @@ func TestEKSFetcher(t *testing.T) {
 
 type mockEKSClientGetter struct{}
 
-func (e *mockEKSClientGetter) GetAWSEKSClient(ctx context.Context, region string, opts ...cloud.AWSAssumeRoleOptionFn) (eksiface.EKSAPI, error) {
+func (e *mockEKSClientGetter) GetAWSEKSClient(ctx context.Context, region string, opts ...cloud.AWSOptionsFn) (eksiface.EKSAPI, error) {
 	return newPopulatedEKSMock(), nil
 }
 
@@ -213,7 +212,7 @@ var eksMockClusters = []*eks.Cluster{
 func eksClustersToResources(t *testing.T, clusters ...*eks.Cluster) types.ResourcesWithLabels {
 	var kubeClusters types.KubeClusters
 	for _, cluster := range clusters {
-		kubeCluster, err := services.NewKubeClusterFromAWSEKS(aws.StringValue(cluster.Name), aws.StringValue(cluster.Arn), cluster.Tags)
+		kubeCluster, err := common.NewKubeClusterFromAWSEKS(aws.StringValue(cluster.Name), aws.StringValue(cluster.Arn), cluster.Tags)
 		require.NoError(t, err)
 		require.True(t, kubeCluster.IsAWS())
 		common.ApplyEKSNameSuffix(kubeCluster)

@@ -33,10 +33,10 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1/experiment"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -87,7 +87,7 @@ func NewWorkloadIdentityService(
 	}
 
 	if cfg.Logger == nil {
-		cfg.Logger = logrus.WithField(trace.Component, "workload-identity.service")
+		cfg.Logger = logrus.WithField(teleport.ComponentKey, "workload-identity.service")
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
@@ -168,6 +168,15 @@ func signx509SVID(
 		URIs:        []*url.URL{spiffeID},
 		DNSNames:    dnsSANs,
 		IPAddresses: ipSANS,
+	}
+
+	// For legacy compatibility, we set the subject common name to the first
+	// DNS SAN. This allows interoperability with non-SPIFFE aware clients that
+	// trust the CA, or interoperability with servers like Postgres which can
+	// only inspect the common name when making authz/authn decisions.
+	// Eventually, we may wish to make this behavior more configurable.
+	if len(dnsSANs) > 0 {
+		template.Subject.CommonName = dnsSANs[0]
 	}
 
 	certBytes, err := x509.CreateCertificate(
@@ -301,19 +310,12 @@ func (wis *WorkloadIdentityService) signX509SVID(
 }
 
 func (wis *WorkloadIdentityService) SignX509SVIDs(ctx context.Context, req *pb.SignX509SVIDsRequest) (*pb.SignX509SVIDsResponse, error) {
-	if !experiment.Enabled() {
-		return nil, trace.AccessDenied("workload identity has not been enabled")
-	}
-
 	if len(req.Svids) == 0 {
 		return nil, trace.BadParameter("svids: must be non-empty")
 	}
 
 	authCtx, err := wis.authorizer.Authorize(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := authCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

@@ -173,6 +173,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindAuditQuery, append(RW(), types.VerbUse)),
 					types.NewRule(types.KindAccessGraph, RW()),
 					types.NewRule(types.KindServerInfo, RW()),
+					types.NewRule(types.KindAppServer, RW()),
 				},
 			},
 		},
@@ -626,7 +627,7 @@ func defaultAllowAccessRequestConditions(enterprise bool) map[string]*types.Acce
 				SearchAsRoles: []string{
 					teleport.SystemOktaAccessRoleName,
 				},
-				MaxDuration: types.NewDuration(maxAccessDuration),
+				MaxDuration: types.NewDuration(MaxAccessDuration),
 			},
 		}
 	}

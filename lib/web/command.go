@@ -47,7 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/ai/tokens"
 	assistlib "github.com/gravitational/teleport/lib/assist"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -298,7 +298,11 @@ func (h *Handler) executeCommand(
 		}
 	}
 
-	prompt, completion := tokens.CountTokens(tokenCount)
+	prompt, completion := 0, 0
+	if tokenCount != nil {
+		prompt = tokenCount.Prompt.CountAll()
+		completion = tokenCount.Completion.CountAll()
+	}
 
 	usageEventReq := &clientproto.SubmitUsageEventRequest{
 		Event: &usageeventsv1.UsageEventOneOf{
@@ -323,7 +327,7 @@ func (h *Handler) executeCommand(
 type summaryRequest struct {
 	hosts          []hostInfo
 	output         map[string][]byte
-	authClient     auth.ClientI
+	authClient     authclient.ClientI
 	username       string
 	executionID    string
 	conversationID string
@@ -458,8 +462,8 @@ func newCommandHandler(ctx context.Context, cfg CommandHandlerConfig) (*commandH
 	return &commandHandler{
 		sshBaseHandler: sshBaseHandler{
 			log: logrus.WithFields(logrus.Fields{
-				trace.Component: teleport.ComponentWebsocket,
-				"session_id":    cfg.SessionData.ID.String(),
+				teleport.ComponentKey: teleport.ComponentWebsocket,
+				"session_id":          cfg.SessionData.ID.String(),
 			}),
 			ctx:                cfg.SessionCtx,
 			userAuthClient:     cfg.UserAuthClient,

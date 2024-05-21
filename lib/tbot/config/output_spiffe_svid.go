@@ -25,6 +25,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"log/slog"
 	"net"
 	"strings"
 	"time"
@@ -36,7 +37,6 @@ import (
 
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1/experiment"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tbot/bot"
@@ -72,6 +72,15 @@ type SVIDRequest struct {
 	// SANS is the Subject Alternative Names that are requested to be included
 	// in the SVID.
 	SANS SVIDRequestSANs `yaml:"sans,omitempty"`
+}
+
+func (o SVIDRequest) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("path", o.Path),
+		slog.String("hint", o.Hint),
+		slog.Any("dns_sans", o.SANS.DNS),
+		slog.Any("ip_sans", o.SANS.IP),
+	)
 }
 
 // CheckAndSetDefaults checks the SVIDRequest values and sets any defaults.
@@ -245,10 +254,6 @@ func (o *SPIFFESVIDOutput) GetRoles() []string {
 
 // CheckAndSetDefaults checks the SPIFFESVIDOutput values and sets any defaults.
 func (o *SPIFFESVIDOutput) CheckAndSetDefaults() error {
-	if !experiment.Enabled() {
-		return trace.AccessDenied("workload identity has not been enabled")
-	}
-
 	if err := o.SVID.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err, "validating svid")
 	}

@@ -37,9 +37,24 @@ export interface UserContext {
   cluster: Cluster;
   accessStrategy: AccessStrategy;
   accessCapabilities: AccessCapabilities;
-  // accessRequestId is the ID of the access request from which additional roles to assume were obtained for the current session.
+  /**
+   * ID of the access request from which additional roles to assume were
+   * obtained for the current session.
+   */
   accessRequestId?: string;
   allowedSearchAsRoles: string[];
+  /** Indicates whether the user has a password set. */
+  passwordState: PasswordState;
+}
+
+/**
+ * Indicates whether a user has a password set. Corresponds to the PasswordState
+ * protocol buffers enum.
+ */
+export enum PasswordState {
+  PASSWORD_STATE_UNSPECIFIED = 0,
+  PASSWORD_STATE_UNSET = 1,
+  PASSWORD_STATE_SET = 2,
 }
 
 export interface Access {
@@ -89,10 +104,13 @@ export interface Acl {
   externalAuditStorage: Access;
   accessGraph: Access;
   bots: Access;
+  accessMonitoringRule: Access;
 }
 
 // AllTraits represent all the traits defined for a user.
 export type AllUserTraits = Record<string, string[]>;
+
+export type UserOrigin = 'okta' | 'saml' | 'scim';
 
 export interface User {
   // name is the teleport username.
@@ -102,8 +120,12 @@ export interface User {
   // authType describes how the user authenticated
   // e.g. locally or with a SSO provider.
   authType?: string;
+  // What kind of upstream IdP has the user come from?
+  origin?: UserOrigin;
   // isLocal is true if json.authType was 'local'.
   isLocal?: boolean;
+  // isBot is true if the user is a Bot User.
+  isBot?: boolean;
   // traits existed before field "externalTraits"
   // and returns only "specific" traits.
   traits?: UserTraits;

@@ -54,6 +54,7 @@ func Commands() []CLICommand {
 		&ACLCommand{},
 		&loginrule.Command{},
 		&IdPCommand{},
+		&PluginsCommand{},
 	}
 }
 
@@ -63,5 +64,8 @@ func OSSCommands() []CLICommand {
 	return []CLICommand{
 		&configure.SSOConfigureCommand{},
 		&tester.SSOTestCommand{},
+		&fido2Command{},
+		&webauthnwinCommand{},
+		&touchIDCommand{},
 	}
 }

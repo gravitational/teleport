@@ -32,16 +32,14 @@
               "title": "Teleport Cloud Agents (Linux)",
               "slug": "/upgrading/cloud-linux/",
               "forScopes": [
-                "cloud",
-                "team"
+                "cloud"
               ]
             },
             {
               "title": "Teleport Cloud Agents (Kubernetes)",
               "slug": "/upgrading/cloud-kubernetes/",
               "forScopes": [
-                "cloud",
-                "team"
+                "cloud"
               ]
             },
             {
@@ -78,7 +76,6 @@
           "slug": "/usage-billing/",
           "forScopes": [
             "cloud",
-            "team",
             "enterprise"
           ]
         },
@@ -109,19 +106,19 @@
           "slug": "/choose-an-edition/introduction/"
         },
         {
-          "title": "Teleport Team",
-          "slug": "/choose-an-edition/teleport-team/",
-          "forScopes": [
-            "team"
-          ]
-        },
-        {
           "title": "Teleport Enterprise Cloud",
           "slug": "/choose-an-edition/teleport-cloud/introduction/",
           "forScopes": [
             "cloud"
           ],
           "entries": [
+            {
+              "title": "Get Started",
+              "slug": "/choose-an-edition/teleport-cloud/get-started/",
+              "forScopes": [
+                "cloud"
+              ]
+            },
             {
               "title": "Architecture",
               "slug": "/choose-an-edition/teleport-cloud/architecture/",
@@ -423,7 +420,6 @@
           "slug": "/access-controls/sso/",
           "forScopes": [
             "oss",
-            "team",
             "enterprise",
             "cloud"
           ],
@@ -449,7 +445,6 @@
               "slug": "/access-controls/sso/github-sso/",
               "forScopes": [
                 "oss",
-                "team",
                 "enterprise",
                 "cloud"
               ]
@@ -501,8 +496,7 @@
           "slug": "/access-controls/idps/",
           "forScopes": [
             "enterprise",
-            "cloud",
-            "team"
+            "cloud"
           ],
           "entries": [
             {
@@ -510,8 +504,7 @@
               "slug": "/access-controls/idps/saml-guide/",
               "forScopes": [
                 "enterprise",
-                "cloud",
-                "team"
+                "cloud"
               ]
             },
             {
@@ -519,8 +512,7 @@
               "slug": "/access-controls/idps/saml-attribute-mapping/",
               "forScopes": [
                 "enterprise",
-                "cloud",
-                "team"
+                "cloud"
               ]
             },
             {
@@ -528,8 +520,15 @@
               "slug": "/access-controls/idps/saml-grafana/",
               "forScopes": [
                 "enterprise",
-                "cloud",
-                "team"
+                "cloud"
+              ]
+            },
+            {
+              "title": "GCP Workforce Identity Federation",
+              "slug": "/access-controls/idps/saml-gcp-workforce-identity-federation/",
+              "forScopes": [
+                "enterprise",
+                "cloud"
               ]
             },
             {
@@ -537,8 +536,7 @@
               "slug": "/access-controls/idps/saml-reference/",
               "forScopes": [
                 "enterprise",
-                "cloud",
-                "team"
+                "cloud"
               ]
             }
           ]
@@ -589,8 +587,7 @@
           "slug": "/access-controls/device-trust/",
           "forScopes": [
             "enterprise",
-            "cloud",
-            "team"
+            "cloud"
           ],
           "entries": [
             {
@@ -598,8 +595,7 @@
               "slug": "/access-controls/device-trust/guide/",
               "forScopes": [
                 "enterprise",
-                "cloud",
-                "team"
+                "cloud"
               ]
             },
             {
@@ -607,8 +603,7 @@
               "slug": "/access-controls/device-trust/device-management/",
               "forScopes": [
                 "enterprise",
-                "cloud",
-                "team"
+                "cloud"
               ]
             },
             {
@@ -616,8 +611,7 @@
               "slug": "/access-controls/device-trust/enforcing-device-trust/",
               "forScopes": [
                 "enterprise",
-                "cloud",
-                "team"
+                "cloud"
               ]
             },
             {
@@ -660,7 +654,6 @@
           "title": "Access Graph",
           "slug": "/access-controls/access-graph/",
           "forScopes": [
-            "team",
             "enterprise"
           ],
           "entries": [
@@ -677,7 +670,25 @@
               "forScopes": [
                 "enterprise"
               ]
+            },
+            {
+              "title": "Analyze AWS IAM policies",
+              "slug": "/access-controls/access-graph/aws-sync/",
+              "forScopes": [
+                "cloud",
+                "enterprise"
+              ]
             }
+          ]
+        },
+        {
+          "title": "Access Monitoring",
+          "slug": "/access-controls/access-monitoring/",
+          "forScopes": [
+            "team",
+            "cloud",
+            "enterprise",
+            "oss"
           ]
         },
         {
@@ -852,6 +863,10 @@
               "slug": "/management/dynamic-resources/user-and-role/"
             },
             {
+              "title": "Registering Agentless OpenSSH",
+              "slug": "/management/dynamic-resources/agentless-ssh-servers/"
+            },
+            {
               "title": "Managing Access Lists",
               "slug": "/management/dynamic-resources/access-list/"
             },
@@ -872,7 +887,7 @@
               "slug": "/management/dynamic-resources/teleport-operator-standalone/"
             },
             {
-              "title": "Terraform Provider",
+              "title": "Set up the Terraform Provider",
               "slug": "/management/dynamic-resources/terraform-provider/"
             }
           ]
@@ -993,6 +1008,10 @@
             {
               "title": "Using Teleport's CA with GitHub",
               "slug": "/management/guides/ssh-key-extensions/"
+            },
+            {
+              "title": "AWS OIDC Integration",
+              "slug": "/management/guides/awsoidc-integration/"
             }
           ]
         },
@@ -1053,6 +1072,10 @@
             {
               "title": "Export Audit Events to the Elastic Stack",
               "slug": "/management/export-audit-events/elastic-stack/"
+            },
+            {
+              "title": "Export Audit Events to Panther",
+              "slug": "/management/export-audit-events/panther/"
             },
             {
               "title": "Export Audit Events to Splunk",
@@ -1225,6 +1248,14 @@
           "slug": "/application-access/cloud-apis/",
           "entries": [
             {
+              "title": "Google Cloud Web Console Access",
+              "slug": "/access-controls/idps/saml-gcp-workforce-identity-federation/",
+              "forScopes": [
+                "enterprise",
+                "cloud"
+              ]
+            },
+            {
               "title": "Google Cloud CLI Access",
               "slug": "/application-access/cloud-apis/google-cloud/"
             },
@@ -1235,6 +1266,10 @@
             {
               "title": "Azure CLI Access",
               "slug": "/application-access/cloud-apis/azure/"
+            },
+            {
+              "title": "Azure CLI Access on AKS",
+              "slug": "/application-access/cloud-apis/azure-aks-workload-id/"
             }
           ]
         },
@@ -1459,18 +1494,8 @@
           ]
         },
         {
-          "title": "Configuring Access",
-          "slug": "/kubernetes-access/manage-access/",
-          "entries": [
-            {
-              "title": "Setting up Role-Based Access Controls",
-              "slug": "/kubernetes-access/manage-access/rbac/"
-            },
-            {
-              "title": "Federation",
-              "slug": "/kubernetes-access/manage-access/federation/"
-            }
-          ]
+          "title": "Setting up Role-Based Access Controls",
+          "slug": "/kubernetes-access/manage-access/"
         },
         {
           "title": "Access Controls Reference",
@@ -1642,13 +1667,7 @@
         },
         {
           "title": "Access Controls",
-          "slug": "/database-access/rbac/",
-          "entries": [
-            {
-              "title": "RBAC",
-              "slug": "/database-access/rbac/configuring-access/"
-            }
-          ]
+          "slug": "/database-access/rbac/"
         },
         {
           "title": "Automatic User Provisioning",
@@ -1673,6 +1692,10 @@
             {
               "title": "PostgreSQL",
               "slug": "/database-access/auto-user-provisioning/postgres/"
+            },
+            {
+              "title": "Database Access Controls",
+              "slug": "/database-access/auto-user-provisioning/database-access-controls/"
             }
           ]
         },
@@ -1825,6 +1848,10 @@
               "slug": "/machine-id/deployment/linux/"
             },
             {
+              "title": "Linux Server (TPM)",
+              "slug": "/machine-id/deployment/linux-tpm/"
+            },
+            {
               "title": "Kubernetes",
               "slug": "/machine-id/deployment/kubernetes/"
             },
@@ -1899,12 +1926,34 @@
           ]
         },
         {
+          "title": "Workload Identity (SPIFFE)",
+          "slug": "/machine-id/workload-identity/",
+          "entries": [
+            {
+              "title": "Getting Started",
+              "slug": "/machine-id/workload-identity/getting-started/"
+            },
+            {
+              "title": "Best Practices",
+              "slug": "/machine-id/workload-identity/best-practices/"
+            },
+            {
+              "title": "Tsh Support",
+              "slug": "/machine-id/workload-identity/tsh/"
+            }
+          ]
+        },
+        {
           "title": "FAQ",
           "slug": "/machine-id/faq/"
         },
         {
           "title": "Troubleshooting",
           "slug": "/machine-id/troubleshooting/"
+        },
+        {
+          "title": "Manifesto",
+          "slug": "/machine-id/manifesto/"
         }
       ]
     },
@@ -2136,7 +2185,7 @@
       "nodeIP": "ip-172-31-35-170"
     },
     "access_graph": {
-      "version": "1.13.0"
+      "version": "1.20.1"
     },
     "ansible": {
       "min_version": "2.9.6"
@@ -2146,8 +2195,8 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "14.3.6",
-      "major_version": "14",
+      "version": "15.3.0",
+      "major_version": "15",
       "sla": {
         "monthly_percentage": "99.9%",
         "monthly_downtime": "44 minutes"
@@ -2191,20 +2240,30 @@
     "teleport": {
       "git": "api/14.0.0-gd1e081e",
       "major_version": "15",
-      "version": "15.1.1",
+      "version": "15.3.1",
       "url": "teleport.example.com",
       "golang": "1.21",
       "plugin": {
-        "version": "15.1.1"
+        "version": "15.3.1"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
-      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport-distroless:15.1.1",
-      "latest_oss_debug_docker_image": "public.ecr.aws/gravitational/teleport-distroless-debug:15.1.1",
-      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless:15.1.1",
-      "latest_ent_debug_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless-debug:15.1.1"
+      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport-distroless:15.3.1",
+      "latest_oss_debug_docker_image": "public.ecr.aws/gravitational/teleport-distroless-debug:15.3.1",
+      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless:15.3.1",
+      "latest_ent_debug_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless-debug:15.3.1"
     },
     "terraform": {
       "version": "1.0.0"
+    },
+    "db_ca": {
+      "released_version": "10"
+    },
+    "db_client_ca": {
+      "released_version": {
+        "v13": "13.4.17",
+        "v14": "14.3.7",
+        "v15": "15"
+      }
     }
   },
   "redirects": [
@@ -2214,123 +2273,13 @@
       "permanent": true
     },
     {
-      "source": "/production/",
-      "destination": "/deploy-a-cluster/deployments/",
-      "permanent": true
-    },
-    {
-      "source": "/admin-guide/",
-      "destination": "/management/admin/",
-      "permanent": true
-    },
-    {
-      "source": "/trustedclusters/",
-      "destination": "/management/admin/trustedclusters/",
-      "permanent": true
-    },
-    {
-      "source": "/reference/api/architecture/",
-      "destination": "/api/architecture/",
-      "permanent": true
-    },
-    {
-      "source": "/reference/api/getting-started/",
-      "destination": "/api/getting-started/",
-      "permanent": true
-    },
-    {
-      "source": "/reference/api/introduction/",
-      "destination": "/api/introduction/",
-      "permanent": true
-    },
-    {
-      "source": "/metrics-logs-reference/",
-      "destination": "/management/diagnostics/metrics/",
-      "permanent": true
-    },
-    {
-      "source": "/config-reference/",
-      "destination": "/reference/config/",
-      "permanent": true
-    },
-    {
-      "source": "/cli-docs/",
-      "destination": "/reference/cli/",
-      "permanent": true
-    },
-    {
-      "source": "/enterprise/ssh-kubernetes-fedramp/",
-      "destination": "/access-controls/compliance-frameworks/fedramp/",
-      "permanent": true
-    },
-    {
-      "source": "/enterprise/sso/ssh-one-login/",
-      "destination": "/access-controls/sso/one-login/",
-      "permanent": true
-    },
-    {
-      "source": "/enterprise/sso/ssh-okta/",
-      "destination": "/access-controls/sso/okta/",
-      "permanent": true
-    },
-    {
-      "source": "/enterprise/sso/ssh-google-workspace/",
-      "destination": "/access-controls/sso/google-workspace/",
-      "permanent": true
-    },
-    {
-      "source": "/enterprise/sso/ssh-azuread/",
-      "destination": "/access-controls/sso/azuread/",
-      "permanent": true
-    },
-    {
-      "source": "/enterprise/sso/ssh-adfs/",
-      "destination": "/access-controls/sso/adfs/",
-      "permanent": true
-    },
-    {
-      "source": "/enterprise/sso/ssh-sso/",
-      "destination": "/access-controls/sso/",
-      "permanent": true
-    },
-    {
       "source": "/enterprise/ssh_sso/",
       "destination": "/access-controls/sso/",
       "permanent": true
     },
     {
-      "source": "/enterprise/quickstart-enterprise/",
-      "destination": "/choose-an-edition/teleport-enterprise/introduction/",
-      "permanent": true
-    },
-    {
-      "source": "/gcp-guide/",
-      "destination": "/deploy-a-cluster/deployments/gcp/",
-      "permanent": true
-    },
-    {
-      "source": "/ibm-cloud-guide/",
-      "destination": "/deploy-a-cluster/deployments/ibm/",
-      "permanent": true
-    },
-    {
-      "source": "/aws-terraform-guide/",
-      "destination": "/deploy-a-cluster/deployments/aws-ha-autoscale-cluster-terraform/",
-      "permanent": true
-    },
-    {
       "source": "/aws-terraform/",
       "destination": "/deploy-a-cluster/deployments/aws-ha-autoscale-cluster-terraform/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/guides/docker-compose/",
-      "destination": "/installation/",
-      "permanent": true
-    },
-    {
-      "source": "/cloud/",
-      "destination": "/choose-an-edition/teleport-cloud/introduction/",
       "permanent": true
     },
     {
@@ -2351,61 +2300,6 @@
     {
       "source": "/kubernetes-access/",
       "destination": "/kubernetes-access/introduction/",
-      "permanent": true
-    },
-    {
-      "source": "/enterprise/ssh-rbac/",
-      "destination": "/access-controls/introduction/",
-      "permanent": true
-    },
-    {
-      "source": "/quickstart/",
-      "destination": "/",
-      "permanent": true
-    },
-    {
-      "source": "/preview/database-access/",
-      "destination": "/database-access/",
-      "permanent": true
-    },
-    {
-      "source": "/preview/cloud/",
-      "destination": "/choose-an-edition/teleport-cloud/introduction/",
-      "permanent": true
-    },
-    {
-      "source": "/kubernetes-ssh/",
-      "destination": "/kubernetes-access/",
-      "permanent": true
-    },
-    {
-      "source": "/features/ssh-pam/",
-      "destination": "/server-access/guides/ssh-pam/",
-      "permanent": true
-    },
-    {
-      "source": "/openssh-teleport/",
-      "destination": "/server-access/openssh/",
-      "permanent": true
-    },
-    {
-      "source": "/features/enhanced-session-recording/",
-      "destination": "/server-access/guides/bpf-session-recording/",
-      "permanent": true
-    },
-    {
-      "source": "/quickstart-docker/",
-      "destination": "/installation/",
-      "permanent": true
-    },
-    {
-      "source": "/database-access/guides/postgres-aws/",
-      "destination": "/database-access/guides/rds/",
-      "permanent": true
-    },
-    {
-      "source": "/database-access/guides/mysql-aws/",
-      "destination": "/database-access/guides/rds/",
       "permanent": true
     },
     {
@@ -2720,7 +2614,7 @@
     },
     {
       "source": "/cloud/getting-started/",
-      "destination": "/choose-an-edition/teleport-team/",
+      "destination": "/choose-an-edition/teleport-cloud/get-started/",
       "permanent": true
     },
     {
@@ -2985,7 +2879,7 @@
     },
     {
       "source": "/deploy-a-cluster/teleport-cloud/getting-started/",
-      "destination": "/choose-an-edition/teleport-team/",
+      "destination": "/choose-an-edition/teleport-cloud/get-started/",
       "permanent": true
     },
     {
@@ -3059,11 +2953,6 @@
       "permanent": true
     },
     {
-      "source": "/kubernetes-access/guides/federation/",
-      "destination": "/kubernetes-access/manage-access/federation/",
-      "permanent": true
-    },
-    {
       "source": "/kubernetes-access/guides/dynamic-registration/",
       "destination": "/kubernetes-access/register-clusters/dynamic-registration/",
       "permanent": true
@@ -3085,7 +2974,7 @@
     },
     {
       "source": "/choose-an-edition/teleport-cloud/getting-started/",
-      "destination": "/choose-an-edition/teleport-team/",
+      "destination": "/choose-an-edition/teleport-cloud/get-started/",
       "permanent": true
     },
     {
@@ -3491,6 +3380,21 @@
     {
       "source": "/server-access/guides/openssh/openssh/",
       "destination": "/server-access/openssh/openssh/",
+      "permanent": true
+    },
+    {
+      "source": "/choose-an-edition/teleport-team/",
+      "destination": "/choose-an-edition/teleport-cloud/get-started/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/manage-access/rbac/",
+      "destination": "/kubernetes-access/manage-access/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/rbac/configuring-access/",
+      "destination": "/database-access/rbac/",
       "permanent": true
     }
   ]

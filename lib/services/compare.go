@@ -26,6 +26,8 @@ import (
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/header"
 )
 
 // IsEqual[T] will be used instead of cmp.Equal if a resource implements it.
@@ -44,7 +46,11 @@ func CompareResources[T any](resA, resB T) int {
 			cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 			cmpopts.IgnoreFields(types.DatabaseV3{}, "Status"),
 			cmpopts.IgnoreFields(types.UserSpecV2{}, "Status"),
+			cmpopts.IgnoreFields(accesslist.AccessList{}, "Status"),
+			cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision"),
 			cmpopts.IgnoreUnexported(headerv1.Metadata{}),
+			// Managed by IneligibleStatusReconciler, ignored by all others.
+			cmpopts.IgnoreFields(accesslist.AccessListMemberSpec{}, "IneligibleStatus"),
 			cmpopts.EquateEmpty(),
 		)
 	}

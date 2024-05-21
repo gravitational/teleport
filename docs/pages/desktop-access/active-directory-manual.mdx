@@ -38,7 +38,7 @@ To complete the steps in this guide, verify your environment meets the following
   ```
 
   You can download these tools by following the appropriate [Installation
-  instructions](../installation.mdx#installation-instructions) for the Teleport
+  instructions](../installation.mdx#linux) for the Teleport
   edition you use.
 
 - A Linux server to run the Teleport Windows Desktop Service.
@@ -118,9 +118,6 @@ To create the service account:
 
    # Allow Teleport to write the certificateRevocationList property in the CDP/Teleport container.
    dsacls "CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN " /I:T /G "$($SamAccountName):WP;certificateRevocationList;"
-
-   # Allow Teleport to read certificationAuthority objects in the NTAuthCertificates container.
-   dsacls "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN" /I:T /G "$($SamAccountName):GR;certificationAuthority;"
 
    # Allow Teleport to read the cACertificate property in the NTAuthCertificates container.
    dsacls "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN" /I:T /G "$($SamAccountName):RP;cACertificate;"
@@ -229,7 +226,7 @@ To export the Teleport user CA certificate:
    command and replacing `teleport.example.com` with the address of your Teleport cluster:
 
    ```code
-   $ curl -o user-ca.cer https://<Var name="teleport.example.com"/>/webapi/auth/export?type=windows
+   $ curl.exe -fo user-ca.cer https://<Var name="teleport.example.com"/>/webapi/auth/export?type=windows
    ```
 
 1. Take note of the path to the `user-ca.cer` file for use in a later step.

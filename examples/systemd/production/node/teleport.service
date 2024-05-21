@@ -4,14 +4,16 @@ After=network.target
 
 [Service]
 Type=simple
-Restart=on-failure
+Restart=always
+RestartSec=5
 # Set the nodes roles with the `--roles`
 # In most production environments you will not
 # want to run all three roles on a single host
 # --roles='proxy,auth,node' is the default value
 # if none is set
 ExecStart=/usr/local/bin/teleport start --roles=node --config=/etc/teleport.yaml --pid-file=/run/teleport.pid
-ExecReload=pkill -HUP -L -F /run/teleport.pid
+# systemd before 239 needs an absolute path
+ExecReload=/bin/sh -c "exec pkill -HUP -L -F /run/teleport.pid"
 PIDFile=/run/teleport.pid
 LimitNOFILE=524288
 

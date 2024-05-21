@@ -186,6 +186,16 @@ func TestGenericWrapperCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(r1, r, cmpopts.IgnoreFields(headerv1.Metadata{}, "Id"), ignoreUnexported))
 
+	// Conditionally updating a resource fails if revisions do not match
+	r.Metadata.Revision = "fake"
+	_, err = service.ConditionalUpdateResource(ctx, r)
+	require.True(t, trace.IsCompareFailed(err))
+
+	// Conditionally updating a resource is allowed when revisions match
+	r.Metadata.Revision = r1.Metadata.Revision
+	r1, err = service.ConditionalUpdateResource(ctx, r1)
+	require.NoError(t, err)
+
 	// Update a resource that doesn't exist.
 	doesNotExist := newTestResource153("doesnotexist")
 	_, err = service.UpdateResource(ctx, doesNotExist)
@@ -223,4 +233,32 @@ func TestGenericWrapperCRUD(t *testing.T) {
 	// Try to delete a resource that doesn't exist.
 	err = service.DeleteResource(ctx, "doesnotexist")
 	require.True(t, trace.IsNotFound(err))
+}
+
+// TestGenericWrapperWithPrefix tests the withPrefix method of the generic service wrapper.
+func TestGenericWrapperWithPrefix(t *testing.T) {
+	ctx := context.Background()
+
+	memBackend, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clockwork.NewFakeClock(),
+	})
+	require.NoError(t, err)
+
+	const initialBackendPrefix = "initial_prefix"
+	const additionalBackendPrefix = "additional_prefix"
+
+	service, err := NewServiceWrapper[*testResource153](memBackend,
+		"generic resource",
+		initialBackendPrefix,
+		marshalResource153,
+		unmarshalResource153)
+	require.NoError(t, err)
+
+	// Verify that the service's backend prefix matches the initial backend prefix.
+	require.Equal(t, initialBackendPrefix, service.service.backendPrefix)
+
+	// Verify that withPrefix appends the the additional prefix.
+	serviceWithPrefix := service.WithPrefix(additionalBackendPrefix)
+	require.Equal(t, "initial_prefix/additional_prefix", serviceWithPrefix.service.backendPrefix)
 }

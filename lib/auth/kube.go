@@ -27,43 +27,14 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
-// KubeCSR is a kubernetes CSR request
-type KubeCSR struct {
-	// Username of user's certificate
-	Username string `json:"username"`
-	// ClusterName is a name of the target cluster to generate certificate for
-	ClusterName string `json:"cluster_name"`
-	// CSR is a kubernetes CSR
-	CSR []byte `json:"csr"`
-}
-
-// CheckAndSetDefaults checks and sets defaults
-func (a *KubeCSR) CheckAndSetDefaults() error {
-	if len(a.CSR) == 0 {
-		return trace.BadParameter("missing parameter 'csr'")
-	}
-	return nil
-}
-
-// KubeCSRResponse is a response to kubernetes CSR request
-type KubeCSRResponse struct {
-	// Cert is a signed certificate PEM block
-	Cert []byte `json:"cert"`
-	// CertAuthorities is a list of PEM block with trusted cert authorities
-	CertAuthorities [][]byte `json:"cert_authorities"`
-	// TargetAddr is an optional target address
-	// of the kubernetes API server that can be set
-	// in the kubeconfig
-	TargetAddr string `json:"target_addr"`
-}
-
 // ProcessKubeCSR processes CSR request against Kubernetes CA, returns
 // signed certificate if successful.
-func (a *Server) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
+func (a *Server) ProcessKubeCSR(req authclient.KubeCSR) (*authclient.KubeCSRResponse, error) {
 	ctx := context.TODO()
 	if err := enforceLicense(types.KindKubernetesCluster); err != nil {
 		return nil, trace.Wrap(err)
@@ -163,7 +134,7 @@ func (a *Server) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &KubeCSRResponse{
+	return &authclient.KubeCSRResponse{
 		Cert:            tlsCert,
 		CertAuthorities: services.GetTLSCerts(hostCA),
 	}, nil

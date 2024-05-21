@@ -35,7 +35,7 @@ import (
 
 	clientapi "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -43,19 +43,19 @@ import (
 )
 
 type mockAuthClient struct {
-	auth.ClientI
+	authclient.ClientI
 }
 
 func (c mockAuthClient) GetProxies() ([]types.Server, error) {
 	return []types.Server{}, nil
 }
 
-type mockAccessCache struct {
-	auth.AccessCache
+type mockCAGetter struct {
+	authclient.CAGetter
 }
 
 type mockProxyAccessPoint struct {
-	auth.ProxyAccessPoint
+	AccessPoint
 }
 
 type mockProxyService struct {
@@ -206,9 +206,7 @@ func setupClient(t *testing.T, clientCA, serverCA *tlsca.CertAuthority, role typ
 	})
 	require.NoError(t, err)
 
-	t.Cleanup(func() {
-		client.Shutdown()
-	})
+	t.Cleanup(func() { client.Stop() })
 
 	return client
 }
@@ -235,7 +233,7 @@ func setupServer(t *testing.T, name string, serverCA, clientCA *tlsca.CertAuthor
 	require.NoError(t, err)
 
 	config := ServerConfig{
-		AccessCache:        &mockAccessCache{},
+		AccessCache:        &mockCAGetter{},
 		Listener:           listener,
 		TLSConfig:          tlsConf,
 		ClusterDialer:      &mockClusterDialer{},
@@ -264,11 +262,7 @@ func setupServer(t *testing.T, name string, serverCA, clientCA *tlsca.CertAuthor
 	return server, ts
 }
 
-func sendMsg(t *testing.T, stream clientapi.ProxyService_DialNodeClient) {
-	err := stream.Send(&clientapi.Frame{
-		Message: &clientapi.Frame_Data{
-			Data: &clientapi.Data{Bytes: []byte("ping")},
-		},
-	})
+func sendMsg(t *testing.T, stream frameStream) {
+	err := stream.Send([]byte("ping"))
 	require.NoError(t, err)
 }

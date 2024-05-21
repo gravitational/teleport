@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/mfa"
@@ -63,6 +64,7 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -90,7 +92,7 @@ func TestMFADeviceManagement(t *testing.T) {
 	})
 	const webOrigin = "https://localhost" // matches RPID above
 	require.NoError(t, err)
-	err = authServer.SetAuthPreference(ctx, authPref)
+	_, err = authServer.UpsertAuthPreference(ctx, authPref)
 	require.NoError(t, err)
 
 	// Create a fake user.
@@ -430,11 +432,13 @@ func TestMFADeviceManagement(t *testing.T) {
 		// Deleting the last passwordless device is only allowed if passwordless is
 		// off, so let's do that.
 		authPref.SetAllowPasswordless(false)
-		require.NoError(t, authServer.SetAuthPreference(ctx, authPref), "SetAuthPreference")
+		authPref, err = authServer.UpsertAuthPreference(ctx, authPref)
+		require.NoError(t, err, "UpsertAuthPreference")
 
 		defer func() {
 			authPref.SetAllowPasswordless(true)
-			assert.NoError(t, authServer.SetAuthPreference(ctx, authPref), "Resetting AuthPreference")
+			authPref, err = authServer.UpsertAuthPreference(ctx, authPref)
+			assert.NoError(t, err, "Resetting AuthPreference")
 		}()
 
 		testDeleteMFADevice(ctx, t, userClient, mfaDeleteTestOpts{
@@ -487,7 +491,7 @@ func (d *mfaDevices) webAuthHandler(t *testing.T, challenge *proto.MFAAuthentica
 	return mfaResp
 }
 
-func addOneOfEachMFADevice(t *testing.T, userClient *Client, clock clockwork.Clock, origin string) mfaDevices {
+func addOneOfEachMFADevice(t *testing.T, userClient *authclient.Client, clock clockwork.Clock, origin string) mfaDevices {
 	const totpName = "totp-dev"
 	const webName = "webauthn-dev"
 
@@ -523,7 +527,7 @@ type mfaAddTestOpts struct {
 	assertRegisteredDev func(*testing.T, *types.MFADevice)
 }
 
-func testAddMFADevice(ctx context.Context, t *testing.T, authClient *Client, opts mfaAddTestOpts) {
+func testAddMFADevice(ctx context.Context, t *testing.T, authClient *authclient.Client, opts mfaAddTestOpts) {
 	authChal, err := authClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 			ContextUser: &proto.ContextUser{},
@@ -563,7 +567,7 @@ type mfaDeleteTestOpts struct {
 	checkErr    require.ErrorAssertionFunc
 }
 
-func testDeleteMFADevice(ctx context.Context, t *testing.T, authClient *Client, opts mfaDeleteTestOpts) {
+func testDeleteMFADevice(ctx context.Context, t *testing.T, authClient *authclient.Client, opts mfaDeleteTestOpts) {
 	// Issue and solve authn challenge.
 	authnChal, err := authClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
@@ -797,9 +801,8 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 
 		modify(authPref)
 
-		require.NoError(t,
-			authServer.SetAuthPreference(ctx, authPref),
-			"SetAuthPreference failed")
+		_, err = authServer.UpsertAuthPreference(ctx, authPref)
+		require.NoError(t, err, "UpsertAuthPreference failed")
 	}
 
 	// Register MFA devices for the user.
@@ -868,7 +871,7 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 	}
 
 	// generateCertsMFA is used to generate single-use, MFA-enabled certificates.
-	generateCertsMFA := func(t *testing.T, client *Client, req proto.UserCertsRequest) (cert *proto.Certs, err error) {
+	generateCertsMFA := func(t *testing.T, client *authclient.Client, req proto.UserCertsRequest) (cert *proto.Certs, err error) {
 		defer func() {
 			// Translate gRPC to trace errors, as our clients do.
 			err = trail.FromGRPC(err)
@@ -891,7 +894,7 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 	tests := []struct {
 		name               string
 		clusterDeviceMode  string
-		client             *Client
+		client             *authclient.Client
 		req                proto.UserCertsRequest
 		skipLoginCerts     bool // aka non-MFA issuance.
 		skipSingleUseCerts bool // aka MFA/streaming issuance.
@@ -1013,9 +1016,8 @@ func TestRegisterFirstDevice_deviceAuthz(t *testing.T) {
 
 		modify(authPref)
 
-		require.NoError(t,
-			authServer.SetAuthPreference(ctx, authPref),
-			"SetAuthPreference failed")
+		_, err = authServer.UpsertAuthPreference(ctx, authPref)
+		require.NoError(t, err, "UpsertAuthPreference failed")
 	}
 
 	// Enable webauthn
@@ -1037,7 +1039,7 @@ func TestRegisterFirstDevice_deviceAuthz(t *testing.T) {
 	tests := []struct {
 		name               string
 		clusterDeviceMode  string
-		client             *Client
+		client             *authclient.Client
 		skipLoginCerts     bool // aka non-MFA issuance.
 		skipSingleUseCerts bool // aka MFA/streaming issuance.
 		assertErr          func(t *testing.T, err error)
@@ -1126,7 +1128,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 	})
 	const webOrigin = "https://localhost" // matches RPID above
 	require.NoError(t, err)
-	err = srv.Auth().SetAuthPreference(ctx, authPref)
+	_, err = srv.Auth().UpsertAuthPreference(ctx, authPref)
 	require.NoError(t, err)
 
 	// Register an SSH node.
@@ -1225,7 +1227,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 
 	tests := []struct {
 		desc          string
-		newClient     func() (*Client, error) // optional, makes a new client for the test.
+		newClient     func() (*authclient.Client, error) // optional, makes a new client for the test.
 		opts          generateUserSingleUseCertsTestOpts
 		skipUnaryTest bool // skip testing against GenerateUSerCerts
 	}{
@@ -1519,7 +1521,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 		},
 		{
 			desc: "device extensions copied SSH cert",
-			newClient: func() (*Client, error) {
+			newClient: func() (*authclient.Client, error) {
 				u := TestUser(user.GetName())
 				u.TTL = 1 * time.Hour
 
@@ -1566,7 +1568,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 		},
 		{
 			desc: "device extensions copied TLS cert",
-			newClient: func() (*Client, error) {
+			newClient: func() (*authclient.Client, error) {
 				u := TestUser(user.GetName())
 				u.TTL = 1 * time.Hour
 
@@ -1812,7 +1814,7 @@ type generateUserSingleUseCertsTestOpts struct {
 	verifyCert         func(*testing.T, *proto.SingleUseUserCert)
 }
 
-func testGenerateUserSingleUseCertsStream(ctx context.Context, t *testing.T, cl *Client, opts generateUserSingleUseCertsTestOpts) {
+func testGenerateUserSingleUseCertsStream(ctx context.Context, t *testing.T, cl *authclient.Client, opts generateUserSingleUseCertsTestOpts) {
 	runStream := func() (*proto.SingleUseUserCert, error) {
 		//nolint:staticcheck // SA1019. Kept for backwards compatibility.
 		stream, err := cl.GenerateUserSingleUseCerts(ctx)
@@ -1868,7 +1870,7 @@ func testGenerateUserSingleUseCertsStream(ctx context.Context, t *testing.T, cl 
 	opts.verifyCert(t, certs)
 }
 
-func testGenerateUserSingleUseCertsUnary(ctx context.Context, t *testing.T, cl *Client, opts generateUserSingleUseCertsTestOpts) {
+func testGenerateUserSingleUseCertsUnary(ctx context.Context, t *testing.T, cl *authclient.Client, opts generateUserSingleUseCertsTestOpts) {
 	authnChal, err := cl.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 			ContextUser: &proto.ContextUser{},
@@ -1946,7 +1948,7 @@ func TestIsMFARequired(t *testing.T) {
 				},
 			})
 			require.NoError(t, err)
-			err = srv.Auth().SetAuthPreference(ctx, authPref)
+			authPref, err = srv.Auth().UpsertAuthPreference(ctx, authPref)
 			require.NoError(t, err)
 
 			for _, roleRequireMFAType := range requireMFATypes {
@@ -2017,7 +2019,7 @@ func TestIsMFARequired_unauthorized(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	err = srv.Auth().SetAuthPreference(ctx, authPref)
+	_, err = srv.Auth().UpsertAuthPreference(ctx, authPref)
 	require.NoError(t, err)
 
 	// Register an SSH node.
@@ -2193,7 +2195,7 @@ func TestIsMFARequired_nodeMatch(t *testing.T) {
 
 // testOriginDynamicStored tests setting a ResourceWithOrigin via the server
 // API always results in the resource being stored with OriginDynamic.
-func testOriginDynamicStored(t *testing.T, setWithOrigin func(*Client, string) error, getStored func(*Server) (types.ResourceWithOrigin, error)) {
+func testOriginDynamicStored(t *testing.T, setWithOrigin func(*authclient.Client, string) error, getStored func(*Server) (types.ResourceWithOrigin, error)) {
 	srv := newTestTLSServer(t)
 
 	// Create a fake user.
@@ -2218,10 +2220,11 @@ func TestAuthPreferenceOriginDynamic(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	setWithOrigin := func(cl *Client, origin string) error {
+	setWithOrigin := func(cl *authclient.Client, origin string) error {
 		authPref := types.DefaultAuthPreference()
 		authPref.SetOrigin(origin)
-		return cl.SetAuthPreference(ctx, authPref)
+		_, err := cl.UpsertAuthPreference(ctx, authPref)
+		return err
 	}
 
 	getStored := func(asrv *Server) (types.ResourceWithOrigin, error) {
@@ -2235,10 +2238,11 @@ func TestClusterNetworkingConfigOriginDynamic(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	setWithOrigin := func(cl *Client, origin string) error {
+	setWithOrigin := func(cl *authclient.Client, origin string) error {
 		netConfig := types.DefaultClusterNetworkingConfig()
 		netConfig.SetOrigin(origin)
-		return cl.SetClusterNetworkingConfig(ctx, netConfig)
+		_, err := cl.UpsertClusterNetworkingConfig(ctx, netConfig)
+		return trace.Wrap(err)
 	}
 
 	getStored := func(asrv *Server) (types.ResourceWithOrigin, error) {
@@ -2252,10 +2256,11 @@ func TestSessionRecordingConfigOriginDynamic(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	setWithOrigin := func(cl *Client, origin string) error {
+	setWithOrigin := func(cl *authclient.Client, origin string) error {
 		recConfig := types.DefaultSessionRecordingConfig()
 		recConfig.SetOrigin(origin)
-		return cl.SetSessionRecordingConfig(ctx, recConfig)
+		_, err := cl.UpsertSessionRecordingConfig(ctx, recConfig)
+		return err
 	}
 
 	getStored := func(asrv *Server) (types.ResourceWithOrigin, error) {
@@ -2432,7 +2437,7 @@ func TestGetSSHTargets(t *testing.T) {
 
 	cnc := types.DefaultClusterNetworkingConfig()
 	cnc.SetCaseInsensitiveRouting(true)
-	err = clt.SetClusterNetworkingConfig(ctx, cnc)
+	_, err = clt.UpsertClusterNetworkingConfig(ctx, cnc)
 	require.NoError(t, err)
 
 	rsp, err = clt.GetSSHTargets(ctx, &proto.GetSSHTargetsRequest{
@@ -3329,11 +3334,11 @@ func TestListResources(t *testing.T) {
 
 	testCases := map[string]struct {
 		resourceType   string
-		createResource func(name string, clt *Client) error
+		createResource func(name string, clt *authclient.Client) error
 	}{
 		"DatabaseServers": {
 			resourceType: types.KindDatabaseServer,
-			createResource: func(name string, clt *Client) error {
+			createResource: func(name string, clt *authclient.Client) error {
 				server, err := types.NewDatabaseServerV3(types.Metadata{
 					Name: name,
 				}, types.DatabaseServerSpecV3{
@@ -3351,7 +3356,7 @@ func TestListResources(t *testing.T) {
 		},
 		"ApplicationServers": {
 			resourceType: types.KindAppServer,
-			createResource: func(name string, clt *Client) error {
+			createResource: func(name string, clt *authclient.Client) error {
 				app, err := types.NewAppV3(types.Metadata{
 					Name: name,
 				}, types.AppSpecV3{
@@ -3378,7 +3383,7 @@ func TestListResources(t *testing.T) {
 		},
 		"KubeServer": {
 			resourceType: types.KindKubeServer,
-			createResource: func(name string, clt *Client) error {
+			createResource: func(name string, clt *authclient.Client) error {
 				kube, err := types.NewKubernetesClusterV3(
 					types.Metadata{
 						Name:   name,
@@ -3400,7 +3405,7 @@ func TestListResources(t *testing.T) {
 		},
 		"Node": {
 			resourceType: types.KindNode,
-			createResource: func(name string, clt *Client) error {
+			createResource: func(name string, clt *authclient.Client) error {
 				server, err := types.NewServer(name, types.KindNode, types.ServerSpecV2{})
 				if err != nil {
 					return err
@@ -3412,7 +3417,7 @@ func TestListResources(t *testing.T) {
 		},
 		"WindowsDesktops": {
 			resourceType: types.KindWindowsDesktop,
-			createResource: func(name string, clt *Client) error {
+			createResource: func(name string, clt *authclient.Client) error {
 				desktop, err := types.NewWindowsDesktopV3(name, nil,
 					types.WindowsDesktopSpecV3{Addr: "_", HostID: "_"})
 				if err != nil {
@@ -3509,11 +3514,11 @@ func TestCustomRateLimiting(t *testing.T) {
 	tests := []struct {
 		name  string
 		burst int
-		fn    func(*Client) error
+		fn    func(*authclient.Client) error
 	}{
 		{
 			name: "RPC ChangeUserAuthentication",
-			fn: func(clt *Client) error {
+			fn: func(clt *authclient.Client) error {
 				_, err := clt.ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{})
 				return err
 			},
@@ -3521,28 +3526,28 @@ func TestCustomRateLimiting(t *testing.T) {
 		{
 			name:  "RPC CreateAuthenticateChallenge",
 			burst: defaults.LimiterBurst,
-			fn: func(clt *Client) error {
+			fn: func(clt *authclient.Client) error {
 				_, err := clt.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{})
 				return err
 			},
 		},
 		{
 			name: "RPC GetAccountRecoveryToken",
-			fn: func(clt *Client) error {
+			fn: func(clt *authclient.Client) error {
 				_, err := clt.GetAccountRecoveryToken(ctx, &proto.GetAccountRecoveryTokenRequest{})
 				return err
 			},
 		},
 		{
 			name: "RPC StartAccountRecovery",
-			fn: func(clt *Client) error {
+			fn: func(clt *authclient.Client) error {
 				_, err := clt.StartAccountRecovery(ctx, &proto.StartAccountRecoveryRequest{})
 				return err
 			},
 		},
 		{
 			name: "RPC VerifyAccountRecovery",
-			fn: func(clt *Client) error {
+			fn: func(clt *authclient.Client) error {
 				_, err := clt.VerifyAccountRecovery(ctx, &proto.VerifyAccountRecoveryRequest{})
 				return err
 			},
@@ -4483,6 +4488,75 @@ func TestDropDBClientCAEvents(t *testing.T) {
 			}
 			// watcher should see the first event if it wasn't dropped.
 			require.Equal(t, types.DatabaseClientCA, gotCA.GetType(), "db client CA event was not supposed to be dropped")
+		})
+	}
+}
+
+func TestGetAccessGraphConfig(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			Policy: modules.PolicyFeature{
+				Enabled: true,
+			},
+		},
+	})
+	server := newTestTLSServer(t,
+		withAccessGraphConfig(AccessGraphConfig{
+			Enabled: true,
+			CA:      []byte("ca"),
+			Address: "addr",
+		}),
+	)
+	user, _, err := CreateUserAndRole(server.Auth(), "test", []string{"role"}, nil)
+	require.NoError(t, err)
+	positiveResponse := &clusterconfigpb.AccessGraphConfig{
+		Enabled: true,
+		Ca:      []byte("ca"),
+		Address: "addr",
+	}
+
+	tests := []struct {
+		desc      string
+		identity  authz.IdentityGetter
+		assertErr require.ErrorAssertionFunc
+		expected  *clusterconfigpb.AccessGraphConfig
+	}{
+		{
+			desc: "users can't pull the access graph config",
+			identity: authz.LocalUser{
+				Username: user.GetName(),
+			},
+			assertErr: require.Error,
+		},
+		{
+			desc: "proxy can pull access graph config",
+			identity: authz.BuiltinRole{
+				Role:     types.RoleProxy,
+				Username: server.ClusterName(),
+			},
+			assertErr: require.NoError,
+			expected:  positiveResponse,
+		},
+		{
+			desc: "discovery can pull access graph config",
+			identity: authz.BuiltinRole{
+				Role:     types.RoleDiscovery,
+				Username: server.ClusterName(),
+			},
+			assertErr: require.NoError,
+			expected:  positiveResponse,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			client, err := server.NewClient(TestIdentity{
+				I: test.identity,
+			})
+			require.NoError(t, err)
+			rsp, err := client.GetClusterAccessGraphConfig(context.Background())
+			test.assertErr(t, err)
+			require.Empty(t, cmp.Diff(test.expected, rsp, protocmp.Transform()))
 		})
 	}
 }

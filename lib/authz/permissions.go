@@ -98,7 +98,7 @@ func NewAuthorizer(opts AuthorizerOpts) (Authorizer, error) {
 	}
 	logger := opts.Logger
 	if logger == nil {
-		logger = logrus.WithFields(logrus.Fields{trace.Component: "authorizer"})
+		logger = logrus.WithFields(logrus.Fields{teleport.ComponentKey: "authorizer"})
 	}
 
 	return &authorizer{
@@ -150,10 +150,10 @@ type AuthorizerAccessPoint interface {
 	GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error)
 
 	// GetClusterNetworkingConfig returns cluster networking configuration.
-	GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error)
+	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
 
 	// GetSessionRecordingConfig returns session recording configuration.
-	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
+	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
 }
 
 // MFAAuthenticator authenticates MFA responses.
@@ -490,12 +490,6 @@ func (a *authorizer) isAdminActionAuthorizationRequired(ctx context.Context, aut
 }
 
 func (a *authorizer) authorizeAdminAction(ctx context.Context, authContext *Context) error {
-	// Certain hardware-key based private key policies require MFA for each request.
-	if authContext.Identity.GetIdentity().PrivateKeyPolicy.MFAVerified() {
-		authContext.AdminActionAuthState = AdminActionAuthMFAVerified
-		return nil
-	}
-
 	// MFA is required to be passed through the request context.
 	mfaResp, err := mfa.CredentialsFromContext(ctx)
 	if err != nil {
@@ -828,6 +822,7 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 				types.NewRule(types.KindWebSession, services.RW()),
 				types.NewRule(types.KindWebToken, services.RW()),
 				types.NewRule(types.KindKubeServer, services.RW()),
+				types.NewRule(types.KindKubeWaitingContainer, services.RW()),
 				types.NewRule(types.KindDatabaseServer, services.RO()),
 				types.NewRule(types.KindLock, services.RO()),
 				types.NewRule(types.KindToken, []string{types.VerbRead, types.VerbDelete}),
@@ -995,6 +990,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindLock, services.RO()),
 						types.NewRule(types.KindConnectionDiagnostic, services.RW()),
 						types.NewRule(types.KindDatabaseObjectImportRule, services.RO()),
+						types.NewRule(types.KindDatabaseObject, services.RW()),
 					},
 				},
 			})
@@ -1059,6 +1055,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
 						types.NewRule(types.KindKubeServer, services.RW()),
+						types.NewRule(types.KindKubeWaitingContainer, services.RW()),
 						types.NewRule(types.KindEvent, services.RW()),
 						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
 						types.NewRule(types.KindClusterName, services.RO()),
@@ -1110,7 +1107,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
 						types.NewRule(types.KindClusterName, services.RO()),
 						types.NewRule(types.KindNamespace, services.RO()),
-						types.NewRule(types.KindNode, services.RO()),
+						types.NewRule(types.KindNode, services.RW()),
 						types.NewRule(types.KindKubeServer, services.RO()),
 						types.NewRule(types.KindKubernetesCluster, services.RW()),
 						types.NewRule(types.KindDatabase, services.RW()),
@@ -1118,6 +1115,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindApp, services.RW()),
 						types.NewRule(types.KindDiscoveryConfig, services.RO()),
 						types.NewRule(types.KindIntegration, append(services.RO(), types.VerbUse)),
+						types.NewRule(types.KindSemaphore, services.RW()),
 					},
 					// Discovery service should only access kubes/apps/dbs that originated from discovery.
 					KubernetesLabels: types.Labels{types.OriginLabel: []string{types.OriginCloud}},
@@ -1179,6 +1177,21 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 					},
 				},
 			})
+
+	case types.RoleAccessGraphPlugin:
+		// RoleAccessGraphPlugin is a special role that is used by the Access Graph plugins
+		// to access the semaphore resource.
+		return services.RoleFromSpec(
+			role.String(),
+			types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					Namespaces: []string{types.Wildcard},
+					Rules: []types.Rule{
+						types.NewRule(types.KindSemaphore, services.RW()),
+					},
+				},
+			})
+
 	}
 
 	return nil, trace.NotFound("builtin role %q is not recognized", role.String())

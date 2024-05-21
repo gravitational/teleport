@@ -20,6 +20,7 @@ package testhelpers
 
 import (
 	"context"
+	"log/slog"
 	"path/filepath"
 	"testing"
 	"time"
@@ -30,8 +31,8 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
@@ -50,6 +51,8 @@ type DefaultBotConfigOpts struct {
 
 	ServiceConfigs botconfig.ServiceConfigs
 }
+
+const AgentJoinToken = "i-am-a-join-token"
 
 // DefaultConfig returns a FileConfig to be used in tests, with random listen
 // addresses that are tied to the listeners returned in the FileDescriptor
@@ -79,6 +82,9 @@ func DefaultConfig(t *testing.T) (*config.FileConfig, []*servicecfg.FileDescript
 				EnabledFlag:   "true",
 				ListenAddress: testenv.NewTCPListener(t, service.ListenerAuth, &fds),
 			},
+			StaticTokens: config.StaticTokens{
+				config.StaticToken("db:" + AgentJoinToken),
+			},
 		},
 	}
 
@@ -86,23 +92,29 @@ func DefaultConfig(t *testing.T) (*config.FileConfig, []*servicecfg.FileDescript
 }
 
 // MakeAndRunTestAuthServer creates an auth server useful for testing purposes.
-func MakeAndRunTestAuthServer(t *testing.T, log utils.Logger, fc *config.FileConfig, fds []*servicecfg.FileDescriptor) (auth *service.TeleportProcess) {
+func MakeAndRunTestAuthServer(t *testing.T, log *slog.Logger, fc *config.FileConfig, fds []*servicecfg.FileDescriptor) (auth *service.TeleportProcess) {
 	t.Helper()
 
 	var err error
 	cfg := servicecfg.MakeDefaultConfig()
 	require.NoError(t, config.ApplyFileConfig(fc, cfg))
 	cfg.FileDescriptors = fds
-	cfg.Log = log
-
+	cfg.Logger = log
 	cfg.CachePolicy.Enabled = false
 	cfg.Proxy.DisableWebInterface = true
+
+	// Disable session recording to avoid flakiness caused by TempDir cleanup.
+	cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
+	// Disable audit log as we don't rely on this in our tests and it can cause
+	// flakiness due to TempDir cleanup.
+	cfg.Auth.NoAudit = true
+
 	auth, err = service.NewTeleport(cfg)
 	require.NoError(t, err)
 	require.NoError(t, auth.Start())
 
 	t.Cleanup(func() {
-		cfg.Log.Info("Cleaning up Auth Server.")
+		cfg.Logger.InfoContext(context.Background(), "Cleaning up Auth Server.")
 		auth.Close()
 	})
 
@@ -117,7 +129,7 @@ func MakeAndRunTestAuthServer(t *testing.T, log utils.Logger, fc *config.FileCon
 // MakeDefaultAuthClient reimplements the bare minimum needed to create a
 // default root-level auth client for a Teleport server started by
 // MakeAndRunTestAuthServer.
-func MakeDefaultAuthClient(t *testing.T, log utils.Logger, fc *config.FileConfig) *auth.Client {
+func MakeDefaultAuthClient(t *testing.T, fc *config.FileConfig) *authclient.Client {
 	t.Helper()
 
 	cfg := servicecfg.MakeDefaultConfig()
@@ -127,7 +139,7 @@ func MakeDefaultAuthClient(t *testing.T, log utils.Logger, fc *config.FileConfig
 	cfg.HostUUID, err = utils.ReadHostUUID(cfg.DataDir)
 	require.NoError(t, err)
 
-	identity, err := auth.ReadLocalIdentity(filepath.Join(cfg.DataDir, teleport.ComponentProcess), auth.IdentityID{Role: types.RoleAdmin, HostUUID: cfg.HostUUID})
+	identity, err := state.ReadLocalIdentity(filepath.Join(cfg.DataDir, teleport.ComponentProcess), state.IdentityID{Role: types.RoleAdmin, HostUUID: cfg.HostUUID})
 	require.NoError(t, err)
 
 	authConfig := new(authclient.Config)
@@ -135,7 +147,7 @@ func MakeDefaultAuthClient(t *testing.T, log utils.Logger, fc *config.FileConfig
 	require.NoError(t, err)
 
 	authConfig.AuthServers = cfg.AuthServerAddresses()
-	authConfig.Log = log
+	authConfig.Log = utils.NewLogger()
 
 	client, err := authclient.Connect(context.Background(), authConfig)
 	require.NoError(t, err)
@@ -163,7 +175,7 @@ func MakeDefaultAuthClient(t *testing.T, log utils.Logger, fc *config.FileConfig
 }
 
 // MakeBot creates a server-side bot and returns joining parameters.
-func MakeBot(t *testing.T, client *auth.Client, name string, roles ...string) (*botconfig.OnboardingConfig, *machineidv1pb.Bot) {
+func MakeBot(t *testing.T, client *authclient.Client, name string, roles ...string) (*botconfig.OnboardingConfig, *machineidv1pb.Bot) {
 	ctx := context.TODO()
 	t.Helper()
 	b, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{

@@ -7,42 +7,61 @@ The Teleport team delivers a new major release roughly every 4 months.
 
 ## Teleport
 
-| Version | Date              |
-|---------|-------------------|
-| 15.1.2  | March 8, 2024     |
+| Version | Date           |
+| ------- | ---------------|
+| 15.4.0  | May 31, 2024   |
+| 16.0.0  | June 14, 2024  |
 
-### 15.1.2
+### 15.4.0
 
-#### New paginated APIs
+#### Access requests notification routing rules
 
-Teleport's gRPC server will expose new paginated APIs for listing roles and
-access requests, which will improve performance on clusters with large numbers
-of these resources.
+Hosted Slack plugin users will be able to configure notification routing rules
+for role-based access requests.
 
-*Delayed from Teleport 15.1.0*
+#### Database access for Spanner
 
-#### SSH remote port forwarding
+Database access users will be able to connect to GCP Spanner.
 
-In Teleport 15.1, we will expose remote port forwarding via the `tsh ssh -R`
-command. Remote port forwarding will be supported for both Teleport and OpenSSH
-nodes.
+*Delayed from Teleport 15.3.0*
 
-*Delayed from Teleport 15.1.0*
+#### Unix Workload Attestation
 
-#### Database permission management for for PostgreSQL
+Teleport Workload ID will support basic workload attestation on Unix systems,
+allowing cluster administrators to restrict the issuance of SVIDs to specific
+workloads based on UID/PID/GID.
 
-Admins will be able to configure Teleport RBAC rules for managing access to
-database objects (such as tables) in for PostgreSQL.
+### 16.0.0
 
-*Delayed from Teleport 15.1.0*
+#### Teleport VNet
+
+Teleport 16 introduces Teleport VNet, a new feature that provides a virtual IP
+subnet and DNS server that automatically proxies TCP connections to Teleport
+apps over mutually authenticated tunnels.
+
+This will allow scripts and software applications to connect to any
+Teleport-protected application as if they were connected to a VPN, without the
+need to manage local tunnels.
+
+#### Per-session MFA for applications
+
+Teleport 16 will support per-session MFA checks when accessing web and TCP applications.
+
+#### Device Trust support for the Web UI
+
+With Teleport 16, Device Trust checks can be enforced for workflows that require the Web UI.
+This includes access to web applications and Windows desktops.
+
+Teleport Connect must be installed on user workstations in order to satisfy device checks.
 
 ## Teleport Cloud
 
 The key deliverables for Teleport Cloud in the next quarter:
 
-| Week of       | Description                                |
-|---------------|--------------------------------------------|
-| March 4, 2024 | Teleport 15.1 will begin rollout on Cloud. |
+| Week of      | Description                                                  |
+| ------------ | ------------------------------------------------------------ |
+| May 13, 2024 | Teleport 15.3 will begin rollout on Cloud.                   |
+| May 13, 2024 | Teleport 15.3 agents will begin rollout to eligible tenants. |
 
 ## Production readiness
 
@@ -82,19 +101,3 @@ minor release, such as (=teleport.major_version=).1.0.
 
 Patch releases contain small bug fixes and can typically be deployed directly
 to production.
-
-## Preview Policy
-
-A product or feature may be marked as "Preview" if any of the following is
-true.
-
-- The product or feature is missing key functionality. For example, Microsoft
-  SQL Server support for database access initially shipped without audit
-  logging support.
-- The product or feature has NOT been adopted by at least 2 existing customers.
-- The product or feature has NOT been through a security audit.
-- The documentation for the product or feature is incomplete.
-- Assets (e.g. binaries) associated with the feature are not published to our
-  official downloads page.
-
-Use preview features in production if the above issues are not a concern.

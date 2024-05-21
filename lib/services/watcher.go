@@ -124,6 +124,9 @@ func (cfg *ResourceWatcherConfig) CheckAndSetDefaults() error {
 // It is the caller's responsibility to verify the inputs' validity
 // incl. cfg.CheckAndSetDefaults.
 func newResourceWatcher(ctx context.Context, collector resourceCollector, cfg ResourceWatcherConfig) (*resourceWatcher, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
 		First:  utils.FullJitter(cfg.MaxRetryPeriod / 10),
 		Step:   cfg.MaxRetryPeriod / 5,
@@ -1746,6 +1749,9 @@ type Node interface {
 	GetUseTunnel() bool
 	// GetProxyIDs returns a list of proxy ids this server is connected to.
 	GetProxyIDs() []string
+	// IsEICE returns whether the Node is an EICE instance.
+	// Must be `openssh-ec2-ice` subkind and have the AccountID and InstanceID information (AWS Metadata or Labels).
+	IsEICE() bool
 }
 
 // GetNodes allows callers to retrieve a subset of nodes that match the filter provided. The
@@ -1767,6 +1773,22 @@ func (n *nodeCollector) GetNodes(ctx context.Context, fn func(n Node) bool) []ty
 	}
 
 	return matched
+}
+
+// GetNode allows callers to retrieve a node based on its name. The
+// returned server are a copy and can be safely modified.
+func (n *nodeCollector) GetNode(ctx context.Context, name string) (types.Server, error) {
+	// Attempt to freshen our data first.
+	n.refreshStaleNodes(ctx)
+
+	n.rw.RLock()
+	defer n.rw.RUnlock()
+
+	server, found := n.current[name]
+	if !found {
+		return nil, trace.NotFound("server does not exist")
+	}
+	return server.DeepCopy(), nil
 }
 
 // refreshStaleNodes attempts to reload nodes from the NodeGetter if

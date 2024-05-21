@@ -19,6 +19,7 @@
 package tshwrap
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -27,7 +28,6 @@ import (
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -37,21 +37,16 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tlsca"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
 	// TSHVarName is the name of the environment variable that can override the
 	// tsh path that would otherwise be located on the $PATH.
 	TSHVarName = "TSH"
-
-	// TSHMinVersion is the minimum version of tsh that supports Machine ID
-	// proxies.
-	TSHMinVersion = "9.3.0"
 )
 
-var log = logrus.WithFields(logrus.Fields{
-	trace.Component: teleport.ComponentTBot,
-})
+var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTBot)
 
 // capture runs a command (presumably tsh) with the given arguments and
 // returns it's captured stdout. Stderr is ignored. Errors are returned per
@@ -115,7 +110,13 @@ func (w *Wrapper) Exec(env map[string]string, args ...string) error {
 		environ = append(environ, k+"="+v)
 	}
 
-	log.Debugf("executing %s with env=%+v and args=%+v", w.path, env, args)
+	log.DebugContext(
+		context.TODO(),
+		"executing binary",
+		"path", w.path,
+		"env", env,
+		"args", args,
+	)
 
 	child := exec.Command(w.path, args...)
 	child.Env = environ
@@ -146,27 +147,6 @@ func GetTSHVersion(w *Wrapper) (*semver.Version, error) {
 	}
 
 	return sv, nil
-}
-
-// CheckTSHSupported checks if the current tsh supports Machine ID.
-func CheckTSHSupported(w *Wrapper) error {
-	version, err := GetTSHVersion(w)
-	if err != nil {
-		return trace.Wrap(err, "unable to determine tsh version")
-	}
-
-	minVersion := semver.New(TSHMinVersion)
-	if version.LessThan(*minVersion) {
-		return trace.BadParameter(
-			"installed tsh version %s does not support Machine ID proxies, "+
-				"please upgrade to at least %s",
-			version, minVersion,
-		)
-	}
-
-	log.Debugf("tsh version %s is supported", version)
-
-	return nil
 }
 
 // GetDestinationDirectory attempts to select an unambiguous destination, either from

@@ -107,8 +107,8 @@ func (l *LoginRuleResource) SetOrigin(origin string) {
 	l.LoginRule.Metadata.SetOrigin(origin)
 }
 
-func (l *LoginRuleResource) GetMetadata() types.Metadata {
-	return *l.LoginRule.Metadata
+func (l *LoginRuleResource) Origin() string {
+	return l.LoginRule.Metadata.Origin()
 }
 
 func (l *LoginRuleResource) GetRevision() string {

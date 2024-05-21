@@ -27,14 +27,14 @@ import Dialog, {
 
 import FieldInput from 'shared/components/FieldInput';
 import { requiredField } from 'shared/components/Validation/rules';
-import FieldSelect from 'shared/components/FieldSelect';
+import { FieldSelectAsync } from 'shared/components/FieldSelect';
 import Validation from 'shared/components/Validation';
 import { Option } from 'shared/components/Select';
 
 import { EditBotProps } from 'teleport/Bots/types';
 
 export function EditBot({
-  allRoles,
+  fetchRoles,
   attempt,
   name,
   onClose,
@@ -42,11 +42,6 @@ export function EditBot({
   selectedRoles,
   setSelectedRoles,
 }: EditBotProps) {
-  const selectOptions: Option[] = allRoles.map(r => ({
-    value: r,
-    label: r,
-  }));
-
   return (
     <Dialog disableEscapeKeyDown={false} onClose={onClose} open={true}>
       <DialogHeader>
@@ -65,7 +60,7 @@ export function EditBot({
             readonly={true}
             onChange={() => {}}
           />
-          <FieldSelect
+          <FieldSelectAsync
             menuPosition="fixed"
             label="Bot Roles"
             rule={requiredField('At least one role is required')}
@@ -79,9 +74,16 @@ export function EditBot({
               label: r,
             }))}
             onChange={(values: Option[]) =>
-              setSelectedRoles(values.map(v => v.value))
+              setSelectedRoles(values?.map(v => v.value) || [])
             }
-            options={selectOptions}
+            loadOptions={async input => {
+              const roles = await fetchRoles(input);
+              return roles.map(r => ({
+                value: r,
+                label: r,
+              }));
+            }}
+            noOptionsMessage={() => 'No roles found'}
             elevated={true}
           />
         </DialogContent>

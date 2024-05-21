@@ -22,12 +22,15 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	databaseobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // databaseObjectImportRuleService manages database object import rules in the backend.
@@ -74,10 +77,54 @@ func NewDatabaseObjectImportRuleService(backend backend.Backend) (services.Datab
 	service, err := generic.NewServiceWrapper(backend,
 		types.KindDatabaseObjectImportRule,
 		databaseObjectImportRulePrefix,
-		services.MarshalDatabaseObjectImportRule,
-		services.UnmarshalDatabaseObjectImportRule)
+		marshalDatabaseObjectImportRule,
+		unmarshalDatabaseObjectImportRule)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &databaseObjectImportRuleService{service: service}, nil
+}
+
+func marshalDatabaseObjectImportRule(rule *databaseobjectimportrulev1.DatabaseObjectImportRule, opts ...services.MarshalOption) ([]byte, error) {
+	cfg, err := services.CollectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !cfg.PreserveResourceID {
+		rule = proto.Clone(rule).(*databaseobjectimportrulev1.DatabaseObjectImportRule)
+		//nolint:staticcheck // SA1019. Deprecated, but still needed.
+		rule.Metadata.Id = 0
+		rule.Metadata.Revision = ""
+	}
+	data, err := utils.FastMarshal(rule)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return data, nil
+}
+
+func unmarshalDatabaseObjectImportRule(data []byte, opts ...services.MarshalOption) (*databaseobjectimportrulev1.DatabaseObjectImportRule, error) {
+	if len(data) == 0 {
+		return nil, trace.BadParameter("missing DatabaseObjectImportRule data")
+	}
+	cfg, err := services.CollectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var obj databaseobjectimportrulev1.DatabaseObjectImportRule
+	err = utils.FastUnmarshal(data, &obj)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if cfg.ID != 0 {
+		//nolint:staticcheck // SA1019. Id is deprecated, but still needed.
+		obj.Metadata.Id = cfg.ID
+	}
+	if cfg.Revision != "" {
+		obj.Metadata.Revision = cfg.Revision
+	}
+	if !cfg.Expires.IsZero() {
+		obj.Metadata.Expires = timestamppb.New(cfg.Expires)
+	}
+	return &obj, nil
 }

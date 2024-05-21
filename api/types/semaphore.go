@@ -46,6 +46,11 @@ const SemaphoreKindHostUserModification = "host_user_modification"
 // the Access Monitoring feature during handling user queries.
 const SemaphoreKindAccessMonitoringLimiter = "access_monitoring_limiter"
 
+// SemaphoreKindUploadCompleter is the semaphore kind used by the
+// auth server's upload completer to protect access to the shared
+// session recordings backend.
+const SemaphoreKindUploadCompleter = "upload_completer"
+
 // Semaphore represents distributed semaphore concept
 type Semaphore interface {
 	// Resource contains common resource values

@@ -1,0 +1,237 @@
+---
+title: "Protect Azure CLIs with Teleport Application Access on AKS"
+description: How to enable secure access to Azure CLIs on Azure Kubernetes Service with Workload Identity.
+---
+
+(!docs/pages/includes/application-access/azure-intro.mdx!)
+
+In this guide, you will:
+
+1. Create an Azure managed identity for the Application Service and set it as the default Workload ID for your Kubernetes service account.
+1. Create an Azure managed identity for user access and attach it to the same Kubernetes service account.
+1. Deploy a Teleport Application Service with an Azure app in your Teleport cluster.
+1. Assume the managed identity and run `az` commands via `tsh`.
+
+## How it works
+
+(!docs/pages/includes/application-access/azure-how-it-works.mdx deployment="in an AKS pod" credential="Microsoft Entra Workload ID"!)
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx version="15.2.4"!)
+- An Azure Kubernetes Service (AKS) cluster and admin permissions to manage the
+  cluster.
+- The ability to manage user-assigned Azure managed identities, role policies,
+  and federated identity credentials.
+- The `az` CLI tool installed on your workstation. You need to login as your
+  Azure admin account to configure the AKS cluster and create managed
+  identities. Teleport's `tsh` client also uses the `az` binary to execute
+  commands. See the [Azure
+  documentation](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli)
+  for how to install the `az` CLI on your operating system.
+- `kubectl` and `helm` for AKS deployments.
+- (!docs/pages/includes/tctl.mdx!)
+
+
+## Step 1/6. Create an Azure managed identity for Teleport Application Service
+
+The Teleport Application Service requires a managed identity that can retrieve
+the client IDs of the managed identities for user access. This managed identity
+will be assigned as the default identity for the Kubernetes service account.
+
+Log in to your Azure admin account with `az login` command if you haven't
+already, and prepare some environment variables for later steps:
+```code
+$ export SUBSCRIPTION="$(az account show --query id --output tsv)"
+$ export LOCATION="<Var name="eastus" />"
+$ export RESOURCE_GROUP="<Var name="myResourceGroup" />"
+$ export AKS_CLUSTER_NAME="<Var name="myASKCluster" />"
+$ export USER_ASSIGNED_IDENTITY_NAME="<Var name="teleport-azure-cli-aks-agent" />"
+```
+
+Now create the managed identity, and remember the client ID for a later
+step:
+```code
+$ az identity create --name "${USER_ASSIGNED_IDENTITY_NAME}" --resource-group "${RESOURCE_GROUP}" --location "${LOCATION}" --subscription "${SUBSCRIPTION}"
+$ export USER_ASSIGNED_CLIENT_ID="$(az identity show --resource-group "${RESOURCE_GROUP}" --name "${USER_ASSIGNED_IDENTITY_NAME}" --query 'clientId' -o tsv)"
+```
+
+Next, create a role with
+`Microsoft.ManagedIdentity/userAssignedIdentities/read` permission and assign
+it to the managed identity:
+```code
+$ cat > ${USER_ASSIGNED_IDENTITY_NAME}-role.json <<EOF
+{
+  "Name": "${USER_ASSIGNED_IDENTITY_NAME}-role",
+  "Description": "Role for Teleport Azure CLI Access on AKS",
+  "AssignableScopes": [ "/subscriptions/${SUBSCRIPTION}" ],
+  "Actions": [ "Microsoft.ManagedIdentity/userAssignedIdentities/read" ],
+  "notActions": []
+}
+EOF
+$ az role definition create --role-definition ./${USER_ASSIGNED_IDENTITY_NAME}-role.json
+$ az role assignment create --role "${USER_ASSIGNED_IDENTITY_NAME}-role" --scope "/subscriptions/${SUBSCRIPTION}" --assignee-object-id $(az identity show --name "${USER_ASSIGNED_IDENTITY_NAME}" --resource-group "${RESOURCE_GROUP}" --query principalId --output tsv) --assignee-principal-type ServicePrincipal
+```
+
+## Step 2/6. Configure the AKS cluster for Workload ID
+
+To use Microsoft Entra Workload ID, you need to enable OIDC issuer and Workload
+ID in your AKS cluster.
+```code
+$ az aks update -g "${RESOURCE_GROUP}" -n "{AKS_CLUSTER_NAME}" --enable-oidc-issuer --enable-workload-identity
+```
+
+Before using `kubectl`, make sure your local Kubernetes config is updated to
+access your AKS cluster:
+```code
+$ az aks get-credentials -n "${AKS_CLUSTER_NAME}" -g "${RESOURCE_GROUP}"
+```
+
+Create a Kubernetes service account and annotate it with the client ID of
+the managed identity created in the previous step:
+```code
+$ cat > azure_access_aks_service_account.yaml <<EOF
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  annotations:
+    azure.workload.identity/client-id: "${USER_ASSIGNED_CLIENT_ID}"
+  name: "<Var name="teleport-azure-cli-aks-service-account" />"
+  namespace: "<Var name="teleport-ns" />"
+EOF
+$ kubectl apply -f azure_access_aks_service_account.yaml
+```
+
+Now create a federated credential to associate the managed identity created in
+the previous step with the Kubernetes service account.
+```code
+$ export AKS_OIDC_ISSUER="$(az aks show -n "${AKS_CLUSTER_NAME}" -g "${RESOURCE_GROUP}" --query "oidcIssuerProfile.issuerUrl" -o tsv)"
+$ az identity federated-credential create --name "federated-${USER_ASSIGNED_IDENTITY_NAME}" --identity-name "${USER_ASSIGNED_IDENTITY_NAME}" --resource-group "${RESOURCE_GROUP}" --issuer "${AKS_OIDC_ISSUER}" --subject system:serviceaccount:<Var name="teleport-ns" />:<Var name="teleport-azure-cli-aks-service-account" /> --audience api://AzureADTokenExchange
+```
+
+## Step 3/6. Create an Azure managed identity for user access
+
+In this step, we will create an user-assigned managed identity that a Teleport
+user can assume later with `tsh` and associate this managed identity with the
+Kubernetes service account.
+
+If you have another managed identity you intend to use for user access, you can
+skip the creation of a new identity.
+
+### Create an Azure managed identity
+
+Create the managed identity with `az`:
+```code
+$ az identity create --name "<Var name="teleport-reader" />" --resource-group "${RESOURCE_GROUP}" --location "${LOCATION}" --subscription "${SUBSCRIPTION}"
+```
+
+Remember the resource ID URI of the managed identity as it will be required in
+your Teleport role or user traits:
+```code
+$ az identity show --name "<Var name="teleport-reader" />"  -g "${RESOURCE_GROUP}" --query id -o tsv
+```
+
+Next assign the managed identity desired permissions that the Teleport user
+should have. In this example, the "Reader" role is assigned to the managed
+identity:
+```code
+$ az role assignment create --role "<Var name="Reader" />" --scope "/subscriptions/${SUBSCRIPTION}" --assignee-object-id $(az identity show --name "<Var name="teleport-reader" />" --resource-group "${RESOURCE_GROUP}" --query principalId --output tsv) --assignee-principal-type ServicePrincipal
+```
+
+### Associate the managed identity with the Kubernetes service account
+
+A Kubernetes service account can have multiple managed identities assigned to
+it. The managed identity for the Application Service was assigned to the
+service account in a previous step. Now we are repeating that for the managed
+identity for user access:
+```code
+$ export AKS_OIDC_ISSUER="$(az aks show -n "${AKS_CLUSTER_NAME}" -g "${RESOURCE_GROUP}" --query "oidcIssuerProfile.issuerUrl" -o tsv)"
+$ az identity federated-credential create --name "federated-<Var name="teleport-reader" />" --identity-name "<Var name="teleport-reader" />" --resource-group "${RESOURCE_GROUP}" --issuer "${AKS_OIDC_ISSUER}" --subject system:serviceaccount:<Var name="teleport-ns" />:<Var name="teleport-azure-cli-aks-service-account" /> --audience api://AzureADTokenExchange
+```
+
+## Step 4/6  Enable your user to access Azure CLIs
+
+(!docs/pages/includes/application-access/azure-teleport-role.mdx!)
+
+## Step 5/6. Deploy the Teleport Application Service
+
+In this step, you will launch the Teleport Application Service in your AKS cluster.
+
+### Get a join token
+
+Establish trust between your Teleport cluster and your new Application Service
+instance by creating a join token:
+
+```code
+$ tctl tokens add --type=app --ttl=1h --format=text
+(=presets.tokens.first=)
+```
+
+### Start the Teleport Application Service
+
+Create a Helm values file called `values.yaml`, assigning <Var name="token" />
+to the value of the join token you retrieved above, <Var
+name="example.teleport.sh:443" /> to the host **and port** of your Teleport
+Proxy Service (e.g., `teleport.example.com:443`):
+
+```code
+$ cat > azure_access_agent.values.yaml <<EOF
+authToken: <Var name="token" />
+proxyAddr: <Var name="example.teleport.sh:443" />
+roles: app
+apps:
+  - name: "azure-cli"
+    cloud: "Azure"
+    uri: "cloud://Azure"
+
+serviceAccount:
+  create: false
+  name: <Var name="teleport-azure-cli-aks-service-account" />
+
+extraLabels:
+  pod:
+    azure.workload.identity/use: "true"
+EOF
+```
+
+Install the Helm chart for Teleport agent services, `teleport-kube-agent`:
+```code
+$ helm -n <Var name="teleport-ns" /> install teleport-azure-access-agent \
+  teleport/teleport-kube-agent --values azure_access_agent.values.yaml
+```
+
+Make sure that the Teleport agent pod is running. You should see one
+`teleport-azure-access-agent` pod with a single ready container:
+
+```code
+$ kubectl -n <Var name="teleport-ns" /> get pods
+NAME                            READY   STATUS    RESTARTS   AGE
+teleport-azure-access-agent-0   1/1     Running   0          99s
+```
+
+## Step 6/6. Use Azure CLIs with Teleport
+
+(!docs/pages/includes/application-access/azure-tsh.mdx!)
+
+## Next Steps
+
+- See Microsoft's guide on [Configure Workload ID on
+  AKS](https://learn.microsoft.com/en-us/azure/aks/workload-identity-deploy-cluster).
+- Now that you know how to protect Azure CLI access using Teleport, ensure that
+  your Teleport users can only manage Azure resources temporarily, with no
+  longstanding admin roles for attackers to hijack. View our documentation on
+  [Role Access
+  Requests](../../access-controls/access-requests/role-requests.mdx) and
+  [Access Request plugins](../../access-controls/access-request-plugins/index.mdx).
+- Consult the Azure documentation for information about [Azure managed
+  identities](https://learn.microsoft.com/en-us/azure/active-directory/managed-identities-azure-resources/overview)
+  and how to [manage user-assigned managed
+  identities](https://learn.microsoft.com/en-us/azure/active-directory/managed-identities-azure-resources/how-manage-user-assigned-managed-identities).
+- See the [Azure
+  documentation](https://learn.microsoft.com/en-us/cli/azure/reference-index?view=azure-cli-latest)
+  for the full list of `az` CLI commands.
+- For full details on how Teleport populates the `internal` and `external`
+  traits we illustrated in the Teleport roles within this guide, see
+  the [Teleport Access Controls
+  Reference](../../access-controls/reference.mdx).
+

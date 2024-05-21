@@ -16,92 +16,89 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Box } from 'design';
+import { Box, Flex } from 'design';
 import { SingleRowBox } from 'design/MultiRowBox';
 import React, { useState } from 'react';
 
 import * as Icon from 'design/Icon';
-import Dialog, {
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from 'design/Dialog';
-import FormPassword from 'shared/components/FormPassword';
 
-import { ActionButton, Header } from './Header';
-import useChangePassword from './ChangePassword/useChangePassword';
+import cfg from 'teleport/config';
+
+import { MfaDevice } from 'teleport/services/mfa';
+
+import { PasswordState } from 'teleport/services/user';
+
+import { ActionButtonSecondary, Header } from './Header';
+import { ChangePasswordWizard } from './ChangePasswordWizard';
+import { StatePill, AuthMethodState } from './StatePill';
 
 export interface PasswordBoxProps {
   changeDisabled: boolean;
+  devices: MfaDevice[];
+  passwordState: PasswordState;
   onPasswordChange: () => void;
 }
 
 export function PasswordBox({
   changeDisabled,
+  devices,
+  passwordState,
   onPasswordChange,
 }: PasswordBoxProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
-  const {
-    changePassword,
-    changePasswordWithWebauthn,
-    preferredMfaType,
-    auth2faType,
-  } = useChangePassword();
 
-  async function onChangePass(
-    oldPass: string,
-    newPass: string,
-    token: string
-  ): Promise<void> {
-    await changePassword(oldPass, newPass, token);
+  const onSuccess = () => {
     setDialogOpen(false);
     onPasswordChange();
-  }
-
-  async function onChangePassWithWebauthn(
-    oldPass: string,
-    newPass: string
-  ): Promise<void> {
-    await changePasswordWithWebauthn(oldPass, newPass);
-    setDialogOpen(false);
-    onPasswordChange();
-  }
+  };
 
   return (
     <Box>
       <SingleRowBox>
         <Header
-          title="Password"
+          title={
+            <Flex gap={2}>
+              Password
+              <StatePill
+                data-testid="password-state-pill"
+                state={passwordStateToPillState(passwordState)}
+              />
+            </Flex>
+          }
           icon={<Icon.Password />}
           actions={
-            <ActionButton
+            <ActionButtonSecondary
               disabled={changeDisabled}
               onClick={() => setDialogOpen(true)}
             >
               Change Password
-            </ActionButton>
+            </ActionButtonSecondary>
           }
         />
       </SingleRowBox>
-      <Dialog
-        open={dialogOpen}
-        disableEscapeKeyDown={false}
-        onClose={() => setDialogOpen(false)}
-      >
-        <DialogHeader>
-          <DialogTitle>Change password</DialogTitle>
-        </DialogHeader>
-        <DialogContent mb={0}>
-          <FormPassword
-            showCancel
-            auth2faType={auth2faType}
-            preferredMfaType={preferredMfaType}
-            onChangePass={onChangePass}
-            onChangePassWithWebauthn={onChangePassWithWebauthn}
-            onCancel={() => setDialogOpen(false)}
-          />
-        </DialogContent>
-      </Dialog>
+      {dialogOpen && (
+        <ChangePasswordWizard
+          auth2faType={cfg.getAuth2faType()}
+          passwordlessEnabled={cfg.isPasswordlessEnabled()}
+          devices={devices}
+          onClose={() => setDialogOpen(false)}
+          onSuccess={onSuccess}
+        />
+      )}
     </Box>
   );
+}
+
+function passwordStateToPillState(
+  state: PasswordState
+): AuthMethodState | undefined {
+  switch (state) {
+    case PasswordState.PASSWORD_STATE_SET:
+      return 'active';
+    case PasswordState.PASSWORD_STATE_UNSET:
+      return 'inactive';
+    default:
+      state satisfies never | PasswordState.PASSWORD_STATE_UNSPECIFIED;
+      return undefined;
+  }
 }

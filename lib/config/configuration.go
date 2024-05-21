@@ -59,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage/easconfig"
+	"github.com/gravitational/teleport/lib/integrations/samlidp/samlidpconfig"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/pam"
@@ -213,6 +214,14 @@ type CommandLineFlags struct {
 	// `teleport integration configure eice-iam` command
 	IntegrationConfEICEIAMArguments IntegrationConfEICEIAM
 
+	// IntegrationConfAWSAppAccessIAMArguments contains the arguments of
+	// `teleport integration configure aws-app-access-iam` command
+	IntegrationConfAWSAppAccessIAMArguments IntegrationConfAWSAppAccessIAM
+
+	// IntegrationConfEC2SSMIAMArguments contains the arguments of
+	// `teleport integration configure ec2-ssm-iam` command
+	IntegrationConfEC2SSMIAMArguments IntegrationConfEC2SSMIAM
+
 	// IntegrationConfEKSIAMArguments contains the arguments of
 	// `teleport integration configure eks-iam` command
 	IntegrationConfEKSIAMArguments IntegrationConfEKSIAM
@@ -228,6 +237,21 @@ type CommandLineFlags struct {
 	// IntegrationConfExternalAuditStorageArguments contains the arguments of the
 	// `teleport integration configure externalauditstorage` command
 	IntegrationConfExternalAuditStorageArguments easconfig.ExternalAuditStorageConfiguration
+
+	// IntegrationConfAccessGraphAWSSyncArguments contains the arguments of
+	// `teleport integration configure access-graph aws-iam` command
+	IntegrationConfAccessGraphAWSSyncArguments IntegrationConfAccessGraphAWSSync
+
+	// IntegrationConfSAMLIdPGCPWorkforceArguments contains the arguments of
+	// `teleport integration configure samlidp gcp-workforce` command
+	IntegrationConfSAMLIdPGCPWorkforceArguments samlidpconfig.GCPWorkforceAPIParams
+}
+
+// IntegrationConfAccessGraphAWSSync contains the arguments of
+// `teleport integration configure access-graph aws-iam` command.
+type IntegrationConfAccessGraphAWSSync struct {
+	// Role is the AWS Role associated with the Integration
+	Role string
 }
 
 // IntegrationConfDeployServiceIAM contains the arguments of
@@ -254,6 +278,29 @@ type IntegrationConfEICEIAM struct {
 	Role string
 }
 
+// IntegrationConfAWSAppAccessIAM contains the arguments of
+// `teleport integration configure aws-app-access-iam` command
+type IntegrationConfAWSAppAccessIAM struct {
+	// RoleName is the AWS Role associated with the Integration
+	RoleName string
+}
+
+// IntegrationConfEC2SSMIAM contains the arguments of
+// `teleport integration configure ec2-ssm-iam` command
+type IntegrationConfEC2SSMIAM struct {
+	// RoleName is the AWS Role associated with the Integration
+	RoleName string
+	// Region is the AWS Region used to set up the client.
+	Region string
+	// SSMDocumentName is the SSM Document to be created that will run the installer script.
+	SSMDocumentName string
+	// ProxyPublicURL is Proxy's Public URL.
+	// This is used fetch the installer script.
+	// No trailing / is expected.
+	// Eg https://tenant.teleport.sh
+	ProxyPublicURL string
+}
+
 // IntegrationConfEKSIAM contains the arguments of
 // `teleport integration configure eks-iam` command
 type IntegrationConfEKSIAM struct {
@@ -275,6 +322,22 @@ type IntegrationConfAWSOIDCIdP struct {
 	// ProxyPublicURL is the IdP Issuer URL (Teleport Proxy Public Address).
 	// Eg, https://<tenant>.teleport.sh
 	ProxyPublicURL string
+
+	// S3BucketURI is the S3 URI which contains the bucket name and prefix for the issuer.
+	// Format: s3://<bucket-name>/<prefix>
+	// Eg, s3://my-bucket/idp-teleport
+	// This is used in two places:
+	// - create openid configuration and jwks objects
+	// - set up the issuer
+	// The bucket must be public and will be created if it doesn't exist.
+	//
+	// If empty, the ProxyPublicAddress is used as issuer and no s3 objects are created.
+	S3BucketURI string
+
+	// S3JWKSContentsB64 must contain the public keys for the Issuer.
+	// The contents must be Base64 encoded.
+	// Eg. base64(`{"keys":[{"kty":"RSA","alg":"RS256","n":"<value of n>","e":"<value of e>","use":"sig","kid":""}]}`)
+	S3JWKSContentsB64 string
 }
 
 // IntegrationConfListDatabasesIAM contains the arguments of
@@ -374,7 +437,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	if fc.AccessGraph.Enabled {
 		cfg.AccessGraph.Enabled = true
 		if fc.AccessGraph.Endpoint == "" {
-			return trace.Errorf("Please, provide access_graph_service.addr configuration variable")
+			return trace.BadParameter("access_graph.endpoint is required when access graph integration is enabled")
 		}
 		cfg.AccessGraph.Addr = fc.AccessGraph.Endpoint
 		cfg.AccessGraph.CA = fc.AccessGraph.CA
@@ -931,13 +994,13 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	}
 
 	// read in and set the license file path (not used in open-source version)
-	licenseFile := fc.Auth.LicenseFile
-	if licenseFile != "" {
-		if filepath.IsAbs(licenseFile) {
-			cfg.Auth.LicenseFile = licenseFile
-		} else {
-			cfg.Auth.LicenseFile = filepath.Join(cfg.DataDir, licenseFile)
-		}
+	switch licenseFile := fc.Auth.LicenseFile; {
+	case licenseFile == "":
+		cfg.Auth.LicenseFile = filepath.Join(cfg.DataDir, defaults.LicenseFile)
+	case filepath.IsAbs(licenseFile):
+		cfg.Auth.LicenseFile = licenseFile
+	default:
+		cfg.Auth.LicenseFile = filepath.Join(cfg.DataDir, licenseFile)
 	}
 
 	cfg.Auth.LoadAllCAs = fc.Auth.LoadAllCAs
@@ -1509,12 +1572,14 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 
 		serviceMatcher := types.AWSMatcher{
-			Types:      matcher.Types,
-			Regions:    matcher.Regions,
-			AssumeRole: assumeRole,
-			Tags:       matcher.Tags,
-			Params:     installParams,
-			SSM:        &types.AWSSSM{DocumentName: matcher.SSM.DocumentName},
+			Types:            matcher.Types,
+			Regions:          matcher.Regions,
+			AssumeRole:       assumeRole,
+			Tags:             matcher.Tags,
+			Params:           installParams,
+			SSM:              &types.AWSSSM{DocumentName: matcher.SSM.DocumentName},
+			Integration:      matcher.Integration,
+			KubeAppDiscovery: matcher.KubeAppDiscovery,
 		}
 		if err := serviceMatcher.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
@@ -1605,6 +1670,28 @@ kubernetes matchers are present`)
 		cfg.Discovery.KubernetesMatchers = append(cfg.Discovery.KubernetesMatchers, serviceMatcher)
 	}
 
+	if fc.Discovery.AccessGraph != nil {
+		var tMatcher types.AccessGraphSync
+		for _, awsMatcher := range fc.Discovery.AccessGraph.AWS {
+			regions := awsMatcher.Regions
+			if len(regions) == 0 {
+				return trace.BadParameter("missing regions in access_graph")
+			}
+			var assumeRole *types.AssumeRole
+			if awsMatcher.AssumeRoleARN != "" || awsMatcher.ExternalID != "" {
+				assumeRole = &types.AssumeRole{
+					RoleARN:    awsMatcher.AssumeRoleARN,
+					ExternalID: awsMatcher.ExternalID,
+				}
+			}
+			tMatcher.AWS = append(tMatcher.AWS, &types.AccessGraphAWSSync{
+				Regions:    regions,
+				AssumeRole: assumeRole,
+			})
+		}
+		cfg.Discovery.AccessGraph = &tMatcher
+	}
+
 	return nil
 }
 
@@ -1682,6 +1769,7 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 					RoleARN:    matcher.AssumeRoleARN,
 					ExternalID: matcher.ExternalID,
 				},
+				Integration: matcher.Integration,
 			})
 	}
 	for _, matcher := range fc.Databases.AzureMatchers {

@@ -26,18 +26,24 @@ import (
 	"net"
 	"os"
 	"path"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/jackc/pgconn"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1/experiment"
+	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	apisshutils "github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
@@ -65,7 +71,7 @@ func TestMain(m *testing.M) {
 func TestBot(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	log := utils.NewLoggerForTests()
+	log := utils.NewSlogLoggerForTests()
 
 	// Make a new auth server.
 	fc, fds := testhelpers.DefaultConfig(t)
@@ -84,7 +90,7 @@ func TestBot(t *testing.T) {
 
 	clusterName := string(fc.Auth.ClusterName)
 	_ = testhelpers.MakeAndRunTestAuthServer(t, log, fc, fds)
-	rootClient := testhelpers.MakeDefaultAuthClient(t, log, fc)
+	rootClient := testhelpers.MakeDefaultAuthClient(t, fc)
 
 	// Register an application server so the bot can request certs for it.
 	app, err := types.NewAppV3(types.Metadata{
@@ -399,12 +405,12 @@ func tlsIdentFromDest(ctx context.Context, t *testing.T, dest bot.Destination) *
 func TestBot_ResumeFromStorage(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	log := utils.NewLoggerForTests()
+	log := utils.NewSlogLoggerForTests()
 
 	// Make a new auth server.
 	fc, fds := testhelpers.DefaultConfig(t)
 	_ = testhelpers.MakeAndRunTestAuthServer(t, log, fc, fds)
-	rootClient := testhelpers.MakeDefaultAuthClient(t, log, fc)
+	rootClient := testhelpers.MakeDefaultAuthClient(t, fc)
 
 	// Create bot user and join token
 	botParams, _ := testhelpers.MakeBot(t, rootClient, "test", "access")
@@ -444,12 +450,12 @@ func TestBot_ResumeFromStorage(t *testing.T) {
 func TestBot_InsecureViaProxy(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	log := utils.NewLoggerForTests()
+	log := utils.NewSlogLoggerForTests()
 
 	// Make a new auth server.
 	fc, fds := testhelpers.DefaultConfig(t)
 	_ = testhelpers.MakeAndRunTestAuthServer(t, log, fc, fds)
-	rootClient := testhelpers.MakeDefaultAuthClient(t, log, fc)
+	rootClient := testhelpers.MakeDefaultAuthClient(t, fc)
 
 	// Create bot user and join token
 	botParams, _ := testhelpers.MakeBot(t, rootClient, "test", "access")
@@ -614,16 +620,14 @@ func newMockDiscoveredKubeCluster(t *testing.T, name, discoveredName string) *ty
 // TestBotSPIFFEWorkloadAPI is an end-to-end test of Workload ID's ability to
 // issue a SPIFFE SVID to a workload connecting via the SPIFFE Workload API.
 func TestBotSPIFFEWorkloadAPI(t *testing.T) {
-	experiment.SetEnabled(true)
-	defer experiment.SetEnabled(false)
-
+	t.Parallel()
 	ctx := context.Background()
-	log := utils.NewLoggerForTests()
+	log := utils.NewSlogLoggerForTests()
 
 	// Make a new auth server.
 	fc, fds := testhelpers.DefaultConfig(t)
 	_ = testhelpers.MakeAndRunTestAuthServer(t, log, fc, fds)
-	rootClient := testhelpers.MakeDefaultAuthClient(t, log, fc)
+	rootClient := testhelpers.MakeDefaultAuthClient(t, fc)
 
 	// Create a role that allows the bot to issue a SPIFFE SVID.
 	role, err := types.NewRole("spiffe-issuer", types.RoleSpecV6{
@@ -645,6 +649,8 @@ func TestBotSPIFFEWorkloadAPI(t *testing.T) {
 	role, err = rootClient.UpsertRole(ctx, role)
 	require.NoError(t, err)
 
+	pid := os.Getpid()
+
 	tempDir := t.TempDir()
 	socketPath := "unix://" + path.Join(tempDir, "spiffe.sock")
 	onboarding, _ := testhelpers.MakeBot(t, rootClient, "test", role.GetName())
@@ -656,13 +662,37 @@ func TestBotSPIFFEWorkloadAPI(t *testing.T) {
 			ServiceConfigs: []config.ServiceConfig{
 				&config.SPIFFEWorkloadAPIService{
 					Listen: socketPath,
-					SVIDs: []config.SVIDRequest{
+					SVIDs: []config.SVIDRequestWithRules{
+						// Intentionally unmatching PID to ensure this SVID
+						// is not issued.
 						{
-							Path: "/foo",
-							Hint: "hint",
-							SANS: config.SVIDRequestSANs{
-								DNS: []string{"example.com"},
-								IP:  []string{"10.0.0.1"},
+							SVIDRequest: config.SVIDRequest{
+								Path: "/bar",
+							},
+							Rules: []config.SVIDRequestRule{
+								{
+									Unix: config.SVIDRequestRuleUnix{
+										PID: ptr(0),
+									},
+								},
+							},
+						},
+						// SVID with rule that matches on PID.
+						{
+							SVIDRequest: config.SVIDRequest{
+								Path: "/foo",
+								Hint: "hint",
+								SANS: config.SVIDRequestSANs{
+									DNS: []string{"example.com"},
+									IP:  []string{"10.0.0.1"},
+								},
+							},
+							Rules: []config.SVIDRequestRule{
+								{
+									Unix: config.SVIDRequestRuleUnix{
+										PID: &pid,
+									},
+								},
 							},
 						},
 					},
@@ -708,4 +738,108 @@ func TestBotSPIFFEWorkloadAPI(t *testing.T) {
 	// Shut down bot and make sure it exits cleanly.
 	cancelBot()
 	require.NoError(t, <-botCh)
+}
+
+func TestBotDatabaseTunnel(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	log := utils.NewSlogLoggerForTests()
+
+	// Make a new auth server.
+	fc, fds := testhelpers.DefaultConfig(t)
+	process := testhelpers.MakeAndRunTestAuthServer(t, log, fc, fds)
+	rootClient := testhelpers.MakeDefaultAuthClient(t, fc)
+
+	// Make fake postgres server and add a database access instance to expose
+	// it.
+	pts, err := postgres.NewTestServer(common.TestServerConfig{
+		AuthClient: rootClient,
+		Users:      []string{"llama"},
+	})
+	require.NoError(t, err)
+	go func() {
+		t.Logf("Postgres Fake server running at %s port", pts.Port())
+		require.NoError(t, pts.Serve())
+	}()
+	t.Cleanup(func() {
+		pts.Close()
+	})
+	proxyAddr, err := process.ProxyWebAddr()
+	require.NoError(t, err)
+	helpers.MakeTestDatabaseServer(t, *proxyAddr, testhelpers.AgentJoinToken, nil, servicecfg.Database{
+		Name:     "test-database",
+		URI:      net.JoinHostPort("localhost", pts.Port()),
+		Protocol: "postgres",
+	})
+
+	// Create role that allows the bot to access the database.
+	role, err := types.NewRole("database-access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			DatabaseLabels: types.Labels{
+				"*": apiutils.Strings{"*"},
+			},
+			DatabaseNames: []string{"mydb"},
+			DatabaseUsers: []string{"llama"},
+		},
+	})
+	require.NoError(t, err)
+	role, err = rootClient.UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	botListener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		botListener.Close()
+	})
+
+	// Prepare the bot config
+	onboarding, _ := testhelpers.MakeBot(t, rootClient, "test", role.GetName())
+	botConfig := testhelpers.DefaultBotConfig(
+		t, fc, onboarding, []config.Output{},
+		testhelpers.DefaultBotConfigOpts{
+			UseAuthServer: true,
+			// Insecure required as the db tunnel will connect to proxies
+			// self-signed.
+			Insecure: true,
+			ServiceConfigs: []config.ServiceConfig{
+				&config.DatabaseTunnelService{
+					Listener: botListener,
+					Service:  "test-database",
+					Database: "mydb",
+					Username: "llama",
+				},
+			},
+		},
+	)
+	botConfig.Oneshot = false
+	b := New(botConfig, log)
+
+	// Spin up goroutine for bot to run in
+	ctx, cancel := context.WithCancel(ctx)
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		err := b.Run(ctx)
+		assert.NoError(t, err, "bot should not exit with error")
+		cancel()
+	}()
+
+	// We can't predict exactly when the tunnel will be ready so we use
+	// EventuallyWithT to retry.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		conn, err := pgconn.Connect(ctx, fmt.Sprintf("postgres://%s/mydb?user=llama", botListener.Addr().String()))
+		if !assert.NoError(t, err) {
+			return
+		}
+		defer func() {
+			conn.Close(ctx)
+		}()
+		_, err = conn.Exec(ctx, "SELECT 1;").ReadAll()
+		assert.NoError(t, err)
+	}, 10*time.Second, 100*time.Millisecond)
+
+	// Shut down bot and make sure it exits.
+	cancel()
+	wg.Wait()
 }
