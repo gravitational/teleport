@@ -38,6 +38,8 @@ $ teleport debug profile trace,mutex > pprof.tar.gz
 $ teleport debug profile -s 20 trace > pprof.tar.gz
 ```
 
+(!docs/pages/includes/diagnostics/teleport-debug-config.mdx!)
+
 If you're running Teleport on a Kubernetes cluster you can directly collect
 profiles to a local directory without an interactive session:
 
@@ -58,8 +60,6 @@ $ go tool pprof -http : heap.pprof
 # Visualize trace profiles
 $ go tool trace trace.pprof
 ```
-
-(!docs/pages/includes/diagnostics/teleport-debug-config.mdx!)
 
 ## Using diagnostics endpoints
 
