@@ -106,7 +106,8 @@ set dnsAddr to "%s"
 do shell script quoted form of executableName & `+
 		`" %s -d --socket " & quoted form of socketPath & `+
 		`" --ipv6-prefix " & quoted form of ipv6Prefix & `+
-		`" --dns-addr " & quoted form of dnsAddr `+
+		`" --dns-addr " & quoted form of dnsAddr & `+
+		`" >/var/log/vnet.log 2>&1" `+
 		`with prompt "VNet wants to set up a virtual network device" with administrator privileges`,
 		executableName, socketPath, ipv6Prefix, dnsAddr, teleport.VnetAdminSetupSubCommand)
 

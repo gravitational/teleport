@@ -74,21 +74,30 @@ func configureDNS(ctx context.Context, nameserver string, zones []string) error 
 	if err != nil {
 		return trace.Wrap(err, "finding VNet managed files in /etc/resolver")
 	}
+
+	// Always attempt to write or clean up all files below, even if encountering errors with one or more of
+	// them.
+	var allErrors []error
+
 	for _, zone := range zones {
 		fileName := filepath.Join(resolverPath, zone)
-		delete(managedFiles, fileName)
 		contents := resolverFileComment + "\nnameserver " + nameserver
 		if err := os.WriteFile(fileName, []byte(contents), 0644); err != nil {
-			return trace.Wrap(err, "writing DNS configuration file %s", fileName)
+			allErrors = append(allErrors, trace.Wrap(err, "writing DNS configuration file %s", fileName))
+		} else {
+			// Successfully wrote this file, don't clean it up below.
+			delete(managedFiles, fileName)
 		}
 	}
+
 	// Delete stale files.
 	for fileName := range managedFiles {
 		if err := os.Remove(fileName); err != nil {
-			return trace.Wrap(err, "deleting VNet managed file %s", fileName)
+			allErrors = append(allErrors, trace.Wrap(err, "deleting VNet managed file %s", fileName))
 		}
 	}
-	return nil
+
+	return trace.NewAggregate(allErrors...)
 }
 
 func vnetManagedResolverFiles() (map[string]struct{}, error) {
@@ -107,6 +116,8 @@ func vnetManagedResolverFiles() (map[string]struct{}, error) {
 		if err != nil {
 			return nil, trace.Wrap(err, "opening %s", filePath)
 		}
+		defer file.Close()
+
 		scanner := bufio.NewScanner(file)
 		if scanner.Scan() {
 			if resolverFileComment == scanner.Text() {
