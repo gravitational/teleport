@@ -626,6 +626,7 @@ func (b *bufferCloser) Close() error {
 
 func (w *sliceWriter) newSlice() (*slice, error) {
 	w.lastPartNumber++
+	// This buffer will be returned to the pool by slice.Close
 	buffer := w.proto.cfg.BufferPool.Get()
 	buffer.Reset()
 	// reserve bytes for version header
