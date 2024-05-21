@@ -668,7 +668,6 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		err = onGetLogLevel(ccf.ConfigFile)
 	case collectProfilesCmd.FullCommand():
 		err = onCollectProfiles(ccf.ConfigFile, ccf.Profiles, ccf.ProfileSeconds)
-		err = onIntegrationConfSAMLIdPGCPWorkforce(ccf.IntegrationConfSAMLIdPGCPWorkforceArguments)
 	case migrate.FullCommand():
 		err = runMigration(context.Background(), ccf.ConfigFile)
 	}
