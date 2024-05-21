@@ -167,10 +167,21 @@ metadata:
     foo: bar
     baz: quux
 spec:
-  host_id: 307e091b-7f6b-42e0-b78d-3362ad10b55d
   addr: 192.168.1.153:3389
-  domain: ""
   non_ad: true
+  # host_id is the `metadata.name` of the `windows_desktop_service` resource
+  # reporting this desktop.
+  #
+  # For AD-joined hosts, this value MUST be the `name` of the `windows_desktop_service`
+  # resource that connects to the AD domain via LDAP. For hosts that use local accounts
+  # (`non_ad: true`), this value can be the `name` of any `windows_desktop_service`
+  # resource in your cluster. Note that `windows_desktop`s are identified by their
+  # `metadata.name` + `spec.host_id` combination, so if you are aiming to update a particular
+  # `windows_desktop` resource, you must use the same `host_id` value.
+  #
+  # You can list all `windows_desktop_service` resources in your cluster by running
+  # `tctl get windows_desktop_service`.
+  host_id: 307e091b-7f6b-42e0-b78d-3362ad10b55d
 
   # Optional - ensures that all sessions use the same screen size,
   # no matter what the size of the browser window is.
@@ -189,7 +200,7 @@ Login rules contain logic to transform SSO user traits during login.
 
 ## Database object import rule
 
-Database object import rule define the labels to be applied to database objects imported into Teleport. 
+Database object import rule define the labels to be applied to database objects imported into Teleport.
 
 See [Database Access Controls](../database-access/auto-user-provisioning/database-access-controls.mdx) for more details.
 
