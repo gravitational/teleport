@@ -841,9 +841,10 @@ func (s *slice) reader() (io.ReadSeeker, error) {
 	// non last slices should be at least min upload bytes (as limited by S3 API spec)
 	if !s.isLast && wroteBytes < s.proto.cfg.MinUploadBytes {
 		paddingBytes = s.proto.cfg.MinUploadBytes - wroteBytes
-		if _, err := s.buffer.ReadFrom(utils.NewRepeatReader(byte(0), int(paddingBytes))); err != nil {
-			return nil, trace.Wrap(err)
-		}
+		s.buffer.Grow(int(paddingBytes))
+		padding := s.buffer.AvailableBuffer()[:paddingBytes]
+		clear(padding)
+		s.buffer.Write(padding)
 	}
 	data := s.buffer.Bytes()
 	// when the slice was created, the first bytes were reserved
