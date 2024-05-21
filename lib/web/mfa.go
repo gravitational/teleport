@@ -436,28 +436,39 @@ type isMfaRequiredResponse struct {
 	Required bool `json:"required"`
 }
 
+// isMFARequired is the [ClusterHandler] implementer for checking if MFA is required for a given target.
 func (h *Handler) isMFARequired(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	var httpReq *isMFARequiredRequest
 	if err := httplib.ReadJSON(r, &httpReq); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	protoReq, err := h.checkAndGetProtoRequest(r.Context(), sctx, httpReq)
+	required, err := h.checkMFARequired(r.Context(), httpReq, sctx, site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := sctx.GetUserClient(r.Context(), site)
+	return isMfaRequiredResponse{Required: required}, nil
+}
+
+// checkMFARequired checks if MFA is required for the target specified in the [isMFARequiredRequest].
+func (h *Handler) checkMFARequired(ctx context.Context, req *isMFARequiredRequest, sctx *SessionContext, site reversetunnelclient.RemoteSite) (bool, error) {
+	protoReq, err := h.checkAndGetProtoRequest(ctx, sctx, req)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return false, trace.Wrap(err)
 	}
 
-	res, err := clt.IsMFARequired(r.Context(), protoReq)
+	clt, err := sctx.GetUserClient(ctx, site)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return false, trace.Wrap(err)
 	}
 
-	return isMfaRequiredResponse{Required: res.GetRequired()}, nil
+	res, err := clt.IsMFARequired(ctx, protoReq)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	return res.GetRequired(), nil
 }
 
 // makeAuthenticateChallenge converts proto to JSON format.

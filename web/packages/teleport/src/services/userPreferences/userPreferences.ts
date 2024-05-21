@@ -36,6 +36,8 @@ import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 
 import { OnboardUserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
 
+import { getPrefersDark } from 'design/ThemeProvider';
+
 import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 
@@ -105,8 +107,9 @@ export function updateUserPreferences(preferences: Partial<UserPreferences>) {
 }
 
 export function makeDefaultUserPreferences(): UserPreferences {
+  const prefersDark = getPrefersDark();
   return {
-    theme: Theme.LIGHT,
+    theme: prefersDark ? Theme.DARK : Theme.LIGHT,
     assist: {
       viewMode: AssistViewMode.DOCKED,
       preferredLogins: [],
