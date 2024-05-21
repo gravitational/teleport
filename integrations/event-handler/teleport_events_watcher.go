@@ -157,7 +157,7 @@ func (t *TeleportEventsWatcher) fetch(ctx context.Context) error {
 	}
 
 	// Zero batch
-	t.batch = make([]*TeleportEvent, len(b))
+	t.batch = make([]*TeleportEvent, 0, len(b))
 
 	// Save next cursor
 	t.nextCursor = nextCursor
@@ -175,13 +175,17 @@ func (t *TeleportEventsWatcher) fetch(ctx context.Context) error {
 	pos := 0
 
 	// Convert batch to TeleportEvent
-	for i, e := range b {
+	for _, e := range b {
+		if _, ok := t.config.SkipEventTypes[e.Type]; ok {
+			log.WithField("event", e).Debug("Skipping event")
+			continue
+		}
 		evt, err := NewTeleportEvent(e, t.cursor)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		t.batch[i] = evt
+		t.batch = append(t.batch, evt)
 	}
 
 	// If last known id is not empty, let's try to find it's pos
