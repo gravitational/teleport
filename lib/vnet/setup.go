@@ -168,7 +168,7 @@ func CreateAndSetupTUNDevice(ctx context.Context, ipv6Prefix, dnsAddr string) (<
 // the host OS configuration up to date.
 func createAndSetupTUNDeviceAsRoot(ctx context.Context, ipv6Prefix, dnsAddr string) (<-chan tun.Device, <-chan error) {
 	tunCh := make(chan tun.Device, 1)
-	errCh := make(chan error, 1)
+	errCh := make(chan error, 2)
 
 	tun, tunName, err := createTUNDevice(ctx)
 	if err != nil {
@@ -178,6 +178,11 @@ func createAndSetupTUNDeviceAsRoot(ctx context.Context, ipv6Prefix, dnsAddr stri
 	tunCh <- tun
 
 	go func() {
+		defer func() {
+			// Shutting down, deconfigure OS.
+			errCh <- trace.Wrap(configureOS(context.Background(), &osConfig{}))
+		}()
+
 		var err error
 		tunIPv6 := ipv6Prefix + "1"
 		cfg := osConfig{
@@ -197,7 +202,6 @@ func createAndSetupTUNDeviceAsRoot(ctx context.Context, ipv6Prefix, dnsAddr stri
 		// Re-check the DNS zones every 10 seconds, and configure the host OS appropriately.
 		ticker := time.NewTicker(10 * time.Second)
 		defer ticker.Stop()
-	loop:
 		for {
 			select {
 			case <-ticker.C:
@@ -210,12 +214,9 @@ func createAndSetupTUNDeviceAsRoot(ctx context.Context, ipv6Prefix, dnsAddr stri
 					return
 				}
 			case <-ctx.Done():
-				break loop
+				return
 			}
 		}
-
-		// Shutting down, deconfigure OS.
-		errCh <- trace.Wrap(configureOS(ctx, &osConfig{}))
 	}()
 	return tunCh, errCh
 }
