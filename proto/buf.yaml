@@ -20,7 +20,7 @@ lint:
   ignore:
     # "legacy" lib protos.
     - teleport/lib/multiplexer/test/ping.proto
-    - teleport/lib/web/envelope.proto
+    - teleport/lib/web/terminal/envelope.proto
   ignore_only:
     # Allow only certain services to use streaming RPCs.
     #

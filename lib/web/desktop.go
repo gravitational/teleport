@@ -374,7 +374,7 @@ func (h *Handler) performMFACeremony(
 		codec := tdpMFACodec{}
 
 		// Send the challenge over the socket.
-		msg, err := codec.encode(
+		msg, err := codec.Encode(
 			&client.MFAAuthenticateChallenge{
 				WebauthnChallenge: wantypes.CredentialAssertionFromProto(chal.WebauthnChallenge),
 			},
@@ -420,7 +420,7 @@ func (h *Handler) performMFACeremony(
 			break
 		}
 
-		assertion, err := codec.decodeResponse(buf, defaults.WebsocketWebauthnChallenge)
+		assertion, err := codec.DecodeResponse(buf, defaults.WebsocketWebauthnChallenge)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

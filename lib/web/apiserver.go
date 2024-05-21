@@ -101,6 +101,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/app"
 	websession "github.com/gravitational/teleport/lib/web/session"
+	"github.com/gravitational/teleport/lib/web/terminal"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
@@ -4106,7 +4107,7 @@ func (h *Handler) writeErrToWebSocket(ws *websocket.Conn, err error) {
 	if err == nil {
 		return
 	}
-	errEnvelope := Envelope{
+	errEnvelope := terminal.Envelope{
 		Type:    defaults.WebsocketError,
 		Payload: trace.UserMessage(err),
 	}
