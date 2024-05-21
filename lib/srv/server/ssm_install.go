@@ -284,13 +284,6 @@ func skipAWSWaitErr(err error) error {
 	return trace.Wrap(err)
 }
 
-// This list of ssmSteps must match the ones used in awslib.EC2DiscoverySSMDocument
-// These vars are used to obtain specific status of each step when checking a command output.
-var (
-	ssmStepDownloadContent = "downloadContent"
-	ssmStepRunShellScript  = "runShellScript"
-)
-
 func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, commandID, instanceID *string) error {
 	err := req.SSM.WaitUntilCommandExecutedWithContext(ctx, &ssm.GetCommandInvocationInput{
 		CommandId:  commandID,
@@ -301,32 +294,91 @@ func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, com
 		return trace.Wrap(err)
 	}
 
-	// Check 1st step: download Content
-	downloadContentStep, err := si.getCommandStepStatusEvent(ctx, &ssmStepDownloadContent, req, commandID, instanceID)
-	if err != nil {
+	invocationSteps, err := si.getInvocationSteps(ctx, req, commandID, instanceID)
+	switch {
+	case trace.IsAccessDenied(err):
+		// getInvocationSteps uses `ssm:ListCommandInvocations` to gather all the executed steps.
+		// Using `ssm:ListCommandInvocations` is not always possible because previous Docs versions (pre-v16) did not ask for that permission.
+		// If the IAM role does not have access to that action, an Access Denied is returned here.
+		// The process continues but the user is warned that they should add that permission to get better diagnostics.
+		si.Logger.WarnContext(ctx,
+			"Add ssm:ListCommandInvocations action to IAM Role to improve diagnostics of EC2 Teleport installation failures",
+			"error", err)
+
+		invocationSteps = awslib.EC2DiscoverySSMDocumentSteps
+
+	case err != nil:
 		return trace.Wrap(err)
 	}
 
-	// Only check runShellScript step if downloadContent was a success.
-	if downloadContentStep.Metadata.Code != libevents.SSMRunSuccessCode {
-		return trace.Wrap(si.Emitter.EmitAuditEvent(ctx, downloadContentStep))
+	for i, step := range invocationSteps {
+		stepResultEvent, err := si.getCommandStepStatusEvent(ctx, step, req, commandID, instanceID)
+		if err != nil {
+			var invalidPluginNameErr *ssm.InvalidPluginName
+			if errors.As(err, &invalidPluginNameErr) {
+				// If using a custom SSM Document and the client does not have access to ssm:ListCommandInvocations
+				// the list of invocationSteps (ie plugin name) might be wrong.
+				// If that's the case, emit an event with the overall invocation result (ignoring specific steps' stdout and stderr).
+				invocationResultEvent, err := si.getCommandStepStatusEvent(ctx, "" /*no step*/, req, commandID, instanceID)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+
+				return trace.Wrap(si.Emitter.EmitAuditEvent(ctx, invocationResultEvent))
+			}
+
+			return trace.Wrap(err)
+		}
+
+		// Emit an event for the first failed step or for the latest step.
+		lastStep := i+1 == len(invocationSteps)
+		if stepResultEvent.Metadata.Code != libevents.SSMRunSuccessCode || lastStep {
+			return trace.Wrap(si.Emitter.EmitAuditEvent(ctx, stepResultEvent))
+		}
 	}
 
-	// Check 2nd step: run shell script
-	runShellScriptStep, err := si.getCommandStepStatusEvent(ctx, &ssmStepRunShellScript, req, commandID, instanceID)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return trace.Wrap(si.Emitter.EmitAuditEvent(ctx, runShellScriptStep))
+	return nil
 }
 
-func (si *SSMInstaller) getCommandStepStatusEvent(ctx context.Context, step *string, req SSMRunRequest, commandID, instanceID *string) (*apievents.SSMRun, error) {
-	stepResult, err := req.SSM.GetCommandInvocationWithContext(ctx, &ssm.GetCommandInvocationInput{
+func (si *SSMInstaller) getInvocationSteps(ctx context.Context, req SSMRunRequest, commandID, instanceID *string) ([]string, error) {
+	// ssm:ListCommandInvocations is used to list the actual steps because users might be using a custom SSM Document.
+	listCommandInvocationResp, err := req.SSM.ListCommandInvocationsWithContext(ctx, &ssm.ListCommandInvocationsInput{
 		CommandId:  commandID,
 		InstanceId: instanceID,
-		PluginName: step,
+		Details:    aws.Bool(true),
 	})
+	if err != nil {
+		return nil, trace.Wrap(awslib.ConvertRequestFailureError(err))
+	}
+
+	// We only expect a single invocation because we are sending both the CommandID and the InstanceID.
+	// This call happens after WaitUntilCommandExecuted, so there's no reason for this to ever return 0 elements.
+	if len(listCommandInvocationResp.CommandInvocations) == 0 {
+		si.Logger.WarnContext(ctx,
+			"No command invocation was found.",
+			"command_id", aws.StringValue(commandID),
+			"instance_id", aws.StringValue(instanceID),
+		)
+		return nil, trace.BadParameter("no command invocation was found")
+	}
+	commandInvocation := listCommandInvocationResp.CommandInvocations[0]
+
+	documentSteps := make([]string, 0, len(commandInvocation.CommandPlugins))
+	for _, step := range commandInvocation.CommandPlugins {
+		documentSteps = append(documentSteps, aws.StringValue(step.Name))
+	}
+	return documentSteps, nil
+}
+
+func (si *SSMInstaller) getCommandStepStatusEvent(ctx context.Context, step string, req SSMRunRequest, commandID, instanceID *string) (*apievents.SSMRun, error) {
+	getCommandInvocationReq := &ssm.GetCommandInvocationInput{
+		CommandId:  commandID,
+		InstanceId: instanceID,
+	}
+	if step != "" {
+		getCommandInvocationReq.PluginName = aws.String(step)
+	}
+	stepResult, err := req.SSM.GetCommandInvocationWithContext(ctx, getCommandInvocationReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
