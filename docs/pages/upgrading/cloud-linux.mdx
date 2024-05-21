@@ -164,6 +164,22 @@ automatic updates:
    $ sudo systemctl status teleport-upgrade
    ```
 
+## Custom repository name
+
+As of Teleport `15.3.6`, automatic updates is supported with a custom teleport repository
+name. The repository name can by specified by writing the name to `/etc/teleport-upgrade.d/repository`.
+
+For example, if teleport is being sourced from a repository named `teleport-custom`
+you can write this value to the `repository` config.
+```code
+$ yum repolist
+repo id                        repo name
+teleport-custom                Gravitational Teleport packages
+...
+
+$ echo "teleport-custom" > /etc/teleport-upgrade.d/repository
+```
+
 ## Version locking
 
 As of Teleport `15.1.10`, a version locking mechanism is enabled by the updater.
