@@ -106,7 +106,7 @@ func (tdpMFACodec) decodeResponse(buf []byte, envelopeType string) (*authproto.M
 		return nil, trace.BadParameter("empty MFA message received")
 	}
 	if tdp.MessageType(buf[0]) != tdp.TypeMFA {
-		return nil, trace.BadParameter("expected MFA message type %v, got %v", tdp.TypeMFA, buf[0])
+		return nil, trace.BadParameter("decodeResponse: expected MFA message type %v, got %v", tdp.TypeMFA, buf[0])
 	}
 	msg, err := tdp.DecodeMFA(bytes.NewReader(buf[1:]))
 	if err != nil {
@@ -120,7 +120,7 @@ func (tdpMFACodec) decodeChallenge(buf []byte, envelopeType string) (*authproto.
 		return nil, trace.BadParameter("empty MFA message received")
 	}
 	if tdp.MessageType(buf[0]) != tdp.TypeMFA {
-		return nil, trace.BadParameter("expected MFA message type %v, got %v", tdp.TypeMFA, buf[0])
+		return nil, trace.BadParameter("decodeChallenge: expected MFA message type %v, got %v", tdp.TypeMFA, buf[0])
 	}
 	msg, err := tdp.DecodeMFAChallenge(bytes.NewReader(buf[1:]))
 	if err != nil {
