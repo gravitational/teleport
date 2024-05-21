@@ -156,7 +156,7 @@ Typically, the workload will connect to the database using its X509 SVID as a
 client certificate. The database will then validate this certificate using the
 trust bundle provided by Teleport Workload ID. We recommend installing `tbot`
 in close proximity to the database to ensure that the trust bundle remains
-up-to-date if a CA rotation occurs.
+up to date if a CA rotation occurs.
 
 Databases typically use the Common Name (CN) of the client certificate to
 determine which user the connection should be authenticated as. This means it
