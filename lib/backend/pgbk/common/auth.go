@@ -24,7 +24,6 @@ import (
 	"slices"
 
 	"github.com/gravitational/trace"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -43,56 +42,51 @@ const (
 	AzureADAuth AuthMode = "azure"
 	// GCPCloudSQLIAMAuth fetches an access token and uses it as password when
 	// connecting to GCP Cloud SQL PostgreSQL.
+	// TODO(greedy52) gcp-alloydb
 	GCPCloudSQLIAMAuth AuthMode = "gcp-cloudsql"
-	// GCPAlloyDBIAMAuth fetches an access token and uses it as password when
-	// connecting to GCP AlloyDB (PostgreSQL-compatible).
-	GCPAlloyDBIAMAuth AuthMode = "gcp-alloydb"
 )
-
-var supportedAuthModes = []AuthMode{
-	StaticAuth,
-	AzureADAuth,
-	GCPCloudSQLIAMAuth,
-	GCPAlloyDBIAMAuth,
-}
 
 // Check returns an error if the AuthMode is invalid.
 func (a AuthMode) Check() error {
-	if slices.Contains(supportedAuthModes, a) {
-		return nil
+	supportedModes := []AuthMode{
+		StaticAuth,
+		AzureADAuth,
+		GCPCloudSQLIAMAuth,
 	}
 
-	return trace.BadParameter("invalid authentication mode %q, should be one of \"%v\"", a, apiutils.JoinStrings(supportedAuthModes, `", "`))
+	if slices.Contains(supportedModes, a) {
+		return nil
+	}
+	return trace.BadParameter("invalid authentication mode %q, should be one of \"%v\"", a, apiutils.JoinStrings(supportedModes, `", "`))
 }
 
 // ApplyToPoolConfigs configures pgxpool.Config based on the authMode.
 func (a AuthMode) ApplyToPoolConfigs(ctx context.Context, logger *slog.Logger, configs ...*pgxpool.Config) error {
-	bc, err := a.getBeforeConnect(ctx, logger)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	for _, config := range configs {
-		if config != nil {
-			config.BeforeConnect = bc
-		}
-	}
-	return nil
-}
-
-func (a AuthMode) getBeforeConnect(ctx context.Context, logger *slog.Logger) (func(context.Context, *pgx.ConnConfig) error, error) {
 	switch a {
+	case StaticAuth:
+		// Nothing to do
+		return nil
+
 	case AzureADAuth:
 		bc, err := AzureBeforeConnect(ctx, logger)
-		return bc, trace.Wrap(err)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		for _, config := range configs {
+			config.BeforeConnect = bc
+		}
+		return nil
+
 	case GCPCloudSQLIAMAuth:
-		bc, err := GCPCloudSQLBeforeConnect(ctx, logger)
-		return bc, trace.Wrap(err)
-	case GCPAlloyDBIAMAuth:
-		bc, err := GCPAlloyDBBeforeConnect(ctx, logger)
-		return bc, trace.Wrap(err)
-	case StaticAuth:
-		return nil, nil
+		for _, config := range configs {
+			if err := ConfigureConnectionForGCPCloudSQL(ctx, logger, config.ConnConfig); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		return nil
+
 	default:
-		return nil, trace.BadParameter("invalid authentication mode %q", a)
+		return trace.BadParameter("invalid authentication mode %q", a)
 	}
 }

@@ -91,8 +91,6 @@ func (c *Config) SetFromURL(u *url.URL) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	configURL.Fragment = ""
-	configURL.RawFragment = ""
 
 	poolConfig, err := pgxpool.ParseConfig(configURL.String())
 	if err != nil {

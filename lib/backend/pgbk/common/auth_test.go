@@ -39,44 +39,60 @@ func TestAuthMode(t *testing.T) {
 	mustSetGoogleApplicationCredentialsEnv(t)
 	mustSetAzureEnvironmentCredential(t)
 
+	emptyPoolConfig := func(t *testing.T) *pgxpool.Config {
+		t.Helper()
+		return &pgxpool.Config{}
+	}
+	gcpCloudSQLPoolConfig := func(t *testing.T) *pgxpool.Config {
+		t.Helper()
+		config, err := pgxpool.ParseConfig("postgres://user@project.iam@/#gcp_connection_name=project:location:instance")
+		require.NoError(t, err)
+		// Unset dial func to verify that it will be overwritten.
+		config.ConnConfig.DialFunc = nil
+		return config
+	}
+
 	verifyBeforeConnectIsSet := func(t *testing.T, config *pgxpool.Config) {
 		t.Helper()
 		require.NotNil(t, config.BeforeConnect)
 	}
+	verifyDialFuncIsSet := func(t *testing.T, config *pgxpool.Config) {
+		t.Helper()
+		require.NotNil(t, config.ConnConfig.DialFunc)
+	}
 	verifyNothingIsSet := func(t *testing.T, config *pgxpool.Config) {
 		t.Helper()
-		require.NotNil(t, config)
-		require.Equal(t, pgxpool.Config{}, *config)
+		require.Equal(t, emptyPoolConfig(t), config)
 	}
 
 	tests := []struct {
 		authMode                   AuthMode
+		makePoolConfig             func(*testing.T) *pgxpool.Config
 		requireCheckError          require.ErrorAssertionFunc
 		verifyPoolConfigAfterApply func(*testing.T, *pgxpool.Config)
 	}{
 		{
 			authMode:          AuthMode("unknown-mode"),
+			makePoolConfig:    emptyPoolConfig,
 			requireCheckError: require.Error,
 		},
 		{
 			authMode:                   StaticAuth,
+			makePoolConfig:             emptyPoolConfig,
 			requireCheckError:          require.NoError,
 			verifyPoolConfigAfterApply: verifyNothingIsSet,
 		},
 		{
 			authMode:                   AzureADAuth,
+			makePoolConfig:             emptyPoolConfig,
 			requireCheckError:          require.NoError,
 			verifyPoolConfigAfterApply: verifyBeforeConnectIsSet,
 		},
 		{
 			authMode:                   GCPCloudSQLIAMAuth,
+			makePoolConfig:             gcpCloudSQLPoolConfig,
 			requireCheckError:          require.NoError,
-			verifyPoolConfigAfterApply: verifyBeforeConnectIsSet,
-		},
-		{
-			authMode:                   GCPAlloyDBIAMAuth,
-			requireCheckError:          require.NoError,
-			verifyPoolConfigAfterApply: verifyBeforeConnectIsSet,
+			verifyPoolConfigAfterApply: verifyDialFuncIsSet,
 		},
 	}
 
@@ -92,12 +108,8 @@ func TestAuthMode(t *testing.T) {
 			tc.requireCheckError(t, err)
 
 			if tc.verifyPoolConfigAfterApply != nil {
-				configs := []*pgxpool.Config{
-					&pgxpool.Config{},
-					&pgxpool.Config{},
-				}
-
-				err := tc.authMode.ApplyToPoolConfigs(ctx, logger, configs...)
+				configs := []*pgxpool.Config{tc.makePoolConfig(t), tc.makePoolConfig(t), tc.makePoolConfig(t)}
+				err = tc.authMode.ApplyToPoolConfigs(ctx, logger, configs...)
 				require.NoError(t, err)
 
 				for _, config := range configs {

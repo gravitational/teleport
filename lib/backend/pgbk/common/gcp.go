@@ -20,61 +20,69 @@ package pgcommon
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
-	"time"
+	"net"
 
-	credentials "cloud.google.com/go/iam/credentials/apiv1"
-	"cloud.google.com/go/iam/credentials/apiv1/credentialspb"
+	"cloud.google.com/go/cloudsqlconn"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
+	"google.golang.org/api/impersonate"
 
-	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/gcp"
+	gcputils "github.com/gravitational/teleport/lib/utils/gcp"
 )
 
-// GCPCloudSQLBeforeConnect returns a pgx BeforeConnect function suitable for
-// GCP Cloud SQL PostgreSQL with IAM authentication.
-func GCPCloudSQLBeforeConnect(ctx context.Context, logger *slog.Logger) (func(ctx context.Context, config *pgx.ConnConfig) error, error) {
-	tokenGetter, err := newGCPAccessTokenGetterImpl(ctx, logger)
+// ConfigureConnectionForGCPCloudSQL configures the provide poolConfig to use
+// cloudsqlconn for "automatic" IAM database authentication.
+//
+// https://cloud.google.com/sql/docs/postgres/iam-authentication
+func ConfigureConnectionForGCPCloudSQL(ctx context.Context, logger *slog.Logger, connConfig *pgx.ConnConfig) error {
+	if connConfig == nil {
+		return trace.BadParameter("missing connection config")
+	}
+
+	gcpConfig, err := gcpConfigFromConnConfig(connConfig)
+	if err != nil {
+		return trace.Wrap(err, "invalid postgresql url %s", connConfig.ConnString())
+	}
+
+	dialFunc, err := makeGCPCloudSQLDialFunc(ctx, gcpConfig, logger)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	connConfig.DialFunc = dialFunc
+	return nil
+}
+
+func makeGCPCloudSQLDialFunc(ctx context.Context, config *gcpConfig, logger *slog.Logger) (pgconn.DialFunc, error) {
+	iamAuthOptions, err := makeGCPCloudSQLAuthOptionsForServiceAccount(ctx, config.serviceAccount, gcpServiceAccountImpersonatorImpl{}, logger)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return gcpOAuthAccessTokenBeforeConnect(ctx, tokenGetter, gcpCloudSQLOAuthScope, logger)
-}
-
-// GCPAlloyDBBeforeConnect returns a pgx BeforeConnect function suitable for GCP
-// AlloyDB (PostgreSQL-compatible) with IAM authentication.
-func GCPAlloyDBBeforeConnect(ctx context.Context, logger *slog.Logger) (func(ctx context.Context, config *pgx.ConnConfig) error, error) {
-	tokenGetter, err := newGCPAccessTokenGetterImpl(ctx, logger)
+	dialer, err := cloudsqlconn.NewDialer(ctx, iamAuthOptions...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return gcpOAuthAccessTokenBeforeConnect(ctx, tokenGetter, gcpAlloyDBOAuthScope, logger)
+	var dialOptions []cloudsqlconn.DialOption
+	if ipTypeOption := config.ipType.cloudsqlconnOption(); ipTypeOption != nil {
+		dialOptions = append(dialOptions, ipTypeOption)
+	}
+
+	return func(ctx context.Context, _, _ string) (net.Conn, error) {
+		// Use connection name and ignore network and host address.
+		logger.DebugContext(ctx, "Dialing GCP Cloud SQL.", "connection_name", config.connectionName, "service_account", config.serviceAccount, "ip_type", config.ipType)
+		conn, err := dialer.Dial(ctx, config.connectionName, dialOptions...)
+		return conn, trace.Wrap(err)
+	}, nil
 }
 
-const (
-	// gcpCloudSQLOAuthScope is the scope used for GCP Cloud SQL IAM authentication.
-	// https://developers.google.com/identity/protocols/oauth2/scopes#sqladmin
-	gcpCloudSQLOAuthScope = "https://www.googleapis.com/auth/sqlservice.admin"
-	// gcpAlloyDBOAuthScope is the scope used for GCP AlloyDB IAM authentication.
-	// https://cloud.google.com/alloydb/docs/connect-iam
-	gcpAlloyDBOAuthScope = "https://www.googleapis.com/auth/alloydb.login"
-
-	gcpServiceAccountEmailSuffix = ".gserviceaccount.com"
-)
-
-type gcpAccessTokenGetter interface {
-	getFromCredentials(ctx context.Context, credentials *google.Credentials) (*oauth2.Token, error)
-	generateForServiceAccount(ctx context.Context, serviceAccount, scope string) (string, time.Time, error)
-}
-
-func gcpOAuthAccessTokenBeforeConnect(ctx context.Context, tokenGetter gcpAccessTokenGetter, scope string, logger *slog.Logger) (func(context.Context, *pgx.ConnConfig) error, error) {
-	defaultCred, err := google.FindDefaultCredentials(ctx, scope)
+func makeGCPCloudSQLAuthOptionsForServiceAccount(ctx context.Context, targetServiceAccount string, impersonator gcpServiceAccountImpersonator, logger *slog.Logger) ([]cloudsqlconn.Option, error) {
+	defaultCred, err := google.FindDefaultCredentials(ctx)
 	if err != nil {
 		// google.FindDefaultCredentials gives pretty error descriptions already.
 		return nil, trace.Wrap(err)
@@ -82,94 +90,56 @@ func gcpOAuthAccessTokenBeforeConnect(ctx context.Context, tokenGetter gcpAccess
 
 	// This function tries to capture service account emails from various
 	// credentials methods but may fail for some unknown scenarios.
-	defaultServiceAccount, err := gcp.GetServiceAccountFromCredentials(defaultCred)
+	defaultServiceAccount, err := gcputils.GetServiceAccountFromCredentials(defaultCred)
 	if err != nil || defaultServiceAccount == "" {
 		logger.WarnContext(ctx, "Failed to get service account email from default google credentials. Teleport will assume the database user in the PostgreSQL connection string matches the service account of the default google credentials.", "err", err, "sa", defaultServiceAccount)
+		return []cloudsqlconn.Option{cloudsqlconn.WithIAMAuthN()}, nil
 	}
 
-	return func(ctx context.Context, config *pgx.ConnConfig) error {
-		// IAM auth users have the PostgreSQL username of their emails minus the
-		// ".gserviceaccount.com" part. Now add the suffix back for the full
-		// service account email.
-		serviceAccountToAuth := config.User + gcpServiceAccountEmailSuffix
+	// If the requested db user is for another service account, the default
+	// service account can impersonate the target service account as a Token
+	// Creator. This is useful when using a different database user for change
+	// feed. Otherwise, let cloudsqlconn use the default credentials.
+	if defaultServiceAccount == targetServiceAccount {
+		logger.InfoContext(ctx, "Using google default credentials for Cloud SQL backend.")
+		return []cloudsqlconn.Option{cloudsqlconn.WithIAMAuthN()}, nil
+	}
 
-		// If the requested db user is for another service account, the
-		// "host"/default service account can impersonate the target service
-		// account as a Token Creator. This is useful when using a different
-		// database user for change feed.
-		if defaultServiceAccount != "" && defaultServiceAccount != serviceAccountToAuth {
-			token, expires, err := tokenGetter.generateForServiceAccount(ctx, serviceAccountToAuth, scope)
-			if err != nil {
-				return trace.Wrap(err, "generating GCP access token for %v", serviceAccountToAuth)
-			}
+	// For simplicity, we assume the target service account will be used for
+	// both API and IAM auth. See description of
+	// cloudsqlconn.WithIAMAuthNTokenSources on the required scopes.
+	logger.InfoContext(ctx, "Impersonating a service account for Cloud SQL backend.", "service_account", targetServiceAccount)
 
-			logger.DebugContext(ctx, "Generated GCP access token.", "service_account", serviceAccountToAuth, "ttl", time.Until(expires).String())
-			config.Password = token
-			return nil
-		}
-
-		token, err := tokenGetter.getFromCredentials(ctx, defaultCred)
-		if err != nil {
-			return trace.Wrap(err, "obtaining GCP access token from default credentials")
-		}
-
-		logger.DebugContext(ctx, "Obtained GCP access token from default credentials.", "ttl", time.Until(token.Expiry).String(), "token_type", token.TokenType)
-		config.Password = token.AccessToken
-		return nil
-	}, nil
-}
-
-type gcpAccessTokenGetterImpl struct {
-	cache  *utils.FnCache
-	logger *slog.Logger
-}
-
-func newGCPAccessTokenGetterImpl(ctx context.Context, logger *slog.Logger) (*gcpAccessTokenGetterImpl, error) {
-	cache, err := utils.NewFnCache(utils.FnCacheConfig{
-		Context: ctx,
-		TTL:     time.Minute,
-	})
+	apiTokenSource, err := impersonator.makeTokenSource(ctx, targetServiceAccount, "https://www.googleapis.com/auth/sqlservice.admin")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	iamAuthTokenSource, err := impersonator.makeTokenSource(ctx, targetServiceAccount, "https://www.googleapis.com/auth/sqlservice.login")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &gcpAccessTokenGetterImpl{
-		cache:  cache,
-		logger: logger,
+	return []cloudsqlconn.Option{
+		cloudsqlconn.WithIAMAuthN(),
+		cloudsqlconn.WithIAMAuthNTokenSources(apiTokenSource, iamAuthTokenSource),
 	}, nil
 }
 
-func (g *gcpAccessTokenGetterImpl) getFromCredentials(ctx context.Context, credentials *google.Credentials) (*oauth2.Token, error) {
-	// Token() only refreshes when necessary so no need for cache.
-	token, err := credentials.TokenSource.Token()
-	return token, trace.Wrap(err)
+type gcpServiceAccountImpersonator interface {
+	makeTokenSource(context.Context, string, ...string) (oauth2.TokenSource, error)
 }
 
-func (g *gcpAccessTokenGetterImpl) generateForServiceAccount(ctx context.Context, serviceAccount, scope string) (string, time.Time, error) {
-	key := fmt.Sprintf("%s@%s", serviceAccount, scope)
-	resp, err := utils.FnCacheGet(ctx, g.cache, key, func(ctx context.Context) (*credentialspb.GenerateAccessTokenResponse, error) {
-		g.logger.DebugContext(ctx, "Generating GCP access token with IAM credentials client.", "service_account", serviceAccount, "scope", scope)
+type gcpServiceAccountImpersonatorImpl struct {
+}
 
-		gcpIAM, err := credentials.NewIamCredentialsClient(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		defer func() {
-			if err := gcpIAM.Close(); err != nil {
-				g.logger.DebugContext(ctx, "Failed to close GCP IAM Credentials client.", "err", err)
-			}
-		}()
-
-		resp, err := gcpIAM.GenerateAccessToken(ctx, &credentialspb.GenerateAccessTokenRequest{
-			Name:  fmt.Sprintf("projects/-/serviceAccounts/%v", serviceAccount),
-			Scope: []string{scope},
-		})
-		return resp, trace.Wrap(err)
-	})
-
-	if err != nil {
-		return "", time.Time{}, trace.Wrap(err)
-	}
-	return resp.AccessToken, resp.ExpireTime.AsTime(), nil
+func (g gcpServiceAccountImpersonatorImpl) makeTokenSource(ctx context.Context, targetServiceAccount string, scopes ...string) (oauth2.TokenSource, error) {
+	tokenSource, err := impersonate.CredentialsTokenSource(
+		ctx,
+		impersonate.CredentialsConfig{
+			TargetPrincipal: targetServiceAccount,
+			Scopes:          scopes,
+		},
+	)
+	// tokenSource caches the access token and only refreshes when expired.
+	return tokenSource, trace.Wrap(err)
 }

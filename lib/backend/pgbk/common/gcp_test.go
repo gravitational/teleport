@@ -20,7 +20,6 @@ package pgcommon
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"os"
 	"path"
@@ -28,71 +27,53 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/google"
 )
 
-type fakeGCPAccessTokenGetter struct {
+type mockGCPServiceAccountImpersonator struct {
+	calledForServiceAccount []string
 }
 
-func (f fakeGCPAccessTokenGetter) getFromCredentials(context.Context, *google.Credentials) (*oauth2.Token, error) {
-	return &oauth2.Token{
-		AccessToken: "token-from-default-credentials",
+func (m *mockGCPServiceAccountImpersonator) makeTokenSource(_ context.Context, serviceAccount string, _ ...string) (oauth2.TokenSource, error) {
+	m.calledForServiceAccount = append(m.calledForServiceAccount, serviceAccount)
+	return oauth2.StaticTokenSource(&oauth2.Token{
+		AccessToken: "access_token",
 		Expiry:      time.Now().Add(time.Hour),
-	}, nil
+	}), nil
 }
 
-func (f fakeGCPAccessTokenGetter) generateForServiceAccount(ctx context.Context, serviceAccount, scope string) (string, time.Time, error) {
-	return fmt.Sprintf("token-for-%s-with-scope-%s", serviceAccount, scope), time.Now().Add(time.Hour), nil
-}
-
-func Test_gcpOAuthAccessTokenBeforeConnect(t *testing.T) {
+func Test_makeGCPCloudSQLAuthOptionsForServiceAccount(t *testing.T) {
 	mustSetGoogleApplicationCredentialsEnv(t)
-
 	ctx := context.Background()
-	tokenGetter := fakeGCPAccessTokenGetter{}
-	tests := []struct {
-		name         string
-		config       *pgx.ConnConfig
-		wantUser     string
-		wantPassword string
-	}{
-		{
-			name: "default service account as user in connection string",
-			config: &pgx.ConnConfig{
-				Config: pgconn.Config{
-					User: "my-service-account@teleport-example-123456.iam",
-				},
-			},
-			wantUser:     "my-service-account@teleport-example-123456.iam",
-			wantPassword: "token-from-default-credentials",
-		},
-		{
-			name: "another service account as user in connection string",
-			config: &pgx.ConnConfig{
-				Config: pgconn.Config{
-					User: "another-service-account@teleport-example-123456.iam",
-				},
-			},
-			wantUser:     "another-service-account@teleport-example-123456.iam",
-			wantPassword: "token-for-another-service-account@teleport-example-123456.iam.gserviceaccount.com-with-scope-test-scope",
-		},
-	}
+	logger := slog.Default()
+	m := &mockGCPServiceAccountImpersonator{}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			bc, err := gcpOAuthAccessTokenBeforeConnect(ctx, tokenGetter, "test-scope", slog.Default())
-			require.NoError(t, err)
+	t.Run("using default credentials", func(t *testing.T) {
+		defaultServiceAccount := "my-service-account@teleport-example-123456.iam.gserviceaccount.com"
+		options, err := makeGCPCloudSQLAuthOptionsForServiceAccount(ctx, defaultServiceAccount, m, logger)
+		require.NoError(t, err)
 
-			err = bc(context.Background(), tc.config)
-			require.NoError(t, err)
-			require.Equal(t, tc.wantUser, tc.config.User)
-			require.Equal(t, tc.wantPassword, tc.config.Password)
-		})
-	}
+		// Cannot validate the actual options. Just check that the count of
+		// options is correct and impersonator is NOT called.
+		require.Len(t, options, 1)
+		require.Empty(t, m.calledForServiceAccount)
+	})
+
+	t.Run("impersonate a service account", func(t *testing.T) {
+		otherServiceAccount := "my-other-service-account@teleport-example-123456.iam"
+		options, err := makeGCPCloudSQLAuthOptionsForServiceAccount(ctx, otherServiceAccount, m, logger)
+		require.NoError(t, err)
+
+		// Cannot validate the actual options. Just check that the count of
+		// options is correct and impersonator is called twice (once for API
+		// client and once for IAM auth).
+		require.Len(t, options, 2)
+		require.Equal(t,
+			[]string{otherServiceAccount, otherServiceAccount},
+			m.calledForServiceAccount,
+		)
+	})
 }
 
 func mustSetGoogleApplicationCredentialsEnv(t *testing.T) {
