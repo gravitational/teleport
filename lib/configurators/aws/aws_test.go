@@ -582,8 +582,10 @@ func TestAWSIAMDocuments(t *testing.T) {
 					Effect: "Allow",
 					Actions: []string{
 						"ec2:DescribeInstances",
+						"ssm:DescribeInstanceInformation",
 						"ssm:GetCommandInvocation",
-						"ssm:SendCommand"},
+						"ssm:SendCommand",
+					},
 					Resources: []string{"*"},
 				},
 			},
@@ -592,8 +594,10 @@ func TestAWSIAMDocuments(t *testing.T) {
 					Effect: "Allow",
 					Actions: []string{
 						"ec2:DescribeInstances",
+						"ssm:DescribeInstanceInformation",
 						"ssm:GetCommandInvocation",
-						"ssm:SendCommand"},
+						"ssm:SendCommand",
+					},
 					Resources: []string{"*"},
 				},
 			},
@@ -1837,7 +1841,7 @@ func TestAWSDocumentConfigurator(t *testing.T) {
 			"eu-central-1": &SSMMock{
 				t: t,
 				expectedInput: &ssm.CreateDocumentInput{
-					Content:        aws.String(EC2DiscoverySSMDocument("https://proxy.example.org:443")),
+					Content:        aws.String(awslib.EC2DiscoverySSMDocument("https://proxy.example.org:443")),
 					DocumentType:   aws.String("Command"),
 					DocumentFormat: aws.String("YAML"),
 					Name:           aws.String("document"),

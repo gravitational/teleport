@@ -31,6 +31,7 @@ import { HoverTooltip } from 'shared/components/ToolTip';
 import { ResourceItemProps } from '../types';
 import { PinButton } from '../shared/PinButton';
 import { CopyButton } from '../shared/CopyButton';
+import { getBackgroundColor } from '../shared/getBackgroundColor';
 
 export function ResourceListItem({
   name,
@@ -46,6 +47,7 @@ export function ResourceListItem({
   selectResource,
   selected,
   expandAllLabels,
+  requiresRequest = false,
 }: Omit<ResourceItemProps, 'cardViewProps'>) {
   const { description, resourceType, addr } = listViewProps;
 
@@ -78,7 +80,12 @@ export function ResourceListItem({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      <RowInnerContainer alignItems="start" pinned={pinned} selected={selected}>
+      <RowInnerContainer
+        requiresRequest={requiresRequest}
+        alignItems="start"
+        pinned={pinned}
+        selected={selected}
+      >
         {/* checkbox */}
         <HoverTooltip
           css={`
@@ -109,6 +116,7 @@ export function ResourceListItem({
           css={`
             grid-area: icon;
             place-self: center center;
+            opacity: ${requiresRequest ? '0.5' : '1'};
           `}
         />
 
@@ -309,16 +317,6 @@ const RowInnerContainer = styled(Flex)`
     border-bottom: ${props => props.theme.borders[2]} rgba(0, 0, 0, 0);
   }
 `;
-
-const getBackgroundColor = props => {
-  if (props.selected) {
-    return props.theme.colors.interactive.tonal.primary[2];
-  }
-  if (props.pinned) {
-    return props.theme.colors.interactive.tonal.primary[0];
-  }
-  return 'transparent';
-};
 
 const Name = styled(Text)`
   white-space: nowrap;

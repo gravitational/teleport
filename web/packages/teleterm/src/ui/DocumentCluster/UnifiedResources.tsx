@@ -57,7 +57,7 @@ import {
   DocumentCluster,
   DocumentClusterResourceKind,
 } from 'teleterm/ui/services/workspacesService';
-import { makeApp } from 'teleterm/ui/services/clusters';
+import { getAppAddrWithProtocol } from 'teleterm/services/tshd/app';
 
 import {
   ConnectServerActionButton,
@@ -230,20 +230,16 @@ const Resources = memo(
     const resourceIds =
       props.userPreferences.clusterPreferences?.pinnedResources?.resourceIds;
     const { updateUserPreferences } = props;
-    const pinning = useMemo<UnifiedResourcesPinning>(() => {
-      return resourceIds
-        ? {
-            kind: 'supported',
-            getClusterPinnedResources: async () => resourceIds,
-            updateClusterPinnedResources: pinnedIds =>
-              updateUserPreferences({
-                clusterPreferences: {
-                  pinnedResources: { resourceIds: pinnedIds },
-                },
-              }),
-          }
-        : { kind: 'not-supported' };
-    }, [updateUserPreferences, resourceIds]);
+    const pinning: UnifiedResourcesPinning = {
+      kind: 'supported',
+      getClusterPinnedResources: async () => resourceIds,
+      updateClusterPinnedResources: pinnedIds =>
+        updateUserPreferences({
+          clusterPreferences: {
+            pinnedResources: { resourceIds: pinnedIds },
+          },
+        }),
+    };
 
     return (
       <SharedUnifiedResources
@@ -346,7 +342,7 @@ const mapToSharedResource = (
       };
     }
     case 'app': {
-      const app = makeApp(resource.resource);
+      const { resource: app } = resource;
 
       return {
         resource: {
@@ -354,7 +350,7 @@ const mapToSharedResource = (
           labels: app.labels,
           name: app.name,
           id: app.name,
-          addrWithProtocol: app.addrWithProtocol,
+          addrWithProtocol: getAppAddrWithProtocol(app),
           awsConsole: app.awsConsole,
           description: app.desc,
           friendlyName: app.friendlyName,

@@ -29,7 +29,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -153,7 +153,9 @@ Examples:
 `, presets))
 
 	preset := &AuthKindCommand{
-		Run: func(ctx context.Context, clt *auth.Client) error { return samlRunFunc(ctx, cmd, &spec, saml, clt) },
+		Run: func(ctx context.Context, clt *authclient.Client) error {
+			return samlRunFunc(ctx, cmd, &spec, saml, clt)
+		},
 	}
 
 	sub.Action(func(ctx *kingpin.ParseContext) error {
@@ -169,7 +171,7 @@ func samlRunFunc(
 	cmd *SSOConfigureCommand,
 	spec *types.SAMLConnectorSpecV2,
 	flags *samlExtraFlags,
-	clt *auth.Client,
+	clt *authclient.Client,
 ) error {
 	// apply preset, if chosen
 	p := samlPresets.getPreset(flags.chosenPreset)

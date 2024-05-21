@@ -1068,9 +1068,13 @@ func MatchDatabaseName(selectors []string, name string) (bool, string) {
 }
 
 // MatchDatabaseUser returns true if provided database user matches selectors.
-func MatchDatabaseUser(selectors []string, user string, matchWildcard bool) (bool, string) {
+func MatchDatabaseUser(selectors []string, user string, matchWildcard, caseFold bool) (bool, string) {
 	for _, u := range selectors {
-		if u == user {
+		if caseFold {
+			if strings.EqualFold(u, user) {
+				return true, "matched"
+			}
+		} else if u == user {
 			return true, "matched"
 		}
 		if matchWildcard && u == types.Wildcard {
@@ -1519,13 +1523,30 @@ func (set RoleSet) CheckGCPServiceAccounts(ttl time.Duration, overrideTTL bool) 
 
 // CheckAccessToSAMLIdP checks access to the SAML IdP.
 //
+// TODO(Joerger): make Access state non-variadic once /e is updated to provide it.
+//
 //nolint:revive // Because we want this to be IdP.
-func (set RoleSet) CheckAccessToSAMLIdP(authPref types.AuthPreference) error {
+func (set RoleSet) CheckAccessToSAMLIdP(authPref types.AuthPreference, states ...AccessState) error {
+	_, debugf := rbacDebugLogger()
+
 	if authPref != nil {
 		if !authPref.IsSAMLIdPEnabled() {
 			return trace.AccessDenied("SAML IdP is disabled at the cluster level")
 		}
 	}
+
+	var state AccessState
+	if len(states) == 1 {
+		state = states[0]
+	}
+
+	if state.MFARequired == MFARequiredAlways && !state.MFAVerified {
+		debugf("Access to SAML IdP denied, cluster requires per-session MFA")
+		return trace.Wrap(ErrSessionMFARequired)
+	}
+
+	mfaAllowed := state.MFAVerified || state.MFARequired == MFARequiredNever
+
 	for _, role := range set {
 		options := role.GetOptions()
 
@@ -1537,6 +1558,11 @@ func (set RoleSet) CheckAccessToSAMLIdP(authPref types.AuthPreference) error {
 		// If any role specifically denies access to the IdP, we'll return AccessDenied.
 		if !options.IDP.SAML.Enabled.Value {
 			return trace.AccessDenied("user has been denied access to the SAML IdP by role %s", role.GetName())
+		}
+
+		if !mfaAllowed && options.RequireMFAType.IsSessionMFARequired() {
+			debugf("Access to SAML IdP denied, role %q requires per-session MFA", role.GetName())
+			return trace.Wrap(ErrSessionMFARequired)
 		}
 	}
 
@@ -2122,6 +2148,8 @@ type databaseUserMatcher struct {
 	user string
 	// alternativeNames is a list of alternative names for the database user.
 	alternativeNames []string
+	// caseInsensitive specifies if the username is case insensitive.
+	caseInsensitive bool
 }
 
 // NewDatabaseUserMatcher creates a RoleMatcher that checks whether the role's
@@ -2131,6 +2159,7 @@ func NewDatabaseUserMatcher(db types.Database, user string) RoleMatcher {
 		return &databaseUserMatcher{
 			user:             user,
 			alternativeNames: makeUsernamesForAWSRoleARN(db, user),
+			caseInsensitive:  db.IsUsernameCaseInsensitive(),
 		}
 	}
 
@@ -2138,21 +2167,26 @@ func NewDatabaseUserMatcher(db types.Database, user string) RoleMatcher {
 		return &databaseUserMatcher{
 			user:             user,
 			alternativeNames: makeAlternativeNamesForAWSRole(db, user),
+			caseInsensitive:  db.IsUsernameCaseInsensitive(),
 		}
 	}
 
-	return &databaseUserMatcher{user: user}
+	return &databaseUserMatcher{
+		user:            user,
+		caseInsensitive: db.IsUsernameCaseInsensitive(),
+	}
 }
 
 // Match matches database account name against provided role and condition.
 func (m *databaseUserMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
 	selectors := role.GetDatabaseUsers(condition)
-	if match, _ := MatchDatabaseUser(selectors, m.user, true); match {
+
+	if match, _ := MatchDatabaseUser(selectors, m.user, true /*matchWildcard*/, m.caseInsensitive); match {
 		return true, nil
 	}
 
 	for _, altName := range m.alternativeNames {
-		if match, _ := MatchDatabaseUser(selectors, altName, false); match {
+		if match, _ := MatchDatabaseUser(selectors, altName, false /*matchWildcard*/, m.caseInsensitive); match {
 			return true, nil
 		}
 	}
@@ -2266,6 +2300,27 @@ func (l *windowsLoginMatcher) Match(role types.Role, typ types.RoleConditionType
 	logins := role.GetWindowsLogins(typ)
 	for _, login := range logins {
 		if l.login == login {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+type awsAppLoginMatcher struct {
+	awsRole string
+}
+
+// NewAppAWSLoginMatcher creates a RoleMatcher that checks whether the role's
+// AWS Role ARN match the specified condition.
+func NewAppAWSLoginMatcher(awsRole string) RoleMatcher {
+	return &awsAppLoginMatcher{awsRole: awsRole}
+}
+
+// Match matches an AWS Role ARN login against a role.
+func (l *awsAppLoginMatcher) Match(role types.Role, typ types.RoleConditionType) (bool, error) {
+	awsRoles := role.GetAWSRoleARNs(typ)
+	for _, awsRole := range awsRoles {
+		if l.awsRole == awsRole {
 			return true, nil
 		}
 	}
@@ -3233,9 +3288,8 @@ type AccessState struct {
 type MFARequired string
 
 const (
-	// MFARequiredNever means that MFA is never required for any sessions started by this user. This either
-	// means both the cluster auth preference and all roles have per-session MFA off, or at least one of
-	// those resources has "require_session_mfa: hardware_key_touch", which overrides per-session MFA.
+	// MFARequiredNever means that MFA is never required for any sessions started by this user.
+	// This means that it is not required by the cluster auth preference or any of the user's roles.
 	MFARequiredNever MFARequired = "never"
 	// MFARequiredAlways means that MFA is required for all sessions started by a user. This either
 	// means that the cluster auth preference requires per-session MFA, or all of the user's roles require

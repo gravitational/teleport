@@ -52,7 +52,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/agentless"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -487,7 +487,7 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	})
 
 	// Start sending ping frames through websocket to client.
-	go startPingLoop(ctx, ws, t.keepAliveInterval, t.log, t.Close)
+	go startWSPingLoop(ctx, ws, t.keepAliveInterval, t.log, t.Close)
 
 	// Pump raw terminal in/out and audit events into the websocket.
 	go t.streamEvents(ctx, tc)
@@ -557,6 +557,14 @@ func (t *TerminalHandler) makeClient(ctx context.Context, stream *TerminalStream
 	// to allow future window changes.
 	tc.OnShellCreated = func(s *tracessh.Session, c *tracessh.Client, _ io.ReadWriteCloser) (bool, error) {
 		t.stream.sessionCreated(s)
+
+		// The web session was closed by the client while the ssh connection was being established.
+		// Attempt to close the SSH session instead of proceeding with the window change request.
+		if t.closedByClient.Load() {
+			t.log.Debug("websocket was closed by client, terminating established ssh connection to host")
+			return false, trace.Wrap(s.Close())
+		}
+
 		if err := s.WindowChange(ctx, t.term.H, t.term.W); err != nil {
 			t.log.Error(err)
 		}
@@ -752,7 +760,7 @@ func (t *sshBaseHandler) connectToHost(ctx context.Context, ws WSConn, tc *clien
 	// Any direct connection errors other than access denied, which should be returned
 	// if MFA is required, take precedent over MFA errors due to users not having any
 	// enrolled devices.
-	case !trace.IsAccessDenied(directErr) && errors.Is(mfaErr, auth.ErrNoMFADevices):
+	case !trace.IsAccessDenied(directErr) && errors.Is(mfaErr, authclient.ErrNoMFADevices):
 		return nil, trace.Wrap(directErr)
 	case !errors.Is(mfaErr, io.EOF) && // Ignore any errors from MFA due to locks being enforced, the direct error will be friendlier
 		!errors.Is(mfaErr, client.MFARequiredUnknownErr{}) && // Ignore any failures that occurred before determining if MFA was required
@@ -811,8 +819,16 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 		t.stream.writeError(err.Error())
 		return
 	}
-
 	defer nc.Close()
+
+	// If the session was terminated by client while the connection to the host
+	// was being established, then return early before creating the shell. Any terminations
+	// by the client from here on out should either get caught in the OnShellCreated callback
+	// set on the [tc] or in [TerminalHandler.Close].
+	if t.closedByClient.Load() {
+		t.log.Debug("websocket was closed by client, aborting establishing ssh connection to host")
+		return
+	}
 
 	if err := t.writeSessionData(ctx); err != nil {
 		t.log.WithError(err).Warn("Unable to stream terminal - failure sending session data")
@@ -857,7 +873,7 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 	}
 
 	if err := t.stream.Close(); err != nil {
-		t.log.WithError(err).Error("Unable to send close event to web client.")
+		t.log.WithError(err).Error("Unable to close client web socket.")
 		return
 	}
 
@@ -1150,6 +1166,10 @@ func isOKWebsocketCloseError(err error) bool {
 		websocket.CloseGoingAway,
 		websocket.CloseNormalClosure,
 	)
+}
+
+func (t *WSStream) SetReadDeadline(deadline time.Time) error {
+	return t.ws.SetReadDeadline(deadline)
 }
 
 func (t *WSStream) processMessages(ctx context.Context) {

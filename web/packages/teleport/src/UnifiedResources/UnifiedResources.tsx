@@ -26,13 +26,13 @@ import {
   UnifiedResources as SharedUnifiedResources,
   useUnifiedResourcesFetch,
   UnifiedResourcesPinning,
+  BulkAction,
 } from 'shared/components/UnifiedResources';
 import { ClusterDropdown } from 'shared/components/ClusterDropdown/ClusterDropdown';
 
 import { DefaultTab } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 
 import useStickyClusterId from 'teleport/useStickyClusterId';
-import { storageService } from 'teleport/services/storageService';
 import { useUser } from 'teleport/User/UserContext';
 import { useTeleport } from 'teleport';
 import { useUrlFiltering } from 'teleport/components/hooks';
@@ -47,6 +47,7 @@ import { SearchResource } from 'teleport/Discover/SelectResource';
 import { encodeUrlQueryParams } from 'teleport/components/hooks/useUrlFiltering';
 import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
 import { FeatureFlags } from 'teleport/types';
+import { UnifiedResource } from 'teleport/services/agents';
 
 import { ResourceActionButton } from './ResourceActionButton';
 import SearchPanel from './SearchPanel';
@@ -93,16 +94,24 @@ const getAvailableKindsWithAccess = (flags: FeatureFlags): FilterKind[] => {
 export function ClusterResources({
   clusterId,
   isLeafCluster,
+  getActionButton,
+  includeRequestable,
+  showCheckout = false,
+  bulkActions = [],
 }: {
   clusterId: string;
   isLeafCluster: boolean;
+  getActionButton?: (resource: UnifiedResource) => JSX.Element;
+  includeRequestable?: boolean;
+  showCheckout?: boolean;
+  /** A list of actions that can be performed on the selected items. */
+  bulkActions?: BulkAction[];
 }) {
   const teleCtx = useTeleport();
   const flags = teleCtx.getFeatureFlags();
 
   useNoMinWidth();
 
-  const pinningNotSupported = storageService.arePinnedResourcesDisabled();
   const {
     getClusterPinnedResources,
     preferences,
@@ -128,13 +137,11 @@ export function ClusterResources({
   const updateCurrentClusterPinnedResources = (pinnedResources: string[]) =>
     updateClusterPinnedResources(clusterId, pinnedResources);
 
-  const pinning: UnifiedResourcesPinning = pinningNotSupported
-    ? { kind: 'not-supported' }
-    : {
-        kind: 'supported',
-        updateClusterPinnedResources: updateCurrentClusterPinnedResources,
-        getClusterPinnedResources: getCurrentClusterPinnedResources,
-      };
+  const pinning: UnifiedResourcesPinning = {
+    kind: 'supported',
+    updateClusterPinnedResources: updateCurrentClusterPinnedResources,
+    getClusterPinnedResources: getCurrentClusterPinnedResources,
+  };
 
   const { fetch, resources, attempt, clear } = useUnifiedResourcesFetch({
     fetchFunc: useCallback(
@@ -150,6 +157,7 @@ export function ClusterResources({
             searchAsRoles: '',
             limit: paginationParams.limit,
             startKey: paginationParams.startKey,
+            includeRequestable,
           },
           signal
         );
@@ -168,6 +176,7 @@ export function ClusterResources({
         params.search,
         params.sort,
         teleCtx.resourceService,
+        includeRequestable,
       ]
     ),
   });
@@ -196,6 +205,7 @@ export function ClusterResources({
     <>
       {loadClusterError && <Danger>{loadClusterError}</Danger>}
       <SharedUnifiedResources
+        bulkActions={bulkActions}
         params={params}
         fetchResources={fetch}
         resourcesFetchAttempt={attempt}
@@ -222,7 +232,9 @@ export function ClusterResources({
         resources={resources.map(resource => ({
           resource,
           ui: {
-            ActionButton: <ResourceActionButton resource={resource} />,
+            ActionButton: getActionButton?.(resource) || (
+              <ResourceActionButton resource={resource} />
+            ),
           },
         }))}
         setParams={newParams => {
@@ -251,12 +263,14 @@ export function ClusterResources({
             >
               <FeatureHeaderTitle>Resources</FeatureHeaderTitle>
               <Flex alignItems="center">
-                <AgentButtonAdd
-                  agent={SearchResource.UNIFIED_RESOURCE}
-                  beginsWithVowel={false}
-                  isLeafCluster={isLeafCluster}
-                  canCreate={canCreate}
-                />
+                {!showCheckout && (
+                  <AgentButtonAdd
+                    agent={SearchResource.UNIFIED_RESOURCE}
+                    beginsWithVowel={false}
+                    isLeafCluster={isLeafCluster}
+                    canCreate={canCreate}
+                  />
+                )}
               </Flex>
             </FeatureHeader>
             <Flex alignItems="center" justifyContent="space-between">

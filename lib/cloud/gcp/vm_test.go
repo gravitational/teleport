@@ -53,7 +53,7 @@ func newMockInstance(t *testing.T, hostSigner ssh.Signer, listener net.Listener)
 		"gcp-vm-server",
 		utils.NetAddr{AddrNetwork: "tcp", Addr: listener.Addr().String()},
 		mock,
-		[]ssh.Signer{hostSigner},
+		sshutils.StaticHostSigners(hostSigner),
 		sshutils.AuthMethods{
 			PublicKey: mock.userKeyAuth,
 		},
@@ -120,6 +120,10 @@ func (m *mockInstance) StreamInstances(ctx context.Context, projectID, location 
 
 func (m *mockInstance) GetInstance(ctx context.Context, req *InstanceRequest) (*Instance, error) {
 	return m.instance, nil
+}
+
+func (m *mockInstance) GetInstanceTags(ctx context.Context, req *InstanceRequest) (map[string]string, error) {
+	return nil, nil
 }
 
 func (m *mockInstance) AddSSHKey(ctx context.Context, req *SSHKeyRequest) error {

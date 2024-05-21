@@ -24,9 +24,10 @@ import (
 	"net"
 	"testing"
 
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // TestOSUpstreamNameservers configures the DNS server to forward requests for all addresses to the OS's real

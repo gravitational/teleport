@@ -30,7 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proxy"
 	"github.com/gravitational/teleport/api/mfa"
 	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
@@ -38,7 +38,7 @@ import (
 )
 
 type fakeAuthClient struct {
-	auth.ClientI
+	authclient.ClientI
 
 	isMFARequired     func(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error)
 	generateUserCerts func(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error)

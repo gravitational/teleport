@@ -49,7 +49,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/prompt"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
@@ -390,7 +390,7 @@ func initClient(proxyAddr string, insecure bool, pool *x509.CertPool, extraHeade
 }
 
 // SSHAgentSSOLogin is used by tsh to fetch user credentials using OpenID Connect (OIDC) or SAML.
-func SSHAgentSSOLogin(ctx context.Context, login SSHLoginSSO, config *RedirectorConfig) (*auth.SSHLoginResponse, error) {
+func SSHAgentSSOLogin(ctx context.Context, login SSHLoginSSO, config *RedirectorConfig) (*authclient.SSHLoginResponse, error) {
 	if login.CallbackAddr != "" && !utils.AsBool(os.Getenv("TELEPORT_LOGIN_SKIP_REMOTE_HOST_WARNING")) {
 		const callbackPrompt = "Logging in from a remote host means that credentials will be stored on " +
 			"the remote host. Make sure that you trust the provided callback host " +
@@ -473,7 +473,7 @@ func SSHAgentSSOLogin(ctx context.Context, login SSHLoginSSO, config *Redirector
 }
 
 // SSHAgentLogin is used by tsh to fetch local user credentials.
-func SSHAgentLogin(ctx context.Context, login SSHLoginDirect) (*auth.SSHLoginResponse, error) {
+func SSHAgentLogin(ctx context.Context, login SSHLoginDirect) (*authclient.SSHLoginResponse, error) {
 	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -494,7 +494,7 @@ func SSHAgentLogin(ctx context.Context, login SSHLoginDirect) (*auth.SSHLoginRes
 		return nil, trace.Wrap(err)
 	}
 
-	var out auth.SSHLoginResponse
+	var out authclient.SSHLoginResponse
 	err = json.Unmarshal(re.Bytes(), &out)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -504,7 +504,7 @@ func SSHAgentLogin(ctx context.Context, login SSHLoginDirect) (*auth.SSHLoginRes
 }
 
 // SSHAgentHeadlessLogin begins the headless login ceremony, returning new user certificates if successful.
-func SSHAgentHeadlessLogin(ctx context.Context, login SSHLoginHeadless) (*auth.SSHLoginResponse, error) {
+func SSHAgentHeadlessLogin(ctx context.Context, login SSHLoginHeadless) (*authclient.SSHLoginResponse, error) {
 	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -527,7 +527,7 @@ func SSHAgentHeadlessLogin(ctx context.Context, login SSHLoginHeadless) (*auth.S
 		return nil, trace.Wrap(err)
 	}
 
-	var out auth.SSHLoginResponse
+	var out authclient.SSHLoginResponse
 	err = json.Unmarshal(re.Bytes(), &out)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -541,7 +541,7 @@ func SSHAgentHeadlessLogin(ctx context.Context, login SSHLoginHeadless) (*auth.S
 // end user.
 //
 // Returns the SSH certificate if authn is successful or an error.
-func SSHAgentPasswordlessLogin(ctx context.Context, login SSHLoginPasswordless) (*auth.SSHLoginResponse, error) {
+func SSHAgentPasswordlessLogin(ctx context.Context, login SSHLoginPasswordless) (*authclient.SSHLoginResponse, error) {
 	webClient, webURL, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -606,7 +606,7 @@ func SSHAgentPasswordlessLogin(ctx context.Context, login SSHLoginPasswordless) 
 		return nil, trace.Wrap(err)
 	}
 
-	loginResp := &auth.SSHLoginResponse{}
+	loginResp := &authclient.SSHLoginResponse{}
 	if err := json.Unmarshal(loginRespJSON.Bytes(), loginResp); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -617,7 +617,7 @@ func SSHAgentPasswordlessLogin(ctx context.Context, login SSHLoginPasswordless) 
 // If the credentials are valid, the proxy will return a challenge. We then
 // prompt the user to provide 2nd factor and pass the response to the proxy.
 // If the authentication succeeds, we will get a temporary certificate back.
-func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*auth.SSHLoginResponse, error) {
+func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*authclient.SSHLoginResponse, error) {
 	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -681,7 +681,7 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*auth.SSHLoginRes
 		return nil, trace.Wrap(err)
 	}
 
-	loginResp := &auth.SSHLoginResponse{}
+	loginResp := &authclient.SSHLoginResponse{}
 	return loginResp, trace.Wrap(json.Unmarshal(loginRespJSON.Bytes(), loginResp))
 }
 

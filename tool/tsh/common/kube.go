@@ -65,7 +65,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	kubeclient "github.com/gravitational/teleport/lib/client/kube"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -1651,7 +1651,7 @@ func (c *kubeLoginCommand) accessRequestForKubeCluster(ctx context.Context, cf *
 		// we will get an error here.
 		req.SetDryRun(true)
 		req.SetRequestReason("Dry run, this request will not be created. If you see this, there is a bug.")
-		if err := tc.WithRootClusterClient(ctx, func(clt auth.ClientI) error {
+		if err := tc.WithRootClusterClient(ctx, func(clt authclient.ClientI) error {
 			req, err = clt.CreateAccessRequestV2(ctx, req)
 			return trace.Wrap(err)
 		}); err != nil {

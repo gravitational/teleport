@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/conntest"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -66,6 +67,8 @@ func startPostgresTestServer(t *testing.T, authServer *auth.Server) *postgres.Te
 }
 
 func TestDiagnoseConnectionForPostgresDatabases(t *testing.T) {
+	modules.SetInsecureTestMode(true)
+
 	ctx := context.Background()
 	diagnoseConnectionEndpoint := strings.Join([]string{"sites", "$site", "diagnostics", "connections"}, "/")
 

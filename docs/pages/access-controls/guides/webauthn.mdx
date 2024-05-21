@@ -266,57 +266,8 @@ auth_service:
       - "/path/to/u2f_attestation_ca.pem"
 ```
 
-The migrated WebAuthn configuration is:
-
-<Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-<Tabs>
-  <TabItem label="Static Config">
-
-    ```yaml
-    # snippet from /etc/teleport.yaml:
-    auth_service:
-      authentication:
-        type: local
-        second_factor: on # changed from "u2f"
-        u2f:
-          # Keep the app_id to avoid re-registering U2F devices.
-          app_id: https://example.com
-        webauthn:
-          # rp_id is the public domain of the Teleport Proxy Service.
-          # It's similar to the U2F app_id, but without "https://" or port number.
-          rp_id: example.com
-          attestation_allowed_cas:
-          - "/path/to/u2f_attestation_ca.pem"
-    ```
-
-  </TabItem>
-  <TabItem label="Dynamic resources">
-
-    ```yaml
-    kind: cluster_auth_preference
-    version: v2
-    metadata:
-      name: cluster-auth-preference
-    spec:
-      type: local
-      second_factor: "on" # changed from "u2f"
-      u2f:
-        # Keep the app_id to avoid re-registering U2F devices.
-        app_id: https://example.com
-      webauthn:
-        # rp_id is the public domain of the Teleport Proxy Service.
-        # It's similar to the U2F app_id, but without "https://" or port number.
-        rp_id: example.com
-        attestation_allowed_cas:
-        - "/path/to/u2f_attestation_ca.pem"
-    ```
-
-  </TabItem>
-</Tabs>
-</TabItem>
-
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+You can replace this configuration with its WebAuthn equivalent using a
+`cluster_auth_preference` similar to the following:
 
 ```yaml
 kind: cluster_auth_preference
@@ -337,9 +288,25 @@ spec:
     - "/path/to/u2f_attestation_ca.pem"
 ```
 
-</TabItem>
+On a self-hosted cluster, you can configure WebAuthn with a Teleport Auth
+Service configuration similar to the following:
 
-</Tabs>
+```yaml
+# snippet from /etc/teleport.yaml:
+auth_service:
+  authentication:
+    type: local
+    second_factor: on # changed from "u2f"
+    u2f:
+      # Keep the app_id to avoid re-registering U2F devices.
+      app_id: https://example.com
+    webauthn:
+      # rp_id is the public domain of the Teleport Proxy Service.
+      # It's similar to the U2F app_id, but without "https://" or port number.
+      rp_id: example.com
+      attestation_allowed_cas:
+      - "/path/to/u2f_attestation_ca.pem"
+```
 
 ## Next steps
 

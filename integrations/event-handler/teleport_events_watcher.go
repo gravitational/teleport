@@ -19,6 +19,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -70,15 +71,17 @@ type TeleportEventsWatcher struct {
 	batch []*TeleportEvent
 	// config is teleport config
 	config *StartCmdConfig
-	// startTime is event time frame start
-	startTime time.Time
+
+	// windowStartTime is event time frame start
+	windowStartTime   time.Time
+	windowStartTimeMu sync.Mutex
 }
 
 // NewTeleportEventsWatcher builds Teleport client instance
 func NewTeleportEventsWatcher(
 	ctx context.Context,
 	c *StartCmdConfig,
-	startTime time.Time,
+	windowStartTime time.Time,
 	cursor string,
 	id string,
 ) (*TeleportEventsWatcher, error) {
@@ -119,12 +122,12 @@ func NewTeleportEventsWatcher(
 	}
 
 	tc := TeleportEventsWatcher{
-		client:    teleportClient,
-		pos:       -1,
-		cursor:    cursor,
-		config:    c,
-		id:        id,
-		startTime: startTime,
+		client:          teleportClient,
+		pos:             -1,
+		cursor:          cursor,
+		config:          c,
+		id:              id,
+		windowStartTime: windowStartTime,
 	}
 
 	return &tc, nil
@@ -151,13 +154,12 @@ func (t *TeleportEventsWatcher) flipPage() bool {
 // fetch fetches the page and sets the position to the event after latest known
 func (t *TeleportEventsWatcher) fetch(ctx context.Context) error {
 	log := logger.Get(ctx)
-	b, nextCursor, err := t.getEvents(ctx)
+	// Zero batch
+	t.batch = make([]*TeleportEvent, 0, t.config.BatchSize)
+	nextCursor, err := t.getEvents(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	// Zero batch
-	t.batch = make([]*TeleportEvent, len(b))
 
 	// Save next cursor
 	t.nextCursor = nextCursor
@@ -165,24 +167,15 @@ func (t *TeleportEventsWatcher) fetch(ctx context.Context) error {
 	// Mark position as unresolved (the page is empty)
 	t.pos = -1
 
-	log.WithField("cursor", t.cursor).WithField("next", nextCursor).WithField("len", len(b)).Debug("Fetched page")
+	log.WithField("cursor", t.cursor).WithField("next", nextCursor).WithField("len", len(t.batch)).Debug("Fetched page")
 
 	// Page is empty: do nothing, return
-	if len(b) == 0 {
+	if len(t.batch) == 0 {
+		t.pos = 0
 		return nil
 	}
 
 	pos := 0
-
-	// Convert batch to TeleportEvent
-	for i, e := range b {
-		evt, err := NewTeleportEvent(e, t.cursor)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		t.batch[i] = evt
-	}
 
 	// If last known id is not empty, let's try to find it's pos
 	if t.id != "" {
@@ -202,18 +195,98 @@ func (t *TeleportEventsWatcher) fetch(ctx context.Context) error {
 	return nil
 }
 
-// getEvents calls Teleport client and loads events
-func (t *TeleportEventsWatcher) getEvents(ctx context.Context) ([]*auditlogpb.EventUnstructured, string, error) {
-	return t.client.SearchUnstructuredEvents(
+// getEvents iterates over the range of days between the last windowStartTime and now.
+// It returns a slice of events, a cursor for the next page and an error.
+// If the cursor is out of the range, it advances the windowStartTime to the next day.
+// It only advances the windowStartTime if no events are found until the last complete day.
+func (t *TeleportEventsWatcher) getEvents(ctx context.Context) (string, error) {
+	rangeSplitByDay := splitRangeByDay(t.getWindowStartTime(), time.Now().UTC(), t.config.WindowSize)
+	for i := 1; i < len(rangeSplitByDay); i++ {
+		startTime := rangeSplitByDay[i-1]
+		endTime := rangeSplitByDay[i]
+		log.Debugf("Fetching events from %v to %v", startTime, endTime)
+		evts, cursor, err := t.getEventsInWindow(ctx, startTime, endTime)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+
+		// Convert batch to TeleportEvent
+		for _, e := range evts {
+			if _, ok := t.config.SkipEventTypes[e.Type]; ok {
+				log.WithField("event", e).Debug("Skipping event")
+				continue
+			}
+			evt, err := NewTeleportEvent(e, t.cursor)
+			if err != nil {
+				return "", trace.Wrap(err)
+			}
+
+			t.batch = append(t.batch, evt)
+		}
+
+		// if no events are found, the cursor is out of the range [startTime, endTime]
+		// and it's the last complete day, update start time to the next day.
+		if t.canSkipToNextWindow(i, rangeSplitByDay, cursor) {
+			log.Infof("No new events found for the range %v to %v", startTime, endTime)
+			t.setWindowStartTime(endTime)
+			continue
+		}
+		// if any events are found, return them
+		return cursor, nil
+	}
+	return t.cursor, nil
+}
+
+func (t *TeleportEventsWatcher) canSkipToNextWindow(i int, rangeSplitByDay []time.Time, cursor string) bool {
+	if cursor != "" {
+		return false
+
+	}
+	if len(t.batch) == 0 && i < len(rangeSplitByDay)-1 {
+		log.Infof("No events found for the range %v to %v", rangeSplitByDay[i-1], rangeSplitByDay[i])
+		return true
+	}
+	pos := 0
+	// If last known id is not empty, let's try to find if all events are already processed
+	// and if we can skip to next page
+	if t.id != "" {
+		for i, e := range t.batch {
+			if e.ID == t.id {
+				pos = i + 1
+			}
+		}
+	}
+
+	if i < len(rangeSplitByDay)-1 && pos >= len(t.batch) {
+		log.WithField("pos", pos).WithField("len", len(t.batch)).Infof("No new events found for the range %v to %v", rangeSplitByDay[i-1], rangeSplitByDay[i])
+		return true
+	}
+	return false
+}
+
+// getEvents calls Teleport client and loads events from the audit log.
+// It returns a slice of events, a cursor for the next page and an error.
+func (t *TeleportEventsWatcher) getEventsInWindow(ctx context.Context, from, to time.Time) ([]*auditlogpb.EventUnstructured, string, error) {
+	evts, cursor, err := t.client.SearchUnstructuredEvents(
 		ctx,
-		t.startTime,
-		time.Now().UTC(),
+		from,
+		to,
 		"default",
 		t.config.Types,
 		t.config.BatchSize,
 		types.EventOrderAscending,
 		t.cursor,
 	)
+	return evts, cursor, trace.Wrap(err)
+}
+
+func splitRangeByDay(from, to time.Time, windowSize time.Duration) []time.Time {
+	// splitRangeByDay splits the range into days
+	var days []time.Time
+	for d := from; d.Before(to); d = d.Add(windowSize) {
+		days = append(days, d)
+	}
+	return append(days, to) // add the last date
 }
 
 // pause sleeps for timeout seconds
@@ -248,7 +321,7 @@ func (t *TeleportEventsWatcher) Events(ctx context.Context) (chan *TeleportEvent
 				}
 
 				// If there is still nothing, sleep
-				if len(t.batch) == 0 {
+				if len(t.batch) == 0 && t.nextCursor == "" {
 					if t.config.ExitOnLastEvent {
 						log.Info("All events are processed, exiting...")
 						break
@@ -280,7 +353,7 @@ func (t *TeleportEventsWatcher) Events(ctx context.Context) (chan *TeleportEvent
 
 				// If there is still nothing new on current page, sleep
 				if t.pos >= len(t.batch) {
-					if t.config.ExitOnLastEvent {
+					if t.config.ExitOnLastEvent && t.nextCursor == "" {
 						log.Info("All events are processed, exiting...")
 						break
 					}
@@ -341,4 +414,16 @@ func (t *TeleportEventsWatcher) UpsertLock(ctx context.Context, user string, log
 	}
 
 	return t.client.UpsertLock(ctx, lock)
+}
+
+func (t *TeleportEventsWatcher) getWindowStartTime() time.Time {
+	t.windowStartTimeMu.Lock()
+	defer t.windowStartTimeMu.Unlock()
+	return t.windowStartTime
+}
+
+func (t *TeleportEventsWatcher) setWindowStartTime(time time.Time) {
+	t.windowStartTimeMu.Lock()
+	defer t.windowStartTimeMu.Unlock()
+	t.windowStartTime = time
 }

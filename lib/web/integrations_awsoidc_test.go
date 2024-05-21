@@ -252,6 +252,114 @@ func TestBuildEICEConfigureIAMScript(t *testing.T) {
 	}
 }
 
+func TestBuildEC2SSMIAMScript(t *testing.T) {
+	t.Parallel()
+	isBadParamErrFn := func(tt require.TestingT, err error, i ...any) {
+		require.True(tt, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
+	}
+
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+
+	proxyPublicURL := env.proxies[0].webURL.String()
+
+	// Unauthenticated client for script downloading.
+	publicClt := env.proxies[0].newClient(t)
+	pathVars := []string{
+		"webapi",
+		"scripts",
+		"integrations",
+		"configure",
+		"ec2-ssm-iam.sh",
+	}
+	endpoint := publicClt.Endpoint(pathVars...)
+
+	tests := []struct {
+		name                 string
+		reqRelativeURL       string
+		reqQuery             url.Values
+		errCheck             require.ErrorAssertionFunc
+		expectedTeleportArgs string
+	}{
+		{
+			name: "valid",
+			reqQuery: url.Values{
+				"awsRegion":   []string{"us-east-1"},
+				"role":        []string{"myRole"},
+				"ssmDocument": []string{"TeleportDiscoveryInstallerTest"},
+			},
+			errCheck: require.NoError,
+			expectedTeleportArgs: "integration configure ec2-ssm-iam " +
+				"--role=myRole " +
+				"--aws-region=us-east-1 " +
+				"--ssm-document-name=TeleportDiscoveryInstallerTest " +
+				"--proxy-public-url=" + proxyPublicURL,
+		},
+		{
+			name: "valid with symbols in role",
+			reqQuery: url.Values{
+				"awsRegion":   []string{"us-east-1"},
+				"role":        []string{"Test+1=2,3.4@5-6_7"},
+				"ssmDocument": []string{"TeleportDiscoveryInstallerTest"},
+			},
+			errCheck: require.NoError,
+			expectedTeleportArgs: "integration configure ec2-ssm-iam " +
+				"--role=Test\\+1=2,3.4\\@5-6_7 " +
+				"--aws-region=us-east-1 " +
+				"--ssm-document-name=TeleportDiscoveryInstallerTest " +
+				"--proxy-public-url=" + proxyPublicURL,
+		},
+		{
+			name: "missing aws-region",
+			reqQuery: url.Values{
+				"role":        []string{"myRole"},
+				"ssmDocument": []string{"TeleportDiscoveryInstallerTest"},
+			},
+			errCheck: isBadParamErrFn,
+		},
+		{
+			name: "missing role",
+			reqQuery: url.Values{
+				"awsRegion":   []string{"us-east-1"},
+				"ssmDocument": []string{"TeleportDiscoveryInstallerTest"},
+			},
+			errCheck: isBadParamErrFn,
+		},
+		{
+			name: "missing ssm document",
+			reqQuery: url.Values{
+				"awsRegion": []string{"us-east-1"},
+				"role":      []string{"myRole"},
+			},
+			errCheck: isBadParamErrFn,
+		},
+		{
+			name: "trying to inject escape sequence into query params",
+			reqQuery: url.Values{
+				"awsRegion":   []string{"'; rm -rf /tmp/dir; echo '"},
+				"role":        []string{"role"},
+				"ssmDocument": []string{"TeleportDiscoveryInstallerTest"},
+			},
+			errCheck: isBadParamErrFn,
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			resp, err := publicClt.Get(ctx, endpoint, tc.reqQuery)
+			tc.errCheck(t, err)
+			if err != nil {
+				return
+			}
+
+			require.Contains(t, string(resp.Bytes()),
+				fmt.Sprintf("teleportArgs='%s'\n", tc.expectedTeleportArgs),
+			)
+		})
+	}
+}
+
 func TestBuildAWSAppAccessConfigureIAMScript(t *testing.T) {
 	t.Parallel()
 	isBadParamErrFn := func(tt require.TestingT, err error, i ...any) {
@@ -858,6 +966,7 @@ func TestAWSOIDCAppAccessAppServerCreation(t *testing.T) {
 	require.NoError(t, err)
 
 	proxy := env.proxies[0]
+	proxyPublicAddr := proxy.handler.handler.cfg.PublicProxyAddr
 	pack := proxy.authPack(t, "foo@example.com", []types.Role{roleTokenCRD})
 
 	myIntegration, err := types.NewIntegrationAWSOIDC(types.Metadata{
@@ -872,10 +981,8 @@ func TestAWSOIDCAppAccessAppServerCreation(t *testing.T) {
 
 	// Create the AWS App Access for the current integration.
 	endpoint := pack.clt.Endpoint("webapi", "sites", "localhost", "integrations", "aws-oidc", "my-integration", "aws-app-access")
-	x, err := pack.clt.PostJSON(context.Background(), endpoint, nil)
+	_, err = pack.clt.PostJSON(context.Background(), endpoint, nil)
 	require.NoError(t, err)
-
-	t.Log(x)
 
 	// Ensure the AppServer was correctly created.
 	appServers, err := env.server.Auth().GetApplicationServers(context.Background(), "default")
@@ -901,6 +1008,7 @@ func TestAWSOIDCAppAccessAppServerCreation(t *testing.T) {
 					URI:         "https://console.aws.amazon.com",
 					Integration: "my-integration",
 					Cloud:       "AWS",
+					PublicAddr:  "my-integration." + proxyPublicAddr,
 				},
 			},
 		},

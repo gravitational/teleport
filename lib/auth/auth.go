@@ -29,14 +29,12 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/subtle"
-	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
-	"math"
 	"math/big"
 	insecurerand "math/rand"
 	"os"
@@ -54,8 +52,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/sirupsen/logrus"
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/ssh"
@@ -83,6 +79,7 @@ import (
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/ai"
 	"github.com/gravitational/teleport/lib/ai/embedding"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/userloginstate"
@@ -156,8 +153,6 @@ const (
 		"This is not recommended due to the volatitily of dynamic/ labels and is not allowed for new roles. " +
 		"(hint: use 'tctl get roles' to find roles that need updating)"
 )
-
-var tracer = otel.Tracer("github.com/gravitational/teleport/lib/auth")
 
 var ErrRequiresEnterprise = services.ErrRequiresEnterprise
 
@@ -451,7 +446,23 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		embedder:                cfg.EmbeddingClient,
 		accessMonitoringEnabled: cfg.AccessMonitoringEnabled,
 	}
-	as.inventory = inventory.NewController(&as, services, inventory.WithAuthServerID(cfg.HostUUID))
+	as.inventory = inventory.NewController(&as, services,
+		inventory.WithAuthServerID(cfg.HostUUID),
+		inventory.WithOnConnect(func(s string) {
+			if g, ok := connectedResourceGauges[s]; ok {
+				g.Inc()
+			} else {
+				log.Warnf("missing connected resources gauge for keep alive %s (this is a bug)", s)
+			}
+		}),
+		inventory.WithOnDisconnect(func(s string) {
+			if g, ok := connectedResourceGauges[s]; ok {
+				g.Dec()
+			} else {
+				log.Warnf("missing connected resources gauge for keep alive %s (this is a bug)", s)
+			}
+		}),
+	)
 	for _, o := range opts {
 		if err := o(&as); err != nil {
 			return nil, trace.Wrap(err)
@@ -847,7 +858,7 @@ type Server struct {
 	// implements its methods), thus any implemented GetFoo method on both Cache
 	// and Services will call the one from Cache. To bypass the cache, call the
 	// method on Services instead.
-	Cache
+	authclient.Cache
 
 	// privateKey is used in tests to use pre-generated private keys
 	privateKey []byte
@@ -1223,8 +1234,9 @@ func (a *Server) runPeriodicOperations() {
 		Jitter:   retryutils.NewSeventhJitter(),
 	})
 	promTicker := interval.New(interval.Config{
-		Duration: defaults.PrometheusScrapeInterval,
-		Jitter:   retryutils.NewSeventhJitter(),
+		FirstDuration: 5 * time.Second,
+		Duration:      defaults.PrometheusScrapeInterval,
+		Jitter:        retryutils.NewSeventhJitter(),
 	})
 	missedKeepAliveCount := 0
 	defer ticker.Stop()
@@ -3291,6 +3303,15 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 		if err := a.WithUserLock(ctx, username, func() error {
 			return a.checkPasswordWOToken(ctx, username, req.GetUserCredentials().GetPassword())
 		}); err != nil {
+			// This is only ever used as a means to acquire a login challenge, so
+			// let's issue an authentication failure event.
+			if err := a.emitAuthAuditEvent(ctx, authAuditProps{
+				username: username,
+				authErr:  err,
+			}); err != nil {
+				log.WithError(err).Warn("Failed to emit login event")
+				// err swallowed on purpose.
+			}
 			return nil, trace.Wrap(err)
 		}
 
@@ -3305,7 +3326,7 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 			return nil, trace.AccessDenied("invalid token")
 		}
 
-		if err := a.verifyUserToken(token, UserTokenTypeRecoveryStart); err != nil {
+		if err := a.verifyUserToken(token, authclient.UserTokenTypeRecoveryStart); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -3357,11 +3378,11 @@ func (a *Server) CreateRegisterChallenge(ctx context.Context, req *proto.CreateR
 		}
 
 		allowedTokenTypes := []string{
-			UserTokenTypePrivilege,
-			UserTokenTypePrivilegeException,
-			UserTokenTypeResetPassword,
-			UserTokenTypeResetPasswordInvite,
-			UserTokenTypeRecoveryApproved,
+			authclient.UserTokenTypePrivilege,
+			authclient.UserTokenTypePrivilegeException,
+			authclient.UserTokenTypeResetPassword,
+			authclient.UserTokenTypeResetPasswordInvite,
+			authclient.UserTokenTypeRecoveryApproved,
 		}
 		if err := a.verifyUserToken(token, allowedTokenTypes...); err != nil {
 			return nil, trace.AccessDenied("invalid token")
@@ -3403,7 +3424,7 @@ func (a *Server) CreateRegisterChallenge(ctx context.Context, req *proto.CreateR
 }
 
 func (a *Server) createTOTPPrivilegeToken(ctx context.Context, username string) (types.UserToken, error) {
-	tokenReq := CreateUserTokenRequest{
+	tokenReq := authclient.CreateUserTokenRequest{
 		Name: username,
 		Type: userTokenTypePrivilegeOTP,
 	}
@@ -3523,7 +3544,7 @@ func (a *Server) GetMFADevices(ctx context.Context, req *proto.GetMFADevicesRequ
 			return nil, trace.AccessDenied("invalid token")
 		}
 
-		if err := a.verifyUserToken(token, UserTokenTypeRecoveryApproved); err != nil {
+		if err := a.verifyUserToken(token, authclient.UserTokenTypeRecoveryApproved); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -3560,7 +3581,7 @@ func (a *Server) DeleteMFADeviceSync(ctx context.Context, req *proto.DeleteMFADe
 		}
 		user = token.GetUser()
 
-		if err := a.verifyUserToken(token, UserTokenTypeRecoveryApproved, UserTokenTypePrivilege); err != nil {
+		if err := a.verifyUserToken(token, authclient.UserTokenTypeRecoveryApproved, authclient.UserTokenTypePrivilege); err != nil {
 			return trace.Wrap(err)
 		}
 
@@ -3662,17 +3683,48 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 		return nil, trace.BadParameter("unexpected second factor type: %s", sf)
 	}
 
-	// Stop users from deleting their last resident key. This prevents
-	// passwordless users from locking themselves out, at the cost of not letting
-	// regular users do it either.
-	//
-	// A better logic would be to apply this only to passwordless users, but we
-	// cannot distinguish users in that manner.
-	// See https://github.com/gravitational/teleport/issues/13219#issuecomment-1148255979.
-	//
-	// TODO(codingllama): Check if the last login type used was passwordless, if
-	//  not then we could let this device be deleted.
-	if authPref.GetAllowPasswordless() && numResidentKeys == 1 && isResidentKey(deviceToDelete) {
+	// canDeleteLastPasskey figures out whether the user can safely delete their
+	// credential without locking themselves out in case if it's the last passkey.
+	// It checks whether the credential to delete is a last passkey and whether
+	// the user has other valid local credentials.
+	canDeleteLastPasskey := func() (bool, error) {
+		if !authPref.GetAllowPasswordless() || numResidentKeys > 1 || !isResidentKey(deviceToDelete) {
+			return true, nil
+		}
+
+		// Deleting the last passkey is OK if the user has a password set and an
+		// additional MFA device, otherwise they would be locked out.
+		u, err := a.Services.GetUser(ctx, user, false /* withSecrets */)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		if u.GetPasswordState() != types.PasswordState_PASSWORD_STATE_SET {
+			return false, nil
+		}
+
+		// Minimum number of WebAuthn devices includes the passkey that we attempt
+		// to delete, hence 2.
+		if sfToCount[constants.SecondFactorWebauthn] >= 2 {
+			return true, nil
+		}
+
+		// Whether we take TOTPs into consideration or not depends on whether it's
+		// enabled.
+		switch sf := authPref.GetSecondFactor(); sf {
+		case constants.SecondFactorOTP, constants.SecondFactorOn, constants.SecondFactorOptional:
+			if sfToCount[constants.SecondFactorOTP] >= 1 {
+				return true, nil
+			}
+		}
+
+		return false, nil
+	}
+
+	can, err := canDeleteLastPasskey()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !can {
 		return nil, trace.BadParameter("cannot delete last passwordless credential for user")
 	}
 
@@ -3720,8 +3772,8 @@ func (a *Server) AddMFADeviceSync(ctx context.Context, req *proto.AddMFADeviceSy
 
 		if err := a.verifyUserToken(
 			privilegeToken,
-			UserTokenTypePrivilege,
-			UserTokenTypePrivilegeException,
+			authclient.UserTokenTypePrivilege,
+			authclient.UserTokenTypePrivilegeException,
 			userTokenTypePrivilegeOTP,
 		); err != nil {
 			return nil, trace.Wrap(err)
@@ -3901,7 +3953,7 @@ func (a *Server) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) 
 //
 // If there is a switchback request, the roles will switchback to user's default roles and
 // the expiration time is derived from users recently logged in time.
-func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identity tlsca.Identity) (types.WebSession, error) {
+func (a *Server) ExtendWebSession(ctx context.Context, req authclient.WebSessionReq, identity tlsca.Identity) (types.WebSession, error) {
 	prevSession, err := a.GetWebSession(ctx, types.GetWebSessionRequest{
 		User:      req.User,
 		SessionID: req.PrevSessionID,
@@ -4306,7 +4358,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 
 	// generate host TLS certificate
 	identity := tlsca.Identity{
-		Username:        HostFQDN(req.HostID, clusterName.GetClusterName()),
+		Username:        authclient.HostFQDN(req.HostID, clusterName.GetClusterName()),
 		Groups:          []string{req.Role.String()},
 		TeleportCluster: clusterName.GetClusterName(),
 		SystemRoles:     systemRoles,
@@ -6880,57 +6932,6 @@ func oauth2ConfigsEqual(a, b oauth2.Config) bool {
 		return false
 	}
 	return true
-}
-
-// WithClusterCAs returns a TLS hello callback that returns a copy of the provided
-// TLS config with client CAs pool of the specified cluster.
-func WithClusterCAs(tlsConfig *tls.Config, ap AccessCache, currentClusterName string, log logrus.FieldLogger) func(*tls.ClientHelloInfo) (*tls.Config, error) {
-	return func(info *tls.ClientHelloInfo) (*tls.Config, error) {
-		var clusterName string
-		var err error
-		if info.ServerName != "" {
-			// Newer clients will set SNI that encodes the cluster name.
-			clusterName, err = apiutils.DecodeClusterName(info.ServerName)
-			if err != nil {
-				if !trace.IsNotFound(err) {
-					log.Debugf("Ignoring unsupported cluster name name %q.", info.ServerName)
-					clusterName = ""
-				}
-			}
-		}
-		pool, totalSubjectsLen, err := DefaultClientCertPool(ap, clusterName)
-		if err != nil {
-			log.WithError(err).Errorf("Failed to retrieve client pool for %q.", clusterName)
-			// this falls back to the default config
-			return nil, nil
-		}
-
-		// Per https://tools.ietf.org/html/rfc5246#section-7.4.4 the total size of
-		// the known CA subjects sent to the client can't exceed 2^16-1 (due to
-		// 2-byte length encoding). The crypto/tls stack will panic if this
-		// happens.
-		//
-		// This usually happens on the root cluster with a very large (>500) number
-		// of leaf clusters. In these cases, the client cert will be signed by the
-		// current (root) cluster.
-		//
-		// If the number of CAs turns out too large for the handshake, drop all but
-		// the current cluster CA. In the unlikely case where it's wrong, the
-		// client will be rejected.
-		if totalSubjectsLen >= int64(math.MaxUint16) {
-			log.Debugf("Number of CAs in client cert pool is too large and cannot be encoded in a TLS handshake; this is due to a large number of trusted clusters; will use only the CA of the current cluster to validate.")
-
-			pool, _, err = DefaultClientCertPool(ap, currentClusterName)
-			if err != nil {
-				log.WithError(err).Errorf("Failed to retrieve client pool for %q.", currentClusterName)
-				// this falls back to the default config
-				return nil, nil
-			}
-		}
-		tlsCopy := tlsConfig.Clone()
-		tlsCopy.ClientCAs = pool
-		return tlsCopy, nil
-	}
 }
 
 // DefaultDNSNamesForRole returns default DNS names for the specified role.

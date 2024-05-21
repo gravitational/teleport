@@ -2980,7 +2980,6 @@ func TestSetupConfigFns(t *testing.T) {
 	setupFuncs := map[string]SetupConfigFn{
 		"ForProxy":          ForProxy,
 		"ForRemoteProxy":    ForRemoteProxy,
-		"ForOldRemoteProxy": ForOldRemoteProxy,
 		"ForNode":           ForNode,
 		"ForKubernetes":     ForKubernetes,
 		"ForApps":           ForApps,
@@ -3087,15 +3086,14 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 	clock := clockwork.NewFakeClockAt(time.Now())
 
 	cases := map[string]Config{
-		"ForAuth":           ForAuth(Config{}),
-		"ForProxy":          ForProxy(Config{}),
-		"ForRemoteProxy":    ForRemoteProxy(Config{}),
-		"ForOldRemoteProxy": ForOldRemoteProxy(Config{}),
-		"ForNode":           ForNode(Config{}),
-		"ForKubernetes":     ForKubernetes(Config{}),
-		"ForApps":           ForApps(Config{}),
-		"ForDatabases":      ForDatabases(Config{}),
-		"ForOkta":           ForOkta(Config{}),
+		"ForAuth":        ForAuth(Config{}),
+		"ForProxy":       ForProxy(Config{}),
+		"ForRemoteProxy": ForRemoteProxy(Config{}),
+		"ForNode":        ForNode(Config{}),
+		"ForKubernetes":  ForKubernetes(Config{}),
+		"ForApps":        ForApps(Config{}),
+		"ForDatabases":   ForDatabases(Config{}),
+		"ForOkta":        ForOkta(Config{}),
 	}
 
 	events := map[string]types.Resource{
@@ -3626,14 +3624,14 @@ func newUserNotification(t *testing.T, name string) *notificationsv1.Notificatio
 			Username: name,
 		},
 		Metadata: &headerv1.Metadata{
-			Labels: map[string]string{"description": "test-description"},
+			Labels: map[string]string{types.NotificationTitleLabel: "test-title"},
 		},
 	}
 
 	return notification
 }
 
-func newGlobalNotification(t *testing.T, description string) *notificationsv1.GlobalNotification {
+func newGlobalNotification(t *testing.T, title string) *notificationsv1.GlobalNotification {
 	t.Helper()
 
 	notification := &notificationsv1.GlobalNotification{
@@ -3645,7 +3643,7 @@ func newGlobalNotification(t *testing.T, description string) *notificationsv1.Gl
 				SubKind: "test-subkind",
 				Spec:    &notificationsv1.NotificationSpec{},
 				Metadata: &headerv1.Metadata{
-					Labels: map[string]string{"description": description},
+					Labels: map[string]string{types.NotificationTitleLabel: title},
 				},
 			},
 		},
