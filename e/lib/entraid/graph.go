@@ -13,6 +13,7 @@ type graphClient interface {
 	IterateUsers(ctx context.Context, f func(models.Userable) bool) error
 	IterateGroups(ctx context.Context, f func(models.Groupable) bool) error
 	IterateGroupMembers(ctx context.Context, groupID string, f func(models.DirectoryObjectable) bool) error
+	IterateApplications(ctx context.Context, f func(models.Applicationable) bool) error
 }
 
 // graphClientWrapper implements the graphClient interface
@@ -56,5 +57,18 @@ func (w *graphClientWrapper) IterateGroupMembers(ctx context.Context, groupID st
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	return trace.Wrap(pageIterator.Iterate(ctx, f))
+}
+
+func (w *graphClientWrapper) IterateApplications(ctx context.Context, f func(models.Applicationable) bool) error {
+	resp, err := w.client.Applications().Get(ctx, nil)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	pageIterator, err := msgraphsdkcore.NewPageIterator[models.Applicationable](resp, w.client.GetAdapter(), models.CreateApplicationCollectionResponseFromDiscriminatorValue)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	return trace.Wrap(pageIterator.Iterate(ctx, f))
 }

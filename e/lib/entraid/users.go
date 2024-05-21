@@ -9,7 +9,6 @@ import (
 
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
-	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -33,7 +32,7 @@ func (r *DirectoryReconciler) reconcileUsers(ctx context.Context) (map[entraUniq
 
 	usersByEntraID := map[entraUniqueID]types.User{}
 	for _, u := range entraUsers {
-		id, ok := u.GetLabel(eteleport.EntraUniqueIDLabel)
+		id, ok := u.GetLabel(types.EntraUniqueIDLabel)
 		if !ok {
 			return nil, trace.BadParameter("user %v missing Entra ID unique ID label", u.GetName())
 		}
@@ -108,19 +107,28 @@ func listEntraUsers(ctx context.Context, graphClient graphClient, tenantID strin
 }
 
 func convertUser(in models.Userable, tenantID string) (types.User, error) {
+	upn := in.GetUserPrincipalName()
+	if upn == nil {
+		return nil, trace.BadParameter("expected Entra ID user to have a UPN")
+	}
+
 	username := in.GetMail()
 	if username == nil {
-		upn := in.GetUserPrincipalName()
-		if upn == nil {
-			return nil, trace.BadParameter("expected Entra ID user to have a UPN")
-		}
 		username = upn
 	}
+
+	samAccountName := in.GetOnPremisesSamAccountName()
+
 	out, err := types.NewUser(*username)
-	out.SetStaticLabels(map[string]string{
-		eteleport.EntraUniqueIDLabel: *in.GetId(),
-		eteleport.EntraTenantIDLabel: tenantID,
-	})
+	labels := map[string]string{
+		types.EntraUniqueIDLabel: *in.GetId(),
+		types.EntraTenantIDLabel: tenantID,
+		types.EntraUPNLabel:      *upn,
+	}
+	if samAccountName != nil {
+		labels[types.EntraSAMAccountNameLabel] = *samAccountName
+	}
+	out.SetStaticLabels(labels)
 	out.SetOrigin(types.OriginEntraID)
 	// Explicitly set to UNSET for idempotency.
 	// TODO(justinas): we should create SSO users instead of local, so this has no potential to clobber user-set passwords.

@@ -1,0 +1,185 @@
+package services
+
+import (
+	"context"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/gravitational/trace"
+	auth "github.com/microsoft/kiota-authentication-azure-go"
+	msgraphsdk "github.com/microsoftgraph/msgraph-sdk-go"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/e/lib/accessgraph"
+	"github.com/gravitational/teleport/e/lib/entraid"
+	eteleport "github.com/gravitational/teleport/e/lib/teleport"
+	"github.com/gravitational/teleport/integrations/access/common"
+	"github.com/gravitational/teleport/lib/integrations/azureoidc"
+	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/service"
+)
+
+const (
+	entraIDIdentityEvent = "EntraIDIdentity"
+	// EntraIDReadyEvent is generated when the EntraID service is started.
+	EntraIDReadyEvent = "EntraIDReady"
+	// EntraIDStoppedEvent is generated when the EntraID service is stopped.
+	EntraIDStoppedEvent = "EntraIDStopped"
+)
+
+func startEntraIDService(ctx context.Context, process *service.TeleportProcess, statusSink common.StatusSink, spec *types.PluginEntraIDSettings, integrationSpec *types.AzureOIDCIntegrationSpecV1) error {
+	// Register our request for AccessGraphPlugin credentials.
+	process.RegisterWithAuthServer(types.RoleAccessGraphPlugin, entraIDIdentityEvent)
+
+	logger := process.Config.Logger.With(teleport.ComponentKey, teleport.Component(eteleport.ComponentEntraID, process.GetID()))
+	authServer := process.GetAuthServer()
+
+	// Wait for EntraID credentials.
+	conn, err := process.WaitForConnector(entraIDIdentityEvent, logger)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if conn == nil {
+		// Is the server shutting down? Report back.
+		if err := ctx.Err(); err != nil {
+			return trace.Wrap(err)
+		}
+		return trace.BadParameter("failed to acquire AccessGraphPlugin credentials from Auth")
+	}
+
+	if err != nil {
+		// Update plugin status if the service is running as a plugin.
+		if statusSink != nil {
+			statusSink.Emit(ctx, &types.PluginStatusV1{Code: types.PluginStatusCode_OTHER_ERROR})
+		}
+
+		return trace.Wrap(err)
+	}
+
+	// Construct MS Graph Client
+
+	getAssertion := func(ctx context.Context) (string, error) {
+		token, err := azureoidc.GenerateEntraOIDCToken(ctx, authServer, authServer.GetKeyStore(), process.Clock)
+		if err != nil {
+			return "", err
+		}
+		return token, nil
+	}
+	graphClient, err := constructGraphClient(integrationSpec.TenantID, integrationSpec.ClientID, getAssertion)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Construct directory reconciler
+
+	owners := []accesslist.Owner{}
+	for _, name := range spec.SyncSettings.DefaultOwners {
+		owners = append(owners, accesslist.Owner{Name: name})
+	}
+
+	directoryReconciler, err := entraid.NewDirectoryReconciler(entraid.DirectoryReconcilerConfig{
+		GraphClient:   graphClient,
+		UserSvc:       authServer,
+		AccessListSvc: authServer,
+		DefaultOwners: owners,
+		TenantID:      integrationSpec.TenantID,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Construct Access Graph reconciler. This remains nil if access graph sync is not enabled.
+	var tagSynchronizer *entraid.AccessGraphSynchronizer
+	features := modules.GetModules().Features()
+	if spec.AccessGraphSettings != nil && features.AccessGraph {
+		tagCfg := process.Config.AccessGraph
+		if !tagCfg.Enabled || tagCfg.Addr == "" {
+			return trace.BadParameter("Access graph synchronization requested, but access graph is not configured ")
+		}
+
+		creds := accessgraph.ClientCredentials{
+			CertPEM: conn.ClientIdentity.TLSCertBytes,
+			KeyPEM:  conn.ClientIdentity.KeyBytes,
+		}
+
+		tagSynchronizer, err = entraid.NewAccessGraphSynchronizer(entraid.AccessGraphConfig{
+			Logger:           logger,
+			ConnectionConfig: tagCfg,
+			Credentials:      creds,
+			SyncSettings:     spec.AccessGraphSettings,
+			GraphClient:      graphClient,
+			TenantID:         integrationSpec.TenantID,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	// Construct the main Entra ID service
+
+	svc, err := entraid.NewService(entraid.ServiceConfig{
+		Logger:                  logger,
+		PluginStatusSink:        statusSink,
+		DirectoryReconciler:     directoryReconciler,
+		AccessGraphSynchronizer: tagSynchronizer,
+		SemaphoreSvc:            authServer,
+		HostID:                  process.Config.HostUUID,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Update plugin status if the service is running as a plugin.
+	if statusSink != nil {
+		statusSink.Emit(ctx, &types.PluginStatusV1{Code: types.PluginStatusCode_RUNNING})
+	}
+
+	// Broadcast that we are ready and start.
+	process.BroadcastEvent(service.Event{Name: EntraIDReadyEvent})
+	err = svc.Run(ctx)
+
+	process.BroadcastEvent(service.Event{Name: EntraIDStoppedEvent})
+	return trace.Wrap(err)
+}
+
+// EntraIDPluginInit initializes hosted Entra ID service (hosted plugin).
+// Returns immediately.
+func EntraIDPluginInit(ctx context.Context, process *service.TeleportProcess, statusSink common.StatusSink, spec *types.PluginEntraIDSettings, integrationSpec *types.AzureOIDCIntegrationSpecV1) (string, error) {
+	if process == nil {
+		return "", trace.BadParameter("process required")
+	}
+
+	// Set the expected instance role for this identity event since it's unique to this plugin.
+	process.SetExpectedInstanceRole(types.RoleAccessGraphPlugin, entraIDIdentityEvent)
+
+	process.RegisterFunc("entraid.init", func() error {
+		return startEntraIDService(ctx, process, statusSink, spec, integrationSpec)
+	})
+
+	return EventWithComponents(EntraIDStoppedEvent), nil
+}
+
+// constructGraphClient returns a new MS Graph API client using the given function to retrieve the client assertion.
+func constructGraphClient(tenantID string, clientID string, getAssertion func(context.Context) (string, error)) (*msgraphsdk.GraphServiceClient, error) {
+	// msGraphAPIScope is the OAuth scope for the Microsoft Graph API.
+	const msGraphAPIScope = "https://graph.microsoft.com/.default"
+
+	credential, err := azidentity.NewClientAssertionCredential(tenantID, clientID, getAssertion, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	authProvider, err := auth.NewAzureIdentityAuthenticationProviderWithScopes(credential, []string{msGraphAPIScope})
+	if err != nil {
+		return nil, err
+	}
+
+	adapter, err := msgraphsdk.NewGraphRequestAdapter(authProvider)
+	if err != nil {
+		return nil, err
+	}
+
+	return msgraphsdk.NewGraphServiceClient(adapter), nil
+}

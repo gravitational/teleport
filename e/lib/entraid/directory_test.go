@@ -61,6 +61,10 @@ func (c *fakeGraphClient) IterateUsers(ctx context.Context, f func(models.Userab
 	return nil
 }
 
+func (c *fakeGraphClient) IterateApplications(ctx context.Context, f func(models.Applicationable) bool) error {
+	panic("not implemented")
+}
+
 func TestEntraIDService(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
@@ -87,6 +91,8 @@ func TestEntraIDService(t *testing.T) {
 	aliceEntra := models.NewUser()
 	aliceEntra.SetId(&aliceID)
 	aliceEntra.SetUserPrincipalName(&aliceUPN)
+	aliceSAMAccountName := "alice-on-prem"
+	aliceEntra.SetOnPremisesSamAccountName(&aliceSAMAccountName)
 	graphClient.users = append(graphClient.users, aliceEntra)
 
 	// Team A does not exist in Teleport, but exists in entra. Alice is a member
@@ -215,14 +221,17 @@ func TestEntraIDService(t *testing.T) {
 		aliceTeleport, err := identitySvc.GetUser(ctx, aliceUPN, false)
 		require.NoError(t, err)
 		require.Equal(t, types.OriginEntraID, aliceTeleport.GetAllLabels()[types.OriginLabel])
-		require.Equal(t, tenantID, aliceTeleport.GetAllLabels()[eteleport.EntraTenantIDLabel])
+		require.Equal(t, tenantID, aliceTeleport.GetAllLabels()[types.EntraTenantIDLabel])
+		require.Equal(t, aliceUPN, aliceTeleport.GetAllLabels()[types.EntraUPNLabel])
+		require.Equal(t, aliceSAMAccountName, aliceTeleport.GetAllLabels()[types.EntraSAMAccountNameLabel])
 
 		teamATeleportExpected, err := convertGroup(teamAEntra, tenantID, defaultOwners)
 		require.NoError(t, err)
 		teamATeleport, err := alSvc.GetAccessList(ctx, teamATeleportExpected.GetName())
 		require.NoError(t, err)
+		require.Equal(t, "Team A", teamATeleport.Spec.Title)
 		require.Equal(t, types.OriginEntraID, teamATeleport.GetAllLabels()[types.OriginLabel])
-		require.Equal(t, tenantID, teamATeleport.GetAllLabels()[eteleport.EntraTenantIDLabel])
+		require.Equal(t, tenantID, teamATeleport.GetAllLabels()[types.EntraTenantIDLabel])
 		require.Equal(t, defaultOwners, teamATeleport.GetOwners())
 		require.Equal(t, []string{teamAID}, teamATeleport.GetGrants().Traits[eteleport.EntraMemberOfGroupTrait])
 
@@ -286,6 +295,6 @@ func compareResources(t *testing.T, expected, actual types.Resource) string {
 // userMap returns an entra ID -> teleport User look up map with a single object
 // for use in calls to convertGroupMember() in tests
 func userMap(u types.User) map[entraUniqueID]types.User {
-	l := entraUniqueID(u.GetAllLabels()[eteleport.EntraUniqueIDLabel])
+	l := entraUniqueID(u.GetAllLabels()[types.EntraUniqueIDLabel])
 	return map[entraUniqueID]types.User{l: u}
 }

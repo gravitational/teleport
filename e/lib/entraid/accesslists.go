@@ -173,7 +173,7 @@ func listEntraAccessListMembers(ctx context.Context, graphClient graphClient, en
 	result := map[string]*accesslist.AccessListMember{}
 	// TODO(justinas): look into batching this if possible.
 	for _, al := range als {
-		id, ok := al.GetLabel(eteleport.EntraUniqueIDLabel)
+		id, ok := al.GetLabel(types.EntraUniqueIDLabel)
 		if !ok {
 			return nil, trace.BadParameter("access list %v missing Entra ID unique ID label", al.GetName())
 		}
@@ -210,14 +210,13 @@ func convertGroup(in models.Groupable, tenantID string, defaultOwners []accessli
 		return nil, trace.BadParameter("expected Entra ID group to have a non-empty ID")
 	}
 	id := *in.GetId()
-	title := accessListName(displayName, id)
 
 	out, err := accesslist.NewAccessList(
 		header.Metadata{
 			Name: accessListName(displayName, id),
 		},
 		accesslist.Spec{
-			Title:  title,
+			Title:  displayName,
 			Owners: defaultOwners,
 			Grants: accesslist.Grants{
 				Traits: trait.Traits{
@@ -230,9 +229,9 @@ func convertGroup(in models.Groupable, tenantID string, defaultOwners []accessli
 		return nil, trace.Wrap(err)
 	}
 	out.SetStaticLabels(map[string]string{
-		eteleport.EntraTenantIDLabel:    tenantID,
-		eteleport.EntraUniqueIDLabel:    id,
-		eteleport.EntraDisplayNameLabel: displayName,
+		types.EntraTenantIDLabel:    tenantID,
+		types.EntraUniqueIDLabel:    id,
+		types.EntraDisplayNameLabel: displayName,
 	})
 	out.SetOrigin(types.OriginEntraID)
 	return out, nil
