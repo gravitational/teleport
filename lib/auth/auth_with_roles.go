@@ -6409,9 +6409,30 @@ func (a *ServerWithRoles) GetWindowsDesktops(ctx context.Context, filter types.W
 	return filtered, nil
 }
 
+// hostIDExistsAndIsValid checks if the host ID exists and matches a registered windows desktop service.
+func (a *ServerWithRoles) hostIDExistsAndIsValid(ctx context.Context, s types.WindowsDesktop) error {
+	hostID := s.GetHostID()
+	if hostID == "" {
+		return trace.BadParameter("host_id is required")
+	}
+	wdss, err := a.authServer.GetWindowsDesktopServices(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for _, wds := range wdss {
+		if wds.GetName() == hostID {
+			return nil
+		}
+	}
+	return trace.BadParameter("host_id %q does not match the name of any registered windows_desktop_service", hostID)
+}
+
 // CreateWindowsDesktop creates a new windows desktop host.
 func (a *ServerWithRoles) CreateWindowsDesktop(ctx context.Context, s types.WindowsDesktop) error {
 	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktop, types.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.hostIDExistsAndIsValid(ctx, s); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.CreateWindowsDesktop(ctx, s)
@@ -6449,9 +6470,9 @@ func (a *ServerWithRoles) UpsertWindowsDesktop(ctx context.Context, s types.Wind
 		return trace.Wrap(err)
 	}
 
-	if s.GetHostID() == "" {
-		// dont try to insert desktops with empty hostIDs
-		return nil
+	// Ensure the host ID is valid.
+	if err := a.hostIDExistsAndIsValid(ctx, s); err != nil {
+		return trace.Wrap(err)
 	}
 
 	// If the desktop exists, check access,
