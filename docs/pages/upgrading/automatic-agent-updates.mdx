@@ -276,6 +276,13 @@ This section assumes that the name of your `teleport-kube-agent` release is
      enabled: true
    ```
 
+1. Update the Teleport Helm repository to include any new versions of the
+   `teleport-kube-agent` chart:
+
+   ```code
+   $ helm repo update teleport
+   ```
+
 1. Update the Helm chart release with the new values:
 
    <Tabs>
