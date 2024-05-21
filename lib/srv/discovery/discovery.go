@@ -135,6 +135,7 @@ type Config struct {
 	ClusterName string
 	// PollInterval is the cadence at which the discovery server will run each of its
 	// discovery cycles.
+	// Default: [github.com/gravitational/teleport/lib/srv/discovery/common.DefaultDiscoveryPollInterval]
 	PollInterval time.Duration
 
 	// ClusterFeatures returns flags for supported/unsupported features.
@@ -225,7 +226,7 @@ kubernetes matchers are present.`)
 	}
 
 	if c.PollInterval == 0 {
-		c.PollInterval = 5 * time.Minute
+		c.PollInterval = common.DefaultDiscoveryPollInterval
 	}
 
 	c.TriggerFetchC = make([]chan struct{}, 0)
