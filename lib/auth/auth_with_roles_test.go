@@ -5629,7 +5629,7 @@ func TestCreateSAMLIdPSession(t *testing.T) {
 		},
 		"as session user": {
 			identity:  TestUser(alice),
-			assertErr: require.NoError,
+			assertErr: require.Error,
 		},
 		"as other user": {
 			identity:  TestUser(bob),
@@ -5637,7 +5637,7 @@ func TestCreateSAMLIdPSession(t *testing.T) {
 		},
 		"as admin user": {
 			identity:  TestUser(admin),
-			assertErr: require.NoError,
+			assertErr: require.Error,
 		},
 	}
 	for name, test := range tests {
@@ -5665,11 +5665,8 @@ func TestGetSAMLIdPSession(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	// setup a session to get, for user "alice".
-	aliceClient, err := srv.NewClient(TestUser(alice))
-	require.NoError(t, err)
 
-	sess, err := aliceClient.CreateSAMLIdPSession(ctx, types.CreateSAMLIdPSessionRequest{
+	sess, err := srv.Auth().CreateSAMLIdPSession(ctx, types.CreateSAMLIdPSessionRequest{
 		SessionID:   "test",
 		Username:    alice,
 		SAMLSession: &types.SAMLSessionData{},
@@ -5686,7 +5683,7 @@ func TestGetSAMLIdPSession(t *testing.T) {
 		},
 		"as session user": {
 			identity:  TestUser(alice),
-			assertErr: require.NoError,
+			assertErr: require.Error,
 		},
 		"as other user": {
 			identity:  TestUser(bob),
@@ -5777,15 +5774,13 @@ func TestDeleteSAMLIdPSession(t *testing.T) {
 		},
 	}
 
-	aliceClient, err := srv.NewClient(TestUser(alice))
-	require.NoError(t, err)
 	for name, test := range tests {
 		test := test
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			sess, err := aliceClient.CreateSAMLIdPSession(ctx, types.CreateSAMLIdPSessionRequest{
+			sess, err := srv.Auth().CreateSAMLIdPSession(ctx, types.CreateSAMLIdPSessionRequest{
 				SessionID:   uuid.NewString(),
 				Username:    alice,
 				SAMLSession: &types.SAMLSessionData{},
