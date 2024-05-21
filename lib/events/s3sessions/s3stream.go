@@ -214,7 +214,7 @@ func (h *Handler) ListParts(ctx context.Context, upload events.StreamUpload) ([]
 		if !aws.BoolValue(re.IsTruncated) {
 			break
 		}
-		partNumberMarker = re.PartNumberMarker
+		partNumberMarker = re.NextPartNumberMarker
 	}
 	// Parts must be sorted in PartNumber order.
 	sort.Slice(parts, func(i, j int) bool {
