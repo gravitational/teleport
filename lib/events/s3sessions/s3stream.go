@@ -254,8 +254,8 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 		if !aws.BoolValue(re.IsTruncated) {
 			break
 		}
-		keyMarker = re.KeyMarker
-		uploadIDMarker = re.UploadIdMarker
+		keyMarker = re.NextKeyMarker
+		uploadIDMarker = re.NextUploadIdMarker
 	}
 
 	sort.Slice(uploads, func(i, j int) bool {
