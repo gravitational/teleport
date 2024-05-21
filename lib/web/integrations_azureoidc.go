@@ -48,7 +48,7 @@ func (h *Handler) azureOIDCConfigure(w http.ResponseWriter, r *http.Request, p h
 	}
 	// Ensure the auth connector name is valid
 	const withSecrets = false
-	_, err = h.GetProxyClient().GetSAMLConnector(ctx, authConnectorName, false)
+	_, err = h.GetProxyClient().GetSAMLConnector(ctx, authConnectorName, withSecrets)
 	// NotFound error is ignored to prevent disclosure of whether the integration exists in a public/no-auth endpoint.
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
