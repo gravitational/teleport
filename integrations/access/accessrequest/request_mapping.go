@@ -47,7 +47,7 @@ func parseAccessRequestExpression(expr string) (accessRequestExpression, error) 
 	}
 	parsedExpr, err := parser.Parse(expr)
 	if err != nil {
-		return nil, trace.Wrap(err, "parsing label expression")
+		return nil, trace.Wrap(err, "parsing access monitoring rule condition expression")
 	}
 	return parsedExpr, nil
 }

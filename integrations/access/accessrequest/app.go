@@ -176,7 +176,7 @@ func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
 	case types.KindAccessRequest:
 		return trace.Wrap(a.handleAcessRequest(ctx, event))
 	}
-	return trace.Errorf("unexpected kind %s", event.Resource.GetKind())
+	return trace.BadParameter("unexpected kind %s", event.Resource.GetKind())
 }
 
 func (a *App) handleAcessRequest(ctx context.Context, event types.Event) error {
@@ -189,7 +189,7 @@ func (a *App) handleAcessRequest(ctx context.Context, event types.Event) error {
 		ctx, _ = logger.WithField(ctx, "request_op", "put")
 		req, ok := event.Resource.(types.AccessRequest)
 		if !ok {
-			return trace.Errorf("unexpected resource type %T", event.Resource)
+			return trace.BadParameter("unexpected resource type %T", event.Resource)
 		}
 		ctx, log := logger.WithField(ctx, "request_state", req.GetState().String())
 
