@@ -1482,6 +1482,7 @@ type Discovery struct {
 	DiscoveryGroup string `yaml:"discovery_group,omitempty"`
 	// PollInterval is the cadence at which the discovery server will run each of its
 	// discovery cycles.
+	// Default: [github.com/gravitational/teleport/lib/srv/discovery/common.DefaultDiscoveryPollInterval]
 	PollInterval time.Duration `yaml:"poll_interval,omitempty"`
 }
 
