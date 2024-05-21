@@ -146,49 +146,6 @@ export function AwsAccount() {
     }
   }, [attempt.status, fetch, hasAccess]);
 
-  async function fetchAwsIntegrationsWithApps(
-    clusterId: string,
-    isAddingAwsApp: boolean
-  ): Promise<{
-    awsIntegrations: Integration[];
-    apps: App[];
-  }> {
-    const integrationPage = await integrationService.fetchIntegrations();
-    const awsIntegrations = integrationPage.items.filter(
-      i => i.kind === 'aws-oidc'
-    );
-    if (!isAddingAwsApp || awsIntegrations.length === 0) {
-      // Skip fetching for apps
-      return { awsIntegrations, apps: [] };
-    }
-
-    const resourceSvc = new ResourceService();
-    // fetch for apps that match fetched integration names.
-    // used later to determine if the integration user selected
-    // already has an application created for it.
-    const query = awsIntegrations
-      .map(i => `resource.spec.integration == "${i.name}"`)
-      .join(' || ');
-
-    const { agents: resources } = await resourceSvc.fetchUnifiedResources(
-      clusterId,
-      {
-        query,
-        limit: awsIntegrations.length,
-        kinds: ['app'],
-        sort: { fieldName: 'name', dir: 'ASC' },
-      }
-    );
-    return { awsIntegrations, apps: resources as App[] };
-  }
-
-  function makeAwsIntegrationOption(integration: Integration): Option {
-    return {
-      value: integration,
-      label: integration.name,
-    };
-  }
-
   if (!hasAccess) {
     return (
       <Box maxWidth="700px">
@@ -342,6 +299,49 @@ export function AwsAccount() {
       </Box>
     </Box>
   );
+}
+
+function makeAwsIntegrationOption(integration: Integration): Option {
+  return {
+    value: integration,
+    label: integration.name,
+  };
+}
+
+async function fetchAwsIntegrationsWithApps(
+  clusterId: string,
+  isAddingAwsApp: boolean
+): Promise<{
+  awsIntegrations: Integration[];
+  apps: App[];
+}> {
+  const integrationPage = await integrationService.fetchIntegrations();
+  const awsIntegrations = integrationPage.items.filter(
+    i => i.kind === 'aws-oidc'
+  );
+  if (!isAddingAwsApp || awsIntegrations.length === 0) {
+    // Skip fetching for apps
+    return { awsIntegrations, apps: [] };
+  }
+
+  const resourceSvc = new ResourceService();
+  // fetch for apps that match fetched integration names.
+  // used later to determine if the integration user selected
+  // already has an application created for it.
+  const query = awsIntegrations
+    .map(i => `resource.spec.integration == "${i.name}"`)
+    .join(' || ');
+
+  const { agents: resources } = await resourceSvc.fetchUnifiedResources(
+    clusterId,
+    {
+      query,
+      limit: awsIntegrations.length,
+      kinds: ['app'],
+      sort: { fieldName: 'name', dir: 'ASC' },
+    }
+  );
+  return { awsIntegrations, apps: resources as App[] };
 }
 
 const Heading = () => (

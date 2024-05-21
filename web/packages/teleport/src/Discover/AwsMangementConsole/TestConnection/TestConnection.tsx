@@ -33,6 +33,7 @@ import {
 } from 'teleport/Discover/Shared';
 import useTeleport from 'teleport/useTeleport';
 import { splitAwsIamArn } from 'teleport/services/integrations/aws';
+import { AWS_TAG_INFO_LINK } from 'teleport/Discover/Shared/const';
 
 import { AppMeta, useDiscover } from '../../useDiscover';
 
@@ -72,7 +73,7 @@ export function TestConnection() {
     <Box>
       <Header>Test Connection</Header>
       <HeaderSubtitle>
-        Optionally verify that you can successfully connect to the application
+        Optionally, verify that you can successfully connect to the application
         you just added.
       </HeaderSubtitle>
       <StyledBox mb={5}>
@@ -120,15 +121,12 @@ export function TestConnection() {
       </StyledBox>
       <OutlineInfo mb={3} linkColor="buttons.link.default" width="800px">
         <Text>
-          If connection can't be established, ensure the IAM role you are trying
-          to assume is{' '}
-          <Link
-            target="_blank"
-            href="https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags_roles.html#id_tags_roles_procs-console"
-          >
+          If the connection can't be established, ensure the IAM role you are
+          trying to assume is{' '}
+          <Link target="_blank" href={AWS_TAG_INFO_LINK}>
             tagged
           </Link>{' '}
-          with key <Mark>teleport.dev/integration</Mark> with value{' '}
+          with key <Mark>teleport.dev/integration</Mark> and value{' '}
           <Mark>true</Mark>.
         </Text>
       </OutlineInfo>

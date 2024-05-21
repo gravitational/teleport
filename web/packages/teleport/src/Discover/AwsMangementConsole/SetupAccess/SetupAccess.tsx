@@ -33,6 +33,7 @@ import {
 } from 'teleport/Discover/Shared/SetupAccess';
 import { Mark } from 'teleport/Discover/Shared';
 import { styles } from 'teleport/Discover/Shared/SelectCreatable/SelectCreatable';
+import { AWS_TAG_INFO_LINK } from 'teleport/Discover/Shared/const';
 
 export function SetupAccess() {
   const {
@@ -55,12 +56,13 @@ export function SetupAccess() {
   }, [restOfProps.attempt.status]);
 
   function handleKeyDown(event: React.KeyboardEvent, validator: Validator) {
+    if (!inputValue) return;
     switch (event.key) {
       case 'Enter':
       case 'Tab':
         if (!validator.validate()) return;
-        setSelectedArns([
-          ...selectedArns,
+        setSelectedArns(prevArns => [
+          ...prevArns,
           { value: inputValue, label: inputValue },
         ]);
         setInputValue('');
@@ -81,13 +83,10 @@ export function SetupAccess() {
     <OutlineInfo mt={-3} mb={3} linkColor="buttons.link.default">
       <Text>
         Only{' '}
-        <Link
-          target="_blank"
-          href="https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags_roles.html#id_tags_roles_procs-console"
-        >
+        <Link target="_blank" href={AWS_TAG_INFO_LINK}>
           IAM roles with tag
         </Link>{' '}
-        key <Mark>teleport.dev/integration</Mark> with value <Mark>true</Mark>{' '}
+        key <Mark>teleport.dev/integration</Mark> and value <Mark>true</Mark>{' '}
         are allowed to be used by the integration.
       </Text>
     </OutlineInfo>

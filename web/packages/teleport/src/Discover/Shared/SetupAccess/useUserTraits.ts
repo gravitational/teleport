@@ -106,7 +106,7 @@ export function useUserTraits() {
 
     // Note: specific to AWS CLI access
     case ResourceKind.Application:
-      if (resourceSpec.appMeta.awsConsole) {
+      if (resourceSpec.appMeta?.awsConsole) {
         const { awsRoles } = (agentMeta as AppMeta).app;
         staticTraits.awsRoleArns = arrayStrDiff(
           awsRoles.map(r => r.arn),
@@ -114,13 +114,12 @@ export function useUserTraits() {
         );
         break;
       }
-
-    // allow fall through
-    // eslint-disable-next-line no-fallthrough
-    default:
       throw new Error(
-        `useUserTraits.ts:statiTraits: resource kind ${resourceSpec.kind} is not handled`
+        `resource kind is application, but there is no handler defined`
       );
+
+    default:
+      throw new Error(`resource kind ${resourceSpec.kind} is not handled`);
   }
 
   useEffect(() => {
@@ -206,7 +205,7 @@ export function useUserTraits() {
         break;
 
       case ResourceKind.Application:
-        if (resourceSpec.appMeta.awsConsole) {
+        if (resourceSpec.appMeta?.awsConsole) {
           let newDynamicArns = new Set<string>();
           traitOpts.awsRoleArns.forEach(o => {
             if (!staticTraits.awsRoleArns.includes(o.value)) {
@@ -222,12 +221,11 @@ export function useUserTraits() {
           );
           break;
         }
-
-      // eslint-disable-next-line no-fallthrough
-      default:
         throw new Error(
-          `useUserTrait.ts:onProceed: resource kind ${resourceSpec.kind} is not handled`
+          `resource kind is application, but there is no handler defined`
         );
+      default:
+        throw new Error(`resource kind ${resourceSpec.kind} is not handled`);
     }
   }
 
@@ -283,7 +281,7 @@ export function useUserTraits() {
         break;
 
       case ResourceKind.Application:
-        if (resourceSpec.appMeta.awsConsole) {
+        if (resourceSpec.appMeta?.awsConsole) {
           const app = (meta as AppMeta).app;
           const arns = [
             ...staticTraits.awsRoleArns,
@@ -307,12 +305,12 @@ export function useUserTraits() {
           });
           break;
         }
-
-      // eslint-disable-next-line no-fallthrough
-      default:
         throw new Error(
-          `useUserTraits.ts:updateResourceMetaDynamicTraits: resource kind ${resourceSpec.kind} is not handled`
+          `resource kind is application, but there is no handler defined`
         );
+
+      default:
+        throw new Error(`resource kind ${resourceSpec.kind} is not handled`);
     }
   }
 

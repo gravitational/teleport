@@ -47,11 +47,7 @@ export type Props = {
   children: React.ReactNode;
   infoContent?: React.ReactNode;
   wantAutoDiscover?: boolean;
-  /**
-   * preContent is a component that will render
-   * after field title/headerSubtitle and before
-   * field children (the main content)
-   */
+  /** A component below the header and above the main content. */
   preContent?: React.ReactNode;
 };
 

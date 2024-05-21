@@ -16,11 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
 import { AwsAccount, ResourceKind, Finished } from 'teleport/Discover/Shared';
 import { ResourceViewConfig } from 'teleport/Discover/flow';
-import { AwsCliWrapper } from 'teleport/Discover/AwsMangementConsole/AwsManagementConsole';
 import { ResourceSpec } from 'teleport/Discover/SelectResource';
 
 import { DiscoverEvent } from 'teleport/services/userEvent';
@@ -31,14 +28,8 @@ import { TestConnection } from './TestConnection/TestConnection';
 
 export const AwsMangementConsole: ResourceViewConfig<ResourceSpec> = {
   kind: ResourceKind.Application,
-  wrapper(component: React.ReactNode) {
-    return <AwsCliWrapper>{component}</AwsCliWrapper>;
-  },
   shouldPrompt(currentStep) {
-    if (currentStep === 0) {
-      return false;
-    }
-    return true;
+    return currentStep !== 0;
   },
   views() {
     return [

@@ -42,21 +42,21 @@ export function CreateAppAccess() {
     useDiscover();
   const { awsIntegration } = agentMeta;
 
-  const [attempt, createApp] = useAsync(async () =>
-    integrationService
-      .createAwsAppAccess(awsIntegration.name)
-      .then(app => {
-        updateAgentMeta({
-          ...agentMeta,
-          app,
-          resourceName: app.name,
-        });
-      })
-      .catch((err: Error) => {
-        emitErrorEvent(err.message);
-        throw err;
-      })
-  );
+  const [attempt, createApp] = useAsync(async () => {
+    try {
+      const app = await integrationService.createAwsAppAccess(
+        awsIntegration.name
+      );
+      updateAgentMeta({
+        ...agentMeta,
+        app,
+        resourceName: app.name,
+      });
+    } catch (err) {
+      emitErrorEvent(err.message);
+      throw err;
+    }
+  });
 
   const iamRoleName = splitAwsIamArn(
     agentMeta.awsIntegration.spec.roleArn

@@ -39,7 +39,7 @@ export function AppCreatedDialog({
         <Flex mb={5}>
           <Icons.Check size="small" ml={1} mr={2} color="success.main" />
           <Text>
-            Successfully created an application server named "{appName}"
+            Successfully created an application server named "{appName}".
           </Text>
         </Flex>
         <ButtonPrimary width="100%" onClick={() => toNextStep()}>
