@@ -61,7 +61,7 @@ func New(ctx context.Context, config MigrationConfig) (*Migration, error) {
 	if migration.log == nil {
 		migration.log = logrus.WithField(teleport.ComponentKey, "migration")
 	}
-	return nil, nil
+	return migration, nil
 }
 
 // Run runs a [Migration] until complete.
