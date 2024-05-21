@@ -56,6 +56,9 @@ type App struct {
 	UserGroups []UserGroupAndDescription `json:"userGroups,omitempty"`
 	// SAMLApp if true, indicates that the app is a SAML Application (SAML IdP Service Provider)
 	SAMLApp bool `json:"samlApp,omitempty"`
+	// Integration is the integration name that must be used to access this Application.
+	// Only applicable to AWS App Access.
+	Integration string `json:"integration,omitempty"`
 }
 
 // UserGroupAndDescription is a user group name and its description.
@@ -130,6 +133,7 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 		FriendlyName: types.FriendlyName(app),
 		UserGroups:   userGroupAndDescriptions,
 		SAMLApp:      false,
+		Integration:  app.GetIntegration(),
 	}
 
 	if app.IsAWSConsole() {
