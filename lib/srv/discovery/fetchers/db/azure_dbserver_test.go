@@ -32,7 +32,6 @@ import (
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/azure"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
@@ -346,7 +345,7 @@ func makeAzureMySQLServer(t *testing.T, name, subscription, group, region string
 
 	azureDBServer := azure.ServerFromMySQLServer(server)
 
-	database, err := services.NewDatabaseFromAzureServer(azureDBServer)
+	database, err := common.NewDatabaseFromAzureServer(azureDBServer)
 	require.NoError(t, err)
 	common.ApplyAzureDatabaseNameSuffix(database, types.AzureMatcherMySQL)
 	return server, database
@@ -382,7 +381,7 @@ func makeAzurePostgresServer(t *testing.T, name, subscription, group, region str
 
 	azureDBServer := azure.ServerFromPostgresServer(server)
 
-	database, err := services.NewDatabaseFromAzureServer(azureDBServer)
+	database, err := common.NewDatabaseFromAzureServer(azureDBServer)
 	require.NoError(t, err)
 	common.ApplyAzureDatabaseNameSuffix(database, types.AzureMatcherPostgres)
 	return server, database

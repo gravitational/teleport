@@ -47,6 +47,7 @@ import (
 	dbhelpers "github.com/gravitational/teleport/integration/db"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -163,7 +164,7 @@ func TestTeleterm(t *testing.T) {
 			require.NoError(t, err)
 			device.SetPasswordless()
 
-			token, err := authServer.CreateResetPasswordToken(context.Background(), auth.CreateUserTokenRequest{
+			token, err := authServer.CreateResetPasswordToken(context.Background(), authclient.CreateUserTokenRequest{
 				Name: userName,
 			})
 			require.NoError(t, err)

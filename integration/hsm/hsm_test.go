@@ -36,9 +36,9 @@ import (
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keystore"
+	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/etcdbk"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -181,9 +181,9 @@ func TestHSMRotation(t *testing.T) {
 }
 
 func getAdminClient(authDataDir string, authAddr string) (*authclient.Client, error) {
-	identity, err := auth.ReadLocalIdentity(
+	identity, err := state.ReadLocalIdentity(
 		filepath.Join(authDataDir, teleport.ComponentProcess),
-		auth.IdentityID{Role: types.RoleAdmin})
+		state.IdentityID{Role: types.RoleAdmin})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -448,10 +448,10 @@ func TestHSMMigrate(t *testing.T) {
 	// start a dual auth non-hsm cluster
 	log.Debug("TestHSMMigrate: Starting auth server 1")
 	auth1Config := newHSMAuthConfig(t, storageConfig, log)
-	auth1Config.Auth.KeyStore = keystore.Config{}
+	auth1Config.Auth.KeyStore = servicecfg.KeystoreConfig{}
 	auth1 := newTeleportService(t, auth1Config, "auth1")
 	auth2Config := newHSMAuthConfig(t, storageConfig, log)
-	auth2Config.Auth.KeyStore = keystore.Config{}
+	auth2Config.Auth.KeyStore = servicecfg.KeystoreConfig{}
 	auth2 := newTeleportService(t, auth2Config, "auth2")
 	require.NoError(t, auth1.start(ctx))
 	require.NoError(t, auth2.start(ctx))
@@ -607,7 +607,7 @@ func TestHSMRevert(t *testing.T) {
 	// Switch config back to default (software) and restart.
 	auth1.process.Close()
 	require.NoError(t, auth1.waitForShutdown(ctx))
-	auth1Config.Auth.KeyStore = keystore.Config{}
+	auth1Config.Auth.KeyStore = servicecfg.KeystoreConfig{}
 	auth1 = newTeleportService(t, auth1Config, "auth1")
 	require.NoError(t, auth1.start(ctx))
 

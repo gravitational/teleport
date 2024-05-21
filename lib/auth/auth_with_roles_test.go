@@ -66,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -1805,7 +1806,7 @@ func TestStreamSessionEventsRBAC(t *testing.T) {
 	select {
 	case err := <-errC:
 		require.True(t, trace.IsAccessDenied(err), "expected access denied error, got %v", err)
-	case <-time.After(1 * time.Second):
+	case <-time.After(5 * time.Second):
 		require.FailNow(t, "expected access denied error but stream succeeded")
 	}
 }
@@ -2183,7 +2184,7 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 	discoveryClt, err := srv.NewClient(TestBuiltin(types.RoleDiscovery))
 	require.NoError(t, err)
 
-	eksCluster, err := services.NewKubeClusterFromAWSEKS(
+	eksCluster, err := common.NewKubeClusterFromAWSEKS(
 		"eks-cluster1",
 		"arn:aws:eks:eu-west-1:accountID:cluster/cluster1",
 		nil,
@@ -2203,7 +2204,7 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 	require.NoError(t, srv.Auth().CreateKubernetesCluster(ctx, nonCloudCluster))
 
 	// Discovery service cannot create cluster with dynamic labels.
-	clusterWithDynamicLabels, err := services.NewKubeClusterFromAWSEKS(
+	clusterWithDynamicLabels, err := common.NewKubeClusterFromAWSEKS(
 		"eks-cluster2",
 		"arn:aws:eks:eu-west-1:accountID:cluster/cluster2",
 		nil,

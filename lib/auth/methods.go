@@ -54,26 +54,10 @@ const (
 	maxUserAgentLen = 2048
 )
 
-// AuthenticateUserRequest is a request to authenticate interactive user
-type AuthenticateUserRequest = authclient.AuthenticateUserRequest
-
-// ForwardedClientMetadata can be used by the proxy web API to forward information about
-// the client to the auth service.
-type ForwardedClientMetadata = authclient.ForwardedClientMetadata
-
-// PassCreds is a password credential
-type PassCreds = authclient.PassCreds
-
-// OTPCreds is a two-factor authentication credentials
-type OTPCreds = authclient.OTPCreds
-
-// SessionCreds is a web session credentials
-type SessionCreds = authclient.SessionCreds
-
 // authenticateUserLogin implements the bulk of user login authentication.
 // Used by the top-level local login methods, [Server.AuthenticateSSHUser] and
 // [Server.AuthenticateWebUser]
-func (a *Server) authenticateUserLogin(ctx context.Context, req AuthenticateUserRequest) (services.UserState, services.AccessChecker, error) {
+func (a *Server) authenticateUserLogin(ctx context.Context, req authclient.AuthenticateUserRequest) (services.UserState, services.AccessChecker, error) {
 	username := req.Username
 
 	requiredExt := mfav1.ChallengeExtensions{
@@ -160,7 +144,7 @@ func (a *Server) authenticateUserLogin(ctx context.Context, req AuthenticateUser
 
 type authAuditProps struct {
 	username       string
-	clientMetadata *ForwardedClientMetadata
+	clientMetadata *authclient.ForwardedClientMetadata
 	mfaDevice      *types.MFADevice
 	checker        services.AccessChecker
 	authErr        error
@@ -271,7 +255,7 @@ type verifyMFADeviceLocksParams struct {
 // Callers MUST call the verifyLocks callback.
 func (a *Server) authenticateUser(
 	ctx context.Context,
-	req AuthenticateUserRequest,
+	req authclient.AuthenticateUserRequest,
 	requiredExt mfav1.ChallengeExtensions,
 ) (verifyLocks func(verifyMFADeviceLocksParams) error, mfaDev *types.MFADevice, user string, err error) {
 	mfaDev, user, err = a.authenticateUserInternal(ctx, req, requiredExt)
@@ -321,7 +305,7 @@ func (a *Server) authenticateUser(
 // Do not use this method directly, use authenticateUser instead.
 func (a *Server) authenticateUserInternal(
 	ctx context.Context,
-	req AuthenticateUserRequest,
+	req authclient.AuthenticateUserRequest,
 	requiredExt mfav1.ChallengeExtensions,
 ) (mfaDev *types.MFADevice, user string, err error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
@@ -474,7 +458,7 @@ func (a *Server) authenticateUserInternal(
 	return nil, user, nil
 }
 
-func (a *Server) authenticatePasswordless(ctx context.Context, req AuthenticateUserRequest) (*types.MFADevice, string, error) {
+func (a *Server) authenticatePasswordless(ctx context.Context, req authclient.AuthenticateUserRequest) (*types.MFADevice, string, error) {
 	mfaResponse := &proto.MFAAuthenticateResponse{
 		Response: &proto.MFAAuthenticateResponse_Webauthn{
 			Webauthn: wantypes.CredentialAssertionResponseToProto(req.Webauthn),
@@ -503,7 +487,7 @@ func (a *Server) authenticatePasswordless(ctx context.Context, req AuthenticateU
 	return mfaData.Device, mfaData.User, nil
 }
 
-func (a *Server) authenticateHeadless(ctx context.Context, req AuthenticateUserRequest) (mfa *types.MFADevice, err error) {
+func (a *Server) authenticateHeadless(ctx context.Context, req authclient.AuthenticateUserRequest) (mfa *types.MFADevice, err error) {
 	// Delete the headless authentication upon failure.
 	defer func() {
 		if err != nil {
@@ -617,7 +601,7 @@ func (a *Server) waitForHeadlessApproval(ctx context.Context, username, reqID st
 // AuthenticateWebUser authenticates web user, creates and returns a web session
 // if authentication is successful. In case the existing session ID is used to authenticate,
 // returns the existing session instead of creating a new one
-func (a *Server) AuthenticateWebUser(ctx context.Context, req AuthenticateUserRequest) (types.WebSession, error) {
+func (a *Server) AuthenticateWebUser(ctx context.Context, req authclient.AuthenticateUserRequest) (types.WebSession, error) {
 	username := req.Username // Empty if passwordless.
 
 	authPref, err := a.GetAuthPreference(ctx)
@@ -695,25 +679,9 @@ func (a *Server) AuthenticateWebUser(ctx context.Context, req AuthenticateUserRe
 	return sess, nil
 }
 
-// AuthenticateSSHRequest is a request to authenticate SSH client user via CLI
-type AuthenticateSSHRequest = authclient.AuthenticateSSHRequest
-
-// SSHLoginResponse is a response returned by web proxy, it preserves backwards compatibility
-// on the wire, which is the primary reason for non-matching json tags
-type SSHLoginResponse = authclient.SSHLoginResponse
-
-// TrustedCerts contains host certificates, it preserves backwards compatibility
-// on the wire, which is the primary reason for non-matching json tags
-type TrustedCerts = authclient.TrustedCerts
-
-// AuthoritiesToTrustedCerts serializes authorities to TrustedCerts data structure
-func AuthoritiesToTrustedCerts(authorities []types.CertAuthority) []authclient.TrustedCerts {
-	return authclient.AuthoritiesToTrustedCerts(authorities)
-}
-
 // AuthenticateSSHUser authenticates an SSH user and returns SSH and TLS
 // certificates for the public key in req.
-func (a *Server) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHRequest) (*SSHLoginResponse, error) {
+func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.AuthenticateSSHRequest) (*authclient.SSHLoginResponse, error) {
 	username := req.Username // Empty if passwordless.
 
 	authPref, err := a.GetAuthPreference(ctx)
@@ -792,11 +760,11 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHReq
 		return nil, trace.Wrap(err)
 	}
 	UserLoginCount.Inc()
-	return &SSHLoginResponse{
+	return &authclient.SSHLoginResponse{
 		Username:    user.GetName(),
 		Cert:        certs.SSH,
 		TLSCert:     certs.TLS,
-		HostSigners: AuthoritiesToTrustedCerts(hostCertAuthorities),
+		HostSigners: authclient.AuthoritiesToTrustedCerts(hostCertAuthorities),
 	}, nil
 }
 
