@@ -21,7 +21,8 @@ client-cert.pem:
 	# sign it with CA:
 	@touch index.txt
 	@echo '03' > serial
-	openssl ca -extensions etcd_client \
+	openssl ca -batch \
+		-extensions etcd_client \
 		-config openssl.cnf \
 	    -keyfile signing-ca-key.pem \
 	    -cert signing-ca-cert.pem \
@@ -41,7 +42,8 @@ server-cert.pem:
 	# sign it with CA:
 	@touch index.txt
 	@echo '01' > serial
-	openssl ca -extensions etcd_server \
+	openssl ca -batch \
+		-extensions etcd_server \
 		-config openssl.cnf \
 	    -keyfile signing-ca-key.pem \
 	    -cert signing-ca-cert.pem \
@@ -75,7 +77,8 @@ signing-ca-cert.pem: root-ca-cert.pem
 		-out signing-ca.csr
 	@touch index.txt
 	@echo '01' > serial
-	openssl ca -extensions v3_ca \
+	openssl ca -batch \
+		-extensions v3_ca \
 		-config ./openssl.cnf \
 		-config openssl.cnf \
 	    -keyfile root-ca-key.pem \

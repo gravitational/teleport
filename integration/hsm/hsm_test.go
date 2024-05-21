@@ -20,8 +20,11 @@ package hsm
 
 import (
 	"context"
+	"errors"
+	"io/fs"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
@@ -116,6 +119,31 @@ func liteBackendConfig(t *testing.T) *backend.Config {
 func requireETCDAvailable(t *testing.T) {
 	if os.Getenv("TELEPORT_ETCD_TEST") == "" {
 		t.Skip("Skipping test because TELEPORT_ETCD_TEST is not set")
+	}
+
+	// check for certs, which might need to be generated prior to running tests
+	dir := filepath.Join("..", "..", "examples", "etcd", "certs")
+	_, err := os.Stat(filepath.Join(dir, "client-cert.pem"))
+	switch {
+	case err == nil:
+		return
+	case errors.Is(err, fs.ErrNotExist):
+	default:
+		t.Fatalf("could not check for certs at %v: %v", dir, err)
+	}
+
+	// certs don't exist - try to generate them
+	mk, err := exec.LookPath("make")
+	if err != nil {
+		t.Skip("etcd certs are missing, and make is not installed in order to generate them")
+	}
+
+	t.Log("generating etcd certs..")
+	cmd := exec.Command(mk)
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("could not generate etcd certs: %v\n%s", err, string(out))
 	}
 }
 

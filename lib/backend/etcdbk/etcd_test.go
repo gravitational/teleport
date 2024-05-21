@@ -21,9 +21,13 @@ package etcdbk
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
+	"io/fs"
 	"maps"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -59,10 +63,39 @@ var commonEtcdOptions = []Option{
 	LeaseBucket(time.Second), // tests are more picky about expiry granularity
 }
 
+func ensureEtcdCerts(t *testing.T) {
+	// check for certs, which might need to be generated prior to running tests
+	dir := filepath.Join("..", "..", "..", "examples", "etcd", "certs")
+	_, err := os.Stat(filepath.Join(dir, "client-cert.pem"))
+	switch {
+	case err == nil:
+		return
+	case errors.Is(err, fs.ErrNotExist):
+	default:
+		t.Fatalf("could not check for certs at %v: %v", dir, err)
+	}
+
+	// certs don't exist - try to generate them
+	mk, err := exec.LookPath("make")
+	if err != nil {
+		t.Skip("etcd certs are missing, and make is not installed in order to generate them")
+	}
+
+	t.Log("generating etcd certs..")
+	cmd := exec.Command(mk)
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("could not generate etcd certs: %v\n%s", err, string(out))
+	}
+}
+
 func TestEtcd(t *testing.T) {
 	if !etcdTestEnabled() {
 		t.Skip("This test requires etcd, run `make run-etcd` and set TELEPORT_ETCD_TEST=yes in your environment")
 	}
+
+	ensureEtcdCerts(t)
 
 	newBackend := func(options ...test.ConstructionOption) (backend.Backend, clockwork.FakeClock, error) {
 		opts, err := test.ApplyOptions(options)
@@ -97,6 +130,8 @@ func TestPrefix(t *testing.T) {
 	if !etcdTestEnabled() {
 		t.Skip("This test requires etcd, run `make run-etcd` and set TELEPORT_ETCD_TEST=yes in your environment")
 	}
+
+	ensureEtcdCerts(t)
 
 	ctx := context.Background()
 
@@ -172,6 +207,9 @@ func TestCompareAndSwapOversizedValue(t *testing.T) {
 	if !etcdTestEnabled() {
 		t.Skip("This test requires etcd, run `make run-etcd` and set TELEPORT_ETCD_TEST=yes in your environment")
 	}
+
+	ensureEtcdCerts(t)
+
 	// setup
 	const maxClientMsgSize = 128
 	bk, err := New(context.Background(), backend.Params{
@@ -205,6 +243,8 @@ func TestLeaseBucketing(t *testing.T) {
 	if !etcdTestEnabled() {
 		t.Skip("This test requires etcd, run `make run-etcd` and set TELEPORT_ETCD_TEST=yes in your environment")
 	}
+
+	ensureEtcdCerts(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

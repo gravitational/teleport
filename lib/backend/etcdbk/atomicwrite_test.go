@@ -63,6 +63,8 @@ func TestAtomicWriteSuite(t *testing.T) {
 		t.Skip("This test requires etcd, run `make run-etcd` and set TELEPORT_ETCD_TEST=yes in your environment")
 	}
 
+	ensureEtcdCerts(t)
+
 	test.RunAtomicWriteComplianceSuite(t, newAtomicWriteTestBackend)
 }
 
@@ -72,6 +74,8 @@ func TestAtomicWriteShim(t *testing.T) {
 	if !etcdTestEnabled() {
 		t.Skip("This test requires etcd, run `make run-etcd` and set TELEPORT_ETCD_TEST=yes in your environment")
 	}
+
+	ensureEtcdCerts(t)
 
 	test.RunBackendComplianceSuiteWithAtomicWriteShim(t, newAtomicWriteTestBackend)
 }
