@@ -995,6 +995,7 @@ const (
 	InstanceMetadataTypeDisabled InstanceMetadataType = "disabled"
 	InstanceMetadataTypeEC2      InstanceMetadataType = "EC2"
 	InstanceMetadataTypeAzure    InstanceMetadataType = "Azure"
+	InstanceMetadataTypeGCP      InstanceMetadataType = "GCP"
 )
 
 // OriginValues lists all possible origin values.

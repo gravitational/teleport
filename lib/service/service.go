@@ -2868,7 +2868,7 @@ func (process *TeleportProcess) initSSH() error {
 					HostUUID:             conn.ServerIdentity.ID.HostUUID,
 					Resolver:             conn.TunnelProxyResolver(),
 					Client:               conn.Client,
-					AccessPoint:          conn.Client,
+					AccessPoint:          authClient,
 					HostSigner:           conn.ServerIdentity.KeySigner,
 					Cluster:              conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
 					Server:               serverHandler,
@@ -4520,6 +4520,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		TransportCredentials: credentials.NewTLS(tlscfg),
 		UserGetter:           authMiddleware,
 		Authorizer:           authorizer,
+		GetAuthPreference:    accessPoint.GetAuthPreference,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -5656,6 +5657,7 @@ func (process *TeleportProcess) initApps() {
 			OnHeartbeat:          process.OnHeartbeat(teleport.ComponentApp),
 			ConnectedProxyGetter: proxyGetter,
 			ConnectionsHandler:   connectionsHandler,
+			InventoryHandle:      process.inventoryHandle,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -5722,7 +5724,7 @@ func (process *TeleportProcess) initApps() {
 		})
 
 		// Block and wait while the server and agent pool are running.
-		if err := appServer.Wait(); err != nil {
+		if err := appServer.Wait(); err != nil && !errors.Is(err, context.Canceled) {
 			return trace.Wrap(err)
 		}
 		agentPool.Wait()
@@ -6273,6 +6275,7 @@ func (process *TeleportProcess) initSecureGRPCServer(cfg initSecureGRPCServerCfg
 	creds, err := auth.NewTransportCredentials(auth.TransportCredentialsConfig{
 		TransportCredentials: credentials.NewTLS(tlsConf),
 		UserGetter:           authMiddleware,
+		GetAuthPreference:    cfg.accessPoint.GetAuthPreference,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

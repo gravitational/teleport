@@ -312,6 +312,11 @@ const cfg = {
     awsSecurityGroupsListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/securitygroups',
 
+    awsAppAccessPath:
+      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/aws-app-access',
+    awsConfigureIamAppAccessPath:
+      '/v1/webapi/scripts/integrations/configure/aws-app-access-iam.sh?role=:iamRoleName',
+
     eksClustersListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/eksclusters',
     eksEnrollClustersPath:
@@ -903,6 +908,15 @@ const cfg = {
     });
   },
 
+  getAwsAppAccessUrl(integrationName: string) {
+    const clusterId = cfg.proxyCluster;
+
+    return generatePath(cfg.api.awsAppAccessPath, {
+      clusterId,
+      name: integrationName,
+    });
+  },
+
   getUserGroupsListUrl(clusterId: string, params: UrlResourcesParams) {
     return generateResourcePath(cfg.api.userGroupsListPath, {
       clusterId,
@@ -1062,6 +1076,17 @@ const cfg = {
     return (
       cfg.baseUrl +
       generatePath(cfg.api.awsConfigureIamEksScriptPath, {
+        ...params,
+      })
+    );
+  },
+
+  getAwsIamConfigureScriptAppAccessUrl(
+    params: Omit<UrlAwsConfigureIamScriptParams, 'region'>
+  ) {
+    return (
+      cfg.baseUrl +
+      generatePath(cfg.api.awsConfigureIamAppAccessPath, {
         ...params,
       })
     );

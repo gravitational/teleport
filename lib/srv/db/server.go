@@ -61,6 +61,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/redis"
 	"github.com/gravitational/teleport/lib/srv/db/snowflake"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver"
+	discoverycommon "github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -616,13 +617,12 @@ func (s *Server) getProxiedDatabase(name string) (types.Database, error) {
 	defer s.mu.RUnlock()
 	// don't call s.getProxiedDatabases() as this will call RLock and
 	// potentially deadlock.
-	for _, db := range s.proxiedDatabases {
-		if db.GetName() == name {
-			return s.copyDatabaseWithUpdatedLabelsLocked(db), nil
-		}
+	db, found := s.proxiedDatabases[name]
+	if !found {
+		return nil, trace.NotFound("%q not found among registered databases: %v",
+			name, s.proxiedDatabases)
 	}
-	return nil, trace.NotFound("%q not found among registered databases: %v",
-		name, s.proxiedDatabases)
+	return s.copyDatabaseWithUpdatedLabelsLocked(db), nil
 }
 
 // copyDatabaseWithUpdatedLabelsLocked will inject updated dynamic and cloud labels into
@@ -1104,6 +1104,15 @@ func (s *Server) createEngine(sessionCtx *common.Session, audit common.Audit) (c
 				Clock:      s.cfg.Clock,
 			}
 		},
+		UpdateProxiedDatabase: func(name string, doUpdate func(types.Database) error) error {
+			s.mu.Lock()
+			defer s.mu.Unlock()
+			db, found := s.proxiedDatabases[name]
+			if !found {
+				return trace.NotFound("%q not found among registered databases", name)
+			}
+			return trace.Wrap(doUpdate(db))
+		},
 	})
 }
 
@@ -1174,7 +1183,7 @@ func fetchMySQLVersion(ctx context.Context, database types.Database) error {
 
 	// Try to extract the engine version for AWS metadata labels.
 	if database.IsRDS() || database.IsAzure() {
-		version := services.GetMySQLEngineVersion(database.GetMetadata().Labels)
+		version := discoverycommon.GetMySQLEngineVersion(database.GetMetadata().Labels)
 		if version != "" {
 			database.SetMySQLServerVersion(version)
 			return nil
