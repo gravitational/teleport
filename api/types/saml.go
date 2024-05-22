@@ -95,6 +95,8 @@ type SAMLConnector interface {
 	GetAllowIDPInitiated() bool
 	// SetAllowIDPInitiated sets whether the identity provider can initiate a login or not.
 	SetAllowIDPInitiated(bool)
+	// GetClientRedirectSettings returns the client redirect settings.
+	GetClientRedirectSettings() *SSOClientRedirectSettings
 }
 
 // NewSAMLConnector returns a new SAMLConnector based off a name and SAMLConnectorSpecV2.
@@ -367,6 +369,14 @@ func (o *SAMLConnectorV2) GetAllowIDPInitiated() bool {
 // SetAllowIDPInitiated sets whether the identity provider can initiate a login or not.
 func (o *SAMLConnectorV2) SetAllowIDPInitiated(allow bool) {
 	o.Spec.AllowIDPInitiated = allow
+}
+
+// GetClientRedirectSettings returns the client redirect settings.
+func (o *SAMLConnectorV2) GetClientRedirectSettings() *SSOClientRedirectSettings {
+	if o == nil {
+		return nil
+	}
+	return o.Spec.ClientRedirectSettings
 }
 
 // setStaticFields sets static resource header and metadata fields.

@@ -165,6 +165,11 @@ func TestParseShortcut(t *testing.T) {
 
 		"SamL_IDP_sERVICe_proVidER": {expectedOutput: types.KindSAMLIdPServiceProvider},
 
+		"access_request":  {expectedOutput: types.KindAccessRequest},
+		"access_requests": {expectedOutput: types.KindAccessRequest},
+		"accessrequest":   {expectedOutput: types.KindAccessRequest},
+		"accessrequests":  {expectedOutput: types.KindAccessRequest},
+
 		"unknown_type": {expectedErr: true},
 	}
 

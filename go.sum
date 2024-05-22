@@ -1118,10 +1118,6 @@ github.com/magiconair/properties v1.8.7 h1:IeQXZAiQcpL9mgcAe1Nu6cX9LLw6ExEHKjN0V
 github.com/magiconair/properties v1.8.7/go.mod h1:Dhd985XPs7jluiymwWYZ0G4Z61jb3vdS329zhj2hYo0=
 github.com/mailgun/holster/v3 v3.16.2 h1:Zl5Spy4WdgLMKWbHgkuDwsQwsJN0Xr3Mgt2dZGJih18=
 github.com/mailgun/holster/v3 v3.16.2/go.mod h1:U3cbmr+/KfYqWINVCqyEhEID8hBDOPHEj+XmDKbi2nk=
-github.com/mailgun/lemma v0.0.0-20170619173223-4214099fb348 h1:H2VEGfxRuhOR5Dl6guYNTXrHEMh0JkKFDBZqxVCQ3RE=
-github.com/mailgun/lemma v0.0.0-20170619173223-4214099fb348/go.mod h1:2+eAliypGoT5/vXx9ufZ7N9I3H8Z/tXVGqyNVzCOfKQ=
-github.com/mailgun/metrics v0.0.0-20150124003306-2b3c4565aafd h1:yCc0lIUQncZ7luEMtOpYjYYcIOh1d/eQOGWnMKRHuoI=
-github.com/mailgun/metrics v0.0.0-20150124003306-2b3c4565aafd/go.mod h1:l716ZJt823cQ7oTK8odsf+KL5EZbSnk/0r3lFnzEUxA=
 github.com/mailgun/minheap v0.0.0-20170619185613-3dbe6c6bf55f h1:aOqSQstfwSx9+tcM/xiKTio3IVjs7ZL2vU8kI9bI6bM=
 github.com/mailgun/minheap v0.0.0-20170619185613-3dbe6c6bf55f/go.mod h1:V3EvCedtJTvUYzJF2GZMRB0JMlai+6cBu3VCTQz33GQ=
 github.com/mailgun/timetools v0.0.0-20170619190023-f3a7b8ffff47 h1:jlyJPTyctWqANbaxi/nXRrxX4WeeAGMPaHPj9XlO0Rw=
