@@ -27,10 +27,9 @@ import { ContextProvider } from 'teleport';
 import MfaService from 'teleport/services/mfa';
 import auth from 'teleport/services/auth';
 
-import {
-  AddAuthDeviceWizardStepProps,
-  createReauthOptions,
-} from './AddAuthDeviceWizard';
+import { AddAuthDeviceWizardStepProps } from './AddAuthDeviceWizard';
+
+import { deviceCases } from './deviceCases';
 
 import { AddAuthDeviceWizard } from '.';
 
@@ -38,24 +37,6 @@ const dummyCredential: Credential = { id: 'cred-id', type: 'public-key' };
 let ctx: TeleportContext;
 let user: UserEvent;
 let onSuccess: jest.Mock;
-
-function twice(arr) {
-  return [...arr, ...arr];
-}
-
-// Repeat devices twice to make sure we support multiple devices of the same
-// type and purpose.
-const deviceCases = {
-  all: twice([
-    { type: 'totp', usage: 'mfa' },
-    { type: 'webauthn', usage: 'mfa' },
-    { type: 'webauthn', usage: 'passwordless' },
-  ]),
-  authApps: twice([{ type: 'totp', usage: 'mfa' }]),
-  mfaDevices: twice([{ type: 'webauthn', usage: 'mfa' }]),
-  passkeys: twice([{ type: 'webauthn', usage: 'passwordless' }]),
-  none: [],
-};
 
 beforeEach(() => {
   ctx = new TeleportContext();
@@ -314,27 +295,3 @@ describe('flow with reauthentication', () => {
     }
   );
 });
-
-test.each`
-  auth2faType   | deviceCase      | methods
-  ${'otp'}      | ${'all'}        | ${['otp']}
-  ${'off'}      | ${'all'}        | ${[]}
-  ${'optional'} | ${'all'}        | ${['webauthn', 'otp']}
-  ${'on'}       | ${'all'}        | ${['webauthn', 'otp']}
-  ${'webauthn'} | ${'all'}        | ${['webauthn']}
-  ${'optional'} | ${'authApps'}   | ${['otp']}
-  ${'optional'} | ${'mfaDevices'} | ${['webauthn']}
-  ${'optional'} | ${'passkeys'}   | ${['webauthn']}
-  ${'on'}       | ${'none'}       | ${[]}
-  ${'webauthn'} | ${'authApps'}   | ${[]}
-  ${'otp'}      | ${'mfaDevices'} | ${[]}
-`(
-  'createReauthOptions: auth2faType=$auth2faType, devices=$deviceCase',
-  ({ auth2faType, methods, deviceCase }) => {
-    const devices = deviceCases[deviceCase];
-    const reauthMethods = createReauthOptions(auth2faType, devices).map(
-      o => o.value
-    );
-    expect(reauthMethods).toEqual(methods);
-  }
-);
