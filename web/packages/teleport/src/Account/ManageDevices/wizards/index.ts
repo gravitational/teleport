@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,4 +16,5 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export type DeprecatedThemeOption = 'dark' | 'light';
+export { AddAuthDeviceWizard } from './AddAuthDeviceWizard';
+export { DeleteAuthDeviceWizard } from './DeleteAuthDeviceWizard';

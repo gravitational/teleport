@@ -658,13 +658,20 @@ func buildIAMARN(partitionID, accountID, resourceType, resource string) string {
 // which is necessary to attach policies to the identity.
 // Rather than returning errors about why it failed, this message suggests a
 // simple fix for the user to specify a role or user to attach policies to.
-const failedToResolveAssumeRoleARN = "Running with assumed-role credentials. Policies cannot be attached to an assumed-role. Provide the name or ARN of the IAM user or role to attach policies to."
+func failedToResolveAssumeRoleARN(roleIdentity string) string {
+	return fmt.Sprintf("Running with assumed-role credentials for %s. "+
+		"Policies cannot be attached to an assumed-role. "+
+		"Provide the name or ARN of the IAM user (--atttach-to-user) or role (--atttach-to-role) to attach policies to. ",
+		roleIdentity)
+}
 
 // getRoleARNForAssumedRole attempts to resolve assumed-role credentials to
 // the underlying role ARN using IAM API.
 // This is necessary since the assumed-role ARN does not include the role path,
 // so we cannot reliably reconstruct the role ARN from the assumed-role ARN.
 func getRoleARNForAssumedRole(iamClient iamiface.IAMAPI, identity awslib.Identity) (awslib.Identity, error) {
+	failedToResolveAssumeRoleARN := failedToResolveAssumeRoleARN(identity.GetName())
+
 	roleOutput, err := iamClient.GetRole(&iam.GetRoleInput{RoleName: aws.String(identity.GetName())})
 	if err != nil || roleOutput == nil || roleOutput.Role == nil || roleOutput.Role.Arn == nil {
 		return nil, trace.BadParameter(failedToResolveAssumeRoleARN)

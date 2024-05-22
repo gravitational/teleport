@@ -244,6 +244,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindCrownJewel, nil
 	case types.KindVnetConfig:
 		return types.KindVnetConfig, nil
+	case types.KindAccessRequest, types.KindAccessRequest + "s", "accessrequest", "accessrequests":
+		return types.KindAccessRequest, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }

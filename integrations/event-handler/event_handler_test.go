@@ -116,6 +116,7 @@ func (s *EventHandlerSuite) SetupTest() {
 			Concurrency:      5,
 			StartTime:        &startTime,
 			SkipSessionTypes: map[string]struct{}{"print": {}},
+			WindowSize:       time.Hour * 24,
 		},
 	}
 

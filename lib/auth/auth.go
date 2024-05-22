@@ -1999,8 +1999,6 @@ type certRequest struct {
 	connectionDiagnosticID string
 	// attestationStatement is an attestation statement associated with the given public key.
 	attestationStatement *keys.AttestationStatement
-	// skipAttestation is a server-side flag which is used to skip the attestation check.
-	skipAttestation bool
 	// deviceExtensions holds device-aware user certificate extensions.
 	deviceExtensions DeviceExtensions
 	// botName is the name of the bot requesting this cert, if any
@@ -2813,7 +2811,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		return nil, trace.Wrap(err)
 	}
 
-	if !req.skipAttestation && requiredKeyPolicy != keys.PrivateKeyPolicyNone {
+	if requiredKeyPolicy != keys.PrivateKeyPolicyNone {
 		// Try to attest the given hardware key using the given attestation statement.
 		attestationData, err := modules.GetModules().AttestHardwareKey(ctx, a, req.attestationStatement, cryptoPubKey, sessionTTL)
 		if trace.IsNotFound(err) {
