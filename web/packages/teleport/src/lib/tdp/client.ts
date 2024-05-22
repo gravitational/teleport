@@ -602,10 +602,7 @@ export default class Client extends EventEmitterWebAuthnSender {
       return;
     }
 
-    this.handleError(
-      new Error('websocket unavailable'),
-      TdpClientEvent.CLIENT_ERROR
-    );
+    this.logger.warn('websocket is not open');
   }
 
   sendClientScreenSpec(spec: ClientScreenSpec) {

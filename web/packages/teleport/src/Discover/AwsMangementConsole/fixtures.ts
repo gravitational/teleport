@@ -1,6 +1,6 @@
-/*
+/**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,22 +16,24 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-syntax = "proto3";
+import { App } from 'teleport/services/apps';
 
-package teleport.lib.web;
-
-option go_package = "github.com/gravitational/teleport/lib/web";
-
-// Envelope is used to wrap and transend and receive messages between the
-// web client and proxy.
-message Envelope {
-  // Version is the version of the protocol.
-  string Version = 1;
-
-  // Type is the type of message. For version 1 of the protocol this must
-  // not be longer than 1 character.
-  string Type = 2;
-
-  // Payload is the actual data to send.
-  string Payload = 3;
-}
+export const app: App = {
+  kind: 'app',
+  id: 'id',
+  name: 'Jenkins',
+  launchUrl: '',
+  awsRoles: [],
+  userGroups: [],
+  samlApp: false,
+  uri: 'https://jenkins.teleport-proxy.com',
+  publicAddr: 'jenkins.teleport-proxy.com',
+  description: 'This is a Jenkins app',
+  awsConsole: true,
+  labels: [
+    { name: 'env', value: 'prod' },
+    { name: 'cluster', value: 'one' },
+  ],
+  clusterId: 'one',
+  fqdn: 'jenkins.one',
+};

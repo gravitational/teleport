@@ -16,42 +16,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package utils
+syntax = "proto3";
 
-import (
-	"io"
-)
+package teleport.lib.web;
 
-// NewRepeatReader returns a repeat reader
-func NewRepeatReader(repeat byte, count int) *RepeatReader {
-	return &RepeatReader{
-		repeat: repeat,
-		count:  count,
-	}
-}
+option go_package = "github.com/gravitational/teleport/lib/web/terminal";
 
-// RepeatReader repeats the same byte count times
-// without allocating any data, the single instance
-// of the repeat reader is not goroutine safe
-type RepeatReader struct {
-	repeat byte
-	count  int
-	read   int
-}
+// Envelope is used to wrap and transend and receive messages between the
+// web client and proxy.
+message Envelope {
+  // Version is the version of the protocol.
+  string Version = 1;
 
-// Read copies the same byte over and over to the data count times
-func (r *RepeatReader) Read(data []byte) (int, error) {
-	if r.read >= r.count {
-		return 0, io.EOF
-	}
-	var copied int
-	for i := 0; i < len(data); i++ {
-		data[i] = r.repeat
-		copied++
-		r.read++
-		if r.read >= r.count {
-			break
-		}
-	}
-	return copied, nil
+  // Type is the type of message. For version 1 of the protocol this must
+  // not be longer than 1 character.
+  string Type = 2;
+
+  // Payload is the actual data to send.
+  string Payload = 3;
 }

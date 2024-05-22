@@ -19,6 +19,7 @@
 import cfg, {
   UrlDeployServiceIamConfigureScriptParams,
   UrlAwsOidcConfigureIdp,
+  UrlAwsConfigureIamScriptParams,
 } from './config';
 
 test('getDeployServiceIamConfigureScriptPath formatting', async () => {
@@ -60,6 +61,18 @@ test('getAwsOidcConfigureIdpScriptUrl formatting, without s3 fields', async () =
     'http://localhost/webapi/scripts/integrations/configure/awsoidc-idp.sh?';
   const expected = `integrationName=int-name&role=role-arn`;
   expect(cfg.getAwsOidcConfigureIdpScriptUrl(params)).toBe(
+    `${base}${expected}`
+  );
+});
+
+test('getAwsIamConfigureScriptAppAccessUrl formatting', async () => {
+  const params: Omit<UrlAwsConfigureIamScriptParams, 'region'> = {
+    iamRoleName: 'role-arn',
+  };
+  const base =
+    'http://localhost/v1/webapi/scripts/integrations/configure/aws-app-access-iam.sh?';
+  const expected = `role=role-arn`;
+  expect(cfg.getAwsIamConfigureScriptAppAccessUrl(params)).toBe(
     `${base}${expected}`
   );
 });

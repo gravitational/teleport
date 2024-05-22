@@ -2980,7 +2980,6 @@ func TestSetupConfigFns(t *testing.T) {
 	setupFuncs := map[string]SetupConfigFn{
 		"ForProxy":          ForProxy,
 		"ForRemoteProxy":    ForRemoteProxy,
-		"ForOldRemoteProxy": ForOldRemoteProxy,
 		"ForNode":           ForNode,
 		"ForKubernetes":     ForKubernetes,
 		"ForApps":           ForApps,
@@ -3087,15 +3086,14 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 	clock := clockwork.NewFakeClockAt(time.Now())
 
 	cases := map[string]Config{
-		"ForAuth":           ForAuth(Config{}),
-		"ForProxy":          ForProxy(Config{}),
-		"ForRemoteProxy":    ForRemoteProxy(Config{}),
-		"ForOldRemoteProxy": ForOldRemoteProxy(Config{}),
-		"ForNode":           ForNode(Config{}),
-		"ForKubernetes":     ForKubernetes(Config{}),
-		"ForApps":           ForApps(Config{}),
-		"ForDatabases":      ForDatabases(Config{}),
-		"ForOkta":           ForOkta(Config{}),
+		"ForAuth":        ForAuth(Config{}),
+		"ForProxy":       ForProxy(Config{}),
+		"ForRemoteProxy": ForRemoteProxy(Config{}),
+		"ForNode":        ForNode(Config{}),
+		"ForKubernetes":  ForKubernetes(Config{}),
+		"ForApps":        ForApps(Config{}),
+		"ForDatabases":   ForDatabases(Config{}),
+		"ForOkta":        ForOkta(Config{}),
 	}
 
 	events := map[string]types.Resource{

@@ -32,7 +32,7 @@ lint:
     - api/proto/teleport/legacy/types/types.proto
     - api/proto/teleport/legacy/types/wrappers/wrappers.proto
     - proto/teleport/lib/multiplexer/test/ping.proto
-    - proto/teleport/lib/web/envelope.proto
+    - proto/teleport/lib/web/terminal/envelope.proto
   ignore_only:
     COMMENT_MESSAGE:
       - proto/prehog

@@ -136,6 +136,10 @@ discovery_service:
   aws:
    - types: ["ec2"]
      regions: ["us-east-1","us-west-1"]
+     install:
+        join_params:
+          token_name: aws-discovery-iam-token
+          method: iam
      tags:
        "env": "prod" # Match EC2 instances where tag:env=prod
 ```
@@ -167,6 +171,7 @@ AWS
                 "ec2:DescribeInstances",
                 "ssm:DescribeInstanceInformation",
                 "ssm:GetCommandInvocation",
+                "ssm:ListCommandInvocations",
                 "ssm:SendCommand"
             ],
             "Resource": [
@@ -186,6 +191,7 @@ AWS
                 "ec2:DescribeInstances",
                 "ssm:DescribeInstanceInformation",
                 "ssm:GetCommandInvocation",
+                "ssm:ListCommandInvocations",
                 "ssm:SendCommand"
             ],
             "Resource": [
