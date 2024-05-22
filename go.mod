@@ -112,7 +112,6 @@ require (
 	github.com/julienschmidt/httprouter v1.3.0 // replaced
 	github.com/keys-pub/go-libfido2 v1.5.3-0.20220306005615-8ab03fb1ec27 // replaced
 	github.com/mailgun/holster/v3 v3.16.2
-	github.com/mailgun/lemma v0.0.0-20170619173223-4214099fb348
 	github.com/mailgun/timetools v0.0.0-20170619190023-f3a7b8ffff47
 	github.com/mailgun/ttlmap v0.0.0-20170619185759-c1c17f74874f
 	github.com/mattn/go-sqlite3 v1.14.17
@@ -192,10 +191,7 @@ require (
 
 // Indirect mailgun dependencies.
 // Updating causes breaking changes.
-require (
-	github.com/mailgun/metrics v0.0.0-20150124003306-2b3c4565aafd // indirect
-	github.com/mailgun/minheap v0.0.0-20170619185613-3dbe6c6bf55f // indirect
-)
+require github.com/mailgun/minheap v0.0.0-20170619185613-3dbe6c6bf55f // indirect
 
 require (
 	cloud.google.com/go v0.110.8 // indirect
