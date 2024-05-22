@@ -24,8 +24,8 @@ kubernetes_service:
     resources:
     - labels:
         "*": "*"
-      # Optional AWS role that the Kubernetes Service will assume to access the
-      # eks clusters.
+      # Optional AWS role that the Teleport Kubernetes Service will assume to access
+      # EKS clusters.
       aws:
         assume_role_arn: "arn:aws:iam::123456789012:role/example-role-name"
         external_id: "example-external-id"
