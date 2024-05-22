@@ -97,15 +97,15 @@ export class AccessRequestsService {
         resources.delete(resource.uri);
       } else {
         // Store only properties required by the type.
-        if (kind === 'app' || kind === 'database' || kind === 'kube') {
+        if (kind === 'server') {
           resources.set(resource.uri, {
             kind,
-            resource: { uri: resource.uri },
+            resource: { uri: resource.uri, hostname: resource.hostname },
           });
         } else {
           resources.set(resource.uri, {
             kind,
-            resource: { uri: resource.uri, hostname: resource.hostname },
+            resource: { uri: resource.uri },
           });
         }
       }
