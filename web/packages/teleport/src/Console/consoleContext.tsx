@@ -275,7 +275,6 @@ export default class ConsoleContext {
     const ttyUrl = baseUrl
       .replace(':fqdn', getHostName())
       .replace(':clusterId', clusterId)
-      // .replace(':clusterName', serverId)
       .replace(':traceparent', carrier['traceparent']);
 
     const addressResolver = new TtyAddressResolver({
