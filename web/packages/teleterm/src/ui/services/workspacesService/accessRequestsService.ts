@@ -173,6 +173,16 @@ export type PendingAccessRequest =
     }
   | { kind: 'role'; roles: Set<string> };
 
+/**
+ * Describes a resource in a resource access request.
+ * This shape allows us to store certain properties for particular kinds,
+ * e.g., hostname for a server.
+ * Moreover, it matches the shape of a resource in the search bar
+ * or in the unified resources view, making adding resources easier.
+ *
+ * In the future we can consider reusing this structure outside Connect,
+ * but it would require replacing the uri with id and cluster name.
+ */
 export type ResourceRequest =
   | {
       kind: 'server';
