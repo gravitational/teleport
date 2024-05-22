@@ -551,6 +551,7 @@
     "libgcc",
     "libm",
     "libpq",
+    "livez",
     "lmnop",
     "loadbalancer",
     "localca",
