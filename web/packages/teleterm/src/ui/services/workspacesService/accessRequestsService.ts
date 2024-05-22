@@ -64,14 +64,16 @@ export class AccessRequestsService {
 
   getAddedItemsCount(): number {
     const pendingAccessRequest = this.getState().pending;
-    if (pendingAccessRequest.kind === 'role') {
-      return pendingAccessRequest.roles.size;
+    const { kind } = pendingAccessRequest;
+    switch (kind) {
+      case 'role':
+        return pendingAccessRequest.roles.size;
+      case 'resource':
+        return pendingAccessRequest.resources.size;
+      default:
+        kind satisfies never;
+        return 0;
     }
-    if (pendingAccessRequest.kind === 'resource') {
-      return pendingAccessRequest.resources.size;
-    }
-
-    return 0;
   }
 
   async addOrRemoveResource({
