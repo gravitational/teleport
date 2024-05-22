@@ -7333,7 +7333,7 @@ func TestAccessRequestNonGreedyAnnotations(t *testing.T) {
 		Allow: types.RoleConditions{
 			Request: &types.AccessRequestConditions{
 				Annotations: map[string][]string{
-					"any-requestor": {"true"},
+					"any-requester": {"true"},
 				},
 				SearchAsRoles: []string{"identity-access", "payments-access"},
 				Roles:         []string{"identity-access", "payments-access"},
@@ -7343,10 +7343,33 @@ func TestAccessRequestNonGreedyAnnotations(t *testing.T) {
 
 	require.NoError(t, err)
 
+	globRequester, err := types.NewRole("glob-requester", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Annotations: map[string][]string{
+					"glob-requester": {"true"},
+				},
+				Roles: []string{"*"},
+			},
+		},
+	})
+
+	reRequester, err := types.NewRole("re-requester", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Annotations: map[string][]string{
+					"re-requester": {"true"},
+				},
+				Roles: []string{"identity-*", "^payments-acces.$"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
 	roles := []types.Role{
 		paymentsRequester, paymentsResourceRequester, paymentsAccess,
 		identityRequester, identityResourceRequester, identityAccess,
-		anyResourceRequester,
+		anyResourceRequester, globRequester, reRequester,
 	}
 
 	paymentsServer, err := types.NewServer("server-payments", types.KindNode, types.ServerSpecV2{})
@@ -7446,7 +7469,7 @@ func TestAccessRequestNonGreedyAnnotations(t *testing.T) {
 			roles:          []string{"any-requester"},
 			requestedRoles: []string{"payments-access"},
 			expectedAnnotations: map[string][]string{
-				"any-requestor": {"true"},
+				"any-requester": {"true"},
 			},
 		},
 		{
@@ -7455,7 +7478,7 @@ func TestAccessRequestNonGreedyAnnotations(t *testing.T) {
 			requestedRoles:       []string{"payments-access"},
 			requestedResourceIDs: []string{"server-payments"},
 			expectedAnnotations: map[string][]string{
-				"any-requestor": {"true"},
+				"any-requester": {"true"},
 			},
 		},
 		{
@@ -7477,7 +7500,7 @@ func TestAccessRequestNonGreedyAnnotations(t *testing.T) {
 			expectedAnnotations: map[string][]string{
 				"requesting":    {"role"},
 				"services":      {"payments"},
-				"any-requestor": {"true"},
+				"any-requester": {"true"},
 			},
 		},
 		{
@@ -7491,7 +7514,39 @@ func TestAccessRequestNonGreedyAnnotations(t *testing.T) {
 			expectedAnnotations: map[string][]string{
 				"requesting":    {"resources"},
 				"services":      {"payments"},
-				"any-requestor": {"true"},
+				"any-requester": {"true"},
+			},
+		},
+		{
+			name:           "glob-requester requests payments role, receives annotations",
+			roles:          []string{"glob-requester"},
+			requestedRoles: []string{"payments-access"},
+			expectedAnnotations: map[string][]string{
+				"glob-requester": {"true"},
+			},
+		},
+		{
+			name:           "glob-requester requests payments role, receives annotations",
+			roles:          []string{"glob-requester"},
+			requestedRoles: []string{"identity-access"},
+			expectedAnnotations: map[string][]string{
+				"glob-requester": {"true"},
+			},
+		},
+		{
+			name:           "re-requester requests payments role, receives annotations",
+			roles:          []string{"re-requester"},
+			requestedRoles: []string{"identity-access", "payments-access"},
+			expectedAnnotations: map[string][]string{
+				"re-requester": {"true"},
+			},
+		},
+		{
+			name:           "re-requester requests payments role, receives annotations",
+			roles:          []string{"re-requester"},
+			requestedRoles: []string{"payments-access"},
+			expectedAnnotations: map[string][]string{
+				"re-requester": {"true"},
 			},
 		},
 	} {

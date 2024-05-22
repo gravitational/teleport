@@ -1725,12 +1725,21 @@ func (m *RequestValidator) SystemAnnotations(req types.AccessRequest) (map[strin
 			if len(req.GetRequestedResourceIDs()) != 0 {
 				roles = acr.SearchAsRoles
 			}
-			if slices.Contains(roles, reqRole) {
-				for k, v := range acr.Annotations {
-					vals := allowedAnnotations[k]
-					allowedAnnotations[k] = slices.Concat(vals, v)
+
+			matchers, err := appendRoleMatchers(nil, roles, acr.ClaimsToRoles, m.userState.GetTraits())
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			for _, matcher := range matchers {
+				if matcher.Match(reqRole) {
+					for k, v := range acr.Annotations {
+						vals := allowedAnnotations[k]
+						allowedAnnotations[k] = slices.Concat(vals, v)
+					}
 				}
 			}
+
 		}
 	}
 
