@@ -25,7 +25,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/services"
+	cloudaws "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
 var (
@@ -150,11 +151,11 @@ func listDBInstances(ctx context.Context, clt ListDatabasesClient, req ListDatab
 
 	ret.Databases = make([]types.Database, 0, len(rdsDBs.DBInstances))
 	for _, db := range rdsDBs.DBInstances {
-		if !services.IsRDSInstanceAvailable(db.DBInstanceStatus, db.DBInstanceIdentifier) {
+		if !cloudaws.IsRDSInstanceAvailable(db.DBInstanceStatus, db.DBInstanceIdentifier) {
 			continue
 		}
 
-		dbServer, err := services.NewDatabaseFromRDSV2Instance(&db)
+		dbServer, err := common.NewDatabaseFromRDSV2Instance(&db)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -188,7 +189,7 @@ func listDBClusters(ctx context.Context, clt ListDatabasesClient, req ListDataba
 
 	ret.Databases = make([]types.Database, 0, len(rdsDBs.DBClusters))
 	for _, db := range rdsDBs.DBClusters {
-		if !services.IsRDSClusterAvailable(db.Status, db.DBClusterIdentifier) {
+		if !cloudaws.IsRDSClusterAvailable(db.Status, db.DBClusterIdentifier) {
 			continue
 		}
 
@@ -201,7 +202,7 @@ func listDBClusters(ctx context.Context, clt ListDatabasesClient, req ListDataba
 			return nil, trace.Wrap(err)
 		}
 
-		awsDB, err := services.NewDatabaseFromRDSV2Cluster(&db, clusterInstance)
+		awsDB, err := common.NewDatabaseFromRDSV2Cluster(&db, clusterInstance)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

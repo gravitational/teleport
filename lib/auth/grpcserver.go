@@ -5522,6 +5522,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	creds, err := NewTransportCredentials(TransportCredentialsConfig{
 		TransportCredentials: &httplib.TLSCreds{Config: cfg.TLS},
 		UserGetter:           cfg.Middleware,
+		GetAuthPreference:    cfg.AuthServer.Cache.GetAuthPreference,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

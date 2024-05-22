@@ -26,7 +26,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
 const (
@@ -175,7 +175,7 @@ func ListEC2(ctx context.Context, clt ListEC2Client, req ListEC2Request) (*ListE
 					Integration: req.Integration,
 				}
 
-				server, err := services.NewAWSNodeFromEC2Instance(instance, awsInfo)
+				server, err := common.NewAWSNodeFromEC2Instance(instance, awsInfo)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
