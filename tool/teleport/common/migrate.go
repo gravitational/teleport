@@ -24,6 +24,8 @@ func runMigration(ctx context.Context, path string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer migration.Close()
+
 	if err := migration.Run(ctx); err != nil {
 		return trace.Wrap(err)
 	}
