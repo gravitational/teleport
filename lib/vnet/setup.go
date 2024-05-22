@@ -148,6 +148,7 @@ func (pm *ProcessManager) AddCriticalBackgroundTask(name string, task func() err
 	pm.g.Go(func() error {
 		err := task()
 		if err == nil {
+			// Make sure to always return an error so that the errgroup context is canceled.
 			err = fmt.Errorf("critical task %q exited prematurely", name)
 		}
 		return trace.Wrap(err)
