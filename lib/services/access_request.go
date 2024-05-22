@@ -28,10 +28,10 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/accessrequest"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -1084,7 +1084,7 @@ func NewRequestValidator(ctx context.Context, clock clockwork.Clock, getter Requ
 		if err != nil {
 			return RequestValidator{}, trace.Wrap(err)
 		}
-		if err := m.push(role); err != nil {
+		if err := m.push(ctx, role); err != nil {
 			return RequestValidator{}, trace.Wrap(err)
 		}
 	}
@@ -1472,7 +1472,7 @@ func (m *RequestValidator) GetRequestableRoles(ctx context.Context, identity tls
 // push compiles a role's configuration into the request validator.
 // All of the requesting user's statically assigned roles must be pushed
 // before validation begins.
-func (m *RequestValidator) push(role types.Role) error {
+func (m *RequestValidator) push(ctx context.Context, role types.Role) error {
 	var err error
 
 	m.requireReason = m.requireReason || role.GetOptions().RequestAccess.RequireReason()
@@ -1533,8 +1533,8 @@ func (m *RequestValidator) push(role types.Role) error {
 		// validation process for incoming access requests requires
 		// generating system annotations to be attached to the request
 		// before it is inserted into the backend.
-		m.insertAllowedAnnotations(allow, newAllowRequestMatchers, newAllowSearchMatchers)
-		m.insertDeniedAnnotations(deny)
+		m.insertAllowedAnnotations(ctx, allow, newAllowRequestMatchers, newAllowSearchMatchers)
+		m.insertDeniedAnnotations(ctx, deny)
 
 		m.SuggestedReviewers = append(m.SuggestedReviewers, allow.SuggestedReviewers...)
 	}
@@ -1724,7 +1724,7 @@ func (m *annotationMatcher) matchesRequest(req types.AccessRequest) bool {
 //
 // Annotations are only applied to access requests requests when one of the requested roles matches one of the
 // role matchers.
-func (m *RequestValidator) insertAllowedAnnotations(conditions types.AccessRequestConditions, roleRequestMatchers, resourceRequestMatchers []parse.Matcher) {
+func (m *RequestValidator) insertAllowedAnnotations(ctx context.Context, conditions types.AccessRequestConditions, roleRequestMatchers, resourceRequestMatchers []parse.Matcher) {
 	for annotationKey, annotationValueTemplates := range conditions.Annotations {
 		// iterate through all new values and expand any
 		// variable interpolation syntax they contain.
@@ -1732,7 +1732,7 @@ func (m *RequestValidator) insertAllowedAnnotations(conditions types.AccessReque
 			expandedValues, err := ApplyValueTraits(template, m.userState.GetTraits())
 			if err != nil {
 				// skip values that failed variable expansion
-				m.logger.Warn("Failed to expand trait template in access request annotation",
+				m.logger.WarnContext(ctx, "Failed to expand trait template in access request annotation",
 					"key", annotationKey, "template", template, "error", err)
 				continue
 			}
@@ -1749,7 +1749,7 @@ func (m *RequestValidator) insertAllowedAnnotations(conditions types.AccessReque
 
 // insertDeniedAnnotations constructs all denied annotations for a given AccessRequestConditions instance
 // from one of the users current roles and adds them to the denied annotations set.
-func (m *RequestValidator) insertDeniedAnnotations(conditions types.AccessRequestConditions) {
+func (m *RequestValidator) insertDeniedAnnotations(ctx context.Context, conditions types.AccessRequestConditions) {
 	for annotationKey, annotationValueTemplates := range conditions.Annotations {
 		// iterate through all new values and expand any
 		// variable interpolation syntax they contain.
@@ -1757,7 +1757,7 @@ func (m *RequestValidator) insertDeniedAnnotations(conditions types.AccessReques
 			expandedValues, err := ApplyValueTraits(template, m.userState.GetTraits())
 			if err != nil {
 				// skip values that failed variable expansion
-				m.logger.Warn("Failed to expand trait template in access request annotation",
+				m.logger.WarnContext(ctx, "Failed to expand trait template in access request annotation",
 					"key", annotationKey, "template", template, "error", err)
 				continue
 			}
