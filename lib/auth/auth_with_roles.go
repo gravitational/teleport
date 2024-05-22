@@ -6409,22 +6409,21 @@ func (a *ServerWithRoles) GetWindowsDesktops(ctx context.Context, filter types.W
 	return filtered, nil
 }
 
-// hostIDExistsAndIsValid checks if the host ID exists and matches a registered windows desktop service.
-func (a *ServerWithRoles) hostIDExistsAndIsValid(ctx context.Context, s types.WindowsDesktop) error {
+// windowsDesktopHostIDExistsAndIsValid checks that the host ID parameter exists on the passed [types.WindowsDesktop],
+// if so that it matches one of the registered [types.WindowsDesktopService]s.
+func (a *ServerWithRoles) windowsDesktopHostIDExistsAndIsValid(ctx context.Context, s types.WindowsDesktop) error {
 	hostID := s.GetHostID()
 	if hostID == "" {
 		return trace.BadParameter("host_id is required")
 	}
-	wdss, err := a.authServer.GetWindowsDesktopServices(ctx)
+	_, err := a.authServer.GetWindowsDesktopService(ctx, hostID)
 	if err != nil {
+		if trace.IsNotFound(err) {
+			return trace.BadParameter("host_id %q does not match the name of any registered windows_desktop_service", hostID)
+		}
 		return trace.Wrap(err)
 	}
-	for _, wds := range wdss {
-		if wds.GetName() == hostID {
-			return nil
-		}
-	}
-	return trace.BadParameter("host_id %q does not match the name of any registered windows_desktop_service", hostID)
+	return nil
 }
 
 // CreateWindowsDesktop creates a new windows desktop host.
@@ -6432,9 +6431,17 @@ func (a *ServerWithRoles) CreateWindowsDesktop(ctx context.Context, s types.Wind
 	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktop, types.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.hostIDExistsAndIsValid(ctx, s); err != nil {
+
+	// Don't let callers create desktops they wouldn't have access to.
+	if err := a.checkAccessToWindowsDesktop(s); err != nil {
 		return trace.Wrap(err)
 	}
+
+	// Ensure the host ID is valid.
+	if err := a.windowsDesktopHostIDExistsAndIsValid(ctx, s); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return a.authServer.CreateWindowsDesktop(ctx, s)
 }
 
@@ -6471,7 +6478,7 @@ func (a *ServerWithRoles) UpsertWindowsDesktop(ctx context.Context, s types.Wind
 	}
 
 	// Ensure the host ID is valid.
-	if err := a.hostIDExistsAndIsValid(ctx, s); err != nil {
+	if err := a.windowsDesktopHostIDExistsAndIsValid(ctx, s); err != nil {
 		return trace.Wrap(err)
 	}
 
