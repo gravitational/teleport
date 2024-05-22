@@ -738,6 +738,8 @@ func (w *sliceWriter) startUpload(partNumber int64, slice *slice) (*activeUpload
 
 		var retry retryutils.Retry
 		for i := 0; i < defaults.MaxIterationLimit; i++ {
+			log := log.WithField("attempt", i)
+
 			reader, err := slice.reader()
 			if err != nil {
 				activeUpload.setError(err)
@@ -778,7 +780,7 @@ func (w *sliceWriter) startUpload(partNumber int64, slice *slice) (*activeUpload
 			}
 			select {
 			case <-retry.After():
-				log.WithError(err).Debugf("Part upload failed, retrying after backoff.")
+				log.WithError(err).Debugf("Back off period for retry has passed. Retrying")
 			case <-w.proto.cancelCtx.Done():
 				return
 			}
