@@ -993,6 +993,23 @@ const (
 	NotificationClickedLabel = TeleportInternalLabelPrefix + "clicked"
 	// NotificationScope is the label which contains the scope of the notification, either "user" or "global"
 	NotificationScope = TeleportInternalLabelPrefix + "scope"
+
+	// NotificationDefaultInformationalSubKind is the default subkind for an informational notification.
+	NotificationDefaultInformationalSubKind = "default-informational"
+	// NotificationDefaultWarningSubKind is the default subkind for a warning notification.
+	NotificationDefaultWarningSubKind = "default-warning"
+
+	// NotificationUserCreatedInformationalSubKind is the subkind for a user-created informational notification.
+	NotificationUserCreatedInformationalSubKind = "user-created-informational"
+	// NotificationUserCreatedWarningSubKind is the subkind for a user-created warning notification.
+	NotificationUserCreatedWarningSubKind = "user-created-warning"
+
+	// NotificationAccessRequestPendingSubKind is the subkind for a notification for an access request pending review.
+	NotificationAccessRequestPendingSubKind = "access-request-pending"
+	// NotificationAccessRequestApprovedSubKind is the subkind for a notification for a user's access request being approved.
+	NotificationAccessRequestApprovedSubKind = "access-request-approved"
+	// NotificationAccessRequestDeniedSubKind is the subkind for a notification for a user's access request being denied.
+	NotificationAccessRequestDeniedSubKind = "access-request-denied"
 )
 
 const (

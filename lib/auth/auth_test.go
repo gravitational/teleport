@@ -3880,6 +3880,10 @@ func TestAccessRequestAuditLog(t *testing.T) {
 	p, err := newTestPack(ctx, t.TempDir())
 	require.NoError(t, err)
 
+	fakeClock := clockwork.NewFakeClock()
+	p.a.Notifications, err = local.NewNotificationsService(p.bk, fakeClock)
+	require.NoError(t, err)
+
 	requester, _, _ := createSessionTestUsers(t, p.a)
 
 	paymentsRole, err := types.NewRole("paymentsRole", types.RoleSpecV6{
