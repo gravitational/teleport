@@ -59,11 +59,13 @@ describe EKS clusters:
                 "eks:DescribeCluster",
                 "eks:ListClusters"
             ],
-            "Resource": "*"
+            "Resource": "<Var name="arn:aws:eks:*:123456789012:cluster/*" />"
         }
     ]
 }
 ```
+
+Update `Resource` entries to match your AWS account's EKS resources, which have ARNs in the following format: `arn:aws:eks:{Region}:{Account}:cluster/{ClusterName}`.
 
 ## Step 2/3. Configure EKS cluster authorization
 

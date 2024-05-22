@@ -1188,6 +1188,40 @@ exports[`render with all access 1`] = `
     </div>
     <div
       class="c7"
+      data-testid="0"
+    >
+      <div
+        class="c8"
+      >
+        Guided
+      </div>
+      <div
+        class="c9 c10"
+      >
+        <div
+          class="c11 c12"
+          width="24px"
+        >
+          <img
+            class="c13"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c14"
+        >
+          <div
+            class="c16"
+          >
+            AWS CLI/Console Access
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
       data-testid="4"
     >
       <div
@@ -3109,6 +3143,41 @@ exports[`render with no access 1`] = `
             class="c17"
           >
             Aurora PostgreSQL
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
+      data-testid="0"
+    >
+      <div
+        class="c8 c9"
+        data-testid="tooltip"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c10 c11"
+      >
+        <div
+          class="c12 c13"
+          width="24px"
+        >
+          <img
+            class="c14"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c15"
+        >
+          <div
+            class="c17"
+          >
+            AWS CLI/Console Access
           </div>
         </div>
       </div>
@@ -5203,6 +5272,40 @@ exports[`render with partial access 1`] = `
             class="c16"
           >
             Application
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
+      data-testid="0"
+    >
+      <div
+        class="c8"
+      >
+        Guided
+      </div>
+      <div
+        class="c9 c10"
+      >
+        <div
+          class="c11 c12"
+          width="24px"
+        >
+          <img
+            class="c13"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c14"
+        >
+          <div
+            class="c16"
+          >
+            AWS CLI/Console Access
           </div>
         </div>
       </div>

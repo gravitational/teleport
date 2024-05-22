@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/srv/db/mysql/protocol"
+	discoverycommon "github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -163,11 +164,25 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 func (e *Engine) updateServerVersion(sessionCtx *common.Session, serverConn *client.Conn) error {
 	serverVersion := serverConn.GetServerVersion()
 	statusVersion := sessionCtx.Database.GetMySQLServerVersion()
-	// Update only when needed
-	if serverVersion != "" && serverVersion != statusVersion {
-		sessionCtx.Database.SetMySQLServerVersion(serverVersion)
+
+	// Update only when needed.
+	if serverVersion == "" || serverVersion == statusVersion {
+		return nil
 	}
 
+	// Note that sessionCtx.Database is a copy of the database cached by
+	// database service. Call e.UpdateProxiedDatabase to do the update instead of
+	// setting the copy.
+	doUpdate := func(db types.Database) error {
+		db.SetMySQLServerVersion(serverVersion)
+		return nil
+	}
+
+	if err := e.UpdateProxiedDatabase(sessionCtx.Database.GetName(), doUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	e.Log.WithField("server-version", serverVersion).Debug("Updated MySQL server version.")
 	return nil
 }
 
@@ -254,7 +269,7 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		user = services.MakeAzureDatabaseLoginUsername(sessionCtx.Database, user)
+		user = discoverycommon.MakeAzureDatabaseLoginUsername(sessionCtx.Database, user)
 	}
 
 	// Use default net dialer unless it is already initialized.

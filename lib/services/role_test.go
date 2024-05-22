@@ -3829,6 +3829,23 @@ func TestCheckAccessToDatabaseUser(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, dbSupportAWSRoles.SupportAWSIAMRoleARNAsUsers())
 
+	dbCockroachStage, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "cockroachdb",
+		Labels: map[string]string{"env": "stage"},
+	}, types.DatabaseSpecV3{
+		Protocol: "cockroachdb",
+		URI:      "cockroachdb:26257",
+	})
+	require.NoError(t, err)
+	dbCockroachProd, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "cockroachdb",
+		Labels: map[string]string{"env": "prod"},
+	}, types.DatabaseSpecV3{
+		Protocol: "cockroachdb",
+		URI:      "cockroachdb:26257",
+	})
+	require.NoError(t, err)
+
 	type access struct {
 		server types.Database
 		dbUser string
@@ -3846,6 +3863,7 @@ func TestCheckAccessToDatabaseUser(t *testing.T) {
 				{server: dbStage, dbUser: "superuser", access: false},
 				{server: dbStage, dbUser: "dev", access: true},
 				{server: dbStage, dbUser: "test", access: true},
+				{server: dbStage, dbUser: "SUPERUSER", access: true},
 			},
 		},
 		{
@@ -3885,6 +3903,27 @@ func TestCheckAccessToDatabaseUser(t *testing.T) {
 				{server: dbSupportAWSRoles, dbUser: "role/regular-user", access: false},
 				{server: dbSupportAWSRoles, dbUser: "arn:aws:iam::123456789012:role/regular-user", access: false},
 				{server: dbSupportAWSRoles, dbUser: "unknown-user", access: false},
+			},
+		},
+		{
+			name:  "(case-insensitive db) developer allowed any username in stage except superuser",
+			roles: RoleSet{roleDevStage, roleDevProd},
+			access: []access{
+				{server: dbCockroachStage, dbUser: "dev", access: true},
+				{server: dbCockroachStage, dbUser: "DEV", access: true},
+				{server: dbCockroachStage, dbUser: "test", access: true},
+				{server: dbCockroachStage, dbUser: "superuser", access: false},
+				{server: dbCockroachStage, dbUser: "SUPERUSER", access: false},
+			},
+		},
+		{
+			name:  "(case-insensitive db) developer allowed only specific username/database in prod database",
+			roles: RoleSet{roleDevStage, roleDevProd},
+			access: []access{
+				{server: dbCockroachProd, dbUser: "dev", access: true},
+				{server: dbCockroachProd, dbUser: "DEV", access: true},
+				{server: dbCockroachProd, dbUser: "superuser", access: false},
+				{server: dbCockroachProd, dbUser: "Superuser", access: false},
 			},
 		},
 	}

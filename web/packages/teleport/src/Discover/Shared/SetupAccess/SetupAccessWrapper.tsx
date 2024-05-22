@@ -47,6 +47,8 @@ export type Props = {
   children: React.ReactNode;
   infoContent?: React.ReactNode;
   wantAutoDiscover?: boolean;
+  /** A component below the header and above the main content. */
+  preContent?: React.ReactNode;
 };
 
 export function SetupAccessWrapper({
@@ -62,6 +64,7 @@ export function SetupAccessWrapper({
   onPrev,
   children,
   infoContent,
+  preContent,
   wantAutoDiscover = false,
 }: Props) {
   const canAddTraits = !isSsoUser && canEditUser;
@@ -137,6 +140,7 @@ export function SetupAccessWrapper({
     <Box maxWidth="700px">
       <Header>Set Up Access</Header>
       <HeaderSubtitle>{headerSubtitle}</HeaderSubtitle>
+      {preContent}
       <Box mb={3}>{$content}</Box>
       {infoContent}
       <ActionButtons
