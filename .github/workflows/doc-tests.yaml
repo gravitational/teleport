@@ -115,6 +115,7 @@ jobs:
           # relevant changes" job.
           separator: ","
           files: ${{ needs.changes.outputs.changed_files }}
+          reporter: github-pr-review
           # Restrict the linter to lines modified/added by a PR, not entire
           # changed files.
           filter_mode: added
