@@ -71,10 +71,6 @@ func TestSystemRoleAssertions(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Equal(t, len(expect), len(assertions.SystemRoles))
-
-		for _, r := range assertions.SystemRoles {
-			_, ok := expect[r]
-			require.True(t, ok)
-		}
+		require.Subset(t, expect, assertions.SystemRoles)
 	}
 }
