@@ -26,9 +26,10 @@ import Logger from 'shared/libs/logger';
 import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
 import { HoverTooltip } from 'shared/components/ToolTip';
 
-import { useInfiniteScroll } from 'shared/hooks';
-
-import { useKeyBasedPagination } from 'shared/hooks/useInfiniteScroll';
+import {
+  useInfiniteScroll,
+  useKeyBasedPagination,
+} from 'shared/hooks/useInfiniteScroll';
 import { IGNORE_CLICK_CLASSNAME } from 'shared/hooks/useRefClickOutside/useRefClickOutside';
 
 import { useTeleport } from 'teleport';
