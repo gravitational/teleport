@@ -7588,7 +7588,7 @@ func TestAccessRequestNonGreedyAnnotations(t *testing.T) {
 			},
 		},
 		{
-			name:           "glob-requester requests payments role, receives annotations",
+			name:           "glob-requester requests identity role, receives annotations",
 			roles:          []string{"glob-requester"},
 			requestedRoles: []string{"identity-access"},
 			expectedAnnotations: map[string][]string{
@@ -7597,7 +7597,7 @@ func TestAccessRequestNonGreedyAnnotations(t *testing.T) {
 			},
 		},
 		{
-			name:           "re-requester requests payments role, receives annotations",
+			name:           "re-requester requests both roles, receives annotations",
 			roles:          []string{"re-requester"},
 			requestedRoles: []string{"identity-access", "payments-access"},
 			expectedAnnotations: map[string][]string{
