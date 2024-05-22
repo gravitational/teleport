@@ -30,7 +30,6 @@ import (
 	"strconv"
 	"strings"
 	"text/template"
-	"time"
 	"unicode"
 
 	"github.com/gravitational/trace"
@@ -602,15 +601,6 @@ func loadDBCertificate(tc *libclient.TeleportClient, dbName string) (tls.Certifi
 	}
 
 	return dbCert, nil
-}
-
-// getTLSCertExpireTime returns the certificate NotAfter time.
-func getTLSCertExpireTime(cert tls.Certificate) (time.Time, error) {
-	x509cert, err := utils.TLSCertLeaf(cert)
-	if err != nil {
-		return time.Time{}, trace.Wrap(err)
-	}
-	return x509cert.NotAfter, nil
 }
 
 func getEnvOrDefault(key, defaultValue string) string {
