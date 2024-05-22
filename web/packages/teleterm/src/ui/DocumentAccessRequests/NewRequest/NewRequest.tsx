@@ -34,6 +34,8 @@ import {
   extractResourceRequestProperties,
 } from 'teleterm/ui/services/workspacesService/accessRequestsService';
 
+import { ClusterUri } from 'teleterm/ui/uri';
+
 import useNewRequest, { ResourceKind } from './useNewRequest';
 
 const agentOptions: ResourceOption[] = [
@@ -56,7 +58,7 @@ const agentOptions: ResourceOption[] = [
   },
 ];
 
-export function NewRequest() {
+export function NewRequest(props: { clusterUri: ClusterUri }) {
   const {
     attempt,
     agentFilter,
@@ -76,7 +78,7 @@ export function NewRequest() {
     nextPage,
     agents,
     addedItemsCount,
-  } = useNewRequest();
+  } = useNewRequest(props.clusterUri);
 
   const requestStarted = addedItemsCount > 0;
 

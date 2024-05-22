@@ -106,7 +106,7 @@ function useMenuItems(): MenuItem[] {
       Icon: icons.Add,
       onNavigate: () => {
         const doc = documentsService.createAccessRequestDocument({
-          clusterUri: activeRootCluster.uri,
+          clusterUri: workspacesService.getActiveWorkspace().localClusterUri,
           state: 'creating',
           title: 'New Access Request',
         });
