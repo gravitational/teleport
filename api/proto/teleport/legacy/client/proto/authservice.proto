@@ -2125,6 +2125,8 @@ message InventoryHeartbeat {
   // we should be able to cut down on network usage fairly significantly by moving static values
   // to the hello message and only heartbeating dynamic values here).
   types.ServerV2 SSHServer = 1;
+  // AppServer is a complete app server spec to be heartbeated.
+  types.AppServerV3 AppServer = 2;
 }
 
 // InventoryStatusRequest requests inventory status info.
