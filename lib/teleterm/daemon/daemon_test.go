@@ -475,7 +475,7 @@ func TestRetryWithRelogin(t *testing.T) {
 				return tt.fnErrs[fnCallCount-1]
 			}
 
-			err = daemon.retryWithRelogin(ctx, &api.ReloginRequest{}, fn)
+			err = daemon.RetryWithRelogin(ctx, &api.ReloginRequest{}, fn)
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
 				require.ErrorContains(t, err, tt.wantAddedMessage)
