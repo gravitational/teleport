@@ -64,6 +64,23 @@ func New(ctx context.Context, config MigrationConfig) (*Migration, error) {
 	return migration, nil
 }
 
+func (m *Migration) Close() error {
+	var errs []error
+	if m.src != nil {
+		err := m.src.Close()
+		if err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if m.dst != nil {
+		err := m.dst.Close()
+		if err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return trace.NewAggregate(errs...)
+}
+
 // Run runs a [Migration] until complete.
 func (m *Migration) Run(ctx context.Context) error {
 	var all []backend.Item
