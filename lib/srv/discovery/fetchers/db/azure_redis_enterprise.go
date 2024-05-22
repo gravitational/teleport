@@ -23,7 +23,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
@@ -64,7 +63,7 @@ func (p *azureRedisEnterprisePlugin) NewDatabaseFromServer(server *azure.RedisEn
 		return nil
 	}
 
-	database, err := services.NewDatabaseFromAzureRedisEnterprise(server.Cluster, server.Database)
+	database, err := common.NewDatabaseFromAzureRedisEnterprise(server.Cluster, server.Database)
 	if err != nil {
 		log.Warnf("Could not convert Azure Redis Enterprise %v to database resource: %v.",
 			server,

@@ -26,6 +26,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -660,10 +661,16 @@ func (h *fakeHTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 type fakeConn struct {
 	net.Conn
+	closed atomic.Bool
 }
 
-func (f fakeConn) Close() error {
+func (f *fakeConn) Close() error {
+	f.closed.CompareAndSwap(false, true)
 	return nil
+}
+
+func (f *fakeConn) RemoteAddr() net.Addr {
+	return &utils.NetAddr{}
 }
 
 func TestValidateClientVersion(t *testing.T) {
@@ -727,7 +734,7 @@ func TestValidateClientVersion(t *testing.T) {
 				ctx = metadata.NewIncomingContext(ctx, metadata.New(map[string]string{"version": tt.clientVersion}))
 			}
 
-			tt.errAssertion(t, tt.middleware.ValidateClientVersion(ctx, IdentityInfo{Conn: fakeConn{}, IdentityGetter: TestBuiltin(types.RoleNode).I}))
+			tt.errAssertion(t, tt.middleware.ValidateClientVersion(ctx, IdentityInfo{Conn: &fakeConn{}, IdentityGetter: TestBuiltin(types.RoleNode).I}))
 		})
 	}
 }

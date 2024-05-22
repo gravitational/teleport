@@ -1287,7 +1287,7 @@ protos/format: buf/installed
 .PHONY: protos/lint
 protos/lint: buf/installed
 	$(BUF) lint
-	$(BUF) lint --config=api/proto/buf-legacy.yaml api/proto
+	$(BUF) lint --config=buf-legacy.yaml api/proto
 
 .PHONY: protos/breaking
 protos/breaking: BASE=origin/master
