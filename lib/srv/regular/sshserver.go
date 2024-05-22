@@ -889,9 +889,9 @@ func New(
 	var heartbeat srv.HeartbeatI
 	if heartbeatMode == srv.HeartbeatModeNode && s.inventoryHandle != nil {
 		s.Logger.Debug("starting control-stream based heartbeat.")
-		heartbeat, err = srv.NewSSHServerHeartbeat(srv.SSHServerHeartbeatConfig{
+		heartbeat, err = srv.NewSSHServerHeartbeat(srv.HeartbeatV2Config[*types.ServerV2]{
 			InventoryHandle: s.inventoryHandle,
-			GetServer:       s.getServerInfo,
+			GetResource:     s.getServerInfo,
 			OnHeartbeat:     s.onHeartbeat,
 		})
 	} else {
