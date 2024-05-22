@@ -116,38 +116,11 @@ func (s *AccessMonitoringRulesService) DeleteAllAccessMonitoringRules(ctx contex
 
 // ListAccessMonitoringRulesWithFilter returns a paginated list of access monitoring rules that match the given filter.
 func (s *AccessMonitoringRulesService) ListAccessMonitoringRulesWithFilter(ctx context.Context, pageSize int, pageToken string, subjects []string, notificationName string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error) {
-
-	rangeStart := backend.Key(accessMonitoringRulesPrefix, pageToken)
-	rangeEnd := backend.RangeEnd(backend.ExactKey(accessMonitoringRulesPrefix))
-
-	// Get most limit+1 results to determine if there will be a next key.
-	maxLimit := pageSize + 1
-	var resources []*accessmonitoringrulesv1.AccessMonitoringRule
-	if err := backend.IterateRange(ctx, s.backend, rangeStart, rangeEnd, maxLimit, func(items []backend.Item) (stop bool, err error) {
-		for _, item := range items {
-			if len(resources) == maxLimit {
-				break
-			}
-
-			accessMonitoringRule, err := services.UnmarshalAccessMonitoringRule(item.Value)
-			if err != nil {
-				return false, trace.Wrap(err)
-			}
-			if ok := match(accessMonitoringRule, subjects, notificationName); ok {
-				resources = append(resources, accessMonitoringRule)
-			}
-		}
-
-		return len(resources) == maxLimit, nil
-	}); err != nil {
+	resources, nextKey, err := s.svc.ListResourcesWithFilter(ctx, pageSize, pageToken, func(resource *accessmonitoringrulesv1.AccessMonitoringRule) bool {
+		return match(resource, subjects, notificationName)
+	})
+	if err != nil {
 		return nil, "", trace.Wrap(err)
-	}
-
-	var nextKey string
-	if len(resources) > pageSize {
-		nextKey = resources[len(resources)-1].Metadata.Name
-		// Truncate the last item that was used to determine next row existence.
-		resources = resources[:pageSize]
 	}
 
 	return resources, nextKey, nil
