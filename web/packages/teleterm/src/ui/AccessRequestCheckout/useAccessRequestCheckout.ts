@@ -208,24 +208,14 @@ export default function useAccessRequestCheckout() {
       return;
     }
 
-    if (
-      kind === 'app' ||
-      kind === 'db' ||
-      kind === 'kube_cluster' ||
-      kind === 'node'
-    ) {
-      await workspaceAccessRequest.addOrRemoveResource(
-        toResourceRequest({
-          kind,
-          resourceId,
-          resourceName,
-          clusterUri,
-        })
-      );
-      return;
-    }
-
-    throw new Error(`Unsupported resource kind ${kind}.`);
+    await workspaceAccessRequest.addOrRemoveResource(
+      toResourceRequest({
+        kind,
+        resourceId,
+        resourceName,
+        clusterUri,
+      })
+    );
   }
 
   function getAssumedRequests() {

@@ -204,24 +204,14 @@ export default function useNewRequest() {
       return;
     }
 
-    if (
-      kind === 'app' ||
-      kind === 'db' ||
-      kind === 'kube_cluster' ||
-      kind === 'node'
-    ) {
-      accessRequestsService.addOrRemoveResource(
-        toResourceRequest({
-          kind,
-          resourceId,
-          resourceName,
-          clusterUri,
-        })
-      );
-      return;
-    }
-
-    throw new Error(`Unsupported resource kind ${kind}.`);
+    accessRequestsService.addOrRemoveResource(
+      toResourceRequest({
+        kind,
+        resourceId,
+        resourceName,
+        clusterUri,
+      })
+    );
   }
 
   async function fetchNext() {
@@ -349,6 +339,8 @@ function getDefaultSort(kind: ResourceKind): SortType {
   return { fieldName: 'name', dir: 'ASC' };
 }
 
-export type ResourceKind = ResourceIdKind | 'role';
+export type ResourceKind =
+  | Exclude<ResourceIdKind, 'user_group' | 'windows_desktop'>
+  | 'role';
 
 export type State = ReturnType<typeof useNewRequest>;
