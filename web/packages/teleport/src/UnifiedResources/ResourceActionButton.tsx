@@ -16,24 +16,24 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ButtonBorder } from 'design';
 import React, { useState } from 'react';
-import { AwsLaunchButton } from 'shared/components/AwsLaunchButton';
+import { ButtonBorder } from 'design';
 import { LoginItem, MenuLogin } from 'shared/components/MenuLogin';
+import { AwsLaunchButton } from 'shared/components/AwsLaunchButton';
 
-import cfg from 'teleport/config';
 import { UnifiedResource } from 'teleport/services/agents';
+import cfg from 'teleport/config';
 
+import useTeleport from 'teleport/useTeleport';
+import { Database } from 'teleport/services/databases';
+import { openNewTab } from 'teleport/lib/util';
+import { Kube } from 'teleport/services/kube';
+import { Desktop } from 'teleport/services/desktops';
 import DbConnectDialog from 'teleport/Databases/ConnectDialog';
 import KubeConnectDialog from 'teleport/Kubes/ConnectDialog';
-import { openNewTab } from 'teleport/lib/util';
-import { App } from 'teleport/services/apps';
-import { Database } from 'teleport/services/databases';
-import { Desktop } from 'teleport/services/desktops';
-import { Kube } from 'teleport/services/kube';
-import { Node, sortNodeLogins } from 'teleport/services/nodes';
 import useStickyClusterId from 'teleport/useStickyClusterId';
-import useTeleport from 'teleport/useTeleport';
+import { Node, sortNodeLogins } from 'teleport/services/nodes';
+import { App } from 'teleport/services/apps';
 
 type Props = {
   resource: UnifiedResource;
