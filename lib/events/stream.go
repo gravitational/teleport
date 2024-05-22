@@ -626,6 +626,7 @@ func (b *bufferCloser) Close() error {
 
 func (w *sliceWriter) newSlice() (*slice, error) {
 	w.lastPartNumber++
+	// This buffer will be returned to the pool by slice.Close
 	buffer := w.proto.cfg.BufferPool.Get()
 	buffer.Reset()
 	// reserve bytes for version header
@@ -633,6 +634,8 @@ func (w *sliceWriter) newSlice() (*slice, error) {
 
 	err := w.proto.cfg.Uploader.ReserveUploadPart(w.proto.cancelCtx, w.proto.cfg.Upload, w.lastPartNumber)
 	if err != nil {
+		// Return the unused buffer to the pool.
+		w.proto.cfg.BufferPool.Put(buffer)
 		return nil, trace.ConnectionProblem(err, uploaderReservePartErrorMessage)
 	}
 
