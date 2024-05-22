@@ -1116,10 +1116,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		return nil, trace.BadParameter("No proxy address specified, missed --proxy flag?")
 	}
 	if c.HostLogin == "" {
-		c.HostLogin, err = Username()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+		c.HostLogin = c.Username
 		log.Infof("no host login given. defaulting to %s", c.HostLogin)
 	}
 
