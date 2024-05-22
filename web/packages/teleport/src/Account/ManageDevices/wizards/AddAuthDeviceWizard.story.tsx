@@ -35,9 +35,9 @@ import cfg from 'teleport/config';
 import {
   AddAuthDeviceWizardStepProps,
   CreateDeviceStep,
-  ReauthenticateStep,
   SaveDeviceStep,
 } from './AddAuthDeviceWizard';
+import { ReauthenticateStep } from './ReauthenticateStep';
 
 export default {
   title: 'teleport/Account/Manage Devices/Add Device Wizard',
