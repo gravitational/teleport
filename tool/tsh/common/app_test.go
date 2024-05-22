@@ -297,14 +297,16 @@ func TestAppCommands(t *testing.T) {
 								proxyCancel()
 								assert.NoError(t, <-errC)
 
-								// proxy certs should not be saved to disk.
-								err = Run(context.Background(), []string{
-									"app",
-									"config",
-									app.name,
-									"--cluster", app.cluster,
-								}, setHomePath(loginPath))
-								assert.True(t, trace.IsNotFound(err), "expected not found error but got: %v", err)
+								// proxy certs should not be saved to disk if mfa was used..
+								if requireMFAType == types.RequireMFAType_SESSION {
+									err = Run(context.Background(), []string{
+										"app",
+										"config",
+										app.name,
+										"--cluster", app.cluster,
+									}, setHomePath(loginPath))
+									assert.True(t, trace.IsNotFound(err), "expected not found error but got: %v", err)
+								}
 							})
 						})
 					}

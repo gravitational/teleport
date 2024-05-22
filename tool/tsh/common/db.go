@@ -706,7 +706,7 @@ func prepareLocalProxyOptions(arg *localProxyConfig) ([]alpnproxy.LocalProxyConf
 		// proxy starts instead.
 		cert, err := loadDBCertificate(arg.tc, arg.dbInfo.ServiceName)
 		if err == nil {
-			opts = append(opts, alpnproxy.WithClientCert(cert))
+			cc.SetCert(cert)
 		}
 		return opts, nil
 	}

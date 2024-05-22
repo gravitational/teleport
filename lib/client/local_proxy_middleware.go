@@ -60,6 +60,7 @@ type CertChecker struct {
 
 var _ alpnproxy.LocalProxyMiddleware = (*CertChecker)(nil)
 
+// NewCertChecker creates a new CertChecker with the given CertIssuer.
 func NewCertChecker(certIssuer CertIssuer, clock clockwork.Clock) *CertChecker {
 	if clock == nil {
 		clock = clockwork.NewRealClock()
@@ -71,7 +72,7 @@ func NewCertChecker(certIssuer CertIssuer, clock clockwork.Clock) *CertChecker {
 	}
 }
 
-// Create a new CertChecker for the given database.
+// NewDBCertChecker creates a new CertChecker for the given database.
 func NewDBCertChecker(tc *TeleportClient, dbRoute tlsca.RouteToDatabase, clock clockwork.Clock) *CertChecker {
 	return NewCertChecker(&DBCertIssuer{
 		Client:     tc,
@@ -79,7 +80,7 @@ func NewDBCertChecker(tc *TeleportClient, dbRoute tlsca.RouteToDatabase, clock c
 	}, clock)
 }
 
-// Create a new CertChecker for the given app.
+// NewAppCertChecker creates a new CertChecker for the given app.
 func NewAppCertChecker(tc *TeleportClient, appRoute proto.RouteToApp, clock clockwork.Clock) *CertChecker {
 	return NewCertChecker(&AppCertIssuer{
 		Client:     tc,
@@ -90,7 +91,7 @@ func NewAppCertChecker(tc *TeleportClient, appRoute proto.RouteToApp, clock cloc
 // OnNewConnection is a callback triggered when a new downstream connection is
 // accepted by the local proxy.
 func (c *CertChecker) OnNewConnection(ctx context.Context, lp *alpnproxy.LocalProxy) error {
-	cert, err := c.GetCheckedCert(ctx)
+	cert, err := c.getCheckedCert(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -101,7 +102,7 @@ func (c *CertChecker) OnNewConnection(ctx context.Context, lp *alpnproxy.LocalPr
 
 // OnStart is a callback triggered when the local proxy starts.
 func (c *CertChecker) OnStart(ctx context.Context, lp *alpnproxy.LocalProxy) error {
-	cert, err := c.GetCheckedCert(ctx)
+	cert, err := c.getCheckedCert(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -110,7 +111,14 @@ func (c *CertChecker) OnStart(ctx context.Context, lp *alpnproxy.LocalProxy) err
 	return nil
 }
 
-func (c *CertChecker) GetCheckedCert(ctx context.Context) (tls.Certificate, error) {
+// SetCert sets the CertChecker's certificate.
+func (c *CertChecker) SetCert(cert tls.Certificate) {
+	c.certMu.Lock()
+	defer c.certMu.Unlock()
+	c.cert = cert
+}
+
+func (c *CertChecker) getCheckedCert(ctx context.Context) (tls.Certificate, error) {
 	c.certMu.Lock()
 	defer c.certMu.Unlock()
 
@@ -179,7 +187,7 @@ func (c *DBCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) {
 
 	var key *Key
 	if err := RetryWithRelogin(ctx, c.Client, func() error {
-		newKey, err := c.Client.IssueUserCertsWithMFA(ctx, ReissueParams{
+		dpCertParams := ReissueParams{
 			RouteToCluster: c.Client.SiteName,
 			RouteToDatabase: proto.RouteToDatabase{
 				ServiceName: c.RouteToApp.ServiceName,
@@ -189,7 +197,26 @@ func (c *DBCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) {
 			},
 			AccessRequests: accessRequests,
 			RequesterName:  proto.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL,
-		}, mfa.WithPromptReasonSessionMFA("database", c.RouteToApp.ServiceName))
+		}
+
+		clusterClient, err := c.Client.ConnectToCluster(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		newKey, mfaRequired, err := clusterClient.IssueUserCertsWithMFA(ctx, dpCertParams, c.Client.NewMFAPrompt(mfa.WithPromptReasonSessionMFA("database", c.RouteToApp.ServiceName)))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		// If MFA was not required, we do not require certs be stored solely in memory.
+		// Save it to disk to avoid additional roundtrips for future requests.
+		if mfaRequired == proto.MFARequired_MFA_REQUIRED_NO {
+			if err := c.Client.LocalAgent().AddDatabaseKey(newKey); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+
 		key = newKey
 		return trace.Wrap(err)
 	}); err != nil {
@@ -233,11 +260,12 @@ func (c *AppCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) 
 			RequesterName:  proto.UserCertsRequest_TSH_APP_LOCAL_PROXY,
 		}
 
-		// TODO (Joerger): DELETE IN v17.0.0
 		clusterClient, err := c.Client.ConnectToCluster(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
+		// TODO (Joerger): DELETE IN v17.0.0
 		rootClient, err := clusterClient.ConnectToRootCluster(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -247,7 +275,19 @@ func (c *AppCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) 
 			return trace.Wrap(err)
 		}
 
-		newKey, _, err := clusterClient.IssueUserCertsWithMFA(ctx, appCertParams, c.Client.NewMFAPrompt(mfa.WithPromptReasonSessionMFA("application", c.RouteToApp.Name)))
+		newKey, mfaRequired, err := clusterClient.IssueUserCertsWithMFA(ctx, appCertParams, c.Client.NewMFAPrompt(mfa.WithPromptReasonSessionMFA("application", c.RouteToApp.Name)))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		// If MFA was not required, we do not require certs be stored solely in memory.
+		// Save it to disk to avoid additional roundtrips for future requests.
+		if mfaRequired == proto.MFARequired_MFA_REQUIRED_NO {
+			if err := c.Client.LocalAgent().AddAppKey(newKey); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+
 		key = newKey
 		return trace.Wrap(err)
 	}); err != nil {
@@ -363,7 +403,7 @@ func (r *LocalCertGenerator) ensureValidCA() error {
 	}
 
 	// Generate a new CA from a valid remote cert.
-	remoteTLSCert, err := r.certChecker.GetCheckedCert(context.Background())
+	remoteTLSCert, err := r.certChecker.getCheckedCert(context.Background())
 	if err != nil {
 		return trace.Wrap(err)
 	}

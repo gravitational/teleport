@@ -168,7 +168,7 @@ func (a *awsApp) GetAppName() string {
 //
 // The first method is always preferred as the original hostname is preserved
 // through forward proxy.
-func (a *awsApp) StartLocalProxies() error {
+func (a *awsApp) StartLocalProxies(opts ...alpnproxy.LocalProxyConfigOpt) error {
 	ctx := context.TODO()
 
 	cred, err := a.GetAWSCredentials()

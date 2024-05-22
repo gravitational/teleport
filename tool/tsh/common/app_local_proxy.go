@@ -109,7 +109,15 @@ func (a *localProxyApp) Close() error {
 
 // startLocalALPNProxy starts the local ALPN proxy.
 func (a *localProxyApp) startLocalALPNProxy(ctx context.Context, port string, opts ...alpnproxy.LocalProxyConfigOpt) error {
+	// Create an app cert checker to check and reissue app certs for the local app proxy.
 	appCertChecker := client.NewAppCertChecker(a.tc, a.routeToApp, nil)
+
+	// If a stored cert is found for the app, try using it.
+	// Otherwise, let the checker reissue one as needed.
+	cert, err := loadAppCertificate(a.tc, a.routeToApp.Name)
+	if err == nil {
+		appCertChecker.SetCert(cert)
+	}
 
 	listenAddr := "localhost:0"
 	if port != "" {
@@ -147,7 +155,15 @@ func (a *localProxyApp) startLocalALPNProxy(ctx context.Context, port string, op
 
 // startLocalALPNProxy starts the local ALPN proxy.
 func (a *localProxyApp) startLocalALPNProxyWithTLS(ctx context.Context, port string, opts ...alpnproxy.LocalProxyConfigOpt) error {
+	// Create an app cert checker to check and reissue app certs for the local app proxy.
 	appCertChecker := client.NewAppCertChecker(a.tc, a.routeToApp, nil)
+
+	// If a stored cert is found for the app, try using it.
+	// Otherwise, let the checker reissue one as needed.
+	cert, err := loadAppCertificate(a.tc, a.routeToApp.Name)
+	if err == nil {
+		appCertChecker.SetCert(cert)
+	}
 
 	profile, err := a.tc.ProfileStatus()
 	if err != nil {
