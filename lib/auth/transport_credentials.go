@@ -320,5 +320,6 @@ func (c *TransportCredentials) Clone() credentials.TransportCredentials {
 		authorizer:           c.authorizer,
 		enforcer:             c.enforcer,
 		TransportCredentials: c.TransportCredentials.Clone(),
+		clock:                c.clock,
 	}
 }
