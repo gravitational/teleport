@@ -2377,6 +2377,9 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 		accessLists, err := client.AccessListClient().GetAccessLists(ctx)
 		return &accessListCollection{accessLists: accessLists}, trace.Wrap(err)
+	case types.KindAccessRequest:
+		resource, err := client.GetAccessRequests(ctx, types.AccessRequestFilter{ID: rc.ref.Name})
+		return &accessRequestCollection{accessRequests: resource}, trace.Wrap(err)
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }
