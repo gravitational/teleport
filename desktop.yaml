@@ -1,8 +1,0 @@
-kind: windows_desktop
-metadata:
-  name: tctl-defined
-spec:
-  addr: 54.144.205.187:3389
-  host_id: 8f1ed2bc-65fb-48de-b32f-cac76676f8db
-  non_ad: true
-version: v3
