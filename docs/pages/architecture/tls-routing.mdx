@@ -247,8 +247,8 @@ and long-lived connections.
 
 You can set up a Teleport Proxy Service behind the reverse proxy and run the
 following command to test the connection:
-```bash
-$ curl -v https://<proxy.example.com>/webapi/connectionupgrade -H "Connection: Upgrade" -H "Upgrade: alpn-ping" --no-alpn
+```code
+$ curl -v https://<Var name="teleport.example.com" />/webapi/connectionupgrade -H "Connection: Upgrade" -H "Upgrade: alpn-ping" --no-alpn
 ```
 
 For a successful upgrade, the server should return "101 Switching Protocols"

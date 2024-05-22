@@ -135,6 +135,9 @@ type Database interface {
 	// GetCloud gets the cloud this database is running on, or an empty string if it
 	// isn't running on a cloud provider.
 	GetCloud() string
+	// IsUsernameCaseInsensitive returns true if the database username is case
+	// insensitive.
+	IsUsernameCaseInsensitive() bool
 }
 
 // NewDatabaseV3 creates a new database resource.
@@ -961,9 +964,19 @@ func (d *DatabaseV3) GetEndpointType() string {
 	return ""
 }
 
+// IsUsernameCaseInsensitive returns true if the database username is case
+// insensitive.
+func (d *DatabaseV3) IsUsernameCaseInsensitive() bool {
+	// CockroachDB usernames are case-insensitive:
+	// https://www.cockroachlabs.com/docs/stable/create-user#user-names
+	return d.GetProtocol() == DatabaseProtocolCockroachDB
+}
+
 const (
 	// DatabaseProtocolPostgreSQL is the PostgreSQL database protocol.
 	DatabaseProtocolPostgreSQL = "postgres"
+	// DatabaseProtocolCockroachDB is the CockroachDB database protocol.
+	DatabaseProtocolCockroachDB = "cockroachdb"
 
 	// DatabaseTypeSelfHosted is the self-hosted type of database.
 	DatabaseTypeSelfHosted = "self-hosted"
