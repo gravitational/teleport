@@ -23,7 +23,10 @@ import { SendNotificationRequest } from 'teleterm/services/tshdEvents';
 import { ClustersService } from 'teleterm/ui/services/clusters';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
 import { routing } from 'teleterm/ui/uri';
-import { notificationRequestOneOfIsCannotProxyGatewayConnection } from 'teleterm/helpers';
+import {
+  notificationRequestOneOfIsCannotProxyGatewayConnection,
+  notificationRequestOneOfIsCannotProxyVnetConnection,
+} from 'teleterm/helpers';
 
 export class TshdNotificationsService {
   constructor(
@@ -72,7 +75,21 @@ export class TshdNotificationsService {
 
         return {
           title: `Cannot connect to ${targetDesc} (${clusterName})`,
-          description: `You tried to connect to ${targetDesc} but we encountered an unexpected error: ${error}`,
+          description: `Connection attempt to ${targetDesc} failed due to an unexpected error: ${error}`,
+        };
+      }
+      case 'cannotProxyVnetConnection': {
+        if (!notificationRequestOneOfIsCannotProxyVnetConnection(subject)) {
+          return;
+        }
+        const { targetUri, error } = subject.cannotProxyVnetConnection;
+        const clusterName = routing.parseClusterName(targetUri);
+        const appName = routing.parseAppUri(targetUri)?.params['appId'];
+        const targetDesc = appName ? appName : targetUri;
+
+        return {
+          title: `Cannot connect to ${targetDesc} (${clusterName})`,
+          description: `Connection attempt to ${targetDesc} failed due to an unexpected error: ${error}`,
         };
       }
       default: {

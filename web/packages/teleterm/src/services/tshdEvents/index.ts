@@ -33,11 +33,7 @@ export interface ReloginRequest extends api.ReloginRequest {
   rootClusterUri: uri.RootClusterUri;
 }
 export type SendNotificationRequest = api.SendNotificationRequest;
-export interface CannotProxyGatewayConnection
-  extends api.CannotProxyGatewayConnection {
-  gatewayUri: uri.GatewayUri;
-  targetUri: uri.DatabaseUri;
-}
+
 export type PromptMfaRequest = api.PromptMFARequest & {
   rootClusterUri: uri.RootClusterUri;
 };

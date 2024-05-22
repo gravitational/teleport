@@ -38,7 +38,6 @@ import {
 import {
   ReloginRequest,
   SendNotificationRequest,
-  CannotProxyGatewayConnection,
 } from 'teleterm/services/tshdEvents';
 
 export function resourceOneOfIsServer(
@@ -126,9 +125,18 @@ export function notificationRequestOneOfIsCannotProxyGatewayConnection(
   subject: SendNotificationRequest['subject']
 ): subject is {
   oneofKind: 'cannotProxyGatewayConnection';
-  cannotProxyGatewayConnection: CannotProxyGatewayConnection;
+  cannotProxyGatewayConnection: api.CannotProxyGatewayConnection;
 } {
   return subject.oneofKind === 'cannotProxyGatewayConnection';
+}
+
+export function notificationRequestOneOfIsCannotProxyVnetConnection(
+  subject: SendNotificationRequest['subject']
+): subject is {
+  oneofKind: 'cannotProxyVnetConnection';
+  cannotProxyVnetConnection: api.CannotProxyVnetConnection;
+} {
+  return subject.oneofKind === 'cannotProxyVnetConnection';
 }
 
 export function reloginReasonOneOfIsGatewayCertExpired(
