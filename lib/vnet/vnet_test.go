@@ -238,7 +238,6 @@ type testClusterSpec struct {
 type echoAppProvider struct {
 	clusters       map[string]testClusterSpec
 	dialOpts       DialOptions
-	clientCert     tls.Certificate
 	reissueAppCert func() tls.Certificate
 }
 
