@@ -78,7 +78,7 @@ export type Props = {
   doc: stores.DocumentKubeExec;
 };
 
-export const DocumentKubeExecWrapper = ({ ctx, consoleCtx, doc }) => {
+export const DocumentKubeExecWrapper = ({ ctx, consoleCtx, doc }: Props) => {
   return (
     <ContextProvider ctx={ctx}>
       <TestLayout ctx={consoleCtx}>
