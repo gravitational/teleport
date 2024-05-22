@@ -291,7 +291,7 @@ func TestMFADeviceManagement(t *testing.T) {
 	// 2nd-to-last resident credential.
 	// This is already tested above so we just use RegisterTestDevice here.
 	const pwdless2DevName = "pwdless2"
-	pwdless2Dev, err := RegisterTestDevice(ctx, userClient, pwdless2DevName, proto.DeviceType_DEVICE_TYPE_WEBAUTHN, devs.WebDev, WithPasswordless())
+	_, err = RegisterTestDevice(ctx, userClient, pwdless2DevName, proto.DeviceType_DEVICE_TYPE_WEBAUTHN, devs.WebDev, WithPasswordless())
 	require.NoError(t, err, "RegisterTestDevice failed")
 
 	// Check that all new devices are registered.
@@ -425,37 +425,138 @@ func TestMFADeviceManagement(t *testing.T) {
 		})
 	}
 
-	t.Run("delete last passwordless device", func(t *testing.T) {
-		authPref, err := authServer.GetAuthPreference(ctx)
-		require.NoError(t, err, "GetAuthPreference")
-
-		// Deleting the last passwordless device is only allowed if passwordless is
-		// off, so let's do that.
-		authPref.SetAllowPasswordless(false)
-		authPref, err = authServer.UpsertAuthPreference(ctx, authPref)
-		require.NoError(t, err, "UpsertAuthPreference")
-
-		defer func() {
-			authPref.SetAllowPasswordless(true)
-			authPref, err = authServer.UpsertAuthPreference(ctx, authPref)
-			assert.NoError(t, err, "Resetting AuthPreference")
-		}()
-
-		testDeleteMFADevice(ctx, t, userClient, mfaDeleteTestOpts{
-			deviceName: pwdless2DevName,
-			authHandler: func(t *testing.T, c *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
-				resp, err := pwdless2Dev.SolveAuthn(c)
-				require.NoError(t, err, "SolveAuthn")
-				return resp
-			},
-			checkErr: require.NoError,
-		})
-	})
-
-	// Check no remaining devices.
+	// Check no remaining devices, apart from the additional passwordless device that we can't delete.
 	resp, err = userClient.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
 	require.NoError(t, err)
-	require.Empty(t, resp.Devices)
+	require.Equal(t, "pwdless2", resp.Devices[0].GetName())
+}
+
+func TestDeletingLastPasswordlessDevice(t *testing.T) {
+	testServer := newTestTLSServer(t)
+	authServer := testServer.Auth()
+	clock := testServer.Clock().(clockwork.FakeClock)
+	ctx := context.Background()
+
+	tests := []struct {
+		name     string
+		setup    func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *TestDevice)
+		checkErr require.ErrorAssertionFunc
+	}{
+		{
+			name:  "fails",
+			setup: func(*testing.T, string, *authclient.Client, *TestDevice) {},
+			checkErr: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorContains(t,
+					err,
+					"last passwordless credential",
+					"Unexpected error deleting last passwordless device",
+				)
+			},
+		},
+		{
+			name: "succeeds when passwordless is off",
+			setup: func(t *testing.T, _ string, _ *authclient.Client, _ *TestDevice) {
+				authPref, err := authServer.GetAuthPreference(ctx)
+				require.NoError(t, err, "GetAuthPreference")
+
+				// Turn off passwordless authentication.
+				authPref.SetAllowPasswordless(false)
+				_, err = authServer.UpsertAuthPreference(ctx, authPref)
+				require.NoError(t, err, "UpsertAuthPreference")
+			},
+			checkErr: require.NoError,
+		},
+		{
+			name: "succeeds when there is a password and other WebAuthn MFAs",
+			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *TestDevice) {
+				err := authServer.UpsertPassword(username, []byte("living on the edge"))
+				require.NoError(t, err, "UpsertPassword")
+				_, err = RegisterTestDevice(
+					ctx, userClient, "another-dev", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, pwdlessDev)
+				require.NoError(t, err, "RegisterTestDevice")
+			},
+			checkErr: require.NoError,
+		},
+		{
+			name: "succeeds when there is a password and TOTP MFA",
+			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *TestDevice) {
+				err := authServer.UpsertPassword(username, []byte("living on the edge"))
+				require.NoError(t, err, "UpsertPassword")
+				_, err = RegisterTestDevice(
+					ctx, userClient, "another-dev", proto.DeviceType_DEVICE_TYPE_TOTP, pwdlessDev, WithTestDeviceClock(clock))
+				require.NoError(t, err, "RegisterTestDevice")
+			},
+			checkErr: require.NoError,
+		},
+		{
+			name: "fails even if there is password, but no other MFAs",
+			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *TestDevice) {
+				err := authServer.UpsertPassword(username, []byte("living on the edge"))
+				require.NoError(t, err, "UpsertPassword")
+			},
+			checkErr: require.Error,
+		},
+		{
+			name: "fails even if there is another MFA, but no password",
+			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *TestDevice) {
+				_, err := RegisterTestDevice(
+					ctx, userClient, "another-dev", proto.DeviceType_DEVICE_TYPE_TOTP, pwdlessDev, WithTestDeviceClock(clock))
+				require.NoError(t, err, "RegisterTestDevice")
+			},
+			checkErr: require.Error,
+		},
+	}
+
+	for i, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Enable MFA support.
+			authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+				Type:         constants.Local,
+				SecondFactor: constants.SecondFactorOptional,
+				Webauthn: &types.Webauthn{
+					RPID: "localhost",
+				},
+			})
+			require.NoError(t, err)
+			_, err = authServer.UpsertAuthPreference(ctx, authPref)
+			require.NoError(t, err)
+
+			// Create a fake user.
+			username := fmt.Sprintf("mfa-user-%d", i)
+			user, _, err := CreateUserAndRole(authServer, username, []string{"role"}, nil)
+			require.NoError(t, err)
+			userClient, err := testServer.NewClient(TestUser(user.GetName()))
+			require.NoError(t, err)
+
+			// No MFA devices should exist for a new user.
+			resp, err := userClient.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
+			require.NoError(t, err)
+			require.Empty(t, resp.Devices)
+
+			// Add the passwordless device to be deleted.
+			pwdlessDevName := "pwdless-dev"
+			pwdlessDev, err := RegisterTestDevice(
+				ctx, userClient, pwdlessDevName, proto.DeviceType_DEVICE_TYPE_WEBAUTHN, nil, WithPasswordless())
+			require.NoError(t, err)
+
+			// Case-specific setup.
+			test.setup(t, username, userClient, pwdlessDev)
+
+			// Delete the last passwordless device.
+			testDeleteMFADevice(ctx, t, userClient, mfaDeleteTestOpts{
+				deviceName: pwdlessDevName,
+				authHandler: func(t *testing.T, ch *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
+					require.NotNil(t, ch.WebauthnChallenge, "nil Webauthn challenge")
+
+					mfaResp, err := pwdlessDev.SolveAuthn(ch)
+					require.NoError(t, err, "SolveAuthn")
+
+					return mfaResp
+				},
+				checkErr: test.checkErr,
+			})
+		})
+	}
 }
 
 type mfaDevices struct {
