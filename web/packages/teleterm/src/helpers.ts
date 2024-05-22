@@ -24,6 +24,8 @@ import { Database } from 'gen-proto-ts/teleport/lib/teleterm/v1/database_pb';
 import { App } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
 import { Kube } from 'gen-proto-ts/teleport/lib/teleterm/v1/kube_pb';
 
+import * as api from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
+
 import {
   PtyClientEvent,
   PtyEventData,
@@ -37,7 +39,6 @@ import {
   ReloginRequest,
   SendNotificationRequest,
   CannotProxyGatewayConnection,
-  GatewayCertExpired,
 } from 'teleterm/services/tshdEvents';
 
 export function resourceOneOfIsServer(
@@ -134,7 +135,16 @@ export function reloginReasonOneOfIsGatewayCertExpired(
   reason: ReloginRequest['reason']
 ): reason is {
   oneofKind: 'gatewayCertExpired';
-  gatewayCertExpired: GatewayCertExpired;
+  gatewayCertExpired: api.GatewayCertExpired;
 } {
   return reason.oneofKind === 'gatewayCertExpired';
+}
+
+export function reloginReasonOneOfIsVnetCertExpired(
+  reason: ReloginRequest['reason']
+): reason is {
+  oneofKind: 'vnetCertExpired';
+  vnetCertExpired: api.VnetCertExpired;
+} {
+  return reason.oneofKind === 'vnetCertExpired';
 }
