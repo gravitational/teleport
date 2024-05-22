@@ -58,7 +58,9 @@ const (
 
 // URL parameters for configuration.
 const (
-	authModeParam = "auth_mode"
+	authModeParam          = "auth_mode"
+	gcpConnectionNameParam = "gcp_connection_name"
+	gcpIPTypeParam         = "gcp_ip_type"
 
 	disableCleanupParam  = "disable_cleanup"
 	cleanupIntervalParam = "cleanup_interval"
@@ -67,11 +69,11 @@ const (
 
 // Config is the configuration struct to pass to New.
 type Config struct {
+	pgcommon.AuthConfig
+
 	Log        logrus.FieldLogger
 	Logger     *slog.Logger
 	PoolConfig *pgxpool.Config
-
-	AuthMode pgcommon.AuthMode
 
 	DisableCleanup  bool
 	RetentionPeriod time.Duration
@@ -91,6 +93,8 @@ func (c *Config) SetFromURL(u *url.URL) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	configURL.Fragment = ""
+	configURL.RawFragment = ""
 
 	poolConfig, err := pgxpool.ParseConfig(configURL.String())
 	if err != nil {
@@ -99,6 +103,8 @@ func (c *Config) SetFromURL(u *url.URL) error {
 	c.PoolConfig = poolConfig
 
 	c.AuthMode = pgcommon.AuthMode(params.Get(authModeParam))
+	c.GCPConnectionName = params.Get(gcpConnectionNameParam)
+	c.GCPIPType = pgcommon.GCPIPType(params.Get(gcpIPTypeParam))
 
 	if s := params.Get(disableCleanupParam); s != "" {
 		b, err := strconv.ParseBool(s)
@@ -134,7 +140,7 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing pool config")
 	}
 
-	if err := c.AuthMode.Check(); err != nil {
+	if err := c.AuthConfig.Check(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -169,7 +175,7 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := cfg.AuthMode.ApplyToPoolConfigs(ctx, cfg.Logger, cfg.PoolConfig); err != nil {
+	if err := cfg.AuthConfig.ApplyToPoolConfigs(ctx, cfg.Logger, cfg.PoolConfig); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

@@ -87,12 +87,18 @@ func TestPostgresEvents(t *testing.T) {
 func TestConfig(t *testing.T) {
 	configs := map[string]*Config{
 		"postgres://foo#auth_mode=azure": {
-			AuthMode:        pgcommon.AzureADAuth,
+			AuthConfig: pgcommon.AuthConfig{
+				AuthMode: pgcommon.AzureADAuth,
+			},
 			RetentionPeriod: defaultRetentionPeriod,
 			CleanupInterval: defaultCleanupInterval,
 		},
-		"postgres://foo?sslmode=require#auth_mode=azure": {
-			AuthMode:        pgcommon.AzureADAuth,
+		"postgres://foo#auth_mode=gcp-cloudsql&gcp_connection_name=project:location:instance&gcp_ip_type=private": {
+			AuthConfig: pgcommon.AuthConfig{
+				AuthMode:          pgcommon.GCPCloudSQLIAMAuth,
+				GCPConnectionName: "project:location:instance",
+				GCPIPType:         pgcommon.GCPIPTypePrivateIP,
+			},
 			RetentionPeriod: defaultRetentionPeriod,
 			CleanupInterval: defaultCleanupInterval,
 		},

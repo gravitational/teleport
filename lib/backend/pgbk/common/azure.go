@@ -48,7 +48,7 @@ func AzureBeforeConnect(ctx context.Context, logger *slog.Logger) (func(ctx cont
 			return trace.Wrap(err, "obtaining Azure authentication token")
 		}
 
-		logger.With("ttl", time.Until(token.ExpiresOn).String()).DebugContext(ctx, "Acquired Azure access token.")
+		logger.DebugContext(ctx, "Acquired Azure access token.", "ttl", time.Until(token.ExpiresOn).String())
 		config.Password = token.Token
 
 		return nil

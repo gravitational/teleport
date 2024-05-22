@@ -22,43 +22,78 @@ import (
 	"context"
 	"log/slog"
 	"net"
+	"slices"
 
 	"cloud.google.com/go/cloudsqlconn"
 	"github.com/gravitational/trace"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/impersonate"
 
+	apiutils "github.com/gravitational/teleport/api/utils"
 	gcputils "github.com/gravitational/teleport/lib/utils/gcp"
 )
 
-// ConfigureConnectionForGCPCloudSQL configures the provide poolConfig to use
-// cloudsqlconn for "automatic" IAM database authentication.
+// GCPIPType specifies the type of IP used for GCP connection.
 //
-// https://cloud.google.com/sql/docs/postgres/iam-authentication
-func ConfigureConnectionForGCPCloudSQL(ctx context.Context, logger *slog.Logger, connConfig *pgx.ConnConfig) error {
-	if connConfig == nil {
-		return trace.BadParameter("missing connection config")
-	}
+// Values are sourced from:
+// https://github.com/GoogleCloudPlatform/cloud-sql-go-connector/blob/main/internal/cloudsql/refresh.go
+// https://github.com/GoogleCloudPlatform/alloydb-go-connector/blob/main/internal/alloydb/refresh.go
+//
+// Note that AutoIP is not recommended for Cloud SQL and not present for
+// AlloyDB. So we are not supporting AutoIP. Values are also lower-cased for
+// simplicity. If not specified, the library defaults to public.
+type GCPIPType string
 
-	gcpConfig, err := gcpConfigFromConnConfig(connConfig)
-	if err != nil {
-		return trace.Wrap(err, "invalid postgresql url %s", connConfig.ConnString())
-	}
+const (
+	GCPIPTypeUnspecified           GCPIPType = ""
+	GCPIPTypePublicIP              GCPIPType = "public"
+	GCPIPTypePrivateIP             GCPIPType = "private"
+	GCPIPTypePrivateServiceConnect GCPIPType = "psc"
+)
 
-	dialFunc, err := makeGCPCloudSQLDialFunc(ctx, gcpConfig, logger)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	connConfig.DialFunc = dialFunc
-	return nil
+var gcpIPTypes = []GCPIPType{
+	GCPIPTypeUnspecified,
+	GCPIPTypePublicIP,
+	GCPIPTypePrivateIP,
+	GCPIPTypePrivateServiceConnect,
 }
 
-func makeGCPCloudSQLDialFunc(ctx context.Context, config *gcpConfig, logger *slog.Logger) (pgconn.DialFunc, error) {
-	iamAuthOptions, err := makeGCPCloudSQLAuthOptionsForServiceAccount(ctx, config.serviceAccount, gcpServiceAccountImpersonatorImpl{}, logger)
+func (g GCPIPType) check() error {
+	if slices.Contains(gcpIPTypes, g) {
+		return nil
+	}
+	return trace.BadParameter("invalid GCP IP type %q, should be one of \"%v\"", g, apiutils.JoinStrings(gcpIPTypes, `", "`))
+}
+
+func (g GCPIPType) cloudsqlconnOption() cloudsqlconn.DialOption {
+	switch g {
+	case GCPIPTypePublicIP:
+		return cloudsqlconn.WithPublicIP()
+	case GCPIPTypePrivateIP:
+		return cloudsqlconn.WithPrivateIP()
+	case GCPIPTypePrivateServiceConnect:
+		return cloudsqlconn.WithPSC()
+	default:
+		return nil
+	}
+}
+
+// GCPCloudSQLDialFunc creates a pgconn.DialFunc to use cloudsqlconn for
+// "automatic" IAM database authentication.
+//
+// https://cloud.google.com/sql/docs/postgres/iam-authentication
+func GCPCloudSQLDialFunc(ctx context.Context, config AuthConfig, dbUser string, logger *slog.Logger) (pgconn.DialFunc, error) {
+	// IAM auth users have the PostgreSQL username of their emails minus
+	// the ".gserviceaccount.com" part. Now add the suffix back for the
+	// full service account email.
+	targetServiceAccount := dbUser + ".gserviceaccount.com"
+	if err := gcputils.ValidateGCPServiceAccountName(targetServiceAccount); err != nil {
+		return nil, trace.Wrap(err, "IAM database user for service account should have usernames in format of <service_account_name>@<project_id>.iam but got %s", dbUser)
+	}
+
+	iamAuthOptions, err := makeGCPCloudSQLAuthOptionsForServiceAccount(ctx, targetServiceAccount, gcpServiceAccountImpersonatorImpl{}, logger)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -69,14 +104,14 @@ func makeGCPCloudSQLDialFunc(ctx context.Context, config *gcpConfig, logger *slo
 	}
 
 	var dialOptions []cloudsqlconn.DialOption
-	if ipTypeOption := config.ipType.cloudsqlconnOption(); ipTypeOption != nil {
+	if ipTypeOption := config.GCPIPType.cloudsqlconnOption(); ipTypeOption != nil {
 		dialOptions = append(dialOptions, ipTypeOption)
 	}
 
 	return func(ctx context.Context, _, _ string) (net.Conn, error) {
 		// Use connection name and ignore network and host address.
-		logger.DebugContext(ctx, "Dialing GCP Cloud SQL.", "connection_name", config.connectionName, "service_account", config.serviceAccount, "ip_type", config.ipType)
-		conn, err := dialer.Dial(ctx, config.connectionName, dialOptions...)
+		logger.DebugContext(ctx, "Dialing GCP Cloud SQL.", "connection_name", config.GCPConnectionName, "service_account", targetServiceAccount, "ip_type", config.GCPIPType)
+		conn, err := dialer.Dial(ctx, targetServiceAccount, dialOptions...)
 		return conn, trace.Wrap(err)
 	}, nil
 }
