@@ -20,6 +20,7 @@ package services
 
 import (
 	"context"
+	"log/slog"
 	"slices"
 	"sort"
 	"strings"
@@ -27,6 +28,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
@@ -1048,6 +1050,7 @@ type RequestValidator struct {
 		Matchers    []parse.Matcher
 		MaxDuration time.Duration
 	}
+	logger *slog.Logger
 }
 
 // NewRequestValidator configures a new RequestValidator for the specified user.
@@ -1061,6 +1064,7 @@ func NewRequestValidator(ctx context.Context, clock clockwork.Clock, getter Requ
 		clock:     clock,
 		getter:    getter,
 		userState: uls,
+		logger:    slog.With(teleport.ComponentKey, "request.validator"),
 	}
 	for _, opt := range opts {
 		opt(&m)
@@ -1724,12 +1728,13 @@ func (m *RequestValidator) insertAllowedAnnotations(conditions types.AccessReque
 	for annotationKey, annotationValueTemplates := range conditions.Annotations {
 		// iterate through all new values and expand any
 		// variable interpolation syntax they contain.
-	ApplyTraits:
 		for _, template := range annotationValueTemplates {
 			expandedValues, err := ApplyValueTraits(template, m.userState.GetTraits())
 			if err != nil {
 				// skip values that failed variable expansion
-				continue ApplyTraits
+				m.logger.Warn("Failed to expand trait template in access request annotation",
+					"key", annotationKey, "template", template, "error", err)
+				continue
 			}
 			for _, expanded := range expandedValues {
 				annotation := singleAnnotation{annotationKey, expanded}
@@ -1748,12 +1753,13 @@ func (m *RequestValidator) insertDeniedAnnotations(conditions types.AccessReques
 	for annotationKey, annotationValueTemplates := range conditions.Annotations {
 		// iterate through all new values and expand any
 		// variable interpolation syntax they contain.
-	ApplyTraits:
 		for _, template := range annotationValueTemplates {
 			expandedValues, err := ApplyValueTraits(template, m.userState.GetTraits())
 			if err != nil {
 				// skip values that failed variable expansion
-				continue ApplyTraits
+				m.logger.Warn("Failed to expand trait template in access request annotation",
+					"key", annotationKey, "template", template, "error", err)
+				continue
 			}
 			for _, expanded := range expandedValues {
 				annotation := singleAnnotation{annotationKey, expanded}
@@ -1775,7 +1781,7 @@ func (m *RequestValidator) SystemAnnotations(req types.AccessRequest) (map[strin
 		}
 		if !allowMatchers.matchesRequest(req) {
 			// Annotations are filtered out unless this request matches one of the role matchers for this
-			// annotations.
+			// annotation.
 			continue
 		}
 		annotations[annotation.key] = append(annotations[annotation.key], annotation.value)
