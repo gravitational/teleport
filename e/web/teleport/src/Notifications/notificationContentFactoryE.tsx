@@ -16,11 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
+
 import * as Icons from 'design/Icon';
+import { ButtonSecondary } from 'design/Button';
+import Text from 'design/Text';
+
 import Logger from 'shared/libs/logger';
+import { useAsync } from 'shared/hooks/useAsync';
 
 const logger = Logger.create('Notifications');
 
+import history from 'teleport/services/history';
 import {
   Notification as NotificationType,
   NotificationSubKind,
@@ -29,7 +36,12 @@ import {
   notificationContentFactory,
   NotificationContent,
   getLabelValue,
+  QuickActionProps,
 } from 'teleport/Notifications/notificationContentFactory';
+
+import { pluralize } from 'shared/utils/text';
+
+import useTeleportE from 'e-teleport/useTeleportE';
 
 import cfg from 'e-teleport/config';
 
@@ -51,6 +63,8 @@ export function notificationContentFactoryE(
   switch (subKind) {
     case NotificationSubKind.AccessRequestApproved: {
       const requestId = getLabelValue(labels, 'request-id');
+      const assumableTime = getLabelValue(labels, 'assumable-time');
+      const roles = getLabelValue(labels, 'roles').split(',');
 
       notificationContent = {
         kind: 'redirect',
@@ -58,10 +72,14 @@ export function notificationContentFactoryE(
         type: 'success',
         icon: Icons.Users,
         redirectRoute: cfg.getAccessRequestRoute(requestId),
-        quickAction: {
-          onClick: () => null, //TODO: rudream - handle assuming roles from quick action button
-          buttonText: 'Assume Roles',
-        },
+        QuickAction: ({ markAsClicked }) => (
+          <AccessRequestAssumeButton
+            requestId={requestId}
+            assumableTime={assumableTime}
+            markAsClicked={markAsClicked}
+            roleCount={roles.length}
+          />
+        ),
       };
       break;
     }
@@ -92,33 +110,6 @@ export function notificationContentFactoryE(
       break;
     }
 
-    case NotificationSubKind.AccessRequestNowAssumable: {
-      let buttonText;
-
-      const accessRequestType = getLabelValue(labels, 'request-type');
-
-      if (accessRequestType === 'resource') {
-        buttonText = 'Access Now';
-      } else {
-        buttonText = 'Assume Role';
-      }
-
-      const requestId = getLabelValue(labels, 'request-id');
-
-      notificationContent = {
-        kind: 'redirect',
-        title: notification.title,
-        type: 'success-alt',
-        icon: Icons.Users,
-        redirectRoute: cfg.getAccessRequestRoute(requestId),
-        quickAction: {
-          onClick: () => null, //TODO: rudream - handle assuming roles from quick action button
-          buttonText: buttonText,
-        },
-      };
-      break;
-    }
-
     default:
       // If neither the OSS content factory nor this one was able to process it, there is a bug.
       logger.error(
@@ -128,4 +119,54 @@ export function notificationContentFactoryE(
   }
 
   return notificationContent;
+}
+
+function AccessRequestAssumeButton({
+  markAsClicked,
+  requestId,
+  assumableTime,
+  roleCount,
+}: QuickActionProps & {
+  requestId: string;
+  assumableTime: string;
+  roleCount: number;
+}) {
+  const ctx = useTeleportE();
+
+  const [assumeAttempt, assumeRequest] = useAsync(async () => {
+    const req = await ctx.workflowService.fetchAccessRequest(requestId);
+    const expires = await ctx.workflowService.applyPermission({ requestId });
+    ctx.storeAccessRequests.addAssumed(req, expires);
+    await markAsClicked();
+    history.reload();
+  });
+
+  const isAssumable =
+    !assumableTime || Date.now() >= new Date(assumableTime).getTime();
+
+  const isAssumed = ctx.storeAccessRequests.isAssumed(requestId);
+
+  const disabled =
+    assumeAttempt.status === 'processing' || !isAssumable || isAssumed;
+
+  return (
+    <>
+      <ButtonSecondary
+        onClick={(event: React.MouseEvent<HTMLButtonElement>) => {
+          event.stopPropagation();
+          assumeRequest();
+        }}
+        disabled={disabled}
+        title={!isAssumable ? 'This request is not assumable yet.' : ''}
+      >
+        {isAssumed ? 'Assumed' : `Assume ${pluralize(roleCount, 'Role')}`}
+      </ButtonSecondary>
+      {assumeAttempt.status === 'error' && (
+        <Text typography="subtitle3" color="error.main">
+          Failed to assume {pluralize(roleCount, 'role')}:{' '}
+          {assumeAttempt.statusText}
+        </Text>
+      )}
+    </>
+  );
 }
