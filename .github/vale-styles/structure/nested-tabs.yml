@@ -1,0 +1,30 @@
+extends: script
+level: error
+message: "Do not include a Tabs component within a TabItem, as it creates a poor user experience. Instead, provide a single happy path that satisfies most users and separeate other possible ways of doing things into another part of the page (or a separate page). Alternatively, find a way to consolidate the TabItems."
+scope: raw
+script: |
+  text := import("text")
+  fmt := import("fmt")
+  lines := text.split(scope, "\n")
+  getMatches := func() {
+    inTabItem := false
+    for n, l in lines {
+        if !inTabItem && text.re_match(`^\s*<TabItem`, l) {
+          inTabItem = true
+        }
+  
+        if inTabItem && text.re_match(`^\s*</TabItem`, l) {
+          inTabItem = false
+        }
+  
+        if inTabItem && text.re_match(`^\s*<Tabs`, l) {
+          return [{
+            begin: n+1,
+            end: n+1
+          }]
+        }
+    }
+  }
+      
+  matches := getMatches()
+
