@@ -32,11 +32,6 @@ import { filterSensitiveProperties } from 'teleterm/services/tshd/interceptors';
 export interface ReloginRequest extends api.ReloginRequest {
   rootClusterUri: uri.RootClusterUri;
 }
-export interface GatewayCertExpired extends api.GatewayCertExpired {
-  gatewayUri: uri.GatewayUri;
-  targetUri: uri.DatabaseUri;
-}
-
 export type SendNotificationRequest = api.SendNotificationRequest;
 export interface CannotProxyGatewayConnection
   extends api.CannotProxyGatewayConnection {

@@ -23,7 +23,10 @@ import {
   ClusterConnectReason,
 } from 'teleterm/ui/services/modals';
 import { ClustersService } from 'teleterm/ui/services/clusters';
-import { reloginReasonOneOfIsGatewayCertExpired } from 'teleterm/helpers';
+import {
+  reloginReasonOneOfIsGatewayCertExpired,
+  reloginReasonOneOfIsVnetCertExpired,
+} from 'teleterm/helpers';
 
 export class ReloginService {
   constructor(
@@ -74,6 +77,16 @@ export class ReloginService {
           kind: 'reason.gateway-cert-expired',
           targetUri: request.reason.gatewayCertExpired.targetUri,
           gateway: gateway,
+        };
+      }
+      case 'vnetCertExpired': {
+        if (!reloginReasonOneOfIsVnetCertExpired(request.reason)) {
+          return;
+        }
+
+        return {
+          kind: 'reason.vnet-cert-expired',
+          targetUri: request.reason.vnetCertExpired.targetUri,
         };
       }
       default: {

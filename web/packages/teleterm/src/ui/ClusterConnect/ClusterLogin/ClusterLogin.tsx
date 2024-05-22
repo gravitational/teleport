@@ -26,6 +26,7 @@ import { PrimaryAuthType } from 'shared/services';
 import { AuthSettings } from 'teleterm/ui/services/clusters/types';
 import { ClusterConnectReason } from 'teleterm/ui/services/modals';
 import { getTargetNameFromUri } from 'teleterm/services/tshd/gateway';
+import { routing } from 'teleterm/ui/uri';
 
 import LoginForm from './FormLogin';
 import useClusterLogin, { State, Props } from './useClusterLogin';
@@ -141,6 +142,16 @@ const getTargetDesc = (reason: ClusterConnectReason): React.ReactNode => {
         );
       } else {
         return <strong>{getTargetNameFromUri(targetUri)}</strong>;
+      }
+    }
+    case 'reason.vnet-cert-expired': {
+      const { targetUri } = reason;
+      const appName = routing.parseAppUri(targetUri)?.params['appId'];
+
+      if (appName) {
+        return <strong>{appName}</strong>;
+      } else {
+        return <strong>{targetUri}</strong>;
       }
     }
     default: {
