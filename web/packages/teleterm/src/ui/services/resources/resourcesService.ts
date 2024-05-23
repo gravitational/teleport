@@ -279,12 +279,12 @@ function makeGetResourcesParamsRequest(params: types.GetResourcesParams) {
   };
 }
 
-export type UnifiedResourceResponse = (
-  | { kind: 'server'; resource: types.Server }
+export type UnifiedResourceResponse =
+  | { kind: 'server'; resource: types.Server; requiresRequest: boolean }
   | {
       kind: 'database';
       resource: types.Database;
+      requiresRequest: boolean;
     }
-  | { kind: 'kube'; resource: types.Kube }
-  | { kind: 'app'; resource: types.App }
-) & { requiresRequest: boolean };
+  | { kind: 'kube'; resource: types.Kube; requiresRequest: boolean }
+  | { kind: 'app'; resource: types.App; requiresRequest: boolean };
