@@ -129,12 +129,12 @@ func newAPIRootClusterWithDetails(cluster *clusters.ClusterWithDetails) (*api.Cl
 	apiCluster.ProxyVersion = cluster.ProxyVersion
 
 	switch cluster.ShowResources {
-	case constants.ShowResourcesRequestable:
-		apiCluster.ShowResources = api.ShowResources_SHOW_RESOURCES_REQUESTABLE
 	case constants.ShowResourcesaccessibleOnly:
-	default:
-		// If we don't know yet what option the cluster supports, we default to `accessible_only`.
 		apiCluster.ShowResources = api.ShowResources_SHOW_RESOURCES_ACCESSIBLE_ONLY
+	case constants.ShowResourcesRequestable:
+	default:
+		// If the UI config for ShowResources is not set, the default is `requestable`.
+		apiCluster.ShowResources = api.ShowResources_SHOW_RESOURCES_REQUESTABLE
 	}
 
 	return apiCluster, nil
