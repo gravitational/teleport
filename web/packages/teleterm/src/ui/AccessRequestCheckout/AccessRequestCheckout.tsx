@@ -238,7 +238,7 @@ export function AccessRequestCheckout() {
             setSelectedReviewers={setSelectedReviewers}
             requireReason={false}
             numRequestedResources={requestedCount}
-            isResourceRequest={isRoleRequest}
+            isResourceRequest={!isRoleRequest}
             fetchStatus={'loaded'}
             dryRunResponse={dryRunResponse}
             maxDuration={maxDuration}
