@@ -1685,10 +1685,6 @@ github.com/lyft/protoc-gen-star v0.6.1/go.mod h1:TGAoBVkt8w7MPG72TrKIu85MIdXwDuz
 github.com/lyft/protoc-gen-star/v2 v2.0.1/go.mod h1:RcCdONR2ScXaYnQC5tUzxzlpA3WVYF7/opLeUgcQs/o=
 github.com/mailgun/holster/v3 v3.16.2 h1:Zl5Spy4WdgLMKWbHgkuDwsQwsJN0Xr3Mgt2dZGJih18=
 github.com/mailgun/holster/v3 v3.16.2/go.mod h1:U3cbmr+/KfYqWINVCqyEhEID8hBDOPHEj+XmDKbi2nk=
-github.com/mailgun/lemma v0.0.0-20170619173223-4214099fb348 h1:H2VEGfxRuhOR5Dl6guYNTXrHEMh0JkKFDBZqxVCQ3RE=
-github.com/mailgun/lemma v0.0.0-20170619173223-4214099fb348/go.mod h1:2+eAliypGoT5/vXx9ufZ7N9I3H8Z/tXVGqyNVzCOfKQ=
-github.com/mailgun/metrics v0.0.0-20150124003306-2b3c4565aafd h1:yCc0lIUQncZ7luEMtOpYjYYcIOh1d/eQOGWnMKRHuoI=
-github.com/mailgun/metrics v0.0.0-20150124003306-2b3c4565aafd/go.mod h1:l716ZJt823cQ7oTK8odsf+KL5EZbSnk/0r3lFnzEUxA=
 github.com/mailgun/minheap v0.0.0-20170619185613-3dbe6c6bf55f h1:aOqSQstfwSx9+tcM/xiKTio3IVjs7ZL2vU8kI9bI6bM=
 github.com/mailgun/minheap v0.0.0-20170619185613-3dbe6c6bf55f/go.mod h1:V3EvCedtJTvUYzJF2GZMRB0JMlai+6cBu3VCTQz33GQ=
 github.com/mailgun/timetools v0.0.0-20170619190023-f3a7b8ffff47 h1:jlyJPTyctWqANbaxi/nXRrxX4WeeAGMPaHPj9XlO0Rw=
@@ -3056,8 +3052,8 @@ sigs.k8s.io/controller-runtime v0.18.1 h1:RpWbigmuiylbxOCLy0tGnq1cU1qWPwNIQzoJk+
 sigs.k8s.io/controller-runtime v0.18.1/go.mod h1:tuAt1+wbVsXIT8lPtk5RURxqAnq7xkpv2Mhttslg7Hw=
 sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd h1:EDPBXCAspyGV4jQlpZSudPeMmr1bNJefnuqLsRAsHZo=
 sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd/go.mod h1:B8JuhiUyNFVKdsE8h686QcCxMaH6HrOAZj4vswFpcB0=
-sigs.k8s.io/kustomize/kyaml v0.16.0 h1:6J33uKSoATlKZH16unr2XOhDI+otoe2sR3M8PDzW3K0=
-sigs.k8s.io/kustomize/kyaml v0.16.0/go.mod h1:xOK/7i+vmE14N2FdFyugIshB8eF6ALpy7jI87Q2nRh4=
+sigs.k8s.io/kustomize/kyaml v0.17.1 h1:TnxYQxFXzbmNG6gOINgGWQt09GghzgTP6mIurOgrLCQ=
+sigs.k8s.io/kustomize/kyaml v0.17.1/go.mod h1:9V0mCjIEYjlXuCdYsSXvyoy2BTsLESH7TlGV81S282U=
 sigs.k8s.io/structured-merge-diff/v4 v4.4.1 h1:150L+0vs/8DA78h1u02ooW1/fFq/Lwr+sGiqlzvrtq4=
 sigs.k8s.io/structured-merge-diff/v4 v4.4.1/go.mod h1:N8hJocpFajUSSeSJ9bOZ77VzejKZaXsTtZo4/u7Io08=
 sigs.k8s.io/yaml v1.1.0/go.mod h1:UJmg0vDUVViEyp3mgSv9WPwZCDxu4rQW1olrI1uml+o=
