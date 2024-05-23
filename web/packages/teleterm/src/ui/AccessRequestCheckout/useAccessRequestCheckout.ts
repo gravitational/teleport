@@ -113,7 +113,7 @@ export default function useAccessRequestCheckout() {
           resourceIds: data
             .filter(d => d.kind !== 'role')
             .map(d => ({
-              name: d.name,
+              name: d.id,
               kind: d.kind,
               clusterName: d.clusterName,
               subResourceName: '',
