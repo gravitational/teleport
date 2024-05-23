@@ -48,10 +48,7 @@ func (c *vnetCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	ctx, cancel := context.WithCancelCause(cf.Context)
-	defer cancel(nil)
-
-	manager, adminCommandErrCh, err := vnet.Setup(ctx, appProvider)
+	processManager, err := vnet.SetupAndRun(cf.Context, appProvider)
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
 			return nil
@@ -59,7 +56,12 @@ func (c *vnetCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	err = vnet.Run(ctx, cancel, manager, adminCommandErrCh)
+	go func() {
+		<-cf.Context.Done()
+		processManager.Close()
+	}()
+
+	err = processManager.Wait()
 	if errors.Is(err, context.Canceled) {
 		return nil
 	}
