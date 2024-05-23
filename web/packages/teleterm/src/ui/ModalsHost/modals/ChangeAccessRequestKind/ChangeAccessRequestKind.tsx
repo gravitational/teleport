@@ -58,7 +58,7 @@ export function ChangeAccessRequestKind({
       </DialogContent>
       <DialogFooter>
         <ButtonWarning size="large" block={true} onClick={onConfirm}>
-          Confirm
+          Continue
         </ButtonWarning>
       </DialogFooter>
     </DialogConfirmation>
