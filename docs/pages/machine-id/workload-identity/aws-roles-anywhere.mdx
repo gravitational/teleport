@@ -38,9 +38,137 @@ information, see the [deployment guides](../deployment.mdx).
 
 ## Step 1/5. Decide on a SPIFFE ID structure
 
+If you have already deployed Teleport Workload Identity, then you will already
+have a SPIFFE ID structure in place. If you have not, then you will need to
+decide on a structure for your SPIFFE IDs.
+
+The [best practices guide](./best-practices.mdx) has some recommendations for
+this.
+
+For the purposes of this guide, we will be granting access to AWS to the
+`spiffe://example.teleport.sh/my-workload` identity.
+
 ## Step 2/5. Configure AWS Roles Anywhere
 
-## Step 3/5. Configure Teleport RBAC to allow the issuance of Workload ID certificates
+Configuring AWS Roles Anywhere for the first time involves a few steps. Some
+of these may not be necessary if you have previously configured AWS Roles
+Anywhere for your Teleport cluster.
+
+### Configure a Roles Anywhere Trust Anchor
+
+If you have previously configured AWS Roles Anywhere for your Teleport cluster,
+you can skip this step.
+
+First, we must establish trust between your Teleport cluster and your AWS
+Roles Anywhere. This will allow AWS to validate X.509 certificates that are
+issued by your Teleport cluster. This is done by configuring the Teleport
+cluster's SPIFFE certificate authority as the trust anchor for AWS Roles
+Anywhere.
+
+First, you must obtain your Teleport cluster's SPIFFE CA:
+
+```shell
+$ tctl auth export --type spiffe
+```
+
+Now, navigate to "Roles Anywhere" in the AWS console and click "Create a trust
+anchor". You will need to give it a descriptive name, we suggest using the
+name of your Teleport cluster with "spiffe" appended.
+
+Select "External certificate bundle" and then paste the output you received
+from the `tctl` command into the text box.
+
+You can now click the "Create trust anchor" button.
+
+### Create a Role
+
+Next, we must create a role in AWS for your workload to assume. You may also
+modify the trust policy of an existing role if you prefer.
+
+Navigate to the "Roles" section of the AWS IAM console and click "Create role".
+
+For the "Trusted entity type" select "Custom trust policy".
+
+You will now enter the following:
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Principal": {
+                "Service": "rolesanywhere.amazonaws.com"
+            },
+            "Action": [
+                "sts:AssumeRole",
+                "sts:TagSession",
+                "sts:SetSourceIdentity"
+            ],
+            "Condition": {
+                "StringEquals": {
+                    "aws:PrincipalTag/x509SAN/URI": "spiffe://example.teleport.sh/my-workload"
+                },
+                "ArnEquals": {
+                    "aws:SourceArn": "arn:aws:rolesanywhere:us-east-1:12345789:trust-anchor/0000000-0000-0000-0000-000000000000"
+                }
+            }
+        }
+    ]
+}
+```
+
+Replace:
+
+- `spiffe://example.teleport.sh/my-workload` with the SPIFFE ID you have chosen
+  for your workload.
+- `arn:aws:rolesanywhere:us-east-1:12345789:trust-anchor/0000000-0000-0000-0000-000000000000`
+  with the ARN of the trust anchor you created in the previous step.
+
+Click "Next" to proceed to the "Add permissions" page. Now select the
+permissions you wish to grant to your workload on AWS.
+
+Click "Next" to proceed to the "Name, review, and create" page. Give your role
+a descriptive name, e.g "my-workload-roles-anywhere".
+
+Click "Create role".
+
+### Create a Roles Anywhere Profile
+
+Finally, you must create a Roles Anywhere profile.
+
+Navigate back to the "Roles Anywhere" section of the AWS IAM console and click
+"Create a profile".
+
+Give your profile a descriptive name, e.g "my-workload".
+
+Select the role you created in the previous step.
+
+Click "Create profile".
+
+## Step 3/5. Configure Teleport RBAC
+
+Now we need to configure Teleport to allow a X.509 certificate to be issued
+containing the SPIFFE ID we have chosen.
+
+```yaml
+kind: role
+version: v6
+metadata:
+  name: my-workload-roles-anywhere
+spec:
+  allow:
+    spiffe:
+      - path: "/my-workload"
+```
+
+Replace:
+
+- `my-workload-roles-anywhere` with a descriptive name for the role.
+- `/my-workload` with the path element of the SPIFFE ID you have chosen for your
+  workload.
+
+TODO: Assign role to human or bot...
 
 ## Step 4/5. Issue Workload ID certificates
 
@@ -51,3 +179,12 @@ information, see the [deployment guides](../deployment.mdx).
 ## Step 5/5. Configure the AWS CLI and SDKs to use Roles Anywhere to authenticate
 
 Installing the right stuff....
+
+## Next steps
+
+- [Workload Identity Overview](../workload-identity.mdx): Overview of Teleport
+Workload Identity.
+- [Best Practices](./best-practices.mdx): Best practices for using Workload
+Identity in Production.
+- Read the [configuration reference](../reference/configuration.mdx) to explore
+all the available configuration options.
