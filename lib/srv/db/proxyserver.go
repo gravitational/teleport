@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -83,9 +84,9 @@ type ConnMonitor interface {
 // ProxyServerConfig is the proxy configuration.
 type ProxyServerConfig struct {
 	// AuthClient is the authenticated client to the auth server.
-	AuthClient *auth.Client
+	AuthClient *authclient.Client
 	// AccessPoint is the caching client connected to the auth server.
-	AccessPoint auth.ReadDatabaseAccessPoint
+	AccessPoint authclient.ReadDatabaseAccessPoint
 	// Authorizer is responsible for authorizing user identities.
 	Authorizer authz.Authorizer
 	// Tunnel is the reverse tunnel server.
@@ -655,7 +656,7 @@ func (s *ProxyServer) getConfigForServer(ctx context.Context, identity tlsca.Ide
 	}, nil
 }
 
-func getConfigForClient(conf *tls.Config, ap auth.ReadDatabaseAccessPoint, log logrus.FieldLogger, caTypes ...types.CertAuthType) func(*tls.ClientHelloInfo) (*tls.Config, error) {
+func getConfigForClient(conf *tls.Config, ap authclient.ReadDatabaseAccessPoint, log logrus.FieldLogger, caTypes ...types.CertAuthType) func(*tls.ClientHelloInfo) (*tls.Config, error) {
 	return func(info *tls.ClientHelloInfo) (*tls.Config, error) {
 		var clusterName string
 		var err error
@@ -665,7 +666,7 @@ func getConfigForClient(conf *tls.Config, ap auth.ReadDatabaseAccessPoint, log l
 				log.Debugf("Ignoring unsupported cluster name %q.", info.ServerName)
 			}
 		}
-		pool, _, err := auth.ClientCertPool(ap, clusterName, caTypes...)
+		pool, _, err := authclient.ClientCertPool(info.Context(), ap, clusterName, caTypes...)
 		if err != nil {
 			log.WithError(err).Error("Failed to retrieve client CA pool.")
 			return nil, nil // Fall back to the default config.

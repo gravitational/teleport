@@ -24,7 +24,6 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/aws"
 )
@@ -57,6 +56,9 @@ type App struct {
 	UserGroups []UserGroupAndDescription `json:"userGroups,omitempty"`
 	// SAMLApp if true, indicates that the app is a SAML Application (SAML IdP Service Provider)
 	SAMLApp bool `json:"samlApp,omitempty"`
+	// Integration is the integration name that must be used to access this Application.
+	// Only applicable to AWS App Access.
+	Integration string `json:"integration,omitempty"`
 }
 
 // UserGroupAndDescription is a user group name and its description.
@@ -79,8 +81,9 @@ type MakeAppsConfig struct {
 	AppsToUserGroups map[string]types.UserGroups
 	// AppServersAndSAMLIdPServiceProviders is a list of AppServers and SAMLIdPServiceProviders.
 	AppServersAndSAMLIdPServiceProviders types.AppServersOrSAMLIdPServiceProviders
-	// Identity is identity of the logged in user.
-	Identity *tlsca.Identity
+	// AllowedAWSRolesLookup is a map of AWS IAM Role ARNs available to each App for the logged user.
+	// Only used for AWS Console Apps.
+	AllowedAWSRolesLookup map[string][]string
 	// UserGroupLookup is a map of user groups to provide to each App
 	UserGroupLookup map[string]types.UserGroup
 	// Logger is a logger used for debugging while making an app
@@ -130,10 +133,12 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 		FriendlyName: types.FriendlyName(app),
 		UserGroups:   userGroupAndDescriptions,
 		SAMLApp:      false,
+		Integration:  app.GetIntegration(),
 	}
 
 	if app.IsAWSConsole() {
-		resultApp.AWSRoles = aws.FilterAWSRoles(c.Identity.AWSRoleARNs,
+		allowedAWSRoles := c.AllowedAWSRolesLookup[app.GetName()]
+		resultApp.AWSRoles = aws.FilterAWSRoles(allowedAWSRoles,
 			app.GetAWSAccountID())
 	}
 
@@ -193,7 +198,8 @@ func MakeApps(c MakeAppsConfig) []App {
 			}
 
 			if app.IsAWSConsole() {
-				resultApp.AWSRoles = aws.FilterAWSRoles(c.Identity.AWSRoleARNs,
+				allowedAWSRoles := c.AllowedAWSRolesLookup[app.GetName()]
+				resultApp.AWSRoles = aws.FilterAWSRoles(allowedAWSRoles,
 					app.GetAWSAccountID())
 			}
 

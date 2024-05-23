@@ -1,5 +1,7 @@
-VERSION?=15.2.0
-GO_VERSION=1.21.10
+include ../../build.assets/images.mk
+
+VERSION ?= $(shell go run ../hack/get-version/get-version.go)
+GO_VERSION=1.21.9
 
 GITTAG=v$(VERSION)
 
@@ -31,11 +33,13 @@ DOCKER_PRIVATE_REGISTRY = 146628656107.dkr.ecr.us-west-2.amazonaws.com
 DOCKER_IMAGE = $(DOCKER_PRIVATE_REGISTRY)/gravitational/$(DOCKER_NAME):$(DOCKER_VERSION)
 DOCKER_ECR_PUBLIC_REGISTRY = public.ecr.aws/gravitational
 DOCKER_IMAGE_ECR_PUBLIC = $(DOCKER_ECR_PUBLIC_REGISTRY)/$(DOCKER_NAME):$(DOCKER_VERSION)
-DOCKER_BUILD_ARGS = --build-arg GO_VERSION=${GO_VERSION} --build-arg GITREF=$(GITREF) --build-arg VERSION=$(VERSION)
-
+DOCKER_BUILD_ARGS = --build-arg GO_VERSION=${GO_VERSION} --build-arg GITREF=$(GITREF) --build-arg VERSION=$(VERSION) --build-arg VERSION=$(VERSION) --load --platform="$(OS)/$(ARCH)" --build-arg BUILDBOX=$(BUILDBOX)
 RELEASE_NAME = teleport-event-handler
 RELEASE = $(RELEASE_NAME)-v$(VERSION)-$(OS)-$(ARCH)-bin
 RELEASE_MESSAGE = "Building with GOOS=$(OS) GOARCH=$(ARCH)."
+# In staging
+# DOCKER_PRIVATE_REGISTRY = 603330915152.dkr.ecr.us-west-2.amazonaws.com
+# DOCKER_ECR_PUBLIC_REGISTRY = public.ecr.aws/gravitational-staging
 
 .PHONY: build
 build: clean
@@ -61,19 +65,16 @@ clean:
 
 .PHONY: docker-build
 docker-build: ## Build docker image with the plugin.
-	docker build ${DOCKER_BUILD_ARGS} -t ${DOCKER_IMAGE} -f ./Dockerfile ../
+	docker build ${DOCKER_BUILD_ARGS} -t ${DOCKER_IMAGE} -f ./Dockerfile ../..
 
 .PHONY: docker-push
 docker-push:
 	docker push ${DOCKER_IMAGE}
 
-.PHONY: docker-promote
-docker-promote: docker-promote-ecr-public
-
-.PHONY: docker-promote-ecr-public
-docker-promote-ecr-public:
-	docker pull ${DOCKER_IMAGE} && \
-	docker tag ${DOCKER_IMAGE} ${DOCKER_IMAGE_ECR_PUBLIC} && \
+.PHONY: docker-publish
+docker-publish: ## Publishes a docker image from the private ECR registry to the public one.
+	docker pull ${DOCKER_IMAGE}
+	docker tag ${DOCKER_IMAGE} ${DOCKER_IMAGE_ECR_PUBLIC}
 	docker push ${DOCKER_IMAGE_ECR_PUBLIC}
 
 .PHONY: install

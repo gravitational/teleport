@@ -40,8 +40,8 @@ import (
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
@@ -94,7 +94,7 @@ type CLICommand interface {
 
 	// TryRun is executed after the CLI parsing is done. The command must
 	// determine if selectedCommand belongs to it and return match=true
-	TryRun(ctx context.Context, selectedCommand string, c *auth.Client) (match bool, err error)
+	TryRun(ctx context.Context, selectedCommand string, c *authclient.Client) (match bool, err error)
 }
 
 // Run is the same as 'make'. It helps to share the code between different
@@ -375,7 +375,7 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Confi
 		}
 		return nil, trace.Wrap(err)
 	}
-	identity, err := auth.ReadLocalIdentity(filepath.Join(cfg.DataDir, teleport.ComponentProcess), auth.IdentityID{Role: types.RoleAdmin, HostUUID: cfg.HostUUID})
+	identity, err := state.ReadLocalIdentity(filepath.Join(cfg.DataDir, teleport.ComponentProcess), state.IdentityID{Role: types.RoleAdmin, HostUUID: cfg.HostUUID})
 	if err != nil {
 		// The "admin" identity is not present? This means the tctl is running
 		// NOT on the auth server

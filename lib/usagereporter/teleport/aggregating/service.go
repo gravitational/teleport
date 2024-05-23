@@ -240,8 +240,17 @@ func (r reportService) createUserActivityReportsLock(ctx context.Context, ttl ti
 	if len(payload) == 0 {
 		payload = []byte("null")
 	}
+	lockKey := backend.Key(userActivityReportsLock)
+	// HACK(espadolini): dynamodbbk doesn't let you Create over an expired item
+	// but it will explicitly delete expired items on a Get; in addition, reads
+	// are cheaper than writes in most backends, so we do a Get here first
+	if _, err := r.b.Get(ctx, lockKey); err == nil {
+		return trace.AlreadyExists(userActivityReportsLock + " already exists")
+	} else if !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
 	if _, err := r.b.Create(ctx, backend.Item{
-		Key:     backend.Key(userActivityReportsLock),
+		Key:     lockKey,
 		Value:   payload,
 		Expires: r.b.Clock().Now().UTC().Add(ttl),
 	}); err != nil {

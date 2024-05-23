@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=15.3.1
+VERSION=15.3.6
 
 DOCKER_IMAGE ?= teleport
 
@@ -1324,7 +1324,7 @@ protos/format: buf/installed
 .PHONY: protos/lint
 protos/lint: buf/installed
 	$(BUF) lint
-	$(BUF) lint --config=api/proto/buf-legacy.yaml api/proto
+	$(BUF) lint --config=buf-legacy.yaml api/proto
 
 .PHONY: protos/breaking
 protos/breaking: BASE=origin/master

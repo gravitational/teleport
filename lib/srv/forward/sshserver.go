@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
@@ -143,7 +144,7 @@ type Server struct {
 	// the server supports. If omitted the defaults will be used.
 	macAlgorithms []string
 
-	authClient      auth.ClientI
+	authClient      authclient.ClientI
 	authService     srv.AccessPoint
 	sessionRegistry *srv.SessionRegistry
 	dataDir         string
@@ -182,7 +183,7 @@ type ServerConfig struct {
 	// LocalAuthClient is a client that provides access to this local cluster.
 	// This is used for actions that should always happen on the local cluster
 	// and not remote clusters, such as session recording.
-	LocalAuthClient auth.ClientI
+	LocalAuthClient authclient.ClientI
 	// TargetClusterAccessPoint is a client that provides access to the cluster
 	// of the server being connected to, whether it is the local cluster or a
 	// remote cluster.

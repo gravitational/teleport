@@ -310,9 +310,9 @@ func Run(args []string, stdout io.Writer) error {
 	case dbCmd.FullCommand():
 		err = onDBCommand(botConfig, &cf)
 	case proxyCmd.FullCommand():
-		err = onProxyCommand(botConfig, &cf)
+		err = onProxyCommand(ctx, botConfig, &cf)
 	case sshProxyCmd.FullCommand():
-		err = onSSHProxyCommand(botConfig, &cf)
+		err = onSSHProxyCommand(ctx, &cf)
 	case kubeCredentialsCmd.FullCommand():
 		err = onKubeCredentialsCommand(ctx, botConfig)
 	case spiffeInspectCmd.FullCommand():

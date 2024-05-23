@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -284,7 +285,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 		existingKubeServers          []types.KubeServer
 		awsMatchers                  []types.AWSMatcher
 		expectedServersToExistInAuth []types.KubeServer
-		accessPoint                  func(*testing.T, *auth.Server, auth.ClientI) auth.DiscoveryAccessPoint
+		accessPoint                  func(*testing.T, *auth.Server, authclient.ClientI) authclient.DiscoveryAccessPoint
 		discoveryConfig              func(*testing.T) *discoveryconfig.DiscoveryConfig
 	}{
 		{
@@ -292,7 +293,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 			discoveryConfig: func(t *testing.T) *discoveryconfig.DiscoveryConfig {
 				return getDc()
 			},
-			accessPoint: func(t *testing.T, authServer *auth.Server, authClient auth.ClientI) auth.DiscoveryAccessPoint {
+			accessPoint: func(t *testing.T, authServer *auth.Server, authClient authclient.ClientI) authclient.DiscoveryAccessPoint {
 				return &accessPointWrapper{
 					DiscoveryAccessPoint: getDiscoveryAccessPoint(authServer, authClient),
 					enrollEKSClusters: func(ctx context.Context, request *integrationpb.EnrollEKSClustersRequest, _ ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error) {
@@ -320,7 +321,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 			discoveryConfig: func(t *testing.T) *discoveryconfig.DiscoveryConfig {
 				return getDc()
 			},
-			accessPoint: func(t *testing.T, authServer *auth.Server, authClient auth.ClientI) auth.DiscoveryAccessPoint {
+			accessPoint: func(t *testing.T, authServer *auth.Server, authClient authclient.ClientI) authclient.DiscoveryAccessPoint {
 				return &accessPointWrapper{
 					DiscoveryAccessPoint: getDiscoveryAccessPoint(authServer, authClient),
 					enrollEKSClusters: func(ctx context.Context, request *integrationpb.EnrollEKSClustersRequest, _ ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error) {
@@ -350,7 +351,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 			discoveryConfig: func(t *testing.T) *discoveryconfig.DiscoveryConfig {
 				return getDc()
 			},
-			accessPoint: func(t *testing.T, authServer *auth.Server, authClient auth.ClientI) auth.DiscoveryAccessPoint {
+			accessPoint: func(t *testing.T, authServer *auth.Server, authClient authclient.ClientI) authclient.DiscoveryAccessPoint {
 				return &accessPointWrapper{
 					DiscoveryAccessPoint: getDiscoveryAccessPoint(authServer, authClient),
 					enrollEKSClusters: func(ctx context.Context, request *integrationpb.EnrollEKSClustersRequest, _ ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error) {
@@ -498,7 +499,7 @@ func mustConvertEKSToKubeServerV1(t *testing.T, eksCluster *eksV1.Cluster, resou
 	eksCluster.Tags[types.OriginLabel] = aws.String(types.OriginCloud)
 	eksCluster.Tags[types.InternalResourceIDLabel] = aws.String(resourceID)
 
-	kubeCluster, err := services.NewKubeClusterFromAWSEKS(aws.ToString(eksCluster.Name), aws.ToString(eksCluster.Arn), eksCluster.Tags)
+	kubeCluster, err := common.NewKubeClusterFromAWSEKS(aws.ToString(eksCluster.Name), aws.ToString(eksCluster.Arn), eksCluster.Tags)
 	assert.NoError(t, err)
 
 	kubeClusterV3 := kubeCluster.(*types.KubernetesClusterV3)
@@ -517,7 +518,7 @@ func mustConvertEKSToKubeServerV2(t *testing.T, eksCluster *eksTypes.Cluster, re
 	eksTags[types.OriginLabel] = aws.String(types.OriginCloud)
 	eksTags[types.InternalResourceIDLabel] = aws.String(resourceID)
 
-	kubeCluster, err := services.NewKubeClusterFromAWSEKS(aws.ToString(eksCluster.Name), aws.ToString(eksCluster.Arn), eksTags)
+	kubeCluster, err := common.NewKubeClusterFromAWSEKS(aws.ToString(eksCluster.Name), aws.ToString(eksCluster.Arn), eksTags)
 	assert.NoError(t, err)
 
 	kubeClusterV3 := kubeCluster.(*types.KubernetesClusterV3)
@@ -529,7 +530,7 @@ func mustConvertEKSToKubeServerV2(t *testing.T, eksCluster *eksTypes.Cluster, re
 }
 
 type accessPointWrapper struct {
-	auth.DiscoveryAccessPoint
+	authclient.DiscoveryAccessPoint
 
 	enrollEKSClusters func(context.Context, *integrationpb.EnrollEKSClustersRequest, ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error)
 }

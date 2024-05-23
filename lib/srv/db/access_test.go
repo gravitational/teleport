@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client"
@@ -333,6 +334,39 @@ func TestAccessMySQL(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+func TestMySQLServerVersionUpdateOnConnection(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(
+		ctx,
+		t,
+		withSelfHostedMySQL("mysql",
+			// Set an older version in DB spec.
+			withMySQLServerVersionInDBSpec("6.6.6-before"),
+			// Set a newer version in TestServer.
+			withMySQLServerVersion("8.8.8-after"),
+		),
+	)
+	go testCtx.startHandlingConnections()
+
+	// Confirm the server version configured in the spec.
+	db, err := testCtx.server.getProxiedDatabase("mysql")
+	require.NoError(t, err)
+	require.Equal(t, "6.6.6-before", db.GetMySQLServerVersion())
+
+	// Connect.
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"alice"}, []string{types.Wildcard})
+	mysqlConn, err := testCtx.mysqlClient("alice", "mysql", "alice")
+	require.NoError(t, err)
+	defer mysqlConn.Close()
+	_, err = mysqlConn.Execute("select 1")
+	require.NoError(t, err)
+
+	// Check if proxied database is updated.
+	updatedDB, err := testCtx.server.getProxiedDatabase("mysql")
+	require.NoError(t, err)
+	require.Equal(t, "8.8.8-after", updatedDB.GetMySQLServerVersion())
 }
 
 // TestAccessRedis verifies access scenarios to a Redis database based
@@ -1395,7 +1429,7 @@ type testContext struct {
 	clusterName    string
 	tlsServer      *auth.TestTLSServer
 	authServer     *auth.Server
-	authClient     *auth.Client
+	authClient     *authclient.Client
 	proxyServer    *ProxyServer
 	mux            *multiplexer.Mux
 	mysqlListener  net.Listener
@@ -2100,7 +2134,7 @@ func (c *testContext) makeTLSConfig(t testing.TB) *tls.Config {
 	conf := utils.TLSConfig(nil)
 	conf.Certificates = append(conf.Certificates, cert)
 	conf.ClientAuth = tls.VerifyClientCertIfGiven
-	conf.ClientCAs, _, err = auth.DefaultClientCertPool(c.authServer, c.clusterName)
+	conf.ClientCAs, _, err = authclient.DefaultClientCertPool(context.Background(), c.authServer, c.clusterName)
 	require.NoError(t, err)
 	return conf
 }
@@ -2750,6 +2784,14 @@ type selfHostedMySQLOption func(*selfHostedMySQLOptions)
 func withMySQLServerVersion(version string) selfHostedMySQLOption {
 	return func(opts *selfHostedMySQLOptions) {
 		opts.serverOptions = append(opts.serverOptions, mysql.WithServerVersion(version))
+	}
+}
+
+func withMySQLServerVersionInDBSpec(version string) selfHostedMySQLOption {
+	return func(opts *selfHostedMySQLOptions) {
+		opts.databaseOptions = append(opts.databaseOptions, func(db *types.DatabaseV3) {
+			db.Spec.MySQL.ServerVersion = version
+		})
 	}
 }
 

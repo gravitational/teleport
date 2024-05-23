@@ -303,8 +303,12 @@ func (s *TestServer) handleStartup(client *pgproto3.Backend, startupMessage *pgp
 				if err := s.handleActivateUser(client); err != nil {
 					s.log.WithError(err).Error("Failed to handle user activation.")
 				}
-			case deactivateQuery, deleteQuery:
-				if err := s.handleDeactivateUser(client); err != nil {
+			case deleteQuery:
+				if err := s.handleDeactivateUser(client, true); err != nil {
+					s.log.WithError(err).Error("Failed to handle user deletion.")
+				}
+			case deactivateQuery:
+				if err := s.handleDeactivateUser(client, false); err != nil {
 					s.log.WithError(err).Error("Failed to handle user deactivation.")
 				}
 			case updatePermissionsQuery:
@@ -587,7 +591,7 @@ func (s *TestServer) handleActivateUser(client *pgproto3.Backend) error {
 	return nil
 }
 
-func (s *TestServer) handleDeactivateUser(client *pgproto3.Backend) error {
+func (s *TestServer) handleDeactivateUser(client *pgproto3.Backend, sendDeleteResponse bool) error {
 	// Expect Describe message.
 	_, err := s.receiveDescribeMessage(client)
 	if err != nil {
@@ -633,11 +637,23 @@ func (s *TestServer) handleDeactivateUser(client *pgproto3.Backend) error {
 		return trace.Wrap(err)
 	}
 	// Respond to Bind message.
-	err = s.sendMessages(client,
+	messages := []pgproto3.BackendMessage{
 		&pgproto3.BindComplete{},
-		&pgproto3.NoData{},
+	}
+	if sendDeleteResponse {
+		messages = append(messages,
+			&pgproto3.RowDescription{Fields: TestDeleteUserResponse.FieldDescriptions},
+			&pgproto3.DataRow{Values: TestDeleteUserResponse.Rows[0]},
+		)
+	} else {
+		messages = append(messages, &pgproto3.NoData{})
+	}
+	messages = append(messages,
 		&pgproto3.CommandComplete{},
-		&pgproto3.ReadyForQuery{})
+		&pgproto3.ReadyForQuery{},
+	)
+
+	err = s.sendMessages(client, messages...)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1010,6 +1026,13 @@ var TestQueryResponse = &pgconn.Result{
 	FieldDescriptions: []pgproto3.FieldDescription{{Name: []byte("test-field")}},
 	Rows:              [][][]byte{{[]byte("test-value")}},
 	CommandTag:        pgconn.CommandTag("select 1"),
+}
+
+// TestDeleteUserResponse is the response test Postgres server sends to every
+// query that calls the auto user deletion procedure.
+var TestDeleteUserResponse = &pgconn.Result{
+	FieldDescriptions: []pgproto3.FieldDescription{{Name: []byte("state")}},
+	Rows:              [][][]byte{{[]byte("TP003")}},
 }
 
 // TestLongRunningQuery is a stub SQL query clients can use to simulate a long

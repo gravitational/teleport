@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/genmap"
 )
@@ -146,7 +147,7 @@ func (c *ClientTLSConfigGenerator) generator(ctx context.Context, clusterName st
 
 	// update client certificate pool based on currently trusted TLS
 	// certificate authorities.
-	pool, totalSubjectsLen, err := DefaultClientCertPool(c.cfg.AccessPoint, clusterName)
+	pool, totalSubjectsLen, err := authclient.DefaultClientCertPool(ctx, c.cfg.AccessPoint, clusterName)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to retrieve client cert pool for target cluster", "cluster_name", clusterName, "error", err)
 		// this falls back to the default config
@@ -167,7 +168,7 @@ func (c *ClientTLSConfigGenerator) generator(ctx context.Context, clusterName st
 	// client will be rejected.
 	if totalSubjectsLen >= int64(math.MaxUint16) {
 		slog.WarnContext(ctx, "cluster subject name set too large for TLS handshake, falling back to using local cluster CAs only")
-		pool, _, err = DefaultClientCertPool(c.cfg.AccessPoint, c.cfg.ClusterName)
+		pool, _, err = authclient.DefaultClientCertPool(ctx, c.cfg.AccessPoint, c.cfg.ClusterName)
 		if err != nil {
 			slog.ErrorContext(ctx, "failed to retrieve client cert pool for current cluster", "cluster_name", c.cfg.ClusterName, "error", err)
 			// this falls back to the default config

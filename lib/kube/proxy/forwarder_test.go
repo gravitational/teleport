@@ -51,7 +51,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -1122,11 +1122,11 @@ func newMockForwader(ctx context.Context, t *testing.T) *Forwarder {
 // mockCSRClient to intercept ProcessKubeCSR requests, record them and return a
 // stub response.
 type mockCSRClient struct {
-	auth.ClientI
+	authclient.ClientI
 
 	clock           clockwork.Clock
 	ca              *tlsca.CertAuthority
-	gotCSR          auth.KubeCSR
+	gotCSR          authclient.KubeCSR
 	lastCert        *x509.Certificate
 	leafClusterName string
 }
@@ -1159,7 +1159,7 @@ func (c *mockCSRClient) GetCertAuthority(ctx context.Context, id types.CertAuthI
 	return nil, trace.NotFound("cluster not found")
 }
 
-func (c *mockCSRClient) ProcessKubeCSR(csr auth.KubeCSR) (*auth.KubeCSRResponse, error) {
+func (c *mockCSRClient) ProcessKubeCSR(csr authclient.KubeCSR) (*authclient.KubeCSRResponse, error) {
 	c.gotCSR = csr
 
 	x509CSR, err := tlsca.ParseCertificateRequestPEM(csr.CSR)
@@ -1182,7 +1182,7 @@ func (c *mockCSRClient) ProcessKubeCSR(csr auth.KubeCSR) (*auth.KubeCSRResponse,
 	if err != nil {
 		return nil, err
 	}
-	return &auth.KubeCSRResponse{
+	return &authclient.KubeCSRResponse{
 		Cert:            cert,
 		CertAuthorities: [][]byte{[]byte(fixtures.TLSCACertPEM)},
 		TargetAddr:      "mock addr",
@@ -1200,7 +1200,7 @@ type mockRemoteSite struct {
 func (s mockRemoteSite) GetName() string { return s.name }
 
 type mockAccessPoint struct {
-	auth.KubernetesAccessPoint
+	authclient.KubernetesAccessPoint
 
 	netConfig       types.ClusterNetworkingConfig
 	recordingConfig types.SessionRecordingConfig
@@ -1314,7 +1314,7 @@ func newTestForwarder(ctx context.Context, cfg ForwarderConfig) *Forwarder {
 }
 
 type mockSemaphoreClient struct {
-	auth.ClientI
+	authclient.ClientI
 	sem   types.Semaphores
 	roles map[string]types.Role
 }
