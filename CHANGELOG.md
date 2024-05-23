@@ -1,5 +1,11 @@
 # Changelog
 
+## 15.3.7 (05/23/24)
+
+* Fixed creating access requests for servers in Teleport Connect that were blocked due to a "no roles configured" error. [#41959](https://github.com/gravitational/teleport/pull/41959)
+* Fixed regression issue with event-handler Linux artifacts not being available. [#4237](https://github.com/gravitational/teleport.e/pull/4237)
+* Fixed failed startup on GCP if missing permissions. [#41985](https://github.com/gravitational/teleport/pull/41985)
+
 ## 15.3.6 (05/22/24)
 
 This release contains fixes for several high-severity security issues, as well
