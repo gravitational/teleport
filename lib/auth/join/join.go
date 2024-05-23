@@ -48,7 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/circleci"
 	"github.com/gravitational/teleport/lib/cloud/imds/azure"
-	"github.com/gravitational/teleport/lib/cloud/imds/gcp"
+	gcpcommon "github.com/gravitational/teleport/lib/cloud/imds/gcp/common"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/githubactions"
 	"github.com/gravitational/teleport/lib/gitlab"
@@ -207,7 +207,7 @@ func Register(ctx context.Context, params RegisterParams) (certs *proto.Certs, e
 			return nil, trace.Wrap(err)
 		}
 	case types.JoinMethodGCP:
-		params.IDToken, err = gcp.GetIDToken(ctx)
+		params.IDToken, err = gcpcommon.GetIDToken(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
