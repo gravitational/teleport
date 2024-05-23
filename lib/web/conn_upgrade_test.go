@@ -26,12 +26,15 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/gobwas/ws"
+	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -52,6 +55,92 @@ func TestWriteUpgradeResponse(t *testing.T) {
 
 	require.Equal(t, http.StatusSwitchingProtocols, resp.StatusCode)
 	require.Equal(t, "custom", resp.Header.Get("Upgrade"))
+}
+
+func TestWebsocketALPNServerConn_Read(t *testing.T) {
+	t.Parallel()
+
+	upgrader := websocket.Upgrader{}
+	testMessage := []byte("hello websocket")
+
+	httpHandler := func(w http.ResponseWriter, r *http.Request) {
+		wsConn, err := upgrader.Upgrade(w, r, nil)
+		require.NoError(t, err)
+		defer wsConn.Close()
+
+		conn := newWebSocketALPNServerConn(wsConn)
+
+		buf := make([]byte, len(testMessage))
+
+		// Echo loop
+		for {
+			n, err := conn.Read(buf)
+			if err != nil {
+				if !utils.IsOKNetworkError(err) {
+					assert.NoError(t, err)
+				}
+				return
+			}
+
+			_, err = conn.Write(buf[:n])
+			if err != nil && !utils.IsOKNetworkError(err) {
+				if !utils.IsOKNetworkError(err) {
+					assert.NoError(t, err)
+				}
+				return
+			}
+		}
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(httpHandler))
+	defer server.Close()
+
+	// Connect to the server
+	u := "ws" + server.URL[len("http"):]
+
+	wsConn, resp, err := websocket.DefaultDialer.Dial(u, nil)
+	require.NoError(t, err)
+	defer wsConn.Close()
+
+	// Drain/close the body.
+	io.Copy(io.Discard, resp.Body)
+	_ = resp.Body.Close()
+
+	conn := newWebSocketALPNServerConn(wsConn)
+
+	buf := make([]byte, len(testMessage))
+
+	doneCh := make(chan error, 1)
+	go func() {
+		// There's nothing to read yet, it will block.
+		_, err := conn.Read(buf)
+		doneCh <- err
+	}()
+	// Let some time for the spawn goroutine to get blocked.
+	time.Sleep(20 * time.Millisecond)
+
+	// Set read deadline in the past so read unblocks with timeout error.
+	err = conn.SetReadDeadline(time.Unix(1, 0))
+	require.NoError(t, err)
+	select {
+	case err = <-doneCh:
+		require.ErrorIs(t, err, os.ErrDeadlineExceeded)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for read")
+	}
+
+	// Remove read deadline.
+	err = conn.SetReadDeadline(time.Time{})
+	require.NoError(t, err)
+
+	// Test writing and reading after aborted read.
+	n, err := conn.Write(testMessage)
+	require.NoError(t, err)
+	require.Equal(t, len(testMessage), n)
+
+	n, err = conn.Read(buf)
+	require.NoError(t, err)
+	require.Equal(t, testMessage, buf[:n])
 }
 
 func TestHandlerConnectionUpgrade(t *testing.T) {
