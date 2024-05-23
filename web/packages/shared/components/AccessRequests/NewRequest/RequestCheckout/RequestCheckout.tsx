@@ -705,7 +705,13 @@ export type RequestCheckoutProps = {
   isResourceRequest: boolean;
   requireReason: boolean;
   selectedReviewers: ReviewerOption[];
-  data: { kind: ResourceKind; name: string; id: string }[];
+  data: {
+    kind: ResourceKind;
+    /** Name of the resource, for presentation purposes only. */
+    name: string;
+    /** Identifier of the resource. Should be sent in requests. */
+    id: string;
+  }[];
   setRequestTTL: (value: Option<number>) => void;
   createRequest: (req: CreateRequest) => void;
   fetchStatus: 'loading' | 'loaded';
