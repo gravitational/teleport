@@ -109,7 +109,7 @@ We strongly recommend all customers upgrade to the latest releases of Teleport.
   SSO users. [#41270](https://github.com/gravitational/teleport/pull/41270).
 * Fixed fetching suggested access lists with large IDs in Teleport Connect. [#41269](https://github.com/gravitational/teleport/pull/41269).
 * Prevents cloud tenants from updating `cluster_networking_config` fields `keep_alive_count_max`,  `keep_alive_interval`, `tunnel_strategy`, or `proxy_listener_mode`. [#41247](https://github.com/gravitational/teleport/pull/41247).
-* Added support for creating Okta integraions with `tctl` [#41888](https://github.com/gravitational/teleport/pull/41888).
+* Added support for creating Okta integrations with `tctl` [#41888](https://github.com/gravitational/teleport/pull/41888).
 
 ## 15.3.1 (05/07/24)
 
