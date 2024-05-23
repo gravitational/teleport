@@ -1,4 +1,4 @@
-.version: &version "16.0.0-dev"
+.version: &version "16.0.0-dev.fred-win-conn.1"
 
 apiVersion: v2
 name: teleport-plugin-event-handler
