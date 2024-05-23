@@ -176,6 +176,15 @@ func NewEKSFetcher(cfg EKSFetcherConfig) (common.Fetcher, error) {
 		return nil, trace.Wrap(err, "failed to get caller identity")
 	}
 
+	// If the fetcher SetupAccessForARN isn't set, use the caller identity.
+	// This is useful to setup access for the caller identity itself
+	// without having to specify the ARN.
+	// If the current caller identity doesn't have access to setup access entries,
+	// the fetcher will log a warning and skip the setup access process.
+	if fetcher.SetupAccessForARN == "" {
+		fetcher.SetupAccessForARN = fetcher.callerIdentity
+	}
+
 	return fetcher, nil
 }
 
@@ -418,12 +427,39 @@ func (a *eksFetcher) checkOrSetupAccessForARN(ctx context.Context, client eksifa
 	case trace.IsNotFound(err):
 		// If the access entry does not exist or the teleportKubernetesGroup is not part of the Kubernetes group, temporarily gain admin access and create the role and binding.
 		// This temporary access is granted to the identity that the Discovery service fetcher is running as (callerIdentity). If a role is assumed, the callerIdentity is the assumed role.
-		if err := a.temporarilyGainAdminAccessAndCreateRole(ctx, client, cluster); err != nil {
+		if err := a.temporarilyGainAdminAccessAndCreateRole(ctx, client, cluster); trace.IsAccessDenied(err) {
+			// Access denied means that the principal does not have access to setup access entries for the cluster.
+			a.Log.WithError(err).Warnf("Access denied to setup access for EKS cluster %q. Please ensure you correctly configured the following permissions: %v",
+				aws.StringValue(cluster.Name),
+				[]string{
+					"eks:ListClusters",
+					"eks:DescribeCluster",
+					"eks:DescribeAccessEntry",
+					"eks:CreateAccessEntry",
+					"eks:DeleteAccessEntry",
+					"eks:AssociateAccessPolicy",
+				})
+			return nil
+		} else if err != nil {
 			return trace.Wrap(err, "unable to setup access for EKS cluster %q", aws.StringValue(cluster.Name))
 		}
 
 		// upsert the access entry with the correct Kubernetes group for the final
 		err = a.upsertAccessEntry(ctx, client, cluster)
+		if trace.IsAccessDenied(err) {
+			// Access denied means that the principal does not have access to setup access entries for the cluster.
+			a.Log.WithError(err).Warnf("Access denied to setup access for EKS cluster %q. Please ensure you correctly configured the following permissions: %v",
+				aws.StringValue(cluster.Name),
+				[]string{
+					"eks:ListClusters",
+					"eks:DescribeCluster",
+					"eks:DescribeAccessEntry",
+					"eks:CreateAccessEntry",
+					"eks:DeleteAccessEntry",
+					"eks:AssociateAccessPolicy",
+				})
+			return nil
+		}
 		return trace.Wrap(err, "unable to setup access for EKS cluster %q", aws.StringValue(cluster.Name))
 	default:
 		return trace.Wrap(err)
@@ -487,6 +523,7 @@ func (a *eksFetcher) temporarilyGainAdminAccessAndCreateRole(ctx context.Context
 
 	timeout := a.Clock.NewTimer(60 * time.Second)
 	defer timeout.Stop()
+forLoop:
 	for {
 
 		// EKS Access Entries are eventually consistent, so we need to wait for the access to be granted.
@@ -497,7 +534,7 @@ func (a *eksFetcher) temporarilyGainAdminAccessAndCreateRole(ctx context.Context
 		}
 		select {
 		case <-timeout.Chan():
-			return trace.Wrap(err, "unable to upsert role and binding for cluster %q", aws.StringValue(cluster.Name))
+			break forLoop
 		case <-a.Clock.After(5 * time.Second):
 
 		}
@@ -631,6 +668,7 @@ func (a *eksFetcher) upsertAccessEntry(ctx context.Context, client eksiface.EKSA
 func (a *eksFetcher) setCallerIdentity(ctx context.Context) error {
 	if a.AssumeRole.RoleARN != "" {
 		a.callerIdentity = a.AssumeRole.RoleARN
+		return nil
 	}
 	var err error
 	a.stsClient, err = a.ClientGetter.GetAWSSTSClient(
