@@ -18,7 +18,7 @@ package vnet
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"time"
@@ -28,99 +28,142 @@ import (
 	"golang.zx2c4.com/wireguard/tun"
 )
 
-// Setup spins up a separate process with the admin subcommand to create a TUN device. It returns
-// Manager that uses this TUN device, along with an error channel which receives an error if the
-// admin subcommand stops running. Setup should be used in conjunction with Run.
-func Setup(ctx context.Context, appProvider AppProvider) (*Manager, <-chan error, error) {
+// SetupAndRun creates a network stack for VNet and runs it in the background. To do this, it also
+// needs to launch an admin subcommand in the background. It returns [ProcessManager] which controls
+// the lifecycle of both background tasks.
+//
+// The caller is expected to call Close on the process manager to close the network stack, clean
+// up any resources used by it and terminate the admin subcommand.
+//
+// ctx is used to wait for setup steps that happen before SetupAndRun hands out the control to the
+// process manager. If ctx gets canceled during SetupAndRun, the process manager gets closed along
+// with its background tasks.
+func SetupAndRun(ctx context.Context, appProvider AppProvider) (*ProcessManager, error) {
 	ipv6Prefix, err := NewIPv6Prefix()
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-
 	dnsIPv6 := ipv6WithSuffix(ipv6Prefix, []byte{2})
-	tunCh, adminCommandErrCh := CreateAndSetupTUNDevice(ctx, ipv6Prefix.String(), dnsIPv6.String())
 
-	var tun TUNDevice
+	pm, processCtx := newProcessManager()
+	success := false
+	defer func() {
+		if !success {
+			// Closes the socket and background tasks.
+			pm.Close()
+		}
+	}()
+
+	// Create the socket that's used to receive the TUN device from the admin subcommand.
+	socket, socketPath, err := createUnixSocket()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	slog.DebugContext(ctx, "Created unix socket for admin subcommand", "socket", socketPath)
+	go func() {
+		// Keep the socket open until the process context is canceled.
+		// Closing the socket signals the admin subcommand to terminate.
+		<-processCtx.Done()
+		_ = socket.Close()
+	}()
+
+	pm.AddCriticalBackgroundTask("admin subcommand", func() error {
+		return trace.Wrap(execAdminSubcommand(processCtx, socketPath, ipv6Prefix.String(), dnsIPv6.String()))
+	})
+
+	recvTUNErr := make(chan error, 1)
+	var tun tun.Device
+	go func() {
+		// Unblocks after receiving a TUN device or when the context gets canceled (and thus socket gets
+		// closed).
+		tunDevice, err := receiveTUNDevice(socket)
+		tun = tunDevice
+		recvTUNErr <- err
+	}()
+
 	select {
 	case <-ctx.Done():
-		return nil, nil, trace.Wrap(ctx.Err())
-	case err := <-adminCommandErrCh:
-		return nil, nil, trace.Wrap(err)
-	case tun = <-tunCh:
+		return nil, trace.Wrap(ctx.Err())
+	case <-processCtx.Done():
+		return nil, trace.Wrap(context.Cause(processCtx))
+	case err := <-recvTUNErr:
+		if err != nil {
+			if processCtx.Err() != nil {
+				// Both errors being present means that VNet failed to receive a TUN device because of a
+				// problem with the admin subcommand.
+				// Returning error from processCtx will be more informative to the user, e.g., the error
+				// will say "password prompt closed by user" instead of "read from closed socket".
+				slog.DebugContext(ctx, "Error from recvTUNErr ignored in favor of processCtx.Err", "error", err)
+				return nil, trace.Wrap(context.Cause(processCtx))
+			}
+			return nil, trace.Wrap(err, "receiving TUN from admin subcommand")
+		}
 	}
 
 	appResolver, err := NewTCPAppResolver(appProvider)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	manager, err := NewManager(&Config{
+	ns, err := newNetworkStack(&Config{
 		TUNDevice:          tun,
 		IPv6Prefix:         ipv6Prefix,
 		DNSIPv6:            dnsIPv6,
 		TCPHandlerResolver: appResolver,
 	})
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	return manager, adminCommandErrCh, nil
+	pm.AddCriticalBackgroundTask("network stack", func() error {
+		return trace.Wrap(ns.Run(processCtx))
+	})
+
+	success = true
+	return pm, nil
 }
 
-// Run is a blocking call that waits for either the admin subcommand or the VNet manager to exit and
-// makes sure the other one exits as well.
-//
-// It captures some peculiarities of running VNet that need to be handled both in tsh and Connect.
-//
-// cancel accepts a cause because when stopping manager, we need to differentiate between regular
-// cancellation (think Ctrl + C in a terminal) vs canceling because the admin subcommand exiting
-// prematurely.
-func Run(ctx context.Context, cancel context.CancelCauseFunc, manager *Manager, adminCommandErrCh <-chan error) error {
-	allErrors := make(chan error, 2)
+func newProcessManager() (*ProcessManager, context.Context) {
+	ctx, cancel := context.WithCancel(context.Background())
 	g, ctx := errgroup.WithContext(ctx)
-	g.Go(func() error {
-		// Make sure to cancel the context if manager.Run terminates for any reason.
-		defer cancel(nil)
-		err := trace.Wrap(manager.Run(ctx), "running VNet manager")
 
-		// If ctx was canceled due to a specific cause, do not put err into allErrors. The specific
-		// cause is going to be reported by another goroutine.
-		//
-		// If this goroutine added context.Canceled into the error aggregate, final callsites in the
-		// upper layers would have assumed that it was merely a context that was canceled, while the
-		// real reason would be more complex.
-		if errors.Is(err, context.Canceled) && !errors.Is(context.Cause(ctx), context.Canceled) {
-			return nil
+	return &ProcessManager{
+		g:      g,
+		cancel: cancel,
+	}, ctx
+}
+
+// ProcessManager handles background tasks needed to run VNet.
+// Its semantics are similar to an error group with a context, but it cancels the context whenever
+// any task returns prematurely, that is, a task exits while the context was not canceled.
+type ProcessManager struct {
+	g      *errgroup.Group
+	cancel context.CancelFunc
+}
+
+// AddCriticalBackgroundTask adds a function to the error group. [task] is expected to block until
+// the context returned by [newProcessManager] gets canceled. The context gets canceled either by
+// calling Close on [ProcessManager] or if any task returns.
+func (pm *ProcessManager) AddCriticalBackgroundTask(name string, task func() error) {
+	pm.g.Go(func() error {
+		err := task()
+		if err == nil {
+			// Make sure to always return an error so that the errgroup context is canceled.
+			err = fmt.Errorf("critical task %q exited prematurely", name)
 		}
-
-		allErrors <- err
-		return err
+		return trace.Wrap(err)
 	})
-	g.Go(func() error {
-		var adminCommandErr error
-		select {
-		case adminCommandErr = <-adminCommandErrCh:
-			// The admin command exited before the context was canceled, cancel everything and exit.
-			// This can happen if the admin subcommand crashes or gets killed.
+}
 
-			// If socket gets removed, the admin subcommand assumes it's because the process on the other
-			// end of this socket (running this code) has quit.
-			if adminCommandErr == nil {
-				adminCommandErr = trace.Errorf("admin subcommand exited prematurely with no error (likely because socket was removed)")
-			}
-			cancel(adminCommandErr)
-		case <-ctx.Done():
-			// The context has been canceled, the admin command should now exit.
-			adminCommandErr = <-adminCommandErrCh
-		}
-		adminCommandErr = trace.Wrap(adminCommandErr, "running admin subcommand")
-		allErrors <- adminCommandErr
-		return adminCommandErr
-	})
-	// Deliberately ignoring the error from g.Wait() to return an aggregate of all errors.
-	_ = g.Wait()
-	close(allErrors)
-	return trace.NewAggregateFromChannel(allErrors, context.Background())
+// Wait blocks and waits for the background tasks to finish, which typically happens when another
+// goroutine calls Close on the process manager.
+func (pm *ProcessManager) Wait() error {
+	return trace.Wrap(pm.g.Wait())
+}
+
+// Close stops any active background tasks by canceling the underlying context.
+func (pm *ProcessManager) Close() {
+	pm.cancel()
 }
 
 // AdminSubcommand is the tsh subcommand that should run as root that will create and setup a TUN device and
@@ -164,28 +207,6 @@ func AdminSubcommand(ctx context.Context, socketPath, ipv6Prefix, dnsAddr string
 		case err = <-errCh:
 			return trace.Wrap(err)
 		}
-	}
-}
-
-// CreateAndSetupTUNDevice creates a virtual network device and configures the host OS to use that device for
-// VNet connections.
-//
-// If not already running as root, it will spawn a root process to handle the TUN creation and host
-// configuration.
-//
-// After the TUN device is created, it will be sent on the result channel. Any error will be sent on the err
-// channel. Always select on both the result channel and the err channel when waiting for a result.
-//
-// This will keep running until [ctx] is canceled or an unrecoverable error is encountered, in order to keep
-// the host OS configuration up to date.
-func CreateAndSetupTUNDevice(ctx context.Context, ipv6Prefix, dnsAddr string) (<-chan tun.Device, <-chan error) {
-	if os.Getuid() == 0 {
-		// We can get here if the user runs `tsh vnet` as root, but it is not in the expected path when
-		// started as a regular user. Typically we expect `tsh vnet` to be run as a non-root user, and for
-		// AdminSubcommand to directly call createAndSetupTUNDeviceAsRoot.
-		return createAndSetupTUNDeviceAsRoot(ctx, ipv6Prefix, dnsAddr)
-	} else {
-		return createAndSetupTUNDeviceWithoutRoot(ctx, ipv6Prefix, dnsAddr)
 	}
 }
 
