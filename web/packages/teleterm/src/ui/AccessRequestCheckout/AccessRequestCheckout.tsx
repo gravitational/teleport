@@ -36,10 +36,13 @@ import { RequestCheckoutWithSlider } from 'shared/components/AccessRequests/NewR
 import useAccessRequestCheckout from './useAccessRequestCheckout';
 import { AssumedRolesBar } from './AssumedRolesBar';
 
-export function RequestCheckoutSuccess({
+function RequestCheckoutSuccess({
   onClose,
-  reset,
-}: RequestCheckoutSuccessProps) {
+  goToRequests,
+}: {
+  onClose(): void;
+  goToRequests(): void;
+}) {
   return (
     <Box textAlign="center">
       <ButtonPrimary
@@ -48,11 +51,11 @@ export function RequestCheckoutSuccess({
         width="100%"
         size="large"
         onClick={() => {
-          reset();
+          goToRequests();
           onClose();
         }}
       >
-        Back to Listings
+        See requests
       </ButtonPrimary>
       <ButtonText
         onClick={() => {
@@ -64,11 +67,6 @@ export function RequestCheckoutSuccess({
     </Box>
   );
 }
-
-type RequestCheckoutSuccessProps = {
-  onClose: () => void;
-  reset: () => void;
-};
 
 export function AccessRequestCheckout() {
   const {
@@ -90,7 +88,7 @@ export function AccessRequestCheckout() {
     setSelectedReviewers,
     assumedRequests,
     requestedCount,
-    goToRequestsList: reset, // have to pass through RequestCheckout because works differently on web
+    goToRequestsList,
     setShowCheckout,
     maxDuration,
     setMaxDuration,
@@ -100,6 +98,10 @@ export function AccessRequestCheckout() {
   } = useAccessRequestCheckout();
 
   const isRoleRequest = data[0]?.kind === 'role';
+
+  function closeCheckout() {
+    setShowCheckout(false);
+  }
 
   return (
     <>
@@ -201,10 +203,15 @@ export function AccessRequestCheckout() {
         {transitionState => (
           <RequestCheckoutWithSlider
             toggleResource={toggleResource}
-            onClose={() => setShowCheckout(false)}
+            onClose={closeCheckout}
             transitionState={transitionState}
-            SuccessComponent={RequestCheckoutSuccess}
-            reset={reset}
+            SuccessComponent={() =>
+              RequestCheckoutSuccess({
+                onClose: closeCheckout,
+                goToRequests: goToRequestsList,
+              })
+            }
+            reset={closeCheckout}
             data={data}
             createAttempt={createRequestAttempt}
             resourceRequestRoles={resourceRequestRoles}
