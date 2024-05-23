@@ -339,7 +339,7 @@ function getDefaultSort(kind: ResourceKind): SortType {
 }
 
 export type ResourceKind =
-  | Exclude<ResourceIdKind, 'user_group' | 'windows_desktop'>
+  | Extract<ResourceIdKind, 'node' | 'app' | 'db' | 'kube_cluster'>
   | 'role';
 
 export type State = ReturnType<typeof useNewRequest>;
