@@ -88,7 +88,7 @@ const VnetConnectionItemBase = forwardRef(
     const indicatorStatus =
       startAttempt.status === 'error' || stopAttempt.status === 'error'
         ? 'error'
-        : status === 'running'
+        : status.value === 'running'
           ? 'on'
           : 'off';
 
@@ -186,7 +186,9 @@ const VnetConnectionItemBase = forwardRef(
               // transitions and the test won't be able to catch this.
               <ButtonIcon
                 key="vnet-toggle"
-                title={status === 'stopped' ? 'Starting VNet' : 'Stopping VNet'}
+                title={
+                  status.value === 'running' ? 'Stopping VNet' : 'Starting VNet'
+                }
                 onClick={e => {
                   e.stopPropagation();
                 }}
@@ -201,7 +203,7 @@ const VnetConnectionItemBase = forwardRef(
                 />
               </ButtonIcon>
             )}
-            {!isProcessing && status === 'running' && (
+            {!isProcessing && status.value === 'running' && (
               <ButtonIcon
                 key="vnet-toggle"
                 title="Stop VNet"
@@ -213,7 +215,7 @@ const VnetConnectionItemBase = forwardRef(
                 <icons.BroadcastSlash size={18} />
               </ButtonIcon>
             )}
-            {!isProcessing && status === 'stopped' && (
+            {!isProcessing && status.value === 'stopped' && (
               <ButtonIcon
                 key="vnet-toggle"
                 title="Start VNet"
