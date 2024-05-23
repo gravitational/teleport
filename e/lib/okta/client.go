@@ -79,6 +79,31 @@ func (w *wrappedClient) iterateUsers(ctx context.Context, fn func(*okta.User) er
 	return nil
 }
 
+// UserGroup represents a user group in Okta.
+type UserGroup struct {
+	// ID is the unique identifier of the group.
+	ID string
+	// Name is the human-readable name of the group.
+	// This is displayed in the Okta UI and is not guaranteed to be unique.
+	Name string
+}
+
+// listUserGroups will return the list of groups a user belongs to.
+func (w *wrappedClient) listUserGroups(ctx context.Context, userID string) ([]UserGroup, error) {
+	groups, _, err := w.client.User.ListUserGroups(ctx, userID)
+	if err != nil {
+		return nil, trace.Wrap(w.oktaErrToTrace(ctx, err), "error while iterating over okta user groups")
+	}
+	var out []UserGroup
+	for _, v := range groups {
+		out = append(out, UserGroup{
+			ID:   v.Id,
+			Name: v.Profile.Name,
+		})
+	}
+	return out, nil
+}
+
 // iterateGroups will iterate over the list of all Okta groups, invoking the
 // supplied function for every group record. The callback may return the
 // `stopIteration` error to signal that it doesn't want any more groups.

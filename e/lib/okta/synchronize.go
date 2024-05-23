@@ -10,7 +10,8 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/e/lib/teleport"
+	"github.com/gravitational/teleport/e/lib/okta/common"
+	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -152,22 +153,21 @@ func (s *Service) synchronize(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	if err := s.buildImportRuleMappings(ctx); err != nil {
-		return trace.Wrap(err)
-	}
-
-	groupsToAppsMapping, err := s.synchronizeApplications(ctx)
-	if err != nil {
-		s.log.Warnf("Error when synchronizing applications, unable to sync groups: %v", err)
-
-		// We need the groups to apps mapping in order to synchronize groups properly, so
-		// we won't try to synchronize groups if we can't synchronize apps.
-		return trace.Wrap(err)
-	}
-
-	if err := s.synchronizeGroups(ctx, groupsToAppsMapping); err != nil {
-		s.log.Warnf("Error when synchronizing groups: %v", err)
-		return trace.Wrap(err)
+	if !s.disableOktaAppGroupSync {
+		if err := s.buildImportRuleMappings(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+		groupsToAppsMapping, err := s.synchronizeApplications(ctx)
+		if err != nil {
+			s.log.Warnf("Error when synchronizing applications, unable to sync groups: %v", err)
+			// We need the groups to apps mapping in order to synchronize groups properly, so
+			// we won't try to synchronize groups if we can't synchronize apps.
+			return trace.Wrap(err)
+		}
+		if err := s.synchronizeGroups(ctx, groupsToAppsMapping); err != nil {
+			s.log.Warnf("Error when synchronizing groups: %v", err)
+			return trace.Wrap(err)
+		}
 	}
 
 	return nil
@@ -175,6 +175,10 @@ func (s *Service) synchronize(ctx context.Context) error {
 
 // synchronizeGroups will synchronize Okta groups with the backend.
 func (s *Service) synchronizeGroups(ctx context.Context, groupsToAppsMapping userGroupsToApplications) error {
+	if s.groupsReconciler == nil {
+		s.log.Debug("Group synchronization is disabled. Skipping.")
+		return nil
+	}
 	newGroups := map[string]types.UserGroup{}
 	err := s.client.iterateGroups(ctx, func(oktaGroup *okta.Group) error {
 		s.log.Debugf("Processing Okta group %v", oktaGroup.Id)
@@ -218,6 +222,10 @@ type userGroupsToApplications map[string][]string
 
 // synchronizeApplications will synchronize Okta applications with the backend.
 func (s *Service) synchronizeApplications(ctx context.Context) (userGroupsToApplications, error) {
+	if s.appsReconciler == nil {
+		s.log.Debug("Application synchronization is disabled. Skipping.")
+		return nil, nil
+	}
 	s.log.Debug("Synchronizing applications")
 
 	groupsToAppsMapping := userGroupsToApplications{}
@@ -301,7 +309,7 @@ func (s *Service) seedGroupReconciler(ctx context.Context) error {
 			labels := userGroup.GetStaticLabels()
 
 			// Only look for Okta sourced user groups for this org URL.
-			if userGroup.Origin() == types.OriginOkta && labels[teleport.OktaOrgURLLabel] == s.orgURL {
+			if userGroup.Origin() == types.OriginOkta && labels[eteleport.OktaOrgURLLabel] == s.orgURL {
 				groups[userGroup.GetName()] = userGroup
 			}
 		}
@@ -310,15 +318,16 @@ func (s *Service) seedGroupReconciler(ctx context.Context) error {
 			break
 		}
 	}
-
 	s.groups.Set(groups)
-
 	return nil
 }
 
 func (s *Service) startSynchronizerReconcilers(ctx context.Context) error {
-	var err error
+	if s.disableOktaAppGroupSync {
+		return nil
+	}
 
+	var err error
 	if err := s.seedGroupReconciler(ctx); err != nil {
 		return trace.Wrap(err)
 	}
@@ -487,7 +496,7 @@ func (s *Service) addGroupOktaResource(target *[]*apievents.OktaResource, group 
 
 // addAppOktaResource adds the app to the list of Okta resources.
 func (s *Service) addAppOktaResource(target *[]*apievents.OktaResource, app types.Application) {
-	oktaID, ok := app.GetLabel(teleport.OktaAppIDLabel)
+	oktaID, ok := app.GetLabel(eteleport.OktaAppIDLabel)
 	if !ok {
 		s.log.Warnf("app ID label is missing for app %s, using the app name instead", app.GetName())
 		oktaID = app.GetName()
@@ -587,13 +596,38 @@ func (s *Service) syncUsers(ctx context.Context) error {
 		return trace.Wrap(err, "listing okta-originated Teleport users")
 	}
 
+	connector, err := s.connectorService.GetSAMLConnector(ctx, s.ssoConnectorID, false)
+	if err != nil {
+		return trace.Wrap(err, "getting SAML connector")
+	}
+	for _, user := range oktaUsers {
+		if err := s.calcUserTraits(ctx, connector, user); err != nil {
+			return trace.Wrap(err, "calculating traits")
+		}
+	}
+
 	s.log.Infof("Reconciling %d Okta and %d Teleport Accounts",
 		len(oktaUsers), len(teleportUsers))
-
 	err = s.userReconciler.reconcileUsers(ctx, oktaUsers, teleportUsers)
 	if err != nil {
 		return trace.Wrap(err, "reconciling teleport users")
 	}
+	return nil
+}
 
+func (s *Service) calcUserTraits(ctx context.Context, connector types.SAMLConnector, user types.User) error {
+	oktaUserID, ok := user.GetLabel(eteleport.OktaUserIDLabel)
+	if !ok {
+		return trace.BadParameter("user missing Okta user ID")
+	}
+	groups, err := s.client.listUserGroups(ctx, oktaUserID)
+	if err != nil {
+		return trace.Wrap(err, "listing user groups")
+	}
+	var groupsList []string
+	for _, v := range groups {
+		groupsList = append(groupsList, v.Name)
+	}
+	common.SetUserRolesAndTraits(user, groupsList, connector)
 	return nil
 }

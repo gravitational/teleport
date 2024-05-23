@@ -21,6 +21,10 @@ type LocksService interface {
 	DeleteLock(ctx context.Context, name string) error
 }
 
+type IdentityService interface {
+	GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error)
+}
+
 // UsersService is an abstraction over the user database used by the SCIM
 // service to manipulate user records
 type UsersService interface {

@@ -15,10 +15,12 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/e/lib/okta"
+	"github.com/gravitational/teleport/e/lib/okta/common"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 )
 
@@ -38,6 +40,7 @@ type oktaShim struct {
 	plugin            *types.PluginV1
 	clock             clockwork.Clock
 	log               logrus.FieldLogger
+	identity          IdentityService
 }
 
 // Static assertion that the oktaShim implements the `shim` interface
@@ -61,12 +64,13 @@ func newOktaShim(ctx context.Context, plugin types.Plugin, service *Service) (pr
 		teleport.Component(ComponentName, eteleport.ComponentOkta))
 
 	return &oktaShim{
-		creds:  service.creds,
-		locks:  service.locks,
-		clock:  service.clock,
-		users:  service.users,
-		plugin: p,
-		log:    log,
+		creds:    service.creds,
+		locks:    service.locks,
+		clock:    service.clock,
+		users:    service.users,
+		identity: service.identity,
+		plugin:   p,
+		log:      log,
 	}, nil
 }
 
@@ -151,6 +155,18 @@ func (s *oktaShim) userToResource(_ context.Context, user types.User) (*scimpb.R
 }
 
 func (s *oktaShim) resourceToUser(ctx context.Context, res *scimpb.Resource) (types.User, error) {
+	if !s.plugin.Spec.GetOkta().EnableUserSync {
+		// Note: User traits can differ between SCIM user and user created
+		// by Okta sync service due to different okta user/app user attributes
+		// mapping.
+		// If periodic user sync is disabled, we don't care about keeping
+		// User data in sync between users originated from SCIM and created via OKTA
+		// sync service. If only SCIM integration was enabled we will treat user model
+		// from SCIM push as a single source of truth.
+		user, err := s.createUserFromResource(ctx, res)
+		return user, trace.Wrap(err)
+	}
+
 	var oktaUser oktaUserResource
 	if err := mapstructure.Decode(res.Attributes.AsMap(), &oktaUser); err != nil {
 		return nil, trace.Wrap(err)
@@ -199,6 +215,40 @@ func (s *oktaShim) onCreatingAccessListMember(_ context.Context, m *accesslist.A
 }
 
 func (s *oktaShim) onCreatingUser(ctx context.Context, createdUser types.User, res *scimpb.Resource) error {
+	return nil
+}
+
+func (s *oktaShim) evaluateSAMLConnector(ctx context.Context, user types.User) error {
+	client, err := s.oktaClient(ctx)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			// If okta client creation failed due to not found error the OKTA API credentials are not set.
+			// In this case user traits to role mapping is not possible because we can't fetch groups from Okta.
+			// (OKTA SCIM user push does not include groups)
+			return nil
+		}
+		return trace.Wrap(err)
+	}
+
+	oktaUserID, ok := user.GetLabel(eteleport.OktaUserIDLabel)
+	if !ok {
+		return trace.BadParameter("missing Okta user ID")
+	}
+	// OKTA groups are not directly available during user SCIM push so we need to fetch them from API.
+	groups, _, err := client.User.ListUserGroups(ctx, oktaUserID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	var groupsList []string
+	for _, v := range groups {
+		groupsList = append(groupsList, v.Profile.Name)
+	}
+	connectorID := s.plugin.Spec.GetOkta().SyncSettings.SsoConnectorId
+	connector, err := s.identity.GetSAMLConnector(ctx, connectorID, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	common.SetUserRolesAndTraits(user, groupsList, connector)
 	return nil
 }
 
@@ -273,11 +323,24 @@ func (s *oktaShim) onUpdatingUser(ctx context.Context, teleportUser types.User, 
 		if err != nil {
 			return nil, false, trace.Wrap(err)
 		}
-
-		// should we delete the user here as well, or wait for the sync to clean
-		// it up?
-
+		if err := s.users.DeleteUser(ctx, teleportUser.GetName()); err != nil {
+			if !trace.IsNotFound(err) {
+				return nil, false, trace.Wrap(err)
+			}
+		}
 		return teleportUser, false, nil
+	}
+
+	if !s.plugin.Spec.GetOkta().SyncSettings.SyncUsers {
+		// If periodic user sync is disabled, we don't care about keeping
+		// user in data in sync between SCIM user and user create by Okta
+		// sync service and threat user model from SCIM push as a single
+		// source of truth.
+		// Note that user traits can differ between SCIM user and user created
+		// by Okta sync service due to different okta user/app user attributes
+		// mapping.
+		user, err := s.createUserFromResource(ctx, res)
+		return user, true, trace.Wrap(err)
 	}
 
 	// Otherwise, Okta is actually trying to update our user. Because Okta's
@@ -290,7 +353,7 @@ func (s *oktaShim) onUpdatingUser(ctx context.Context, teleportUser types.User, 
 	// the Okta API for the target user's data as a flat list of attributes and
 	// update as per the Okta sync service
 
-	newUser, err := s.getOktaUser(ctx, res.ExternalId, oktaSettings)
+	newUser, err := s.resourceToUser(ctx, res)
 	if err != nil {
 		return nil, false, trace.Wrap(err)
 	}
@@ -300,6 +363,65 @@ func (s *oktaShim) onUpdatingUser(ctx context.Context, teleportUser types.User, 
 	okta.PreserveUserMetadata(newUser, teleportUser)
 
 	return newUser, true, nil
+}
+
+// resourceToUser constructs an in-memory Teleport user from the supplied
+// SCIM resource
+func (s *oktaShim) createUserFromResource(ctx context.Context, res *scimpb.Resource) (types.User, error) {
+	if res == nil {
+		return nil, trace.BadParameter("Resource may not be empty")
+	}
+	pluginSettings := s.plugin.Spec.GetOkta().SyncSettings
+	if res.Attributes == nil {
+		return nil, trace.BadParameter("Missing resource attributes")
+	}
+	scimAttribs := res.Attributes.AsMap()
+	username := res.Id
+	if username == "" {
+		var err error
+		username, err = getAttr(scimAttribs, "userName")
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	user, err := types.NewUser(username)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	user.SetStaticLabels(map[string]string{
+		types.OriginLabel:         types.OriginOkta,
+		eteleport.OktaOrgURLLabel: s.plugin.Spec.GetOkta().OrgUrl,
+		eteleport.OktaUserIDLabel: res.ExternalId,
+	})
+	user.SetCreatedBy(types.CreatedBy{
+		User: types.UserRef{
+			Name: teleport.UserSystem,
+		},
+		Time: s.clock.Now(),
+		Connector: &types.ConnectorRef{
+			ID:       pluginSettings.SsoConnectorId,
+			Type:     constants.SAML,
+			Identity: res.ExternalId,
+		},
+	})
+	if err := s.evaluateSAMLConnector(ctx, user); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return user, nil
+}
+
+func getAttr(attrs map[string]any, key string) (string, error) {
+	untypedValue, ok := attrs[key]
+	if !ok {
+		return "", trace.BadParameter("Missing required attribute %s", key)
+	}
+
+	value, ok := untypedValue.(string)
+	if !ok {
+		return "", trace.BadParameter("Invalid attribute type %T", untypedValue)
+	}
+
+	return value, nil
 }
 
 // getOktaUser fetches an appuser profile from the Okta Org API

@@ -155,7 +155,7 @@ func (a *assignmentReconciler) stop() {
 	if a.watcher != nil {
 		a.watcher.Close()
 	}
-	if !a.noAssignmentProcessorLoop {
+	if !a.noAssignmentProcessorLoop && a.assignmentProcessor != nil {
 		a.assignmentProcessor.stop()
 	}
 }

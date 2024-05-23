@@ -179,20 +179,21 @@ func newTestService(t *testing.T, ap *testAccessPoint) (*Service, *testOktaClien
 	require.NoError(t, err)
 
 	svc, err := newWithClientCreator(ctx, Config{
-		TLSConfig:       generateTestTLSConfig(t, testHostID, nil),
-		Authorizer:      authorizer,
-		ClusterName:     testClusterName,
-		Hostname:        testHostname,
-		HostID:          testHostID,
-		RotationGetter:  func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
-		ProxyGetter:     &testProxyGetter{},
-		AccessPoint:     ap,
-		Access:          ap,
-		AccessLists:     ap,
-		OnHeartbeat:     func(err error) {},
-		Emitter:         emitter,
-		OktaAPIEndpoint: "dummy",
-		OktaAPIToken:    "dummy",
+		TLSConfig:        generateTestTLSConfig(t, testHostID, nil),
+		Authorizer:       authorizer,
+		ClusterName:      testClusterName,
+		Hostname:         testHostname,
+		HostID:           testHostID,
+		RotationGetter:   func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
+		ProxyGetter:      &testProxyGetter{},
+		AccessPoint:      ap,
+		Access:           ap,
+		AccessLists:      ap,
+		OnHeartbeat:      func(err error) {},
+		Emitter:          emitter,
+		OktaAPIEndpoint:  "dummy",
+		OktaAPIToken:     "dummy",
+		ConnectorService: ap,
 	}, creatorFromTestClient(client))
 	require.NoError(t, err)
 
@@ -303,6 +304,10 @@ func (t *testOktaClient) iterateAppUsers(_ context.Context, _ oktaAppID, fn func
 		}
 	}
 	return nil
+}
+
+func (t *testOktaClient) listUserGroups(ctx context.Context, userID string) ([]UserGroup, error) {
+	return []UserGroup{}, nil
 }
 
 // iterateGroups will iterate over the list of all Okta groups.

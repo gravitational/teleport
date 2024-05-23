@@ -146,6 +146,12 @@ type Config struct {
 	// uses as a gateway for syncing users. If empty, the service will revert to
 	// the legacy method of polling the whole Okta organization.
 	OktaSAMLAppID string
+
+	// ConnectorService is the SAML connector service.
+	ConnectorService SAMLConnectorService
+
+	// DisableAppGroupSync allows to disable OKTA application and group sync.
+	DisableAppGroupSync bool
 }
 
 func (c *Config) CheckAndSetDefaults() error {
@@ -190,6 +196,9 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 	if c.OktaAPIToken == "" {
 		return trace.BadParameter("Okta API token is missing")
+	}
+	if c.ConnectorService == nil {
+		return trace.BadParameter("ConnectorService service is missing")
 	}
 	if c.TimeBetweenSyncs == 0 {
 		c.TimeBetweenSyncs = oktaDefaultTimeBetweenSyncs
@@ -266,6 +275,9 @@ type OktaClient interface {
 	// to continue receiving users. All other non-nil return values are
 	// considered an error and will be propagated to the caller.
 	iterateUsers(context.Context, func(*okta.User) error, ...query.ParamOptions) error
+
+	// listUserGroups will return the list of groups a user belongs to.
+	listUserGroups(ctx context.Context, userID string) ([]UserGroup, error)
 
 	// iterateAppUsers will iterate over the list of all Okta users assigned to
 	// a given app. The supplied iterator callback may return stopIteration to
@@ -446,6 +458,13 @@ type Service struct {
 	// uses as a gateway for syncing users. If empty, the service will revert to
 	// the legacy method of polling the whole Okta organization.
 	oktaSAMLAppID string
+
+	// connectorService is the SAML connector service.
+	connectorService SAMLConnectorService
+
+	// disableOktaAppGroupSync allows to disable OKTA application and group sync.
+	// when only SCIM or user sync integration is needed.
+	disableOktaAppGroupSync bool
 }
 
 // rateLimitingHTTPTransport will only perform HTTP requests after waiting the
@@ -598,34 +617,36 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaClient
 	}
 
 	s := &Service{
-		log:                  config.Log,
-		clock:                config.Clock,
-		authorizer:           config.Authorizer,
-		clusterName:          config.ClusterName,
-		hostname:             config.Hostname,
-		hostID:               config.HostID,
-		rotationGetter:       config.RotationGetter,
-		proxyGetter:          config.ProxyGetter,
-		accessPoint:          config.AccessPoint,
-		onHeartbeat:          config.OnHeartbeat,
-		client:               client,
-		emitter:              config.Emitter,
-		orgURL:               orgURL,
-		orgURLBase64:         orgURLBase64,
-		rateLimiter:          rate.NewLimiter(rate.Every(time.Second/time.Duration(config.BackendTasksPerSecond)), 1),
-		hash:                 crypto.SHA256,
-		heartbeats:           map[string]*srv.Heartbeat{},
-		groupIRMapping:       map[string]prioritizedLabels{},
-		applicationIRMapping: map[string]prioritizedLabels{},
-		groupNameRegexes:     []regexAndPriorityLabels{},
-		appNameRegexes:       []regexAndPriorityLabels{},
-		timeBetweenSyncs:     config.TimeBetweenSyncs,
-		syncStoppedCh:        make(chan struct{}, 1),
-		stopCh:               make(chan struct{}, 1),
-		pluginStatusSink:     config.PluginStatusSink,
-		userReconciler:       reconciler,
-		ssoConnectorID:       config.SSOConnectorID,
-		oktaSAMLAppID:        config.OktaSAMLAppID,
+		connectorService:        config.ConnectorService,
+		log:                     config.Log,
+		clock:                   config.Clock,
+		authorizer:              config.Authorizer,
+		clusterName:             config.ClusterName,
+		hostname:                config.Hostname,
+		hostID:                  config.HostID,
+		rotationGetter:          config.RotationGetter,
+		proxyGetter:             config.ProxyGetter,
+		accessPoint:             config.AccessPoint,
+		onHeartbeat:             config.OnHeartbeat,
+		client:                  client,
+		emitter:                 config.Emitter,
+		orgURL:                  orgURL,
+		orgURLBase64:            orgURLBase64,
+		rateLimiter:             rate.NewLimiter(rate.Every(time.Second/time.Duration(config.BackendTasksPerSecond)), 1),
+		hash:                    crypto.SHA256,
+		heartbeats:              map[string]*srv.Heartbeat{},
+		groupIRMapping:          map[string]prioritizedLabels{},
+		applicationIRMapping:    map[string]prioritizedLabels{},
+		groupNameRegexes:        []regexAndPriorityLabels{},
+		appNameRegexes:          []regexAndPriorityLabels{},
+		timeBetweenSyncs:        config.TimeBetweenSyncs,
+		syncStoppedCh:           make(chan struct{}, 1),
+		stopCh:                  make(chan struct{}, 1),
+		pluginStatusSink:        config.PluginStatusSink,
+		userReconciler:          reconciler,
+		ssoConnectorID:          config.SSOConnectorID,
+		oktaSAMLAppID:           config.OktaSAMLAppID,
+		disableOktaAppGroupSync: config.DisableAppGroupSync,
 	}
 	s.tlsConfig = app.CopyAndConfigureTLS(config.Log, s.accessPoint, config.TLSConfig)
 
@@ -635,7 +656,9 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaClient
 		return nil, trace.Wrap(err)
 	}
 
-	s.assignmentReconciler = newAssignmentReconciler(ctx, clusterName.GetClusterName(), s)
+	if !s.disableOktaAppGroupSync {
+		s.assignmentReconciler = newAssignmentReconciler(ctx, clusterName.GetClusterName(), s)
+	}
 
 	if config.AccessListSyncEnabled {
 		config.Log.Info("Access list synchronization is enabled. Configuring synchronizer.")
@@ -683,8 +706,10 @@ func (s *Service) Start(ctx context.Context) error {
 
 	go s.synchronizeLoop(ctx)
 
-	if err := s.assignmentReconciler.start(ctx); err != nil {
-		return trace.Wrap(err)
+	if s.assignmentReconciler != nil {
+		if err := s.assignmentReconciler.start(ctx); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	if s.accessListSync != nil {
@@ -702,7 +727,9 @@ func (s *Service) Wait(ctx context.Context) {
 		return
 	}
 
-	s.assignmentReconciler.wait(ctx)
+	if s.assignmentReconciler != nil {
+		s.assignmentReconciler.wait(ctx)
+	}
 }
 
 // Shutdown will stop any processes that are currently running.
@@ -718,7 +745,9 @@ func (s *Service) Shutdown() error {
 	s.heartbeatsMu.Lock()
 	defer s.heartbeatsMu.Unlock()
 
-	s.assignmentReconciler.stop()
+	if s.assignmentReconciler != nil {
+		s.assignmentReconciler.stop()
+	}
 
 	var errs []error
 	for _, heartbeat := range s.heartbeats {
@@ -902,19 +931,24 @@ func reportPluginStatus(ctx context.Context, log *logrus.Entry, pluginStatusSink
 // SelectSCIMToken searches the supplied list of credentials for a SCIM bearer
 // token. Returns a NotFound error if no such credential exists.
 func SelectSCIMToken(staticCredentials []types.PluginStaticCredentials) (types.PluginStaticCredentials, error) {
-	for _, cred := range staticCredentials {
-		purpose, present := cred.GetLabel(CredPurposeLabel)
-		if present && purpose == CredPurposeSCIMToken {
-			return cred, nil
-		}
+	creds, err := selectCredsByPurposeLabel(staticCredentials, CredPurposeSCIMToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	return nil, trace.NotFound("Okta API token")
+	return creds, nil
 }
 
 // SelectAPIToken searches the supplied list of credentials for a credential
 // containing an Okta API token.  Returns a NotFound error if no such credential
 // exists.
 func SelectAPIToken(staticCredentials []types.PluginStaticCredentials) (types.PluginStaticCredentials, error) {
+	// CredPurposeOKTAAPITokenWithSCIMOnlyIntegration is set only when OKTA app sync is disabled.
+	// For backward compatibility, when Teleport is downgraded to a version that doesn't support
+	// stopping app group sync via the feature flag (AppGroupSyncDisabled), we will rely on the behavior
+	// of preventing starting the Okta Plugin due to the missing credential.
+	if v, err := selectCredsByPurposeLabel(staticCredentials, CredPurposeOKTAAPITokenWithSCIMOnlyIntegration); err == nil {
+		return v, nil
+	}
 	// For now, we'll just choose the first eligible static credential until we
 	// have a need for rotation or other complexity.
 	for _, cred := range staticCredentials {
@@ -927,4 +961,14 @@ func SelectAPIToken(staticCredentials []types.PluginStaticCredentials) (types.Pl
 		}
 	}
 	return nil, trace.NotFound("Okta API token")
+}
+
+func selectCredsByPurposeLabel(staticCredentials []types.PluginStaticCredentials, purposeLabel string) (types.PluginStaticCredentials, error) {
+	for _, cred := range staticCredentials {
+		purpose, present := cred.GetLabel(CredPurposeLabel)
+		if present && purpose == purposeLabel {
+			return cred, nil
+		}
+	}
+	return nil, trace.NotFound("credential")
 }

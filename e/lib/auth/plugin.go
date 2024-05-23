@@ -342,6 +342,7 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server interface{}) e
 	userMonitor.Start(ctx)
 
 	err = p.registerSCIMService(ctx, gRPCServer, &scim.Config{
+		IdentityService:    p.authServer.AuthServer,
 		Authorizer:         p.authServer.Authorizer,
 		UsersService:       p.authServer.AuthServer,
 		RolesService:       p.authServer.AuthServer,

@@ -289,3 +289,15 @@ func (m *mockAccessListService) UpsertAccessListMember(ctx context.Context, alm 
 	}
 	return getResultAs[*accesslist.AccessListMember](result, 0), result.Error(1)
 }
+
+type mockIdentityService struct {
+	mock.Mock
+}
+
+func (m *mockIdentityService) GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error) {
+	result := m.Called(ctx, id, withSecrets)
+	if fn, ok := result.Get(0).(func(context.Context, string, bool) (types.SAMLConnector, error)); ok {
+		return fn(ctx, id, withSecrets)
+	}
+	return getResultAs[types.SAMLConnector](result, 0), result.Error(1)
+}

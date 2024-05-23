@@ -25,6 +25,23 @@ func oktaInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 
 	oktaAPITokenCred, err := okta.SelectAPIToken(deps.staticCredentials)
 	if err != nil {
+		if trace.IsNotFound(err) {
+			if oktaSpec.SyncSettings.SyncUsers || oktaSpec.SyncSettings.SyncAccessLists {
+				return nil, trace.Wrap(err)
+			}
+			// There is no API token to call API and only SCIM integration was enabled.
+			// SCIM updates propagated to Teleport by OKTA happens only when groups/users are updated in OKTA
+			// Report RUNNING status and not really emitting plugin status by okta client during calling okta API.
+			return func() error {
+				if err := deps.statusSink.Emit(ctx, &types.PluginStatusV1{
+					Code: types.PluginStatusCode_RUNNING,
+				}); err != nil {
+					deps.log.WithError(err).Error("Failed to emit status")
+				}
+				<-deps.lifetime.Done()
+				return nil
+			}, nil
+		}
 		return nil, trace.Wrap(err, "selecting okta credentials")
 	}
 
@@ -37,10 +54,17 @@ func oktaInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 	// Currently, if license gets upgraded, okta service will still be
 	// running with stale settings (unless it was restarted).
 	oktaSpec.SyncSettings.SyncUsers = oktaSpec.SyncSettings.SyncUsers && modules.GetModules().Features().IGSEnabled()
-
 	return func() error {
-		closeEvent := services.InitOktaPlugin(deps.lifetime, deps.parentProcess, deps.statusSink, *oktaSpec, oktaAPIToken, plugin.GetName())
-
+		closeEvent := services.InitOktaPlugin(deps.lifetime,
+			services.OktaPluginPrams{
+				Process:              deps.parentProcess,
+				PluginStatusSink:     deps.statusSink,
+				Settings:             *oktaSpec,
+				Token:                oktaAPIToken,
+				PluginName:           plugin.GetName(),
+				AppGroupSyncDisabled: shouldDisabledAppGroupSync(oktaAPITokenCred),
+			},
+		)
 		// wait for the calling context to finish before doing anything else.
 		<-deps.lifetime.Done()
 
@@ -56,4 +80,18 @@ func oktaInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 		deps.log.Info("Okta plugin has stopped")
 		return nil
 	}, nil
+}
+
+// shouldDisabledAppGroupSync check if app user sync should be disabled.
+// This is done by checking the label of the token credentials. If the label
+// is set to CredPurposeOKTAAPITokenWithSCIMOnlyIntegration, then the app group
+// sync should be disabled.
+//
+// Why not use the proto SyncSettings.AppGroupSyncDisabled field?
+// Currently, adding fields to the plugin spec is not backward compatible:
+// the jsonPB unmarshaler with missing ignore unknown fields will fail to unmarshal the plugin spec.
+// when a new field was added.
+func shouldDisabledAppGroupSync(tokenCreds types.PluginStaticCredentials) bool {
+	v, ok := tokenCreds.GetLabel(okta.CredPurposeLabel)
+	return ok && v == okta.CredPurposeOKTAAPITokenWithSCIMOnlyIntegration
 }

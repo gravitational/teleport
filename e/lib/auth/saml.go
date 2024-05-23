@@ -624,10 +624,7 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 		sessionTTL = roles.AdjustSessionTTL(apidefaults.MaxCertDuration)
 	}
 
-	if err := sas.auth.CallLoginHooks(ctx, user); err != nil {
-		return nil, loginIP, trace.Wrap(err)
-	}
-	userState, err := sas.getUserState(ctx, user, connector, diagCtx, request, assertionInfo)
+	userState, err := sas.postProcessUser(ctx, user, connector, diagCtx, request, assertionInfo)
 	if err != nil {
 		return nil, loginIP, trace.Wrap(err)
 	}
@@ -696,24 +693,13 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 	return resp, loginIP, nil
 }
 
-func (sas *SAMLAuthService) addAttributesFromConnector(
-	ctx context.Context,
-	userState services.UserState,
-	connector types.SAMLConnector,
-	diagCtx *auth.SSODiagContext,
-	request *types.SAMLAuthRequest,
-	assertionInfo *saml2.AssertionInfo) error {
-
+func (sas *SAMLAuthService) addAttributesFromConnector(userState services.UserState, params *auth.CreateUserParams) error {
 	us, ok := userState.(*userloginstate.UserLoginState)
 	if !ok {
-		// This should never happen. The this function is called after the user login hooks are called
+		// This should never happen. This function is called after the user login hooks are called
 		// where user login state is created.
 		log.Errorf("Failed to cast user state to UserLoginState.")
 		return nil
-	}
-	params, err := sas.calculateSAMLUser(ctx, diagCtx, connector, *assertionInfo, request)
-	if err != nil {
-		return trace.Wrap(err, "Failed to calculate user attributes.")
 	}
 	us.Spec.Roles = apiutils.Deduplicate(append(us.Spec.Roles, params.Roles...))
 	for key, val := range params.Traits {
@@ -721,6 +707,19 @@ func (sas *SAMLAuthService) addAttributesFromConnector(
 			us.Spec.Traits = make(map[string][]string)
 		}
 		us.Spec.Traits[key] = apiutils.Deduplicate(append(us.Spec.Traits[key], val...))
+	}
+
+	return nil
+}
+
+func (sas *SAMLAuthService) propagateRolesToPermanentSSOUser(ctx context.Context, params *auth.CreateUserParams) error {
+	user, err := sas.auth.Services.GetUser(ctx, params.Username, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	user.SetRoles(params.Roles)
+	if _, err := sas.auth.Services.UpdateUser(ctx, user); err != nil {
+		return trace.Wrap(err)
 	}
 	return nil
 }
@@ -742,19 +741,35 @@ func (sas *SAMLAuthService) getAttributeFromAssertion(assertionInfo *saml2.Asser
 	return attributeStatements
 }
 
-func (sas *SAMLAuthService) getUserState(ctx context.Context, user types.User, connector types.SAMLConnector, diagCtx *auth.SSODiagContext, request *types.SAMLAuthRequest, info *saml2.AssertionInfo) (services.UserState, error) {
+func (sas *SAMLAuthService) postProcessUser(ctx context.Context, user types.User, connector types.SAMLConnector, diagCtx *auth.SSODiagContext, request *types.SAMLAuthRequest, info *saml2.AssertionInfo) (services.UserState, error) {
+	if err := sas.auth.CallLoginHooks(ctx, user); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	userState, err := sas.auth.GetUserOrLoginState(ctx, user.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if !isEphemeralSAMLUser(user) {
+		if len(connector.GetAttributesToRoles()) == 0 {
+			return userState, nil
+		}
+		params, err := sas.calculateSAMLUser(ctx, diagCtx, connector, *info, request)
+		if err != nil {
+			return nil, trace.Wrap(err, "Failed to calculate user attributes.")
+		}
 		// If a user was created by a sync service or SCIM handler (not Ephemeral SAML User)
 		// it will miss the SAML connector attribute mapping evaluation.
 		// For backward compatibility, we need to add the attributes from the connector to the user
 		// to ensure that the user has the correct roles and traits.
 		// NOTE that in case of OKTA SCIM sync handler a user attributes can be different from the SAML assertion
 		// So for backward compatibility even calculating assertion during SCIM user creation is not enough.
-		if err := sas.addAttributesFromConnector(ctx, userState, connector, diagCtx, request, info); err != nil {
+		if err := sas.addAttributesFromConnector(userState, params); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// Users create via SCIM or OKTA user sync don't have correct roles propagated.
+		// Revaluate roles and propagate them to the user so user roles will be visible in the UI.
+		if err := sas.propagateRolesToPermanentSSOUser(ctx, params); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}

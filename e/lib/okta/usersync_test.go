@@ -818,8 +818,7 @@ func validateLockArg(t *testing.T, argIndex int, target string, expiry time.Time
 		require.True(t, ok)
 		require.Equal(t, reason, lockReason)
 
-		require.NotNil(t, lock.LockExpiry())
-		require.Equal(t, expiry.UTC(), lock.LockExpiry().UTC())
+		require.Nil(t, lock.LockExpiry())
 
 		// Expect that the target is set to the supplied username
 		// *and nothing else*

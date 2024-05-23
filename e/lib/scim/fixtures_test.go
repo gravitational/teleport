@@ -26,15 +26,16 @@ func (builtinRoleAuthorizer) Authorize(ctx context.Context) (*authz.Context, err
 }
 
 type testFixture struct {
-	users       mockUserService
-	roles       mockRoleService
-	accesslists mockAccessListService
-	locks       mockLocksService
-	plugins     mockPluginsService
-	creds       mockCredentialsService
-	shim        *mockProviderShim
-	clock       clockwork.FakeClock
-	userCtx     context.Context
+	users           mockUserService
+	roles           mockRoleService
+	accesslists     mockAccessListService
+	locks           mockLocksService
+	plugins         mockPluginsService
+	creds           mockCredentialsService
+	shim            *mockProviderShim
+	clock           clockwork.FakeClock
+	userCtx         context.Context
+	identityService mockIdentityService
 }
 
 func (tf *testFixture) AssertExpectations(t *testing.T) {
@@ -45,6 +46,7 @@ func (tf *testFixture) AssertExpectations(t *testing.T) {
 	tf.plugins.AssertExpectations(t)
 	tf.creds.AssertExpectations(t)
 	tf.shim.AssertExpectations(t)
+	tf.identityService.AssertExpectations(t)
 }
 
 func (tf *testFixture) CheckAndSetDefaults(t *testing.T) {
@@ -74,6 +76,7 @@ func newTestServiceWith(t *testing.T, fix *testFixture) (*Service, *testFixture)
 		RolesService:       &fix.roles,
 		CredentialsService: &fix.creds,
 		Clock:              fix.clock,
+		IdentityService:    &fix.identityService,
 	})
 	require.NoError(t, err, "creating test harness")
 

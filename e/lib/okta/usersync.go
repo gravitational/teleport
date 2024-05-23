@@ -538,7 +538,7 @@ func LockUser(ctx context.Context, args LockParams) (types.Lock, error) {
 				User: args.User.GetName(),
 			},
 			CreatedBy: types.OriginOkta,
-			Expires:   &expiry,
+			Expires:   nil,
 		},
 	}
 
