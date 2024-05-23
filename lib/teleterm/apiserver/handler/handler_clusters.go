@@ -132,6 +132,7 @@ func newAPIRootClusterWithDetails(cluster *clusters.ClusterWithDetails) (*api.Cl
 	case constants.ShowResourcesaccessibleOnly:
 		apiCluster.ShowResources = api.ShowResources_SHOW_RESOURCES_ACCESSIBLE_ONLY
 	case constants.ShowResourcesRequestable:
+		apiCluster.ShowResources = api.ShowResources_SHOW_RESOURCES_REQUESTABLE
 	default:
 		// If the UI config for ShowResources is not set, the default is `requestable`.
 		apiCluster.ShowResources = api.ShowResources_SHOW_RESOURCES_REQUESTABLE
