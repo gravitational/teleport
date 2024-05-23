@@ -20,6 +20,8 @@ syntax = "proto3";
 
 package accessgraph.v1alpha;
 
+import "google/protobuf/struct.proto";
+
 option go_package = "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha;accessgraphv1alpha";
 
 // Node is a node in the access graph.
@@ -48,4 +50,6 @@ message Edge {
   string to = 2;
   // edge_type is the type of the edge, e.g. "member_of", "belongs_to", etc.
   string edge_type = 3;
+  // properties is dynamically typed set of edge properties, with the schema varying from one edge type to another.
+  google.protobuf.Struct properties = 4;
 }
