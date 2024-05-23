@@ -38,15 +38,23 @@ information, see the [deployment guides](../deployment.mdx).
 
 ## Step 1/5. Decide on a SPIFFE ID structure
 
+Within Teleport Workload Identity, all identities are represented using a
+SPIFFE ID. This is a URI that uniquely identifies the entity that the identity
+represents. The scheme is always `spiffe://`, and the host will be the name of
+your Teleport cluster. The structure of the path of this URI is up to you.
+
+For the purposes of this guide, we will be granting access to AWS to the
+`spiffe://example.teleport.sh/svc/example-service` SPIFFE ID.
+
 If you have already deployed Teleport Workload Identity, then you will already
 have a SPIFFE ID structure in place. If you have not, then you will need to
 decide on a structure for your SPIFFE IDs.
 
-The [best practices guide](./best-practices.mdx) has some recommendations for
-this.
-
-For the purposes of this guide, we will be granting access to AWS to the
-`spiffe://example.teleport.sh/my-workload` identity.
+If you are only using Teleport Workload ID with AWS Roles Anywhere, you way
+structure your SPIFFE IDs so that they explicitly specify the AWS role they are
+allowed to assume. However, it often makes more sense to name the workload or
+person that will use the SPIFFE ID. See the
+[best practices guide](./best-practices.mdx) for further advice.
 
 ## Step 2/5. Configure AWS Roles Anywhere
 
@@ -107,7 +115,7 @@ You will now enter the following:
             ],
             "Condition": {
                 "StringEquals": {
-                    "aws:PrincipalTag/x509SAN/URI": "spiffe://example.teleport.sh/my-workload"
+                    "aws:PrincipalTag/x509SAN/URI": "spiffe://example.teleport.sh/svc/example-service"
                 },
                 "ArnEquals": {
                     "aws:SourceArn": "arn:aws:rolesanywhere:us-east-1:12345789:trust-anchor/0000000-0000-0000-0000-000000000000"
