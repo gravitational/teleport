@@ -36,6 +36,8 @@ import { RequestCheckoutWithSlider } from 'shared/components/AccessRequests/NewR
 import useAccessRequestCheckout from './useAccessRequestCheckout';
 import { AssumedRolesBar } from './AssumedRolesBar';
 
+const MAX_RESOURCES_IN_BAR_TO_SHOW = 5;
+
 function RequestCheckoutSuccess({
   onClose,
   goToRequests,
@@ -103,6 +105,10 @@ export function AccessRequestCheckout() {
     setShowCheckout(false);
   }
 
+  // We should rather detect how much space we have,
+  // but for simplicity we only count items.
+  const moreToShow = Math.max(data.length - MAX_RESOURCES_IN_BAR_TO_SHOW, 0);
+
   return (
     <>
       {data.length > 0 && !isCollapsed() && (
@@ -129,6 +135,7 @@ export function AccessRequestCheckout() {
               </Text>
               <Flex direction="row" gap={1} flexWrap="wrap">
                 {data
+                  .slice(0, MAX_RESOURCES_IN_BAR_TO_SHOW)
                   .map(c => {
                     let resource = { name: c.name, Icon: undefined };
                     switch (c.kind) {
@@ -170,6 +177,9 @@ export function AccessRequestCheckout() {
                       </span>
                     </Label>
                   ))}
+                {!!moreToShow && (
+                  <Label kind="secondary">+ {moreToShow} more</Label>
+                )}
               </Flex>
             </Flex>
             <Flex gap={3}>
