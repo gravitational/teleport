@@ -27,6 +27,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gobwas/ws"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -113,7 +114,7 @@ func (h *Handler) upgradeALPNWebSocket(w http.ResponseWriter, r *http.Request, u
 
 	logrus.WithField("protocol", wsConn.Subprotocol()).Trace("Received WebSocket upgrade.")
 
-	conn := newWebSocketALPNServerConn(wsConn)
+	conn := newWebSocketALPNServerConn(wsConn.UnderlyingConn())
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 
@@ -236,16 +237,16 @@ func (conn *waitConn) Close() error {
 }
 
 type websocketALPNServerConn struct {
-	*websocket.Conn
+	net.Conn
 	readBuffer []byte
 	readError  error
 	readMutex  sync.Mutex
 	writeMutex sync.Mutex
 }
 
-func newWebSocketALPNServerConn(wsConn *websocket.Conn) *websocketALPNServerConn {
+func newWebSocketALPNServerConn(conn net.Conn) *websocketALPNServerConn {
 	return &websocketALPNServerConn{
-		Conn: wsConn,
+		Conn: conn,
 	}
 }
 
@@ -261,12 +262,19 @@ func (c *websocketALPNServerConn) Read(b []byte) (int, error) {
 	defer c.readMutex.Unlock()
 
 	n, err := c.readLocked(b)
+	// TODO do not convert net.Error and clear cached err.
+	if netError, ok := trace.Unwrap(err).(net.Error); ok {
+		c.readError = nil
+		logrus.Errorf("=== converting err back to %T %s", netError, netError)
+		return n, netError
+	}
 	return n, trace.Wrap(err)
 }
 
 func (c *websocketALPNServerConn) readLocked(b []byte) (int, error) {
 	// Stop reading if any previous read err.
 	if c.readError != nil {
+		logrus.Errorf("=== cached ReadFrame err %T %v", c.readError, c.readError)
 		return 0, trace.Wrap(c.readError)
 	}
 
@@ -281,30 +289,53 @@ func (c *websocketALPNServerConn) readLocked(b []byte) (int, error) {
 	}
 
 	for {
-		messageType, data, err := c.Conn.ReadMessage()
+		frame, err := ws.ReadFrame(c.Conn)
 		if err != nil {
-			c.readError = c.convertError(err)
-			return 0, trace.Wrap(c.readError)
+			logrus.Errorf("=== ReadFrame err %T %v", err, err)
+			c.readError = err
+			return 0, trace.Wrap(err)
 		}
-
-		switch messageType {
-		case websocket.CloseMessage:
-			return 0, nil
-		case websocket.BinaryMessage:
-			c.readBuffer = data
+		switch frame.Header.OpCode {
+		case ws.OpClose:
+			return 0, io.EOF
+		case ws.OpBinary:
+			c.readBuffer = frame.Payload
 			return c.readLocked(b)
-		case websocket.PongMessage:
-			// Receives Pong as response to Ping. Nothing to do.
 		}
+		/*
+			messageType, data, err := c.Conn.ReadMessage()
+			if err != nil {
+				c.readError = c.convertError(err)
+				return 0, trace.Wrap(c.readError)
+			}
+
+			switch messageType {
+			case websocket.CloseMessage:
+				return 0, nil
+			case websocket.BinaryMessage:
+				c.readBuffer = data
+				return c.readLocked(b)
+			case websocket.PongMessage:
+				// Receives Pong as response to Ping. Nothing to do.
+			}
+		*/
 	}
 }
 
 func (c *websocketALPNServerConn) Write(b []byte) (n int, err error) {
 	c.writeMutex.Lock()
 	defer c.writeMutex.Unlock()
-	if err := c.Conn.WriteMessage(websocket.BinaryMessage, b); err != nil {
-		return 0, trace.Wrap(c.convertError(err))
+
+	frame := ws.NewBinaryFrame(b)
+	frame.Header.Masked = true
+	if err := ws.WriteFrame(c.Conn, frame); err != nil {
+		return 0, trace.Wrap(err)
 	}
+	/*
+		if err := c.Conn.WriteMessage(websocket.BinaryMessage, b); err != nil {
+			return 0, trace.Wrap(c.convertError(err))
+		}
+	*/
 	return len(b), nil
 }
 
@@ -312,19 +343,22 @@ func (c *websocketALPNServerConn) WritePing() error {
 	c.writeMutex.Lock()
 	defer c.writeMutex.Unlock()
 
-	// Send some identifier with Ping. Note that we are not validating the Pong
-	// response.
-	err := c.Conn.WriteMessage(websocket.PingMessage, []byte(teleport.ComponentTeleport))
-	return trace.Wrap(c.convertError(err))
+	frame := ws.NewPingFrame([]byte(teleport.ComponentTeleport))
+	frame.Header.Masked = true
+	return trace.Wrap(ws.WriteFrame(c.Conn, frame))
+
+	/*
+		// Send some identifier with Ping. Note that we are not validating the Pong
+		// response.
+		err := c.Conn.WriteMessage(websocket.PingMessage, []byte(teleport.ComponentTeleport))
+		return trace.Wrap(c.convertError(err))
+	*/
 }
 
 func (c *websocketALPNServerConn) SetDeadline(t time.Time) error {
 	c.writeMutex.Lock()
 	defer c.writeMutex.Unlock()
-	return trace.NewAggregate(
-		c.Conn.SetReadDeadline(t),
-		c.Conn.SetWriteDeadline(t),
-	)
+	return trace.Wrap(c.Conn.SetDeadline(t))
 }
 
 func (c *websocketALPNServerConn) SetWriteDeadline(t time.Time) error {
@@ -336,5 +370,6 @@ func (c *websocketALPNServerConn) SetWriteDeadline(t time.Time) error {
 func (c *websocketALPNServerConn) SetReadDeadline(t time.Time) error {
 	c.writeMutex.Lock()
 	defer c.writeMutex.Unlock()
+	logrus.Errorf("=== SetReadDeadline %v", t)
 	return trace.Wrap(c.Conn.SetReadDeadline(t))
 }
