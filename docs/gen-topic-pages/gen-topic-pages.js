@@ -203,6 +203,4 @@ ${fm.description} ([more info](${relPath}))
     menuEntries.sort();
     newText += menuEntries.join('\n');
     return newText;
-  }
-}
-module.exports.TopicContentsFragment = TopicContentsFragment;
+
