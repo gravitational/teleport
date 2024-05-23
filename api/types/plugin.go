@@ -280,7 +280,7 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 			return trace.BadParameter("Gitlab plugin must be used with the static credentials ref type")
 		}
 	default:
-		return trace.BadParameter("settings are not set or have an unknown type")
+		return nil
 	}
 
 	return nil
