@@ -48,7 +48,7 @@ We must provide a seamless, hands-off experience for auto-updates that is easy t
 
 We will ship a new auto-updater package written in Go that does not interface with the system package manager.
 It will be versioned separately from Teleport, and manage the installation of the correct Teleport agent version manually. 
-It will read the unauthenticated `/v1/webapi/ping` endpoint from the Teleport proxy, parse new fields on that endpoint, and install the specified agent version according to the specified upgrade plan.
+It will read the unauthenticated `/v1/webapi/find` endpoint from the Teleport proxy, parse new fields on that endpoint, and install the specified agent version according to the specified upgrade plan.
 It will download the correct version of Teleport as a tarball, unpack it in `/var/lib/teleport`, and ensure it is symlinked from `/usr/local/bin`.
 
 ### Installation
@@ -65,7 +65,7 @@ $ systemctl enable teleport
 
 #### Endpoints
 
-`/v1/webapi/ping`
+`/v1/webapi/find`
 ```json
 {
   "server_edition": "enterprise",
@@ -89,7 +89,7 @@ spec:
   # agent_auto_update allows turning agent updates on or off at the
   # cluster level. Only turn agent automatic updates off if self-managed
   # agent updates are in place.
-  agent_auto_update: on|off
+  agent_auto_update: true|false
   # agent_update_hour sets the hour in UTC at which clients should update their agents.
   agent_update_hour: 0-23
   # agent_update_now overrides agent_update_hour and sets agent update time to the current time.
@@ -97,7 +97,7 @@ spec:
   agent_update_now: on|off
   # agent_update_jitter_seconds sets a duration in which the upgrade will occur after the hour.
   # The agent upgrader will pick a random time within this duration in which to upgrade.
-  agent_update_jitter_seconds: 0-MAXINT64
+  agent_update_jitter_seconds: 0-3600
   
   [...]
 ```
@@ -218,7 +218,7 @@ It will also run update teleport immediately, to ensure that subsequent executio
 
 The `enable` subcommand will:
 1. Configure `updates.yaml` with the current proxy address and set `enabled` to true.
-2. Query the `/v1/webapi/ping` endpoint.
+2. Query the `/v1/webapi/find` endpoint.
 3. If the current updater-managed version of Teleport is the latest, and teleport package is not installed, quit.
 4. If the current updater-managed version of Teleport is the latest, but the teleport package is installed, jump to (14).
 5. Ensure there is enough free disk space to upgrade Teleport.
@@ -239,7 +239,7 @@ The `disable` subcommand will:
 
 When `update` subcommand is otherwise executed, it will:
 1. Check `updates.yaml`, and quit (exit 0) if `enabled` is false, or quit (exit 1) if `enabled` is true and no proxy address is set.
-2. Query the `/v1/webapi/ping` endpoint.
+2. Query the `/v1/webapi/find` endpoint.
 3. Check if the current time is after the time advertised in `agent_update_after`, and that `agent_auto_updates` is true.
 4. If the current version of Teleport is the latest, quit.
 5. Wait `random(0, agent_update_jitter_seconds)` seconds.
@@ -305,7 +305,7 @@ Questions:
 
 ### Manual Workflow
 
-For use cases that fall outside of the functionality provided by `teleport-updater`, we provide an alternative manual workflow using the `/v1/webapi/ping` endpoint.
+For use cases that fall outside of the functionality provided by `teleport-updater`, we provide an alternative manual workflow using the `/v1/webapi/find` endpoint.
 This workflow supports customers that cannot use the auto-update mechanism provided by `teleport-updater` because they use their own automation for updates (e.g., JamF or ansible).
 
 Cluster administrators that want to self-manage agent updates will be
