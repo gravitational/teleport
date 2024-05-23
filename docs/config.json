@@ -767,6 +767,10 @@
               "slug": "/management/guides/ec2-tags/"
             },
             {
+              "title": "GCP Tags and Labels",
+              "slug": "/management/guides/gcp-tags/"
+            },
+            {
               "title": "Using Teleport's CA with GitHub",
               "slug": "/management/guides/ssh-key-extensions/"
             },
