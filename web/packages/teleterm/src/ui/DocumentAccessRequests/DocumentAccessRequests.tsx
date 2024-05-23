@@ -66,7 +66,7 @@ export function DocumentAccessRequestsViews({
   getFlags(accessRequest: AccessRequest): RequestFlags;
 }) {
   if (doc.state === 'creating') {
-    return <NewRequest clusterUri={doc.clusterUri} />;
+    return <NewRequest />;
   }
 
   if (doc.state === 'reviewing') {

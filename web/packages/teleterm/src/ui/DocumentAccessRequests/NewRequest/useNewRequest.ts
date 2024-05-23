@@ -36,7 +36,7 @@ import {
   GetResourcesParams,
   App as tshdApp,
 } from 'teleterm/services/tshd/types';
-import { routing, ClusterUri } from 'teleterm/ui/uri';
+import { routing } from 'teleterm/ui/uri';
 import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
 import { getAppAddrWithProtocol } from 'teleterm/services/tshd/app';
 import { toResourceRequest } from 'teleterm/ui/services/workspacesService/accessRequestsService';
@@ -54,9 +54,10 @@ const pageSize = 10;
 
 type AgentFilter = WeakAgentFilter & { sort: SortType };
 
-export default function useNewRequest(clusterUri: ClusterUri) {
+export default function useNewRequest() {
   const ctx = useAppContext();
-  const { accessRequestsService } = useWorkspaceContext();
+  const { accessRequestsService, localClusterUri: clusterUri } =
+    useWorkspaceContext();
 
   const loggedInUser = useWorkspaceLoggedInUser();
 
