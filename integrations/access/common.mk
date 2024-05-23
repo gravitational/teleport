@@ -18,7 +18,7 @@ RELEASE_MESSAGE = "Building with GOOS=$(OS) GOARCH=$(ARCH)."
 
 DOCKER_VERSION = $(subst +,_,$(VERSION))
 DOCKER_NAME = teleport-plugin-$(ACCESS_PLUGIN)
-DOCKER_PRIVATE_REGISTRY = 146628656107.dkr.ecr.us-west-2.amazonaws.com
+DOCKER_PRIVATE_REGIST:RY = 146628656107.dkr.ecr.us-west-2.amazonaws.com
 DOCKER_IMAGE_BASE = $(DOCKER_PRIVATE_REGISTRY)/gravitational
 DOCKER_IMAGE = $(DOCKER_IMAGE_BASE)/$(DOCKER_NAME):$(DOCKER_VERSION)
 DOCKER_ECR_PUBLIC_REGISTRY = public.ecr.aws/gravitational
@@ -44,7 +44,7 @@ clean:
 	rm -rf *.gz
 
 .PHONY: release
-release: clean $(BINARY)
+release: $(BINARY)
 	@echo "---> $(RELEASE_MESSAGE)"
 	mkdir build/$(RELEASE_NAME)
 	cp -rf $(BINARY) \
