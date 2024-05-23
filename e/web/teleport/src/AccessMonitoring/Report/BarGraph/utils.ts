@@ -25,9 +25,6 @@ export function convertResultToData(
   const keysColumnIndex = result.columns.findIndex(
     column => column.name === config.keysColumn
   );
-  const keys = Array.from(
-    new Set(result.data.map(row => row[keysColumnIndex]))
-  );
 
   const count = result.data.length;
 
@@ -35,6 +32,8 @@ export function convertResultToData(
   if (count > MAX_RESULTS) {
     rows = rows.slice(0, MAX_RESULTS);
   }
+
+  const keys = Array.from(new Set(rows.map(row => row[keysColumnIndex])));
 
   const data: Record<string, string | number>[] = [];
 
