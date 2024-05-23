@@ -22,7 +22,7 @@ func TestMigration(t *testing.T) {
 	dst, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 
-	itemCount := 1111
+	itemCount := 11111
 	items := make([]backend.Item, itemCount)
 
 	for i := 0; i < itemCount; i++ {
@@ -51,6 +51,6 @@ func TestMigration(t *testing.T) {
 
 	diff := cmp.Diff(items, result.Items, cmpopts.IgnoreFields(backend.Item{}, "Revision", "ID"))
 	require.Empty(t, diff)
-	require.Equal(t, itemCount, migration.total)
 	require.Equal(t, itemCount, int(migration.migrated.Load()))
+	require.NoError(t, migration.Close())
 }

@@ -14,12 +14,16 @@ import (
 	"github.com/gravitational/trace"
 )
 
+const (
+	// bufferSize is the number of backend items that are queried at a time.
+	bufferSize = 10000
+)
+
 // Migration manages a migration between two [backend.Backend] interfaces.
 type Migration struct {
 	src      backend.Backend
 	dst      backend.Backend
 	parallel int
-	total    int
 	migrated atomic.Int64
 	log      logrus.FieldLogger
 }
@@ -55,7 +59,7 @@ func New(ctx context.Context, config MigrationConfig) (*Migration, error) {
 		parallel: config.Parallel,
 		log:      config.Log,
 	}
-	if migration.parallel == 0 {
+	if migration.parallel <= 0 {
 		migration.parallel = 1
 	}
 	if migration.log == nil {
@@ -83,29 +87,50 @@ func (m *Migration) Close() error {
 
 // Run runs a [Migration] until complete.
 func (m *Migration) Run(ctx context.Context) error {
-	var all []backend.Item
+	itemC := make(chan backend.Item, bufferSize)
 	start := backend.Key("")
-	err := retry(ctx, 3, func() error {
-		result, err := m.src.GetRange(ctx, start, backend.RangeEnd(start), 0)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		all = result.Items
-		return nil
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	m.total = len(all)
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	group, ctx := errgroup.WithContext(ctx)
-	group.SetLimit(m.parallel)
+	putGroup, putCtx := errgroup.WithContext(ctx)
+	putGroup.SetLimit(m.parallel)
+
+	getGroup, getCtx := errgroup.WithContext(ctx)
+	getGroup.Go(func() error {
+		for {
+			var result *backend.GetResult
+			defer close(itemC)
+			err := retry(getCtx, 3, func() error {
+				var err error
+				result, err = m.src.GetRange(getCtx, start, backend.RangeEnd(start), bufferSize)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				return nil
+			})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			for _, item := range result.Items {
+				select {
+				case itemC <- item:
+				case <-getCtx.Done():
+					return trace.Wrap(getCtx.Err())
+				// This case indicates no consumers are pulling items
+				// from the channel. Return to avoid deadlock.
+				case <-putCtx.Done():
+					return trace.Wrap(putCtx.Err())
+				}
+			}
+			if len(result.Items) < bufferSize {
+				return nil
+			}
+		}
+	})
 
 	logProgress := func() {
-		m.log.Info("Migrated %d/%d", m.migrated.Load(), m.total)
+		m.log.Infof("Migrated %d", m.migrated.Load())
 	}
 	defer logProgress()
 	go func() {
@@ -119,11 +144,11 @@ func (m *Migration) Run(ctx context.Context) error {
 		}
 	}()
 
-	for _, item := range all {
+	for item := range itemC {
 		item := item
-		group.Go(func() error {
-			if err := retry(ctx, 3, func() error {
-				if _, err := m.dst.Put(ctx, item); err != nil {
+		putGroup.Go(func() error {
+			if err := retry(putCtx, 3, func() error {
+				if _, err := m.dst.Put(putCtx, item); err != nil {
 					return trace.Wrap(err)
 				}
 				return nil
@@ -133,15 +158,14 @@ func (m *Migration) Run(ctx context.Context) error {
 			m.migrated.Add(1)
 			return nil
 		})
-		if err := ctx.Err(); err != nil {
+		if err := putCtx.Err(); err != nil {
 			break
 		}
 	}
 
-	if err := group.Wait(); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	getErr := getGroup.Wait()
+	putErr := putGroup.Wait()
+	return trace.NewAggregate(getErr, putErr)
 }
 
 func retry(ctx context.Context, attempts int, fn func() error) error {
