@@ -65,6 +65,7 @@ func TestStartCmdConfig(t *testing.T) {
 					},
 					Timeout:     10 * time.Second,
 					Concurrency: 5,
+					WindowSize:  24 * time.Hour,
 				},
 				LockConfig: LockConfig{
 					LockFailedAttemptsCount: 3,
