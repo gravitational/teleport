@@ -3331,8 +3331,7 @@ func (a *ServerWithRoles) trySettingConnectorNameToPasswordless(ctx context.Cont
 		return trace.Wrap(err)
 	}
 
-	// Only set the connector name on the first user registration.
-	if len(users) != 1 {
+	if !hasOneNonPresetUser(users) {
 		return nil
 	}
 
@@ -3349,6 +3348,34 @@ func (a *ServerWithRoles) trySettingConnectorNameToPasswordless(ctx context.Cont
 	authPreference.SetConnectorName(constants.PasswordlessConnector)
 	_, err = a.authServer.UpdateAuthPreference(ctx, authPreference)
 	return trace.Wrap(err)
+}
+
+// hasOneNonPresetUser returns true only if there is exactly one non-preset user in the provided list of users.
+func hasOneNonPresetUser(users []types.User) bool {
+	presets := getPresetUsers()
+	if len(users) > len(presets)+1 {
+		return false
+	}
+
+	// check each user to see how many are non-presets
+	qtyNonPreset := 0
+	for _, user := range users {
+		isPreset := false
+		for _, preset := range presets {
+			if user.GetName() == preset.GetName() {
+				isPreset = true
+				break
+			}
+		}
+		if !isPreset {
+			qtyNonPreset += 1
+		}
+		if qtyNonPreset > 1 {
+			return false
+		}
+	}
+
+	return qtyNonPreset == 1
 }
 
 // UpdateUser updates an existing user in a backend.

@@ -7928,3 +7928,77 @@ func TestIsMFARequired_AdminAction(t *testing.T) {
 		})
 	}
 }
+
+func TestShouldSetConnectorNameToPasswordless(t *testing.T) {
+	// Test only with enterprise build, since
+	// this is only used in Cloud clusters
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+	})
+	testCases := []struct {
+		name            string
+		users           []types.User
+		existingPresets []types.User
+		expected        bool
+	}{
+		{
+			name: "One user should return true",
+			users: []types.User{&types.UserV2{
+				Metadata: types.Metadata{
+					Name: "user1",
+				},
+			}},
+			existingPresets: getPresetUsers(),
+			expected:        true,
+		},
+		{
+			name: "Two users should return false",
+			users: []types.User{&types.UserV2{
+				Metadata: types.Metadata{
+					Name: "user1",
+				},
+			}, &types.UserV2{
+				Metadata: types.Metadata{
+					Name: "user2",
+				},
+			}},
+			existingPresets: getPresetUsers(),
+			expected:        false,
+		},
+		{
+			name: "Manually removed presets, returns false with two users",
+			users: []types.User{&types.UserV2{
+				Metadata: types.Metadata{
+					Name: "user1",
+				},
+			}, &types.UserV2{
+				Metadata: types.Metadata{
+					Name: "user2",
+				},
+			}},
+			// no existing presets to simulate them being removed after the cluster started.
+			existingPresets: []types.User{},
+			expected:        false,
+		},
+		{
+			name: "Manually removed presets, returns true with one users",
+			users: []types.User{&types.UserV2{
+				Metadata: types.Metadata{
+					Name: "user1",
+				},
+			}},
+			// no existing presets to simulate them being removed after the cluster started.
+			existingPresets: []types.User{},
+			expected:        true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// append preset to users list
+			users := append(tc.users, tc.existingPresets...)
+			actual := hasOneNonPresetUser(users)
+			require.Equal(t, tc.expected, actual)
+		})
+	}
+}

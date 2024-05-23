@@ -902,6 +902,20 @@ func TestPresets(t *testing.T) {
 	})
 }
 
+func TestGetPresetUsers(t *testing.T) {
+	// len is 0 for OSS
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildOSS,
+	})
+	require.Equal(t, len(getPresetUsers()), 0)
+
+	// len is 1 for enterprise (@teleport-access-approval-bot)
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+	})
+	require.Equal(t, len(getPresetUsers()), 1)
+}
+
 type mockUserManager struct {
 	mock.Mock
 }
