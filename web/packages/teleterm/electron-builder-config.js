@@ -1,6 +1,6 @@
 const { env, platform } = require('process');
 const fs = require('fs');
-
+const { spawnSync } = require('child_process');
 const isMac = platform === 'darwin';
 
 // The following checks make no sense when cross-building because they check the platform of the
@@ -142,6 +142,22 @@ module.exports = {
   },
   win: {
     target: ['nsis'],
+    sign: customSign => {
+      spawnSync(
+        'powershell',
+        [
+          '-noprofile',
+          '-executionpolicy',
+          'bypass',
+          '-c',
+          '$ProgressPreference = \'SilentlyContinue\'; ' +
+          '$ErrorActionPreference = \'Stop\'; ' +
+          '. ../../../build.assets/windows/build.ps1 && ' +
+          `Invoke-SignBinary -UnsignedBinaryPath "${customSign.path}" -SignedBinaryPath "${customSign.resultOutputPath}"`,
+        ],
+        { stdio: 'inherit' }
+      );
+    },
     artifactName: '${productName} Setup-${version}.${ext}',
     icon: 'build_resources/icon-win.ico',
     extraResources: [
