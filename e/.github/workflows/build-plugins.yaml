@@ -81,7 +81,7 @@ jobs:
           make -C integrations/terraform release OS=darwin ARCH=amd64
           make -C integrations/terraform release OS=darwin ARCH=arm64
           make -C integrations/terraform release OS=darwin ARCH=universal
-          make -C integrations/event-handler release OS=darwin ARCH=amd64
+          make -C integrations/event-handler release OS=linux ARCH=amd64
           make -C integrations/event-handler release OS=darwin ARCH=amd64
 
       - name: Collect the build files
@@ -133,14 +133,24 @@ jobs:
 
       - name: Build and push the container images
         env:
-          DOCKER_IMAGE_BASE: ${{ vars.ECR_PENDING_REPO_BASE }}
+          CONTAINER_IMAGE_PRIVATE_REGISTRY: ${{ vars.ECR_PENDING_REPO_BASE }}
+          PLUGIN_SUBDIRECTORIES: >-
+            access/discord
+            access/pagerduty
+            access/msteams
+            access/jira
+            access/slack
+            access/mattermost
+            access/email
+            event-handler
         run: |
-          # Access plugins and event handler
-          make -C integrations/access/discord/ OS=linux ARCH=amd64 docker-build
-          make -C integrations/access/email/ OS=linux ARCH=amd64 docker-build
-          make -C integrations/access/jira/ OS=linux ARCH=amd64 docker-build
-          make -C integrations/access/mattermost/ OS=linux ARCH=amd64 docker-build
-          make -C integrations/access/msteams/ OS=linux ARCH=amd64 docker-build
-          make -C integrations/access/pagerduty/ OS=linux ARCH=amd64 docker-build
-          make -C integrations/access/slack/ OS=linux ARCH=amd64 docker-build
-          make -C integrations/event-handler/ OS=linux ARCH=amd64 docker-build
+          read -ra plugins <<<"${PLUGIN_SUBDIRECTORIES}"
+          for plugin in "${plugins[@]}"; do
+            make -C "integrations/$plugin/" \
+              OS=linux ARCH=amd64 \
+              DOCKER_IMAGE_BASE="$CONTAINER_IMAGE_PRIVATE_REGISTRY" \
+              docker-build
+            make -C "integrations/$plugin/" \
+              DOCKER_IMAGE_BASE="$CONTAINER_IMAGE_PRIVATE_REGISTRY" \
+              docker-push
+          done

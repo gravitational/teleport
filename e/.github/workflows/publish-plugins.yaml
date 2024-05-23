@@ -139,9 +139,9 @@ jobs:
             access/email
             event-handler
         run: |
-          read -ra charts <<<"${PLUGIN_SUBDIRECTORIES}"
+          read -ra plugins <<<"${PLUGIN_SUBDIRECTORIES}"
           for plugin in "${plugins[@]}"; do
-            make -C "integrations/access/$plugin/" \
+            make -C "integrations/$plugin/" \
               OS=linux ARCH=amd64 VERSION=${ARTIFACT_TAG##v} \
               DOCKER_IMAGE_BASE="$CONTAINER_IMAGE_PRIVATE_REGISTRY" \
               DOCKER_ECR_PUBLIC_REGISTRY="$CONTAINER_IMAGE_PUBLIC_REGISTRY" \
