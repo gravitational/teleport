@@ -329,7 +329,7 @@ export function AccessRequestButton(props: {
       size="small"
       onClick={props.onClick}
     >
-      {props.requestStarted ? '+ Add to request' : '+ Request Access'}
+      {props.requestStarted ? '+ Add to request' : '+ Request access'}
     </ButtonBorder>
   );
 }
