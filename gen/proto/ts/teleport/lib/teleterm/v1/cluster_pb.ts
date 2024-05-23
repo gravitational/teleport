@@ -348,13 +348,13 @@ export enum ShowResources {
      */
     UNSPECIFIED = 0,
     /**
-     * @generated from protobuf enum value: SHOW_RESOURCES_ACCESSIBLE_ONLY = 1;
+     * @generated from protobuf enum value: SHOW_RESOURCES_REQUESTABLE = 1;
      */
-    ACCESSIBLE_ONLY = 1,
+    REQUESTABLE = 1,
     /**
-     * @generated from protobuf enum value: SHOW_RESOURCES_REQUESTABLE = 2;
+     * @generated from protobuf enum value: SHOW_RESOURCES_ACCESSIBLE_ONLY = 2;
      */
-    REQUESTABLE = 2
+    ACCESSIBLE_ONLY = 2
 }
 // @generated message type with reflection information, may provide speed optimized methods
 class Cluster$Type extends MessageType<Cluster> {
