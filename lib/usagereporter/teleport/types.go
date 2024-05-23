@@ -1242,6 +1242,17 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 		}
 
 		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UiDiscoverKubeEksEnrollEvent:
+		ret := &UIDiscoverKubeEKSEnrollEvent{
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverKubeEksEnrollEvent.Metadata, userMD),
+			Resource: discoverResourceToPrehog(e.UiDiscoverKubeEksEnrollEvent.Resource),
+			Status:   discoverStatusToPrehog(e.UiDiscoverKubeEksEnrollEvent.Status),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_UiCallToActionClickEvent:
 		return &UICallToActionClickEvent{
 			UserName: userMD.Username,
@@ -1255,6 +1266,18 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 			Status:       discoverStatusToPrehog(e.UiDiscoverDeployServiceEvent.Status),
 			DeployMethod: prehogv1a.UIDiscoverDeployServiceEvent_DeployMethod(e.UiDiscoverDeployServiceEvent.DeployMethod),
 			DeployType:   prehogv1a.UIDiscoverDeployServiceEvent_DeployType(e.UiDiscoverDeployServiceEvent.DeployType),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UiDiscoverCreateDiscoveryConfig:
+		ret := &UIDiscoverCreateDiscoveryConfigEvent{
+			Metadata:     discoverMetadataToPrehog(e.UiDiscoverCreateDiscoveryConfig.Metadata, userMD),
+			Resource:     discoverResourceToPrehog(e.UiDiscoverCreateDiscoveryConfig.Resource),
+			Status:       discoverStatusToPrehog(e.UiDiscoverCreateDiscoveryConfig.Status),
+			ConfigMethod: prehogv1a.UIDiscoverCreateDiscoveryConfigEvent_ConfigMethod(e.UiDiscoverCreateDiscoveryConfig.ConfigMethod),
 		}
 		if err := ret.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
