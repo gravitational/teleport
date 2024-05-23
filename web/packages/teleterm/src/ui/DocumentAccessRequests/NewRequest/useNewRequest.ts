@@ -72,6 +72,10 @@ export default function useNewRequest(rootCluster: Cluster) {
   >(getEmptyFetchedDataState());
   const requestableRoles = loggedInUser?.requestableRoles || [];
   const [selectedResource, setSelectedResource] = useState<ResourceKind>(
+    // If the user can request resources from unified view,
+    // we hide servers/dbs/apps/kubes tabs in the new request view
+    // and select th 'role' tab.
+    // Otherwise, we show all tabs and select 'node' as default.
     rootCluster.showResources === ShowResources.REQUESTABLE ? 'role' : 'node'
   );
   const [agentFilter, setAgentFilter] = useState<AgentFilter>({
