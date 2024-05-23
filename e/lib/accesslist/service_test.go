@@ -49,7 +49,7 @@ const (
 
 // cmpOpts are general cmpOpts for all comparisons.
 var cmpOpts = []cmp.Option{
-	cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision"),
+	cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
 	cmpopts.SortSlices(func(a, b *accesslist.AccessList) bool {
 		return a.GetName() < b.GetName()
 	}),

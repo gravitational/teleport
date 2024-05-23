@@ -249,7 +249,6 @@ func (r *changeReader) readEvent(ctx context.Context) (backend.Event, error) {
 	}
 
 	event.Item.Revision = c.After.Revision.String()
-	event.Item.ID = idFromRevision(c.After.Revision)
 	return event, nil
 }
 

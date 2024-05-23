@@ -54,7 +54,7 @@ var (
 	ignoreEphemeralFields = []cmp.Option{
 		cmpopts.IgnoreFields(accesslist.AccessList{}, "Status"),
 		// ID is handled by the backend, so it'll be ignored here.
-		cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
 		// Ignore the IneligibleStatus field for owners since
 		// it's managed by the reconciler.
 		cmpopts.IgnoreFields(accesslist.Owner{}, "IneligibleStatus"),

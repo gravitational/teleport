@@ -53,6 +53,6 @@ func TestPluginStorage(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(initialPlugin, gotPlugin,
 		cmpopts.IgnoreFields(types.PluginV1{}, "Credentials"),
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 }

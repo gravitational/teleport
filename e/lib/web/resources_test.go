@@ -182,7 +182,7 @@ func TestSAMLConnector(t *testing.T) {
 	require.NoError(t, err, "creating initial connector resource")
 
 	createPayload := func(connector types.SAMLConnector) ui.ResourceItem {
-		raw, err := services.MarshalSAMLConnector(connector, services.PreserveResourceID())
+		raw, err := services.MarshalSAMLConnector(connector, services.PreserveRevision())
 		require.NoError(t, err, "marshaling connector")
 
 		return ui.ResourceItem{
@@ -222,7 +222,7 @@ func TestSAMLConnector(t *testing.T) {
 
 	updated := unmarshalResponse(resp.Bytes())
 
-	require.Empty(t, cmp.Diff(created, updated, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision", "Namespace"),
+	require.Empty(t, cmp.Diff(created, updated, cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Namespace"),
 		cmpopts.IgnoreFields(types.SAMLConnectorSpecV2{}, "Display"),
 	))
 	require.NotEqual(t, expected.GetDisplay(), updated.GetDisplay(), "expected update to modify the display name")
@@ -470,7 +470,7 @@ func TestOIDCConnector(t *testing.T) {
 	require.NoError(t, err, "creating initial connector resource")
 
 	createPayload := func(connector types.OIDCConnector) ui.ResourceItem {
-		raw, err := services.MarshalOIDCConnector(connector, services.PreserveResourceID())
+		raw, err := services.MarshalOIDCConnector(connector, services.PreserveRevision())
 		require.NoError(t, err, "marshaling connector")
 
 		return ui.ResourceItem{
@@ -510,7 +510,7 @@ func TestOIDCConnector(t *testing.T) {
 
 	updated := unmarshalResponse(resp.Bytes())
 
-	require.Empty(t, cmp.Diff(created, updated, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision", "Namespace"),
+	require.Empty(t, cmp.Diff(created, updated, cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Namespace"),
 		cmpopts.IgnoreFields(types.GithubConnectorSpecV3{}, "Display", "ClientSecret"),
 	))
 	require.NotEqual(t, expected.GetDisplay(), updated.GetDisplay(), "expected update to modify the display name")

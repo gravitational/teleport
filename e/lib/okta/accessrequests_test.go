@@ -91,7 +91,7 @@ func TestAccessRequestReconciler(t *testing.T) {
 	waitForResult(t, onReconcileCh, struct{}{}, 1)
 
 	require.Empty(t, reconciler.getAccessRequests())
-	require.Empty(t, cmp.Diff(map[string]types.AccessRequest{accessRequest.GetName(): accessRequest}, reconciler.getNewAccessRequests(), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(map[string]types.AccessRequest{accessRequest.GetName(): accessRequest}, reconciler.getNewAccessRequests(), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	require.NoError(t, ap.DeleteAccessRequest(ctx, accessRequest.GetName()))
 	waitForResult(t, onReconcileCh, struct{}{}, 1)
@@ -108,7 +108,7 @@ func TestAccessRequestReconciler(t *testing.T) {
 	waitForResult(t, onReconcileCh, struct{}{}, 1)
 
 	require.Empty(t, reconciler.getAccessRequests())
-	require.Empty(t, cmp.Diff(map[string]types.AccessRequest{accessRequest.GetName(): accessRequest}, reconciler.getNewAccessRequests(), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(map[string]types.AccessRequest{accessRequest.GetName(): accessRequest}, reconciler.getNewAccessRequests(), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	require.NoError(t, ap.DeleteAccessRequest(ctx, accessRequest.GetName()))
 	waitForResult(t, onReconcileCh, struct{}{}, 1)
@@ -138,14 +138,14 @@ func TestAccessRequestReconciler(t *testing.T) {
 	ap.setServiceCounts(map[types.SystemRole]uint64{types.RoleOkta: 1})
 	clock.Advance(10 * time.Minute) // This will restart the reconciler.
 	waitForResult(t, onReconcileCh, struct{}{}, 1)
-	require.Empty(t, cmp.Diff(map[string]types.AccessRequest{accessRequest.GetName(): accessRequest}, reconciler.getAccessRequests(), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
-	require.Empty(t, cmp.Diff(map[string]types.AccessRequest{accessRequest.GetName(): accessRequest}, reconciler.getNewAccessRequests(), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(map[string]types.AccessRequest{accessRequest.GetName(): accessRequest}, reconciler.getAccessRequests(), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	require.Empty(t, cmp.Diff(map[string]types.AccessRequest{accessRequest.GetName(): accessRequest}, reconciler.getNewAccessRequests(), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	foundAssignment := getOktaAssignment(t, ap, accessRequest.GetName())
 	expires := accessRequest.GetAccessExpiry()
 	require.Empty(t, cmp.Diff(foundAssignment, assignment(t, accessRequest.GetName(), user, expires, constants.OktaAssignmentStatusPending, clock.Now(), false,
 		target(types.OktaAssignmentTargetV1_APPLICATION, mustAppName(t, hash, "app1", "link1"))),
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
 	// Deny the state after the fact
@@ -160,7 +160,7 @@ func TestAccessRequestReconciler(t *testing.T) {
 	foundAssignment = getOktaAssignment(t, ap, accessRequest.GetName())
 	require.Empty(t, cmp.Diff(foundAssignment, assignment(t, accessRequest.GetName(), user, cleanupTimeNow, constants.OktaAssignmentStatusPending, clock.Now(), false,
 		target(types.OktaAssignmentTargetV1_APPLICATION, mustAppName(t, hash, "app1", "link1"))),
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
 	// This delete shouldn't do anything to the assignment.
@@ -170,7 +170,7 @@ func TestAccessRequestReconciler(t *testing.T) {
 	foundAssignment = getOktaAssignment(t, ap, accessRequest.GetName())
 	require.Empty(t, cmp.Diff(foundAssignment, assignment(t, accessRequest.GetName(), user, cleanupTimeNow, constants.OktaAssignmentStatusPending, clock.Now(), false,
 		target(types.OktaAssignmentTargetV1_APPLICATION, mustAppName(t, hash, "app1", "link1"))),
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
 	// This access request should create an Okta assignment
@@ -191,7 +191,7 @@ func TestAccessRequestReconciler(t *testing.T) {
 	expires = accessRequest.GetAccessExpiry()
 	require.Empty(t, cmp.Diff(foundAssignment, assignment(t, accessRequest.GetName(), user, expires, constants.OktaAssignmentStatusPending, clock.Now(), false,
 		target(types.OktaAssignmentTargetV1_GROUP, userGroup.GetName())),
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
 	require.NoError(t, ap.DeleteAccessRequest(ctx, accessRequest.GetName()))
@@ -200,7 +200,7 @@ func TestAccessRequestReconciler(t *testing.T) {
 	foundAssignment = getOktaAssignment(t, ap, accessRequest.GetName())
 	require.Empty(t, cmp.Diff(foundAssignment, assignment(t, accessRequest.GetName(), user, cleanupTimeNow, constants.OktaAssignmentStatusPending, clock.Now(), false,
 		target(types.OktaAssignmentTargetV1_GROUP, userGroup.GetName())),
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 }
 
@@ -576,7 +576,7 @@ func TestOnLogin(t *testing.T) {
 			}, 5*time.Second, 10*time.Millisecond)
 
 			cmpOpts := []cmp.Option{
-				cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+				cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 				cmpopts.SortSlices(func(a1, a2 types.OktaAssignment) bool {
 					return a1.GetName() < a2.GetName()
 				}),

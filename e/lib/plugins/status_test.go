@@ -40,7 +40,7 @@ func TestStatusSink(t *testing.T) {
 	require.Equal(t, newStatus, gotPlugin.GetStatus())
 
 	// Other fields of the plugin resource should remain untouched
-	require.Empty(t, cmp.Diff(initialPlugin.Metadata, gotPlugin.GetMetadata(), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(initialPlugin.Metadata, gotPlugin.GetMetadata(), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 	require.Equal(t, initialPlugin.Spec, gotPlugin.(*types.PluginV1).Spec)
 	require.Equal(t, initialPlugin.Credentials, gotPlugin.GetCredentials())
 }

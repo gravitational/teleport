@@ -37,8 +37,8 @@ import (
 )
 
 var userMonitorCmpOpts = []cmp.Option{
-	cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision"),
-	cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+	cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
+	cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	cmpopts.SortSlices(func(u1, u2 *userloginstate.UserLoginState) bool {
 		return u1.GetName() < u2.GetName()
 	}),

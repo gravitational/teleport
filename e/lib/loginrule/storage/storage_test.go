@@ -51,7 +51,7 @@ func newTestPack(t *testing.T) *testPack {
 
 // cmpOpts are general cmpOpts for all comparisons.
 var cmpOpts = []cmp.Option{
-	cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+	cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	cmpopts.IgnoreUnexported(loginrulepb.LoginRule{}),
 }
 
@@ -380,10 +380,8 @@ func TestDeleteLoginRule(t *testing.T) {
 	}
 }
 
-// TestLoginRuleIDs asserts that the metadata.id and metadata.revision field of the login rule changes
+// TestLoginRuleRevisions asserts that the metadata.revision field of the login rule changes
 // after the rule is updated.
-// Old versions (< 15.2.0) of teleport's terraform provider rely on metadata.id,
-// but newer versions rely on metadata.revision to ensure that updates have been applied.
 func TestLoginRuleIDs(t *testing.T) {
 	t.Parallel()
 
@@ -413,7 +411,6 @@ func TestLoginRuleIDs(t *testing.T) {
 	ruleAfter, err := p.s.GetLoginRule(ctx, ruleSpec.Metadata.Name)
 	require.NoError(t, err)
 
-	require.NotEqual(t, ruleBefore.Metadata.ID, ruleAfter.Metadata.ID, "expected updated resource ID not to match original resource ID")
 	require.NotEqual(t, ruleBefore.Metadata.Revision, ruleAfter.Metadata.Revision, "expected updated revision not to match original revision")
 
 	rulesAfter, _, err := p.s.ListLoginRules(ctx, 0 /* pageSize */, "" /* pageToken */)
@@ -421,6 +418,5 @@ func TestLoginRuleIDs(t *testing.T) {
 	require.Len(t, rulesAfter, 1)
 	ruleAfter = rulesAfter[0]
 
-	require.NotEqual(t, ruleBefore.Metadata.ID, ruleAfter.Metadata.ID, "expected updated resource ID not to match original resource ID")
 	require.NotEqual(t, ruleBefore.Metadata.Revision, ruleAfter.Metadata.Revision, "expected updated revision not to match original revision")
 }

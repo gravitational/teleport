@@ -27,8 +27,8 @@ import (
 )
 
 var cmpOpts = []cmp.Option{
-	cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision"),
-	cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+	cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
+	cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 }
 
 // accessListSyncTestContext contains test information for testing the access list synchronizer.

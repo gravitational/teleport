@@ -865,7 +865,6 @@ func (t *tagEventWatcher) sendDelete(event *proto.Event) error {
 
 func fromProtoMetadataToTypes(metadata *v1.Metadata) types.Metadata {
 	return types.Metadata{
-		ID:          metadata.GetId(), //nolint: staticcheck // deprecated or not, we need to support it
 		Name:        metadata.GetName(),
 		Namespace:   metadata.GetNamespace(),
 		Description: metadata.GetDescription(),

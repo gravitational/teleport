@@ -25,7 +25,7 @@ import (
 
 var (
 	accessListCmpOpts = cmp.Options{
-		cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
 	}
 	mainOwner = "llama"
 )
@@ -96,7 +96,7 @@ func TestGetAccessLists(t *testing.T) {
 	require.Empty(t, cmp.Diff(
 		[]*accesslist.AccessList{accessListResp.AccessLists[0].AccessList, accessListResp.AccessLists[1].AccessList},
 		[]*accesslist.AccessList{createdAccessList1, createdAccessList2},
-		cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
 	))
 }
 

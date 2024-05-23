@@ -232,8 +232,8 @@ func TestService_CleanupOkta(t *testing.T) {
 	roles[1].SetSearchAsRoles(types.Allow, services.NewSystemOktaRequesterRole().GetSearchAsRoles(types.Allow))
 
 	require.Empty(t, backendOktaAssignments)
-	require.Empty(t, cmp.Diff(accessLists, backendAccessLists, cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision")))
-	require.Empty(t, cmp.Diff(roles, backendRoles, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(accessLists, backendAccessLists, cmpopts.IgnoreFields(header.Metadata{}, "Revision")))
+	require.Empty(t, cmp.Diff(roles, backendRoles, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }
 
 func newOktaAssignment(t *testing.T, name string) types.OktaAssignment {
