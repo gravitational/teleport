@@ -3668,8 +3668,27 @@ func TestListResources(t *testing.T) {
 		"WindowsDesktops": {
 			resourceType: types.KindWindowsDesktop,
 			createResource: func(name string, clt *authclient.Client) error {
+				// WindowsDesktops require a WindowsDesktopService with a name corresponding to the
+				// HostID of the WindowsDesktop, so we create one here first.
+				const (
+					testWDSName    = "test_wds"
+					testWDSAddr    = "test_addr"
+					testWDSVersion = "test_version"
+				)
+				wds, err := types.NewWindowsDesktopServiceV3(
+					types.Metadata{Name: testWDSName},
+					types.WindowsDesktopServiceSpecV3{
+						// Required fields.
+						TeleportVersion: testWDSVersion,
+						Addr:            testWDSAddr,
+					})
+				require.NoError(t, err)
+				_, err = srv.AuthServer.AuthServer.UpsertWindowsDesktopService(ctx, wds)
+				require.NoError(t, err)
+
+				// This is the actual WindowsDesktop resource that we're testing.
 				desktop, err := types.NewWindowsDesktopV3(name, nil,
-					types.WindowsDesktopSpecV3{Addr: "_", HostID: "_"})
+					types.WindowsDesktopSpecV3{Addr: "_", HostID: testWDSName})
 				if err != nil {
 					return err
 				}
