@@ -339,7 +339,7 @@ func GetModules() Modules {
 	return modules
 }
 
-var ErrCannotDisableSecondFactor = errors.New("cannot disable two-factor authentication")
+var ErrCannotDisableSecondFactor = errors.New("cannot disable multi-factor authentication")
 
 // ValidateResource performs additional resource checks.
 func ValidateResource(res types.Resource) error {

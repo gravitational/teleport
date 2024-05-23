@@ -711,8 +711,8 @@ func generateAuthority(ctx context.Context, asrv *Server, caID types.CertAuthID)
 }
 
 var secondFactorUpgradeInstructions = `
-Teleport v16 removed support for local authentication without a second
-factor enabled. The auth_service should be updated to enable it.
+Teleport requires second factor authentication for local users.
+The auth_service configuration should be updated to enable it.
 
 auth_service:
   authentication:
@@ -722,7 +722,6 @@ auth_service:
 
 For more information:
 - https://goteleport.com/docs/access-controls/guides/webauthn/
-- https://goteleport.com/docs/changelog/
 `
 
 func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref types.AuthPreference) error {
