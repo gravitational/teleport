@@ -275,6 +275,16 @@ func (a *Server) authenticateUserInternal(ctx context.Context, req authclient.Au
 	user = req.Username
 	passwordless := user == ""
 
+	// Handle headless authentication as a special case separate from local auth methods below.
+	if req.HeadlessAuthenticationID != "" {
+		mfaDev, err = a.authenticateHeadless(ctx, req)
+		if err != nil {
+			log.Debugf("Headless Authentication for user %q failed while waiting for approval: %v", user, err)
+			return nil, "", trace.Wrap(err)
+		}
+		return mfaDev, user, nil
+	}
+
 	// Only one path if passwordless, other variants shouldn't see an empty user.
 	if passwordless {
 		return a.authenticatePasswordless(ctx, req)
@@ -301,18 +311,6 @@ func (a *Server) authenticateUserInternal(ctx context.Context, req authclient.Au
 	var authErr error // error message kept obscure on purpose, use logging for details
 	switch {
 	// cases in order of preference
-	case req.HeadlessAuthenticationID != "":
-		// handle authentication before the user lock to prevent locking out users
-		// due to timed-out/canceled headless authentication attempts.
-		mfaDevice, err := a.authenticateHeadless(ctx, req)
-		if err != nil {
-			log.Debugf("Headless Authentication for user %q failed while waiting for approval: %v", user, err)
-			return nil, "", trace.Wrap(authenticateHeadlessError)
-		}
-		authenticateFn = func() (*types.MFADevice, error) {
-			return mfaDevice, nil
-		}
-		authErr = authenticateHeadlessError
 	case req.Webauthn != nil:
 		authenticateFn = func() (*types.MFADevice, error) {
 			if req.Pass != nil {
@@ -496,6 +494,14 @@ func (a *Server) authenticateHeadless(ctx context.Context, req authclient.Authen
 		return nil, trace.AccessDenied("headless authentication public key mismatch")
 	}
 
+	// Only grab user lock on successful headless auth to perform normal login
+	// checks, like whether the user is locked. Failed headless login attempts
+	// won't lock out the user.
+	if err := a.WithUserLock(ctx, req.Username, func() error { return nil }); err != nil {
+		log.Debugf("WithUserLock for user %q failed during headless authentication: %v", req.Username, err)
+		return nil, trace.Wrap(authenticateHeadlessError)
+	}
+
 	return approvedHeadlessAuthn.MfaDevice, nil
 }
 
@@ -609,7 +615,9 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.Authent
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !authPref.GetAllowLocalAuth() {
+
+	// Disable all local auth requests, except headless requests.
+	if !authPref.GetAllowLocalAuth() && req.HeadlessAuthenticationID == "" {
 		a.emitNoLocalAuthEvent(username)
 		return nil, trace.AccessDenied(noLocalAuth)
 	}
