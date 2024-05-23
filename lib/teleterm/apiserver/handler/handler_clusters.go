@@ -128,10 +128,12 @@ func newAPIRootClusterWithDetails(cluster *clusters.ClusterWithDetails) (*api.Cl
 	apiCluster.LoggedInUser.UserType = userType
 	apiCluster.ProxyVersion = cluster.ProxyVersion
 
-	if cluster.ShowResources == constants.ShowResourcesRequestable {
+	switch cluster.ShowResources {
+	case constants.ShowResourcesRequestable:
 		apiCluster.ShowResources = api.ShowResources_SHOW_RESOURCES_REQUESTABLE
-	} else {
-		// Otherwise, default to accessible only.
+	case constants.ShowResourcesaccessibleOnly:
+	default:
+		// If we don't know yet what option the cluster supports, we default to `accessible_only`.
 		apiCluster.ShowResources = api.ShowResources_SHOW_RESOURCES_ACCESSIBLE_ONLY
 	}
 
