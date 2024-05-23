@@ -15,7 +15,7 @@ GENTERRAFORMPATH := $(shell go env GOPATH)/bin
 BUILDDIR ?= build
 BINARY = $(BUILDDIR)/teleport-event-handler
 
-GITREF ?= $(shell git describe --dirty --long --tags --match '*event-handler*')
+GITREF ?= $(shell git describe --dirty --long --tags --match '$(VERSION)')
 ADDFLAGS ?=
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags "-w -s -X main.Gitref=$(GITREF) -X main.Version=$(VERSION)"
 CGOFLAG ?= CGO_ENABLED=0
