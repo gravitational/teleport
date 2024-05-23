@@ -213,7 +213,7 @@ $ teleport-updater enable --proxy mytenant.teleport.sh
 
 If the proxy address is not provided with `--proxy`, the current proxy address from `teleport.yaml` is used.
 
-On servers without Teleport installed already, the `enable` subcommand will change the behavior of `teleport-update update` to update teleport and restart the existing agent, if running.
+The `enable` subcommand will change the behavior of `teleport-update update` to update teleport and restart the existing agent, if running.
 It will also run update teleport immediately, to ensure that subsequent executions succeed.
 
 The `enable` subcommand will:
@@ -377,6 +377,9 @@ The Upgrade Framework (TUF) will be used to implement secure updates in the futu
 ## Execution Plan
 
 1. Implement new auto-updater in Go.
-2. Prep documentation changes.
-3. Release new updater via teleport-ent-updater package.
-4. Release documentation changes.
+2. Test extensively on all supported Linux distributions.
+3. Prep documentation changes.
+4. Release new updater via teleport-ent-updater package.
+5. Release documentation changes.
+6. Communicate to select Cloud customers that they must update their updater, starting with lower ARR customers.
+7. Communicate to all Cloud customers that they must update their updater.
