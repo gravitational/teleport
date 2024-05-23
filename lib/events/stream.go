@@ -629,6 +629,7 @@ func (b *bufferCloser) Close() error {
 
 func (w *sliceWriter) newSlice() (*slice, error) {
 	w.lastPartNumber++
+	// This buffer will be returned to the pool by slice.Close
 	buffer := w.proto.cfg.BufferPool.Get()
 	buffer.Reset()
 	// reserve bytes for version header
@@ -636,6 +637,8 @@ func (w *sliceWriter) newSlice() (*slice, error) {
 
 	err := w.proto.cfg.Uploader.ReserveUploadPart(w.proto.cancelCtx, w.proto.cfg.Upload, w.lastPartNumber)
 	if err != nil {
+		// Return the unused buffer to the pool.
+		w.proto.cfg.BufferPool.Put(buffer)
 		return nil, trace.ConnectionProblem(err, uploaderReservePartErrorMessage)
 	}
 
@@ -735,6 +738,8 @@ func (w *sliceWriter) startUpload(partNumber int64, slice *slice) (*activeUpload
 
 		var retry retryutils.Retry
 		for i := 0; i < defaults.MaxIterationLimit; i++ {
+			log := log.WithField("attempt", i)
+
 			reader, err := slice.reader()
 			if err != nil {
 				activeUpload.setError(err)
@@ -775,7 +780,7 @@ func (w *sliceWriter) startUpload(partNumber int64, slice *slice) (*activeUpload
 			}
 			select {
 			case <-retry.After():
-				log.WithError(err).Debugf("Part upload failed, retrying after backoff.")
+				log.WithError(err).Debugf("Back off period for retry has passed. Retrying")
 			case <-w.proto.cancelCtx.Done():
 				return
 			}

@@ -30,7 +30,7 @@ import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 import { useAsync } from 'shared/hooks/useAsync';
-import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
+import useAttempt from 'shared/hooks/useAttemptNext';
 import { Auth2faType } from 'shared/services';
 import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
 
@@ -38,7 +38,6 @@ import Box from 'design/Box';
 
 import { StepHeader } from 'design/StepSlider';
 
-import useReAuthenticate from 'teleport/components/ReAuthenticate/useReAuthenticate';
 import auth from 'teleport/services/auth/auth';
 import { DeviceUsage } from 'teleport/services/auth';
 import useTeleport from 'teleport/useTeleport';
@@ -47,16 +46,25 @@ import { MfaDevice } from 'teleport/services/mfa';
 
 import { PasskeyBlurb } from '../../../components/Passkeys/PasskeyBlurb';
 
+import {
+  ReauthenticateStep,
+  ReauthenticateStepProps,
+} from './ReauthenticateStep';
+
 interface AddAuthDeviceWizardProps {
   /** Indicates usage of the device to be added: MFA or a passkey. */
   usage: DeviceUsage;
   /** MFA type setting, as configured in the cluster's configuration. */
   auth2faType: Auth2faType;
   /**
+   * A list of user's devices, used for computing the list of available identity
+   * verification options.
+   */
+  devices: MfaDevice[];
+  /**
    * A privilege token that may have been created previously; if present, the
    * reauthentication step will be skipped.
    */
-  devices: MfaDevice[];
   privilegeToken?: string;
   onClose(): void;
   onSuccess(): void;
@@ -121,178 +129,6 @@ export type AddAuthDeviceWizardStepProps = StepComponentProps &
   ReauthenticateStepProps &
   CreateDeviceStepProps &
   SaveKeyStepProps;
-
-interface ReauthenticateStepProps {
-  auth2faType: Auth2faType;
-  devices: MfaDevice[];
-  onAuthenticated(privilegeToken: string): void;
-  onClose(): void;
-}
-
-export function ReauthenticateStep({
-  next,
-  refCallback,
-  stepIndex,
-  flowLength,
-  auth2faType,
-  devices,
-  onClose,
-  onAuthenticated: onAuthenticatedProp,
-}: AddAuthDeviceWizardStepProps) {
-  const onAuthenticated = (privilegeToken: string) => {
-    onAuthenticatedProp(privilegeToken);
-    next();
-  };
-  const { attempt, clearAttempt, submitWithTotp, submitWithWebauthn } =
-    useReAuthenticate({
-      onAuthenticated,
-    });
-  const mfaOptions = createReauthOptions(auth2faType, devices);
-
-  const [mfaOption, setMfaOption] = useState<Auth2faType | undefined>(
-    mfaOptions[0]?.value
-  );
-  const [authCode, setAuthCode] = useState('');
-
-  const onAuthCodeChanged = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setAuthCode(e.target.value);
-  };
-
-  const onReauthenticate = (
-    e: FormEvent<HTMLFormElement>,
-    validator: Validator
-  ) => {
-    e.preventDefault();
-    if (!validator.validate()) return;
-    if (mfaOption === 'webauthn') {
-      submitWithWebauthn();
-    }
-    if (mfaOption === 'otp') {
-      submitWithTotp(authCode);
-    }
-  };
-
-  const errorMessage = getReauthenticationErrorMessage(
-    auth2faType,
-    mfaOptions.length,
-    attempt
-  );
-  return (
-    <div ref={refCallback} data-testid="reauthenticate-step">
-      <StepHeader
-        stepIndex={stepIndex}
-        flowLength={flowLength}
-        title="Verify Identity"
-      />
-      {errorMessage && <OutlineDanger>{errorMessage}</OutlineDanger>}
-      {mfaOption && 'Multi-factor type'}
-      <Validation>
-        {({ validator }) => (
-          <form onSubmit={e => onReauthenticate(e, validator)}>
-            <RadioGroup
-              name="mfaOption"
-              options={mfaOptions}
-              value={mfaOption}
-              autoFocus
-              flexDirection="row"
-              gap={3}
-              mb={4}
-              onChange={o => {
-                setMfaOption(o as Auth2faType);
-                clearAttempt();
-              }}
-            />
-            {mfaOption === 'otp' && (
-              <FieldInput
-                label="Authenticator Code"
-                rule={requiredField('Authenticator code is required')}
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                value={authCode}
-                placeholder="123 456"
-                onChange={onAuthCodeChanged}
-                readonly={attempt.status === 'processing'}
-              />
-            )}
-            <Flex gap={2}>
-              {mfaOption && (
-                <ButtonPrimary type="submit" block={true}>
-                  Verify my identity
-                </ButtonPrimary>
-              )}
-              <ButtonSecondary type="button" block={true} onClick={onClose}>
-                Cancel
-              </ButtonSecondary>
-            </Flex>
-          </form>
-        )}
-      </Validation>
-    </div>
-  );
-}
-
-function getReauthenticationErrorMessage(
-  auth2faType: Auth2faType,
-  numMfaOptions: number,
-  attempt: Attempt
-): string {
-  if (numMfaOptions === 0) {
-    switch (auth2faType) {
-      case 'on':
-        return (
-          "Identity verification is required, but you don't have any" +
-          'passkeys or MFA methods registered. This may mean that the' +
-          'server configuration has changed. Please contact your ' +
-          'administrator.'
-        );
-      case 'otp':
-        return (
-          'Identity verification using authenticator app is required, but ' +
-          "you don't have any authenticator apps registered. This may mean " +
-          'that the server configuration has changed. Please contact your ' +
-          'administrator.'
-        );
-      case 'webauthn':
-        return (
-          'Identity verification using a passkey or security key is required, but ' +
-          "you don't have any such devices registered. This may mean " +
-          'that the server configuration has changed. Please contact your ' +
-          'administrator.'
-        );
-      case 'optional':
-      case 'off':
-        // This error message is not useful, but this condition should never
-        // happen, and if it does, it means something is broken, and we don't
-        // have a clue anyway.
-        return 'Unable to verify identity';
-      default:
-        auth2faType satisfies never;
-    }
-  }
-
-  if (attempt.status === 'failed') {
-    // This message relies on the status message produced by the auth server in
-    // lib/auth/Server.checkOTP function. Please keep these in sync.
-    if (attempt.statusText === 'invalid totp token') {
-      return 'Invalid authenticator code';
-    } else {
-      return attempt.statusText;
-    }
-  }
-}
-
-export function createReauthOptions(
-  auth2faType: Auth2faType,
-  devices: MfaDevice[]
-): MfaOption[] {
-  return createMfaOptions({ auth2faType, required: true }).filter(
-    ({ value }) => {
-      const deviceType = value === 'otp' ? 'totp' : value;
-      return devices.some(({ type }) => type === deviceType);
-    }
-  );
-}
-
 interface CreateDeviceStepProps {
   usage: DeviceUsage;
   auth2faType: Auth2faType;
@@ -335,13 +171,17 @@ export function CreateDeviceStep({
 
   return (
     <div ref={refCallback} data-testid="create-step">
-      <StepHeader
-        stepIndex={stepIndex}
-        flowLength={flowLength}
-        title={
-          usage === 'passwordless' ? 'Create a Passkey' : 'Create an MFA Method'
-        }
-      />
+      <Box mb={4}>
+        <StepHeader
+          stepIndex={stepIndex}
+          flowLength={flowLength}
+          title={
+            usage === 'passwordless'
+              ? 'Create a Passkey'
+              : 'Create an MFA Method'
+          }
+        />
+      </Box>
 
       {createPasskeyAttempt.attempt.status === 'failed' && (
         <OutlineDanger>{createPasskeyAttempt.attempt.statusText}</OutlineDanger>
@@ -360,17 +200,17 @@ export function CreateDeviceStep({
         />
       )}
       <Flex gap={2}>
-        <ButtonPrimary block={true} onClick={onCreate}>
+        <ButtonPrimary block={true} size="large" onClick={onCreate}>
           {usage === 'passwordless'
             ? 'Create a passkey'
             : 'Create an MFA method'}
         </ButtonPrimary>
         {stepIndex === 0 ? (
-          <ButtonSecondary block={true} onClick={onClose}>
+          <ButtonSecondary block={true} size="large" onClick={onClose}>
             Cancel
           </ButtonSecondary>
         ) : (
-          <ButtonSecondary block={true} onClick={prev}>
+          <ButtonSecondary block={true} size="large" onClick={prev}>
             Back
           </ButtonSecondary>
         )}
@@ -528,13 +368,17 @@ export function SaveDeviceStep({
 
   return (
     <div ref={refCallback} data-testid="save-step">
-      <StepHeader
-        stepIndex={stepIndex}
-        flowLength={flowLength}
-        title={
-          usage === 'passwordless' ? 'Save the Passkey' : 'Save the MFA method'
-        }
-      />
+      <Box mb={4}>
+        <StepHeader
+          stepIndex={stepIndex}
+          flowLength={flowLength}
+          title={
+            usage === 'passwordless'
+              ? 'Save the Passkey'
+              : 'Save the MFA method'
+          }
+        />
+      </Box>
 
       {saveAttempt.attempt.status === 'failed' && (
         <OutlineDanger>{saveAttempt.attempt.statusText}</OutlineDanger>
@@ -566,12 +410,17 @@ export function SaveDeviceStep({
               />
             )}
             <Flex gap={2}>
-              <ButtonPrimary type="submit" block={true}>
+              <ButtonPrimary type="submit" block={true} size="large">
                 {usage === 'passwordless'
                   ? 'Save the Passkey'
                   : 'Save the MFA method'}
               </ButtonPrimary>
-              <ButtonSecondary type="button" block={true} onClick={prev}>
+              <ButtonSecondary
+                type="button"
+                block={true}
+                size="large"
+                onClick={prev}
+              >
                 Back
               </ButtonSecondary>
             </Flex>
