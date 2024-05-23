@@ -15,7 +15,7 @@ func runMigration(ctx context.Context, path string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	config := migration.MigrationConfig{}
+	var config migration.MigrationConfig
 	if err := yaml.Unmarshal(data, &config); err != nil {
 		return trace.Wrap(err)
 	}
