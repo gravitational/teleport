@@ -18,7 +18,7 @@ const isMac = platform === 'darwin';
 if (
   isMac &&
   (env.CONNECT_TSH_APP_PATH === undefined) ===
-    (env.CONNECT_TSH_BIN_PATH === undefined)
+  (env.CONNECT_TSH_BIN_PATH === undefined)
 ) {
   throw new Error(
     'You must provide CONNECT_TSH_APP_PATH xor CONNECT_TSH_BIN_PATH'
@@ -152,7 +152,7 @@ module.exports = {
           '-c',
           '$ProgressPreference = \'SilentlyContinue\'; ' +
           '$ErrorActionPreference = \'Stop\'; ' +
-          '. ../../../build.assets/windows/build.ps1 && ' +
+          '. ../../../build.assets/windows/build.ps1; ' +
           `Invoke-SignBinary -UnsignedBinaryPath "${customSign.path}" -SignedBinaryPath "${customSign.resultOutputPath}"`,
         ],
         { stdio: 'inherit' }
