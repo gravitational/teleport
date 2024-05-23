@@ -60,29 +60,42 @@ jobs:
           echo "VERSION=${VERSION_TAG##v}" >> "$GITHUB_ENV"
 
       # File artifacts
-      - name: Build the release tarballs
+      - name: Download Go dependencies once
+        run: go mod download
+      - name: Build the access plugins release tarballs
+        env:
+          ACCESS_SUBDIRECTORIES: >-
+            discord
+            pagerduty
+            msteams
+            jira
+            slack
+            mattermost
+            email
         run: |
-          # Download Go dependencies once
-          go mod download
+          read -ra plugins <<<"${ACCESS_SUBDIRECTORIES}"
+          for plugin in "${plugins[@]}"; do
+            make -C "integrations/access/$plugin/" OS=linux ARCH=amd64 release
+            make -C "integrations/access/$plugin/" OS=linux ARCH=arm64 release
+          done
 
-          # Build Binaries
-          make -C integrations/access/discord/ OS=linux ARCH=amd64 release
-          make -C integrations/access/email/ OS=linux ARCH=amd64 release
-          make -C integrations/access/jira/ OS=linux ARCH=amd64 release
-          make -C integrations/access/mattermost/ OS=linux ARCH=amd64 release
-          make -C integrations/access/msteams/ OS=linux ARCH=amd64 release
-          make -C integrations/access/pagerduty/ OS=linux ARCH=amd64 release
-          make -C integrations/access/slack/ OS=linux ARCH=amd64 release
-          
-          # Terraform provider and event handler, as appropriate
-          go install github.com/konoui/lipo@latest  # At some point this should be merged into the buildbox
+      - name: Build the terraform provider release tarballs
+        run: |
+          # Required to make universal images
+          go install github.com/konoui/lipo@latest
+
           make -C integrations/terraform release OS=linux ARCH=amd64
           make -C integrations/terraform release OS=linux ARCH=arm64
           make -C integrations/terraform release OS=darwin ARCH=amd64
           make -C integrations/terraform release OS=darwin ARCH=arm64
           make -C integrations/terraform release OS=darwin ARCH=universal
+
+      - name: Build the event handler release tarballs
+        run: |
           make -C integrations/event-handler release OS=linux ARCH=amd64
+          make -C integrations/event-handler release OS=linux ARCH=arm64
           make -C integrations/event-handler release OS=darwin ARCH=amd64
+          make -C integrations/event-handler release OS=darwin ARCH=arm64
 
       - name: Collect the build files
         run: |
