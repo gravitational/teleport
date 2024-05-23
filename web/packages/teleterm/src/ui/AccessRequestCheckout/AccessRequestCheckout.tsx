@@ -151,6 +151,9 @@ export function AccessRequestCheckout() {
                       case 'kube_cluster':
                         resource.Icon = Icon.Kubernetes;
                         break;
+                      case 'role':
+                      default:
+                        resource satisfies never;
                     }
                     return resource;
                   })
