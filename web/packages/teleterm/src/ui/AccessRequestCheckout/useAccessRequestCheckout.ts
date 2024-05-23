@@ -113,7 +113,10 @@ export default function useAccessRequestCheckout() {
           resourceIds: data
             .filter(d => d.kind !== 'role')
             .map(d => ({
-              name: d.name,
+              // We have to use id, not name.
+              // These fields are the same for all resources except servers,
+              // where id is UUID and name is the hostname.
+              name: d.id,
               kind: d.kind,
               clusterName: d.clusterName,
               subResourceName: '',
@@ -148,7 +151,9 @@ export default function useAccessRequestCheckout() {
     const data: {
       kind: ResourceKind;
       clusterName: string;
+      /** Identifier of the resource. Should be sent in requests. */
       id: string;
+      /** Name of the resource, for presentation purposes only. */
       name: string;
     }[] = [];
     if (!workspaceAccessRequest) {
