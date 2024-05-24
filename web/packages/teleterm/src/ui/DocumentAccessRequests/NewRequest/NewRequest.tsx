@@ -169,6 +169,7 @@ function Inner(props: { rootCluster: Cluster }) {
           <InfoIcon color="info" pr={2} />
           <Text>
             To request access to a resource, go to the{' '}
+            {/*TODO: Improve ButtonLink to look more like a text, then use it instead of the Link. */}
             <Link
               css={`
                 cursor: pointer;
