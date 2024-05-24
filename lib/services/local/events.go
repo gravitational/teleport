@@ -399,7 +399,7 @@ func (p *certAuthorityParser) parse(event backend.Event) (types.Resource, error)
 		}, nil
 	case types.OpPut:
 		ca, err := services.UnmarshalCertAuthority(event.Item.Value,
-			services.WithResourceID(event.Item.ID), services.WithExpires(event.Item.Expires), services.WithRevision(event.Item.Revision))
+			services.WithExpires(event.Item.Expires), services.WithRevision(event.Item.Revision))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -431,7 +431,6 @@ func (p *provisionTokenParser) parse(event backend.Event) (types.Resource, error
 		return resourceHeader(event, types.KindToken, types.V2, 0)
 	case types.OpPut:
 		token, err := services.UnmarshalProvisionToken(event.Item.Value,
-			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
@@ -465,7 +464,6 @@ func (p *staticTokensParser) parse(event backend.Event) (types.Resource, error) 
 		return h, nil
 	case types.OpPut:
 		tokens, err := services.UnmarshalStaticTokens(event.Item.Value,
-			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
@@ -500,7 +498,6 @@ func (p *clusterAuditConfigParser) parse(event backend.Event) (types.Resource, e
 	case types.OpPut:
 		clusterAuditConfig, err := services.UnmarshalClusterAuditConfig(
 			event.Item.Value,
-			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
@@ -535,7 +532,6 @@ func (p *clusterNetworkingConfigParser) parse(event backend.Event) (types.Resour
 	case types.OpPut:
 		clusterNetworkingConfig, err := services.UnmarshalClusterNetworkingConfig(
 			event.Item.Value,
-			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
@@ -570,7 +566,6 @@ func (p *authPreferenceParser) parse(event backend.Event) (types.Resource, error
 	case types.OpPut:
 		ap, err := services.UnmarshalAuthPreference(
 			event.Item.Value,
-			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
@@ -605,7 +600,6 @@ func (p *uiConfigParser) parse(event backend.Event) (types.Resource, error) {
 	case types.OpPut:
 		ap, err := services.UnmarshalUIConfig(
 			event.Item.Value,
-			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
@@ -640,7 +634,6 @@ func (p *sessionRecordingConfigParser) parse(event backend.Event) (types.Resourc
 	case types.OpPut:
 		ap, err := services.UnmarshalSessionRecordingConfig(
 			event.Item.Value,
-			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
@@ -674,7 +667,6 @@ func (p *clusterNameParser) parse(event backend.Event) (types.Resource, error) {
 		return h, nil
 	case types.OpPut:
 		clusterName, err := services.UnmarshalClusterName(event.Item.Value,
-			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
@@ -715,7 +707,6 @@ func (p *namespaceParser) parse(event backend.Event) (types.Resource, error) {
 		return resourceHeader(event, types.KindNamespace, types.V2, 1)
 	case types.OpPut:
 		namespace, err := services.UnmarshalNamespace(event.Item.Value,
-			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
@@ -744,7 +735,6 @@ func (p *roleParser) parse(event backend.Event) (types.Resource, error) {
 		return resourceHeader(event, types.KindRole, types.V7, 1)
 	case types.OpPut:
 		resource, err := services.UnmarshalRole(event.Item.Value,
-			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
@@ -831,7 +821,6 @@ func (p *userParser) parse(event backend.Event) (types.Resource, error) {
 		return resourceHeader(event, types.KindUser, types.V2, 1)
 	case types.OpPut:
 		resource, err := services.UnmarshalUser(event.Item.Value,
-			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
@@ -914,7 +903,6 @@ func (p *tunnelConnectionParser) parse(event backend.Event) (types.Resource, err
 		}, nil
 	case types.OpPut:
 		resource, err := services.UnmarshalTunnelConnection(event.Item.Value,
-			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
@@ -943,7 +931,6 @@ func (p *reverseTunnelParser) parse(event backend.Event) (types.Resource, error)
 		return resourceHeader(event, types.KindReverseTunnel, types.V2, 0)
 	case types.OpPut:
 		resource, err := services.UnmarshalReverseTunnel(event.Item.Value,
-			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
@@ -985,7 +972,6 @@ func (p *appServerV3Parser) parse(event backend.Event) (types.Resource, error) {
 	case types.OpPut:
 		return services.UnmarshalAppServer(
 			event.Item.Value,
-			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 		)
 	default:
@@ -1053,7 +1039,6 @@ func (p *webSessionParser) parse(event backend.Event) (types.Resource, error) {
 		return resourceHeaderWithTemplate(event, p.hdr, 0)
 	case types.OpPut:
 		resource, err := services.UnmarshalWebSession(event.Item.Value,
-			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
@@ -1085,7 +1070,6 @@ func (p *webTokenParser) parse(event backend.Event) (types.Resource, error) {
 		return resourceHeader(event, types.KindWebToken, types.V1, 0)
 	case types.OpPut:
 		resource, err := services.UnmarshalWebToken(event.Item.Value,
-			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
@@ -1127,7 +1111,6 @@ func (p *kubeServerParser) parse(event backend.Event) (types.Resource, error) {
 	case types.OpPut:
 		return services.UnmarshalKubeServer(
 			event.Item.Value,
-			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
@@ -1165,7 +1148,6 @@ func (p *databaseServerParser) parse(event backend.Event) (types.Resource, error
 	case types.OpPut:
 		return services.UnmarshalDatabaseServer(
 			event.Item.Value,
-			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
@@ -1191,7 +1173,6 @@ func (p *databaseServiceParser) parse(event backend.Event) (types.Resource, erro
 	case types.OpPut:
 		return services.UnmarshalDatabaseService(
 			event.Item.Value,
-			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
@@ -1216,7 +1197,6 @@ func (p *kubeClusterParser) parse(event backend.Event) (types.Resource, error) {
 		return resourceHeader(event, types.KindKubernetesCluster, types.V3, 0)
 	case types.OpPut:
 		return services.UnmarshalKubeCluster(event.Item.Value,
-			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
@@ -1241,7 +1221,6 @@ func (p *crownJewelParser) parse(event backend.Event) (types.Resource, error) {
 		return resourceHeader(event, types.KindCrownJewel, types.V1, 0)
 	case types.OpPut:
 		r, err := services.UnmarshalCrownJewel(event.Item.Value,
-			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
@@ -1270,7 +1249,6 @@ func (p *appParser) parse(event backend.Event) (types.Resource, error) {
 		return resourceHeader(event, types.KindApp, types.V3, 0)
 	case types.OpPut:
 		return services.UnmarshalApp(event.Item.Value,
-			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
@@ -1295,7 +1273,6 @@ func (p *databaseParser) parse(event backend.Event) (types.Resource, error) {
 		return resourceHeader(event, types.KindDatabase, types.V3, 0)
 	case types.OpPut:
 		return services.UnmarshalDatabase(event.Item.Value,
-			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
@@ -1311,7 +1288,6 @@ func parseServer(event backend.Event, kind string) (types.Resource, error) {
 	case types.OpPut:
 		resource, err := services.UnmarshalServer(event.Item.Value,
 			kind,
-			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
@@ -1348,7 +1324,6 @@ func (p *remoteClusterParser) parse(event backend.Event) (types.Resource, error)
 		return resourceHeader(event, types.KindRemoteCluster, types.V3, 0)
 	case types.OpPut:
 		resource, err := services.UnmarshalRemoteCluster(event.Item.Value,
-			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
@@ -1378,7 +1353,6 @@ func (p *lockParser) parse(event backend.Event) (types.Resource, error) {
 	case types.OpPut:
 		return services.UnmarshalLock(
 			event.Item.Value,
-			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
@@ -1411,7 +1385,6 @@ func (p *networkRestrictionsParser) parse(event backend.Event) (types.Resource, 
 		return resourceHeader(event, types.KindNetworkRestrictions, types.V1, 0)
 	case types.OpPut:
 		resource, err := services.UnmarshalNetworkRestrictions(event.Item.Value,
-			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
@@ -1441,7 +1414,6 @@ func (p *windowsDesktopServicesParser) parse(event backend.Event) (types.Resourc
 	case types.OpPut:
 		return services.UnmarshalWindowsDesktopService(
 			event.Item.Value,
-			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
@@ -1479,7 +1451,6 @@ func (p *windowsDesktopsParser) parse(event backend.Event) (types.Resource, erro
 	case types.OpPut:
 		return services.UnmarshalWindowsDesktop(
 			event.Item.Value,
-			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
@@ -1508,7 +1479,6 @@ func (p *installerParser) parse(event backend.Event) (types.Resource, error) {
 		return h, nil
 	case types.OpPut:
 		inst, err := services.UnmarshalInstaller(event.Item.Value,
-			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
@@ -1543,7 +1513,6 @@ func (p *pluginParser) parse(event backend.Event) (types.Resource, error) {
 		return h, nil
 	case types.OpPut:
 		plugin, err := services.UnmarshalPlugin(event.Item.Value,
-			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
@@ -1572,7 +1541,6 @@ func (p *samlIDPServiceProviderParser) parse(event backend.Event) (types.Resourc
 		return resourceHeader(event, types.KindSAMLIdPServiceProvider, types.V1, 0)
 	case types.OpPut:
 		return services.UnmarshalSAMLIdPServiceProvider(event.Item.Value,
-			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
@@ -1597,7 +1565,6 @@ func (p *userGroupParser) parse(event backend.Event) (types.Resource, error) {
 		return resourceHeader(event, types.KindUserGroup, types.V1, 0)
 	case types.OpPut:
 		return services.UnmarshalUserGroup(event.Item.Value,
-			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
@@ -1622,7 +1589,6 @@ func (p *oktaImportRuleParser) parse(event backend.Event) (types.Resource, error
 		return resourceHeader(event, types.KindOktaImportRule, types.V1, 0)
 	case types.OpPut:
 		return services.UnmarshalOktaImportRule(event.Item.Value,
-			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
@@ -1647,7 +1613,6 @@ func (p *oktaAssignmentParser) parse(event backend.Event) (types.Resource, error
 		return resourceHeader(event, types.KindOktaAssignment, types.V1, 0)
 	case types.OpPut:
 		return services.UnmarshalOktaAssignment(event.Item.Value,
-			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
@@ -1672,7 +1637,6 @@ func (p *integrationParser) parse(event backend.Event) (types.Resource, error) {
 		return resourceHeader(event, types.KindIntegration, types.V1, 0)
 	case types.OpPut:
 		return services.UnmarshalIntegration(event.Item.Value,
-			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
@@ -1697,7 +1661,6 @@ func (p *discoveryConfigParser) parse(event backend.Event) (types.Resource, erro
 		return resourceHeader(event, types.KindDiscoveryConfig, types.V1, 0)
 	case types.OpPut:
 		return services.UnmarshalDiscoveryConfig(event.Item.Value,
-			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
@@ -1757,7 +1720,6 @@ func (p *accessListParser) parse(event backend.Event) (types.Resource, error) {
 		return resourceHeader(event, types.KindAccessList, types.V1, 0)
 	case types.OpPut:
 		return services.UnmarshalAccessList(event.Item.Value,
-			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
@@ -1782,7 +1744,6 @@ func (p *auditQueryParser) parse(event backend.Event) (types.Resource, error) {
 		return resourceHeader(event, types.KindAuditQuery, types.V1, 0)
 	case types.OpPut:
 		return services.UnmarshalAuditQuery(event.Item.Value,
-			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 		)
 	default:
@@ -1806,7 +1767,6 @@ func (p *securityReportParser) parse(event backend.Event) (types.Resource, error
 		return resourceHeader(event, types.KindSecurityReport, types.V1, 0)
 	case types.OpPut:
 		return services.UnmarshalSecurityReport(event.Item.Value,
-			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 		)
 	default:
@@ -1830,7 +1790,6 @@ func (p *securityReportStateParser) parse(event backend.Event) (types.Resource, 
 		return resourceHeader(event, types.KindSecurityReportState, types.V1, 0)
 	case types.OpPut:
 		return services.UnmarshalSecurityReportState(event.Item.Value,
-			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 		)
 	default:
@@ -1854,7 +1813,6 @@ func (p *userLoginStateParser) parse(event backend.Event) (types.Resource, error
 		return resourceHeader(event, types.KindUserLoginState, types.V1, 0)
 	case types.OpPut:
 		return services.UnmarshalUserLoginState(event.Item.Value,
-			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
@@ -1891,7 +1849,6 @@ func (p *accessListMemberParser) parse(event backend.Event) (types.Resource, err
 		}, nil
 	case types.OpPut:
 		return services.UnmarshalAccessListMember(event.Item.Value,
-			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
@@ -1928,7 +1885,6 @@ func (p *accessListReviewParser) parse(event backend.Event) (types.Resource, err
 		}, nil
 	case types.OpPut:
 		return services.UnmarshalAccessListReview(event.Item.Value,
-			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
@@ -1980,7 +1936,6 @@ func (p *kubeWaitingContainerParser) parse(event backend.Event) (types.Resource,
 	case types.OpPut:
 		resource, err := services.UnmarshalKubeWaitingContainer(
 			event.Item.Value,
-			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
@@ -2009,7 +1964,6 @@ func (p *AccessMonitoringRuleParser) parse(event backend.Event) (types.Resource,
 		return resourceHeader(event, types.KindAccessMonitoringRule, types.V1, 0)
 	case types.OpPut:
 		r, err := services.UnmarshalAccessMonitoringRule(event.Item.Value,
-			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
@@ -2059,7 +2013,6 @@ func (p *userNotificationParser) parse(event backend.Event) (types.Resource, err
 	case types.OpPut:
 		notification, err := services.UnmarshalNotification(
 			event.Item.Value,
-			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision))
 		if err != nil {
@@ -2111,7 +2064,6 @@ func (p *globalNotificationParser) parse(event backend.Event) (types.Resource, e
 	case types.OpPut:
 		globalNotification, err := services.UnmarshalGlobalNotification(
 			event.Item.Value,
-			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision))
 		if err != nil {

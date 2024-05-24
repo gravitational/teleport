@@ -452,7 +452,6 @@ func itemFromAccessRequest(req types.AccessRequest) (backend.Item, error) {
 		Key:      accessRequestKey(req.GetName()),
 		Value:    value,
 		Expires:  req.Expiry(),
-		ID:       req.GetResourceID(),
 		Revision: rev,
 	}, nil
 }
@@ -466,7 +465,6 @@ func itemFromAccessListPromotions(req types.AccessRequest, suggestedItems *types
 		Key:      AccessRequestAllowedPromotionKey(req.GetName()),
 		Value:    value,
 		Expires:  req.Expiry(), // expire the promotion at the same time as the access request
-		ID:       req.GetResourceID(),
 		Revision: req.GetRevision(),
 	}, nil
 }
@@ -474,7 +472,6 @@ func itemFromAccessListPromotions(req types.AccessRequest, suggestedItems *types
 func itemToAccessRequest(item backend.Item, opts ...services.MarshalOption) (*types.AccessRequestV3, error) {
 	opts = append(
 		opts,
-		services.WithResourceID(item.ID),
 		services.WithExpires(item.Expires),
 		services.WithRevision(item.Revision),
 	)

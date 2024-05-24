@@ -288,14 +288,11 @@ func TestProtoResourceRoundtrip(t *testing.T) {
 
 			revision := "123"
 			expires := time.Now()
-			resourceID := int64(1234)
 			unmarshalled, err = tc.unmarshalFunc(marshaled,
-				WithRevision(revision), WithExpires(expires), WithResourceID(resourceID))
+				WithRevision(revision), WithExpires(expires))
 			require.NoError(t, err)
 			require.Equal(t, revision, unmarshalled.GetMetadata().GetRevision())
 			require.WithinDuration(t, expires, unmarshalled.GetMetadata().GetExpires().AsTime(), time.Millisecond)
-			//nolint:staticcheck // SA1019. Id is deprecated, but still needed.
-			require.Equal(t, resourceID, unmarshalled.GetMetadata().GetId())
 		})
 	}
 }

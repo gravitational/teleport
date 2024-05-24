@@ -24,9 +24,9 @@ import { EnvelopeOpen } from 'design/Icon';
 import { useAccessRequestsButton } from 'teleterm/ui/StatusBar/useAccessRequestCheckoutButton';
 
 export function AccessRequestCheckoutButton() {
-  const { toggleAccessRequestBar, getPendingResourceCount, isCollapsed } =
+  const { toggleAccessRequestBar, getAddedItemsCount, isCollapsed } =
     useAccessRequestsButton();
-  const count = getPendingResourceCount();
+  const count = getAddedItemsCount();
 
   if (count > 0 && isCollapsed()) {
     return (

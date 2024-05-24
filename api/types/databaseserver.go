@@ -106,16 +106,6 @@ func (s *DatabaseServerV3) SetSubKind(sk string) {
 	s.SubKind = sk
 }
 
-// GetResourceID returns the resource ID.
-func (s *DatabaseServerV3) GetResourceID() int64 {
-	return s.Metadata.ID
-}
-
-// SetResourceID sets the resource ID.
-func (s *DatabaseServerV3) SetResourceID(id int64) {
-	s.Metadata.ID = id
-}
-
 // GetRevision returns the revision
 func (s *DatabaseServerV3) GetRevision() string {
 	return s.Metadata.GetRevision()

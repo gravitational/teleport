@@ -24,11 +24,17 @@ import { Alert, Box, Flex } from 'design';
 import { space, width } from 'design/system';
 
 import { SearchPagination, SearchPanel } from 'shared/components/Search';
-import { ResourceList } from 'shared/components/AccessRequests/NewRequest';
-import { getNumAddedResources } from 'shared/components/AccessRequests/Shared/utils';
+import {
+  ResourceList,
+  ResourceMap,
+} from 'shared/components/AccessRequests/NewRequest';
+
+import {
+  PendingAccessRequest,
+  extractResourceRequestProperties,
+} from 'teleterm/ui/services/workspacesService/accessRequestsService';
 
 import useNewRequest, { ResourceKind } from './useNewRequest';
-import ChangeResourceDialog from './ChangeResourceDialog';
 
 const agentOptions: ResourceOption[] = [
   { value: 'role', label: 'Roles' },
@@ -59,9 +65,6 @@ export function NewRequest() {
     updateSearch,
     selectedResource,
     customSort,
-    handleConfirmChangeResource,
-    toResource,
-    setToResource,
     fetchStatus,
     onAgentLabelClick,
     addedResources,
@@ -72,31 +75,10 @@ export function NewRequest() {
     isLeafCluster,
     nextPage,
     agents,
+    addedItemsCount,
   } = useNewRequest();
 
-  const requestStarted =
-    Object.keys(addedResources?.node).length +
-      Object.keys(addedResources?.db).length +
-      Object.keys(addedResources?.app).length +
-      Object.keys(addedResources?.kube_cluster).length +
-      Object.keys(addedResources?.user_group).length +
-      Object.keys(addedResources?.windows_desktop).length >
-    0;
-
-  function handleUpdateSelectedResource(kind: ResourceKind) {
-    const numAddedAgents = getNumAddedResources(addedResources);
-
-    const numAddedRoles = Object.keys(addedResources.role).length;
-
-    if (
-      (kind === 'role' && numAddedAgents > 0) ||
-      (kind !== 'role' && numAddedRoles > 0)
-    ) {
-      setToResource(kind);
-    } else {
-      updateResourceKind(kind);
-    }
-  }
+  const requestStarted = addedItemsCount > 0;
 
   // Leaf clusters do not allow role requests, so we do not show that option in the UI if leaf
   const filteredAgentOptions = useMemo(
@@ -114,11 +96,6 @@ export function NewRequest() {
       {attempt.status === 'failed' && (
         <Alert kind="danger" children={attempt.statusText} />
       )}
-      <ChangeResourceDialog
-        toResource={toResource}
-        onClose={() => setToResource(null)}
-        onConfirm={handleConfirmChangeResource}
-      />
       <StyledMain>
         <Flex mt={3} mb={3}>
           {filteredAgentOptions.map(agent => (
@@ -127,7 +104,7 @@ export function NewRequest() {
               mr={6}
               p={1}
               active={selectedResource === agent.value}
-              onClick={() => handleUpdateSelectedResource(agent.value)}
+              onClick={() => updateResourceKind(agent.value)}
             >
               {agent.label}
             </StyledNavButton>
@@ -150,7 +127,7 @@ export function NewRequest() {
           requestStarted={requestStarted}
           customSort={customSort}
           onLabelClick={onAgentLabelClick}
-          addedResources={addedResources}
+          addedResources={toResourceMap(addedResources)}
           addOrRemoveResource={addOrRemoveResource}
           requestableRoles={requestableRoles}
           disableRows={fetchStatus === 'loading'}
@@ -216,3 +193,29 @@ type ResourceOption = {
   value: ResourceKind;
   label: string;
 };
+
+function toResourceMap(request: PendingAccessRequest): ResourceMap {
+  const resourceMap: ResourceMap = {
+    user_group: {},
+    windows_desktop: {},
+    role: {},
+    kube_cluster: {},
+    node: {},
+    db: {},
+    app: {},
+  };
+  if (request.kind === 'role') {
+    request.roles.forEach(role => {
+      resourceMap.role[role] = role;
+    });
+  }
+
+  if (request.kind === 'resource') {
+    request.resources.forEach(resourceRequest => {
+      const { kind, id, name } =
+        extractResourceRequestProperties(resourceRequest);
+      resourceMap[kind][id] = name;
+    });
+  }
+  return resourceMap;
+}
