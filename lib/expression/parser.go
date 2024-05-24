@@ -20,6 +20,7 @@ package expression
 
 import (
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -104,6 +105,42 @@ func DefaultParserSpec[evaluationEnv any]() typical.ParserSpec[evaluationEnv] {
 					}
 					return NewSet(outputs...), nil
 				}),
+			"time.RFC3339": typical.UnaryFunction[evaluationEnv](
+				func(input string) (time.Time, error) {
+					return time.Parse(time.RFC3339, input)
+				}),
+			"before": typical.BinaryFunction[evaluationEnv](
+				func(t time.Time, other time.Time) (bool, error) {
+					return t.Before(other), nil
+				}),
+			"after": typical.BinaryFunction[evaluationEnv](
+				func(t time.Time, other time.Time) (bool, error) {
+					return t.After(other), nil
+				}),
+			"between": typical.BinaryVariadicFunction[evaluationEnv](
+				func(t time.Time, interval ...time.Time) (bool, error) {
+					if len(interval) != 2 {
+						return false, trace.BadParameter("between expected 2 parameters: got %v", len(interval))
+					}
+					first, second := interval[0], interval[1]
+					if first.After(second) {
+						first, second = second, first
+					}
+					return t.After(first) && t.Before(second), nil
+				}),
+			"contains_any": typical.BinaryFunction[evaluationEnv](
+				func(s1, s2 Set) (bool, error) {
+					for _, v := range s2.items() {
+						if s1.contains(v) {
+							return true, nil
+						}
+					}
+					return false, nil
+				}),
+			"is_empty": typical.UnaryFunction[evaluationEnv](
+				func(s Set) (bool, error) {
+					return len(s) == 0, nil
+				}),
 		},
 		Methods: map[string]typical.Function{
 			"add": typical.BinaryVariadicFunction[evaluationEnv](
@@ -125,6 +162,38 @@ func DefaultParserSpec[evaluationEnv any]() typical.ParserSpec[evaluationEnv] {
 			"remove": typical.BinaryVariadicFunction[evaluationEnv](
 				func(r remover, items ...string) (any, error) {
 					return r.remove(items...), nil
+				}),
+			"before": typical.BinaryFunction[evaluationEnv](
+				func(t time.Time, other time.Time) (bool, error) {
+					return t.Before(other), nil
+				}),
+			"after": typical.BinaryFunction[evaluationEnv](
+				func(t time.Time, other time.Time) (bool, error) {
+					return t.After(other), nil
+				}),
+			"between": typical.BinaryVariadicFunction[evaluationEnv](
+				func(t time.Time, interval ...time.Time) (bool, error) {
+					if len(interval) != 2 {
+						return false, trace.BadParameter("between expected 2 parameters: got %v", len(interval))
+					}
+					first, second := interval[0], interval[1]
+					if first.After(second) {
+						first, second = second, first
+					}
+					return t.After(first) && t.Before(second), nil
+				}),
+			"contains_any": typical.BinaryFunction[evaluationEnv](
+				func(s1, s2 Set) (bool, error) {
+					for _, v := range s2.items() {
+						if s1.contains(v) {
+							return true, nil
+						}
+					}
+					return false, nil
+				}),
+			"isempty": typical.UnaryFunction[evaluationEnv](
+				func(s Set) (bool, error) {
+					return len(s) == 0, nil
 				}),
 		},
 	}

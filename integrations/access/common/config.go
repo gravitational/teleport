@@ -58,9 +58,9 @@ func (w *wrappedClient) ListAccessLists(ctx context.Context, pageSize int, pageT
 	return w.Client.AccessListClient().ListAccessLists(ctx, pageSize, pageToken)
 }
 
-// ListAccessMonitoringRules lists current access monitoring rules.
-func (w *wrappedClient) ListAccessMonitoringRules(ctx context.Context, limit int, startKey string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error) {
-	return w.Client.AccessMonitoringRulesClient().ListAccessMonitoringRules(ctx, limit, startKey)
+// ListAccessMonitoringRulesWithFilter lists current access monitoring rules.
+func (w *wrappedClient) ListAccessMonitoringRulesWithFilter(ctx context.Context, pageSize int, pageToken string, subjects []string, notificationName string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error) {
+	return w.Client.AccessMonitoringRulesClient().ListAccessMonitoringRulesWithFilter(ctx, pageSize, pageToken, subjects, notificationName)
 }
 
 // wrapAPIClient will wrap the API client such that it conforms to the Teleport plugin client interface.
