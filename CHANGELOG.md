@@ -1,5 +1,103 @@
 # Changelog
 
+## 14.3.20 (05/23/24)
+
+This release contains fixes for several high-severity security issues, as well
+as numerous other bug fixes and improvements.
+
+### Security Fixes
+
+#### **[High]** Unrestricted redirect in SSO Authentication
+
+Teleport didn’t sufficiently validate the client redirect URL. This could allow
+an attacker to trick Teleport users into performing an SSO authentication and
+redirect to an attacker-controlled URL allowing them to steal the credentials.
+[#41834](https://github.com/gravitational/teleport/pull/41834).
+
+Warning: Teleport will now disallow non-localhost callback URLs for SSO logins
+unless otherwise configured. Users of the `tsh login --callback` feature should
+modify their auth connector configuration as follows:
+
+```yaml
+version: vX
+kind: (saml|oidc|github)
+metadata:
+  name: ...
+spec:
+  ...
+  client_redirect_settings:
+    allowed_https_hostnames:
+      - '*.app.github.dev'
+      - '^\d+-[a-zA-Z0-9]+\.foo.internal$'
+ ```
+
+The `allowed_https_hostnames` field is an array containing allowed hostnames,
+supporting glob matching and, if the string begins and ends with `^` and `$`
+respectively, full regular expression syntax. Custom callback URLs are required
+to be HTTPS on the standard port (443).
+
+#### **[High]** CockroachDB authorization bypass
+
+When connecting to CockroachDB using Database Access, Teleport did not properly
+consider the username case when running RBAC checks. As such, it was possible to
+establish a connection using an explicitly denied username when using a
+different case. [#41823](https://github.com/gravitational/teleport/pull/41823).
+
+#### **[High]** Long-lived connection persistence issue with expired certificates
+
+Teleport did not terminate some long-running mTLS-authenticated connections past
+the expiry of client certificates for users with the `disconnect_expired_cert`
+option. This could allow such users to perform some API actions after their
+certificate has expired.
+[#41827](https://github.com/gravitational/teleport/pull/41827).
+
+#### **[High]** PagerDuty integration privilege escalation
+
+When creating a role access request, Teleport would include PagerDuty
+annotations from the entire user’s role set rather than a specific role being
+requested. For users who run multiple PagerDuty access plugins with
+auto-approval, this could result in a request for a different role being
+inadvertently auto-approved  than the one which corresponds to the user’s active
+on-call schedule.
+[#41837](https://github.com/gravitational/teleport/pull/41837).
+
+#### **[High]** SAML IdP session privilege escalation
+
+When using Teleport as SAML IdP, authorization wasn’t properly enforced on the
+SAML IdP session creation. As such, authenticated users could use an internal
+API to escalate their own privileges by crafting a malicious program.
+[#41846](https://github.com/gravitational/teleport/pull/41846).
+
+We strongly recommend all customers upgrade to the latest releases of Teleport.
+
+### Other fixes and improvements
+
+* Fixed session upload completion in situations where there's a large number of in-flight session uploads. [#41853](https://github.com/gravitational/teleport/pull/41853)
+* Debug symbols are now stripped from Windows builds, resulting in smaller tsh and tctl binaries. [#41839](https://github.com/gravitational/teleport/pull/41839)
+* Fixed an issue that the server version of the registered MySQL databases is not automatically updated upon new connections. [#41820](https://github.com/gravitational/teleport/pull/41820)
+* Add read-only permissions for cluster maintenance config. [#41791](https://github.com/gravitational/teleport/pull/41791)
+* Simplified how Bots are shown on the Users list page. [#41739](https://github.com/gravitational/teleport/pull/41739)
+* Fix missing variable and script options in Default Agentless Installer script. [#41722](https://github.com/gravitational/teleport/pull/41722)
+* Improved reliability of aggregated usage reporting with some cluster state storage backends (Teleport Enterprise only). [#41703](https://github.com/gravitational/teleport/pull/41703)
+* Adds the remote address to audit log events emitted when a join for a Bot or Instance fails or succeeds. [#41699](https://github.com/gravitational/teleport/pull/41699)
+* Allow the application service to heartbeat on behalf of more than 1000 dynamic applications. [#41627](https://github.com/gravitational/teleport/pull/41627)
+* Ensure responses to Kubernetes watch requests are written sequentially. [#41625](https://github.com/gravitational/teleport/pull/41625)
+* Install Script used in discover wizard now supports Ubuntu 24.04. [#41588](https://github.com/gravitational/teleport/pull/41588)
+* Ensured that systemd always restarts Teleport on any failure unless explicitly stopped. [#41582](https://github.com/gravitational/teleport/pull/41582)
+* Teleport service config is now reloaded on upgrades. [#41548](https://github.com/gravitational/teleport/pull/41548)
+* Fix AccessList reconciler comparison causing audit events noise. [#41541](https://github.com/gravitational/teleport/pull/41541)
+* Prevent SSH connections opened in the UI from leaking if the browser tab is closed while the SSH connection is being established. [#41519](https://github.com/gravitational/teleport/pull/41519)
+* Emit login login failed audit events for invalid passwords on password+webauthn local authentication. [#41433](https://github.com/gravitational/teleport/pull/41433)
+* Allow setting Kubernetes Cluster name when using non-default addresses. [#41355](https://github.com/gravitational/teleport/pull/41355)
+* Added support to automatically download CA for MongoDB Atlas databases. [#41339](https://github.com/gravitational/teleport/pull/41339)
+* Fix broken finish web page for SSO user's on auto discover. [#41336](https://github.com/gravitational/teleport/pull/41336)
+* Add fallback on GetAccessList cache miss call. [#41327](https://github.com/gravitational/teleport/pull/41327)
+* Validate application URL extracted from the web application launcher request route. [#41305](https://github.com/gravitational/teleport/pull/41305)
+* Allow defining custom database names and users when selecting wildcard during test connection when enrolling a database through the web UI. [#41302](https://github.com/gravitational/teleport/pull/41302)
+* Updated Go to v1.21.10. [#41282](https://github.com/gravitational/teleport/pull/41282)
+* Forbid SSO users from local logins or password changes. [#41271](https://github.com/gravitational/teleport/pull/41271)
+* Prevents Cloud tenants from updating `cluster_networking_config` fields `keep_alive_count_max`,  `keep_alive_interval`, `tunnel_strategy`, or `proxy_listener_mode`. [#41248](https://github.com/gravitational/teleport/pull/41248)
+
 ## 14.3.18 (05/07/24)
 
 * Ensure that the active sessions page shows up in the web UI for users with permissions to join sessions. [#41222](https://github.com/gravitational/teleport/pull/41222)
