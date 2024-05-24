@@ -20,7 +20,6 @@
     "lint": "yarn prettier-check && yarn eslint",
     "lint-fix": "yarn prettier-write && yarn eslint --fix",
     "eslint": "eslint --quiet '+(e|web)/**/*.{ts,tsx,js,jsx,mts}'",
-    "eslint-fix": "eslint --fix --quiet '+(e|web)/**/*.{ts,tsx,js,jsx,mts}'",
     "type-check": "NODE_OPTIONS='--max-old-space-size=4096' tsc",
     "prettier-check": "yarn prettier --check '+(e|web)/**/*.{ts,tsx,js,jsx,mts}'",
     "prettier-write": "yarn prettier --write --log-level silent '+(e|web)/**/*.{ts,tsx,js,jsx,mts}'",
