@@ -390,7 +390,6 @@ func (r *usageReporter) ReportApp(ctx context.Context, appURI uri.ResourceURI) e
 	defer r.mu.Unlock()
 
 	if _, hasAppBeenReported := r.reportedApps[appURI.String()]; hasAppBeenReported {
-		log.DebugContext(ctx, "App was already reported", "app", appURI.String())
 		return nil
 	}
 
