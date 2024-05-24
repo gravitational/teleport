@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
 import { Text, ButtonIcon, ButtonWarning } from 'design';
 import DialogConfirmation, {
   DialogContent,
@@ -26,47 +24,43 @@ import DialogConfirmation, {
 } from 'design/DialogConfirmation';
 import { Cross } from 'design/Icon';
 
-const changeSelectedClusterWarning =
-  'Resources from different clusters cannot be combined in an access request. Current items selected will be cleared. Are you sure you want to continue?';
-
-export default function ConfirmClusterChangeDialog({
-  confirmChangeTo,
-  onClose,
+export function ChangeAccessRequestKind({
+  onCancel,
   onConfirm,
-}: Props) {
+}: {
+  onCancel(): void;
+  onConfirm(): void;
+}) {
   return (
     <DialogConfirmation
-      open={!!confirmChangeTo}
-      onClose={onClose}
+      open={true}
+      onClose={onCancel}
       dialogCss={() => ({
         maxWidth: '400px',
         width: '100%',
       })}
     >
       <DialogHeader justifyContent="space-between" mb={0}>
-        <Text typography="h5" bold style={{ whiteSpace: 'nowrap' }}>
-          Change clusters?
+        <Text typography="h5" bold>
+          Replace selected resources?
         </Text>
-        <ButtonIcon onClick={onClose} color="text.slightlyMuted">
-          <Cross size="medium" />
+        <ButtonIcon onClick={onCancel} color="text.slightlyMuted">
+          <Cross size="small" />
         </ButtonIcon>
       </DialogHeader>
       <DialogContent mb={4}>
         <Text color="text.slightlyMuted" typography="body1">
-          {changeSelectedClusterWarning}
+          Resource Access Request cannot be combined with Role Access Request.
+          The current items will be cleared.
+          <br />
+          Do you want to continue?
         </Text>
       </DialogContent>
       <DialogFooter>
-        <ButtonWarning size="large" block={true} onClick={() => onConfirm()}>
-          Confirm
+        <ButtonWarning size="large" block={true} onClick={onConfirm}>
+          Continue
         </ButtonWarning>
       </DialogFooter>
     </DialogConfirmation>
   );
 }
-
-type Props = {
-  confirmChangeTo: string;
-  onClose: () => void;
-  onConfirm: () => void;
-};
