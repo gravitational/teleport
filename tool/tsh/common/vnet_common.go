@@ -143,7 +143,7 @@ func (p *vnetAppProvider) retryWithRelogin(ctx context.Context, tc *client.Telep
 
 	opts = append(opts,
 		client.WithBeforeLoginHook(func() error {
-			// Multiple concurrent logins in tsh would be bad UX, expecially when MFA is involved, so we only
+			// Multiple concurrent logins in tsh would be bad UX, especially when MFA is involved, so we only
 			// allow one login at a time. If another login is already in progress this just returns an error
 			// and no login will be attempted. Subsequent relogins can be attempted on the next client request
 			// after the current one finishes.
