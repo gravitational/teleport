@@ -171,6 +171,9 @@ upgrade_schedule="$(get_conf schedule none)"
 # installer kind is an enum representing the kind of installer to use (apt|yum|zypper|nop).
 installer_kind="$(get_conf installer none)"
 
+# repository_name specifies the teleport packge repository name. Defaults to "teleport".
+repository_name="$(get_conf repository teleport)"
+
 # last restart is a timestamp that indicates the last time the teleport service was restarted.
 last_restart="$(get_state last-restart none)"
 
@@ -506,11 +509,19 @@ do_upgrade() {
             ;;
         apt)
             log_info "attempting apt install $package_name=$target_version..."
+
             # update index for teleport repo
-            apt-get update \
-                -o Dir::Etc::sourcelist="sources.list.d/teleport.list" \
-                -o Dir::Etc::sourceparts="-" \
-                -o APT::Get::List-Cleanup="0"
+            source_list="/etc/apt/sources.list.d/${repository_name}.list"
+            if [ -f $source_list ]; then
+                apt-get update \
+                    -o Dir::Etc::sourcelist="$source_list" \
+                    -o Dir::Etc::sourceparts="-" \
+                    -o APT::Get::List-Cleanup="0"
+            else
+                log_warn "failed to update teleport repository '$source_list'..."
+                log_warn "please ensure that the teleport repository is properly configured"
+            fi
+
             NEEDRESTART_SUSPEND=true DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-downgrades --allow-change-held-packages "$package_name=$target_version"
             ensure_version_lock || true
             do_reload_or_restart
@@ -523,9 +534,16 @@ do_upgrade() {
             log_info "attempting yum install $package_name-$yum_target_version..."
 
             # update cache for teleport repo
-            yum makecache --disablerepo="*" --enablerepo="teleport"
+            if ! yum makecache --disablerepo="*" --enablerepo="$repository_name"; then
+                log_warn "failed to update teleport repository '$repository_name'..."
+                log_warn "please ensure that the teleport repository is properly configured"
+
+                # installation cannot continue with a misconfigured teleport repository
+                return 1
+            fi
+
             # attempt installation
-            yum install -y --disablerepo="*" --enablerepo="teleport" --disableexcludes="teleport" "$package_name-$yum_target_version"
+            yum install -y --disablerepo="*" --enablerepo="$repository_name" --disableexcludes="$repository_name" "$package_name-$yum_target_version"
 
             # attempt to detect post-install version
             if ! post_install_version="$(get_current_version)"; then
@@ -538,7 +556,7 @@ do_upgrade() {
             if [[ "$post_install_version" != "$target_version" ]]; then
                 log_info "install may have been ineffectual (post_install_version=$post_install_version)."
                 log_info "attempting downgrade command variant..."
-                yum downgrade  -y --disablerepo="*" --enablerepo="teleport" --disableexcludes="teleport" "$package_name-$yum_target_version"
+                yum downgrade  -y --disablerepo="*" --enablerepo="$repository_name" --disableexcludes="$repository_name" "$package_name-$yum_target_version"
             fi
             ensure_version_lock || true
             do_reload_or_restart
@@ -546,9 +564,16 @@ do_upgrade() {
             ;;
         zypper)
             log_info "attempting zypper install $package_name-$target_version"
-            zypper refresh --repo="teleport"
+            if ! zypper refresh --repo="$repository_name"; then
+                log_warn "failed to update teleport repository '$repository_name'..."
+                log_warn "please ensure that the teleport repository is properly configured"
+
+                # installation cannot continue with a misconfigured teleport repository
+                return 1
+            fi
+
             zypper removelock "$package_name" || true
-            zypper install --oldpackage --no-confirm --repo="teleport" "$package_name-$target_version"
+            zypper install --oldpackage --no-confirm --repo="$repository_name" "$package_name-$target_version"
             ensure_version_lock || true
             do_reload_or_restart
             return 0
@@ -568,7 +593,7 @@ ensure_version_lock() {
             return 0
             ;;
         yum)
-            yum-config-manager --save --setopt "teleport.exclude=$package_name" > /dev/null
+            yum-config-manager --save --setopt "${repository_name}.exclude=$package_name" > /dev/null
             return 0
             ;;
         zypper)
