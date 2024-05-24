@@ -41,7 +41,12 @@ type Cache struct {
 	group singleflight.Group
 }
 
+// NewClientFunc is a function that will return a new [*client.TeleportClient] for a given profile and leaf
+// cluster. [leafClusterName] may be empty, in which case implementations should return a client for the root cluster.
 type NewClientFunc func(ctx context.Context, profileName, leafClusterName string) (*client.TeleportClient, error)
+
+// RetryWithReloginFunc is a function that should call [fn], and if it fails with an error that may be
+// resolved with a cluster relogin, attempts the relogin and calls [fn] again if the relogin is successful.
 type RetryWithReloginFunc func(ctx context.Context, tc *client.TeleportClient, fn func() error, opts ...client.RetryWithReloginOption) error
 
 // Config describes the client cache configuration.
