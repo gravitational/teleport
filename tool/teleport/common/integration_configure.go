@@ -240,7 +240,7 @@ func onIntegrationConfAzureOIDCCmd(ctx context.Context, params config.Integratio
 	fmt.Println("Success! Use the following information to finish the integration onboarding in Teleport:")
 	fmt.Printf("Tenant ID: %s\nClient ID: %s\n", tenantID, appID)
 	if params.AccessGraph {
-		fmt.Println("Because Access Graph integration was enabled, we also created a file with the necessary data.")
+		fmt.Println("To finish the setup you will need the `cache.json` file that we created for you.")
 		fmt.Println("Use `download cache.json` to download it from the Azure Cloud Shell, and submit it on the integration onboarding page.")
 	}
 	return nil
