@@ -471,7 +471,7 @@ func TestDialFakeApp(t *testing.T) {
 	})
 
 	t.Run("invalid", func(t *testing.T) {
-		// It's safe to run these invalid app tests in parallel becuase they fail the DNS lookup and don't
+		// It's safe to run these invalid app tests in parallel because they fail the DNS lookup and don't
 		// even make it to a TCP dial, so the clock used for TLS cert expiry doesn't matter.
 		t.Parallel()
 		for _, app := range invalidAppNames {
