@@ -167,16 +167,28 @@ metadata:
 spec:
   allow:
     spiffe:
-      - path: "/my-workload"
+      - path: /svc/example-service
 ```
 
 Replace:
 
 - `my-workload-roles-anywhere` with a descriptive name for the role.
-- `/my-workload` with the path element of the SPIFFE ID you have chosen for your
-  workload.
+- `/my-workload` with the path part of the SPIFFE ID you have chosen.
 
-TODO: Assign role to human or bot...
+If you intend this SPIFFE ID to be issued by a human, you now need to assign
+this role to their user:
+
+```shell
+$ tctl edit user/my-user
+# And add the role to the user's roles list
+```
+
+If you intend this SPIFFE ID to be issued by a machine, you now need to assign
+this role to the bot:
+
+```shell
+$ tctl bots update my-bot --add-roles my-workload-roles-anywhere
+```
 
 ## Step 4/5. Issue Workload ID certificates
 
