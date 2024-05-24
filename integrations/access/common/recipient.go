@@ -154,6 +154,6 @@ func (s *RecipientSet) ForEach(f func(r Recipient)) {
 }
 
 // Len returns number of recipients
-func (s *RecipientSet) Len() int{
+func (s *RecipientSet) Len() int {
 	return len(s.recipients)
 }

@@ -262,8 +262,8 @@ func (s *SlackSuiteOSS) TestRecipientsFromAccessMonitoringRule() {
 	_, err := s.ClientByName(integration.RulerUserName).
 		AccessMonitoringRulesClient().
 		CreateAccessMonitoringRule(ctx, &accessmonitoringrulesv1.AccessMonitoringRule{
-			Kind:     types.KindAccessMonitoringRule,
-			Version:  types.V1,
+			Kind:    types.KindAccessMonitoringRule,
+			Version: types.V1,
 			Metadata: &v1.Metadata{
 				Name: "test-slack-amr",
 			},

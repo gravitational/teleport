@@ -358,21 +358,21 @@ func TestGenericListResourcesWithFilter(t *testing.T) {
 	_, err = service.WithPrefix("another-unique-prefix").UpsertResource(ctx, r2)
 	require.NoError(t, err)
 
-	page, nextKey, err := service.ListResourcesWithFilter(ctx, 1, "", func(r *testResource)bool{
+	page, nextKey, err := service.ListResourcesWithFilter(ctx, 1, "", func(r *testResource) bool {
 		return r.Metadata.Name == "r1"
 	})
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]*testResource{r1}, page,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
-	require.Equal(t, nextKey, "")
+	require.Equal(t, "", nextKey)
 
-	page, nextKey, err = service.ListResourcesWithFilter(ctx, 1, "", func(r *testResource)bool{
+	page, nextKey, err = service.ListResourcesWithFilter(ctx, 1, "", func(r *testResource) bool {
 		return r.Metadata.Name == "r2"
 	})
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]*testResource{r2}, page,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
-	require.Equal(t, nextKey, "")
+	require.Equal(t, "", nextKey)
 }
