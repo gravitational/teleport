@@ -243,7 +243,7 @@ func TestSessions(t *testing.T) {
 	out, err := s.a.GetWebSessionInfo(ctx, user, ws.GetName())
 	require.NoError(t, err)
 	ws.SetPriv(nil)
-	require.Empty(t, cmp.Diff(ws, out, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(ws, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	err = s.a.WebSessions().Delete(ctx, types.DeleteWebSessionRequest{
 		User:      user,
@@ -2957,6 +2957,9 @@ func TestDeleteMFADeviceSync(t *testing.T) {
 				Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 					ContextUser: &proto.ContextUser{},
 				},
+				ChallengeExtensions: &mfav1.ChallengeExtensions{
+					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES,
+				},
 			})
 			require.NoError(t, err, "CreateAuthenticateChallenge")
 
@@ -3199,6 +3202,9 @@ func TestDeleteMFADeviceSync_lastDevice(t *testing.T) {
 			Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 				ContextUser: &proto.ContextUser{},
 			},
+			ChallengeExtensions: &mfav1.ChallengeExtensions{
+				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES,
+			},
 		})
 		if err != nil {
 			return err
@@ -3320,6 +3326,9 @@ func TestAddMFADeviceSync(t *testing.T) {
 		authChal, err := userClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 			Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 				ContextUser: &proto.ContextUser{},
+			},
+			ChallengeExtensions: &mfav1.ChallengeExtensions{
+				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES,
 			},
 		})
 		require.NoError(t, err, "CreateAuthenticateChallenge")
@@ -3878,6 +3887,10 @@ func TestAccessRequestAuditLog(t *testing.T) {
 	ctx := context.Background()
 
 	p, err := newTestPack(ctx, t.TempDir())
+	require.NoError(t, err)
+
+	fakeClock := clockwork.NewFakeClock()
+	p.a.Notifications, err = local.NewNotificationsService(p.bk, fakeClock)
 	require.NoError(t, err)
 
 	requester, _, _ := createSessionTestUsers(t, p.a)

@@ -39,6 +39,7 @@ import {
 import { routing } from 'teleterm/ui/uri';
 import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
 import { getAppAddrWithProtocol } from 'teleterm/services/tshd/app';
+import { toResourceRequest } from 'teleterm/ui/services/workspacesService/accessRequestsService';
 
 import type {
   ResourceLabel,
@@ -76,8 +77,6 @@ export default function useNewRequest() {
   const addedResources = accessRequestsService.getPendingAccessRequest();
 
   const [page, setPage] = useState<Page>({ keys: [], index: 0 });
-
-  const [toResource, setToResource] = useState<string | null>(null);
 
   const retry = <T>(action: () => Promise<T>) =>
     retryWithRelogin(ctx, clusterUri, action);
@@ -195,18 +194,24 @@ export default function useNewRequest() {
     });
   }
 
-  function handleConfirmChangeResource(kind: ResourceKind) {
-    accessRequestsService.clearPendingAccessRequest();
-    updateResourceKind(kind);
-    setToResource(null);
-  }
-
   function addOrRemoveResource(
     kind: ResourceKind,
     resourceId: string,
     resourceName?: string
   ) {
-    accessRequestsService.addOrRemoveResource(kind, resourceId, resourceName);
+    if (kind === 'role') {
+      accessRequestsService.addOrRemoveRole(resourceId);
+      return;
+    }
+
+    accessRequestsService.addOrRemoveResource(
+      toResourceRequest({
+        kind,
+        resourceId,
+        resourceName,
+        clusterUri,
+      })
+    );
   }
 
   async function fetchNext() {
@@ -286,9 +291,6 @@ export default function useNewRequest() {
     fetchStatus,
     updateQuery,
     updateSearch,
-    toResource,
-    handleConfirmChangeResource,
-    setToResource,
     onAgentLabelClick,
     selectedResource,
     updateResourceKind,
@@ -307,6 +309,7 @@ export default function useNewRequest() {
     nextPage: page.keys[page.index + 1] ? fetchNext : null,
     prevPage: page.index > 0 ? fetchPrev : null,
     requestableRoles,
+    addedItemsCount: accessRequestsService.getAddedItemsCount(),
   };
 }
 
@@ -336,6 +339,8 @@ function getDefaultSort(kind: ResourceKind): SortType {
   return { fieldName: 'name', dir: 'ASC' };
 }
 
-export type ResourceKind = ResourceIdKind | 'role';
+export type ResourceKind =
+  | Extract<ResourceIdKind, 'node' | 'app' | 'db' | 'kube_cluster'>
+  | 'role';
 
 export type State = ReturnType<typeof useNewRequest>;

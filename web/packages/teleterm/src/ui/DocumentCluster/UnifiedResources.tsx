@@ -230,20 +230,16 @@ const Resources = memo(
     const resourceIds =
       props.userPreferences.clusterPreferences?.pinnedResources?.resourceIds;
     const { updateUserPreferences } = props;
-    const pinning = useMemo<UnifiedResourcesPinning>(() => {
-      return resourceIds
-        ? {
-            kind: 'supported',
-            getClusterPinnedResources: async () => resourceIds,
-            updateClusterPinnedResources: pinnedIds =>
-              updateUserPreferences({
-                clusterPreferences: {
-                  pinnedResources: { resourceIds: pinnedIds },
-                },
-              }),
-          }
-        : { kind: 'not-supported' };
-    }, [updateUserPreferences, resourceIds]);
+    const pinning: UnifiedResourcesPinning = {
+      kind: 'supported',
+      getClusterPinnedResources: async () => resourceIds,
+      updateClusterPinnedResources: pinnedIds =>
+        updateUserPreferences({
+          clusterPreferences: {
+            pinnedResources: { resourceIds: pinnedIds },
+          },
+        }),
+    };
 
     return (
       <SharedUnifiedResources

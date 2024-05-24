@@ -21,6 +21,7 @@ syntax = "proto3";
 package accessgraph.v1alpha;
 
 import "accessgraph/v1alpha/aws.proto";
+import "accessgraph/v1alpha/entra.proto";
 import "accessgraph/v1alpha/events.proto";
 import "accessgraph/v1alpha/gitlab.proto";
 import "accessgraph/v1alpha/graph.proto";
@@ -82,6 +83,9 @@ service AccessGraphService {
 
   // GitlabEventsStream is a stream of commands to the Gitlab importer.
   rpc GitlabEventsStream(stream GitlabEventsStreamRequest) returns (stream GitlabEventsStreamResponse);
+
+  // EntraEventsStream is a stream of commands to the Entra ID SSO importer.
+  rpc EntraEventsStream(stream EntraEventsStreamRequest) returns (stream EntraEventsStreamResponse);
 }
 
 // QueryRequest is a request to query the access graph.
@@ -244,3 +248,20 @@ message GitlabEventsStreamRequest {
 
 // GitlabEventsStreamResponse is the response from GitlabEventsStream.
 message GitlabEventsStreamResponse {}
+
+// EntraEventsStreamRequest is a request to send commands to the Gitlab importer.
+message EntraEventsStreamRequest {
+  // operation contains the desired operation
+  oneof operation {
+    // sync is a command to sync the access graph with the Teleport database state.
+    // it's issued once Teleport finishes syncing all resources with the database.
+    EntraSyncOperation sync = 1;
+    // upsert is a command to put a resource into the access graph or update it.
+    EntraResourceList upsert = 2;
+    // delete is a command to delete a resource from the access graph when it's deleted from Teleport.
+    EntraResourceList delete = 3;
+  }
+}
+
+// EntraEventsStreamResponse is the response from GitlabEventsStream.
+message EntraEventsStreamResponse {}

@@ -1,7 +1,9 @@
-The Database Service requires a valid auth token to connect to the cluster. Generate
-one by running the following command against your Teleport Auth Service and save
-it in `/tmp/token` on the node that will run the Database Service:
+{{ tokenFile="/tmp/token" }}
+
+The Database Service requires a valid join token to join your Teleport cluster.
+Run the following `tctl` command and save the token output in `{{ tokenFile }}`
+on the server that will run the Database Service:
 
 ```code
-$ tctl tokens add --type=db
+$ tctl tokens add --type=db --format=text
 ```

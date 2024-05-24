@@ -175,7 +175,7 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
               const pretitle = getResourcePretitle(r);
 
               let resourceCardProps;
-              if (r.kind === ResourceKind.Application) {
+              if (r.kind === ResourceKind.Application && r.isDialog) {
                 resourceCardProps = {
                   onClick: () => {
                     if (r.hasAccess) {

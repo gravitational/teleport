@@ -204,6 +204,9 @@ export function ResourceCard({
             width="45px"
             height="45px"
             ml={2}
+            css={`
+              opacity: ${requiresRequest ? '0.5' : '1'};
+            `}
           />
           {/* MinWidth is important to prevent descriptions from overflowing. */}
           <Flex flexDirection="column" flex="1" minWidth="0" ml={3} gap={1}>

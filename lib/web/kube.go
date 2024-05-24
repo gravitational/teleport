@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/web/terminal"
 )
 
 // podHandler connects Kube exec session and web-based terminal via a websocket.
@@ -104,7 +105,7 @@ func (p *podHandler) ServeHTTP(_ http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	envelope := &Envelope{
+	envelope := &terminal.Envelope{
 		Version: defaults.WebsocketVersion,
 		Type:    defaults.WebsocketSessionMetadata,
 		Payload: string(sessionMetadataResponse),
@@ -138,7 +139,7 @@ func (p *podHandler) sendAndLogError(err error) {
 		return
 	}
 
-	envelope := &Envelope{
+	envelope := &terminal.Envelope{
 		Version: defaults.WebsocketVersion,
 		Type:    defaults.WebsocketError,
 		Payload: err.Error(),
@@ -191,7 +192,7 @@ func (p *podHandler) handler(r *http.Request) error {
 		TLSCert:    p.sctx.cfg.Session.GetTLSCert(),
 	}
 
-	stream := NewTerminalStream(ctx, TerminalStreamConfig{WS: p.ws, Logger: p.log})
+	stream := terminal.NewStream(ctx, terminal.StreamConfig{WS: p.ws, Logger: p.log})
 
 	certsReq := clientproto.UserCertsRequest{
 		PublicKey:         userKey.MarshalSSHPublicKey(),
@@ -286,7 +287,7 @@ func (p *podHandler) handler(r *http.Request) error {
 	// never has the chance to see the output.
 	if p.req.IsInteractive {
 		// Send close envelope to web terminal upon exit without an error.
-		if err := stream.SendCloseMessage(sessionEndEvent{}); err != nil {
+		if err := stream.SendCloseMessage(""); err != nil {
 			p.log.WithError(err).Error("unable to send close event to web client.")
 		}
 	}

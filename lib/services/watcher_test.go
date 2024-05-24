@@ -529,7 +529,7 @@ func expectLockInForce(t *testing.T, expectedLock types.Lock, err error) {
 
 func resourceDiff(res1, res2 types.Resource) string {
 	return cmp.Diff(res1, res2,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 		cmpopts.EquateEmpty())
 }
 
@@ -1283,7 +1283,7 @@ func TestOktaAssignmentWatcher(t *testing.T) {
 		require.Empty(t,
 			cmp.Diff(expected,
 				changeset,
-				cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")),
+				cmpopts.IgnoreFields(types.Metadata{}, "Revision")),
 			"should be no differences in the changeset after adding the first assignment")
 	case <-w.Done():
 		t.Fatal("Watcher has unexpectedly exited.")
@@ -1307,7 +1307,7 @@ func TestOktaAssignmentWatcher(t *testing.T) {
 			cmp.Diff(
 				expected,
 				changeset,
-				cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")),
+				cmpopts.IgnoreFields(types.Metadata{}, "Revision")),
 			"should be no difference in the changeset after adding the second assignment")
 	case <-w.Done():
 		t.Fatal("Watcher has unexpectedly exited.")
@@ -1331,7 +1331,7 @@ func TestOktaAssignmentWatcher(t *testing.T) {
 			cmp.Diff(
 				expected,
 				changeset,
-				cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")),
+				cmpopts.IgnoreFields(types.Metadata{}, "Revision")),
 			"should be no difference in the changeset after update")
 	case <-w.Done():
 		t.Fatal("Watcher has unexpectedly exited.")
@@ -1353,7 +1353,7 @@ func TestOktaAssignmentWatcher(t *testing.T) {
 			cmp.Diff(
 				expected,
 				changeset,
-				cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")),
+				cmpopts.IgnoreFields(types.Metadata{}, "Revision")),
 			"should be no difference in the changeset after deleting the first assignment")
 	case <-w.Done():
 		t.Fatal("Watcher has unexpectedly exited.")

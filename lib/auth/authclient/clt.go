@@ -20,6 +20,7 @@ package authclient
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/url"
@@ -72,10 +73,24 @@ const (
 	MissingNamespaceError = "missing required parameter: namespace"
 )
 
-// ErrNoMFADevices is returned when an MFA ceremony is performed without possible devices to
-// complete the challenge with.
-var ErrNoMFADevices = &trace.AccessDeniedError{
-	Message: "MFA is required to access this resource but user has no MFA devices; use 'tsh mfa add' to register MFA devices",
+var (
+	// ErrNoMFADevices is returned when an MFA ceremony is performed without possible devices to
+	// complete the challenge with.
+	ErrNoMFADevices = &trace.AccessDeniedError{
+		Message: "MFA is required to access this resource but user has no MFA devices; use 'tsh mfa add' to register MFA devices",
+	}
+	// InvalidUserPassError is the error for when either the provided username or
+	// password is incorrect.
+	InvalidUserPassError = &trace.AccessDeniedError{Message: "invalid username or password"}
+	// InvalidUserPass2FError is the error for when either the provided username,
+	// password, or second factor is incorrect.
+	InvalidUserPass2FError = &trace.AccessDeniedError{Message: "invalid username, password or second factor"}
+)
+
+// IsInvalidLocalCredentialError checks if an error resulted from an incorrect username,
+// password, or second factor.
+func IsInvalidLocalCredentialError(err error) bool {
+	return errors.Is(err, InvalidUserPassError) || errors.Is(err, InvalidUserPass2FError)
 }
 
 // HostFQDN consists of host UUID and cluster name joined via '.'.

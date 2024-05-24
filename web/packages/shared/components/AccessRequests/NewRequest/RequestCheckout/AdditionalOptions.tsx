@@ -70,7 +70,6 @@ export function AdditionalOptions({
   return (
     <>
       <Flex
-        borderBottom={1}
         mt={1}
         mb={2}
         pb={2}

@@ -77,10 +77,6 @@ func unmarshalResource153(data []byte, opts ...services.MarshalOption) (*testRes
 		r.Metadata = &headerv1.Metadata{}
 	}
 
-	if cfg.ID != 0 {
-		//nolint:staticcheck // SA1019. Deprecated, but still needed.
-		r.Metadata.Id = cfg.ID
-	}
 	if cfg.Revision != "" {
 		r.Metadata.Revision = cfg.Revision
 	}
@@ -184,7 +180,7 @@ func TestGenericWrapperCRUD(t *testing.T) {
 	require.NoError(t, err)
 	r, err = service.GetResource(ctx, r1.GetMetadata().GetName())
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(r1, r, cmpopts.IgnoreFields(headerv1.Metadata{}, "Id"), ignoreUnexported))
+	require.Empty(t, cmp.Diff(r1, r, cmpopts.IgnoreFields(headerv1.Metadata{}, "Revision"), ignoreUnexported))
 
 	// Conditionally updating a resource fails if revisions do not match
 	r.Metadata.Revision = "fake"
@@ -216,7 +212,7 @@ func TestGenericWrapperCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, cmp.Diff([]*testResource153{r1, r2}, out,
-		cmpopts.IgnoreFields(headerv1.Metadata{}, "Id"),
+		cmpopts.IgnoreFields(headerv1.Metadata{}, "Revision"),
 		ignoreUnexported))
 
 	// Upsert a resource (update).
@@ -227,7 +223,7 @@ func TestGenericWrapperCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, cmp.Diff([]*testResource153{r1, r2}, out,
-		cmpopts.IgnoreFields(headerv1.Metadata{}, "Id"),
+		cmpopts.IgnoreFields(headerv1.Metadata{}, "Revision"),
 		ignoreUnexported))
 
 	// Try to delete a resource that doesn't exist.

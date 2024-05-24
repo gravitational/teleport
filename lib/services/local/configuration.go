@@ -70,7 +70,7 @@ func (s *ClusterConfigurationService) GetClusterName(opts ...services.MarshalOpt
 		return nil, trace.Wrap(err)
 	}
 	return services.UnmarshalClusterName(item.Value,
-		services.AddOptions(opts, services.WithResourceID(item.ID), services.WithRevision(item.Revision))...)
+		services.AddOptions(opts, services.WithRevision(item.Revision))...)
 }
 
 // DeleteClusterName deletes types.ClusterName from the backend.
@@ -119,7 +119,6 @@ func (s *ClusterConfigurationService) UpsertClusterName(c types.ClusterName) err
 		Key:      backend.Key(clusterConfigPrefix, namePrefix),
 		Value:    value,
 		Expires:  c.Expiry(),
-		ID:       c.GetResourceID(),
 		Revision: rev,
 	})
 	if err != nil {
@@ -139,7 +138,7 @@ func (s *ClusterConfigurationService) GetStaticTokens() (types.StaticTokens, err
 		return nil, trace.Wrap(err)
 	}
 	return services.UnmarshalStaticTokens(item.Value,
-		services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+		services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 }
 
 // SetStaticTokens sets the list of static tokens used to provision nodes.
@@ -153,7 +152,6 @@ func (s *ClusterConfigurationService) SetStaticTokens(c types.StaticTokens) erro
 		Key:      backend.Key(clusterConfigPrefix, staticTokensPrefix),
 		Value:    value,
 		Expires:  c.Expiry(),
-		ID:       c.GetResourceID(),
 		Revision: rev,
 	})
 	if err != nil {
@@ -186,7 +184,7 @@ func (s *ClusterConfigurationService) GetAuthPreference(ctx context.Context) (ty
 		return nil, trace.Wrap(err)
 	}
 	return services.UnmarshalAuthPreference(item.Value,
-		services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+		services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 }
 
 // CreateAuthPreference creates an auth preference if once does not already exist.
@@ -231,7 +229,6 @@ func (s *ClusterConfigurationService) UpdateAuthPreference(ctx context.Context, 
 	item := backend.Item{
 		Key:      backend.Key(authPrefix, preferencePrefix, generalPrefix),
 		Value:    value,
-		ID:       preference.GetResourceID(),
 		Revision: rev,
 	}
 
@@ -293,7 +290,7 @@ func (s *ClusterConfigurationService) GetClusterAuditConfig(ctx context.Context)
 		}
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalClusterAuditConfig(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+	return services.UnmarshalClusterAuditConfig(item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 }
 
 // SetClusterAuditConfig sets the cluster audit config on the backend.
@@ -387,7 +384,7 @@ func (s *ClusterConfigurationService) GetClusterNetworkingConfig(ctx context.Con
 		}
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalClusterNetworkingConfig(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+	return services.UnmarshalClusterNetworkingConfig(item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 }
 
 // CreateClusterNetworkingConfig creates a cluster networking config if once does not already exist.
@@ -492,7 +489,7 @@ func (s *ClusterConfigurationService) GetSessionRecordingConfig(ctx context.Cont
 		}
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalSessionRecordingConfig(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+	return services.UnmarshalSessionRecordingConfig(item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 }
 
 // CreateSessionRecordingConfig creates a session recording config if once does not already exist.
