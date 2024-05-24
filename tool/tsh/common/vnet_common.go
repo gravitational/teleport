@@ -133,6 +133,7 @@ func (p *vnetAppProvider) retryWithRelogin(ctx context.Context, tc *client.Telep
 		return trace.Wrap(err)
 	}
 
+	// Make sure the release the login mutex if we end up acquiring it.
 	didLock := false
 	defer func() {
 		if didLock {
@@ -142,10 +143,14 @@ func (p *vnetAppProvider) retryWithRelogin(ctx context.Context, tc *client.Telep
 
 	opts = append(opts,
 		client.WithBeforeLoginHook(func() error {
+			// Multiple concurrent logins in tsh would be bad UX, expecially when MFA is involved, so we only
+			// allow one login at a time. If another login is already in progress this just returns an error
+			// and no login will be attempted. Subsequent relogins can be attempted on the next client request
+			// after the current one finishes.
 			if p.loginMu.TryLock() {
 				didLock = true
 			} else {
-				return fmt.Errorf("Not attempting re-login to cluster %s, currently logging into another cluster.", tc.SiteName)
+				return fmt.Errorf("not attempting re-login to cluster %s, another login is current in progress.", tc.SiteName)
 			}
 			fmt.Printf("Login for cluster %s expired, attempting to log in again.\n", tc.SiteName)
 			return nil
