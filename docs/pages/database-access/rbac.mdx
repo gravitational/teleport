@@ -245,15 +245,37 @@ version: v1
 
 A database admin user is responsible for granting permissions to end users. You
 must specify a database admin user before using database object import rules. To
-specify a database admin user, add the following to a role that restricts
-database object permissions:
+specify a database admin user, add the following to a dynamic database resource
+or configuration file for an agent running the Teleport Database Service:
+
+<Tabs>
+<TabItem label="Dynamic Resource">
 
 ```yaml
+kind: db
+version: v3
+metadata:
+  # ...
 spec:
   # ...
   admin_user: "teleport-admin"
-  # ...
 ```
+
+</TabItem>
+<TabItem label="Static Agent Configuration" >
+
+```yaml
+db_service:
+  enabled: "yes"
+  databases:
+  - name: "example"
+    # ...
+    admin_user:
+      name: "teleport-admin"
+```
+
+</TabItem>
+</Tabs>
 
 In this case, the Teleport Database Service expects to activate a user called
 `teleport-admin` in order to execute object import rules.  Ensure that the admin
