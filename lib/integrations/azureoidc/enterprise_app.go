@@ -160,9 +160,13 @@ func getMSGraphResourceID(ctx context.Context, graphClient *msgraphsdk.GraphServ
 	}
 
 	spList := spResponse.GetValue()
-	if len(spList) < 1 {
+	switch len(spList) {
+	case 0:
 		return "", trace.NotFound("Microsoft Graph app not found in the tenant")
+	case 1:
+		return *spList[0].GetId(), nil
+	default:
+		return "", trace.BadParameter("Multiple service principals found for Microsoft Graph. This is not expected.")
 	}
 
-	return *spList[0].GetId(), nil
 }
