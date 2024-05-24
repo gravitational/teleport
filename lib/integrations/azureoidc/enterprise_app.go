@@ -20,7 +20,6 @@ import (
 	"context"
 	"net/url"
 	"path"
-	"strings"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -65,7 +64,12 @@ func SetupEnterpriseApp(ctx context.Context, proxyPublicAddr string, authConnect
 		return appID, tenantID, trace.Wrap(err)
 	}
 
-	displayName := "Teleport" + " " + strings.TrimPrefix(proxyPublicAddr, "https://")
+	proxyURL, err := url.Parse(proxyPublicAddr)
+	if err != nil {
+		return appID, tenantID, trace.Wrap(err, "could not parse URL of the Proxy Service")
+	}
+
+	displayName := "Teleport" + " " + proxyURL.Hostname()
 
 	instantiateRequest := applicationtemplates.NewItemInstantiatePostRequestBody()
 	instantiateRequest.SetDisplayName(&displayName)
