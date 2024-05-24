@@ -130,7 +130,7 @@ func getPrivateAPIToken(ctx context.Context, tenantID string) (string, error) {
 		slog.DebugContext(ctx, "trying token", "client_id", token.ClientID)
 		token, err := exchangeToken(ctx, tenantID, token)
 		if err != nil {
-			slog.ErrorContext(ctx, "error exchanging token", "err", err)
+			slog.DebugContext(ctx, "error exchanging token", "err", err)
 		} else {
 			return token, nil
 		}
