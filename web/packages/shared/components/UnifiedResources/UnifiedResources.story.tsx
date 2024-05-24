@@ -215,13 +215,6 @@ export const LoadingPreferences = story({
   unifiedResourcePreferencesAttempt: makeProcessingAttempt(),
 });
 
-export const PinningNotSupported = story({
-  fetchFunc: async () => {
-    return { agents: allResources, startKey: 'next-key' };
-  },
-  pinning: { kind: 'not-supported' },
-});
-
 export const PinningHidden = story({
   fetchFunc: async () => {
     return { agents: allResources, startKey: 'next-key' };

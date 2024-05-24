@@ -76,7 +76,7 @@ export type Notification = {
   title: string;
 };
 
-/** NotificationSubKind is the subkind of notifications, these should be kept in sync with TBD (TODO: rudream - add backend counterpart location here) */
+/** NotificationSubKind is the subkind of notifications, these should be kept in sync with the values in api/types/constants.go */
 export enum NotificationSubKind {
   DefaultInformational = 'default-informational',
   DefaultWarning = 'default-warning',
@@ -85,8 +85,6 @@ export enum NotificationSubKind {
   AccessRequestPending = 'access-request-pending',
   AccessRequestApproved = 'access-request-approved',
   AccessRequestDenied = 'access-request-denied',
-  /** AccessRequestNowAssumable is the notification for when an approved access request that was scheduled for a later date is now assumable. */
-  AccessRequestNowAssumable = 'access-request-now-assumable',
 }
 
 /**

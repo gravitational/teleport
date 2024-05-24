@@ -32,6 +32,7 @@ jobs:
               - 'build.assets/Makefile'
               - 'build.assets/Dockerfile*'
               - 'Makefile'
+              - '.golangci.yml'
             has_rust:
               - '.github/workflows/lint.yaml'
               - '**.rs'

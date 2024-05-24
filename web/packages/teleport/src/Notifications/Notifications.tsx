@@ -26,9 +26,10 @@ import Logger from 'shared/libs/logger';
 import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
 import { HoverTooltip } from 'shared/components/ToolTip';
 
-import { useInfiniteScroll } from 'shared/hooks';
-
-import { useKeyBasedPagination } from 'shared/hooks/useInfiniteScroll';
+import {
+  useInfiniteScroll,
+  useKeyBasedPagination,
+} from 'shared/hooks/useInfiniteScroll';
 import { IGNORE_CLICK_CLASSNAME } from 'shared/hooks/useRefClickOutside/useRefClickOutside';
 
 import { useTeleport } from 'teleport';
@@ -169,7 +170,12 @@ export function Notifications({ iconSize = 24 }: { iconSize?: number }) {
           <>
             {!!notifications.length &&
               notifications.map(notif => (
-                <Notification notification={notif} key={notif.id} view={view} />
+                <Notification
+                  notification={notif}
+                  key={notif.id}
+                  view={view}
+                  closeNotificationsList={() => setOpen(false)}
+                />
               ))}
             {open && <div ref={setTrigger} />}
             {attempt.status === 'processing' && (
@@ -293,9 +299,9 @@ const ViewButton = styled.div<{ selected: boolean }>`
   border-radius: 36px;
   display: flex;
   width: fit-content;
-  padding: ${p => p.theme.space[2]}px ${p => p.theme.space[3]}px;
+  padding: ${p => p.theme.space[1]}px ${p => p.theme.space[3]}px;
   justify-content: space-around;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 300;
   color: ${props =>
     props.selected

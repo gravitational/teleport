@@ -22,14 +22,22 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
+	"strconv"
+	"strings"
+	"sync"
 
 	"cloud.google.com/go/compute/metadata"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/defaults"
 )
+
+const gcpHostnameTag = "label/" + types.CloudHostnameTag
 
 // contextRoundTripper is a http.RoundTripper that adds a context.Context to
 // requests.
@@ -41,6 +49,149 @@ type contextRoundTripper struct {
 func (rt contextRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	resp, err := rt.transport.RoundTrip(req.WithContext(rt.ctx))
 	return resp, trace.Wrap(err)
+}
+
+type metadataGetter func(ctx context.Context, path string) (string, error)
+
+// InstanceMetadataClient is a client for GCP instance metadata.
+type InstanceMetadataClient struct {
+	instancesClient gcp.InstancesClient
+	getMetadata     metadataGetter
+
+	labelPermissionErrorOnce sync.Once
+	tagPermissionErrorOnce   sync.Once
+}
+
+// NewInstanceMetadataClient creates a new instance metadata client.
+func NewInstanceMetadataClient(ctx context.Context) (*InstanceMetadataClient, error) {
+	instancesClient, err := gcp.NewInstancesClient(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &InstanceMetadataClient{
+		instancesClient: instancesClient,
+		getMetadata:     getMetadata,
+	}, nil
+}
+
+// IsAvailable checks if instance metadata is available.
+func (client *InstanceMetadataClient) IsAvailable(ctx context.Context) bool {
+	instanceData, err := client.getMetadata(ctx, "instance")
+	return err == nil && instanceData != ""
+}
+
+// GetTags gets all of the GCP instance's labels (note: these are separate from
+// its tags, which we do not use).
+func (client *InstanceMetadataClient) GetTags(ctx context.Context) (map[string]string, error) {
+	// Get a bunch of info from instance metadata.
+	projectID, err := client.GetProjectID(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	zone, err := client.GetZone(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	name, err := client.GetName(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	idStr, err := client.GetID(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	req := &gcp.InstanceRequest{
+		ProjectID:       projectID,
+		Zone:            zone,
+		Name:            name,
+		ID:              id,
+		WithoutHostKeys: true,
+	}
+	// Get labels.
+	var gcpLabels map[string]string
+	inst, err := client.instancesClient.GetInstance(ctx, req)
+	if err == nil {
+		gcpLabels = inst.Labels
+	} else if trace.IsAccessDenied(err) {
+		client.labelPermissionErrorOnce.Do(func() {
+			slog.WarnContext(ctx, "Access denied to instance labels, does the instance have compute.instances.get permission?")
+		})
+	} else {
+		return nil, trace.Wrap(err)
+	}
+
+	// Get tags.
+	gcpTags, err := client.instancesClient.GetInstanceTags(ctx, req)
+	if trace.IsAccessDenied(err) {
+		client.tagPermissionErrorOnce.Do(func() {
+			slog.WarnContext(ctx, "Access denied to resource management tags, does the instance have compute.instances.listEffectiveTags permission?")
+		})
+	} else if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tags := make(map[string]string, len(gcpLabels)+len(gcpTags))
+	for k, v := range gcpLabels {
+		tags["label/"+k] = v
+	}
+	for k, v := range gcpTags {
+		tags["tag/"+k] = v
+	}
+
+	return tags, nil
+}
+
+// GetHostname gets the hostname set by the cloud instance that Teleport
+// should use, if any.
+func (client *InstanceMetadataClient) GetHostname(ctx context.Context) (string, error) {
+	tags, err := client.GetTags(ctx)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	value, ok := tags[gcpHostnameTag]
+	if !ok {
+		return "", trace.NotFound("label %q not found", gcpHostnameTag)
+	}
+	return value, nil
+}
+
+// GetType gets the cloud instance type.
+func (client *InstanceMetadataClient) GetType() types.InstanceMetadataType {
+	return types.InstanceMetadataTypeGCP
+}
+
+// GetID gets the ID of the cloud instance.
+func (client *InstanceMetadataClient) GetID(ctx context.Context) (string, error) {
+	id, err := client.getMetadata(ctx, "instance/id")
+	return id, trace.Wrap(err)
+}
+
+// GetProjectID gets the instance's project ID.
+func (client *InstanceMetadataClient) GetProjectID(ctx context.Context) (string, error) {
+	projectID, err := client.getMetadata(ctx, "project/project-id")
+	return projectID, trace.Wrap(err)
+}
+
+// GetZone gets the instance's zone.
+func (client *InstanceMetadataClient) GetZone(ctx context.Context) (string, error) {
+	fullZone, err := client.getMetadata(ctx, "instance/zone")
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	// zone is formatted as "projects/<project number>/zones/<zone>", we just need the last part
+	zoneParts := strings.Split(fullZone, "/")
+	return zoneParts[len(zoneParts)-1], nil
+}
+
+// GetName gets the instance's name.
+func (client *InstanceMetadataClient) GetName(ctx context.Context) (string, error) {
+	name, err := client.getMetadata(ctx, "instance/name")
+	return name, trace.Wrap(err)
 }
 
 // getMetadataClient gets an instance metadata client that will use the

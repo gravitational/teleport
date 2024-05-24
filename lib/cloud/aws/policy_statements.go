@@ -147,6 +147,7 @@ func StatementForEC2SSMAutoDiscover() *Statement {
 			"ec2:DescribeInstances",
 			"ssm:DescribeInstanceInformation",
 			"ssm:GetCommandInvocation",
+			"ssm:ListCommandInvocations",
 			"ssm:SendCommand",
 		},
 		Resources: allResources,

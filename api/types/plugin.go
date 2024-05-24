@@ -365,16 +365,6 @@ func (p *PluginV1) SetSubKind(s string) {
 	p.SubKind = s
 }
 
-// GetResourceID returns resource ID
-func (p *PluginV1) GetResourceID() int64 {
-	return p.Metadata.ID
-}
-
-// SetResourceID sets resource ID
-func (p *PluginV1) SetResourceID(id int64) {
-	p.Metadata.ID = id
-}
-
 // GetRevision returns the revision
 func (p *PluginV1) GetRevision() string {
 	return p.Metadata.GetRevision()

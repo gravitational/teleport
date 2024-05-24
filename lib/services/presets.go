@@ -235,6 +235,7 @@ func NewPresetAccessRole() types.Role {
 					},
 					types.NewRule(types.KindInstance, RO()),
 					types.NewRule(types.KindAssistant, append(RW(), types.VerbUse)),
+					types.NewRule(types.KindClusterMaintenanceConfig, RO()),
 				},
 			},
 		},
