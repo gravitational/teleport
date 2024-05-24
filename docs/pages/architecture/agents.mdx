@@ -12,7 +12,7 @@ pathway.
 Teleport agents are running instances of the `teleport` binary, and can run on
 any Linux platform (e.g., bare-metal, a Linux VM, a Docker container, or a pod
 in a Kubernetes cluster). It is up to Teleport administrators to deploy and
-manage agents, including on cloud-hosted Teleport Enterprise accounts. 
+manage agents, including on managed Teleport Enterprise accounts. 
 
 A single agent can run multiple services, and each service can connect to
 multiple target resources. For example, a single `teleport` process running on a
@@ -46,12 +46,12 @@ listed above can then proxy resources enrolled by the Discovery Service.
 A Teleport cluster where an administrator has enrolled resources involves the
 following components:
 
-- **[Teleport Proxy Service](../architecture/proxy.mdx):** A stateless service that
-  performs the function of an authentication gateway, serves the Web UI, and
-  accepts client connections. On cloud-hosted Teleport Enterprise accounts, this
+- **[Teleport Proxy Service](../architecture/proxy.mdx):** A stateless service
+  that performs the function of an authentication gateway, serves the Web UI,
+  and accepts client connections. On managed Teleport Enterprise accounts, this
   service is accessible at your Teleport account URL, e.g.,
   `example.teleport.sh`.
-- **[Teleport Auth Service](../architecture/authentication.mdx):** Serves as
+- **[Teleport Auth Service](../architecture/authentication.mdx):** Serves as the
   cluster's certificate authority, handles user authentication/authorization and
   issues short-lived client certificates.
 - **Teleport agents:** Agents perform authentication against infrastructure
@@ -66,13 +66,7 @@ following components:
 - **Infrastructure resources:** Teleport can protect access to self-hosted
   infrastructure as well as infrastructure managed by a cloud provider.
 
-## Retrieving credentials from the Teleport Auth Service
-
-The Teleport Auth Service issues certificates that enable users to communicate
-with Teleport agents and for Teleport agents to communicate with resources in
-your infrastructure.
-
-### Credentials for Teleport agents
+## Teleport agents to the Teleport Auth Service
 
 The Teleport Auth Service runs a certificate authority that issues a host
 certificate to an agent when it joins the cluster for the first time. Read [Join
@@ -101,38 +95,11 @@ This certificate contains information about the agent, including:
   Database Service.
 - The **expiry time** of the certificate.
 
-### Credentials for Teleport clients
+The Auth Service also generates a short-lived X.509 certificate signed by the
+cluster's host CA, with the client's identity and routing information for an
+infrastructure resource encoded in it.
 
-When a user logs into the cluster with the `tsh login` command, the Teleport
-Auth Service uses the `user` certificate authority to sign the certificate. See
-[Issuing User Certificates](../architecture/authentication.mdx) for more details
-on how it works. If the user authenticates via the Teleport Web UI, the browser
-retrieves a session cookie, which corresponds to a user certificate stored by
-the Proxy Service on behalf of that user.
-
-In most cases, Teleport users must retrieve another user certificate in order to
-access Teleport-protected resources. The certificate authorizes the user to
-access specific resources, such as an application or database. The following
-table indicates how a user obtains this certificate for different kinds of
-resources:
-
-|Resource kind|How users obtain certificates|
-|---|---|
-|Databases|The user can retrieve a client certificate for before connecting to a database with `tsh db login`. The `tsh db connect` and `tsh proxy db` commands also retrieve certificates. The Teleport Database Service verifies the certificate when a user connects to a database.|
-|Kubernetes clusters|The user runs `tsh kube login`, which updates the local kubeconfig to contain a certificate signed by the Teleport user CA. The user can then execute `kubectl` commands against Teleport-protected Kubernetes clusters.|
-|Servers|After running `tsh login`, the user receives a certificate that contains authorization information for servers. The SSH Service checks the certificate when a user authenticates to a Teleport-protected server.|
-|Web applications|The user authenticates to the Teleport Web UI and visits a Teleport-protected application. The Teleport Proxy Service forwards traffic to the application along with Teleport-signed JSON web tokens that the application can verify. For HTTP API applications, TCP applications, and cloud provider APIs, the user runs `tsh apps login` to retrieve a certificate.|
-|Windows desktops|Users authenticate to the Teleport Web UI. The Web UI initiates a WebSocket session with the Teleport Proxy Service, which forwards traffic through mTLS over an optional reverse SSH tunnel to the Teleport Desktop Service. The Desktop Service forwards RDP traffic to the desired RDP server.|
-
-In most cases, users will receive certificates from the Auth Service via a
-connection to the Teleport Proxy Service. The Auth Service and Proxy Service
-connect to each other using mutual TLS.
-
-[Teleport Connect](../connect-your-client/teleport-connect.mdx) runs `tshd`, a
-`tsh` daemon that manages user certificates and kubeconfigs for the graphical
-client.
-
-## Establishing reverse tunnels
+## Teleport agents to the Teleport Proxy Service
 
 In most cases, when an agent joins a Teleport cluster, it establishes an SSH
 reverse tunnel to the Proxy Service. As such, users do not need to have direct
@@ -142,15 +109,13 @@ firewall.
 
 ![Tunnel Mode](../../img/architecture/k8s-tunnel.png)
 
-The connection between the Proxy Service and a Teleport agent instance is also
-authenticated with mutual TLS. The Auth Service generates a short-lived X.509
-certificate signed by the cluster's host CA, with the client's identity and
-routing information for an infrastructure resource encoded in it, and the Proxy
-Service uses it to authenticate with the Teleport agent.
-
-The Proxy Service authenticates the connection and dispatches it to the
-appropriate agent instance based on the routing information encoded in the
-client certificate, over the reverse tunnel.
+When an agent establishes a reverse SSH tunnel to the Proxy Service, the Proxy
+Service identifies the agent based on its certificate. The certificate encodes
+the agent's system role (e.g., `node,app,kube`) and a UUID for the agent. When a
+dial request from a Teleport user reaches the Proxy Service, the Proxy Service
+uses the address of the destination resource to locate the appropriate agent,
+then proxies the user connection through the reverse tunnel associated with the
+agent.
 
 <Details title="Connecting to agents without reverse tunnels">
 
@@ -178,14 +143,7 @@ self-hosted Teleport deployment.
 
 </Details>
 
-## Connecting to infrastructure through Teleport agents
-
-Teleport users can access resources in their infrastructure with the `tsh`
-client CLI, the Teleport Web UI, and Teleport Connect, in addition to native
-client tools like `kubectl` and `psql`. Client tools route traffic through
-agents, usually routed through the Teleport Proxy Service.
-
-### Communication between agents and infrastructure resources
+## Agents to infrastructure resources
 
 Teleport agents route user traffic to and from resources in your infrastructure.
 Agents authenticate with infrastructure resources using a technique available to
@@ -223,7 +181,46 @@ Teleport cluster:
 - [OpenSSH servers](../server-access/openssh.mdx)
 - [Windows desktops](../desktop-access/gertting-started.mdx)
 
-### Communication between clients and agents
+## Clients to agents
+
+Client tools authenticate to Teleport agent by presenting certificates signed by
+a Teleport certificate authority, forwarding traffic to the agent through an SSH
+reverse tunnel established between the Teleport Proxy Service and the agent.
+Clients need to retrieve a certificate, then connect to an infrastructure
+resource through the agent.
+
+### Credentials for Teleport clients
+
+When a user logs into the cluster with the `tsh login` command, the Teleport
+Auth Service uses the `user` certificate authority to sign the certificate. See
+[Issuing User Certificates](../architecture/authentication.mdx) for more details
+on how it works. If the user authenticates via the Teleport Web UI, the browser
+retrieves a session cookie, which corresponds to a user certificate stored by
+the Proxy Service on behalf of that user.
+
+In most cases, Teleport users must retrieve another user certificate in order to
+access Teleport-protected resources. The certificate authorizes the user to
+access specific resources, such as an application or database. The following
+table indicates how a user obtains this certificate for different kinds of
+resources:
+
+|Resource kind|How users obtain certificates|
+|---|---|
+|Databases|The user can retrieve a client certificate for before connecting to a database with `tsh db login`. The `tsh db connect` and `tsh proxy db` commands also retrieve certificates. The Teleport Database Service verifies the certificate when a user connects to a database.|
+|Kubernetes clusters|The user runs `tsh kube login`, which updates the local kubeconfig to contain a certificate signed by the Teleport user CA. The user can then execute `kubectl` commands against Teleport-protected Kubernetes clusters.|
+|Servers|After running `tsh login`, the user receives a certificate that contains authorization information for servers. The SSH Service checks the certificate when a user authenticates to a Teleport-protected server.|
+|Web applications|The user authenticates to the Teleport Web UI and visits a Teleport-protected application. The Teleport Proxy Service forwards traffic to the application along with Teleport-signed JSON web tokens that the application can verify. For HTTP API applications, TCP applications, and cloud provider APIs, the user runs `tsh apps login` to retrieve a certificate.|
+|Windows desktops|Users authenticate to the Teleport Web UI. The Web UI initiates a WebSocket session with the Teleport Proxy Service, which forwards traffic through mTLS over an optional reverse SSH tunnel to the Teleport Desktop Service. The Desktop Service forwards RDP traffic to the desired RDP server.|
+
+In most cases, users will receive certificates from the Auth Service via a
+connection to the Teleport Proxy Service. The Auth Service and Proxy Service
+connect to each other using mutual TLS.
+
+[Teleport Connect](../connect-your-client/teleport-connect.mdx) runs `tshd`, a
+`tsh` daemon that manages user certificates and kubeconfigs for the graphical
+client.
+
+### Connecting to infrastructure resources through agents
 
 Teleport makes several client tools available for accessing infrastructure
 resources through agents:
@@ -266,7 +263,7 @@ CLI:
 `tsh proxy` commands. For example, depending on the database, `tsh db connect`
 starts a local proxy before using a database client to send traffic to it.
 
-### Submitting audit events
+## Submitting audit events
 
 Teleport agents connect to the Teleport Auth Service through the Teleport Proxy
 Service and submit audit events at various moments within the life cycle of a
