@@ -38,6 +38,7 @@ import (
 type Storage interface {
 	clusters.Resolver
 
+	ListProfileNames() ([]string, error)
 	ListRootClusters() ([]*clusters.Cluster, error)
 	Add(ctx context.Context, webProxyAddress string) (*clusters.Cluster, *client.TeleportClient, error)
 	Remove(ctx context.Context, profileName string) error
