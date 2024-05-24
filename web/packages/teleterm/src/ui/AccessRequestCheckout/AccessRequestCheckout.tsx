@@ -152,8 +152,9 @@ export function AccessRequestCheckout() {
                         resource.Icon = Icon.Kubernetes;
                         break;
                       case 'role':
+                        break;
                       default:
-                        resource satisfies never;
+                        c.kind satisfies never;
                     }
                     return resource;
                   })
