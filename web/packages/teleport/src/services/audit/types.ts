@@ -298,6 +298,7 @@ export const eventCodes = {
   AUTH_PREFERENCE_UPDATE: 'TCAUTH001I',
   CLUSTER_NETWORKING_CONFIG_UPDATE: 'TCNET002I',
   SESSION_RECORDING_CONFIG_UPDATE: 'TCREC003I',
+  ACCESS_GRAPH_PATH_CHANGED: 'TAG001I',
   SPANNER_RPC: 'TSPN001I',
   SPANNER_RPC_DENIED: 'TSPN001W',
 } as const;
@@ -1649,6 +1650,14 @@ export type RawEvents = {
     typeof eventCodes.SESSION_RECORDING_CONFIG_UPDATE,
     {
       user: string;
+    }
+  >;
+  [eventCodes.ACCESS_GRAPH_PATH_CHANGED]: RawEvent<
+    typeof eventCodes.ACCESS_GRAPH_PATH_CHANGED,
+    {
+      change_id: string;
+      affected_resource_name: string;
+      affected_resource_source: string;
     }
   >;
   [eventCodes.SPANNER_RPC]: RawSpannerRPCEvent<typeof eventCodes.SPANNER_RPC>;
