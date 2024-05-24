@@ -7,8 +7,8 @@ FROM --platform=${BUILDPLATFORM} alpine:3.20.0 as extractor
 WORKDIR /extraction
 COPY *${TARGETARCH}*.tar.gz /plugin.tar.gz
 RUN ls -laht && \
-    tar -xzvf /plugin.tar.gz -C /extraction && \
-    find /tmp/extraction -type f -executable -name 'teleport-*' -exec mv {} /teleport-plugin \;
+    tar -xzvf /plugin.tar.gz && \
+    find . -type f -executable -name 'teleport-*' -exec mv {} /teleport-plugin \;
 
 # Create the image with the build operator on the $TARGETPLATFORM
 # TARGETPLATFORM is provided by Docker/buildx
