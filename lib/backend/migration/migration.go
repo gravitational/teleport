@@ -93,17 +93,18 @@ func (m *Migration) Run(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	putGroup, putCtx := errgroup.WithContext(ctx)
-	putGroup.SetLimit(m.parallel)
+	group, ctx := errgroup.WithContext(ctx)
+	// Add 1 to ensure a goroutine exists for getting items.
+	group.SetLimit(m.parallel + 1)
 
-	getGroup, getCtx := errgroup.WithContext(ctx)
-	getGroup.Go(func() error {
+	group.Go(func() error {
+		var result *backend.GetResult
+		pageKey := start
+		defer close(itemC)
 		for {
-			var result *backend.GetResult
-			defer close(itemC)
-			err := retry(getCtx, 3, func() error {
+			err := retry(ctx, 3, func() error {
 				var err error
-				result, err = m.src.GetRange(getCtx, start, backend.RangeEnd(start), bufferSize)
+				result, err = m.src.GetRange(ctx, pageKey, backend.RangeEnd(start), bufferSize)
 				if err != nil {
 					return trace.Wrap(err)
 				}
@@ -115,17 +116,14 @@ func (m *Migration) Run(ctx context.Context) error {
 			for _, item := range result.Items {
 				select {
 				case itemC <- item:
-				case <-getCtx.Done():
-					return trace.Wrap(getCtx.Err())
-				// This case indicates no consumers are pulling items
-				// from the channel. Return to avoid deadlock.
-				case <-putCtx.Done():
-					return trace.Wrap(putCtx.Err())
+				case <-ctx.Done():
+					return trace.Wrap(ctx.Err())
 				}
 			}
 			if len(result.Items) < bufferSize {
 				return nil
 			}
+			pageKey = backend.RangeEnd(result.Items[len(result.Items)-1].Key)
 		}
 	})
 
@@ -146,9 +144,9 @@ func (m *Migration) Run(ctx context.Context) error {
 
 	for item := range itemC {
 		item := item
-		putGroup.Go(func() error {
-			if err := retry(putCtx, 3, func() error {
-				if _, err := m.dst.Put(putCtx, item); err != nil {
+		group.Go(func() error {
+			if err := retry(ctx, 3, func() error {
+				if _, err := m.dst.Put(ctx, item); err != nil {
 					return trace.Wrap(err)
 				}
 				return nil
@@ -158,14 +156,14 @@ func (m *Migration) Run(ctx context.Context) error {
 			m.migrated.Add(1)
 			return nil
 		})
-		if err := putCtx.Err(); err != nil {
+		if err := ctx.Err(); err != nil {
 			break
 		}
 	}
-
-	getErr := getGroup.Wait()
-	putErr := putGroup.Wait()
-	return trace.NewAggregate(getErr, putErr)
+	if err := group.Wait(); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 func retry(ctx context.Context, attempts int, fn func() error) error {
