@@ -31,6 +31,7 @@ import {
 import * as tsh from 'teleterm/services/tshd/types';
 import { ConnectMyComputerContextProvider } from 'teleterm/ui/ConnectMyComputer';
 import { makeDocumentCluster } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
+import { getEmptyPendingAccessRequest } from 'teleterm/ui/services/workspacesService/accessRequestsService';
 
 import { ResourcesContextProvider } from './resourcesContext';
 
@@ -71,7 +72,10 @@ it('displays a button for Connect My Computer in the empty state if the user can
       localClusterUri: doc.clusterUri,
       documents: [doc],
       location: doc.uri,
-      accessRequests: undefined,
+      accessRequests: {
+        pending: getEmptyPendingAccessRequest(),
+        isBarCollapsed: true,
+      },
     };
   });
 
@@ -141,7 +145,10 @@ it('does not display a button for Connect My Computer in the empty state if the 
       localClusterUri: doc.clusterUri,
       documents: [doc],
       location: doc.uri,
-      accessRequests: undefined,
+      accessRequests: {
+        pending: getEmptyPendingAccessRequest(),
+        isBarCollapsed: true,
+      },
     };
   });
 
