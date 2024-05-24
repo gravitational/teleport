@@ -76,7 +76,7 @@ func CreateTAGCacheFile(ctx context.Context) error {
 	// Get information about enterprise apps
 	appResp, err := graphClient.Applications().Get(ctx, nil)
 	if err != nil {
-		panic(err)
+		return trace.Wrap(err)
 	}
 
 	// Authorize to the private API
@@ -122,9 +122,14 @@ func CreateTAGCacheFile(ctx context.Context) error {
 			continue
 		}
 
+		federatedSSOV2Compressed, err := gzipBytes(federatedSSOV2)
+		if err != nil {
+			slog.WarnContext(ctx, "can not compress the FederatedSsoV2 payload", "error", err)
+		}
+
 		cache.AppSsoSettingsCache = append(cache.AppSsoSettingsCache, &types.PluginEntraIDAppSSOSettings{
 			AppId:          *appID,
-			FederatedSsoV2: gzipBytes(federatedSSOV2),
+			FederatedSsoV2: federatedSSOV2Compressed,
 		})
 	}
 
@@ -136,20 +141,18 @@ func CreateTAGCacheFile(ctx context.Context) error {
 }
 
 // gzipBytes compresses the given byte slice, returning the result as a new byte slice.
-func gzipBytes(src []byte) []byte {
+func gzipBytes(src []byte) ([]byte, error) {
 	out := new(bytes.Buffer)
 	writer := gzip.NewWriter(out)
 
 	_, err := io.Copy(writer, bytes.NewReader(src))
-	// We do not expect in-memory bytes I/O to fail.
 	if err != nil {
-		panic(err)
+		return nil, trace.Wrap(err)
 	}
 
 	err = writer.Close()
-	// We do not expect in-memory bytes I/O to fail.
 	if err != nil {
-		panic(err)
+		return nil, trace.Wrap(err)
 	}
-	return out.Bytes()
+	return out.Bytes(), nil
 }
