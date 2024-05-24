@@ -5193,6 +5193,9 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 			log.Error("Failed to parse the TELEPORT_UNSTABLE_CREATEAUDITSTREAM_INFLIGHT_LIMIT envvar, limit will not be enforced.")
 			inflightLimit = -1
 		}
+		if inflightLimit == 0 {
+			log.Warn("TELEPORT_UNSTABLE_CREATEAUDITSTREAM_INFLIGHT_LIMIT is set to 0, no CreateAuditStream RPCs will be allowed.")
+		}
 		metrics.RegisterPrometheusCollectors(
 			createAuditStreamAcceptedTotalMetric,
 			createAuditStreamRejectedTotalMetric,
