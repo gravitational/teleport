@@ -205,6 +205,7 @@ func (s *AccessRequestSuite) SetupSuite() {
 				// submit positive reviews.
 				types.NewRule("access_request", []string{"list", "read", "update"}),
 				types.NewRule("access_plugin_data", []string{"update"}),
+				types.NewRule(types.KindAccessMonitoringRule, []string{"update", "read", "list"}),
 			},
 		},
 	})

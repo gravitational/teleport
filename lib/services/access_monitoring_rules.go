@@ -39,6 +39,7 @@ type AccessMonitoringRules interface {
 	DeleteAccessMonitoringRule(ctx context.Context, name string) error
 	DeleteAllAccessMonitoringRules(ctx context.Context) error
 	ListAccessMonitoringRules(ctx context.Context, limit int, startKey string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
+	ListAccessMonitoringRulesWithFilter(ctx context.Context, pageSize int, nextToken string, subjects []string, notificationName string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
 }
 
 // NewAccessMonitoringRuleWithLabels creates a new AccessMonitoringRule  with the given spec and labels.
@@ -68,6 +69,9 @@ func ValidateAccessMonitoringRule(accessMonitoringRule *accessmonitoringrulesv1.
 	}
 	if accessMonitoringRule.Metadata == nil {
 		return trace.BadParameter("accessMonitoringRule metadata is missing")
+	}
+	if accessMonitoringRule.Version != types.V1 {
+		return trace.BadParameter("accessMonitoringRule %q is not supported", accessMonitoringRule.Version)
 	}
 	if accessMonitoringRule.Spec == nil {
 		return trace.BadParameter("accessMonitoringRule spec is missing")
