@@ -60,12 +60,12 @@ func SetupAndRun(ctx context.Context, appProvider AppProvider) (*ProcessManager,
 		return nil, trace.Wrap(err)
 	}
 	slog.DebugContext(ctx, "Created unix socket for admin subcommand", "socket", socketPath)
-	go func() {
+	pm.AddCriticalBackgroundTask("socket closer", func() error {
 		// Keep the socket open until the process context is canceled.
 		// Closing the socket signals the admin subcommand to terminate.
 		<-processCtx.Done()
-		_ = socket.Close()
-	}()
+		return trace.NewAggregate(processCtx.Err(), socket.Close())
+	})
 
 	pm.AddCriticalBackgroundTask("admin subcommand", func() error {
 		return trace.Wrap(execAdminSubcommand(processCtx, socketPath, ipv6Prefix.String(), dnsIPv6.String()))
