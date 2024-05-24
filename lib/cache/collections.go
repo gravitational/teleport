@@ -1451,11 +1451,11 @@ func (databaseObjectExecutor) upsert(ctx context.Context, cache *Cache, resource
 }
 
 func (databaseObjectExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.databasesCache.DeleteAllDatabases(ctx)
+	return trace.Wrap(cache.databaseObjectsCache.DeleteAllDatabaseObjects(ctx))
 }
 
 func (databaseObjectExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.databasesCache.DeleteDatabase(ctx, resource.GetName())
+	return trace.Wrap(cache.databaseObjectsCache.DeleteDatabaseObject(ctx, resource.GetName()))
 }
 
 func (databaseObjectExecutor) isSingleton() bool { return false }

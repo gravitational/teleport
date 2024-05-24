@@ -538,7 +538,7 @@ type Cache struct {
 	crownJewelsCache             services.CrownJewels
 	databaseServicesCache        services.DatabaseServices
 	databasesCache               services.Databases
-	databaseObjectsCache         services.DatabaseObjects
+	databaseObjectsCache         *local.DatabaseObjectService
 	appSessionCache              services.AppSession
 	snowflakeSessionCache        services.SnowflakeSession
 	samlIdPSessionCache          services.SAMLIdPSession //nolint:revive // Because we want this to be IdP.
