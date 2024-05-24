@@ -40,7 +40,7 @@ On Windows and Linux, some of the default shortcuts conflicted with the default 
 (e.g. Ctrl + E, Ctrl + K).
 On those platforms, the default shortcuts have been changed to a combination of Ctrl + Shift + *.
 We also updated the shortcut to open a new terminal on macOS to Cmd + \`.  
-See [configuration](docs/pages/connect-your-client/teleport-connect.mdx/#configuration)
+See [configuration](docs/pages/connect-your-client/teleport-connect.mdx#configuration)
 for the current list of shortcuts.
 
 ## 15.0.0 (xx/xx/24)
