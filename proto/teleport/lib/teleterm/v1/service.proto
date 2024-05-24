@@ -602,6 +602,8 @@ message ListUnifiedResourcesRequest {
   bool search_as_roles = 8;
   // Only the pinned resources will be returned for the requesting user.
   bool pinned_only = 9;
+  // include_requestable indicates that the response should include resources that the user must request access to.
+  bool include_requestable = 10;
 }
 
 message SortBy {
@@ -625,6 +627,7 @@ message PaginatedResource {
     Kube kube = 3;
     App app = 4;
   }
+  bool requires_request = 5;
 }
 
 message GetUserPreferencesRequest {

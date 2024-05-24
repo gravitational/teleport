@@ -790,9 +790,11 @@ Use Discover Wizard to enroll new resources and access them:
       - [ ] Verify there is list of reviewers you selected (empty list if none selected AND
         suggested_reviewers wasn't defined)
       - [ ] Verify you can't review own requests
-      - [ ] Verify that you can't mix adding resources from different clusters (there should be a
-        warning dialogue that clears the selected list)
+      - [ ] Verify that you can mix adding resources from the root and leaf clusters.
       - [ ] Verify that you can't mix roles and resources into the same request.
+      - [ ] Verify that you can request resources from both the unified view and the search bar.
+      - Change `proxy_service.ui.show_resources` to `accessible_only`.
+        - [ ] Verify that you can now only request resources from the new request tab.
    - **Viewing & Approving/Denying Requests**
       - To setup a test environment, follow the steps laid out in `Viewing & Approving/Denying
         Requests` from the Web UI testplan and then verify the tasks below.
