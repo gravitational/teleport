@@ -24,6 +24,7 @@ import { Link } from 'react-router-dom';
 import { AddCircle } from 'design/Icon';
 import { Box, ButtonPrimary, ButtonText, Flex, Text } from 'design';
 import useStickyClusterId from 'teleport/useStickyClusterId';
+import { useUser } from 'teleport/User/UserContext';
 import { FeatureBox } from 'teleport/components/Layout';
 import { ClusterResources } from 'teleport/UnifiedResources/UnifiedResources';
 import { UnifiedResource } from 'teleport/services/agents';
@@ -33,7 +34,11 @@ import {
   RequestCheckout,
   ResourceMap,
 } from 'shared/components/AccessRequests/NewRequest';
-import { SharedUnifiedResource } from 'shared/components/UnifiedResources';
+import {
+  IncludedResourceMode,
+  SharedUnifiedResource,
+  getResourceAvailabilityFilter,
+} from 'shared/components/UnifiedResources';
 
 import useTeleportE from 'e-teleport/useTeleportE';
 import {
@@ -71,12 +76,18 @@ export function UnifiedResourcesE() {
   const showCheckout =
     numAddedResources > 0 || createAttempt.status === 'success';
 
-  const getActionButton = (resource: UnifiedResource) => {
+  const getActionButton = (
+    resource: UnifiedResource,
+    includedResourceMode: IncludedResourceMode
+  ) => {
     const isAgentAdded =
       !!addedResources[resource.kind][getResourceId(resource)];
     // if we are currently making an access request, all buttons change to
     // add to request
-    const showRequestButton = resource.requiresRequest || showCheckout;
+    const showRequestButton =
+      resource.requiresRequest ||
+      showCheckout ||
+      includedResourceMode === 'requestable';
     const requestStarted = numAddedResources > 0;
 
     if (showRequestButton && resource.kind === 'app') {
@@ -125,6 +136,13 @@ export function UnifiedResourcesE() {
     setAddedResources(newResources);
   }
 
+  const { preferences } = useUser();
+
+  const availabilityFilterFromPreferences = getResourceAvailabilityFilter(
+    preferences?.unifiedResourcePreferences?.availableResourceMode,
+    cfg.ui.showResources === 'requestable'
+  );
+
   return (
     <FeatureBox px={4}>
       <Flex gap={4}>
@@ -150,7 +168,7 @@ export function UnifiedResourcesE() {
             clusterId={clusterId}
             isLeafCluster={isLeafCluster}
             getActionButton={getActionButton}
-            includeRequestable={includeRequestable}
+            availabilityFilter={availabilityFilterFromPreferences}
             showCheckout={showCheckout}
           />
         </ResizingResourceWrapper>
