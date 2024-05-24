@@ -1301,7 +1301,6 @@ func (p *databaseObjectParser) parse(event backend.Event) (types.Resource, error
 	case types.OpPut:
 		//nolint:staticcheck // SA1019. Using this unmarshaler for json compatibility.
 		resource, err := services.FastUnmarshalProtoResourceDeprecated[*dbobjectv1.DatabaseObject](event.Item.Value,
-			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
