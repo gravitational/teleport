@@ -1,0 +1,47 @@
+import React from 'react';
+import { Link as InternalLink } from 'react-router-dom';
+import { Text, ButtonPrimary, Link as ExternalLink } from 'design';
+import { OutlineInfo } from 'design/Alert/Alert';
+import cfg from 'teleport/config';
+
+export function RequiresEnrollingPlugin() {
+  return (
+    <OutlineInfo
+      css={`
+        flex-direction: column;
+        a.external-link {
+          color: ${({ theme }) => theme.colors.buttons.link.default};
+        }
+      `}
+    >
+      <Text>
+        Access Request Notification Rules are only supported for Slack and
+        Mattermost. More integration support coming soon. Check out our{' '}
+        <ExternalLink
+          href="https://goteleport.com/docs/upcoming-releases/"
+          target="_blank"
+          className="external-link"
+        >
+          release
+        </ExternalLink>{' '}
+        page for future updates.
+      </Text>
+      <ButtonPrimary
+        as={InternalLink}
+        to={cfg.getIntegrationEnrollRoute()}
+        size="large"
+        my={2}
+      >
+        Enroll an Integration
+      </ButtonPrimary>
+      or{' '}
+      <ExternalLink
+        href="https://github.com/gravitational/teleport/issues/new?assignees=&labels=feature-request&template=feature_request.md"
+        target="_blank"
+        className="external-link"
+      >
+        Request a feature
+      </ExternalLink>
+    </OutlineInfo>
+  );
+}

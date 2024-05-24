@@ -1,0 +1,277 @@
+import React, { useState, useCallback, useEffect } from 'react';
+import useAttempt from 'shared/hooks/useAttemptNext';
+import { useTheme } from 'styled-components';
+import {
+  Text,
+  Flex,
+  Box,
+  ButtonIcon,
+  ButtonBorder,
+  Alert,
+  ButtonText,
+  Indicator,
+} from 'design';
+import useStickyClusterId from 'teleport/useStickyClusterId';
+import Dialog from 'design/Dialog';
+import { HoverTooltip } from 'shared/components/ToolTip';
+import { Cross } from 'design/Icon';
+import { useKeyBasedPagination } from 'shared/hooks/useInfiniteScroll';
+import { Plugin } from 'teleport/services/integrations';
+import { Theme } from 'design/theme/themes/types';
+import useTeleport from 'teleport/useTeleport';
+
+import {
+  AccessMonitoringRule,
+  AccessMonitoringRuleWithYaml,
+} from 'e-teleport/services/accessmonitoringrule/types';
+import { accessMonitoringRuleService } from 'e-teleport/services/accessmonitoringrule';
+import { pluginsService } from 'e-teleport/services/plugins';
+
+import { NotificationRoutingRuleList } from './NotificationRoutingRuleList';
+import { RuleEditor } from './RuleEditor/RuleEditor';
+
+import type { TransitionStatus } from 'react-transition-group';
+
+export const NotificationRoutingRulesDialog = ({
+  onClose,
+  transitionState,
+}: {
+  onClose(): void;
+  transitionState: TransitionStatus;
+}) => {
+  const ctx = useTeleport();
+  const pluginAccess = ctx.storeUser.getPluginsAccess();
+  const hasPluginAccess = pluginAccess.read;
+  const amRuleAccess = ctx.storeUser.getAccessMonitoringRuleAccess();
+  const hasAmRuleCreateAccess = amRuleAccess.create && hasPluginAccess;
+
+  const theme = useTheme();
+  const { clusterId } = useStickyClusterId();
+  const [showEditor, setShowEditor] = useState(false);
+  const [plugins, setPlugins] = useState<Plugin[]>([]);
+
+  const [viewingRule, setViewingRule] =
+    useState<AccessMonitoringRuleWithYaml>();
+
+  const {
+    attempt: fetchPluginsAttempt,
+    setAttempt: setPluginsAttempt,
+    run: pluginRun,
+  } = useAttempt('processing');
+
+  const fetchRulesFunc = useCallback(async (params, signal) => {
+    const response =
+      await accessMonitoringRuleService.fetchAccessMonitoringRulesForAccessRequests(
+        clusterId,
+        {
+          startKey: params.startKey || undefined,
+          limit: params.limit,
+        },
+        signal
+      );
+    return response;
+  }, []);
+
+  const {
+    fetch: fetchRules,
+    resources: rules,
+    attempt: fetchRulesAttempt,
+    updateFetchedResources,
+  } = useKeyBasedPagination<AccessMonitoringRuleWithYaml>({
+    fetchFunc: fetchRulesFunc,
+    initialFetchSize: 30,
+    fetchMoreSize: 30,
+    dataKey: 'rules',
+  });
+
+  useEffect(() => {
+    if (hasPluginAccess) {
+      fetchPlugins();
+    } else {
+      setPluginsAttempt({ status: 'success' });
+    }
+  }, []);
+
+  function fetchPlugins() {
+    // TODO(lisa): extend as backend support for more plugins
+    // is added. Currently only supports slack and mattermost.
+    pluginRun(() =>
+      pluginsService.fetchPlugins().then(resp => {
+        const filteredPlugins = resp.filter(
+          r => r.kind === 'mattermost' || r.kind === 'slack'
+        );
+        setPlugins(filteredPlugins);
+      })
+    );
+  }
+
+  function toggleViewingRule(rule: AccessMonitoringRuleWithYaml) {
+    if (
+      !viewingRule ||
+      viewingRule.object.metadata.name != rule.object.metadata.name
+    ) {
+      setViewingRule(rule);
+      setShowEditor(true);
+    } else {
+      setViewingRule(null);
+      setShowEditor(false);
+    }
+  }
+
+  function onDelete(deletedRule: AccessMonitoringRule) {
+    updateFetchedResources(
+      rules.filter(r => r.object.metadata.name !== deletedRule.metadata.name)
+    );
+    setShowEditor(false);
+    setViewingRule(null);
+  }
+
+  function onEdit(editedRule: AccessMonitoringRuleWithYaml) {
+    const index = rules.findIndex(
+      a => a.object.metadata.name === editedRule.object.metadata.name
+    );
+    if (index >= 0) {
+      const newResources = [...rules];
+      newResources[index] = editedRule;
+      updateFetchedResources(newResources);
+    } else {
+      updateFetchedResources([...rules, editedRule]);
+    }
+    setShowEditor(false);
+    setViewingRule(null);
+  }
+
+  function handleEditorCancel() {
+    setShowEditor(false);
+    setViewingRule(null);
+  }
+
+  return (
+    <Dialog
+      dialogCss={() => fullScreenDialogCss(theme)}
+      disableEscapeKeyDown={false}
+      open={true}
+      className={transitionState}
+    >
+      <Flex css={{ flex: 1 }}>
+        <Box
+          p={4}
+          css={`
+            overflow: auto;
+            position: relative;
+            right: 0;
+            width: 100%;
+          `}
+        >
+          <Flex alignItems="center" mb={3} justifyContent="space-between">
+            <Flex alignItems="center" mr={3}>
+              <HoverTooltip tipContent="Back to Access Requests">
+                <ButtonIcon onClick={onClose} mr={2} ml={'-8px'}>
+                  <Cross size="medium" />
+                </ButtonIcon>
+              </HoverTooltip>
+              <Text typography="h3" fontWeight={400}>
+                Notification Rules
+              </Text>
+            </Flex>
+            {fetchPluginsAttempt.status === 'success' && (
+              <HoverTooltip
+                tipContent={
+                  hasAmRuleCreateAccess
+                    ? null
+                    : 'You do not have access to create access monitoring rules'
+                }
+              >
+                <ButtonBorder
+                  disabled={
+                    (showEditor && !viewingRule) || !hasAmRuleCreateAccess
+                  }
+                  onClick={() => {
+                    if (showEditor) {
+                      setViewingRule(null);
+                    } else {
+                      setShowEditor(true);
+                    }
+                  }}
+                >
+                  Create a Notification Rule
+                </ButtonBorder>
+              </HoverTooltip>
+            )}
+          </Flex>
+          {fetchPluginsAttempt.status === 'failed' && (
+            <Alert mt={3}>
+              <Flex alignItems="center">
+                <Text>{fetchPluginsAttempt.statusText}</Text>
+                <ButtonText onClick={fetchPlugins} width="100px">
+                  Retry
+                </ButtonText>
+              </Flex>
+            </Alert>
+          )}
+          {fetchPluginsAttempt.status === 'success' && (
+            <NotificationRoutingRuleList
+              attempt={fetchRulesAttempt}
+              fetch={fetchRules}
+              rules={rules}
+              viewingRule={viewingRule?.object}
+              toggleViewingRule={toggleViewingRule}
+            />
+          )}
+          {(fetchRulesAttempt.status === 'processing' ||
+            fetchPluginsAttempt.status === 'processing') && (
+            <Flex justifyContent="center">
+              <Indicator />
+            </Flex>
+          )}
+        </Box>
+        {showEditor && (
+          <RuleEditor
+            // key creates a new component instance when rule changes
+            // instead of updating the mounted component
+            key={viewingRule?.object.metadata.name}
+            selectedRule={viewingRule}
+            onCancel={handleEditorCancel}
+            onEdit={onEdit}
+            onDelete={onDelete}
+            plugins={plugins}
+          />
+        )}
+      </Flex>
+    </Dialog>
+  );
+};
+
+const fullScreenDialogCss = (theme: Theme) => {
+  return `
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  max-height: 100%;
+  right: 0;
+  border-radius: 0;
+  overflow-y: hidden;
+  flex-direction: row;
+  background: ${theme.colors.levels.sunken};
+  transition: width 300ms ease-out;
+
+
+  &.entering {
+    right: -100%;
+  }
+
+  &.entered {
+    right: 0px;
+    transition: right 300ms ease-out;
+  }
+
+  &.exiting {
+    right: -100%;
+    transition: right 300ms ease-out;
+  }
+
+  &.exited {
+    right: -100%;
+  }
+  `;
+};

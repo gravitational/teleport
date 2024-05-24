@@ -1,0 +1,323 @@
+import React from 'react';
+import { components, MultiValueGenericProps } from 'react-select';
+import { Box, Text } from 'design';
+import FieldInput from 'shared/components/FieldInput';
+import { State as Attempt } from 'shared/hooks/useAttemptNext';
+import Validation, { Validator } from 'shared/components/Validation';
+import {
+  FieldSelectCreatable,
+  FieldSelect,
+} from 'shared/components/FieldSelect';
+import useStickyClusterId from 'teleport/useStickyClusterId';
+import { Option } from 'shared/components/Select';
+import { FieldSelectCreatableAsync } from 'shared/components/FieldSelect/FieldSelectCreatable';
+import useTeleport from 'teleport/useTeleport';
+import { Plugin } from 'teleport/services/integrations';
+import { requiredField } from 'shared/components/Validation/rules';
+
+import { AccessMonitoringRuleWithYaml } from 'e-teleport/services/accessmonitoringrule/types';
+import { accessMonitoringRuleService } from 'e-teleport/services/accessmonitoringrule';
+
+import { EditorSaveCancelButton, EditorWrapper } from './Shared';
+
+import {
+  AccessRequestMatchCondition,
+  AccessRequestMatchConditionOption,
+  accessRequestMatchConditionOptions,
+  RuleCondition,
+} from './rulecondition';
+import {
+  buildRuleFromStandardEditor,
+  ConfigurableFieldsForStandardEditor,
+  hasModifiedFields,
+  StandardEditor,
+} from './standardeditor';
+
+export const EditStandard = ({
+  selectedRule,
+  onEdit,
+  onCancel,
+  plugins,
+  standardEditor,
+  onStandardEditorChange,
+  fetchAttempt,
+  yamlIsDirty,
+}: {
+  selectedRule: AccessMonitoringRuleWithYaml;
+  onEdit(r: AccessMonitoringRuleWithYaml): void;
+  onCancel(): void;
+  plugins: Plugin[];
+  standardEditor: StandardEditor;
+  onStandardEditorChange(s: StandardEditor): void;
+  fetchAttempt: Attempt;
+  /**
+   * There's an edge case where the user can add more
+   * fields to the rule resource from the yaml editor
+   * that the standard editor does not read, so if the
+   * yaml is dirty we assume it is always dirty to account
+   * for this edge case.
+   */
+  yamlIsDirty: boolean;
+}) => {
+  const isEditing = !!selectedRule;
+  const ctx = useTeleport();
+  const { attempt, run } = fetchAttempt;
+  const { clusterId } = useStickyClusterId();
+  const { rule, ...configurableFields } = standardEditor;
+  const { ruleCondition, ruleName, recipients, pluginOption } =
+    configurableFields;
+
+  function onSave(validator: Validator) {
+    if (!validator.validate()) {
+      return;
+    }
+
+    if (isEditing) {
+      run(() =>
+        accessMonitoringRuleService
+          .updateAccessMonitoringRule(
+            { name: rule.metadata.name, clusterId },
+            {
+              object: buildRuleFromStandardEditor(standardEditor),
+            }
+          )
+          .then(onEdit)
+      );
+    } else {
+      run(() =>
+        accessMonitoringRuleService
+          .createAccessMonitoringRule(clusterId, {
+            object: buildRuleFromStandardEditor(standardEditor),
+          })
+          .then(onEdit)
+      );
+    }
+  }
+
+  async function fetchRoleOptions(search: string): Promise<Option[]> {
+    const roleAccess = ctx.storeUser.getRoleAccess();
+    if (roleAccess.list && roleAccess.read) {
+      const roles = await ctx.resourceService.fetchRoles({ search, limit: 50 });
+      return roles.items.map(r => ({ value: r.name, label: r.name }));
+    }
+
+    return [];
+  }
+
+  function getLastFilter() {
+    if (ruleCondition?.values?.length > 1) {
+      const lastIndex = ruleCondition.values.length - 1;
+      return ruleCondition.values[lastIndex].value;
+    }
+    return '';
+  }
+
+  function handleStandardEditorChange(
+    modified: Partial<ConfigurableFieldsForStandardEditor>
+  ) {
+    const updatedFields: ConfigurableFieldsForStandardEditor = {
+      ruleName:
+        modified.ruleName === null
+          ? ''
+          : modified.ruleName || standardEditor.ruleName,
+      pluginOption: modified.pluginOption || standardEditor.pluginOption,
+      ruleCondition: modified.ruleCondition || standardEditor.ruleCondition,
+      recipients: modified.recipients || standardEditor.recipients,
+    };
+
+    onStandardEditorChange({
+      ...standardEditor,
+      ...updatedFields,
+      isDirty: hasModifiedFields(
+        updatedFields,
+        selectedRule?.object,
+        yamlIsDirty
+      ),
+    });
+  }
+
+  let notifyStateComponent: JSX.Element;
+  switch (ruleCondition?.field?.value) {
+    case AccessRequestMatchCondition.Roles: {
+      notifyStateComponent = (
+        <SelectCreateRoles
+          getLastFilter={getLastFilter}
+          fetchRoleOptions={fetchRoleOptions}
+          onChangeRuleConditionValues={(values: Option[]) => {
+            handleStandardEditorChange({
+              ruleCondition: {
+                ...ruleCondition,
+                values: values || [],
+              },
+            });
+          }}
+          ruleCondition={ruleCondition}
+          isDisabled={attempt.status === 'processing'}
+        />
+      );
+      break;
+    }
+    // AnyXXX cases does not require a user to select or create
+    // anything.
+    case AccessRequestMatchCondition.AnyRoles:
+  }
+
+  return (
+    <Validation>
+      {({ validator }) => (
+        <>
+          <EditorWrapper mute={!ruleCondition} data-testid="standard">
+            <Box mt={2}>
+              <FieldInput
+                label="Rule Name"
+                placeholder="name"
+                value={ruleName}
+                onChange={e =>
+                  handleStandardEditorChange({
+                    ruleName: e.target.value || null,
+                  })
+                }
+                rule={requiredField('Rule name is required')}
+                readonly={isEditing || attempt.status === 'processing'}
+              />
+              <Box mb={4}>
+                <Text bold mb={2}>
+                  Match Condition
+                </Text>
+                <Box>
+                  <FieldSelect
+                    width="100%"
+                    mb={1}
+                    label="Notification Type"
+                    options={accessRequestMatchConditionOptions}
+                    isDisabled={attempt.status === 'processing'}
+                    onChange={(o: AccessRequestMatchConditionOption) =>
+                      handleStandardEditorChange({
+                        ruleCondition: { field: o, values: undefined },
+                      })
+                    }
+                    value={ruleCondition?.field}
+                  />
+                  {notifyStateComponent}
+                </Box>
+              </Box>
+              <Box>
+                <Text bold mb={2}>
+                  Recipients
+                </Text>
+                <FieldSelect
+                  label="The integration to apply this rule to"
+                  isSearchable={true}
+                  options={plugins.map(p => ({ value: p.name, label: p.name }))}
+                  onChange={(o: Option) =>
+                    handleStandardEditorChange({ pluginOption: o })
+                  }
+                  value={pluginOption}
+                  isDisabled={attempt.status === 'processing'}
+                  placeholder="Select an integration"
+                  mb={1}
+                  rule={requiredField('An integration is required')}
+                />
+                <FieldSelectCreatable
+                  inputId="recipients"
+                  isDisabled={attempt.status === 'processing'}
+                  isMulti
+                  isClearable
+                  isSearchable
+                  label="Recipients to notify"
+                  placeholder="Start typing and press enter"
+                  onChange={(opts: Option[]) =>
+                    handleStandardEditorChange({ recipients: opts || [] })
+                  }
+                  options={recipients ?? []}
+                  value={recipients ?? []}
+                  toolTipContent={
+                    configurableFields.pluginOption
+                      ? getRecipientToolTipInfo(
+                          configurableFields.pluginOption.value
+                        )
+                      : null
+                  }
+                />
+              </Box>
+            </Box>
+          </EditorWrapper>
+          <EditorSaveCancelButton
+            onSave={() => onSave(validator)}
+            onCancel={onCancel}
+            disabled={
+              attempt.status === 'processing' ||
+              !ruleCondition ||
+              !standardEditor.isDirty
+            }
+            isEditing={isEditing}
+          />
+        </>
+      )}
+    </Validation>
+  );
+};
+
+const SelectCreateRoles = ({
+  getLastFilter,
+  fetchRoleOptions,
+  onChangeRuleConditionValues,
+  ruleCondition,
+  isDisabled,
+}: {
+  getLastFilter(): void;
+  fetchRoleOptions(s: string): Promise<Option[]>;
+  onChangeRuleConditionValues(values: Option[]): void;
+  ruleCondition: RuleCondition;
+  isDisabled: boolean;
+}) => {
+  return (
+    <FieldSelectCreatableAsync
+      inputId="roles"
+      width="100%"
+      placeholder="Start typing a role name and press enter"
+      noOptionsMessage={() => 'Start typing a role name and press enter'}
+      label="Name of roles to match"
+      rule={requiredField('At least one role name is required')}
+      isMulti
+      isClearable
+      isSearchable
+      components={{
+        MultiValueContainer,
+      }}
+      customProps={{
+        lastFilter: getLastFilter(),
+      }}
+      options={[]}
+      loadOptions={async input => await fetchRoleOptions(input)}
+      isDisabled={isDisabled}
+      onChange={onChangeRuleConditionValues}
+      value={ruleCondition.values}
+      defaultOptions={true}
+    />
+  );
+};
+
+function getRecipientToolTipInfo(pluginName: string) {
+  const lowerCasedName = pluginName.toLowerCase();
+  if (
+    lowerCasedName.includes('slack') ||
+    lowerCasedName.includes('mattermost')
+  ) {
+    return 'Recipients can be emails and channel names';
+  }
+  return '';
+}
+
+const MultiValueContainer = (props: MultiValueGenericProps) => {
+  const lastFilter = props.selectProps.customProps.lastFilter;
+  const currFilter = props.data.value;
+
+  const isLastFilter = lastFilter === currFilter;
+  return (
+    <>
+      <components.MultiValueContainer {...props} />
+      {lastFilter && !isLastFilter && <Text fontSize={0}>OR</Text>}
+    </>
+  );
+};

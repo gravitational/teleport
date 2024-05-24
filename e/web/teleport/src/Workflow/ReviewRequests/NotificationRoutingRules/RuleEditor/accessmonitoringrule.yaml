@@ -1,0 +1,15 @@
+kind: access_monitoring_rule
+metadata:
+  # define the name of your rule here:
+  name: {{rule.metadata.name}}
+spec:
+  subjects:
+  - access_request
+  # condition is a predicate expression that defines what states
+  # should be met to trigger a notification to the list of recipients.
+  condition: {{rule.condition}}
+  notification:
+    # name of integraiton eg: slack or mattermost
+    name: {{rule.notification.name}}
+    recipients: {{rule.notification.recipients}}
+version: v1
