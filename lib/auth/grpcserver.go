@@ -5810,7 +5810,11 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 
 	if en := os.Getenv("TELEPORT_UNSTABLE_CREATEAUDITSTREAM_INFLIGHT_LIMIT"); en != "" {
-		inflightLimit, _ := strconv.ParseInt(en, 10, 64)
+		inflightLimit, err := strconv.ParseInt(en, 10, 64)
+		if err != nil {
+			log.Error("Failed to parse the TELEPORT_UNSTABLE_CREATEAUDITSTREAM_INFLIGHT_LIMIT envvar, limit will not be enforced.")
+			inflightLimit = -1
+		}
 		metrics.RegisterPrometheusCollectors(
 			createAuditStreamAcceptedTotalMetric,
 			createAuditStreamRejectedTotalMetric,
