@@ -363,7 +363,7 @@ func TestGenericListResourcesWithFilter(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]*testResource{r1}, page,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 	require.Equal(t, nextKey, "")
 
@@ -372,7 +372,7 @@ func TestGenericListResourcesWithFilter(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]*testResource{r2}, page,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 	require.Equal(t, nextKey, "")
 }
