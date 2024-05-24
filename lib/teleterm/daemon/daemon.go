@@ -162,12 +162,8 @@ func (s *Service) retryWithRelogin(ctx context.Context, reloginReq *api.ReloginR
 
 // ListRootClusters returns a list of root clusters
 func (s *Service) ListRootClusters(ctx context.Context) ([]*clusters.Cluster, error) {
-	clusters, err := s.cfg.Storage.ReadAll()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return clusters, nil
+	clusters, err := s.cfg.Storage.ListRootClusters()
+	return clusters, trace.Wrap(err)
 }
 
 // ListLeafClusters returns a list of leaf clusters
