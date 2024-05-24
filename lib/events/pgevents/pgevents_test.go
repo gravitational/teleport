@@ -137,3 +137,46 @@ func TestConfig(t *testing.T) {
 		require.Equal(t, expectedConfig, &actualConfig)
 	}
 }
+
+func TestBuildSchema(t *testing.T) {
+	testLog := utils.NewSlogLoggerForTests()
+
+	testConfig := &Config{
+		Log: testLog,
+	}
+
+	hasDateIndex := func(t require.TestingT, schemasRaw any, args ...any) {
+		require.IsType(t, []string(nil), schemasRaw)
+		schemas := schemasRaw.([]string)
+		require.NotEmpty(t, schemas)
+		require.Contains(t, schemas[0], dateIndex, args...)
+	}
+	hasNoDateIndex := func(t require.TestingT, schemasRaw any, args ...any) {
+		require.IsType(t, []string(nil), schemasRaw)
+		schemas := schemasRaw.([]string)
+		require.NotContains(t, schemas[0], dateIndex, args...)
+	}
+
+	tests := []struct {
+		name         string
+		isCockroach  bool
+		assertSchema require.ValueAssertionFunc
+	}{
+		{
+			name:         "postgres",
+			isCockroach:  false,
+			assertSchema: hasDateIndex,
+		},
+		{
+			name:         "cockroach",
+			isCockroach:  true,
+			assertSchema: hasNoDateIndex,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			schemas, _ := buildSchema(tt.isCockroach, testConfig)
+			tt.assertSchema(t, schemas)
+		})
+	}
+}
