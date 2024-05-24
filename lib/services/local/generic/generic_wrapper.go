@@ -132,3 +132,20 @@ func (s ServiceWrapper[T]) ListResources(ctx context.Context, pageSize int, page
 	}
 	return out, nextToken, trace.Wrap(err)
 }
+
+// ListResourcesWithFilter returns a paginated list of resources that match the provided filter.
+func (s ServiceWrapper[T]) ListResourcesWithFilter(ctx context.Context, pageSize int, pageToken string, matcher func(T) bool) ([]T, string, error) {
+	adapters, nextToken, err := s.service.ListResourcesWithFilter(
+		ctx,
+		pageSize,
+		pageToken,
+		func(rma resourceMetadataAdapter[T]) bool {
+			return matcher(rma.resource)
+		})
+
+	out := make([]T, 0, len(adapters))
+	for _, adapter := range adapters {
+		out = append(out, adapter.resource)
+	}
+	return out, nextToken, trace.Wrap(err)
+}

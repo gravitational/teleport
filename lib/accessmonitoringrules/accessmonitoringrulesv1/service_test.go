@@ -48,9 +48,10 @@ func TestAccessMonitoringRuleCRUD(t *testing.T) {
 
 	ctx, localClient, resourceSvc := initSvc(t, clusterName)
 
-	sampleAccessMonitoringRuleFn := func(t *testing.T, name string) *accessmonitoringrulev1.AccessMonitoringRule {
+	sampleAccessMonitoringRuleFn := func(name string) *accessmonitoringrulev1.AccessMonitoringRule {
 		return &accessmonitoringrulev1.AccessMonitoringRule{
 			Kind:     types.KindAccessMonitoringRule,
+			Version:  types.V1,
 			Metadata: &v1.Metadata{Name: name},
 			Spec: &accessmonitoringrulev1.AccessMonitoringRuleSpec{
 				Subjects:  []string{"someSubject"},
@@ -76,7 +77,7 @@ func TestAccessMonitoringRuleCRUD(t *testing.T) {
 				}}},
 			},
 			Setup: func(t *testing.T, amrName string) {
-				_, err := localClient.CreateAccessMonitoringRule(ctx, sampleAccessMonitoringRuleFn(t, amrName))
+				_, err := localClient.CreateAccessMonitoringRule(ctx, sampleAccessMonitoringRuleFn(amrName))
 				require.NoError(t, err)
 			},
 			Test: func(ctx context.Context, resourceSvc *Service, amrName string) error {
@@ -126,7 +127,7 @@ func TestAccessMonitoringRuleCRUD(t *testing.T) {
 			},
 			Setup: func(t *testing.T, _ string) {
 				for i := 0; i < 10; i++ {
-					_, err := localClient.CreateAccessMonitoringRule(ctx, sampleAccessMonitoringRuleFn(t, uuid.NewString()))
+					_, err := localClient.CreateAccessMonitoringRule(ctx, sampleAccessMonitoringRuleFn(uuid.NewString()))
 					require.NoError(t, err)
 				}
 			},
@@ -162,7 +163,7 @@ func TestAccessMonitoringRuleCRUD(t *testing.T) {
 			Name: "no access to create AccessMonitoringRules",
 			Role: types.RoleSpecV6{},
 			Test: func(ctx context.Context, resourceSvc *Service, amrName string) error {
-				amr := sampleAccessMonitoringRuleFn(t, amrName)
+				amr := sampleAccessMonitoringRuleFn(amrName)
 				_, err := resourceSvc.CreateAccessMonitoringRule(ctx, &accessmonitoringrulev1.CreateAccessMonitoringRuleRequest{
 					Rule: amr,
 				})
@@ -179,7 +180,7 @@ func TestAccessMonitoringRuleCRUD(t *testing.T) {
 				}}},
 			},
 			Test: func(ctx context.Context, resourceSvc *Service, amrName string) error {
-				amr := sampleAccessMonitoringRuleFn(t, amrName)
+				amr := sampleAccessMonitoringRuleFn(amrName)
 				_, err := resourceSvc.CreateAccessMonitoringRule(ctx, &accessmonitoringrulev1.CreateAccessMonitoringRuleRequest{
 					Rule: amr,
 				})
@@ -193,7 +194,7 @@ func TestAccessMonitoringRuleCRUD(t *testing.T) {
 			Name: "no access to update AccessMonitoringRule",
 			Role: types.RoleSpecV6{},
 			Test: func(ctx context.Context, resourceSvc *Service, amrName string) error {
-				amr := sampleAccessMonitoringRuleFn(t, amrName)
+				amr := sampleAccessMonitoringRuleFn(amrName)
 				_, err := resourceSvc.UpdateAccessMonitoringRule(ctx, &accessmonitoringrulev1.UpdateAccessMonitoringRuleRequest{
 					Rule: amr,
 				})
@@ -210,11 +211,11 @@ func TestAccessMonitoringRuleCRUD(t *testing.T) {
 				}}},
 			},
 			Setup: func(t *testing.T, amrName string) {
-				_, err := localClient.CreateAccessMonitoringRule(ctx, sampleAccessMonitoringRuleFn(t, amrName))
+				_, err := localClient.CreateAccessMonitoringRule(ctx, sampleAccessMonitoringRuleFn(amrName))
 				require.NoError(t, err)
 			},
 			Test: func(ctx context.Context, resourceSvc *Service, amrName string) error {
-				amr := sampleAccessMonitoringRuleFn(t, amrName)
+				amr := sampleAccessMonitoringRuleFn(amrName)
 				_, err := resourceSvc.UpdateAccessMonitoringRule(ctx, &accessmonitoringrulev1.UpdateAccessMonitoringRuleRequest{
 					Rule: amr,
 				})
@@ -233,7 +234,7 @@ func TestAccessMonitoringRuleCRUD(t *testing.T) {
 				}}},
 			},
 			Test: func(ctx context.Context, resourceSvc *Service, amrName string) error {
-				amr := sampleAccessMonitoringRuleFn(t, amrName)
+				amr := sampleAccessMonitoringRuleFn(amrName)
 				_, err := resourceSvc.UpsertAccessMonitoringRule(ctx, &accessmonitoringrulev1.UpsertAccessMonitoringRuleRequest{
 					Rule: amr,
 				})
@@ -251,7 +252,7 @@ func TestAccessMonitoringRuleCRUD(t *testing.T) {
 			},
 			Setup: func(t *testing.T, amrName string) {},
 			Test: func(ctx context.Context, resourceSvc *Service, amrName string) error {
-				amr := sampleAccessMonitoringRuleFn(t, amrName)
+				amr := sampleAccessMonitoringRuleFn(amrName)
 				_, err := resourceSvc.UpsertAccessMonitoringRule(ctx, &accessmonitoringrulev1.UpsertAccessMonitoringRuleRequest{
 					Rule: amr,
 				})
@@ -279,7 +280,7 @@ func TestAccessMonitoringRuleCRUD(t *testing.T) {
 				}}},
 			},
 			Setup: func(t *testing.T, amrName string) {
-				_, err := localClient.CreateAccessMonitoringRule(ctx, sampleAccessMonitoringRuleFn(t, amrName))
+				_, err := localClient.CreateAccessMonitoringRule(ctx, sampleAccessMonitoringRuleFn(amrName))
 				require.NoError(t, err)
 			},
 			Test: func(ctx context.Context, resourceSvc *Service, amrName string) error {
