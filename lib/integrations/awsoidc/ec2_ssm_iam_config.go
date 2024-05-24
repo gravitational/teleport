@@ -135,6 +135,7 @@ func NewEC2SSMConfigureClient(ctx context.Context, region string) (EC2SSMConfigu
 // Action: Run a command and get its output.
 //   - ssm:SendCommand
 //   - ssm:GetCommandInvocation
+//   - ssm:ListCommandInvocations
 //
 // Besides setting up the required IAM policies, this method also adds the SSM Document.
 // This SSM Document downloads and runs the Teleport Installer Script, which installs teleport in the target EC2 instance.

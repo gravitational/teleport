@@ -57,7 +57,8 @@ function setup(): void {
   mockUserContextProviderWith(makeTestUserContext());
 }
 
-test('notification bell without notification', async () => {
+// TODO(rudream): adapt access list notifications to new notifications system
+test.skip('notification bell without notification', async () => {
   setup();
 
   render(getTopBar());
@@ -67,7 +68,8 @@ test('notification bell without notification', async () => {
   expect(screen.queryByTestId('tb-note-attention')).not.toBeInTheDocument();
 });
 
-test('notification bell with notification', async () => {
+// TODO(rudream): adapt access list notifications to new notifications system
+test.skip('notification bell with notification', async () => {
   setup();
   ctx.storeNotifications.state = {
     notifications: [

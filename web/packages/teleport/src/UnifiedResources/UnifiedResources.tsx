@@ -33,7 +33,6 @@ import { ClusterDropdown } from 'shared/components/ClusterDropdown/ClusterDropdo
 import { DefaultTab } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 
 import useStickyClusterId from 'teleport/useStickyClusterId';
-import { storageService } from 'teleport/services/storageService';
 import { useUser } from 'teleport/User/UserContext';
 import { useTeleport } from 'teleport';
 import { useUrlFiltering } from 'teleport/components/hooks';
@@ -113,7 +112,6 @@ export function ClusterResources({
 
   useNoMinWidth();
 
-  const pinningNotSupported = storageService.arePinnedResourcesDisabled();
   const {
     getClusterPinnedResources,
     preferences,
@@ -139,13 +137,11 @@ export function ClusterResources({
   const updateCurrentClusterPinnedResources = (pinnedResources: string[]) =>
     updateClusterPinnedResources(clusterId, pinnedResources);
 
-  const pinning: UnifiedResourcesPinning = pinningNotSupported
-    ? { kind: 'not-supported' }
-    : {
-        kind: 'supported',
-        updateClusterPinnedResources: updateCurrentClusterPinnedResources,
-        getClusterPinnedResources: getCurrentClusterPinnedResources,
-      };
+  const pinning: UnifiedResourcesPinning = {
+    kind: 'supported',
+    updateClusterPinnedResources: updateCurrentClusterPinnedResources,
+    getClusterPinnedResources: getCurrentClusterPinnedResources,
+  };
 
   const { fetch, resources, attempt, clear } = useUnifiedResourcesFetch({
     fetchFunc: useCallback(

@@ -27,12 +27,13 @@ option (gogoproto.marshaler_all) = true;
 option (gogoproto.unmarshaler_all) = true;
 
 message KeepAlive {
+  reserved 3; // LeaseID
+  reserved "LeaseID";
+
   // Name of the resource to keep alive.
   string Name = 1 [(gogoproto.jsontag) = "server_name"];
   // Namespace is the namespace of the resource.
   string Namespace = 2 [(gogoproto.jsontag) = "namespace"];
-  // LeaseID is ID of the lease.
-  int64 LeaseID = 3 [(gogoproto.jsontag) = "lease_id"];
   // Expires is set to update expiry time of the resource.
   google.protobuf.Timestamp Expires = 4 [
     (gogoproto.stdtime) = true,
@@ -69,6 +70,9 @@ message KeepAlive {
 
 // Metadata is resource metadata
 message Metadata {
+  reserved 7; // ID
+  reserved "ID";
+
   // Name is an object name
   string Name = 1 [(gogoproto.jsontag) = "name"];
   // Namespace is object namespace. The field should be called "namespace"
@@ -84,12 +88,6 @@ message Metadata {
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "expires,omitempty"
-  ];
-  // ID is a record ID.
-  // Deprecated: Use revision instead.
-  int64 ID = 7 [
-    deprecated = true,
-    (gogoproto.jsontag) = "id,omitempty"
   ];
   // Revision is an opaque identifier which tracks the versions of a resource
   // over time. Clients should ignore and not alter its value but must return
@@ -4361,6 +4359,9 @@ message OIDCConnectorSpecV3 {
     (gogoproto.jsontag) = "",
     (gogoproto.embed) = true
   ];
+  // ClientRedirectSettings defines which client redirect URLs are allowed for
+  // non-browser SSO logins other than the standard localhost ones.
+  SSOClientRedirectSettings ClientRedirectSettings = 18 [(gogoproto.jsontag) = "client_redirect_settings,omitempty"];
 }
 
 // MaxAge allows the max_age parameter to be nullable to preserve backwards
@@ -4370,6 +4371,13 @@ message MaxAge {
     (gogoproto.jsontag) = "max_age",
     (gogoproto.casttype) = "Duration"
   ];
+}
+
+// SSOClientRedirectSettings contains settings to define which additional client
+// redirect URLs should be allowed for non-browser SSO logins.
+message SSOClientRedirectSettings {
+  // a list of hostnames allowed for https client redirect URLs
+  repeated string allowed_https_hostnames = 1;
 }
 
 // OIDCAuthRequest is a request to authenticate with OIDC
@@ -4515,6 +4523,9 @@ message SAMLConnectorSpecV2 {
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "allow_idp_initiated,omitempty"
   ];
+  // ClientRedirectSettings defines which client redirect URLs are allowed for
+  // non-browser SSO logins other than the standard localhost ones.
+  SSOClientRedirectSettings ClientRedirectSettings = 15 [(gogoproto.jsontag) = "client_redirect_settings,omitempty"];
 }
 
 // SAMLAuthRequest is a request to authenticate with SAML
@@ -4653,6 +4664,9 @@ message GithubConnectorSpecV3 {
   // APIEndpointURL is the URL of the API endpoint of the Github instance
   // this connector is for.
   string APIEndpointURL = 8 [(gogoproto.jsontag) = "api_endpoint_url"];
+  // ClientRedirectSettings defines which client redirect URLs are allowed for
+  // non-browser SSO logins other than the standard localhost ones.
+  SSOClientRedirectSettings ClientRedirectSettings = 9 [(gogoproto.jsontag) = "client_redirect_settings,omitempty"];
 }
 
 // GithubAuthRequest is the request to start Github OAuth2 flow.
