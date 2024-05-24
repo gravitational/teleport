@@ -33,6 +33,8 @@ import (
 
 func TestUsageReporter(t *testing.T) {
 	eventConsumer := fakeEventConsumer{}
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
 
 	validCluster := uri.NewClusterURI("foo")
 	clusterWithoutClient := uri.NewClusterURI("no-client")
@@ -59,20 +61,20 @@ func TestUsageReporter(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify that reporting the same app twice adds only one usage event.
-	err = usageReporter.ReportApp(context.Background(), validCluster.AppendApp("app"))
+	err = usageReporter.ReportApp(ctx, validCluster.AppendApp("app"))
 	require.NoError(t, err)
-	err = usageReporter.ReportApp(context.Background(), validCluster.AppendApp("app"))
+	err = usageReporter.ReportApp(ctx, validCluster.AppendApp("app"))
 	require.NoError(t, err)
 	require.Equal(t, 1, eventConsumer.EventCount())
 
 	// Verify that reporting an invalid cluster doesn't submit an event.
-	err = usageReporter.ReportApp(context.Background(), clusterWithoutClient.AppendApp("bar"))
+	err = usageReporter.ReportApp(ctx, clusterWithoutClient.AppendApp("bar"))
 	require.True(t, trace.IsNotFound(err), "Not a NotFound error: %#v", err)
 	require.Equal(t, 1, eventConsumer.EventCount())
-	err = usageReporter.ReportApp(context.Background(), clusterWithoutProfile.AppendApp("bar"))
+	err = usageReporter.ReportApp(ctx, clusterWithoutProfile.AppendApp("bar"))
 	require.True(t, trace.IsNotFound(err), "Not a NotFound error: %#v", err)
 	require.Equal(t, 1, eventConsumer.EventCount())
-	err = usageReporter.ReportApp(context.Background(), clusterWithoutClusterID.AppendApp("bar"))
+	err = usageReporter.ReportApp(ctx, clusterWithoutClusterID.AppendApp("bar"))
 	require.ErrorIs(t, err, trace.NotFound("cluster ID for \"/clusters/no-cluster-id\" not found"))
 	require.Equal(t, 1, eventConsumer.EventCount())
 }
