@@ -31,6 +31,12 @@ to Teleport Enterprise customers.
     and must list the IP or DNS name of the TAG service in an X.509 v3 `subjectAltName` extension.
 - The node running the Access Graph service must be reachable from Teleport Auth Service and Proxy Service.
 
+<Notice type="warning">
+    The deployment with Docker is suitable for testing and development purposes. For production deployments,
+    consider using a container orchestration system like Kubernetes and Helm.
+    Refer to [Helm chart for Access Graph](self-hosted-helm.mdx) for instructions.
+</Notice>
+
 ## Step 1/3. Set up the Teleport Access Graph service
 
 You will need a copy of your Teleport cluster's host certificate authority (CA) on the machine that hosts the Access Graph service.
@@ -43,7 +49,8 @@ The host CA can be retrieved and saved into a file in one of the following ways:
 ```code
 $ sudo mkdir /etc/access_graph
 $ curl -s 'https://<Var name="teleport.example.com" />/webapi/auth/export?type=tls-host' | sudo tee /etc/access_graph/teleport_host_ca.pem
-```
+$ sudo chmod +r /etc/access_graph/teleport_host_ca.pem # Set the correct permissions for the file so that the TAG service can read it.
+    ```
 </TabItem>
 
 <TabItem label="Via tctl">
@@ -53,6 +60,7 @@ $ tsh login --proxy=<Var name="teleport.example.com" />
 $ tctl get cert_authorities --format=json \
     | jq -r '.[] | select(.spec.type == "host") | .spec.active_keys.tls[].cert' \
     | base64 -d | sudo tee /etc/access_graph/teleport_host_ca.pem
+$ sudo chmod +r /etc/access_graph/teleport_host_ca.pem # Set the correct permissions for the file so that the TAG service can read it.
 ```
 </TabItem>
 </Tabs>
