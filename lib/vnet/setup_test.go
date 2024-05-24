@@ -46,9 +46,9 @@ func TestProcessManager_ReturnWithError(t *testing.T) {
 	pm, pmCtx := newProcessManager()
 	defer pm.Close()
 
-	taskErr := fmt.Errorf("lorem ipsum dolor sit amet")
+	expectedErr := fmt.Errorf("lorem ipsum dolor sit amet")
 	pm.AddCriticalBackgroundTask("return with error", func() error {
-		return taskErr
+		return expectedErr
 	})
 	pm.AddCriticalBackgroundTask("context-aware task", func() error {
 		<-pmCtx.Done()
@@ -56,7 +56,7 @@ func TestProcessManager_ReturnWithError(t *testing.T) {
 	})
 
 	err := pm.Wait()
-	require.ErrorIs(t, err, taskErr)
+	require.ErrorIs(t, err, expectedErr)
 	require.ErrorIs(t, err, context.Cause(pmCtx))
 }
 
