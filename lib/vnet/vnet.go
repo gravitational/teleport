@@ -380,7 +380,6 @@ func (m *Manager) handleTCP(req *tcp.ForwarderRequest) {
 		var wq waiter.Queue
 		waitEntry, notifyCh := waiter.NewChannelEntry(waiter.EventErr | waiter.EventHUp)
 		wq.EventRegister(&waitEntry)
-		defer wq.EventUnregister(&waitEntry)
 
 		endpoint, err := req.CreateEndpoint(&wq)
 		if err != nil {
@@ -393,22 +392,23 @@ func (m *Manager) handleTCP(req *tcp.ForwarderRequest) {
 
 		endpoint.SocketOptions().SetKeepAlive(true)
 
-		conn, connClosed := newConnWithCloseNotifier(gonet.NewTCPConn(&wq, endpoint))
+		conn := gonet.NewTCPConn(&wq, endpoint)
 
 		m.wg.Add(1)
 		go func() {
-			defer m.wg.Done()
+			defer func() {
+				cancel()
+				conn.Close()
+				m.wg.Done()
+			}()
 			select {
-			case <-connClosed:
-				// Conn is already being closed, nothing to do.
-				return
 			case <-notifyCh:
-				slog.DebugContext(ctx, "Got HUP or ERR, closing TCP conn.")
+				slog.DebugContext(ctx, "Got HUP or ERR, canceling request context and closing TCP conn.")
 			case <-m.destroyed:
-				slog.DebugContext(ctx, "VNet is being destroyed, closing TCP conn.")
+				slog.DebugContext(ctx, "VNet is being destroyed, canceling request context and closing TCP conn.")
+			case <-ctx.Done():
+				slog.DebugContext(ctx, "Request context canceled, closing TCP conn.")
 			}
-			cancel()
-			conn.Close()
 		}()
 
 		return conn, nil
@@ -474,6 +474,9 @@ func (m *Manager) handleUDPConcurrent(req *udp.ForwarderRequest) {
 	}
 
 	var wq waiter.Queue
+	waitEntry, notifyCh := waiter.NewChannelEntry(waiter.EventErr | waiter.EventHUp)
+	wq.EventRegister(&waitEntry)
+
 	endpoint, err := req.CreateEndpoint(&wq)
 	if err != nil {
 		slog.ErrorContext(ctx, "Failed to create UDP endpoint.", "error", err)
@@ -482,6 +485,23 @@ func (m *Manager) handleUDPConcurrent(req *udp.ForwarderRequest) {
 
 	conn := gonet.NewUDPConn(m.stack, &wq, endpoint)
 	defer conn.Close()
+
+	m.wg.Add(1)
+	go func() {
+		defer func() {
+			cancel()
+			conn.Close()
+			m.wg.Done()
+		}()
+		select {
+		case <-notifyCh:
+			slog.DebugContext(ctx, "Got HUP or ERR, canceling request context and closing UDP conn.")
+		case <-m.destroyed:
+			slog.DebugContext(ctx, "VNet is being destroyed, canceling request context and closing UDP conn.")
+		case <-ctx.Done():
+			slog.DebugContext(ctx, "Request context canceled, closing UDP conn.")
+		}
+	}()
 
 	if err := handler.HandleUDP(ctx, conn); err != nil {
 		slog.DebugContext(ctx, "Error handling UDP conn.", "error", err)
@@ -683,23 +703,4 @@ func u32ToBytes(i uint32) []byte {
 	bytes[2] = byte(i >> 8)
 	bytes[3] = byte(i >> 0)
 	return bytes
-}
-
-// newConnWithCloseNotifier returns a net.Conn and a channel that will be closed when the conn is closed.
-func newConnWithCloseNotifier(conn *gonet.TCPConn) (net.Conn, <-chan struct{}) {
-	ch := make(chan struct{})
-	return &connWithCloseNotifier{
-		TCPConn:   conn,
-		closeOnce: sync.OnceFunc(func() { close(ch) }),
-	}, ch
-}
-
-type connWithCloseNotifier struct {
-	*gonet.TCPConn
-	closeOnce func()
-}
-
-func (c *connWithCloseNotifier) Close() error {
-	c.closeOnce()
-	return c.TCPConn.Close()
 }

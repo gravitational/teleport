@@ -22,6 +22,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"log/slog"
+	"sync"
 
 	"github.com/gravitational/trace"
 
@@ -39,6 +40,7 @@ type vnetAppProvider struct {
 	cf          *CLIConf
 	clientStore *client.Store
 	clientCache *clientcache.Cache
+	loginMu     sync.Mutex
 }
 
 func newVnetAppProvider(cf *CLIConf) (*vnetAppProvider, error) {
@@ -130,8 +132,21 @@ func (p *vnetAppProvider) retryWithRelogin(ctx context.Context, tc *client.Telep
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	didLock := false
+	defer func() {
+		if didLock {
+			p.loginMu.Unlock()
+		}
+	}()
+
 	opts = append(opts,
 		client.WithBeforeLoginHook(func() error {
+			if p.loginMu.TryLock() {
+				didLock = true
+			} else {
+				return fmt.Errorf("Not attempting re-login to cluster %s, currently logging into another cluster.", tc.SiteName)
+			}
 			fmt.Printf("Login for cluster %s expired, attempting to log in again.\n", tc.SiteName)
 			return nil
 		}),
