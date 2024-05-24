@@ -4,27 +4,30 @@ message: "Do not include a Tabs component within a TabItem, as it creates a poor
 scope: raw
 script: |
   text := import("text")
-  lines := text.split(scope, "\n")
+  fmt := import("fmt")
+  lines := text.re_find(`[^\n]*\n`, scope, -1)
   getMatches := func() {
     inTabItem := false
     offset := 0
-    for l in lines {
-      if !inTabItem && text.re_match(`^\s*<TabItem`, l) {
+    for n, l in lines {
+      line := l[0].text
+      if !inTabItem && text.re_match(`^\s*<TabItem`, line) {
+        fmt.println(line)
         inTabItem = true
       }
   
-      if inTabItem && text.re_match(`^\s*</TabItem`, l) {
+      if inTabItem && text.re_match(`^\s*</TabItem`, line) {
+        fmt.println(line)
         inTabItem = false
       }
   
-      if inTabItem && text.re_match(`^\s*<Tabs`, l) {
+      if inTabItem && text.re_match(`^\s*<Tabs`, line) {
+        fmt.println("bad line:", n, line)
         return [{
-          begin: offset,
-          end: offset+len(l)
+          begin: l[0].begin,
+          end: l[0].end
         }]
       }
-      // Advance the offset by the length of the line plus the "\n" char.
-      offset += len(l)+1
     }
   }
       
