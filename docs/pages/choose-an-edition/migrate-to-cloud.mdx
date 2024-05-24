@@ -1,15 +1,14 @@
 ---
-title: Migrating from Teleport Enterprise (Self-Hosted) to Teleport Enterprise (Cloud-Hosted)
+title: Migrating from Self-Hosted to Cloud-Hosted Teleport Enterprise
 description: How to migrate from Teleport Enterprise (self-hosted) to Teleport Enterprise (cloud-hosted).
 h1: Migrate to Cloud-Hosted Teleport Enterprise 
 ---
 
-Migrating from a Teleport Enterprise (self-hosted) deployment to Teleport
-Enterprise (cloud-hosted) offers scalability, reliability, and ease of
+Migrating from a self-hosted Teleport Enterprise  deployment to a cloud-hosted
+Teleport Enterprise deployment offers scalability, reliability, and ease of
 management. By following the steps outlined in this guide, you can transition
-your Teleport Enterprise (self-hosted) deployment to Teleport Enterprise
-(cloud-hosted) successfully while ensuring minimal disruption to your
-operations.
+your Teleport deployment to the cloud successfully while ensuring minimal
+disruption to your operations.
 
 ## How it works
 
@@ -38,36 +37,40 @@ Enterprise cluster:
   operator](./management/dynamic-resources/teleport-operator-standalone.mdx), in
   addition to custom scripts that use the [Teleport API](./api/introduction.mdx)
   to manage the Teleport Auth Service backend.
+- An account with no trusted clusters enrolled. Trusted clusters are not
+  supported in cloud-hosted Teleport Enterprise accounts. You will not be able
+  to migrate trusted cluster resources.
 
-## Step 1/4. Deploy your Teleport Enterprise (cloud-hosted) cluster
+## Step 1/4. Deploy your cloud-hosted Teleport Enterprise cluster
 
 1. Determine the `teleport.sh` subdomain you would like to use for your new
-   Teleport Enterprise (cloud-hosted) account. 
+   cloud-hosted Teleport Enterprise account. 
 
-1. If your existing Teleport Enterprise (self-hosted) license dashboard is
+1. If the license dashboard for your self-hosted Teleport Enterprise cluster is
    already using your desired subdomain, you can contact Teleport Support to
    free up the domain for re-use.
 
    [Reach out](https://goteleport.com/signup/enterprise/) to your Account
-   Management team to set up your Teleport Enterprise (cloud-hosted) tenant.
+   Management team to set up your cloud-hosted Teleport Enterprise tenant.
 
 1. Ensure you are running Teleport Enterprise agents with versions that are
-   lower than the Teleport Enterprise (cloud-hosted) tenant version. To check
-   the versions of your Teleport Enterprise agents, you can use the `tctl`
-   command to list the inventory of connected agents and their version:
+   lower than the cloud-hosted Teleport Enterprise tenant version. To check the
+   versions of your Teleport Enterprise agents, you can use the `tctl` command
+   to list the inventory of connected agents and their version:
 
    ```code  
    $ tctl inventory ls --older-than=<version>
    ```
 
-Validate connectivity to both the newly deployed Teleport Enterprise
-(cloud-hosted) cluster and your existing Teleport Enterprise (self-hosted)
-cluster. You should be able to connect to both Teleport clusters and execute
-`tctl` commands using your current credentials.
+Validate connectivity to both the new cloud-hosted Teleport Enterprise cluster
+and your self-hosted Teleport Enterprise cluster. You should be able to connect
+to both Teleport clusters and execute `tctl` commands using your current
+credentials.
 
 1. Log in to the self-hosted Teleport Enterprise cluster:
 
    ```code
+   # Use the --auth flag instead of --user to log in with Single Sign-On.
    $ tsh login --proxy=<Var name="enterprise.example.com" /> --user=<Var name="myuser" />
    $ tctl status
    ```
@@ -75,19 +78,23 @@ cluster. You should be able to connect to both Teleport clusters and execute
 1. Log in to the cloud-hosted Teleport Enterprise cluster:
 
    ```code
+   # Use the --auth flag instead of --user to log in with Single Sign-On.
    $ tsh login --proxy=<Var name="example.teleport.sh" /> --user=<Var name="myuser" />
    $ tctl status
    ```
 
 1. Subscribe to the [Teleport Enterprise status
    website](https://status.teleport.sh/) to stay current on any issues impacting
-   Teleport Enterprise (cloud-hosted) performance.
+   the performance of your cloud-hosted cluster.
 
 <Notice
   type="danger"
 >
 
-  Ensure that the recovery codes displayed when you first set up your Teleport Enterprise (cloud-hosted) tenant are saved securely, so as not to lose access. For your security, Teleport Support cannot assist with resetting passwords or recovering lost credentials.
+  Ensure that the recovery codes displayed when you first set up your
+  cloud-hosted Teleport Enterprise tenant are saved securely, so as not to lose
+  access. For your security, Teleport Support cannot assist with resetting
+  passwords or recovering lost credentials.
 
 </Notice>
 
@@ -112,35 +119,36 @@ resources includes:
 - `dbs`
 - `login_rule`
 
-<Admonition
-  type="tip"
-  title="Note"
->
-
-  Trusted clusters are not supported on Teleport Enterprise (cloud-hosted). You
-  will not be able to migrate trusted cluster resources.
-
-</Admonition>
-
 If you are using infrastructure-as-code tools to 
 To achieve this:
-- Log in to your existing Teleport Enterprise (self-hosted) Cluster and export a collection of the above-mentioned dynamic resource configuration using the `tctl` administrative tool.  An example is shown below:
 
-```code
-$ tsh login --proxy=teleport.example.com --user=admin@example.com
-$ tctl get roles > roles.yaml 
-$ tctl get users > users.yaml 
-```
+1. Log in to your existing Teleport Enterprise (self-hosted) cluster and export
+   a collection of the above-mentioned dynamic resource configuration using the
+   `tctl` administrative tool.  An example is shown below:
 
-- Once you have the resource configuration file from the above, proceed to log in to your Teleport Enterprise (cloud-hosted) tenant with an admin user and create the resources from the exported files:
+   ```code
+   # Use the --auth flag instead of --user to log in with Single Sign-On.
+   $ tsh login --proxy=teleport.example.com --user=admin@example.com
+   $ tctl get roles > roles.yaml 
+   $ tctl get users > users.yaml 
+   ```
 
-```code
-$ tsh login --proxy=example.teleport.sh --user=admin@example.com
-$ tctl create -f roles.yaml
-$ tctl create -f user.yaml
-```
+1. Once you have the resource configuration file from the above, proceed to log
+   in to your cloud-hosted Teleport Enterprise tenant with an admin user and
+   create the resources from the exported files:
 
-For your SSO auth connector, most SSO integrations only work for a single configured endpoint. It is recommended to create a separate SSO connector in your Identity Provider specifically for the Teleport Enterprise (cloud-hosted) endpoint, and configure a new Auth Connector in the Teleport Enterprise (cloud-hosted) tenant.
+   ```code
+   # Use the --auth flag instead of --user to log in with Single Sign-On.
+   $ tsh login --proxy=example.teleport.sh --user=admin@example.com
+   $ tctl create -f roles.yaml
+   $ tctl create -f user.yaml
+   ```
+
+For your SSO auth connector, most SSO integrations only work for a single
+configured endpoint. It is recommended to create a separate SSO connector in
+your Identity Provider specifically for the cloud-hosted Teleport Enterprise
+endpoint, and configure a new Auth Connector in the cloud-hosted Teleport
+Enterprise tenant.
 
 ## Step 3/4. Migrate Teleport services and plugins
 
@@ -190,15 +198,24 @@ To migrate Teleport agents:
 1. Stop Teleport services on the agent (if applicable).
 
 1. Update the `proxy_server` or `auth_servers` field in the agent configuration
-   file to point to the address of your Teleport Enterprise (cloud-hosted)
+   file to point to the address of your cloud-hosted Teleport Enterprise
    cluster. By default, on Linux servers, the configuration is located in the
-   `/etc/teleport.yaml` directory.
+   `/etc/teleport.yaml` directory:
 
    ```yaml
    version: v3
    teleport:
       proxy_server: example.teleport.sh:443
    ```
+
+   If your agent configuration does _not_ include a `teleport.proxy_server`
+   field, and instead has a `teleport.auth_server` or `teleport.auth_servers`
+   field, we recommend migrating your configuration to `version: v3` and using
+   `teleport.proxy_server`. 
+
+   With the `teleport.proxy_server` field, the agent attempts to connect to the
+   Teleport cluster using a single mode, rather than multiple modes, which takes
+   less time and involves less functionality to troubleshoot.
 
 1. Update the `auth_token` or `join_params.token_name` field with the newly
    generated token.
@@ -211,14 +228,14 @@ To migrate Teleport agents:
    ```
 
 1. On Linux servers, delete the local agent cache to force the agent to rejoin
-   the new Teleport Enterprise (cloud-hosted) Cluster. By default, the data is
+   the new cloud-hosted Teleport Enterprise cluster. By default, the data is
    located in the  `/var/lib/teleport` directory:
 
    ```code
    rm -rf /var/lib/teleport
    ```
 
-1. On Linux servers, restartthe Teleport process on each agent or, if you are
+1. On Linux servers, restart the Teleport process on each agent or, if you are
    using the `teleport-kube-agent` Helm chart, recycle the Kubernetes pod to
    apply the new configuration. This will cause the agents to re-register with
    the cloud-hosted Teleport Enterprise cluster and obtain new certificates
