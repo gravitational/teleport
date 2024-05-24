@@ -1,5 +1,75 @@
 # Changelog
 
+## 13.4.26 (05/25/24)
+
+This release contains fixes for several high-severity security issues, as well
+as numerous other bug fixes and improvements.
+
+### Security Fixes
+
+* **[High]** Fixed unrestricted redirect in SSO Authentication. Teleport didn’t
+  sufficiently validate the client redirect URL. This could allow an attacker to
+  trick Teleport users into performing an SSO authentication and redirect to an
+  attacker-controlled URL allowing them to steal the credentials. [#41834](https://github.com/gravitational/teleport/pull/41834).
+
+* **[High]** Fixed CockroachDB authorization bypass. When connecting to
+  CockroachDB using Database Access, Teleport did not properly consider the
+  username case when running RBAC checks. As such, it was possible to establish
+  a connection using an explicitly denied username when using a different case.
+  [#41825](https://github.com/gravitational/teleport/pull/41825).
+  
+* **[High]** Fixed Long-lived connection persistence issue with expired
+  certificates. Teleport did not terminate some long-running mTLS-authenticated
+  connections past the expiry of client certificates for users with the
+  `disconnect_expired_cert` option. This could allow such users to perform
+  some API actions after their certificate has expired. [#41829](https://github.com/gravitational/teleport/pull/41829).
+
+* **[High]** Fixed PagerDuty integration privilege escalation. When creating a
+  role access request, Teleport would include PagerDuty annotations from the
+  entire user’s role set rather than a specific role being requested. For users
+  who run multiple PagerDuty access plugins with auto-approval, this could
+  result in a request for a different role being inadvertently auto-approved 
+  than the one which corresponds to the user’s active on-call schedule. [#41831](https://github.com/gravitational/teleport/pull/41831).
+  
+* **[High]** Fixed SAML IdP session privilege escalation. When using Teleport as
+  SAML IdP, authorization wasn’t properly enforced on the SAML IdP session
+  creation. As such, authenticated users could use an internal API to escalate
+  their own privileges by crafting a malicious program. [#41849](https://github.com/gravitational/teleport/pull/41849).  
+
+We strongly recommend all customers upgrade to the latest releases of Teleport.
+
+### Other fixes and improvements
+
+* Fixed access request annotations when annotations contain globs, regular
+  expressions, trait expansions, or `claims_to_roles` is used. [#41938](https://github.com/gravitational/teleport/pull/41938).
+* Fixed session upload completion with large number of simultaneous session
+  uploads. [#41852](https://github.com/gravitational/teleport/pull/41852).
+* Stripped debug symbols from Windows builds, resulting in smaller `tsh` and
+  `tctl` binaries. [#41838](https://github.com/gravitational/teleport/pull/41838).
+* Added read-only permissions for cluster maintenance config. [#41792](https://github.com/gravitational/teleport/pull/41792).
+* Simplified how Bots are shown on the Users list page. [#41738](https://github.com/gravitational/teleport/pull/41738).
+* Fixed missing variable and script options in Default Agentless Installer 
+  script. [#41721](https://github.com/gravitational/teleport/pull/41721).
+* Added remote address to audit log events emitted when a Bot or Instance join 
+  completes, successfully or otherwise. [#41698](https://github.com/gravitational/teleport/pull/41698).
+* Upgraded application heartbeat service to support 1000+ dynamic applications. [#41628](https://github.com/gravitational/teleport/pull/41628).
+* Fixed `systemd` unit to always restart Teleport on failure unless explicitly
+  stopped. [#41583](https://github.com/gravitational/teleport/pull/41583).
+* Updated Teleport package installers to reload Teleport service config after
+  upgrades. [#41549](https://github.com/gravitational/teleport/pull/41549).
+* Fixed WebUI SSH connection leak when browser tab closed during SSH connection
+  establishment.  [#41520](https://github.com/gravitational/teleport/pull/41520)
+* Added "login failed" audit events for invalid passwords on password+webauthn
+  local authentication. [#41435](https://github.com/gravitational/teleport/pull/41435)
+* Allow setting Kubernetes Cluster name when using non-default addresses. [#41356](https://github.com/gravitational/teleport/pull/41356).
+* Added support to automatically download CA for MongoDB Atlas databases. [#41340](https://github.com/gravitational/teleport/pull/41340).
+* Added validation for application URL extracted from the web application
+  launcher request route. [#41306](https://github.com/gravitational/teleport/pull/41306).
+* Allow defining custom database names and users when selecting wildcard during
+  test connection when enrolling a database through the web UI. [#41303](https://github.com/gravitational/teleport/pull/41303).
+* Updated user management to explicitly deny password resets and local logins to 
+  SSO users. [#41272](https://github.com/gravitational/teleport/pull/41272).
+
 ## 13.4.24 (05/07/24)
 
 * Fix a bug that was preventing tsh proxy kube certificate renewal from working when accessing a leaf kubernetes cluster via the root. [#41159](https://github.com/gravitational/teleport/pull/41159)
