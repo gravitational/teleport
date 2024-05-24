@@ -234,7 +234,7 @@ func (s *Service[T]) ListResourcesWithFilter(ctx context.Context, pageSize int, 
 		limit,
 		func(items []backend.Item) (stop bool, err error) {
 			for _, item := range items {
-				resource, err := s.unmarshalFunc(item.Value, services.WithRevision(item.Revision), services.WithResourceID(item.ID))
+				resource, err := s.unmarshalFunc(item.Value, services.WithRevision(item.Revision), services.WithRevision(item.Revision))
 				if err != nil {
 					return false, trace.Wrap(err)
 				}
