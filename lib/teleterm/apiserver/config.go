@@ -24,7 +24,6 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -35,8 +34,7 @@ type Config struct {
 	HostAddr           string
 	InsecureSkipVerify bool
 	// Daemon is the terminal daemon service
-	Daemon      *daemon.Service
-	ClientStore *client.Store
+	Daemon *daemon.Service
 	// Log is a component logger
 	Log             logrus.FieldLogger
 	TshdServerCreds grpc.ServerOption
@@ -57,10 +55,6 @@ func (c *Config) CheckAndSetDefaults() error {
 
 	if c.Daemon == nil {
 		return trace.BadParameter("missing daemon service")
-	}
-
-	if c.ClientStore == nil {
-		return trace.BadParameter("missing client store")
 	}
 
 	if c.TshdServerCreds == nil {

@@ -19,7 +19,6 @@ package vnet
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"errors"
 	"sync"
 
@@ -69,7 +68,6 @@ func New(cfg Config) (*Service, error) {
 
 type Config struct {
 	DaemonService      *daemon.Service
-	ClientStore        *client.Store
 	InsecureSkipVerify bool
 }
 
@@ -77,10 +75,6 @@ type Config struct {
 func (c *Config) CheckAndSetDefaults() error {
 	if c.DaemonService == nil {
 		return trace.BadParameter("missing DaemonService")
-	}
-
-	if c.ClientStore == nil {
-		return trace.BadParameter("missing ClientStore")
 	}
 
 	return nil
@@ -100,7 +94,6 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 
 	appProvider := &appProvider{
 		daemonService:      s.cfg.DaemonService,
-		clientStore:        s.cfg.ClientStore,
 		insecureSkipVerify: s.cfg.InsecureSkipVerify,
 	}
 
@@ -183,12 +176,11 @@ func (s *Service) Close() error {
 
 type appProvider struct {
 	daemonService      *daemon.Service
-	clientStore        *client.Store
 	insecureSkipVerify bool
 }
 
 func (p *appProvider) ListProfiles() ([]string, error) {
-	profiles, err := p.clientStore.ListProfiles()
+	profiles, err := p.daemonService.ListProfileNames()
 	return profiles, trace.Wrap(err)
 }
 
@@ -217,19 +209,20 @@ func (p *appProvider) ReissueAppCert(ctx context.Context, profileName, leafClust
 
 // GetDialOptions returns ALPN dial options for the profile.
 func (p *appProvider) GetDialOptions(ctx context.Context, profileName string) (*vnet.DialOptions, error) {
-	profile, err := p.clientStore.GetProfile(profileName)
+	cluster, tc, err := p.daemonService.ResolveClusterURI(uri.NewClusterURI(profileName))
 	if err != nil {
-		return nil, trace.Wrap(err, "loading user profile")
+		return nil, trace.Wrap(err, "resolving cluster by URI")
 	}
+
 	dialOpts := &vnet.DialOptions{
-		WebProxyAddr:            profile.WebProxyAddr,
-		ALPNConnUpgradeRequired: profile.TLSRoutingConnUpgradeRequired,
+		WebProxyAddr:            cluster.GetProxyHost(),
+		ALPNConnUpgradeRequired: tc.TLSRoutingConnUpgradeRequired,
 		InsecureSkipVerify:      p.insecureSkipVerify,
 	}
 	if dialOpts.ALPNConnUpgradeRequired {
-		dialOpts.RootClusterCACertPool, err = p.getRootClusterCACertPool(ctx, profileName)
+		dialOpts.RootClusterCACertPool, err = tc.RootClusterCACertPool(ctx)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(err, "loading root cluster CA cert pool")
 		}
 	}
 	return dialOpts, nil
@@ -243,34 +236,4 @@ func (p *appProvider) GetVnetConfig(ctx context.Context, profileName, leafCluste
 	vnetConfigClient := clusterClient.AuthClient.VnetConfigServiceClient()
 	vnetConfig, err := vnetConfigClient.GetVnetConfig(ctx, &vnetproto.GetVnetConfigRequest{})
 	return vnetConfig, trace.Wrap(err)
-}
-
-// getRootClusterCACertPool returns a certificate pool for the root cluster of the given profile.
-func (p *appProvider) getRootClusterCACertPool(ctx context.Context, profileName string) (*x509.CertPool, error) {
-	tc, err := p.newTeleportClient(ctx, profileName, "")
-	if err != nil {
-		return nil, trace.Wrap(err, "creating new client")
-	}
-	certPool, err := tc.RootClusterCACertPool(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err, "loading root cluster CA cert pool")
-	}
-	return certPool, nil
-}
-
-func (p *appProvider) newTeleportClient(ctx context.Context, profileName, leafClusterName string) (*client.TeleportClient, error) {
-	cfg := &client.Config{
-		ClientStore: p.clientStore,
-	}
-	if err := cfg.LoadProfile(p.clientStore, profileName); err != nil {
-		return nil, trace.Wrap(err, "loading client profile")
-	}
-	if leafClusterName != "" {
-		cfg.SiteName = leafClusterName
-	}
-	tc, err := client.NewClient(cfg)
-	if err != nil {
-		return nil, trace.Wrap(err, "creating new client")
-	}
-	return tc, nil
 }

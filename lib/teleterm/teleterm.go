@@ -31,7 +31,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/teleterm/apiserver"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
@@ -73,7 +72,6 @@ func Serve(ctx context.Context, cfg Config) error {
 		Daemon:             daemonService,
 		TshdServerCreds:    grpcCredentials.tshd,
 		ListeningC:         cfg.ListeningC,
-		ClientStore:        client.NewFSClientStore(cfg.HomeDir),
 	})
 	if err != nil {
 		return trace.Wrap(err)
