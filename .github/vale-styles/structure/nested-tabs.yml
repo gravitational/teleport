@@ -23,7 +23,7 @@ script: |
   
       if inTabItem && text.re_match(`^\s*<Tabs`, line) {
         fmt.println("bad line:", n, line, l)
-        fmt.println(scope[l[0].begin:l[0].end])
+        fmt.println(scope[0:l[0].end])
         return [{
           begin: l[0].begin,
           end: l[0].end
