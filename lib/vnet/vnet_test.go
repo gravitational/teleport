@@ -38,7 +38,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
@@ -363,11 +362,38 @@ func TestDialFakeApp(t *testing.T) {
 					return trace.Wrap(err)
 				}
 				go func() {
-					_, err := io.Copy(conn, conn)
-					if utils.IsOKNetworkError(err) {
-						err = nil
+					defer conn.Close()
+
+					// Not using require/assert here and below because this is not in the right subtest or in
+					// the main test goroutine. The test will fail if the conn is not handled.
+					tlsConn, ok := conn.(*tls.Conn)
+					if !ok {
+						t.Log("client conn is not TLS")
+						return
 					}
-					assert.NoError(t, err)
+					if err := tlsConn.Handshake(); err != nil {
+						t.Log("error completing tls handshake")
+						return
+					}
+					clientCerts := tlsConn.ConnectionState().PeerCertificates
+					if len(clientCerts) == 0 {
+						t.Log("client has no certs")
+						return
+					}
+					// Manually checking the cert expiry compared to the time of the fake clock, since the TLS
+					// library will only compare the cert expiry to the real clock.
+					// It's important that the fake clock is never far behind the real clock, and that the
+					// cert NotBefore is always at/before the real current time, so the TLS library is
+					// satisfied.
+					if clock.Now().After(clientCerts[0].NotAfter) {
+						t.Logf("client cert is expired: currentTime=%s expiry=%s", clock.Now(), clientCerts[0].NotAfter)
+						return
+					}
+
+					_, err := io.Copy(conn, conn)
+					if err != nil && !utils.IsOKNetworkError(err) {
+						t.Logf("error in io.Copy for echo proxy server: %v", err)
+					}
 				}()
 			}
 		},
@@ -419,29 +445,34 @@ func TestDialFakeApp(t *testing.T) {
 
 	t.Run("valid", func(t *testing.T) {
 		t.Parallel()
-		for _, app := range validAppNames {
-			app := app
-			t.Run(app, func(t *testing.T) {
-				t.Parallel()
 
-				// Connect to each app 3 times, advancing the clock past the cert lifetime between each
-				// connection to trigger a cert refresh.
-				for i := 0; i < 3; i++ {
-					t.Run(fmt.Sprint(i), func(t *testing.T) {
+		// Connect to each app 3 times, advancing the clock past the cert lifetime between each
+		// connection to trigger a cert refresh.
+		//
+		// It's important not to run these subtests which advance a shared clock in parallel. It's okay for
+		// the inner app dial/connection tests to run in parallel because they don't advance the clock.
+		for i := 0; i < 3; i++ {
+			t.Run(fmt.Sprint(i), func(t *testing.T) {
+				for _, app := range validAppNames {
+					app := app
+					t.Run(app, func(t *testing.T) {
+						t.Parallel()
+
 						conn, err := p.dialHost(ctx, app)
 						require.NoError(t, err)
 						t.Cleanup(func() { require.NoError(t, conn.Close()) })
 
 						testEchoConnection(t, conn)
 					})
-
-					clock.Advance(2 * appCertLifetime)
 				}
 			})
+			clock.Advance(2 * appCertLifetime)
 		}
 	})
 
 	t.Run("invalid", func(t *testing.T) {
+		// It's safe to run these invalid app tests in parallel becuase they fail the DNS lookup and don't
+		// even make it to a TCP dial, so the clock used for TLS cert expiry doesn't matter.
 		t.Parallel()
 		for _, app := range invalidAppNames {
 			app := app
