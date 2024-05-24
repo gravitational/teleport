@@ -8,7 +8,7 @@ WORKDIR /extraction
 COPY *${TARGETARCH}*.tar.gz /plugin.tar.gz
 RUN ls -laht && \
     tar -xzvf /plugin.tar.gz -C /extraction && \
-    find /tmp/extract -type f -executable -name 'teleport-*' -exec mv {} /teleport-plugin \;
+    find /tmp/extraction -type f -executable -name 'teleport-*' -exec mv {} /teleport-plugin \;
 
 # Create the image with the build operator on the $TARGETPLATFORM
 # TARGETPLATFORM is provided by Docker/buildx
