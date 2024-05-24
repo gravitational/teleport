@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/web/terminal"
 )
 
 const (
@@ -81,7 +82,7 @@ func TestExecuteCommand(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 
-	stream := NewWStream(context.Background(), ws, utils.NewLoggerForTests(), nil)
+	stream := terminal.NewWStream(context.Background(), ws, utils.NewLoggerForTests(), nil)
 
 	require.NoError(t, waitForCommandOutput(stream, "teleport"))
 }
@@ -128,7 +129,7 @@ func TestExecuteCommandHistory(t *testing.T) {
 	ws, _, err := s.makeCommand(t, authPack, conversationID)
 	require.NoError(t, err)
 
-	stream := NewWStream(ctx, ws, utils.NewLoggerForTests(), nil)
+	stream := terminal.NewWStream(ctx, ws, utils.NewLoggerForTests(), nil)
 
 	// When command executes
 	require.NoError(t, waitForCommandOutput(stream, "teleport"))
@@ -301,7 +302,7 @@ func (s *WebSuite) makeCommand(t *testing.T, pack *authPack, conversationID uuid
 		return nil, nil, trace.Wrap(err)
 	}
 	require.Equal(t, websocket.BinaryMessage, ty)
-	var env Envelope
+	var env terminal.Envelope
 
 	err = proto.Unmarshal(raw, &env)
 	if err != nil {
@@ -402,7 +403,7 @@ func (r *wsReader) Read(p []byte) (int, error) {
 		return 0, trace.Wrap(err)
 	}
 
-	var envelope Envelope
+	var envelope terminal.Envelope
 	if err := proto.Unmarshal(data, &envelope); err != nil {
 		return 0, trace.Errorf("Unable to parse message payload %v", err)
 	}

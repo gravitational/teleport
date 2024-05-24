@@ -29,31 +29,19 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/web/mfajson"
+	"github.com/gravitational/teleport/lib/web/terminal"
 )
-
-// mfaCodec converts MFA challenges/responses between their native types and a format
-// suitable for being sent over a network connection.
-type mfaCodec interface {
-	// encode converts an MFA challenge to wire format
-	encode(chal *client.MFAAuthenticateChallenge, envelopeType string) ([]byte, error)
-
-	// decodeChallenge parses an MFA authentication challenge
-	decodeChallenge(bytes []byte, envelopeType string) (*authproto.MFAAuthenticateChallenge, error)
-
-	// decodeResponse parses an MFA authentication response
-	decodeResponse(bytes []byte, envelopeType string) (*authproto.MFAAuthenticateResponse, error)
-}
 
 // protobufMFACodec converts MFA challenges and responses to the protobuf
 // format used by SSH web sessions
 type protobufMFACodec struct{}
 
-func (protobufMFACodec) encode(chal *client.MFAAuthenticateChallenge, envelopeType string) ([]byte, error) {
+func (protobufMFACodec) Encode(chal *client.MFAAuthenticateChallenge, envelopeType string) ([]byte, error) {
 	jsonBytes, err := json.Marshal(chal)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	envelope := &Envelope{
+	envelope := &terminal.Envelope{
 		Version: defaults.WebsocketVersion,
 		Type:    envelopeType,
 		Payload: string(jsonBytes),
@@ -65,11 +53,11 @@ func (protobufMFACodec) encode(chal *client.MFAAuthenticateChallenge, envelopeTy
 	return protoBytes, nil
 }
 
-func (protobufMFACodec) decodeResponse(bytes []byte, envelopeType string) (*authproto.MFAAuthenticateResponse, error) {
+func (protobufMFACodec) DecodeResponse(bytes []byte, envelopeType string) (*authproto.MFAAuthenticateResponse, error) {
 	return mfajson.Decode(bytes, envelopeType)
 }
 
-func (protobufMFACodec) decodeChallenge(bytes []byte, envelopeType string) (*authproto.MFAAuthenticateChallenge, error) {
+func (protobufMFACodec) DecodeChallenge(bytes []byte, envelopeType string) (*authproto.MFAAuthenticateChallenge, error) {
 	var challenge client.MFAAuthenticateChallenge
 	if err := json.Unmarshal(bytes, &challenge); err != nil {
 		return nil, trace.Wrap(err)
@@ -84,7 +72,7 @@ func (protobufMFACodec) decodeChallenge(bytes []byte, envelopeType string) (*aut
 // Protocol (TDP) messages used by Desktop Access web sessions
 type tdpMFACodec struct{}
 
-func (tdpMFACodec) encode(chal *client.MFAAuthenticateChallenge, envelopeType string) ([]byte, error) {
+func (tdpMFACodec) Encode(chal *client.MFAAuthenticateChallenge, envelopeType string) ([]byte, error) {
 	switch envelopeType {
 	case defaults.WebsocketWebauthnChallenge:
 	default:
@@ -99,7 +87,7 @@ func (tdpMFACodec) encode(chal *client.MFAAuthenticateChallenge, envelopeType st
 	return tdpMsg.Encode()
 }
 
-func (tdpMFACodec) decodeResponse(buf []byte, envelopeType string) (*authproto.MFAAuthenticateResponse, error) {
+func (tdpMFACodec) DecodeResponse(buf []byte, envelopeType string) (*authproto.MFAAuthenticateResponse, error) {
 	if len(buf) == 0 {
 		return nil, trace.BadParameter("empty MFA message received")
 	}
@@ -113,7 +101,7 @@ func (tdpMFACodec) decodeResponse(buf []byte, envelopeType string) (*authproto.M
 	return msg.MFAAuthenticateResponse, nil
 }
 
-func (tdpMFACodec) decodeChallenge(buf []byte, envelopeType string) (*authproto.MFAAuthenticateChallenge, error) {
+func (tdpMFACodec) DecodeChallenge(buf []byte, envelopeType string) (*authproto.MFAAuthenticateChallenge, error) {
 	if len(buf) == 0 {
 		return nil, trace.BadParameter("empty MFA message received")
 	}
