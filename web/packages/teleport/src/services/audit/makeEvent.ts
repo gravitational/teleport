@@ -1823,6 +1823,12 @@ export const formatters: Formatters = {
     format: ({ user }) =>
       `User [${user}] updated the cluster session recording configuration`,
   },
+  [eventCodes.ACCESS_GRAPH_PATH_CHANGED]: {
+    type: 'access_graph.path.changed',
+    desc: 'Access Graph Path Changed',
+    format: ({ affected_resource_name }) =>
+      `Node [${affected_resource_name}] changed the access graph path`,
+  },
   [eventCodes.SPANNER_RPC]: {
     type: 'db.session.spanner.rpc',
     desc: 'Spanner RPC',
