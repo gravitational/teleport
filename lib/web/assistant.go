@@ -498,7 +498,7 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 		return nil
 	})
 
-	go startPingLoop(ctx, ws, keepAliveInterval, h.log, nil)
+	go startWSPingLoop(ctx, ws, keepAliveInterval, h.log, nil)
 
 	assistClient, err := assist.NewClient(ctx, h.cfg.ProxyClient,
 		h.cfg.ProxySettings, h.cfg.OpenAIConfig)
