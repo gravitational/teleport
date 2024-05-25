@@ -20,7 +20,10 @@ import { Platform } from 'design/platform';
 
 import { assertUnreachable } from 'shared/utils/assertUnreachable';
 
-import { DiscoverEventResource } from 'teleport/services/userEvent';
+import {
+  DiscoverDiscoveryConfigMethod,
+  DiscoverEventResource,
+} from 'teleport/services/userEvent';
 
 import { ResourceKind } from '../Shared/ResourceKind';
 
@@ -87,7 +90,22 @@ export const SERVERS: ResourceSpec[] = [
       baseServerKeywords + 'ec2 instance connect endpoint aws amazon eice',
     icon: 'Aws',
     event: DiscoverEventResource.Ec2Instance,
-    nodeMeta: { location: ServerLocation.Aws },
+    nodeMeta: {
+      location: ServerLocation.Aws,
+      discoveryConfigMethod: DiscoverDiscoveryConfigMethod.AwsEc2Eice,
+    },
+  },
+  {
+    name: 'EC2 Auto Discover with SSM',
+    kind: ResourceKind.Server,
+    keywords:
+      baseServerKeywords + 'ec2 instance aws amazon simple systems manager ssm',
+    icon: 'Aws',
+    event: DiscoverEventResource.Ec2Instance,
+    nodeMeta: {
+      location: ServerLocation.Aws,
+      discoveryConfigMethod: DiscoverDiscoveryConfigMethod.AwsEc2Ssm,
+    },
   },
   {
     name: 'Connect My Computer',
