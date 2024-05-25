@@ -73,5 +73,13 @@ function makeAwsMatchersReq(inputMatchers: AwsMatcher[]) {
     tags: a.tags || {},
     integration: a.integration,
     kube_app_discovery: !!a.kubeAppDiscovery,
+    ssm: a.ssm ? { document_name: a.ssm.documentName } : undefined,
+    install: a.install
+      ? {
+          enroll_mode: a.install.enrollMode,
+          install_teleport: a.install.installTeleport,
+          join_token: a.install.joinToken,
+        }
+      : undefined,
   }));
 }
