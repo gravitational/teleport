@@ -7,9 +7,9 @@ state: draft
 
 ## Required approvers
 
-* Engineering: @zmb3
-* Product: @klizhentas || @xinding33
-* Security: @reedloden || @jentfoo
+- Engineering: @zmb3
+- Product: @klizhentas || @xinding33
+- Security: @reedloden || @jentfoo
 
 ## What
 
@@ -37,7 +37,7 @@ The improvements will focus on three points:
 
 Whilst deploying a large fleet of Bots is fairly trivial when using the
 delegated join methods, the experience when managing a fleet of bot hosts
-in-prem is more challenging. 
+on-prem is more challenging.
 
 The following burdens currently exist:
 
@@ -66,10 +66,10 @@ each renewal, this counter is incremented. When the counter within the certifica
 de-synchronises with the counter on the user, the Bot is locked out as a security
 measure.
 
-The fact that this counter is stored within a label on the Bot user creates a 
+The fact that this counter is stored within a label on the Bot user creates a
 one-to-one binding between a single instance of `tbot` and a single Bot user.
 This is not the case when using the delegated join methods.
- 
+
 ### Persistent Bot Instance Identity
 
 Today, there is no persistent identifier for an individual instance of a Bot.
@@ -83,7 +83,7 @@ This poses a few challenges:
 - For the purposes of auditing, it is not possible to trace actions to a
   specific instance of a Bot.
 - For improving the `token` join method to support multiple Bot instances
-  associated with a single Bot, there is no identifier to correlate with the 
+  associated with a single Bot, there is no identifier to correlate with the
   generation counter.
 - For analytics purposes, it's difficult for us to track the number of
   individual Bot instances in use. We cannot easily determine if it's a single
@@ -92,7 +92,85 @@ This poses a few challenges:
 To rectify this, a unique identifier should be established for an instance of
 a Bot.
 
-#### Public Key Fingerprint
+#### Bot Identity Trust
+
+We should be mindful that adding a new persistent identifier may increase our
+attack surface, particularly if we allow clients manipulate their persistent
+identifier or in any way trust the values communicated to Auth during the join
+process.
+
+For example, trusting this identifier might allow a bot to better masquerade
+itself as a preexisting instance and avoid discovery by an end user that falsely
+assumed no unexpected instances had joined their cluster. Additionally, if we
+implement join limits (i.e. tokens that only allow N bots to join), malicious
+bots could reuse existing identifiers to bypass join limits.
+
+To mitigate this, we should make certain to cryptographically verify identifiers
+during the renewal process. For example, we can embed the identifier as a
+certificate field to ensure it cannot be tampered with once issued by the Auth
+service, or encrypt the renewed certificates using the previous iteration's
+public key to ensure the calling bot owns the private key. Adopting proper mTLS
+during the join process should accomplish both of these goals.
+
+##### Verifying Bot Identities
+
+We currently see two methods for cryptographically verifying bot identities at
+renewal time:
+
+1. We could expose the existing functionality of the HTTPS-only
+   `RegisterUsingToken` over gRPC. The existing gRPC `JoinService` can be
+   accessed with and without authentication, so we could inspect the client
+   connection to find the existing bot identity, if any, and it would be
+   implicitly verified.
+2. We could adapt the existing HTTPS implementation of `RegisterUsingToken` to
+   additionally accept an encoded existing certificate, and return certificates
+   encrypted with the certificate's public key. We can verify the certificate
+   was originally signed with our CA, and the client will only be able to
+   decrypt the returned identity if they actually have the private key for the
+   previous identity.
+
+Our preference is option (1): bots always join over gRPC, and provide a client
+certificate when re-joining. Bots without a client cert to present are
+registered as new instances, while bots with a valid client cert preserve their
+identity.
+
+Note that bots joined with the `token` method are not affected by this, as
+renewals take place over a fully mTLS-authenticated tunnel to the auth service.
+
+Additionally, a downside to certificate verification is that the certificate
+validity period becomes a factor. If bots are only run intermittently, like
+from a CI workflow, their certificates could expire and prevent them from
+being identified as the same instance. This is likely to only impact a small
+number of cases, however, as most CI provider joins are stateless and have no
+certificates to present anyway. Bots that present expired certificates will
+either be rejected and will need to join as a new instance, or we'll need to
+discard the expired identity treat them as a new instance.
+
+#### UUID Certificate Attribute
+
+On the initial join of a Bot instance, we could generate a UUID to identify that
+Bot instance and encode this within the certificate. Upon renewals, the UUID
+would be copied from the current certificate and into the new one.
+
+This method additionally gives us freedom to change various join parameters
+while preserving the lineage of a bot identity. Bots could change their keypair
+or join method and still be properly associated with their previous iteration.
+
+Whilst this is fairly easy to implement for the `token` join method, one
+challenge for the delegated join methods is that rather than renewing, the
+`tbot` instance merely re-joins. As the join RPCs are unauthenticated, the
+previous certificate of the Bot instance is not readily available. We can
+either:
+
+- Accept this limitation and treat each renewal of a delegated Bot instance as a
+  new Bot instance. This is likely unacceptable and would limit any advantages
+  of this work to the `token` join method.
+- Add support for calling the join RPCs with a client certificate.
+
+Given our desire to ensure this identifier is trustworthy, we should prefer to
+support the latter case and verify client certificates at re-joining time.
+
+#### Alternative: Public Key Fingerprint
 
 One option is to modify the behaviour of `tbot` to persist and reuse the
 keypair across renewals. We could then use a fingerprint of the public key as a
@@ -111,26 +189,16 @@ It should be noted that with this technique, rotating the keypair of a `tbot`
 instance would reset the identity of that instance. Rotation of this keypair
 would be unusual and this side effect seems expected.
 
-##### Alternative: UUID Certificate Attribute
+This technique does have some downsides:
 
-On the initial join of a Bot instance, we could generate a UUID to identify that 
-Bot instance and encode this within the certificate. Upon renewals, the UUID
-would be copied from the current certificate and into the new one.
-
-Whilst this is fairly easy to implement for the `token` join method, one
-challenge for the delegated join methods is that rather than renewing, the
-`tbot` instance merely re-joins. As the join RPCs are unauthenticated, the 
-previous certificate of the Bot instance is not readily available. We can
-either:
-
-- Accept this limitation and treat each renewal of a delegated Bot instance as a
-  new Bot instance. This is likely unacceptable and would limit any advantages
-  of this work to the `token` join method.
-- Add support for calling the join RPCs with a client certificate.
-
-This technique could reuse a recently proposed LoginID attribute. This would 
-allow features such as security reports and automated anomaly detection to work
-seamlessly across humans and machines.
+- It makes it impossible to rotate a bot's private key. However, we do not
+  currently support this today, and purging a bot's data directory to do so
+  would simply result in a new `BotInstance`, which is likely an acceptable
+  workaround.
+- Our join process today is unable to cryptographically verify the public key
+  presented by a joining bot to ensure that particular keypair has been issued
+  an identity already. Clients can provide any public key they like, including
+  that of an existing bot.
 
 ### BotInstance Resource
 
@@ -236,31 +304,32 @@ message BotInstanceStatusAuthentication {
 
 // BotInstanceStatus holds the status of a BotInstance.
 message BotInstanceStatus {
+  // The unique identifier for this bot.
+  string id = 1;
   // The public key of the Bot instance.
   // When authenticating a Bot instance, the full public key must be compared
   // rather than just the fingerprint to mitigate pre-image attacks.
-  bytes public_key = 1;
+  bytes public_key = 2;
   // The fingerprint of the public key of the Bot instance.
-  string fingerprint = 2;
+  string fingerprint = 3;
   // The name of the Bot that this instance is associated with.
-  string bot_name = 3;
-  // Last X records kept, with the second oldest being removed once the limit
-  // is reached. This avoids the indefinite growth of the resource but also
-  // ensures the initial record is retained.
-  repeated BotInstanceStatusAuthentication authentications = 4;
-  // Last X records kept, with the second oldest being removed once the limit
-  // is reached. This avoids the indefinite growth of the resource but also
-  // ensures the initial record is retained.
-  repeated BotInstanceStatusHeartbeat heartbeats = 5;
+  string bot_name = 4;
+  // The initial authentication status for this bot instance.
+  BotInstanceStatusAuthentication initial_authentication = 5;
+  // The N most recent authentication status records for this bot instance.
+  repeated BotInstanceStatusAuthentication authentications = 6;
+  // The initial heartbeat status for this bot instance.
+  BotInstanceStatusHeartbeat initial_heartbeat = 7;
+  // The N most recent heartbeats for this bot instance.
+  repeated BotInstanceStatusHeartbeat latest_heartbeats = 8;
 }
 ```
 
-The name used for a BotInstance will be a concatenation of the Bot name and the
-SHA256 fingerprint of the instance's public key
-e.g `my-robot/2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae`.
+The name used for a BotInstance will be a concatenation of the Bot name and its
+unique identifier (UUID).
 
 When storing the BotInstance in the backend, the key will be:
-`bot_instances/{bot_name}/{fingerprint}`. This will allow for efficient listing
+`bot_instances/{bot_name}/{uuid}`. This will allow for efficient listing
 of BotInstances for a given Bot.
 
 Like agent heartbeats, the BotInstance will expire after a period of inactivity.
@@ -361,8 +430,10 @@ service BotInstanceService {
 
 // Request for GetBotInstance.
 message GetBotInstanceRequest {
-  // The name of the BotInstance to retrieve.
+  // The name of the bot associated with the instance.
   string name = 1;
+  // The unique identifier of the bot instance to retrieve.
+  string id = 2;
 }
 
 // Request for ListBotInstances.
@@ -394,6 +465,8 @@ message ListBotInstancesResponse {
 message DeleteBotInstanceRequest {
   // The name of the BotInstance to delete.
   string name = 1;
+  // The unique identifier of the bot instance to delete.
+  string id = 2;
 }
 ```
 
@@ -403,12 +476,29 @@ As we now have a way to track the generation for a specific Bot instance, we
 can allow multiple Bot instances to be associated with a single Bot. This
 also means that the token no longer needs to be consumed on a join.
 
-Eventually, we may wish to add a way to specify a number of joins which can
-occur with a token. This provides a way to easily control the lifetime of a 
-token when deploying to a fleet of a pre-known size.
+However, this does introduce a change in our security guarantees, and without
+additional tooling support and sensible defaults, the change may incentivize end
+users to create long-lived join tokens instead of using a more appropriate join
+method, or automating issuance of short lived tokens.
 
-The renewal logic will need to be adjusted to read and update the generation
-counter from the BotInstance rather than the Bot user.
+To this end, we should introduce a per-bot-instance join count limit, and
+configure that to be 1 join by default. This matches today's behavior, and
+will help ensure users do not accidentally create a token that provides more
+access than expected: "infinite use" tokens with massive join limits and/or very
+long TTLs will need to be explicitly specified.
+
+We may additionally want to put hurdles in the way of things like extremely long
+token TTLs. There are legitimate low-security use cases for these, but we could
+introduce a soft limit in `tctl` preventing automatic token creation with TTL
+longer than 7 days, forcing users to manually create the token if they really
+need it to last longer.
+
+Additionally, renewal logic will need to be adjusted to read and update the
+generation counter from the BotInstance rather than the Bot user. We should also
+take care to ensure this counter behaves sensibly even when many bots are
+attempting to join the cluster concurrently. The generation counter today
+already has issues with concurrent joins, and it's even more important to get
+this right when we can expect contention over a single bot instance resource.
 
 ### CLI Changes
 
@@ -536,7 +626,7 @@ increase the complexity of the codebase and the user experience.
 
 ## Out of Scope
 
-These tasks are out of scope of this RFD but could be considered natural 
+These tasks are out of scope of this RFD but could be considered natural
 follow-on tasks.
 
 ### Multi-phase Commit of Generation Counter
