@@ -67,6 +67,18 @@ const (
 	// valuable info.
 	CorruptedSessionsDir = "corrupted"
 
+	// SessionsWithUnconfirmedSessionEnd is a subdirectory of sessions (/var/lib/teleport/log/upload/unconfirmed_session_ends)
+	// where session ids where it wasn't possible to confirm the session.end events are placed.
+	// An incomplete session is a session that was correctly
+	// uploaded to Auth server or final destination but it wasn't possible to ensure the session
+	// correctly had the session end event. Upload completer ensures the session.end event when it
+	// finishes uploading it but if the audit events storage is down, e.g. when database is failing
+	// but auth is still operational, the session recording will never be available because session
+	// completer never retries after the first session.end creation failure.
+	// Teleport uses this directory to track sessions that it couldn't ensure the proper session.end
+	// event.
+	SessionsWithUnconfirmedSessionEnd = "unconfirmed_session_ends"
+
 	// RecordsDir is an auth server subdirectory with session recordings that is used
 	// when the auth server is not configured for external cloud storage. It is not
 	// used by nodes, proxies, or other Teleport services.

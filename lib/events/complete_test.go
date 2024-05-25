@@ -22,12 +22,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -66,11 +68,12 @@ func TestUploadCompleterCompletesAbandonedUploads(t *testing.T) {
 	}
 
 	uc, err := events.NewUploadCompleter(events.UploadCompleterConfig{
-		Uploader:       mu,
-		AuditLog:       log,
-		SessionTracker: sessionTrackerService,
-		Clock:          clock,
-		ClusterName:    "teleport-cluster",
+		Uploader:                 mu,
+		AuditLog:                 log,
+		SessionTracker:           sessionTrackerService,
+		Clock:                    clock,
+		ClusterName:              "teleport-cluster",
+		UnconfirmedSessionEndDir: t.TempDir(),
 	})
 	require.NoError(t, err)
 
@@ -100,13 +103,14 @@ func TestUploadCompleterNeedsSemaphore(t *testing.T) {
 	sessionTrackerService := &mockSessionTrackerService{clock: clock}
 
 	uc, err := events.NewUploadCompleter(events.UploadCompleterConfig{
-		Uploader:       mu,
-		AuditLog:       log,
-		SessionTracker: sessionTrackerService,
-		Clock:          clock,
-		ClusterName:    "teleport-cluster",
-		CheckPeriod:    3 * time.Minute,
-		ServerID:       "abc123",
+		Uploader:                 mu,
+		AuditLog:                 log,
+		SessionTracker:           sessionTrackerService,
+		Clock:                    clock,
+		ClusterName:              "teleport-cluster",
+		CheckPeriod:              3 * time.Minute,
+		ServerID:                 "abc123",
+		UnconfirmedSessionEndDir: t.TempDir(),
 		Semaphores: mockSemaphores{
 			acquireErr: errors.New("semaphore already taken"),
 		},
@@ -147,6 +151,7 @@ func TestUploadCompleterAcquiresSemaphore(t *testing.T) {
 			},
 			acquireErr: nil,
 		},
+		UnconfirmedSessionEndDir: t.TempDir(),
 	})
 	require.NoError(t, err)
 
@@ -164,11 +169,13 @@ func TestUploadCompleterAcquiresSemaphore(t *testing.T) {
 // that are completed.
 func TestUploadCompleterEmitsSessionEnd(t *testing.T) {
 	for _, test := range []struct {
-		startEvent   apievents.AuditEvent
-		endEventType string
+		startEvent       apievents.AuditEvent
+		endEventType     string
+		sessionStreamErr error
 	}{
-		{&apievents.SessionStart{}, events.SessionEndEvent},
-		{&apievents.WindowsDesktopSessionStart{}, events.WindowsDesktopSessionEndEvent},
+		{startEvent: &apievents.SessionStart{}, endEventType: events.SessionEndEvent},
+		{startEvent: &apievents.SessionStart{}, endEventType: events.SessionEndEvent, sessionStreamErr: trace.ConnectionProblem(nil, "connection problem")},
+		{startEvent: &apievents.WindowsDesktopSessionStart{}, endEventType: events.WindowsDesktopSessionEndEvent},
 	} {
 		t.Run(test.endEventType, func(t *testing.T) {
 			clock := clockwork.NewFakeClock()
@@ -186,17 +193,20 @@ func TestUploadCompleterEmitsSessionEnd(t *testing.T) {
 					&apievents.SessionPrint{Metadata: apievents.Metadata{Time: endTime}},
 				},
 			}
-
+			log.SetStreamSessionEventsErr(test.sessionStreamErr)
+			sessionIncomplete := t.TempDir()
 			uc, err := events.NewUploadCompleter(events.UploadCompleterConfig{
-				Uploader:       mu,
-				AuditLog:       log,
-				Clock:          clock,
-				SessionTracker: &mockSessionTrackerService{},
-				ClusterName:    "teleport-cluster",
+				Uploader:                 mu,
+				AuditLog:                 log,
+				Clock:                    clock,
+				SessionTracker:           &mockSessionTrackerService{},
+				ClusterName:              "teleport-cluster",
+				UnconfirmedSessionEndDir: sessionIncomplete,
 			})
 			require.NoError(t, err)
 
-			upload, err := mu.CreateUpload(context.Background(), session.NewID())
+			sessionID := session.NewID()
+			upload, err := mu.CreateUpload(context.Background(), sessionID)
 			require.NoError(t, err)
 
 			// session end events are only emitted if there's at least one
@@ -211,6 +221,21 @@ func TestUploadCompleterEmitsSessionEnd(t *testing.T) {
 			clock.BlockUntil(1)
 			clock.Advance(3 * time.Minute)
 
+			if test.sessionStreamErr != nil {
+				// if session stream returned an error, we must ensure the unconfirmed session tracking file
+				// exists.
+				require.EventuallyWithT(t, func(t *assert.CollectT) {
+					assert.FileExists(t, filepath.Join(sessionIncomplete, sessionID.String()))
+				}, 5*time.Second, 100*time.Millisecond)
+				// reset the error
+				log.SetStreamSessionEventsErr(nil)
+				// reset the uploader
+				mu.Reset()
+				// re-trigger the upload routine and it will submit the delayed
+				// session.end event.
+				err = uc.CheckUploads(context.Background())
+				assert.NoError(t, err)
+			}
 			// expect two events - a session end and a session upload
 			// the session end is done asynchronously, so wait for that
 			require.Eventually(t, func() bool { return len(log.Emitter.Events()) == 2 }, 5*time.Second, 1*time.Second,
@@ -220,6 +245,11 @@ func TestUploadCompleterEmitsSessionEnd(t *testing.T) {
 			require.Equal(t, startTime, log.Emitter.Events()[0].GetTime())
 			require.Equal(t, test.endEventType, log.Emitter.Events()[1].GetType())
 			require.Equal(t, endTime, log.Emitter.Events()[1].GetTime())
+
+			if test.sessionStreamErr != nil {
+				// ensure file was removed once session.end event was confirmed.
+				assert.NoFileExists(t, filepath.Join(sessionIncomplete, sessionID.String()))
+			}
 		})
 	}
 }
@@ -281,11 +311,12 @@ func TestCheckUploadsContinuesOnError(t *testing.T) {
 	}
 
 	uc, err := events.NewUploadCompleter(events.UploadCompleterConfig{
-		Uploader:       uploader,
-		AuditLog:       &eventstest.MockAuditLog{},
-		SessionTracker: sessionTrackerService,
-		Clock:          clock,
-		ClusterName:    "teleport-cluster",
+		Uploader:                 uploader,
+		AuditLog:                 &eventstest.MockAuditLog{},
+		SessionTracker:           sessionTrackerService,
+		Clock:                    clock,
+		ClusterName:              "teleport-cluster",
+		UnconfirmedSessionEndDir: t.TempDir(),
 	})
 	require.NoError(t, err)
 
