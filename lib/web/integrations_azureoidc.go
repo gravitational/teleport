@@ -54,17 +54,6 @@ func (h *Handler) azureOIDCConfigure(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 
-	integrationName := queryParams.Get("integrationName")
-	if len(integrationName) == 0 {
-		return nil, trace.BadParameter("integrationName must be specified")
-	}
-	// Ensure the integration name is valid.
-	_, err = h.GetProxyClient().GetIntegration(ctx, integrationName)
-	// NotFound error is ignored to prevent disclosure of whether the integration exists in a public/no-auth endpoint.
-	if err != nil && !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
-	}
-
 	// The script must execute the following command:
 	argsList := []string{
 		"integration", "configure", "azure-oidc",
