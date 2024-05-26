@@ -30,6 +30,7 @@ import { UrlResourcesParams } from 'teleport/config';
 import { ResourcesResponse } from 'teleport/services/agents';
 
 import {
+  AvailableResourceMode,
   DefaultTab,
   LabelsViewMode,
   UnifiedResourcePreferences,
@@ -100,6 +101,7 @@ const story = ({
       defaultTab: DefaultTab.ALL,
       viewMode: ViewMode.CARD,
       labelsViewMode: LabelsViewMode.COLLAPSED,
+      availableResourceMode: AvailableResourceMode.ACCESSIBLE,
     });
     const { fetch, attempt, resources } = useUnifiedResourcesFetch({
       fetchFunc,
