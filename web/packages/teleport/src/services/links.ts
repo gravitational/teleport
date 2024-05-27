@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-const DOWNLOAD_BASE_URL = 'https://get.gravitational.com/';
+const DOWNLOAD_BASE_URL = 'https://cdn.teleport.dev/';
 
 export default function getDownloadLink(
   type: Arch,
