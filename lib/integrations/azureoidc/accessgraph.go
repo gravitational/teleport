@@ -130,7 +130,7 @@ func CreateTAGCacheFile(ctx context.Context) error {
 			continue
 		}
 		federatedSSOV2Compressed, err := getFederatedSSOV2Compressed(ctx, graphClient, *appID, token)
-		if err == errNonSSOApp {
+		if errors.Is(err, errNonSSOApp) {
 			slog.DebugContext(ctx, "sso not set up for app, will skip it", "app_id", *appID)
 			continue
 		} else if err != nil {
