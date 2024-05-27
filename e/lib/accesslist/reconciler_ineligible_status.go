@@ -37,7 +37,7 @@ type Cache interface {
 	ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 	ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
-	GetAccessLists(ctx context.Context) ([]*accesslist.AccessList, error)
+	ListAccessLists(ctx context.Context, pageSize int, nextToken string) ([]*accesslist.AccessList, string, error)
 }
 
 // NewIneligibleStatusReconciler creates a new IneligibleStatusReconciler.
@@ -157,12 +157,6 @@ func (r *IneligibleStatusReconciler) Close() error {
 }
 
 func (r *IneligibleStatusReconciler) reconciliationLoop(ctx context.Context, now time.Time) (time.Duration, error) {
-	// get all access lists
-	accessLists, err := r.cache.GetAccessLists(ctx)
-	if err != nil {
-		return 0, trace.Wrap(err, "unable to get access lists")
-	}
-
 	// get all users
 	users, err := getAllUsers(ctx, r.cache, 0 /* use the default page size */)
 	if err != nil {
@@ -170,14 +164,35 @@ func (r *IneligibleStatusReconciler) reconciliationLoop(ctx context.Context, now
 	}
 	usersMap := sliceToMap(users)
 
+	accessLists, err := getAllAccessLists(ctx, r.cache)
+	if err != nil {
+		return 0, trace.Wrap(err, "unable to get access lists")
+	}
 	// reconcile access list ownership
 	if err := r.reconcileAccessListOwnership(ctx, accessLists, usersMap); err != nil {
 		return 0, trace.Wrap(err, "unable to reconcile access list ownership")
 	}
 
-	accessListsMap := sliceToMap(accessLists)
-	nextExpirationTime, err := r.reconcileMemberships(ctx, now, accessListsMap, usersMap)
+	nextExpirationTime, err := r.reconcileMemberships(ctx, now, accessLists, usersMap)
+
 	return nextExpirationTime, trace.Wrap(err, "unable to reconcile memberships")
+}
+
+func getAllAccessLists(ctx context.Context, cache Cache) ([]*accesslist.AccessList, error) {
+	var accessLists []*accesslist.AccessList
+	startToken := ""
+	for {
+		batch, nextToken, err := cache.ListAccessLists(ctx, 0 /* default pageSize */, startToken)
+		if err != nil {
+			return nil, trace.Wrap(err, "unable to get access lists")
+		}
+		accessLists = append(accessLists, batch...)
+		if nextToken == "" {
+			break
+		}
+		startToken = nextToken
+	}
+	return accessLists, nil
 }
 
 func (r *IneligibleStatusReconciler) reconcileAccessListOwnership(ctx context.Context, accessLists []*accesslist.AccessList, usersMap map[string]types.User) error {
@@ -212,41 +227,57 @@ func (r *IneligibleStatusReconciler) reconcileAccessListOwnership(ctx context.Co
 	return nil
 }
 
-func (r *IneligibleStatusReconciler) reconcileMemberships(ctx context.Context, now time.Time, accessListsMap map[string]*accesslist.AccessList, usersMap map[string]types.User) (time.Duration, error) {
-
-	accessListsMembers, err := listAllAccessListsMembers(ctx, r.cache)
-	if err != nil {
-		return 0, trace.Wrap(err, "unable to get access list members")
+func (r *IneligibleStatusReconciler) reconcileMemberships(ctx context.Context, now time.Time, accessLists []*accesslist.AccessList, usersMap map[string]types.User) (time.Duration, error) {
+	accessListsMap := make(map[string]*accesslist.AccessList, len(accessLists))
+	for _, accessList := range accessLists {
+		accessListsMap[accessList.GetName()] = accessList
 	}
 
-	var toUpdate []*accesslist.AccessListMember
-	for _, member := range accessListsMembers {
-		accessList, ok := accessListsMap[member.Spec.AccessList]
-		if !ok {
-			r.log.WithField("access_list", member.Spec.AccessList).Warn("Access list not found")
-			continue
+	startKey := ""
+	nextExpiration := neverDuration
+	for {
+		accessListsMembers, nextKey, err := r.cache.ListAllAccessListMembers(ctx, 0 /* default pageSize */, startKey)
+		if err != nil {
+			return 0, trace.Wrap(err, "unable to get access list members")
 		}
 
-		ineligibleStatus := checkUserIsStillEligible(StillEligibleFields{
-			userLookup: usersMap,
-			username:   member.Spec.Name,
-			expires:    member.Spec.Expires,
-			clock:      r.clock,
-			requires:   accessList.GetMembershipRequires(),
-		})
-		oldIneligibleStatus := member.Spec.IneligibleStatus
-		member.Spec.IneligibleStatus = accesslistv1.IneligibleStatus_name[int32(ineligibleStatus)]
-		if oldIneligibleStatus != member.Spec.IneligibleStatus {
-			toUpdate = append(toUpdate, member)
+		var toUpdate []*accesslist.AccessListMember
+		for _, member := range accessListsMembers {
+			accessList, ok := accessListsMap[member.Spec.AccessList]
+			if !ok {
+				r.log.WithField("access_list", member.Spec.AccessList).Warn("Access list not found")
+				continue
+			}
+			ineligibleStatus := checkUserIsStillEligible(StillEligibleFields{
+				userLookup: usersMap,
+				username:   member.Spec.Name,
+				expires:    member.Spec.Expires,
+				clock:      r.clock,
+				requires:   accessList.GetMembershipRequires(),
+			})
+			oldIneligibleStatus := member.Spec.IneligibleStatus
+			member.Spec.IneligibleStatus = ineligibleStatus.String()
+			if oldIneligibleStatus != member.Spec.IneligibleStatus {
+				toUpdate = append(toUpdate, member)
+			}
 		}
-	}
-	for _, member := range toUpdate {
-		if err := r.updateMember(ctx, member); err != nil {
-			return 0, trace.Wrap(err, "unable to update access list member")
+		for _, member := range toUpdate {
+			if err := r.updateMember(ctx, member); err != nil {
+				return 0, trace.Wrap(err, "unable to update access list member")
+			}
 		}
+
+		batchNextExpirationTime := nextExpirationTime(now, accessListsMembers)
+		if batchNextExpirationTime < nextExpiration {
+			nextExpiration = batchNextExpirationTime
+		}
+		if nextKey == "" {
+			break
+		}
+		startKey = nextKey
 	}
 
-	return nextExpirationTime(now, accessListsMembers), nil
+	return nextExpiration, nil
 }
 
 func (r *IneligibleStatusReconciler) updateMember(ctx context.Context, member *accesslist.AccessListMember) error {
@@ -265,23 +296,6 @@ func (r *IneligibleStatusReconciler) updateAccessList(ctx context.Context, a *ac
 		return nil
 	}
 	return trace.Wrap(err)
-}
-
-func listAllAccessListsMembers(ctx context.Context, accessListsClient Cache) ([]*accesslist.AccessListMember, error) {
-	var startKey = ""
-	var allMembers []*accesslist.AccessListMember
-	for {
-		members, nextKey, err := accessListsClient.ListAllAccessListMembers(ctx, 0, startKey)
-		if err != nil {
-			return nil, trace.Wrap(err, "unable to get access list members")
-		}
-		allMembers = append(allMembers, members...)
-		if nextKey == "" {
-			break
-		}
-		startKey = nextKey
-	}
-	return allMembers, nil
 }
 
 // StillEligibleFields holds the fields required to check if a user is still eligible.
