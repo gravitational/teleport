@@ -5973,6 +5973,9 @@ message PluginEntraIDSyncSettings {
 
   // DefaultOwners are the default owners for all imported access lists.
   repeated string default_owners = 1;
+
+  // SSOConnectorID is the name of the Teleport SSO connector created and used by the Entra ID plugin
+  string sso_connector_id = 2;
 }
 
 // AccessGraphSettings controls settings for syncing access graph specific data.

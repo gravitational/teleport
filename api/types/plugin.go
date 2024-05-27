@@ -650,6 +650,9 @@ func (c *PluginEntraIDSettings) Validate() error {
 	if len(c.SyncSettings.DefaultOwners) == 0 {
 		return trace.BadParameter("sync_settings.default_owners must be set")
 	}
+	if c.SyncSettings.SsoConnectorId == "" {
+		return trace.BadParameter("sync_settings.sso_connector_id must be set")
+	}
 
 	return nil
 }
