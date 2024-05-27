@@ -43,7 +43,6 @@ import {
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 
-
 import useNewRequest, { ResourceKind } from './useNewRequest';
 
 const agentOptions: ResourceOption[] = [
