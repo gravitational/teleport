@@ -277,10 +277,10 @@ type IntegrationConfAzureOIDC struct {
 	// AuthConnectorName is the name of the SAML connector that will be created on Teleport side.
 	AuthConnectorName string
 
-	// AccessGraph is a flag indicating that access graph integration is requested.
+	// AccessGraphEnabled is a flag indicating that access graph integration is requested.
 	// When this is true, the integration script will produce
 	// a cache file necessary for TAG synchronization.
-	AccessGraph bool
+	AccessGraphEnabled bool
 }
 
 // IntegrationConfDeployServiceIAM contains the arguments of

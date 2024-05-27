@@ -32,6 +32,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 type msalTokenCache struct {
@@ -93,7 +95,12 @@ func exchangeToken(ctx context.Context, tenantID string, token msalToken) (strin
 		return "", trace.Wrap(err)
 	}
 
-	resp, err := (&http.Client{}).Do(req)
+	client, err := defaults.HTTPClient()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -154,7 +161,12 @@ func privateAPIGet(ctx context.Context, accessToken string, endpoint string) ([]
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", accessToken))
 	req.Header.Add("x-ms-client-request-id", uuid.NewString())
 
-	resp, err := (&http.Client{}).Do(req)
+	client, err := defaults.HTTPClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
