@@ -1169,6 +1169,9 @@ type Cache interface {
 	GetAccessMonitoringRule(ctx context.Context, name string) (*accessmonitoringrules.AccessMonitoringRule, error)
 	// ListAccessMonitoringRulesWithFilter returns a paginated list of access monitoring rules.
 	ListAccessMonitoringRulesWithFilter(ctx context.Context, pageSize int, nextToken string, subjects []string, notificationName string) ([]*accessmonitoringrules.AccessMonitoringRule, string, error)
+
+	// DatabaseObjectsGetter defines methods for fetching database objects.
+	services.DatabaseObjectsGetter
 }
 
 type NodeWrapper struct {

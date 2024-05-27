@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
@@ -144,6 +145,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newDatabaseServiceParser()
 		case types.KindDatabase:
 			parser = newDatabaseParser()
+		case types.KindDatabaseObject:
+			parser = newDatabaseObjectParser()
 		case types.KindApp:
 			parser = newAppParser()
 		case types.KindLock:
@@ -1276,6 +1279,35 @@ func (p *databaseParser) parse(event backend.Event) (types.Resource, error) {
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newDatabaseObjectParser() *databaseObjectParser {
+	return &databaseObjectParser{
+		baseParser: newBaseParser(backend.Key(databaseObjectPrefix)),
+	}
+}
+
+type databaseObjectParser struct {
+	baseParser
+}
+
+func (p *databaseObjectParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindDatabaseObject, types.V1, 0)
+	case types.OpPut:
+		//nolint:staticcheck // SA1019. Using this unmarshaler for json compatibility.
+		resource, err := services.FastUnmarshalProtoResourceDeprecated[*dbobjectv1.DatabaseObject](event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(resource), nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
