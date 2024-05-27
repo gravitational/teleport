@@ -21,15 +21,19 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"os"
 	"path"
 
 	"github.com/gravitational/trace"
+	msgraphsdk "github.com/microsoftgraph/msgraph-sdk-go"
 
 	"github.com/gravitational/teleport/api/types"
 )
+
+var errNonSSOApp = errors.New("app does not have SSO set up")
 
 // singleSignOnMode represents the possible values for `currentSingleSignOnMode` in `adSingleSignOn`
 type singleSignOnMode string
@@ -66,6 +70,34 @@ func getSingleSignOn(ctx context.Context, token string, servicePrincipalID strin
 	return &result, nil
 }
 
+// getFederatedSSOV2Compressed retrieves the FederatedSsoV2 payload for the given AppId
+// and returns it as gzipped bytes.
+func getFederatedSSOV2Compressed(ctx context.Context, graphClient *msgraphsdk.GraphServiceClient, appID string, token string) ([]byte, error) {
+	sp, err := graphClient.ServicePrincipalsWithAppId(&appID).Get(ctx, nil)
+	if err != nil {
+		return nil, trace.Wrap(err, "could not retrieve service principal")
+	}
+	spID := sp.GetId()
+	if spID == nil {
+		return nil, trace.BadParameter("service principal ID is nil")
+	}
+
+	sso, err := getSingleSignOn(ctx, token, *spID)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to get single sign on data for app_id %s", appID)
+	} else if sso.CurrentSingleSignOnMode != singleSignOnModeFederated {
+		return nil, trace.Wrap(errNonSSOApp)
+	}
+
+	federatedSSOV2, err := privateAPIGet(ctx, token, path.Join("ApplicationSso", *spID, "FederatedSsoV2"))
+	if err != nil {
+		return nil, trace.Wrap(err, "getting federated SSO v2 info failed", "error", err)
+	}
+
+	federatedSSOV2Compressed, err := gzipBytes(federatedSSOV2)
+	return federatedSSOV2Compressed, trace.Wrap(err)
+}
+
 // CreateTAGCacheFile populates a file containing the information necessary for Access Graph to analyze Azure SSO.
 func CreateTAGCacheFile(ctx context.Context) error {
 	graphClient, err := createGraphClient()
@@ -97,36 +129,13 @@ func CreateTAGCacheFile(ctx context.Context) error {
 			slog.WarnContext(ctx, "app ID is nil", "app", app)
 			continue
 		}
-		sp, err := graphClient.ServicePrincipalsWithAppId(appID).Get(ctx, nil)
-		if err != nil {
-			slog.ErrorContext(ctx, "could not retrieve service principal", "app_id", *appID, "error", err)
-		}
-		spID := sp.GetId()
-		if spID == nil {
-			slog.WarnContext(ctx, "service principal ID is nil", "app_id", *appID)
+		federatedSSOV2Compressed, err := getFederatedSSOV2Compressed(ctx, graphClient, *appID, token)
+		if err == errNonSSOApp {
+			slog.DebugContext(ctx, "sso not set up for app, will skip it", "app_id", *appID)
 			continue
+		} else if err != nil {
+			slog.WarnContext(ctx, "failed to retrieve SSO info", "app_id", *appID, "error", err)
 		}
-
-		sso, err := getSingleSignOn(ctx, token, *spID)
-		if err != nil {
-			slog.WarnContext(ctx, "failed to get single sign on data", "app_id", *appID)
-			continue
-		} else if sso.CurrentSingleSignOnMode != singleSignOnModeFederated {
-			slog.DebugContext(ctx, "sso not set up for app, will skip it", "app_id", *appID, "sp_id", *spID)
-			continue
-		}
-
-		federatedSSOV2, err := privateAPIGet(ctx, token, path.Join("ApplicationSso", *spID, "FederatedSsoV2"))
-		if err != nil {
-			slog.WarnContext(ctx, "getting federated SSO v2 info failed", "error", err)
-			continue
-		}
-
-		federatedSSOV2Compressed, err := gzipBytes(federatedSSOV2)
-		if err != nil {
-			slog.WarnContext(ctx, "can not compress the FederatedSsoV2 payload", "error", err)
-		}
-
 		cache.AppSsoSettingsCache = append(cache.AppSsoSettingsCache, &types.PluginEntraIDAppSSOSettings{
 			AppId:          *appID,
 			FederatedSsoV2: federatedSSOV2Compressed,
