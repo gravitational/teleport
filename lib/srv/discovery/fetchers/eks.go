@@ -173,7 +173,7 @@ func NewEKSFetcher(cfg EKSFetcherConfig) (common.Fetcher, error) {
 	fetcher := &eksFetcher{EKSFetcherConfig: cfg}
 
 	if err := fetcher.setCallerIdentity(context.Background()); err != nil {
-		return nil, trace.Wrap(err, "failed to get caller identity")
+		cfg.Log.WithError(err).Warn("Failed to set caller identity.")
 	}
 
 	// If the fetcher SetupAccessForARN isn't set, use the caller identity.
