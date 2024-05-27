@@ -18,6 +18,8 @@
 
 import { useCallback } from 'react';
 
+import { ShowResources } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+
 import { assertUnreachable } from 'teleterm/ui/utils';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 
@@ -124,6 +126,8 @@ export function useResourceSearch() {
             search,
             filters: resourceTypeSearchFilters.map(f => f.resourceType),
             limit,
+            includeRequestable:
+              cluster.showResources === ShowResources.REQUESTABLE,
           })
         )
       );
@@ -358,6 +362,11 @@ function calculateScore(
 
     const resourceMatchScore = getLengthScore(searchTerm, field) * weight;
     searchResultScore += resourceMatchScore;
+  }
+
+  // Show resources that require access at the bottom.
+  if (searchResult.requiresRequest) {
+    searchResultScore *= 0.1;
   }
 
   return { ...searchResult, labelMatches, score: searchResultScore };

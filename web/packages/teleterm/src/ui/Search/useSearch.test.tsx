@@ -140,6 +140,7 @@ describe('useResourceSearch', () => {
       .map(() => ({
         kind: 'server' as const,
         resource: makeServer({}),
+        requiresRequest: false,
       }));
     jest
       .spyOn(appContext.resourcesService, 'searchResources')
@@ -160,6 +161,7 @@ describe('useResourceSearch', () => {
       search: 'foo',
       filters: [],
       limit: 100,
+      includeRequestable: true,
     });
     expect(appContext.resourcesService.searchResources).toHaveBeenCalledTimes(
       1
@@ -191,6 +193,7 @@ describe('useResourceSearch', () => {
       search: '',
       filters: [],
       limit: 10,
+      includeRequestable: true,
     });
     expect(appContext.resourcesService.searchResources).toHaveBeenCalledTimes(
       1
