@@ -110,6 +110,7 @@ func NewAWSSignerHandler(ctx context.Context, config SignerHandlerConfig) (http.
 		reverseproxy.WithErrorHandler(handler.formatForwardResponseError),
 	)
 
+	reverseproxy.WithPassHostHeader
 	return handler, trace.Wrap(err)
 }
 
@@ -144,6 +145,11 @@ func (s *signerHandler) serveHTTP(w http.ResponseWriter, req *http.Request) erro
 	// AWS without re-signing.
 	if req.Header.Get(common.TeleportAWSAssumedRole) != "" {
 		return trace.Wrap(s.serveRequestByAssumedRole(sessCtx, w, req))
+	}
+
+	// TODO
+	if req.Header.Get(common.TeleportOriginalGitURL) != "" {
+		return trace.Wrap(s.serveGitCodeCommitRequest(sessCtx, w, req))
 	}
 
 	// Handle requests signed with the default local proxy credentials. The

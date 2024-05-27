@@ -236,6 +236,10 @@ type CLIConf struct {
 	DatabaseRoles string
 	// AppName specifies proxied application name.
 	AppName string
+	// GitURL TODO
+	GitURL string
+	// GitOrigin TODO
+	GitOrigin string
 	// Interactive, when set to true, launches remote command with the terminal attached
 	Interactive bool
 	// Quiet mode, -q command (disables progress printing)
@@ -590,6 +594,8 @@ func Main() {
 		cmdLine = append([]string{"ssh"}, cmdLineOrig...)
 	case "scp":
 		cmdLine = append([]string{"scp"}, cmdLineOrig...)
+	case "git-remote-teleport":
+		cmdLine = append([]string{"git", "remote"}, cmdLineOrig...)
 	default:
 		cmdLine = cmdLineOrig
 	}
@@ -1161,6 +1167,18 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	puttyConfig.Arg("[user@]host", "Remote hostname and optional login to use").Required().StringVar(&cf.UserHost)
 	puttyConfig.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
 	puttyConfig.Flag("leaf", "Add a configuration for connecting to a leaf cluster").StringVar(&cf.LeafClusterName)
+
+	git := app.Command("git", "Git proxy TODO.")
+	gitClone := git.Command("clone", "Git clone.")
+	gitClone.Flag("app", "App name to retrieve credentials for. Can be obtained from `tsh apps ls` output.").Required().StringVar(&cf.AppName)
+	gitClone.Arg("git-url", "Git URL").Required().StringVar(&cf.GitURL)
+
+	gitRemote := git.Command("remote", "Custom teleport transport for git-remote-teleport.")
+	gitRemote.Arg("git-origin", "Git origin").Required().StringVar(&cf.GitOrigin)
+	gitRemote.Arg("git-url", "Git URL").Required().StringVar(&cf.GitURL)
+	// TODO allow more git args
+	// TODO tsh proxy git
+
 	// only expose `tsh puttyconfig` subcommand on windows
 	if runtime.GOOS != constants.WindowsOS {
 		puttyConfig.Hidden()
@@ -1545,6 +1563,10 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = vnetCmd.run(&cf)
 	case vnetAdminSetupCmd.FullCommand():
 		err = vnetAdminSetupCmd.run(&cf)
+	case gitClone.FullCommand():
+		err = onGitClone(&cf)
+	case gitRemote.FullCommand():
+		err = onGitRemote(&cf)
 	default:
 		// Handle commands that might not be available.
 		switch {
