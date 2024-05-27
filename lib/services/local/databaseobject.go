@@ -39,7 +39,6 @@ func (s *DatabaseObjectService) DeleteAllDatabaseObjects(ctx context.Context) er
 	return trace.Wrap(s.service.DeleteAllResources(ctx))
 }
 
-
 func (s *DatabaseObjectService) UpsertDatabaseObject(ctx context.Context, object *dbobjectv1.DatabaseObject) (*dbobjectv1.DatabaseObject, error) {
 	out, err := s.service.UpsertResource(ctx, object)
 	return out, trace.Wrap(err)
