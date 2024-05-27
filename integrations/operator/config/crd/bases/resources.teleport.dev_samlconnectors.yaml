@@ -88,7 +88,7 @@ spec:
                   localhost ones.
                 nullable: true
                 properties:
-                  allowedHttpsHostnames:
+                  allowed_https_hostnames:
                     description: a list of hostnames allowed for https client redirect
                       URLs
                     items:
