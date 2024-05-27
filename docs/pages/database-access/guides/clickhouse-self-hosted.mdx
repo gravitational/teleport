@@ -179,7 +179,7 @@ $ helm install teleport-kube-agent teleport/teleport-kube-agent \
   --set "databases[0].name=example-clickhouse" \
   --set "databases[0].uri=clickhouse.example.com:8443" \
   --set "databases[0].protocol=clickhouse-http" \
-  --set "labels.env=dev" \
+  --set "databases[0].static_labels.env=dev" \
   --version (=teleport.version=)
 ```
 
@@ -197,7 +197,7 @@ $ helm install teleport-kube-agent teleport/teleport-kube-agent \
   --set "databases[0].name=example-clickhouse" \
   --set "databases[0].uri=clickhouse.example.com:9440" \
   --set "databases[0].protocol=clickhouse" \
-  --set "labels.env=dev" \
+  --set "databases[0].static_labels.env=dev" \
   --version (=teleport.version=)
 ```
 
