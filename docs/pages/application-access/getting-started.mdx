@@ -169,7 +169,7 @@ $ helm install teleport-kube-agent teleport/teleport-kube-agent \
   --set authToken=${JOIN_TOKEN?} \
   --set "apps[0].name=grafana" \
   --set "apps[0].uri=http://example-grafana.example-grafana.svc.cluster.local" \
-  --set "labels.env=dev" \
+  --set "apps[0].labels.env=dev" \
   --version (=teleport.version=)
 ```
 
