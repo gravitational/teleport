@@ -39,6 +39,7 @@ import stack from 'design/assets/resources/stack.png';
 
 import { Attempt } from 'shared/hooks/useAsync';
 
+import { ShowResources } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 import { DefaultTab } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 
 import { NodeSubKind } from 'shared/services';
@@ -59,11 +60,14 @@ import {
 } from 'teleterm/ui/services/workspacesService';
 import { getAppAddrWithProtocol } from 'teleterm/services/tshd/app';
 
+import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
+
 import {
   ConnectServerActionButton,
   ConnectKubeActionButton,
   ConnectDatabaseActionButton,
   ConnectAppActionButton,
+  AccessRequestButton,
 } from './ActionButtons';
 import { useResourcesContext, ResourcesContext } from './resourcesContext';
 import { useUserPreferences } from './useUserPreferences';
@@ -76,7 +80,21 @@ export function UnifiedResources(props: {
   const { clustersService } = useAppContext();
   const { userPreferencesAttempt, updateUserPreferences, userPreferences } =
     useUserPreferences(props.clusterUri);
-  const { documentsService, rootClusterUri } = useWorkspaceContext();
+  const { documentsService, rootClusterUri, accessRequestsService } =
+    useWorkspaceContext();
+  const addedResources = useStoreSelector(
+    'workspacesService',
+    useCallback(
+      state => {
+        const pending =
+          state.workspaces[rootClusterUri]?.accessRequests.pending;
+        if (pending?.kind === 'resource') {
+          return pending.resources;
+        }
+      },
+      [rootClusterUri]
+    )
+  );
   const { onResourcesRefreshRequest } = useResourcesContext();
   const loggedInUser = useWorkspaceLoggedInUser();
 
@@ -109,8 +127,8 @@ export function UnifiedResources(props: {
   const isRootCluster = props.clusterUri === rootClusterUri;
   const canAddResources = isRootCluster && loggedInUser?.acl?.tokens.create;
   let discoverUrl: string;
+  const rootCluster = clustersService.findCluster(rootClusterUri);
   if (isRootCluster) {
-    const rootCluster = clustersService.findCluster(rootClusterUri);
     discoverUrl = `https://${rootCluster.proxyHost}/web/discover`;
   }
 
@@ -137,8 +155,42 @@ export function UnifiedResources(props: {
     [documentsService, props.docUri]
   );
 
+  const requestStarted = accessRequestsService.getAddedItemsCount() > 0;
+
+  const getAccessRequestButton = useCallback(
+    (resource: UnifiedResourceResponse) => {
+      const isResourceAdded = addedResources?.has(resource.resource.uri);
+
+      const showRequestableResources =
+        rootCluster.showResources === ShowResources.REQUESTABLE;
+      // If we are currently making an access request, all buttons change to
+      // add to request.
+      const showRequestButton =
+        showRequestableResources &&
+        (resource.requiresRequest || requestStarted);
+
+      if (showRequestButton) {
+        return (
+          <AccessRequestButton
+            isResourceAdded={isResourceAdded}
+            requestStarted={requestStarted}
+            onClick={() => accessRequestsService.addOrRemoveResource(resource)}
+          />
+        );
+      }
+    },
+    [
+      accessRequestsService,
+      addedResources,
+      requestStarted,
+      rootCluster.showResources,
+    ]
+  );
+
   return (
     <Resources
+      getAccessRequestButton={getAccessRequestButton}
+      showResources={rootCluster.showResources}
       queryParams={mergedParams}
       onParamsChange={onParamsChange}
       clusterUri={props.clusterUri}
@@ -170,12 +222,16 @@ const Resources = memo(
     openConnectMyComputerDocument(): void;
     onResourcesRefreshRequest: ResourcesContext['onResourcesRefreshRequest'];
     discoverUrl: string;
+    getAccessRequestButton?: (resource: UnifiedResourceResponse) => JSX.Element;
+    showResources: ShowResources;
   }) => {
     const appContext = useAppContext();
 
     const { fetch, resources, attempt, clear } = useUnifiedResourcesFetch({
       fetchFunc: useCallback(
         async (paginationParams, signal) => {
+          const showRequestableResources =
+            props.showResources === ShowResources.REQUESTABLE;
           const response = await retryWithRelogin(
             appContext,
             props.clusterUri,
@@ -183,7 +239,7 @@ const Resources = memo(
               appContext.resourcesService.listUnifiedResources(
                 {
                   clusterUri: props.clusterUri,
-                  searchAsRoles: false,
+                  searchAsRoles: showRequestableResources,
                   sortBy: {
                     isDesc: props.queryParams.sort.dir === 'DESC',
                     field: props.queryParams.sort.fieldName,
@@ -194,6 +250,7 @@ const Resources = memo(
                   pinnedOnly: props.queryParams.pinnedOnly,
                   startKey: paginationParams.startKey,
                   limit: paginationParams.limit,
+                  includeRequestable: showRequestableResources,
                 },
                 signal
               )
@@ -214,6 +271,7 @@ const Resources = memo(
           props.queryParams.sort.dir,
           props.queryParams.sort.fieldName,
           props.clusterUri,
+          props.showResources,
         ]
       ),
     });
@@ -253,8 +311,20 @@ const Resources = memo(
           props.updateUserPreferences({ unifiedResourcePreferences })
         }
         pinning={pinning}
-        resources={resources.map(mapToSharedResource)}
-        resourcesFetchAttempt={attempt}
+        resources={resources.map(r => {
+          const { resource, ui } = mapToSharedResource(r);
+          return {
+            resource,
+            ui: {
+              ActionButton: props.getAccessRequestButton(r) || ui.ActionButton,
+            },
+          };
+        })}
+        resourcesFetchAttempt={
+          props.showResources === ShowResources.UNSPECIFIED
+            ? { status: 'processing' }
+            : attempt
+        }
         fetchResources={fetch}
         availableKinds={[
           {
@@ -302,6 +372,7 @@ const mapToSharedResource = (
           addr: server.addr,
           tunnel: server.tunnel,
           subKind: server.subKind as NodeSubKind,
+          requiresRequest: resource.requiresRequest,
         },
         ui: {
           ActionButton: <ConnectServerActionButton server={server} />,
@@ -321,6 +392,7 @@ const mapToSharedResource = (
             database.protocol as DbProtocol
           ).title,
           protocol: database.protocol as DbProtocol,
+          requiresRequest: resource.requiresRequest,
         },
         ui: {
           ActionButton: <ConnectDatabaseActionButton database={database} />,
@@ -335,6 +407,7 @@ const mapToSharedResource = (
           kind: 'kube_cluster' as const,
           labels: kube.labels,
           name: kube.name,
+          requiresRequest: resource.requiresRequest,
         },
         ui: {
           ActionButton: <ConnectKubeActionButton kube={kube} />,
@@ -355,6 +428,7 @@ const mapToSharedResource = (
           description: app.desc,
           friendlyName: app.friendlyName,
           samlApp: app.samlApp,
+          requiresRequest: resource.requiresRequest,
         },
         ui: {
           ActionButton: <ConnectAppActionButton app={app} />,

@@ -136,6 +136,7 @@ func NewAccessCache(cfg AccessCacheConfig) (*cache.Cache, error) {
 		CrownJewels:             cfg.Services.CrownJewelClient(),
 		DatabaseServices:        cfg.Services,
 		Databases:               cfg.Services,
+		DatabaseObjects:         cfg.Services.DatabaseObjectsClient(),
 		AppSession:              cfg.Services,
 		SnowflakeSession:        cfg.Services,
 		SAMLIdPSession:          cfg.Services,

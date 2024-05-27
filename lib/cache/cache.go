@@ -38,6 +38,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
+	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
@@ -94,6 +95,7 @@ var highVolumeResources = map[string]struct{}{
 	types.KindDatabaseService:       {},
 	types.KindWindowsDesktopService: {},
 	types.KindKubeServer:            {},
+	types.KindDatabaseObject:        {},
 }
 
 func isHighVolumeResource(kind string) bool {
@@ -176,6 +178,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindNotification},
 		{Kind: types.KindGlobalNotification},
 		{Kind: types.KindAccessMonitoringRule},
+		{Kind: types.KindDatabaseObject},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -492,6 +495,7 @@ type Cache struct {
 	crownJewelsCache             services.CrownJewels
 	databaseServicesCache        services.DatabaseServices
 	databasesCache               services.Databases
+	databaseObjectsCache         *local.DatabaseObjectService
 	appSessionCache              services.AppSession
 	snowflakeSessionCache        services.SnowflakeSession
 	samlIdPSessionCache          services.SAMLIdPSession //nolint:revive // Because we want this to be IdP.
@@ -648,6 +652,8 @@ type Config struct {
 	DatabaseServices services.DatabaseServices
 	// Databases is a databases service.
 	Databases services.Databases
+	// DatabaseObjects is a database object service.
+	DatabaseObjects services.DatabaseObjects
 	// SAMLIdPSession holds SAML IdP sessions.
 	SAMLIdPSession services.SAMLIdPSession
 	// SnowflakeSession holds Snowflake sessions.
@@ -863,7 +869,7 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	secReprotsCache, err := local.NewSecReportsService(config.Backend, config.Clock)
+	secReportsCache, err := local.NewSecReportsService(config.Backend, config.Clock)
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
@@ -876,6 +882,12 @@ func New(config Config) (*Cache, error) {
 	}
 
 	accessListCache, err := simple.NewAccessListService(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
+	databaseObjectsCache, err := local.NewDatabaseObjectService(config.Backend)
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
@@ -943,9 +955,10 @@ func New(config Config) (*Cache, error) {
 		integrationsCache:            integrationsCache,
 		discoveryConfigsCache:        discoveryConfigsCache,
 		headlessAuthenticationsCache: local.NewIdentityService(config.Backend),
-		secReportsCache:              secReprotsCache,
+		secReportsCache:              secReportsCache,
 		userLoginStateCache:          userLoginStatesCache,
 		accessListCache:              accessListCache,
+		databaseObjectsCache:         databaseObjectsCache,
 		notificationsCache:           notificationsCache,
 		eventsFanout:                 fanout,
 		lowVolumeEventsFanout:        utils.NewRoundRobin(lowVolumeFanouts),
@@ -2429,6 +2442,30 @@ func (c *Cache) GetDatabases(ctx context.Context) ([]types.Database, error) {
 	return rg.reader.GetDatabases(ctx)
 }
 
+func (c *Cache) GetDatabaseObject(ctx context.Context, name string) (*dbobjectv1.DatabaseObject, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetDatabaseObject")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.databaseObjects)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.GetDatabaseObject(ctx, name)
+}
+
+func (c *Cache) ListDatabaseObjects(ctx context.Context, size int, pageToken string) ([]*dbobjectv1.DatabaseObject, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListWindowsDesktopServices")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.databaseObjects)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListDatabaseObjects(ctx, size, pageToken)
+}
+
 // GetDatabase returns the specified database resource.
 func (c *Cache) GetDatabase(ctx context.Context, name string) (types.Database, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetDatabase")
@@ -3122,6 +3159,21 @@ func (c *Cache) ListAccessMonitoringRules(ctx context.Context, pageSize int, nex
 	}
 	defer rg.Release()
 	out, nextKey, err := rg.reader.ListAccessMonitoringRules(ctx, pageSize, nextToken)
+	return out, nextKey, trace.Wrap(err)
+}
+
+// ListAccessMonitoringRulesWithFilter returns a paginated list of access monitoring rules.
+func (c *Cache) ListAccessMonitoringRulesWithFilter(ctx context.Context, pageSize int, nextToken string, subjects []string, notificationName string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListAccessMonitoringRules")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.accessMonitoringRules)
+
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	out, nextKey, err := rg.reader.ListAccessMonitoringRulesWithFilter(ctx, pageSize, nextToken, subjects, notificationName)
 	return out, nextKey, trace.Wrap(err)
 }
 
