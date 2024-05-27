@@ -92,6 +92,9 @@ func getTenantID() (string, error) {
 	if len(profile.Subscriptions) == 0 {
 		return "", trace.BadParameter("subscription not found")
 	}
+
+	// Users are expected to run this in the Azure Cloud Shell,
+	// where they are by default authenticated to only one subscription.
 	return profile.Subscriptions[0].TenantID, nil
 
 }
