@@ -69,19 +69,17 @@ export const VnetSliderStepHeader = (props: { goBack: () => void }) => (
   />
 );
 
-interface VnetConnectionItemBaseProps {
-  onClick: () => void;
-  title: string;
-  showBackButton?: boolean;
-  showHelpButton?: boolean;
-  isActive?: boolean;
-  tabIndex?: number;
-}
-
 const VnetConnectionItemBase = forwardRef<
   HTMLLIElement,
-  VnetConnectionItemBaseProps
->((props: VnetConnectionItemBaseProps, ref) => {
+  {
+    onClick: () => void;
+    title: string;
+    showBackButton?: boolean;
+    showHelpButton?: boolean;
+    isActive?: boolean;
+    tabIndex?: number;
+  }
+>((props, ref) => {
   const { status, start, stop, startAttempt, stopAttempt } = useVnetContext();
   const isProcessing =
     startAttempt.status === 'processing' || stopAttempt.status === 'processing';

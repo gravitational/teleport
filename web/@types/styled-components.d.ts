@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,24 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import styled from 'styled-components';
+import 'styled-components';
+import { Theme } from 'design/theme/themes/types';
 
-export const TopBarButton = styled.button<{ isOpened?: boolean }>`
-  display: flex;
-  font-family: inherit;
-  background: inherit;
-  cursor: pointer;
-  align-items: center;
-  color: ${props => props.theme.colors.text.main};
-  flex-direction: row;
-  height: 100%;
-  border-radius: 4px;
-  border-width: 1px;
-  border-style: solid;
-  border-color: ${props =>
-    props.isOpened ? props.theme.colors.buttons.border.border : 'transparent'};
-
-  &:hover {
-    background: ${props => props.theme.colors.spotBackground[0]};
-  }
-`;
+declare module 'styled-components' {
+  export interface DefaultTheme extends Theme {}
+}

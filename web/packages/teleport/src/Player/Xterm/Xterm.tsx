@@ -19,7 +19,7 @@
 import React, { useEffect, useRef } from 'react';
 
 import { getPlatformType } from 'design/platform';
-import { useTheme } from 'design/themed-components';
+import { useTheme } from 'styled-components';
 
 import Terminal from 'teleport/lib/term/terminal';
 import Tty from 'teleport/lib/term/tty';

@@ -17,7 +17,7 @@
  */
 
 import { useRef, useState } from 'react';
-import { useTheme } from 'design/themed-components';
+import { useTheme } from 'styled-components';
 
 import { copyToClipboard } from 'design/utils/copyToClipboard';
 import selectElementContent from 'design/utils/selectElementContent';

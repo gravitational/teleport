@@ -21,7 +21,7 @@ import { Box, ButtonSecondary, ButtonPrimary, Text, Image, Flex } from 'design';
 import FieldInput from 'shared/components/FieldInput';
 import Validation from 'shared/components/Validation';
 
-import styled from 'design/themed-components';
+import styled from 'styled-components';
 
 import LinearProgress from 'teleterm/ui/components/LinearProgress';
 

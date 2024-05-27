@@ -71,7 +71,7 @@ const TabText = styled(Text)<{ selected?: boolean }>`
   line-height: 20px;
 
   color: ${props =>
-    props.selected ? props.theme.colors.brand : props.theme.colors.main};
+    props.selected ? props.theme.colors.brand : props.theme.colors.text.main};
 `;
 
 type Props = {

@@ -17,7 +17,7 @@
  */
 
 import React, { useState } from 'react';
-import styled, { useTheme } from 'design/themed-components';
+import styled, { useTheme } from 'styled-components';
 
 import { Moon, Sun, ChevronDown, Logout as LogoutIcon } from 'design/Icon';
 import { Text } from 'design';

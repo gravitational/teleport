@@ -18,7 +18,7 @@
 
 import React from 'react';
 
-import { useTheme } from 'design/themed-components';
+import { useTheme } from 'styled-components';
 
 export function SVGIcon({
   children,

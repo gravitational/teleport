@@ -37,7 +37,6 @@ const NodeHostname = styled.div`
     Lucida Console,
     monospace;
   font-size: 12px;
-  color: ${props => props.theme.colors.text.primary};
   max-width: 184px;
   overflow-wrap: break-word;
 `;

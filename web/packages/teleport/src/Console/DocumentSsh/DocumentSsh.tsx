@@ -17,7 +17,7 @@
  */
 
 import React, { useRef, useEffect } from 'react';
-import { useTheme } from 'design/themed-components';
+import { useTheme } from 'styled-components';
 
 import { Indicator, Box } from 'design';
 

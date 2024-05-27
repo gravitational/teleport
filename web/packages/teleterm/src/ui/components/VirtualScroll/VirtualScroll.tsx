@@ -64,11 +64,7 @@ const TotalHeight = styled.div<{ height: number }>`
   height: ${props => props.height + 'px'};
 `;
 
-interface OffsetProps {
-  moveBy: number;
-}
-
-const Offset = styled.div.attrs((props: OffsetProps) => ({
+const Offset = styled.div.attrs((props: { moveBy: number }) => ({
   style: {
     transform: `translateY(${props.moveBy + 'px'})`,
   },
