@@ -33,7 +33,8 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 )
 
-// A special application template ID in Microsoft Graph, equivalent to the "create your own application" option in Azure portal.
+// nonGalleryAppTemplateID is a constant for the special application template ID in Microsoft Graph,
+// equivalent to the "create your own application" option in Azure portal.
 // Only non-gallery apps ("Create your own application" option in the UI) are allowed to use SAML SSO,
 // hence we use this template.
 // Ref: https://learn.microsoft.com/en-us/graph/api/applicationtemplate-instantiate
