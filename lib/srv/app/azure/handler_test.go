@@ -28,10 +28,13 @@ import (
 func TestForwarder_getToken(t *testing.T) {
 	t.Parallel()
 
+	testCaseContext, testCaseContextCancel := context.WithCancel(context.Background())
+
 	type testCase struct {
 		name string
 
-		config HandlerConfig
+		getTokenContext context.Context
+		config          HandlerConfig
 
 		managedIdentity string
 		scope           string
@@ -44,7 +47,8 @@ func TestForwarder_getToken(t *testing.T) {
 
 	tests = []testCase{
 		{
-			name: "base case",
+			name:            "base case",
+			getTokenContext: context.Background(),
 			config: HandlerConfig{
 				getAccessToken: func(ctx context.Context, managedIdentity string, scope string) (*azcore.AccessToken, error) {
 					if managedIdentity != "MY_IDENTITY" {
@@ -62,7 +66,8 @@ func TestForwarder_getToken(t *testing.T) {
 			checkErr:        require.NoError,
 		},
 		{
-			name: "timeout",
+			name:            "timeout",
+			getTokenContext: context.Background(),
 			config: HandlerConfig{
 				Clock: clockwork.NewFakeClock(),
 				getAccessToken: func(ctx context.Context, managedIdentity string, scope string) (*azcore.AccessToken, error) {
@@ -94,7 +99,8 @@ func TestForwarder_getToken(t *testing.T) {
 			},
 		},
 		{
-			name: "non-timeout error",
+			name:            "non-timeout error",
+			getTokenContext: context.Background(),
 			config: HandlerConfig{
 				getAccessToken: func(ctx context.Context, managedIdentity string, scope string) (*azcore.AccessToken, error) {
 					return nil, trace.BadParameter("bad param foo")
@@ -105,16 +111,27 @@ func TestForwarder_getToken(t *testing.T) {
 				require.True(t, trace.IsBadParameter(err))
 			},
 		},
+		{
+			name:            "context cancel",
+			getTokenContext: testCaseContext,
+			config: HandlerConfig{
+				getAccessToken: func(ctx context.Context, managedIdentity string, scope string) (*azcore.AccessToken, error) {
+					testCaseContextCancel()
+					return nil, trace.BadParameter("bad param foo")
+				},
+			},
+			checkErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, context.Canceled)
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.Background()
-
-			hnd, err := newAzureHandler(ctx, tt.config)
+			hnd, err := newAzureHandler(context.Background(), tt.config)
 			require.NoError(t, err)
 
-			token, err := hnd.getToken(ctx, tt.managedIdentity, tt.scope)
+			token, err := hnd.getToken(tt.getTokenContext, tt.managedIdentity, tt.scope)
 
 			require.Equal(t, tt.wantToken, token)
 			tt.checkErr(t, err)
