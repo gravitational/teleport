@@ -33,7 +33,7 @@ import { UsageData } from './modals/UsageData';
 import { UserJobRole } from './modals/UserJobRole';
 import { ReAuthenticate } from './modals/ReAuthenticate';
 import { AuthenticateWebDevice } from './modals/AuthenticateWebDevice/AuthenticateWebDevice';
-import { ChangeAccessRequestKind } from './modals/ChangeAccessRequestKind/ChangeAccessRequestKind';
+import { ChangeAccessRequestKind } from './modals/ChangeAccessRequestKind';
 
 export default function ModalsHost() {
   const { modalsService } = useAppContext();

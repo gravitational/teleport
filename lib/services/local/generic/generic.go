@@ -213,6 +213,54 @@ func (s *Service[T]) ListResourcesReturnNextResource(ctx context.Context, pageSi
 	return out, next, nil
 }
 
+// ListResourcesWithFilter returns a paginated list of resources that match the given filter.
+func (s *Service[T]) ListResourcesWithFilter(ctx context.Context, pageSize int, pageToken string, matcher func(T) bool) ([]T, string, error) {
+	rangeStart := backend.Key(s.backendPrefix, pageToken)
+	rangeEnd := backend.RangeEnd(backend.ExactKey(s.backendPrefix))
+
+	// Adjust page size, so it can't be too large.
+	if pageSize <= 0 || pageSize > int(s.pageLimit) {
+		pageSize = int(s.pageLimit)
+	}
+
+	limit := pageSize + 1
+
+	var resources []T
+	if err := backend.IterateRange(
+		ctx,
+		s.backend,
+		rangeStart,
+		rangeEnd,
+		limit,
+		func(items []backend.Item) (stop bool, err error) {
+			for _, item := range items {
+				resource, err := s.unmarshalFunc(item.Value, services.WithRevision(item.Revision), services.WithRevision(item.Revision))
+				if err != nil {
+					return false, trace.Wrap(err)
+				}
+				if matcher(resource) {
+					resources = append(resources, resource)
+				}
+				if len(resources) == pageSize {
+					break
+				}
+			}
+			return limit == len(resources), nil
+		}); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	var nextKey string
+	if len(resources) > pageSize {
+		nextKey = backend.GetPaginationKey(resources[pageSize])
+		// Truncate the last item that was used to determine next row existence.
+		resources = resources[:pageSize]
+	}
+
+	return resources, nextKey, nil
+
+}
+
 // GetResource returns the specified resource.
 func (s *Service[T]) GetResource(ctx context.Context, name string) (resource T, err error) {
 	item, err := s.backend.Get(ctx, s.MakeKey(name))

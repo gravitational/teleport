@@ -49,7 +49,8 @@ func TestAccessMonitoringRulesCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	AccessMonitoringRule1 := &accessmonitoringrulesv1.AccessMonitoringRule{
-		Kind: types.KindAccessMonitoringRule,
+		Kind:    types.KindAccessMonitoringRule,
+		Version: types.V1,
 		Metadata: &v1.Metadata{
 			Name: "p1",
 		},
@@ -60,7 +61,8 @@ func TestAccessMonitoringRulesCRUD(t *testing.T) {
 	}
 
 	AccessMonitoringRule2 := &accessmonitoringrulesv1.AccessMonitoringRule{
-		Kind: types.KindAccessMonitoringRule,
+		Kind:    types.KindAccessMonitoringRule,
+		Version: types.V1,
 		Metadata: &v1.Metadata{
 			Name: "p2",
 		},
@@ -129,7 +131,8 @@ func TestListAccessMonitoringRules(t *testing.T) {
 	var insertedAccessMonitoringRules []*accessmonitoringrulesv1.AccessMonitoringRule
 	for i := 0; i < numAccessMonitoringRules; i++ {
 		AccessMonitoringRule := &accessmonitoringrulesv1.AccessMonitoringRule{
-			Kind: types.KindAccessMonitoringRule,
+			Kind:    types.KindAccessMonitoringRule,
+			Version: types.V1,
 			Metadata: &v1.Metadata{
 				Name: fmt.Sprintf("p%02d", i+1),
 			},

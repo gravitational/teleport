@@ -128,6 +128,7 @@ export class ResourcesService {
         pinnedOnly: false,
         startKey: '',
         sortBy: { field: 'name', isDesc: true },
+        includeRequestable: false, //TODO(gzdunek): Support requestable resources in the search bar.
       });
       return resources.map(r => {
         if (r.kind === 'app') {
@@ -161,6 +162,7 @@ export class ResourcesService {
             return {
               kind: 'server' as const,
               resource: p.resource.server,
+              requiresRequest: p.requiresRequest,
             };
           }
 
@@ -168,6 +170,7 @@ export class ResourcesService {
             return {
               kind: 'database' as const,
               resource: p.resource.database,
+              requiresRequest: p.requiresRequest,
             };
           }
 
@@ -175,6 +178,7 @@ export class ResourcesService {
             return {
               kind: 'app' as const,
               resource: p.resource.app,
+              requiresRequest: p.requiresRequest,
             };
           }
 
@@ -182,6 +186,7 @@ export class ResourcesService {
             return {
               kind: 'kube' as const,
               resource: p.resource.kube,
+              requiresRequest: p.requiresRequest,
             };
           }
 
@@ -275,10 +280,11 @@ function makeGetResourcesParamsRequest(params: types.GetResourcesParams) {
 }
 
 export type UnifiedResourceResponse =
-  | { kind: 'server'; resource: types.Server }
+  | { kind: 'server'; resource: types.Server; requiresRequest: boolean }
   | {
       kind: 'database';
       resource: types.Database;
+      requiresRequest: boolean;
     }
-  | { kind: 'kube'; resource: types.Kube }
-  | { kind: 'app'; resource: types.App };
+  | { kind: 'kube'; resource: types.Kube; requiresRequest: boolean }
+  | { kind: 'app'; resource: types.App; requiresRequest: boolean };

@@ -44,6 +44,8 @@ import * as docTypes from 'teleterm/ui/services/workspacesService/documentsServi
 import * as tsh from 'teleterm/services/tshd/types';
 import { makeDocumentCluster } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
 import { VnetContextProvider } from 'teleterm/ui/Vnet';
+import { getEmptyPendingAccessRequest } from 'teleterm/ui/services/workspacesService/accessRequestsService';
+import { ConnectionsContextProvider } from 'teleterm/ui/TopBar/Connections/connectionsContext';
 
 import DocumentCluster from './DocumentCluster';
 import { ResourcesContextProvider } from './resourcesContext';
@@ -80,6 +82,7 @@ export const OnlineLoadedResources = () => {
           {
             kind: 'server',
             resource: makeServer(),
+            requiresRequest: false,
           },
           {
             kind: 'server',
@@ -88,10 +91,23 @@ export const OnlineLoadedResources = () => {
               hostname: 'bar',
               tunnel: true,
             }),
+            requiresRequest: false,
           },
-          { kind: 'database', resource: makeDatabase() },
-          { kind: 'kube', resource: makeKube() },
-          { kind: 'app', resource: { ...makeApp(), name: 'TCP app' } },
+          {
+            kind: 'database',
+            resource: makeDatabase(),
+            requiresRequest: false,
+          },
+          {
+            kind: 'kube',
+            resource: makeKube(),
+            requiresRequest: false,
+          },
+          {
+            kind: 'app',
+            resource: { ...makeApp(), name: 'TCP app' },
+            requiresRequest: false,
+          },
           {
             kind: 'app',
             resource: {
@@ -99,6 +115,7 @@ export const OnlineLoadedResources = () => {
               name: 'HTTP app',
               endpointUri: 'http://localhost:8080',
             },
+            requiresRequest: false,
           },
           {
             kind: 'app',
@@ -122,6 +139,7 @@ export const OnlineLoadedResources = () => {
                 },
               ],
             },
+            requiresRequest: true,
           },
           {
             kind: 'app',
@@ -133,6 +151,7 @@ export const OnlineLoadedResources = () => {
               endpointUri: '',
               samlApp: true,
             },
+            requiresRequest: true,
           },
         ],
         totalCount: 4,
@@ -335,7 +354,10 @@ function renderState({
       localClusterUri: doc.clusterUri,
       documents: [doc],
       location: doc.uri,
-      accessRequests: undefined,
+      accessRequests: {
+        pending: getEmptyPendingAccessRequest(),
+        isBarCollapsed: true,
+      },
     };
   });
 
@@ -346,17 +368,19 @@ function renderState({
 
   return (
     <AppContextProvider value={appContext}>
-      <VnetContextProvider>
-        <MockWorkspaceContextProvider>
-          <ResourcesContextProvider>
-            <ConnectMyComputerContextProvider rootClusterUri={rootClusterUri}>
-              <Wrapper>
-                <DocumentCluster visible={true} doc={doc} />
-              </Wrapper>
-            </ConnectMyComputerContextProvider>
-          </ResourcesContextProvider>
-        </MockWorkspaceContextProvider>
-      </VnetContextProvider>
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <MockWorkspaceContextProvider>
+            <ResourcesContextProvider>
+              <ConnectMyComputerContextProvider rootClusterUri={rootClusterUri}>
+                <Wrapper>
+                  <DocumentCluster visible={true} doc={doc} />
+                </Wrapper>
+              </ConnectMyComputerContextProvider>
+            </ResourcesContextProvider>
+          </MockWorkspaceContextProvider>
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
     </AppContextProvider>
   );
 }
