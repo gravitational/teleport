@@ -349,6 +349,13 @@ func sendTeleportResources(ctx context.Context, stream accessgraphv1.AccessGraph
 			return trace.Wrap(err)
 		}
 	}
+
+	if slices.Contains(serverSupportedKinds, types.KindDatabaseObject) {
+		if err := sendDatabaseObjects(ctx, authServer.Cache, stream); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	// Send end event to indicate that initialization is done.
 	err := stream.Send(
 		&accessgraphv1.EventsStreamV2Request{
@@ -612,6 +619,44 @@ func pushAccessListMembersToTAG(ctx context.Context, stream accessgraphv1.Access
 	}))
 }
 
+func sendDatabaseObjects(ctx context.Context, authServer services.DatabaseObjectsGetter, stream accessgraphv1.AccessGraphService_EventsStreamV2Client) error {
+	startToken := ""
+	limit := 0 // use default limit
+
+	for {
+		objects, nextToken, err := authServer.ListDatabaseObjects(ctx, limit, startToken)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		list := &accessgraphv1.ResourceList{}
+		for _, object := range objects {
+			list.Resources = append(list.Resources, &accessgraphv1.ResourceEntry{
+				Resource: &accessgraphv1.ResourceEntry_DatabaseObject{
+					DatabaseObject: object,
+				},
+			})
+		}
+
+		err = stream.Send(&accessgraphv1.EventsStreamV2Request{
+			Operation: &accessgraphv1.EventsStreamV2Request_Upsert{
+				Upsert: list,
+			},
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if nextToken == "" {
+			break
+		}
+
+		startToken = nextToken
+	}
+
+	return nil
+}
+
 // sendAccessRequests sends all access requests to the access graph service.
 func sendAccessRequests(ctx context.Context, authServer services.AccessRequestGetter, stream accessgraphv1.AccessGraphService_EventsStreamV2Client) error {
 	requests, err := authServer.GetAccessRequests(ctx, types.AccessRequestFilter{})
@@ -750,6 +795,18 @@ func (t *tagEventWatcher) sendDelete(event *proto.Event) error {
 			},
 		}
 	}
+
+	deleteEventStreamRequestResource153 := func(resource types.Resource153) *accessgraphv1.EventsStreamV2Request {
+		meta := headerv1.FromMetadataProto(resource.GetMetadata())
+		return deleteEventStreamRequest(
+			&types.ResourceHeader{
+				Kind:     resource.GetKind(),
+				Version:  resource.GetVersion(),
+				Metadata: legacy_header.FromHeaderMetadata(meta),
+			},
+		)
+	}
+
 	var req *accessgraphv1.EventsStreamV2Request
 	switch resource := event.Resource.(type) {
 	case *proto.Event_User:
@@ -845,6 +902,8 @@ func (t *tagEventWatcher) sendDelete(event *proto.Event) error {
 				},
 			},
 		}
+	case *proto.Event_DatabaseObject:
+		req = deleteEventStreamRequestResource153(resource.DatabaseObject)
 	case *proto.Event_CrownJewel:
 		req = deleteEventStreamRequest(
 			&types.ResourceHeader{
@@ -983,6 +1042,14 @@ func (t *tagEventWatcher) sendPut(event *proto.Event) (err error) {
 				},
 			},
 		}
+	case *proto.Event_DatabaseObject:
+		req = putResourceEventStreamRequest(
+			&accessgraphv1.ResourceEntry{
+				Resource: &accessgraphv1.ResourceEntry_DatabaseObject{
+					DatabaseObject: resource.DatabaseObject,
+				},
+			},
+		)
 	default:
 		return trace.BadParameter("unexpected resource type: %T", resource)
 	}
