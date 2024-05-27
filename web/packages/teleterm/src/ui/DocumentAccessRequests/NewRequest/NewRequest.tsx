@@ -33,6 +33,8 @@ import {
   ResourceMap,
 } from 'shared/components/AccessRequests/NewRequest';
 
+import { SpaceProps } from 'styled-system';
+
 import {
   PendingAccessRequest,
   extractResourceRequestProperties,
@@ -41,7 +43,6 @@ import {
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 
-import { SpaceProps } from 'styled-system';
 
 import useNewRequest, { ResourceKind } from './useNewRequest';
 

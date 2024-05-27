@@ -1,4 +1,3 @@
-/// <reference types="styled-components/cssprop" />
 /**
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
