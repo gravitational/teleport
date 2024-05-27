@@ -31,7 +31,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -74,7 +74,7 @@ func TestAgentCertChecker(t *testing.T) {
 				"test",
 				utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 				handler,
-				[]ssh.Signer{cert},
+				sshutils.StaticHostSigners(cert),
 				sshutils.AuthMethods{NoClient: true},
 				sshutils.SetInsecureSkipHostValidation(),
 			)
@@ -101,7 +101,7 @@ func TestAgentCertChecker(t *testing.T) {
 }
 
 type fakeClient struct {
-	auth.AccessCache
+	authclient.AccessCache
 	caKey ssh.PublicKey
 }
 

@@ -340,7 +340,7 @@ func TestLayoutUpdate(t *testing.T) {
 	require.NotNil(t, prefs.Onboard)
 	// Non-existing values should be set to the default value.
 	require.Equal(t, userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_DOCKED, prefs.Assist.ViewMode)
-	require.Equal(t, userpreferencesv1.Theme_THEME_LIGHT, prefs.Theme)
+	require.Equal(t, userpreferencesv1.Theme_THEME_UNSPECIFIED, prefs.Theme)
 	// Existing values should be preserved.
 	require.Equal(t, []string{"foo", "bar"}, prefs.Assist.PreferredLogins)
 }

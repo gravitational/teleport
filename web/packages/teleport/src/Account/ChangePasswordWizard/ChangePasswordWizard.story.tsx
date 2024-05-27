@@ -38,7 +38,10 @@ export default {
       const ctx = createTeleportContext();
       return (
         <ContextProvider ctx={ctx}>
-          <Dialog open={true} dialogCss={() => ({ width: '650px' })}>
+          <Dialog
+            open={true}
+            dialogCss={() => ({ width: '650px', padding: 0 })}
+          >
             <Story />
           </Dialog>
         </ContextProvider>
@@ -101,7 +104,7 @@ const stepProps = {
   prev() {},
   hasTransitionEnded: true,
   stepIndex: 0,
-  flowLength: 1,
+  flowLength: 2,
   refCallback: () => {},
 
   // Other props

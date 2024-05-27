@@ -143,7 +143,7 @@ func TestGetDatabaseObject(t *testing.T) {
 			}
 
 			cmpOpts := []cmp.Option{
-				protocmp.IgnoreFields(&headerv1.Metadata{}, "id", "revision"),
+				protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 				protocmp.Transform(),
 			}
 			require.Equal(t, "", cmp.Diff(tt.wantObj, obj, cmpOpts...))
@@ -229,7 +229,7 @@ func TestListDatabaseObjects(t *testing.T) {
 
 				for i := 0; i < count; i++ {
 					cmpOpts := []cmp.Option{
-						protocmp.IgnoreFields(&headerv1.Metadata{}, "id", "revision"),
+						protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 						protocmp.Transform(),
 					}
 					require.Equal(t, "", cmp.Diff(getObject(t, i), elements[i], cmpOpts...))
@@ -253,7 +253,7 @@ func TestListDatabaseObjects(t *testing.T) {
 
 				for i := 0; i < count; i++ {
 					cmpOpts := []cmp.Option{
-						protocmp.IgnoreFields(&headerv1.Metadata{}, "id", "revision"),
+						protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 						protocmp.Transform(),
 					}
 					require.Equal(t, "", cmp.Diff(getObject(t, i), elements[i], cmpOpts...))
@@ -270,9 +270,11 @@ func TestMarshalDatabaseObjectRoundTrip(t *testing.T) {
 	obj, err := databaseobject.NewDatabaseObject("dummy-table", spec)
 	require.NoError(t, err)
 
-	out, err := marshalDatabaseObject(obj)
+	//nolint:staticcheck // SA1019. Using this marshaler for json compatibility.
+	out, err := services.FastMarshalProtoResourceDeprecated(obj)
 	require.NoError(t, err)
-	newObj, err := unmarshalDatabaseObject(out)
+	//nolint:staticcheck // SA1019. Using this unmarshaler for json compatibility.
+	newObj, err := services.FastUnmarshalProtoResourceDeprecated[*dbobjectv1.DatabaseObject](out)
 	require.NoError(t, err)
 	require.True(t, proto.Equal(obj, newObj), "messages are not equal")
 }

@@ -20,11 +20,8 @@ import React, { useEffect, useCallback, useState } from 'react';
 import styled, { useTheme } from 'styled-components';
 import { Link } from 'react-router-dom';
 import { Flex, Image, Text, TopNav } from 'design';
-
 import { matchPath, useHistory } from 'react-router';
-
 import { Theme } from 'design/theme/themes/types';
-
 import { ArrowLeft, Download, Server, SlidersVertical } from 'design/Icon';
 import { HoverTooltip } from 'shared/components/ToolTip';
 
@@ -37,11 +34,11 @@ import cfg from 'teleport/config';
 import { TeleportFeature } from 'teleport/types';
 import { useLayout } from 'teleport/Main/LayoutContext';
 import { getFirstRouteForCategory } from 'teleport/Navigation/Navigation';
+import { logos } from 'teleport/components/LogoHero/LogoHero';
 
-import { Notifications } from './Notifications';
+import { Notifications } from 'teleport/Notifications';
+
 import { ButtonIconContainer } from './Shared';
-import logoLight from './logoLight.svg';
-import logoDark from './logoDark.svg';
 
 import type * as history from 'history';
 
@@ -239,6 +236,7 @@ export const TopBarContainer = styled(TopNav)`
 
 const TeleportLogo = ({ CustomLogo }: TopBarProps) => {
   const theme = useTheme();
+  const src = logos[cfg.edition][theme.type];
 
   return (
     <HoverTooltip
@@ -274,7 +272,7 @@ const TeleportLogo = ({ CustomLogo }: TopBarProps) => {
         ) : (
           <Image
             data-testid="teleport-logo"
-            src={theme.type === 'dark' ? logoDark : logoLight}
+            src={src}
             alt="teleport logo"
             css={`
               padding-left: ${props => props.theme.space[3]}px;

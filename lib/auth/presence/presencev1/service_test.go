@@ -22,6 +22,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"os"
 	"testing"
 	"time"
 
@@ -39,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 func newTestTLSServer(t testing.TB) *auth.TestTLSServer {
@@ -60,6 +62,11 @@ func newTestTLSServer(t testing.TB) *auth.TestTLSServer {
 	})
 
 	return srv
+}
+
+func TestMain(m *testing.M) {
+	modules.SetInsecureTestMode(true)
+	os.Exit(m.Run())
 }
 
 // TestGetRemoteCluster is an integration test that uses a real gRPC
@@ -654,7 +661,7 @@ func TestUpdateRemoteCluster(t *testing.T) {
 					cmp.Diff(
 						tt.want,
 						got,
-						cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+						cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 					),
 				)
 			}

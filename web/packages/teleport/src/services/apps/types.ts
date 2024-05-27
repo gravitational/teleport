@@ -44,6 +44,9 @@ export interface App {
   samlApp: boolean;
   // samlAppSsoUrl is the URL that triggers IdP-initiated SSO for SAML Application;
   samlAppSsoUrl?: string;
+  // Integration is the integration name that must be used to access this Application.
+  // Only applicable to AWS App Access.
+  integration?: string;
 }
 
 export type UserGroupAndDescription = {

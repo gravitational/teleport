@@ -22,19 +22,67 @@ import (
 	"bytes"
 	"context"
 	"net"
+	"net/http"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"cloud.google.com/go/compute/apiv1/computepb"
+	"github.com/googleapis/gax-go/v2/apierror"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/api/googleapi"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+func TestConvertAPIError(t *testing.T) {
+	t.Parallel()
+	fromError := func(t *testing.T, err error) error {
+		outErr, ok := apierror.FromError(err)
+		require.True(t, ok)
+		return outErr
+	}
+	tests := []struct {
+		name string
+		err  error
+	}{
+		{
+			name: "google error",
+			err: &googleapi.Error{
+				Code:    http.StatusForbidden,
+				Message: "abcd1234",
+			},
+		},
+		{
+			name: "api http error",
+			err: fromError(t, &googleapi.Error{
+				Code:    http.StatusForbidden,
+				Message: "abcd1234",
+			}),
+		},
+		{
+			name: "api grpc error",
+			err:  fromError(t, status.Error(codes.PermissionDenied, "abcd1234")),
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			require.True(t, trace.IsAccessDenied(convertAPIError(tc.err)))
+			require.Contains(t, tc.err.Error(), "abcd1234")
+		})
+	}
+	t.Run("not a gcp error", func(t *testing.T) {
+		inErr := trace.Errorf("abcd1234")
+		outErr := convertAPIError(inErr)
+		require.Same(t, inErr, outErr)
+	})
+}
 
 type mockInstance struct {
 	hostKeys      []ssh.PublicKey
@@ -53,7 +101,7 @@ func newMockInstance(t *testing.T, hostSigner ssh.Signer, listener net.Listener)
 		"gcp-vm-server",
 		utils.NetAddr{AddrNetwork: "tcp", Addr: listener.Addr().String()},
 		mock,
-		[]ssh.Signer{hostSigner},
+		sshutils.StaticHostSigners(hostSigner),
 		sshutils.AuthMethods{
 			PublicKey: mock.userKeyAuth,
 		},
@@ -120,6 +168,10 @@ func (m *mockInstance) StreamInstances(ctx context.Context, projectID, location 
 
 func (m *mockInstance) GetInstance(ctx context.Context, req *InstanceRequest) (*Instance, error) {
 	return m.instance, nil
+}
+
+func (m *mockInstance) GetInstanceTags(ctx context.Context, req *InstanceRequest) (map[string]string, error) {
+	return nil, nil
 }
 
 func (m *mockInstance) AddSSHKey(ctx context.Context, req *SSHKeyRequest) error {

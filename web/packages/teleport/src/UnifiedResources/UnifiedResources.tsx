@@ -26,13 +26,15 @@ import {
   UnifiedResources as SharedUnifiedResources,
   useUnifiedResourcesFetch,
   UnifiedResourcesPinning,
+  BulkAction,
+  IncludedResourceMode,
+  ResourceAvailabilityFilter,
 } from 'shared/components/UnifiedResources';
 import { ClusterDropdown } from 'shared/components/ClusterDropdown/ClusterDropdown';
 
 import { DefaultTab } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 
 import useStickyClusterId from 'teleport/useStickyClusterId';
-import { storageService } from 'teleport/services/storageService';
 import { useUser } from 'teleport/User/UserContext';
 import { useTeleport } from 'teleport';
 import { useUrlFiltering } from 'teleport/components/hooks';
@@ -47,6 +49,7 @@ import { SearchResource } from 'teleport/Discover/SelectResource';
 import { encodeUrlQueryParams } from 'teleport/components/hooks/useUrlFiltering';
 import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
 import { FeatureFlags } from 'teleport/types';
+import { UnifiedResource } from 'teleport/services/agents';
 
 import { ResourceActionButton } from './ResourceActionButton';
 import SearchPanel from './SearchPanel';
@@ -93,16 +96,27 @@ const getAvailableKindsWithAccess = (flags: FeatureFlags): FilterKind[] => {
 export function ClusterResources({
   clusterId,
   isLeafCluster,
+  getActionButton,
+  showCheckout = false,
+  availabilityFilter,
+  bulkActions = [],
 }: {
   clusterId: string;
   isLeafCluster: boolean;
+  getActionButton?: (
+    resource: UnifiedResource,
+    includedResourceMode: IncludedResourceMode
+  ) => JSX.Element;
+  showCheckout?: boolean;
+  /** A list of actions that can be performed on the selected items. */
+  bulkActions?: BulkAction[];
+  availabilityFilter?: ResourceAvailabilityFilter;
 }) {
   const teleCtx = useTeleport();
   const flags = teleCtx.getFeatureFlags();
 
   useNoMinWidth();
 
-  const pinningNotSupported = storageService.arePinnedResourcesDisabled();
   const {
     getClusterPinnedResources,
     preferences,
@@ -117,6 +131,7 @@ export function ClusterResources({
       fieldName: 'name',
       dir: 'ASC',
     },
+    includedResourceMode: availabilityFilter?.mode,
     pinnedOnly:
       preferences?.unifiedResourcePreferences?.defaultTab === DefaultTab.PINNED,
   });
@@ -128,13 +143,11 @@ export function ClusterResources({
   const updateCurrentClusterPinnedResources = (pinnedResources: string[]) =>
     updateClusterPinnedResources(clusterId, pinnedResources);
 
-  const pinning: UnifiedResourcesPinning = pinningNotSupported
-    ? { kind: 'not-supported' }
-    : {
-        kind: 'supported',
-        updateClusterPinnedResources: updateCurrentClusterPinnedResources,
-        getClusterPinnedResources: getCurrentClusterPinnedResources,
-      };
+  const pinning: UnifiedResourcesPinning = {
+    kind: 'supported',
+    updateClusterPinnedResources: updateCurrentClusterPinnedResources,
+    getClusterPinnedResources: getCurrentClusterPinnedResources,
+  };
 
   const { fetch, resources, attempt, clear } = useUnifiedResourcesFetch({
     fetchFunc: useCallback(
@@ -150,6 +163,7 @@ export function ClusterResources({
             searchAsRoles: '',
             limit: paginationParams.limit,
             startKey: paginationParams.startKey,
+            includedResourceMode: params.includedResourceMode,
           },
           signal
         );
@@ -167,6 +181,7 @@ export function ClusterResources({
         params.query,
         params.search,
         params.sort,
+        params.includedResourceMode,
         teleCtx.resourceService,
       ]
     ),
@@ -196,9 +211,11 @@ export function ClusterResources({
     <>
       {loadClusterError && <Danger>{loadClusterError}</Danger>}
       <SharedUnifiedResources
+        bulkActions={bulkActions}
         params={params}
         fetchResources={fetch}
         resourcesFetchAttempt={attempt}
+        availabilityFilter={availabilityFilter}
         unifiedResourcePreferences={preferences.unifiedResourcePreferences}
         updateUnifiedResourcesPreferences={preferences => {
           updatePreferences({ unifiedResourcePreferences: preferences });
@@ -222,7 +239,10 @@ export function ClusterResources({
         resources={resources.map(resource => ({
           resource,
           ui: {
-            ActionButton: <ResourceActionButton resource={resource} />,
+            ActionButton: getActionButton?.(
+              resource,
+              params.includedResourceMode
+            ) || <ResourceActionButton resource={resource} />,
           },
         }))}
         setParams={newParams => {
@@ -251,12 +271,14 @@ export function ClusterResources({
             >
               <FeatureHeaderTitle>Resources</FeatureHeaderTitle>
               <Flex alignItems="center">
-                <AgentButtonAdd
-                  agent={SearchResource.UNIFIED_RESOURCE}
-                  beginsWithVowel={false}
-                  isLeafCluster={isLeafCluster}
-                  canCreate={canCreate}
-                />
+                {!showCheckout && (
+                  <AgentButtonAdd
+                    agent={SearchResource.UNIFIED_RESOURCE}
+                    beginsWithVowel={false}
+                    isLeafCluster={isLeafCluster}
+                    canCreate={canCreate}
+                  />
+                )}
               </Flex>
             </FeatureHeader>
             <Flex alignItems="center" justifyContent="space-between">

@@ -30,6 +30,7 @@ import { UrlResourcesParams } from 'teleport/config';
 import { ResourcesResponse } from 'teleport/services/agents';
 
 import {
+  AvailableResourceMode,
   DefaultTab,
   LabelsViewMode,
   UnifiedResourcePreferences,
@@ -100,6 +101,7 @@ const story = ({
       defaultTab: DefaultTab.ALL,
       viewMode: ViewMode.CARD,
       labelsViewMode: LabelsViewMode.COLLAPSED,
+      availableResourceMode: AvailableResourceMode.ACCESSIBLE,
     });
     const { fetch, attempt, resources } = useUnifiedResourcesFetch({
       fetchFunc,
@@ -213,13 +215,6 @@ export const LoadingPreferences = story({
     agents: allResources,
   }),
   unifiedResourcePreferencesAttempt: makeProcessingAttempt(),
-});
-
-export const PinningNotSupported = story({
-  fetchFunc: async () => {
-    return { agents: allResources, startKey: 'next-key' };
-  },
-  pinning: { kind: 'not-supported' },
 });
 
 export const PinningHidden = story({

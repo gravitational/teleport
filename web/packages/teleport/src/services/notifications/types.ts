@@ -24,17 +24,41 @@ export type FetchNotificationsResponse = {
    */
   notifications: Notification[];
   /**
-   * userNotificationsNextKey is the nextKey for the user-specific notifications list.
+   * nextKey is the next page keys for both lists (user-specific notifications & global notifications)
+   * separated by a comma, ie. "<user-specific notifications nextKey>,<global notifications nextKey>".
+   * If either one of these nextKeys is "end", it means we have reached the end of that list.
    */
-  userNotificationsNextKey: string;
-  /**
-   * globalNotificationsNextKey is the nextKey for the global notifications list.
-   */
-  globalNotificationsNextKey: string;
+  nextKey: string;
   /**
    * userLastSeenNotification is  the timestamp of the last notification the  user has seen.
    */
   userLastSeenNotification: Date;
+};
+
+/**
+ * UpsertLastSeenNotificationRequest is the request to upsert the timestamp of the latest notification that
+ * the user has seen.
+ */
+export type UpsertLastSeenNotificationRequest = {
+  /**
+   * time is the timestamp of the last seen notification.
+   */
+  time: Date;
+};
+
+/**
+ * UpsertNotificationStateRequest is the request made when a user updates a notification's state by marking it
+ * as "clicked" or "dismissed".
+ */
+export type UpsertNotificationStateRequest = {
+  /**
+   * notificationId is the id of the notification.
+   */
+  notificationId: string;
+  /**
+   * notificationState is the state to upsert, either "CLICKED" or "DISMISSED".
+   */
+  notificationState: NotificationState;
 };
 
 export type Notification = {
@@ -52,7 +76,7 @@ export type Notification = {
   title: string;
 };
 
-/** NotificationSubKind is the subkind of notifications, these should be kept in sync with TBD (TODO: rudream - add backend counterpart location here) */
+/** NotificationSubKind is the subkind of notifications, these should be kept in sync with the values in api/types/constants.go */
 export enum NotificationSubKind {
   DefaultInformational = 'default-informational',
   DefaultWarning = 'default-warning',
@@ -61,6 +85,21 @@ export enum NotificationSubKind {
   AccessRequestPending = 'access-request-pending',
   AccessRequestApproved = 'access-request-approved',
   AccessRequestDenied = 'access-request-denied',
-  /** AccessRequestNowAssumable is the notification for when an approved access request that was scheduled for a later date is now assumable. */
-  AccessRequestNowAssumable = 'access-request-now-assumable',
+}
+
+/**
+ * NotificationState the state of a notification for a user. This can represent either "clicked" or "dismissed".
+ *
+ * This should be kept in sync with teleport.notifications.v1.NotificationState.
+ */
+export enum NotificationState {
+  UNSPECIFIED = 0,
+  /**
+   * NOTIFICATION_STATE_CLICKED marks this notification as having been clicked on by the user.
+   */
+  CLICKED = 1,
+  /**
+   * NOTIFICATION_STATE_DISMISSED marks this notification as having been dismissed by the user.
+   */
+  DISMISSED = 2,
 }

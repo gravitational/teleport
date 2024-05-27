@@ -72,13 +72,8 @@ describe('restoring workspace', () => {
       [cluster.uri]: {
         accessRequests: {
           pending: {
-            app: {},
-            db: {},
-            kube_cluster: {},
-            node: {},
-            role: {},
-            windows_desktop: {},
-            user_group: {},
+            kind: 'resource',
+            resources: new Map(),
           },
           isBarCollapsed: false,
         },
@@ -112,13 +107,8 @@ describe('restoring workspace', () => {
         accessRequests: {
           isBarCollapsed: false,
           pending: {
-            app: {},
-            db: {},
-            kube_cluster: {},
-            node: {},
-            role: {},
-            windows_desktop: {},
-            user_group: {},
+            kind: 'resource',
+            resources: new Map(),
           },
         },
         localClusterUri: cluster.uri,

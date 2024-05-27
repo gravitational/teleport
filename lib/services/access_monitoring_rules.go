@@ -23,13 +23,11 @@ import (
 	"slices"
 
 	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // AccessMonitoringRules is the AccessMonitoringRule service
@@ -41,6 +39,7 @@ type AccessMonitoringRules interface {
 	DeleteAccessMonitoringRule(ctx context.Context, name string) error
 	DeleteAllAccessMonitoringRules(ctx context.Context) error
 	ListAccessMonitoringRules(ctx context.Context, limit int, startKey string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
+	ListAccessMonitoringRulesWithFilter(ctx context.Context, pageSize int, nextToken string, subjects []string, notificationName string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
 }
 
 // NewAccessMonitoringRuleWithLabels creates a new AccessMonitoringRule  with the given spec and labels.
@@ -71,6 +70,9 @@ func ValidateAccessMonitoringRule(accessMonitoringRule *accessmonitoringrulesv1.
 	if accessMonitoringRule.Metadata == nil {
 		return trace.BadParameter("accessMonitoringRule metadata is missing")
 	}
+	if accessMonitoringRule.Version != types.V1 {
+		return trace.BadParameter("accessMonitoringRule %q is not supported", accessMonitoringRule.Version)
+	}
 	if accessMonitoringRule.Spec == nil {
 		return trace.BadParameter("accessMonitoringRule spec is missing")
 	}
@@ -98,27 +100,10 @@ func ValidateAccessMonitoringRule(accessMonitoringRule *accessmonitoringrulesv1.
 
 // MarshalAccessMonitoringRule marshals AccessMonitoringRule resource to JSON.
 func MarshalAccessMonitoringRule(accessMonitoringRule *accessmonitoringrulesv1.AccessMonitoringRule, opts ...MarshalOption) ([]byte, error) {
-	return utils.FastMarshal(accessMonitoringRule)
+	return FastMarshalProtoResourceDeprecated(accessMonitoringRule, opts...)
 }
 
 // UnmarshalAccessMonitoringRule unmarshals the AccessMonitoringRule resource.
 func UnmarshalAccessMonitoringRule(data []byte, opts ...MarshalOption) (*accessmonitoringrulesv1.AccessMonitoringRule, error) {
-	if len(data) == 0 {
-		return nil, trace.BadParameter("missing access monitoring rule data")
-	}
-	cfg, err := CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var accessMonitoringRule accessmonitoringrulesv1.AccessMonitoringRule
-	if err := utils.FastUnmarshal(data, &accessMonitoringRule); err != nil {
-		return nil, trace.BadParameter(err.Error())
-	}
-	if cfg.Revision != "" {
-		accessMonitoringRule.Metadata.Revision = cfg.Revision
-	}
-	if !cfg.Expires.IsZero() {
-		accessMonitoringRule.Metadata.Expires = timestamppb.New(cfg.Expires)
-	}
-	return &accessMonitoringRule, nil
+	return FastUnmarshalProtoResourceDeprecated[*accessmonitoringrulesv1.AccessMonitoringRule](data, opts...)
 }

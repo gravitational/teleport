@@ -33,7 +33,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/agentless"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -590,7 +590,7 @@ func (r testRemoteSite) DialAuthServer(reversetunnelclient.DialParams) (net.Conn
 	return r.conn, r.err
 }
 
-func (r testRemoteSite) GetClient() (auth.ClientI, error) {
+func (r testRemoteSite) GetClient() (authclient.ClientI, error) {
 	return nil, nil
 }
 

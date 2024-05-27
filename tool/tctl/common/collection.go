@@ -35,6 +35,7 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -1461,6 +1462,65 @@ func (c *accessListCollection) writeText(w io.Writer, verbose bool) error {
 			al.Spec.Audit.NextAuditDate.Format(time.RFC822),
 		})
 	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type vnetConfigCollection struct {
+	vnetConfig *vnet.VnetConfig
+}
+
+func (c *vnetConfigCollection) resources() []types.Resource {
+	return []types.Resource{types.Resource153ToLegacy(c.vnetConfig)}
+}
+
+func (c *vnetConfigCollection) writeText(w io.Writer, verbose bool) error {
+	var dnsZoneSuffixes []string
+	for _, dnsZone := range c.vnetConfig.Spec.CustomDnsZones {
+		dnsZoneSuffixes = append(dnsZoneSuffixes, dnsZone.Suffix)
+	}
+	t := asciitable.MakeTable([]string{"IPv4 CIDR range", "Custom DNS Zones"})
+	t.AddRow([]string{
+		c.vnetConfig.GetSpec().GetIpv4CidrRange(),
+		strings.Join(dnsZoneSuffixes, ", "),
+	})
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type accessRequestCollection struct {
+	accessRequests []types.AccessRequest
+}
+
+func (c *accessRequestCollection) resources() []types.Resource {
+	r := make([]types.Resource, len(c.accessRequests))
+	for i, resource := range c.accessRequests {
+		r[i] = resource
+	}
+	return r
+}
+
+func (c *accessRequestCollection) writeText(w io.Writer, verbose bool) error {
+	var t asciitable.Table
+	var rows [][]string
+	for _, al := range c.accessRequests {
+		var annotations []string
+		for k, v := range al.GetSystemAnnotations() {
+			annotations = append(annotations, fmt.Sprintf("%s/%s", k, strings.Join(v, ",")))
+		}
+		rows = append(rows, []string{
+			al.GetName(),
+			al.GetUser(),
+			strings.Join(al.GetRoles(), ", "),
+			strings.Join(annotations, ", "),
+		})
+	}
+	if verbose {
+		t = asciitable.MakeTable([]string{"Name", "User", "Roles", "Annotations"}, rows...)
+	} else {
+		t = asciitable.MakeTableWithTruncatedColumn([]string{"Name", "User", "Roles", "Annotations"}, rows, "Annotations")
+	}
+
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }

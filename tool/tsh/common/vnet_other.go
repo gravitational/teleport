@@ -42,3 +42,9 @@ func (vnetNotSupported) FullCommand() string {
 func (vnetNotSupported) run(*CLIConf) error {
 	return trace.Wrap(vnet.ErrVnetNotImplemented)
 }
+
+var (
+	// Satisfy unused linter.
+	_ = (*vnetAppProvider)(nil)
+	_ = newVnetAppProvider
+)

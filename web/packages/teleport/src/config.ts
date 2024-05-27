@@ -18,6 +18,7 @@
 
 import { generatePath } from 'react-router';
 import { mergeDeep } from 'shared/utils/highbar';
+import { IncludedResourceMode } from 'shared/components/UnifiedResources';
 
 import generateResourcePath from './generateResourcePath';
 
@@ -37,7 +38,11 @@ import type { ParticipantMode } from 'teleport/services/session';
 import type { YamlSupportedResourceKind } from './services/yaml/types';
 
 const cfg = {
+  /**
+   * @deprecated use cfg.edition instead
+   */
   isEnterprise: false,
+  edition: 'oss',
   isCloud: false,
   assistEnabled: false,
   automaticUpgrades: false,
@@ -205,7 +210,7 @@ const cfg = {
     passwordTokenPath: '/v1/webapi/users/password/token/:tokenId?',
     changeUserPasswordPath: '/v1/webapi/users/password',
     unifiedResourcesPath:
-      '/v1/webapi/sites/:clusterId/resources?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&kinds=:kinds?&query=:query?&search=:search?&sort=:sort?&pinnedOnly=:pinnedOnly?&includeRequestable=:includeRequestable?',
+      '/v1/webapi/sites/:clusterId/resources?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&kinds=:kinds?&query=:query?&search=:search?&sort=:sort?&pinnedOnly=:pinnedOnly?&includedResourceMode=:includedResourceMode?',
     nodesPath:
       '/v1/webapi/sites/:clusterId/nodes?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
     nodesPathNoParams: '/v1/webapi/sites/:clusterId/nodes',
@@ -314,6 +319,11 @@ const cfg = {
     awsSecurityGroupsListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/securitygroups',
 
+    awsAppAccessPath:
+      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/aws-app-access',
+    awsConfigureIamAppAccessPath:
+      '/v1/webapi/scripts/integrations/configure/aws-app-access-iam.sh?role=:iamRoleName',
+
     eksClustersListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/eksclusters',
     eksEnrollClustersPath:
@@ -355,7 +365,10 @@ const cfg = {
       '/webapi/scripts/integrations/configure/gcp-workforce-saml.sh?orgId=:orgId&poolName=:poolName&poolProviderName=:poolProviderName',
 
     notificationsPath:
-      '/v1/webapi/sites/:clusterId/notifications?limit=:limit?&userNotificationsStartKey=:userNotificationsStartKey?&globalNotificationsStartKey=:globalNotificationsStartKey?',
+      '/v1/webapi/sites/:clusterId/notifications?limit=:limit?&startKeys=:startKey?',
+    notificationLastSeenTimePath:
+      '/v1/webapi/sites/:clusterId/lastseennotification',
+    notificationStatePath: '/v1/webapi/sites/:clusterId/notificationstate',
 
     yaml: {
       parse: '/v1/webapi/yaml/parse/:kind',
@@ -909,6 +922,15 @@ const cfg = {
     });
   },
 
+  getAwsAppAccessUrl(integrationName: string) {
+    const clusterId = cfg.proxyCluster;
+
+    return generatePath(cfg.api.awsAppAccessPath, {
+      clusterId,
+      name: integrationName,
+    });
+  },
+
   getUserGroupsListUrl(clusterId: string, params: UrlResourcesParams) {
     return generateResourcePath(cfg.api.userGroupsListPath, {
       clusterId,
@@ -1073,6 +1095,17 @@ const cfg = {
     );
   },
 
+  getAwsIamConfigureScriptAppAccessUrl(
+    params: Omit<UrlAwsConfigureIamScriptParams, 'region'>
+  ) {
+    return (
+      cfg.baseUrl +
+      generatePath(cfg.api.awsConfigureIamAppAccessPath, {
+        ...params,
+      })
+    );
+  },
+
   getAwsConfigureIamScriptListDatabasesUrl(
     params: UrlAwsConfigureIamScriptParams
   ) {
@@ -1107,6 +1140,14 @@ const cfg = {
 
   getNotificationsUrl(params: UrlNotificationParams) {
     return generatePath(cfg.api.notificationsPath, { ...params });
+  },
+
+  getNotificationLastSeenUrl(clusterId: string) {
+    return generatePath(cfg.api.notificationLastSeenTimePath, { clusterId });
+  },
+
+  getNotificationStateUrl(clusterId: string) {
+    return generatePath(cfg.api.notificationStatePath, { clusterId });
   },
 
   init(backendConfig = {}) {
@@ -1200,7 +1241,7 @@ export interface UrlResourcesParams {
   startKey?: string;
   searchAsRoles?: 'yes' | '';
   pinnedOnly?: boolean;
-  includeRequestable?: boolean;
+  includedResourceMode?: IncludedResourceMode;
   // TODO(bl-nero): Remove this once filters are expressed as advanced search.
   kinds?: string[];
 }
@@ -1233,8 +1274,9 @@ export interface UrlGcpWorkforceConfigParam {
 export interface UrlNotificationParams {
   clusterId: string;
   limit?: number;
-  userNotificationsStartKey?: string;
-  globalNotificationsStartKey?: string;
+  startKey?: string;
 }
 
 export default cfg;
+
+export type TeleportEdition = 'ent' | 'community' | 'oss';

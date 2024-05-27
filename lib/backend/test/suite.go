@@ -1051,9 +1051,9 @@ func testMirror(t *testing.T, newBackend Constructor) {
 	item, err = uut.Get(ctx, item.Key)
 	require.NoError(t, err)
 
-	// Save the original ID, later in this test after an update, the ID should
+	// Save the original revision, later in this test after an update, the revision should
 	// not have changed in mirror mode.
-	originalID := item.ID
+	originalRevision := item.Revision
 
 	// Make sure a PUT event is emitted.
 	e := requireEvent(t, watcher, types.OpPut, item.Key, eventTimeout)
@@ -1078,10 +1078,10 @@ func testMirror(t *testing.T, newBackend Constructor) {
 	})
 	require.NoError(t, err)
 
-	// Get update item and make sure that the ID has not changed.
+	// Get update item and make sure that the revision has not changed.
 	item, err = uut.Get(ctx, prefix("a"))
 	require.NoError(t, err)
-	require.Equal(t, originalID, item.ID)
+	require.Equal(t, originalRevision, item.Revision)
 
 	// Add item to backend that is already expired.
 	item2 := &backend.Item{

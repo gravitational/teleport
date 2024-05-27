@@ -34,6 +34,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -109,13 +110,8 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	// Kubernetes extensions
 	srv.POST("/:version/kube/csr", srv.WithAuth(srv.processKubeCSR))
 
-	// TODO(Joerger): DELETE IN 16.0.0, migrated to gRPC.
-	srv.POST("/:version/authorities/:type/rotate", srv.WithAuth(srv.rotateCertAuthority))
-	// TODO(Joerger): DELETE IN v16.0.0, migrated to gRPC
-	srv.POST("/:version/authorities/:type/rotate/external", srv.WithAuth(srv.rotateExternalCertAuthority))
-
 	// Operations on users
-	// TODO(tross): DELETE IN 16.0.0
+	// TODO(tross): DELETE IN 17.0.0
 	srv.POST("/:version/users", srv.WithAuth(srv.upsertUser))
 
 	// Passwords and sessions
@@ -345,7 +341,7 @@ func (s *APIServer) getAuthServers(auth *ServerWithRoles, w http.ResponseWriter,
 func marshalServers(servers []types.Server, version string) (interface{}, error) {
 	items := make([]json.RawMessage, len(servers))
 	for i, server := range servers {
-		data, err := services.MarshalServer(server, services.WithVersion(version), services.PreserveResourceID())
+		data, err := services.MarshalServer(server, services.WithVersion(version), services.PreserveRevision())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -389,7 +385,7 @@ func (s *APIServer) getReverseTunnels(auth *ServerWithRoles, w http.ResponseWrit
 	}
 	items := make([]json.RawMessage, len(reverseTunnels))
 	for i, tunnel := range reverseTunnels {
-		data, err := services.MarshalReverseTunnel(tunnel, services.WithVersion(version), services.PreserveResourceID())
+		data, err := services.MarshalReverseTunnel(tunnel, services.WithVersion(version), services.PreserveRevision())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -409,7 +405,7 @@ func (s *APIServer) deleteReverseTunnel(auth *ServerWithRoles, w http.ResponseWr
 }
 
 func (s *APIServer) validateTrustedCluster(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var validateRequestRaw ValidateTrustedClusterRequestRaw
+	var validateRequestRaw authclient.ValidateTrustedClusterRequestRaw
 	if err := httplib.ReadJSON(r, &validateRequestRaw); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -453,23 +449,8 @@ func (s *APIServer) getWebSession(auth *ServerWithRoles, w http.ResponseWriter, 
 	return rawMessage(services.MarshalWebSession(sess, services.WithVersion(version)))
 }
 
-type WebSessionReq struct {
-	// User is the user name associated with the session id.
-	User string `json:"user"`
-	// PrevSessionID is the id of current session.
-	PrevSessionID string `json:"prev_session_id"`
-	// AccessRequestID is an optional field that holds the id of an approved access request.
-	AccessRequestID string `json:"access_request_id"`
-	// Switchback is a flag to indicate if user is wanting to switchback from an assumed role
-	// back to their default role.
-	Switchback bool `json:"switchback"`
-	// ReloadUser is a flag to indicate if user needs to be refetched from the backend
-	// to apply new user changes e.g. user traits were updated.
-	ReloadUser bool `json:"reload_user"`
-}
-
 func (s *APIServer) createWebSession(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req WebSessionReq
+	var req authclient.WebSessionReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -491,7 +472,7 @@ func (s *APIServer) createWebSession(auth *ServerWithRoles, w http.ResponseWrite
 }
 
 func (s *APIServer) authenticateWebUser(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req AuthenticateUserRequest
+	var req authclient.AuthenticateUserRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -504,7 +485,7 @@ func (s *APIServer) authenticateWebUser(auth *ServerWithRoles, w http.ResponseWr
 }
 
 func (s *APIServer) authenticateSSHUser(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req AuthenticateSSHRequest
+	var req authclient.AuthenticateSSHRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -557,38 +538,6 @@ func (s *APIServer) registerUsingToken(auth *ServerWithRoles, w http.ResponseWri
 	return certs, nil
 }
 
-// TODO(Joerger): DELETE IN 16.0.0, migrated to gRPC.
-func (s *APIServer) rotateCertAuthority(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req types.RotateRequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := auth.RotateCertAuthority(r.Context(), req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message("ok"), nil
-}
-
-type rotateExternalCertAuthorityRawReq struct {
-	CA json.RawMessage `json:"ca"`
-}
-
-// TODO(Joerger): DELETE IN v16.0.0, migrated to gRPC
-func (s *APIServer) rotateExternalCertAuthority(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req rotateExternalCertAuthorityRawReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	ca, err := services.UnmarshalCertAuthority(req.CA)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := auth.RotateExternalCertAuthority(r.Context(), ca); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message("ok"), nil
-}
-
 // validateGithubAuthCallbackReq is a request to validate Github OAuth2 callback
 type validateGithubAuthCallbackReq struct {
 	// Query is the callback query string
@@ -609,7 +558,7 @@ type githubAuthRawResponse struct {
 	// TLSCert is PEM encoded TLS certificate
 	TLSCert []byte `json:"tls_cert,omitempty"`
 	// Req is original oidc auth request
-	Req GithubAuthRequest `json:"req"`
+	Req authclient.GithubAuthRequest `json:"req"`
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
 	HostSigners []json.RawMessage `json:"host_signers"`
@@ -640,7 +589,7 @@ func (s *APIServer) validateGithubAuthCallback(auth *ServerWithRoles, w http.Res
 	}
 	if response.Session != nil {
 		rawSession, err := services.MarshalWebSession(
-			response.Session, services.WithVersion(version), services.PreserveResourceID())
+			response.Session, services.WithVersion(version), services.PreserveRevision())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -649,7 +598,7 @@ func (s *APIServer) validateGithubAuthCallback(auth *ServerWithRoles, w http.Res
 	raw.HostSigners = make([]json.RawMessage, len(response.HostSigners))
 	for i, ca := range response.HostSigners {
 		data, err := services.MarshalCertAuthority(
-			ca, services.WithVersion(version), services.PreserveResourceID())
+			ca, services.WithVersion(version), services.PreserveRevision())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -869,7 +818,7 @@ func (s *APIServer) getClusterName(auth *ServerWithRoles, w http.ResponseWriter,
 		return nil, trace.Wrap(err)
 	}
 
-	return rawMessage(services.MarshalClusterName(cn, services.WithVersion(version), services.PreserveResourceID()))
+	return rawMessage(services.MarshalClusterName(cn, services.WithVersion(version), services.PreserveRevision()))
 }
 
 type setClusterNameReq struct {
@@ -925,7 +874,7 @@ func (s *APIServer) getTunnelConnections(auth *ServerWithRoles, w http.ResponseW
 	}
 	items := make([]json.RawMessage, len(conns))
 	for i, conn := range conns {
-		data, err := services.MarshalTunnelConnection(conn, services.WithVersion(version), services.PreserveResourceID())
+		data, err := services.MarshalTunnelConnection(conn, services.WithVersion(version), services.PreserveRevision())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -942,7 +891,7 @@ func (s *APIServer) getAllTunnelConnections(auth *ServerWithRoles, w http.Respon
 	}
 	items := make([]json.RawMessage, len(conns))
 	for i, conn := range conns {
-		data, err := services.MarshalTunnelConnection(conn, services.WithVersion(version), services.PreserveResourceID())
+		data, err := services.MarshalTunnelConnection(conn, services.WithVersion(version), services.PreserveRevision())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -986,7 +935,7 @@ func (s *APIServer) getRemoteClusters(auth *ServerWithRoles, w http.ResponseWrit
 	}
 	items := make([]json.RawMessage, len(clusters))
 	for i, cluster := range clusters {
-		data, err := services.MarshalRemoteCluster(cluster, services.WithVersion(version), services.PreserveResourceID())
+		data, err := services.MarshalRemoteCluster(cluster, services.WithVersion(version), services.PreserveRevision())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1001,7 +950,7 @@ func (s *APIServer) getRemoteCluster(auth *ServerWithRoles, w http.ResponseWrite
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return rawMessage(services.MarshalRemoteCluster(cluster, services.WithVersion(version), services.PreserveResourceID()))
+	return rawMessage(services.MarshalRemoteCluster(cluster, services.WithVersion(version), services.PreserveRevision()))
 }
 
 // deleteRemoteCluster deletes remote cluster by name
@@ -1014,7 +963,7 @@ func (s *APIServer) deleteRemoteCluster(auth *ServerWithRoles, w http.ResponseWr
 }
 
 func (s *APIServer) processKubeCSR(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req KubeCSR
+	var req authclient.KubeCSR
 
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)

@@ -414,16 +414,6 @@ func (p *ProvisionTokenV2) SetSubKind(s string) {
 	p.SubKind = s
 }
 
-// GetResourceID returns resource ID
-func (p *ProvisionTokenV2) GetResourceID() int64 {
-	return p.Metadata.ID
-}
-
-// SetResourceID sets resource ID
-func (p *ProvisionTokenV2) SetResourceID(id int64) {
-	p.Metadata.ID = id
-}
-
 // GetRevision returns the revision
 func (p *ProvisionTokenV2) GetRevision() string {
 	return p.Metadata.GetRevision()
