@@ -18,8 +18,10 @@ package azureoidc
 
 import (
 	"context"
+	"log/slog"
 	"net/url"
 	"path"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -27,6 +29,8 @@ import (
 	"github.com/microsoftgraph/msgraph-sdk-go/applicationtemplates"
 	"github.com/microsoftgraph/msgraph-sdk-go/models"
 	"github.com/microsoftgraph/msgraph-sdk-go/serviceprincipals"
+
+	"github.com/gravitational/teleport/api/utils/retryutils"
 )
 
 // A special application template ID in Microsoft Graph, equivalent to the "create your own application" option in Azure portal.
@@ -94,19 +98,39 @@ func SetupEnterpriseApp(ctx context.Context, proxyPublicAddr string, authConnect
 
 	msGraphResourceUUID := uuid.MustParse(msGraphResourceID)
 
+	r, err := retry()
+	if err != nil {
+		return appID, tenantID, trace.Wrap(err)
+	}
+
+	const maxRetries = 10
 	for _, appRoleID := range appRoles {
+		r.Reset()
+		var err error
+
 		assignment := models.NewAppRoleAssignment()
 		spUUID := uuid.MustParse(spID)
 		assignment.SetPrincipalId(&spUUID)
-
 		assignment.SetResourceId(&msGraphResourceUUID)
-
 		appRoleUUID := uuid.MustParse(appRoleID)
 		assignment.SetAppRoleId(&appRoleUUID)
-		_, err := graphClient.ServicePrincipals().
-			ByServicePrincipalId(spID).
-			AppRoleAssignments().
-			Post(ctx, assignment, nil)
+
+		// There are  some eventual consistency shenanigans instantiating enteprise applications,
+		// where assigning app roles may temporarily return "not found" for the newly-created App ID.
+		// Retry a few times to remediate.
+		for i := 0; i < maxRetries; i++ {
+			slog.DebugContext(ctx, "assign app role", "role_id", appRoleID, "attempt", i)
+			_, err = graphClient.ServicePrincipals().
+				ByServicePrincipalId(spID).
+				AppRoleAssignments().
+				Post(ctx, assignment, nil)
+			if err != nil {
+				r.Inc()
+				<-r.After()
+			} else {
+				break
+			}
+		}
 		if err != nil {
 			return appID, tenantID, trace.Wrap(err, "failed to assign app role %s", appRoleID)
 		}
@@ -173,4 +197,13 @@ func getMSGraphResourceID(ctx context.Context, graphClient *msgraphsdk.GraphServ
 		return "", trace.BadParameter("Multiple service principals found for Microsoft Graph. This is not expected.")
 	}
 
+}
+
+func retry() (*retryutils.RetryV2, error) {
+	r, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
+		First:  time.Second,
+		Max:    10 * time.Second,
+		Driver: retryutils.NewExponentialDriver(time.Second),
+	})
+	return r, trace.Wrap(err)
 }
