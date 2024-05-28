@@ -58,16 +58,51 @@ func (m *mockInstanceGetter) GetInstanceTags(ctx context.Context, req *gcp.Insta
 func TestIsInstanceMetadataAvailable(t *testing.T) {
 	t.Parallel()
 
-	t.Run("not available", func(t *testing.T) {
-		client := &InstanceMetadataClient{
+	tests := []struct {
+		name        string
+		getMetadata metadataGetter
+		assert      require.BoolAssertionFunc
+	}{
+		{
+			name: "not available",
 			getMetadata: func(ctx context.Context, path string) (string, error) {
 				return "", trace.NotFound("")
 			},
-		}
-		require.False(t, client.IsAvailable(context.Background()))
-	})
+			assert: require.False,
+		},
+		{
+			name: "not on gcp",
+			getMetadata: func(ctx context.Context, path string) (string, error) {
+				return "non-numeric id", nil
+			},
+			assert: require.False,
+		},
+		{
+			name: "zero ID",
+			getMetadata: func(ctx context.Context, path string) (string, error) {
+				return "0", nil
+			},
+			assert: require.False,
+		},
+		{
+			name: "on mocked gcp",
+			getMetadata: func(ctx context.Context, path string) (string, error) {
+				return "12345678", nil
+			},
+			assert: require.True,
+		},
+	}
 
-	t.Run("on gcp", func(t *testing.T) {
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := &InstanceMetadataClient{
+				getMetadata: tc.getMetadata,
+			}
+			tc.assert(t, client.IsAvailable(context.Background()))
+		})
+	}
+
+	t.Run("on real gcp", func(t *testing.T) {
 		if os.Getenv("TELEPORT_TEST_GCP") == "" {
 			t.Skip("not on gcp")
 		}
