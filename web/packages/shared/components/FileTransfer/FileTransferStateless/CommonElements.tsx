@@ -19,10 +19,9 @@
 import React, { forwardRef } from 'react';
 import styled from 'styled-components';
 
-import FieldInput from 'shared/components/FieldInput';
+import FieldInput, { FieldInputProps } from 'shared/components/FieldInput';
 import { requiredField } from 'shared/components/Validation/rules';
 import Validation from 'shared/components/Validation';
-import { FieldInputProps } from 'shared/components/FieldInput';
 
 export const Form = styled.form.attrs(() => ({
   'aria-label': 'form',
