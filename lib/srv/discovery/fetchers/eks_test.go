@@ -27,6 +27,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/aws/aws-sdk-go/service/eks/eksiface"
+	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/aws/aws-sdk-go/service/sts/stsiface"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
@@ -101,10 +103,10 @@ func TestEKSFetcher(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := EKSFetcherConfig{
-				EKSClientGetter: &mockEKSClientGetter{},
-				FilterLabels:    tt.args.filterLabels,
-				Region:          tt.args.region,
-				Log:             logrus.New(),
+				ClientGetter: &mockEKSClientGetter{},
+				FilterLabels: tt.args.filterLabels,
+				Region:       tt.args.region,
+				Log:          logrus.New(),
 			}
 			fetcher, err := NewEKSFetcher(cfg)
 			require.NoError(t, err)
@@ -129,6 +131,21 @@ type mockEKSClientGetter struct{}
 
 func (e *mockEKSClientGetter) GetAWSEKSClient(ctx context.Context, region string, opts ...cloud.AWSOptionsFn) (eksiface.EKSAPI, error) {
 	return newPopulatedEKSMock(), nil
+}
+
+func (e *mockEKSClientGetter) GetAWSSTSClient(ctx context.Context, region string, opts ...cloud.AWSOptionsFn) (stsiface.STSAPI, error) {
+	return &mockSTSAPI{}, nil
+}
+
+type mockSTSAPI struct {
+	stsiface.STSAPI
+	arn string
+}
+
+func (a *mockSTSAPI) GetCallerIdentityWithContext(aws.Context, *sts.GetCallerIdentityInput, ...request.Option) (*sts.GetCallerIdentityOutput, error) {
+	return &sts.GetCallerIdentityOutput{
+		Arn: aws.String(a.arn),
+	}, nil
 }
 
 type mockEKSAPI struct {
