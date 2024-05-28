@@ -73,7 +73,8 @@ func TestConvertAPIError(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			require.True(t, trace.IsAccessDenied(convertAPIError(tc.err)))
+			err := convertAPIError(tc.err)
+			require.True(t, trace.IsAccessDenied(err), "unexpected error of type %T: %v", tc.err, err)
 			require.Contains(t, tc.err.Error(), "abcd1234")
 		})
 	}
