@@ -257,6 +257,7 @@ export enum CtaEvent {
   CTA_ACCESS_MONITORING = 9,
   CTA_EXTERNAL_AUDIT_STORAGE = 10,
   CTA_OKTA_USER_SYNC = 11,
+  CTA_ENTRA_ID = 12,
 }
 
 export enum Feature {
