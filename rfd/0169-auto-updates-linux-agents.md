@@ -47,7 +47,7 @@ We must provide a seamless, hands-off experience for auto-updates that is easy t
 ## Details
 
 We will ship a new auto-updater package written in Go that does not interface with the system package manager.
-It will be versioned separately from Teleport, and manage the installation of the correct Teleport agent version manually. 
+It will be distributed as a separate package from Teleport, and manage the installation of the correct Teleport agent version manually. 
 It will read the unauthenticated `/v1/webapi/find` endpoint from the Teleport proxy, parse new fields on that endpoint, and install the specified agent version according to the specified upgrade plan.
 It will download the correct version of Teleport as a tarball, unpack it in `/var/lib/teleport`, and ensure it is symlinked from `/usr/local/bin`.
 
@@ -71,14 +71,13 @@ $ systemctl enable teleport
   "server_edition": "enterprise",
   "agent_version": "15.1.1",
   "agent_auto_update": true,
-  "agent_update_after": "2024-04-23T18:00:00.000Z",
-  "agent_update_jitter_seconds": 10,
+  "agent_update_jitter_seconds": 10
 }
 ```
 Notes:
-- Critical updates are achieved by serving `agent_update_after` with the current time.
-- The Teleport proxy translates upgrade hours (below) into a specific time after which all agents should be upgraded.
-- If an agent misses an upgrade window, it will always update immediately.
+- The Teleport proxy translates upgrade hours (below) into a specific time after which the served `agent_version` changes, resulting in all agents being upgraded.
+- Critical updates are achieved by serving the desired `agent_version` immediately.
+- If an agent misses an upgrade window, it will always update immediately due to the new agent version being served.
 - The edition served is the cluster edition (enterprise, enterprise-fips, or oss), and cannot be configured.
 
 #### Teleport Resources
@@ -92,11 +91,11 @@ spec:
   agent_auto_update: true|false
   # agent_update_hour sets the hour in UTC at which clients should update their agents.
   agent_update_hour: 0-23
-  # agent_update_now overrides agent_update_hour and sets agent update time to the current time.
+  # agent_update_now overrides agent_update_hour and serves the new version immediately.
   # This is useful for rolling out critical security updates and bug fixes.
   agent_update_now: on|off
   # agent_update_jitter_seconds sets a duration in which the upgrade will occur after the hour.
-  # The agent upgrader will pick a random time within this duration in which to upgrade.
+  # The agent upgrader will pick a random time within this duration to wait to upgrade.
   agent_update_jitter_seconds: 0-3600
   
   [...]
@@ -116,9 +115,7 @@ Automatic updates configuration has been updated.
 kind: autoupdate_version
 spec:
   # agent_version is the version of the agent the cluster will advertise.
-  # Can be auto (match the version of the proxy) or an exact semver formatted
-  # version.
-  agent_version: auto|X.Y.Z
+  agent_version: X.Y.Z
 
   [...]
 ```
@@ -147,7 +144,7 @@ $ tree /var/lib/teleport
    │  │  └── systemd
    │  │     └── teleport.service
    │  └── backup
-   │     ├── teleport
+   │     ├── sqlite.db
    │     └── backup.yaml
    ├── 15.1.1
    │  ├── bin
@@ -188,7 +185,7 @@ spec:
 backup.yaml:
 ```
 version: v1
-kind: config_backup
+kind: db_backup
 spec:
   # proxy address from the backup
   proxy: mytenant.teleport.sh
@@ -226,13 +223,13 @@ The `enable` subcommand will:
 7. Download and verify the checksum (tarball URL suffixed with `.sha256`).
 8. Extract the tarball to `/var/lib/teleport/versions/VERSION`.
 9. Replace any existing binaries or symlinks with symlinks to the current version.
-10. Backup /var/lib/teleport into `/var/lib/teleport/versions/OLD-VERSION/backup/teleport`
+10. Backup `/var/lib/teleport/proc/sqlite.db` into `/var/lib/teleport/versions/OLD-VERSION/backup/sqlite.db` and create `backup.yaml`.
 11. Restart the agent if the systemd service is already enabled.
 12. Set `active_version` in `updates.yaml` if successful or not enabled.
-13. Replace the symlinks/binaries and `/var/lib/teleport` and quit (exit 1) if unsuccessful.
+13. Replace the symlinks/binaries and `/var/lib/teleport/proc/sqlite.db` and quit (exit 1) if unsuccessful.
 14. Remove any `teleport` package if installed.
 15. Verify the symlinks to the active version still exists.
-16. Remove all stored versions of the agent except the current version.
+16. Remove all stored versions of the agent except the current version and last working version.
 
 The `disable` subcommand will:
 1. Configure `updates.yaml` to set `enabled` to false.
@@ -240,7 +237,7 @@ The `disable` subcommand will:
 When `update` subcommand is otherwise executed, it will:
 1. Check `updates.yaml`, and quit (exit 0) if `enabled` is false, or quit (exit 1) if `enabled` is true and no proxy address is set.
 2. Query the `/v1/webapi/find` endpoint.
-3. Check if the current time is after the time advertised in `agent_update_after`, and that `agent_auto_updates` is true.
+3. Check that `agent_auto_updates` is true.
 4. If the current version of Teleport is the latest, quit.
 5. Wait `random(0, agent_update_jitter_seconds)` seconds.
 6. Ensure there is enough free disk space to upgrade Teleport.
@@ -248,14 +245,16 @@ When `update` subcommand is otherwise executed, it will:
 8. Download and verify the checksum (tarball URL suffixed with `.sha256`).
 9. Extract the tarball to `/var/lib/teleport/versions/VERSION`.
 10. Update symlinks to point at the new version.
-11. Backup /var/lib/teleport into `/var/lib/teleport/versions/OLD-VERSION/backup/teleport`.
+11. Backup `/var/lib/teleport/proc/sqlite.db` into `/var/lib/teleport/versions/OLD-VERSION/backup/sqlite.db` and create `backup.yaml`.
 12. Restart the agent if the systemd service is already enabled.
 13. Set `active_version` in `updates.yaml` if successful or not enabled.
-14. Replace the old symlinks/binaries and `/var/lib/teleport` and quit (exit 1) if unsuccessful.
-15. Remove all stored versions of the agent except the current version.
+14. Replace the old symlinks/binaries and `/var/lib/teleport/proc/sqlite.db` and quit (exit 1) if unsuccessful.
+15. Remove all stored versions of the agent except the current version and last working version.
 
 To enable auto-updates of the updater itself, all commands will first check for an `active_version`, and reexec using the `teleport-updater` at that version if present and different.
 The `/usr/local/bin/teleport-updater` symlink will take precedence to avoid reexec in most scenarios.
+
+To ensure that SELinux permissions do not prevent the `teleport-updater` binary from installing/removing Teleport versions, the updater package will configure SELinux contexts to allow changes to all required paths.
 
 #### Failure Conditions
 
@@ -276,7 +275,6 @@ To retrieve known information about agent upgrades, the `status` subcommand will
   "agent_edition_installed": "enterprise",
   "agent_edition_desired": "enterprise",
   "agent_edition_previous": "enterprise",
-  "agent_update_time_next": "2020-12-09T16:09:53+00:00",
   "agent_update_time_last": "2020-12-10T16:00:00+00:00",
   "agent_update_time_jitter": 600,
   "agent_updates_enabled": true
@@ -286,9 +284,9 @@ To retrieve known information about agent upgrades, the `status` subcommand will
 ### Downgrades
 
 Downgrades may be necessary in cases where we have rolled out a bug or security vulnerability with critical impact.
-Downgrades are challenging, because `/var/lib/teleport` used by newer version of Teleport may not be valid for older versions of Teleport.
+Downgrades are challenging, because `sqlite.db` used by newer version of Teleport may not be valid for older versions of Teleport.
 
-When Teleport is downgraded to a previous version that has a backup of `/var/lib/teleport` present in `/var/lib/teleport/versions/OLD-VERSION/backup/teleport`:
+When Teleport is downgraded to a previous version that has a backup of `sqlite.db` present in `/var/lib/teleport/versions/OLD-VERSION/backup/`:
 1. `/var/lib/teleport/versions/OLD-VERSION/backup/backup.yaml` is validated to determine if the backup is usable (proxy and version must match, age must be less than cert lifetime, etc.)
 2. If the backup is valid, Teleport is fully stopped, the backup is restored along with symlinks, and the downgraded version of Teleport is started.
 3. If the backup is invalid, we refuse to downgrade.
@@ -296,17 +294,16 @@ When Teleport is downgraded to a previous version that has a backup of `/var/lib
 Downgrades are still applied with `teleport-updater update`.
 The above steps modulate the standard workflow in the section above.
 
-Notes:
-- Downgrades can lead to downtime, as Teleport must be fully-stopped to safely replace `/var/lib/teleport`.
-- `/var/lib/teleport/versions/` is not included in backups.
+Downgrades lead to downtime, as Teleport must be fully-stopped to safely replace `sqlite.db`.
 
-Questions:
-- Should we refuse to downgrade in step (3), or risk starting the older version of Teleport with the newer `/var/lib/teleport`?
+Teleport CA certificate rotations will break rollbacks.
+This may be addressed in the future by additional validation of the agent's client certificate issuer fingerprints.
+This would prevent downgrades to backups with invalid certs.
 
 ### Manual Workflow
 
 For use cases that fall outside of the functionality provided by `teleport-updater`, we provide an alternative manual workflow using the `/v1/webapi/find` endpoint.
-This workflow supports customers that cannot use the auto-update mechanism provided by `teleport-updater` because they use their own automation for updates (e.g., JamF or ansible).
+This workflow supports customers that cannot use the auto-update mechanism provided by `teleport-updater` because they use their own automation for updates (e.g., JamF or Ansible).
 
 Cluster administrators that want to self-manage agent updates will be
 able to get and watch for changes to agent versions which can then be
