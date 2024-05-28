@@ -409,6 +409,32 @@ kubernetesDiscovery:
       "*": "*"
 
 ################################################################
+# Values that must be provided for GCP Discovery
+################################################################
+
+gcpDiscovery: []
+  # GCP resource types. Valid options are:
+  # 'gke' - discovers and registers GKE Kubernetes clusters.
+  # 'gce' - discovers and registers GCP compute instances.
+  # - types: ["gce"]
+    # IDs of GCP projects to search for resources from.
+    # project_ids: ["project-id"]
+    #
+    # GCP locations to search for resources from. Valid options are:
+    # '*' - discovers resources in all locations.
+    # Any valid GCP region (e.g. "us-west1").
+    # Any valid GCP zone (e.g. "us-west1-b").
+    # locations: ["us-east2", "us-west1-b"]
+    #
+    # Email addresses of service accounts that instances can join with.
+    # If empty, any service account is allowed.
+    # service_accounts: []
+    #
+    # GCP resource label filters used to match resources.
+    # labels:
+    #   "*": "*"
+
+################################################################
 # Values that you may need to change.
 ################################################################
 
