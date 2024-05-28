@@ -126,7 +126,8 @@ export const WINDOWS_DESKTOPS: ResourceSpec[] = [
     keywords: 'windows desktop active directory ad',
     icon: 'Windows',
     event: DiscoverEventResource.WindowsDesktop,
-    platform: Platform.Windows,
+    unguidedLink:
+      'https://goteleport.com/docs/desktop-access/active-directory-manual/',
   },
   {
     name: 'Local Users',
