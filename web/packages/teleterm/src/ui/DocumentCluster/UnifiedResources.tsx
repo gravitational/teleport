@@ -230,8 +230,6 @@ const Resources = memo(
     const { fetch, resources, attempt, clear } = useUnifiedResourcesFetch({
       fetchFunc: useCallback(
         async (paginationParams, signal) => {
-          const showRequestableResources =
-            props.showResources === ShowResources.REQUESTABLE;
           const response = await retryWithRelogin(
             appContext,
             props.clusterUri,
@@ -239,7 +237,7 @@ const Resources = memo(
               appContext.resourcesService.listUnifiedResources(
                 {
                   clusterUri: props.clusterUri,
-                  searchAsRoles: showRequestableResources,
+                  searchAsRoles: false,
                   sortBy: {
                     isDesc: props.queryParams.sort.dir === 'DESC',
                     field: props.queryParams.sort.fieldName,
@@ -250,7 +248,8 @@ const Resources = memo(
                   pinnedOnly: props.queryParams.pinnedOnly,
                   startKey: paginationParams.startKey,
                   limit: paginationParams.limit,
-                  includeRequestable: showRequestableResources,
+                  includeRequestable:
+                    props.showResources === ShowResources.REQUESTABLE,
                 },
                 signal
               )
