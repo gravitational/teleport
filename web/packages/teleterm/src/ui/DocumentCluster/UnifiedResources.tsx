@@ -230,9 +230,10 @@ const Resources = memo(
     const { fetch, resources, attempt, clear } = useUnifiedResourcesFetch({
       fetchFunc: useCallback(
         async (paginationParams, signal) => {
-          // Do not make the call if we don't know what resources we should show.
+          // Block call if we don't know yet what resources to show.
+          // We will remount the component and do the call when showResources changes.
           if (props.showResources === ShowResources.UNSPECIFIED) {
-            return { startKey: '', agents: [] };
+            await waitForever(signal);
           }
           const response = await retryWithRelogin(
             appContext,
@@ -322,11 +323,7 @@ const Resources = memo(
             },
           };
         })}
-        resourcesFetchAttempt={
-          props.showResources === ShowResources.UNSPECIFIED
-            ? { status: 'processing' }
-            : attempt
-        }
+        resourcesFetchAttempt={attempt}
         fetchResources={fetch}
         availableKinds={[
           {
@@ -513,4 +510,18 @@ function NoResources(props: {
       {$content}
     </Flex>
   );
+}
+
+function waitForever(abortSignal: AbortSignal): Promise<never> {
+  if (abortSignal.aborted) {
+    return Promise.reject(new DOMException('Wait was aborted.', 'AbortError'));
+  }
+
+  return new Promise((_, reject) => {
+    const abort = () => {
+      reject(new DOMException('Wait was aborted.', 'AbortError'));
+    };
+
+    abortSignal.addEventListener('abort', abort, { once: true });
+  });
 }
