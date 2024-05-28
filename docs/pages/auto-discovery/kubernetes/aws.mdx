@@ -14,32 +14,16 @@ configured labels.
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - An AWS account with permissions to create and attach IAM policies.
-- An AWS account with `system:masters` RBAC access to EKS clusters.
 - A host to run the Teleport Discovery and Kubernetes services.
 - One or more EKS clusters running.
 
-## Known limitations
-
-Due to the authorization method that AWS has chosen for EKS clusters, it is not
-possible for the Teleport process to configure the necessary permissions to forward
-requests to EKS clusters.
-This limitation exists because the authorization method on EKS clusters requires that the IAM role -
-used for authentication - exists in the
-[`aws-auth`](https://docs.aws.amazon.com/eks/latest/userguide/add-user-role.html) `ConfigMap`.
-
-In this `ConfigMap`, IAM roles are mapped to Kubernetes RBAC users or groups that are then
-used by Kubernetes RBAC to grant access permissions. If the mapping does not exist, it results in
-unauthorized requests. Therefore, Teleport cannot edit the `ConfigMap`
-without first having access to the cluster.
-
-If Teleport is not running with the same IAM identity that creates all clusters,
-please ensure you configure the required permissions as described in Step 2.
-
 <Admonition type="note">
 
-The AWS EKS team is working on a feature request to introduce an external API to manage access to the cluster without manually editing the Configmap ([aws/containers-roadmap#185](https://github.com/aws/containers-roadmap/issues/185)).
-
-Hopefully, once the feature is available, Teleport can leverage it to configure its access to the cluster.
+Starting with Teleport v15.3.8, the Discovery Service can self-bootstrap
+access to EKS clusters by automatically creating and managing Access Entries
+for each discovered cluster. This contrasts with earlier versions of EKS
+Auto-Discovery, where agents could not access a cluster without having
+pre-existing access configured.
 
 </Admonition>
 
@@ -56,8 +40,12 @@ describe EKS clusters:
         {
             "Effect": "Allow",
             "Action": [
-                "eks:DescribeCluster",
-                "eks:ListClusters"
+              "eks:DescribeCluster",
+              "eks:ListClusters",
+              "eks:DescribeAccessEntry",
+              "eks:CreateAccessEntry",
+              "eks:DeleteAccessEntry",
+              "eks:AssociateAccessPolicy"
             ],
             "Resource": "<Var name="arn:aws:eks:*:123456789012:cluster/*" />"
         }
@@ -68,6 +56,13 @@ describe EKS clusters:
 Update `Resource` entries to match your AWS account's EKS resources, which have ARNs in the following format: `arn:aws:eks:{Region}:{Account}:cluster/{ClusterName}`.
 
 ## Step 2/3. Configure EKS cluster authorization
+
+<Notice type="warning">
+If you are running Teleport Discovery v15.3.8 or later and the IAM role
+used by the Discovery Service has the necessary permissions to create and
+update Access Entries, you can skip this section. The service can self-bootstrap
+the required permissions automatically.
+</Notice>
 
 When the Kubernetes Service uses an IAM role that is different from the one that
 creates the clusters, you need to configure the mapping between the Teleport IAM
@@ -149,6 +144,28 @@ subjects:
 
 ### IAM mapping
 
+<Tabs>
+  <TabItem label="EKS Access Entry" >
+
+Create an EKS Access Entry to link the <Var name="arn:aws:iam::222222222222:role/teleport-role" />
+to the Kubernetes Group `teleport` we created in the previous step.
+
+```shell
+$ aws eks create-access-entry \
+  --cluster-name <Var name="eks-cluster" /> \
+  --region <Var name="eu-west-1" /> \
+  --principal-arn <Var name="arn:aws:iam::222222222222:role/teleport-role" /> \
+  --kubernetes-groups teleport
+
+{
+  ...
+}
+```
+
+  </TabItem>
+
+  <TabItem label="aws-auth Configmap" >
+
 Finally, edit the `configmap/aws-auth` in the `kube-system` namespace and append
 the following to `mapRoles`. Replace `{teleport_aws_iam_role}` with the
 appropriate IAM role that Teleport Kubernetes Service will use.
@@ -164,6 +181,8 @@ data:
       rolearn: {teleport_aws_iam_role} # e.g. arn:aws:iam::222222222222:role/teleport-role
       username: teleport
 ```
+  </TabItem>
+</Tabs>
 
 At this point, the Teleport IAM role already has the minimum permissions
 to forward requests to the cluster.
@@ -203,6 +222,41 @@ service means granting administrator-level permissions on the Kubernetes cluster
 To follow least privilege principle we do not recommend using this method in production.
   </Notice>
 
+
+
+<Tabs>
+  <TabItem label="EKS Access Entry" >
+
+Create an EKS Access Entry and Access Policy to link the <Var name="arn:aws:iam::222222222222:role/teleport-role" />
+to the cluster wide policy `arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy` (equivalent of `cluster-admin` `ClusterRole`).
+
+```shell
+$ aws eks create-access-entry \
+  --cluster-name <Var name="eks-cluster" /> \
+  --region <Var name="eu-west-1" /> \
+  --principal-arn <Var name="arn:aws:iam::222222222222:role/teleport-role" />
+
+{
+  ...
+}
+
+$ aws eks associate-access-policy \
+  --cluster-name <Var name="eks-cluster" /> \
+  --region <Var name="eu-west-1" /> \
+  --principal-arn <Var name="arn:aws:iam::222222222222:role/teleport-role" />
+  --policy-arn "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy" \
+  --access-scope type=cluster
+
+{
+  ...
+}
+
+```
+
+  </TabItem>
+
+  <TabItem label="aws-auth Configmap" >
+
 To associate the Teleport IAM role with the `system:masters` RBAC group,
 edit the `configmap/aws-auth` in the `kube-system` namespace and append
 the following to `mapRoles`.
@@ -220,6 +274,9 @@ data:
 
 Please replace `{teleport_aws_iam_role}` with the appropriate IAM role that
 Teleport Kubernetes Service is using.
+  </TabItem>
+</Tabs>
+
 
 At this point, the Teleport IAM role already has the minimum permissions
 to forward requests to the cluster.
@@ -229,7 +286,7 @@ to forward requests to the cluster.
 
 <Notice type="tip">
 If you provision your EKS clusters using tools such as `terraform`, `eksctl` or
-`Cloudformation`, you can use them to automatically configure the `aws-auth` `Configmap`
+`Cloudformation`, you can use them to automatically configure the `aws-auth` `Configmap` or Access Entry
 and create the `ClusterRole` and `ClusterRoleBinding` resources during cluster provisioning.
 </Notice>
 
