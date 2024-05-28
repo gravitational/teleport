@@ -140,12 +140,14 @@ func New(ctx context.Context, opts Opts) (*S, error) {
 
 	// Connect to the Jamf API and verify credentials.
 	jamfClient, err := jamf.NewClient(ctx, jamf.ClientOpts{
-		Clock:      clock,
-		Logger:     logger,
-		HTTPClient: opts.HTTPClient,
-		APIURL:     spec.ApiEndpoint,
-		Username:   spec.Username,
-		Password:   spec.Password,
+		Clock:        clock,
+		Logger:       logger,
+		HTTPClient:   opts.HTTPClient,
+		APIURL:       spec.ApiEndpoint,
+		Username:     spec.Username,
+		Password:     spec.Password,
+		ClientID:     spec.ClientId,
+		ClientSecret: spec.ClientSecret,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

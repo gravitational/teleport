@@ -20,6 +20,7 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/jamf"
+	jamffake "github.com/gravitational/teleport/e/lib/jamf/fake"
 	jamfservice "github.com/gravitational/teleport/e/lib/jamf/service"
 	"github.com/gravitational/teleport/e/lib/jamf/testenv"
 	"github.com/gravitational/teleport/e/lib/mdm"
@@ -680,6 +681,67 @@ func TestS_Run_exitOnSync(t *testing.T) {
 
 	if got := len(listAllDevices(t, devicesClient)); got != wantDevices {
 		t.Errorf("Run synced %v devices, want %v", got, wantDevices)
+	}
+}
+
+// TestS_Run_clientCredentials tests a sync using API client credentials instead
+// of username+password.
+func TestS_Run_clientCredentials(t *testing.T) {
+	clock := clockwork.NewRealClock()
+	env := testenv.NewUsingT(t, &testenv.Opts{
+		Clock:          clock,
+		DeviceTrustEnv: true,
+	})
+
+	api := env.API
+	devicesClient := env.DevicesClient
+
+	// Configure API to use client credentials.
+	const clientID = "llama-UUID"
+	const clientSecret = "supersecretsecret!!1!"
+	api.SetAPIClients([]*jamffake.APIClient{
+		{ID: clientID, Secret: clientSecret},
+	})
+
+	// Create one device to sync. Specifics don't matter.
+	t0 := clock.Now()
+	api.SetInventory([]*jamf.ComputerInventory{
+		{
+			ID:   "1",
+			UDID: "11",
+			General: &jamf.ComputerGeneralSection{
+				Platform:         "Mac",
+				ReportDate:       t0,
+				LastContactTime:  t0,
+				LastEnrolledDate: t0,
+			},
+			Hardware: &jamf.ComputerHardwareSection{
+				SerialNumber: "llama1",
+			},
+		},
+	})
+
+	s := serviceFromEnv(t, env, func(opts *jamfservice.Opts) {
+		// Use API credentials instead of username+password.
+		spec := opts.Config.Spec
+		spec.Username = ""
+		spec.Password = ""
+		spec.ClientId = clientID
+		spec.ClientSecret = clientSecret
+
+		// Stop after first sync.
+		opts.Config.ExitOnSync = true
+	})
+
+	// Sync!
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := s.Run(ctx); err != nil {
+		t.Fatalf("Run failed: %v", err)
+	}
+
+	if devs := listAllDevices(t, devicesClient); len(devs) != 1 {
+		t.Errorf("Run synced %d devices, want 1", len(devs))
 	}
 }
 
