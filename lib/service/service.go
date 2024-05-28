@@ -3226,11 +3226,22 @@ func (process *TeleportProcess) initDiagnosticService() error {
 	if process.Config.Debug {
 		process.logger.InfoContext(process.ExitContext(), "Adding diagnostic debugging handlers. To connect with profiler, use `go tool pprof <listen_address>`.", "listen_address", process.Config.DiagnosticAddr.Addr)
 
-		mux.HandleFunc("/debug/pprof/", pprof.Index)
+		noWriteTimeout := func(h http.HandlerFunc) http.HandlerFunc {
+			return func(w http.ResponseWriter, r *http.Request) {
+				rc := http.NewResponseController(w) //nolint:bodyclose // bodyclose gets really confused about NewResponseController
+				if err := rc.SetWriteDeadline(time.Time{}); err == nil {
+					// don't let the pprof handlers know about the WriteTimeout
+					r = r.WithContext(context.WithValue(r.Context(), http.ServerContextKey, nil))
+				}
+				h(w, r)
+			}
+		}
+
+		mux.HandleFunc("/debug/pprof/", noWriteTimeout(pprof.Index))
 		mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-		mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+		mux.HandleFunc("/debug/pprof/profile", noWriteTimeout(pprof.Profile))
 		mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-		mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+		mux.HandleFunc("/debug/pprof/trace", noWriteTimeout(pprof.Trace))
 	}
 
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
