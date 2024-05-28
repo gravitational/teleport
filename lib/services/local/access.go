@@ -26,7 +26,6 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
@@ -88,7 +87,9 @@ func (s *AccessService) ListRoles(ctx context.Context, req *proto.ListRolesReque
 	limit := int(req.Limit)
 
 	if limit == 0 {
-		limit = apidefaults.DefaultChunkSize
+		// it can take a lot of effort to parse roles and until a page is done
+		// parsing, it will be held in memory - so keep this reasonably small
+		limit = 100
 	}
 
 	if limit > maxPageSize {
