@@ -43,6 +43,7 @@ import { ShowResources } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb'
 import { DefaultTab } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 
 import { NodeSubKind } from 'shared/services';
+import { waitForever } from 'shared/utils/wait';
 
 import { UserPreferences } from 'teleterm/services/tshd/types';
 import { UnifiedResourceResponse } from 'teleterm/ui/services/resources';
@@ -510,18 +511,4 @@ function NoResources(props: {
       {$content}
     </Flex>
   );
-}
-
-function waitForever(abortSignal: AbortSignal): Promise<never> {
-  if (abortSignal.aborted) {
-    return Promise.reject(new DOMException('Wait was aborted.', 'AbortError'));
-  }
-
-  return new Promise((_, reject) => {
-    const abort = () => {
-      reject(new DOMException('Wait was aborted.', 'AbortError'));
-    };
-
-    abortSignal.addEventListener('abort', abort, { once: true });
-  });
 }
