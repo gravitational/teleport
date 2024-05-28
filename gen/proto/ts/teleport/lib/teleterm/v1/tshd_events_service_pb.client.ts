@@ -24,6 +24,8 @@
 import type { RpcTransport } from "@protobuf-ts/runtime-rpc";
 import type { ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import { TshdEventsService } from "./tshd_events_service_pb";
+import type { ReportUnexpectedVnetShutdownResponse } from "./tshd_events_service_pb";
+import type { ReportUnexpectedVnetShutdownRequest } from "./tshd_events_service_pb";
 import type { GetUsageReportingSettingsResponse } from "./tshd_events_service_pb";
 import type { GetUsageReportingSettingsRequest } from "./tshd_events_service_pb";
 import type { PromptMFAResponse } from "./tshd_events_service_pb";
@@ -84,6 +86,14 @@ export interface ITshdEventsServiceClient {
      * @generated from protobuf rpc: GetUsageReportingSettings(teleport.lib.teleterm.v1.GetUsageReportingSettingsRequest) returns (teleport.lib.teleterm.v1.GetUsageReportingSettingsResponse);
      */
     getUsageReportingSettings(input: GetUsageReportingSettingsRequest, options?: RpcOptions): UnaryCall<GetUsageReportingSettingsRequest, GetUsageReportingSettingsResponse>;
+    /**
+     * ReportUnexpectedVnetShutdown is sent by tsh daemon when VNet exits outside of the
+     * request-response cycle of Start and Stop RPCs of VnetService. The Electron app is then able to
+     * update the state of VNet in the UI.
+     *
+     * @generated from protobuf rpc: ReportUnexpectedVnetShutdown(teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownRequest) returns (teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownResponse);
+     */
+    reportUnexpectedVnetShutdown(input: ReportUnexpectedVnetShutdownRequest, options?: RpcOptions): UnaryCall<ReportUnexpectedVnetShutdownRequest, ReportUnexpectedVnetShutdownResponse>;
 }
 /**
  * TshdEventsService is served by the Electron app. The tsh daemon calls this service to notify the
@@ -151,5 +161,16 @@ export class TshdEventsServiceClient implements ITshdEventsServiceClient, Servic
     getUsageReportingSettings(input: GetUsageReportingSettingsRequest, options?: RpcOptions): UnaryCall<GetUsageReportingSettingsRequest, GetUsageReportingSettingsResponse> {
         const method = this.methods[4], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetUsageReportingSettingsRequest, GetUsageReportingSettingsResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * ReportUnexpectedVnetShutdown is sent by tsh daemon when VNet exits outside of the
+     * request-response cycle of Start and Stop RPCs of VnetService. The Electron app is then able to
+     * update the state of VNet in the UI.
+     *
+     * @generated from protobuf rpc: ReportUnexpectedVnetShutdown(teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownRequest) returns (teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownResponse);
+     */
+    reportUnexpectedVnetShutdown(input: ReportUnexpectedVnetShutdownRequest, options?: RpcOptions): UnaryCall<ReportUnexpectedVnetShutdownRequest, ReportUnexpectedVnetShutdownResponse> {
+        const method = this.methods[5], opt = this._transport.mergeOptions(options);
+        return stackIntercept<ReportUnexpectedVnetShutdownRequest, ReportUnexpectedVnetShutdownResponse>("unary", this._transport, method, opt, input);
     }
 }
