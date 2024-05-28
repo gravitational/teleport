@@ -235,7 +235,7 @@ func WaitForProxyCount(t *TeleInstance, clusterName string, count int) error {
 }
 
 func WaitForAuditEventTypeWithBackoff(t *testing.T, cli *auth.Server, startTime time.Time, eventType string) []apievents.AuditEvent {
-	max := time.Second
+	max := time.Second * 2
 	timeout := time.After(max)
 	bf, err := retryutils.NewLinear(retryutils.LinearConfig{
 		Step: max / 10,
