@@ -69,9 +69,10 @@ export default function useKubeExecSession(doc: DocumentKubeExec) {
           // subscribe to tty events to handle connect/disconnects events
           tty.on(TermEvent.CLOSE, () => ctx.closeTab(doc));
 
-          tty.on(TermEvent.CONN_CLOSE, () =>
-            ctx.updateKubeExecDocument(doc.id, { status: 'disconnected' })
-          );
+          tty.on(TermEvent.CONN_CLOSE, () => {
+            setStatus('disconnected');
+            ctx.updateKubeExecDocument(doc.id, { status: 'disconnected' });
+          });
 
           tty.on(TermEvent.SESSION, payload => {
             const data = JSON.parse(payload);
@@ -158,4 +159,4 @@ function handleTtyConnect(
   ctx.gotoTab({ url });
 }
 
-type Status = 'initialized' | 'loading';
+export type Status = 'initialized' | 'loading' | 'disconnected';

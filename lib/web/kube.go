@@ -57,7 +57,7 @@ type podHandler struct {
 	teleportCluster     string
 	configTLSServerName string
 	configServerAddr    string
-	req                 PodExecRequest
+	req                 *PodExecRequest
 	sess                session.Session
 	sctx                *SessionContext
 	ws                  *websocket.Conn

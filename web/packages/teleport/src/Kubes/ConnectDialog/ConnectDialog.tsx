@@ -16,26 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import React from 'react';
 import Dialog, {
   DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogContent,
 } from 'design/Dialog';
-import Validation from 'shared/components/Validation';
-import {
-  Text,
-  Box,
-  ButtonSecondary,
-  ButtonPrimary,
-  Flex,
-  Toggle,
-} from 'design';
-
-import FieldInput from 'shared/components/FieldInput';
-import { requiredField } from 'shared/components/Validation/rules';
-import { ToolTipInfo } from 'shared/components/ToolTip';
+import { Text, Box, ButtonSecondary, ButtonPrimary, Flex } from 'design';
 
 import { generateTshLoginCommand, openNewTab } from 'teleport/lib/util';
 import { AuthType } from 'teleport/services/user';
@@ -52,23 +40,11 @@ function ConnectDialog(props: Props) {
     accessRequestId,
   } = props;
 
-  const [execPath, setExecPath] = useState('');
-  const [execCommand, setExecCommand] = useState('');
-  const [execInteractive, setExecInteractive] = useState(true);
-
   const startKubeExecSession = () => {
-    const splitPath = execPath.split('/');
-
-    const url = cfg.getKubeExecConnectRoute(
-      {
-        clusterId,
-        kubeId: kubeConnectName,
-        namespace: splitPath[0],
-        pod: splitPath[1],
-        container: splitPath?.[2],
-      },
-      { isInteractive: execInteractive, command: execCommand }
-    );
+    const url = cfg.getKubeExecConnectRoute({
+      clusterId,
+      kubeId: kubeConnectName,
+    });
 
     openNewTab(url);
   };
@@ -133,64 +109,14 @@ function ConnectDialog(props: Props) {
             <TextSelectCopy mt="2" text={`tsh request drop`} />
           </Box>
         )}
-        <Validation>
-          {() => (
-            <Box borderTop={1} mb={4} mt={4}>
-              <Text mt={3} bold>
-                Or exec into a pod on this Kubernetes cluster
-              </Text>
-              <Flex gap={3}>
-                <FieldInput
-                  value={execPath}
-                  placeholder="namespace/pod"
-                  label="Pod to exec into"
-                  width="50%"
-                  onChange={e => setExecPath(e.target.value.trim())}
-                  toolTipContent={
-                    <Text>
-                      Specify namespace and pod you want to exec into.
-                      Optionally you can also specify container by adding it at
-                      the end: '/namespace/pod/container'
-                    </Text>
-                  }
-                />
-                <FieldInput
-                  rule={requiredField('Command to execute is required')}
-                  value={execCommand}
-                  placeholder="/bin/bash"
-                  label="Command to execute"
-                  width="50%"
-                  onChange={e => setExecCommand(e.target.value)}
-                  toolTipContent={
-                    <Text>
-                      The command that will be executed inside the target pod.
-                    </Text>
-                  }
-                />
-              </Flex>
-              <Flex justifyContent="space-between" gap={3}>
-                <Toggle
-                  isToggled={execInteractive}
-                  onToggle={() => {
-                    setExecInteractive(b => !b);
-                  }}
-                >
-                  <Box ml={2} mr={1}>
-                    Interactive shell
-                  </Box>
-                  <ToolTipInfo>
-                    You can start an interactive shell and have a bidirectional
-                    communication with the target pod, or you can run one-off
-                    command and see its output.
-                  </ToolTipInfo>
-                </Toggle>
-                <ButtonPrimary onClick={startKubeExecSession}>
-                  Run Command
-                </ButtonPrimary>
-              </Flex>
-            </Box>
-          )}
-        </Validation>
+        <Box borderTop={1} mb={4} mt={4}>
+          <Flex mt={4} flex-direction="row" justifyContent="space-between">
+            <Text mt={1} bold>
+              Or exec into a pod on this Kubernetes cluster in Web UI
+            </Text>
+            <ButtonPrimary onClick={startKubeExecSession}>Exec</ButtonPrimary>
+          </Flex>
+        </Box>
       </DialogContent>
       <DialogFooter>
         <ButtonSecondary onClick={onClose}>Close</ButtonSecondary>

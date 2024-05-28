@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 
 import { useTheme } from 'styled-components';
 import { Box, Indicator } from 'design';
@@ -24,8 +24,11 @@ import * as stores from 'teleport/Console/stores/types';
 import { Terminal, TerminalRef } from 'teleport/Console/DocumentSsh/Terminal';
 import useWebAuthn from 'teleport/lib/useWebAuthn';
 import useKubeExecSession from 'teleport/Console/DocumentKubeExec/useKubeExecSession';
+
 import Document from 'teleport/Console/Document';
 import AuthnDialog from 'teleport/components/AuthnDialog';
+
+import KubeExecData from './KubeExecDataDialog';
 
 type Props = {
   visible: boolean;
@@ -35,6 +38,7 @@ type Props = {
 export default function DocumentKubeExec({ doc, visible }: Props) {
   const terminalRef = useRef<TerminalRef>();
   const { tty, status, closeDocument } = useKubeExecSession(doc);
+  const [sentData, setSentData] = useState(false);
   const webauthn = useWebAuthn(tty);
   useEffect(() => {
     // when switching tabs or closing tabs, focus on visible terminal
@@ -67,7 +71,24 @@ export default function DocumentKubeExec({ doc, visible }: Props) {
           errorText={webauthn.errorText}
         />
       )}
-      {status === 'initialized' && terminal}
+
+      {status === 'initialized' && !sentData && (
+        <KubeExecData
+          onExec={(namespace, pod, container, command, isInteractive) => {
+            tty.sendKubeExecData({
+              kubeCluster: doc.kubeCluster,
+              namespace,
+              pod,
+              container,
+              command,
+              isInteractive,
+            });
+            setSentData(true);
+          }}
+          onClose={closeDocument}
+        />
+      )}
+      {status !== 'loading' && terminal}
     </Document>
   );
 }

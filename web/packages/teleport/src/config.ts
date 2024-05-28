@@ -154,8 +154,7 @@ const cfg = {
     consoleNodes: '/web/cluster/:clusterId/console/nodes',
     consoleConnect: '/web/cluster/:clusterId/console/node/:serverId/:login',
     consoleSession: '/web/cluster/:clusterId/console/session/:sid',
-    kubeExec:
-      '/web/cluster/:clusterId/console/kube/exec/:kubeId/:namespace/:pod/:container?',
+    kubeExec: '/web/cluster/:clusterId/console/kube/exec/:kubeId/',
     kubeExecSession: '/web/cluster/:clusterId/console/kube/exec/:sid',
     player: '/web/cluster/:clusterId/session/:sid', // ?recordingType=ssh|desktop|k8s&durationMs=1234
     login: '/web/login',
@@ -574,13 +573,8 @@ const cfg = {
     });
   },
 
-  getKubeExecConnectRoute(params: UrlKubeExecParams, query: UrlKubeExecQuery) {
-    if (!params.container) {
-      params.container = undefined;
-    }
-    let path = generatePath(cfg.routes.kubeExec, { ...params });
-    path = `${path}?isInteractive=${query.isInteractive}&command=${query.command}`;
-    return path;
+  getKubeExecConnectRoute(params: UrlKubeExecParams) {
+    return generatePath(cfg.routes.kubeExec, { ...params });
   },
 
   getDesktopRoute({ clusterId, username, desktopName }) {
@@ -1178,14 +1172,6 @@ export interface UrlSshParams {
 export interface UrlKubeExecParams {
   clusterId: string;
   kubeId: string;
-  pod: string;
-  namespace: string;
-  container?: string;
-}
-
-export interface UrlKubeExecQuery {
-  command: string;
-  isInteractive: boolean;
 }
 
 export interface UrlSessionRecordingsParams {

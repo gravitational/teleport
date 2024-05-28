@@ -176,6 +176,7 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
         width="100%"
         px="2"
         style={{ overflow: 'auto' }}
+        data-testid="terminal"
       >
         <StyledXterm ref={elementRef} />
       </Flex>

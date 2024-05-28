@@ -39,6 +39,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	gogoproto "github.com/gogo/protobuf/proto"
 	"github.com/google/safetext/shsprintf"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -3223,6 +3224,11 @@ func (h *Handler) siteNodeConnect(
 	return nil, nil
 }
 
+type podConnectParams struct {
+	// Term is the initial PTY size.
+	Term session.TerminalParams `json:"term"`
+}
+
 func (h *Handler) podConnect(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -3232,15 +3238,27 @@ func (h *Handler) podConnect(
 	ws *websocket.Conn,
 ) (interface{}, error) {
 	q := r.URL.Query()
-	params := q.Get("params")
-	if params == "" {
+	if q.Get("params") == "" {
 		return nil, trace.BadParameter("missing params")
 	}
-
-	var execReq PodExecRequest
-	if err := json.Unmarshal([]byte(params), &execReq); err != nil {
+	var params podConnectParams
+	if err := json.Unmarshal([]byte(q.Get("params")), &params); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	execReq, err := readPodExecRequestFromWS(ws)
+	if err != nil {
+		if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) || isOKWebsocketCloseError(trace.Unwrap(err)) {
+			return nil, nil
+		}
+		var netError net.Error
+		if errors.As(trace.Unwrap(err), &netError) && netError.Timeout() {
+			return nil, trace.BadParameter("timed out waiting for pod exec request data on websocket connection")
+		}
+
+		return nil, err
+	}
+	execReq.Term = params.Term
 
 	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
@@ -3314,6 +3332,39 @@ func (h *Handler) podConnect(
 
 	ph.ServeHTTP(w, r)
 	return nil, nil
+}
+
+func readPodExecRequestFromWS(ws *websocket.Conn) (*PodExecRequest, error) {
+	err := ws.SetReadDeadline(time.Now().Add(defaults.KubeExecDataWaitTimeout))
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to set read deadline for websocket connection")
+	}
+
+	messageType, bytes, err := ws.ReadMessage()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = ws.SetReadDeadline(time.Time{})
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to set read deadline for websocket connection")
+	}
+
+	if messageType != websocket.BinaryMessage {
+		return nil, trace.BadParameter("Expected binary message of type websocket.BinaryMessage, got %v", messageType)
+	}
+
+	var envelope Envelope
+	if err := gogoproto.Unmarshal(bytes, &envelope); err != nil {
+		return nil, trace.BadParameter("Failed to parse envelope: %v", err)
+	}
+
+	var req PodExecRequest
+	if err := json.Unmarshal([]byte(envelope.Payload), &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &req, nil
 }
 
 func (h *Handler) getKubeExecClusterData(netConfig types.ClusterNetworkingConfig) (string, string, error) {

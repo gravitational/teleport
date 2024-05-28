@@ -72,13 +72,13 @@ export const ServerError = () => {
   );
 };
 
-export type Props = {
+type Props = {
   ctx: TeleportContext;
   consoleCtx: ConsoleCtx;
   doc: stores.DocumentKubeExec;
 };
 
-export const DocumentKubeExecWrapper = ({ ctx, consoleCtx, doc }: Props) => {
+const DocumentKubeExecWrapper = ({ ctx, consoleCtx, doc }: Props) => {
   return (
     <ContextProvider ctx={ctx}>
       <TestLayout ctx={consoleCtx}>
@@ -88,7 +88,7 @@ export const DocumentKubeExecWrapper = ({ ctx, consoleCtx, doc }: Props) => {
   );
 };
 
-export function getContexts() {
+function getContexts() {
   const ctx = createTeleportContext();
   const consoleCtx = new ConsoleCtx();
   const tty = consoleCtx.createTty(session);
@@ -99,7 +99,7 @@ export function getContexts() {
   return { ctx, consoleCtx };
 }
 
-export const baseDoc = {
+const baseDoc = {
   kind: 'kubeExec',
   status: 'connected',
   sid: 'sid-value',

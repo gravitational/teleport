@@ -25,7 +25,6 @@ import webSession from 'teleport/services/websession';
 import history from 'teleport/services/history';
 import cfg, {
   UrlKubeExecParams,
-  UrlKubeExecQuery,
   UrlResourcesParams,
   UrlSshParams,
 } from 'teleport/config';
@@ -114,25 +113,24 @@ export default class ConsoleContext {
     });
   }
 
-  addKubeExecDocument(params: UrlKubeExecParams, query: UrlKubeExecQuery) {
-    const title = `${params.namespace}/${params.pod}@${params.kubeId}`;
-    const url = this.getKubeExecDocumentUrl(params, query);
+  addKubeExecDocument(params: UrlKubeExecParams) {
+    const url = this.getKubeExecDocumentUrl(params);
 
     return this.storeDocs.add({
       kind: 'kubeExec',
       status: 'disconnected',
       clusterId: params.clusterId,
-      title,
+      title: params.kubeId,
       url,
       created: new Date(),
       mode: null,
 
-      kubeNamespace: params.namespace,
-      pod: params.pod,
-      container: params.container,
       kubeCluster: params.kubeId,
-      isInteractive: query.isInteractive,
-      command: query.command,
+      kubeNamespace: '',
+      pod: '',
+      container: '',
+      isInteractive: true,
+      command: '',
     });
   }
 
@@ -175,11 +173,8 @@ export default class ConsoleContext {
       : cfg.getSshConnectRoute(sshParams);
   }
 
-  getKubeExecDocumentUrl(
-    kubeExecParams: UrlKubeExecParams,
-    query: UrlKubeExecQuery
-  ) {
-    return cfg.getKubeExecConnectRoute(kubeExecParams, query);
+  getKubeExecDocumentUrl(kubeExecParams: UrlKubeExecParams) {
+    return cfg.getKubeExecConnectRoute(kubeExecParams);
   }
 
   refreshParties() {
@@ -230,15 +225,7 @@ export default class ConsoleContext {
   }
 
   createTty(session: Session, mode?: ParticipantMode): Tty {
-    const {
-      login,
-      sid,
-      serverId,
-      clusterId,
-      isInteractive,
-      command,
-      resourceName,
-    } = session;
+    const { login, sid, serverId, clusterId } = session;
 
     const propagator = new W3CTraceContextPropagator();
     let carrier = {};
@@ -260,15 +247,6 @@ export default class ConsoleContext {
         };
         break;
       case 'k8s':
-        const splits = login.split('/');
-        ttyParams = {
-          kubeCluster: resourceName,
-          namespace: splits[0],
-          pod: splits[1],
-          container: splits?.[2] || '',
-          isInteractive,
-          command,
-        };
         break;
     }
 
