@@ -200,7 +200,7 @@ repositories.
    $ source /etc/os-release
    ```
 
-   <Details title="Supported distribution IDs">
+1. Make sure the value of the `ID` environment variable is supported.
 
    The Teleport DEB and RPM repositories don't expose packages for all
    distribution variants. When installing Teleport using RPM repositories, you
@@ -230,7 +230,9 @@ repositories.
    | Debian       | 11, or 10 with backports |
    | Ubuntu       | 20.042+                  |
 
-   </Details>
+   If the value of `ID` is not in the list above, look up the space-separated
+   values of the `ID_LIKE` variable you sourced from `/etc/os-release` and see
+   if one of them appears in the list.
 
 1. Follow the instructions for your package manager:
 
