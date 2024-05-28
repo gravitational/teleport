@@ -143,6 +143,15 @@ func (m *AWSMatcher) CheckAndSetDefaults() error {
 		}
 	}
 
+	if m.SetupAccessForARN != "" {
+		if !slices.Contains(m.Types, AWSMatcherEKS) {
+			return trace.BadParameter("discovery service AWS matcher setup_access_for_arn is only supported for eks")
+		}
+		if err := awsapiutils.CheckRoleARN(m.SetupAccessForARN); err != nil {
+			return trace.BadParameter("invalid setup access for ARN: %v", err)
+		}
+	}
+
 	if m.Tags == nil || len(m.Tags) == 0 {
 		m.Tags = map[string]apiutils.Strings{Wildcard: {Wildcard}}
 	}
