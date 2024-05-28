@@ -318,7 +318,7 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 			return trace.Wrap(err)
 		}
 	default:
-		return trace.BadParameter("settings are not set or have an unknown type")
+		return nil
 	}
 
 	return nil
@@ -633,6 +633,9 @@ func (c *PluginEntraIDSettings) Validate() error {
 	}
 	if len(c.SyncSettings.DefaultOwners) == 0 {
 		return trace.BadParameter("sync_settings.default_owners must be set")
+	}
+	if c.SyncSettings.SsoConnectorId == "" {
+		return trace.BadParameter("sync_settings.sso_connector_id must be set")
 	}
 
 	return nil

@@ -44,6 +44,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
+	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
@@ -62,6 +63,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/suite"
+	"github.com/gravitational/teleport/lib/srv/db/common/databaseobject"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -121,6 +123,7 @@ type testPack struct {
 	notifications           services.Notifications
 	accessMonitoringRules   services.AccessMonitoringRules
 	crownJewels             services.CrownJewels
+	databaseObjects         services.DatabaseObjects
 }
 
 // testFuncs are functions to support testing an object in a cache.
@@ -320,6 +323,12 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	}
 	p.crownJewels = crownJewelsSvc
 
+	databaseObjectsSvc, err := local.NewDatabaseObjectService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.databaseObjects = databaseObjectsSvc
+
 	kubeWaitingContSvc, err := local.NewKubeWaitingContainerService(p.backend)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -376,6 +385,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		Notifications:           p.notifications,
 		AccessMonitoringRules:   p.accessMonitoringRules,
 		CrownJewels:             p.crownJewels,
+		DatabaseObjects:         p.databaseObjects,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -778,6 +788,7 @@ func TestCompletenessInit(t *testing.T) {
 			Notifications:           p.notifications,
 			AccessMonitoringRules:   p.accessMonitoringRules,
 			CrownJewels:             p.crownJewels,
+			DatabaseObjects:         p.databaseObjects,
 			MaxRetryPeriod:          200 * time.Millisecond,
 			EventsC:                 p.eventsC,
 		}))
@@ -854,6 +865,7 @@ func TestCompletenessReset(t *testing.T) {
 		Notifications:           p.notifications,
 		AccessMonitoringRules:   p.accessMonitoringRules,
 		CrownJewels:             p.crownJewels,
+		DatabaseObjects:         p.databaseObjects,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -1042,6 +1054,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		Notifications:           p.notifications,
 		AccessMonitoringRules:   p.accessMonitoringRules,
 		CrownJewels:             p.crownJewels,
+		DatabaseObjects:         p.databaseObjects,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		neverOK:                 true, // ensure reads are never healthy
@@ -1129,6 +1142,7 @@ func initStrategy(t *testing.T) {
 		Notifications:           p.notifications,
 		AccessMonitoringRules:   p.accessMonitoringRules,
 		CrownJewels:             p.crownJewels,
+		DatabaseObjects:         p.databaseObjects,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -2551,6 +2565,57 @@ func TestCrownJewel(t *testing.T) {
 	})
 }
 
+func TestDatabaseObjects(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources153(t, p, testFuncs153[*dbobjectv1.DatabaseObject]{
+		newResource: func(name string) (*dbobjectv1.DatabaseObject, error) {
+			return newDatabaseObject(t, name), nil
+		},
+		create: func(ctx context.Context, item *dbobjectv1.DatabaseObject) error {
+			_, err := p.databaseObjects.CreateDatabaseObject(ctx, item)
+			return trace.Wrap(err)
+		},
+		list: func(ctx context.Context) ([]*dbobjectv1.DatabaseObject, error) {
+			items, _, err := p.databaseObjects.ListDatabaseObjects(ctx, 0, "")
+			return items, trace.Wrap(err)
+		},
+		cacheList: func(ctx context.Context) ([]*dbobjectv1.DatabaseObject, error) {
+			items, _, err := p.databaseObjects.ListDatabaseObjects(ctx, 0, "")
+			return items, trace.Wrap(err)
+		},
+		deleteAll: func(ctx context.Context) error {
+			token := ""
+			var objects []*dbobjectv1.DatabaseObject
+
+			for {
+				resp, nextToken, err := p.databaseObjects.ListDatabaseObjects(ctx, 0, token)
+				if err != nil {
+					return err
+				}
+
+				objects = append(objects, resp...)
+
+				if nextToken == "" {
+					break
+				}
+				token = nextToken
+			}
+
+			for _, object := range objects {
+				err := p.databaseObjects.DeleteDatabaseObject(ctx, object.GetMetadata().GetName())
+				if err != nil {
+					return err
+				}
+			}
+			return nil
+		},
+	})
+}
+
 // TestGlobalNotifications tests that CRUD operations on global notification resources are
 // replicated from the backend to the cache.
 func TestGlobalNotifications(t *testing.T) {
@@ -3151,6 +3216,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindGlobalNotification:      types.Resource153ToLegacy(newGlobalNotification(t, "test")),
 		types.KindAccessMonitoringRule:    types.Resource153ToLegacy(newAccessMonitoringRule(t)),
 		types.KindCrownJewel:              types.Resource153ToLegacy(newCrownJewel(t, "test")),
+		types.KindDatabaseObject:          types.Resource153ToLegacy(newDatabaseObject(t, "test")),
 	}
 
 	for name, cfg := range cases {
@@ -3608,6 +3674,19 @@ func newCrownJewel(t *testing.T, name string) *crownjewelv1.CrownJewel {
 	}
 
 	return crownJewel
+}
+
+func newDatabaseObject(t *testing.T, name string) *dbobjectv1.DatabaseObject {
+	t.Helper()
+
+	r, err := databaseobject.NewDatabaseObject(name, &dbobjectv1.DatabaseObjectSpec{
+		Name:                name,
+		Protocol:            "postgres",
+		DatabaseServiceName: "pg",
+		ObjectKind:          "table",
+	})
+	require.NoError(t, err)
+	return r
 }
 
 func newUserNotification(t *testing.T, name string) *notificationsv1.Notification {
