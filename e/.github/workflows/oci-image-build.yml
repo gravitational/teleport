@@ -118,14 +118,23 @@ on:
           arm64
           amd64
         
-      should-download-teleport-debs:
+      should-download-teleport-packages:
         description: |
-          True if the build process should pull in the built Teleport debs,
+          True if the build process should pull in the built Teleport packages,
           false otherwise. If true, callers of this job should ensure that
-          the debs are built or already exist prior to execution of this
+          the packages are built or already exist prior to execution of this
           workflow.
         type: boolean
         default: true
+
+      s3-file-name-override:
+        description: |
+          The full name of the file to download from the S3 pending artifacts
+          bucket. If `{arch}` is present in the string, then it will be
+          replaced with the architecture being built. If value not specified,
+          then the appropriate Teleport deb artifact will be downloaded.
+        type: string
+        required: false
 
     secrets:
       deploy-access-app-id:
@@ -225,7 +234,7 @@ jobs:
           tree ./build
 
       - name: Assume pending artifact bucket AWS download role
-        if: inputs.should-download-teleport-debs
+        if: inputs.should-download-teleport-packages
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
           aws-region: us-west-2
@@ -233,17 +242,24 @@ jobs:
           role-session-name: "gha-oci-image-build-${{ github.run_number }}-${{ inputs.source-tag }}"
           role-duration-seconds: 3600
 
-      - name: Download Teleport Debian packages
-        if: inputs.should-download-teleport-debs
+      - name: Download Teleport packages
+        if: inputs.should-download-teleport-packages
         env:
           ARCHITECTURES: ${{ inputs.architectures }}
           TELEPORT_VERSION: ${{ inputs.teleport-version }}
           PENDING_BUCKET_NAME: ${{ vars.ARTIFACT_SOURCE_BUCKET }}
+          S3_FILE_NAME_OVERRIDE: ${{ inputs.s3-file-name-override }}
         run: |
           for arch in $ARCHITECTURES; do
-            export TELEPORT_DEB_FILE_NAME=teleport${DEB_RELEASE_INFIX}_${TELEPORT_VERSION}${DEB_FIPS_INFIX}_${arch}.deb
-            aws s3 cp s3://${PENDING_BUCKET_NAME}/teleport/tag/${TELEPORT_VERSION}/${TELEPORT_DEB_FILE_NAME} ./build/${TELEPORT_DEB_FILE_NAME}
+            if [[ -z "$S3_FILE_NAME_OVERRIDE" ]]; then
+              export S3_FILE_NAME="teleport/tag/${TELEPORT_VERSION}/teleport${DEB_RELEASE_INFIX}_${TELEPORT_VERSION}${DEB_FIPS_INFIX}_${arch}.deb"
+            else
+              export S3_FILE_NAME="${S3_FILE_NAME_OVERRIDE//'{arch}'/${arch}}"
+            fi
+
+            aws s3 cp "s3://${PENDING_BUCKET_NAME}/${S3_FILE_NAME}" "./build/$(basename "${S3_FILE_NAME}")"
           done
+
           tree ./build
 
       - name: Verify base image

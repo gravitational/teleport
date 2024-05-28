@@ -52,6 +52,7 @@ jobs:
         with:
           go-version-file: "./go.mod"
           check-latest: true
+          cache: false
 
       - name: Set environment variables for Makefiles
         env:
@@ -128,42 +129,64 @@ jobs:
         run: |
           aws s3 cp . "s3://$PENDING_BUCKET/teleport-plugins/tag/$VERSION/" --recursive
 
-      # Container artifacts
-      - name: Assume AWS role for pushing the container images
-        uses: aws-actions/configure-aws-credentials@010d0da01d0b5a38af31e9c3470dbfdabdecca3a # v4.0.1
-        with:
-          role-skip-session-tagging: true
-          aws-region: us-west-2
-          role-to-assume: ${{ vars.OCI_ECR_AWS_ROLE }}
-          role-session-name: "tag-build-container-image-upload-${{ github.run_attempt }}"
-          role-duration-seconds: 900
-
-      - name: Authenticate with ECR
-        env:
-          CONTAINER_IMAGE_PRIVATE_REGISTRY: ${{ vars.ECR_PENDING_REPO_BASE }}
-        run: |
-          aws ecr get-login-password | docker login -u="AWS" --password-stdin "$CONTAINER_IMAGE_PRIVATE_REGISTRY"
-
-      - name: Build and push the container images
-        env:
-          CONTAINER_IMAGE_PRIVATE_REGISTRY: ${{ vars.ECR_PENDING_REPO_BASE }}
-          PLUGIN_SUBDIRECTORIES: >-
-            access/discord
-            access/pagerduty
-            access/msteams
-            access/jira
-            access/slack
-            access/mattermost
-            access/email
-            event-handler
-        run: |
-          read -ra plugins <<<"${PLUGIN_SUBDIRECTORIES}"
-          for plugin in "${plugins[@]}"; do
-            make -C "integrations/$plugin/" \
-              OS=linux ARCH=amd64 \
-              DOCKER_IMAGE_BASE="$CONTAINER_IMAGE_PRIVATE_REGISTRY" \
-              docker-build
-            make -C "integrations/$plugin/" \
-              DOCKER_IMAGE_BASE="$CONTAINER_IMAGE_PRIVATE_REGISTRY" \
-              docker-push
-          done
+  # Container artifacts
+  build-docker-images:
+    name: Build OCI container images
+    permissions:
+      actions: read
+      contents: read
+      id-token: write  # required for aws-actions/configure-aws-credentials
+      security-events: write # required for trivy scan
+    strategy:
+      matrix:
+        plugins:
+          # Access plugins
+          - name: discord
+            artifact-name: access-discord
+            dockerfile-path: integrations/access/Dockerfile
+          - name: email
+            artifact-name: access-email
+            dockerfile-path: integrations/access/Dockerfile
+          - name: jira
+            artifact-name: access-jira
+            dockerfile-path: integrations/access/Dockerfile
+          - name: mattermost
+            artifact-name: access-mattermost
+            dockerfile-path: integrations/access/Dockerfile
+          - name: msteams
+            artifact-name: access-msteams
+            dockerfile-path: integrations/access/Dockerfile
+          - name: pagerduty
+            artifact-name: access-pagerduty
+            dockerfile-path: integrations/access/Dockerfile
+          - name: slack
+            artifact-name: access-slack
+            dockerfile-path: integrations/access/Dockerfile
+          # Event handler
+          - name: event-handler
+            artifact-name: event-handler
+            dockerfile-path: integrations/event-handler/Dockerfile
+    needs: build-plugins
+    uses: ./.github/workflows/oci-image-build.yml
+    with:
+      teleport-release: oss
+      base-image: 'gcr.io/distroless/static-debian12:latest'
+      oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
+      oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
+      source-tag: ${{ inputs.teleport-version }}
+      teleport-version: ${{ inputs.teleport-version }}
+      dest-image-repo: teleport-plugin-${{ matrix.plugins.name }}
+      dest-image-tags: ${{ inputs.teleport-version }}
+      architectures: |
+        amd64
+        arm64
+      s3-file-name-override: |-
+        teleport-plugins/tag/${{ inputs.teleport-version }}/teleport-${{ matrix.plugins.artifact-name }}-v${{ inputs.teleport-version }}-linux-{arch}-bin.tar.gz
+      image-build-context: ./teleport/. # Teleport repo directory
+      image-build-dockerfile: ${{ matrix.plugins.dockerfile-path }}
+      allow-overwrites: false
+      environment: ${{ inputs.environment }}
+    secrets:
+      deploy-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
+      deploy-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+  

@@ -117,7 +117,7 @@ jobs:
         BUILDBOX=${{ needs.configure.outputs.buildbox }}
       image-build-context: ./teleport/.
       image-build-dockerfile: ./integrations/teleport-spacelift-runner/Dockerfile
-      should-download-teleport-debs: false
+      should-download-teleport-packages: false
       environment: ${{ inputs.environment }}
     secrets:
       deploy-access-app-id: ${{ secrets.DEPLOY_APP_ID }}

@@ -94,60 +94,6 @@ jobs:
             --include "*" \
             --exclude "*.tgz*"  # Exclude helm chart artifacts
 
-      # Image promotion
-      # This should all move to the distroless workflows at some point, which would also
-      # bring multiarch image support
-      - name: Assume AWS role for pulling the container images
-        uses: aws-actions/configure-aws-credentials@010d0da01d0b5a38af31e9c3470dbfdabdecca3a # v4.0.1
-        with:
-          role-skip-session-tagging: true
-          aws-region: us-west-2
-          role-to-assume: ${{ vars.ECR_OCI_PENDING_PULL_ROLE_ARN }}
-          role-session-name: "tag-publish-plugins-container-image-pulling-${{ github.run_attempt }}"
-          role-duration-seconds: 900
-
-      - name: Authenticate with private ECR
-        env:
-          CONTAINER_IMAGE_PRIVATE_REGISTRY: ${{ vars.ECR_PENDING_REPO_BASE }}
-        run: |
-          aws ecr get-login-password | docker login -u="AWS" --password-stdin "$CONTAINER_IMAGE_PRIVATE_REGISTRY"
-
-      - name: Assume AWS role for pushing the container images
-        uses: aws-actions/configure-aws-credentials@010d0da01d0b5a38af31e9c3470dbfdabdecca3a # v4.0.1
-        with:
-          role-skip-session-tagging: true
-          aws-region: us-west-2
-          role-to-assume: ${{ vars.ECR_OCI_PUSH_ROLE_ARN }}
-          role-session-name: "tag-publish-plugins-container-image-pushing-${{ github.run_attempt }}"
-          role-duration-seconds: 900
-
-      - name: Authenticate with public ECR
-        run: |
-          aws ecr-public get-login-password --region us-east-1 | docker login -u="AWS" --password-stdin public.ecr.aws
-
-      - name: Publish access and event-handler images
-        env:
-          CONTAINER_IMAGE_PRIVATE_REGISTRY: ${{ vars.ECR_PENDING_REPO_BASE }}
-          CONTAINER_IMAGE_PUBLIC_REGISTRY: ${{ vars.OCI_PUBLIC_REPO_BASE }}
-          PLUGIN_SUBDIRECTORIES: >-
-            access/discord
-            access/pagerduty
-            access/msteams
-            access/jira
-            access/slack
-            access/mattermost
-            access/email
-            event-handler
-        run: |
-          read -ra plugins <<<"${PLUGIN_SUBDIRECTORIES}"
-          for plugin in "${plugins[@]}"; do
-            make -C "integrations/$plugin/" \
-              OS=linux ARCH=amd64 VERSION=${ARTIFACT_TAG##v} \
-              DOCKER_IMAGE_BASE="$CONTAINER_IMAGE_PRIVATE_REGISTRY" \
-              DOCKER_ECR_PUBLIC_REGISTRY="$CONTAINER_IMAGE_PUBLIC_REGISTRY" \
-              docker-publish
-          done
-
       # Terraform promotion
       - name: Assume AWS role for syncing the Terraform artifacts
         uses: aws-actions/configure-aws-credentials@010d0da01d0b5a38af31e9c3470dbfdabdecca3a # v4.0.1
@@ -183,3 +129,50 @@ jobs:
           TERRAFORM_REGISTRY_BUCKET: ${{ vars.TERRAFORM_REGISTRY_BUCKET }}
         run: |
           aws s3 sync "$LOCAL_TERRAFORM_REGISTRY_PATH" "s3://$TERRAFORM_REGISTRY_BUCKET/"
+
+  # Image publishing
+  images-setup:
+    name: Setup for image publishing
+    runs-on: ubuntu-latest
+    outputs:
+      teleport-version: ${{ steps.version.outputs.full }}
+      dest-image-tags: ${{ steps.version.outputs.labels }}
+    steps:
+      # Generates a list of tags that will be applied to the published image. In the
+      # case of a "normal" release (identified by a version tag with no pre-release
+      # suffix) the published image is assumed to take over all of the more-significant
+      # release numbers, as well as its own (e.g 11.2.3 implies tags of 11 and 11.2).
+      #
+      # A version tag with a pre-release sufffix will only be published as itself, in
+      # order to allow things like RCs and Betas to be published without overriding any
+      # existing release.
+      - name: Parse version
+        id: version
+        uses: gravitational/teleport.e/.github/actions/parse-version@master
+        with:
+          version: ${{ inputs.teleport-version }}
+
+  publish-images:
+    needs: images-setup
+    permissions:
+      contents: read
+      id-token: write  # required for aws-actions/configure-aws-credentials
+    strategy:
+      matrix:
+        plugins:
+          # Access plugins
+          - discord
+          - email
+          - jira
+          - mattermost
+          - msteams
+          - pagerduty
+          - slack
+          # Event handler
+          - event-handler
+    uses: ./.github/workflows/oci-image-publish.yml
+    with:
+      repository: teleport-plugin-${{ matrix.plugins }}
+      pending-tag: ${{ needs.images-setup.outputs.teleport-version }}
+      production-tags: ${{ needs.images-setup.outputs.dest-image-tags }}
+      environment: ${{ inputs.environment }}

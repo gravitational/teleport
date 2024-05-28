@@ -284,8 +284,10 @@ jobs:
     needs: setup
     secrets: inherit
     permissions:
+      actions: read
       contents: read
       id-token: write
+      security-events: write # required for trivy scan
     uses: ./.github/workflows/build-plugins.yaml
     with:
       oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
