@@ -364,9 +364,9 @@ function calculateScore(
     searchResultScore += resourceMatchScore;
   }
 
-  // Show resources that require access at the bottom.
+  // Show resources that require access lower in the results.
   if (searchResult.requiresRequest) {
-    searchResultScore *= 0.1;
+    searchResultScore *= 0.95;
   }
 
   return { ...searchResult, labelMatches, score: searchResultScore };
