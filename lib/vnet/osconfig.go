@@ -17,6 +17,7 @@
 package vnet
 
 import (
+	"cmp"
 	"context"
 	"log/slog"
 	"net"
@@ -105,10 +106,7 @@ func (c *osConfigurator) updateOSConfiguration(ctx context.Context) error {
 		// TODO(nklaassen): add the custom DNS zones as well, after the rest of VNet supports it.
 		dnsZones = append(dnsZones, profileName)
 
-		cidrRange := vnetConfig.GetSpec().GetIpv4CidrRange()
-		if cidrRange == "" {
-			cidrRange = defaultIPv4CIDRRange
-		}
+		cidrRange := cmp.Or(vnetConfig.GetSpec().GetIpv4CidrRange(), defaultIPv4CIDRRange)
 		cidrRanges = append(cidrRanges, cidrRange)
 	}
 
