@@ -3152,34 +3152,34 @@ exports[`render with no access 1`] = `
       </div>
     </div>
     <div
-      class="c7"
+      class="c8"
       data-testid="0"
     >
       <div
-        class="c8 c9"
+        class="c9 c10"
         data-testid="tooltip"
       >
         Lacking Permissions
       </div>
       <div
-        class="c10 c11"
+        class="c11 c12"
       >
         <div
-          class="c12 c13"
+          class="c13 c14"
           width="24px"
         >
           <img
-            class="c14"
+            class="c15"
             height="24px"
             src="file_stub"
             width="23.9px"
           />
         </div>
         <div
-          class="c15"
+          class="c16"
         >
           <div
-            class="c17"
+            class="c19"
           >
             AWS CLI/Console Access
           </div>
