@@ -112,6 +112,9 @@ export class AccessRequestsService {
 
       const { resources } = draftState.pending;
 
+      if (resources.has(request.resource.uri)) {
+        return;
+      }
       resources.set(request.resource.uri, getRequiredProperties(request));
     });
   }
