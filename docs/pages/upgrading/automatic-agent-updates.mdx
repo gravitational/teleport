@@ -35,12 +35,14 @@ regular maintenance window.
 
 - A Teleport Enterprise cluster. If you do not have one, [sign
   up](https://goteleport.com/signup) for a free trial or consult the [Update
-  Reference](./reference.mdx) to read about manual updates.
+  Reference](./reference.mdx) to read about manual updates. Automatic upgrades
+  in self-hosted Teleport clusters require at least v14.3.7 or v15.1.3. 
 - Familiarity with the [Upgrading Compatibility Overview](./overview.mdx) guide,
   which describes the sequence in which to upgrade components in your cluster.
 - Teleport agents that are not yet enrolled in automatic updates.
 - (!docs/pages/includes/tctl-tsh-prerequisite.mdx!)
 - (!docs/pages/includes/tctl.mdx!)
+
 
 ## Step 1/4. Enable automatic agent upgrades
 
@@ -49,8 +51,7 @@ If you are running a cloud-hosted Teleport Enterprise cluster, skip to [Step
 
 Before enabling automatic upgrades in your self-hosted Teleport cluster, you
 must enable a **version server**. This section shows you how to enable a version
-server in your cluster. Automatic upgrades in self-hosted Teleport clusters
-require at least v14.3.7 or v15.1.3. 
+server in your cluster. 
 
 ### Configure a maintenance schedule
 

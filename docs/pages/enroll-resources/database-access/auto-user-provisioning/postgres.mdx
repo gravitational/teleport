@@ -9,7 +9,9 @@ description: Configure automatic user provisioning for PostgreSQL.
 
 - Teleport cluster v13.1 or above with a configured [self-hosted
   PostgreSQL](../enroll-self-hosted-databases/postgres-self-hosted.mdx) or [RDS
-  PostgreSQL](../enroll-aws-databases/rds.mdx) database.
+  PostgreSQL](../enroll-aws-databases/rds.mdx) database. To configure
+  permissions for database objects like tables, your cluster must be on version
+  v15.2 or above.
 - Ability to connect to and create user accounts in the target database.
 
 <Admonition type="warning" title="RDS compatibility">
