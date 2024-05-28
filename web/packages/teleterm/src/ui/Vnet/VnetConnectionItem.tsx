@@ -86,7 +86,10 @@ const VnetConnectionItemBase = forwardRef(
       startAttempt.status === 'processing' ||
       stopAttempt.status === 'processing';
     const indicatorStatus =
-      startAttempt.status === 'error' || stopAttempt.status === 'error'
+      startAttempt.status === 'error' ||
+      stopAttempt.status === 'error' ||
+      (status.value === 'stopped' &&
+        status.reason.value === 'unexpected-shutdown')
         ? 'error'
         : status.value === 'running'
           ? 'on'

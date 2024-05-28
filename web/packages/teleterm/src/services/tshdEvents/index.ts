@@ -223,6 +223,10 @@ function createService(logger: Logger): {
     getUsageReportingSettings: (call, callback) => {
       processEvent('getUsageReportingSettings', call, callback);
     },
+
+    reportUnexpectedVnetShutdown: (call, callback) => {
+      processEvent('reportUnexpectedVnetShutdown', call, callback);
+    },
   };
 
   return { service, setupTshdEventContextBridgeService };
