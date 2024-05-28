@@ -1698,6 +1698,8 @@ type AWSMatcher struct {
 	// KubeAppDiscovery controls whether Kubernetes App Discovery will be enabled for agents running on
 	// discovered clusters, currently only affects AWS EKS discovery in integration mode.
 	KubeAppDiscovery bool `yaml:"kube_app_discovery"`
+	// SetupAccessForARN is the role that the discovery service should create EKS Access Entries for.
+	SetupAccessForARN string `yaml:"setup_access_for_arn"`
 }
 
 // InstallParams sets join method to use on discovered nodes

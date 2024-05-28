@@ -6010,6 +6010,9 @@ message PluginEntraIDSyncSettings {
 
   // DefaultOwners are the default owners for all imported access lists.
   repeated string default_owners = 1;
+
+  // SSOConnectorID is the name of the Teleport SSO connector created and used by the Entra ID plugin
+  string sso_connector_id = 2;
 }
 
 // AccessGraphSettings controls settings for syncing access graph specific data.
@@ -6777,6 +6780,10 @@ message AWSMatcher {
   // KubeAppDiscovery controls whether Kubernetes App Discovery will be enabled for agents running on
   // discovered clusters, currently only affects AWS EKS discovery in integration mode.
   bool KubeAppDiscovery = 8 [(gogoproto.jsontag) = "kube_app_discovery,omitempty"];
+  // SetupAccessForARN is the role that the discovery service should create EKS Access Entries for.
+  // This value should match the IAM identity that Teleport Kubernetes Service uses.
+  // If this value is empty, the discovery service will attempt to set up access for its own identity (self).
+  string SetupAccessForARN = 9 [(gogoproto.jsontag) = "setup_access_for_arn,omitempty"];
 }
 
 // AssumeRole provides a role ARN and ExternalID to assume an AWS role
