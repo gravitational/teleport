@@ -18,9 +18,9 @@
 
 import React from 'react';
 import styled from 'styled-components';
-import { SpaceProps, WidthProps, style } from 'styled-system';
+import { style } from 'styled-system';
 
-import { space, width } from 'design/system';
+import { space, SpaceProps, width, WidthProps } from 'design/system';
 import { fade } from 'design/theme/utils/colorManipulator';
 
 const linkColor = style({

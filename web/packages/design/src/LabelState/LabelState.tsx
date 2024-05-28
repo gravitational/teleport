@@ -20,13 +20,15 @@ import React from 'react';
 import styled from 'styled-components';
 
 import {
-  ColorProps,
+  fontSize,
   FontSizeProps,
-  SpaceProps,
+  color,
+  ColorProps,
+  width,
   WidthProps,
-} from 'styled-system';
-
-import { fontSize, color, width, space } from 'design/system';
+  space,
+  SpaceProps,
+} from 'design/system';
 import { fade } from 'design/theme/utils/colorManipulator';
 import { Theme } from 'design/theme/themes/types';
 

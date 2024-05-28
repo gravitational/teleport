@@ -19,9 +19,14 @@
 import React, { JSX, SetStateAction } from 'react';
 import styled from 'styled-components';
 
-import { ColorProps, HeightProps, SpaceProps } from 'styled-system';
-
-import { height, space, color } from 'design/system';
+import {
+  height,
+  HeightProps,
+  space,
+  SpaceProps,
+  color,
+  ColorProps,
+} from 'design/system';
 
 export default function InputSearch({
   searchValue,

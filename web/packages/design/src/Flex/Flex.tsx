@@ -19,17 +19,14 @@
 import styled from 'styled-components';
 
 import {
-  AlignItemsProps,
-  FlexDirectionProps,
-  FlexWrapProps,
-  JustifyContentProps,
-} from 'styled-system';
-
-import {
   alignItems,
+  AlignItemsProps,
   justifyContent,
+  JustifyContentProps,
   flexWrap,
+  FlexWrapProps,
   flexDirection,
+  FlexDirectionProps,
   gap,
   GapProps,
 } from 'design/system';

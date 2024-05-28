@@ -19,9 +19,7 @@
 import React from 'react';
 import styled from 'styled-components';
 
-import { SpaceProps } from 'styled-system';
-
-import { space } from 'design/system';
+import { space, SpaceProps } from 'design/system';
 
 const kind = ({ kind, theme }) => {
   if (kind === 'secondary') {

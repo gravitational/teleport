@@ -18,12 +18,10 @@
 
 import React from 'react';
 import styled from 'styled-components';
-import { space } from 'design/system';
+import { space, SpaceProps } from 'design/system';
 import { ButtonBorder, Flex, Text, Box } from 'design';
 import Menu, { MenuItem } from 'design/Menu';
 import { ChevronDown } from 'design/Icon';
-
-import { SpaceProps } from 'styled-system';
 
 import { AwsRole } from 'shared/services/apps';
 

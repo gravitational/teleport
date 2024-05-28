@@ -19,9 +19,7 @@
 import styled from 'styled-components';
 import PropTypes from 'prop-types';
 
-import { SpaceProps } from 'styled-system';
-
-import { space } from 'design/system';
+import { space, SpaceProps } from 'design/system';
 
 interface LabelInputProps extends SpaceProps {
   hasError?: boolean;

@@ -19,7 +19,7 @@
 import styled from 'styled-components';
 
 import { Alert, Box, Flex, Link, Text, Indicator } from 'design';
-import { space, width } from 'design/system';
+import { space, SpaceProps, width } from 'design/system';
 import { Info as InfoIcon } from 'design/Icon';
 
 import {
@@ -32,8 +32,6 @@ import {
   ResourceList,
   ResourceMap,
 } from 'shared/components/AccessRequests/NewRequest';
-
-import { SpaceProps } from 'styled-system';
 
 import {
   PendingAccessRequest,

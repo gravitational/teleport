@@ -20,8 +20,7 @@ import React, { useImperativeHandle, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { NavLink } from 'react-router-dom';
 import Menu, { MenuItem } from 'design/Menu';
-import { space } from 'design/system';
-import { SpaceProps } from 'styled-system';
+import { space, SpaceProps } from 'design/system';
 
 import { ButtonBorder, Flex, Indicator } from 'design';
 import { ChevronDown } from 'design/Icon';

@@ -18,25 +18,23 @@
 
 import styled from 'styled-components';
 
-import {
-  ColorProps,
-  FontSizeProps,
-  SpaceProps,
-  TextAlignProps,
-  ResponsiveValue,
-} from 'styled-system';
+import { ResponsiveValue } from 'styled-system';
 
 import { Property } from 'csstype';
 
 import {
   typography,
+  TypographyProps,
   fontSize,
+  FontSizeProps,
   space,
+  SpaceProps,
   color,
+  ColorProps,
   textAlign,
+  TextAlignProps,
   fontWeight,
 } from 'design/system';
-import { TypographyProps } from 'design/system/typography';
 import { fontWeights } from 'design/theme/typography';
 
 interface FontWeightProps {

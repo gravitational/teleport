@@ -22,8 +22,7 @@ import ReactSelectAsync from 'react-select/async';
 import CreatableSelect from 'react-select/creatable';
 import ReactSelectCreatableAsync from 'react-select/async-creatable';
 import styled from 'styled-components';
-import { SpaceProps, WidthProps } from 'styled-system';
-import { width, space } from 'design/system';
+import { width, WidthProps, space, SpaceProps } from 'design/system';
 
 import { Props, AsyncProps, CreatableProps } from './types';
 
