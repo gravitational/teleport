@@ -93,12 +93,13 @@ type TCPHandlerResolver interface {
 	// If [fqdn] matches a Teleport-managed TCP app it must return a TCPHandlerSpec defining the range to
 	// assign an IP from, and a handler for future connections to any assigned IPs.
 	//
-	// If [fqdn] does not match it must return ErrNoTCPHandler. Avoid using [trace.Wrap] for expected errors
-	// to avoid the overhead of capturing a full stack trace.
+	// If [fqdn] does not match it must return ErrNoTCPHandler.
 	ResolveTCPHandler(ctx context.Context, fqdn string) (*TCPHandlerSpec, error)
 }
 
 // ErrNoTCPHandler should be returned by [TCPHandlerResolver]s when no handler matches the FQDN.
+// Avoid using [trace.Wrap] on ErrNoTCPHandler where possible, this isn't an unexpected error that we would
+// expect to need to debug and [trace.Wrap] incurs overhead to collect a full stack trace.
 var ErrNoTCPHandler = errors.New("no handler for address")
 
 // TCPHandlerSpec specifies a VNet TCP handler.

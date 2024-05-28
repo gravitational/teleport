@@ -119,8 +119,10 @@ func withClock(clock clockwork.Clock) tcpAppResolverOption {
 	}
 }
 
-// ResolveTCPHandler resolves a fully-qualified domain name to a TCPHandlerSpec for a Teleport TCP app that should
+// ResolveTCPHandler resolves a fully-qualified domain name to a [TCPHandlerSpec] for a Teleport TCP app that should
 // be used to handle all future TCP connections to [fqdn].
+// Avoid using [trace.Wrap] on [ErrNoTCPHandler] to prevent collecting a full stack trace on every unhandled
+// query.
 func (r *TCPAppResolver) ResolveTCPHandler(ctx context.Context, fqdn string) (*TCPHandlerSpec, error) {
 	profileNames, err := r.appProvider.ListProfiles()
 	if err != nil {
@@ -152,6 +154,10 @@ func (r *TCPAppResolver) ResolveTCPHandler(ctx context.Context, fqdn string) (*T
 	return nil, ErrNoTCPHandler
 }
 
+// resolveTCPHandlerForCluster takes a cluster client and resolves [fqdn] to a [TCPHandlerSpec] if a matching
+// app is found in that cluster.
+// Avoid using [trace.Wrap] on [ErrNoTCPHandler] to prevent collecting a full stack trace on every unhandled
+// query.
 func (r *TCPAppResolver) resolveTCPHandlerForCluster(
 	ctx context.Context,
 	slog *slog.Logger,
