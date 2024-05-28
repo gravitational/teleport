@@ -85,7 +85,7 @@ discovery_service:
        assume_role_arn: arn:aws:iam::123456789012:role/iam-discovery-role
        # External Id is an optional value that should be set when accessing 
        # your AWS account from a 3rd party access (delegate access).
-       external_id: 123456789
+       external_id: "example-external-id"
        # Specifies the role for which the Discovery Service should create the EKS Access Entry.
        # This is an optional parameter. If not set, the Discovery Service will attempt to create
        # the access entry using its own identity.
