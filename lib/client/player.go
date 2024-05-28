@@ -63,7 +63,7 @@ func (p *playFromFileStreamer) StreamSessionEvents(
 				select {
 				case evts <- evt:
 				case <-ctx.Done():
-					errs <- trace.Wrap(err)
+					errs <- trace.Wrap(ctx.Err())
 					return
 				}
 			}
