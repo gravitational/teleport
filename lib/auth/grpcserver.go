@@ -224,16 +224,14 @@ func (g *GRPCServer) EmitAuditEvent(ctx context.Context, req *apievents.OneOf) (
 	return &emptypb.Empty{}, nil
 }
 
-var (
-	connectedResourceGauges = map[string]prometheus.Gauge{
-		constants.KeepAliveNode:                  connectedResources.WithLabelValues(constants.KeepAliveNode),
-		constants.KeepAliveKube:                  connectedResources.WithLabelValues(constants.KeepAliveKube),
-		constants.KeepAliveApp:                   connectedResources.WithLabelValues(constants.KeepAliveApp),
-		constants.KeepAliveDatabase:              connectedResources.WithLabelValues(constants.KeepAliveDatabase),
-		constants.KeepAliveDatabaseService:       connectedResources.WithLabelValues(constants.KeepAliveDatabaseService),
-		constants.KeepAliveWindowsDesktopService: connectedResources.WithLabelValues(constants.KeepAliveWindowsDesktopService),
-	}
-)
+var connectedResourceGauges = map[string]prometheus.Gauge{
+	constants.KeepAliveNode:                  connectedResources.WithLabelValues(constants.KeepAliveNode),
+	constants.KeepAliveKube:                  connectedResources.WithLabelValues(constants.KeepAliveKube),
+	constants.KeepAliveApp:                   connectedResources.WithLabelValues(constants.KeepAliveApp),
+	constants.KeepAliveDatabase:              connectedResources.WithLabelValues(constants.KeepAliveDatabase),
+	constants.KeepAliveDatabaseService:       connectedResources.WithLabelValues(constants.KeepAliveDatabaseService),
+	constants.KeepAliveWindowsDesktopService: connectedResources.WithLabelValues(constants.KeepAliveWindowsDesktopService),
+}
 
 // SendKeepAlives allows node to send a stream of keep alive requests
 func (g *GRPCServer) SendKeepAlives(stream authpb.AuthService_SendKeepAlivesServer) error {
