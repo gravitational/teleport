@@ -118,7 +118,9 @@ func (c *osConfigurator) updateOSConfiguration(ctx context.Context) error {
 	if c.tunIPv4 == "" && len(cidrRanges) > 0 {
 		// Choose an IPv4 address for the TUN interface from the CIDR range of one arbitrary currently
 		// logged-in cluster. Only one IPv4 address is needed.
-		c.setTunIPv4FromCIDR(cidrRanges[0])
+		if err := c.setTunIPv4FromCIDR(cidrRanges[0]); err != nil {
+			return trace.Wrap(err, "setting TUN IPv4 address")
+		}
 	}
 
 	err = configureOS(ctx, &osConfig{
