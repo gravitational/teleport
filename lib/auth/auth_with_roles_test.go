@@ -1781,10 +1781,12 @@ func TestStreamSessionEventsRBAC(t *testing.T) {
 	clt, err := srv.NewClient(identity)
 	require.NoError(t, err)
 
-	_, errC := clt.StreamSessionEvents(context.Background(), "foo", 0)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	_, errC := clt.StreamSessionEvents(ctx, "foo", 0)
 	select {
 	case err := <-errC:
-		require.True(t, trace.IsAccessDenied(err), "expected access denied error, got %v", err)
+		require.ErrorAs(t, err, new(*trace.AccessDeniedError))
 	case <-time.After(5 * time.Second):
 		require.FailNow(t, "expected access denied error but stream succeeded")
 	}
@@ -1794,7 +1796,8 @@ func TestStreamSessionEventsRBAC(t *testing.T) {
 func TestStreamSessionEvents_User(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	srv := newTestTLSServer(t)
 
 	username := "user"
@@ -1829,7 +1832,8 @@ func TestStreamSessionEvents_User(t *testing.T) {
 func TestStreamSessionEvents_Builtin(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	srv := newTestTLSServer(t)
 
 	identity := TestBuiltin(types.RoleProxy)
@@ -7275,7 +7279,8 @@ func TestAccessRequestNonGreedyAnnotations(t *testing.T) {
 			roles: []string{
 				"identity-requester", "payments-requester",
 				"identity-resource-requester", "payments-resource-requester",
-				"any-requester"},
+				"any-requester",
+			},
 			requestedRoles: []string{"payments-access"},
 			expectedAnnotations: map[string][]string{
 				"requesting":    {"role"},
@@ -7289,7 +7294,8 @@ func TestAccessRequestNonGreedyAnnotations(t *testing.T) {
 			roles: []string{
 				"identity-requester", "payments-requester",
 				"identity-resource-requester", "payments-resource-requester",
-				"any-requester"},
+				"any-requester",
+			},
 			requestedRoles:       []string{"payments-access"},
 			requestedResourceIDs: []string{"server-payments"},
 			expectedAnnotations: map[string][]string{
@@ -7388,10 +7394,8 @@ func TestAccessRequestNonGreedyAnnotations(t *testing.T) {
 			} else {
 				tc.errfn(t, err)
 			}
-
 		})
 	}
-
 }
 
 func mustAccessRequest(t *testing.T, user string, state types.RequestState, created, expires time.Time, roles []string, resourceIDs []types.ResourceID) types.AccessRequest {

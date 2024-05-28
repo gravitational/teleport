@@ -225,7 +225,6 @@ func (p *sessionPlayer) playRange(from, to int) {
 		var i int
 
 		defer func() {
-
 			p.Lock()
 			endRequested := p.state == stateEnding
 			p.setState(stateStopped)
