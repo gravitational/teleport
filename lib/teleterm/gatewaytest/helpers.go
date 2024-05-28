@@ -30,13 +30,13 @@ import (
 	"net"
 	"os"
 	"path"
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -152,14 +152,12 @@ type KeyPairPaths struct {
 	KeyPath  string
 }
 
-func MustGenAndSaveCert(t *testing.T, identity tlsca.Identity) KeyPairPaths {
+func MustGenAndSaveCert(t *testing.T, ca *tlsca.CertAuthority, identity tlsca.Identity) KeyPairPaths {
 	t.Helper()
 
 	dir := t.TempDir()
 	certPath := path.Join(dir, "cert.pem")
 	keyPath := path.Join(dir, "key.pem")
-
-	ca := mustGenCACert(t)
 
 	MustGenCertSignedWithCAAndSaveToPaths(t, ca, identity, certPath, keyPath)
 	return KeyPairPaths{
@@ -171,7 +169,7 @@ func MustGenAndSaveCert(t *testing.T, identity tlsca.Identity) KeyPairPaths {
 func MustGenCertSignedWithCAAndSaveToPaths(t *testing.T, ca *tlsca.CertAuthority, identity tlsca.Identity, certPath, keyPath string) {
 	t.Helper()
 
-	tlsCert := mustGenCertSignedWithCA(t, ca, identity)
+	tlsCert := MustGenCertSignedWithCA(t, ca, identity)
 	privateKey, ok := tlsCert.PrivateKey.(*rsa.PrivateKey)
 	require.True(t, ok, "Failed to cast tlsCert.PrivateKey")
 
@@ -184,7 +182,8 @@ func MustGenCertSignedWithCAAndSaveToPaths(t *testing.T, ca *tlsca.CertAuthority
 	require.NoError(t, os.WriteFile(keyPath, pemPrivateKey, teleport.FileMaskOwnerOnly))
 }
 
-func mustGenCACert(t *testing.T) *tlsca.CertAuthority {
+func MustGenCACert(t *testing.T) *tlsca.CertAuthority {
+	t.Helper()
 	caKey, caCert, err := tlsca.GenerateSelfSignedCA(pkix.Name{
 		CommonName: "localhost",
 	}, []string{"localhost"}, defaults.CATTL)
@@ -195,7 +194,8 @@ func mustGenCACert(t *testing.T) *tlsca.CertAuthority {
 	return ca
 }
 
-func mustGenCertSignedWithCA(t *testing.T, ca *tlsca.CertAuthority, identity tlsca.Identity) tls.Certificate {
+func MustGenCertSignedWithCA(t *testing.T, ca *tlsca.CertAuthority, identity tlsca.Identity) tls.Certificate {
+	t.Helper()
 	clock := clockwork.NewRealClock()
 	subj, err := identity.Subject()
 	require.NoError(t, err)

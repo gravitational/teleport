@@ -19,10 +19,10 @@
 package services
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
@@ -56,7 +56,7 @@ func mustNewLabelExpressionParser() *typical.CachedParser[labelExpressionEnv, bo
 }
 
 func newLabelExpressionParser() (*typical.CachedParser[labelExpressionEnv, bool], error) {
-	parser, err := typical.NewCachedParser[labelExpressionEnv, bool](typical.ParserSpec{
+	parser, err := typical.NewCachedParser[labelExpressionEnv, bool](typical.ParserSpec[labelExpressionEnv]{
 		Variables: map[string]typical.Variable{
 			"user.spec.traits": typical.DynamicVariable(
 				func(env labelExpressionEnv) (map[string][]string, error) {

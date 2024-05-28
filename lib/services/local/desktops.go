@@ -49,7 +49,7 @@ func (s *WindowsDesktopService) GetWindowsDesktops(ctx context.Context, filter t
 	var desktops []types.WindowsDesktop
 	for _, item := range result.Items {
 		desktop, err := services.UnmarshalWindowsDesktop(item.Value,
-			services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+			services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -79,9 +79,12 @@ func (s *WindowsDesktopService) CreateWindowsDesktop(ctx context.Context, deskto
 		Key:     backend.Key(windowsDesktopsPrefix, desktop.GetHostID(), desktop.GetName()),
 		Value:   value,
 		Expires: desktop.Expiry(),
-		ID:      desktop.GetResourceID(),
 	}
 	_, err = s.Create(ctx, item)
+	if trace.IsAlreadyExists(err) {
+		return trace.AlreadyExists("windows desktop %q %q doesn't exist", desktop.GetHostID(), desktop.GetName())
+	}
+
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -102,10 +105,13 @@ func (s *WindowsDesktopService) UpdateWindowsDesktop(ctx context.Context, deskto
 		Key:      backend.Key(windowsDesktopsPrefix, desktop.GetHostID(), desktop.GetName()),
 		Value:    value,
 		Expires:  desktop.Expiry(),
-		ID:       desktop.GetResourceID(),
 		Revision: rev,
 	}
 	_, err = s.Update(ctx, item)
+	if trace.IsNotFound(err) {
+		return trace.NotFound("windows desktop %q %q  doesn't exist", desktop.GetHostID(), desktop.GetName())
+	}
+
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -126,7 +132,6 @@ func (s *WindowsDesktopService) UpsertWindowsDesktop(ctx context.Context, deskto
 		Key:      backend.Key(windowsDesktopsPrefix, desktop.GetHostID(), desktop.GetName()),
 		Value:    value,
 		Expires:  desktop.Expiry(),
-		ID:       desktop.GetResourceID(),
 		Revision: rev,
 	}
 	_, err = s.Put(ctx, item)
@@ -174,10 +179,17 @@ func (s *WindowsDesktopService) ListWindowsDesktops(ctx context.Context, req typ
 	rangeStart := backend.Key(windowsDesktopsPrefix, req.StartKey)
 	rangeEnd := backend.RangeEnd(backend.ExactKey(windowsDesktopsPrefix))
 	filter := services.MatchResourceFilter{
-		ResourceKind:        types.KindWindowsDesktop,
-		Labels:              req.Labels,
-		SearchKeywords:      req.SearchKeywords,
-		PredicateExpression: req.PredicateExpression,
+		ResourceKind:   types.KindWindowsDesktop,
+		Labels:         req.Labels,
+		SearchKeywords: req.SearchKeywords,
+	}
+
+	if req.PredicateExpression != "" {
+		expression, err := services.NewResourceExpression(req.PredicateExpression)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		filter.PredicateExpression = expression
 	}
 
 	// Get most limit+1 results to determine if there will be a next key.
@@ -190,7 +202,7 @@ func (s *WindowsDesktopService) ListWindowsDesktops(ctx context.Context, req typ
 			}
 
 			desktop, err := services.UnmarshalWindowsDesktop(item.Value,
-				services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+				services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 			if err != nil {
 				return false, trace.Wrap(err)
 			}
@@ -239,10 +251,17 @@ func (s *WindowsDesktopService) ListWindowsDesktopServices(ctx context.Context, 
 	rangeStart := backend.Key(windowsDesktopServicesPrefix, req.StartKey)
 	rangeEnd := backend.RangeEnd(backend.ExactKey(windowsDesktopServicesPrefix))
 	filter := services.MatchResourceFilter{
-		ResourceKind:        types.KindWindowsDesktopService,
-		Labels:              req.Labels,
-		SearchKeywords:      req.SearchKeywords,
-		PredicateExpression: req.PredicateExpression,
+		ResourceKind:   types.KindWindowsDesktopService,
+		Labels:         req.Labels,
+		SearchKeywords: req.SearchKeywords,
+	}
+
+	if req.PredicateExpression != "" {
+		expression, err := services.NewResourceExpression(req.PredicateExpression)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		filter.PredicateExpression = expression
 	}
 
 	// Get most limit+1 results to determine if there will be a next key.
@@ -255,7 +274,7 @@ func (s *WindowsDesktopService) ListWindowsDesktopServices(ctx context.Context, 
 			}
 
 			desktop, err := services.UnmarshalWindowsDesktopService(item.Value,
-				services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+				services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 			if err != nil {
 				return false, trace.Wrap(err)
 			}

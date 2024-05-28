@@ -46,21 +46,19 @@ func TestOptions(t *testing.T) {
 
 	// make sure original option list is not affected
 	var in []MarshalOption
-	out = AddOptions(in, WithResourceID(1), WithRevision("abc"))
-	require.Len(t, out, 2)
+	out = AddOptions(in, WithRevision("abc"))
+	require.Len(t, out, 1)
 	require.Empty(t, in)
 	cfg, err := CollectOptions(out)
 	require.NoError(t, err)
-	require.Equal(t, int64(1), cfg.ID)
 	require.Equal(t, "abc", cfg.Revision)
 
 	// Add a couple of other parameters
-	out = AddOptions(in, WithResourceID(2), WithVersion(types.V2), WithRevision("xyz"))
-	require.Len(t, out, 3)
+	out = AddOptions(in, WithVersion(types.V2), WithRevision("xyz"))
+	require.Len(t, out, 2)
 	require.Empty(t, in)
 	cfg, err = CollectOptions(out)
 	require.NoError(t, err)
-	require.Equal(t, int64(2), cfg.ID)
 	require.Equal(t, types.V2, cfg.Version)
 	require.Equal(t, "xyz", cfg.Revision)
 }
@@ -143,7 +141,7 @@ func TestServerDeepCopy(t *testing.T) {
 
 	// verify
 	require.Empty(t, cmp.Diff(srv, srv2))
-	require.IsType(t, srv2, &types.ServerV2{})
+	require.IsType(t, &types.ServerV2{}, srv2)
 
 	// Mutate the second value but expect the original to be unaffected
 	srv2.(*types.ServerV2).Metadata.Labels["foo"] = "bar"

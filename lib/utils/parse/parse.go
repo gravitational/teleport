@@ -56,7 +56,7 @@ var (
 		`^(?P<prefix>[^}{]*)` +
 			// variable is anything in brackets {{}} that is not { or }
 			`{{(?P<expression>\s*[^}{]*\s*)}}` +
-			// prefix is anything that is not { or }
+			// suffix is anything that is not { or }
 			`(?P<suffix>[^}{]*)$`,
 	)
 )
@@ -163,7 +163,7 @@ func newTraitsTemplateParser() (*typical.CachedParser[traitsTemplateEnv, []strin
 		})
 	}
 
-	parser, err := typical.NewCachedParser[traitsTemplateEnv, []string](typical.ParserSpec{
+	parser, err := typical.NewCachedParser[traitsTemplateEnv, []string](typical.ParserSpec[traitsTemplateEnv]{
 		Variables: map[string]typical.Variable{
 			"external": traitsVariable("external"),
 			"internal": traitsVariable("internal"),
@@ -342,7 +342,7 @@ func mustNewMatcherParser() *typical.CachedParser[matcherEnv, Matcher] {
 }
 
 func newMatcherParser() (*typical.CachedParser[matcherEnv, Matcher], error) {
-	parser, err := typical.NewCachedParser[matcherEnv, Matcher](typical.ParserSpec{
+	parser, err := typical.NewCachedParser[matcherEnv, Matcher](typical.ParserSpec[matcherEnv]{
 		Functions: map[string]typical.Function{
 			RegexpMatchFnName:    typical.UnaryFunction[matcherEnv](regexpMatch),
 			RegexpNotMatchFnName: typical.UnaryFunction[matcherEnv](regexpNotMatch),

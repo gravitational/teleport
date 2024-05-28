@@ -42,8 +42,6 @@ Obtain your existing `cluster_auth_preference` resource:
 $ tctl get cap > cap.yaml
 ```
 
-If you have not defined a `cluster_auth_preference`, `cap.yaml` will be blank.
-
 In `cap.yaml`, ensure that the value of `spec.second_factor` is `otp`,
 `webauthn`, or `on`:
 

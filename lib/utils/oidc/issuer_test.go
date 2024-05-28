@@ -88,7 +88,7 @@ func TestIssuerForCluster(t *testing.T) {
 			name: "valid",
 			mockProxies: []types.Server{
 				&types.ServerV2{Spec: types.ServerSpecV2{
-					PublicAddr: "127.0.0.1.nip.io",
+					PublicAddrs: []string{"127.0.0.1.nip.io"},
 				}},
 			},
 			expectedIssuer: "https://127.0.0.1.nip.io",
@@ -97,10 +97,10 @@ func TestIssuerForCluster(t *testing.T) {
 			name: "only the second server has a valid public address",
 			mockProxies: []types.Server{
 				&types.ServerV2{Spec: types.ServerSpecV2{
-					PublicAddr: "",
+					PublicAddrs: []string{""},
 				}},
 				&types.ServerV2{Spec: types.ServerSpecV2{
-					PublicAddr: "127.0.0.1.nip.io",
+					PublicAddrs: []string{"127.0.0.1.nip.io"},
 				}},
 			},
 			expectedIssuer: "https://127.0.0.1.nip.io",

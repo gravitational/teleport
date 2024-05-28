@@ -16,10 +16,10 @@ package types
 
 import (
 	"net/url"
+	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 )
 
 const (

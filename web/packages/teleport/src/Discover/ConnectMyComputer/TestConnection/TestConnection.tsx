@@ -47,11 +47,14 @@ import {
 import { sortNodeLogins } from 'teleport/services/nodes';
 import { ApiError } from 'teleport/services/api/parseError';
 
+import { MfaChallengeScope } from 'teleport/services/auth/auth';
+
 import { NodeMeta } from '../../useDiscover';
 
 import type { Option } from 'shared/components/Select';
 import type { AgentStepProps } from '../../types';
 import type { MfaAuthnResponse } from 'teleport/services/mfa';
+import type { ConnectionDiagnosticRequest } from 'teleport/services/agents';
 
 export function TestConnection(props: AgentStepProps) {
   const { userService, storeUser } = useTeleport();
@@ -99,7 +102,10 @@ export function TestConnection(props: AgentStepProps) {
 
       // Start the test automatically if there are no logins to choose from.
       if (logins.length == 1) {
-        const { mfaRequired } = await testConnection(logins[0]);
+        const { mfaRequired } = await testConnection({
+          login: logins[0],
+          sshPrincipalSelectionMode: 'auto',
+        });
 
         // If MFA is required, let's just wait for the user to start the connection themselves.
         if (mfaRequired) {
@@ -131,14 +137,20 @@ export function TestConnection(props: AgentStepProps) {
     openNewTab(url);
   }
 
-  function testConnection(login: string, mfaResponse?: MfaAuthnResponse) {
+  function testConnection(args: {
+    login: string;
+    sshPrincipalSelectionMode: ConnectionDiagnosticRequest['sshPrincipalSelectionMode'];
+    mfaResponse?: MfaAuthnResponse;
+  }) {
     return runConnectionDiagnostic(
       {
         resourceKind: 'node',
         resourceName: props.agentMeta.resourceName,
-        sshPrincipal: login,
+        sshNodeSetupMethod: 'connect_my_computer',
+        sshPrincipal: args.login,
+        sshPrincipalSelectionMode: args.sshPrincipalSelectionMode,
       },
-      mfaResponse
+      args.mfaResponse
     );
   }
 
@@ -148,13 +160,21 @@ export function TestConnection(props: AgentStepProps) {
   // If there are multiple logins available, we show an extra step at the beginning, so we have to
   // account for that when numbering the steps.
   const stepOffset = hasMultipleLogins ? 1 : 0;
+  const sshPrincipalSelectionMode = hasMultipleLogins ? 'manual' : 'auto';
 
   return (
     <Box>
       {showMfaDialog && (
         <ReAuthenticate
-          onMfaResponse={res => testConnection(selectedLoginOpt.value, res)}
+          onMfaResponse={res =>
+            testConnection({
+              login: selectedLoginOpt.value,
+              sshPrincipalSelectionMode,
+              mfaResponse: res,
+            })
+          }
           onClose={cancelMfaDialog}
+          challengeScope={MfaChallengeScope.USER_SESSION}
         />
       )}
       <Header>
@@ -224,7 +244,12 @@ export function TestConnection(props: AgentStepProps) {
               attempt={connectionDiagAttempt}
               diagnosis={diagnosis}
               canTestConnection={canTestConnection}
-              testConnection={() => testConnection(selectedLoginOpt.value)}
+              testConnection={() =>
+                testConnection({
+                  login: selectedLoginOpt.value,
+                  sshPrincipalSelectionMode,
+                })
+              }
               stepNumber={1 + stepOffset}
               stepDescription="Verify that your computer is accessible"
               numberAndDescriptionOnSameLine

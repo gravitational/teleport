@@ -176,6 +176,13 @@ func (kind WatchKind) Contains(subset WatchKind) bool {
 		return false
 	}
 
+	if kind.Kind == KindCertAuthority {
+		var a, b CertAuthorityFilter
+		a.FromMap(kind.Filter)
+		b.FromMap(subset.Filter)
+		return a.Contains(b)
+	}
+
 	for k, v := range kind.Filter {
 		if subset.Filter[k] != v {
 			return false

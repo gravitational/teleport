@@ -141,7 +141,6 @@ func (t *Terminal) InitRaw(input bool) error {
 	}()
 
 	// NOTE: Unix does not require any special input handling.
-
 	return nil
 }
 
@@ -164,22 +163,30 @@ func (t *Terminal) IsAttached() bool {
 // Resize makes a best-effort attempt to resize the terminal window. Support
 // varies between platforms and terminal emulators.
 func (t *Terminal) Resize(width, height int16) error {
-	_, err := os.Stdout.Write([]byte(fmt.Sprintf("\x1b[8;%d;%dt", height, width)))
-
+	_, err := fmt.Fprintf(t.stdout, "\x1b[8;%d;%dt", height, width)
 	return trace.Wrap(err)
 }
 
-func (t *Terminal) Stdin() io.Reader {
-	return t.stdin
+const (
+	saveCursor    = "7"
+	restoreCursor = "8"
+)
+
+// SaveCursor saves the current cursor position.
+func (t *Terminal) SaveCursor() error {
+	_, err := t.stdout.Write([]byte("\x1b" + saveCursor))
+	return trace.Wrap(err)
 }
 
-func (t *Terminal) Stdout() io.Writer {
-	return t.stdout
+// RestoreCursor restores the last saved cursor position.
+func (t *Terminal) RestoreCursor() error {
+	_, err := t.stdout.Write([]byte("\x1b" + restoreCursor))
+	return trace.Wrap(err)
 }
 
-func (t *Terminal) Stderr() io.Writer {
-	return t.stderr
-}
+func (t *Terminal) Stdin() io.Reader  { return t.stdin }
+func (t *Terminal) Stdout() io.Writer { return t.stdout }
+func (t *Terminal) Stderr() io.Writer { return t.stderr }
 
 // Close closes the Terminal, restoring the console to its original state.
 func (t *Terminal) Close() error {

@@ -21,6 +21,7 @@ package awsoidc
 import (
 	"context"
 	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/service/iam"
@@ -28,7 +29,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 )
 
 var badParameterCheck = func(t require.TestingT, err error, msgAndArgs ...interface{}) {
@@ -39,7 +39,7 @@ var alreadyExistsCheck = func(t require.TestingT, err error, msgAndArgs ...inter
 	require.True(t, trace.IsAlreadyExists(err), `expected "already exists", but got %v`, err)
 }
 
-var notFounCheck = func(t require.TestingT, err error, msgAndArgs ...interface{}) {
+var notFoundCheck = func(t require.TestingT, err error, msgAndArgs ...interface{}) {
 	require.True(t, trace.IsNotFound(err), `expected "not found", but got %v`, err)
 }
 
@@ -180,7 +180,7 @@ func TestDeployServiceIAMConfig(t *testing.T) {
 			mockExistingPolicies: []string{},
 			mockExistingRoles:    []string{},
 			req:                  baseReq,
-			errCheck:             notFounCheck,
+			errCheck:             notFoundCheck,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

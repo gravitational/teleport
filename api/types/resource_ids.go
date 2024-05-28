@@ -19,10 +19,10 @@ package types
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 )
 
 func (id *ResourceID) CheckAndSetDefaults() error {

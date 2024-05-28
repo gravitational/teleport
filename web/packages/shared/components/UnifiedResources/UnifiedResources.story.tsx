@@ -30,17 +30,21 @@ import { UrlResourcesParams } from 'teleport/config';
 import { ResourcesResponse } from 'teleport/services/agents';
 
 import {
-  UnifiedResourcePreferences,
+  AvailableResourceMode,
   DefaultTab,
+  LabelsViewMode,
+  UnifiedResourcePreferences,
   ViewMode,
-} from 'shared/services/unifiedResourcePreferences';
+} from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 
-import { UnifiedResources, useUnifiedResourcesFetch } from './UnifiedResources';
+import { makeErrorAttempt, makeProcessingAttempt } from 'shared/hooks/useAsync';
+
 import {
-  SharedUnifiedResource,
-  UnifiedResourcesPinning,
-  UnifiedResourcesQueryParams,
-} from './types';
+  UnifiedResources,
+  useUnifiedResourcesFetch,
+  UnifiedResourcesProps,
+} from './UnifiedResources';
+import { SharedUnifiedResource, UnifiedResourcesQueryParams } from './types';
 
 export default {
   title: 'Shared/UnifiedResources',
@@ -76,14 +80,13 @@ const story = ({
     updateClusterPinnedResources: async () => undefined,
   },
   params,
+  ...props
 }: {
   fetchFunc: (
     params: UrlResourcesParams,
     signal: AbortSignal
   ) => Promise<ResourcesResponse<SharedUnifiedResource['resource']>>;
-  pinning?: UnifiedResourcesPinning;
-  params?: Partial<UnifiedResourcesQueryParams>;
-}) => {
+} & Omit<Partial<UnifiedResourcesProps>, 'fetchResources'>) => {
   const mergedParams: UnifiedResourcesQueryParams = {
     ...{
       sort: {
@@ -95,8 +98,10 @@ const story = ({
   };
   return () => {
     const [userPrefs, setUserPrefs] = useState<UnifiedResourcePreferences>({
-      defaultTab: DefaultTab.DEFAULT_TAB_ALL,
-      viewMode: ViewMode.VIEW_MODE_CARD,
+      defaultTab: DefaultTab.ALL,
+      viewMode: ViewMode.CARD,
+      labelsViewMode: LabelsViewMode.COLLAPSED,
+      availableResourceMode: AvailableResourceMode.ACCESSIBLE,
     });
     const { fetch, attempt, resources } = useUnifiedResourcesFetch({
       fetchFunc,
@@ -139,6 +144,7 @@ const story = ({
             ActionButton: <ButtonBorder size="small">Connect</ButtonBorder>,
           },
         }))}
+        {...props}
       />
     );
   };
@@ -180,13 +186,13 @@ export const LoadingAfterScrolling = story({
   },
 });
 
-export const Errored = story({
+export const Failed = story({
   fetchFunc: async () => {
     throw new Error('Failed to fetch');
   },
 });
 
-export const ErroredAfterScrolling = story({
+export const FailedAfterScrolling = story({
   fetchFunc: async params => {
     if (params.startKey === 'next-key') {
       throw new Error('Failed to fetch');
@@ -195,11 +201,20 @@ export const ErroredAfterScrolling = story({
   },
 });
 
-export const PinningNotSupported = story({
-  fetchFunc: async () => {
-    return { agents: allResources, startKey: 'next-key' };
-  },
-  pinning: { kind: 'not-supported' },
+export const FailedToLoadPreferences = story({
+  fetchFunc: async () => ({
+    agents: allResources,
+  }),
+  unifiedResourcePreferencesAttempt: makeErrorAttempt(
+    new Error('Network error')
+  ),
+});
+
+export const LoadingPreferences = story({
+  fetchFunc: async () => ({
+    agents: allResources,
+  }),
+  unifiedResourcePreferencesAttempt: makeProcessingAttempt(),
 });
 
 export const PinningHidden = story({

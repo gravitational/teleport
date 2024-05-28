@@ -27,6 +27,7 @@ import (
 	"image/draw"
 	"image/jpeg"
 	"image/png"
+	"os"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -49,14 +50,11 @@ func onExportRecording(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	proxyClient, err := tc.ConnectToProxy(cf.Context)
+	clusterClient, err := tc.ConnectToCluster(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer proxyClient.Close()
-
-	authClient := proxyClient.CurrentCluster()
-	defer authClient.Close()
+	defer clusterClient.Close()
 
 	filenamePrefix := cf.SessionID
 	if cf.OutFile != "" {
@@ -65,7 +63,7 @@ func onExportRecording(cf *CLIConf) error {
 			strings.TrimSuffix(cf.OutFile, ".avi"), ".AVI")
 	}
 
-	_, err = writeMovie(cf.Context, authClient, session.ID(cf.SessionID), filenamePrefix, fmt.Printf)
+	_, err = writeMovie(cf.Context, clusterClient.AuthClient, session.ID(cf.SessionID), filenamePrefix, fmt.Printf, tc.Config.WebProxyAddr)
 	return trace.Wrap(err)
 }
 
@@ -79,8 +77,9 @@ func makeAVIFileName(prefix string, currentFile int) string {
 
 // writeMovie writes the events for the specified session into one or more movie files
 // beginning with the specified prefix. It returns the number of frames that were written and an error.
-func writeMovie(ctx context.Context, ss events.SessionStreamer, sid session.ID, prefix string,
-	write func(format string, args ...any) (int, error)) (frames int, err error) {
+func writeMovie(ctx context.Context, ss events.SessionStreamer, sid session.ID, prefix string, write func(format string, args ...any) (int, error), webProxyAddr string) (frames int, err error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
 	var screen *image.NRGBA
 	var movie mjpeg.AviWriter
@@ -93,6 +92,7 @@ func writeMovie(ctx context.Context, ss events.SessionStreamer, sid session.ID, 
 	currentFilename := makeAVIFileName(prefix, fileCount)
 
 	evts, errs := ss.StreamSessionEvents(ctx, sid, 0)
+	fastPathReceived := false
 loop:
 	for {
 		select {
@@ -119,7 +119,19 @@ loop:
 			switch evt := evt.(type) {
 			case *apievents.WindowsDesktopSessionStart:
 			case *apievents.WindowsDesktopSessionEnd:
-				break loop
+				if !fastPathReceived {
+					break loop
+				}
+				if movie != nil {
+					movie.Close()
+					os.Remove(currentFilename)
+				}
+				url := fmt.Sprintf("https://%s/web/cluster/%s/session/%s?recordingType=desktop&durationMs=%d",
+					webProxyAddr,
+					evt.ClusterName,
+					evt.SessionID,
+					evt.EndTime.Sub(evt.StartTime).Milliseconds())
+				return frameCount, trace.BadParameter("this session can't be exported, please visit %s to view it", url)
 			case *apievents.SessionStart:
 				return frameCount, trace.BadParameter("only desktop recordings can be exported")
 			case *apievents.DesktopRecording:
@@ -130,6 +142,8 @@ loop:
 				}
 
 				switch msg := msg.(type) {
+				case tdp.RDPFastPathPDU:
+					fastPathReceived = true
 				case tdp.ClientScreenSpec:
 					if screen != nil {
 						return frameCount, trace.BadParameter("invalid recording: received multiple screen specs")
@@ -225,7 +239,7 @@ loop:
 	// if we received a session start event but the context is canceled
 	// before we received the screen dimensions, then there's no movie to close
 	if movie == nil {
-		return 0, trace.BadParameter("operation canceled")
+		return 0, ctx.Err()
 	}
 
 	err = movie.Close()

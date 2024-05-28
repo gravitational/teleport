@@ -19,15 +19,15 @@
 package services
 
 import (
-	"fmt"
+	"slices"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
+	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
 // ResourceMatcher matches cluster resources.
@@ -108,15 +108,15 @@ func SimplifyAzureMatchers(matchers []types.AzureMatcher) []types.AzureMatcher {
 }
 
 // MatchResourceLabels returns true if any of the provided selectors matches the provided database.
-func MatchResourceLabels(matchers []ResourceMatcher, resource types.ResourceWithLabels) bool {
+func MatchResourceLabels(matchers []ResourceMatcher, labels map[string]string) bool {
 	for _, matcher := range matchers {
 		if len(matcher.Labels) == 0 {
 			return false
 		}
-		match, _, err := MatchLabels(matcher.Labels, resource.GetAllLabels())
+		match, _, err := MatchLabels(matcher.Labels, labels)
 		if err != nil {
 			logrus.WithError(err).Errorf("Failed to match labels %v: %v.",
-				matcher.Labels, resource)
+				matcher.Labels, labels)
 			return false
 		}
 		if match {
@@ -129,7 +129,7 @@ func MatchResourceLabels(matchers []ResourceMatcher, resource types.ResourceWith
 // ResourceSeenKey is used as a key for a map that keeps track
 // of unique resource names and address. Currently "addr"
 // only applies to resource Application.
-type ResourceSeenKey struct{ name, addr string }
+type ResourceSeenKey struct{ name, kind, addr string }
 
 // MatchResourceByFilters returns true if all filter values given matched against the resource.
 //
@@ -144,20 +144,21 @@ type ResourceSeenKey struct{ name, addr string }
 // is not provided but is provided for kind `KubernetesCluster`.
 func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResourceFilter, seenMap map[ResourceSeenKey]struct{}) (bool, error) {
 	var specResource types.ResourceWithLabels
-	resourceKind := resource.GetKind()
+	kind := resource.GetKind()
 
 	// We assume when filtering for services like KubeService, AppServer, and DatabaseServer
 	// the user is wanting to filter the contained resource ie. KubeClusters, Application, and Database.
-	resourceKey := ResourceSeenKey{}
-	switch resourceKind {
+	key := ResourceSeenKey{
+		kind: kind,
+		name: resource.GetName(),
+	}
+	switch kind {
 	case types.KindNode,
 		types.KindDatabaseService,
 		types.KindKubernetesCluster,
 		types.KindWindowsDesktop, types.KindWindowsDesktopService,
 		types.KindUserGroup:
 		specResource = resource
-		resourceKey.name = fmt.Sprintf("%s/%s", specResource.GetName(), resourceKind)
-
 	case types.KindKubeServer:
 		if seenMap != nil {
 			return false, trace.BadParameter("checking for duplicate matches for resource kind %q is not supported", filter.ResourceKind)
@@ -170,18 +171,17 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 			return false, trace.BadParameter("expected types.DatabaseServer, got %T", resource)
 		}
 		specResource = server.GetDatabase()
-		resourceKey.name = fmt.Sprintf("%s/%s/", specResource.GetName(), resourceKind)
-
+		key.name = specResource.GetName()
 	case types.KindAppServer, types.KindSAMLIdPServiceProvider, types.KindAppOrSAMLIdPServiceProvider:
 		switch appOrSP := resource.(type) {
 		case types.AppServer:
 			app := appOrSP.GetApp()
 			specResource = app
-			resourceKey.name = fmt.Sprintf("%s/%s/", specResource.GetName(), resourceKind)
-			resourceKey.addr = app.GetPublicAddr()
+			key.addr = app.GetPublicAddr()
+			key.name = app.GetName()
 		case types.SAMLIdPServiceProvider:
 			specResource = appOrSP
-			resourceKey.name = fmt.Sprintf("%s/%s/", specResource.GetName(), resourceKind)
+			key.name = specResource.GetName()
 		default:
 			return false, trace.BadParameter("expected types.SAMLIdPServiceProvider or types.AppServer, got %T", resource)
 		}
@@ -190,10 +190,9 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 		// of cases we need to handle. If the resource type didn't match any arm before
 		// and it is not a Kubernetes resource kind, we return an error.
 		if !slices.Contains(types.KubernetesResourcesKinds, filter.ResourceKind) {
-			return false, trace.NotImplemented("filtering for resource kind %q not supported", resourceKind)
+			return false, trace.NotImplemented("filtering for resource kind %q not supported", kind)
 		}
 		specResource = resource
-		resourceKey.name = fmt.Sprintf("%s/%s/", specResource.GetName(), resourceKind)
 	}
 
 	var match bool
@@ -212,30 +211,16 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 
 	// Deduplicate matches.
 	if match && seenMap != nil {
-		if _, exists := seenMap[resourceKey]; exists {
+		if _, exists := seenMap[key]; exists {
 			return false, nil
 		}
-		seenMap[resourceKey] = struct{}{}
+		seenMap[key] = struct{}{}
 	}
 
 	return match, nil
 }
 
 func matchResourceByFilters(resource types.ResourceWithLabels, filter MatchResourceFilter) (bool, error) {
-	if filter.PredicateExpression != "" {
-		parser, err := NewResourceParser(resource)
-		if err != nil {
-			return false, trace.Wrap(err)
-		}
-
-		switch match, err := parser.EvalBoolPredicate(filter.PredicateExpression); {
-		case err != nil:
-			return false, trace.BadParameter("failed to parse predicate expression: %s", err.Error())
-		case !match:
-			return false, nil
-		}
-	}
-
 	if !types.MatchKinds(resource, filter.Kinds) {
 		return false, nil
 	}
@@ -244,8 +229,19 @@ func matchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 		return false, nil
 	}
 
-	if !resource.MatchSearch(filter.SearchKeywords) {
+	if len(filter.SearchKeywords) > 0 && !resource.MatchSearch(filter.SearchKeywords) {
 		return false, nil
+	}
+
+	if filter.PredicateExpression != nil {
+		match, err := filter.PredicateExpression.Evaluate(resource)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+
+		if !match {
+			return false, nil
+		}
 	}
 
 	return true, nil
@@ -284,7 +280,7 @@ type MatchResourceFilter struct {
 	// SearchKeywords is a list of search keywords to match.
 	SearchKeywords []string
 	// PredicateExpression holds boolean conditions that must be matched.
-	PredicateExpression string
+	PredicateExpression typical.Expression[types.ResourceWithLabels, bool]
 	// Kinds is a list of resourceKinds to be used when doing a unified resource query.
 	// It will filter out any kind not present in the list. If the list is not present or empty
 	// then all kinds are valid and will be returned (still subject to other included filters)
@@ -296,6 +292,6 @@ type MatchResourceFilter struct {
 func (m *MatchResourceFilter) IsSimple() bool {
 	return len(m.Labels) == 0 &&
 		len(m.SearchKeywords) == 0 &&
-		m.PredicateExpression == "" &&
+		m.PredicateExpression == nil &&
 		len(m.Kinds) == 0
 }

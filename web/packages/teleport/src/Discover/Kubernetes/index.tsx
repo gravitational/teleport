@@ -18,9 +18,11 @@
 
 import React from 'react';
 
-import { Finished, ResourceKind } from 'teleport/Discover/Shared';
+import { AwsAccount, Finished, ResourceKind } from 'teleport/Discover/Shared';
 import { ResourceViewConfig } from 'teleport/Discover/flow';
 import { DiscoverEvent } from 'teleport/services/userEvent';
+import { KubeLocation, ResourceSpec } from 'teleport/Discover/SelectResource';
+import { EnrollEksCluster } from 'teleport/Discover/Kubernetes/EnrollEKSCluster';
 
 import { KubeWrapper } from './KubeWrapper';
 import { SetupAccess } from './SetupAccess';
@@ -32,28 +34,59 @@ export const KubernetesResource: ResourceViewConfig = {
   wrapper: (component: React.ReactNode) => (
     <KubeWrapper>{component}</KubeWrapper>
   ),
-  views: [
-    {
-      title: 'Configure Resource',
-      component: HelmChart,
-      eventName: DiscoverEvent.DeployService,
-    },
-    {
-      title: 'Set Up Access',
-      component: SetupAccess,
-      eventName: DiscoverEvent.PrincipalsConfigure,
-    },
-    {
-      title: 'Test Connection',
-      component: TestConnection,
-      eventName: DiscoverEvent.TestConnection,
-      manuallyEmitSuccessEvent: true,
-    },
-    {
-      title: 'Finished',
-      component: Finished,
-      hide: true,
-      eventName: DiscoverEvent.Completed,
-    },
-  ],
+  shouldPrompt(currentStep, resourceSpec) {
+    if (resourceSpec?.kubeMeta?.location === KubeLocation.Aws) {
+      // Allow user to bypass prompting on this step (Connect AWS Account)
+      // on exit because users might need to change route to setup an
+      // integration.
+      if (currentStep === 0) {
+        return false;
+      }
+    }
+    return true;
+  },
+  views(resource: ResourceSpec) {
+    let configuredResourceViews = [
+      {
+        title: 'Configure Resource',
+        component: HelmChart,
+        eventName: DiscoverEvent.DeployService,
+      },
+    ];
+    if (resource?.kubeMeta?.location === KubeLocation.Aws) {
+      configuredResourceViews = [
+        {
+          title: 'Connect AWS Account',
+          component: AwsAccount,
+          eventName: DiscoverEvent.IntegrationAWSOIDCConnectEvent,
+        },
+        {
+          title: 'Enroll EKS Clusters',
+          component: EnrollEksCluster,
+          eventName: DiscoverEvent.KubeEKSEnrollEvent,
+        },
+      ];
+    }
+
+    return [
+      ...configuredResourceViews,
+      {
+        title: 'Set Up Access',
+        component: SetupAccess,
+        eventName: DiscoverEvent.PrincipalsConfigure,
+      },
+      {
+        title: 'Test Connection',
+        component: TestConnection,
+        eventName: DiscoverEvent.TestConnection,
+        manuallyEmitSuccessEvent: true,
+      },
+      {
+        title: 'Finished',
+        component: Finished,
+        hide: true,
+        eventName: DiscoverEvent.Completed,
+      },
+    ];
+  },
 };

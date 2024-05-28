@@ -1,4 +1,4 @@
-//go:build piv
+//go:build piv && !pivtest
 
 /*
 Copyright 2022 Gravitational, Inc.
@@ -252,21 +252,7 @@ func (y *YubiKeyPrivateKey) Sign(rand io.Reader, digest []byte, opts crypto.Sign
 	y.signMux.Lock()
 	defer y.signMux.Unlock()
 
-	// For generic auth errors, the smart card returns the error code 0x6982. This PIV library
-	// wraps error codes like this with a user readable message: "security status not satisfied".
-	const pivGenericAuthErrCodeString = "6982"
-
 	signature, err := y.sign(ctx, rand, digest, opts)
-	if err != nil && strings.Contains(err.Error(), pivGenericAuthErrCodeString) {
-		// If we get a generic auth error, it probably means the PIV connection didn't prompt for
-		// PIN when he PIV module expected PIN. This can happen in custom PIV modules that don't
-		// implement proper PIN caching in the connection, or potentially in very old YubiKey
-		// models. In these cases, modify the key's PIN policy to reflect that PIN should always
-		// be prompted for and try again.
-		y.attestation.PINPolicy = piv.PINPolicyAlways
-		signature, err = y.sign(ctx, rand, digest, opts)
-	}
-
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -315,6 +301,20 @@ func (y *YubiKeyPrivateKey) sign(ctx context.Context, rand io.Reader, digest []b
 		PINPolicy: y.attestation.PINPolicy,
 	}
 
+	// YubiKeys with firmware version 5.3.1 have a bug where insVerify(0x20, 0x00, 0x80, nil)
+	// clears the PIN cache instead of performing a non-mutable check. This causes the signature
+	// with pin policy "once" to fail unless PIN is provided for each call. We can avoid this bug
+	// by skipping the insVerify check and instead manually retrying with a PIN prompt only when
+	// the signature fails.
+	manualRetryWithPIN := false
+	fw531 := piv.Version{Major: 5, Minor: 3, Patch: 1}
+	if auth.PINPolicy == piv.PINPolicyOnce && y.attestation.Version == fw531 {
+		// Set the keys PIN policy to never to skip the insVerify check. If PIN was provided in
+		// a previous recent call, the signature will succeed as expected of the "once" policy.
+		auth.PINPolicy = piv.PINPolicyNever
+		manualRetryWithPIN = true
+	}
+
 	privateKey, err := yk.PrivateKey(y.pivSlot, y.slotCert.PublicKey, auth)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -325,11 +325,27 @@ func (y *YubiKeyPrivateKey) sign(ctx context.Context, rand io.Reader, digest []b
 		return nil, trace.BadParameter("private key type %T does not implement crypto.Signer", privateKey)
 	}
 
+	// For generic auth errors, such as when PIN is not provided, the smart card returns the error code 0x6982.
+	// The piv-go library wraps error codes like this with a user readable message: "security status not satisfied".
+	const pivGenericAuthErrCodeString = "6982"
+
 	signature, err := signer.Sign(rand, digest, opts)
-	if err != nil {
+	switch {
+	case err == nil:
+		return signature, nil
+	case manualRetryWithPIN && strings.Contains(err.Error(), pivGenericAuthErrCodeString):
+		pin, err := promptPIN()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := yk.VerifyPIN(pin); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		signature, err := signer.Sign(rand, digest, opts)
+		return signature, trace.Wrap(err)
+	default:
 		return nil, trace.Wrap(err)
 	}
-	return signature, nil
 }
 
 func (y *YubiKeyPrivateKey) toPrivateKey() (*PrivateKey, error) {
@@ -766,7 +782,7 @@ func SelfSignedMetadataCertificate(subject pkix.Name) (*x509.Certificate, error)
 // YubiKey 5 nano (5.2.7) and a YubiKey NFC (5.4.3).
 const (
 	// piv.ECDSAPrivateKey.Sign consistently takes ~70 milliseconds. However, 200ms
-	// should be imperceptible the the user and should avoid misfired prompts for
+	// should be imperceptible to the user and should avoid misfired prompts for
 	// slower cards (if there are any).
 	signTouchPromptDelay = time.Millisecond * 200
 )

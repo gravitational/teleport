@@ -1,23 +1,18 @@
 name: Build CentOS 7 Buildbox Assets Images
 run-name: Build CentOS 7 Buildbox Assets Images
 on:
-  # Only allow manual triggers
   workflow_dispatch:
+  schedule:
+    - cron: '0 13 * * 0' # At 1:00 PM UTC every Sunday
 
 env:
   REGISTRY: ghcr.io
-  BUILDBOX_BASE_NAME: ghcr.io/gravitational/teleport-buildbox
 
 jobs:
   buildbox-centos7-assets:
     name: Build CentOS 7 Asset Buildbox
-    strategy:
-      matrix:
-        # Build assets on x86 and ARM64.
-        runner: [ ubuntu-22.04-32core, ['self-hosted', 'linux', 'arm64'] ]
-    # Use bigger worker. Clang takes a while to build.
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 720
+    # Build assets on x86 for now, as no GHA-hosted runner for ARM64.
+    runs-on: ubuntu-22.04-32core
 
     permissions:
       contents: read
@@ -28,26 +23,17 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3.0.0
+        uses: docker/setup-buildx-action@d70bba72b1f3fd22344832f00baa16ece964efeb # v3.3.0
+        with:
+          driver: docker
 
       - name: Login to registry
-        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
+        uses: docker/login-action@e92390c5fb421da1463c202d546fed0ec5c39f20 # v3.1.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Ensure required packages are installed
-        run: |
-          os_id=$(awk -F= '/^ID/{print $2}' /etc/os-release)
-          if [[ ! "$os_id" =~ ^ubuntu.* ]]; then
-            sudo dnf upgrade-minimal -y
-            sudo dnf install -y make
-          fi
-
       # We need to keep env vars in sync, so, we can't use standard build actions
-      - name: Build buildbox assets image
-        run: cd build.assets && make build-centos7-assets
-
-      - name: Docker push the latest built image
-        run: docker push $(docker images -a --format '{{.Repository}}:{{.Tag}}'| head -1)
+      - name: Build and push buildbox assets image
+        run: cd build.assets && make build-centos7-assets PUSH=1

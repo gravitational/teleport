@@ -29,6 +29,7 @@ import (
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/podutils"
+	"github.com/gravitational/teleport/lib/automaticupgrades/maintenance"
 )
 
 // unhealthyWorkloadTrigger allows a maintenance to start if the workload is
@@ -99,7 +100,7 @@ func (u unhealthyWorkloadTrigger) isWorkloadUnhealthy(ctx context.Context, names
 
 // NewUnhealthyWorkloadTrigger triggers a maintenance if the watched workload
 // is unhealthy.
-func NewUnhealthyWorkloadTrigger(name string, client kclient.Client) Trigger {
+func NewUnhealthyWorkloadTrigger(name string, client kclient.Client) maintenance.Trigger {
 	return unhealthyWorkloadTrigger{
 		name:   name,
 		Client: client,

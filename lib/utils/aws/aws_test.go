@@ -95,24 +95,28 @@ func TestExtractCredFromAuthHeader(t *testing.T) {
 // TestFilterAWSRoles verifies filtering AWS role ARNs by AWS account ID.
 func TestFilterAWSRoles(t *testing.T) {
 	acc1ARN1 := Role{
-		ARN:     "arn:aws:iam::123456789012:role/EC2FullAccess",
-		Display: "EC2FullAccess",
-		Name:    "EC2FullAccess",
+		ARN:       "arn:aws:iam::123456789012:role/EC2FullAccess",
+		Display:   "EC2FullAccess",
+		Name:      "EC2FullAccess",
+		AccountID: "123456789012",
 	}
 	acc1ARN2 := Role{
-		ARN:     "arn:aws:iam::123456789012:role/EC2ReadOnly",
-		Display: "EC2ReadOnly",
-		Name:    "EC2ReadOnly",
+		ARN:       "arn:aws:iam::123456789012:role/EC2ReadOnly",
+		Display:   "EC2ReadOnly",
+		Name:      "EC2ReadOnly",
+		AccountID: "123456789012",
 	}
 	acc1ARN3 := Role{
-		ARN:     "arn:aws:iam::123456789012:role/path/to/customrole",
-		Display: "customrole",
-		Name:    "path/to/customrole",
+		ARN:       "arn:aws:iam::123456789012:role/path/to/customrole",
+		Display:   "customrole",
+		Name:      "path/to/customrole",
+		AccountID: "123456789012",
 	}
 	acc2ARN1 := Role{
-		ARN:     "arn:aws:iam::210987654321:role/test-role",
-		Display: "test-role",
-		Name:    "test-role",
+		ARN:       "arn:aws:iam::210987654321:role/test-role",
+		Display:   "test-role",
+		Name:      "test-role",
+		AccountID: "210987654321",
 	}
 	invalidARN := Role{
 		ARN: "invalid-arn",

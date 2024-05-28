@@ -11,8 +11,8 @@ IS_NATIVE_BUILD ?= $(if $(filter $(ARCH), $(shell go env GOARCH)),"yes","no")
 # BPF support will only be built into Teleport if headers exist at build time.
 BPF_MESSAGE := without-BPF-support
 
-# We don't compile BPF for anything except regular non-FIPS linux/amd64 for now, as other builds
-# have compilation issues that require fixing.
+# We don't compile BPF for anything except linux/amd64 and linux/arm64 for now,
+# as other builds have compilation issues that require fixing.
 with_bpf := no
 ifeq ("$(OS)","linux")
 # True if $ARCH == amd64 || $ARCH == arm64
@@ -23,12 +23,11 @@ ifneq ("$(wildcard /usr/libbpf-${LIBBPF_VER}/include/bpf/bpf.h)","")
 with_bpf := yes
 BPF_TAG := bpf
 BPF_MESSAGE := with-BPF-support
-CLANG ?= $(shell which clang || which clang-12)
-LLVM_STRIP ?= $(shell which llvm-strip || which llvm-strip-12)
+CLANG ?= $(shell which clang || which clang-14)
+LLVM_STRIP ?= $(shell which llvm-strip || which llvm-strip-14)
 KERNEL_ARCH := $(shell uname -m | sed 's/x86_64/x86/g; s/aarch64/arm64/g')
 INCLUDES :=
 ER_BPF_BUILDDIR := lib/bpf/bytecode
-RS_BPF_BUILDDIR := lib/restrictedsession/bytecode
 
 # Get Clang's default includes on this system. We'll explicitly add these dirs
 # to the includes list when compiling with `-target bpf` because otherwise some

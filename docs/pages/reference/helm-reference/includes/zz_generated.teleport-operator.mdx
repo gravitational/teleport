@@ -10,16 +10,33 @@
 - When `true`, the chart creates both the `CustomResourceDefinition` and operator `Deployment` Kubernetes resources.
 - When `false`, the chart creates the `CustomResourceDefinition` resources without the operator `Deployment`.
 
-## `authServer`
+## `installCRDs`
+
+| Type | Default |
+|------|---------|
+| `string` | `"dynamic"` |
+
+`installCRDs` controls if the chart should install the CRDs.
+There are 3 possible values: dynamic, always, never.
+
+- "dynamic" means the CRDs are installed if the operator is enabled or if
+  the CRDs are already present in the cluster. The presence check is here to
+  avoid all CRDs to be removed if you temporarily disable the operator.
+  Removing CRDs triggers a cascading deletion, which removes CRs, and all the
+  related resources in Teleport.
+- "always" means the CRDs are always installed
+- "never" means the CRDs are never installed
+
+## `teleportAddress`
 
 | Type | Default |
 |------|---------|
 | `string` | `""` |
 
-`authServer` is the address of the Teleport cluster whose resources are managed
-by the operator. The address must contain both the domain name and the port of
-the Teleport cluster. It can be either the address of the auth servers or the
-proxy servers.
+`teleportAddress` is the address of the Teleport cluster whose resources
+are managed by the operator. The address must contain both the domain name and
+the port of the Teleport cluster. It can be either the address of the Auth Service
+or the Proxy Service.
 
 For example:
   - joining a Proxy: `teleport.example.com:443` or `teleport.example.com:3080`
@@ -47,6 +64,16 @@ an Auth server directly (on port `3025`) and is ignored when joining through a P
 The operator does not store its Teleport-issued identity, it must be able to join the
 cluster again on each pod restart. To achieve this, it needs to use a delegated join
 method. `kubernetes` is the most common one.
+
+## `teleportClusterName`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`teleportClusterName` is the name of the joined Teleport cluster.
+Setting this value is required when joining via the
+[Kubernetes JWKS](../../join-methods.mdx#kubernetes-jwks) join method.
 
 ## `token`
 
@@ -283,7 +310,7 @@ $ kubectl create secret generic my-root-ca --from-file=ca.pem=/path/to/root-ca.p
 
 | Type | Default |
 |------|---------|
-| `object` | `{"fsGroup":65532,"runAsGroup":65532,"runAsNonRoot":true,"runAsUser":65532,"seccompProfile":"RuntimeDefault"}` |
+| `object` | `{"fsGroup":65532,"runAsGroup":65532,"runAsNonRoot":true,"runAsUser":65532,"seccompProfile":{"type":"RuntimeDefault"}}` |
 
 `podSecurityContext` sets the pod security context for any pods created by the chart.
 See [the Kubernetes documentation](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod)

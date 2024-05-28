@@ -20,6 +20,7 @@ package testhelpers
 
 import (
 	"context"
+	"log/slog"
 	"path/filepath"
 	"testing"
 	"time"
@@ -27,11 +28,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/proto"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/config"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	botconfig "github.com/gravitational/teleport/lib/tbot/config"
@@ -45,7 +48,11 @@ type DefaultBotConfigOpts struct {
 
 	// Makes the bot accept an Insecure auth or proxy server
 	Insecure bool
+
+	ServiceConfigs botconfig.ServiceConfigs
 }
+
+const AgentJoinToken = "i-am-a-join-token"
 
 // DefaultConfig returns a FileConfig to be used in tests, with random listen
 // addresses that are tied to the listeners returned in the FileDescriptor
@@ -75,6 +82,9 @@ func DefaultConfig(t *testing.T) (*config.FileConfig, []*servicecfg.FileDescript
 				EnabledFlag:   "true",
 				ListenAddress: testenv.NewTCPListener(t, service.ListenerAuth, &fds),
 			},
+			StaticTokens: config.StaticTokens{
+				config.StaticToken("db:" + AgentJoinToken),
+			},
 		},
 	}
 
@@ -82,23 +92,29 @@ func DefaultConfig(t *testing.T) (*config.FileConfig, []*servicecfg.FileDescript
 }
 
 // MakeAndRunTestAuthServer creates an auth server useful for testing purposes.
-func MakeAndRunTestAuthServer(t *testing.T, log utils.Logger, fc *config.FileConfig, fds []*servicecfg.FileDescriptor) (auth *service.TeleportProcess) {
+func MakeAndRunTestAuthServer(t *testing.T, log *slog.Logger, fc *config.FileConfig, fds []*servicecfg.FileDescriptor) (auth *service.TeleportProcess) {
 	t.Helper()
 
 	var err error
 	cfg := servicecfg.MakeDefaultConfig()
 	require.NoError(t, config.ApplyFileConfig(fc, cfg))
 	cfg.FileDescriptors = fds
-	cfg.Log = log
-
+	cfg.Logger = log
 	cfg.CachePolicy.Enabled = false
 	cfg.Proxy.DisableWebInterface = true
+
+	// Disable session recording to avoid flakiness caused by TempDir cleanup.
+	cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
+	// Disable audit log as we don't rely on this in our tests and it can cause
+	// flakiness due to TempDir cleanup.
+	cfg.Auth.NoAudit = true
+
 	auth, err = service.NewTeleport(cfg)
 	require.NoError(t, err)
 	require.NoError(t, auth.Start())
 
 	t.Cleanup(func() {
-		cfg.Log.Info("Cleaning up Auth Server.")
+		cfg.Logger.InfoContext(context.Background(), "Cleaning up Auth Server.")
 		auth.Close()
 	})
 
@@ -113,7 +129,7 @@ func MakeAndRunTestAuthServer(t *testing.T, log utils.Logger, fc *config.FileCon
 // MakeDefaultAuthClient reimplements the bare minimum needed to create a
 // default root-level auth client for a Teleport server started by
 // MakeAndRunTestAuthServer.
-func MakeDefaultAuthClient(t *testing.T, log utils.Logger, fc *config.FileConfig) auth.ClientI {
+func MakeDefaultAuthClient(t *testing.T, fc *config.FileConfig) *authclient.Client {
 	t.Helper()
 
 	cfg := servicecfg.MakeDefaultConfig()
@@ -123,7 +139,7 @@ func MakeDefaultAuthClient(t *testing.T, log utils.Logger, fc *config.FileConfig
 	cfg.HostUUID, err = utils.ReadHostUUID(cfg.DataDir)
 	require.NoError(t, err)
 
-	identity, err := auth.ReadLocalIdentity(filepath.Join(cfg.DataDir, teleport.ComponentProcess), auth.IdentityID{Role: types.RoleAdmin, HostUUID: cfg.HostUUID})
+	identity, err := state.ReadLocalIdentity(filepath.Join(cfg.DataDir, teleport.ComponentProcess), state.IdentityID{Role: types.RoleAdmin, HostUUID: cfg.HostUUID})
 	require.NoError(t, err)
 
 	authConfig := new(authclient.Config)
@@ -131,7 +147,7 @@ func MakeDefaultAuthClient(t *testing.T, log utils.Logger, fc *config.FileConfig
 	require.NoError(t, err)
 
 	authConfig.AuthServers = cfg.AuthServerAddresses()
-	authConfig.Log = log
+	authConfig.Log = utils.NewLogger()
 
 	client, err := authclient.Connect(context.Background(), authConfig)
 	require.NoError(t, err)
@@ -159,16 +175,39 @@ func MakeDefaultAuthClient(t *testing.T, log utils.Logger, fc *config.FileConfig
 }
 
 // MakeBot creates a server-side bot and returns joining parameters.
-func MakeBot(t *testing.T, client auth.ClientI, name string, roles ...string) *proto.CreateBotResponse {
+func MakeBot(t *testing.T, client *authclient.Client, name string, roles ...string) (*botconfig.OnboardingConfig, *machineidv1pb.Bot) {
+	ctx := context.TODO()
 	t.Helper()
 
-	bot, err := client.CreateBot(context.Background(), &proto.CreateBotRequest{
-		Name:  name,
-		Roles: roles,
+	b, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
+		Bot: &machineidv1pb.Bot{
+			Metadata: &headerv1.Metadata{
+				Name: name,
+			},
+			Spec: &machineidv1pb.BotSpec{
+				Roles: roles,
+			},
+		},
 	})
-
 	require.NoError(t, err)
-	return bot
+
+	tokenName, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
+	require.NoError(t, err)
+	tok, err := types.NewProvisionTokenFromSpec(
+		tokenName,
+		time.Now().Add(10*time.Minute),
+		types.ProvisionTokenSpecV2{
+			Roles:   []types.SystemRole{types.RoleBot},
+			BotName: b.Metadata.Name,
+		})
+	require.NoError(t, err)
+	err = client.CreateToken(ctx, tok)
+	require.NoError(t, err)
+
+	return &botconfig.OnboardingConfig{
+		TokenValue: tok.GetName(),
+		JoinMethod: types.JoinMethodToken,
+	}, b
 }
 
 // DefaultBotConfig creates a usable bot config from joining parameters.
@@ -178,7 +217,11 @@ func MakeBot(t *testing.T, client auth.ClientI, name string, roles ...string) *p
 // - Uses a memory storage destination
 // - Does not verify Proxy WebAPI certificates
 func DefaultBotConfig(
-	t *testing.T, fc *config.FileConfig, botParams *proto.CreateBotResponse, outputs []botconfig.Output, opts DefaultBotConfigOpts,
+	t *testing.T,
+	fc *config.FileConfig,
+	onboarding *botconfig.OnboardingConfig,
+	outputs []botconfig.Output,
+	opts DefaultBotConfigOpts,
 ) *botconfig.BotConfig {
 	t.Helper()
 
@@ -193,9 +236,7 @@ func DefaultBotConfig(
 
 	cfg := &botconfig.BotConfig{
 		AuthServer: authServer,
-		Onboarding: botconfig.OnboardingConfig{
-			JoinMethod: botParams.JoinMethod,
-		},
+		Onboarding: *onboarding,
 		Storage: &botconfig.StorageConfig{
 			Destination: &botconfig.DestinationMemory{},
 		},
@@ -204,9 +245,8 @@ func DefaultBotConfig(
 		// Set Insecure so the bot will trust the Proxy's webapi default signed
 		// certs.
 		Insecure: opts.Insecure,
+		Services: opts.ServiceConfigs,
 	}
-
-	cfg.Onboarding.SetToken(botParams.TokenID)
 
 	require.NoError(t, cfg.CheckAndSetDefaults())
 

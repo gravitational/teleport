@@ -19,7 +19,7 @@
 import { MfaDevice } from './types';
 
 export default function makeMfaDevice(json): MfaDevice {
-  const { id, name, lastUsed, addedAt } = json;
+  const { id, name, lastUsed, addedAt, residentKey } = json;
 
   let description = '';
   if (json.type === 'TOTP') {
@@ -30,11 +30,16 @@ export default function makeMfaDevice(json): MfaDevice {
     description = 'unknown device';
   }
 
+  const type = json.type === 'TOTP' ? 'totp' : 'webauthn';
+  const usage = residentKey ? 'passwordless' : 'mfa';
+
   return {
     id,
     name,
     description,
     registeredDate: new Date(addedAt),
     lastUsedDate: new Date(lastUsed),
+    type,
+    usage,
   };
 }

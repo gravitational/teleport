@@ -20,13 +20,27 @@ import React, { PropsWithChildren, useState } from 'react';
 import styled from 'styled-components';
 import { Popover, Flex, Text } from 'design';
 
+type OriginProps = {
+  vertical: string;
+  horizontal: string;
+};
+
 export const HoverTooltip: React.FC<
   PropsWithChildren<{
     tipContent: string | undefined;
     showOnlyOnOverflow?: boolean;
     className?: string;
+    anchorOrigin?: OriginProps;
+    transformOrigin?: OriginProps;
   }>
-> = ({ tipContent, children, showOnlyOnOverflow = false, className }) => {
+> = ({
+  tipContent,
+  children,
+  showOnlyOnOverflow = false,
+  className,
+  anchorOrigin = { vertical: 'top', horizontal: 'center' },
+  transformOrigin = { vertical: 'bottom', horizontal: 'center' },
+}) => {
   const [anchorEl, setAnchorEl] = useState<Element | undefined>();
   const open = Boolean(anchorEl);
 
@@ -70,14 +84,8 @@ export const HoverTooltip: React.FC<
         onClose={handlePopoverClose}
         open={open}
         anchorEl={anchorEl}
-        anchorOrigin={{
-          vertical: 'top',
-          horizontal: 'center',
-        }}
-        transformOrigin={{
-          vertical: 'bottom',
-          horizontal: 'center',
-        }}
+        anchorOrigin={anchorOrigin}
+        transformOrigin={transformOrigin}
         disableRestoreFocus
       >
         <StyledOnHover

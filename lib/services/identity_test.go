@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 func TestSAMLAuthRequest_Check(t *testing.T) {
@@ -317,6 +318,42 @@ func TestGithubAuthRequest_Check(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.req.Check()
+			if tt.wantErr {
+				require.Error(t, err)
+				require.True(t, trace.IsBadParameter(err))
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestVerifyPassword(t *testing.T) {
+	tests := []struct {
+		name    string
+		pass    []byte
+		wantErr bool
+	}{
+		{
+			name:    "password too short",
+			pass:    make([]byte, defaults.MinPasswordLength-1),
+			wantErr: true,
+		},
+		{
+			name:    "password just right",
+			pass:    make([]byte, defaults.MinPasswordLength),
+			wantErr: false,
+		},
+		{
+			name:    "password too long",
+			pass:    make([]byte, defaults.MaxPasswordLength+1),
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := VerifyPassword(tt.pass)
 			if tt.wantErr {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err))

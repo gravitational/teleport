@@ -33,7 +33,7 @@ import (
 // startReconciler starts reconciler that registers/unregisters proxied
 // apps according to the up-to-date list of application resources.
 func (s *Server) startReconciler(ctx context.Context) error {
-	reconciler, err := services.NewReconciler(services.ReconcilerConfig{
+	reconciler, err := services.NewReconciler(services.ReconcilerConfig[types.Application]{
 		Matcher:             s.matcher,
 		GetCurrentResources: s.getResources,
 		GetNewResources:     s.monitoredApps.get,
@@ -149,7 +149,7 @@ func FindPublicAddr(client FindPublicAddrClient, appPublicAddr string, appName s
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
-		return fmt.Sprintf("%v.%v", appName, addr.Host()), nil
+		return utils.DefaultAppPublicAddr(appName, addr.Host()), nil
 	}
 
 	// Fall back to cluster name.
@@ -160,34 +160,22 @@ func FindPublicAddr(client FindPublicAddrClient, appPublicAddr string, appName s
 	return fmt.Sprintf("%v.%v", appName, cn.GetClusterName()), nil
 }
 
-func (s *Server) getResources() (resources types.ResourcesWithLabelsMap) {
-	return s.getApps().AsResources().ToMap()
+func (s *Server) getResources() map[string]types.Application {
+	return utils.FromSlice(s.getApps(), types.Application.GetName)
 }
 
-func (s *Server) onCreate(ctx context.Context, resource types.ResourceWithLabels) error {
-	app, ok := resource.(types.Application)
-	if !ok {
-		return trace.BadParameter("expected types.Application, got %T", resource)
-	}
+func (s *Server) onCreate(ctx context.Context, app types.Application) error {
 	return s.registerApp(ctx, app)
 }
 
-func (s *Server) onUpdate(ctx context.Context, resource types.ResourceWithLabels) error {
-	app, ok := resource.(types.Application)
-	if !ok {
-		return trace.BadParameter("expected types.Application, got %T", resource)
-	}
+func (s *Server) onUpdate(ctx context.Context, app, _ types.Application) error {
 	return s.updateApp(ctx, app)
 }
 
-func (s *Server) onDelete(ctx context.Context, resource types.ResourceWithLabels) error {
-	return s.unregisterAndRemoveApp(ctx, resource.GetName())
+func (s *Server) onDelete(ctx context.Context, app types.Application) error {
+	return s.unregisterAndRemoveApp(ctx, app.GetName())
 }
 
-func (s *Server) matcher(resource types.ResourceWithLabels) bool {
-	app, ok := resource.(types.Application)
-	if !ok {
-		return false
-	}
-	return services.MatchResourceLabels(s.c.ResourceMatchers, app)
+func (s *Server) matcher(app types.Application) bool {
+	return services.MatchResourceLabels(s.c.ResourceMatchers, app.GetAllLabels())
 }

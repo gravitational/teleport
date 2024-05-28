@@ -29,6 +29,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
+
+	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 )
 
 // DeploymentVersionUpdater Reconciles a podSpec by changing its image
@@ -65,8 +67,9 @@ func (r *DeploymentVersionUpdater) Reconcile(ctx context.Context, req ctrl.Reque
 	// Get the current and past version
 	currentVersion, err := getWorkloadVersion(obj.Spec.Template.Spec)
 	if err != nil {
-		switch trace.Unwrap(err).(type) {
-		case *trace.BadParameterError:
+		var badParameterError *trace.BadParameterError
+		switch {
+		case errors.As(trace.Unwrap(err), &badParameterError):
 			log.Info("Teleport container found, but failed to get version from the img tag. Will continue and do a version update.")
 		default:
 			log.Error(err, "Unexpected error, not updating.")
@@ -76,7 +79,7 @@ func (r *DeploymentVersionUpdater) Reconcile(ctx context.Context, req ctrl.Reque
 
 	image, err := r.GetVersion(ctx, &obj, currentVersion)
 	var (
-		noNewVersionErr *NoNewVersionError
+		noNewVersionErr *version.NoNewVersionError
 		maintenanceErr  *MaintenanceNotTriggeredError
 	)
 	switch {

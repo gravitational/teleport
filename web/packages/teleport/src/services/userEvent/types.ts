@@ -76,6 +76,8 @@ export enum IntegrationEnrollKind {
   MachineIDKubernetes = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_KUBERNETES',
 }
 
+// These constants should match the constant defined in backend found in:
+// lib/usagereporter/web/userevent.go
 export enum DiscoverEvent {
   Started = 'tp.ui.discover.started',
   ResourceSelection = 'tp.ui.discover.resourceSelection',
@@ -91,15 +93,21 @@ export enum DiscoverEvent {
   EC2InstanceSelection = 'tp.ui.discover.selectedEC2Instance',
   EC2DeployEICE = 'tp.ui.discover.deployEICE',
   CreateNode = 'tp.ui.discover.createNode',
+  CreateDiscoveryConfig = 'tp.ui.discover.createDiscoveryConfig',
+  KubeEKSEnrollEvent = 'tp.ui.discover.kube.enroll.eks',
   PrincipalsConfigure = 'tp.ui.discover.principals.configure',
   TestConnection = 'tp.ui.discover.testConnection',
   Completed = 'tp.ui.discover.completed',
 }
 
 // DiscoverResource represents a resource type.
+// Constants should match the constant generated from backend proto files:
+//  - usageevents/v1/usageevents.proto
+//  - prehog/v1alpha/teleport.proto
 export enum DiscoverEventResource {
   Server = 'DISCOVER_RESOURCE_SERVER',
   Kubernetes = 'DISCOVER_RESOURCE_KUBERNETES',
+  KubernetesEks = 'DISCOVER_RESOURCE_KUBERNETES_EKS',
   DatabasePostgresSelfHosted = 'DISCOVER_RESOURCE_DATABASE_POSTGRES_SELF_HOSTED',
   DatabaseMysqlSelfHosted = 'DISCOVER_RESOURCE_DATABASE_MYSQL_SELF_HOSTED',
   DatabaseMongodbSelfHosted = 'DISCOVER_RESOURCE_DATABASE_MONGODB_SELF_HOSTED',
@@ -140,7 +148,9 @@ export enum DiscoverEventResource {
 
   ApplicationHttp = 'DISCOVER_RESOURCE_APPLICATION_HTTP',
   ApplicationTcp = 'DISCOVER_RESOURCE_APPLICATION_TCP',
+  ApplicationAwsConsole = 'DISCOVER_RESOURCE_APPLICATION_AWS_CONSOLE',
   WindowsDesktop = 'DISCOVER_RESOURCE_WINDOWS_DESKTOP',
+  WindowsDesktopNonAD = 'DISCOVER_RESOURCE_DOC_WINDOWS_DESKTOP_NON_AD',
 
   Ec2Instance = 'DISCOVER_RESOURCE_EC2_INSTANCE',
 
@@ -200,6 +210,10 @@ export type DiscoverEventData = DiscoverEventStepStatus & {
   // serviceDeploy is only considered for 'tp.ui.discover.deployService'
   // event and describes how an agent got deployed.
   serviceDeploy?: DiscoverServiceDeploy;
+
+  // discoveryConfigMethod is only considered for 'tp.ui.discover.createDiscoveryConfig'
+  // event and describes how discovery configured.
+  discoveryConfigMethod?: DiscoverDiscoveryConfigMethod;
 };
 
 export type DiscoverEventStepStatus = {
@@ -224,6 +238,14 @@ export enum DiscoverServiceDeployType {
   AmazonEcs = 'DEPLOY_TYPE_AMAZON_ECS',
 }
 
+export enum DiscoverDiscoveryConfigMethod {
+  Unspecified = 'CONFIG_METHOD_UNSPECIFIED',
+  AwsEc2Ssm = 'CONFIG_METHOD_AWS_EC2_SSM',
+  AwsEc2Eice = 'CONFIG_METHOD_AWS_EC2_EICE',
+  AwsRdsEcs = 'CONFIG_METHOD_AWS_RDS_ECS',
+  AwsEks = 'CONFIG_METHOD_AWS_EKS',
+}
+
 export enum CtaEvent {
   CTA_UNSPECIFIED = 0,
   CTA_AUTH_CONNECTOR = 1,
@@ -236,6 +258,7 @@ export enum CtaEvent {
   CTA_ACCESS_LIST = 8,
   CTA_ACCESS_MONITORING = 9,
   CTA_EXTERNAL_AUDIT_STORAGE = 10,
+  CTA_OKTA_USER_SYNC = 11,
 }
 
 export enum Feature {

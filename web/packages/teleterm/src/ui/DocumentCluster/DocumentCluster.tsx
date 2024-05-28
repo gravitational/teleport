@@ -182,9 +182,13 @@ function PrintState(props: {
   return (
     <Flex
       flexDirection="column"
-      m="auto"
-      justifyContent="center"
+      mx="auto"
+      mb="auto"
       alignItems="center"
+      css={`
+        top: 11%;
+        position: relative;
+      `}
     >
       {props.action && props.action.attempt.status === 'error' && (
         <Alert>{props.action.attempt.statusText}</Alert>
@@ -206,7 +210,7 @@ function PrintState(props: {
   );
 }
 
-const Layout = styled(Box).attrs({ mx: 'auto', px: 5, pt: 4 })`
+const Layout = styled(Box).attrs({ mx: 'auto', px: 4, pt: 3 })`
   flex-direction: column;
   display: flex;
   flex: 1;

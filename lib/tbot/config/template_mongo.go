@@ -57,6 +57,12 @@ func (t *templateMongo) render(
 	identity *identity.Identity,
 	destination bot.Destination,
 ) error {
+	ctx, span := tracer.Start(
+		ctx,
+		"templateMongo/render",
+	)
+	defer span.End()
+
 	dbCAs, err := bot.GetCertAuthorities(ctx, types.DatabaseCA)
 	if err != nil {
 		return trace.Wrap(err)
@@ -85,7 +91,7 @@ func (t *templateMongo) render(
 		return trace.Wrap(err)
 	}
 
-	log.Debugf("Wrote MongoDB identity files: %+v", files)
+	log.DebugContext(ctx, "Wrote MongoDB identity files", "files", files)
 
 	return nil
 }

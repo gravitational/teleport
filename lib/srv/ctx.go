@@ -44,9 +44,9 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
-	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
@@ -88,7 +88,7 @@ func init() {
 // AccessPoint is the access point contract required by a Server
 type AccessPoint interface {
 	// Announcer adds methods used to announce presence
-	auth.Announcer
+	authclient.Announcer
 
 	// Semaphores provides semaphore operations
 	types.Semaphores
@@ -97,10 +97,10 @@ type AccessPoint interface {
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 
 	// GetClusterNetworkingConfig returns cluster networking configuration.
-	GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error)
+	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
 
 	// GetSessionRecordingConfig returns session recording configuration.
-	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
+	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
 
 	// GetAuthPreference returns the cluster authentication configuration.
 	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
@@ -162,9 +162,6 @@ type Server interface {
 
 	// GetBPF returns the BPF service used for enhanced session recording.
 	GetBPF() bpf.BPF
-
-	// GetRestrictedSessionManager returns the manager for restricting user activity
-	GetRestrictedSessionManager() restricted.Manager
 
 	// Context returns server shutdown context
 	Context() context.Context
@@ -278,6 +275,10 @@ type IdentityContext struct {
 	// Generation counts the number of times this identity's certificate has
 	// been renewed.
 	Generation uint64
+
+	// BotName is the name of the Machine ID bot this identity is associated
+	// with, if any.
+	BotName string
 
 	// AllowedResourceIDs lists the resources this identity should be allowed to
 	// access
@@ -412,18 +413,18 @@ type ServerContext struct {
 	// recordNonInteractiveSession enables non-interactive session recording. Used by Assist.
 	recordNonInteractiveSession bool
 
-	// ChannelType holds the type of the channel. For example "session" or
+	// ExecType holds the type of the channel or request. For example "session" or
 	// "direct-tcpip". Used to create correct subcommand during re-exec.
-	ChannelType string
+	ExecType string
 
 	// SrcAddr is the source address of the request. This the originator IP
-	// address and port in an SSH "direct-tcpip" request. This value is only
-	// populated for port forwarding requests.
+	// address and port in an SSH "direct-tcpip" or "tcpip-forward" request. This
+	// value is only populated for port forwarding requests.
 	SrcAddr string
 
 	// DstAddr is the destination address of the request. This is the host and
-	// port to connect to in a "direct-tcpip" request. This value is only
-	// populated for port forwarding requests.
+	// port to connect to in a "direct-tcpip" or "tcpip-forward" request. This
+	// value is only populated for port forwarding requests.
 	DstAddr string
 
 	// allowFileCopying controls if remote file operations via SCP/SFTP are allowed
@@ -452,6 +453,10 @@ type ServerContext struct {
 
 	// UserCreatedByTeleport is true when the system user was created by Teleport user auto-provision.
 	UserCreatedByTeleport bool
+
+	// approvedFileReq is an approved file transfer request that will only be
+	// set when the session's pending file transfer request is approved.
+	approvedFileReq *FileTransferRequest
 }
 
 // NewServerContext creates a new *ServerContext which is used to pass and
@@ -494,8 +499,8 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		"id":           child.id,
 	}
 	child.Entry = log.WithFields(log.Fields{
-		trace.Component:       child.srv.Component(),
-		trace.ComponentFields: fields,
+		teleport.ComponentKey:    child.srv.Component(),
+		teleport.ComponentFields: fields,
 	})
 
 	if identityContext.Login == teleport.SSHSessionJoinPrincipal {
@@ -520,8 +525,8 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		fields["idle"] = child.clientIdleTimeout
 	}
 	child.Entry = log.WithFields(log.Fields{
-		trace.Component:       srv.Component(),
-		trace.ComponentFields: fields,
+		teleport.ComponentKey:    srv.Component(),
+		teleport.ComponentFields: fields,
 	})
 
 	clusterName, err := srv.GetAccessPoint().GetClusterName()
@@ -1196,12 +1201,18 @@ func eventDeviceMetadataFromCert(cert *ssh.Certificate) *apievents.DeviceMetadat
 }
 
 func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
+	userKind := apievents.UserKind_USER_KIND_HUMAN
+	if id.BotName != "" {
+		userKind = apievents.UserKind_USER_KIND_BOT
+	}
+
 	return apievents.UserMetadata{
 		Login:          id.Login,
 		User:           id.TeleportUser,
 		Impersonator:   id.Impersonator,
 		AccessRequests: id.ActiveRequests,
 		TrustedDevice:  eventDeviceMetadataFromCert(id.Certificate),
+		UserKind:       userKind,
 	}
 }
 
@@ -1294,8 +1305,8 @@ func ComputeLockTargets(clusterName, serverID string, id IdentityContext) []type
 	lockTargets := []types.LockTarget{
 		{User: id.TeleportUser},
 		{Login: id.Login},
-		{Node: serverID},
-		{Node: auth.HostFQDN(serverID, clusterName)},
+		{Node: serverID, ServerID: serverID},
+		{Node: authclient.HostFQDN(serverID, clusterName), ServerID: authclient.HostFQDN(serverID, clusterName)},
 	}
 	if mfaDevice := id.Certificate.Extensions[teleport.CertExtensionMFAVerified]; mfaDevice != "" {
 		lockTargets = append(lockTargets, types.LockTarget{MFADevice: mfaDevice})
@@ -1373,4 +1384,43 @@ func (c *ServerContext) GetSessionMetadata() apievents.SessionMetadata {
 		WithMFA:          c.Identity.Certificate.Extensions[teleport.CertExtensionMFAVerified],
 		PrivateKeyPolicy: c.Identity.Certificate.Extensions[teleport.CertExtensionPrivateKeyPolicy],
 	}
+}
+
+func (c *ServerContext) GetPortForwardEvent() apievents.PortForward {
+	sconn := c.ConnectionContext.ServerConn
+	return apievents.PortForward{
+		Metadata: apievents.Metadata{
+			Type: events.PortForwardEvent,
+			Code: events.PortForwardCode,
+		},
+		UserMetadata: c.Identity.GetUserMetadata(),
+		ConnectionMetadata: apievents.ConnectionMetadata{
+			LocalAddr:  sconn.LocalAddr().String(),
+			RemoteAddr: sconn.RemoteAddr().String(),
+		},
+		Addr: c.DstAddr,
+		Status: apievents.Status{
+			Success: true,
+		},
+	}
+}
+
+func (c *ServerContext) setApprovedFileTransferRequest(req *FileTransferRequest) {
+	c.mu.Lock()
+	c.approvedFileReq = req
+	c.mu.Unlock()
+}
+
+// ConsumeApprovedFileTransferRequest will return the approved file transfer
+// request for this session if there is one present. Note that if an
+// approved request is returned future calls to this method will return
+// nil to prevent an approved request getting reused incorrectly.
+func (c *ServerContext) ConsumeApprovedFileTransferRequest() *FileTransferRequest {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	req := c.approvedFileReq
+	c.approvedFileReq = nil
+
+	return req
 }

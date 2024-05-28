@@ -6,7 +6,8 @@ DECLARE
 BEGIN
     -- Only deactivate if the user doesn't have other active sessions.
     -- Update to pg_stat_activity is delayed for a few hundred ms. Use
-    -- stv_sessions instead.
+    -- stv_sessions instead:
+    -- https://docs.aws.amazon.com/redshift/latest/dg/r_STV_SESSIONS.html
     IF EXISTS (SELECT user_name FROM stv_sessions WHERE user_name = CONCAT('IAM:', username)) THEN
         RAISE EXCEPTION 'TP000: User has active connections';
     ELSE

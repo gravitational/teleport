@@ -69,7 +69,7 @@ func makeDatabaseGateway(cfg Config) (Database, error) {
 		RemoteProxyAddr:         d.cfg.WebProxyAddr,
 		Listener:                listener,
 		ParentContext:           d.closeContext,
-		Certs:                   []tls.Certificate{tlsCert},
+		Cert:                    tlsCert,
 		Clock:                   d.cfg.Clock,
 		ALPNConnUpgradeRequired: d.cfg.TLSRoutingConnUpgradeRequired,
 	}
@@ -79,7 +79,11 @@ func makeDatabaseGateway(cfg Config) (Database, error) {
 			log:     d.cfg.Log,
 			dbRoute: d.cfg.RouteToDatabase(),
 			onExpiredCert: func(ctx context.Context) error {
-				return trace.Wrap(d.cfg.OnExpiredCert(ctx, d))
+				// TODO(ravicious): Add support for per-session MFA in db gateways by utilizing the cert
+				// returned from onExpiredCert. Make DBCertChecker from tsh more modular and reuse it
+				// instead of shipping custom dbMiddleware.
+				_, err := d.cfg.OnExpiredCert(ctx, d)
+				return trace.Wrap(err)
 			},
 		}
 	}
@@ -103,6 +107,6 @@ func (d *db) setDBCert(newCert tls.Certificate) error {
 			"database certificate check failed, try restarting the database connection")
 	}
 
-	d.localProxy.SetCerts([]tls.Certificate{newCert})
+	d.localProxy.SetCert(newCert)
 	return nil
 }

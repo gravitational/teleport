@@ -81,9 +81,6 @@ func UnmarshalTunnelConnection(data []byte, opts ...MarshalOption) (types.Tunnel
 		if err := r.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if cfg.ID != 0 {
-			r.SetResourceID(cfg.ID)
-		}
 		if cfg.Revision != "" {
 			r.SetRevision(cfg.Revision)
 		}
@@ -108,15 +105,7 @@ func MarshalTunnelConnection(tunnelConnection types.TunnelConnection, opts ...Ma
 			return nil, trace.Wrap(err)
 		}
 
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *tunnelConnection
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			tunnelConnection = &copy
-		}
-		return utils.FastMarshal(tunnelConnection)
+		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, tunnelConnection))
 	default:
 		return nil, trace.BadParameter("unrecognized tunnel connection version %T", tunnelConnection)
 	}

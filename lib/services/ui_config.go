@@ -44,9 +44,6 @@ func UnmarshalUIConfig(data []byte, opts ...MarshalOption) (types.UIConfig, erro
 		return nil, trace.Wrap(err)
 	}
 
-	if cfg.ID != 0 {
-		uiconfig.SetResourceID(cfg.ID)
-	}
 	if cfg.Revision != "" {
 		uiconfig.SetRevision(cfg.Revision)
 	}
@@ -68,15 +65,7 @@ func MarshalUIConfig(uiconfig types.UIConfig, opts ...MarshalOption) ([]byte, er
 			return nil, trace.Wrap(err)
 		}
 
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *uiconfig
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			uiconfig = &copy
-		}
-		return utils.FastMarshal(uiconfig)
+		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, uiconfig))
 	default:
 		return nil, trace.BadParameter("unrecognized uiconfig version %T", uiconfig)
 	}

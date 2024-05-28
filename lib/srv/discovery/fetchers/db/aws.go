@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
@@ -82,11 +83,11 @@ func (cfg *awsFetcherConfig) CheckAndSetDefaults(component string) error {
 			credentialsSource = fmt.Sprintf("integration:%s", cfg.Integration)
 		}
 		cfg.Log = logrus.WithFields(logrus.Fields{
-			trace.Component: "watch:" + component,
-			"labels":        cfg.Labels,
-			"region":        cfg.Region,
-			"role":          cfg.AssumeRole,
-			"credentials":   credentialsSource,
+			teleport.ComponentKey: "watch:" + component,
+			"labels":              cfg.Labels,
+			"region":              cfg.Region,
+			"role":                cfg.AssumeRole,
+			"credentials":         credentialsSource,
 		})
 	}
 	return nil
@@ -153,6 +154,11 @@ func (f *awsFetcher) Cloud() string {
 // ResourceType identifies the resource type the fetcher is returning.
 func (f *awsFetcher) ResourceType() string {
 	return types.KindDatabase
+}
+
+// FetcherType returns the type (`discovery_service.aws.[].types`) of the fetcher.
+func (f *awsFetcher) FetcherType() string {
+	return f.cfg.Type
 }
 
 // String returns the fetcher's string description.

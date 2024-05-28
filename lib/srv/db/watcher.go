@@ -29,13 +29,14 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	discovery "github.com/gravitational/teleport/lib/srv/discovery/common"
 	dbfetchers "github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // startReconciler starts reconciler that registers/unregisters proxied
 // databases according to the up-to-date list of database resources and
 // databases imported from the cloud.
 func (s *Server) startReconciler(ctx context.Context) error {
-	reconciler, err := services.NewReconciler(services.ReconcilerConfig{
+	reconciler, err := services.NewReconciler(services.ReconcilerConfig[types.Database]{
 		Matcher:             s.matcher,
 		GetCurrentResources: s.getResources,
 		GetNewResources:     s.monitoredDatabases.get,
@@ -124,7 +125,7 @@ func (s *Server) startCloudWatcher(ctx context.Context) error {
 
 	watcher, err := discovery.NewWatcher(ctx, discovery.WatcherConfig{
 		FetchersFn: discovery.StaticFetchers(allFetchers),
-		Log:        logrus.WithField(trace.Component, "watcher:cloud"),
+		Log:        logrus.WithField(teleport.ComponentKey, "watcher:cloud"),
 		Origin:     types.OriginCloud,
 	})
 	if err != nil {
@@ -156,17 +157,12 @@ func (s *Server) startCloudWatcher(ctx context.Context) error {
 }
 
 // getResources returns proxied databases as resources.
-func (s *Server) getResources() types.ResourcesWithLabelsMap {
-	return s.getProxiedDatabases().AsResources().ToMap()
+func (s *Server) getResources() map[string]types.Database {
+	return utils.FromSlice(s.getProxiedDatabases(), types.Database.GetName)
 }
 
 // onCreate is called by reconciler when a new database is created.
-func (s *Server) onCreate(ctx context.Context, resource types.ResourceWithLabels) error {
-	database, ok := resource.(types.Database)
-	if !ok {
-		return trace.BadParameter("expected types.Database, got %T", resource)
-	}
-
+func (s *Server) onCreate(ctx context.Context, database types.Database) error {
 	// OnCreate receives a "new" resource from s.monitoredDatabases. Make a
 	// copy here so that any attribute changes to the proxied database will not
 	// affect database objects tracked in s.monitoredDatabases.
@@ -184,12 +180,7 @@ func (s *Server) onCreate(ctx context.Context, resource types.ResourceWithLabels
 }
 
 // onUpdate is called by reconciler when an already proxied database is updated.
-func (s *Server) onUpdate(ctx context.Context, resource types.ResourceWithLabels) error {
-	database, ok := resource.(types.Database)
-	if !ok {
-		return trace.BadParameter("expected types.Database, got %T", resource)
-	}
-
+func (s *Server) onUpdate(ctx context.Context, database, _ types.Database) error {
 	// OnUpdate receives a "new" resource from s.monitoredDatabases. Make a
 	// copy here so that any attribute changes to the proxied database will not
 	// affect database objects tracked in s.monitoredDatabases.
@@ -199,21 +190,12 @@ func (s *Server) onUpdate(ctx context.Context, resource types.ResourceWithLabels
 }
 
 // onDelete is called by reconciler when a proxied database is deleted.
-func (s *Server) onDelete(ctx context.Context, resource types.ResourceWithLabels) error {
-	database, ok := resource.(types.Database)
-	if !ok {
-		return trace.BadParameter("expected types.Database, got %T", resource)
-	}
+func (s *Server) onDelete(ctx context.Context, database types.Database) error {
 	return s.unregisterDatabase(ctx, database)
 }
 
 // matcher is used by reconciler to check if database matches selectors.
-func (s *Server) matcher(resource types.ResourceWithLabels) bool {
-	database, ok := resource.(types.Database)
-	if !ok {
-		return false
-	}
-
+func (s *Server) matcher(database types.Database) bool {
 	// In the case of databases discovered by this database server, matchers
 	// should be skipped.
 	if s.monitoredDatabases.isCloud(database) {
@@ -222,7 +204,7 @@ func (s *Server) matcher(resource types.ResourceWithLabels) bool {
 
 	// Database resources created via CLI, API, or discovery service are
 	// filtered by resource matchers.
-	return services.MatchResourceLabels(s.cfg.ResourceMatchers, database)
+	return services.MatchResourceLabels(s.cfg.ResourceMatchers, database.GetAllLabels())
 }
 
 func applyResourceMatchersToDatabase(database types.Database, resourceMatchers []services.ResourceMatcher) {

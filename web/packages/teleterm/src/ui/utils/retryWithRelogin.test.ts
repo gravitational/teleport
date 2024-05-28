@@ -16,7 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { waitFor } from '@testing-library/react';
+
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
+import { makeRetryableError } from 'teleterm/services/tshd/testHelpers';
 import Logger, { NullService } from 'teleterm/logger';
 
 import { retryWithRelogin } from './retryWithRelogin';
@@ -24,8 +27,6 @@ import { retryWithRelogin } from './retryWithRelogin';
 beforeAll(() => {
   Logger.init(new NullService());
 });
-
-const makeRetryableError = () => new Error('ssh: handshake failed');
 
 it('returns the result of actionToRetry if no error is thrown', async () => {
   const expectedReturnValue = Symbol('expectedReturnValue');
@@ -70,7 +71,9 @@ it('opens the login modal window and calls actionToRetry again on successful rel
       }
 
       // Dialog cancel function.
-      return { closeDialog: () => {} };
+      return {
+        closeDialog: () => {},
+      };
     });
 
   jest
@@ -144,7 +147,9 @@ it('calls actionToRetry again if relogin attempt was canceled', async () => {
       }
 
       // Dialog cancel function.
-      return { closeDialog: () => {} };
+      return {
+        closeDialog: () => {},
+      };
     });
 
   jest
@@ -165,4 +170,73 @@ it('calls actionToRetry again if relogin attempt was canceled', async () => {
 
   expect(actionToRetry).toHaveBeenCalledTimes(2);
   expect(actualReturnValue).toEqual(expectedReturnValue);
+});
+
+it('concurrent requests wait for the single login modal to resolve', async () => {
+  const appContext = new MockAppContext();
+
+  let logIn: () => void;
+  jest
+    .spyOn(appContext.modalsService, 'openRegularDialog')
+    .mockImplementation(dialog => {
+      if (dialog.kind === 'cluster-connect') {
+        logIn = () => dialog.onSuccess('/clusters/foo');
+      } else {
+        throw new Error(`Got unexpected dialog ${dialog.kind}`);
+      }
+
+      // Dialog cancel function.
+      return {
+        closeDialog: () => {},
+      };
+    });
+
+  jest
+    .spyOn(appContext.workspacesService, 'doesResourceBelongToActiveWorkspace')
+    .mockImplementation(() => true);
+
+  const firstExpectedReturnValue = Symbol('firstExpectedReturnValue');
+  const secondExpectedReturnValue = Symbol('secondExpectedReturnValue');
+  const firstActionToRetry = jest
+    .fn()
+    .mockRejectedValueOnce(makeRetryableError())
+    .mockResolvedValueOnce(firstExpectedReturnValue);
+  const secondActionToRetry = jest
+    .fn()
+    .mockRejectedValueOnce(makeRetryableError())
+    .mockResolvedValueOnce(secondExpectedReturnValue);
+
+  const firstAction = retryWithRelogin(
+    appContext,
+    '/clusters/foo/servers/bar',
+    firstActionToRetry
+  );
+  const secondAction = retryWithRelogin(
+    appContext,
+    '/clusters/foo/servers/xyz',
+    secondActionToRetry
+  );
+
+  const openRegularDialogSpy = appContext.modalsService.openRegularDialog;
+  await waitFor(() => {
+    expect(openRegularDialogSpy).toHaveBeenCalledTimes(1);
+  });
+  expect(openRegularDialogSpy).toHaveBeenCalledWith(
+    expect.objectContaining({
+      kind: 'cluster-connect',
+      clusterUri: '/clusters/foo',
+    })
+  );
+
+  logIn();
+
+  const firstActionExpectedReturnValue = await firstAction;
+  const secondActionExpectedReturnValue = await secondAction;
+
+  expect(firstActionToRetry).toHaveBeenCalledTimes(2);
+  expect(secondActionToRetry).toHaveBeenCalledTimes(2);
+  expect(firstActionExpectedReturnValue).toEqual(firstExpectedReturnValue);
+  expect(secondActionExpectedReturnValue).toEqual(secondExpectedReturnValue);
+
+  expect(openRegularDialogSpy).toHaveBeenCalledTimes(1);
 });

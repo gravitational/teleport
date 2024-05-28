@@ -23,8 +23,8 @@ Community Edition. Once you deploy the cluster, you can configure RBAC, register
 resources, and protect your small-scale demo environments or home lab.
 
 You can also get started right away with a production-ready Teleport cluster by
-signing up for a [free trial of Teleport
-Team](./choose-an-edition/teleport-team.mdx).
+signing up for a [free trial of Teleport Enterprise
+Cloud](https://goteleport.com/signup/).
 
 ## Set up a demo cluster
 
@@ -48,9 +48,9 @@ We will run the following Teleport services:
 ### Prerequisites
 
 You will need the following to deploy a demo Teleport cluster. If your
-environment doesn't meet the prerequisites above, you can get started with
-Teleport by signing up for a [free trial of Teleport
-Team](https://goteleport.com/signup/).
+environment doesn't meet the prerequisites, you can get started with Teleport by
+signing up for a [free trial of Teleport Enterprise
+Cloud](https://goteleport.com/signup/).
 
 If you want to get a feel for Teleport commands and capabilities without setting
 up any infrastructure, take a look at the browser-based [Teleport
@@ -71,7 +71,7 @@ Labs](https://goteleport.com/labs).
   Marketplace](https://marketplace.digitalocean.com/apps/teleport). Once your
   droplet is ready, SSH into the droplet and follow the configuration wizard.
 
-- A two-factor authenticator app such as [Authy](https://authy.com/download/),
+- A multi-factor authenticator app such as [Authy](https://authy.com/download/),
   [Google Authenticator](https://www.google.com/landing/2step/), or
   [1Password](https://support.1password.com/one-time-passwords/).
 
@@ -121,7 +121,7 @@ following:
 
 ![Teleport Welcome Screen](../img/quickstart/welcome.png)
 
-### Step 3/4. Create a Teleport user and set up two-factor authentication
+### Step 3/4. Create a Teleport user and set up multi-factor authentication
 
 In this step, we'll create a new Teleport user, `teleport-admin`, which is
 allowed to log into SSH hosts as any of the principals `root`, `ubuntu`, or
@@ -163,8 +163,8 @@ Visit the provided URL in order to create your Teleport user.
 
 </Admonition>
 
-Teleport enforces the use of two-factor authentication by default. It supports
-one-time passwords (OTP) and second-factor authenticators (WebAuthn). In this
+Teleport enforces the use of multi-factor authentication by default. It supports
+one-time passwords (OTP) and multi-factor authenticators (WebAuthn). In this
 guide, you will need to enroll an OTP authenticator application using the QR
 code on the Teleport welcome screen.
 
@@ -200,15 +200,14 @@ With Teleport, you can protect all of the resources in your infrastructure
 behind a single identity-aware access proxy, including servers, databases,
 applications, Kubernetes clusters, Windows desktops, and cloud provider APIs.
 
-To enroll a resource with Teleport, visit the Web UI and click the name of a
-resource on the sidebar, e.g., **Servers**, **Applications**, and
-**Kubernetes**. The Web UI will show you the steps you can take to enroll that
+To enroll a resource with Teleport, visit the Web UI and click **Enroll New
+Resource**. The Web UI will show you the steps you can take to enroll your new
 resource.
 
 ![Adding resources](../img/add-resources.png)
 
-In the **Servers** tab, you can see that you have already enrolled your Linux
-server. 
+On the home page of the Web UI, you can see that you have already enrolled your
+Linux server. 
 
 ### Next step: deploy agents
 

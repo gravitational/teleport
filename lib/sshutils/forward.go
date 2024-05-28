@@ -20,6 +20,7 @@ package sshutils
 
 import (
 	"context"
+	"errors"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -62,7 +63,7 @@ func ForwardRequests(ctx context.Context, sin <-chan *ssh.Request, sender Reques
 				continue
 			}
 		case <-ctx.Done():
-			if ctx.Err() != context.Canceled {
+			if !errors.Is(ctx.Err(), context.Canceled) {
 				return trace.Wrap(ctx.Err())
 			}
 			return nil

@@ -35,12 +35,12 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/srv/db/mysql/protocol"
+	discoverycommon "github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -164,24 +164,32 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 func (e *Engine) updateServerVersion(sessionCtx *common.Session, serverConn *client.Conn) error {
 	serverVersion := serverConn.GetServerVersion()
 	statusVersion := sessionCtx.Database.GetMySQLServerVersion()
-	// Update only when needed
-	if serverVersion != "" && serverVersion != statusVersion {
-		sessionCtx.Database.SetMySQLServerVersion(serverVersion)
+
+	// Update only when needed.
+	if serverVersion == "" || serverVersion == statusVersion {
+		return nil
 	}
 
+	// Note that sessionCtx.Database is a copy of the database cached by
+	// database service. Call e.UpdateProxiedDatabase to do the update instead of
+	// setting the copy.
+	doUpdate := func(db types.Database) error {
+		db.SetMySQLServerVersion(serverVersion)
+		return nil
+	}
+
+	if err := e.UpdateProxiedDatabase(sessionCtx.Database.GetName(), doUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	e.Log.WithField("server-version", serverVersion).Debug("Updated MySQL server version.")
 	return nil
 }
 
 // checkAccess does authorization check for MySQL connection about to be established.
 func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) error {
-	// When using auto-provisioning, force the database username to be same
-	// as Teleport username. If it's not provided explicitly, some database
-	// clients get confused and display incorrect username.
-	if sessionCtx.AutoCreateUserMode.IsEnabled() {
-		if sessionCtx.DatabaseUser != sessionCtx.Identity.Username {
-			return trace.AccessDenied("please use your Teleport username (%q) to connect instead of %q",
-				sessionCtx.Identity.Username, sessionCtx.DatabaseUser)
-		}
+	if err := sessionCtx.CheckUsernameForAutoUserProvisioning(); err != nil {
+		return trace.Wrap(err)
 	}
 
 	authPref, err := e.Auth.GetAuthPreference(ctx)
@@ -228,34 +236,17 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 			return nil, trace.Wrap(err)
 		}
 	case sessionCtx.Database.IsCloudSQL():
-		// For Cloud SQL MySQL there is no IAM auth, so we use one-time passwords
-		// by resetting the database user password for each connection. Thus,
-		// acquire a lock to make sure all connection attempts to the same
-		// database and user are serialized.
-		retryCtx, cancel := context.WithTimeout(ctx, defaults.DatabaseConnectTimeout)
-		defer cancel()
-		lease, err := services.AcquireSemaphoreWithRetry(retryCtx, e.makeAcquireSemaphoreConfig(sessionCtx))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		// Only release the semaphore after the connection has been established
-		// below. If the semaphore fails to release for some reason, it will
-		// expire in a minute on its own.
-		defer func() {
-			err := e.AuthClient.CancelSemaphoreLease(ctx, *lease)
-			if err != nil {
-				e.Log.WithError(err).Errorf("Failed to cancel lease: %v.", lease)
-			}
-		}()
-		password, err = e.Auth.GetCloudSQLPassword(ctx, sessionCtx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
 		// Get the client once for subsequent calls (it acquires a read lock).
 		gcpClient, err := e.CloudClients.GetGCPSQLAdminClient(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		user, password, err = e.getGCPUserAndPassword(ctx, sessionCtx, gcpClient)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		// Detect whether the instance is set to require SSL.
 		// Fallback to not requiring SSL for access denied errors.
 		requireSSL, err := cloud.GetGCPRequireSSL(ctx, sessionCtx, gcpClient)
@@ -278,7 +269,7 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		user = services.MakeAzureDatabaseLoginUsername(sessionCtx.Database, user)
+		user = discoverycommon.MakeAzureDatabaseLoginUsername(sessionCtx.Database, user)
 	}
 
 	// Use default net dialer unless it is already initialized.
@@ -362,6 +353,12 @@ func (e *Engine) receiveFromClient(clientConn, serverConn net.Conn, clientErrCh 
 			return
 
 		case *protocol.InitDB:
+			// Update DatabaseName when switching to another so the audit logs
+			// are up to date. E.g.:
+			// mysql> use foo;
+			// mysql> select * from users;
+			sessionCtx.DatabaseName = pkt.SchemaName()
+
 			e.Audit.EmitEvent(e.Context, makeInitDBEvent(sessionCtx, pkt))
 		case *protocol.CreateDB:
 			e.Audit.EmitEvent(e.Context, makeCreateDBEvent(sessionCtx, pkt))

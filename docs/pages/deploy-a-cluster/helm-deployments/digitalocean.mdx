@@ -152,7 +152,7 @@ Copy the link shown after executing the above command and open the link in a web
   ![Set up user](../../../img/helm/digitalocean/setup-user.png)
 </Figure>
 
-After you complete the registration process by setting up a password and enrolling in two-factor authentication, you will be logged in to Teleport Web UI. 
+After you complete the registration process by setting up a password and enrolling in multi-factor authentication, you will be logged in to Teleport Web UI. 
 
 In this step, we created a user **tadmin** with roles `access, edit`. These are the default roles available in Teleport. However, to allow this user to access the Kubernetes cluster, we will need to assign **tadmin** a role authorized to access the Kubernetes cluster. So first, let's create a role named **member** with the Kubernetes privilege `system:master`.
 
@@ -278,6 +278,5 @@ Teleport:
 
 - Connect another Kubernetes cluster to Teleport by [deploying the Teleport Kubernetes Service](../../kubernetes-access/getting-started.mdx)
 - [Set up Machine ID with Kubernetes](../../machine-id/access-guides/kubernetes.mdx)
-- [Federated Access using Trusted Clusters](../../kubernetes-access/manage-access/federation.mdx)
 - [Single-Sign On and Kubernetes Access Control](../../kubernetes-access/controls.mdx)
 

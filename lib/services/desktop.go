@@ -57,15 +57,7 @@ func MarshalWindowsDesktop(s types.WindowsDesktop, opts ...MarshalOption) ([]byt
 			return nil, trace.Wrap(err)
 		}
 
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *s
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			s = &copy
-		}
-		return utils.FastMarshal(s)
+		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, s))
 	default:
 		return nil, trace.BadParameter("unrecognized windows desktop version %T", s)
 	}
@@ -93,9 +85,6 @@ func UnmarshalWindowsDesktop(data []byte, opts ...MarshalOption) (types.WindowsD
 		if err := s.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if cfg.ID != 0 {
-			s.SetResourceID(cfg.ID)
-		}
 		if cfg.Revision != "" {
 			s.SetRevision(cfg.Revision)
 		}
@@ -120,15 +109,7 @@ func MarshalWindowsDesktopService(s types.WindowsDesktopService, opts ...Marshal
 			return nil, trace.Wrap(err)
 		}
 
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *s
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			s = &copy
-		}
-		return utils.FastMarshal(s)
+		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, s))
 	default:
 		return nil, trace.BadParameter("unrecognized windows desktop service version %T", s)
 	}
@@ -155,9 +136,6 @@ func UnmarshalWindowsDesktopService(data []byte, opts ...MarshalOption) (types.W
 		}
 		if err := s.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
-		}
-		if cfg.ID != 0 {
-			s.SetResourceID(cfg.ID)
 		}
 		if cfg.Revision != "" {
 			s.SetRevision(cfg.Revision)

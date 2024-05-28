@@ -64,11 +64,12 @@ func setupServicesContext(ctx context.Context, t *testing.T) *servicesContext {
 		CAS:           NewCAService(tt.bk),
 		PresenceS:     presenceService,
 		ProvisioningS: NewProvisioningService(tt.bk),
-		WebS:          NewIdentityService(tt.bk),
+		WebS:          NewTestIdentityService(tt.bk),
 		Access:        NewAccessService(tt.bk),
 		EventsS:       eventsService,
 		ChangesC:      make(chan interface{}),
 		ConfigS:       configService,
+		LocalConfigS:  configService,
 		RestrictionsS: NewRestrictionsService(tt.bk),
 		Clock:         clock,
 	}
@@ -90,14 +91,13 @@ func TestCRUD(t *testing.T) {
 	t.Run("TestUsersCRUD", tt.suite.UsersCRUD)
 	t.Run("TestUsersExpiry", tt.suite.UsersExpiry)
 	t.Run("TestLoginAttempts", tt.suite.LoginAttempts)
-	t.Run("TestPasswordHashCRUD", tt.suite.PasswordHashCRUD)
+	t.Run("TestPasswordCRUD", tt.suite.PasswordCRUD)
 	t.Run("TestWebSessionCRUD", tt.suite.WebSessionCRUD)
 	t.Run("TestToken", tt.suite.TokenCRUD)
 	t.Run("TestRoles", tt.suite.RolesCRUD)
 	t.Run("TestSAMLCRUD", tt.suite.SAMLCRUD)
 	t.Run("TestTunnelConnectionsCRUD", tt.suite.TunnelConnectionsCRUD)
 	t.Run("TestGithubConnectorCRUD", tt.suite.GithubConnectorCRUD)
-	t.Run("TestRemoteClustersCRUD", tt.suite.RemoteClustersCRUD)
 	t.Run("TestEvents", tt.suite.Events)
 	t.Run("TestEventsClusterConfig", tt.suite.EventsClusterConfig)
 	t.Run("TestNetworkRestrictions", func(t *testing.T) { tt.suite.NetworkRestrictions(t) })

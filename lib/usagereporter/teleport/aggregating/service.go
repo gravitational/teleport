@@ -39,8 +39,9 @@ const (
 )
 
 const (
-	userActivityReportsPrefix = "userActivityReports"
-	userActivityReportsLock   = "userActivityReportsLock"
+	userActivityReportsPrefix     = "userActivityReports"
+	userActivityReportsLock       = "userActivityReportsLock"
+	ResourcePresenceReportsPrefix = "resourcePresenceReports"
 )
 
 // userActivityReportKey returns the backend key for a user activity report with
@@ -50,28 +51,117 @@ func userActivityReportKey(reportUUID uuid.UUID, startTime time.Time) []byte {
 	return backend.Key(userActivityReportsPrefix, startTime.Format(time.RFC3339), reportUUID.String())
 }
 
-func prepareUserActivityReport(
+func prepareUserActivityReports(
 	clusterName, reporterHostID []byte,
 	startTime time.Time, records []*prehogv1.UserActivityRecord,
-) (*prehogv1.UserActivityReport, error) {
-	reportUUID := uuid.New()
-	report := &prehogv1.UserActivityReport{
-		ReportUuid:     reportUUID[:],
-		ClusterName:    clusterName,
-		ReporterHostid: reporterHostID,
-		StartTime:      timestamppb.New(startTime),
-		Records:        records,
-	}
-
-	for proto.Size(report) > maxItemSize {
-		if len(report.Records) <= 1 {
-			return nil, trace.LimitExceeded("failed to marshal user activity report within size limit (this is a bug)")
+) (reports []*prehogv1.UserActivityReport, err error) {
+	for len(records) > 0 {
+		reportUUID := uuid.New()
+		report := &prehogv1.UserActivityReport{
+			ReportUuid:     reportUUID[:],
+			ClusterName:    clusterName,
+			ReporterHostid: reporterHostID,
+			StartTime:      timestamppb.New(startTime),
+			Records:        records,
 		}
 
-		report.Records = report.Records[:len(report.Records)/2]
+		for proto.Size(report) > maxItemSize {
+			if len(report.Records) <= 1 {
+				return nil, trace.LimitExceeded("failed to marshal user activity report within size limit (this is a bug)")
+			}
+
+			report.Records = report.Records[:len(report.Records)/2]
+		}
+
+		records = records[len(report.Records):]
+		reports = append(reports, report)
 	}
 
-	return report, nil
+	return reports, nil
+}
+
+// resourcePresenceReportKey returns the backend key for a resource presence report with
+// a given UUID and start time, such that reports with an earlier start time
+// will appear earlier in lexicographic ordering.
+func resourcePresenceReportKey(reportUUID uuid.UUID, startTime time.Time) []byte {
+	return backend.Key(ResourcePresenceReportsPrefix, startTime.Format(time.RFC3339), reportUUID.String())
+}
+
+// prepareResourcePresenceReport prepares a resource presence report for storage.
+// It returns a slice of reports for case when single report is too large to fit in a single item.
+// As even a single resource kind report can be too large to fit in a single item, it may return
+// multiple reports with single resource kind report split into multiple fragments.
+func prepareResourcePresenceReports(
+	clusterName, reporterHostID []byte,
+	startTime time.Time, kindReports []*prehogv1.ResourceKindPresenceReport,
+) ([]*prehogv1.ResourcePresenceReport, error) {
+	reports := make([]*prehogv1.ResourcePresenceReport, 0, 1) // at least one report
+
+	for len(kindReports) > 0 {
+		// Optimistic case: try to put all records into a single report in hope that they will fit.
+		reportUUID := uuid.New()
+		report := &prehogv1.ResourcePresenceReport{
+			ReportUuid:          reportUUID[:],
+			ClusterName:         clusterName,
+			ReporterHostid:      reporterHostID,
+			StartTime:           timestamppb.New(startTime),
+			ResourceKindReports: kindReports,
+		}
+
+		if proto.Size(report) <= maxItemSize {
+			// The last report fits, so we're done.
+			reports = append(reports, report)
+			return reports, nil
+		}
+
+		// We're over the size limit, so we need to split the report and try again.
+		report.ResourceKindReports = make([]*prehogv1.ResourceKindPresenceReport, 0, len(kindReports))
+
+		// Try to fit as many resource kind reports as possible, skipping big ones.
+		unfitRecords := make([]*prehogv1.ResourceKindPresenceReport, 0, len(kindReports))
+		for _, kindReport := range kindReports {
+			report.ResourceKindReports = append(report.ResourceKindReports, kindReport)
+			if proto.Size(report) > maxItemSize {
+				unfitRecords = append(unfitRecords, kindReport)
+				report.ResourceKindReports = report.ResourceKindReports[:len(report.ResourceKindReports)-1]
+			}
+		}
+		kindReports = unfitRecords
+
+		// To reduce kind reports fragmentation between resource reports
+		// don't try to split unfit kind reports if some already fit into report as a whole
+		if len(report.ResourceKindReports) > 0 {
+			reports = append(reports, report)
+			continue
+		}
+
+		// Try to split the last oversized resource by two until it fits
+		resourceIds := kindReports[0].GetResourceIds()
+		kindReportHead := &prehogv1.ResourceKindPresenceReport{
+			ResourceKind: kindReports[0].GetResourceKind(),
+			ResourceIds:  resourceIds[:len(resourceIds)/2],
+		}
+		kindReportTail := &prehogv1.ResourceKindPresenceReport{
+			ResourceKind: kindReports[0].GetResourceKind(),
+			ResourceIds:  resourceIds[len(resourceIds)/2:],
+		}
+
+		report.ResourceKindReports = []*prehogv1.ResourceKindPresenceReport{kindReportHead}
+
+		for proto.Size(report) > maxItemSize {
+			if len(kindReportHead.ResourceIds) < 1 {
+				return nil, trace.LimitExceeded("failed to marshal resource presence report within size limit (this is a bug)")
+			}
+			resourceIds = kindReportHead.GetResourceIds()
+			kindReportHead.ResourceIds = resourceIds[:len(resourceIds)/2]
+			kindReportTail.ResourceIds = append(resourceIds[len(resourceIds)/2:], kindReportTail.ResourceIds...)
+		}
+
+		kindReports[0] = kindReportTail
+		reports = append(reports, report)
+	}
+
+	return reports, nil
 }
 
 // reportService is a [backend.Backend] wrapper that handles usage reports.
@@ -150,8 +240,17 @@ func (r reportService) createUserActivityReportsLock(ctx context.Context, ttl ti
 	if len(payload) == 0 {
 		payload = []byte("null")
 	}
+	lockKey := backend.Key(userActivityReportsLock)
+	// HACK(espadolini): dynamodbbk doesn't let you Create over an expired item
+	// but it will explicitly delete expired items on a Get; in addition, reads
+	// are cheaper than writes in most backends, so we do a Get here first
+	if _, err := r.b.Get(ctx, lockKey); err == nil {
+		return trace.AlreadyExists(userActivityReportsLock + " already exists")
+	} else if !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
 	if _, err := r.b.Create(ctx, backend.Item{
-		Key:     backend.Key(userActivityReportsLock),
+		Key:     lockKey,
 		Value:   payload,
 		Expires: r.b.Clock().Now().UTC().Add(ttl),
 	}); err != nil {
@@ -159,4 +258,71 @@ func (r reportService) createUserActivityReportsLock(ctx context.Context, ttl ti
 	}
 
 	return nil
+}
+
+func (r reportService) upsertResourcePresenceReport(ctx context.Context, report *prehogv1.ResourcePresenceReport, ttl time.Duration) error {
+	wire, err := proto.Marshal(report)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	reportUUID, err := uuid.FromBytes(report.GetReportUuid())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	startTime := report.GetStartTime().AsTime()
+	if startTime.IsZero() {
+		return trace.BadParameter("missing start_time")
+	}
+
+	if _, err := r.b.Put(ctx, backend.Item{
+		Key:     resourcePresenceReportKey(reportUUID, startTime),
+		Value:   wire,
+		Expires: startTime.Add(ttl),
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func (r reportService) deleteResourcePresenceReport(ctx context.Context, report *prehogv1.ResourcePresenceReport) error {
+	reportUUID, err := uuid.FromBytes(report.GetReportUuid())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	startTime := report.GetStartTime().AsTime()
+	if startTime.IsZero() {
+		return trace.BadParameter("missing start_time")
+	}
+
+	if err := r.b.Delete(ctx, resourcePresenceReportKey(reportUUID, startTime)); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// listResourcePresenceReports returns the first `count` resource reports
+// according to the key order; as we store them with time and UUID in the key,
+// this results in returning earlier reports first.
+func (r reportService) listResourcePresenceReports(ctx context.Context, count int) ([]*prehogv1.ResourcePresenceReport, error) {
+	rangeStart := backend.ExactKey(ResourcePresenceReportsPrefix)
+	result, err := r.b.GetRange(ctx, rangeStart, backend.RangeEnd(rangeStart), count)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	reports := make([]*prehogv1.ResourcePresenceReport, 0, len(result.Items))
+	for _, item := range result.Items {
+		report := &prehogv1.ResourcePresenceReport{}
+		if err := proto.Unmarshal(item.Value, report); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		reports = append(reports, report)
+	}
+
+	return reports, nil
 }

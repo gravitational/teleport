@@ -7,7 +7,7 @@ description: Configure automatic user provisioning for MongoDB.
 
 - Teleport cluster v14.3 or above.
 - A self-hosted MongoDB database enrolled with your Teleport cluster. Follow
-  the [Teleport documentation](../guides/mongodb-self-hosted.mdx) to learn how
+  the [Teleport documentation](../enroll-self-hosted-databases/mongodb-self-hosted.mdx) to learn how
   to enroll your database.
 - Ability to connect to and create user accounts in the target database.
 
@@ -116,7 +116,13 @@ Users created within the database will:
 
 ## Step 3/3. Connect to the database
 
-(!docs/pages/includes/database-access/auto-user-provisioning/connect.mdx gui="MongoDB Compass"!)
+(!docs/pages/includes/database-access/auto-user-provisioning/connect.mdx gui="MongoDB Compass" selectRoles="myCustomRole@db2"!)
+
+## Troubleshooting
+
+### Use your mapped remote username error
+
+(!docs/pages/includes/database-access/auto-user-provisioning/troubleshooting-remote-username.mdx!)
 
 ## Next steps
 - Learn more about MongoDB [built-in roles](https://www.mongodb.com/docs/manual/reference/built-in-roles/) and [User-Defined Roles](https://www.mongodb.com/docs/manual/core/security-user-defined-roles/).

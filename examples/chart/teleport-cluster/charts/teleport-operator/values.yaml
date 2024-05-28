@@ -4,16 +4,28 @@
 # - When `false`, the chart creates the `CustomResourceDefinition` resources without the operator `Deployment`.
 enabled: true
 
-# authServer(string) -- is the address of the Teleport cluster whose resources are managed
-# by the operator. The address must contain both the domain name and the port of
-# the Teleport cluster. It can be either the address of the auth servers or the
-# proxy servers.
+# installCRDs(string) -- controls if the chart should install the CRDs.
+# There are 3 possible values: dynamic, always, never.
+#
+# - "dynamic" means the CRDs are installed if the operator is enabled or if
+#   the CRDs are already present in the cluster. The presence check is here to
+#   avoid all CRDs to be removed if you temporarily disable the operator.
+#   Removing CRDs triggers a cascading deletion, which removes CRs, and all the
+#   related resources in Teleport.
+# - "always" means the CRDs are always installed
+# - "never" means the CRDs are never installed
+installCRDs: "dynamic"
+
+# teleportAddress(string) -- is the address of the Teleport cluster whose resources
+# are managed by the operator. The address must contain both the domain name and
+# the port of the Teleport cluster. It can be either the address of the Auth Service
+# or the Proxy Service.
 #
 # For example:
 #   - joining a Proxy: `teleport.example.com:443` or `teleport.example.com:3080`
 #   - joining an Auth: `teleport-auth.example.com:3025`
 #   - joining a Cloud-hosted Teleport: `example.teleport.sh:443`
-authServer: ""
+teleportAddress: ""
 
 # caPins(list[string]) -- is a list of Teleport CA fingerprints that is used by the operator to
 # validate the identity of the Teleport Auth server. This is only used when joining
@@ -26,6 +38,11 @@ caPins: []
 # cluster again on each pod restart. To achieve this, it needs to use a delegated join
 # method. `kubernetes` is the most common one.
 joinMethod: "kubernetes"
+
+# teleportClusterName(string) -- is the name of the joined Teleport cluster.
+# Setting this value is required when joining via the
+# [Kubernetes JWKS](../../join-methods.mdx#kubernetes-jwks) join method.
+teleportClusterName: ""
 
 # token(string) -- is the name of the token used by the operator to join the Teleport cluster.
 token: ""
@@ -175,7 +192,8 @@ tls:
 # The default value supports running under the `restricted`
 # [Pod Security Standard](https://kubernetes.io/docs/concepts/security/pod-security-standards/).
 podSecurityContext:
-  seccompProfile: RuntimeDefault
+  seccompProfile:
+    type: RuntimeDefault
   runAsUser: 65532
   runAsGroup: 65532
   fsGroup: 65532

@@ -20,6 +20,7 @@ package daemon
 
 import (
 	"context"
+	"crypto/tls"
 	"os/exec"
 	"sync"
 	"time"
@@ -30,14 +31,20 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
+	dtauthn "github.com/gravitational/teleport/lib/devicetrust/authn"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/cmd"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	"github.com/gravitational/teleport/lib/teleterm/services/unifiedresources"
+	"github.com/gravitational/teleport/lib/teleterm/services/userpreferences"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/daemon"
 )
 
@@ -72,14 +79,24 @@ func New(cfg Config) (*Service, error) {
 
 	go connectUsageReporter.Run(closeContext)
 
-	return &Service{
+	service := &Service{
 		cfg:                    &cfg,
 		closeContext:           closeContext,
 		cancel:                 cancel,
 		gateways:               make(map[string]gateway.Gateway),
 		usageReporter:          connectUsageReporter,
 		headlessWatcherClosers: make(map[string]context.CancelFunc),
-	}, nil
+	}
+
+	// TODO(gzdunek): The client cache should be created outside of daemon.New.
+	// Unfortunately, we have to do it here, because we need to pass
+	// Daemon.ResolveClusterURI as a cluster resolver.
+	// Why can't we pass Storage.GetByResourceURI?
+	// That's because Daemon.ResolveClusterURI sets a custom MFAPromptConstructor that
+	// shows an MFA prompt in Connect.
+	// At the level of Storage.ResolveClusterFunc we don't have access to it.
+	service.clientCache = cfg.CreateClientCacheFunc(service.ResolveClusterURI)
+	return service, nil
 }
 
 // relogin makes the Electron app display a login modal to trigger re-login.
@@ -156,12 +173,17 @@ func (s *Service) ListLeafClusters(ctx context.Context, uri string) ([]clusters.
 		return nil, trace.Wrap(err)
 	}
 
+	clusterClient, err := s.GetCachedClient(ctx, cluster.URI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// leaf cluster cannot have own leaves
 	if cluster.URI.GetLeafClusterName() != "" {
 		return nil, nil
 	}
 
-	leaves, err := cluster.GetLeafClusters(ctx)
+	leaves, err := cluster.GetLeafClusters(ctx, clusterClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -224,6 +246,8 @@ func (s *Service) ResolveClusterURI(uri uri.ResourceURI) (*clusters.Cluster, *cl
 		return nil, nil, trace.Wrap(err)
 	}
 
+	// Custom MFAPromptConstructor gets removed during the calls to Login and LoginPasswordless RPCs.
+	// Those RPCs assume that the default CLI prompt is in use.
 	clusterClient.MFAPromptConstructor = s.NewMFAPromptConstructor(cluster.URI.String())
 	return cluster, clusterClient, nil
 }
@@ -236,7 +260,12 @@ func (s *Service) ResolveClusterWithDetails(ctx context.Context, uri string) (*c
 		return nil, nil, trace.Wrap(err)
 	}
 
-	withDetails, err := cluster.GetWithDetails(ctx)
+	proxyClient, err := s.GetCachedClient(ctx, cluster.URI)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	withDetails, err := cluster.GetWithDetails(ctx, proxyClient.CurrentCluster())
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -259,7 +288,7 @@ func (s *Service) ClusterLogout(ctx context.Context, uri string) error {
 		return trace.Wrap(err)
 	}
 
-	return nil
+	return trace.Wrap(s.ClearCachedClientsForRoot(cluster.URI))
 }
 
 // CreateGateway creates a gateway to given targetURI
@@ -290,6 +319,11 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 		return gateway, nil
 	}
 
+	clusterClient, err := s.GetCachedClient(ctx, targetURI.GetClusterURI())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	clusterCreateGatewayParams := clusters.CreateGatewayParams{
 		TargetURI:             targetURI,
 		TargetUser:            params.TargetUser,
@@ -297,6 +331,8 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 		LocalPort:             params.LocalPort,
 		OnExpiredCert:         s.reissueGatewayCerts,
 		KubeconfigsDir:        s.cfg.KubeconfigsDir,
+		MFAPromptConstructor:  s.NewMFAPromptConstructor(targetURI.String()),
+		ClusterClient:         clusterClient,
 	}
 
 	gateway, err := s.cfg.GatewayCreator.CreateGateway(ctx, clusterCreateGatewayParams)
@@ -315,8 +351,9 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 	return gateway, nil
 }
 
-// reissueGatewayCerts tries to reissue gateway certs.
-func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) error {
+// reissueGatewayCerts tries to reissue gateway certs. It handles asking the user to relogin and
+// per-session MFA checks.
+func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) (tls.Certificate, error) {
 	reloginReq := &api.ReloginRequest{
 		RootClusterUri: g.TargetURI().GetClusterURI().String(),
 		Reason: &api.ReloginRequest_GatewayCertExpired{
@@ -327,17 +364,24 @@ func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) er
 		},
 	}
 
-	reissueDBCerts := func() error {
+	var cert tls.Certificate
+
+	reissueGatewayCerts := func() error {
 		cluster, _, err := s.ResolveClusterURI(g.TargetURI())
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		if err := cluster.ReissueGatewayCerts(ctx, g); err != nil {
+		clusterClient, err := s.GetCachedClient(ctx, cluster.URI)
+		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		return trace.Wrap(g.ReloadCert())
+		cert, err = cluster.ReissueGatewayCerts(ctx, clusterClient, g)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
 	}
 
 	// If the gateway certs have expired but the user cert is active,
@@ -346,7 +390,7 @@ func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) er
 	// This can happen if the user cert was refreshed by anything other than the gateway itself. For
 	// example, if you execute `tsh ssh` within Connect after your user cert expires or there are two
 	// gateways that subsequently go through this flow.
-	if err := s.retryWithRelogin(ctx, reloginReq, reissueDBCerts); err != nil {
+	if err := s.retryWithRelogin(ctx, reloginReq, reissueGatewayCerts); err != nil {
 		notifyErr := s.notifyApp(ctx, &api.SendNotificationRequest{
 			Subject: &api.SendNotificationRequest_CannotProxyGatewayConnection{
 				CannotProxyGatewayConnection: &api.CannotProxyGatewayConnection{
@@ -361,10 +405,10 @@ func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) er
 		}
 
 		// Return the error to the alpn.LocalProxy's middleware.
-		return trace.Wrap(err)
+		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	return nil
+	return cert, nil
 }
 
 // RemoveGateway removes cluster gateway
@@ -420,24 +464,28 @@ func (s *Service) ListGateways() []gateway.Gateway {
 }
 
 // GetGatewayCLICommand creates the CLI command used for the provided gateway.
-func (s *Service) GetGatewayCLICommand(gateway gateway.Gateway) (*exec.Cmd, error) {
+func (s *Service) GetGatewayCLICommand(gateway gateway.Gateway) (cmd.Cmds, error) {
 	targetURI := gateway.TargetURI()
 	switch {
 	case targetURI.IsDB():
 		cluster, _, err := s.cfg.Storage.GetByResourceURI(targetURI)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return cmd.Cmds{}, trace.Wrap(err)
 		}
 
-		cmd, err := cmd.NewDBCLICommand(cluster, gateway)
-		return cmd, trace.Wrap(err)
+		cmds, err := cmd.NewDBCLICommand(cluster, gateway)
+		return cmds, trace.Wrap(err)
 
 	case targetURI.IsKube():
-		cmd, err := cmd.NewKubeCLICommand(gateway)
-		return cmd, trace.Wrap(err)
+		cmds, err := cmd.NewKubeCLICommand(gateway)
+		return cmds, trace.Wrap(err)
+
+	case targetURI.IsApp():
+		blankCmd := exec.Command("")
+		return cmd.Cmds{Exec: blankCmd, Preview: blankCmd}, nil
 
 	default:
-		return nil, trace.NotImplemented("gateway not supported for %v", targetURI)
+		return cmd.Cmds{}, trace.NotImplemented("gateway not supported for %v", targetURI)
 	}
 }
 
@@ -517,7 +565,12 @@ func (s *Service) GetServers(ctx context.Context, req *api.GetServersRequest) (*
 		return nil, trace.Wrap(err)
 	}
 
-	response, err := cluster.GetServers(ctx, req)
+	proxyClient, err := s.GetCachedClient(ctx, cluster.URI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response, err := cluster.GetServers(ctx, req, proxyClient.CurrentCluster())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -531,7 +584,12 @@ func (s *Service) GetRequestableRoles(ctx context.Context, req *api.GetRequestab
 		return nil, trace.Wrap(err)
 	}
 
-	response, err := cluster.GetRequestableRoles(ctx, req)
+	proxyClient, err := s.GetCachedClient(ctx, cluster.URI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response, err := cluster.GetRequestableRoles(ctx, req, proxyClient.CurrentCluster())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -542,13 +600,70 @@ func (s *Service) GetRequestableRoles(ctx context.Context, req *api.GetRequestab
 	}, nil
 }
 
+// PromoteAccessRequest promotes an access request to an access list.
+func (s *Service) PromoteAccessRequest(ctx context.Context, rootClusterURI uri.ResourceURI, req *accesslistv1.AccessRequestPromoteRequest) (*clusters.AccessRequest, error) {
+	cluster, _, err := s.ResolveClusterURI(rootClusterURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	proxyClient, err := s.GetCachedClient(ctx, cluster.URI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var response *clusters.AccessRequest
+	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		promoteResponse, err := proxyClient.CurrentCluster().AccessListClient().AccessRequestPromote(ctx, req)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		accessRequest := promoteResponse.AccessRequest
+		response = &clusters.AccessRequest{
+			URI:           cluster.URI.AppendAccessRequest(accessRequest.GetName()),
+			AccessRequest: accessRequest,
+		}
+		return nil
+	})
+
+	return response, trace.Wrap(err)
+}
+
+// GetSuggestedAccessLists returns suggested access lists for an access request.
+func (s *Service) GetSuggestedAccessLists(ctx context.Context, rootClusterURI uri.ResourceURI, accessRequestID string) ([]*accesslist.AccessList, error) {
+	proxyClient, err := s.GetCachedClient(ctx, rootClusterURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var response []*accesslist.AccessList
+	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		authClient := proxyClient.CurrentCluster()
+
+		accessLists, err := authClient.AccessListClient().GetSuggestedAccessLists(ctx, accessRequestID)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		response = accessLists
+		return nil
+	})
+
+	return response, trace.Wrap(err)
+}
+
 // GetAccessRequests returns all access requests with filtered input
 func (s *Service) GetAccessRequests(ctx context.Context, req *api.GetAccessRequestsRequest) ([]clusters.AccessRequest, error) {
 	cluster, _, err := s.ResolveCluster(req.ClusterUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	response, err := cluster.GetAccessRequests(ctx, types.AccessRequestFilter{})
+
+	proxyClient, err := s.GetCachedClient(ctx, cluster.URI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response, err := cluster.GetAccessRequests(ctx, proxyClient.CurrentCluster(), types.AccessRequestFilter{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -567,7 +682,12 @@ func (s *Service) GetAccessRequest(ctx context.Context, req *api.GetAccessReques
 		return nil, trace.Wrap(err)
 	}
 
-	response, err := cluster.GetAccessRequest(ctx, types.AccessRequestFilter{
+	proxyClient, err := s.GetCachedClient(ctx, cluster.URI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response, err := cluster.GetAccessRequest(ctx, proxyClient.CurrentCluster(), types.AccessRequestFilter{
 		ID: req.AccessRequestId,
 	})
 	if err != nil {
@@ -583,7 +703,13 @@ func (s *Service) CreateAccessRequest(ctx context.Context, req *api.CreateAccess
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	request, err := cluster.CreateAccessRequest(ctx, req)
+
+	proxyClient, err := s.GetCachedClient(ctx, cluster.URI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	request, err := cluster.CreateAccessRequest(ctx, proxyClient.CurrentCluster(), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -596,7 +722,13 @@ func (s *Service) ReviewAccessRequest(ctx context.Context, req *api.ReviewAccess
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	response, err := cluster.ReviewAccessRequest(ctx, req)
+
+	proxyClient, err := s.GetCachedClient(ctx, cluster.URI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response, err := cluster.ReviewAccessRequest(ctx, proxyClient.CurrentCluster(), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -614,12 +746,12 @@ func (s *Service) DeleteAccessRequest(ctx context.Context, req *api.DeleteAccess
 		return trace.Wrap(err)
 	}
 
-	err = cluster.DeleteAccessRequest(ctx, req)
+	proxyClient, err := s.GetCachedClient(ctx, cluster.URI)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return nil
+	return trace.Wrap(cluster.DeleteAccessRequest(ctx, proxyClient.CurrentCluster(), req))
 }
 
 func (s *Service) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) error {
@@ -628,12 +760,17 @@ func (s *Service) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) er
 		return trace.Wrap(err)
 	}
 
-	err = cluster.AssumeRole(ctx, req)
+	proxyClient, err := s.GetCachedClient(ctx, cluster.URI)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return nil
+	if err := cluster.AssumeRole(ctx, proxyClient, req); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// We have to reconnect using the updated cert.
+	return trace.Wrap(s.ClearCachedClientsForRoot(cluster.URI))
 }
 
 // GetKubes accepts parameterized input to enable searching, sorting, and pagination.
@@ -643,7 +780,12 @@ func (s *Service) GetKubes(ctx context.Context, req *api.GetKubesRequest) (*clus
 		return nil, trace.Wrap(err)
 	}
 
-	response, err := cluster.GetKubes(ctx, req)
+	proxyClient, err := s.GetCachedClient(ctx, cluster.URI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response, err := cluster.GetKubes(ctx, proxyClient.CurrentCluster(), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -672,6 +814,10 @@ func (s *Service) Stop() {
 	}
 
 	s.StopHeadlessWatchers()
+
+	if err := s.clientCache.Clear(); err != nil {
+		s.cfg.Log.WithError(err).Error("Failed to close remote clients")
+	}
 
 	timeoutCtx, cancel := context.WithTimeout(s.closeContext, time.Second*10)
 	defer cancel()
@@ -741,25 +887,19 @@ func (s *Service) TransferFile(ctx context.Context, request *api.FileTransferReq
 // teleport.dev/connect-my-computer/owner: <cluster user> and allows logging in to those nodes as
 // the current system user.
 func (s *Service) CreateConnectMyComputerRole(ctx context.Context, req *api.CreateConnectMyComputerRoleRequest) (*api.CreateConnectMyComputerRoleResponse, error) {
-	cluster, clusterClient, err := s.ResolveCluster(req.RootClusterUri)
+	cluster, _, err := s.ResolveCluster(req.RootClusterUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	proxyClient, err := s.GetCachedClient(ctx, cluster.URI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	response := &api.CreateConnectMyComputerRoleResponse{}
 	err = clusters.AddMetadataToRetryableError(ctx, func() error {
-		proxyClient, err := clusterClient.ConnectToProxy(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer proxyClient.Close()
-
-		authClient, err := proxyClient.ConnectToCluster(ctx, clusterClient.SiteName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer authClient.Close()
-
-		result, err := s.cfg.ConnectMyComputerRoleSetup.Run(ctx, authClient, proxyClient, cluster)
+		result, err := s.cfg.ConnectMyComputerRoleSetup.Run(ctx, proxyClient.CurrentCluster(), proxyClient, cluster)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -772,25 +912,19 @@ func (s *Service) CreateConnectMyComputerRole(ctx context.Context, req *api.Crea
 
 // CreateConnectMyComputerNodeToken creates a node join token that is valid for 5 minutes.
 func (s *Service) CreateConnectMyComputerNodeToken(ctx context.Context, rootClusterUri string) (string, error) {
-	cluster, clusterClient, err := s.ResolveCluster(rootClusterUri)
+	cluster, _, err := s.ResolveCluster(rootClusterUri)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
+
+	proxyClient, err := s.GetCachedClient(ctx, cluster.URI)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
 	var nodeToken string
 	err = clusters.AddMetadataToRetryableError(ctx, func() error {
-		proxyClient, err := clusterClient.ConnectToProxy(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer proxyClient.Close()
-
-		authClient, err := proxyClient.ConnectToCluster(ctx, clusterClient.SiteName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer authClient.Close()
-
-		nodeToken, err = s.cfg.ConnectMyComputerTokenProvisioner.CreateNodeToken(ctx, authClient, cluster)
+		nodeToken, err = s.cfg.ConnectMyComputerTokenProvisioner.CreateNodeToken(ctx, proxyClient.CurrentCluster(), cluster)
 		return trace.Wrap(err)
 	})
 
@@ -799,24 +933,18 @@ func (s *Service) CreateConnectMyComputerNodeToken(ctx context.Context, rootClus
 
 // DeleteConnectMyComputerNode deletes the Connect My Computer node.
 func (s *Service) DeleteConnectMyComputerNode(ctx context.Context, req *api.DeleteConnectMyComputerNodeRequest) (*api.DeleteConnectMyComputerNodeResponse, error) {
-	cluster, clusterClient, err := s.ResolveCluster(req.GetRootClusterUri())
+	cluster, _, err := s.ResolveCluster(req.GetRootClusterUri())
 	if err != nil {
 		return &api.DeleteConnectMyComputerNodeResponse{}, trace.Wrap(err)
 	}
+
+	proxyClient, err := s.GetCachedClient(ctx, cluster.URI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	err = clusters.AddMetadataToRetryableError(ctx, func() error {
-		proxyClient, err := clusterClient.ConnectToProxy(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer proxyClient.Close()
-
-		authClient, err := proxyClient.ConnectToCluster(ctx, clusterClient.SiteName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer authClient.Close()
-
-		err = s.cfg.ConnectMyComputerNodeDelete.Run(ctx, authClient, cluster)
+		err = s.cfg.ConnectMyComputerNodeDelete.Run(ctx, proxyClient.CurrentCluster(), cluster)
 		return trace.Wrap(err)
 	})
 
@@ -834,56 +962,22 @@ func (s *Service) GetConnectMyComputerNodeName(req *api.GetConnectMyComputerNode
 	return &api.GetConnectMyComputerNodeNameResponse{Name: uuid}, trace.Wrap(err)
 }
 
-// DeleteConnectMyComputerToken deletes a join token.
-func (s *Service) DeleteConnectMyComputerToken(ctx context.Context, req *api.DeleteConnectMyComputerTokenRequest) (*api.DeleteConnectMyComputerTokenResponse, error) {
-	_, clusterClient, err := s.ResolveCluster(req.RootClusterUri)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	response := &api.DeleteConnectMyComputerTokenResponse{}
-	err = clusters.AddMetadataToRetryableError(ctx, func() error {
-		proxyClient, err := clusterClient.ConnectToProxy(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer proxyClient.Close()
-
-		authClient, err := proxyClient.ConnectToCluster(ctx, clusterClient.SiteName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer authClient.Close()
-
-		err = s.cfg.ConnectMyComputerTokenProvisioner.DeleteToken(ctx, authClient, req.Token)
-		return trace.Wrap(err)
-	})
-
-	return response, trace.Wrap(err)
-}
-
 // WaitForConnectMyComputerNodeJoin returns a response only after detecting that a Connect My
 // Computer node for the given cluster has joined the cluster.
 func (s *Service) WaitForConnectMyComputerNodeJoin(ctx context.Context, rootClusterURI uri.ResourceURI) (clusters.Server, error) {
-	cluster, clusterClient, err := s.ResolveClusterURI(rootClusterURI)
+	cluster, _, err := s.ResolveClusterURI(rootClusterURI)
+	if err != nil {
+		return clusters.Server{}, trace.Wrap(err)
+	}
+
+	proxyClient, err := s.GetCachedClient(ctx, cluster.URI)
 	if err != nil {
 		return clusters.Server{}, trace.Wrap(err)
 	}
 
 	var server clusters.Server
 	err = clusters.AddMetadataToRetryableError(ctx, func() error {
-		proxyClient, err := clusterClient.ConnectToProxy(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer proxyClient.Close()
-
-		authClient, err := proxyClient.ConnectToCluster(ctx, clusterClient.SiteName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer authClient.Close()
-
-		server, err = s.cfg.ConnectMyComputerNodeJoinWait.Run(ctx, authClient, cluster)
+		server, err = s.cfg.ConnectMyComputerNodeJoinWait.Run(ctx, proxyClient.CurrentCluster(), cluster)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -896,7 +990,12 @@ func (s *Service) WaitForConnectMyComputerNodeJoin(ctx context.Context, rootClus
 
 // ListUnifiedResources returns resources for the given cluster and search params.
 func (s *Service) ListUnifiedResources(ctx context.Context, clusterURI uri.ResourceURI, req *proto.ListUnifiedResourcesRequest) (*unifiedresources.ListResponse, error) {
-	cluster, clusterClient, err := s.ResolveClusterURI(clusterURI)
+	cluster, _, err := s.ResolveClusterURI(clusterURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	proxyClient, err := s.GetCachedClient(ctx, clusterURI)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -904,19 +1003,7 @@ func (s *Service) ListUnifiedResources(ctx context.Context, clusterURI uri.Resou
 	var resources *unifiedresources.ListResponse
 
 	err = clusters.AddMetadataToRetryableError(ctx, func() error {
-		proxyClient, err := clusterClient.ConnectToProxy(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer proxyClient.Close()
-
-		authClient, err := proxyClient.ConnectToCluster(ctx, clusterClient.SiteName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer authClient.Close()
-
-		resources, err = unifiedresources.List(ctx, cluster, authClient, req)
+		resources, err = unifiedresources.List(ctx, cluster, proxyClient.CurrentCluster(), req)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -925,6 +1012,90 @@ func (s *Service) ListUnifiedResources(ctx context.Context, clusterURI uri.Resou
 	})
 
 	return resources, trace.Wrap(err)
+}
+
+// GetUserPreferences returns the preferences for a given user.
+func (s *Service) GetUserPreferences(ctx context.Context, clusterURI uri.ResourceURI) (*api.UserPreferences, error) {
+	rootProxyClient, err := s.GetCachedClient(ctx, clusterURI.GetRootClusterURI())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var preferences *api.UserPreferences
+
+	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		rootAuthClient := rootProxyClient.CurrentCluster()
+
+		var leafAuthClient authclient.ClientI
+		if clusterURI.IsLeaf() {
+			leafProxyClient, err := s.GetCachedClient(ctx, clusterURI.GetClusterURI())
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			leafAuthClient = leafProxyClient.CurrentCluster()
+		}
+
+		preferences, err = userpreferences.Get(ctx, rootAuthClient, leafAuthClient)
+		return trace.Wrap(err)
+	})
+
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return preferences, nil
+}
+
+// UpdateUserPreferences updates the preferences for a given user.
+func (s *Service) UpdateUserPreferences(ctx context.Context, clusterURI uri.ResourceURI, newPreferences *api.UserPreferences) (*api.UserPreferences, error) {
+	rootProxyClient, err := s.GetCachedClient(ctx, clusterURI.GetRootClusterURI())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var preferences *api.UserPreferences
+
+	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		rootAuthClient := rootProxyClient.CurrentCluster()
+
+		var leafAuthClient authclient.ClientI
+		if clusterURI.IsLeaf() {
+			leafProxyClient, err := s.GetCachedClient(ctx, clusterURI.GetClusterURI())
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			leafAuthClient = leafProxyClient.CurrentCluster()
+		}
+
+		preferences, err = userpreferences.Update(ctx, rootAuthClient, leafAuthClient, newPreferences)
+		return trace.Wrap(err)
+	})
+
+	return preferences, trace.Wrap(err)
+}
+
+// AuthenticateWebDevice is used to upgrade a web session (identified by a DeviceWebToken) to include device trust extensions.
+func (s *Service) AuthenticateWebDevice(ctx context.Context, rootClusterURI uri.ResourceURI, req *api.AuthenticateWebDeviceRequest) (*api.AuthenticateWebDeviceResponse, error) {
+	proxyClient, err := s.GetCachedClient(ctx, rootClusterURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	devicesClient := proxyClient.CurrentCluster().DevicesClient()
+
+	ceremony := dtauthn.NewCeremony()
+	confirmationToken, err := ceremony.RunWeb(ctx, devicesClient, &devicepb.DeviceWebToken{
+		Id:    req.DeviceWebToken.Id,
+		Token: req.DeviceWebToken.Token,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &api.AuthenticateWebDeviceResponse{
+		ConfirmationToken: confirmationToken,
+	}, nil
 }
 
 func (s *Service) shouldReuseGateway(targetURI uri.ResourceURI) (gateway.Gateway, bool) {
@@ -943,6 +1114,19 @@ func (s *Service) findGatewayByTargetURI(targetURI uri.ResourceURI) (gateway.Gat
 		}
 	}
 	return nil, false
+}
+
+// GetCachedClient returns a client from the cache if it exists,
+// otherwise it dials the remote server.
+func (s *Service) GetCachedClient(ctx context.Context, clusterURI uri.ResourceURI) (*client.ClusterClient, error) {
+	clt, err := s.clientCache.Get(ctx, clusterURI)
+	return clt, trace.Wrap(err)
+}
+
+// ClearCachedClientsForRoot closes and removes clients from the cache
+// for the root cluster and its leaf clusters.
+func (s *Service) ClearCachedClientsForRoot(clusterURI uri.ResourceURI) error {
+	return trace.Wrap(s.clientCache.ClearForRoot(clusterURI))
 }
 
 // Service is the daemon service
@@ -977,6 +1161,7 @@ type Service struct {
 	// headlessWatcherClosers holds a map of root cluster URIs to headless watchers.
 	headlessWatcherClosers   map[string]context.CancelFunc
 	headlessWatcherClosersMu sync.Mutex
+	clientCache              ClientCache
 }
 
 type CreateGatewayParams struct {

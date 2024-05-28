@@ -57,7 +57,7 @@ export function ConnectionDiagnosticResult({
   } else if (attempt.status === 'success' && diagnosis?.success) {
     $diagnosisStateComponent = (
       <TextIcon>
-        <Icons.CircleCheck size="medium" ml={1} mr={1} color="success" />
+        <Icons.CircleCheck size="medium" ml={1} mr={1} color="success.main" />
         Testing complete
       </TextIcon>
     );
@@ -120,7 +120,11 @@ export function ConnectionDiagnosticResult({
                 if (trace.status === 'success') {
                   return (
                     <TextIcon key={index}>
-                      <Icons.CircleCheck size="medium" color="success" mr={1} />
+                      <Icons.CircleCheck
+                        size="medium"
+                        color="success.main"
+                        mr={1}
+                      />
                       {trace.details}
                     </TextIcon>
                   );
@@ -155,17 +159,26 @@ export const ErrorWithDetails = ({
     <TextIcon>
       <Icons.CircleCross size="medium" mr={1} color="error.main" />
       <div>
-        <div>{details}</div>
+        <TextWithLineBreaksPreserved>{details}</TextWithLineBreaksPreserved>
         <div>
           <ButtonShowMore onClick={() => setShowMore(p => !p)}>
             {showMore ? 'Hide' : 'Click for extra'} details
           </ButtonShowMore>
-          {showMore && <div>{error}</div>}
+          {showMore && (
+            <TextWithLineBreaksPreserved>{error}</TextWithLineBreaksPreserved>
+          )}
         </div>
       </div>
     </TextIcon>
   );
 };
+
+/**
+ * Preserves line breaks in traces returned from connection diagnostic.
+ */
+const TextWithLineBreaksPreserved = styled(Text)`
+  white-space: pre-wrap;
+`;
 
 const ButtonShowMore = styled(ButtonText)`
   min-height: auto;

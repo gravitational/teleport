@@ -63,8 +63,11 @@ message BotSpec {
 // Fields that are set by the server as results of operations. These should not
 // be modified by users.
 message BotStatus {
+  reserved 2;
+  reserved "role_role";
+
   // The name of the user associated with the bot.
   string user_name = 1;
   // The name of the role associated with the bot.
-  string role_role = 2;
+  string role_name = 3;
 }

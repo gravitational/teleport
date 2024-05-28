@@ -16,12 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { z } from 'zod';
 import { useStore } from 'shared/libs/stores';
 import { arrayObjectIsEqual } from 'shared/utils/highbar';
 
-/* eslint-disable @typescript-eslint/ban-ts-comment*/
-// @ts-ignore
-import { ResourceKind } from 'e-teleport/Workflow/NewRequest/useNewRequest';
+import {
+  DefaultTab,
+  LabelsViewMode,
+  UnifiedResourcePreferences,
+  ViewMode,
+} from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 
 import { ModalsService } from 'teleterm/ui/services/modals';
 import { ClustersService } from 'teleterm/ui/services/clusters';
@@ -42,17 +46,40 @@ import {
 import {
   AccessRequestsService,
   getEmptyPendingAccessRequest,
+  PendingAccessRequest,
 } from './accessRequestsService';
 
 import {
   Document,
   DocumentsService,
   getDefaultDocumentClusterQueryParams,
+  DocumentCluster,
+  DocumentGateway,
+  DocumentTshKube,
+  DocumentTshNode,
 } from './documentsService';
 
 export interface WorkspacesState {
   rootClusterUri?: RootClusterUri;
   workspaces: Record<RootClusterUri, Workspace>;
+  /**
+   * isInitialized signifies whether WorkspacesState has finished state restoration during the start
+   * of the app. It is useful in places that want to wait for the state to be restored before
+   * proceeding.
+   *
+   * If during the previous start of the app the user was logged into a workspace which cert has
+   * since expired, isInitialized will be set to true only _after_ the user logs in to that
+   * workspace (or closes the login modal).
+   *
+   * This field is not persisted to disk.
+   *
+   * Side note: Arguably, depending on the use case, the moment isInitialized is set to true could
+   * be changed to happen right before the modal is shown. Ultimately, the thing that interests us
+   * the most is whether the state from disk was loaded into memory. Maybe in the future we will
+   * need to separate values or an enum.
+   *
+   */
+  isInitialized: boolean;
 }
 
 export interface Workspace {
@@ -66,6 +93,7 @@ export interface Workspace {
   connectMyComputer?: {
     autoStart: boolean;
   };
+  unifiedResourcePreferences?: UnifiedResourcePreferences;
   previous?: {
     documents: Document[];
     location: DocumentUri;
@@ -81,6 +109,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
   state: WorkspacesState = {
     rootClusterUri: undefined,
     workspaces: {},
+    isInitialized: false,
   };
 
   constructor(
@@ -159,6 +188,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
       this.accessRequestsServicesCache.set(
         clusterUri,
         new AccessRequestsService(
+          this.modalsService,
           () => {
             return this.state.workspaces[clusterUri].accessRequests;
           },
@@ -214,6 +244,22 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     this.setState(draftState => {
       delete draftState.workspaces[rootClusterUri].connectMyComputer;
     });
+  }
+
+  setUnifiedResourcePreferences(
+    rootClusterUri: RootClusterUri,
+    preferences: UnifiedResourcePreferences
+  ): void {
+    this.setState(draftState => {
+      draftState.workspaces[rootClusterUri].unifiedResourcePreferences =
+        preferences;
+    });
+  }
+
+  getUnifiedResourcePreferences(
+    rootClusterUri: RootClusterUri
+  ): UnifiedResourcePreferences | undefined {
+    return this.state.workspaces[rootClusterUri].unifiedResourcePreferences;
   }
 
   /**
@@ -360,6 +406,9 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
               }
             : undefined,
           connectMyComputer: persistedWorkspace?.connectMyComputer,
+          unifiedResourcePreferences: this.parseUnifiedResourcePreferences(
+            persistedWorkspace?.unifiedResourcePreferences
+          ),
         };
         return workspaces;
       }, {});
@@ -370,6 +419,22 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
 
     if (persistedState.rootClusterUri) {
       await this.setActiveWorkspace(persistedState.rootClusterUri);
+    }
+
+    this.setState(draft => {
+      draft.isInitialized = true;
+    });
+  }
+
+  // TODO(gzdunek): Parse the entire workspace state read from disk like below.
+  private parseUnifiedResourcePreferences(
+    unifiedResourcePreferences: unknown
+    // TODO(gzdunek): DELETE IN 16.0.0. See comment in useUserPreferences.ts.
+  ): Partial<UnifiedResourcePreferences> | undefined {
+    try {
+      return unifiedResourcePreferencesSchema.parse(unifiedResourcePreferences);
+    } catch (e) {
+      this.logger.error('Failed to parse unified resource preferences', e);
     }
   }
 
@@ -385,27 +450,29 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
           d.kind === 'doc.terminal_tsh_kube' ||
           d.kind === 'doc.terminal_tsh_node'
         ) {
-          return {
+          const documentTerminal: DocumentTshKube | DocumentTshNode = {
             ...d,
             status: 'connecting',
             origin: 'reopened_session',
           };
+          return documentTerminal;
         }
 
         if (d.kind === 'doc.gateway') {
-          return {
+          const documentGateway: DocumentGateway = {
             ...d,
             origin: 'reopened_session',
           };
+          return documentGateway;
         }
 
         if (d.kind === 'doc.cluster') {
           const defaultParams = getDefaultDocumentClusterQueryParams();
           // TODO(gzdunek): this should be parsed by a tool like zod
-          return {
+          const documentCluster: DocumentCluster = {
             ...d,
             queryParams: {
-              defaultParams,
+              ...defaultParams,
               ...d.queryParams,
               sort: {
                 ...defaultParams.sort,
@@ -413,6 +480,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
               },
             },
           };
+          return documentCluster;
         }
 
         return d;
@@ -476,12 +544,15 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
         location: workspace.previous?.location || workspace.location,
         documents: workspace.previous?.documents || workspace.documents,
         connectMyComputer: workspace.connectMyComputer,
+        unifiedResourcePreferences: workspace.unifiedResourcePreferences,
       };
     }
     this.statePersistenceService.saveWorkspacesState(stateToSave);
   }
 }
 
-export type PendingAccessRequest = {
-  [k in Exclude<ResourceKind, 'resource'>]: Record<string, string>;
-};
+const unifiedResourcePreferencesSchema = z.object({
+  defaultTab: z.nativeEnum(DefaultTab),
+  viewMode: z.nativeEnum(ViewMode),
+  labelsViewMode: z.nativeEnum(LabelsViewMode),
+});

@@ -48,27 +48,48 @@ type nativeImpl struct {
 // could change during program invocation.
 // Client will be always created, even if dll is missing on system.
 func newNativeImpl() *nativeImpl {
-	v, err := checkIfDLLExistsAndGetAPIVersionNumber()
+	n := &nativeImpl{
+		hasCompileSupport: true,
+	}
+
+	// Explicitly loading the module avoids a panic when calling DLL functions if
+	// the DLL is missing.
+	// https://github.com/gravitational/teleport/issues/36851
+	if err := modWebAuthn.Load(); err != nil {
+		log.
+			WithError(err).
+			Debug("WebAuthnWin: failed to load WebAuthn.dll (it's likely missing)")
+		return n
+	}
+	// Load WebAuthNGetApiVersionNumber explicitly too, it avoids a panic on some
+	// Windows Server 2019 installs.
+	if err := procWebAuthNGetApiVersionNumber.Find(); err != nil {
+		log.
+			WithError(err).
+			Debug("WebAuthnWin: failed to load WebAuthNGetApiVersionNumber")
+		return n
+	}
+
+	v, err := webAuthNGetApiVersionNumber()
 	if err != nil {
 		log.WithError(err).Debug("WebAuthnWin: failed to check version")
-		return &nativeImpl{
-			hasCompileSupport: true,
-			isAvailable:       false,
-		}
+		return n
 	}
-	uvPlatform, err := isUVPlatformAuthenticatorAvailable()
+	n.webauthnAPIVersion = v
+	n.isAvailable = v > 0
+
+	if !n.isAvailable {
+		return n
+	}
+
+	n.hasPlatformUV, err = isUVPlatformAuthenticatorAvailable()
 	if err != nil {
 		// This should not happen if dll exists, however we are fine with
 		// to proceed without uvPlatform.
 		log.WithError(err).Debug("WebAuthnWin: failed to check isUVPlatformAuthenticatorAvailable")
 	}
 
-	return &nativeImpl{
-		webauthnAPIVersion: v,
-		hasCompileSupport:  true,
-		hasPlatformUV:      uvPlatform,
-		isAvailable:        v > 0,
-	}
+	return n
 }
 
 func (n *nativeImpl) CheckSupport() CheckSupportResult {
@@ -174,13 +195,6 @@ func (n *nativeImpl) MakeCredential(origin string, in *makeCredentialRequest) (*
 			AttestationObject: bytesFromCBytes(out.cbAttestationObject, out.pbAttestationObject),
 		},
 	}, nil
-}
-
-// checkIfDLLExistsAndGetAPIVersionNumber checks if dll exists and tries to load
-// it's version via API call. This function makes sure to not panic if dll is
-// missing.
-func checkIfDLLExistsAndGetAPIVersionNumber() (int, error) {
-	return webAuthNGetApiVersionNumber()
 }
 
 func getErrorNameOrLastErr(in uintptr, lastError error) error {

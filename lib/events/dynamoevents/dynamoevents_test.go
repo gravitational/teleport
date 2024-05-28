@@ -39,6 +39,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/test"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -66,6 +67,7 @@ func setupDynamoContext(t *testing.T) *dynamoContext {
 		Tablename:    fmt.Sprintf("teleport-test-%v", uuid.New().String()),
 		Clock:        fakeClock,
 		UIDGenerator: utils.NewFakeUID(),
+		Endpoint:     "http://localhost:8000",
 	})
 	require.NoError(t, err)
 
@@ -431,6 +433,47 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 			err := test.config.CheckAndSetDefaults()
 			test.assertionFn(t, test.config, err)
 		})
+	}
+}
+
+// TestEmitSessionEventsSameIndex given events that share the same session ID
+// and index, the emit should succeed.
+func TestEmitSessionEventsSameIndex(t *testing.T) {
+	ctx := context.Background()
+	tt := setupDynamoContext(t)
+	sessionID := session.NewID()
+
+	require.NoError(t, tt.log.EmitAuditEvent(ctx, generateEvent(sessionID, 0, "")))
+	require.NoError(t, tt.log.EmitAuditEvent(ctx, generateEvent(sessionID, 1, "")))
+	require.NoError(t, tt.log.EmitAuditEvent(ctx, generateEvent(sessionID, 1, "")))
+}
+
+// TestValidationErrorsHandling given events that return validation
+// errors (large event size and already exists), the emit should handle them
+// and succeed on emitting the event when it does support trimming.
+func TestValidationErrorsHandling(t *testing.T) {
+	ctx := context.Background()
+	tt := setupDynamoContext(t)
+	sessionID := session.NewID()
+	largeQuery := strings.Repeat("A", maxItemSize)
+
+	// First write should only trigger the large event size
+	require.NoError(t, tt.log.EmitAuditEvent(ctx, generateEvent(sessionID, 0, largeQuery)))
+	// Second should trigger both errors.
+	require.NoError(t, tt.log.EmitAuditEvent(ctx, generateEvent(sessionID, 0, largeQuery)))
+}
+
+func generateEvent(sessionID session.ID, index int64, query string) apievents.AuditEvent {
+	return &apievents.DatabaseSessionQuery{
+		Metadata: apievents.Metadata{
+			Type:        events.DatabaseSessionQueryEvent,
+			ClusterName: "root",
+			Index:       index,
+		},
+		SessionMetadata: apievents.SessionMetadata{
+			SessionID: sessionID.String(),
+		},
+		DatabaseQuery: query,
 	}
 }
 

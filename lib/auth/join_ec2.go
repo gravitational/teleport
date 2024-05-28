@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -36,7 +37,6 @@ import (
 	"github.com/digitorus/pkcs7"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
@@ -84,7 +84,7 @@ func checkEC2AllowRules(ctx context.Context, iid *imds.InstanceIdentityDocument,
 		// iid matches this allow rule. Check if it is running.
 		return trace.Wrap(checkInstanceRunning(ctx, iid.InstanceID, iid.Region, rule.AWSRole))
 	}
-	return trace.AccessDenied("instance did not match any allow rules")
+	return trace.AccessDenied("instance %v did not match any allow rules in token %v", iid.InstanceID, provisionToken.GetName())
 }
 
 func checkInstanceRunning(ctx context.Context, instanceID, region, IAMRole string) error {

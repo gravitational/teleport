@@ -42,6 +42,8 @@ import (
 	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+
+	"github.com/gravitational/teleport/lib/fixtures"
 )
 
 // AKSAuthMethod defines the authentication method for AKS cluster.
@@ -348,7 +350,7 @@ func (c *aksClient) getAzureADCredentials(ctx context.Context, cluster ClusterCr
 		adminCredentialsErr = trace.WrapWithMessage(adminCredentialsErr, `Tried to grant access to %s/%s using aks.ListClusterAdminCredentials`, cluster.ResourceGroup, cluster.ResourceName)
 		// if the creation failed, then the agent will try to run a command to create them.
 		fallthrough
-	case err != nil:
+	default:
 		if runCMDErr = c.grantAccessWithCommand(ctx, cluster.ResourceGroup, cluster.ResourceName, cluster.TenantID, groupID); runCMDErr != nil {
 			return nil, time.Time{}, trace.Wrap(err)
 		}
@@ -360,7 +362,6 @@ func (c *aksClient) getAzureADCredentials(ctx context.Context, cluster ClusterCr
 		return nil, time.Time{}, trace.WrapWithMessage(trace.NewAggregate(adminCredentialsErr, runCMDErr), `Cannot grant access to %s/%s AKS cluster`, cluster.ResourceGroup, cluster.ResourceName)
 	}
 
-	return nil, time.Time{}, trace.NotImplemented("code shouldn't reach")
 }
 
 // getAdminCredentials returns the cluster admin credentials by calling ListClusterAdminCredentials method.
@@ -483,7 +484,7 @@ func (c *aksClient) grantAccessWithAdminCredentials(ctx context.Context, adminCf
 func (c *aksClient) upsertClusterRoleWithAdminCredentials(ctx context.Context, client *kubernetes.Clientset) error {
 	clusterRole := &v1.ClusterRole{}
 
-	if err := yaml.Unmarshal([]byte(clusterRoleTemplate), clusterRole); err != nil {
+	if err := yaml.Unmarshal([]byte(fixtures.KubeClusterRoleTemplate), clusterRole); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -509,7 +510,7 @@ func (c *aksClient) upsertClusterRoleWithAdminCredentials(ctx context.Context, c
 func (c *aksClient) upsertClusterRoleBindingWithAdminCredentials(ctx context.Context, client *kubernetes.Clientset, groupID string) error {
 	clusterRoleBinding := &v1.ClusterRoleBinding{}
 
-	if err := yaml.Unmarshal([]byte(clusterRoleBindingTemplate), clusterRoleBinding); err != nil {
+	if err := yaml.Unmarshal([]byte(fixtures.KubeClusterRoleBindingTemplate), clusterRoleBinding); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -664,50 +665,6 @@ func isAKSClusterRunning(properties *armcontainerservice.ManagedClusterPropertie
 	return false
 }
 
-const (
-	clusterRoleTemplate = `
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: teleport
-rules:
-- apiGroups:
-  - ""
-  resources:
-  - users
-  - groups
-  - serviceaccounts
-  verbs:
-  - impersonate
-- apiGroups:
-  - ""
-  resources:
-  - pods
-  verbs:
-  - get
-- apiGroups:
-  - "authorization.k8s.io"
-  resources:
-  - selfsubjectaccessreviews
-  - selfsubjectrulesreviews
-  verbs:
-  - create
-`
-	clusterRoleBindingTemplate = `
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: teleport
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: teleport
-subjects:
-- kind: Group
-  name: group_name
-  apiGroup: rbac.authorization.k8s.io`
-)
-
 // kubectlApplyString generates a kubectl apply command to create the ClusterRole
 // and ClusterRoleBinding.
 // cat <<EOF | kubectl apply -f -
@@ -766,5 +723,5 @@ func kubectlApplyString(group string) string {
 %s
 ---
 %s
-EOF`, clusterRoleTemplate, strings.ReplaceAll(clusterRoleBindingTemplate, "group_name", group))
+EOF`, fixtures.KubeClusterRoleTemplate, strings.ReplaceAll(fixtures.KubeClusterRoleBindingTemplate, "group_name", group))
 }

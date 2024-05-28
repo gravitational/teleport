@@ -32,11 +32,21 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	pgcommon "github.com/gravitational/teleport/lib/backend/pgbk/common"
 )
+
+func init() {
+	backend.MustRegister(Name, func(ctx context.Context, p backend.Params) (backend.Backend, error) {
+		return NewFromParams(ctx, p)
+	})
+	backend.MustRegister(AltName, func(ctx context.Context, p backend.Params) (backend.Backend, error) {
+		return NewFromParams(ctx, p)
+	})
+}
 
 const (
 	Name    = "postgresql"
@@ -162,7 +172,7 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	log := logrus.WithField(trace.Component, componentName)
+	log := logrus.WithField(teleport.ComponentKey, componentName)
 
 	if cfg.AuthMode == AzureADAuth {
 		bc, err := pgcommon.AzureBeforeConnect(log)
@@ -427,7 +437,6 @@ func (b *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
 				Key:      key,
 				Value:    value,
 				Expires:  expires.UTC(),
-				ID:       idFromRevision(revision),
 				Revision: revisionToString(revision),
 			}
 			return nil
@@ -481,7 +490,6 @@ func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 					Key:      key,
 					Value:    value,
 					Expires:  expires.UTC(),
-					ID:       idFromRevision(revision),
 					Revision: revisionToString(revision),
 				}, nil
 			})

@@ -19,11 +19,15 @@ package types
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types/compare"
 	"github.com/gravitational/teleport/api/utils"
 )
+
+var _ compare.IsEqual[UserGroup] = (*UserGroupV1)(nil)
 
 // UserGroup specifies an externally sourced group.
 type UserGroup interface {
@@ -90,6 +94,14 @@ func (g *UserGroupV1) CheckAndSetDefaults() error {
 	return nil
 }
 
+// IsEqual determines if two user group resources are equivalent to one another.
+func (g *UserGroupV1) IsEqual(i UserGroup) bool {
+	if other, ok := i.(*UserGroupV1); ok {
+		return deriveTeleportEqualUserGroupV1(g, other)
+	}
+	return false
+}
+
 // UserGroups is a list of UserGroup resources.
 type UserGroups []UserGroup
 
@@ -112,11 +124,37 @@ func (g UserGroups) SortByCustom(sortBy SortBy) error {
 	switch sortBy.Field {
 	case ResourceMetadataName:
 		sort.SliceStable(g, func(i, j int) bool {
-			return stringCompare(g[i].GetName(), g[j].GetName(), isDesc)
+			groupA := g[i]
+			groupB := g[j]
+
+			groupAName := FriendlyName(groupA)
+			groupBName := FriendlyName(groupB)
+
+			if groupAName == "" {
+				groupAName = groupA.GetName()
+			}
+			if groupBName == "" {
+				groupBName = groupB.GetName()
+			}
+
+			return stringCompare(strings.ToLower(groupAName), strings.ToLower(groupBName), isDesc)
 		})
 	case ResourceSpecDescription:
 		sort.SliceStable(g, func(i, j int) bool {
-			return stringCompare(g[i].GetMetadata().Description, g[j].GetMetadata().Description, isDesc)
+			groupA := g[i]
+			groupB := g[j]
+
+			groupADescription := groupA.GetMetadata().Description
+			groupBDescription := groupB.GetMetadata().Description
+
+			if oktaDescription, ok := groupA.GetLabel(OktaGroupDescriptionLabel); ok {
+				groupADescription = oktaDescription
+			}
+			if oktaDescription, ok := groupB.GetLabel(OktaGroupDescriptionLabel); ok {
+				groupBDescription = oktaDescription
+			}
+
+			return stringCompare(strings.ToLower(groupADescription), strings.ToLower(groupBDescription), isDesc)
 		})
 
 	default:

@@ -23,6 +23,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/opensearchservice"
+	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/rds/rdsiface"
 	"github.com/aws/aws-sdk-go/service/redshiftserverless/redshiftserverlessiface"
 	"github.com/gravitational/trace"
@@ -31,7 +32,7 @@ import (
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/cloud"
 	cloudaws "github.com/gravitational/teleport/lib/cloud/aws"
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
 func (c *urlChecker) checkAWS(describeCheck, basicEndpointCheck checkDatabaseFunc) checkDatabaseFunc {
@@ -100,7 +101,7 @@ func (c *urlChecker) checkRDSCluster(ctx context.Context, database types.Databas
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	databases, err := services.NewDatabasesFromRDSCluster(rdsCluster)
+	databases, err := common.NewDatabasesFromRDSCluster(rdsCluster, []*rds.DBInstance{})
 	if err != nil {
 		c.log.Warnf("Could not convert RDS cluster %q to database resources: %v.",
 			aws.StringValue(rdsCluster.DBClusterIdentifier), err)
@@ -210,7 +211,7 @@ func (c *urlChecker) checkElastiCache(ctx context.Context, database types.Databa
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	databases, err := services.NewDatabasesFromElastiCacheReplicationGroup(cluster, nil)
+	databases, err := common.NewDatabasesFromElastiCacheReplicationGroup(cluster, nil)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -253,7 +254,7 @@ func (c *urlChecker) checkOpenSearch(ctx context.Context, database types.Databas
 		return trace.BadParameter("expect 1 domain but got %v", domains.DomainStatusList)
 	}
 
-	databases, err := services.NewDatabasesFromOpenSearchDomain(domains.DomainStatusList[0], nil)
+	databases, err := common.NewDatabasesFromOpenSearchDomain(domains.DomainStatusList[0], nil)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -21,13 +21,13 @@ package common
 import (
 	"fmt"
 	"path"
+	"slices"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/accessrequest"
@@ -36,7 +36,7 @@ import (
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -57,7 +57,7 @@ func onRequestList(cf *CLIConf) error {
 
 	var reqs []types.AccessRequest
 
-	err = tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
+	err = tc.WithRootClusterClient(cf.Context, func(clt authclient.ClientI) error {
 		reqs, err = clt.GetAccessRequests(cf.Context, types.AccessRequestFilter{})
 		return trace.Wrap(err)
 	})
@@ -151,7 +151,7 @@ func onRequestShow(cf *CLIConf) error {
 	}
 
 	var req types.AccessRequest
-	err = tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
+	err = tc.WithRootClusterClient(cf.Context, func(clt authclient.ClientI) error {
 		req, err = services.GetAccessRequest(cf.Context, clt, cf.RequestID)
 		return trace.Wrap(err)
 	})
@@ -220,6 +220,9 @@ func printRequest(cf *CLIConf, req types.AccessRequest) error {
 	if !req.GetAccessExpiry().IsZero() {
 		// Display the expiry time in the local timezone. UTC is confusing.
 		table.AddRow([]string{"Access Expires:", req.GetAccessExpiry().Local().Format(time.DateTime)})
+	}
+	if req.GetAssumeStartTime() != nil {
+		table.AddRow([]string{"Assume Start Time:", req.GetAssumeStartTime().Local().Format(time.DateTime)})
 	}
 	table.AddRow([]string{"Status:", req.GetState().String()})
 
@@ -306,6 +309,15 @@ func onRequestReview(cf *CLIConf) error {
 		return trace.BadParameter("must supply exactly one of '--approve' or '--deny'")
 	}
 
+	var parsedAssumeStartTime *time.Time
+	if cf.AssumeStartTimeRaw != "" {
+		assumeStartTime, err := time.Parse(time.RFC3339, cf.AssumeStartTimeRaw)
+		if err != nil {
+			return trace.BadParameter("parsing assume-start-time (required format RFC3339 e.g 2023-12-12T23:20:50.52Z): %v", err)
+		}
+		parsedAssumeStartTime = &assumeStartTime
+	}
+
 	var state types.RequestState
 	switch {
 	case cf.Approve:
@@ -315,13 +327,14 @@ func onRequestReview(cf *CLIConf) error {
 	}
 
 	var req types.AccessRequest
-	err = tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
+	err = tc.WithRootClusterClient(cf.Context, func(clt authclient.ClientI) error {
 		req, err = clt.SubmitAccessReview(cf.Context, types.AccessReviewSubmission{
 			RequestID: cf.RequestID,
 			Review: types.AccessReview{
-				Author:        cf.Username,
-				ProposedState: state,
-				Reason:        cf.ReviewReason,
+				Author:          cf.Username,
+				ProposedState:   state,
+				Reason:          cf.ReviewReason,
+				AssumeStartTime: parsedAssumeStartTime,
 			},
 		})
 		return trace.Wrap(err)
@@ -354,6 +367,7 @@ func showRequestTable(cf *CLIConf, reqs []types.AccessRequest) error {
 	table.AddColumn(asciitable.Column{Title: "Created At (UTC)"})
 	table.AddColumn(asciitable.Column{Title: "Request TTL"})
 	table.AddColumn(asciitable.Column{Title: "Session TTL"})
+	table.AddColumn(asciitable.Column{Title: "Assume Time (UTC)"})
 	table.AddColumn(asciitable.Column{Title: "Status"})
 	now := time.Now()
 	for _, req := range reqs {
@@ -364,6 +378,10 @@ func showRequestTable(cf *CLIConf, reqs []types.AccessRequest) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		assumeStartTime := ""
+		if req.GetAssumeStartTime() != nil {
+			assumeStartTime = req.GetAssumeStartTime().UTC().Format(time.RFC822)
+		}
 		table.AddRow([]string{
 			req.GetName(),
 			req.GetUser(),
@@ -372,6 +390,7 @@ func showRequestTable(cf *CLIConf, reqs []types.AccessRequest) error {
 			req.GetCreationTime().UTC().Format(time.RFC822),
 			time.Until(req.Expiry()).Round(time.Minute).String(),
 			time.Until(req.GetAccessExpiry()).Round(time.Minute).String(),
+			assumeStartTime,
 			req.GetState().String(),
 		})
 	}
@@ -428,13 +447,11 @@ func onRequestSearch(cf *CLIConf) error {
 		tableColumns = []string{"Name", "Namespace", "Labels", "Resource ID"}
 	default:
 		// For all other resources, we need to connect to the auth server.
-		proxyClient, err := tc.ConnectToProxy(cf.Context)
+		clusterClient, err := tc.ConnectToCluster(cf.Context)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		defer proxyClient.Close()
-
-		authClient := proxyClient.CurrentCluster()
+		defer clusterClient.Close()
 
 		req := proto.ListResourcesRequest{
 			Labels:              tc.Labels,
@@ -443,11 +460,17 @@ func onRequestSearch(cf *CLIConf) error {
 			UseSearchAsRoles:    true,
 		}
 
-		resources, err = accessrequest.GetResourcesByKind(cf.Context, authClient, req, cf.ResourceKind)
+		resources, err = accessrequest.GetResourcesByKind(cf.Context, clusterClient.AuthClient, req, cf.ResourceKind)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		tableColumns = []string{"Name", "Hostname", "Labels", "Resource ID"}
+
+		switch cf.ResourceKind {
+		case types.KindDatabase:
+			tableColumns = []string{"Database Name", "Labels", "Resource ID"}
+		default:
+			tableColumns = []string{"Name", "Hostname", "Labels", "Resource ID"}
+		}
 	}
 
 	var rows [][]string
@@ -490,11 +513,21 @@ func onRequestSearch(cf *CLIConf) error {
 			if r, ok := resource.(interface{ GetHostname() string }); ok {
 				hostName = r.GetHostname()
 			}
-			row = []string{
-				common.FormatResourceName(resource, cf.Verbose),
-				hostName,
-				common.FormatLabels(resource.GetAllLabels(), cf.Verbose),
-				resourceID,
+
+			switch cf.ResourceKind {
+			case types.KindDatabase:
+				row = []string{
+					common.FormatResourceName(resource, cf.Verbose),
+					common.FormatLabels(resource.GetAllLabels(), cf.Verbose),
+					resourceID,
+				}
+			default:
+				row = []string{
+					common.FormatResourceName(resource, cf.Verbose),
+					hostName,
+					common.FormatLabels(resource.GetAllLabels(), cf.Verbose),
+					resourceID,
+				}
 			}
 		}
 		rows = append(rows, row)

@@ -31,7 +31,8 @@ import {
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
 import Logger from 'teleterm/logger';
 
-import { PtyHostService } from './api/protogen/ptyHostService_grpc_pb';
+import { ptyHostDefinition } from 'teleterm/sharedProcess/api/protogen/ptyHostService_pb.grpc-server';
+
 import { createPtyHostService } from './ptyHost/ptyHostService';
 
 const runtimeSettings = getRuntimeSettings();
@@ -73,8 +74,7 @@ async function initializeServer(
   }
 
   const server = new Server();
-  // @ts-expect-error we have a typed service
-  server.addService(PtyHostService, createPtyHostService());
+  server.addService(ptyHostDefinition, createPtyHostService());
 
   // grpc-js requires us to pass localhost:port for TCP connections,
   const grpcServerAddress = address.replace('tcp://', '');

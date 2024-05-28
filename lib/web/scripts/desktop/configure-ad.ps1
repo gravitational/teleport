@@ -41,10 +41,8 @@ dsacls "CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,$DOMAIN_DN" /
 dsacls "CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,$DOMAIN_DN" /I:T /G "$($SAM_ACCOUNT_NAME):CCDC;cRLDistributionPoint;"
 # Gives Teleport the ability to write the certificateRevocationList property in the CDP/Teleport container.
 dsacls "CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,$DOMAIN_DN " /I:T /G "$($SAM_ACCOUNT_NAME):WP;certificateRevocationList;"
-# Gives Teleport the ability to create and delete certificationAuthority objects in the NTAuthCertificates container.
-dsacls "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration,$DOMAIN_DN" /I:T /G "$($SAM_ACCOUNT_NAME):CCDC;certificationAuthority;"
-# Gives Teleport the ability to write the cACertificate property in the NTAuthCertificates container.
-dsacls "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration,$DOMAIN_DN" /I:T /G "$($SAM_ACCOUNT_NAME):WP;cACertificate;"
+# Gives Teleport the ability to read the cACertificate property in the NTAuthCertificates container.
+dsacls "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration,$DOMAIN_DN" /I:T /G "$($SAM_ACCOUNT_NAME):RP;cACertificate;"
 
 $SAM_ACCOUNT_SID=(Get-ADUser -Identity $SAM_ACCOUNT_NAME).SID.Value
 
@@ -144,10 +142,15 @@ Set-GPRegistryValue -Name $ACCESS_GPO_NAME -Key "HKEY_LOCAL_MACHINE\Software\Pol
 # Disable "Always prompt for password upon connection"
 Set-GPRegistryValue -Name $ACCESS_GPO_NAME -Key "HKEY_LOCAL_MACHINE\Software\Policies\Microsoft\Windows NT\Terminal Services" -ValueName "fPromptForPassword" -Type DWORD -Value 0
 
+# Enable RemoteFX
+# As described here: https://github.com/Devolutions/IronRDP/blob/55d11a5000ebd474c2ddc294b8b3935554443112/README.md?plain=1#L17-L24
+Set-GPRegistryValue -Name $ACCESS_GPO_NAME -Key "HKEY_LOCAL_MACHINE\Software\Policies\Microsoft\Windows NT\Terminal Services" -ValueName "ColorDepth" -Type DWORD -Value 5
+Set-GPRegistryValue -Name $ACCESS_GPO_NAME -Key "HKEY_LOCAL_MACHINE\Software\Policies\Microsoft\Windows NT\Terminal Services" -ValueName "fEnableVirtualizedGraphics" -Type DWORD -Value 1
+
 # # Step 5/7. Export your LDAP CA certificate
 $WindowsDERFile = $env:TEMP + "\windows.der"
 $WindowsPEMFile = $env:TEMP + "\windows.pem"
-certutil "-ca.cert" $WindowsDERFile 
+certutil "-ca.cert" $WindowsDERFile
 certutil -encode $WindowsDERFile $WindowsPEMFile
 
 gpupdate.exe /force

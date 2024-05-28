@@ -47,7 +47,9 @@ Add the following to your Teleport configuration file, which is stored in
   auth_service:
     authentication:
       type: local
-      second_factor: off
+      second_factor: on
+      webauthn:
+        rp_id: example.teleport.sh
   ```
 
 ### Dynamic resource
@@ -57,8 +59,6 @@ Obtain your existing `cluster_auth_preference` resource:
 ```code
 $ tctl get cap > cap.yaml
 ```
-
-If you have not defined a `cluster_auth_preference`, `cap.yaml` will be blank.
 
 Ensure that `cap.yaml` includes the following content:
 
@@ -97,8 +97,6 @@ Obtain your existing `cluster_auth_preference` resource:
 $ tctl get cap > cap.yaml
 ```
 
-If you have not defined a `cluster_auth_preference`, `cap.yaml` will be blank.
-
 Ensure that `cap.yaml` includes the following content:
 
 ```yaml
@@ -121,14 +119,13 @@ $ tctl create -f cap.yaml
 </TabItem>
 </Tabs>
 
-### Local user login failure rules
+### Local user policies
 
-A local user is blocked from attempting logins if, within a 30 minute window, a local user has multiple:
+Teleport requires that passwords for local users be at least 12 characters long.
 
-- failed login attempts or
-- failed password resets
-
-The block lasts 20 minutes. After the block has expired the user may attempt to log in again.
+Additionally, Teleport will lock local user accounts if there are multiple
+failed login attempts within a 30-minute window. The account will remain locked
+for 30 minutes before the user can attempt to log in again.
 
 Overriding a block is available to users with rights to maintain `user` resources,
 available in the built-in `editor` role. To turn off a block, update the user entry,
@@ -168,27 +165,6 @@ The user will now be unblocked from login attempts and can attempt to authentica
 ## Authentication connectors
 
 <Tabs>
-<TabItem scope="team" label="Teleport Team">
-
-### GitHub
-
-This connector implements GitHub's OAuth 2.0 authentication flow. Please refer to GitHub's documentation on [Creating an OAuth App](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/)
-to learn how to create and register an OAuth app.
-
-Here is an example of this setting in a `cluster_auth_preference` resource:
-
-```yaml
-kind: cluster_auth_preference
-metadata:
-  name: cluster-auth-preference
-spec:
-  type: github
-version: v2
-```
-
-See [GitHub OAuth 2.0](../access-controls/sso/github-sso.mdx) for details on how to configure it.
-
-</TabItem>
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ### GitHub

@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	resourcesv3 "github.com/gravitational/teleport/integrations/operator/apis/resources/v3"
+	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 )
 
@@ -47,6 +48,7 @@ var githubSpec = types.GithubConnectorSpecV3{
 
 type githubTestingPrimitives struct {
 	setup *testSetup
+	reconcilers.ResourceWithoutLabelsAdapter[types.GithubConnector]
 }
 
 func (g *githubTestingPrimitives) Init(setup *testSetup) {
@@ -116,15 +118,8 @@ func (g *githubTestingPrimitives) ModifyKubernetesResource(ctx context.Context, 
 }
 
 func (g *githubTestingPrimitives) CompareTeleportAndKubernetesResource(tResource types.GithubConnector, kubeResource *resourcesv3.TeleportGithubConnector) (bool, string) {
-	teleportMap, _ := teleportResourceToMap(tResource)
-	kubernetesMap, _ := teleportResourceToMap(kubeResource.ToTeleport())
-
-	equal := cmp.Equal(teleportMap["spec"], kubernetesMap["spec"])
-	if !equal {
-		return equal, cmp.Diff(teleportMap["spec"], kubernetesMap["spec"])
-	}
-
-	return equal, ""
+	diff := cmp.Diff(tResource, kubeResource.ToTeleport(), testlib.CompareOptions()...)
+	return diff == "", diff
 }
 
 func TestGithubConnectorCreation(t *testing.T) {

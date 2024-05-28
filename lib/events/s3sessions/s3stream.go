@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -213,7 +214,7 @@ func (h *Handler) ListParts(ctx context.Context, upload events.StreamUpload) ([]
 		if !aws.BoolValue(re.IsTruncated) {
 			break
 		}
-		partNumberMarker = re.PartNumberMarker
+		partNumberMarker = re.NextPartNumberMarker
 	}
 	// Parts must be sorted in PartNumber order.
 	sort.Slice(parts, func(i, j int) bool {
@@ -253,8 +254,8 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 		if !aws.BoolValue(re.IsTruncated) {
 			break
 		}
-		keyMarker = re.KeyMarker
-		uploadIDMarker = re.UploadIdMarker
+		keyMarker = re.NextKeyMarker
+		uploadIDMarker = re.NextUploadIdMarker
 	}
 
 	sort.Slice(uploads, func(i, j int) bool {
@@ -266,8 +267,15 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 
 // GetUploadMetadata gets the metadata for session upload
 func (h *Handler) GetUploadMetadata(sessionID session.ID) events.UploadMetadata {
+	sessionURL, err := url.JoinPath(teleport.SchemeS3+"://"+h.Bucket, h.Path, sessionID.String())
+	if err != nil {
+		// this should never happen, but if it does revert to legacy behavior
+		// which omitted h.Path
+		sessionURL = fmt.Sprintf("%v://%v/%v", teleport.SchemeS3, h.Bucket, sessionID)
+	}
+
 	return events.UploadMetadata{
-		URL:       fmt.Sprintf("%v://%v/%v", teleport.SchemeS3, h.Bucket, sessionID),
+		URL:       sessionURL,
 		SessionID: sessionID,
 	}
 }

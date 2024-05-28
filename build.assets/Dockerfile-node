@@ -1,0 +1,85 @@
+# syntax=docker/dockerfile:1
+
+# This Dockerfile makes the "build box connect" the container used
+# to build the Teleport Connect. It can also be used to build the
+# web assets for the Teleport UI.
+#
+# This image is base on the node image, which is based on Debian Buster.
+# Using it as a image allows us to link agains the same version of
+# glibc as Node.js.
+#
+# Check the README to learn how to safely introduce changes to Dockerfiles.
+
+## BUILDBOX-NODE ###################################################################
+
+# Pin the tag to Debian Buster to make sure the Glibc compatibility.
+ARG NODE_VERSION
+FROM node:${NODE_VERSION}-buster AS buildbox
+
+# BUILDARCH is automatically set by DOCKER when building the image with Build Kit (MacOS by deafult).
+# https://docs.docker.com/engine/reference/builder/#automatic-platform-args-in-the-global-scope
+ARG BUILDARCH
+
+COPY locale.gen /etc/locale.gen
+COPY profile /etc/profile
+ENV LANGUAGE="en_US.UTF-8" \
+    LANG="en_US.UTF-8" \
+    LC_ALL="en_US.UTF-8" \
+    LC_CTYPE="en_US.UTF-8" \
+    DEBIAN_FRONTEND="noninteractive"
+
+# Install packages.
+RUN apt-get -y update && \
+    apt-get install -q -y --no-install-recommends \
+    build-essential \
+    ca-certificates \
+    git \
+    golang \
+    libc6-dev \
+    libssl-dev \
+    locales \
+    openssh-client \
+    pkg-config \
+    python3-pip \
+    python3-setuptools \
+    python3-wheel \
+    # Used during tag builds to build the RPM package of Connect.
+    rpm \
+    && \
+    # Manually install the wasm-opt binary from the binaryen package on ARM64.
+    if [ "$BUILDARCH" = "arm64" ]; then apt-get install -y binaryen; fi && \
+    dpkg-reconfigure locales && \
+    apt-get -y clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# The node image already has a "node" user with UID:GID 1000:1000.
+# For consistency with the other images, we are going to remove this user
+# (to prevent UID/GID conflicts) and create the typical "ci" user.
+# Add the CI user.
+RUN userdel -r node
+ARG UID
+ARG GID
+RUN groupadd ci --gid=$GID -o && \
+    useradd ci --uid=$UID --gid=$GID --create-home --shell=/bin/sh
+
+# Install Rust.
+ARG RUST_VERSION
+ENV RUSTUP_HOME=/usr/local/rustup \
+    CARGO_HOME=/usr/local/cargo \
+    PATH=/usr/local/cargo/bin:$PATH \
+    RUST_VERSION=$RUST_VERSION
+RUN mkdir -p $RUSTUP_HOME && chmod a+w $RUSTUP_HOME && \
+    mkdir -p $CARGO_HOME/registry && chmod -R a+w $CARGO_HOME
+
+USER ci
+RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain $RUST_VERSION && \
+    rustup --version && \
+    cargo --version && \
+    rustc --version && \
+    rustup component add rustfmt clippy && \
+    rustup target add wasm32-unknown-unknown && \
+    if [ "$BUILDARCH" = "amd64" ]; then rustup target add aarch64-unknown-linux-gnu; fi
+
+# Install wasm-pack for targeting WebAssembly from Rust.
+ARG WASM_PACK_VERSION
+RUN cargo install wasm-pack --locked --version ${WASM_PACK_VERSION}

@@ -2,6 +2,8 @@
 gitref.go
 .data
 debug
+!/lib/srv/debug
+!/lib/client/debug
 default.etcd
 /darwin
 
@@ -24,6 +26,7 @@ build
 *.o
 *.a
 *.so
+*.syso
 
 # Folders
 _obj

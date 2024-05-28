@@ -129,3 +129,27 @@ sudo SSL_CERT_FILE=<Var name="path-to-rootCA-pem" /> teleport start --config=/et
 
 You should specify the `SSL_CERT_FILE` and `SSL_CERT_DIR` environment variables as command-line
 options because `sudo` doesn't inherit environment variables by default.
+
+## Request headers too large
+
+By default, Teleport embeds the user's Teleport roles and traits in the JWT that
+is issued for applications. If your Teleport user has a large number of roles or
+traits, this can cause the JWT to become too large which will result in a failed
+request.
+
+### Symptom
+
+When attempting to connect to an HTTP app behind Teleport, you see an error
+that states *request header fields too large*.
+
+### Solution
+
+If the application that you're protecting with Teleport does not need to know
+about a user's Teleport roles or traits, you can configure Teleport to omit
+this information from the JWT. This will result in a smaller JWT that is less
+likely to exceed the limit.
+
+This configuration is available under the `jwt_claims` property of the
+application's `rewrite` configuration. See
+[Web Application Access](./guides/connecting-apps.mdx#configuring-the-jwt-token)
+for details.

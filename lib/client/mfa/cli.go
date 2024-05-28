@@ -58,11 +58,15 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 		return nil, trace.Wrap(err)
 	}
 
+	// No prompt to run, no-op.
+	if !runOpts.PromptTOTP && !runOpts.PromptWebauthn {
+		return &proto.MFAAuthenticateResponse{}, nil
+	}
+
 	// Depending on the run opts, we may spawn a TOTP goroutine, webauth goroutine, or both.
 	spawnGoroutines := func(ctx context.Context, wg *sync.WaitGroup, respC chan<- MFAGoroutineResponse) {
 		// Use variables below to cancel OTP reads and make sure the goroutine exited.
 		otpCtx, otpCancel := context.WithCancel(ctx)
-		defer otpCancel()
 		otpDone := make(chan struct{})
 		otpCancelAndWait := func() {
 			otpCancel()
@@ -74,6 +78,7 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
+				defer otpCancel()
 				defer close(otpDone)
 
 				// Let Webauthn take the prompt below if applicable.

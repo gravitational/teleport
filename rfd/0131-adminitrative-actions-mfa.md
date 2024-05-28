@@ -96,10 +96,10 @@ actions which modify the following administrative resources.
     - `UpsertLoginRule`, `CreateLoginRule`, `DeleteLoginRule`
 - Certificates
   - CA management
-    - http: `rotateCertAuthority`, `rotateExternalCertAuthority`, `upsertCertAuthority`, `deleteCertAuthority`
+    - `UpsertCertAuthority`, `DeleteCertAuthority`
+    - http: `rotateCertAuthority`, `rotateExternalCertAuthority`
   - Host certs
-    - `GenerateHostCerts`
-    - http: `generateHostCert`
+    - `GenerateHostCerts`, `GenerateHostCert`
   - User certs
     - `GenerateUserCerts`
   - Web sessions
@@ -146,14 +146,10 @@ Connect, Teleport Web UI, Plugins and plugin guides).
 
 ### Server configuration
 
-MFA for admin actions will be required on any cluster with 
-`cluster_auth_preference.second_factor` set to `on`, `optional`, `otp`, or
-`webauthn`.
-
-Note: `second_factor: optional` is used to bridge the gap between `off` and
-`on`, since existing users will not have an MFA device registered yet. This
-change will make it a requirement for admins with `second_factor: optional`
-to register an MFA device before they can perform more admin actions.
+MFA for admin actions will required on any cluster where Webauthn is the
+preferred MFA method. This includes clusters with `cluster_auth_preference.second_factor`
+set to `on`, `optional`, or `webauthn` where `cluster_auth_preference.webauthn`
+is also set.
 
 #### Built-in Roles
 
@@ -439,11 +435,6 @@ Clients will not attempt to provide MFA for [HTTP endpoints](#http-endpoints).
 This means that http endpoints converted to gRPC admin action endpoints should
 not be made to require MFA until a full major version cycle has passed.
 
-#### TOTP support
-
-The WebUI and Teleport Connect will not support TOTP MFA for admin actions due
-to the lack of a universal TOTP MFA prompt for these applications.
-
 ### Audit Events
 
 #### Admin Action Events
@@ -512,3 +503,14 @@ action you can take in Teleport.
 However, Hardware Key support is still somewhat limited due to the limitations
 of PIV. Most notably, Hardware Key support is not supported on the Web UI, which
 is essential for this feature.
+
+#### TOTP
+
+The WebUI and Teleport Connect do not currently have a universal TOTP MFA
+prompt, making it difficult to universally support TOTP for admin actions.
+
+If in the future TOTP prompts are added for these applications, we can consider
+widening this feature to also cover all clusters where `cluster_auth_preference.second_factor`
+is not set to `off`, rather than the more limited scope described in
+[Server configuration](#server-configuration). However, this most likely won't
+be a priority as we are actually looking to [deprecate TOTP](https://github.com/gravitational/teleport/issues/20725).

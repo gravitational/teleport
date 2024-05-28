@@ -1,0 +1,509 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema",
+    "$id": "http://example.com/example.json",
+    "default": {},
+    "required": [
+        "image",
+        "imagePullSecrets",
+        "nameOverride",
+        "fullnameOverride",
+        "podAnnotations",
+        "podSecurityContext",
+        "securityContext",
+        "serviceType",
+        "nodeSelector",
+        "tolerations",
+        "affinity",
+        "teleport",
+        "jira",
+        "log"
+    ],
+    "properties": {
+        "image": {
+            "$id": "#/properties/image",
+            "type": "object",
+            "default": {},
+            "examples": [
+                {
+                    "repository": "public.ecr.aws/teleport/access-plugin-email",
+                    "pullPolicy": "IfNotPresent",
+                    "tag": ""
+                }
+            ],
+            "required": [
+                "repository",
+                "pullPolicy",
+                "tag"
+            ],
+            "properties": {
+                "repository": {
+                    "$id": "#/properties/image/properties/repository",
+                    "type": "string",
+                    "default": "public.ecr.aws/teleport/access-plugin-email",
+                    "examples": [
+                        "public.ecr.aws/teleport/access-plugin-email"
+                    ]
+                },
+                "pullPolicy": {
+                    "$id": "#/properties/image/properties/pullPolicy",
+                    "type": "string",
+                    "default": "IfNotPresent",
+                    "examples": [
+                        "IfNotPresent"
+                    ]
+                },
+                "tag": {
+                    "$id": "#/properties/image/properties/tag",
+                    "type": "string",
+                    "default": ""
+                }
+            },
+            "additionalProperties": true
+        },
+        "imagePullSecrets": {
+            "$id": "#/properties/imagePullSecrets",
+            "type": "array",
+            "default": [],
+            "examples": [
+                [
+                    {
+                    "name": "image-pull-secrets"
+                    }
+                ]
+            ],
+            "additionalItems": true,
+            "items": {
+                "$id": "#/properties/imagePullSecrets/items"
+            }
+        },
+        "nameOverride": {
+            "$id": "#/properties/nameOverride",
+            "type": "string",
+            "default": ""
+        },
+        "fullnameOverride": {
+            "$id": "#/properties/fullnameOverride",
+            "type": "string",
+            "default": ""
+        },
+        "podAnnotations": {
+            "$id": "#/properties/podAnnotations",
+            "type": "object",
+            "additionalProperties": true
+        },
+        "podSecurityContext": {
+            "$id": "#/properties/podSecurityContext",
+            "type": "object",
+            "required": [],
+            "additionalProperties": true
+        },
+        "securityContext": {
+            "$id": "#/properties/securityContext",
+            "type": "object",
+            "properties": {
+                "capabilities": {
+                    "$id": "#/properties/securityContext/properties/capabilities",
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "readOnlyRootFilesystem": {
+                    "$id": "#/properties/securityContext/properties/readOnlyRootFilesystem",
+                    "type": "boolean",
+                    "default": false,
+                    "examples": [
+                        true
+                    ]
+                },
+                "runAsNonRoot": {
+                    "$id": "#/properties/securityContext/properties/runAsNonRoot",
+                    "type": "boolean",
+                    "default": false,
+                    "examples": [
+                        true
+                    ]
+                },
+                "runAsUser": {
+                    "$id": "#/properties/securityContext/properties/runAsUser",
+                    "type": "integer",
+                    "default": 0,
+                    "examples": [
+                        1000
+                    ]
+                }
+            },
+            "additionalProperties": true
+        },
+        "serviceType": {
+            "$id": "#/properties/serviceType",
+            "type": "string",
+            "default": "LoadBalancer"
+        },
+        "resources": {
+            "$id": "#/properties/resources",
+            "type": "object",
+            "default": {},
+            "examples": [
+                {
+                    "limits": {
+                        "cpu": "100m",
+                        "memory": "128Mi"
+                    },
+                    "requests": {
+                        "cpu": "100m",
+                        "memory": "128Mi"
+                    }
+                }
+            ],
+            "properties": {
+                "limits": {
+                    "$id": "#/properties/resources/properties/limits",
+                    "type": "object",
+                    "default": {},
+                    "examples": [
+                        {
+                            "cpu": "100m",
+                            "memory": "128Mi"
+                        }
+                    ],
+                    "required": [
+                        "cpu",
+                        "memory"
+                    ],
+                    "properties": {
+                        "cpu": {
+                            "$id": "#/properties/resources/properties/limits/properties/cpu",
+                            "type": "string",
+                            "default": "",
+                            "examples": [
+                                "100m"
+                            ]
+                        },
+                        "memory": {
+                            "$id": "#/properties/resources/properties/limits/properties/memory",
+                            "type": "string",
+                            "default": "",
+                            "examples": [
+                                "128Mi"
+                            ]
+                        }
+                    },
+                    "additionalProperties": true
+                },
+                "requests": {
+                    "$id": "#/properties/resources/properties/requests",
+                    "type": "object",
+                    "default": {},
+                    "examples": [
+                        {
+                            "cpu": "100m",
+                            "memory": "128Mi"
+                        }
+                    ],
+                    "required": [
+                        "cpu",
+                        "memory"
+                    ],
+                    "properties": {
+                        "cpu": {
+                            "$id": "#/properties/resources/properties/requests/properties/cpu",
+                            "type": "string",
+                            "default": "",
+                            "examples": [
+                                "100m"
+                            ]
+                        },
+                        "memory": {
+                            "$id": "#/properties/resources/properties/requests/properties/memory",
+                            "type": "string",
+                            "default": "",
+                            "examples": [
+                                "128Mi"
+                            ]
+                        }
+                    },
+                    "additionalProperties": true
+                }
+            },
+            "additionalProperties": true
+        },
+        "nodeSelector": {
+            "$id": "#/properties/nodeSelector",
+            "type": "object",
+            "default": {},
+            "additionalProperties": true
+        },
+        "tolerations": {
+            "$id": "#/properties/tolerations",
+            "type": "array",
+            "default": [],
+            "additionalItems": true,
+            "items": {
+                "$id": "#/properties/tolerations/items"
+            }
+        },
+        "affinity": {
+            "$id": "#/properties/affinity",
+            "type": "object",
+            "default": {},
+            "additionalProperties": true
+        },
+        "volumes": {
+            "$id": "#/properties/volumes",
+            "type": "array",
+            "default": [],
+            "items": {
+                "$id": "#/properties/volumes/items",
+                "type": "object",
+                "additionalItems": true
+            }
+        },
+        "volumeMounts": {
+            "$id": "#/properties/volumeMounts",
+            "type": "array",
+            "default": [],
+            "items": {
+                "$id": "#/properties/volumeMounts/items",
+                "type": "object",
+                "additionalItems": true
+            }
+        },
+        "teleport": {
+            "$id": "#/properties/teleport",
+            "type": "object",
+            "default": {},
+            "examples": [
+                {
+                    "address": "auth.example.com:3025",
+                    "identityFromSecret": "teleport-plugin-email-auth-id",
+                    "identitySecretPath": "auth_id"
+                }
+            ],
+            "required": [
+                "address",
+                "identityFromSecret",
+                "identitySecretPath"
+            ],
+            "properties": {
+                "address": {
+                    "$id": "#/properties/teleport/properties/address",
+                    "type": "string",
+                    "default": "",
+                    "examples": [
+                        "auth.example.com:3025"
+                    ]
+                },
+                "identityFromSecret": {
+                    "$id": "#/properties/teleport/properties/identityFromSecret",
+                    "type": "string",
+                    "default": ""
+                },
+                "identitySecretPath": {
+                    "$id": "#/properties/teleport/properties/identitySecretPath",
+                    "type": "string",
+                    "default": "auth_id",
+                    "examples": [
+                        "auth_id"
+                    ]
+                }
+            },
+            "additionalProperties": true
+        },
+        "jira": {
+            "$id": "#/properties/jira",
+            "type": "object",
+            "default": {},
+            "examples": [
+                {
+                    "url": "https://jira.example.net/",
+                    "username": "user@example.com",
+                    "apiToken": "secretapitoken",
+                    "project": "EXAM",
+                    "issueType": "Task"
+                }
+            ],
+            "required": [
+                "url",
+                "username",
+                "apiToken",
+                "project",
+                "issueType"
+            ],
+            "properties": {
+                "url": {
+                    "$id": "#/properties/teleport/properties/url",
+                    "type": "string",
+                    "default": "",
+                    "examples": [
+                        "https://jira.example.net/"
+                    ]
+                },
+                "username": {
+                    "$id": "#/properties/teleport/properties/username",
+                    "type": "string",
+                    "default": "",
+                    "examples": [
+                        "user@example.com"
+                    ]
+                },
+                "apiToken": {
+                    "$id": "#/properties/teleport/properties/apiToken",
+                    "type": "string",
+                    "default": "",
+                    "examples": [
+                        "secretapitoken"
+                    ]
+                },
+                "project": {
+                    "$id": "#/properties/teleport/properties/project",
+                    "type": "string",
+                    "default": "",
+                    "examples": [
+                        "EXAM"
+                    ]
+                },
+                "issueType": {
+                    "$id": "#/properties/teleport/properties/issueType",
+                    "type": "string",
+                    "default": "Task",
+                    "examples": [
+                        "Bug",
+                        "Task"
+                    ]
+                }
+            },
+            "additionalProperties": true
+        },
+        "http": {
+            "$id": "#/properties/http",
+            "type": "object",
+            "default": {
+                "publicAddress": "",
+                "tlsFromSecret": "",
+                "tlsKeySecretPath": "tls.key",
+                "tlsCertSecretPath": "tls.crt",
+
+                "basicAuth":{
+                  "user": "",
+                  "password": ""
+                }
+            },
+            "examples": [
+                {
+                    "publicAddress": "jira-plugin.teleport.example.com",
+                    "tlsFromSecret": "teleport-jira-plugin-tls",
+                    "tlsKeySecretPath": "tls.key",
+                    "tlsCertSecretPath": "tls.crt",
+
+                    "basicAuth":{
+                      "user": "exampleuser",
+                      "password": "examplepassword"
+                    }
+                }
+            ],
+            "required": [
+                "publicAddress",
+                "tlsFromSecret"
+            ],
+            "properties": {
+                "publicAddress": {
+                    "$id": "#/properties/teleport/properties/publicAddress",
+                    "type": "string",
+                    "default": "",
+                    "examples": [
+                        "jira-plugin.teleport.example.com"
+                    ]
+                },
+                "tlsFromSecret": {
+                    "$id": "#/properties/teleport/properties/tlsFromSecret",
+                    "type": "string",
+                    "default": "",
+                    "examples": [
+                        "my-tls-secret"
+                    ]
+                },
+                "tlsKeySecretPath": {
+                    "$id": "#/properties/teleport/properties/tlsKeySecretPath",
+                    "type": "string",
+                    "default": "tls.key",
+                    "examples": [
+                        "tls.key"
+                    ]
+                },
+                "tlsCertSecretPath": {
+                    "$id": "#/properties/teleport/properties/tlsCertSecretPath",
+                    "type": "string",
+                    "default": "tls.crt",
+                    "examples": [
+                        "tls.crt"
+                    ]
+                },
+                "basicAuth": {
+                    "$id": "#/properties/basicAuth",
+                    "type": "object",
+                    "default": {
+                        "user": "",
+                        "password": ""
+                    },
+                    "examples": [
+                        {
+                            "user": "exampleuser",
+                            "password": "examplepassword"
+                        }
+                    ],
+                    "user": {
+                        "$id": "#/properties/teleport/properties/user",
+                        "type": "string",
+                        "default": "",
+                        "examples": [
+                            "exampleuser"
+                        ]
+                    },
+                    "password": {
+                        "$id": "#/properties/teleport/properties/password",
+                        "type": "string",
+                        "default": "",
+                        "examples": [
+                            "examplepassword"
+                        ]
+                    }
+                }
+            },
+            "additionalProperties": true
+        },
+        "log": {
+            "$id": "#/properties/log",
+            "type": "object",
+            "default": {},
+            "examples": [
+                {
+                    "output": "stdout",
+                    "severity": "INFO"
+                }
+            ],
+            "required": [
+                "output",
+                "severity"
+            ],
+            "properties": {
+                "output": {
+                    "$id": "#/properties/log/properties/output",
+                    "type": "string",
+                    "default": "stdout",
+                    "examples": [
+                        "stdout"
+                    ]
+                },
+                "severity": {
+                    "$id": "#/properties/log/properties/severity",
+                    "type": "string",
+                    "default": "INFO",
+                    "examples": [
+                        "INFO"
+                    ]
+                }
+            },
+            "additionalProperties": true
+        }
+    },
+    "additionalProperties": true
+}

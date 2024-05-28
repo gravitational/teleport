@@ -22,9 +22,10 @@ package utils
 
 import (
 	"net"
-	"os"
 
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/utils/uds"
 )
 
 // DualPipeNetConn creates a pipe to connect a client and a server. The
@@ -35,25 +36,9 @@ import (
 // the synchronous nature of net.Pipe causes it to deadlock when attempting to perform
 // TLS or SSH handshakes.
 func DualPipeNetConn(srcAddr net.Addr, dstAddr net.Addr) (net.Conn, net.Conn, error) {
-	fd1, fd2, err := cloexecSocketpair()
+	client, server, err := uds.NewSocketpair(uds.SocketTypeStream)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
-	}
-
-	f1 := os.NewFile(fd1, "DualPipeNetConn1")
-	defer f1.Close()
-
-	f2 := os.NewFile(fd2, "DualPipeNetConn2")
-	defer f2.Close()
-
-	client, err := net.FileConn(f1)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	server, err := net.FileConn(f2)
-	if err != nil {
-		return nil, nil, trace.NewAggregate(err, client.Close())
 	}
 
 	serverConn := NewConnWithAddr(server, dstAddr, srcAddr)

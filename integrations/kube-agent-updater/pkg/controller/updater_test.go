@@ -30,8 +30,8 @@ import (
 	core "k8s.io/api/core/v1"
 
 	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/img"
-	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/maintenance"
-	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/version"
+	"github.com/gravitational/teleport/lib/automaticupgrades/maintenance"
+	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 )
 
 const (
@@ -44,8 +44,8 @@ const (
 )
 
 var (
-	alwaysTrigger = maintenance.NewMaintenanceTriggerMock("always trigger", true)
-	neverTrigger  = maintenance.NewMaintenanceTriggerMock("never trigger", false)
+	alwaysTrigger = maintenance.NewMaintenanceStaticTrigger("always trigger", true)
+	neverTrigger  = maintenance.NewMaintenanceStaticTrigger("never trigger", false)
 	alwaysValid   = img.NewImageValidatorMock(
 		"always",
 		true,
@@ -82,7 +82,7 @@ func Test_VersionUpdater_GetVersion(t *testing.T) {
 			releaseRegistry:     defaultTestRegistry,
 			releasePath:         defaultTestPath,
 			currentVersion:      versionMid,
-			versionGetter:       version.NewGetterMock(versionHigh, nil),
+			versionGetter:       version.NewStaticGetter(versionHigh, nil),
 			maintenanceTriggers: []maintenance.Trigger{alwaysTrigger},
 			imageCheckers:       []img.Validator{alwaysValid},
 			assertErr:           require.NoError,
@@ -93,7 +93,7 @@ func Test_VersionUpdater_GetVersion(t *testing.T) {
 			releaseRegistry:     defaultTestRegistry,
 			releasePath:         defaultTestPath,
 			currentVersion:      "",
-			versionGetter:       version.NewGetterMock(versionHigh, nil),
+			versionGetter:       version.NewStaticGetter(versionHigh, nil),
 			maintenanceTriggers: []maintenance.Trigger{alwaysTrigger},
 			imageCheckers:       []img.Validator{alwaysValid},
 			assertErr:           require.NoError,
@@ -104,10 +104,21 @@ func Test_VersionUpdater_GetVersion(t *testing.T) {
 			releaseRegistry:     defaultTestRegistry,
 			releasePath:         defaultTestPath,
 			currentVersion:      versionMid,
-			versionGetter:       version.NewGetterMock(versionMid, nil),
+			versionGetter:       version.NewStaticGetter(versionMid, nil),
 			maintenanceTriggers: []maintenance.Trigger{alwaysTrigger},
 			imageCheckers:       []img.Validator{alwaysValid},
-			assertErr:           errorIsType(&NoNewVersionError{}),
+			assertErr:           errorIsType(&version.NoNewVersionError{}),
+			expectedImage:       "",
+		},
+		{
+			name:                "no version",
+			releaseRegistry:     defaultTestRegistry,
+			releasePath:         defaultTestPath,
+			currentVersion:      versionMid,
+			versionGetter:       version.NewStaticGetter("", &version.NoNewVersionError{Message: "version server did not advertise a version"}),
+			maintenanceTriggers: []maintenance.Trigger{alwaysTrigger},
+			imageCheckers:       []img.Validator{alwaysValid},
+			assertErr:           errorIsType(&version.NoNewVersionError{}),
 			expectedImage:       "",
 		},
 		{
@@ -115,7 +126,7 @@ func Test_VersionUpdater_GetVersion(t *testing.T) {
 			releaseRegistry:     defaultTestRegistry,
 			releasePath:         defaultTestPath,
 			currentVersion:      versionMid,
-			versionGetter:       version.NewGetterMock(versionHigh, nil),
+			versionGetter:       version.NewStaticGetter(versionHigh, nil),
 			maintenanceTriggers: []maintenance.Trigger{neverTrigger},
 			imageCheckers:       []img.Validator{alwaysValid},
 			assertErr:           errorIsType(&MaintenanceNotTriggeredError{}),
@@ -126,7 +137,7 @@ func Test_VersionUpdater_GetVersion(t *testing.T) {
 			releaseRegistry:     defaultTestRegistry,
 			releasePath:         defaultTestPath,
 			currentVersion:      versionMid,
-			versionGetter:       version.NewGetterMock(versionHigh, nil),
+			versionGetter:       version.NewStaticGetter(versionHigh, nil),
 			maintenanceTriggers: []maintenance.Trigger{alwaysTrigger},
 			imageCheckers:       []img.Validator{neverValid},
 			assertErr:           errorIsType(&trace.TrustError{}),
@@ -137,7 +148,7 @@ func Test_VersionUpdater_GetVersion(t *testing.T) {
 			releaseRegistry:     defaultTestRegistry,
 			releasePath:         defaultTestPath,
 			currentVersion:      versionMid,
-			versionGetter:       version.NewGetterMock("", &trace.ConnectionProblemError{}),
+			versionGetter:       version.NewStaticGetter("", &trace.ConnectionProblemError{}),
 			maintenanceTriggers: []maintenance.Trigger{alwaysTrigger},
 			imageCheckers:       []img.Validator{neverValid},
 			assertErr:           errorIsType(&trace.ConnectionProblemError{}),
@@ -161,7 +172,7 @@ func Test_VersionUpdater_GetVersion(t *testing.T) {
 				baseImage:           baseImage,
 			}
 
-			// We need a dummy Kubernetes object, it is not used by the TriggerMock
+			// We need a dummy Kubernetes object, it is not used by the StaticTrigger
 			obj := &core.Pod{}
 
 			// Doing the test

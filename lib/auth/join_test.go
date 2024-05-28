@@ -29,10 +29,14 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/auth/join"
+	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
+	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -301,21 +305,23 @@ func TestRegister_Bot(t *testing.T) {
 
 	srv := newTestTLSServer(t)
 
-	botName := "test"
-	botResourceName := BotResourceName(botName)
-
-	_, err := createBotRole(ctx, srv.Auth(), botName, botResourceName, []string{})
-	require.NoError(t, err)
-	_, err = createBotUser(ctx, srv.Auth(), botName, botResourceName, wrappers.Traits{})
+	bot, err := machineidv1.UpsertBot(ctx, srv.Auth(), &machineidv1pb.Bot{
+		Metadata: &headerv1.Metadata{
+			Name: "test",
+		},
+		Spec: &machineidv1pb.BotSpec{
+			Roles: []string{},
+		},
+	}, srv.Clock().Now(), "")
 	require.NoError(t, err)
 
 	later := srv.Clock().Now().Add(4 * time.Hour)
 
-	goodToken := newBotToken(t, "good-token", botName, types.RoleBot, later)
-	expiredToken := newBotToken(t, "expired", botName, types.RoleBot, srv.Clock().Now().Add(-1*time.Hour))
+	goodToken := newBotToken(t, "good-token", bot.Metadata.Name, types.RoleBot, later)
+	expiredToken := newBotToken(t, "expired", bot.Metadata.Name, types.RoleBot, srv.Clock().Now().Add(-1*time.Hour))
 	wrongKind := newBotToken(t, "wrong-kind", "", types.RoleNode, later)
 	wrongUser := newBotToken(t, "wrong-user", "llama", types.RoleBot, later)
-	invalidToken := newBotToken(t, "this-token-does-not-exist", botName, types.RoleBot, later)
+	invalidToken := newBotToken(t, "this-token-does-not-exist", bot.Metadata.Name, types.RoleBot, later)
 
 	err = srv.Auth().UpsertToken(ctx, goodToken)
 	require.NoError(t, err)
@@ -366,9 +372,9 @@ func TestRegister_Bot(t *testing.T) {
 	} {
 		t.Run(test.desc, func(t *testing.T) {
 			start := srv.Clock().Now()
-			certs, err := Register(RegisterParams{
+			certs, err := join.Register(ctx, join.RegisterParams{
 				Token: test.token.GetName(),
-				ID: IdentityID{
+				ID: state.IdentityID{
 					Role: types.RoleBot,
 				},
 				AuthServers:  []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
@@ -456,21 +462,22 @@ func TestRegister_Bot_Expiry(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			botName := t.Name()
-			botResourceName := BotResourceName(botName)
-			_, err := createBotRole(
-				ctx, srv.Auth(), botName, botResourceName, []string{},
-			)
-			require.NoError(t, err)
-			_, err = createBotUser(
-				ctx, srv.Auth(), botName, botResourceName, wrappers.Traits{},
-			)
+			_, err = machineidv1.UpsertBot(ctx, srv.Auth(), &machineidv1pb.Bot{
+				Metadata: &headerv1.Metadata{
+					Name: botName,
+				},
+				Spec: &machineidv1pb.BotSpec{
+					Roles:  []string{},
+					Traits: []*machineidv1pb.Trait{},
+				},
+			}, srv.Clock().Now(), "")
 			require.NoError(t, err)
 			tok := newBotToken(t, t.Name(), botName, types.RoleBot, srv.Clock().Now().Add(time.Hour))
 			require.NoError(t, srv.Auth().UpsertToken(ctx, tok))
 
-			certs, err := Register(RegisterParams{
+			certs, err := join.Register(ctx, join.RegisterParams{
 				Token: tok.GetName(),
-				ID: IdentityID{
+				ID: state.IdentityID{
 					Role: types.RoleBot,
 				},
 				AuthServers:  []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},

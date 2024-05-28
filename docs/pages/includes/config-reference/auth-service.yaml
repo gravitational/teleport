@@ -163,9 +163,8 @@ auth_service:
         # Defaults to false.
         require_session_mfa: false
 
-        # second_factor can be 'off', 'on', 'optional', 'otp' or 'webauthn'.
+        # second_factor can be 'on', 'otp' or 'webauthn'.
         # - 'on' requires either otp or webauthn second factor.
-        # - 'optional' allows otp and webauthn second factor.
         # - 'otp' and 'webauthn' require the corresponding second factor.
         second_factor: otp
 
@@ -425,3 +424,15 @@ auth_service:
       # This only applies in the context of a single command execution -
       # if multiple users are using Assist concurrently, more connections may be made.
       command_execution_workers: 30
+
+    # AccessMonitoring is a set of options related to the Access Monitoring feature.
+    access_monitoring:
+      # Turn on Access Monitoring. Default is 'no'.
+      enabled: yes
+      # AWS role ARN that Teleport will assume to execute Athena SQL queries.
+      # The Teleport role should be configured with a trust relationship and should be able to assume this role.
+      role_arn: arn:aws:iam::123456789012:role/AccessMonitoringRole
+      # S3 bucket where Access Monitoring reports will be stored.
+      report_results: s3://audit-long-term/report_results
+      # (Optional) Athena workgroup used by access monitoring queries (if not set, the default primary workgroup will be used).
+      workgroup: access_monitoring_workgroup

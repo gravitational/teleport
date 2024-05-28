@@ -48,7 +48,7 @@ func (s *KubernetesService) GetKubernetesClusters(ctx context.Context) ([]types.
 	kubeClusters := make([]types.KubeCluster, len(result.Items))
 	for i, item := range result.Items {
 		cluster, err := services.UnmarshalKubeCluster(item.Value,
-			services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+			services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -67,7 +67,7 @@ func (s *KubernetesService) GetKubernetesCluster(ctx context.Context, name strin
 		return nil, trace.Wrap(err)
 	}
 	cluster, err := services.UnmarshalKubeCluster(item.Value,
-		services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+		services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -87,9 +87,12 @@ func (s *KubernetesService) CreateKubernetesCluster(ctx context.Context, cluster
 		Key:     backend.Key(kubernetesPrefix, cluster.GetName()),
 		Value:   value,
 		Expires: cluster.Expiry(),
-		ID:      cluster.GetResourceID(),
 	}
 	_, err = s.Create(ctx, item)
+	if trace.IsAlreadyExists(err) {
+		return trace.AlreadyExists("kubernetes cluster %q already exists", cluster.GetName())
+	}
+
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -110,10 +113,12 @@ func (s *KubernetesService) UpdateKubernetesCluster(ctx context.Context, cluster
 		Key:      backend.Key(kubernetesPrefix, cluster.GetName()),
 		Value:    value,
 		Expires:  cluster.Expiry(),
-		ID:       cluster.GetResourceID(),
 		Revision: rev,
 	}
 	_, err = s.Update(ctx, item)
+	if trace.IsNotFound(err) {
+		return trace.NotFound("kubernetes cluster %q doesn't exist", cluster.GetName())
+	}
 	if err != nil {
 		return trace.Wrap(err)
 	}

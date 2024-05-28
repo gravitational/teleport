@@ -68,7 +68,7 @@ export function Running() {
     Promise.resolve(
       makeServer({
         hostname: 'staging-mac-mini',
-        labelsList: makeLabelsList({
+        labels: makeLabelsList({
           hostname: 'staging-mac-mini',
           'teleport.dev/connect-my-computer/owner': 'testuser@goteleport.com',
         }),

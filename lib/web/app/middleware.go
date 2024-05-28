@@ -20,8 +20,6 @@ package app
 
 import (
 	"net/http"
-	"net/url"
-	"strconv"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -51,7 +49,7 @@ func (h *Handler) withAuth(handler handlerAuthFunc) http.HandlerFunc {
 		// If the caller fails to authenticate, redirect the caller to Teleport.
 		session, err := h.authenticate(r.Context(), r)
 		if err != nil {
-			if redirectErr := h.redirectToLauncher(w, r); redirectErr == nil {
+			if redirectErr := h.redirectToLauncher(w, r, launcherURLParams{}); redirectErr == nil {
 				return nil
 			}
 			return trace.Wrap(err)
@@ -65,12 +63,13 @@ func (h *Handler) withAuth(handler handlerAuthFunc) http.HandlerFunc {
 
 // redirectToLauncher redirects to the proxy web's app launcher if the public
 // address of the proxy is set.
-func (h *Handler) redirectToLauncher(w http.ResponseWriter, r *http.Request) error {
-	// The application launcher can only generate browser sessions (based on
-	// Cookies). Given this, we should only redirect to it when this format is
-	// already in use.
-	if !HasSession(r) {
-		return trace.BadParameter("redirecting to launcher when using client certificate is not valid")
+func (h *Handler) redirectToLauncher(w http.ResponseWriter, r *http.Request, p launcherURLParams) error {
+	if p.stateToken == "" && !HasSessionCookie(r) {
+		// Reaching this block means the application was accessed through the CLI (eg: tsh app login)
+		// and there was a forwarding error and we could not renew the app web session.
+		// Since we can't redirect the user to the app launcher from the CLI,
+		// we just return an error instead.
+		return trace.BadParameter("redirecting to launcher when using client certificate, is not allowed")
 	}
 
 	if h.c.WebPublicAddr == "" {
@@ -87,56 +86,9 @@ func (h *Handler) redirectToLauncher(w http.ResponseWriter, r *http.Request) err
 		return trace.Wrap(err)
 	}
 
-	urlString := makeAppRedirectURL(r, h.c.WebPublicAddr, addr.Host())
+	urlString := makeAppRedirectURL(r, h.c.WebPublicAddr, addr.Host(), p)
 	http.Redirect(w, r, urlString, http.StatusFound)
 	return nil
-}
-
-func (h *Handler) withCustomCORS(handle routerFunc) routerFunc {
-	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) error {
-		// Allow minimal CORS from only the proxy origin
-		// This allows for requests from the proxy to `POST` to `/x-teleport-auth` and only
-		// permits the headers `X-Cookie-Value` and `X-Subject-Cookie-Value`.
-		// This is for the web UI to post a request to the application to get the proper app session
-		// cookie set on the right application subdomain.
-		w.Header().Set("Access-Control-Allow-Methods", "POST")
-		w.Header().Set("Access-Control-Allow-Credentials", "true")
-		w.Header().Set("Access-Control-Allow-Headers", "X-Cookie-Value, X-Subject-Cookie-Value")
-
-		// Validate that the origin for the request matches any of the public proxy addresses.
-		// This is instead of protecting via CORS headers, as that only supports a single domain.
-		originValue := r.Header.Get("Origin")
-		origin, err := url.Parse(originValue)
-		if err != nil {
-			return trace.BadParameter("malformed Origin header: %v", err)
-		}
-
-		var match bool
-		originPort := origin.Port()
-		if originPort == "" {
-			originPort = "443"
-		}
-
-		for _, addr := range h.c.ProxyPublicAddrs {
-			if strconv.Itoa(addr.Port(0)) == originPort && addr.Host() == origin.Hostname() {
-				match = true
-				break
-			}
-		}
-
-		if !match {
-			return trace.AccessDenied("port or hostname did not match")
-		}
-
-		// As we've already checked the origin matches a public proxy address, we can allow requests from that origin
-		// We do this dynamically as this header can only contain one value
-		w.Header().Set("Access-Control-Allow-Origin", originValue)
-		if handle != nil {
-			return handle(w, r, p)
-		}
-
-		return nil
-	}
 }
 
 // makeRouterHandler creates a httprouter.Handle.
@@ -171,3 +123,20 @@ type routerAuthFunc func(http.ResponseWriter, *http.Request, httprouter.Params, 
 
 type handlerAuthFunc func(http.ResponseWriter, *http.Request, *session) error
 type handlerFunc func(http.ResponseWriter, *http.Request) error
+
+type launcherURLParams struct {
+	// clusterName is the cluster within which this application is running.
+	clusterName string
+	// publicAddr is the public address of this application.
+	publicAddr string
+	// arn is the AWS role name, defined only when accessing AWS management console.
+	arn string
+	// stateToken if defined means initiating an app access auth exchange.
+	stateToken string
+	// path is the application URL path.
+	// It is only defined if an application was accessed without the web launcher
+	// (e.g: clicking on a bookmarked URL).
+	// This field is used to preserve the original requested path through
+	// the app access authentication redirections.
+	path string
+}

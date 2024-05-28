@@ -326,6 +326,13 @@ func (f *fanoutV2Stream) advance() (event types.Event, ok bool, err error) {
 	for f.next < f.n {
 		entry := f.rbuf[f.next]
 		f.next++
+
+		if entry.Event.Resource == nil {
+			// events with no associated resources are special cases (e.g. OpUnreliable), and are
+			// emitted to all watchers.
+			return entry.Event, true, nil
+		}
+
 		for _, kind := range f.watch.Kinds {
 			match, err := kind.Matches(entry.Event)
 			if err != nil {
@@ -359,6 +366,24 @@ func newFanoutV2Entry(event types.Event) fanoutV2Entry {
 		Event:            filterEventSecrets(event),
 		EventWithSecrets: event,
 	}
+}
+
+func filterEventSecrets(event types.Event) types.Event {
+	if r, ok := event.Resource.(types.ResourceWithSecrets); ok {
+		event.Resource = r.WithoutSecrets()
+	}
+
+	// WebSessions do not implement the ResourceWithSecrets interface.
+	if r, ok := event.Resource.(types.WebSession); ok {
+		event.Resource = r.WithoutSecrets()
+	}
+
+	return event
+}
+
+type resourceKind struct {
+	kind    string
+	subKind string
 }
 
 // fanoutV2Init is a helper for blocking on and distributing the init event for a fanout

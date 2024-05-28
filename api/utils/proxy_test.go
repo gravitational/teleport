@@ -399,7 +399,7 @@ func TestParse(t *testing.T) {
 	}
 	for _, tc := range successTests {
 		t.Run(fmt.Sprintf("should parse: %s", tc.name), func(t *testing.T) {
-			u, err := parse(tc.addr)
+			u, err := ParseURL(tc.addr)
 			require.NoError(t, err)
 			errMsg := fmt.Sprintf("(%v, %v, %v)", u.Scheme, u.Host, u.Path)
 			require.Equal(t, tc.scheme, u.Scheme, errMsg)
@@ -415,13 +415,13 @@ func TestParse(t *testing.T) {
 	}
 	for _, tc := range failTests {
 		t.Run(fmt.Sprintf("should not parse: %s", tc.name), func(t *testing.T) {
-			u, err := parse(tc.addr)
+			u, err := ParseURL(tc.addr)
 			require.Error(t, err, u)
 		})
 	}
 
 	t.Run("empty addr", func(t *testing.T) {
-		u, err := parse("")
+		u, err := ParseURL("")
 		require.NoError(t, err)
 		require.Nil(t, u)
 	})

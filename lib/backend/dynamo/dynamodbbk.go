@@ -21,6 +21,7 @@ package dynamo
 import (
 	"bytes"
 	"context"
+	"errors"
 	"net/http"
 	"sort"
 	"strconv"
@@ -43,12 +44,19 @@ import (
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	dynamometrics "github.com/gravitational/teleport/lib/observability/metrics/dynamo"
 )
+
+func init() {
+	backend.MustRegister(GetName(), func(ctx context.Context, p backend.Params) (backend.Backend, error) {
+		return New(ctx, p)
+	})
+}
 
 // Config structure represents DynamoDB configuration as appears in `storage` section
 // of Teleport YAML
@@ -160,7 +168,6 @@ type record struct {
 	Value     []byte
 	Timestamp int64
 	Expires   *int64 `json:"Expires,omitempty"`
-	ID        int64
 	Revision  string
 }
 
@@ -213,7 +220,7 @@ var _ backend.Backend = &Backend{}
 // New returns new instance of DynamoDB backend.
 // It's an implementation of backend API's NewFunc
 func New(ctx context.Context, params backend.Params) (*Backend, error) {
-	l := log.WithFields(log.Fields{trace.Component: BackendName})
+	l := log.WithFields(log.Fields{teleport.ComponentKey: BackendName})
 
 	var cfg *Config
 	err := utils.ObjectToStruct(params, &cfg)
@@ -245,9 +252,7 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 		useFIPSEndpoint = endpoints.FIPSEndpointStateEnabled
 	}
 
-	awsConfig := aws.Config{
-		EC2MetadataEnableFallback: aws.Bool(false),
-	}
+	awsConfig := aws.Config{}
 	if cfg.Region != "" {
 		awsConfig.Region = aws.String(cfg.Region)
 	}
@@ -275,13 +280,11 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 	}
 	b.session.Config.HTTPClient = httpClient
 
-	// create DynamoDB service:
+	// Create DynamoDB service.
 	svc, err := dynamometrics.NewAPIMetrics(dynamometrics.Backend, dynamodb.New(b.session, &aws.Config{
 		// Setting this on the individual service instead of the session, as DynamoDB Streams
 		// and Application Auto Scaling do not yet have FIPS endpoints in non-GovCloud.
 		// See also: https://aws.amazon.com/compliance/fips/#FIPS_Endpoints_by_Service
-		// TODO(reed): This can be simplified once https://github.com/aws/aws-sdk-go/pull/5078
-		// is available (or whenever AWS adds the missing FIPS endpoints).
 		UseFIPSEndpoint: useFIPSEndpoint,
 	}))
 	if err != nil {
@@ -424,7 +427,6 @@ func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 		values[i] = backend.Item{
 			Key:      trimPrefix(r.FullPath),
 			Value:    r.Value,
-			ID:       r.ID,
 			Revision: r.Revision,
 		}
 		if r.Expires != nil {
@@ -462,6 +464,14 @@ func (b *Backend) getAllRecords(ctx context.Context, startKey []byte, endKey []b
 	return nil, trace.BadParameter("backend entered endless loop")
 }
 
+const (
+	// batchOperationItemsLimit is the maximum number of items that can be put or deleted in a single batch operation.
+	// From https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Limits.html:
+	// A single call to BatchWriteItem can transmit up to 16MB of data over the network,
+	// consisting of up to 25 item put or delete operations.
+	batchOperationItemsLimit = 25
+)
+
 // DeleteRange deletes range of items with keys between startKey and endKey
 func (b *Backend) DeleteRange(ctx context.Context, startKey, endKey []byte) error {
 	if len(startKey) == 0 {
@@ -474,7 +484,7 @@ func (b *Backend) DeleteRange(ctx context.Context, startKey, endKey []byte) erro
 	// keep the very large limit, just in case if someone else
 	// keeps adding records
 	for i := 0; i < backend.DefaultRangeLimit/100; i++ {
-		result, err := b.getRecords(ctx, prependPrefix(startKey), prependPrefix(endKey), 100, nil)
+		result, err := b.getRecords(ctx, prependPrefix(startKey), prependPrefix(endKey), batchOperationItemsLimit, nil)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -515,15 +525,16 @@ func (b *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	item := &backend.Item{
 		Key:      trimPrefix(r.FullPath),
 		Value:    r.Value,
-		ID:       r.ID,
 		Revision: r.Revision,
 	}
 	if r.Expires != nil {
 		item.Expires = time.Unix(*r.Expires, 0)
 	}
+
 	if item.Revision == "" {
 		item.Revision = backend.BlankRevision
 	}
@@ -550,7 +561,6 @@ func (b *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 		FullPath:  prependPrefix(replaceWith.Key),
 		Value:     replaceWith.Value,
 		Timestamp: time.Now().UTC().Unix(),
-		ID:        time.Now().UTC().UnixNano(),
 		Revision:  replaceWith.Revision,
 	}
 	if !replaceWith.Expires.IsZero() {
@@ -627,12 +637,15 @@ func (b *Backend) ConditionalDelete(ctx context.Context, key []byte, rev string)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if rev == backend.BlankRevision {
-		rev = ""
-	}
+
 	input := dynamodb.DeleteItemInput{Key: av, TableName: aws.String(b.TableName)}
-	input.SetConditionExpression("Revision = :rev")
-	input.SetExpressionAttributeValues(map[string]*dynamodb.AttributeValue{":rev": {S: aws.String(rev)}})
+
+	if rev == backend.BlankRevision {
+		input.SetConditionExpression("attribute_not_exists(Revision) AND attribute_exists(FullPath)")
+	} else {
+		input.SetExpressionAttributeValues(map[string]*dynamodb.AttributeValue{":rev": {S: aws.String(rev)}})
+		input.SetConditionExpression("Revision = :rev AND attribute_exists(FullPath)")
+	}
 
 	if _, err = b.svc.DeleteItemWithContext(ctx, &input); err != nil {
 		err = convertError(err)
@@ -922,7 +935,6 @@ func (b *Backend) create(ctx context.Context, item backend.Item, mode int) (stri
 		FullPath:  prependPrefix(item.Key),
 		Value:     item.Value,
 		Timestamp: time.Now().UTC().Unix(),
-		ID:        time.Now().UTC().UnixNano(),
 		Revision:  backend.CreateRevision(),
 	}
 	if !item.Expires.IsZero() {
@@ -1040,8 +1052,8 @@ func convertError(err error) error {
 	if err == nil {
 		return nil
 	}
-	aerr, ok := err.(awserr.Error)
-	if !ok {
+	var aerr awserr.Error
+	if !errors.As(err, &aerr) {
 		return err
 	}
 	switch aerr.Code() {

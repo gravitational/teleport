@@ -19,50 +19,52 @@
 import React, { useCallback, useState } from 'react';
 
 import { Flex } from 'design';
+import { Danger } from 'design/Alert';
 
 import {
   FilterKind,
   UnifiedResources as SharedUnifiedResources,
   useUnifiedResourcesFetch,
   UnifiedResourcesPinning,
+  BulkAction,
+  IncludedResourceMode,
+  ResourceAvailabilityFilter,
 } from 'shared/components/UnifiedResources';
-import { DefaultTab } from 'shared/services/unifiedResourcePreferences';
+import { ClusterDropdown } from 'shared/components/ClusterDropdown/ClusterDropdown';
+
+import { DefaultTab } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 
 import useStickyClusterId from 'teleport/useStickyClusterId';
-import { storageService } from 'teleport/services/storageService';
 import { useUser } from 'teleport/User/UserContext';
 import { useTeleport } from 'teleport';
 import { useUrlFiltering } from 'teleport/components/hooks';
-import history from 'teleport/services/history';
-import cfg from 'teleport/config';
 import {
   FeatureHeader,
   FeatureHeaderTitle,
   FeatureBox,
 } from 'teleport/components/Layout';
+import { useNoMinWidth } from 'teleport/Main';
 import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
 import { SearchResource } from 'teleport/Discover/SelectResource';
 import { encodeUrlQueryParams } from 'teleport/components/hooks/useUrlFiltering';
 import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
 import { FeatureFlags } from 'teleport/types';
+import { UnifiedResource } from 'teleport/services/agents';
 
 import { ResourceActionButton } from './ResourceActionButton';
 import SearchPanel from './SearchPanel';
 
 export function UnifiedResources() {
   const { clusterId, isLeafCluster } = useStickyClusterId();
-  const enabled = storageService.areUnifiedResourcesEnabled();
-
-  if (!enabled) {
-    history.replace(cfg.getNodesRoute(clusterId));
-  }
 
   return (
-    <ClusterResources
-      key={clusterId} // when the current cluster changes, remount the component
-      clusterId={clusterId}
-      isLeafCluster={isLeafCluster}
-    />
+    <FeatureBox px={4}>
+      <ClusterResources
+        key={clusterId} // when the current cluster changes, remount the component
+        clusterId={clusterId}
+        isLeafCluster={isLeafCluster}
+      />
+    </FeatureBox>
   );
 }
 
@@ -91,17 +93,30 @@ const getAvailableKindsWithAccess = (flags: FeatureFlags): FilterKind[] => {
   ];
 };
 
-function ClusterResources({
+export function ClusterResources({
   clusterId,
   isLeafCluster,
+  getActionButton,
+  showCheckout = false,
+  availabilityFilter,
+  bulkActions = [],
 }: {
   clusterId: string;
   isLeafCluster: boolean;
+  getActionButton?: (
+    resource: UnifiedResource,
+    includedResourceMode: IncludedResourceMode
+  ) => JSX.Element;
+  showCheckout?: boolean;
+  /** A list of actions that can be performed on the selected items. */
+  bulkActions?: BulkAction[];
+  availabilityFilter?: ResourceAvailabilityFilter;
 }) {
   const teleCtx = useTeleport();
   const flags = teleCtx.getFeatureFlags();
 
-  const pinningNotSupported = storageService.arePinnedResourcesDisabled();
+  useNoMinWidth();
+
   const {
     getClusterPinnedResources,
     preferences,
@@ -109,15 +124,16 @@ function ClusterResources({
     updateClusterPinnedResources,
   } = useUser();
   const canCreate = teleCtx.storeUser.getTokenAccess().create;
+  const [loadClusterError, setLoadClusterError] = useState('');
 
   const { params, setParams, replaceHistory, pathname } = useUrlFiltering({
     sort: {
       fieldName: 'name',
       dir: 'ASC',
     },
+    includedResourceMode: availabilityFilter?.mode,
     pinnedOnly:
-      preferences?.unifiedResourcePreferences?.defaultTab ===
-      DefaultTab.DEFAULT_TAB_PINNED,
+      preferences?.unifiedResourcePreferences?.defaultTab === DefaultTab.PINNED,
   });
 
   const getCurrentClusterPinnedResources = useCallback(
@@ -127,45 +143,36 @@ function ClusterResources({
   const updateCurrentClusterPinnedResources = (pinnedResources: string[]) =>
     updateClusterPinnedResources(clusterId, pinnedResources);
 
-  const pinning: UnifiedResourcesPinning = pinningNotSupported
-    ? { kind: 'not-supported' }
-    : {
-        kind: 'supported',
-        updateClusterPinnedResources: updateCurrentClusterPinnedResources,
-        getClusterPinnedResources: getCurrentClusterPinnedResources,
-      };
+  const pinning: UnifiedResourcesPinning = {
+    kind: 'supported',
+    updateClusterPinnedResources: updateCurrentClusterPinnedResources,
+    getClusterPinnedResources: getCurrentClusterPinnedResources,
+  };
 
   const { fetch, resources, attempt, clear } = useUnifiedResourcesFetch({
     fetchFunc: useCallback(
       async (paginationParams, signal) => {
-        try {
-          const response = await teleCtx.resourceService.fetchUnifiedResources(
-            clusterId,
-            {
-              search: params.search,
-              query: params.query,
-              pinnedOnly: params.pinnedOnly,
-              sort: params.sort,
-              kinds: params.kinds,
-              searchAsRoles: '',
-              limit: paginationParams.limit,
-              startKey: paginationParams.startKey,
-            },
-            signal
-          );
+        const response = await teleCtx.resourceService.fetchUnifiedResources(
+          clusterId,
+          {
+            search: params.search,
+            query: params.query,
+            pinnedOnly: params.pinnedOnly,
+            sort: params.sort,
+            kinds: params.kinds,
+            searchAsRoles: '',
+            limit: paginationParams.limit,
+            startKey: paginationParams.startKey,
+            includedResourceMode: params.includedResourceMode,
+          },
+          signal
+        );
 
-          return {
-            startKey: response.startKey,
-            agents: response.agents,
-            totalCount: response.agents.length,
-          };
-        } catch (err) {
-          if (!storageService.areUnifiedResourcesEnabled()) {
-            history.replace(cfg.getNodesRoute(clusterId));
-          } else {
-            throw err;
-          }
-        }
+        return {
+          startKey: response.startKey,
+          agents: response.agents,
+          totalCount: response.agents.length,
+        };
       },
       [
         clusterId,
@@ -174,6 +181,7 @@ function ClusterResources({
         params.query,
         params.search,
         params.sort,
+        params.includedResourceMode,
         teleCtx.resourceService,
       ]
     ),
@@ -200,17 +208,27 @@ function ClusterResources({
   }
 
   return (
-    <FeatureBox px={4}>
+    <>
+      {loadClusterError && <Danger>{loadClusterError}</Danger>}
       <SharedUnifiedResources
+        bulkActions={bulkActions}
         params={params}
         fetchResources={fetch}
         resourcesFetchAttempt={attempt}
+        availabilityFilter={availabilityFilter}
         unifiedResourcePreferences={preferences.unifiedResourcePreferences}
         updateUnifiedResourcesPreferences={preferences => {
           updatePreferences({ unifiedResourcePreferences: preferences });
         }}
         availableKinds={getAvailableKindsWithAccess(flags)}
         pinning={pinning}
+        ClusterDropdown={
+          <ClusterDropdown
+            clusterLoader={teleCtx.clusterService}
+            clusterId={clusterId}
+            onError={setLoadClusterError}
+          />
+        }
         NoResources={
           <Empty
             clusterId={clusterId}
@@ -221,7 +239,10 @@ function ClusterResources({
         resources={resources.map(resource => ({
           resource,
           ui: {
-            ActionButton: <ResourceActionButton resource={resource} />,
+            ActionButton: getActionButton?.(
+              resource,
+              params.includedResourceMode
+            ) || <ResourceActionButton resource={resource} />,
           },
         }))}
         setParams={newParams => {
@@ -250,12 +271,14 @@ function ClusterResources({
             >
               <FeatureHeaderTitle>Resources</FeatureHeaderTitle>
               <Flex alignItems="center">
-                <AgentButtonAdd
-                  agent={SearchResource.UNIFIED_RESOURCE}
-                  beginsWithVowel={false}
-                  isLeafCluster={isLeafCluster}
-                  canCreate={canCreate}
-                />
+                {!showCheckout && (
+                  <AgentButtonAdd
+                    agent={SearchResource.UNIFIED_RESOURCE}
+                    beginsWithVowel={false}
+                    isLeafCluster={isLeafCluster}
+                    canCreate={canCreate}
+                  />
+                )}
               </Flex>
             </FeatureHeader>
             <Flex alignItems="center" justifyContent="space-between">
@@ -269,11 +292,11 @@ function ClusterResources({
           </>
         }
       />
-    </FeatureBox>
+    </>
   );
 }
 
-const emptyStateInfo: EmptyStateInfo = {
+export const emptyStateInfo: EmptyStateInfo = {
   title: 'Add your first resource to Teleport',
   byline:
     'Connect SSH servers, Kubernetes clusters, Windows Desktops, Databases, Web apps and more from our integrations catalog.',

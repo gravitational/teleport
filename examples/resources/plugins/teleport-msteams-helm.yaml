@@ -8,6 +8,7 @@
 teleport:
   address: "teleport.example.com:443"
   identitySecretName: teleport-plugin-msteams-identity
+  identitySecretPath: identity
 
 msTeams:
   appID: "APP_ID"

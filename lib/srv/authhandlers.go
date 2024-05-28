@@ -40,6 +40,7 @@ import (
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auditd"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/connectmycomputer"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/observability/metrics"
@@ -139,7 +140,7 @@ func NewAuthHandlers(config *AuthHandlerConfig) (*AuthHandlers, error) {
 
 	ah := &AuthHandlers{
 		c:   config,
-		log: log.WithField(trace.Component, config.Component),
+		log: log.WithField(teleport.ComponentKey, config.Component),
 	}
 	ah.loginChecker = &ahLoginChecker{
 		log: ah.log,
@@ -204,6 +205,9 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 	}
 	if _, ok := certificate.Extensions[teleport.CertExtensionRenewable]; ok {
 		identity.Renewable = true
+	}
+	if botName, ok := certificate.Extensions[teleport.CertExtensionBotName]; ok {
+		identity.BotName = botName
 	}
 	if generationStr, ok := certificate.Extensions[teleport.CertExtensionGeneration]; ok {
 		generation, err := strconv.ParseUint(generationStr, 10, 64)
@@ -296,7 +300,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 	fingerprint := fmt.Sprintf("%v %v", key.Type(), sshutils.Fingerprint(key))
 
 	// create a new logging entry with info specific to this login attempt
-	log := h.log.WithField(trace.ComponentFields, log.Fields{
+	log := h.log.WithField(teleport.ComponentFields, log.Fields{
 		"local":       conn.LocalAddr(),
 		"remote":      conn.RemoteAddr(),
 		"user":        conn.User(),
@@ -327,12 +331,44 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 	// only failed attempts are logged right now
 	recordFailedLogin := func(err error) {
 		failedLoginCount.Inc()
+		_, isConnectMyComputerNode := h.c.Server.GetInfo().GetLabel(types.ConnectMyComputerNodeOwnerLabel)
+		principal := conn.User()
 
-		message := fmt.Sprintf("Principal %q is not allowed by this certificate. Ensure your roles grants access by adding it to the 'login' property.", conn.User())
+		message := fmt.Sprintf("Principal %q is not allowed by this certificate. Ensure your roles grants access by adding it to the 'login' property.", principal)
+		if isConnectMyComputerNode {
+			// This message ends up being used only when the cert does not include the principal in the
+			// role, not when the principal is denied by a role.
+			//
+			// It's unlikely we'll ever run into this scenario as the connection test UI for Connect My
+			// Computer lets the user select only among the logins defined within the Connect My Computer
+			// role. It fails early if the list of logins is empty or if the user does not hold the
+			// Connect My Computer role.
+			//
+			// The only way this could happen is if the backend state got updated between fetching the
+			// logins from the role and actually performing the test.
+			connectMyComputerRoleName := connectmycomputer.GetRoleNameForUser(teleportUser)
+
+			message = fmt.Sprintf("Principal %q is not allowed by this certificate. Ensure that the role %q includes %q in the 'login' property. ",
+				principal, connectMyComputerRoleName, principal) +
+				"Removing the agent in Teleport Connect and starting the Connect My Computer setup again should fix this problem."
+		}
 		traceType := types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL
 
 		if trace.IsAccessDenied(err) {
 			message = "You are not authorized to access this node. Ensure your role grants access by adding it to the 'node_labels' property."
+			if isConnectMyComputerNode {
+				// It's more likely that a role denies the login rather than node_labels matching
+				// types.ConnectMyComputerNodeOwnerLabel. If a role denies access to the Connect My Computer
+				// node through node_labels, the user would never be able to see that the node has joined
+				// the cluster and would not be able to get to the connection test step.
+				connectMyComputerRoleName := connectmycomputer.GetRoleNameForUser(teleportUser)
+				nodeLabel := fmt.Sprintf("%s: %s", types.ConnectMyComputerNodeOwnerLabel, teleportUser)
+				message = fmt.Sprintf(
+					"You are not authorized to access this node. Ensure that you hold the role %q and that "+
+						"no role denies you access to the login %q and to nodes labeled with %q.",
+					connectMyComputerRoleName, principal, nodeLabel)
+			}
+
 			traceType = types.ConnectionDiagnosticTrace_RBAC_NODE
 		}
 
@@ -350,7 +386,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 				Code: events.AuthAttemptFailureCode,
 			},
 			UserMetadata: apievents.UserMetadata{
-				Login:         conn.User(),
+				Login:         principal,
 				User:          teleportUser,
 				TrustedDevice: eventDeviceMetadataFromCert(cert),
 			},
@@ -367,7 +403,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 		}
 
 		auditdMsg := auditd.Message{
-			SystemUser:   conn.User(),
+			SystemUser:   principal,
 			TeleportUser: teleportUser,
 			ConnAddress:  conn.RemoteAddr().String(),
 		}
@@ -610,7 +646,7 @@ func (a *ahLoginChecker) canLoginWithRBAC(cert *ssh.Certificate, ca types.CertAu
 		auth.RoleSupportsModeratedSessions(accessChecker.Roles()) {
 
 		// allow joining if cluster wide MFA is not required
-		if state.MFARequired != services.MFARequiredAlways {
+		if state.MFARequired == services.MFARequiredNever {
 			return nil
 		}
 

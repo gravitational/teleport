@@ -28,7 +28,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -87,7 +87,7 @@ Examples:
   Generate the configuration and immediately test it using "tctl sso test" command.`)
 
 	preset := &AuthKindCommand{
-		Run: func(ctx context.Context, clt auth.ClientI) error { return ghRunFunc(ctx, cmd, &spec, gh, clt) },
+		Run: func(ctx context.Context, clt *authclient.Client) error { return ghRunFunc(ctx, cmd, &spec, gh, clt) },
 	}
 
 	sub.Action(func(ctx *kingpin.ParseContext) error {
@@ -98,7 +98,7 @@ Examples:
 	return preset
 }
 
-func ghRunFunc(ctx context.Context, cmd *SSOConfigureCommand, spec *types.GithubConnectorSpecV3, flags *ghExtraFlags, clt auth.ClientI) error {
+func ghRunFunc(ctx context.Context, cmd *SSOConfigureCommand, spec *types.GithubConnectorSpecV3, flags *ghExtraFlags, clt *authclient.Client) error {
 	if err := specCheckRoles(ctx, cmd.Logger, spec, flags.ignoreMissingRoles, clt); err != nil {
 		return trace.Wrap(err)
 	}
@@ -115,7 +115,7 @@ func ghRunFunc(ctx context.Context, cmd *SSOConfigureCommand, spec *types.Github
 }
 
 // ResolveCallbackURL deals with common pattern of resolving callback URL for IdP to use.
-func ResolveCallbackURL(logger *logrus.Entry, clt auth.ClientI, fieldName string, callbackPattern string) string {
+func ResolveCallbackURL(logger *logrus.Entry, clt *authclient.Client, fieldName string, callbackPattern string) string {
 	var callbackURL string
 
 	logger.Infof("%v empty, resolving automatically.", fieldName)
@@ -142,7 +142,7 @@ func ResolveCallbackURL(logger *logrus.Entry, clt auth.ClientI, fieldName string
 	return callbackURL
 }
 
-func specCheckRoles(ctx context.Context, logger *logrus.Entry, spec *types.GithubConnectorSpecV3, ignoreMissingRoles bool, clt auth.ClientI) error {
+func specCheckRoles(ctx context.Context, logger *logrus.Entry, spec *types.GithubConnectorSpecV3, ignoreMissingRoles bool, clt *authclient.Client) error {
 	allRoles, err := clt.GetRoles(ctx)
 	if err != nil {
 		logger.WithError(err).Warn("Unable to get roles list. Skipping teams-to-roles sanity checks.")

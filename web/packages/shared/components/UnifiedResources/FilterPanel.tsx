@@ -16,11 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import React, { useState, FormEvent } from 'react';
 import styled from 'styled-components';
 import { ButtonBorder, ButtonPrimary, ButtonSecondary } from 'design/Button';
 import { SortDir } from 'design/DataTable/types';
-import { Text, Flex, Box } from 'design';
+import { Text, Flex } from 'design';
 import Menu, { MenuItem } from 'design/Menu';
 import { StyledCheckbox } from 'design/Checkbox';
 import {
@@ -29,13 +29,20 @@ import {
   ChevronDown,
   SquaresFour,
   Rows,
+  ArrowsIn,
+  ArrowsOut,
 } from 'design/Icon';
 
-import { ViewMode } from 'shared/services/unifiedResourcePreferences';
+import { ViewMode } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
+
 import { HoverTooltip } from 'shared/components/ToolTip';
 
-import { FilterKind } from './UnifiedResources';
-import { SharedUnifiedResource, UnifiedResourcesQueryParams } from './types';
+import { ResourceAvailabilityFilter, FilterKind } from './UnifiedResources';
+import {
+  IncludedResourceMode,
+  SharedUnifiedResource,
+  UnifiedResourcesQueryParams,
+} from './types';
 
 const kindToLabel: Record<SharedUnifiedResource['resource']['kind'], string> = {
   app: 'Application',
@@ -59,7 +66,17 @@ interface FilterPanelProps {
   selected: boolean;
   BulkActions?: React.ReactElement;
   currentViewMode: ViewMode;
-  onSelectViewMode: (viewMode: ViewMode) => void;
+  setCurrentViewMode: (viewMode: ViewMode) => void;
+  expandAllLabels: boolean;
+  setExpandAllLabels: (expandAllLabels: boolean) => void;
+  hideViewModeOptions: boolean;
+  /*
+   * ClusterDropdown is an optional prop to add a ClusterDropdown to the
+   * FilterPanel component. This is useful to turn off in Connect and use on web only
+   */
+  ClusterDropdown?: JSX.Element;
+  availabilityFilter?: ResourceAvailabilityFilter;
+  changeAvailableResourceMode(mode: IncludedResourceMode): void;
 }
 
 export function FilterPanel({
@@ -70,7 +87,13 @@ export function FilterPanel({
   selected,
   BulkActions,
   currentViewMode,
-  onSelectViewMode,
+  setCurrentViewMode,
+  availabilityFilter,
+  expandAllLabels,
+  setExpandAllLabels,
+  hideViewModeOptions,
+  changeAvailableResourceMode,
+  ClusterDropdown = null,
 }: FilterPanelProps) {
   const { sort, kinds } = params;
 
@@ -101,6 +124,10 @@ export function FilterPanel({
       <Flex gap={2}>
         <HoverTooltip tipContent={selected ? 'Deselect all' : 'Select all'}>
           <StyledCheckbox
+            css={`
+              // add extra margin so it aligns with the checkboxes of the resources
+              margin-left: 20px;
+            `}
             checked={selected}
             onChange={selectVisible}
             data-testid="select_all"
@@ -112,13 +139,48 @@ export function FilterPanel({
           availableKinds={availableKinds}
           kindsFromParams={kinds || []}
         />
+        {ClusterDropdown}
+        {availabilityFilter && (
+          <IncludedResourcesSelector
+            availabilityFilter={availabilityFilter}
+            onChange={changeAvailableResourceMode}
+          />
+        )}
       </Flex>
       <Flex gap={2} alignItems="center">
-        <Box mr={4}>{BulkActions}</Box>
-        <ViewModeSwitch
-          currentViewMode={currentViewMode}
-          onSelectViewMode={onSelectViewMode}
-        />
+        <Flex mr={1}>{BulkActions}</Flex>
+        {!hideViewModeOptions && (
+          <>
+            {currentViewMode === ViewMode.LIST && (
+              <ButtonBorder
+                size="small"
+                css={`
+                  border: none;
+                  color: ${props => props.theme.colors.text.slightlyMuted};
+                  text-transform: none;
+                  padding-left: ${props => props.theme.space[2]}px;
+                  padding-right: ${props => props.theme.space[2]}px;
+                  height: 22px;
+                  font-size: 12px;
+                `}
+                onClick={() => setExpandAllLabels(!expandAllLabels)}
+              >
+                <Flex alignItems="center" width="100%">
+                  {expandAllLabels ? (
+                    <ArrowsIn size="small" mr={1} />
+                  ) : (
+                    <ArrowsOut size="small" mr={1} />
+                  )}
+                  {expandAllLabels ? 'Collapse ' : 'Expand '} All Labels
+                </Flex>
+              </ButtonBorder>
+            )}
+            <ViewModeSwitch
+              currentViewMode={currentViewMode}
+              setCurrentViewMode={setCurrentViewMode}
+            />
+          </>
+        )}
         <SortMenu
           onDirChange={onSortOrderButtonClicked}
           onChange={onSortFieldChange}
@@ -204,7 +266,7 @@ const FilterTypesMenu = ({
 
   return (
     <Flex textAlign="center" alignItems="center">
-      <HoverTooltip tipContent={'Filter types'}>
+      <HoverTooltip tipContent={'Filter by resource type'}>
         <ButtonSecondary
           px={2}
           css={`
@@ -417,18 +479,16 @@ function kindArraysEqual(arr1: string[], arr2: string[]) {
 
 function ViewModeSwitch({
   currentViewMode,
-  onSelectViewMode,
+  setCurrentViewMode,
 }: {
   currentViewMode: ViewMode;
-  onSelectViewMode: (viewMode: ViewMode) => void;
+  setCurrentViewMode: (viewMode: ViewMode) => void;
 }) {
   return (
     <ViewModeSwitchContainer>
       <ViewModeSwitchButton
-        className={
-          currentViewMode === ViewMode.VIEW_MODE_CARD ? 'selected' : ''
-        }
-        onClick={() => onSelectViewMode(ViewMode.VIEW_MODE_CARD)}
+        className={currentViewMode === ViewMode.CARD ? 'selected' : ''}
+        onClick={() => setCurrentViewMode(ViewMode.CARD)}
         css={`
           border-right: 1px solid
             ${props => props.theme.colors.spotBackground[2]};
@@ -439,10 +499,8 @@ function ViewModeSwitch({
         <SquaresFour size="small" color="text.main" />
       </ViewModeSwitchButton>
       <ViewModeSwitchButton
-        className={
-          currentViewMode === ViewMode.VIEW_MODE_LIST ? 'selected' : ''
-        }
-        onClick={() => onSelectViewMode(ViewMode.VIEW_MODE_LIST)}
+        className={currentViewMode === ViewMode.LIST ? 'selected' : ''}
+        onClick={() => setCurrentViewMode(ViewMode.LIST)}
         css={`
           border-top-right-radius: 4px;
           border-bottom-right-radius: 4px;
@@ -453,6 +511,125 @@ function ViewModeSwitch({
     </ViewModeSwitchContainer>
   );
 }
+
+const options: { value: IncludedResourceMode; label: string }[] = [
+  {
+    value: 'accessible',
+    label: 'Available',
+  },
+  {
+    value: 'requestable',
+    label: 'Can be requested',
+  },
+];
+
+const IncludedResourcesSelector = ({
+  onChange,
+  availabilityFilter,
+}: {
+  onChange: (value: IncludedResourceMode) => void;
+  availabilityFilter: ResourceAvailabilityFilter;
+}) => {
+  const [anchorEl, setAnchorEl] = useState(null);
+
+  const handleOpen = event => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleClose = () => {
+    setAnchorEl(null);
+  };
+
+  function applyFilter(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    handleClose();
+
+    const formData = new FormData(e.currentTarget);
+    const availabilityOptionsForm = formData.getAll('availabilityOptions');
+
+    // We selected all or nothing.
+    if (
+      availabilityOptionsForm.length === 0 ||
+      availabilityOptionsForm.length === 2
+    ) {
+      onChange('all');
+    } else {
+      onChange(availabilityOptionsForm.at(0) as IncludedResourceMode);
+    }
+  }
+
+  function isCheckboxPreSelected(option: IncludedResourceMode): boolean {
+    return availabilityFilter.mode === option;
+  }
+
+  return (
+    <Flex textAlign="center" alignItems="center">
+      <HoverTooltip tipContent={'Filter by resource availability'}>
+        <ButtonSecondary
+          px={2}
+          css={`
+            border-color: ${props => props.theme.colors.spotBackground[0]};
+          `}
+          textTransform="none"
+          size="small"
+          onClick={handleOpen}
+        >
+          Availability
+          <ChevronDown ml={2} size="small" color="text.slightlyMuted" />
+          {availabilityFilter.canRequestAll === true &&
+            availabilityFilter.mode !== 'all' && <FiltersExistIndicator />}
+        </ButtonSecondary>
+      </HoverTooltip>
+      <Menu
+        popoverCss={() => `
+          // TODO (avatus): fix popover component to calculate correct height/anchor
+          margin-top: 76px;
+        `}
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'left',
+        }}
+        anchorOrigin={{
+          vertical: 'bottom',
+          horizontal: 'left',
+        }}
+        anchorEl={anchorEl}
+        open={Boolean(anchorEl)}
+        onClose={handleClose}
+      >
+        <form onSubmit={applyFilter}>
+          {options.map(option => (
+            <MenuItem as="label" key={option.value} px={2}>
+              <StyledCheckbox
+                type={availabilityFilter.canRequestAll ? 'checkbox' : 'radio'}
+                name="availabilityOptions"
+                value={option.value}
+                defaultChecked={isCheckboxPreSelected(option.value)}
+              />
+              <Text ml={2} fontWeight={300} fontSize={2}>
+                {option.label}
+              </Text>
+            </MenuItem>
+          ))}
+          <Flex justifyContent="space-between" p={2} gap={2}>
+            <ButtonPrimary size="small" type="submit">
+              Apply Filter
+            </ButtonPrimary>
+            <ButtonSecondary
+              size="small"
+              css={`
+                background-color: transparent;
+              `}
+              onClick={handleClose}
+            >
+              Cancel
+            </ButtonSecondary>
+          </Flex>
+        </form>
+      </Menu>
+    </Flex>
+  );
+};
 
 const ViewModeSwitchContainer = styled.div`
   height: 22px;

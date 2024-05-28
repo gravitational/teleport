@@ -19,22 +19,18 @@
 package windows
 
 import (
-	"bytes"
 	"context"
-	"encoding/pem"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 )
 
-// NewCertificateStoreClient returns a new structure for modifying windows certificates in a windows CA
+// NewCertificateStoreClient returns a new structure for modifying windows certificates in a Windows CA.
 func NewCertificateStoreClient(cfg CertificateStoreConfig) *CertificateStoreClient {
-	return &CertificateStoreClient{
-		cfg: cfg,
-	}
+	return &CertificateStoreClient{cfg: cfg}
 }
 
 // CertificateStoreClient implements access to a Windows Certificate Authority
@@ -45,7 +41,7 @@ type CertificateStoreClient struct {
 // CertificateStoreConfig is a config structure for a Windows Certificate Authority
 type CertificateStoreConfig struct {
 	// AccessPoint is the Auth API client (with caching).
-	AccessPoint auth.WindowsDesktopAccessPoint
+	AccessPoint authclient.WindowsDesktopAccessPoint
 	// LDAPConfig is the ldap configuration
 	LDAPConfig
 	// Log is the logging sink for the service
@@ -56,112 +52,27 @@ type CertificateStoreConfig struct {
 	LC *LDAPClient
 }
 
-// Update publishes the certificate to the current cluster's certificate authority
+// Update publishes an empty certificate revocation list to LDAP.
 func (c *CertificateStoreClient) Update(ctx context.Context) error {
-	// Publish the CA cert for current cluster CA. For trusted clusters, their
-	// respective windows_desktop_services will publish their CAs so we don't
-	// have to do it here.
-	//
-	// TODO(zmb3): support multiple CA certs per cluster (such as with HSMs).
 	caType := types.UserCA
-	ca, err := c.cfg.AccessPoint.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       caType,
-		DomainName: c.cfg.ClusterName,
-	}, false)
-	if err != nil {
-		return trace.Wrap(err, "fetching Teleport CA")
-	}
 
-	keypairs := ca.GetTrustedTLSKeyPairs()
-	c.cfg.Log.Debugf("Teleport CA has %d trusted keypairs", len(keypairs))
-
-	// LDAP stores certs and CRLs in binary DER format, so remove the outer PEM
-	// wrapper.
-	caPEM := keypairs[0].Cert
-	caBlock, _ := pem.Decode(caPEM)
-	if caBlock == nil {
-		return trace.BadParameter("failed to decode CA PEM block")
-	}
-	caDER := caBlock.Bytes
-
-	crlDER, err := c.cfg.AccessPoint.GenerateCertAuthorityCRL(ctx, types.UserCA)
+	crlDER, err := c.cfg.AccessPoint.GenerateCertAuthorityCRL(ctx, caType)
 	if err != nil {
 		return trace.Wrap(err, "generating CRL")
 	}
 
+	// TODO(zmb3): check for the presence of Teleport's CA in the NTAuth store
+
 	// To make the CA trusted, we need 3 things:
-	// 1. put the CA cert into the Trusted Certification Authorities in the
-	//    Group Policy (done manually for now, see public docs)
+	// 1. put the CA cert into the Trusted Certification Authorities in Group Policy
 	// 2. put the CA cert into NTAuth store in LDAP
 	// 3. put the CRL of the CA into a dedicated LDAP entry
 	//
-	// Below we do #2 and #3.
-	if err := c.updateCAInNTAuthStore(ctx, caDER); err != nil {
-		return trace.Wrap(err, "updating NTAuth store over LDAP")
-	}
+	// #1 and #2 are done manually as part of the set up process (see public docs).
+	// Below we do #3.
 	if err := c.updateCRL(ctx, crlDER, caType); err != nil {
 		return trace.Wrap(err, "updating CRL over LDAP")
 	}
-	return nil
-}
-
-// updateCAInNTAuthStore records the Teleport user CA in the Windows store which records
-// CAs that are eligible to issue smart card login certificates and perform client
-// private key archival.
-//
-// This function is equivalent to running:
-//
-//	certutil –dspublish –f <PathToCertFile.cer> NTAuthCA
-//
-// You can confirm the cert is present by running:
-//
-//	certutil -viewstore "ldap:///CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration,DC=example,DC=com>?caCertificate"
-//
-// Once the CA is published to LDAP, it should eventually sync and be present in the
-// machine's enterprise NTAuth store. You can check that with:
-//
-//	certutil -viewstore -enterprise NTAuth
-//
-// You can expedite the synchronization by running:
-//
-//	certutil -pulse
-func (c *CertificateStoreClient) updateCAInNTAuthStore(ctx context.Context, caDER []byte) error {
-	// Check if our CA is already in the store. The LDAP entry for NTAuth store
-	// is constant and it should always exist.
-	ntAuthDN := "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration," + c.cfg.LDAPConfig.DomainDN()
-	entries, err := c.cfg.LC.Read(ntAuthDN, "certificationAuthority", []string{"cACertificate"})
-	if err != nil {
-		return trace.Wrap(err, "fetching existing CAs")
-	}
-	if len(entries) != 1 {
-		return trace.BadParameter("expected exactly 1 NTAuthCertificates CA store at %q, but found %d", ntAuthDN, len(entries))
-	}
-	// TODO(zmb3): during CA rotation, find the old CA in NTAuthStore and remove it.
-	// Right now we just append the active CA and let the old ones hang around.
-	existingCAs := entries[0].GetRawAttributeValues("cACertificate")
-	for _, existingCADER := range existingCAs {
-		// CA already present.
-		if bytes.Equal(existingCADER, caDER) {
-			c.cfg.Log.Info("Teleport CA already present in NTAuthStore in LDAP")
-			return nil
-		}
-	}
-
-	c.cfg.Log.Debugf("None of the %d existing NTAuthCertificates matched Teleport's", len(existingCAs))
-
-	// CA is not in the store, append it.
-	updatedCAs := make([]string, 0, len(existingCAs)+1)
-	for _, existingCADER := range existingCAs {
-		updatedCAs = append(updatedCAs, string(existingCADER))
-	}
-	updatedCAs = append(updatedCAs, string(caDER))
-
-	if err := c.cfg.LC.Update(ntAuthDN, map[string][]string{
-		"cACertificate": updatedCAs,
-	}); err != nil {
-		return trace.Wrap(err, "updating CA entry")
-	}
-	c.cfg.Log.Info("Added Teleport CA to NTAuthStore via LDAP")
 	return nil
 }
 

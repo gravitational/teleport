@@ -18,12 +18,13 @@
 
 import api from 'teleport/services/api';
 
-import clusterService from './clusters';
+import ClustersService from './clusters';
 
 test('correct formatting of clusters fetch response', async () => {
   jest.spyOn(api, 'get').mockResolvedValue(mockResponse);
+  const clustersService = new ClustersService();
 
-  const response = await clusterService.fetchClusters();
+  const response = await clustersService.fetchClusters();
 
   expect(response).toEqual([
     {

@@ -129,7 +129,7 @@ func (h *Handler) handleDatabaseCreate(w http.ResponseWriter, r *http.Request, p
 		return nil, trace.Wrap(err)
 	}
 
-	return ui.MakeDatabase(database, dbUsers, dbNames), nil
+	return ui.MakeDatabase(database, dbUsers, dbNames, false /* requiresRequest */), nil
 }
 
 // updateDatabaseRequest contains some updatable fields of a database resource.
@@ -238,7 +238,7 @@ func (h *Handler) handleDatabaseUpdate(w http.ResponseWriter, r *http.Request, p
 		return nil, trace.Wrap(err)
 	}
 
-	return ui.MakeDatabase(database, nil /* dbUsers */, nil /* dbNames */), nil
+	return ui.MakeDatabase(database, nil /* dbUsers */, nil /* dbNames */, false /* requiresRequest */), nil
 }
 
 // databaseIAMPolicyResponse is the response type for handleDatabaseGetIAMPolicy.
@@ -326,17 +326,16 @@ func (h *Handler) sqlServerConfigureADScriptHandle(w http.ResponseWriter, r *htt
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	certAuthority, err := h.GetProxyClient().GetCertAuthority(
 		r.Context(),
-		types.CertAuthID{Type: types.DatabaseCA, DomainName: clusterName},
+		types.CertAuthID{Type: types.DatabaseClientCA, DomainName: clusterName},
 		false,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	caCRL, err := h.GetProxyClient().GenerateCertAuthorityCRL(r.Context(), types.DatabaseCA)
+	caCRL, err := h.GetProxyClient().GenerateCertAuthorityCRL(r.Context(), types.DatabaseClientCA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

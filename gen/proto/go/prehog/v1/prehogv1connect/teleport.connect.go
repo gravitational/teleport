@@ -22,9 +22,9 @@
 package prehogv1connect
 
 import (
+	connect "connectrpc.com/connect"
 	context "context"
 	errors "errors"
-	connect_go "github.com/bufbuild/connect-go"
 	v1 "github.com/gravitational/teleport/gen/proto/go/prehog/v1"
 	http "net/http"
 	strings "strings"
@@ -35,7 +35,7 @@ import (
 // generated with a version of connect newer than the one compiled into your binary. You can fix the
 // problem by either regenerating this code with an older version of connect or updating the connect
 // version compiled into your binary.
-const _ = connect_go.IsAtLeastVersion0_1_0
+const _ = connect.IsAtLeastVersion1_13_0
 
 const (
 	// TeleportReportingServiceName is the fully-qualified name of the TeleportReportingService service.
@@ -55,9 +55,24 @@ const (
 	TeleportReportingServiceSubmitUsageReportsProcedure = "/prehog.v1.TeleportReportingService/SubmitUsageReports"
 )
 
+// These variables are the protoreflect.Descriptor objects for the RPCs defined in this package.
+var (
+	teleportReportingServiceServiceDescriptor                  = v1.File_prehog_v1_teleport_proto.Services().ByName("TeleportReportingService")
+	teleportReportingServiceSubmitUsageReportsMethodDescriptor = teleportReportingServiceServiceDescriptor.Methods().ByName("SubmitUsageReports")
+)
+
 // TeleportReportingServiceClient is a client for the prehog.v1.TeleportReportingService service.
 type TeleportReportingServiceClient interface {
-	SubmitUsageReports(context.Context, *connect_go.Request[v1.SubmitUsageReportsRequest]) (*connect_go.Response[v1.SubmitUsageReportsResponse], error)
+	// encodes and forwards usage reports to the PostHog event database; each
+	// event is annotated with some properties that depend on the identity of the
+	// caller:
+	//   - tp.account_id (UUID in string form, can be empty if missing from the
+	//     license)
+	//   - tp.license_name (should always be a UUID)
+	//   - tp.license_authority (name of the authority that signed the license file
+	//     used for authentication)
+	//   - tp.is_cloud (boolean)
+	SubmitUsageReports(context.Context, *connect.Request[v1.SubmitUsageReportsRequest]) (*connect.Response[v1.SubmitUsageReportsResponse], error)
 }
 
 // NewTeleportReportingServiceClient constructs a client for the prehog.v1.TeleportReportingService
@@ -67,31 +82,41 @@ type TeleportReportingServiceClient interface {
 //
 // The URL supplied here should be the base URL for the Connect or gRPC server (for example,
 // http://api.acme.com or https://acme.com/grpc).
-func NewTeleportReportingServiceClient(httpClient connect_go.HTTPClient, baseURL string, opts ...connect_go.ClientOption) TeleportReportingServiceClient {
+func NewTeleportReportingServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...connect.ClientOption) TeleportReportingServiceClient {
 	baseURL = strings.TrimRight(baseURL, "/")
 	return &teleportReportingServiceClient{
-		submitUsageReports: connect_go.NewClient[v1.SubmitUsageReportsRequest, v1.SubmitUsageReportsResponse](
+		submitUsageReports: connect.NewClient[v1.SubmitUsageReportsRequest, v1.SubmitUsageReportsResponse](
 			httpClient,
 			baseURL+TeleportReportingServiceSubmitUsageReportsProcedure,
-			opts...,
+			connect.WithSchema(teleportReportingServiceSubmitUsageReportsMethodDescriptor),
+			connect.WithClientOptions(opts...),
 		),
 	}
 }
 
 // teleportReportingServiceClient implements TeleportReportingServiceClient.
 type teleportReportingServiceClient struct {
-	submitUsageReports *connect_go.Client[v1.SubmitUsageReportsRequest, v1.SubmitUsageReportsResponse]
+	submitUsageReports *connect.Client[v1.SubmitUsageReportsRequest, v1.SubmitUsageReportsResponse]
 }
 
 // SubmitUsageReports calls prehog.v1.TeleportReportingService.SubmitUsageReports.
-func (c *teleportReportingServiceClient) SubmitUsageReports(ctx context.Context, req *connect_go.Request[v1.SubmitUsageReportsRequest]) (*connect_go.Response[v1.SubmitUsageReportsResponse], error) {
+func (c *teleportReportingServiceClient) SubmitUsageReports(ctx context.Context, req *connect.Request[v1.SubmitUsageReportsRequest]) (*connect.Response[v1.SubmitUsageReportsResponse], error) {
 	return c.submitUsageReports.CallUnary(ctx, req)
 }
 
 // TeleportReportingServiceHandler is an implementation of the prehog.v1.TeleportReportingService
 // service.
 type TeleportReportingServiceHandler interface {
-	SubmitUsageReports(context.Context, *connect_go.Request[v1.SubmitUsageReportsRequest]) (*connect_go.Response[v1.SubmitUsageReportsResponse], error)
+	// encodes and forwards usage reports to the PostHog event database; each
+	// event is annotated with some properties that depend on the identity of the
+	// caller:
+	//   - tp.account_id (UUID in string form, can be empty if missing from the
+	//     license)
+	//   - tp.license_name (should always be a UUID)
+	//   - tp.license_authority (name of the authority that signed the license file
+	//     used for authentication)
+	//   - tp.is_cloud (boolean)
+	SubmitUsageReports(context.Context, *connect.Request[v1.SubmitUsageReportsRequest]) (*connect.Response[v1.SubmitUsageReportsResponse], error)
 }
 
 // NewTeleportReportingServiceHandler builds an HTTP handler from the service implementation. It
@@ -99,11 +124,12 @@ type TeleportReportingServiceHandler interface {
 //
 // By default, handlers support the Connect, gRPC, and gRPC-Web protocols with the binary Protobuf
 // and JSON codecs. They also support gzip compression.
-func NewTeleportReportingServiceHandler(svc TeleportReportingServiceHandler, opts ...connect_go.HandlerOption) (string, http.Handler) {
-	teleportReportingServiceSubmitUsageReportsHandler := connect_go.NewUnaryHandler(
+func NewTeleportReportingServiceHandler(svc TeleportReportingServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
+	teleportReportingServiceSubmitUsageReportsHandler := connect.NewUnaryHandler(
 		TeleportReportingServiceSubmitUsageReportsProcedure,
 		svc.SubmitUsageReports,
-		opts...,
+		connect.WithSchema(teleportReportingServiceSubmitUsageReportsMethodDescriptor),
+		connect.WithHandlerOptions(opts...),
 	)
 	return "/prehog.v1.TeleportReportingService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -118,6 +144,6 @@ func NewTeleportReportingServiceHandler(svc TeleportReportingServiceHandler, opt
 // UnimplementedTeleportReportingServiceHandler returns CodeUnimplemented from all methods.
 type UnimplementedTeleportReportingServiceHandler struct{}
 
-func (UnimplementedTeleportReportingServiceHandler) SubmitUsageReports(context.Context, *connect_go.Request[v1.SubmitUsageReportsRequest]) (*connect_go.Response[v1.SubmitUsageReportsResponse], error) {
-	return nil, connect_go.NewError(connect_go.CodeUnimplemented, errors.New("prehog.v1.TeleportReportingService.SubmitUsageReports is not implemented"))
+func (UnimplementedTeleportReportingServiceHandler) SubmitUsageReports(context.Context, *connect.Request[v1.SubmitUsageReportsRequest]) (*connect.Response[v1.SubmitUsageReportsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("prehog.v1.TeleportReportingService.SubmitUsageReports is not implemented"))
 }

@@ -29,6 +29,8 @@ import (
 	v1 "k8s.io/api/core/v1"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
+
+	"github.com/gravitational/teleport/lib/automaticupgrades/maintenance"
 )
 
 const maintenanceScheduleKeyName = "agent-maintenance-schedule"
@@ -126,7 +128,7 @@ func (w windowRepr) inWindow(now time.Time) bool {
 
 // NewWindowTrigger returns a new Trigger validating if the agent is within its
 // maintenance window.
-func NewWindowTrigger(name string, client kclient.Client) Trigger {
+func NewWindowTrigger(name string, client kclient.Client) maintenance.Trigger {
 	return windowTrigger{
 		name:   name,
 		Client: client,

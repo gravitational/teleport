@@ -16,13 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import styled from 'styled-components';
 
 import { Box, Flex } from 'design';
 import { ShimmerBox } from 'design/ShimmerBox';
 
 export function LoadingListItem() {
+  const [randomizedSize] = useState(() => ({
+    name: randomNum(95, 40),
+    description: randomNum(65, 25),
+    type: randomNum(80, 60),
+    address: randomNum(90, 50),
+  }));
+
   return (
     <LoadingListItemWrapper>
       {/* Image */}
@@ -41,15 +48,15 @@ export function LoadingListItem() {
           grid-area: name;
         `}
       >
-        <ShimmerBox height="14px" width={`${randomNum(95, 40)}%`} />
-        <ShimmerBox height="10px" width={`${randomNum(65, 25)}%`} />
+        <ShimmerBox height="14px" width={`${randomizedSize.name}%`} />
+        <ShimmerBox height="10px" width={`${randomizedSize.description}%`} />
       </Flex>
       <ShimmerBox
         css={`
           grid-area: type;
         `}
         height="18px"
-        width={`${randomNum(80, 60)}%`}
+        width={`${randomizedSize.type}%`}
       />
 
       <ShimmerBox
@@ -57,7 +64,7 @@ export function LoadingListItem() {
           grid-area: address;
         `}
         height="18px"
-        width={`${randomNum(90, 50)}%`}
+        width={`${randomizedSize.address}%`}
       />
 
       <ShimmerBox

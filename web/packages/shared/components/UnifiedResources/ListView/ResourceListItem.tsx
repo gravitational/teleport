@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 
 import { Box, ButtonIcon, Flex, Label, Text } from 'design';
@@ -31,6 +31,7 @@ import { HoverTooltip } from 'shared/components/ToolTip';
 import { ResourceItemProps } from '../types';
 import { PinButton } from '../shared/PinButton';
 import { CopyButton } from '../shared/CopyButton';
+import { getBackgroundColor } from '../shared/getBackgroundColor';
 
 export function ResourceListItem({
   name,
@@ -45,11 +46,18 @@ export function ResourceListItem({
   pinResource,
   selectResource,
   selected,
+  expandAllLabels,
+  requiresRequest = false,
 }: Omit<ResourceItemProps, 'cardViewProps'>) {
   const { description, resourceType, addr } = listViewProps;
 
-  const [showLabels, setShowLabels] = useState(false);
+  const [showLabels, setShowLabels] = useState(expandAllLabels);
   const [hovered, setHovered] = useState(false);
+
+  // Update whether this item's labels are shown if the `expandAllLabels` preference is updated.
+  useEffect(() => {
+    setShowLabels(expandAllLabels);
+  }, [expandAllLabels]);
 
   const showLabelsButton = labels.length > 0 && (hovered || showLabels);
 
@@ -72,7 +80,12 @@ export function ResourceListItem({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      <RowInnerContainer alignItems="start" pinned={pinned} selected={selected}>
+      <RowInnerContainer
+        requiresRequest={requiresRequest}
+        alignItems="start"
+        pinned={pinned}
+        selected={selected}
+      >
         {/* checkbox */}
         <HoverTooltip
           css={`
@@ -103,6 +116,7 @@ export function ResourceListItem({
           css={`
             grid-area: icon;
             place-self: center center;
+            opacity: ${requiresRequest ? '0.5' : '1'};
           `}
         />
 
@@ -236,6 +250,10 @@ export function ResourceListItem({
                     cursor: pointer;
                     height: 20px;
                     line-height: 19px;
+                    max-width: 100%;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
                   `}
                 >
                   {labelText}
@@ -299,16 +317,6 @@ const RowInnerContainer = styled(Flex)`
     border-bottom: ${props => props.theme.borders[2]} rgba(0, 0, 0, 0);
   }
 `;
-
-const getBackgroundColor = props => {
-  if (props.selected) {
-    return props.theme.colors.interactive.tonal.primary[2];
-  }
-  if (props.pinned) {
-    return props.theme.colors.interactive.tonal.primary[0];
-  }
-  return 'transparent';
-};
 
 const Name = styled(Text)`
   white-space: nowrap;

@@ -30,6 +30,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/remotecommand"
@@ -126,13 +127,22 @@ func TestExecKubeService(t *testing.T) {
 			},
 		},
 		{
-			name: "Websocket protocol",
+			name: "Websocket protocol v4",
 			args: args{
 				// We can delete the dummy client once https://github.com/kubernetes/kubernetes/pull/110142
 				// is merged into k8s go-client.
 				// For now go-client does not support connections over websockets.
 				executorBuilder: func(c *rest.Config, s string, u *url.URL) (remotecommand.Executor, error) {
 					return newWebSocketClient(c, s, u)
+				},
+				config: configWithSingleKubeUser,
+			},
+		},
+		{
+			name: "Websocket protocol v5",
+			args: args{
+				executorBuilder: func(c *rest.Config, s string, u *url.URL) (remotecommand.Executor, error) {
+					return remotecommand.NewWebSocketExecutor(c, s, u.String())
 				},
 				config: configWithSingleKubeUser,
 			},
@@ -146,7 +156,7 @@ func TestExecKubeService(t *testing.T) {
 			},
 		},
 		{
-			name: "Websocket protocol for user with multiple kubernetes users",
+			name: "Websocket protocol v4 for user with multiple kubernetes users",
 			args: args{
 				// We can delete the dummy client once https://github.com/kubernetes/kubernetes/pull/110142
 				// is merged into k8s go-client.
@@ -159,10 +169,30 @@ func TestExecKubeService(t *testing.T) {
 			},
 		},
 		{
+			name: "Websocket protocol v5 for user with multiple kubernetes users",
+			args: args{
+				executorBuilder: func(c *rest.Config, s string, u *url.URL) (remotecommand.Executor, error) {
+					return remotecommand.NewWebSocketExecutor(c, s, u.String())
+				},
+				config:          configMultiKubeUsers,
+				impersonateUser: "admin",
+			},
+		},
+		{
 			name: "SPDY protocol for user with multiple kubernetes users without specifying impersonate user",
 			args: args{
 				executorBuilder: remotecommand.NewSPDYExecutor,
 				config:          configMultiKubeUsers,
+			},
+			wantErr: true,
+		},
+		{
+			name: "Websocket protocol v5 for user with multiple kubernetes users without specifying impersonate user",
+			args: args{
+				executorBuilder: func(c *rest.Config, s string, u *url.URL) (remotecommand.Executor, error) {
+					return remotecommand.NewWebSocketExecutor(c, s, u.String())
+				},
+				config: configMultiKubeUsers,
 			},
 			wantErr: true,
 		},
@@ -267,4 +297,105 @@ func generateExecRequest(cfg generateExecRequestConfig) (*rest.Request, error) {
 		Param(teleport.KubeSessionReasonQueryParam, cfg.reason)
 
 	return req, nil
+}
+
+func TestExecMissingGETPermissionError(t *testing.T) {
+	t.Parallel()
+
+	const (
+		errorMessage = "pods \"api-1\" is forbidden: User \"bar\" cannot %s resource " +
+			"\"pods/exec\" in API group \"\" in the namespace \"ns\""
+	)
+	tests := []struct {
+		name           string
+		errorMessage   string
+		errorInspector func(*testing.T, error)
+	}{
+		{
+			name:         "missing get permission",
+			errorMessage: fmt.Sprintf(errorMessage, "get"),
+			errorInspector: func(t *testing.T, err error) {
+				require.Contains(t, err.Error(), kubernetes130BreakingChangeHint)
+			},
+		},
+		{
+			name:         "missing create permission",
+			errorMessage: fmt.Sprintf(errorMessage, "create"),
+			errorInspector: func(t *testing.T, err error) {
+				require.NotContains(t, err.Error(), kubernetes130BreakingChangeHint)
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			const errorCode = http.StatusForbidden
+
+			kubeMock, err := testingkubemock.NewKubeAPIMock(
+				testingkubemock.WithExecError(
+					metav1.Status{
+						Status:  metav1.StatusFailure,
+						Message: tt.errorMessage,
+						Reason:  metav1.StatusReasonForbidden,
+						Code:    errorCode,
+					},
+				),
+			)
+			require.NoError(t, err)
+			t.Cleanup(func() { kubeMock.Close() })
+
+			// creates a Kubernetes service with a configured cluster pointing to mock api server
+			testCtx := SetupTestContext(
+				context.Background(),
+				t,
+				TestConfig{
+					Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
+				},
+			)
+
+			t.Cleanup(func() { require.NoError(t, testCtx.Close()) })
+
+			// create a user with access to kubernetes (kubernetes_user and kubernetes_groups specified)
+			user, _ := testCtx.CreateUserAndRole(
+				testCtx.Context,
+				t,
+				username,
+				RoleSpec{
+					Name:       roleName,
+					KubeUsers:  roleKubeUsers,
+					KubeGroups: roleKubeGroups,
+				})
+
+			// generate a kube client with user certs for auth
+			_, userRestConfig := testCtx.GenTestKubeClientTLSCert(
+				t,
+				user.GetName(),
+				kubeCluster,
+			)
+
+			streamOpts := remotecommand.StreamOptions{
+				Stdin:  nil,
+				Stdout: &bytes.Buffer{},
+				Stderr: &bytes.Buffer{},
+				Tty:    false,
+			}
+
+			req, err := generateExecRequest(
+				generateExecRequestConfig{
+					addr:          testCtx.KubeProxyAddress(),
+					podName:       podName,
+					podNamespace:  podNamespace,
+					containerName: podContainerName,
+					cmd:           containerCommmandExecute, // placeholder for commands to execute in the dummy pod
+					options:       streamOpts,
+				},
+			)
+			require.NoError(t, err)
+
+			exec, err := remotecommand.NewSPDYExecutor(userRestConfig, http.MethodPost, req.URL())
+			require.NoError(t, err)
+			err = exec.StreamWithContext(testCtx.Context, streamOpts)
+			require.Error(t, err)
+			tt.errorInspector(t, err)
+		})
+	}
 }

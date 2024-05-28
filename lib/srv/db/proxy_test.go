@@ -220,7 +220,9 @@ func TestProxyProtocolPostgresStartup(t *testing.T) {
 				require.NoError(t, err)
 				defer conn.Close()
 				for _, task := range tt.tasks {
-					payload := task.sendMsg.Encode(nil)
+					payload, err := task.sendMsg.Encode(nil)
+					require.NoError(t, err, "FrontendMessage.Encode failed")
+
 					nWritten, err := conn.Write(payload)
 					require.NoError(t, err)
 					require.Len(t, payload, nWritten, "failed to fully write payload")
@@ -250,7 +252,7 @@ func TestProxyProtocolPostgresStartup(t *testing.T) {
 					}
 					if needsTLSUpgrade {
 						tlsConn := tls.Client(conn, clientTLSCfg)
-						require.NoError(t, tlsConn.Handshake())
+						require.NoError(t, tlsConn.HandshakeContext(ctx))
 						conn = tlsConn
 					}
 				}
@@ -476,13 +478,13 @@ func setConfigClientIdleTimoutAndDisconnectExpiredCert(ctx context.Context, t *t
 	authPref, err := auth.GetAuthPreference(ctx)
 	require.NoError(t, err)
 	authPref.SetDisconnectExpiredCert(true)
-	err = auth.SetAuthPreference(ctx, authPref)
+	_, err = auth.UpsertAuthPreference(ctx, authPref)
 	require.NoError(t, err)
 
 	netConfig, err := auth.GetClusterNetworkingConfig(ctx)
 	require.NoError(t, err)
 	netConfig.SetClientIdleTimeout(timeout)
-	err = auth.SetClusterNetworkingConfig(ctx, netConfig)
+	_, err = auth.UpsertClusterNetworkingConfig(ctx, netConfig)
 	require.NoError(t, err)
 }
 

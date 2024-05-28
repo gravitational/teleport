@@ -298,7 +298,7 @@ func (p *DatabasePack) testRotateTrustedCluster(t *testing.T) {
 
 		go func() {
 			errChan <- pw.waitForPhase(phase, func() error {
-				return authServer.RotateCertAuthority(ctx, auth.RotateRequest{
+				return authServer.RotateCertAuthority(ctx, types.RotateRequest{
 					Type:        types.DatabaseCA,
 					TargetPhase: phase,
 					Mode:        types.RotationModeManual,
@@ -668,7 +668,7 @@ func TestDatabaseRootLeafIdleTimeout(t *testing.T) {
 			role, err := rootAuthServer.GetRole(context.Background(), rootRole.GetName())
 			assert.NoError(t, err)
 			return time.Duration(role.GetOptions().ClientIdleTimeout) == idleTimeout
-		}, time.Second, time.Millisecond*100, "role idle timeout propagation filed")
+		}, time.Second*2, time.Millisecond*200, "role idle timeout propagation filed")
 
 		client := mkMySQLLeafDBClient(t)
 		_, err := client.Execute("select 1")
@@ -689,7 +689,7 @@ func TestDatabaseRootLeafIdleTimeout(t *testing.T) {
 			role, err := leafAuthServer.GetRole(context.Background(), leafRole.GetName())
 			assert.NoError(t, err)
 			return time.Duration(role.GetOptions().ClientIdleTimeout) == idleTimeout
-		}, time.Second, time.Millisecond*100, "role idle timeout propagation filed")
+		}, time.Second*2, time.Millisecond*200, "role idle timeout propagation filed")
 
 		client := mkMySQLLeafDBClient(t)
 		_, err := client.Execute("select 1")

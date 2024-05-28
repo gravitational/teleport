@@ -16,23 +16,32 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package web_test
+package web
 
 import (
 	"context"
+	"crypto/tls"
+	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/websocket"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/web"
+	"github.com/gravitational/teleport/lib/web/terminal"
 )
 
 // TestTerminalReadFromClosedConn verifies that Teleport recovers
@@ -49,7 +58,7 @@ func TestTerminalReadFromClosedConn(t *testing.T) {
 			t.Errorf("couldn't upgrade websocket connection: %v", err)
 		}
 
-		envelope := web.Envelope{
+		envelope := terminal.Envelope{
 			Type:    defaults.WebsocketRaw,
 			Payload: "hello",
 		}
@@ -66,7 +75,9 @@ func TestTerminalReadFromClosedConn(t *testing.T) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
-	stream := web.NewTerminalStream(context.Background(), conn, utils.NewLoggerForTests())
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	stream := terminal.NewStream(ctx, terminal.StreamConfig{WS: conn, Logger: utils.NewLoggerForTests()})
 
 	// close the stream before we attempt to read from it,
 	// this will produce a net.ErrClosed error on the read
@@ -74,4 +85,183 @@ func TestTerminalReadFromClosedConn(t *testing.T) {
 
 	_, err = io.Copy(io.Discard, stream)
 	require.NoError(t, err)
+}
+
+type testTerminal struct {
+	ws     *websocket.Conn
+	stream *terminal.Stream
+
+	sessionC chan session.Session
+}
+
+type connectConfig struct {
+	pack              *authPack
+	host              string
+	proxy             string
+	sessionID         session.ID
+	participantMode   types.SessionParticipantMode
+	keepAliveInterval time.Duration
+	mfaCeremony       func(challenge client.MFAAuthenticateChallenge) []byte
+	handlers          map[string]terminal.WSHandlerFunc
+	pingHandler       func(terminal.WSConn, string) error
+}
+
+func connectToHost(ctx context.Context, cfg connectConfig) (*testTerminal, error) {
+	req := TerminalRequest{
+		Server: cfg.host,
+		Login:  cfg.pack.login,
+		Term: session.TerminalParams{
+			W: 100,
+			H: 100,
+		},
+		SessionID:         cfg.sessionID,
+		ParticipantMode:   cfg.participantMode,
+		KeepAliveInterval: cfg.keepAliveInterval,
+	}
+
+	data, err := json.Marshal(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	u := url.URL{
+		Host:   cfg.proxy,
+		Scheme: client.WSS,
+		Path:   "/v1/webapi/sites/-current-/connect/ws",
+	}
+
+	q := u.Query()
+	q.Set("params", string(data))
+	u.RawQuery = q.Encode()
+
+	header := http.Header{}
+	header.Add("Origin", "http://localhost")
+	for _, cookie := range cfg.pack.cookies {
+		header.Add("Cookie", cookie.String())
+	}
+
+	dialer := websocket.Dialer{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: true,
+		},
+	}
+
+	ws, resp, err := dialer.Dial(u.String(), header)
+	if err != nil {
+		var sb strings.Builder
+		sb.WriteString("websocket dial")
+		if resp != nil {
+			fmt.Fprintf(&sb, "; status code %v;", resp.StatusCode)
+			fmt.Fprintf(&sb, "headers: %v; body: ", resp.Header)
+			io.Copy(&sb, resp.Body)
+		}
+		return nil, trace.Wrap(err, sb.String())
+	}
+	if err := resp.Body.Close(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := makeAuthReqOverWS(ws, cfg.pack.session.Token); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if cfg.pingHandler != nil {
+		ws.SetPingHandler(func(message string) error {
+			return cfg.pingHandler(ws, message)
+		})
+	}
+
+	t := &testTerminal{ws: ws, sessionC: make(chan session.Session, 1)}
+
+	// If MFA is expected, it should be performed prior to creating
+	// the TerminalStream to avoid messages being handled by multiple
+	// readers.
+	if cfg.mfaCeremony != nil {
+		if err := t.performMFACeremony(cfg.mfaCeremony); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	if cfg.handlers == nil {
+		cfg.handlers = map[string]terminal.WSHandlerFunc{}
+	}
+
+	if _, ok := cfg.handlers[defaults.WebsocketSessionMetadata]; !ok {
+		cfg.handlers[defaults.WebsocketSessionMetadata] = func(ctx context.Context, envelope terminal.Envelope) {
+			if envelope.Type != defaults.WebsocketSessionMetadata {
+				return
+			}
+
+			var sessResp siteSessionGenerateResponse
+			if err := json.Unmarshal([]byte(envelope.Payload), &sessResp); err != nil {
+				return
+			}
+
+			t.sessionC <- sessResp.Session
+		}
+	}
+
+	t.stream = terminal.NewStream(ctx, terminal.StreamConfig{
+		WS:       ws,
+		Logger:   utils.NewLogger(),
+		Handlers: cfg.handlers,
+	})
+
+	return t, nil
+}
+
+func (t *testTerminal) GetSession() session.Session {
+	sess := <-t.sessionC
+	t.sessionC <- sess
+
+	return sess
+}
+
+func (t *testTerminal) Close() error {
+	return t.stream.Close()
+}
+
+func (t *testTerminal) Write(p []byte) (int, error) {
+	return t.stream.Write(p)
+}
+
+func (t *testTerminal) Read(p []byte) (int, error) {
+	return t.stream.Read(p)
+}
+
+func (t *testTerminal) SetReadDeadline(deadline time.Time) error {
+	return t.stream.SetReadDeadline(deadline)
+}
+
+func (t *testTerminal) SetWriteDeadline(deadline time.Time) error {
+	return t.stream.SetWriteDeadline(deadline)
+}
+
+func (t *testTerminal) performMFACeremony(ceremonyFn func(challenge client.MFAAuthenticateChallenge) []byte) error {
+	// Wait for websocket authn challenge event.
+	ty, raw, err := t.ws.ReadMessage()
+	if err != nil {
+		return trace.Wrap(err, "reading ws message")
+	}
+
+	if ty != websocket.BinaryMessage {
+		return trace.BadParameter("got unexpected websocket message type %d", ty)
+	}
+
+	var env terminal.Envelope
+	if err := proto.Unmarshal(raw, &env); err != nil {
+		return trace.Wrap(err, "unmarshalling envelope")
+	}
+
+	var challenge client.MFAAuthenticateChallenge
+	if err := json.Unmarshal([]byte(env.Payload), &challenge); err != nil {
+		return trace.Wrap(err, "unmarshalling challenge")
+	}
+
+	// Send response over ws.
+	if err := t.ws.WriteMessage(websocket.BinaryMessage, ceremonyFn(challenge)); err != nil {
+		return trace.Wrap(err, "sending challenge response")
+	}
+
+	return nil
 }

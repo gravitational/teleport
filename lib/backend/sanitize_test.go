@@ -42,6 +42,54 @@ func TestSanitize(t *testing.T) {
 			assert: require.Error,
 		},
 		{
+			inKey:  []byte("/namespaces/.."),
+			assert: require.Error,
+		},
+		{
+			inKey:  []byte("/namespaces/../params"),
+			assert: require.Error,
+		},
+		{
+			inKey:  []byte("/namespaces/..params"),
+			assert: require.NoError,
+		},
+		{
+			inKey:  []byte("/namespaces/."),
+			assert: require.Error,
+		},
+		{
+			inKey:  []byte("/namespaces/./params"),
+			assert: require.Error,
+		},
+		{
+			inKey:  []byte("/namespaces/.params"),
+			assert: require.NoError,
+		},
+		{
+			inKey:  []byte(".."),
+			assert: require.Error,
+		},
+		{
+			inKey:  []byte("..params"),
+			assert: require.NoError,
+		},
+		{
+			inKey:  []byte("../params"),
+			assert: require.Error,
+		},
+		{
+			inKey:  []byte("."),
+			assert: require.Error,
+		},
+		{
+			inKey:  []byte(".params"),
+			assert: require.NoError,
+		},
+		{
+			inKey:  []byte("./params"),
+			assert: require.Error,
+		},
+		{
 			inKey:  RangeEnd([]byte("a-b/c:d/.e_f/01")),
 			assert: require.NoError,
 		},
@@ -142,6 +190,10 @@ func (n *nopBackend) DeleteRange(_ context.Context, _ []byte, _ []byte) error {
 
 func (n *nopBackend) KeepAlive(_ context.Context, _ Lease, _ time.Time) error {
 	return nil
+}
+
+func (n *nopBackend) AtomicWrite(_ context.Context, _ []ConditionalAction) (revision string, err error) {
+	return "", nil
 }
 
 func (n *nopBackend) Close() error {

@@ -302,7 +302,7 @@ func NewAuditLog(cfg AuditLogConfig) (*AuditLog, error) {
 		playbackDir:    filepath.Join(cfg.DataDir, PlaybackDir, SessionLogsDir, apidefaults.Namespace),
 		AuditLogConfig: cfg,
 		log: log.WithFields(log.Fields{
-			trace.Component: teleport.ComponentAuditLog,
+			teleport.ComponentKey: teleport.ComponentAuditLog,
 		}),
 		activeDownloads: make(map[string]context.Context),
 		ctx:             ctx,
@@ -766,7 +766,7 @@ func (l *AuditLog) unpackFile(fileName string) (readSeekCloser, error) {
 		// Unexpected EOF is returned by gzip reader
 		// when the file has not been closed yet,
 		// ignore this error
-		if err != io.ErrUnexpectedEOF {
+		if !errors.Is(err, io.ErrUnexpectedEOF) {
 			dest.Close()
 			return nil, trace.Wrap(err)
 		}
@@ -812,7 +812,6 @@ func (l *AuditLog) getSessionChunk(namespace string, sid session.ID, offsetBytes
 // (oldest first).
 //
 // Can be filtered by 'after' (cursor value to return events newer than)
-
 func (l *AuditLog) GetSessionEvents(namespace string, sid session.ID, afterN int) ([]EventFields, error) {
 	l.log.WithFields(log.Fields{"sid": string(sid), "afterN": afterN}).Debugf("GetSessionEvents.")
 	if namespace == "" {
@@ -951,9 +950,7 @@ func (l *AuditLog) SearchSessionEvents(ctx context.Context, req SearchSessionEve
 	return l.localLog.SearchSessionEvents(ctx, req)
 }
 
-// StreamSessionEvents streams all events from a given session recording. An error is returned on the first
-// channel if one is encountered. Otherwise the event channel is closed when the stream ends.
-// The event channel is not closed on error to prevent race conditions in downstream select statements.
+// StreamSessionEvents implements [SessionStreamer].
 func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
 	l.log.Debugf("StreamSessionEvents(%v)", sessionID)
 	e := make(chan error, 1)
@@ -1001,11 +998,6 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 		return c, e
 	}
 
-	if err != nil {
-		e <- trace.Wrap(err)
-		return c, e
-	}
-
 	protoReader := NewProtoReader(rawSession)
 
 	go func() {
@@ -1017,7 +1009,7 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 
 			event, err := protoReader.Read(ctx)
 			if err != nil {
-				if err != io.EOF {
+				if !errors.Is(err, io.EOF) {
 					e <- trace.Wrap(err)
 				} else {
 					close(c)

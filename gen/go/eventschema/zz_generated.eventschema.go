@@ -806,6 +806,11 @@ var events = map[string]*Event{
 				Type:        "object",
 			},
 			{
+				Name:        "assume_start_time",
+				Description: "is the time the requested roles can be assumed",
+				Type:        "string",
+			},
+			{
 				Name:        "aws_role_arn",
 				Description: "is AWS IAM role user assumes when accessing AWS console",
 				Type:        "string",

@@ -3,11 +3,14 @@ name: "CodeQL"
 on:
   schedule:
     - cron: '0 13 * * *' # At 1:00 PM UTC every day
+  pull_request:
+    paths:
+      - '.github/workflows/codeql.yml'
+  # merge_group is intentionally excluded, because we don't require this workflow
 
 jobs:
   analyze:
     name: Analyze
-    if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
     runs-on: ubuntu-22.04-16core
     permissions:
       actions: read
@@ -17,35 +20,32 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        branch: [ 'master' ] # release branches are scanned in teleport-sec-scan repos (see RFD 147)
         language: [ 'go', 'javascript' ]
 
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
-      with:
-        ref: ${{ matrix.branch }}
 
     - name: Set up Go
-      uses: actions/setup-go@v4
+      uses: actions/setup-go@v5
       with:
         cache: false
         go-version-file: go.mod
       if: ${{ matrix.language == 'go' }}
 
     - name: Initialize the CodeQL tools for scanning
-      uses: github/codeql-action/init@v2
+      uses: github/codeql-action/init@v3
       with:
         languages: ${{ matrix.language }}
         queries: security-extended
       timeout-minutes: 5
 
     - name: Autobuild
-      uses: github/codeql-action/autobuild@v2
+      uses: github/codeql-action/autobuild@v3
       timeout-minutes: 30
 
     - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v2
+      uses: github/codeql-action/analyze@v3
       with:
         category: "/language:${{matrix.language}}"
       timeout-minutes: 10

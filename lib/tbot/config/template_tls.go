@@ -64,6 +64,12 @@ func (t *templateTLS) render(
 	identity *identity.Identity,
 	destination bot.Destination,
 ) error {
+	ctx, span := tracer.Start(
+		ctx,
+		"templateTLS/render",
+	)
+	defer span.End()
+
 	cas, err := bot.GetCertAuthorities(ctx, t.caCertType)
 	if err != nil {
 		return trace.Wrap(err)
@@ -92,7 +98,7 @@ func (t *templateTLS) render(
 		return trace.Wrap(err)
 	}
 
-	log.Debugf("Wrote TLS identity files: %+v", files)
+	log.DebugContext(ctx, "Wrote TLS identity files", "files", files)
 
 	return nil
 }

@@ -38,8 +38,8 @@ type TeleportOktaImportRule struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   TeleportOktaImportRuleSpec   `json:"spec,omitempty"`
-	Status TeleportOktaImportRuleStatus `json:"status,omitempty"`
+	Spec   TeleportOktaImportRuleSpec `json:"spec,omitempty"`
+	Status resources.Status           `json:"status,omitempty"`
 }
 
 // TeleportOktaImportRuleSpec matches the JSON of generated CRD spec
@@ -69,14 +69,6 @@ type TeleportOktaImportRuleList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []TeleportOktaImportRule `json:"items"`
-}
-
-type TeleportOktaImportRuleStatus struct {
-	// Conditions represent the latest available observations of an object's state
-	// +optional
-	Conditions []metav1.Condition `json:"conditions,omitempty"`
-	// +optional
-	TeleportResourceID int64 `json:"teleportResourceID,omitempty"`
 }
 
 // ToTeleport returns an OktaImportRule, which wraps the actual
@@ -116,6 +108,8 @@ func (o TeleportOktaImportRule) ToTeleport() types.OktaImportRule {
 	return importRule
 }
 
+// StatusConditions returns a pointer to Status.Conditions slice. This is used
+// by the teleport resource controller to report conditions back to on resource.
 func (l *TeleportOktaImportRule) StatusConditions() *[]metav1.Condition {
 	return &l.Status.Conditions
 }

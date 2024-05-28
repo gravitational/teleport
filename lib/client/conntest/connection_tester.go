@@ -26,7 +26,7 @@ import (
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 )
 
@@ -51,6 +51,20 @@ type TestConnectionRequest struct {
 	// SSHPrincipal is the Linux username to use in a connection test.
 	// Specific to SSHTester.
 	SSHPrincipal string `json:"ssh_principal,omitempty"`
+	// SSHPrincipalSelectionMode is an optional field which describes whether the user has chosen the
+	// principal manually or if it was automatically chosen.
+	//
+	// Used in Connect My Computer where the principal is picked automatically if the Connect My
+	// Computer role contains only a single login.
+	//
+	// Valid values: manual, auto.
+	SSHPrincipalSelectionMode string `json:"ssh_principal_selection_mode,omitempty"`
+	// SSHNodeOS is an optional field which describes the OS the agent runs on.
+	// Valid values: windows, darwin, linux.
+	SSHNodeOS string `json:"ssh_node_os,omitempty"`
+	// SSHNodeSetupMethod is an optional field which describes how an SSH agent was installed.
+	// Valid values: script, connect_my_computer.
+	SSHNodeSetupMethod string `json:"ssh_node_setup_method,omitempty"`
 
 	// KubernetesNamespace is the Kubernetes Namespace to List the Pods in.
 	// Specific to KubernetesTester.
@@ -84,6 +98,20 @@ type KubernetesImpersonation struct {
 	// as well.
 	KubernetesGroups []string `json:"kubernetes_groups,omitempty"`
 }
+
+// consts for the SSHNodeSetupMethod field of TestConnectionRequest.
+
+const (
+	SSHNodeSetupMethodScript            = "script"
+	SSHNodeSetupMethodConnectMyComputer = "connect_my_computer"
+)
+
+// consts for the SSHPrincipalSelectionMode field of TestConnectionRequest.
+
+const (
+	SSHPrincipalSelectionModeManual = "manual"
+	SSHPrincipalSelectionModeAuto   = "auto"
+)
 
 // CheckAndSetDefaults validates the Request has the required fields.
 func (r *TestConnectionRequest) CheckAndSetDefaults() error {
@@ -128,7 +156,7 @@ type ConnectionTesterConfig struct {
 
 	// UserClient is an auth client that has a User's identity.
 	// This is the user that is running the SSH Connection Test.
-	UserClient auth.ClientI
+	UserClient authclient.ClientI
 
 	// ProxyHostPort is the proxy to use in the `--proxy` format (host:webPort,sshPort)
 	ProxyHostPort string

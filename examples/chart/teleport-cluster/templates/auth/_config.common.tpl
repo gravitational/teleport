@@ -27,6 +27,9 @@ auth_service:
   authentication:
     type: "{{ required "authentication.type is required in chart values" (coalesce .Values.authenticationType $authentication.type) }}"
     local_auth: {{ $authentication.localAuth }}
+{{- if $authentication.passwordless }}
+    passwordless: {{ $authentication.passwordless }}
+{{- end }}
 {{- if $authentication.connectorName }}
     connector_name: "{{ $authentication.connectorName }}"
 {{- end }}
@@ -49,7 +52,7 @@ auth_service:
   {{- end }}
 {{- end }}
 {{- if .Values.sessionRecording }}
-  session_recording: {{ .Values.sessionRecording }}
+  session_recording: {{ .Values.sessionRecording | squote }}
 {{- end }}
 {{- if .Values.proxyListenerMode }}
   proxy_listener_mode: {{ .Values.proxyListenerMode }}

@@ -27,6 +27,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -39,7 +40,7 @@ func (h *Handler) updateUserHandle(w http.ResponseWriter, r *http.Request, param
 		return nil, trace.Wrap(err)
 	}
 
-	return updateUser(r, clt, ctx.GetUser())
+	return updateUser(r, clt)
 }
 
 func (h *Handler) createUserHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
@@ -145,7 +146,7 @@ func updateUserTraits(req *saveUserRequest, user types.User) {
 	}
 }
 
-func updateUser(r *http.Request, m userAPIGetter, createdBy string) (*ui.User, error) {
+func updateUser(r *http.Request, m userAPIGetter) (*ui.User, error) {
 	var req *saveUserRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -155,7 +156,13 @@ func updateUser(r *http.Request, m userAPIGetter, createdBy string) (*ui.User, e
 		return nil, trace.Wrap(err)
 	}
 
-	user, err := m.GetUser(r.Context(), req.Name, false)
+	// Remove the MFA resp from the context before getting the user.
+	// Otherwise, it will be consumed before the Update which actually
+	// requires the MFA.
+	// TODO(Joerger): Explicitly provide MFA response only where it is
+	// needed instead of removing it like this.
+	getUserCtx := mfa.ContextWithMFAResponse(r.Context(), nil)
+	user, err := m.GetUser(getUserCtx, req.Name, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

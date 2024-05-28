@@ -17,120 +17,188 @@
  */
 
 import React from 'react';
-import { MemoryRouter } from 'react-router';
+import { initialize, mswLoader } from 'msw-storybook-addon';
+import { rest } from 'msw';
 
-import { initSelectedOptionsHelper } from 'teleport/Discover/Shared/SetupAccess';
+import { noAccess, getAcl } from 'teleport/mocks/contexts';
+import cfg from 'teleport/config';
+import { ResourceKind } from 'teleport/Discover/Shared';
+import { TeleportProvider } from 'teleport/Discover/Fixtures/fixtures';
+import {
+  ComponentWrapper,
+  getDbMeta,
+  getDbResourceSpec,
+} from 'teleport/Discover/Fixtures/databases';
 
 import { DatabaseEngine, DatabaseLocation } from '../../SelectResource';
 
-import { SetupAccess } from './SetupAccess';
-
-import type { State } from 'teleport/Discover/Shared/SetupAccess';
+import SetupAccess from './SetupAccess';
 
 export default {
   title: 'Teleport/Discover/Database/SetupAccess',
+  loaders: [mswLoader],
+  parameters: {
+    msw: {
+      handlers: {
+        fetchUser: rest.get(cfg.api.userWithUsernamePath, (req, res, ctx) =>
+          res(
+            ctx.json({
+              name: 'llama',
+              roles: ['access'],
+              traits: dynamicTraits,
+            })
+          )
+        ),
+      },
+    },
+  },
 };
 
-export const NoTraits = () => (
-  <MemoryRouter>
-    <SetupAccess {...props} initSelectedOptions={() => []} />
-  </MemoryRouter>
-);
+initialize();
+
+export const NoTraits = () => {
+  const meta = getDbMeta();
+  meta.db.users = [];
+  meta.db.names = [];
+  return (
+    <TeleportProvider
+      agentMeta={meta}
+      resourceKind={ResourceKind.Database}
+      resourceSpec={getDbResourceSpec(
+        DatabaseEngine.Postgres,
+        DatabaseLocation.Aws
+      )}
+    >
+      <SetupAccess />
+    </TeleportProvider>
+  );
+};
+NoTraits.parameters = {
+  msw: {
+    handlers: {
+      fetchUser: [
+        rest.get(cfg.api.userWithUsernamePath, (req, res, ctx) =>
+          res(ctx.json({}))
+        ),
+      ],
+    },
+  },
+};
 
 export const WithTraitsAwsPostgres = () => (
-  <MemoryRouter>
-    <SetupAccess
-      {...props}
-      resourceSpec={getDbMeta(DatabaseEngine.Postgres, DatabaseLocation.Aws)}
-    />
-  </MemoryRouter>
+  <TeleportProvider
+    resourceSpec={getDbResourceSpec(
+      DatabaseEngine.Postgres,
+      DatabaseLocation.Aws
+    )}
+    agentMeta={getDbMeta()}
+    resourceKind={ResourceKind.Database}
+  >
+    <SetupAccess />
+  </TeleportProvider>
 );
 
+export const WithTraitsAwsPostgresAutoEnroll = () => {
+  const meta = getDbMeta();
+  meta.db = undefined;
+  return (
+    <TeleportProvider
+      resourceKind={ResourceKind.Database}
+      resourceSpec={getDbResourceSpec(
+        DatabaseEngine.Postgres,
+        DatabaseLocation.Aws
+      )}
+      agentMeta={
+        {
+          ...meta,
+          autoDiscovery: {
+            config: {
+              name: 'some-name',
+              discoveryGroup: 'some-group',
+              aws: [
+                {
+                  types: ['rds'],
+                  regions: ['us-east-1'],
+                  tags: {},
+                  integration: 'some-integration',
+                },
+              ],
+            },
+          },
+        } as any
+      }
+    >
+      <SetupAccess />
+    </TeleportProvider>
+  );
+};
+
 export const WithTraitsAwsMySql = () => (
-  <MemoryRouter>
-    <SetupAccess
-      {...props}
-      resourceSpec={getDbMeta(DatabaseEngine.MySql, DatabaseLocation.Aws)}
-    />
-  </MemoryRouter>
+  <ComponentWrapper>
+    <SetupAccess />
+  </ComponentWrapper>
 );
 
 export const WithTraitsPostgres = () => (
-  <MemoryRouter>
-    <SetupAccess {...props} />
-  </MemoryRouter>
+  <ComponentWrapper>
+    <SetupAccess />
+  </ComponentWrapper>
 );
 
 export const WithTraitsMongo = () => (
-  <MemoryRouter>
-    <SetupAccess {...props} resourceSpec={getDbMeta(DatabaseEngine.MongoDb)} />
-  </MemoryRouter>
+  <TeleportProvider
+    resourceSpec={getDbResourceSpec(DatabaseEngine.MongoDb)}
+    agentMeta={getDbMeta()}
+    resourceKind={ResourceKind.Database}
+  >
+    <SetupAccess />
+  </TeleportProvider>
 );
 
 export const WithTraitsMySql = () => (
-  <MemoryRouter>
-    <SetupAccess {...props} resourceSpec={getDbMeta(DatabaseEngine.MySql)} />
-  </MemoryRouter>
+  <TeleportProvider
+    resourceSpec={getDbResourceSpec(DatabaseEngine.MySql)}
+    agentMeta={getDbMeta()}
+    resourceKind={ResourceKind.Database}
+  >
+    <SetupAccess />
+  </TeleportProvider>
 );
 
 export const NoAccess = () => (
-  <MemoryRouter>
-    <SetupAccess {...props} canEditUser={false} />
-  </MemoryRouter>
+  <TeleportProvider
+    customAcl={{ ...getAcl(), users: noAccess }}
+    agentMeta={getDbMeta()}
+    resourceKind={ResourceKind.Database}
+    resourceSpec={getDbResourceSpec(
+      DatabaseEngine.Postgres,
+      DatabaseLocation.Aws
+    )}
+  >
+    <SetupAccess />
+  </TeleportProvider>
 );
 
 export const SsoUser = () => (
-  <MemoryRouter>
-    <SetupAccess {...props} isSsoUser={true} />
-  </MemoryRouter>
+  <TeleportProvider
+    authType="sso"
+    agentMeta={getDbMeta()}
+    resourceKind={ResourceKind.Database}
+    resourceSpec={getDbResourceSpec(
+      DatabaseEngine.Postgres,
+      DatabaseLocation.Aws
+    )}
+  >
+    <SetupAccess />
+  </TeleportProvider>
 );
 
-const props: State = {
-  attempt: {
-    status: 'success',
-    statusText: '',
-  },
-  agentMeta: {} as any,
-  onProceed: () => null,
-  onPrev: () => null,
-  fetchUserTraits: () => null,
-  isSsoUser: false,
-  canEditUser: true,
-  getFixedOptions: () => [],
-  getSelectableOptions: () => [],
-  initSelectedOptions: trait =>
-    initSelectedOptionsHelper({ trait, staticTraits, dynamicTraits }),
-  dynamicTraits: {} as any,
-  staticTraits: {} as any,
-  resourceSpec: getDbMeta(DatabaseEngine.Postgres, DatabaseLocation.SelfHosted),
-};
-
-const staticTraits = {
-  databaseUsers: ['staticUser1', 'staticUser2'],
-  databaseNames: ['staticName1', 'staticName2'],
-  logins: [],
-  kubeUsers: [],
-  kubeGroups: [],
-  windowsLogins: [],
-  awsRoleArns: [],
-};
-
 const dynamicTraits = {
-  databaseUsers: ['dynamicUser1', 'dynamicUser2'],
   databaseNames: ['dynamicName1', 'dynamicName2'],
+  databaseUsers: ['dynamicUser1', 'dynamicUser2'],
   logins: [],
   kubeUsers: [],
   kubeGroups: [],
   windowsLogins: [],
   awsRoleArns: [],
 };
-
-function getDbMeta(dbEngine: DatabaseEngine, dbLocation?: DatabaseLocation) {
-  return {
-    // Only these fields are relevant.
-    dbMeta: {
-      dbEngine,
-      dbLocation,
-    },
-  } as any;
-}

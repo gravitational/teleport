@@ -93,13 +93,7 @@ func MarshalOktaImportRule(importRule types.OktaImportRule, opts ...MarshalOptio
 			return nil, trace.Wrap(err)
 		}
 
-		if !cfg.PreserveResourceID {
-			copy := *i
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			i = &copy
-		}
-		return utils.FastMarshal(i)
+		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, i))
 	default:
 		return nil, trace.BadParameter("unsupported Okta import rule resource %T", i)
 	}
@@ -127,9 +121,6 @@ func UnmarshalOktaImportRule(data []byte, opts ...MarshalOption) (types.OktaImpo
 		if err := i.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if cfg.ID != 0 {
-			i.SetResourceID(cfg.ID)
-		}
 		if cfg.Revision != "" {
 			i.SetRevision(cfg.Revision)
 		}
@@ -154,13 +145,7 @@ func MarshalOktaAssignment(assignment types.OktaAssignment, opts ...MarshalOptio
 			return nil, trace.Wrap(err)
 		}
 
-		if !cfg.PreserveResourceID {
-			copy := *a
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			a = &copy
-		}
-		return utils.FastMarshal(a)
+		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, a))
 	default:
 		return nil, trace.BadParameter("unsupported Okta assignment resource %T", a)
 	}
@@ -187,9 +172,6 @@ func UnmarshalOktaAssignment(data []byte, opts ...MarshalOption) (types.OktaAssi
 		}
 		if err := a.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
-		}
-		if cfg.ID != 0 {
-			a.SetResourceID(cfg.ID)
 		}
 		if cfg.Revision != "" {
 			a.SetRevision(cfg.Revision)

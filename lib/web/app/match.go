@@ -21,10 +21,10 @@ package app
 import (
 	"context"
 	"math/rand"
+	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -105,6 +105,12 @@ func MatchHealthy(proxyClient reversetunnelclient.Tunnel, clusterName string) Ma
 	return func(ctx context.Context, appServer types.AppServer) bool {
 		// Redirected apps don't need to be dialed, as the proxy will redirect to them.
 		if redirectInsteadOfForward(appServer) {
+			return true
+		}
+
+		// Apps that use the Integration should use its credentials which are obtained in Proxy.
+		// There's no need for an ApplicationService in this scenario.
+		if appServer.GetApp().GetIntegration() != "" {
 			return true
 		}
 

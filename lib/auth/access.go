@@ -22,6 +22,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -48,6 +49,7 @@ func (a *Server) CreateRole(ctx context.Context, role types.Role) (types.Role, e
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: role.GetName(),
 		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
 		log.WithError(err).Warnf("Failed to emit role create event.")
 	}
@@ -70,6 +72,7 @@ func (a *Server) UpdateRole(ctx context.Context, role types.Role) (types.Role, e
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: role.GetName(),
 		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
 		log.WithError(err).Warnf("Failed to emit role create event.")
 	}
@@ -92,6 +95,7 @@ func (a *Server) UpsertRole(ctx context.Context, role types.Role) (types.Role, e
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: role.GetName(),
 		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
 		log.WithError(err).Warnf("Failed to emit role create event.")
 	}
@@ -178,6 +182,7 @@ func (a *Server) DeleteRole(ctx context.Context, name string) error {
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: name,
 		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
 		log.WithError(err).Warnf("Failed to emit role delete event.")
 	}
@@ -190,6 +195,11 @@ func (a *Server) UpsertLock(ctx context.Context, lock types.Lock) error {
 		return trace.Wrap(err)
 	}
 
+	var expiresTime time.Time
+	// leave as 0 if no lock expiration was set
+	if le := lock.LockExpiry(); le != nil {
+		expiresTime = le.UTC()
+	}
 	um := authz.ClientUserMetadata(ctx)
 	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.LockCreate{
 		Metadata: apievents.Metadata{
@@ -199,9 +209,13 @@ func (a *Server) UpsertLock(ctx context.Context, lock types.Lock) error {
 		UserMetadata: um,
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:      lock.GetName(),
+			Expires:   expiresTime,
 			UpdatedBy: um.User,
 		},
 		Target: lock.Target(),
+		Lock: apievents.LockMetadata{
+			Target: lock.Target(),
+		},
 	}); err != nil {
 		log.WithError(err).Warning("Failed to emit lock create event.")
 	}
@@ -210,6 +224,10 @@ func (a *Server) UpsertLock(ctx context.Context, lock types.Lock) error {
 
 // DeleteLock deletes a lock and emits a related audit event.
 func (a *Server) DeleteLock(ctx context.Context, lockName string) error {
+	lock, err := a.Services.GetLock(ctx, lockName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	if err := a.Services.DeleteLock(ctx, lockName); err != nil {
 		return trace.Wrap(err)
 	}
@@ -222,6 +240,9 @@ func (a *Server) DeleteLock(ctx context.Context, lockName string) error {
 		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: lockName,
+		},
+		Lock: apievents.LockMetadata{
+			Target: lock.Target(),
 		},
 	}); err != nil {
 		log.WithError(err).Warning("Failed to emit lock delete event.")

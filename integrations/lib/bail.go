@@ -19,6 +19,7 @@
 package lib
 
 import (
+	"errors"
 	"os"
 
 	"github.com/gravitational/trace"
@@ -27,7 +28,8 @@ import (
 
 // Bail exits with nonzero exit code and prints an error to a log.
 func Bail(err error) {
-	if agg, ok := trace.Unwrap(err).(trace.Aggregate); ok {
+	var agg trace.Aggregate
+	if errors.As(trace.Unwrap(err), &agg) {
 		for i, err := range agg.Errors() {
 			log.WithError(err).Errorf("Terminating with fatal error [%d]...", i+1)
 		}

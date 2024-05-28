@@ -4,10 +4,12 @@ After=network.target
 
 [Service]
 Type=simple
-Restart=on-failure
+Restart=always
+RestartSec=5
 EnvironmentFile=-/custom/env/dir/teleport
 ExecStart=/custom/install/dir/teleport start --config /etc/teleport.yaml --pid-file=/custom/pid/dir/teleport.pid
-ExecReload=/bin/kill -HUP $MAINPID
+# systemd before 239 needs an absolute path
+ExecReload=/bin/sh -c "exec pkill -HUP -L -F /custom/pid/dir/teleport.pid"
 PIDFile=/custom/pid/dir/teleport.pid
 LimitNOFILE=16384
 

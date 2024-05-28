@@ -44,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
-	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -253,11 +252,6 @@ func (m *mockServer) UseTunnel() bool {
 // GetBPF returns the BPF service used for enhanced session recording.
 func (m *mockServer) GetBPF() bpf.BPF {
 	return &bpf.NOP{}
-}
-
-// GetRestrictedSessionManager returns the manager for restricting user activity
-func (m *mockServer) GetRestrictedSessionManager() restricted.Manager {
-	return &restricted.NOP{}
 }
 
 // Context returns server shutdown context

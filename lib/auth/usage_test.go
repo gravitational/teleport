@@ -20,6 +20,7 @@ package auth
 
 import (
 	"context"
+	"slices"
 	"testing"
 	"time"
 
@@ -27,13 +28,13 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	eventstest "github.com/gravitational/teleport/lib/events/test"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -73,7 +74,6 @@ func TestAccessRequest_WithAndWithoutLimit(t *testing.T) {
 
 	// Lift limit with IGS, expect no limit error.
 	s.features.IdentityGovernanceSecurity = true
-	s.features.IsUsageBasedBilling = true
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: s.features,
 	})
@@ -176,6 +176,9 @@ func setUpAccessRequestLimitForJulyAndAugust(t *testing.T, username string, role
 		return nil
 	})
 	p.a.SetAuditLog(al)
+
+	p.a.Notifications, err = local.NewNotificationsService(p.bk, clock)
+	require.NoError(t, err)
 
 	return setupAccessRequestLimist{
 		testpack:     p,

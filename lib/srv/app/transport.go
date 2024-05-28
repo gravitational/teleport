@@ -25,10 +25,10 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"slices"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -62,7 +62,7 @@ func (c *transportConfig) Check() error {
 		return trace.BadParameter("jwt missing")
 	}
 	if c.log == nil {
-		c.log = logrus.WithField(trace.Component, "transport")
+		c.log = logrus.WithField(teleport.ComponentKey, "transport")
 	}
 
 	return nil

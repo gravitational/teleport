@@ -96,10 +96,26 @@ func (o *UnstableClientCredentialOutput) SSHClientConfig() (*ssh.ClientConfig, e
 	return o.facade.SSHClientConfig()
 }
 
+// Facade returns the underlying facade
+func (o *UnstableClientCredentialOutput) Facade() (*identity.Facade, error) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.facade == nil {
+		return nil, trace.BadParameter("credentials not yet ready")
+	}
+	return o.facade, nil
+}
+
 // Render implements the Destination interface and is called regularly by the
 // bot with new credentials. Render passes these credentials down to the
 // underlying facade so that they can be used in TLS/SSH configs.
-func (o *UnstableClientCredentialOutput) Render(_ context.Context, _ provider, ident *identity.Identity) error {
+func (o *UnstableClientCredentialOutput) Render(ctx context.Context, _ provider, ident *identity.Identity) error {
+	_, span := tracer.Start(
+		ctx,
+		"UnstableClientCredentialOutput/Render",
+	)
+	defer span.End()
+
 	// We're hijacking the Render method to receive a new identity in each
 	// renewal round.
 	o.mu.Lock()

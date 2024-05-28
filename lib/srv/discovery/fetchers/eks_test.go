@@ -27,12 +27,13 @@ import (
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/aws/aws-sdk-go/service/eks/eksiface"
+	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/aws/aws-sdk-go/service/sts/stsiface"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
@@ -102,25 +103,49 @@ func TestEKSFetcher(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := EKSFetcherConfig{
-				EKSClientGetter: &mockEKSClientGetter{},
-				FilterLabels:    tt.args.filterLabels,
-				Region:          tt.args.region,
-				Log:             logrus.New(),
+				ClientGetter: &mockEKSClientGetter{},
+				FilterLabels: tt.args.filterLabels,
+				Region:       tt.args.region,
+				Log:          logrus.New(),
 			}
 			fetcher, err := NewEKSFetcher(cfg)
 			require.NoError(t, err)
 			resources, err := fetcher.Get(context.Background())
 			require.NoError(t, err)
 
-			require.Equal(t, tt.want.ToMap(), resources.ToMap())
+			clusters := types.ResourcesWithLabels{}
+			for _, r := range resources {
+				if e, ok := r.(*DiscoveredEKSCluster); ok {
+					clusters = append(clusters, e.GetKubeCluster())
+				} else {
+					clusters = append(clusters, r)
+				}
+			}
+
+			require.Equal(t, tt.want.ToMap(), clusters.ToMap())
 		})
 	}
 }
 
 type mockEKSClientGetter struct{}
 
-func (e *mockEKSClientGetter) GetAWSEKSClient(ctx context.Context, region string, opts ...cloud.AWSAssumeRoleOptionFn) (eksiface.EKSAPI, error) {
+func (e *mockEKSClientGetter) GetAWSEKSClient(ctx context.Context, region string, opts ...cloud.AWSOptionsFn) (eksiface.EKSAPI, error) {
 	return newPopulatedEKSMock(), nil
+}
+
+func (e *mockEKSClientGetter) GetAWSSTSClient(ctx context.Context, region string, opts ...cloud.AWSOptionsFn) (stsiface.STSAPI, error) {
+	return &mockSTSAPI{}, nil
+}
+
+type mockSTSAPI struct {
+	stsiface.STSAPI
+	arn string
+}
+
+func (a *mockSTSAPI) GetCallerIdentityWithContext(aws.Context, *sts.GetCallerIdentityInput, ...request.Option) (*sts.GetCallerIdentityOutput, error) {
+	return &sts.GetCallerIdentityOutput{
+		Arn: aws.String(a.arn),
+	}, nil
 }
 
 type mockEKSAPI struct {
@@ -204,7 +229,7 @@ var eksMockClusters = []*eks.Cluster{
 func eksClustersToResources(t *testing.T, clusters ...*eks.Cluster) types.ResourcesWithLabels {
 	var kubeClusters types.KubeClusters
 	for _, cluster := range clusters {
-		kubeCluster, err := services.NewKubeClusterFromAWSEKS(cluster)
+		kubeCluster, err := common.NewKubeClusterFromAWSEKS(aws.StringValue(cluster.Name), aws.StringValue(cluster.Arn), cluster.Tags)
 		require.NoError(t, err)
 		require.True(t, kubeCluster.IsAWS())
 		common.ApplyEKSNameSuffix(kubeCluster)

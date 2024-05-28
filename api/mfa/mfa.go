@@ -33,9 +33,20 @@ import (
 // ResponseMetadataKey is the context metadata key for an MFA response in a gRPC request.
 const ResponseMetadataKey = "mfa_challenge_response"
 
-// ErrAdminActionMFARequired is an error indicating that an admin-level
-// API request failed due to missing MFA verification.
-var ErrAdminActionMFARequired = trace.AccessDeniedError{Message: "admin-level API request requires MFA verification"}
+var (
+	// ErrAdminActionMFARequired is an error indicating that an admin-level
+	// API request failed due to missing MFA verification.
+	ErrAdminActionMFARequired = trace.AccessDeniedError{Message: "admin-level API request requires MFA verification"}
+
+	// ErrMFANotRequired is returned by MFA ceremonies when it is discovered or
+	// inferred that an MFA ceremony is not required by the server.
+	ErrMFANotRequired = trace.BadParameterError{Message: "re-authentication with MFA is not required"}
+
+	// ErrMFANotSupported is returned by MFA ceremonies when the client does not
+	// support MFA ceremonies, or the server does not support MFA ceremonies for
+	// the client user.
+	ErrMFANotSupported = trace.BadParameterError{Message: "re-authentication with MFA is not supported for this client"}
+)
 
 // WithCredentials can be called on a GRPC client request to attach
 // MFA credentials to the GRPC metadata for requests that require MFA,
@@ -127,6 +138,9 @@ func MFAResponseFromContext(ctx context.Context) (*proto.MFAAuthenticateResponse
 		mfaResp, ok := val.(*proto.MFAAuthenticateResponse)
 		if !ok {
 			return nil, trace.BadParameter("unexpected context value type %T", val)
+		}
+		if mfaResp == nil {
+			return nil, trace.NotFound("mfa response not found in the context")
 		}
 		return mfaResp, nil
 	}

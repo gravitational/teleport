@@ -24,19 +24,30 @@ import {
 
 import { KeysEnum, storageService } from 'teleport/services/storageService';
 
-import { ThemePreference } from 'teleport/services/userPreferences/types';
 import cfg from 'teleport/config';
+
+import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 
 import { darkTheme, lightTheme, bblpTheme } from '../theme';
 
 import { GlobalStyle } from './globals';
 
-function themePreferenceToTheme(themePreference: ThemePreference) {
-  return themePreference === ThemePreference.Light ? lightTheme : darkTheme;
+function themePreferenceToTheme(themePreference: Theme) {
+  if (themePreference === Theme.UNSPECIFIED) {
+    return getPrefersDark() ? lightTheme : darkTheme;
+  }
+  return themePreference === Theme.LIGHT ? lightTheme : darkTheme;
+}
+
+export function getPrefersDark(): boolean {
+  return (
+    window.matchMedia &&
+    window.matchMedia('(prefers-color-scheme: dark)').matches
+  );
 }
 
 const ThemeProvider = props => {
-  const [themePreference, setThemePreference] = useState<ThemePreference>(
+  const [themePreference, setThemePreference] = useState<Theme>(
     storageService.getThemePreference()
   );
 
@@ -51,7 +62,10 @@ const ThemeProvider = props => {
       }
 
       const preferences = JSON.parse(newValue);
-      if (preferences.theme !== themePreference) {
+      if (
+        preferences.theme !== Theme.UNSPECIFIED &&
+        preferences.theme !== themePreference
+      ) {
         setThemePreference(preferences.theme);
       }
     }

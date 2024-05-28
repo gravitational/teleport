@@ -1,8 +1,32 @@
 #!/usr/bin/env bash
 
-set -o errexit
-set -o pipefail
-set -o nounset
+set -eu
+
+upgrade_endpoint="{{ .PublicProxyAddr }}/v1/webapi/automaticupgrades/channel/default"
+
+# upgrade_endpoint_fetch loads the specified value from the upgrade endpoint. the only
+# currently supported values are 'version' and 'critical'.
+upgrade_endpoint_fetch() {
+    host_path="${upgrade_endpoint}/${1}"
+
+    if sf_output="$(curl --proto '=https' --tlsv1.2 -sSf "https://${host_path}")"; then
+        # emit output with empty lines and extra whitespace removed
+        echo "$sf_output" | grep -v -e '^[[:space:]]*$' | awk '{$1=$1};1'
+        return 0
+    else
+        return 1
+    fi
+}
+
+# get_target_version loads the current value of the /version endpoint.
+get_target_version() {
+    if tv_output="$(upgrade_endpoint_fetch version)"; then
+        # emit version string with leading 'v' removed if one is present
+        echo "${tv_output#v}"
+        return 0
+    fi
+    return 1
+}
 
 run_teleport() {
   TOKEN="$1"
@@ -10,8 +34,13 @@ run_teleport() {
   LABELS="$3"
   ADDRESS="$4"
 
+  OPENSSH_CONFIG="/etc/ssh/sshd_config"
+  if [ -n "${SSHD_CONFIG-}" ]; then
+    OPENSSH_CONFIG="${SSHD_CONFIG}"
+  fi
+
   sudo /usr/local/bin/teleport join openssh \
-    --openssh-config="${SSHD_CONFIG}" \
+    --openssh-config="${OPENSSH_CONFIG}" \
     --join-method=iam \
     --token="$TOKEN" \
     --proxy-server="{{ .PublicProxyAddr }}" \
@@ -82,11 +111,8 @@ install_teleport() {
   # shellcheck disable=SC1091
   . /etc/os-release
 
-  PACKAGE_LIST="jq {{ .TeleportPackage }}"
-  # shellcheck disable=SC2050
-  if [[ "{{ .AutomaticUpgrades }}" == "true" ]]; then
-    PACKAGE_LIST="${PACKAGE_LIST} {{ .TeleportPackage }}-updater"
-  fi
+  TELEPORT_PACKAGE="{{ .TeleportPackage }}"
+  TELEPORT_UPDATER_PACKAGE="{{ .TeleportPackage }}-updater"
 
   if [ "$ID" = "debian" ] || [ "$ID" = "ubuntu" ]; then
     # old versions of ubuntu require that keys get added by `apt-key add`, without
@@ -101,7 +127,25 @@ install_teleport() {
       echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc]  https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} {{ .RepoChannel }}" | sudo tee /etc/apt/sources.list.d/teleport.list >/dev/null
     fi
     sudo apt-get update
-    sudo apt-get install -y ${PACKAGE_LIST}
+
+    # shellcheck disable=SC2050
+    if [ "{{ .AutomaticUpgrades }}" = "true" ]; then
+      # automatic upgrades
+      if ! target_version="$(get_target_version)"; then
+        # error getting the target version
+        sudo apt-get install -y "$TELEPORT_PACKAGE" jq "$TELEPORT_UPDATER_PACKAGE"
+      elif [ "$target_version" == "none" ]; then
+        # no target version advertised
+        sudo apt-get install -y "$TELEPORT_PACKAGE" jq "$TELEPORT_UPDATER_PACKAGE"
+      else
+        # successfully retrieved target version
+        sudo apt-get install -y "$TELEPORT_PACKAGE=$target_version" jq "$TELEPORT_UPDATER_PACKAGE=$target_version"
+      fi
+    else
+      # no automatic upgrades
+      sudo apt-get install -y "$TELEPORT_PACKAGE" jq
+    fi
+
   elif [ "$ID" = "amzn" ] || [ "$ID" = "rhel" ]; then
     if [ "$ID" = "rhel" ]; then
       VERSION_ID=${VERSION_ID//\.*/} # convert version numbers like '7.2' to only include the major version
@@ -109,7 +153,25 @@ install_teleport() {
     sudo yum install -y yum-utils
     sudo yum-config-manager --add-repo \
       "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/{{ .RepoChannel }}/teleport.repo")"
-    sudo yum install -y ${PACKAGE_LIST}
+
+    # shellcheck disable=SC2050
+    if [ "{{ .AutomaticUpgrades }}" = "true" ]; then
+      # automatic upgrades
+      if ! target_version="$(get_target_version)"; then
+        # error getting the target version
+        sudo yum install -y "$TELEPORT_PACKAGE" jq "$TELEPORT_UPDATER_PACKAGE"
+      elif [ "$target_version" == "none" ]; then
+        # no target version advertised
+        sudo yum install -y "$TELEPORT_PACKAGE" jq "$TELEPORT_UPDATER_PACKAGE"
+      else
+        # successfully retrieved target version
+        sudo yum install -y "$TELEPORT_PACKAGE-$target_version" jq "$TELEPORT_UPDATER_PACKAGE-$target_version"
+      fi
+    else
+      # no automatic upgrades
+      sudo yum install -y "$TELEPORT_PACKAGE" jq
+    fi
+
   elif [ "$ID" = "sles" ] || [ "$ID" = "opensuse-tumbleweed" ] || [ "$ID" = "opensuse-leap" ]; then
     if [ "$ID" = "opensuse-tumbleweed" ]; then
       VERSION_ID="15" # tumbleweed uses dated VERSION_IDs like 20230702
@@ -119,7 +181,23 @@ install_teleport() {
     sudo rpm --import "https://zypper.releases.teleport.dev/gpg"
     sudo zypper --non-interactive addrepo "$(rpm --eval "https://yum.releases.teleport.dev/sles/$VERSION_ID/Teleport/%{_arch}/{{ .RepoChannel }}/teleport.repo")"
     sudo zypper --gpg-auto-import-keys refresh
-    sudo zypper --non-interactive install ${PACKAGE_LIST}
+    # shellcheck disable=SC2050
+    if [ "{{ .AutomaticUpgrades }}" = "true" ]; then
+      # automatic upgrades
+      if ! target_version="$(get_target_version)"; then
+        # error getting the target version
+        sudo zypper --non-interactive install -y "$TELEPORT_PACKAGE" jq "$TELEPORT_UPDATER_PACKAGE"
+      elif [ "$target_version" == "none" ]; then
+        # no target version advertised
+        sudo zypper --non-interactive install -y "$TELEPORT_PACKAGE" jq "$TELEPORT_UPDATER_PACKAGE"
+      else
+        # successfully retrieved target version
+        sudo zypper --non-interactive install -y "$TELEPORT_PACKAGE-$target_version" jq "$TELEPORT_UPDATER_PACKAGE-$target_version"
+      fi
+    else
+      # no automatic upgrades
+      sudo zypper --non-interactive install -y "$TELEPORT_PACKAGE" jq
+    fi
   else
     echo "Unsupported distro: $ID"
     exit 1

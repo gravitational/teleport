@@ -1,0 +1,544 @@
+/*
+ * Teleport
+ * Copyright (C) 2024  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+syntax = "proto3";
+
+package accessgraph.v1alpha;
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/wrappers.proto";
+
+option go_package = "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha;accessgraphv1alpha";
+
+// AWSResourceList is a list of AWS resources supported by the access graph.
+message AWSResourceList {
+  repeated AWSResource resources = 1;
+}
+
+// AWSResource is a list of AWS resources supported by the access graph.
+message AWSResource {
+  oneof resource {
+    // user is an AWS user.
+    AWSUserV1 user = 1;
+    // group is an AWS group.
+    AWSGroupV1 group = 2;
+    // user_inline_policy is a policy that is inlined to an AWS user.
+    AWSUserInlinePolicyV1 user_inline_policy = 3;
+    // user_groups is a list of AWS groups that an AWS user belongs to.
+    AWSUserGroupsV1 user_groups = 4;
+    // instance is an AWS instance.
+    AWSInstanceV1 instance = 5;
+    // policy is an AWS policy.
+    AWSPolicyV1 policy = 6;
+    // user_attached_policies is a list of AWS policies that are attached to an
+    // AWS user.
+    AWSUserAttachedPolicies user_attached_policies = 7;
+    // group_attached_policies is a list of AWS policies that are attached to an
+    // AWS group.
+    AWSGroupAttachedPolicies group_attached_policies = 8;
+    // group_inline_policy is a policy that is inlined to an AWS group.
+    AWSGroupInlinePolicyV1 group_inline_policy = 9;
+    // s3_bucket is an AWS S3 bucket.
+    AWSS3BucketV1 s3_bucket = 10;
+    // role is an AWS role.
+    AWSRoleV1 role = 11;
+    // role_inline_policy is a policy that is inlined to an AWS role.
+    AWSRoleInlinePolicyV1 role_inline_policy = 12;
+    // role_attached_policies is a list of AWS policies that are attached to an
+    // AWS role.
+    AWSRoleAttachedPolicies role_attached_policies = 13;
+    // instance_profile is an AWS instance profile.
+    AWSInstanceProfileV1 instance_profile = 14;
+    // eks_cluster is an AWS EKS cluster.
+    AWSEKSClusterV1 eks_cluster = 15;
+    // eks_cluster_access_entry is an access entry for a cluster.
+    AWSEKSClusterAccessEntryV1 eks_cluster_access_entry = 16;
+    // eks_cluster_associated_policy is an associated policy for a single cluster.
+    AWSEKSAssociatedAccessPolicyV1 eks_cluster_associated_policy = 17;
+    // rds is an AWS RDS database.
+    AWSRDSDatabaseV1 rds = 18;
+    // saml_provider is an AWS IAM SAML Identity Provider
+    AWSSAMLProviderV1 saml_provider = 19;
+    // oidc_provider is an AWS IAM OpenID Connect Identity Provider
+    AWSOIDCProviderV1 oidc_provider = 20;
+  }
+}
+
+// AWSUserInlinePolicyV1 is a policy that is inlined to an AWS user.
+message AWSUserInlinePolicyV1 {
+  reserved 2;
+  reserved "username";
+  // policy_name is the name of the policy.
+  string policy_name = 1;
+  // policy_document is the JSON document that defines the policy.
+  bytes policy_document = 3;
+  // account_id is the ID of the AWS account that the user belongs to.
+  string account_id = 4;
+  // user is the user who the policy is attached to.
+  AWSUserV1 user = 5;
+}
+
+// AWSPolicyV1 is an AWS policy.
+message AWSPolicyV1 {
+  // arn is the ARN of the AWS policy.
+  string arn = 1;
+  // created_at is the time when the AWS policy was created.
+  google.protobuf.Timestamp created_at = 2;
+  // default_version_id is the ID of the default version of the policy.
+  string default_version_id = 3;
+  // description is the description of the policy.
+  string description = 4;
+  // is_attachable indicates whether the policy can be attached to an AWS
+  // resource.
+  bool is_attachable = 5;
+  // path is the path of the policy.
+  string path = 6;
+  // policy_id is the ID of the policy.
+  string policy_id = 7;
+  // tags is the list of tags that are attached to the policy.
+  repeated AWSTag tags = 8;
+  // update_at is the time when the policy was last updated.
+  google.protobuf.Timestamp updated_at = 9;
+  // account_id is the ID of the AWS account that the policy belongs to.
+  string account_id = 10;
+  // policty_name is the name of the policy.
+  string policy_name = 11;
+  // policy_document is the JSON document that defines the policy.
+  bytes policy_document = 12;
+}
+
+// AWSGroupV1 is a group of AWS users.
+message AWSGroupV1 {
+  // arn is the ARN of the AWS group.
+  string arn = 1;
+  // created_at is the time when the AWS group was created.
+  google.protobuf.Timestamp created_at = 2;
+  // group_id is the ID of the AWS group.
+  string group_id = 3;
+  // name is the name of the AWS group.
+  string name = 4;
+  // path is the path of the AWS group.
+  string path = 5;
+  // account_id is the ID of the AWS account that the group belongs to.
+  string account_id = 6;
+}
+
+// AWSUserGroupsV1 is a list of AWS groups that an AWS user belongs to.
+message AWSUserGroupsV1 {
+  // user is the AWS user.
+  AWSUserV1 user = 1;
+  // groups is the list of AWS groups that the user belongs to.
+  repeated AWSGroupV1 groups = 2;
+}
+
+// AWSUserV1 is an AWS user.
+message AWSUserV1 {
+  // arn is the ARN of the AWS user.
+  string arn = 1;
+  // created_at is the time when the AWS user was created.
+  google.protobuf.Timestamp created_at = 2;
+  // path is the path of the AWS user.
+  string path = 3;
+  // user_id is the ID of the AWS user.
+  string user_id = 4;
+  // user_name is the name of the AWS user.
+  string user_name = 5;
+  // password_last_used is the time when the user last used their password.
+  google.protobuf.Timestamp password_last_used = 6;
+  // permissions_boundary is the permissions boundary of the user.
+  UsersPermissionsBoundaryV1 permissions_boundary = 7;
+  // tags is the list of tags that are attached to the user.
+  repeated AWSTag tags = 8;
+  // account_id is the ID of the AWS account that the user belongs to.
+  string account_id = 9;
+}
+
+// AWSTag is a tag that is attached to an AWS resource.
+message AWSTag {
+  // key is the key of the tag.
+  string key = 1;
+  // value is the value of the tag.
+  google.protobuf.StringValue value = 2;
+}
+
+// UsersPermissionsBoundaryV1 is the permissions boundary of a user.
+message UsersPermissionsBoundaryV1 {
+  // permissions_boundary_arn is the ARN of the permissions boundary.
+  string permissions_boundary_arn = 1;
+  // permissions_boundary_type is the ARN of the permissions boundary.
+  UsersPermissionsBoundaryType permissions_boundary_type = 2;
+}
+
+// UsersPermissionsBoundaryType is the type of the permissions boundary.
+enum UsersPermissionsBoundaryType {
+  // USERS_PERMISSIONS_BOUNDARY_TYPE_UNSPECIFIED is an unspecified permissions
+  // boundary type.
+  USERS_PERMISSIONS_BOUNDARY_TYPE_UNSPECIFIED = 0;
+  // USERS_PERMISSIONS_BOUNDARY_TYPE_PERMISSIONS_BOUNDARY_POLICY is a
+  // permissions boundary policy.
+  USERS_PERMISSIONS_BOUNDARY_TYPE_PERMISSIONS_BOUNDARY_POLICY = 1;
+}
+
+// AWSInstanceV1 is an AWS instance.
+message AWSInstanceV1 {
+  // instance_id is the ID of the AWS instance.
+  string instance_id = 1;
+  // launch_time is the time when the instance was launched.
+  google.protobuf.Timestamp launch_time = 2;
+  // region is the region of the AWS instance.
+  string region = 3;
+  // account_id is the ID of the AWS account that the instance belongs to.
+  string account_id = 4;
+  // tags is the list of tags that are attached to the instance.
+  repeated AWSTag tags = 5;
+  // public_dns_name is the public DNS name of the instance.
+  string public_dns_name = 6;
+  // iam_instance_profile_arn is the ARN of the IAM instance profile that is
+  // associated with the instance.
+  google.protobuf.StringValue iam_instance_profile_arn = 7;
+  // launch_key_name is the name of the key pair that is used to launch the
+  // instance.
+  google.protobuf.StringValue launch_key_name = 8;
+}
+
+// AWSUserAttachedPolicies is a list of AWS policies that are attached to an
+// AWS user.
+message AWSUserAttachedPolicies {
+  // user is the AWS user.
+  AWSUserV1 user = 1;
+  // policies is the list of AWS policies that are attached to the user.
+  repeated AttachedPolicyV1 policies = 2;
+  // account_id is the ID of the AWS account that the user belongs to.
+  string account_id = 3;
+}
+
+// AttachedPolicyV1 is a AWS policy identifier.
+message AttachedPolicyV1 {
+  // policy_name is the name of the policy.
+  string policy_name = 1;
+  // arn is the ARN of the policy.
+  string arn = 2;
+}
+
+// AWSGroupAttachedPolicies is a list of AWS policies that are attached to an
+// AWS group.
+message AWSGroupAttachedPolicies {
+  // group is the AWS group.
+  AWSGroupV1 group = 1;
+  // policies is the list of AWS policies that are attached to the group.
+  repeated AttachedPolicyV1 policies = 2;
+  // account_id is the ID of the AWS account that the group belongs to.
+  string account_id = 3;
+}
+
+// AWSGroupInlinePolicyV1 is a policy that is inlined to an AWS Group.
+message AWSGroupInlinePolicyV1 {
+  // policy_name is the name of the policy.
+  string policy_name = 1;
+  // group is the AWS group.
+  AWSGroupV1 group = 2;
+  // policy_document is the JSON document that defines the policy.
+  bytes policy_document = 3;
+  // account_id is the ID of the AWS account that the group belongs to.
+  string account_id = 4;
+}
+
+// AWSS3BucketV1 is an AWS S3 bucket.
+message AWSS3BucketV1 {
+  // name is the name of the AWS S3 bucket.
+  string name = 1;
+  // account_id is the ID of the AWS account that the S3 bucket belongs to.
+  string account_id = 2;
+  // policy_document is the JSON document that defines the policy.
+  bytes policy_document = 3;
+  // is_public indicates whether the S3 bucket is public.
+  bool is_public = 4;
+  // acl is the ACL of the S3 bucket.
+  repeated AWSS3BucketACL acls = 5;
+}
+
+// AWSS3BucketACL is the ACL of an AWS S3 bucket.
+message AWSS3BucketACL {
+  // grantee is the grantee of the ACL.
+  AWSS3BucketACLGrantee grantee = 1;
+  // permission is the permission of the ACL.
+  string permission = 2;
+}
+
+// AWSS3BucketACLGrantee is the grantee of an ACL.
+message AWSS3BucketACLGrantee {
+  // display_name is the name of the grantee.
+  string display_name = 1;
+  // id is the ID of the grantee.
+  string id = 2;
+  // email_address is the email address of the grantee.
+  string email_address = 3;
+  // type is the type of the grantee.
+  string type = 4;
+  // uri is the URI of the grantee.
+  string uri = 5;
+}
+
+// AWSRoleV1 is an AWS role.
+message AWSRoleV1 {
+  // arn is the ARN of the AWS role.
+  string arn = 1;
+  // assume_role_policy_document is the JSON document that defines the trust
+  // policy for the role.
+  bytes assume_role_policy_document = 2;
+  // created_at is the time when the role was created.
+  google.protobuf.Timestamp created_at = 3;
+  // description is the description of the role.
+  string description = 4;
+  // max_session_duration is the maximum session duration of the role.
+  google.protobuf.Duration max_session_duration = 5;
+  // path is the path of the role.
+  string path = 6;
+  // permissions_boundary is the permissions boundary of the role.
+  RolePermissionsBoundaryV1 permissions_boundary = 7;
+  // role_id is the ID of the role.
+  string role_id = 8;
+  // name is the name of the role.
+  string name = 9;
+  // tags is the list of tags that are attached to the role.
+  repeated AWSTag tags = 10;
+  // role_last_used is the last used information of the role.
+  RoleLastUsedV1 role_last_used = 11;
+  // account_id is the ID of the AWS account that the role belongs to.
+  string account_id = 12;
+}
+
+// RolePermissionsBoundaryV1 is the permissions boundary of a role.
+message RolePermissionsBoundaryV1 {
+  // permissions_boundary_arn is the ARN of the permissions boundary.
+  string permissions_boundary_arn = 1;
+  // permissions_boundary_type is the ARN of the permissions boundary.
+  RolePermissionsBoundaryType permissions_boundary_type = 2;
+}
+
+// RolePermissionsBoundaryType is the type of the permissions boundary.
+enum RolePermissionsBoundaryType {
+  // ROLE_PERMISSIONS_BOUNDARY_TYPE_UNSPECIFIED is an unspecified permissions
+  // boundary type.
+  ROLE_PERMISSIONS_BOUNDARY_TYPE_UNSPECIFIED = 0;
+  // ROLE_PERMISSIONS_BOUNDARY_TYPE_PERMISSIONS_BOUNDARY_POLICY is a
+  // permissions boundary policy.
+  ROLE_PERMISSIONS_BOUNDARY_TYPE_PERMISSIONS_BOUNDARY_POLICY = 1;
+}
+
+// RoleLastUsedV1 is the last used information of a role.
+message RoleLastUsedV1 {
+  // last_used_date is the date when the role was last used.
+  google.protobuf.Timestamp last_used_date = 1;
+  // region is the region where the role was last used.
+  string region = 2;
+}
+
+// AWSRoleInlinePolicyV1 is a policy that is inlined to an AWS Role.
+message AWSRoleInlinePolicyV1 {
+  reserved 2;
+  reserved "role";
+  // policy_name is the name of the policy.
+  string policy_name = 1;
+  // policy_document is the JSON document that defines the policy.
+  bytes policy_document = 3;
+  // account_id is the ID of the AWS account that the role belongs to.
+  string account_id = 4;
+  // aws_role is the role name of the AWS role that the policy is attached to.
+  AWSRoleV1 aws_role = 5;
+}
+
+// AWSRoleAttachedPolicies is a list of AWS policies that are attached to an
+// AWS role.
+message AWSRoleAttachedPolicies {
+  reserved 1;
+  reserved "role";
+  // policies is the list of AWS policies that are attached to the role.
+  repeated AttachedPolicyV1 policies = 2;
+  // account_id is the ID of the AWS account that the role belongs to.
+  string account_id = 3;
+  // aws_role is the AWS role.
+  AWSRoleV1 aws_role = 4;
+}
+
+// AWSInstanceProfileV1 is an AWS instance profile.
+message AWSInstanceProfileV1 {
+  // arn is the ARN of the AWS instance profile.
+  string arn = 1;
+  // created_at is the time when the instance profile was created.
+  google.protobuf.Timestamp created_at = 2;
+  // instance_profile_id is the ID of the instance profile.
+  string instance_profile_id = 3;
+  // instance_profile_name is the name of the instance profile.
+  string instance_profile_name = 4;
+  // path is the path of the instance profile.
+  string path = 5;
+  // roles is the list of roles that are associated with the instance profile.
+  repeated AWSRoleV1 roles = 6;
+  // tags is the list of tags that are attached to the instance profile.
+  repeated AWSTag tags = 7;
+  // account_id is the ID of the AWS account that the instance profile belongs
+  // to.
+  string account_id = 8;
+}
+
+// AWSEKSClusterV1 represents an AWS EKS cluster.
+message AWSEKSClusterV1 {
+  // name is the cluster name.
+  string name = 1;
+  // arn is the cluster arn
+  string arn = 2;
+  // created_at is the time when the instance profile was created.
+  google.protobuf.Timestamp created_at = 3;
+  // status is the cluster status.
+  string status = 4;
+  // version is the Kubernetes version that the cluster runs.
+  string version = 5;
+  // tags is the list of tags that are attached to the instance profile.
+  repeated AWSTag tags = 6;
+  // region is the region where the cluster is located.
+  string region = 7;
+  // account_id is the ID of the AWS account that the instance profile belongs
+  // to.
+  string account_id = 8;
+}
+
+// AWSEKSClusterAccessEntriesV1 represents an EKS cluster Access Entry.
+message AWSEKSClusterAccessEntryV1 {
+  // cluster is the EKS cluster.
+  AWSEKSClusterV1 cluster = 1;
+  // access_entry_arn is the ARN of the access entry.
+  string access_entry_arn = 2;
+  // created_at is the time when the instance profile was created.
+  google.protobuf.Timestamp created_at = 3;
+  // kubernetes_groups is the list of groups from which the principal will inherit its permissions.
+  repeated string kubernetes_groups = 4;
+  // created_at is the time when the instance profile was created.
+  google.protobuf.Timestamp modified_at = 5;
+  // principal is the ARN of the IAM principal for the access entry.
+  string principal_arn = 6;
+  // tags is the list of tags that are attached to the instance profile.
+  repeated AWSTag tags = 7;
+  // type represents the type of the access entry.
+  string type = 8;
+  // username is the name of the Kubernetes user.
+  string username = 9;
+  // account_id is the ID of the AWS account that the instance profile belongs
+  // to.
+  string account_id = 10;
+}
+
+// AWSEKSAssociatedAccessPolicyV1 identifies an access policy association.
+message AWSEKSAssociatedAccessPolicyV1 {
+  // cluster is the EKS cluster.
+  AWSEKSClusterV1 cluster = 1;
+  // principal_arn is the principal that the associated access policy insides.
+  string principal_arn = 2;
+  // scope restricts the access policy.
+  AWSEKSAccessScopeV1 scope = 3;
+  // associated_at is the date and time the AccessPolicy was associated with an AccessEntry.
+  google.protobuf.Timestamp associated_at = 4;
+  // modified_at is the last modification to the object.
+  google.protobuf.Timestamp modified_at = 5;
+  // policy_arn is the ARN of the AccessPolicy.
+  // Managed by AWS.
+  string policy_arn = 6;
+  // account_id is the ID of the AWS account that the instance profile belongs
+  // to.
+  string account_id = 7;
+}
+
+//AWSEKSAccessScope identifies the scope to which the AssociatedAccessPolicy applies.
+message AWSEKSAccessScopeV1 {
+  // namespaces is the list of namespaces to scope the policy into.
+  repeated string namespaces = 1;
+  // type identifies which scope type was configured.
+  string type = 2;
+}
+
+// AWSRDSDatabaseV1 defines the database details.
+message AWSRDSDatabaseV1 {
+  // arn is the instance ARN.
+  string arn = 1;
+  // status is the instance status.
+  string status = 2;
+  // name is the instance name.
+  string name = 3;
+  // engine_details describes the database engine details.
+  AWSRDSEngineV1 engine_details = 4;
+  // created_at is the time when the db instance was created.
+  google.protobuf.Timestamp created_at = 5;
+  // tags is the list of tags that are attached to the instance profile.
+  repeated AWSTag tags = 6;
+  // region is the database region location
+  string region = 7;
+  // is_cluster indicates if the database is a cluster.
+  bool is_cluster = 8;
+  // account_id is the ID of the AWS account that the instance profile belongs
+  // to.
+  string account_id = 9;
+  // resource_id is the RDS unique resource id.
+  string resource_id = 10;
+}
+
+// AWSRDSEngineV1 defines the database engine details
+message AWSRDSEngineV1 {
+  // engine is the engine the database runs.
+  string engine = 1;
+  // version holds the version information.
+  string version = 2;
+}
+
+// AWSSAMLProviderV1 defines the SAML identity provider details.
+message AWSSAMLProviderV1 {
+  // arn is the provider ARN.
+  string arn = 1;
+  // created_at is the time when the SAML provider was created.
+  google.protobuf.Timestamp created_at = 2;
+  // valid_until is the expiration date and time for the SAML provider.
+  google.protobuf.Timestamp valid_until = 3;
+  // tags is the list of tags that are attached to the SAML provider.
+  repeated AWSTag tags = 4;
+  // account_id is the ID of the AWS account that the provider belongs to.
+  string account_id = 5;
+  // entity_id is the SAML entity ID for this provider.
+  string entity_id = 6;
+  // sso_urls is a list of single sign-on service URLs for this identity provider.
+  repeated string sso_urls = 7;
+  // signing_certificates is a list of signing certificates for this identity provider.
+  repeated string signing_certificates = 8;
+}
+
+// AWSOIDCProviderV1 defines the OIDC identity provider details.
+message AWSOIDCProviderV1 {
+  // arn is the provider ARN.
+  string arn = 1;
+  // created_at is the time when the OIDC provider was created.
+  google.protobuf.Timestamp created_at = 2;
+  // tags is the list of tags that are attached to the SAML provider.
+  repeated AWSTag tags = 3;
+  // account_id is the ID of the AWS account that the provider belongs to.
+  string account_id = 4;
+  // client_ids is a list of client IDs (audiences) associated with this OIDC provider.
+  repeated string client_ids = 5;
+  // thumbprints is a list of certificate thumbprints for this OIDC provider.
+  repeated string thumbprints = 6;
+  // url is the URL for this OIDC provider.
+  string url = 7;
+}

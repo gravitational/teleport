@@ -80,6 +80,13 @@ describe('agentCleanupDaemon', () => {
       expect(isRunning(pids['agentCleanupDaemon'])).toBe(true);
 
       // Verify that killing the parent results in the eventual termination of both children.
+      //
+      // Note that when the parent is killed, the child processes become orphans (https://en.wikipedia.org/wiki/Orphan_process),
+      // and when orphans are killed, they become zombies (https://en.wikipedia.org/wiki/Zombie_process).
+      // In typical UNIX environments, zombies exist only momentarily and are cleaned up by the init process (https://en.wikipedia.org/wiki/Init),
+      // however in Docker there is no init process by default (https://blog.phusion.nl/2015/01/20/docker-and-the-pid-1-zombie-reaping-problem/),
+      // so zombie processes end up sticking around until the container is stopped. Hence in order for this test to pass in a `docker run`,
+      // we need to add the `--init` flag (https://docs.docker.com/engine/reference/run/#specify-an-init-process).
       expect(parent.kill('SIGKILL')).toBe(true);
       await expectPidToEventuallyTerminate(pids['agent']);
       await expectPidToEventuallyTerminate(pids['agentCleanupDaemon']);

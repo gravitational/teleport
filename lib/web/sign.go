@@ -78,7 +78,7 @@ func (h *Handler) signDatabaseCertificate(w http.ResponseWriter, r *http.Request
 		IdentityFileWriter: virtualFS,
 		TTL:                req.TTL,
 	}
-	filesWritten, err := db.GenerateDatabaseCertificates(r.Context(), dbCertReq)
+	filesWritten, err := db.GenerateDatabaseServerCertificates(r.Context(), dbCertReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -19,6 +19,7 @@
 package teleagent
 
 import (
+	"errors"
 	"io"
 	"net"
 	"os"
@@ -164,8 +165,8 @@ func (a *AgentServer) Serve() error {
 	for {
 		conn, err := a.listener.Accept()
 		if err != nil {
-			neterr, ok := err.(net.Error)
-			if !ok {
+			var neterr net.Error
+			if !errors.As(err, &neterr) {
 				return trace.Wrap(err, "unknown error")
 			}
 			if utils.IsUseOfClosedNetworkError(neterr) {
@@ -201,7 +202,7 @@ func (a *AgentServer) Serve() error {
 		go func() {
 			defer instance.Close()
 			if err := agent.ServeAgent(instance, conn); err != nil {
-				if err != io.EOF {
+				if !errors.Is(err, io.EOF) {
 					log.Error(err)
 				}
 			}

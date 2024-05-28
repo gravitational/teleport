@@ -21,6 +21,8 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/mfa"
@@ -71,8 +73,15 @@ func (p *mfaPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 		return nil, trace.Wrap(err)
 	}
 
+	// No prompt to run, no-op.
+	if !runOpts.PromptTOTP && !runOpts.PromptWebauthn {
+		return &proto.MFAAuthenticateResponse{}, nil
+	}
+
 	// Depending on the run opts, we may spawn a TOTP goroutine, webauth goroutine, or both.
 	spawnGoroutines := func(ctx context.Context, wg *sync.WaitGroup, respC chan<- libmfa.MFAGoroutineResponse) {
+		ctx, cancel := context.WithCancelCause(ctx)
+
 		// Fire App goroutine (TOTP).
 		wg.Add(1)
 		go func() {
@@ -80,6 +89,12 @@ func (p *mfaPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 
 			resp, err := p.promptMFA(ctx, chal, runOpts)
 			respC <- libmfa.MFAGoroutineResponse{Resp: resp, Err: err}
+
+			// If the user closes the modal in the Electron app, we need to be able to cancel the other
+			// goroutine as well so that we stop waiting for the hardware key tap.
+			if err != nil && status.Code(err) == codes.Aborted {
+				cancel(err)
+			}
 		}()
 
 		// Fire Webauthn goroutine.

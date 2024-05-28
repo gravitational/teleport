@@ -26,6 +26,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"slices"
 	"sort"
 	"sync"
 	"time"
@@ -44,7 +45,6 @@ import (
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -723,7 +723,7 @@ func mergeFiles(files []*os.File, outputFile *os.File) error {
 		}
 
 		nextLine, err := readLine(min.Dec)
-		if trace.Unwrap(err) == io.EOF {
+		if errors.Is(trace.Unwrap(err), io.EOF) {
 			// EOF means that file no longer has events. Continue with other files.
 			continue
 		} else if err != nil {

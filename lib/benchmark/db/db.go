@@ -54,13 +54,8 @@ func retrieveDatabaseCertificates(ctx context.Context, tc *client.TeleportClient
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	rawCert, ok := key.DBTLSCerts[db.GetName()]
-	if !ok {
-		return tls.Certificate{}, trace.AccessDenied("failed to retrieve database certificates")
-	}
-
-	tlsCert, err := key.TLSCertificate(rawCert)
-	return tlsCert, trace.Wrap(err)
+	dbCert, err := key.DBTLSCert(db.GetName())
+	return dbCert, trace.Wrap(err)
 }
 
 // getDatabase loads the database which the name matches.
@@ -92,7 +87,7 @@ func startLocalProxy(ctx context.Context, insecureSkipVerify bool, tc *client.Te
 	opts := []alpnproxy.LocalProxyConfigOpt{
 		alpnproxy.WithDatabaseProtocol(dbProtocol),
 		alpnproxy.WithClusterCAsIfConnUpgrade(ctx, tc.RootClusterCACertPool),
-		alpnproxy.WithClientCerts(dbCert),
+		alpnproxy.WithClientCert(dbCert),
 	}
 
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{

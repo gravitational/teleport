@@ -75,14 +75,11 @@ export const SelectSecurityGroups = ({
   }
 
   async function fetchSecurityGroups() {
-    const integration = dbMeta.integration;
-    const selectedDb = dbMeta.selectedAwsRdsDb;
-
     run(() =>
       integrationService
-        .fetchSecurityGroups(integration.name, {
-          vpcId: selectedDb.vpcId,
-          region: selectedDb.region,
+        .fetchSecurityGroups(dbMeta.awsIntegration.name, {
+          vpcId: dbMeta.selectedAwsRdsDb.vpcId,
+          region: dbMeta.awsRegion,
           nextToken: sgTableData.nextToken,
         })
         .then(({ securityGroups, nextToken }) => {
@@ -106,7 +103,6 @@ export const SelectSecurityGroups = ({
 
   return (
     <>
-      <Text bold>Step 3 (Optional)</Text>
       <Text bold>Select Security Groups</Text>
       <Text mb={2}>
         Select security groups to assign to the Fargate service that will be

@@ -27,6 +27,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
@@ -52,7 +53,7 @@ func (cfg *ClusterExternalAuditStorageWatcherConfig) CheckAndSetDefaults() error
 		return trace.BadParameter("missing parameter Backend")
 	}
 	if cfg.Log == nil {
-		cfg.Log = logrus.StandardLogger().WithField(trace.Component, "ExternalAuditStorage.watcher")
+		cfg.Log = logrus.StandardLogger().WithField(teleport.ComponentKey, "ExternalAuditStorage.watcher")
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = cfg.Backend.Clock()
@@ -65,15 +66,15 @@ func (cfg *ClusterExternalAuditStorageWatcherConfig) CheckAndSetDefaults() error
 
 // ClusterExternalAuditWatcher is a light weight backend watcher for the cluster external audit resource.
 type ClusterExternalAuditWatcher struct {
-	backend     backend.Backend
-	log         logrus.FieldLogger
-	clock       clockwork.Clock
-	onChange    func()
-	retry       retryutils.Retry
-	initialized chan struct{}
-	closed      chan struct{}
-	closeOnce   sync.Once
-	done        chan struct{}
+	backend   backend.Backend
+	log       logrus.FieldLogger
+	clock     clockwork.Clock
+	onChange  func()
+	retry     retryutils.Retry
+	running   chan struct{}
+	closed    chan struct{}
+	closeOnce sync.Once
+	done      chan struct{}
 }
 
 // NewClusterExternalAuditWatcher creates a new cluster external audit resource watcher.
@@ -95,14 +96,14 @@ func NewClusterExternalAuditWatcher(ctx context.Context, cfg ClusterExternalAudi
 	}
 
 	w := &ClusterExternalAuditWatcher{
-		backend:     cfg.Backend,
-		log:         cfg.Log,
-		clock:       cfg.Clock,
-		onChange:    cfg.OnChange,
-		retry:       retry,
-		initialized: make(chan struct{}),
-		closed:      make(chan struct{}),
-		done:        make(chan struct{}),
+		backend:  cfg.Backend,
+		log:      cfg.Log,
+		clock:    cfg.Clock,
+		onChange: cfg.OnChange,
+		retry:    retry,
+		running:  make(chan struct{}),
+		closed:   make(chan struct{}),
+		done:     make(chan struct{}),
 	}
 
 	go w.runWatchLoop(ctx)
@@ -113,13 +114,13 @@ func NewClusterExternalAuditWatcher(ctx context.Context, cfg ClusterExternalAudi
 // WaitInit waits for the watch loop to initialize.
 func (w *ClusterExternalAuditWatcher) WaitInit(ctx context.Context) error {
 	select {
-	case <-w.initialized:
+	case <-w.running:
+		return nil
 	case <-w.done:
-		return errors.New("watcher closed")
+		return trace.Errorf("watcher closed")
 	case <-ctx.Done():
 		return trace.Wrap(ctx.Err())
 	}
-	return nil
 }
 
 // close stops the watcher and waits for the watch loop to exit
@@ -157,8 +158,9 @@ func (w *ClusterExternalAuditWatcher) watch(ctx context.Context) error {
 		case <-watcher.Events():
 			w.log.Infof("Detected change to cluster ExternalAuditStorage config")
 			w.onChange()
+		case w.running <- struct{}{}:
 		case <-watcher.Done():
-			return errors.New("watcher closed")
+			return trace.Errorf("watcher closed")
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-w.closed:
@@ -187,7 +189,6 @@ func (w *ClusterExternalAuditWatcher) newWatcher(ctx context.Context) (backend.W
 		if event.Type != types.OpInit {
 			return nil, trace.BadParameter("expected init event, got %v instead", event.Type)
 		}
-		close(w.initialized)
 	}
 
 	w.retry.Reset()

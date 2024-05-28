@@ -19,11 +19,11 @@
 import React, { useState } from 'react';
 import { ButtonBorder } from 'design';
 import { LoginItem, MenuLogin } from 'shared/components/MenuLogin';
+import { AwsLaunchButton } from 'shared/components/AwsLaunchButton';
 
 import { UnifiedResource } from 'teleport/services/agents';
 import cfg from 'teleport/config';
 
-import AwsLaunchButton from 'teleport/Apps/AppList/AwsLaunchButton';
 import useTeleport from 'teleport/useTeleport';
 import { Database } from 'teleport/services/databases';
 import { openNewTab } from 'teleport/lib/util';
@@ -79,7 +79,7 @@ const NodeConnect = ({ node }: { node: Node }) => {
 
   return (
     <MenuLogin
-      width="90px"
+      width="123px"
       textTransform={'none'}
       alignButtonWidthToMenu
       getLoginItems={handleOnOpen}
@@ -89,7 +89,7 @@ const NodeConnect = ({ node }: { node: Node }) => {
         horizontal: 'right',
       }}
       anchorOrigin={{
-        vertical: 'center',
+        vertical: 'bottom',
         horizontal: 'right',
       }}
     />
@@ -119,7 +119,7 @@ const DesktopConnect = ({ desktop }: { desktop: Desktop }) => {
 
   return (
     <MenuLogin
-      width="90px"
+      width="123px"
       textTransform="none"
       alignButtonWidthToMenu
       getLoginItems={handleOnOpen}
@@ -129,7 +129,7 @@ const DesktopConnect = ({ desktop }: { desktop: Desktop }) => {
         horizontal: 'right',
       }}
       anchorOrigin={{
-        vertical: 'center',
+        vertical: 'bottom',
         horizontal: 'right',
       }}
     />
@@ -151,10 +151,16 @@ const AppLaunch = ({ app }: { app: App }) => {
   if (awsConsole) {
     return (
       <AwsLaunchButton
+        width="123px"
         awsRoles={awsRoles}
-        fqdn={fqdn}
-        clusterId={clusterId}
-        publicAddr={publicAddr}
+        getLaunchUrl={arn =>
+          cfg.getAppLauncherRoute({
+            fqdn,
+            clusterId,
+            publicAddr,
+            arn,
+          })
+        }
       />
     );
   }
@@ -162,7 +168,7 @@ const AppLaunch = ({ app }: { app: App }) => {
     return (
       <ButtonBorder
         disabled
-        width="90px"
+        width="123px"
         size="small"
         title="Cloud or TCP applications cannot be launched by the browser"
         textTransform="none"
@@ -175,7 +181,7 @@ const AppLaunch = ({ app }: { app: App }) => {
     return (
       <ButtonBorder
         as="a"
-        width="90px"
+        width="123px"
         size="small"
         target="_blank"
         href={samlAppSsoUrl}
@@ -189,7 +195,7 @@ const AppLaunch = ({ app }: { app: App }) => {
   return (
     <ButtonBorder
       as="a"
-      width="90px"
+      width="123px"
       size="small"
       target="_blank"
       href={launchUrl}
@@ -213,7 +219,7 @@ function DatabaseConnect({ database }: { database: Database }) {
     <>
       <ButtonBorder
         textTransform="none"
-        width="90px"
+        width="123px"
         size="small"
         onClick={() => {
           setOpen(true);
@@ -246,7 +252,7 @@ const KubeConnect = ({ kube }: { kube: Kube }) => {
   return (
     <>
       <ButtonBorder
-        width="90px"
+        width="123px"
         textTransform="none"
         size="small"
         onClick={() => setOpen(true)}

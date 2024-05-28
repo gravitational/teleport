@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
@@ -179,6 +178,14 @@ func TestRoleMap(t *testing.T) {
 			},
 		},
 		{
+			name:   "mapping is deduplicated",
+			remote: []string{"role1", "role2"},
+			local:  []string{"foo"},
+			roleMap: types.RoleMap{
+				{Remote: "*", Local: []string{"foo"}},
+			},
+		},
+		{
 			name:   "different expand groups can be referred",
 			remote: []string{"remote-devs"},
 			local:  []string{"remote-devs", "devs"},
@@ -197,7 +204,7 @@ func TestRoleMap(t *testing.T) {
 				require.IsType(t, err, tc.err)
 			} else {
 				require.NoError(t, err)
-				require.Empty(t, cmp.Diff(local, tc.local))
+				require.ElementsMatch(t, tc.local, local)
 			}
 		})
 	}

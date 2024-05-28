@@ -29,6 +29,8 @@ import (
 	"path/filepath"
 
 	"github.com/gravitational/trace"
+	"go.opentelemetry.io/otel/attribute"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/botfs"
@@ -125,7 +127,11 @@ func mkdir(p string) error {
 			return trace.Wrap(err)
 		}
 
-		log.Infof("Created directory %q", p)
+		log.InfoContext(
+			context.TODO(),
+			"Created directory",
+			"path", p,
+		)
 	} else if err != nil {
 		// this can occur if we are unable to read the data dir
 		if errors.Is(err, fs.ErrPermission) {
@@ -197,17 +203,36 @@ func (dd *DestinationDirectory) Verify(keys []string) error {
 	}
 
 	if aggregate != nil {
-		log.Warnf("Destination %q has unexpected ACLs: %v", dd.Path, aggregate)
+		log.WarnContext(
+			context.TODO(),
+			"Destination has unexpected ACLs",
+			"path", dd.Path,
+			"errors", aggregate,
+		)
 	}
 
 	return nil
 }
 
-func (dd *DestinationDirectory) Write(_ context.Context, name string, data []byte) error {
+func (dd *DestinationDirectory) Write(ctx context.Context, name string, data []byte) error {
+	_, span := tracer.Start(
+		ctx,
+		"DestinationDirectory/Write",
+		oteltrace.WithAttributes(attribute.String("name", name)),
+	)
+	defer span.End()
+
 	return trace.Wrap(botfs.Write(filepath.Join(dd.Path, name), data, dd.Symlinks))
 }
 
-func (dd *DestinationDirectory) Read(_ context.Context, name string) ([]byte, error) {
+func (dd *DestinationDirectory) Read(ctx context.Context, name string) ([]byte, error) {
+	_, span := tracer.Start(
+		ctx,
+		"DestinationDirectory/Read",
+		oteltrace.WithAttributes(attribute.String("name", name)),
+	)
+	defer span.End()
+
 	data, err := botfs.Read(filepath.Join(dd.Path, name), dd.Symlinks)
 	if err != nil {
 		return nil, trace.Wrap(err)

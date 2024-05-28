@@ -41,7 +41,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -65,7 +65,7 @@ func (c *TopCommand) Initialize(app *kingpin.Application, config *servicecfg.Con
 }
 
 // TryRun takes the CLI command as an argument (like "nodes ls") and executes it.
-func (c *TopCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI) (match bool, err error) {
+func (c *TopCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
 	switch cmd {
 	case c.top.FullCommand():
 		diagClient, err := roundtrip.NewClient(*c.diagURL, "")

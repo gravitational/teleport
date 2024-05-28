@@ -20,6 +20,7 @@ package secrets
 
 import (
 	"context"
+	"errors"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/arn"
@@ -274,8 +275,8 @@ func convertSecretsManagerError(err error) error {
 		return nil
 	}
 
-	awsError, ok := err.(awserr.Error)
-	if !ok {
+	var awsError awserr.Error
+	if !errors.As(err, &awsError) {
 		return trace.Wrap(err)
 	}
 

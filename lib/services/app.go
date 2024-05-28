@@ -67,13 +67,7 @@ func MarshalApp(app types.Application, opts ...MarshalOption) ([]byte, error) {
 			return nil, trace.Wrap(err)
 		}
 
-		if !cfg.PreserveResourceID {
-			copy := *app
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			app = &copy
-		}
-		return utils.FastMarshal(app)
+		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, app))
 	default:
 		return nil, trace.BadParameter("unsupported app resource %T", app)
 	}
@@ -101,9 +95,6 @@ func UnmarshalApp(data []byte, opts ...MarshalOption) (types.Application, error)
 		if err := app.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if cfg.ID != 0 {
-			app.SetResourceID(cfg.ID)
-		}
 		if cfg.Revision != "" {
 			app.SetRevision(cfg.Revision)
 		}
@@ -128,13 +119,7 @@ func MarshalAppServer(appServer types.AppServer, opts ...MarshalOption) ([]byte,
 			return nil, trace.Wrap(err)
 		}
 
-		if !cfg.PreserveResourceID {
-			copy := *appServer
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			appServer = &copy
-		}
-		return utils.FastMarshal(appServer)
+		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, appServer))
 	default:
 		return nil, trace.BadParameter("unsupported app server resource %T", appServer)
 	}
@@ -161,9 +146,6 @@ func UnmarshalAppServer(data []byte, opts ...MarshalOption) (types.AppServer, er
 		}
 		if err := s.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
-		}
-		if cfg.ID != 0 {
-			s.SetResourceID(cfg.ID)
 		}
 		if cfg.Revision != "" {
 			s.SetRevision(cfg.Revision)
@@ -203,8 +185,9 @@ func NewApplicationFromKubeService(service corev1.Service, clusterName, protocol
 		Description: fmt.Sprintf("Discovered application in Kubernetes cluster %q", clusterName),
 		Labels:      labels,
 	}, types.AppSpecV3{
-		URI:     appURI,
-		Rewrite: rewriteConfig,
+		URI:                appURI,
+		Rewrite:            rewriteConfig,
+		InsecureSkipVerify: getTLSInsecureSkipVerify(service.GetAnnotations()),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "could not create an app from Kubernetes service")
@@ -245,6 +228,14 @@ func getAppRewriteConfig(annotations map[string]string) (*types.Rewrite, error) 
 	}
 
 	return &rw, nil
+}
+
+func getTLSInsecureSkipVerify(annotations map[string]string) bool {
+	val := annotations[types.DiscoveryAppInsecureSkipVerify]
+	if val == "" {
+		return false
+	}
+	return val == "true"
 }
 
 func getAppName(serviceName, namespace, clusterName, portName, nameAnnotation string) (string, error) {

@@ -143,32 +143,32 @@ func TestRegistrationFlow_Begin_excludeList(t *testing.T) {
 	const user = "llama"
 	const rpID = "localhost"
 
-	dev1ID := []byte{1, 1, 1} // U2F
-	web1ID := []byte{1, 1, 2} // WebAuthn / MFA
-	rk1ID := []byte{1, 1, 3}  // WebAuthn / passwordless
-	dev1 := &types.MFADevice{
+	u2fID := []byte{1, 1, 1}     // U2F
+	mfaID := []byte{1, 1, 2}     // WebAuthn / MFA
+	passkeyID := []byte{1, 1, 3} // WebAuthn / passwordless
+	u2fDev := &types.MFADevice{
 		Device: &types.MFADevice_U2F{
 			U2F: &types.U2FDevice{
-				KeyHandle: dev1ID,
+				KeyHandle: u2fID,
 			},
 		},
 	}
-	web1 := &types.MFADevice{
+	mfaDev := &types.MFADevice{
 		Device: &types.MFADevice_Webauthn{
 			Webauthn: &types.WebauthnDevice{
-				CredentialId: web1ID,
+				CredentialId: mfaID,
 			},
 		},
 	}
-	rk1 := &types.MFADevice{
+	passkeyDev := &types.MFADevice{
 		Device: &types.MFADevice_Webauthn{
 			Webauthn: &types.WebauthnDevice{
-				CredentialId: rk1ID,
+				CredentialId: passkeyID,
 				ResidentKey:  true,
 			},
 		},
 	}
-	identity := newFakeIdentity(user, dev1, web1, rk1)
+	identity := newFakeIdentity(user, u2fDev, mfaDev, passkeyDev)
 
 	rf := wanlib.RegistrationFlow{
 		Webauthn: &types.Webauthn{
@@ -184,13 +184,18 @@ func TestRegistrationFlow_Begin_excludeList(t *testing.T) {
 		wantExcludeList [][]byte
 	}{
 		{
-			name:            "MFA",
-			wantExcludeList: [][]byte{web1ID}, // U2F and resident excluded
+			name: "MFA",
+			wantExcludeList: [][]byte{
+				mfaID,
+				passkeyID, // Prevents "downgrades"
+			},
 		},
 		{
-			name:            "passwordless",
-			passwordless:    true,
-			wantExcludeList: [][]byte{rk1ID}, // U2F and MFA excluded
+			name:         "passwordless",
+			passwordless: true,
+			wantExcludeList: [][]byte{
+				passkeyID,
+			},
 		},
 	}
 	for _, test := range tests {

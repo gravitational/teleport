@@ -24,12 +24,12 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 )
 
 var (
@@ -73,6 +73,9 @@ var (
 
 		// TestWithRsync takes ~10 seconds to run
 		"TestWithRsync",
+
+		// TestAdminActionMFA takes longer than 6 seconds to run.
+		"TestAdminActionMFA",
 	}
 )
 
@@ -181,8 +184,10 @@ func test(repoPath string, ref string, changedFiles []string) {
 			bail(err)
 		}
 
+		skipAll := slices.Contains(testsToSkip, "*")
+
 		for _, n := range r.New {
-			if slices.Contains(testsToSkip, n.RefName) || slices.Contains(testsToSkip, "*") {
+			if (skipAll || slices.Contains(testsToSkip, n.RefName)) && !slices.Contains(testsToSkip, "!"+n.RefName) {
 				log.Printf("-skipping %q (%s)\n", n.RefName, dir)
 				continue
 			}
@@ -195,7 +200,7 @@ func test(repoPath string, ref string, changedFiles []string) {
 		}
 
 		for _, n := range r.Changed {
-			if slices.Contains(testsToSkip, n.RefName) || slices.Contains(testsToSkip, "*") {
+			if (skipAll || slices.Contains(testsToSkip, n.RefName)) && !slices.Contains(testsToSkip, "!"+n.RefName) {
 				log.Printf("-skipping %q (%s)\n", n.RefName, dir)
 				continue
 			}

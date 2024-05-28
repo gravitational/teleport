@@ -20,23 +20,25 @@ package utils
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"net/http"
 
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport"
 )
 
 // GetAndReplaceRequestBody returns the request body and replaces the drained
-// body reader with io.NopCloser allowing for further body processing by http
-// transport.
+// body reader with an [io.NopCloser] allowing for further body processing by
+// http transport.
+// If memory exhaustion is a concern, it is the caller's responsibility to wrap
+// the request body in an [io.LimitReader] prior to calling this function.
 func GetAndReplaceRequestBody(req *http.Request) ([]byte, error) {
 	if req.Body == nil || req.Body == http.NoBody {
 		return []byte{}, nil
 	}
-	// req.Body is closed during tryDrainBody call.
-	payload, err := tryDrainBody(req.Body)
+	defer req.Body.Close()
+
+	payload, err := io.ReadAll(req.Body)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -47,13 +49,16 @@ func GetAndReplaceRequestBody(req *http.Request) ([]byte, error) {
 }
 
 // GetAndReplaceResponseBody returns the response body and replaces the drained
-// body reader with io.NopCloser allowing for further body processing.
+// body reader with [io.NopCloser] allowing for further body processing.
+// If memory exhaustion is a concern, it is the caller's responsibility to wrap
+// the response body in an [io.LimitReader] prior to calling this function.
 func GetAndReplaceResponseBody(response *http.Response) ([]byte, error) {
 	if response.Body == nil {
 		return []byte{}, nil
 	}
+	defer response.Body.Close()
 
-	payload, err := tryDrainBody(response.Body)
+	payload, err := io.ReadAll(response.Body)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -64,30 +69,18 @@ func GetAndReplaceResponseBody(response *http.Response) ([]byte, error) {
 
 // ReplaceRequestBody drains the old request body and replaces it with a new one.
 func ReplaceRequestBody(req *http.Request, newBody io.ReadCloser) error {
-	if _, err := tryDrainBody(req.Body); err != nil {
-		return trace.Wrap(err)
+	if req.Body != nil {
+		defer req.Body.Close()
+		// drain and discard the request body to allow connection reuse.
+		// No need to enforce a max request size, nor rely on callers to do so,
+		// since we do not buffer the entire request body.
+		_, err := io.Copy(io.Discard, req.Body)
+		if err != nil && !errors.Is(err, io.EOF) {
+			return trace.Wrap(err)
+		}
 	}
 	req.Body = newBody
 	return nil
-}
-
-// tryDrainBody tries to drain and close the body, returning the read bytes.
-// It may fail to completely drain the body if the size of the body exceeds MaxHTTPRequestSize.
-func tryDrainBody(b io.ReadCloser) (payload []byte, err error) {
-	if b == nil {
-		return nil, nil
-	}
-	defer func() {
-		if closeErr := b.Close(); closeErr != nil {
-			err = trace.NewAggregate(err, closeErr)
-		}
-	}()
-	payload, err = ReadAtMost(b, teleport.MaxHTTPRequestSize)
-	if err != nil {
-		err = trace.Wrap(err)
-		return
-	}
-	return
 }
 
 // RenameHeader moves all values from the old header key to the new header key.
@@ -158,4 +151,28 @@ func ChainHTTPMiddlewares(handler http.Handler, middlewares ...HTTPMiddleware) h
 // original handler.
 func NoopHTTPMiddleware(next http.Handler) http.Handler {
 	return next
+}
+
+// MaxBytesReader returns an [io.ReadCloser] that wraps an [http.MaxBytesReader]
+// to act as a shim for converting from [http.MaxBytesError] to
+// [ErrLimitReached].
+func MaxBytesReader(w http.ResponseWriter, r io.ReadCloser, n int64) io.ReadCloser {
+	return &maxBytesReader{ReadCloser: http.MaxBytesReader(w, r, n)}
+}
+
+// maxBytesReader wraps an [http.MaxBytesReader] and converts any
+// [http.MaxBytesError] to [ErrLimitReached].
+type maxBytesReader struct {
+	io.ReadCloser
+}
+
+func (m *maxBytesReader) Read(p []byte) (int, error) {
+	n, err := m.ReadCloser.Read(p)
+
+	// convert [http.MaxBytesError] to our limit error.
+	var mbErr *http.MaxBytesError
+	if errors.As(err, &mbErr) {
+		return n, ErrLimitReached
+	}
+	return n, err
 }

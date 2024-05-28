@@ -31,10 +31,12 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/connectmycomputer"
 	libsshutils "github.com/gravitational/teleport/lib/sshutils"
 )
 
@@ -42,7 +44,7 @@ import (
 type SSHConnectionTesterConfig struct {
 	// UserClient is an auth client that has a User's identity.
 	// This is the user that is running the SSH Connection Test.
-	UserClient auth.ClientI
+	UserClient authclient.ClientI
 
 	// ProxyHostPort is the proxy to use in the `--proxy` format (host:webPort,sshPort)
 	ProxyHostPort string
@@ -143,7 +145,7 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 		return nil, trace.Wrap(err)
 	}
 
-	key.TrustedCerts = auth.AuthoritiesToTrustedCerts(certAuths)
+	key.TrustedCerts = authclient.AuthoritiesToTrustedCerts(certAuths)
 
 	keyAuthMethod, err := key.AsAuthMethod()
 	if err != nil {
@@ -194,7 +196,7 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 	defer cancelFunc()
 
 	if err := tc.SSH(ctxWithTimeout, []string{"whoami"}, false); err != nil {
-		return s.handleErrFromSSH(ctx, connectionDiagnosticID, req.SSHPrincipal, err, processStdout)
+		return s.handleErrFromSSH(ctx, connectionDiagnosticID, req.SSHPrincipal, err, processStdout, currentUser, req)
 	}
 
 	connDiag, err := s.cfg.UserClient.AppendDiagnosticTrace(ctx, connectionDiagnosticID, types.NewTraceDiagnosticConnection(
@@ -216,11 +218,26 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 	return connDiag, nil
 }
 
-func (s SSHConnectionTester) handleErrFromSSH(ctx context.Context, connectionDiagnosticID string, sshPrincipal string, sshError error, processStdout *bytes.Buffer) (types.ConnectionDiagnostic, error) {
+func (s SSHConnectionTester) handleErrFromSSH(ctx context.Context, connectionDiagnosticID string,
+	sshPrincipal string, sshError error, processStdout *bytes.Buffer, currentUser types.User, req TestConnectionRequest) (types.ConnectionDiagnostic, error) {
+	isConnectMyComputerNode := req.SSHNodeSetupMethod == SSHNodeSetupMethodConnectMyComputer
+
 	if trace.IsConnectionProblem(sshError) {
+		var statusCommand string
+		if req.SSHNodeOS == constants.DarwinOS {
+			statusCommand = "launchctl print 'system/Teleport Service'"
+		} else {
+			statusCommand = "systemctl status teleport"
+		}
+
+		message := fmt.Sprintf(`Failed to connect to the Node. Ensure teleport service is running using "%s".`, statusCommand)
+		if isConnectMyComputerNode {
+			message = "Failed to connect to the Node. Open the Connect My Computer tab in Teleport Connect and make sure that the agent is running."
+		}
+
 		connDiag, err := s.cfg.UserClient.AppendDiagnosticTrace(ctx, connectionDiagnosticID, types.NewTraceDiagnosticConnection(
 			types.ConnectionDiagnosticTrace_CONNECTIVITY,
-			`Failed to connect to the Node. Ensure teleport service is running using "systemctl status teleport".`,
+			message,
 			sshError,
 		))
 		if err != nil {
@@ -231,10 +248,48 @@ func (s SSHConnectionTester) handleErrFromSSH(ctx context.Context, connectionDia
 	}
 
 	processStdoutString := strings.TrimSpace(processStdout.String())
-	if strings.HasPrefix(processStdoutString, "Failed to launch: user:") {
+	// If the selected principal does not exist on the node, attempting to connect emits:
+	// "Failed to launch: user: lookup username <principal>: no such file or directory."
+	isUsernameLookupFail := strings.HasPrefix(processStdoutString, "Failed to launch: user:")
+	// Connect My Computer runs the agent as non-root. When attempting to connect as another system
+	// user that is not the same as the user who runs the agent, the emitted error is "Failed to
+	// launch: fork/exec <conn.User shell>: operation not permitted."
+	isForkExecOperationNotPermitted := strings.HasPrefix(processStdoutString, "Failed to launch: fork/exec") &&
+		strings.Contains(processStdoutString, "operation not permitted")
+	// "operation not permitted" is handled only for the Connect My Computer case as we assume that
+	// regular SSH nodes are started as root and are unlikely to run into this error.
+	isInvalidNodePrincipal := isUsernameLookupFail || (isConnectMyComputerNode && isForkExecOperationNotPermitted)
+
+	if isInvalidNodePrincipal {
+		message := fmt.Sprintf("Invalid user. Please ensure the principal %q is a valid login in the target node. Output from Node: %v",
+			sshPrincipal, processStdoutString)
+		if isConnectMyComputerNode {
+			connectMyComputerRoleName := connectmycomputer.GetRoleNameForUser(currentUser.GetName())
+			message = "Invalid user."
+			outputFromAgent := fmt.Sprintf("Output from the Connect My Computer agent: %v", processStdoutString)
+			retrySetupInstructions := "reload this page, pick Connect My Computer again, then in Teleport Connect " +
+				"remove the Connect My Computer agent and start Connect My Computer setup again."
+
+			var detailedMessage string
+			if req.SSHPrincipalSelectionMode == SSHPrincipalSelectionModeManual {
+				detailedMessage = "You probably picked a login which does not match the system user " +
+					"that is running Teleport Connect. Pick the correct login and try again.\n\n" +
+					"If the list of logins does not include the correct login for this node, " +
+					retrySetupInstructions + "\n\n" + outputFromAgent
+			} else {
+				detailedMessage = fmt.Sprintf("The role %q includes only the login %q and %q is not a valid principal for this node. ",
+					connectMyComputerRoleName, sshPrincipal, sshPrincipal) +
+					"To fix this problem, " + retrySetupInstructions + "\n\n" + outputFromAgent
+			}
+
+			// The wrapping here is done so that the detailed message will be shown under "Show details"
+			// and not as one of the main points of the connection test.
+			sshError = trace.Wrap(sshError, detailedMessage)
+		}
+
 		connDiag, err := s.cfg.UserClient.AppendDiagnosticTrace(ctx, connectionDiagnosticID, types.NewTraceDiagnosticConnection(
 			types.ConnectionDiagnosticTrace_NODE_PRINCIPAL,
-			fmt.Sprintf("Invalid user. Please ensure the principal %q is a valid Linux login in the target node. Output from Node: %v", sshPrincipal, processStdoutString),
+			message,
 			sshError,
 		))
 		if err != nil {

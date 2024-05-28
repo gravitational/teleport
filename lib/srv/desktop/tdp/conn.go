@@ -110,6 +110,22 @@ func (c *Conn) WriteMessage(m Message) error {
 	return trace.Wrap(err)
 }
 
+// ReadClientScreenSpec reads the next message from the connection, expecting
+// it to be a ClientScreenSpec. If it is not, an error is returned.
+func (c *Conn) ReadClientScreenSpec() (*ClientScreenSpec, error) {
+	m, err := c.ReadMessage()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	spec, ok := m.(ClientScreenSpec)
+	if !ok {
+		return nil, trace.BadParameter("expected ClientScreenSpec, got %T", m)
+	}
+
+	return &spec, nil
+}
+
 // SendNotification is a convenience function for sending a Notification message.
 func (c *Conn) SendNotification(message string, severity Severity) error {
 	return c.WriteMessage(Notification{Message: message, Severity: severity})

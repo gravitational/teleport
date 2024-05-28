@@ -2,7 +2,7 @@
   # Set the TLS level to TLS 1.2 (required on Windows Server 2016 and lower)
   $ [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
   # Get the expected checksum for the Windows tsh package
-  $ $Resp = Invoke-WebRequest https://get.gravitational.com/teleport-v{{ version }}-windows-amd64-bin.zip.sha256
+  $ $Resp = Invoke-WebRequest https://cdn.teleport.dev/teleport-v{{ version }}-windows-amd64-bin.zip.sha256
   # PowerShell will return the binary representation of the response content
   # by default, so you need to convert it to a string
   $ [System.Text.Encoding]::UTF8.getstring($Resp.Content)
@@ -16,13 +16,13 @@
 
   After you have verified that the checksums match, you can extract the archive.
   The executable will be available at
-  `teleport-v{{ version }}-windows-amd64-bin\teleport\tsh.exe`.
+  `teleport-v{{ version }}-windows-amd64-bin\tsh.exe`.
 
   ```code
-  $ Expand-Archive teleport-v{{ .version }}-windows-amd64-bin.zip
-  $ cd teleport-v{{ version }}-windows-amd64-bin\teleport
+  $ Expand-Archive teleport-v{{ version }}-windows-amd64-bin.zip
+  $ cd teleport-v{{ version }}-windows-amd64-bin
   $ .\tsh.exe version
-  Teleport v{{ version }} git:v{{ .version }} go(=teleport.golang=)
+  Teleport v{{ version }} git:v{{ version }} go(=teleport.golang=)
   ```
 
   Make sure to move `tsh.exe` into your PATH.

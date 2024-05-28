@@ -19,11 +19,8 @@
 package teleport
 
 import (
-	"fmt"
 	"strings"
 	"time"
-
-	"github.com/coreos/go-semver/semver"
 )
 
 // WebAPIVersion is a current webapi version
@@ -72,6 +69,12 @@ const (
 )
 
 const (
+	// ComponentKey is a field that represents a component - e.g. service or
+	// function
+	ComponentKey = "trace.component"
+	// ComponentFields is a fields component
+	ComponentFields = "trace.fields"
+
 	// ComponentMemory is a memory backend
 	ComponentMemory = "memory"
 
@@ -141,6 +144,10 @@ const (
 
 	// ComponentDiagnostic is a diagnostic service
 	ComponentDiagnostic = "diag"
+
+	// ComponentDebug is the debug service, which exposes debugging
+	// configuration over a Unix socket.
+	ComponentDebug = "debug"
 
 	// ComponentClient is a client
 	ComponentClient = "client"
@@ -227,6 +234,9 @@ const (
 	// ComponentTSH is the "tsh" binary.
 	ComponentTSH = "tsh"
 
+	// ComponentTCTL is the "tctl" binary.
+	ComponentTCTL = "tctl"
+
 	// ComponentTBot is the "tbot" binary
 	ComponentTBot = "tbot"
 
@@ -239,9 +249,6 @@ const (
 
 	// ComponentBPF is the eBPF packagae.
 	ComponentBPF = "bpf"
-
-	// ComponentRestrictedSession is restriction of user access to kernel objects
-	ComponentRestrictedSession = "restrictedsess"
 
 	// ComponentCgroup is the cgroup package.
 	ComponentCgroup = "cgroups"
@@ -409,6 +416,10 @@ const (
 
 	// MinimumEtcdVersion is the minimum version of etcd supported by Teleport
 	MinimumEtcdVersion = "3.3.0"
+
+	// EnvVarAllowNoSecondFactor is used to allow disabling second factor auth
+	// todo(lxea): DELETE IN 17
+	EnvVarAllowNoSecondFactor = "TELEPORT_ALLOW_NO_SECOND_FACTOR"
 )
 
 const (
@@ -495,6 +506,9 @@ const (
 	// CertExtensionDeviceCredentialID is the identifier for the credential used
 	// by the device to authenticate itself.
 	CertExtensionDeviceCredentialID = "teleport-device-credential-id"
+	// CertExtensionBotName indicates the name of the Machine ID bot this
+	// certificate was issued to, if any.
+	CertExtensionBotName = "bot-name@goteleport.com"
 
 	// CertCriticalOptionSourceAddress is a critical option that defines IP addresses (in CIDR notation)
 	// from which this certificate is accepted for authentication.
@@ -671,6 +685,16 @@ const (
 	// during the setup of Connect My Computer. The prefix is followed by the name of the cluster
 	// user. See teleterm.connectmycomputer.RoleSetup.
 	ConnectMyComputerRoleNamePrefix = "connect-my-computer-"
+
+	// SystemOktaRequesterRoleName is a name of a system role that allows
+	// for requesting access to Okta resources. This differs from the requester role
+	// in that it allows for requesting longer lived access.
+	SystemOktaRequesterRoleName = "okta-requester"
+
+	// SystemOktaAccessRoleName is the name of the system role that allows
+	// access to Okta resources. This will be used by the Okta requester role to
+	// search for Okta resources.
+	SystemOktaAccessRoleName = "okta-access"
 )
 
 var PresetRoles = []string{PresetEditorRoleName, PresetAccessRoleName, PresetAuditorRoleName}
@@ -680,16 +704,6 @@ const (
 	// an Access Request approver for access plugins
 	SystemAccessApproverUserName = "@teleport-access-approval-bot"
 )
-
-// MinClientVersion is the minimum client version required by the server.
-var MinClientVersion string
-
-func init() {
-	// Per https://github.com/gravitational/teleport/blob/master/rfd/0012-teleport-versioning.md,
-	// only one major version backwards is supported for clients.
-	ver := semver.New(Version)
-	MinClientVersion = fmt.Sprintf("%d.0.0", ver.Major-1)
-}
 
 const (
 	// RemoteClusterStatusOffline indicates that cluster is considered as
@@ -722,6 +736,14 @@ const (
 
 	// TerminalSizeRequest is a request for the terminal size of the session.
 	TerminalSizeRequest = "x-teleport-terminal-size"
+
+	// TCPIPForwardRequest is an SSH request for the server to open a listener
+	// for port forwarding.
+	TCPIPForwardRequest = "tcpip-forward"
+
+	// CancelTCPIPForwardRequest is an SSHRequest to cancel a previous
+	// TCPIPForwardRequest.
+	CancelTCPIPForwardRequest = "cancel-tcpip-forward"
 
 	// MFAPresenceRequest is an SSH request to notify clients that MFA presence is required for a session.
 	MFAPresenceRequest = "x-teleport-mfa-presence"
@@ -810,9 +832,13 @@ const (
 	// command execution (exec and shells).
 	ExecSubCommand = "exec"
 
-	// ForwardSubCommand is the sub-command Teleport uses to re-exec itself
-	// for port forwarding.
-	ForwardSubCommand = "forward"
+	// LocalForwardSubCommand is the sub-command Teleport uses to re-exec itself
+	// for local port forwarding.
+	LocalForwardSubCommand = "forwardv2"
+
+	// RemoteForwardSubCommand is the sub-command Teleport uses to re-exec itself
+	// for remote port forwarding.
+	RemoteForwardSubCommand = "remoteforward"
 
 	// CheckHomeDirSubCommand is the sub-command Teleport uses to re-exec itself
 	// to check if the user's home directory exists.
@@ -831,13 +857,20 @@ const (
 	// until a domain name stops resolving. Its main use is to ensure no
 	// auth instances are still running the previous major version.
 	WaitSubCommand = "wait"
+
+	// VnetAdminSetupSubCommand is the sub-command tsh vnet uses to perform
+	// a setup as a privileged user.
+	VnetAdminSetupSubCommand = "vnet-admin-setup"
 )
 
 const (
-	// ChanDirectTCPIP is a SSH channel of type "direct-tcpip".
+	// ChanDirectTCPIP is an SSH channel of type "direct-tcpip".
 	ChanDirectTCPIP = "direct-tcpip"
 
-	// ChanSession is a SSH channel of type "session".
+	// ChanForwardedTCPIP is an SSH channel of type "forwarded-tcpip".
+	ChanForwardedTCPIP = "forwarded-tcpip"
+
+	// ChanSession is an SSH channel of type "session".
 	ChanSession = "session"
 )
 
@@ -900,4 +933,10 @@ const (
 	// KubeLegacyProxySuffix is the suffix used for legacy proxy services when
 	// generating their names Server names.
 	KubeLegacyProxySuffix = "-proxy_service"
+)
+
+const (
+	// DebugServiceSocketName represents the Unix domain socket name of the
+	// debug service.
+	DebugServiceSocketName = "debug.sock"
 )

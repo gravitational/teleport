@@ -25,12 +25,11 @@ GRPCBOX_RUN := $(DOCKER) run -it --rm -v "$$(pwd)/../:/workdir" -w /workdir $(GR
 # It's leaner, meaner, faster and not supposed to compile code.
 .PHONY: grpcbox
 grpcbox:
-	DOCKER_BUILDKIT=1 $(DOCKER) build \
+	$(DOCKER) buildx build \
 		--build-arg BUF_VERSION=$(BUF_VERSION) \
 		--build-arg GOGO_PROTO_TAG=$(GOGO_PROTO_TAG) \
 		--build-arg NODE_GRPC_TOOLS_VERSION=$(NODE_GRPC_TOOLS_VERSION) \
 		--build-arg NODE_PROTOC_TS_VERSION=$(NODE_PROTOC_TS_VERSION) \
-		--build-arg PROTOC_VERSION=$(PROTOC_VERSION) \
 		-f Dockerfile-grpcbox \
 		-t "$(GRPCBOX)" \
 		../

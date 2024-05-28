@@ -248,7 +248,7 @@ func (a *awsApp) GetEnvVars() (map[string]string, error) {
 		// https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-envvars.html
 		"AWS_ACCESS_KEY_ID":     credValues.AccessKeyID,
 		"AWS_SECRET_ACCESS_KEY": credValues.SecretAccessKey,
-		"AWS_CA_BUNDLE":         a.profile.AppLocalCAPath(a.appName),
+		"AWS_CA_BUNDLE":         a.profile.AppLocalCAPath(a.cf.SiteName, a.appName),
 	}
 
 	// Set proxy settings.
@@ -305,7 +305,7 @@ func (a *awsApp) startLocalALPNProxy(port string) error {
 		return trace.Wrap(err)
 	}
 
-	appCerts, err := loadAppCertificateWithAppLogin(a.cf, tc, a.appName)
+	appCert, err := loadAppCertificateWithAppLogin(a.cf, tc, a.appName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -337,7 +337,7 @@ func (a *awsApp) startLocalALPNProxy(port string) error {
 
 	a.localALPNProxy, err = alpnproxy.NewLocalProxy(
 		makeBasicLocalProxyConfig(a.cf, tc, listener),
-		alpnproxy.WithClientCerts(appCerts),
+		alpnproxy.WithClientCert(appCert),
 		alpnproxy.WithClusterCAsIfConnUpgrade(a.cf.Context, tc.RootClusterCACertPool),
 		alpnproxy.WithHTTPMiddleware(&alpnproxy.AWSAccessMiddleware{
 			AWSCredentials: cred,

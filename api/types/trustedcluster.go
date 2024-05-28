@@ -18,11 +18,11 @@ package types
 
 import (
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 )
 
 // TrustedCluster holds information needed for a cluster that can not be directly
@@ -120,16 +120,6 @@ func (c *TrustedClusterV2) GetSubKind() string {
 // SetSubKind sets resource subkind
 func (c *TrustedClusterV2) SetSubKind(s string) {
 	c.SubKind = s
-}
-
-// GetResourceID returns resource ID
-func (c *TrustedClusterV2) GetResourceID() int64 {
-	return c.Metadata.ID
-}
-
-// SetResourceID sets resource ID
-func (c *TrustedClusterV2) SetResourceID(id int64) {
-	c.Metadata.ID = id
 }
 
 // GetRevision returns the revision

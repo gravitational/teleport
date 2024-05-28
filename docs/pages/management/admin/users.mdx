@@ -58,7 +58,7 @@ NOTE: Make sure <proxy_host>:443 points at a Teleport proxy which users can acce
 ```
 
 The user completes registration by visiting this URL in their web browser,
-picking a password, and configuring second-factor authentication. If the
+picking a password, and configuring multi-factor authentication. If the
 credentials are correct, the Teleport Auth Server generates and signs a new
 certificate, and the client stores this key and will use it for subsequent
 logins. 
@@ -124,7 +124,7 @@ For more information, see:
 - [Single Sign-On](../../access-controls/sso.mdx)
 
 </TabItem>
-<TabItem scope={["oss","team"]} label="Teleport Team/Community Edition">
+<TabItem label="Teleport Community Edition">
 
 In addition to users, you can use `tctl` to manage roles and other dynamic
 resources. See our [Teleport Resources Reference](../../reference/resources.mdx).

@@ -19,10 +19,10 @@
 package common
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -67,6 +67,9 @@ const (
 
 	// ProtocolClickhouse is TLS ALPN protocol value used to indicate Clickhouse Protocol.
 	ProtocolClickhouse Protocol = "teleport-clickhouse"
+
+	// ProtocolSpanner is TLS ALPN protocol value used to indicate Google Spanner (gRPC) Protocol.
+	ProtocolSpanner Protocol = "teleport-spanner"
 
 	// ProtocolProxySSH is TLS ALPN protocol value used to indicate Proxy SSH protocol.
 	ProtocolProxySSH Protocol = "teleport-proxy-ssh"
@@ -174,6 +177,8 @@ func ToALPNProtocol(dbProtocol string) (Protocol, error) {
 		return ProtocolDynamoDB, nil
 	case defaults.ProtocolClickHouse, defaults.ProtocolClickHouseHTTP:
 		return ProtocolClickhouse, nil
+	case defaults.ProtocolSpanner:
+		return ProtocolSpanner, nil
 	default:
 		return "", trace.NotImplemented("%q protocol is not supported", dbProtocol)
 	}
@@ -196,6 +201,7 @@ func IsDBTLSProtocol(protocol Protocol) bool {
 		ProtocolOpenSearch,
 		ProtocolDynamoDB,
 		ProtocolClickhouse,
+		ProtocolSpanner,
 	}
 
 	return slices.ContainsFunc(dbTLSProtocols, func(dbTLSProtocol Protocol) bool {
@@ -217,6 +223,7 @@ var DatabaseProtocols = []Protocol{
 	ProtocolOpenSearch,
 	ProtocolDynamoDB,
 	ProtocolClickhouse,
+	ProtocolSpanner,
 }
 
 // ProtocolsWithPingSupport is the list of protocols that Ping connection is

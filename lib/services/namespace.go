@@ -35,15 +35,7 @@ func MarshalNamespace(resource types.Namespace, opts ...MarshalOption) ([]byte, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !cfg.PreserveResourceID {
-		// avoid modifying the original object
-		// to prevent unexpected data races
-		copy := resource
-		copy.SetResourceID(0)
-		copy.SetRevision("")
-		resource = copy
-	}
-	return utils.FastMarshal(resource)
+	return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, &resource))
 }
 
 // UnmarshalNamespace unmarshals the Namespace resource from JSON.
@@ -68,9 +60,6 @@ func UnmarshalNamespace(data []byte, opts ...MarshalOption) (*types.Namespace, e
 		return nil, trace.Wrap(err)
 	}
 
-	if cfg.ID != 0 {
-		namespace.Metadata.ID = cfg.ID
-	}
 	if cfg.Revision != "" {
 		namespace.SetRevision(cfg.Revision)
 	}

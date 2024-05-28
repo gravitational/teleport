@@ -21,6 +21,7 @@ package services
 import (
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -61,11 +62,10 @@ func MarshalLicense(license types.License, opts ...MarshalOption) ([]byte, error
 			return nil, trace.Wrap(err)
 		}
 
-		if !cfg.PreserveResourceID {
+		if !cfg.PreserveRevision {
 			// avoid modifying the original object
 			// to prevent unexpected data races
 			copy := *license
-			copy.SetResourceID(0)
 			copy.SetRevision("")
 			license = &copy
 		}
@@ -73,4 +73,15 @@ func MarshalLicense(license types.License, opts ...MarshalOption) ([]byte, error
 	default:
 		return nil, trace.BadParameter("unrecognized license version %T", license)
 	}
+}
+
+// IsDashboard returns a bool indicating if the cluster is a
+// dashboard cluster.
+// Dashboard is a cluster running on cloud infrastructure that
+// isn't a Teleport Cloud cluster
+func IsDashboard(features proto.Features) bool {
+	// TODO(matheus): for now, we assume dashboard based on
+	// the presence of recovery codes, which are never enabled
+	// in OSS or self-hosted Teleport.
+	return !features.GetCloud() && features.GetRecoveryCodes()
 }

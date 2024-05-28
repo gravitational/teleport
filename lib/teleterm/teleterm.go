@@ -126,21 +126,25 @@ func createGRPCCredentials(tshdServerAddress string, certsDir string) (*grpcCred
 	}
 
 	rendererCertPath := filepath.Join(certsDir, rendererCertFileName)
+	mainProcessCertPath := filepath.Join(certsDir, mainProcessCertFileName)
 	tshdCertPath := filepath.Join(certsDir, tshdCertFileName)
 	tshdKeyPair, err := generateAndSaveCert(tshdCertPath)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// rendererCertPath will be read on an incoming client connection so we can assume that at this
-	// point the renderer process has saved its public key under that path.
-	tshdCreds, err := createServerCredentials(tshdKeyPair, rendererCertPath)
+	tshdCreds, err := createServerCredentials(
+		tshdKeyPair,
+		// Client certs will be read on an incoming connection.  The client setup in the Electron app is
+		// orchestrated in a way where the client saves its cert to disk before initiating a connection.
+		[]string{rendererCertPath, mainProcessCertPath},
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// To create client creds, we need to read the server cert. However, at this point we'd need to
-	// wait for the Electron app to save the cert under rendererCertPath.
+	// To create client creds for tshd events service, we need to read the server cert. However, at
+	// this point we'd need to wait for the Electron app to save the cert under rendererCertPath.
 	//
 	// Instead of waiting for it, we're going to capture the logic in a function that's going to be
 	// called after the Electron app calls UpdateTshdEventsServerAddress of the Terminal service.

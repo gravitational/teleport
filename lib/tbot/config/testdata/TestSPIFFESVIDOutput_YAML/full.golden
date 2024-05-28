@@ -1,0 +1,12 @@
+type: spiffe-svid
+destination:
+  type: memory
+svid:
+  path: /foo
+  hint: hint
+  sans:
+    dns:
+      - example.com
+    ip:
+      - 10.0.0.1
+      - 10.42.0.1

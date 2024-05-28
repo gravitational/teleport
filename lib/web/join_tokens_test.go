@@ -22,14 +22,10 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
-	"net/http"
-	"net/http/httptest"
-	"net/url"
 	"regexp"
 	"testing"
 
 	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
@@ -768,6 +764,82 @@ db_service:
 	}
 }
 
+func TestGetDiscoveryJoinScript(t *testing.T) {
+	const validToken = "f18da1c9f6630a51e8daf121e7451daa"
+
+	m := &mockedNodeAPIGetter{
+		mockGetProxyServers: func() ([]types.Server, error) {
+			var s types.ServerV2
+			s.SetPublicAddrs([]string{"test-host:12345678"})
+
+			return []types.Server{&s}, nil
+		},
+		mockGetClusterCACert: func(context.Context) (*proto.GetClusterCACertResponse, error) {
+			fakeBytes := []byte(fixtures.SigningCertPEM)
+			return &proto.GetClusterCACertResponse{TLSCA: fakeBytes}, nil
+		},
+		mockGetToken: func(_ context.Context, token string) (types.ProvisionToken, error) {
+			provisionToken := &types.ProvisionTokenV2{
+				Metadata: types.Metadata{
+					Name: token,
+				},
+				Spec: types.ProvisionTokenSpecV2{},
+			}
+			if token == validToken {
+				return provisionToken, nil
+			}
+			return nil, trace.NotFound("token does not exist")
+		},
+	}
+
+	for _, test := range []struct {
+		desc            string
+		settings        scriptSettings
+		errAssert       require.ErrorAssertionFunc
+		extraAssertions func(t *testing.T, script string)
+	}{
+		{
+			desc: "valid",
+			settings: scriptSettings{
+				discoveryInstallMode: true,
+				discoveryGroup:       "my-group",
+				token:                validToken,
+			},
+			errAssert: require.NoError,
+			extraAssertions: func(t *testing.T, script string) {
+				require.Contains(t, script, validToken)
+				require.Contains(t, script, "test-host")
+				require.Contains(t, script, "sha256:")
+				require.Contains(t, script, "--labels ")
+				require.Contains(t, script, `
+discovery_service:
+  enabled: "yes"
+  discovery_group: "my-group"`)
+			},
+		},
+		{
+			desc: "fails when discovery group is not defined",
+			settings: scriptSettings{
+				discoveryInstallMode: true,
+				token:                validToken,
+			},
+			errAssert: require.Error,
+		},
+	} {
+		t.Run(test.desc, func(t *testing.T) {
+			script, err := getJoinScript(context.Background(), test.settings, m)
+			test.errAssert(t, err)
+			if err != nil {
+				require.Empty(t, script)
+			}
+
+			if test.extraAssertions != nil {
+				test.extraAssertions(t, script)
+			}
+		})
+	}
+}
+
 func TestIsSameRuleSet(t *testing.T) {
 	tt := []struct {
 		name     string
@@ -900,7 +972,7 @@ func TestJoinScript(t *testing.T) {
 	}
 
 	t.Run("direct download links", func(t *testing.T) {
-		getGravitationalTeleportLinkRegex := regexp.MustCompile(`https://get\.gravitational\.com/\${TELEPORT_PACKAGE_NAME}[-_]v?\${TELEPORT_VERSION}`)
+		getGravitationalTeleportLinkRegex := regexp.MustCompile(`https://cdn\.teleport\.dev/\${TELEPORT_PACKAGE_NAME}[-_]v?\${TELEPORT_VERSION}`)
 
 		t.Run("oss", func(t *testing.T) {
 			// Using the OSS Version, all the links must contain only teleport as package name.
@@ -909,9 +981,9 @@ func TestJoinScript(t *testing.T) {
 
 			matches := getGravitationalTeleportLinkRegex.FindAllString(script, -1)
 			require.ElementsMatch(t, matches, []string{
-				"https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}-v${TELEPORT_VERSION}",
-				"https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}_${TELEPORT_VERSION}",
-				"https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}-${TELEPORT_VERSION}",
+				"https://cdn.teleport.dev/${TELEPORT_PACKAGE_NAME}-v${TELEPORT_VERSION}",
+				"https://cdn.teleport.dev/${TELEPORT_PACKAGE_NAME}_${TELEPORT_VERSION}",
+				"https://cdn.teleport.dev/${TELEPORT_PACKAGE_NAME}-${TELEPORT_VERSION}",
 			})
 			require.Contains(t, script, "TELEPORT_PACKAGE_NAME='teleport'")
 			require.Contains(t, script, "TELEPORT_ARCHIVE_PATH='teleport'")
@@ -925,9 +997,9 @@ func TestJoinScript(t *testing.T) {
 
 			matches := getGravitationalTeleportLinkRegex.FindAllString(script, -1)
 			require.ElementsMatch(t, matches, []string{
-				"https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}-v${TELEPORT_VERSION}",
-				"https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}_${TELEPORT_VERSION}",
-				"https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}-${TELEPORT_VERSION}",
+				"https://cdn.teleport.dev/${TELEPORT_PACKAGE_NAME}-v${TELEPORT_VERSION}",
+				"https://cdn.teleport.dev/${TELEPORT_PACKAGE_NAME}_${TELEPORT_VERSION}",
+				"https://cdn.teleport.dev/${TELEPORT_PACKAGE_NAME}-${TELEPORT_VERSION}",
 			})
 			require.Contains(t, script, "TELEPORT_PACKAGE_NAME='teleport-ent'")
 			require.Contains(t, script, "TELEPORT_ARCHIVE_PATH='teleport-ent'")
@@ -937,18 +1009,7 @@ func TestJoinScript(t *testing.T) {
 	t.Run("using repo", func(t *testing.T) {
 		t.Run("installUpdater is true", func(t *testing.T) {
 			currentStableCloudVersion := "v99.1.1"
-
-			httpTestServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, "/v1/stable/cloud/version", r.URL.Path)
-				w.WriteHeader(http.StatusOK)
-				w.Write([]byte(currentStableCloudVersion))
-			}))
-			defer httpTestServer.Close()
-
-			versionURL, err := url.JoinPath(httpTestServer.URL, "/v1/stable/cloud/version")
-			require.NoError(t, err)
-
-			script, err := getJoinScript(context.Background(), scriptSettings{token: validToken, installUpdater: true, automaticUpgradesVersionURL: versionURL}, m)
+			script, err := getJoinScript(context.Background(), scriptSettings{token: validToken, installUpdater: true, automaticUpgradesVersion: currentStableCloudVersion}, m)
 			require.NoError(t, err)
 
 			// list of packages must include the updater

@@ -16,7 +16,7 @@ sets Pod annotations when specified:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -43,10 +43,12 @@ sets Pod annotations when specified:
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -84,7 +86,7 @@ sets Pod labels when specified:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -111,10 +113,12 @@ sets Pod labels when specified:
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -176,7 +180,7 @@ sets StatefulSet labels when specified:
                   fieldPath: metadata.namespace
             - name: RELEASE_NAME
               value: RELEASE-NAME
-            image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
+            image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
             imagePullPolicy: IfNotPresent
             livenessProbe:
               failureThreshold: 6
@@ -203,10 +207,12 @@ sets StatefulSet labels when specified:
               allowPrivilegeEscalation: false
               capabilities:
                 drop:
-                - all
+                - ALL
               readOnlyRootFilesystem: true
               runAsNonRoot: true
               runAsUser: 9807
+              seccompProfile:
+                type: RuntimeDefault
             volumeMounts:
             - mountPath: /etc/teleport
               name: config
@@ -241,18 +247,22 @@ sets by default a container security context:
     allowPrivilegeEscalation: false
     capabilities:
       drop:
-      - all
+      - ALL
     readOnlyRootFilesystem: true
     runAsNonRoot: true
     runAsUser: 9807
+    seccompProfile:
+      type: RuntimeDefault
   2: |
     allowPrivilegeEscalation: false
     capabilities:
       drop:
-      - all
+      - ALL
     readOnlyRootFilesystem: true
     runAsNonRoot: true
     runAsUser: 9807
+    seccompProfile:
+      type: RuntimeDefault
 should add insecureSkipProxyTLSVerify to args when set in values:
   1: |
     containers:
@@ -272,7 +282,7 @@ should add insecureSkipProxyTLSVerify to args when set in values:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -299,10 +309,12 @@ should add insecureSkipProxyTLSVerify to args when set in values:
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -340,7 +352,7 @@ should add volumeClaimTemplate for data volume when using StatefulSet and action
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -367,10 +379,12 @@ should add volumeClaimTemplate for data volume when using StatefulSet and action
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -428,7 +442,7 @@ should add volumeClaimTemplate for data volume when using StatefulSet and is Fre
                   fieldPath: metadata.namespace
             - name: RELEASE_NAME
               value: RELEASE-NAME
-            image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
+            image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
             imagePullPolicy: IfNotPresent
             livenessProbe:
               failureThreshold: 6
@@ -455,10 +469,12 @@ should add volumeClaimTemplate for data volume when using StatefulSet and is Fre
               allowPrivilegeEscalation: false
               capabilities:
                 drop:
-                - all
+                - ALL
               readOnlyRootFilesystem: true
               runAsNonRoot: true
               runAsUser: 9807
+              seccompProfile:
+                type: RuntimeDefault
             volumeMounts:
             - mountPath: /etc/teleport
               name: config
@@ -506,7 +522,7 @@ should add volumeMount for data volume when using StatefulSet:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -533,10 +549,12 @@ should add volumeMount for data volume when using StatefulSet:
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -574,7 +592,7 @@ should expose diag port:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -601,10 +619,12 @@ should expose diag port:
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -642,7 +662,7 @@ should generate Statefulset when storage is disabled and mode is a Upgrade:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -669,10 +689,12 @@ should generate Statefulset when storage is disabled and mode is a Upgrade:
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -724,7 +746,7 @@ should have multiple replicas when replicaCount is set (using .replicaCount, dep
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -751,10 +773,12 @@ should have multiple replicas when replicaCount is set (using .replicaCount, dep
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -804,7 +828,7 @@ should have multiple replicas when replicaCount is set (using highAvailability.r
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -831,10 +855,12 @@ should have multiple replicas when replicaCount is set (using highAvailability.r
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -872,7 +898,7 @@ should have one replica when replicaCount is not set:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -899,10 +925,12 @@ should have one replica when replicaCount is not set:
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -940,7 +968,7 @@ should install Statefulset when storage is disabled and mode is a Fresh Install:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -967,10 +995,12 @@ should install Statefulset when storage is disabled and mode is a Fresh Install:
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -1010,7 +1040,7 @@ should mount extraVolumes and extraVolumeMounts:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1037,10 +1067,12 @@ should mount extraVolumes and extraVolumeMounts:
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -1085,7 +1117,7 @@ should mount tls.existingCASecretName and set environment when set in values:
         value: RELEASE-NAME
       - name: SSL_CERT_FILE
         value: /etc/teleport-tls-ca/ca.pem
-      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1112,10 +1144,12 @@ should mount tls.existingCASecretName and set environment when set in values:
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -1165,7 +1199,7 @@ should mount tls.existingCASecretName and set extra environment when set in valu
         value: /etc/teleport-tls-ca/ca.pem
       - name: HTTPS_PROXY
         value: http://username:password@my.proxy.host:3128
-      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1192,10 +1226,12 @@ should mount tls.existingCASecretName and set extra environment when set in valu
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -1241,7 +1277,7 @@ should not add emptyDir for data when using StatefulSet:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1268,10 +1304,12 @@ should not add emptyDir for data when using StatefulSet:
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -1309,7 +1347,7 @@ should provision initContainer correctly when set in values:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1343,10 +1381,12 @@ should provision initContainer correctly when set in values:
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -1372,78 +1412,12 @@ should provision initContainer correctly when set in values:
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
-      volumeMounts:
-      - mountPath: /etc/teleport
-        name: config
-        readOnly: true
-      - mountPath: /etc/teleport-secrets
-        name: auth-token
-        readOnly: true
-      - mountPath: /var/lib/teleport
-        name: RELEASE-NAME-teleport-data
-    securityContext:
-      fsGroup: 9807
-    serviceAccountName: RELEASE-NAME
-    volumes:
-    - configMap:
-        name: RELEASE-NAME
-      name: config
-    - name: auth-token
-      secret:
-        secretName: teleport-kube-agent-join-token
-should set SecurityContext:
-  1: |
-    containers:
-    - args:
-      - --diag-addr=0.0.0.0:3000
-      env:
-      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
-        value: "true"
-      - name: TELEPORT_REPLICA_NAME
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.name
-      - name: KUBE_NAMESPACE
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.namespace
-      - name: RELEASE_NAME
-        value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
-      imagePullPolicy: IfNotPresent
-      livenessProbe:
-        failureThreshold: 6
-        httpGet:
-          path: /healthz
-          port: diag
-        initialDelaySeconds: 5
-        periodSeconds: 5
-        timeoutSeconds: 1
-      name: teleport
-      ports:
-      - containerPort: 3000
-        name: diag
-        protocol: TCP
-      readinessProbe:
-        failureThreshold: 12
-        httpGet:
-          path: /readyz
-          port: diag
-        initialDelaySeconds: 5
-        periodSeconds: 5
-        timeoutSeconds: 1
-      securityContext:
-        allowPrivilegeEscalation: false
-        capabilities:
-          drop:
-          - all
-        readOnlyRootFilesystem: true
-        runAsNonRoot: true
-        runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -1501,7 +1475,7 @@ should set affinity when set in values:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1528,10 +1502,12 @@ should set affinity when set in values:
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -1569,7 +1545,7 @@ should set default serviceAccountName when not set in values:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1596,10 +1572,12 @@ should set default serviceAccountName when not set in values:
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -1650,7 +1628,7 @@ should set environment when extraEnv set in values:
         value: RELEASE-NAME
       - name: HTTPS_PROXY
         value: http://username:password@my.proxy.host:3128
-      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1677,10 +1655,12 @@ should set environment when extraEnv set in values:
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -1745,10 +1725,12 @@ should set image and tag correctly:
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -1786,7 +1768,7 @@ should set imagePullPolicy when set in values:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: Always
       livenessProbe:
         failureThreshold: 6
@@ -1813,10 +1795,12 @@ should set imagePullPolicy when set in values:
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -1854,7 +1838,7 @@ should set nodeSelector if set in values:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1881,10 +1865,12 @@ should set nodeSelector if set in values:
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -1936,7 +1922,7 @@ should set preferred affinity when more than one replica is used:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1963,10 +1949,12 @@ should set preferred affinity when more than one replica is used:
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -2004,7 +1992,7 @@ should set probeTimeoutSeconds when set in values:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -2031,10 +2019,12 @@ should set probeTimeoutSeconds when set in values:
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -2082,7 +2072,7 @@ should set required affinity when highAvailability.requireAntiAffinity is set:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -2109,10 +2099,12 @@ should set required affinity when highAvailability.requireAntiAffinity is set:
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -2150,7 +2142,7 @@ should set resources when set in values:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -2184,10 +2176,12 @@ should set resources when set in values:
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -2225,7 +2219,7 @@ should set serviceAccountName when set in values:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -2252,10 +2246,12 @@ should set serviceAccountName when set in values:
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -2293,7 +2289,7 @@ should set storage.requests when set in values and action is an Upgrade:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -2320,10 +2316,12 @@ should set storage.requests when set in values and action is an Upgrade:
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -2361,7 +2359,7 @@ should set storage.storageClassName when set in values and action is an Upgrade:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -2388,10 +2386,12 @@ should set storage.storageClassName when set in values and action is an Upgrade:
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -2429,7 +2429,7 @@ should set tolerations when set in values:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -2456,10 +2456,12 @@ should set tolerations when set in values:
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config

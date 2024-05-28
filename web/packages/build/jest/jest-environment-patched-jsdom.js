@@ -19,6 +19,20 @@ export default class PatchedJSDOMEnvironment extends JSDOMEnvironment {
     const { global } = super(...args);
     if (!global.TextEncoder) global.TextEncoder = TextEncoder;
     if (!global.TextDecoder) global.TextDecoder = TextDecoder;
+
+    // TODO(sshah): Remove this once JSDOM provides structuredClone.
+    // https://github.com/jsdom/jsdom/issues/3363
+    if (!global.structuredClone) {
+      global.structuredClone = val => {
+        return JSON.parse(JSON.stringify(val));
+      };
+    }
+
+    // TODO(gzdunek): Remove this once JSDOM provides scrollIntoView.
+    // https://github.com/jsdom/jsdom/issues/1695#issuecomment-449931788
+    if (!global.Element.prototype.scrollIntoView) {
+      global.Element.prototype.scrollIntoView = () => {};
+    }
   }
 }
 export const TestEnvironment = PatchedJSDOMEnvironment;

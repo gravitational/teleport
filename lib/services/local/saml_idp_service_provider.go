@@ -20,15 +20,25 @@ package local
 
 import (
 	"context"
+	"encoding/xml"
+	"fmt"
+	"net/http"
+	"net/url"
 	"time"
 
+	"github.com/crewjam/saml"
 	"github.com/crewjam/saml/samlsp"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	preset "github.com/gravitational/teleport/api/types/samlsp"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -36,15 +46,28 @@ const (
 	samlIDPServiceProviderModifyLock    = "saml_idp_service_provider_modify_lock"
 	samlIDPServiceProviderModifyLockTTL = time.Second * 5
 	samlIDPServiceProviderMaxPageSize   = 200
+	samlIDPServiceName                  = "teleport_saml_idp_service"
 )
 
 // SAMLIdPServiceProviderService manages IdP service providers in the Backend.
 type SAMLIdPServiceProviderService struct {
-	svc generic.Service[types.SAMLIdPServiceProvider]
+	svc        generic.Service[types.SAMLIdPServiceProvider]
+	log        logrus.FieldLogger
+	httpClient *http.Client
+}
+
+// SAMLIdPOption adds optional arguments to NewSAMLIdPServiceProviderService.
+type SAMLIdPOption func(*SAMLIdPServiceProviderService)
+
+// WithHTTPClient configures SAMLIdPServiceProviderService with given http client.
+func WithHTTPClient(httpClient *http.Client) SAMLIdPOption {
+	return func(s *SAMLIdPServiceProviderService) {
+		s.httpClient = httpClient
+	}
 }
 
 // NewSAMLIdPServiceProviderService creates a new SAMLIdPServiceProviderService.
-func NewSAMLIdPServiceProviderService(backend backend.Backend) (*SAMLIdPServiceProviderService, error) {
+func NewSAMLIdPServiceProviderService(backend backend.Backend, opts ...SAMLIdPOption) (*SAMLIdPServiceProviderService, error) {
 	svc, err := generic.NewService(&generic.ServiceConfig[types.SAMLIdPServiceProvider]{
 		Backend:       backend,
 		PageLimit:     samlIDPServiceProviderMaxPageSize,
@@ -57,9 +80,25 @@ func NewSAMLIdPServiceProviderService(backend backend.Backend) (*SAMLIdPServiceP
 		return nil, trace.Wrap(err)
 	}
 
-	return &SAMLIdPServiceProviderService{
+	samlSPService := &SAMLIdPServiceProviderService{
 		svc: *svc,
-	}, nil
+		log: logrus.WithFields(logrus.Fields{teleport.ComponentKey: "saml-idp"}),
+	}
+
+	for _, opt := range opts {
+		opt(samlSPService)
+	}
+
+	if samlSPService.httpClient == nil {
+		samlSPService.httpClient = &http.Client{
+			Timeout: defaults.HTTPRequestTimeout,
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		}
+	}
+
+	return samlSPService, nil
 }
 
 // ListSAMLIdPServiceProviders returns a paginated list of SAML IdP service provider resources.
@@ -74,7 +113,32 @@ func (s *SAMLIdPServiceProviderService) GetSAMLIdPServiceProvider(ctx context.Co
 
 // CreateSAMLIdPServiceProvider creates a new SAML IdP service provider resource.
 func (s *SAMLIdPServiceProviderService) CreateSAMLIdPServiceProvider(ctx context.Context, sp types.SAMLIdPServiceProvider) error {
-	if err := validateSAMLIdPServiceProvider(sp); err != nil {
+	if sp.GetEntityDescriptor() == "" {
+		if err := s.configureEntityDescriptorPerPreset(sp); err != nil {
+			errMsg := fmt.Errorf("failed to configure entity descriptor with the given entity_id %q and acs_url %q: %w",
+				sp.GetEntityID(), sp.GetACSURL(), err)
+			s.log.Errorf(errMsg.Error())
+			return trace.BadParameter(errMsg.Error())
+		}
+	}
+
+	// verify that entity descriptor parses
+	ed, err := samlsp.ParseMetadata([]byte(sp.GetEntityDescriptor()))
+	if err != nil {
+		return trace.BadParameter("invalid entity descriptor for SAML IdP Service Provider %q: %v", sp.GetEntityID(), err)
+	}
+
+	if ed.EntityID != sp.GetEntityID() {
+		return trace.BadParameter("entity ID parsed from the entity descriptor does not match the entity ID in the SAML IdP service provider object")
+	}
+
+	// ensure any filtering related issues get logged
+	if err := services.FilterSAMLEntityDescriptor(ed, false /* quiet */); err != nil {
+		s.log.Warnf("Entity descriptor for SAML IdP Service Provider %q contains unsupported ACS bindings: %v", sp.GetEntityID(), err)
+	}
+
+	// embed attribute mapping in entity descriptor
+	if err := s.embedAttributeMapping(sp); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -99,7 +163,23 @@ func (s *SAMLIdPServiceProviderService) CreateSAMLIdPServiceProvider(ctx context
 
 // UpdateSAMLIdPServiceProvider updates an existing SAML IdP service provider resource.
 func (s *SAMLIdPServiceProviderService) UpdateSAMLIdPServiceProvider(ctx context.Context, sp types.SAMLIdPServiceProvider) error {
-	if err := validateSAMLIdPServiceProvider(sp); err != nil {
+	// verify that entity descriptor parses
+	ed, err := samlsp.ParseMetadata([]byte(sp.GetEntityDescriptor()))
+	if err != nil {
+		return trace.BadParameter("invalid entity descriptor for SAML IdP Service Provider %q: %v", sp.GetEntityID(), err)
+	}
+
+	if ed.EntityID != sp.GetEntityID() {
+		return trace.BadParameter("entity ID parsed from the entity descriptor does not match the entity ID in the SAML IdP service provider object")
+	}
+
+	// ensure any filtering related issues get logged
+	if err := services.FilterSAMLEntityDescriptor(ed, false /* quiet */); err != nil {
+		s.log.Warnf("Entity descriptor for SAML IdP Service Provider %q contains unsupported ACS bindings: %v", sp.GetEntityID(), err)
+	}
+
+	// embed attribute mapping in entity descriptor
+	if err := s.embedAttributeMapping(sp); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -161,25 +241,166 @@ func (s *SAMLIdPServiceProviderService) ensureEntityIDIsUnique(ctx context.Conte
 	return nil
 }
 
-// validateSAMLIdPServiceProvider ensures that the entity ID in the entity descriptor is the same as the entity ID
-// in the [types.SAMLIdPServiceProvider] and that all AssertionConsumerServices defined are valid HTTPS endpoints.
-func validateSAMLIdPServiceProvider(sp types.SAMLIdPServiceProvider) error {
-	ed, err := samlsp.ParseMetadata([]byte(sp.GetEntityDescriptor()))
-	if err != nil {
-		return trace.BadParameter(err.Error())
-	}
-
-	if ed.EntityID != sp.GetEntityID() {
-		return trace.BadParameter("entity ID parsed from the entity descriptor does not match the entity ID in the SAML IdP service provider object")
-	}
-
-	for _, descriptor := range ed.SPSSODescriptors {
-		for _, acs := range descriptor.AssertionConsumerServices {
-			if err := services.ValidateAssertionConsumerServicesEndpoint(acs.Location); err != nil {
-				return trace.Wrap(err)
-			}
+// configureEntityDescriptorPerPreset configures entity descriptor based on SAML service provider preset.
+func (s *SAMLIdPServiceProviderService) configureEntityDescriptorPerPreset(sp types.SAMLIdPServiceProvider) error {
+	switch sp.GetPreset() {
+	case preset.GCPWorkforce:
+		return trace.Wrap(s.generateAndSetEntityDescriptor(sp))
+	default:
+		// fetchAndSetEntityDescriptor is expected to return error if it fails
+		// to fetch a valid entity descriptor.
+		if err := s.fetchAndSetEntityDescriptor(sp); err != nil {
+			s.log.Debugf("Failed to fetch entity descriptor from %q: %v.", sp.GetEntityID(), err)
+			// We aren't interested in checking error type as any occurrence of error
+			// mean entity descriptor was not set.
+			return trace.Wrap(s.generateAndSetEntityDescriptor(sp))
 		}
 	}
 
 	return nil
+}
+
+// fetchAndSetEntityDescriptor fetches Service Provider entity descriptor (aka SP metadata)
+// from remote metadata endpoint (Entity ID) and sets it to sp if the xml format
+// is a valid Service Provider metadata format.
+func (s *SAMLIdPServiceProviderService) fetchAndSetEntityDescriptor(sp types.SAMLIdPServiceProvider) error {
+	if s.httpClient == nil {
+		return trace.BadParameter("missing http client")
+	}
+	resp, err := s.httpClient.Get(sp.GetEntityID())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return trace.Wrap(trace.BadParameter("unexpected response status: %q", resp.StatusCode))
+	}
+
+	body, err := utils.ReadAtMost(resp.Body, teleport.MaxHTTPResponseSize)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// parse body to check if it's a valid entity descriptor
+	_, err = samlsp.ParseMetadata(body)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	sp.SetEntityDescriptor(string(body))
+	return nil
+}
+
+// generateAndSetEntityDescriptor generates and sets Service Provider entity descriptor
+// with ACS URL, Entity ID and unspecified NameID format.
+func (s *SAMLIdPServiceProviderService) generateAndSetEntityDescriptor(sp types.SAMLIdPServiceProvider) error {
+	s.log.Infof("Generating a default entity_descriptor with entity_id %q and acs_url %q.", sp.GetEntityID(), sp.GetACSURL())
+
+	acsURL, err := url.Parse(sp.GetACSURL())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	newServiceProvider := saml.ServiceProvider{
+		EntityID:          sp.GetEntityID(),
+		AcsURL:            *acsURL,
+		AuthnNameIDFormat: saml.UnspecifiedNameIDFormat,
+	}
+
+	ed := newServiceProvider.Metadata()
+	// HTTPArtifactBinding is defined when entity descriptor is generated
+	// using crewjam/saml https://github.com/crewjam/saml/blob/main/service_provider.go#L228.
+	// But we do not support it, so filter it out below.
+	// Error and warnings are swallowed because the descriptor is Teleport generated and
+	// users have no control over sanitizing filtered binding.
+	services.FilterSAMLEntityDescriptor(ed, true /* quiet */)
+	edXMLBytes, err := xml.MarshalIndent(ed, "", "  ")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	sp.SetEntityDescriptor(string(edXMLBytes))
+	return nil
+}
+
+// embedAttributeMapping embeds attribute mapping input into entity descriptor.
+func (s *SAMLIdPServiceProviderService) embedAttributeMapping(sp types.SAMLIdPServiceProvider) error {
+	ed, err := samlsp.ParseMetadata([]byte(sp.GetEntityDescriptor()))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	teleportSPSSODescriptorIndex, _ := GetTeleportSPSSODescriptor(ed.SPSSODescriptors)
+	switch attrMapLen := len(sp.GetAttributeMapping()); {
+	case attrMapLen == 0:
+		if teleportSPSSODescriptorIndex == 0 {
+			s.log.Debugf("No custom attribute mapping values provided for %s. SAML assertion will default to uid and eduPersonAffiliate", sp.GetEntityID())
+			return nil
+		} else {
+			// delete Teleport SPSSODescriptor
+			ed.SPSSODescriptors = append(ed.SPSSODescriptors[:teleportSPSSODescriptorIndex], ed.SPSSODescriptors[teleportSPSSODescriptorIndex+1:]...)
+		}
+	case attrMapLen > 0:
+		if teleportSPSSODescriptorIndex == 0 {
+			ed.SPSSODescriptors = append(ed.SPSSODescriptors, genTeleportSPSSODescriptor(sp.GetAttributeMapping()))
+		} else {
+			// if there is existing SPSSODescriptor with "teleport_saml_idp_service" service name, replace it at
+			// existingTeleportSPSSODescriptorIndex to avoid duplication or possible fragmented SPSSODescriptor.
+			ed.SPSSODescriptors[teleportSPSSODescriptorIndex] = genTeleportSPSSODescriptor(sp.GetAttributeMapping())
+		}
+	}
+
+	edWithAttributes, err := xml.MarshalIndent(ed, " ", "    ")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	sp.SetEntityDescriptor(string(edWithAttributes))
+	return nil
+}
+
+// GetTeleportSPSSODescriptor returns Teleport embedded SPSSODescriptor and its index from a
+// list of SPSSODescriptors. The correct SPSSODescriptor is determined by searching for
+// AttributeConsumingService element with ServiceNames named teleport_saml_idp_service.
+func GetTeleportSPSSODescriptor(spSSODescriptors []saml.SPSSODescriptor) (embeddedSPSSODescriptorIndex int, teleportSPSSODescriptor saml.SPSSODescriptor) {
+	for descriptorIndex, descriptor := range spSSODescriptors {
+		for _, acs := range descriptor.AttributeConsumingServices {
+			for _, serviceName := range acs.ServiceNames {
+				if serviceName.Value == samlIDPServiceName {
+					return descriptorIndex, spSSODescriptors[descriptorIndex]
+				}
+			}
+		}
+	}
+	return
+}
+
+// genTeleportSPSSODescriptor returns saml.SPSSODescriptor populated with Attribute Consuming Service
+// named teleport_saml_idp_service and attributeMapping input (types.SAMLAttributeMapping) converted to
+// saml.RequestedAttributes format.
+func genTeleportSPSSODescriptor(attributeMapping []*types.SAMLAttributeMapping) saml.SPSSODescriptor {
+	var reqs []saml.RequestedAttribute
+	for _, v := range attributeMapping {
+		reqs = append(reqs, saml.RequestedAttribute{
+			Attribute: saml.Attribute{
+				FriendlyName: v.Name,
+				Name:         v.Name,
+				NameFormat:   v.NameFormat,
+				Values:       []saml.AttributeValue{{Value: v.Value}},
+			},
+		})
+	}
+	return saml.SPSSODescriptor{
+		AttributeConsumingServices: []saml.AttributeConsumingService{
+			{
+				// ServiceNames is hardcoded with value teleport_saml_idp_service to make the descriptor
+				// recognizable throughout SAML SSO flow. Attribute mapping should only ever
+				// edit SPSSODescriptor containing teleport_saml_idp_service element. Otherwise, we risk
+				// overriding SP managed SPSSODescriptor!
+				ServiceNames:        []saml.LocalizedName{{Value: samlIDPServiceName}},
+				RequestedAttributes: reqs,
+			},
+		},
+	}
 }

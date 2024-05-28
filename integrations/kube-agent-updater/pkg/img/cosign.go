@@ -24,7 +24,9 @@ import (
 	"encoding/hex"
 
 	"github.com/distribution/reference"
+	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
+	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/gravitational/trace"
 	"github.com/opencontainers/go-digest"
 	"github.com/sigstore/cosign/v2/pkg/cosign"
@@ -99,7 +101,7 @@ func (v *cosignKeyValidator) ValidateAndResolveDigest(ctx context.Context, image
 // NewCosignSingleKeyValidator takes a PEM-encoded public key and returns an
 // img.Validator that checks the image was signed with cosign by the
 // corresponding private key.
-func NewCosignSingleKeyValidator(pem []byte, name string) (Validator, error) {
+func NewCosignSingleKeyValidator(pem []byte, name string, keyChain authn.Keychain) (Validator, error) {
 	pubKey, err := cryptoutils.UnmarshalPEMToPublicKey(pem)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -112,10 +114,12 @@ func NewCosignSingleKeyValidator(pem []byte, name string) (Validator, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return &cosignKeyValidator{
-		verifier: verifier,
-		skid:     skid,
-		name:     name,
+		registryOptions: []ociremote.Option{ociremote.WithRemoteOptions(remote.WithAuthFromKeychain(keyChain))},
+		verifier:        verifier,
+		skid:            skid,
+		name:            name,
 	}, nil
 }
 

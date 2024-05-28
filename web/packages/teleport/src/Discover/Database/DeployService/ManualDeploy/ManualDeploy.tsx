@@ -40,7 +40,7 @@ import {
 } from 'teleport/Discover/Shared/HintBox';
 
 import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
-import { DbMeta, useDiscover } from 'teleport/Discover/useDiscover';
+import { useDiscover } from 'teleport/Discover/useDiscover';
 import { DatabaseLocation } from 'teleport/Discover/SelectResource';
 import {
   DiscoverEventStatus,
@@ -229,7 +229,7 @@ export function ManualDeploy(props: {
         setLabels={props.setLabels}
         disableBtns={true}
         dbLabels={props.dbLabels}
-        region={(agentMeta as DbMeta).selectedAwsRdsDb?.region}
+        region={agentMeta.awsRegion}
       />
       <Box mt={6}>
         <CommandBox>

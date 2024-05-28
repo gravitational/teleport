@@ -37,9 +37,10 @@ import (
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/gravitational/teleport/api/types"
+	apiresources "github.com/gravitational/teleport/integrations/operator/apis/resources"
 	v2 "github.com/gravitational/teleport/integrations/operator/apis/resources/v2"
-	resourcesv5 "github.com/gravitational/teleport/integrations/operator/apis/resources/v5"
-	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
+	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
+	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 )
 
 const teleportUserKind = "TeleportUser"
@@ -158,7 +159,8 @@ traits:
 
 			userName := validRandomResourceName("user-")
 
-			obj := resources.GetUnstructuredObjectFromGVK(teleportUserGVK)
+			obj, err := reconcilers.GetUnstructuredObjectFromGVK(teleportUserGVK)
+			require.NoError(t, err)
 			obj.Object["spec"] = userManifest
 			obj.SetName(userName)
 			obj.SetNamespace(setup.Namespace.Name)
@@ -398,7 +400,7 @@ func k8sCreateUser(ctx context.Context, t *testing.T, kc kclient.Client, user *v
 
 func getUserStatusConditionError(object map[string]interface{}) []metav1.Condition {
 	var conditionsWithError []metav1.Condition
-	var status resourcesv5.TeleportRoleStatus
+	var status apiresources.Status
 	_ = mapstructure.Decode(object["status"], &status)
 
 	for _, condition := range status.Conditions {
@@ -410,9 +412,10 @@ func getUserStatusConditionError(object map[string]interface{}) []metav1.Conditi
 }
 
 func compareRoles(expected, actual []string) bool {
+	opts := testlib.CompareOptions(cmpopts.SortSlices(func(a, b string) bool { return a < b }))
 	return cmp.Diff(
 		expected,
 		actual,
-		cmpopts.SortSlices(func(a, b string) bool { return a < b }),
+		opts...,
 	) == ""
 }

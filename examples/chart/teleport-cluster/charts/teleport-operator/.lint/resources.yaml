@@ -7,3 +7,7 @@ resources:
   requests:
     cpu: 1
     memory: 2Gi
+
+teleportAddress: "example.teleport.sh:443"
+token: "my-operator-bot"
+teleportClusterName: "example.teleport.sh"

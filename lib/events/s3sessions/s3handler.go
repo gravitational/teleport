@@ -23,7 +23,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
-	"path/filepath"
+	"path"
 	"sort"
 	"strconv"
 	"strings"
@@ -157,8 +157,7 @@ func (s *Config) CheckAndSetDefaults() error {
 	}
 	if s.Session == nil {
 		awsConfig := aws.Config{
-			EC2MetadataEnableFallback: aws.Bool(false),
-			UseFIPSEndpoint:           events.FIPSProtoStateToAWSState(s.UseFIPSEndpoint),
+			UseFIPSEndpoint: events.FIPSProtoStateToAWSState(s.UseFIPSEndpoint),
 		}
 		if s.Region != "" {
 			awsConfig.Region = aws.String(s.Region)
@@ -210,7 +209,7 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 
 	h := &Handler{
 		Entry: log.WithFields(log.Fields{
-			trace.Component: teleport.Component(teleport.SchemeS3),
+			teleport.ComponentKey: teleport.Component(teleport.SchemeS3),
 		}),
 		Config:     cfg,
 		uploader:   uploader,
@@ -368,11 +367,11 @@ func (h *Handler) path(sessionID session.ID) string {
 	if h.Path == "" {
 		return string(sessionID) + ".tar"
 	}
-	return strings.TrimPrefix(filepath.Join(h.Path, string(sessionID)+".tar"), "/")
+	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".tar"), "/")
 }
 
-func (h *Handler) fromPath(path string) session.ID {
-	return session.ID(strings.TrimSuffix(filepath.Base(path), ".tar"))
+func (h *Handler) fromPath(p string) session.ID {
+	return session.ID(strings.TrimSuffix(path.Base(p), ".tar"))
 }
 
 // ensureBucket makes sure bucket exists, and if it does not, creates it

@@ -163,6 +163,10 @@ func (m *mockFetcher) ResourceType() string {
 	return m.resourceType
 }
 
+func (m *mockFetcher) FetcherType() string {
+	return "empty"
+}
+
 func (m *mockFetcher) Cloud() string {
 	return m.cloud
 }

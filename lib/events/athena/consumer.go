@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -38,7 +39,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/segmentio/parquet-go"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -391,7 +391,7 @@ func (cfg *sqsCollectConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.logger == nil {
 		cfg.logger = log.WithFields(log.Fields{
-			trace.Component: teleport.ComponentAthena,
+			teleport.ComponentKey: teleport.ComponentAthena,
 		})
 	}
 	if cfg.errHandlingFn == nil {

@@ -16,13 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useMemo, memo } from 'react';
 
 import {
   UnifiedResources as SharedUnifiedResources,
   useUnifiedResourcesFetch,
   UnifiedResourcesQueryParams,
   SharedUnifiedResource,
+  UnifiedResourcesPinning,
 } from 'shared/components/UnifiedResources';
 import {
   DbProtocol,
@@ -30,19 +31,22 @@ import {
   DbType,
 } from 'shared/services/databases';
 
-import { Flex, ButtonPrimary, Text } from 'design';
+import { Flex, ButtonPrimary, Text, Link } from 'design';
 
 import * as icons from 'design/Icon';
 import Image from 'design/Image';
 import stack from 'design/assets/resources/stack.png';
 
-import {
-  UnifiedResourcePreferences,
-  DefaultTab,
-  ViewMode,
-} from 'shared/services/unifiedResourcePreferences';
+import { Attempt } from 'shared/hooks/useAsync';
 
-import { UnifiedResourceResponse } from 'teleterm/services/tshd/types';
+import { ShowResources } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+import { DefaultTab } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
+
+import { NodeSubKind } from 'shared/services';
+import { waitForever } from 'shared/utils/wait';
+
+import { UserPreferences } from 'teleterm/services/tshd/types';
+import { UnifiedResourceResponse } from 'teleterm/ui/services/resources';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import * as uri from 'teleterm/ui/uri';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
@@ -55,180 +59,303 @@ import {
   DocumentCluster,
   DocumentClusterResourceKind,
 } from 'teleterm/ui/services/workspacesService';
+import { getAppAddrWithProtocol } from 'teleterm/services/tshd/app';
+
+import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
 
 import {
   ConnectServerActionButton,
   ConnectKubeActionButton,
   ConnectDatabaseActionButton,
-} from './actionButtons';
-import { useResourcesContext } from './resourcesContext';
+  ConnectAppActionButton,
+  AccessRequestButton,
+} from './ActionButtons';
+import { useResourcesContext, ResourcesContext } from './resourcesContext';
+import { useUserPreferences } from './useUserPreferences';
 
 export function UnifiedResources(props: {
   clusterUri: uri.ClusterUri;
   docUri: uri.DocumentUri;
   queryParams: DocumentClusterQueryParams;
 }) {
-  // TODO: Add user preferences to Connect.
-  // Until we add stored user preferences to Connect, store it in the state.
-  const [userPreferences, setUserPreferences] =
-    useState<UnifiedResourcePreferences>({
-      defaultTab: DefaultTab.DEFAULT_TAB_ALL,
-      viewMode: ViewMode.VIEW_MODE_CARD,
-    });
-
-  return (
-    <Resources
-      queryParams={props.queryParams}
-      docUri={props.docUri}
-      clusterUri={props.clusterUri}
-      userPreferences={userPreferences}
-      setUserPreferences={setUserPreferences}
-      // Reset the component state when query params object change.
-      // JSON.stringify on the same object will always produce the same string.
-      key={JSON.stringify(props.queryParams)}
-    />
+  const { clustersService } = useAppContext();
+  const { userPreferencesAttempt, updateUserPreferences, userPreferences } =
+    useUserPreferences(props.clusterUri);
+  const { documentsService, rootClusterUri, accessRequestsService } =
+    useWorkspaceContext();
+  const addedResources = useStoreSelector(
+    'workspacesService',
+    useCallback(
+      state => {
+        const pending =
+          state.workspaces[rootClusterUri]?.accessRequests.pending;
+        if (pending?.kind === 'resource') {
+          return pending.resources;
+        }
+      },
+      [rootClusterUri]
+    )
   );
-}
-
-function Resources(props: {
-  clusterUri: uri.ClusterUri;
-  docUri: uri.DocumentUri;
-  queryParams: DocumentClusterQueryParams;
-  userPreferences: UnifiedResourcePreferences;
-  setUserPreferences(u: UnifiedResourcePreferences): void;
-}) {
-  const appContext = useAppContext();
   const { onResourcesRefreshRequest } = useResourcesContext();
-
-  const mergedParams: UnifiedResourcesQueryParams = {
-    kinds: props.queryParams.resourceKinds,
-    sort: props.queryParams.sort,
-    pinnedOnly: false, //TODO: add support for pinning
-    search: props.queryParams.advancedSearchEnabled
-      ? ''
-      : props.queryParams.search,
-    query: props.queryParams.advancedSearchEnabled
-      ? props.queryParams.search
-      : '',
-  };
-
-  const { documentsService, rootClusterUri } = useWorkspaceContext();
   const loggedInUser = useWorkspaceLoggedInUser();
+
+  const { unifiedResourcePreferences } = userPreferences;
+
+  const mergedParams: UnifiedResourcesQueryParams = useMemo(
+    () => ({
+      kinds: props.queryParams.resourceKinds,
+      sort: props.queryParams.sort,
+      pinnedOnly: unifiedResourcePreferences.defaultTab === DefaultTab.PINNED,
+      search: props.queryParams.advancedSearchEnabled
+        ? ''
+        : props.queryParams.search,
+      query: props.queryParams.advancedSearchEnabled
+        ? props.queryParams.search
+        : '',
+    }),
+    [
+      props.queryParams.advancedSearchEnabled,
+      props.queryParams.resourceKinds,
+      props.queryParams.search,
+      props.queryParams.sort,
+      unifiedResourcePreferences.defaultTab,
+    ]
+  );
+
   const { canUse: hasPermissionsForConnectMyComputer, agentCompatibility } =
     useConnectMyComputerContext();
 
   const isRootCluster = props.clusterUri === rootClusterUri;
   const canAddResources = isRootCluster && loggedInUser?.acl?.tokens.create;
+  let discoverUrl: string;
+  const rootCluster = clustersService.findCluster(rootClusterUri);
+  if (isRootCluster) {
+    discoverUrl = `https://${rootCluster.proxyHost}/web/discover`;
+  }
 
   const canUseConnectMyComputer =
     isRootCluster &&
     hasPermissionsForConnectMyComputer &&
     agentCompatibility === 'compatible';
 
-  const { fetch, resources, attempt, clear } = useUnifiedResourcesFetch({
-    fetchFunc: useCallback(
-      async (paginationParams, signal) => {
-        const response = await retryWithRelogin(
-          appContext,
-          props.clusterUri,
-          () =>
-            appContext.resourcesService.listUnifiedResources(
-              {
-                clusterUri: props.clusterUri,
-                searchAsRoles: false,
-                sortBy: {
-                  isDesc: mergedParams.sort.dir === 'DESC',
-                  field: mergedParams.sort.fieldName,
-                },
-                search: mergedParams.search,
-                kindsList: mergedParams.kinds,
-                query: mergedParams.query,
-                pinnedOnly: mergedParams.pinnedOnly,
-                startKey: paginationParams.startKey,
-                limit: paginationParams.limit,
-              },
-              signal
-            )
+  const openConnectMyComputerDocument = useCallback(() => {
+    documentsService.openConnectMyComputerDocument({ rootClusterUri });
+  }, [documentsService, rootClusterUri]);
+
+  const onParamsChange = useCallback(
+    (newParams: UnifiedResourcesQueryParams): void => {
+      documentsService.update(props.docUri, (draft: DocumentCluster) => {
+        const { queryParams } = draft;
+        queryParams.sort = newParams.sort;
+        queryParams.resourceKinds =
+          newParams.kinds as DocumentClusterResourceKind[];
+        queryParams.search = newParams.search || newParams.query;
+        queryParams.advancedSearchEnabled = !!newParams.query;
+      });
+    },
+    [documentsService, props.docUri]
+  );
+
+  const requestStarted = accessRequestsService.getAddedItemsCount() > 0;
+
+  const getAccessRequestButton = useCallback(
+    (resource: UnifiedResourceResponse) => {
+      const isResourceAdded = addedResources?.has(resource.resource.uri);
+
+      const showRequestableResources =
+        rootCluster.showResources === ShowResources.REQUESTABLE;
+      // If we are currently making an access request, all buttons change to
+      // add to request.
+      const showRequestButton =
+        showRequestableResources &&
+        (resource.requiresRequest || requestStarted);
+
+      if (showRequestButton) {
+        return (
+          <AccessRequestButton
+            isResourceAdded={isResourceAdded}
+            requestStarted={requestStarted}
+            onClick={() => accessRequestsService.addOrRemoveResource(resource)}
+          />
         );
-
-        return {
-          startKey: response.nextKey,
-          agents: response.resources,
-          totalCount: response.resources.length,
-        };
-      },
-      [
-        appContext,
-        mergedParams.kinds,
-        mergedParams.pinnedOnly,
-        mergedParams.query,
-        mergedParams.search,
-        mergedParams.sort.dir,
-        mergedParams.sort.fieldName,
-        props.clusterUri,
-      ]
-    ),
-  });
-
-  useEffect(() => {
-    const { cleanup } = onResourcesRefreshRequest(() => {
-      clear();
-      fetch({ force: true });
-    });
-    return cleanup;
-  }, [onResourcesRefreshRequest, fetch, clear]);
-
-  function onParamsChange(newParams: UnifiedResourcesQueryParams): void {
-    const documentService =
-      appContext.workspacesService.getWorkspaceDocumentService(
-        uri.routing.ensureRootClusterUri(props.clusterUri)
-      );
-    documentService.update(props.docUri, (draft: DocumentCluster) => {
-      const { queryParams } = draft;
-      queryParams.sort = newParams.sort;
-      queryParams.resourceKinds =
-        newParams.kinds as DocumentClusterResourceKind[];
-      queryParams.search = newParams.search || newParams.query;
-      queryParams.advancedSearchEnabled = !!newParams.query;
-    });
-  }
+      }
+    },
+    [
+      accessRequestsService,
+      addedResources,
+      requestStarted,
+      rootCluster.showResources,
+    ]
+  );
 
   return (
-    <SharedUnifiedResources
-      params={mergedParams}
-      setParams={onParamsChange}
-      unifiedResourcePreferences={props.userPreferences}
-      updateUnifiedResourcesPreferences={props.setUserPreferences}
-      pinning={{ kind: 'hidden' }}
-      resources={resources.map(mapToSharedResource)}
-      resourcesFetchAttempt={attempt}
-      fetchResources={fetch}
-      availableKinds={[
-        {
-          kind: 'node',
-          disabled: false,
-        },
-        {
-          kind: 'db',
-          disabled: false,
-        },
-        {
-          kind: 'kube_cluster',
-          disabled: false,
-        },
-      ]}
-      NoResources={
-        <NoResources
-          canCreate={canAddResources}
-          canUseConnectMyComputer={canUseConnectMyComputer}
-          onConnectMyComputerCtaClick={() => {
-            documentsService.openConnectMyComputerDocument({ rootClusterUri });
-          }}
-        />
-      }
+    <Resources
+      getAccessRequestButton={getAccessRequestButton}
+      showResources={rootCluster.showResources}
+      queryParams={mergedParams}
+      onParamsChange={onParamsChange}
+      clusterUri={props.clusterUri}
+      userPreferencesAttempt={userPreferencesAttempt}
+      updateUserPreferences={updateUserPreferences}
+      userPreferences={userPreferences}
+      canAddResources={canAddResources}
+      canUseConnectMyComputer={canUseConnectMyComputer}
+      openConnectMyComputerDocument={openConnectMyComputerDocument}
+      onResourcesRefreshRequest={onResourcesRefreshRequest}
+      discoverUrl={discoverUrl}
+      // Reset the component state when query params object change.
+      // JSON.stringify on the same object will always produce the same string.
+      key={`${JSON.stringify(mergedParams)}-${rootCluster.showResources}`}
     />
   );
 }
+
+const Resources = memo(
+  (props: {
+    clusterUri: uri.ClusterUri;
+    queryParams: UnifiedResourcesQueryParams;
+    onParamsChange(params: UnifiedResourcesQueryParams): void;
+    userPreferencesAttempt?: Attempt<void>;
+    userPreferences: UserPreferences;
+    updateUserPreferences(u: UserPreferences): Promise<void>;
+    canAddResources: boolean;
+    canUseConnectMyComputer: boolean;
+    openConnectMyComputerDocument(): void;
+    onResourcesRefreshRequest: ResourcesContext['onResourcesRefreshRequest'];
+    discoverUrl: string;
+    getAccessRequestButton?: (resource: UnifiedResourceResponse) => JSX.Element;
+    showResources: ShowResources;
+  }) => {
+    const appContext = useAppContext();
+
+    const { fetch, resources, attempt, clear } = useUnifiedResourcesFetch({
+      fetchFunc: useCallback(
+        async (paginationParams, signal) => {
+          // Block call if we don't know yet what resources to show.
+          // We will remount the component and do the call when showResources changes.
+          if (props.showResources === ShowResources.UNSPECIFIED) {
+            await waitForever(signal);
+          }
+          const response = await retryWithRelogin(
+            appContext,
+            props.clusterUri,
+            () =>
+              appContext.resourcesService.listUnifiedResources(
+                {
+                  clusterUri: props.clusterUri,
+                  searchAsRoles: false,
+                  sortBy: {
+                    isDesc: props.queryParams.sort.dir === 'DESC',
+                    field: props.queryParams.sort.fieldName,
+                  },
+                  search: props.queryParams.search,
+                  kinds: props.queryParams.kinds,
+                  query: props.queryParams.query,
+                  pinnedOnly: props.queryParams.pinnedOnly,
+                  startKey: paginationParams.startKey,
+                  limit: paginationParams.limit,
+                  includeRequestable:
+                    props.showResources === ShowResources.REQUESTABLE,
+                },
+                signal
+              )
+          );
+
+          return {
+            startKey: response.nextKey,
+            agents: response.resources,
+          };
+        },
+        [
+          appContext,
+          props.queryParams.kinds,
+          props.queryParams.pinnedOnly,
+          props.queryParams.query,
+          props.queryParams.search,
+          props.queryParams.sort.dir,
+          props.queryParams.sort.fieldName,
+          props.clusterUri,
+          props.showResources,
+        ]
+      ),
+    });
+
+    const { onResourcesRefreshRequest } = props;
+    useEffect(() => {
+      const { cleanup } = onResourcesRefreshRequest(() => {
+        clear();
+        fetch({ force: true });
+      });
+      return cleanup;
+    }, [onResourcesRefreshRequest, fetch, clear]);
+
+    const resourceIds =
+      props.userPreferences.clusterPreferences?.pinnedResources?.resourceIds;
+    const { updateUserPreferences } = props;
+    const pinning: UnifiedResourcesPinning = {
+      kind: 'supported',
+      getClusterPinnedResources: async () => resourceIds,
+      updateClusterPinnedResources: pinnedIds =>
+        updateUserPreferences({
+          clusterPreferences: {
+            pinnedResources: { resourceIds: pinnedIds },
+          },
+        }),
+    };
+
+    return (
+      <SharedUnifiedResources
+        params={props.queryParams}
+        setParams={props.onParamsChange}
+        unifiedResourcePreferencesAttempt={props.userPreferencesAttempt}
+        unifiedResourcePreferences={
+          props.userPreferences.unifiedResourcePreferences
+        }
+        updateUnifiedResourcesPreferences={unifiedResourcePreferences =>
+          props.updateUserPreferences({ unifiedResourcePreferences })
+        }
+        pinning={pinning}
+        resources={resources.map(r => {
+          const { resource, ui } = mapToSharedResource(r);
+          return {
+            resource,
+            ui: {
+              ActionButton: props.getAccessRequestButton(r) || ui.ActionButton,
+            },
+          };
+        })}
+        resourcesFetchAttempt={attempt}
+        fetchResources={fetch}
+        availableKinds={[
+          {
+            kind: 'node',
+            disabled: false,
+          },
+          {
+            kind: 'app',
+            disabled: false,
+          },
+          {
+            kind: 'db',
+            disabled: false,
+          },
+          {
+            kind: 'kube_cluster',
+            disabled: false,
+          },
+        ]}
+        NoResources={
+          <NoResources
+            canCreate={props.canAddResources}
+            discoverUrl={props.discoverUrl}
+            canUseConnectMyComputer={props.canUseConnectMyComputer}
+            onConnectMyComputerCtaClick={props.openConnectMyComputerDocument}
+          />
+        }
+      />
+    );
+  }
+);
 
 const mapToSharedResource = (
   resource: UnifiedResourceResponse
@@ -239,12 +366,13 @@ const mapToSharedResource = (
       return {
         resource: {
           kind: 'node' as const,
-          labels: server.labelsList,
+          labels: server.labels,
           id: server.name,
           hostname: server.hostname,
           addr: server.addr,
           tunnel: server.tunnel,
-          subKind: server.subKind,
+          subKind: server.subKind as NodeSubKind,
+          requiresRequest: resource.requiresRequest,
         },
         ui: {
           ActionButton: <ConnectServerActionButton server={server} />,
@@ -256,7 +384,7 @@ const mapToSharedResource = (
       return {
         resource: {
           kind: 'db' as const,
-          labels: database.labelsList,
+          labels: database.labels,
           description: database.desc,
           name: database.name,
           type: formatDatabaseInfo(
@@ -264,6 +392,7 @@ const mapToSharedResource = (
             database.protocol as DbProtocol
           ).title,
           protocol: database.protocol as DbProtocol,
+          requiresRequest: resource.requiresRequest,
         },
         ui: {
           ActionButton: <ConnectDatabaseActionButton database={database} />,
@@ -276,11 +405,33 @@ const mapToSharedResource = (
       return {
         resource: {
           kind: 'kube_cluster' as const,
-          labels: kube.labelsList,
+          labels: kube.labels,
           name: kube.name,
+          requiresRequest: resource.requiresRequest,
         },
         ui: {
           ActionButton: <ConnectKubeActionButton kube={kube} />,
+        },
+      };
+    }
+    case 'app': {
+      const { resource: app } = resource;
+
+      return {
+        resource: {
+          kind: 'app' as const,
+          labels: app.labels,
+          name: app.name,
+          id: app.name,
+          addrWithProtocol: getAppAddrWithProtocol(app),
+          awsConsole: app.awsConsole,
+          description: app.desc,
+          friendlyName: app.friendlyName,
+          samlApp: app.samlApp,
+          requiresRequest: resource.requiresRequest,
+        },
+        ui: {
+          ActionButton: <ConnectAppActionButton app={app} />,
         },
       };
     }
@@ -289,6 +440,7 @@ const mapToSharedResource = (
 
 function NoResources(props: {
   canCreate: boolean;
+  discoverUrl: string | undefined;
   canUseConnectMyComputer: boolean;
   onConnectMyComputerCtaClick(): void;
 }) {
@@ -306,6 +458,11 @@ function NoResources(props: {
       </>
     );
   } else {
+    const $discoverLink = (
+      <Link href={props.discoverUrl} target="_blank">
+        the&nbsp;Teleport Web UI
+      </Link>
+    );
     $content = (
       <>
         <Image src={stack} ml="auto" mr="auto" mb={4} height="100px" />
@@ -313,9 +470,17 @@ function NoResources(props: {
           Add your first resource to Teleport
         </Text>
         <Text color="text.slightlyMuted">
-          {props.canUseConnectMyComputer
-            ? 'You can add it in the Teleport Web UI or by connecting your computer to the cluster.'
-            : 'Connect SSH servers, Kubernetes clusters, Databases and more from Teleport Web UI.'}
+          {props.canUseConnectMyComputer ? (
+            <>
+              You can add it in {$discoverLink} or by connecting your computer
+              to the cluster.
+            </>
+          ) : (
+            <>
+              Connect SSH servers, Kubernetes clusters, Databases and more from{' '}
+              {$discoverLink}.
+            </>
+          )}
         </Text>
         {props.canUseConnectMyComputer && (
           <ButtonPrimary

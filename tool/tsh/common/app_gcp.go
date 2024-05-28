@@ -34,8 +34,8 @@ import (
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -134,7 +134,7 @@ func getGCPSecret() (string, error) {
 		return secret, nil
 	}
 
-	return utils.CryptoRandomHex(auth.TokenLenBytes)
+	return utils.CryptoRandomHex(defaults.TokenLenBytes)
 }
 
 // StartLocalProxies sets up local proxies for serving GCP clients.
@@ -250,7 +250,7 @@ func (a *gcpApp) GetEnvVars() (map[string]string, error) {
 
 		// Set core.custom_ca_certs_file via env variable, customizing the path to CA certs file.
 		// https://cloud.google.com/sdk/gcloud/reference/config/set#:~:text=custom_ca_certs_file
-		"CLOUDSDK_CORE_CUSTOM_CA_CERTS_FILE": a.profile.AppLocalCAPath(a.app.Name),
+		"CLOUDSDK_CORE_CUSTOM_CA_CERTS_FILE": a.profile.AppLocalCAPath(a.cf.SiteName, a.app.Name),
 
 		// We need to set project ID. This is sourced from the account name.
 		// https://cloud.google.com/sdk/gcloud/reference/config#GROUP:~:text=authentication%20to%20gsutil.-,project,-Project%20ID%20of
@@ -302,7 +302,7 @@ func (a *gcpApp) startLocalALPNProxy(port string) error {
 		return trace.Wrap(err)
 	}
 
-	appCerts, err := loadAppCertificateWithAppLogin(a.cf, tc, a.app.Name)
+	appCert, err := loadAppCertificateWithAppLogin(a.cf, tc, a.app.Name)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -329,7 +329,7 @@ func (a *gcpApp) startLocalALPNProxy(port string) error {
 
 	a.localALPNProxy, err = alpnproxy.NewLocalProxy(
 		makeBasicLocalProxyConfig(a.cf, tc, listener),
-		alpnproxy.WithClientCerts(appCerts),
+		alpnproxy.WithClientCert(appCert),
 		alpnproxy.WithClusterCAsIfConnUpgrade(a.cf.Context, tc.RootClusterCACertPool),
 		alpnproxy.WithHTTPMiddleware(&alpnproxy.AuthorizationCheckerMiddleware{
 			Secret: a.secret,

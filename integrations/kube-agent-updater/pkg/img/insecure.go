@@ -57,7 +57,8 @@ func (v *insecureValidator) ValidateAndResolveDigest(ctx context.Context, image 
 }
 
 // NewInsecureValidator returns an img.Validator that only resolves the image
-// but does not check its signature.
+// but does not check its signature. This must not be confused with
+// NewNopValidator that returns a validator that always validate without resolving.
 func NewInsecureValidator(name string) Validator {
 	return &insecureValidator{
 		name: name,

@@ -28,20 +28,22 @@ import {
   DiscoverServiceDeployMethod,
   DiscoverServiceDeploy,
   DiscoverServiceDeployType,
+  DiscoverDiscoveryConfigMethod,
 } from 'teleport/services/userEvent';
 import cfg from 'teleport/config';
-
+import { DiscoveryConfig } from 'teleport/services/discovery';
 import {
   addIndexToViews,
   findViewAtIndex,
-  ResourceViewConfig,
-  View,
-} from './flow';
+} from 'teleport/components/Wizard/flow';
+
+import { ResourceViewConfig, View } from './flow';
 import { viewConfigs } from './resourceViewConfigs';
 import { EViewConfigs } from './types';
 import { ServiceDeployMethod } from './Database/common';
 
 import type { Node } from 'teleport/services/nodes';
+import type { App } from 'teleport/services/apps';
 import type { Kube } from 'teleport/services/kube';
 import type { Database } from 'teleport/services/databases';
 import type { ResourceLabel } from 'teleport/services/agents';
@@ -50,6 +52,7 @@ import type {
   AwsRdsDatabase,
   Ec2InstanceConnectEndpoint,
   Integration,
+  Regions,
 } from 'teleport/services/integrations';
 
 export interface DiscoverContextState<T = any> {
@@ -82,6 +85,7 @@ type CustomEventInput = {
   autoDiscoverResourcesCount?: number;
   selectedResourcesCount?: number;
   serviceDeploy?: DiscoverServiceDeploy;
+  discoveryConfigMethod?: DiscoverDiscoveryConfigMethod;
 };
 
 type DiscoverProviderProps = {
@@ -145,6 +149,15 @@ export function DiscoverProvider({
         }
       }
 
+      let discoveryConfigMethod: DiscoverDiscoveryConfigMethod;
+      if (event === DiscoverEvent.CreateDiscoveryConfig) {
+        if (custom?.discoveryConfigMethod) {
+          discoveryConfigMethod = custom.discoveryConfigMethod;
+        } else {
+          discoveryConfigMethod = DiscoverDiscoveryConfigMethod.Unspecified;
+        }
+      }
+
       userEventService.captureDiscoverEvent({
         event,
         eventData: {
@@ -153,6 +166,7 @@ export function DiscoverProvider({
           autoDiscoverResourcesCount: custom?.autoDiscoverResourcesCount,
           selectedResourcesCount: custom?.selectedResourcesCount,
           serviceDeploy,
+          discoveryConfigMethod,
           ...status,
         },
       });
@@ -233,7 +247,7 @@ export function DiscoverProvider({
   function resumeDiscoverFlow() {
     const { discover, integration } = location.state;
 
-    updateAgentMeta({ integration } as DbMeta);
+    updateAgentMeta({ awsIntegration: integration });
 
     startDiscoverFlow(
       discover.resourceSpec,
@@ -293,7 +307,7 @@ export function DiscoverProvider({
     const currCfg = [...viewConfigs, ...eViewConfigs].find(
       r => r.kind === resource.kind
     );
-    let indexedViews = [];
+    let indexedViews: View[] = [];
     if (typeof currCfg.views === 'function') {
       indexedViews = addIndexToViews(currCfg.views(resource));
     } else {
@@ -453,23 +467,52 @@ export function useDiscover<T = any>(): DiscoverContextState<T> {
 }
 
 type BaseMeta = {
-  // resourceName provides a consistent field to refer to for
-  // the resource name since resources can refer to its name
-  // by different field names.
-  // Eg. used in Finish (last step) component.
-  resourceName: string;
-  // agentMatcherLabels are labels that will be used by the agent
-  // to pick up the newly created database (looks for matching labels).
-  // At least one must match.
-  agentMatcherLabels: ResourceLabel[];
+  /**
+   * resourceName provides a consistent field to refer to since
+   * different resources can refer to its name by different field names.
+   * Eg. used in Finish (last step) component.
+   * This field is set when user has finished enrolling a resource.
+   */
+  resourceName?: string;
+  /**
+   * agentMatcherLabels are labels (defined in the enrolled resource)
+   * that are suggested to the user to be used as label matcher for
+   * an agent.
+   *
+   * This field is set when user has finished enrolling a resource.
+   */
+  agentMatcherLabels?: ResourceLabel[];
+
+  /**
+   * awsIntegration is set to the selected AWS integration.
+   * This field is set when a user wants to enroll AWS resources.
+   */
+  awsIntegration?: Integration;
+  /**
+   * awsRegion is set to the selected AWS region.
+   * This field is set when a user wants to enroll AWS resources.
+   */
+  awsRegion?: Regions;
+  /**
+   * If this field is defined, then user opted for auto discovery.
+   * Auto discover will automatically identify and register resources
+   * in customers infrastructure such as Kubernetes clusters or databases hosted
+   * on cloud platforms like AWS, Azure, etc.
+   */
+  autoDiscovery?: {
+    config: DiscoveryConfig;
+    // requiredVpcsAndSubnets is a map of required vpcs for auto discovery.
+    // If this is empty, then a user can skip deploying db agents.
+    // If >0, auto discovery requires deploying db agents.
+    requiredVpcsAndSubnets?: Record<string, string[]>;
+  };
 };
 
 // NodeMeta describes the fields for node resource
 // that needs to be preserved throughout the flow.
 export type NodeMeta = BaseMeta & {
   node: Node;
-  integration?: Integration;
-  ec2Ice?: Ec2InstanceConnectEndpoint;
+  ec2Ices?: Ec2InstanceConnectEndpoint[];
 };
 
 // DbMeta describes the fields for a db resource
@@ -478,10 +521,11 @@ export type DbMeta = BaseMeta & {
   // TODO(lisa): when we can enroll multiple RDS's, turn this into an array?
   // The enroll event expects num count of enrolled RDS's, update accordingly.
   db?: Database;
-  integration?: Integration;
   selectedAwsRdsDb?: AwsRdsDatabase;
-  // serviceDeployedMethod flag will be undefined if user skipped
-  // deploying service (service already existed).
+  /**
+   * serviceDeployedMethod flag will be undefined if user skipped
+   * deploying service (service already existed).
+   */
   serviceDeployedMethod?: ServiceDeployMethod;
 };
 
@@ -491,6 +535,43 @@ export type KubeMeta = BaseMeta & {
   kube: Kube;
 };
 
-export type AgentMeta = DbMeta | NodeMeta | KubeMeta;
+/**
+ * EksMeta describes the fields for a kube resource
+ * that needs to be preserved throughout the flow.
+ */
+export type EksMeta = BaseMeta & {
+  kube: Kube;
+};
+
+/**
+ * AppMeta describes the fields for a app resource
+ * that needs to be preserved throughout the flow.
+ */
+export type AppMeta = BaseMeta & {
+  app: App;
+};
+
+// SamlMeta describes the fields for SAML IdP
+// service provider resource that needs to be
+// preserved throughout the flow.
+export type SamlMeta = BaseMeta & SamlGcpWorkforceMeta;
+
+// GcpWorkforceMeta describes the fields for SAML
+// GCP workforce pool resource that needs to be
+// preserved throughout the flow.
+export type SamlGcpWorkforceMeta = {
+  isAutoConfig: boolean;
+  orgId: string;
+  poolName: string;
+  poolProviderName: string;
+};
+
+export type AgentMeta =
+  | DbMeta
+  | NodeMeta
+  | KubeMeta
+  | EksMeta
+  | SamlMeta
+  | AppMeta;
 
 export type State = ReturnType<typeof useDiscover>;

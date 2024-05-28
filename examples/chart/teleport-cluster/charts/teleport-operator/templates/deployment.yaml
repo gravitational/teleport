@@ -1,6 +1,4 @@
 {{- if .Values.enabled }}
-{{- $projectedServiceAccountToken := semverCompare ">=1.20.0-0" .Capabilities.KubeVersion.Version }}
-{{- $hasVolumes := or $projectedServiceAccountToken .Values.tls.existingCASecretName }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -21,23 +19,23 @@ spec:
     matchLabels: {{- include "teleport-cluster.operator.selectorLabels" . | nindent 6 }}
   template:
     metadata:
-      {{- if .Values.annotations.pod }}
+  {{- if .Values.annotations.pod }}
       annotations: {{- toYaml .Values.annotations.pod | nindent 8 }}
-      {{- end }}
+  {{- end }}
       labels: {{- include "teleport-cluster.operator.labels" . | nindent 8 }}
     spec:
-    {{- if .Values.nodeSelector }}
+  {{- if .Values.nodeSelector }}
       nodeSelector: {{- toYaml .Values.nodeSelector | nindent 8 }}
-    {{- end }}
-    {{- if .Values.affinity }}
+  {{- end }}
+  {{- if .Values.affinity }}
       affinity: {{- toYaml .Values.affinity | nindent 8 }}
-    {{- end }}
-    {{- if .Values.tolerations }}
+  {{- end }}
+  {{- if .Values.tolerations }}
       tolerations: {{- toYaml .Values.tolerations | nindent 8 }}
-    {{- end }}
-    {{- if .Values.imagePullSecrets }}
+  {{- end }}
+  {{- if .Values.imagePullSecrets }}
       imagePullSecrets: {{- toYaml .Values.imagePullSecrets | nindent 8 }}
-    {{- end }}
+  {{- end }}
       containers:
         - name: "operator"
           image: '{{ .Values.image }}:{{ include "teleport-cluster.version" . }}'
@@ -50,15 +48,21 @@ spec:
             - '{{ .Values.joinMethod }}'
             - -token
             - '{{ .Values.token }}'
-            {{- if .Values.caPins }}
+  {{- if .Values.caPins }}
             - -ca-pin
             - '{{ join "," .Values.caPins }}'
-            {{- end }}
-          {{- if .Values.tls.existingCASecretName }}
+  {{- end }}
+  {{- if or (.Values.tls.existingCASecretName) (.Values.teleportClusterName) }}
           env:
+    {{- if .Values.tls.existingCASecretName }}
             - name: SSL_CERT_FILE
               value: /etc/teleport-tls-ca/ca.pem
-          {{- end }}
+    {{- end }}
+    {{- if .Values.teleportClusterName }}
+            - name: KUBERNETES_TOKEN_PATH
+              value: /var/run/secrets/teleport/serviceaccount/token
+    {{- end }}
+  {{- end }}
           livenessProbe:
             httpGet:
               path: /healthz
@@ -78,31 +82,28 @@ spec:
             - name: op-health
               containerPort: 8081
               protocol: TCP
-        {{- if .Values.securityContext }}
+  {{- if .Values.securityContext }}
           securityContext: {{- toYaml .Values.securityContext | nindent 12 }}
-        {{- end }}
-        {{- if .Values.resources }}
+  {{- end }}
+  {{- if .Values.resources }}
           resources: {{- toYaml .Values.resources | nindent 12 }}
-        {{- end }}
-        {{- if $hasVolumes }}
+  {{- end }}
           volumeMounts:
-          {{- if $projectedServiceAccountToken }}
           - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
             name: operator-serviceaccount-token
             readOnly: true
-          {{- end }}
-          {{- if .Values.tls.existingCASecretName }}
+  {{- if .Values.teleportClusterName }}
+          - mountPath: /var/run/secrets/teleport/serviceaccount
+            name: bot-serviceaccount-token
+            readOnly: true
+  {{- end }}
+  {{- if .Values.tls.existingCASecretName }}
           - mountPath: /etc/teleport-tls-ca
             name: "teleport-tls-ca"
             readOnly: true
-          {{- end }}
-        {{- end }}
-      {{- if $projectedServiceAccountToken }}
+  {{- end }}
       automountServiceAccountToken: false
-      {{- end }}
-      {{- if $hasVolumes }}
       volumes:
-        {{- if $projectedServiceAccountToken }}
         # This projected token volume mimics the `automountServiceAccountToken`
         # behaviour but defaults to a 1h TTL instead of 1y.
         - name: operator-serviceaccount-token
@@ -120,18 +121,35 @@ spec:
                     - path: "namespace"
                       fieldRef:
                         fieldPath: metadata.namespace
-        {{- end }}
-        {{- if .Values.tls.existingCASecretName }}
+  {{- if .Values.teleportClusterName }}
+        - name: bot-serviceaccount-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  path: token
+                  audience: "{{ .Values.teleportClusterName }}"
+                  expirationSeconds: 600
+              - configMap:
+                  items:
+                    - key: ca.crt
+                      path: ca.crt
+                  name: kube-root-ca.crt
+              - downwardAPI:
+                  items:
+                    - path: "namespace"
+                      fieldRef:
+                        fieldPath: metadata.namespace
+  {{- end }}
+  {{- if .Values.tls.existingCASecretName }}
         - name: teleport-tls-ca
           secret:
             secretName: {{ .Values.tls.existingCASecretName }}
-        {{- end }}
-      {{- end }}
-      {{- if .Values.priorityClassName }}
+  {{- end }}
+  {{- if .Values.priorityClassName }}
       priorityClassName: {{ .Values.priorityClassName }}
-      {{- end }}
-      {{- if .Values.podSecurityContext }}
+  {{- end }}
+  {{- if .Values.podSecurityContext }}
       securityContext: {{- toYaml .Values.podSecurityContext | nindent 8 }}
-      {{- end }}
+  {{- end }}
       serviceAccountName: {{ include "teleport-cluster.operator.serviceAccountName" . }}
 {{- end }}

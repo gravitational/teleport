@@ -16,7 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, useRef, useCallback, MutableRefObject } from 'react';
+import {
+  useState,
+  useRef,
+  useCallback,
+  MutableRefObject,
+  useEffect,
+} from 'react';
 
 import { ResourcesResponse } from 'teleport/services/agents';
 import { ApiError } from 'teleport/services/api/parseError';
@@ -35,6 +41,7 @@ import { isAbortError } from 'shared/utils/abortError';
  */
 export function useKeyBasedPagination<T>({
   fetchFunc,
+  dataKey = 'agents',
   initialFetchSize = 30,
   fetchMoreSize = 20,
 }: KeyBasedPaginationOptions<T>): KeyBasedPagination<T> {
@@ -44,18 +51,23 @@ export function useKeyBasedPagination<T>({
     attempt: Attempt;
     finished: boolean;
     resources: T[];
-    startKey: string | null;
+    startKey: string;
   }>({
     attempt: { status: '', statusText: '' },
     finished: false,
     resources: [],
-    startKey: null,
+    startKey: '',
   });
 
   // Ephemeral state used solely to coordinate fetch calls, doesn't need to
   // cause rerenders.
   const abortController = useRef<AbortController | null>(null);
   const pendingPromise = useRef<Promise<ResourcesResponse<T>> | null>(null);
+
+  useEffect(() => {
+    // Abort a pending request when the hook unmounts.
+    return () => abortController.current?.abort();
+  }, []);
 
   const clear = useCallback(() => {
     abortController.current?.abort();
@@ -64,7 +76,7 @@ export function useKeyBasedPagination<T>({
 
     setState({
       attempt: { status: '', statusText: '' },
-      startKey: null,
+      startKey: '',
       finished: false,
       resources: [],
     });
@@ -109,8 +121,16 @@ export function useKeyBasedPagination<T>({
         pendingPromise.current = null;
         abortController.current = null;
 
+        // this will handle backward compatibility with access requests.
+        // The old access requests API returns only an array of resources while
+        // the new one sends the paginated object with startKey/requests
+        // If this webclient requests an older proxy, this should allow the
+        // old request to not break the webui
+        // TODO (avatus): DELETE in 17
+        const newResources = res[dataKey] || res;
+
         setState({
-          resources: [...resources, ...res.agents],
+          resources: [...resources, ...newResources],
           startKey: res.startKey,
           finished: !res.startKey,
           attempt: { status: 'success' },
@@ -137,12 +157,20 @@ export function useKeyBasedPagination<T>({
     [fetchFunc, stateRef, setState, fetchMoreSize, initialFetchSize]
   );
 
+  function updateFetchedResources(modifiedResources: T[]) {
+    setState({
+      ...stateRef.current,
+      resources: modifiedResources,
+    });
+  }
+
   return {
     fetch,
     clear,
     attempt: stateRef.current.attempt,
     resources: stateRef.current.resources,
     finished: stateRef.current.finished,
+    updateFetchedResources,
   };
 }
 
@@ -171,6 +199,7 @@ export type KeyBasedPaginationOptions<T> = {
   ) => Promise<ResourcesResponse<T>>;
   initialFetchSize?: number;
   fetchMoreSize?: number;
+  dataKey?: string;
 };
 
 type KeyBasedPagination<T> = {
@@ -191,4 +220,11 @@ type KeyBasedPagination<T> = {
   attempt: Attempt;
   resources: T[];
   finished: boolean;
+  /**
+   * Used in conjunction with create/delete/update operations
+   * where changes are not propagated right away (from backend caching),
+   * so the frontend will modify the fetched resources in place
+   * instead of "re-fetching" data that can be stale.
+   */
+  updateFetchedResources(modifiedResources: T[]): void;
 };

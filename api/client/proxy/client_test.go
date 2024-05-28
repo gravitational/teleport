@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"slices"
 	"testing"
 	"time"
 
@@ -34,7 +35,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
-	"golang.org/x/exp/slices"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -508,7 +508,9 @@ func TestClient_DialCluster(t *testing.T) {
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, clt.Close()) })
 
-			authCfg := clt.ClientConfig(ctx, "cluster")
+			authCfg, err := clt.ClientConfig(ctx, "cluster")
+			require.NoError(t, err)
+
 			authCfg.DialOpts = []grpc.DialOption{
 				grpc.WithTransportCredentials(insecure.NewCredentials()),
 				grpc.WithReturnConnectionError(),

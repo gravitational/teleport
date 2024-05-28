@@ -19,9 +19,9 @@
 import React from 'react';
 import { CardSuccessLogin } from 'design';
 
-import LogoHero from 'teleport/components/LogoHero';
+import { LogoHero } from 'teleport/components/LogoHero';
 
-export default function LoginSuccess() {
+export function LoginSuccess() {
   return (
     <>
       <LogoHero />

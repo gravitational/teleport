@@ -32,15 +32,6 @@ func init() {
 // TeleportUserSpec defines the desired state of TeleportUser
 type TeleportUserSpec types.UserSpecV2
 
-// TeleportUserStatus defines the observed state of TeleportUser
-type TeleportUserStatus struct {
-	// Conditions represent the latest available observations of an object's state
-	// +optional
-	Conditions []metav1.Condition `json:"conditions,omitempty"`
-	// +optional
-	TeleportResourceID int64 `json:"teleportResourceID,omitempty"`
-}
-
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
@@ -49,8 +40,8 @@ type TeleportUser struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   TeleportUserSpec   `json:"spec,omitempty"`
-	Status TeleportUserStatus `json:"status,omitempty"`
+	Spec   TeleportUserSpec `json:"spec,omitempty"`
+	Status resources.Status `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true
@@ -75,6 +66,8 @@ func (u TeleportUser) ToTeleport() types.User {
 	}
 }
 
+// StatusConditions returns a pointer to Status.Conditions slice. This is used
+// by the teleport resource controller to report conditions back to on resource.
 func (u *TeleportUser) StatusConditions() *[]metav1.Condition {
 	return &u.Status.Conditions
 }

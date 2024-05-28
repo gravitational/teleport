@@ -28,10 +28,8 @@ Protocol (TDP) and RDP.
 ## Rust
 
 Rust code is under `src`. It uses several libraries (see `Cargo.toml`), but the
-main one is `rdp-rs`. `rdp-rs` is a pure Rust (partial) implementation of the
-RDP protocol. We forked that library at
-https://github.com/gravitational/rdp-rs/. Our fork implements several changes
-necessary to support smartcard emulation.
+main one is [`IronRDP`](https://github.com/Devolutions/IronRDP/). `IronRDP` is a
+pure Rust implementation of the RDP protocol.
 
 Notes on specific Rust modules:
 
@@ -41,9 +39,6 @@ Entrypoint of the library. This implements the CGO API surface and basic RDP
 connection establishment. During RDP connection, it negotiates the "rdpdr"
 static virtual channel, which is used for smartcard device "redirection" (read
 more below).
-
-Most of the protocol is implemented in the `rdp-rs` crate and the spec is
-https://winprotocoldoc.blob.core.windows.net/productionwindowsarchives/MS-RDPBCGR/%5bMS-RDPBCGR%5d.pdf
 
 ### rdpdr.rs
 
@@ -55,7 +50,7 @@ fake smartcard.
 The spec is at:
 https://winprotocoldoc.blob.core.windows.net/productionwindowsarchives/MS-RDPEFS/%5bMS-RDPEFS%5d.pdf
 
-### scard.rs
+### rdpdr/scard.rs
 
 The smartcard reader emulation layer. This is redirected over RDPDR. Smartcards
 typically connect to a computer via a reader, e.g. a USB card reader. The code
@@ -82,3 +77,34 @@ Note that all memory allocated on the Go side must be freed on the Go side.
 Same goes for Rust. These languages have different memory management systems
 and can't free each others' memory. This is why you'll see the weird `free_*`
 hops from one side to the other.
+
+### Go/Rust Interface
+
+Each Go `rdpclient.Client` (`client.go`) has a corresponding Rust `client::Client` (`client.rs`).
+When a desktop session is started, the Go client is created, and in turn creates and
+starts its corresponding Rust client.
+
+When the Rust client is created, it is passed a [`cgo.Handle`](https://pkg.go.dev/runtime/cgo#Handle)
+(`CgoHandle` in the Rust codebase) that points to the Go client that created it. A custom Rust type
+`ClientHandle`, which functions as a handle to the Rust `client::Client`, is then added to a global
+map indexed by `CgoHandle` (`global.rs`). In this way we maintain a mapping between corresponding objects
+in Rust and Go memory.
+
+From that point on, whenever the Go client needs to call a function that the Rust client implements,
+it passes in it's own `cgo.Handle` (look for `pub unsafe extern "C" fn` in `lib.rs`), which tells Rust
+where to find the correct `ClientHandle`, and whenever the Rust client needs to call a function the Go
+client implements, it passes in the Go client's `CgoHandle` (look for functions with `//export funcname`
+comments), which Go uses to re-construct the `rdpclient.Client`.
+
+##### A note on "why not reconstruct the Rust client from a pointer as well?"
+
+While this may seem at first glance like a very indirect way of communicating between the Go and Rust halfs of the `Client`,
+it has the virtue of saving us a lot of Rust concurrency enforcement headaches as compared to passing a Rust pointer from Go.
+
+See a [previous iteration of this document](https://github.com/gravitational/teleport/pull/26874/commits/c2edddfcd84a41d4a5554c52fd0688e235128d7c)
+for a deeper exploration of all of the memory safety footguns we were dealing with in such a system.
+
+In this current system we have far less `unsafe` code, and we only need a small piece of the global cache of channels to remain
+`Send + Sync` (see [the module level documentation for `global.rs`](https://github.com/gravitational/teleport/blob/acb22584f5423f7b184cb1a8e30e2ada62bafb16/lib/srv/desktop/rdp/rdpclient/src/client/global.rs#L15-L32)).
+In this system we can use the "automatic" synchronization inherent to message passing over channels to take care of many downstream
+concurrency concerns.

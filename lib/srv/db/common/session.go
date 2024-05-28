@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
@@ -87,10 +88,42 @@ func (c *Session) WithUser(user string) *Session {
 	return &copy
 }
 
+// WithDatabase returns a shallow copy of the session with overridden
+// database name.
+func (c *Session) WithDatabase(defaultDatabase string) *Session {
+	copy := *c
+	copy.DatabaseName = defaultDatabase
+	return &copy
+}
+
 // WithUserAndDatabase returns a shallow copy of the session with overridden
 // database user and overridden database name.
 func (c *Session) WithUserAndDatabase(user string, defaultDatabase string) *Session {
 	copy := c.WithUser(user)
 	copy.DatabaseName = defaultDatabase
 	return copy
+}
+
+// CheckUsernameForAutoUserProvisioning checks the username when using
+// auto-provisioning.
+//
+// When using auto-provisioning, force the database username to be same
+// as Teleport username. If it's not provided explicitly, some database
+// clients get confused and display incorrect username.
+func (c *Session) CheckUsernameForAutoUserProvisioning() error {
+	if !c.AutoCreateUserMode.IsEnabled() {
+		return nil
+	}
+
+	if c.DatabaseUser == c.Identity.Username {
+		return nil
+	}
+
+	if c.AuthContext != nil && authz.IsRemoteUser(*c.AuthContext) {
+		return trace.AccessDenied("please use your mapped remote username (%q) to connect instead of %q",
+			c.Identity.Username, c.DatabaseUser)
+	}
+
+	return trace.AccessDenied("please use your Teleport username (%q) to connect instead of %q",
+		c.Identity.Username, c.DatabaseUser)
 }

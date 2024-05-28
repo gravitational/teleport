@@ -27,10 +27,6 @@ export const KeysEnum = {
   USER_PREFERENCES: 'grv_teleport_user_preferences',
   ONBOARD_SURVEY: 'grv_teleport_onboard_survey',
   RECOMMEND_FEATURE: 'grv_recommend_feature',
-  UNIFIED_RESOURCES_DISABLED: 'grv_teleport_unified_resources_disabled',
-  UNIFIED_RESOURCES_NOT_SUPPORTED:
-    'grv_teleport_unified_resources_not_supported',
-  PINNED_RESOURCES_NOT_SUPPORTED: 'grv_teleport_pinned_resources_not_supported',
   CLOUD_USER_INVITES: 'grv_teleport_cloud_user_invites',
   ACCESS_GRAPH_SEARCH_MODE: 'grv_teleport_access_graph_search_mode',
   ACCESS_GRAPH_QUERY: 'grv_teleport_access_graph_query',
@@ -38,8 +34,7 @@ export const KeysEnum = {
   ACCESS_GRAPH_SQL_ENABLED: 'grv_teleport_access_graph_sql_enabled',
   EXTERNAL_AUDIT_STORAGE_CTA_DISABLED:
     'grv_teleport_external_audit_storage_disabled',
-  DISCOVER_CONNECT_MY_COMPUTER_NEW_CONNECTION_TEST_ENABABLED:
-    'grv_teleport_discover_connect_my_computer_new_connection_test_enabled',
+  LICENSE_ACKNOWLEDGED: 'grv_teleport_license_acknowledged',
 };
 
 // SurveyRequest is the request for sending data to the back end

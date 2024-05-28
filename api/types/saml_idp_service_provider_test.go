@@ -20,16 +20,23 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types/samlsp"
 )
 
 // TestNewSAMLIdPServiceProvider ensures a valid SAML IdP service provider.
 func TestNewSAMLIdPServiceProvider(t *testing.T) {
 	tests := []struct {
-		name             string
-		entityDescriptor string
-		entityID         string
-		errAssertion     require.ErrorAssertionFunc
-		expectedEntityID string
+		name               string
+		entityDescriptor   string
+		entityID           string
+		acsURL             string
+		errAssertion       require.ErrorAssertionFunc
+		expectedEntityID   string
+		attributeMapping   []*SAMLAttributeMapping
+		preset             string
+		relayState         string
+		expectedRelayState string
 	}{
 		{
 			name:             "valid entity descriptor",
@@ -47,7 +54,7 @@ func TestNewSAMLIdPServiceProvider(t *testing.T) {
 			expectedEntityID: "IAMShowcase",
 		},
 		{
-			name:             "empty entity descriptor",
+			name:             "empty entity descriptor, entity ID and ACS URL",
 			entityDescriptor: "",
 			errAssertion:     require.Error,
 		},
@@ -56,6 +63,163 @@ func TestNewSAMLIdPServiceProvider(t *testing.T) {
 			entityDescriptor: testEntityDescriptor,
 			errAssertion:     require.NoError,
 			expectedEntityID: "IAMShowcase",
+		},
+		{
+			name:             "empty entity descriptor and entity ID",
+			entityDescriptor: "",
+			acsURL:           "https:/test.com/acs",
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, ErrEmptyEntityDescriptorAndEntityID)
+			},
+		},
+		{
+			name:             "empty entity descriptor and ACS URL",
+			entityDescriptor: "",
+			entityID:         "IAMShowcase",
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, ErrEmptyEntityDescriptorAndACSURL)
+			},
+		},
+		{
+			name:             "empty entity descriptor with entity ID and ACS URL",
+			entityDescriptor: "",
+			entityID:         "IAMShowcase",
+			acsURL:           "https:/test.com/acs",
+			errAssertion:     require.NoError,
+			expectedEntityID: "IAMShowcase",
+		},
+		{
+			name:             "duplicate attribute mapping",
+			entityDescriptor: testEntityDescriptor,
+			attributeMapping: []*SAMLAttributeMapping{
+				{
+					Name:  "username",
+					Value: "user.traits.name",
+				},
+				{
+					Name:  "user1",
+					Value: "user.traits.firstname",
+				},
+				{
+					Name:  "username",
+					Value: "user.traits.givenname",
+				},
+			},
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, ErrDuplicateAttributeName)
+			},
+		},
+		{
+			name:             "missing attribute name",
+			entityDescriptor: testEntityDescriptor,
+			entityID:         "IAMShowcase",
+			expectedEntityID: "IAMShowcase",
+			attributeMapping: []*SAMLAttributeMapping{
+				{
+					Name:  "",
+					Value: "user.traits.name",
+				},
+			},
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "attribute name is required")
+			},
+		},
+		{
+			name:             "missing attribute value",
+			entityDescriptor: testEntityDescriptor,
+			entityID:         "IAMShowcase",
+			expectedEntityID: "IAMShowcase",
+			attributeMapping: []*SAMLAttributeMapping{
+				{
+					Name:  "name",
+					Value: "",
+				},
+			},
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "attribute value is required")
+			},
+		},
+		{
+			name:             "valid attribute mapping",
+			entityDescriptor: testEntityDescriptor,
+			entityID:         "IAMShowcase",
+			expectedEntityID: "IAMShowcase",
+			attributeMapping: []*SAMLAttributeMapping{
+				{
+					Name:  "username",
+					Value: "user.traits.name",
+				},
+				{
+					Name:  "user1",
+					Value: "user.traits.givenname",
+				},
+			},
+			errAssertion: require.NoError,
+		},
+		{
+			name:             "invalid attribute mapping name format",
+			entityDescriptor: testEntityDescriptor,
+			entityID:         "IAMShowcase",
+			expectedEntityID: "IAMShowcase",
+			attributeMapping: []*SAMLAttributeMapping{
+				{
+					Name:       "username",
+					Value:      "user.traits.name",
+					NameFormat: "emailAddress",
+				},
+				{
+					Name:  "user1",
+					Value: "user.traits.givenname",
+				},
+			},
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "invalid name format")
+			},
+		},
+		{
+			name:             "supported preset value",
+			entityDescriptor: "",
+			entityID:         "IAMShowcase",
+			acsURL:           "https:/test.com/acs",
+			expectedEntityID: "IAMShowcase",
+			errAssertion:     require.NoError,
+			preset:           samlsp.GCPWorkforce,
+		},
+		{
+			name:             "unsupported preset value",
+			entityDescriptor: "",
+			entityID:         "IAMShowcase",
+			acsURL:           "https:/test.com/acs",
+			expectedEntityID: "IAMShowcase",
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "unsupported preset")
+			},
+			preset: "notsupported",
+		},
+		{
+			name:               "GCP Workforce user provided relay state",
+			entityID:           "IAMShowcase",
+			acsURL:             "https:/test.com/acs",
+			errAssertion:       require.NoError,
+			preset:             samlsp.GCPWorkforce,
+			relayState:         "user_provided_relay_state",
+			expectedRelayState: "user_provided_relay_state",
+		},
+		{
+			name:               "GCP Workforce default relay state",
+			entityID:           "IAMShowcase",
+			acsURL:             "https:/test.com/acs",
+			errAssertion:       require.NoError,
+			preset:             samlsp.GCPWorkforce,
+			expectedRelayState: samlsp.DefaultRelayStateGCPWorkforce,
+		},
+		{
+			name:               "default relay state should not be set for empty preset value",
+			entityID:           "IAMShowcase",
+			acsURL:             "https:/test.com/acs",
+			errAssertion:       require.NoError,
+			preset:             "",
+			expectedRelayState: "",
 		},
 	}
 
@@ -66,11 +230,26 @@ func TestNewSAMLIdPServiceProvider(t *testing.T) {
 			}, SAMLIdPServiceProviderSpecV1{
 				EntityDescriptor: test.entityDescriptor,
 				EntityID:         test.entityID,
+				ACSURL:           test.acsURL,
+				AttributeMapping: test.attributeMapping,
+				Preset:           test.preset,
+				RelayState:       test.relayState,
 			})
 
 			test.errAssertion(t, err)
 			if sp != nil {
-				require.Equal(t, test.expectedEntityID, sp.GetEntityID())
+				if test.expectedEntityID != "" {
+					require.Equal(t, test.expectedEntityID, sp.GetEntityID())
+				}
+				if len(sp.GetAttributeMapping()) > 0 {
+					require.Equal(t, test.attributeMapping, sp.GetAttributeMapping())
+				}
+				if test.preset == "" && test.relayState == "" {
+					require.Empty(t, sp.GetRelayState())
+				}
+				if test.expectedRelayState != "" {
+					require.Equal(t, test.expectedRelayState, sp.GetRelayState())
+				}
 			}
 		})
 	}

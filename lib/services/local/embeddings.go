@@ -26,6 +26,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/ai"
@@ -103,7 +104,7 @@ func (e EmbeddingsService) UpsertEmbedding(ctx context.Context, embedding *embed
 // NewEmbeddingsService is a constructor for the EmbeddingsService.
 func NewEmbeddingsService(b backend.Backend) *EmbeddingsService {
 	return &EmbeddingsService{
-		log:     logrus.WithFields(logrus.Fields{trace.Component: "Embeddings"}),
+		log:     logrus.WithFields(logrus.Fields{teleport.ComponentKey: "Embeddings"}),
 		jitter:  retryutils.NewFullJitter(),
 		Backend: b,
 		clock:   clockwork.NewRealClock(),

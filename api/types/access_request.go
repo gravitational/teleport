@@ -20,11 +20,13 @@ package types
 import (
 	"fmt"
 	"reflect"
+	"slices"
 	"sort"
 	"time"
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils"
 )
 
@@ -49,6 +51,12 @@ type AccessRequest interface {
 	// GetAccessExpiry gets the expiration time for the elevated certificate
 	// that will be issued if the Access Request is approved.
 	GetAccessExpiry() time.Time
+	// GetAssumeStartTime gets the time the roles can be assumed
+	// if the Access Request is approved.
+	GetAssumeStartTime() *time.Time
+	// SetAssumeStartTime sets the time the roles can be assumed
+	// if the Access Request is approved.
+	SetAssumeStartTime(time.Time)
 	// SetAccessExpiry sets the expiration time for the elevated certificate
 	// that will be issued if the Access Request is approved.
 	SetAccessExpiry(time.Time)
@@ -196,6 +204,16 @@ func (r *AccessRequestV3) SetCreationTime(t time.Time) {
 // GetAccessExpiry gets AccessExpiry
 func (r *AccessRequestV3) GetAccessExpiry() time.Time {
 	return r.Spec.Expires
+}
+
+// GetAssumeStartTime gets AssumeStartTime
+func (r *AccessRequestV3) GetAssumeStartTime() *time.Time {
+	return r.Spec.AssumeStartTime
+}
+
+// SetAssumeStartTime sets AssumeStartTime
+func (r *AccessRequestV3) SetAssumeStartTime(t time.Time) {
+	r.Spec.AssumeStartTime = &t
 }
 
 // SetAccessExpiry sets AccessExpiry
@@ -440,16 +458,6 @@ func (r *AccessRequestV3) GetMetadata() Metadata {
 	return r.Metadata
 }
 
-// GetResourceID gets ResourceID
-func (r *AccessRequestV3) GetResourceID() int64 {
-	return r.Metadata.GetID()
-}
-
-// SetResourceID sets ResourceID
-func (r *AccessRequestV3) SetResourceID(id int64) {
-	r.Metadata.SetID(id)
-}
-
 // GetRevision returns the revision
 func (r *AccessRequestV3) GetRevision() string {
 	return r.Metadata.GetRevision()
@@ -531,7 +539,11 @@ func (r *AccessRequestV3) GetAllLabels() map[string]string {
 // MatchSearch goes through select field values and tries to
 // match against the list of search values.
 func (r *AccessRequestV3) MatchSearch(values []string) bool {
-	fieldVals := append(utils.MapToStrings(r.GetAllLabels()), r.GetName())
+	fieldVals := append(utils.MapToStrings(r.GetAllLabels()), r.GetName(), r.GetUser())
+	fieldVals = append(fieldVals, r.GetRoles()...)
+	for _, resource := range r.GetRequestedResourceIDs() {
+		fieldVals = append(fieldVals, resource.Name)
+	}
 	return MatchSearch(fieldVals, values, nil)
 }
 
@@ -606,6 +618,9 @@ type AccessRequestUpdate struct {
 	// and must be a subset of the role list originally
 	// present on the request.
 	Roles []string
+	// AssumeStartTime sets the time the requestor can assume
+	// the requested roles.
+	AssumeStartTime *time.Time
 }
 
 // Check validates the request's fields
@@ -754,8 +769,46 @@ func (f *AccessRequestFilter) FromMap(m map[string]string) error {
 	return nil
 }
 
+func hasReviewed(req AccessRequest, author string) bool {
+	reviews := req.GetReviews()
+	var reviewers []string
+	for _, review := range reviews {
+		reviewers = append(reviewers, review.Author)
+	}
+	return slices.Contains(reviewers, author)
+}
+
 // Match checks if a given access request matches this filter.
 func (f *AccessRequestFilter) Match(req AccessRequest) bool {
+	// only return if the request was made by the api requester
+	if f.Scope == AccessRequestScope_MY_REQUESTS && req.GetUser() != f.Requester {
+		return false
+	}
+	// a user cannot review their own requests
+	if f.Scope == AccessRequestScope_NEEDS_REVIEW {
+		if req.GetUser() == f.Requester {
+			return false
+		}
+		if req.GetState() != RequestState_PENDING {
+			return false
+		}
+		if hasReviewed(req, f.Requester) {
+			return false
+		}
+	}
+	// only match if the api requester has submit a review
+	if f.Scope == AccessRequestScope_REVIEWED {
+		// users cant review their own requests so we can early return
+		if req.GetUser() == f.Requester {
+			return false
+		}
+		if !hasReviewed(req, f.Requester) {
+			return false
+		}
+	}
+	if !req.MatchSearch(f.SearchKeywords) {
+		return false
+	}
 	if f.ID != "" && req.GetName() != f.ID {
 		return false
 	}
@@ -806,4 +859,26 @@ func NewAccessRequestAllowedPromotions(promotions []*AccessRequestAllowedPromoti
 	return &AccessRequestAllowedPromotions{
 		Promotions: promotions,
 	}
+}
+
+// ValidateAssumeStartTime returns error if start time is in an invalid range.
+func ValidateAssumeStartTime(assumeStartTime time.Time, accessExpiry time.Time, creationTime time.Time) error {
+	// Guard against requesting a start time before the request creation time.
+	if assumeStartTime.Before(creationTime) {
+		return trace.BadParameter("assume start time has to be after %v", creationTime.Format(time.RFC3339))
+	}
+	// Guard against requesting a start time after access expiry.
+	if assumeStartTime.After(accessExpiry) || assumeStartTime.Equal(accessExpiry) {
+		return trace.BadParameter("assume start time must be prior to access expiry time at %v",
+			accessExpiry.Format(time.RFC3339))
+	}
+	// Access expiry can be greater than constants.MaxAssumeStartDuration, but start time
+	// should be on or before constants.MaxAssumeStartDuration.
+	maxAssumableStartTime := creationTime.Add(constants.MaxAssumeStartDuration)
+	if maxAssumableStartTime.Before(accessExpiry) && assumeStartTime.After(maxAssumableStartTime) {
+		return trace.BadParameter("assume start time is too far in the future, latest time allowed is %v",
+			maxAssumableStartTime.Format(time.RFC3339))
+	}
+
+	return nil
 }

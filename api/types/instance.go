@@ -17,12 +17,12 @@ limitations under the License.
 package types
 
 import (
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
@@ -295,7 +295,7 @@ func (i *InstanceV1) AppendControlLog(entries ...InstanceControlLogEntry) {
 		i.Spec.ControlLog[idx].Time = entry.Time.UTC()
 	}
 	slices.SortFunc(i.Spec.ControlLog, func(a, b InstanceControlLogEntry) int {
-		return int(a.Time.UnixNano() - b.Time.UnixNano())
+		return a.Time.Compare(b.Time)
 	})
 }
 

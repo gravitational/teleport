@@ -74,12 +74,18 @@ const levels = {
   popout: '#FFFFFF',
 };
 
+const neutralColors = [
+  'rgba(0,0,0,0.06)',
+  'rgba(0,0,0,0.13)',
+  'rgba(0,0,0,0.18)',
+];
+
 const colors: ThemeColors = {
   ...sharedColors,
 
   levels,
 
-  spotBackground: ['rgba(0,0,0,0.06)', 'rgba(0,0,0,0.13)', 'rgba(0,0,0,0.18)'],
+  spotBackground: neutralColors,
 
   brand: '#512FC9',
 
@@ -90,6 +96,27 @@ const colors: ThemeColors = {
         'rgba(81,47,201, 0.18)',
         'rgba(81,47,201, 0.25)',
       ],
+      success: [
+        'rgba(0, 125, 107, 0.1)',
+        'rgba(0, 125, 107, 0.18)',
+        'rgba(0, 125, 107, 0.25)',
+      ],
+      danger: [
+        'rgba(204, 55, 45, 0.1)',
+        'rgba(204, 55, 45, 0.18)',
+        'rgba(204, 55, 45, 0.25)',
+      ],
+      alert: [
+        'rgba(255, 171, 0, 0.1)',
+        'rgba(255, 171, 0, 0.18)',
+        'rgba(255, 171, 0, 0.25)',
+      ],
+      informational: [
+        'rgba(0, 115, 186, 0.1)',
+        'rgba(0, 115, 186, 0.18)',
+        'rgba(0, 115, 186, 0.25)',
+      ],
+      neutral: neutralColors,
     },
   },
 
@@ -151,6 +178,12 @@ const colors: ThemeColors = {
 
   progressBarColor: '#007D6B',
 
+  success: {
+    main: '#007D6B',
+    hover: '#006456',
+    active: '#004B40',
+  },
+
   error: {
     main: '#CC372D',
     hover: '#A32C24',
@@ -161,6 +194,12 @@ const colors: ThemeColors = {
     main: '#FFAB00',
     hover: '#CC8900',
     active: '#996700',
+  },
+
+  accent: {
+    main: 'rgba(0, 115, 186, 1)',
+    hover: 'rgba(0, 92, 149, 1)',
+    active: 'rgba(0, 69, 112, 1)',
   },
 
   notice: {
@@ -426,7 +465,8 @@ const colors: ThemeColors = {
   },
 
   link: '#0073BA',
-  success: '#007D6B',
+
+  highlightedNavigationItem: blue[200],
 
   dataVisualisation: dataVisualisationColors,
 };

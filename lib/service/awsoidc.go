@@ -21,25 +21,23 @@ package service
 import (
 	"context"
 	"fmt"
-	"net/url"
+	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/semaphore"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
-	"github.com/gravitational/teleport/lib/utils/oidc"
 )
 
 const (
@@ -70,21 +68,11 @@ func (process *TeleportProcess) initAWSOIDCDeployServiceUpdater() error {
 		return nil
 	}
 
-	// If criticalEndpoint or versionEndpoint are empty, the default stable/cloud endpoint will be used
-	var criticalEndpoint string
-	var versionEndpoint string
-	if automaticupgrades.GetChannel() != "" {
-		criticalEndpoint, err = url.JoinPath(automaticupgrades.GetChannel(), "critical")
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		versionEndpoint, err = url.JoinPath(automaticupgrades.GetChannel(), "version")
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	issuer, err := oidc.IssuerFromPublicAddress(process.proxyPublicAddr().Addr)
+	// TODO: use the proxy channel if available?
+	// This would require to pass the proxy configuration there, but would avoid
+	// future inconsistencies: if the proxy is manually configured to serve a
+	// static version, it will not be picked up by the AWS OIDC deploy updater.
+	upgradeChannel, err := automaticupgrades.NewDefaultChannel()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -95,41 +83,35 @@ func (process *TeleportProcess) initAWSOIDCDeployServiceUpdater() error {
 	}
 
 	updater, err := NewDeployServiceUpdater(AWSOIDCDeployServiceUpdaterConfig{
-		Log:                    process.log.WithField(trace.Component, teleport.Component(teleport.ComponentProxy, "aws_oidc_deploy_service_updater")),
+		Log:                    process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentProxy, "aws_oidc_deploy_service_updater")),
 		AuthClient:             authClient,
 		Clock:                  process.Clock,
 		TeleportClusterName:    clusterNameConfig.GetClusterName(),
 		TeleportClusterVersion: resp.GetServerVersion(),
-		AWSOIDCProviderAddr:    issuer,
-		CriticalEndpoint:       criticalEndpoint,
-		VersionEndpoint:        versionEndpoint,
+		UpgradeChannel:         upgradeChannel,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	process.log.Infof("The new service has started successfully. Checking for deploy service updates every %v.", updateAWSOIDCDeployServiceInterval)
+	process.logger.InfoContext(process.ExitContext(), "The new service has started successfully.", "update_interval", updateAWSOIDCDeployServiceInterval)
 	return trace.Wrap(updater.Run(process.GracefulExitContext()))
 }
 
 // AWSOIDCDeployServiceUpdaterConfig specifies updater configs
 type AWSOIDCDeployServiceUpdaterConfig struct {
 	// Log is the logger
-	Log *logrus.Entry
+	Log *slog.Logger
 	// AuthClient is the auth api client
-	AuthClient *auth.Client
+	AuthClient *authclient.Client
 	// Clock is the local clock
 	Clock clockwork.Clock
 	// TeleportClusterName specifies the teleport cluster name
 	TeleportClusterName string
 	// TeleportClusterVersion specifies the teleport cluster version
 	TeleportClusterVersion string
-	// AWSOIDCProvderAddr specifies the AWS OIDC provider address used to generate AWS OIDC tokens
-	AWSOIDCProviderAddr string
-	// CriticalEndpoint specifies the endpoint to check for critical updates
-	CriticalEndpoint string
-	// VersionEndpoint specifies the endpoint to check for current teleport version
-	VersionEndpoint string
+	// UpgradeChannel is the channel that serves the version used by the updater.
+	UpgradeChannel *automaticupgrades.Channel
 }
 
 // CheckAndSetDefaults checks and sets default config values.
@@ -146,12 +128,8 @@ func (cfg *AWSOIDCDeployServiceUpdaterConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("teleport cluster version required")
 	}
 
-	if cfg.AWSOIDCProviderAddr == "" {
-		return trace.BadParameter("AWS OIDC provider address required")
-	}
-
 	if cfg.Log == nil {
-		cfg.Log = logrus.WithField(trace.Component, teleport.Component(teleport.ComponentProxy, "aws_oidc_deploy_service_updater"))
+		cfg.Log = slog.Default().With(teleport.ComponentKey, teleport.Component(teleport.ComponentProxy, "aws_oidc_deploy_service_updater"))
 	}
 
 	if cfg.Clock == nil {
@@ -187,7 +165,7 @@ func (updater *AWSOIDCDeployServiceUpdater) Run(ctx context.Context) error {
 
 	for {
 		if err := updater.updateAWSOIDCDeployServices(ctx); err != nil {
-			updater.Log.WithError(err).Warningf("Update failed. Retrying in ~%v.", updateAWSOIDCDeployServiceInterval)
+			updater.Log.WarnContext(ctx, "Update failed. Retrying", "retry_interval", updateAWSOIDCDeployServiceInterval, "error", err)
 		}
 
 		select {
@@ -204,7 +182,7 @@ func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployServices(ctx cont
 		return trace.Wrap(err)
 	}
 
-	critical, err := automaticupgrades.Critical(ctx, updater.CriticalEndpoint)
+	critical, err := updater.UpgradeChannel.GetCritical(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -215,7 +193,7 @@ func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployServices(ctx cont
 		return nil
 	}
 
-	stableVersion, err := automaticupgrades.Version(ctx, updater.VersionEndpoint)
+	stableVersion, err := updater.UpgradeChannel.GetVersion(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -230,7 +208,7 @@ func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployServices(ctx cont
 	}
 
 	if !utils.MeetsVersion(updater.TeleportClusterVersion, minServerVersion) {
-		updater.Log.Debugf("Skipping update. %v AWS OIDC Deploy Service will not be compatible with a %v cluster.", stableVersion, updater.TeleportClusterVersion)
+		updater.Log.DebugContext(ctx, "Skipping update. AWS OIDC Deploy Service will not be compatible with cluster", "cluster_version", updater.TeleportClusterVersion, "stable_version", stableVersion)
 		return nil
 	}
 
@@ -265,7 +243,7 @@ func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployServices(ctx cont
 			go func(ig types.Integration, region string) {
 				defer sem.Release(1)
 				if err := updater.updateAWSOIDCDeployService(ctx, ig, region, stableVersion); err != nil {
-					updater.Log.WithError(err).Warningf("Failed to update AWS OIDC Deploy Service for integration %s in region %s.", ig.GetName(), region)
+					updater.Log.WarnContext(ctx, "Failed to update AWS OIDC Deploy Service", "integration", ig.GetName(), "region", region, "error", err)
 				}
 			}(ig, region)
 		}
@@ -281,9 +259,7 @@ func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployService(ctx conte
 		return nil
 	}
 
-	token, err := updater.AuthClient.GenerateAWSOIDCToken(ctx, types.GenerateAWSOIDCTokenRequest{
-		Issuer: updater.AWSOIDCProviderAddr,
-	})
+	token, err := updater.AuthClient.GenerateAWSOIDCToken(ctx, integration.GetName())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -320,19 +296,19 @@ func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployService(ctx conte
 	})
 	if err != nil {
 		if strings.Contains(err.Error(), teleport.MaxLeases) {
-			updater.Log.WithError(err).Debug("AWS OIDC Deploy Service update is already being processed.")
+			updater.Log.DebugContext(ctx, "AWS OIDC Deploy Service update is already being processed", "error", err)
 			return nil
 		}
 		return trace.Wrap(err)
 	}
 	defer func() {
 		if err := updater.AuthClient.CancelSemaphoreLease(ctx, *semLock); err != nil {
-			updater.Log.WithError(err).Error("Failed to cancel semaphore lease.")
+			updater.Log.ErrorContext(ctx, "Failed to cancel semaphore lease", "error", err)
 		}
 	}()
 
-	updater.Log.Debugf("Updating AWS OIDC Deploy Service for integration %s in AWS region: %s", integration.GetName(), awsRegion)
-	if err := awsoidc.UpdateDeployService(ctx, awsOIDCDeployServiceClient, awsoidc.UpdateServiceRequest{
+	updater.Log.DebugContext(ctx, "Updating AWS OIDC Deploy Service", "integration", integration.GetName(), "region", awsRegion)
+	if err := awsoidc.UpdateDeployService(ctx, awsOIDCDeployServiceClient, updater.Log, awsoidc.UpdateServiceRequest{
 		TeleportClusterName: updater.TeleportClusterName,
 		TeleportVersionTag:  teleportVersion,
 		OwnershipTags:       ownershipTags,
@@ -343,14 +319,14 @@ func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployService(ctx conte
 			// The updater checks each integration/region combination, so
 			// there will be regions where there is no ECS cluster deployed
 			// for the integration.
-			updater.Log.Debugf("Integration %s does not manage any services within region %s.", integration.GetName(), awsRegion)
+			updater.Log.DebugContext(ctx, "Integration does not manage any services in given region", "integration", integration.GetName(), "region", awsRegion)
 			return nil
 		case trace.IsAccessDenied(awslib.ConvertIAMv2Error(trace.Unwrap(err))):
 			// The AWS OIDC role may lack permissions due to changes in teleport.
 			// In this situation users should be notified that they will need to
 			// re-run the deploy service iam configuration script and update the
 			// permissions.
-			updater.Log.WithError(err).Warning("Update integration role and add missing permissions.")
+			updater.Log.DebugContext(ctx, "Update integration role and add missing permissions", "integration", integration.GetName())
 		}
 		return trace.Wrap(err)
 	}

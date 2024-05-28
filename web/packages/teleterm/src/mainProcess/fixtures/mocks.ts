@@ -33,6 +33,7 @@ export class MockMainProcessClient implements MainProcessClient {
       jsonSchemaFile: createMockFileStorage(),
       platform: this.getRuntimeSettings().platform,
     });
+    this.configService.set('feature.vnet', true);
   }
 
   subscribeToNativeThemeUpdate() {
@@ -94,9 +95,9 @@ export class MockMainProcessClient implements MainProcessClient {
     return true;
   }
 
-  downloadAgent() {
-    return Promise.resolve();
-  }
+  async downloadAgent() {}
+
+  async verifyAgent() {}
 
   createAgentConfigFile() {
     return Promise.resolve();
@@ -131,6 +132,8 @@ export class MockMainProcessClient implements MainProcessClient {
   async tryRemoveConnectMyComputerAgentBinary() {}
 
   signalUserInterfaceReadiness() {}
+
+  refreshClusterList() {}
 }
 
 export const makeRuntimeSettings = (

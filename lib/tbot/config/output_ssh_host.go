@@ -53,6 +53,12 @@ func (o *SSHHostOutput) templates() []template {
 }
 
 func (o *SSHHostOutput) Render(ctx context.Context, p provider, ident *identity.Identity) error {
+	ctx, span := tracer.Start(
+		ctx,
+		"SSHHostOutput/Render",
+	)
+	defer span.End()
+
 	for _, t := range o.templates() {
 		if err := t.render(ctx, p, ident, o.Destination); err != nil {
 			return trace.Wrap(err, "rendering template %s", t.name())

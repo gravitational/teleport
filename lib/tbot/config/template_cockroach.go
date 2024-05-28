@@ -55,6 +55,12 @@ func (t *templateCockroach) render(
 	identity *identity.Identity,
 	destination bot.Destination,
 ) error {
+	ctx, span := tracer.Start(
+		ctx,
+		"templateCockroach/render",
+	)
+	defer span.End()
+
 	dbCAs, err := bot.GetCertAuthorities(ctx, types.DatabaseCA)
 	if err != nil {
 		return trace.Wrap(err)
@@ -84,7 +90,7 @@ func (t *templateCockroach) render(
 		return trace.Wrap(err)
 	}
 
-	log.Debugf("Wrote CockroachDB files: %+v", files)
+	log.DebugContext(ctx, "Wrote CockroachDB files", "files", files)
 
 	return nil
 }

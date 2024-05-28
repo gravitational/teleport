@@ -45,9 +45,6 @@ func UnmarshalStaticTokens(bytes []byte, opts ...MarshalOption) (types.StaticTok
 		return nil, trace.Wrap(err)
 	}
 
-	if cfg.ID != 0 {
-		staticTokens.SetResourceID(cfg.ID)
-	}
 	if cfg.Revision != "" {
 		staticTokens.SetRevision(cfg.Revision)
 	}
@@ -70,15 +67,7 @@ func MarshalStaticTokens(staticToken types.StaticTokens, opts ...MarshalOption) 
 			return nil, trace.Wrap(err)
 		}
 
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *staticToken
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			staticToken = &copy
-		}
-		return utils.FastMarshal(staticToken)
+		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, staticToken))
 	default:
 		return nil, trace.BadParameter("unrecognized static token version %T", staticToken)
 	}

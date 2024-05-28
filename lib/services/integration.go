@@ -51,7 +51,7 @@ type IntegrationsGetter interface {
 // IntegrationsTokenGenerator defines methods to generate tokens for Integrations.
 type IntegrationsTokenGenerator interface {
 	// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
-	GenerateAWSOIDCToken(ctx context.Context, req types.GenerateAWSOIDCTokenRequest) (string, error)
+	GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error)
 }
 
 // MarshalIntegration marshals the Integration resource to JSON.
@@ -67,13 +67,7 @@ func MarshalIntegration(ig types.Integration, opts ...MarshalOption) ([]byte, er
 			return nil, trace.Wrap(err)
 		}
 
-		if !cfg.PreserveResourceID {
-			copy := *g
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			g = &copy
-		}
-		return utils.FastMarshal(g)
+		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, g))
 	default:
 		return nil, trace.BadParameter("unsupported integration resource %T", g)
 	}
@@ -97,9 +91,6 @@ func UnmarshalIntegration(data []byte, opts ...MarshalOption) (types.Integration
 		return nil, trace.Wrap(err)
 	}
 
-	if cfg.ID != 0 {
-		ig.SetResourceID(cfg.ID)
-	}
 	if cfg.Revision != "" {
 		ig.SetRevision(cfg.Revision)
 	}

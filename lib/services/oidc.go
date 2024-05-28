@@ -122,9 +122,6 @@ func UnmarshalOIDCConnector(bytes []byte, opts ...MarshalOption) (types.OIDCConn
 		if err := c.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if cfg.ID != 0 {
-			c.SetResourceID(cfg.ID)
-		}
 		if cfg.Revision != "" {
 			c.SetRevision(cfg.Revision)
 		}
@@ -150,15 +147,7 @@ func MarshalOIDCConnector(oidcConnector types.OIDCConnector, opts ...MarshalOpti
 			return nil, trace.Wrap(err)
 		}
 
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *oidcConnector
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			oidcConnector = &copy
-		}
-		return utils.FastMarshal(oidcConnector)
+		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, oidcConnector))
 	default:
 		return nil, trace.BadParameter("unrecognized OIDC connector version %T", oidcConnector)
 	}

@@ -25,6 +25,7 @@ import {
   borderColor,
   flex,
   height,
+  lineHeight,
   maxWidth,
   minHeight,
   maxHeight,
@@ -43,6 +44,7 @@ const Box = styled.div`
   ${minWidth}
   ${space}
   ${height}
+  ${lineHeight}
   ${minHeight}
   ${maxHeight}
   ${width}

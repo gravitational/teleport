@@ -38,20 +38,26 @@ const (
 	AccessListService_ListAccessLists_FullMethodName                         = "/teleport.accesslist.v1.AccessListService/ListAccessLists"
 	AccessListService_GetAccessList_FullMethodName                           = "/teleport.accesslist.v1.AccessListService/GetAccessList"
 	AccessListService_UpsertAccessList_FullMethodName                        = "/teleport.accesslist.v1.AccessListService/UpsertAccessList"
+	AccessListService_UpdateAccessList_FullMethodName                        = "/teleport.accesslist.v1.AccessListService/UpdateAccessList"
 	AccessListService_DeleteAccessList_FullMethodName                        = "/teleport.accesslist.v1.AccessListService/DeleteAccessList"
 	AccessListService_DeleteAllAccessLists_FullMethodName                    = "/teleport.accesslist.v1.AccessListService/DeleteAllAccessLists"
 	AccessListService_GetAccessListsToReview_FullMethodName                  = "/teleport.accesslist.v1.AccessListService/GetAccessListsToReview"
+	AccessListService_CountAccessListMembers_FullMethodName                  = "/teleport.accesslist.v1.AccessListService/CountAccessListMembers"
 	AccessListService_ListAccessListMembers_FullMethodName                   = "/teleport.accesslist.v1.AccessListService/ListAccessListMembers"
+	AccessListService_ListAllAccessListMembers_FullMethodName                = "/teleport.accesslist.v1.AccessListService/ListAllAccessListMembers"
 	AccessListService_GetAccessListMember_FullMethodName                     = "/teleport.accesslist.v1.AccessListService/GetAccessListMember"
 	AccessListService_UpsertAccessListMember_FullMethodName                  = "/teleport.accesslist.v1.AccessListService/UpsertAccessListMember"
+	AccessListService_UpdateAccessListMember_FullMethodName                  = "/teleport.accesslist.v1.AccessListService/UpdateAccessListMember"
 	AccessListService_DeleteAccessListMember_FullMethodName                  = "/teleport.accesslist.v1.AccessListService/DeleteAccessListMember"
 	AccessListService_DeleteAllAccessListMembersForAccessList_FullMethodName = "/teleport.accesslist.v1.AccessListService/DeleteAllAccessListMembersForAccessList"
 	AccessListService_DeleteAllAccessListMembers_FullMethodName              = "/teleport.accesslist.v1.AccessListService/DeleteAllAccessListMembers"
 	AccessListService_UpsertAccessListWithMembers_FullMethodName             = "/teleport.accesslist.v1.AccessListService/UpsertAccessListWithMembers"
 	AccessListService_ListAccessListReviews_FullMethodName                   = "/teleport.accesslist.v1.AccessListService/ListAccessListReviews"
+	AccessListService_ListAllAccessListReviews_FullMethodName                = "/teleport.accesslist.v1.AccessListService/ListAllAccessListReviews"
 	AccessListService_CreateAccessListReview_FullMethodName                  = "/teleport.accesslist.v1.AccessListService/CreateAccessListReview"
 	AccessListService_DeleteAccessListReview_FullMethodName                  = "/teleport.accesslist.v1.AccessListService/DeleteAccessListReview"
 	AccessListService_AccessRequestPromote_FullMethodName                    = "/teleport.accesslist.v1.AccessListService/AccessRequestPromote"
+	AccessListService_GetSuggestedAccessLists_FullMethodName                 = "/teleport.accesslist.v1.AccessListService/GetSuggestedAccessLists"
 )
 
 // AccessListServiceClient is the client API for AccessListService service.
@@ -66,35 +72,57 @@ type AccessListServiceClient interface {
 	GetAccessList(ctx context.Context, in *GetAccessListRequest, opts ...grpc.CallOption) (*AccessList, error)
 	// UpsertAccessList creates or updates an access list resource.
 	UpsertAccessList(ctx context.Context, in *UpsertAccessListRequest, opts ...grpc.CallOption) (*AccessList, error)
+	// UpdateAccessList updates an access list resource.
+	UpdateAccessList(ctx context.Context, in *UpdateAccessListRequest, opts ...grpc.CallOption) (*AccessList, error)
 	// DeleteAccessList hard deletes the specified access list resource.
 	DeleteAccessList(ctx context.Context, in *DeleteAccessListRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteAllAccessLists hard deletes all access lists.
 	DeleteAllAccessLists(ctx context.Context, in *DeleteAllAccessListsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// GetAccessListsToReview will return access lists that need to be reviewed by the current user.
+	// GetAccessListsToReview will return access lists that need to be reviewed by
+	// the current user.
 	GetAccessListsToReview(ctx context.Context, in *GetAccessListsToReviewRequest, opts ...grpc.CallOption) (*GetAccessListsToReviewResponse, error)
+	// CountAccessListMembers returns the count of access list members in an
+	// access list.
+	CountAccessListMembers(ctx context.Context, in *CountAccessListMembersRequest, opts ...grpc.CallOption) (*CountAccessListMembersResponse, error)
 	// ListAccessListMembers returns a paginated list of all access list members.
 	ListAccessListMembers(ctx context.Context, in *ListAccessListMembersRequest, opts ...grpc.CallOption) (*ListAccessListMembersResponse, error)
+	// ListAllAccessListMembers returns a paginated list of all access list
+	// members for all access lists.
+	ListAllAccessListMembers(ctx context.Context, in *ListAllAccessListMembersRequest, opts ...grpc.CallOption) (*ListAllAccessListMembersResponse, error)
 	// GetAccessListMember returns the specified access list member resource.
 	GetAccessListMember(ctx context.Context, in *GetAccessListMemberRequest, opts ...grpc.CallOption) (*Member, error)
 	// UpsertAccessListMember creates or updates an access list member resource.
 	UpsertAccessListMember(ctx context.Context, in *UpsertAccessListMemberRequest, opts ...grpc.CallOption) (*Member, error)
-	// DeleteAccessListMember hard deletes the specified access list member resource.
+	// UpdateAccessListMember conditionally updates an access list member resource.
+	UpdateAccessListMember(ctx context.Context, in *UpdateAccessListMemberRequest, opts ...grpc.CallOption) (*Member, error)
+	// DeleteAccessListMember hard deletes the specified access list member
+	// resource.
 	DeleteAccessListMember(ctx context.Context, in *DeleteAccessListMemberRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// DeleteAllAccessListMembers hard deletes all access list members for an access list.
+	// DeleteAllAccessListMembers hard deletes all access list members for an
+	// access list.
 	DeleteAllAccessListMembersForAccessList(ctx context.Context, in *DeleteAllAccessListMembersForAccessListRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// DeleteAllAccessListMembers hard deletes all access list members for an access list.
+	// DeleteAllAccessListMembers hard deletes all access list members for an
+	// access list.
 	DeleteAllAccessListMembers(ctx context.Context, in *DeleteAllAccessListMembersRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// UpsertAccessListWithMembers creates or updates an access list with members.
 	UpsertAccessListWithMembers(ctx context.Context, in *UpsertAccessListWithMembersRequest, opts ...grpc.CallOption) (*UpsertAccessListWithMembersResponse, error)
-	// ListAccessListReviews will list access list reviews for a particular access list.
+	// ListAccessListReviews will list access list reviews for a particular access
+	// list.
 	ListAccessListReviews(ctx context.Context, in *ListAccessListReviewsRequest, opts ...grpc.CallOption) (*ListAccessListReviewsResponse, error)
-	// CreateAccessListReview will create a new review for an access list. It will also modify the original access list
-	// and its members depending on the details of the review.
+	// ListAllAccessListReviews will list access list reviews for all access
+	// lists.
+	ListAllAccessListReviews(ctx context.Context, in *ListAllAccessListReviewsRequest, opts ...grpc.CallOption) (*ListAllAccessListReviewsResponse, error)
+	// CreateAccessListReview will create a new review for an access list. It will
+	// also modify the original access list and its members depending on the
+	// details of the review.
 	CreateAccessListReview(ctx context.Context, in *CreateAccessListReviewRequest, opts ...grpc.CallOption) (*CreateAccessListReviewResponse, error)
 	// DeleteAccessListReview will delete an access list review from the backend.
 	DeleteAccessListReview(ctx context.Context, in *DeleteAccessListReviewRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// AccessRequestPromote promotes an access request to an access list.
 	AccessRequestPromote(ctx context.Context, in *AccessRequestPromoteRequest, opts ...grpc.CallOption) (*AccessRequestPromoteResponse, error)
+	// GetSuggestedAccessLists returns suggested access lists for an access
+	// request.
+	GetSuggestedAccessLists(ctx context.Context, in *GetSuggestedAccessListsRequest, opts ...grpc.CallOption) (*GetSuggestedAccessListsResponse, error)
 }
 
 type accessListServiceClient struct {
@@ -141,6 +169,15 @@ func (c *accessListServiceClient) UpsertAccessList(ctx context.Context, in *Upse
 	return out, nil
 }
 
+func (c *accessListServiceClient) UpdateAccessList(ctx context.Context, in *UpdateAccessListRequest, opts ...grpc.CallOption) (*AccessList, error) {
+	out := new(AccessList)
+	err := c.cc.Invoke(ctx, AccessListService_UpdateAccessList_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *accessListServiceClient) DeleteAccessList(ctx context.Context, in *DeleteAccessListRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, AccessListService_DeleteAccessList_FullMethodName, in, out, opts...)
@@ -168,9 +205,27 @@ func (c *accessListServiceClient) GetAccessListsToReview(ctx context.Context, in
 	return out, nil
 }
 
+func (c *accessListServiceClient) CountAccessListMembers(ctx context.Context, in *CountAccessListMembersRequest, opts ...grpc.CallOption) (*CountAccessListMembersResponse, error) {
+	out := new(CountAccessListMembersResponse)
+	err := c.cc.Invoke(ctx, AccessListService_CountAccessListMembers_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *accessListServiceClient) ListAccessListMembers(ctx context.Context, in *ListAccessListMembersRequest, opts ...grpc.CallOption) (*ListAccessListMembersResponse, error) {
 	out := new(ListAccessListMembersResponse)
 	err := c.cc.Invoke(ctx, AccessListService_ListAccessListMembers_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accessListServiceClient) ListAllAccessListMembers(ctx context.Context, in *ListAllAccessListMembersRequest, opts ...grpc.CallOption) (*ListAllAccessListMembersResponse, error) {
+	out := new(ListAllAccessListMembersResponse)
+	err := c.cc.Invoke(ctx, AccessListService_ListAllAccessListMembers_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -189,6 +244,15 @@ func (c *accessListServiceClient) GetAccessListMember(ctx context.Context, in *G
 func (c *accessListServiceClient) UpsertAccessListMember(ctx context.Context, in *UpsertAccessListMemberRequest, opts ...grpc.CallOption) (*Member, error) {
 	out := new(Member)
 	err := c.cc.Invoke(ctx, AccessListService_UpsertAccessListMember_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accessListServiceClient) UpdateAccessListMember(ctx context.Context, in *UpdateAccessListMemberRequest, opts ...grpc.CallOption) (*Member, error) {
+	out := new(Member)
+	err := c.cc.Invoke(ctx, AccessListService_UpdateAccessListMember_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -240,6 +304,15 @@ func (c *accessListServiceClient) ListAccessListReviews(ctx context.Context, in 
 	return out, nil
 }
 
+func (c *accessListServiceClient) ListAllAccessListReviews(ctx context.Context, in *ListAllAccessListReviewsRequest, opts ...grpc.CallOption) (*ListAllAccessListReviewsResponse, error) {
+	out := new(ListAllAccessListReviewsResponse)
+	err := c.cc.Invoke(ctx, AccessListService_ListAllAccessListReviews_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *accessListServiceClient) CreateAccessListReview(ctx context.Context, in *CreateAccessListReviewRequest, opts ...grpc.CallOption) (*CreateAccessListReviewResponse, error) {
 	out := new(CreateAccessListReviewResponse)
 	err := c.cc.Invoke(ctx, AccessListService_CreateAccessListReview_FullMethodName, in, out, opts...)
@@ -267,6 +340,15 @@ func (c *accessListServiceClient) AccessRequestPromote(ctx context.Context, in *
 	return out, nil
 }
 
+func (c *accessListServiceClient) GetSuggestedAccessLists(ctx context.Context, in *GetSuggestedAccessListsRequest, opts ...grpc.CallOption) (*GetSuggestedAccessListsResponse, error) {
+	out := new(GetSuggestedAccessListsResponse)
+	err := c.cc.Invoke(ctx, AccessListService_GetSuggestedAccessLists_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AccessListServiceServer is the server API for AccessListService service.
 // All implementations must embed UnimplementedAccessListServiceServer
 // for forward compatibility
@@ -279,35 +361,57 @@ type AccessListServiceServer interface {
 	GetAccessList(context.Context, *GetAccessListRequest) (*AccessList, error)
 	// UpsertAccessList creates or updates an access list resource.
 	UpsertAccessList(context.Context, *UpsertAccessListRequest) (*AccessList, error)
+	// UpdateAccessList updates an access list resource.
+	UpdateAccessList(context.Context, *UpdateAccessListRequest) (*AccessList, error)
 	// DeleteAccessList hard deletes the specified access list resource.
 	DeleteAccessList(context.Context, *DeleteAccessListRequest) (*emptypb.Empty, error)
 	// DeleteAllAccessLists hard deletes all access lists.
 	DeleteAllAccessLists(context.Context, *DeleteAllAccessListsRequest) (*emptypb.Empty, error)
-	// GetAccessListsToReview will return access lists that need to be reviewed by the current user.
+	// GetAccessListsToReview will return access lists that need to be reviewed by
+	// the current user.
 	GetAccessListsToReview(context.Context, *GetAccessListsToReviewRequest) (*GetAccessListsToReviewResponse, error)
+	// CountAccessListMembers returns the count of access list members in an
+	// access list.
+	CountAccessListMembers(context.Context, *CountAccessListMembersRequest) (*CountAccessListMembersResponse, error)
 	// ListAccessListMembers returns a paginated list of all access list members.
 	ListAccessListMembers(context.Context, *ListAccessListMembersRequest) (*ListAccessListMembersResponse, error)
+	// ListAllAccessListMembers returns a paginated list of all access list
+	// members for all access lists.
+	ListAllAccessListMembers(context.Context, *ListAllAccessListMembersRequest) (*ListAllAccessListMembersResponse, error)
 	// GetAccessListMember returns the specified access list member resource.
 	GetAccessListMember(context.Context, *GetAccessListMemberRequest) (*Member, error)
 	// UpsertAccessListMember creates or updates an access list member resource.
 	UpsertAccessListMember(context.Context, *UpsertAccessListMemberRequest) (*Member, error)
-	// DeleteAccessListMember hard deletes the specified access list member resource.
+	// UpdateAccessListMember conditionally updates an access list member resource.
+	UpdateAccessListMember(context.Context, *UpdateAccessListMemberRequest) (*Member, error)
+	// DeleteAccessListMember hard deletes the specified access list member
+	// resource.
 	DeleteAccessListMember(context.Context, *DeleteAccessListMemberRequest) (*emptypb.Empty, error)
-	// DeleteAllAccessListMembers hard deletes all access list members for an access list.
+	// DeleteAllAccessListMembers hard deletes all access list members for an
+	// access list.
 	DeleteAllAccessListMembersForAccessList(context.Context, *DeleteAllAccessListMembersForAccessListRequest) (*emptypb.Empty, error)
-	// DeleteAllAccessListMembers hard deletes all access list members for an access list.
+	// DeleteAllAccessListMembers hard deletes all access list members for an
+	// access list.
 	DeleteAllAccessListMembers(context.Context, *DeleteAllAccessListMembersRequest) (*emptypb.Empty, error)
 	// UpsertAccessListWithMembers creates or updates an access list with members.
 	UpsertAccessListWithMembers(context.Context, *UpsertAccessListWithMembersRequest) (*UpsertAccessListWithMembersResponse, error)
-	// ListAccessListReviews will list access list reviews for a particular access list.
+	// ListAccessListReviews will list access list reviews for a particular access
+	// list.
 	ListAccessListReviews(context.Context, *ListAccessListReviewsRequest) (*ListAccessListReviewsResponse, error)
-	// CreateAccessListReview will create a new review for an access list. It will also modify the original access list
-	// and its members depending on the details of the review.
+	// ListAllAccessListReviews will list access list reviews for all access
+	// lists.
+	ListAllAccessListReviews(context.Context, *ListAllAccessListReviewsRequest) (*ListAllAccessListReviewsResponse, error)
+	// CreateAccessListReview will create a new review for an access list. It will
+	// also modify the original access list and its members depending on the
+	// details of the review.
 	CreateAccessListReview(context.Context, *CreateAccessListReviewRequest) (*CreateAccessListReviewResponse, error)
 	// DeleteAccessListReview will delete an access list review from the backend.
 	DeleteAccessListReview(context.Context, *DeleteAccessListReviewRequest) (*emptypb.Empty, error)
 	// AccessRequestPromote promotes an access request to an access list.
 	AccessRequestPromote(context.Context, *AccessRequestPromoteRequest) (*AccessRequestPromoteResponse, error)
+	// GetSuggestedAccessLists returns suggested access lists for an access
+	// request.
+	GetSuggestedAccessLists(context.Context, *GetSuggestedAccessListsRequest) (*GetSuggestedAccessListsResponse, error)
 	mustEmbedUnimplementedAccessListServiceServer()
 }
 
@@ -327,6 +431,9 @@ func (UnimplementedAccessListServiceServer) GetAccessList(context.Context, *GetA
 func (UnimplementedAccessListServiceServer) UpsertAccessList(context.Context, *UpsertAccessListRequest) (*AccessList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertAccessList not implemented")
 }
+func (UnimplementedAccessListServiceServer) UpdateAccessList(context.Context, *UpdateAccessListRequest) (*AccessList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateAccessList not implemented")
+}
 func (UnimplementedAccessListServiceServer) DeleteAccessList(context.Context, *DeleteAccessListRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAccessList not implemented")
 }
@@ -336,14 +443,23 @@ func (UnimplementedAccessListServiceServer) DeleteAllAccessLists(context.Context
 func (UnimplementedAccessListServiceServer) GetAccessListsToReview(context.Context, *GetAccessListsToReviewRequest) (*GetAccessListsToReviewResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAccessListsToReview not implemented")
 }
+func (UnimplementedAccessListServiceServer) CountAccessListMembers(context.Context, *CountAccessListMembersRequest) (*CountAccessListMembersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CountAccessListMembers not implemented")
+}
 func (UnimplementedAccessListServiceServer) ListAccessListMembers(context.Context, *ListAccessListMembersRequest) (*ListAccessListMembersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListAccessListMembers not implemented")
+}
+func (UnimplementedAccessListServiceServer) ListAllAccessListMembers(context.Context, *ListAllAccessListMembersRequest) (*ListAllAccessListMembersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListAllAccessListMembers not implemented")
 }
 func (UnimplementedAccessListServiceServer) GetAccessListMember(context.Context, *GetAccessListMemberRequest) (*Member, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAccessListMember not implemented")
 }
 func (UnimplementedAccessListServiceServer) UpsertAccessListMember(context.Context, *UpsertAccessListMemberRequest) (*Member, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertAccessListMember not implemented")
+}
+func (UnimplementedAccessListServiceServer) UpdateAccessListMember(context.Context, *UpdateAccessListMemberRequest) (*Member, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateAccessListMember not implemented")
 }
 func (UnimplementedAccessListServiceServer) DeleteAccessListMember(context.Context, *DeleteAccessListMemberRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAccessListMember not implemented")
@@ -360,6 +476,9 @@ func (UnimplementedAccessListServiceServer) UpsertAccessListWithMembers(context.
 func (UnimplementedAccessListServiceServer) ListAccessListReviews(context.Context, *ListAccessListReviewsRequest) (*ListAccessListReviewsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListAccessListReviews not implemented")
 }
+func (UnimplementedAccessListServiceServer) ListAllAccessListReviews(context.Context, *ListAllAccessListReviewsRequest) (*ListAllAccessListReviewsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListAllAccessListReviews not implemented")
+}
 func (UnimplementedAccessListServiceServer) CreateAccessListReview(context.Context, *CreateAccessListReviewRequest) (*CreateAccessListReviewResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateAccessListReview not implemented")
 }
@@ -368,6 +487,9 @@ func (UnimplementedAccessListServiceServer) DeleteAccessListReview(context.Conte
 }
 func (UnimplementedAccessListServiceServer) AccessRequestPromote(context.Context, *AccessRequestPromoteRequest) (*AccessRequestPromoteResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AccessRequestPromote not implemented")
+}
+func (UnimplementedAccessListServiceServer) GetSuggestedAccessLists(context.Context, *GetSuggestedAccessListsRequest) (*GetSuggestedAccessListsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetSuggestedAccessLists not implemented")
 }
 func (UnimplementedAccessListServiceServer) mustEmbedUnimplementedAccessListServiceServer() {}
 
@@ -454,6 +576,24 @@ func _AccessListService_UpsertAccessList_Handler(srv interface{}, ctx context.Co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AccessListService_UpdateAccessList_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateAccessListRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccessListServiceServer).UpdateAccessList(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccessListService_UpdateAccessList_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccessListServiceServer).UpdateAccessList(ctx, req.(*UpdateAccessListRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AccessListService_DeleteAccessList_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DeleteAccessListRequest)
 	if err := dec(in); err != nil {
@@ -508,6 +648,24 @@ func _AccessListService_GetAccessListsToReview_Handler(srv interface{}, ctx cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AccessListService_CountAccessListMembers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CountAccessListMembersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccessListServiceServer).CountAccessListMembers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccessListService_CountAccessListMembers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccessListServiceServer).CountAccessListMembers(ctx, req.(*CountAccessListMembersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AccessListService_ListAccessListMembers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListAccessListMembersRequest)
 	if err := dec(in); err != nil {
@@ -522,6 +680,24 @@ func _AccessListService_ListAccessListMembers_Handler(srv interface{}, ctx conte
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AccessListServiceServer).ListAccessListMembers(ctx, req.(*ListAccessListMembersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AccessListService_ListAllAccessListMembers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListAllAccessListMembersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccessListServiceServer).ListAllAccessListMembers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccessListService_ListAllAccessListMembers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccessListServiceServer).ListAllAccessListMembers(ctx, req.(*ListAllAccessListMembersRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -558,6 +734,24 @@ func _AccessListService_UpsertAccessListMember_Handler(srv interface{}, ctx cont
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AccessListServiceServer).UpsertAccessListMember(ctx, req.(*UpsertAccessListMemberRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AccessListService_UpdateAccessListMember_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateAccessListMemberRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccessListServiceServer).UpdateAccessListMember(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccessListService_UpdateAccessListMember_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccessListServiceServer).UpdateAccessListMember(ctx, req.(*UpdateAccessListMemberRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -652,6 +846,24 @@ func _AccessListService_ListAccessListReviews_Handler(srv interface{}, ctx conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AccessListService_ListAllAccessListReviews_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListAllAccessListReviewsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccessListServiceServer).ListAllAccessListReviews(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccessListService_ListAllAccessListReviews_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccessListServiceServer).ListAllAccessListReviews(ctx, req.(*ListAllAccessListReviewsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AccessListService_CreateAccessListReview_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CreateAccessListReviewRequest)
 	if err := dec(in); err != nil {
@@ -706,6 +918,24 @@ func _AccessListService_AccessRequestPromote_Handler(srv interface{}, ctx contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AccessListService_GetSuggestedAccessLists_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetSuggestedAccessListsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccessListServiceServer).GetSuggestedAccessLists(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccessListService_GetSuggestedAccessLists_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccessListServiceServer).GetSuggestedAccessLists(ctx, req.(*GetSuggestedAccessListsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AccessListService_ServiceDesc is the grpc.ServiceDesc for AccessListService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -730,6 +960,10 @@ var AccessListService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AccessListService_UpsertAccessList_Handler,
 		},
 		{
+			MethodName: "UpdateAccessList",
+			Handler:    _AccessListService_UpdateAccessList_Handler,
+		},
+		{
 			MethodName: "DeleteAccessList",
 			Handler:    _AccessListService_DeleteAccessList_Handler,
 		},
@@ -742,8 +976,16 @@ var AccessListService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AccessListService_GetAccessListsToReview_Handler,
 		},
 		{
+			MethodName: "CountAccessListMembers",
+			Handler:    _AccessListService_CountAccessListMembers_Handler,
+		},
+		{
 			MethodName: "ListAccessListMembers",
 			Handler:    _AccessListService_ListAccessListMembers_Handler,
+		},
+		{
+			MethodName: "ListAllAccessListMembers",
+			Handler:    _AccessListService_ListAllAccessListMembers_Handler,
 		},
 		{
 			MethodName: "GetAccessListMember",
@@ -752,6 +994,10 @@ var AccessListService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpsertAccessListMember",
 			Handler:    _AccessListService_UpsertAccessListMember_Handler,
+		},
+		{
+			MethodName: "UpdateAccessListMember",
+			Handler:    _AccessListService_UpdateAccessListMember_Handler,
 		},
 		{
 			MethodName: "DeleteAccessListMember",
@@ -774,6 +1020,10 @@ var AccessListService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AccessListService_ListAccessListReviews_Handler,
 		},
 		{
+			MethodName: "ListAllAccessListReviews",
+			Handler:    _AccessListService_ListAllAccessListReviews_Handler,
+		},
+		{
 			MethodName: "CreateAccessListReview",
 			Handler:    _AccessListService_CreateAccessListReview_Handler,
 		},
@@ -784,6 +1034,10 @@ var AccessListService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "AccessRequestPromote",
 			Handler:    _AccessListService_AccessRequestPromote_Handler,
+		},
+		{
+			MethodName: "GetSuggestedAccessLists",
+			Handler:    _AccessListService_GetSuggestedAccessLists_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

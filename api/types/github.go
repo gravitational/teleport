@@ -17,10 +17,11 @@ limitations under the License.
 package types
 
 import (
+	"context"
+	"log/slog"
 	"time"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/defaults"
@@ -70,6 +71,8 @@ type GithubConnector interface {
 	GetEndpointURL() string
 	// GetAPIEndpointURL returns the API endpoint URL
 	GetAPIEndpointURL() string
+	// GetClientRedirectSettings returns the client redirect settings.
+	GetClientRedirectSettings() *SSOClientRedirectSettings
 }
 
 // NewGithubConnector creates a new Github connector from name and spec
@@ -104,16 +107,6 @@ func (c *GithubConnectorV3) GetSubKind() string {
 // SetSubKind sets resource subkind
 func (c *GithubConnectorV3) SetSubKind(s string) {
 	c.SubKind = s
-}
-
-// GetResourceID returns resource ID
-func (c *GithubConnectorV3) GetResourceID() int64 {
-	return c.Metadata.ID
-}
-
-// SetResourceID sets resource ID
-func (c *GithubConnectorV3) SetResourceID(id int64) {
-	c.Metadata.ID = id
 }
 
 // GetRevision returns the revision
@@ -191,7 +184,7 @@ func (c *GithubConnectorV3) CheckAndSetDefaults() error {
 
 	// DELETE IN 11.0.0
 	if len(c.Spec.TeamsToLogins) > 0 {
-		log.Warn("GitHub connector field teams_to_logins is deprecated and will be removed in the next version. Please use teams_to_roles instead.")
+		slog.WarnContext(context.Background(), "GitHub connector field teams_to_logins is deprecated and will be removed in the next version. Please use teams_to_roles instead.")
 	}
 
 	// make sure claim mappings have either roles or a role template
@@ -285,6 +278,14 @@ func (c *GithubConnectorV3) GetEndpointURL() string {
 // GetEndpointURL returns the API endpoint URL
 func (c *GithubConnectorV3) GetAPIEndpointURL() string {
 	return GithubAPIURL
+}
+
+// GetClientRedirectSettings returns the client redirect settings.
+func (c *GithubConnectorV3) GetClientRedirectSettings() *SSOClientRedirectSettings {
+	if c == nil {
+		return nil
+	}
+	return c.Spec.ClientRedirectSettings
 }
 
 // MapClaims returns a list of logins based on the provided claims,
