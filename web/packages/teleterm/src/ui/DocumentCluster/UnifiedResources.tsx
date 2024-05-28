@@ -204,7 +204,7 @@ export function UnifiedResources(props: {
       discoverUrl={discoverUrl}
       // Reset the component state when query params object change.
       // JSON.stringify on the same object will always produce the same string.
-      key={JSON.stringify(mergedParams)}
+      key={`${JSON.stringify(mergedParams)}-${rootCluster.showResources}`}
     />
   );
 }
@@ -230,6 +230,10 @@ const Resources = memo(
     const { fetch, resources, attempt, clear } = useUnifiedResourcesFetch({
       fetchFunc: useCallback(
         async (paginationParams, signal) => {
+          // Do not make the call if we don't know what resources we should show.
+          if (props.showResources === ShowResources.UNSPECIFIED) {
+            return { startKey: '', agents: [] };
+          }
           const response = await retryWithRelogin(
             appContext,
             props.clusterUri,
@@ -258,7 +262,6 @@ const Resources = memo(
           return {
             startKey: response.nextKey,
             agents: response.resources,
-            totalCount: response.resources.length,
           };
         },
         [
