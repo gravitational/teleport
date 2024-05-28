@@ -76,8 +76,22 @@ func NewInstanceMetadataClient(ctx context.Context) (*InstanceMetadataClient, er
 
 // IsAvailable checks if instance metadata is available.
 func (client *InstanceMetadataClient) IsAvailable(ctx context.Context) bool {
-	instanceData, err := client.getMetadata(ctx, "instance")
-	return err == nil && instanceData != ""
+	id, err := client.getNumericID(ctx)
+	return err == nil && id != 0
+}
+
+func (client *InstanceMetadataClient) getNumericID(ctx context.Context) (uint64, error) {
+	idStr, err := client.GetID(ctx)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil {
+		// Shouldn't ever happen on GCP, but at least one other cloud provider (Yandex)
+		// implements this metadata API and doesn't have numeric IDs.
+		return 0, trace.Wrap(err)
+	}
+	return id, nil
 }
 
 // GetTags gets all of the GCP instance's labels (note: these are separate from
@@ -96,11 +110,7 @@ func (client *InstanceMetadataClient) GetTags(ctx context.Context) (map[string]s
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	idStr, err := client.GetID(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	id, err := strconv.ParseUint(idStr, 10, 64)
+	id, err := client.getNumericID(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
