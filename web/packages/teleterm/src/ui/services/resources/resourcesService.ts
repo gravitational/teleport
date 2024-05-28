@@ -126,7 +126,7 @@ export class ResourcesService {
         limit,
         search,
         query: '',
-        searchAsRoles: includeRequestable,
+        searchAsRoles: false,
         pinnedOnly: false,
         startKey: '',
         sortBy: { field: 'name', isDesc: true },
