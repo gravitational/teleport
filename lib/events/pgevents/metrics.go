@@ -1,0 +1,90 @@
+/*
+ * Teleport
+ * Copyright (C) 2024  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package pgevents
+
+import "github.com/prometheus/client_golang/prometheus"
+
+var (
+	statusLabel   = "status"
+	successLabels = map[string]string{statusLabel: "success"}
+	failureLabels = map[string]string{statusLabel: "failure"}
+	labels        = []string{statusLabel}
+
+	writeRequests = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "postgres_events_backend_write_requests",
+			Help: "Number of write requests to postgres events",
+		},
+		labels,
+	)
+	batchReadRequests = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "postgres_events_backend_batch_read_requests",
+			Help: "Number of batch read requests to postgres events",
+		},
+		labels,
+	)
+	cleanupRequests = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "postgres_events_backend_cleanup_requests",
+			Help: "Number of cleanup requests to postgres events",
+		},
+		labels,
+	)
+	writeLatencies = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Name: "postgres_events_backend_write_seconds",
+			Help: "Latency for postgres events write operations",
+			// lowest bucket start of upper bound 0.001 sec (1 ms) with factor 2
+			// highest bucket start of 0.001 sec * 2^15 == 32.768 sec
+			Buckets: prometheus.ExponentialBuckets(0.001, 2, 16),
+		},
+	)
+	batchReadLatencies = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Name: "postgres_events_backend_batch_read_seconds",
+			Help: "Latency for postgres events batch read operations",
+			// lowest bucket start of upper bound 0.001 sec (1 ms) with factor 2
+			// highest bucket start of 0.001 sec * 2^15 == 32.768 sec
+			Buckets: prometheus.ExponentialBuckets(0.001, 2, 16),
+		},
+	)
+	cleanupLatencies = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Name: "postgres_events_backend_cleanup_seconds",
+			Help: "Latency for postgres events cleanup operations",
+			// lowest bucket start of upper bound 0.001 sec (1 ms) with factor 2
+			// highest bucket start of 0.001 sec * 2^15 == 32.768 sec
+			Buckets: prometheus.ExponentialBuckets(0.001, 2, 18),
+		},
+	)
+
+	writeRequestsSuccess     = writeRequests.With(successLabels)
+	writeRequestsFailure     = writeRequests.With(failureLabels)
+	batchReadRequestsSuccess = batchReadRequests.With(successLabels)
+	batchReadRequestsFailure = batchReadRequests.With(failureLabels)
+	cleanupRequestsSuccess   = cleanupRequests.With(successLabels)
+	cleanupRequestsFailure   = cleanupRequests.With(failureLabels)
+
+	prometheusCollectors = []prometheus.Collector{
+		writeRequests, batchReadRequests, cleanupRequests,
+		writeLatencies, batchReadLatencies, cleanupLatencies,
+	}
+)
+
