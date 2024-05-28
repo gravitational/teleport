@@ -284,6 +284,8 @@ To retrieve known information about agent upgrades, the `status` subcommand will
 ### Downgrades
 
 Downgrades may be necessary in cases where we have rolled out a bug or security vulnerability with critical impact.
+To initiate a downgrade, `agent_version` is set to an older version than it was previously set to.
+
 Downgrades are challenging, because `sqlite.db` used by newer version of Teleport may not be valid for older versions of Teleport.
 
 When Teleport is downgraded to a previous version that has a backup of `sqlite.db` present in `/var/lib/teleport/versions/OLD-VERSION/backup/`:
@@ -291,10 +293,12 @@ When Teleport is downgraded to a previous version that has a backup of `sqlite.d
 2. If the backup is valid, Teleport is fully stopped, the backup is restored along with symlinks, and the downgraded version of Teleport is started.
 3. If the backup is invalid, we refuse to downgrade.
 
-Downgrades are still applied with `teleport-updater update`.
+Downgrades are applied with `teleport-updater update`, just like upgrades.
 The above steps modulate the standard workflow in the section above.
 
-Downgrades lead to downtime, as Teleport must be fully-stopped to safely replace `sqlite.db`.
+Teleport must be fully-stopped to safely replace `sqlite.db`.
+When restarting the agent during an upgrade, `SIGHUP` is used.
+When restarting the agent during a downgrade, `systemd stop/start` are used before/after the downgrade.
 
 Teleport CA certificate rotations will break rollbacks.
 This may be addressed in the future by additional validation of the agent's client certificate issuer fingerprints.
