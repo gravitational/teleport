@@ -2946,7 +2946,7 @@ func (rc *ResourceCommand) createSecurityReport(ctx context.Context, client *aut
 	return nil
 }
 
-func (rc *ResourceCommand) createAccessMonitoringRule(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
+func (rc *ResourceCommand) createAccessMonitoringRule(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	in, err := services.UnmarshalAccessMonitoringRule(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -2968,7 +2968,7 @@ func (rc *ResourceCommand) createAccessMonitoringRule(ctx context.Context, clien
 	return nil
 }
 
-func (rc *ResourceCommand) updateAccessMonitoringRule(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
+func (rc *ResourceCommand) updateAccessMonitoringRule(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	in, err := services.UnmarshalAccessMonitoringRule(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
