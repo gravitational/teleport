@@ -326,6 +326,8 @@ func (u *UploadCompleter) ensureSessionEndEvent(ctx context.Context, uploadData 
 	// for both Desktop and SSH sessions, where as the GetSessionEvents API relies on downloading
 	// a copy of the session and using the SSH-specific index to iterate through events.
 	var lastEvent events.AuditEvent
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	evts, errors := u.cfg.AuditLog.StreamSessionEvents(ctx, uploadData.SessionID, 0)
 
 loop:
