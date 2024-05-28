@@ -114,7 +114,7 @@ export const APPLICATIONS: ResourceSpec[] = [
     kind: ResourceKind.Application,
     keywords: 'application aws cli console access',
     icon: 'Aws',
-    event: DiscoverEventResource.ApplicationHttp,
+    event: DiscoverEventResource.ApplicationAwsConsole,
     appMeta: { awsConsole: true },
   },
 ];
