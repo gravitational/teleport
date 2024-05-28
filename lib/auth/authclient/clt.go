@@ -1661,7 +1661,7 @@ type ClientI interface {
 	// "not implemented" errors (as per the default gRPC behavior).
 	ClusterConfigClient() clusterconfigpb.ClusterConfigServiceClient
 
-	// VnetConfigServiceClietn returns a VnetConfig service client.
+	// VnetConfigServiceClient returns a VnetConfig service client.
 	// Clients connecting to older Teleport versions still get a client when calling this method, but all RPCs
 	// will return "not implemented" errors (as per the default gRPC behavior).
 	VnetConfigServiceClient() vnet.VnetConfigServiceClient
