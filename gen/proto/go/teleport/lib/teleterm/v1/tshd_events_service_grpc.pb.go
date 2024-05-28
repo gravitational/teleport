@@ -41,6 +41,7 @@ const (
 	TshdEventsService_SendPendingHeadlessAuthentication_FullMethodName = "/teleport.lib.teleterm.v1.TshdEventsService/SendPendingHeadlessAuthentication"
 	TshdEventsService_PromptMFA_FullMethodName                         = "/teleport.lib.teleterm.v1.TshdEventsService/PromptMFA"
 	TshdEventsService_GetUsageReportingSettings_FullMethodName         = "/teleport.lib.teleterm.v1.TshdEventsService/GetUsageReportingSettings"
+	TshdEventsService_ReportUnexpectedVnetShutdown_FullMethodName      = "/teleport.lib.teleterm.v1.TshdEventsService/ReportUnexpectedVnetShutdown"
 )
 
 // TshdEventsServiceClient is the client API for TshdEventsService service.
@@ -67,6 +68,10 @@ type TshdEventsServiceClient interface {
 	// with the only exception being the first start of the app when they're prompted about telemetry.
 	// Hence why this is an RPC and not information passed over argv to tsh daemon.
 	GetUsageReportingSettings(ctx context.Context, in *GetUsageReportingSettingsRequest, opts ...grpc.CallOption) (*GetUsageReportingSettingsResponse, error)
+	// ReportUnexpectedVnetShutdown is sent by tsh daemon when VNet exits outside of the
+	// request-response cycle of Start and Stop RPCs of VnetService. The Electron app is then able to
+	// update the state of VNet in the UI.
+	ReportUnexpectedVnetShutdown(ctx context.Context, in *ReportUnexpectedVnetShutdownRequest, opts ...grpc.CallOption) (*ReportUnexpectedVnetShutdownResponse, error)
 }
 
 type tshdEventsServiceClient struct {
@@ -122,6 +127,15 @@ func (c *tshdEventsServiceClient) GetUsageReportingSettings(ctx context.Context,
 	return out, nil
 }
 
+func (c *tshdEventsServiceClient) ReportUnexpectedVnetShutdown(ctx context.Context, in *ReportUnexpectedVnetShutdownRequest, opts ...grpc.CallOption) (*ReportUnexpectedVnetShutdownResponse, error) {
+	out := new(ReportUnexpectedVnetShutdownResponse)
+	err := c.cc.Invoke(ctx, TshdEventsService_ReportUnexpectedVnetShutdown_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TshdEventsServiceServer is the server API for TshdEventsService service.
 // All implementations must embed UnimplementedTshdEventsServiceServer
 // for forward compatibility
@@ -146,6 +160,10 @@ type TshdEventsServiceServer interface {
 	// with the only exception being the first start of the app when they're prompted about telemetry.
 	// Hence why this is an RPC and not information passed over argv to tsh daemon.
 	GetUsageReportingSettings(context.Context, *GetUsageReportingSettingsRequest) (*GetUsageReportingSettingsResponse, error)
+	// ReportUnexpectedVnetShutdown is sent by tsh daemon when VNet exits outside of the
+	// request-response cycle of Start and Stop RPCs of VnetService. The Electron app is then able to
+	// update the state of VNet in the UI.
+	ReportUnexpectedVnetShutdown(context.Context, *ReportUnexpectedVnetShutdownRequest) (*ReportUnexpectedVnetShutdownResponse, error)
 	mustEmbedUnimplementedTshdEventsServiceServer()
 }
 
@@ -167,6 +185,9 @@ func (UnimplementedTshdEventsServiceServer) PromptMFA(context.Context, *PromptMF
 }
 func (UnimplementedTshdEventsServiceServer) GetUsageReportingSettings(context.Context, *GetUsageReportingSettingsRequest) (*GetUsageReportingSettingsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetUsageReportingSettings not implemented")
+}
+func (UnimplementedTshdEventsServiceServer) ReportUnexpectedVnetShutdown(context.Context, *ReportUnexpectedVnetShutdownRequest) (*ReportUnexpectedVnetShutdownResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ReportUnexpectedVnetShutdown not implemented")
 }
 func (UnimplementedTshdEventsServiceServer) mustEmbedUnimplementedTshdEventsServiceServer() {}
 
@@ -271,6 +292,24 @@ func _TshdEventsService_GetUsageReportingSettings_Handler(srv interface{}, ctx c
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TshdEventsService_ReportUnexpectedVnetShutdown_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReportUnexpectedVnetShutdownRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TshdEventsServiceServer).ReportUnexpectedVnetShutdown(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TshdEventsService_ReportUnexpectedVnetShutdown_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TshdEventsServiceServer).ReportUnexpectedVnetShutdown(ctx, req.(*ReportUnexpectedVnetShutdownRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TshdEventsService_ServiceDesc is the grpc.ServiceDesc for TshdEventsService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -297,6 +336,10 @@ var TshdEventsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetUsageReportingSettings",
 			Handler:    _TshdEventsService_GetUsageReportingSettings_Handler,
+		},
+		{
+			MethodName: "ReportUnexpectedVnetShutdown",
+			Handler:    _TshdEventsService_ReportUnexpectedVnetShutdown_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
