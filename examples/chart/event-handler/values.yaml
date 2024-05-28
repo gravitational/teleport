@@ -14,6 +14,12 @@ eventHandler:
   storagePath: "/var/lib/teleport/plugins/event-handler/storage"
   timeout: "10s"
   batch: 20
+  # The window size configures the duration of the time window for the event handler
+  # to request events from Teleport. By default, this is set to 24 hours.
+  # Reduce the window size if the events backend cannot manage the event volume 
+  # for the default window size.
+  # The window size should be specified as a duration string, parsed by Go's time.ParseDuration.
+  windowSize: "24h"
 
 fluentd:
   url: ""

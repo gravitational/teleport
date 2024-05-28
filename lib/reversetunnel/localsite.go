@@ -772,7 +772,7 @@ func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-ch
 
 			log := logger
 			if roundtrip != 0 {
-				log = logger.WithField("latency", roundtrip)
+				log = logger.WithField("latency", roundtrip.String())
 			}
 			log.Debugf("Ping <- %v", rconn.conn.RemoteAddr())
 

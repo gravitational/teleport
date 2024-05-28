@@ -47,7 +47,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
-	lemma_secret "github.com/mailgun/lemma/secret"
 	"github.com/sashabaranov/go-openai"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
@@ -97,16 +96,23 @@ import (
 	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/app"
 	websession "github.com/gravitational/teleport/lib/web/session"
+	"github.com/gravitational/teleport/lib/web/terminal"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
 const (
 	// SSOLoginFailureMessage is a generic error message to avoid disclosing sensitive SSO failure messages.
 	SSOLoginFailureMessage = "Failed to login. Please check Teleport's log for more details."
+
+	// SSOLoginFailureInvalidRedirect is a slightly specific error message for
+	// SSO failures related to the use of an invalid or disallowed login
+	// callback URL in tsh login.
+	SSOLoginFailureInvalidRedirect = "Failed to login due to a disallowed callback URL. Please check Teleport's log for more details."
 
 	// assistantTokensPerHour defines how many assistant rate limiter tokens are replenished every hour.
 	assistantTokensPerHour = 140
@@ -123,6 +129,10 @@ const (
 	// Example values:
 	// - github-actions-ssh: indicates that the resource was added via the Bot GitHub Actions SSH flow
 	webUIFlowLabelKey = "teleport.internal/ui-flow"
+	// IncludedResourceModeAll describes that only requestable resources should be returned.
+	IncludedResourceModeRequestable = "requestable"
+	// IncludedResourceModeAll describes that all resources, requestable and available, should be returned.
+	IncludedResourceModeAll = "all"
 )
 
 // healthCheckAppServerFunc defines a function used to perform a health check
@@ -174,6 +184,10 @@ type Handler struct {
 	// an authenticated websocket so unauthenticated sockets dont get left
 	// open.
 	wsIODeadline time.Duration
+
+	// withheldMessages is a list of any messages that came from the browser which were
+	// withheld while the user was performing MFA.
+	withheldMessages []tdp.Message
 }
 
 // HandlerOption is a functional argument - an option that can be passed
@@ -515,7 +529,6 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		}
 
 		h.Handle("GET", "/robots.txt", httplib.MakeHandler(serveRobotsTxt))
-		h.Handle("GET", "/web/config.js", h.WithUnauthenticatedLimiter(h.getWebConfig))
 
 		etagFromAppHash, err := readEtagFromAppHash(cfg.StaticFS)
 		if err != nil {
@@ -524,6 +537,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 			etag = etagFromAppHash
 		}
 	}
+
+	// This endpoint is used both by Web UI and Connect.
+	h.Handle("GET", "/web/config.js", h.WithUnauthenticatedLimiter(h.getWebConfig))
 
 	if cfg.NodeWatcher != nil {
 		h.nodeWatcher = cfg.NodeWatcher
@@ -924,7 +940,10 @@ func (h *Handler) bindDefaultEndpoints() {
 	// SAML IDP integration endpoints
 	h.GET("/webapi/scripts/integrations/configure/gcp-workforce-saml.sh", h.WithLimiter(h.gcpWorkforceConfigScript))
 
-	// AWS OIDC Integration specific endpoints:
+	// Azure OIDC integration endpoints
+	h.GET("/webapi/scripts/integrations/configure/azureoidc.sh", h.WithLimiter(h.azureOIDCConfigure))
+
+	// OIDC Integration specific endpoints:
 	// Unauthenticated access to OpenID Configuration - used for AWS OIDC IdP integration
 	h.GET("/.well-known/openid-configuration", h.WithLimiter(h.openidConfiguration))
 	h.GET(OIDCJWKWURI, h.WithLimiter(h.jwksOIDC))
@@ -1833,6 +1852,9 @@ func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p h
 	})
 	if err != nil {
 		logger.WithError(err).Error("Failed to create GitHub auth request.")
+		if strings.Contains(err.Error(), auth.InvalidClientRedirectErrorMessage) {
+			return nil, trace.AccessDenied(SSOLoginFailureInvalidRedirect)
+		}
 		return nil, trace.AccessDenied(SSOLoginFailureMessage)
 	}
 
@@ -2000,61 +2022,26 @@ func ConstructSSHResponse(response AuthParams) (*url.URL, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// Extract secret out of the request. Look for both "secret" which is the
-	// old format and "secret_key" which is the new fomat. If this is not done,
-	// then users would have to update their callback URL in their identity
-	// provider.
-	values := u.Query()
-	secretV1 := values.Get("secret")
-	secretV2 := values.Get("secret_key")
-	values.Set("secret", "")
-	values.Set("secret_key", "")
+	// Extract secret out of the request.
+	secretKey := u.Query().Get("secret_key")
+	if secretKey == "" {
+		return nil, trace.BadParameter("missing secret_key")
+	}
 
 	var ciphertext []byte
 
-	switch {
 	// AES-GCM based symmetric cipher.
-	case secretV2 != "":
-		key, err := secret.ParseKey([]byte(secretV2))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		ciphertext, err = key.Seal(out)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	// NaCl based symmetric cipher (legacy).
-	case secretV1 != "":
-		// If FIPS mode was requested, make sure older clients that use NaCl get rejected.
-		if response.FIPS {
-			return nil, trace.BadParameter("non-FIPS compliant encryption: NaCl, check " +
-				"that tsh release was downloaded from a Teleport account https://teleport.sh")
-		}
-
-		secretKeyBytes, err := lemma_secret.EncodedStringToKey(secretV1)
-		if err != nil {
-			return nil, trace.BadParameter("bad secret")
-		}
-		encryptor, err := lemma_secret.New(&lemma_secret.Config{KeyBytes: secretKeyBytes})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		sealedBytes, err := encryptor.Seal(out)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		ciphertext, err = json.Marshal(sealedBytes)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	default:
-		return nil, trace.BadParameter("missing secret")
+	key, err := secret.ParseKey([]byte(secretKey))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ciphertext, err = key.Seal(out)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	// Place ciphertext into the response body.
-	values.Set("response", string(ciphertext))
-
-	u.RawQuery = values.Encode()
+	// Place ciphertext into the redirect URL.
+	u.RawQuery = url.Values{"response": {string(ciphertext)}}.Encode()
 	return u, nil
 }
 
@@ -2673,7 +2660,9 @@ func makeUnifiedResourceRequest(r *http.Request) (*proto.ListUnifiedResourcesReq
 	}
 
 	startKey := values.Get("startKey")
-	includeRequestable := values.Get("includeRequestable") == "true"
+	includeRequestable := values.Get("includedResourceMode") == IncludedResourceModeAll
+	useSearchAsRoles := values.Get("searchAsRoles") == "yes" || values.Get("includedResourceMode") == IncludedResourceModeRequestable
+
 	return &proto.ListUnifiedResourcesRequest{
 		Kinds:               kinds,
 		Limit:               limit,
@@ -2682,12 +2671,9 @@ func makeUnifiedResourceRequest(r *http.Request) (*proto.ListUnifiedResourcesReq
 		PinnedOnly:          values.Get("pinnedOnly") == "true",
 		PredicateExpression: values.Get("query"),
 		SearchKeywords:      client.ParseSearchKeywords(values.Get("search"), ' '),
-		// includeRequestable requires a searchAsRoles request, but we set it here instead of the frontend
-		// to protect the frontend from accidentally requesting a "SearchAsRoles" request to older proxy versions
-		// and then returning a bunch of resources that won't include "Requires Request" flags.
-		UseSearchAsRoles:   values.Get("searchAsRoles") == "yes" || includeRequestable,
-		IncludeLogins:      true,
-		IncludeRequestable: includeRequestable,
+		UseSearchAsRoles:    useSearchAsRoles,
+		IncludeLogins:       true,
+		IncludeRequestable:  includeRequestable,
 	}, nil
 }
 
@@ -4130,7 +4116,7 @@ func (h *Handler) writeErrToWebSocket(ws *websocket.Conn, err error) {
 	if err == nil {
 		return
 	}
-	errEnvelope := Envelope{
+	errEnvelope := terminal.Envelope{
 		Type:    defaults.WebsocketError,
 		Payload: trace.UserMessage(err),
 	}

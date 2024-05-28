@@ -209,6 +209,12 @@ export interface DialogReAuthenticate {
   onCancel(): void;
 }
 
+export interface DialogChangeAccessRequestKind {
+  kind: 'change-access-request-kind';
+  onConfirm(): void;
+  onCancel(): void;
+}
+
 export type Dialog =
   | DialogClusterConnect
   | DialogClusterLogout
@@ -219,4 +225,5 @@ export type Dialog =
   | DialogResourceSearchErrors
   | DialogHeadlessAuthentication
   | DialogReAuthenticate
+  | DialogChangeAccessRequestKind
   | DialogNone;

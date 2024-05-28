@@ -18,6 +18,7 @@
 
 import { generatePath } from 'react-router';
 import { mergeDeep } from 'shared/utils/highbar';
+import { IncludedResourceMode } from 'shared/components/UnifiedResources';
 
 import generateResourcePath from './generateResourcePath';
 
@@ -209,7 +210,7 @@ const cfg = {
     passwordTokenPath: '/v1/webapi/users/password/token/:tokenId?',
     changeUserPasswordPath: '/v1/webapi/users/password',
     unifiedResourcesPath:
-      '/v1/webapi/sites/:clusterId/resources?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&kinds=:kinds?&query=:query?&search=:search?&sort=:sort?&pinnedOnly=:pinnedOnly?&includeRequestable=:includeRequestable?',
+      '/v1/webapi/sites/:clusterId/resources?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&kinds=:kinds?&query=:query?&search=:search?&sort=:sort?&pinnedOnly=:pinnedOnly?&includedResourceMode=:includedResourceMode?',
     nodesPath:
       '/v1/webapi/sites/:clusterId/nodes?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
     nodesPathNoParams: '/v1/webapi/sites/:clusterId/nodes',
@@ -312,6 +313,11 @@ const cfg = {
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/deployservice',
     awsSecurityGroupsListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/securitygroups',
+
+    awsAppAccessPath:
+      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/aws-app-access',
+    awsConfigureIamAppAccessPath:
+      '/v1/webapi/scripts/integrations/configure/aws-app-access-iam.sh?role=:iamRoleName',
 
     eksClustersListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/eksclusters',
@@ -899,6 +905,15 @@ const cfg = {
     });
   },
 
+  getAwsAppAccessUrl(integrationName: string) {
+    const clusterId = cfg.proxyCluster;
+
+    return generatePath(cfg.api.awsAppAccessPath, {
+      clusterId,
+      name: integrationName,
+    });
+  },
+
   getUserGroupsListUrl(clusterId: string, params: UrlResourcesParams) {
     return generateResourcePath(cfg.api.userGroupsListPath, {
       clusterId,
@@ -1063,6 +1078,17 @@ const cfg = {
     );
   },
 
+  getAwsIamConfigureScriptAppAccessUrl(
+    params: Omit<UrlAwsConfigureIamScriptParams, 'region'>
+  ) {
+    return (
+      cfg.baseUrl +
+      generatePath(cfg.api.awsConfigureIamAppAccessPath, {
+        ...params,
+      })
+    );
+  },
+
   getAwsConfigureIamScriptListDatabasesUrl(
     params: UrlAwsConfigureIamScriptParams
   ) {
@@ -1198,7 +1224,7 @@ export interface UrlResourcesParams {
   startKey?: string;
   searchAsRoles?: 'yes' | '';
   pinnedOnly?: boolean;
-  includeRequestable?: boolean;
+  includedResourceMode?: IncludedResourceMode;
   // TODO(bl-nero): Remove this once filters are expressed as advanced search.
   kinds?: string[];
 }
