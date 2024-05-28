@@ -71,12 +71,14 @@ describe('NotificationRoutingRulesDialog', () => {
     );
   }
 
-  test('fetched rules are listed', async () => {
+  test('fetched rules and plugins are listed', async () => {
     render(<Component />);
     waitForAllAsyncCalls();
 
     await screen.findAllByText(/plugin-name/i);
     expect(screen.getAllByText(/plugin-name/i)).toHaveLength(2);
+    expect(screen.getAllByText(/view/i)).toHaveLength(2); // plugins don't have view buttons
+    expect(screen.getAllByText(/fallback slack/i)).toHaveLength(2);
   });
 
   test('no plugins should render info to add a plugin first', async () => {

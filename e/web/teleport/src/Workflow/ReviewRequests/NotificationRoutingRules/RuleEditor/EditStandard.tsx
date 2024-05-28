@@ -18,8 +18,11 @@ import { requiredField } from 'shared/components/Validation/rules';
 import { AccessMonitoringRuleWithYaml } from 'e-teleport/services/accessmonitoringrule/types';
 import { accessMonitoringRuleService } from 'e-teleport/services/accessmonitoringrule';
 
-import { EditorSaveCancelButton, EditorWrapper } from './Shared';
-
+import {
+  EditorSaveCancelButton,
+  EditorWrapper,
+  getDefaultPluginNotificationMessage,
+} from './Shared';
 import {
   AccessRequestMatchCondition,
   AccessRequestMatchConditionOption,
@@ -240,6 +243,10 @@ export const EditStandard = ({
                   }
                 />
               </Box>
+              {standardEditor.pluginOption?.value &&
+                getDefaultPluginNotificationMessage(
+                  standardEditor.pluginOption.value
+                )}
             </Box>
           </EditorWrapper>
           <EditorSaveCancelButton
@@ -300,11 +307,13 @@ const SelectCreateRoles = ({
 
 function getRecipientToolTipInfo(pluginName: string) {
   const lowerCasedName = pluginName.toLowerCase();
-  if (
-    lowerCasedName.includes('slack') ||
-    lowerCasedName.includes('mattermost')
-  ) {
-    return 'Recipients can be emails and channel names';
+  if (lowerCasedName.includes('slack')) {
+    return 'Recipients can be emails and channel names. \
+    For any channels you define, you will need to /invite the integration \
+    to those channels.';
+  }
+  if (lowerCasedName.includes('opsgenie')) {
+    return 'Recipients can be schedule names that will receive the alerts';
   }
   return '';
 }

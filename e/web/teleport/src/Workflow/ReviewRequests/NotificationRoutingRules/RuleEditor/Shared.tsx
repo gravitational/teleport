@@ -1,5 +1,5 @@
 import styled from 'styled-components';
-import { Box, ButtonPrimary, ButtonSecondary, Flex } from 'design';
+import { Box, ButtonPrimary, ButtonSecondary, Flex, Text } from 'design';
 import { HoverTooltip } from 'shared/components/ToolTip';
 import useTeleport from 'teleport/useTeleport';
 
@@ -60,3 +60,12 @@ export const EditorWrapper = styled(Box)`
   opacity: ${p => (p.mute ? 0.4 : 1)};
   pointer-events: ${p => (p.mute ? 'none' : '')};
 `;
+
+export function getDefaultPluginNotificationMessage(pluginName = '') {
+  return (
+    <Text typography="body2" mb={2}>
+      Note: Fallback notification rule {pluginName ? `(${pluginName}) ` : ''}
+      will be used if an access request does not match the condition.
+    </Text>
+  );
+}

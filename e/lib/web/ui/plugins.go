@@ -48,6 +48,35 @@ func (*OktaPluginSpec) PluginSpecType() types.PluginType {
 	return types.PluginTypeOkta
 }
 
+type SlackPluginSpec struct {
+	FallbackChannel string `json:"fallbackChannel,omitempty"`
+}
+
+// PluginSpecType implements PluginSpec for SlackPluginSpec
+func (*SlackPluginSpec) PluginSpecType() types.PluginType {
+	return types.PluginTypeSlack
+}
+
+type MattermostPluginSpec struct {
+	Channel       string `json:"channel,omitempty"`
+	Team          string `json:"team,omitempty"`
+	ReportToEmail string `json:"reportToEmail,omitempty"`
+}
+
+// PluginSpecType implements PluginSpec for MattermostPluginSpec
+func (*MattermostPluginSpec) PluginSpecType() types.PluginType {
+	return types.PluginTypeMattermost
+}
+
+type OpsgeniePluginSpec struct {
+	DefaultSchedules []string `json:"defaultSchedules,omitempty"`
+}
+
+// PluginSpecType implements PluginSpec for OpsgeniePluginSpec
+func (*OpsgeniePluginSpec) PluginSpecType() types.PluginType {
+	return types.PluginTypeOpsgenie
+}
+
 // Plugin holds a UI-visible representation of a hosted plugin instance
 type Plugin struct {
 	// Name of the plugin
@@ -109,6 +138,7 @@ func NewPlugin(p types.Plugin) (*Plugin, error) {
 		Type:       p.GetType(),
 		Details:    pluginDetails(p),
 		StatusCode: statusCode,
+		Spec:       pluginSpec(p),
 	}, nil
 }
 
@@ -160,6 +190,34 @@ func pluginDetails(p types.Plugin) string {
 		return fmt.Sprintf(`Gitlab users, projects and groups will be imported from %q`, settings.Gitlab.ApiEndpoint)
 	default:
 		return ""
+	}
+}
+
+func pluginSpec(p types.Plugin) PluginSpec {
+	v1, ok := p.(*types.PluginV1)
+	if !ok {
+		return nil
+	}
+	switch settings := v1.Spec.Settings.(type) {
+	case *types.PluginSpecV1_SlackAccessPlugin:
+		return &SlackPluginSpec{
+			FallbackChannel: settings.SlackAccessPlugin.FallbackChannel,
+		}
+
+	case *types.PluginSpecV1_Mattermost:
+		return &MattermostPluginSpec{
+			Channel:       settings.Mattermost.Channel,
+			Team:          settings.Mattermost.Team,
+			ReportToEmail: settings.Mattermost.ReportToEmail,
+		}
+
+	case *types.PluginSpecV1_Opsgenie:
+		return &OpsgeniePluginSpec{
+			DefaultSchedules: settings.Opsgenie.DefaultSchedules,
+		}
+
+	default:
+		return nil
 	}
 }
 

@@ -7,7 +7,10 @@ import TextEditor from 'shared/components/TextEditor';
 import { accessMonitoringRuleService } from 'e-teleport/services/accessmonitoringrule';
 import { AccessMonitoringRuleWithYaml } from 'e-teleport/services/accessmonitoringrule/types';
 
-import { EditorSaveCancelButton } from './Shared';
+import {
+  EditorSaveCancelButton,
+  getDefaultPluginNotificationMessage,
+} from './Shared';
 import { YamlEditor } from './yamleditor';
 
 export const EditYaml = ({
@@ -70,6 +73,7 @@ export const EditYaml = ({
           onChange={handleSetYaml}
         />
       </Flex>
+      {getDefaultPluginNotificationMessage()}
       <EditorSaveCancelButton
         onSave={onSave}
         onCancel={onCancel}

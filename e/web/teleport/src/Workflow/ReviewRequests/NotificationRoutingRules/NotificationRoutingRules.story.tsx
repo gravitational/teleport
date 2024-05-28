@@ -35,7 +35,7 @@ const validRuleObject = {
     subjects: ['access_request'],
     condition: 'contains_any(access_request.spec.roles, set("access"))',
     notification: {
-      name: 'plugin-name',
+      name: 'slack-plugin',
       recipients: ['apple', 'banana', 'carrot'],
     },
   },
@@ -72,18 +72,39 @@ const withPlugins = rest.get(cfg.getPluginUrl(), (req, res, ctx) =>
   res(
     ctx.json([
       {
-        name: 'slack-plugin1',
+        name: 'slack-plugin',
         details: '',
         statusCode: '',
         type: 'slack',
-        spec: {},
+        spec: { fallbackChannel: 'some-fallback-channel' },
       },
       {
-        name: 'slack-plugin2',
+        name: 'mattermost-plugin',
         details: '',
         statusCode: '',
-        type: 'slack',
-        spec: {},
+        type: 'mattermost',
+        spec: { channel: 'some-channel', reportToEmail: 'foo@example.com' },
+      },
+      {
+        name: 'mattermost-plugin-with-only-channel',
+        details: '',
+        statusCode: '',
+        type: 'mattermost',
+        spec: { channel: 'some-channel' },
+      },
+      {
+        name: 'mattermost-plugin-with-only-email',
+        details: '',
+        statusCode: '',
+        type: 'mattermost',
+        spec: { reportToEmail: 'foo@example.com' },
+      },
+      {
+        name: 'opgsgenie',
+        details: '',
+        statusCode: '',
+        type: 'opsgenie',
+        spec: { defaultSchedules: ['schedule1', 'schedule2', 'schedule3'] },
       },
     ])
   )

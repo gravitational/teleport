@@ -15,8 +15,8 @@ export function RequiresEnrollingPlugin() {
       `}
     >
       <Text>
-        Access Request Notification Rules are only supported for Slack and
-        Mattermost. More integration support coming soon. Check out our{' '}
+        Access Request Notification Rules are only supported for Slack. Support
+        for more integrations is coming soon. Check out our{' '}
         <ExternalLink
           href="https://goteleport.com/docs/upcoming-releases/"
           target="_blank"

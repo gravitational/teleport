@@ -94,12 +94,10 @@ export const NotificationRoutingRulesDialog = ({
 
   function fetchPlugins() {
     // TODO(lisa): extend as backend support for more plugins
-    // is added. Currently only supports slack and mattermost.
+    // is added. Currently only supports slack.
     pluginRun(() =>
       pluginsService.fetchPlugins().then(resp => {
-        const filteredPlugins = resp.filter(
-          r => r.kind === 'mattermost' || r.kind === 'slack'
-        );
+        const filteredPlugins = resp.filter(r => r.kind === 'slack');
         setPlugins(filteredPlugins);
       })
     );
@@ -216,6 +214,7 @@ export const NotificationRoutingRulesDialog = ({
               rules={rules}
               viewingRule={viewingRule?.object}
               toggleViewingRule={toggleViewingRule}
+              plugins={plugins}
             />
           )}
           {(fetchRulesAttempt.status === 'processing' ||
