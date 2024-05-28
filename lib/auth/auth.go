@@ -7024,6 +7024,7 @@ func DefaultDNSNamesForRole(role types.SystemRole) []string {
 		types.RoleDatabase,
 		types.RoleWindowsDesktop,
 		types.RoleOkta,
+		types.RoleAWSIdentityCenter,
 	) {
 		return []string{
 			"*." + constants.APIDomain,

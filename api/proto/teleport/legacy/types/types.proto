@@ -5807,6 +5807,9 @@ message PluginSpecV1 {
     PluginEntraIDSettings entra_id = 13;
     // Settings for the SCIM plugin
     PluginSCIMSettings scim = 14;
+
+    // Placeholder for a real service
+    PluginAWSICSettings aws_iam_ic = 99;
   }
 
   // generation contains a unique ID that should:
@@ -6050,6 +6053,24 @@ message PluginSCIMSettings {
   // DefaultRole is the default role assigned to users provisioned by this
   // plugin.
   string default_role = 2;
+}
+
+// PluginAWSICSettings is a placeholder for the AWS IC settings. Only using at
+// the plugin framework here as its an easy way to spike out a service guaranteed
+// to run on Auth.
+message PluginAWSICSettings {
+  option (gogoproto.equal) = true;
+
+  // IntegrationId is the OIDC integration used to gain access to the
+  // AWS account
+  string integration_id = 1;
+
+  // InstanceRegion is the region the target Identity Center instance is
+  // configured in
+  string instance_region = 2;
+
+  // InstanceARN is the arn of the Identity Center instance to manage
+  string instance_arn = 3;
 }
 
 message PluginBootstrapCredentialsV1 {

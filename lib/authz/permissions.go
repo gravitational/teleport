@@ -39,6 +39,7 @@ import (
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/common"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -1225,6 +1226,49 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 				},
 			})
 
+	case types.RoleAWSIdentityCenter:
+		return services.RoleFromSpec(
+			role.String(),
+			types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					Namespaces:  []string{types.Wildcard},
+					AppLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+					GroupLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+					Rules: []types.Rule{
+						types.NewRule(types.KindIntegration, services.RO()),
+						types.NewRule(types.KindClusterName, services.RO()),
+						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
+						types.NewRule(types.KindSemaphore, services.RW()),
+						types.NewRule(types.KindEvent, services.RW()),
+						types.NewRule(types.KindAppServer, services.RW()),
+						types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
+						types.NewRule(types.KindUser, services.RW()),
+						types.NewRule(types.KindUserGroup, services.RW()),
+						types.NewRule(types.KindProxy, services.RO()),
+						types.NewRule(types.KindClusterAuthPreference, services.RO()),
+						types.NewRule(types.KindRole, services.RO()),
+						types.NewRule(types.KindLock, services.RW()),
+						types.NewRule(types.KindSAML, services.ReadNoSecrets()),
+						// AWS can manage access lists and roles it creates.
+						{
+							Resources: []string{types.KindRole},
+							Verbs:     services.RW(),
+							Where: builder.Equals(
+								builder.Identifier(`resource.metadata.labels["`+types.OriginLabel+`"]`),
+								builder.String(common.OriginAWSIdentityCenter),
+							).String(),
+						},
+						{
+							Resources: []string{types.KindAccessList},
+							Verbs:     services.RW(),
+							Where: builder.Equals(
+								builder.Identifier(`resource.metadata.labels["`+types.OriginLabel+`"]`),
+								builder.String(common.OriginAWSIdentityCenter),
+							).String(),
+						},
+					},
+				},
+			})
 	}
 
 	return nil, trace.NotFound("builtin role %q is not recognized", role.String())

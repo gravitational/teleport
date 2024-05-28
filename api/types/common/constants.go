@@ -58,6 +58,8 @@ const (
 	// via a SCIM service
 	OriginSCIM = "scim"
 
+	OriginAWSIdentityCenter = "aws_iam_ic"
+
 	// OriginIntegrationAWSOIDC is an origin value indicating that the resource was
 	// created from the AWS OIDC Integration.
 	OriginIntegrationAWSOIDC = "integration_awsoidc"

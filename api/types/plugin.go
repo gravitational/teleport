@@ -19,6 +19,7 @@ package types
 import (
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/utils"
@@ -72,6 +73,8 @@ const (
 	PluginTypeEntraID = "entra-id"
 	// PluginTypeSCIM indicates a generic SCIM integration
 	PluginTypeSCIM = "scim"
+
+	PluginTypeAWSIC = "aws-iam-ic"
 )
 
 // PluginSubkind represents the type of the plugin, e.g., access request, MDM etc.
@@ -317,6 +320,15 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if err := settings.Scim.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
+	case *PluginSpecV1_AwsIamIc:
+		if settings.AwsIamIc == nil {
+			return trace.BadParameter("Must be used with AWS IC settings")
+		}
+
+		if err := settings.AwsIamIc.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err, "invalid AWS Identity Center plugin configuration")
+		}
+
 	default:
 		return nil
 	}
@@ -476,7 +488,8 @@ func (p *PluginV1) GetType() PluginType {
 		return PluginTypeEntraID
 	case *PluginSpecV1_Scim:
 		return PluginTypeSCIM
-
+	case *PluginSpecV1_AwsIamIc:
+		return PluginTypeAWSIC
 	default:
 		return PluginTypeUnknown
 	}
@@ -650,6 +663,17 @@ func (c *PluginSCIMSettings) CheckAndSetDefaults() error {
 		return trace.BadParameter("saml_connector_name must be set")
 	}
 
+	return nil
+}
+
+func (c *PluginAWSICSettings) CheckAndSetDefaults() error {
+	if c.InstanceArn == "" {
+		return trace.BadParameter("instance_arn ust be set")
+	}
+
+	if !arn.IsARN(c.InstanceArn) {
+		return trace.BadParameter("malformed instance_arn")
+	}
 	return nil
 }
 
