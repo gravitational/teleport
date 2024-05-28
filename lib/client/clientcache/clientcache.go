@@ -27,66 +27,90 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/teleterm/api/uri"
-	"github.com/gravitational/teleport/lib/teleterm/clusters"
 )
 
-// Cache stores clients keyed by cluster URI.
+// Cache stores clients keyed by profile name and leaf cluster name.
 // Safe for concurrent access.
 // Closes all clients and wipes the cache on Clear.
 type Cache struct {
 	cfg Config
-	mu  sync.Mutex
-	// clients keep mapping between cluster URI
-	// (both root and leaf) and cluster clients
-	clients map[uri.ResourceURI]*client.ClusterClient
-	// group prevents duplicate requests to create clients
-	// for a given cluster URI
+	mu  sync.RWMutex
+	// clients keeps a mapping from key (profile name and leaf cluster name) to cluster client.
+	clients map[key]*client.ClusterClient
+	// group prevents duplicate requests to create clients for a given cluster.
 	group singleflight.Group
 }
 
-type ResolveClusterFunc func(uri uri.ResourceURI) (*clusters.Cluster, *client.TeleportClient, error)
+// NewClientFunc is a function that will return a new [*client.TeleportClient] for a given profile and leaf
+// cluster. [leafClusterName] may be empty, in which case implementations should return a client for the root cluster.
+type NewClientFunc func(ctx context.Context, profileName, leafClusterName string) (*client.TeleportClient, error)
+
+// RetryWithReloginFunc is a function that should call [fn], and if it fails with an error that may be
+// resolved with a cluster relogin, attempts the relogin and calls [fn] again if the relogin is successful.
+type RetryWithReloginFunc func(ctx context.Context, tc *client.TeleportClient, fn func() error, opts ...client.RetryWithReloginOption) error
 
 // Config describes the client cache configuration.
 type Config struct {
-	ResolveClusterFunc ResolveClusterFunc
-	Log                logrus.FieldLogger
+	NewClientFunc        NewClientFunc
+	RetryWithReloginFunc RetryWithReloginFunc
+	Log                  logrus.FieldLogger
 }
 
-func (c *Config) checkAndSetDefaults() {
+func (c *Config) checkAndSetDefaults() error {
+	if c.NewClientFunc == nil {
+		return trace.BadParameter("NewClientFunc is required")
+	}
+	if c.RetryWithReloginFunc == nil {
+		return trace.BadParameter("RetryWithReloginFunc is required")
+	}
 	if c.Log == nil {
 		c.Log = logrus.WithField(teleport.ComponentKey, "clientcache")
 	}
+	return nil
+}
+
+type key struct {
+	profile     string
+	leafCluster string
+}
+
+func (k key) String() string {
+	if k.leafCluster != "" {
+		return k.profile + "/" + k.leafCluster
+	}
+	return k.profile
 }
 
 // New creates an instance of Cache.
-func New(c Config) *Cache {
-	c.checkAndSetDefaults()
+func New(c Config) (*Cache, error) {
+	if err := c.checkAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	return &Cache{
 		cfg:     c,
-		clients: make(map[uri.ResourceURI]*client.ClusterClient),
-	}
+		clients: make(map[key]*client.ClusterClient),
+	}, nil
 }
 
-// Get returns a client from the cache if there is one,
-// otherwise it dials the remote server.
+// Get returns a client from the cache if there is one, otherwise it dials the remote server.
 // The caller should not close the returned client.
-func (c *Cache) Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.ClusterClient, error) {
-	groupClt, err, _ := c.group.Do(clusterURI.String(), func() (any, error) {
-		if fromCache := c.getFromCache(clusterURI); fromCache != nil {
-			c.cfg.Log.WithField("cluster", clusterURI.String()).Info("Retrieved client from cache.")
+func (c *Cache) Get(ctx context.Context, profileName, leafClusterName string) (*client.ClusterClient, error) {
+	k := key{profile: profileName, leafCluster: leafClusterName}
+	groupClt, err, _ := c.group.Do(k.String(), func() (any, error) {
+		if fromCache := c.getFromCache(k); fromCache != nil {
+			c.cfg.Log.WithField("cluster", k).Debug("Retrieved client from cache.")
 			return fromCache, nil
 		}
 
-		_, clusterClient, err := c.cfg.ResolveClusterFunc(clusterURI)
+		tc, err := c.cfg.NewClientFunc(ctx, profileName, leafClusterName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 		var newClient *client.ClusterClient
-		if err := clusters.AddMetadataToRetryableError(ctx, func() error {
-			clt, err := clusterClient.ConnectToCluster(ctx)
+		if err := c.cfg.RetryWithReloginFunc(ctx, tc, func() error {
+			clt, err := tc.ConnectToCluster(ctx)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -96,12 +120,10 @@ func (c *Cache) Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.Cl
 			return nil, trace.Wrap(err)
 		}
 
-		// We'll save the client in the cache, so we don't have to
-		// build a new connection next time.
-		// All cached clients will be closed when the daemon exits.
-		c.addToCache(clusterURI, newClient)
+		// Save the client in the cache, so we don't have to build a new connection next time.
+		c.addToCache(k, newClient)
 
-		c.cfg.Log.WithField("cluster", clusterURI.String()).Info("Added client to cache.")
+		c.cfg.Log.WithField("cluster", k).Info("Added client to cache.")
 
 		return newClient, nil
 	})
@@ -117,30 +139,28 @@ func (c *Cache) Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.Cl
 	return clt, nil
 }
 
-// ClearForRoot closes and removes clients from the cache
-// for the root cluster and its leaf clusters.
-func (c *Cache) ClearForRoot(clusterURI uri.ResourceURI) error {
+// ClearForRoot closes and removes clients from the cache for the root cluster and its leaf clusters.
+func (c *Cache) ClearForRoot(profileName string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	rootClusterURI := clusterURI.GetRootClusterURI()
 	var (
 		errors  []error
 		deleted []string
 	)
 
-	for resourceURI, clt := range c.clients {
-		if resourceURI.GetRootClusterURI() == rootClusterURI {
+	for k, clt := range c.clients {
+		if k.profile == profileName {
 			if err := clt.Close(); err != nil {
 				errors = append(errors, err)
 			}
-			deleted = append(deleted, resourceURI.GetClusterURI().String())
-			delete(c.clients, resourceURI)
+			deleted = append(deleted, k.String())
+			delete(c.clients, k)
 		}
 	}
 
 	c.cfg.Log.WithFields(
-		logrus.Fields{"cluster": rootClusterURI.String(), "clients": deleted},
+		logrus.Fields{"cluster": profileName, "clients": deleted},
 	).Info("Invalidated cached clients for root cluster.")
 
 	return trace.NewAggregate(errors...)
@@ -163,18 +183,18 @@ func (c *Cache) Clear() error {
 	return trace.NewAggregate(errors...)
 }
 
-func (c *Cache) addToCache(clusterURI uri.ResourceURI, clusterClient *client.ClusterClient) {
+func (c *Cache) addToCache(k key, clusterClient *client.ClusterClient) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.clients[clusterURI] = clusterClient
+	c.clients[k] = clusterClient
 }
 
-func (c *Cache) getFromCache(clusterURI uri.ResourceURI) *client.ClusterClient {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+func (c *Cache) getFromCache(k key) *client.ClusterClient {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 
-	clt := c.clients[clusterURI]
+	clt := c.clients[k]
 	return clt
 }
 
@@ -183,24 +203,24 @@ func (c *Cache) getFromCache(clusterURI uri.ResourceURI) *client.ClusterClient {
 //
 // ClearForRoot and Clear still work as expected.
 type NoCache struct {
-	mu                 sync.Mutex
-	resolveClusterFunc ResolveClusterFunc
-	clients            []noCacheClient
+	mu            sync.Mutex
+	newClientFunc NewClientFunc
+	clients       []noCacheClient
 }
 
 type noCacheClient struct {
-	uri    uri.ResourceURI
+	k      key
 	client *client.ClusterClient
 }
 
-func NewNoCache(resolveClusterFunc ResolveClusterFunc) *NoCache {
+func NewNoCache(newClientFunc NewClientFunc) *NoCache {
 	return &NoCache{
-		resolveClusterFunc: resolveClusterFunc,
+		newClientFunc: newClientFunc,
 	}
 }
 
-func (c *NoCache) Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.ClusterClient, error) {
-	_, clusterClient, err := c.resolveClusterFunc(clusterURI)
+func (c *NoCache) Get(ctx context.Context, profileName, leafClusterName string) (*client.ClusterClient, error) {
+	clusterClient, err := c.newClientFunc(ctx, profileName, leafClusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -212,7 +232,7 @@ func (c *NoCache) Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.
 
 	c.mu.Lock()
 	c.clients = append(c.clients, noCacheClient{
-		uri:    clusterURI,
+		k:      key{profile: profileName, leafCluster: leafClusterName},
 		client: newClient,
 	})
 	c.mu.Unlock()
@@ -220,17 +240,16 @@ func (c *NoCache) Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.
 	return newClient, nil
 }
 
-func (c *NoCache) ClearForRoot(clusterURI uri.ResourceURI) error {
+func (c *NoCache) ClearForRoot(profileName string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	rootClusterURI := clusterURI.GetRootClusterURI()
 	var (
 		errors []error
 	)
 
 	c.clients = slices.DeleteFunc(c.clients, func(ncc noCacheClient) bool {
-		belongsToCluster := ncc.uri.GetRootClusterURI() == rootClusterURI
+		belongsToCluster := ncc.k.profile == profileName
 
 		if belongsToCluster {
 			if err := ncc.client.Close(); err != nil {

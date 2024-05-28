@@ -99,7 +99,7 @@ type LocalProxyMiddleware interface {
 	// OnNewConnection is a callback triggered when a new downstream connection is
 	// accepted by the local proxy. If an error is returned, the connection will be closed
 	// by the local proxy.
-	OnNewConnection(ctx context.Context, lp *LocalProxy, conn net.Conn) error
+	OnNewConnection(ctx context.Context, lp *LocalProxy) error
 	// OnStart is a callback triggered when the local proxy starts.
 	OnStart(ctx context.Context, lp *LocalProxy) error
 }
@@ -197,7 +197,7 @@ func (l *LocalProxy) start(ctx context.Context) error {
 		l.cfg.Log.Debug("Accepted downstream connection.")
 
 		if l.cfg.Middleware != nil {
-			if err := l.cfg.Middleware.OnNewConnection(ctx, l, conn); err != nil {
+			if err := l.cfg.Middleware.OnNewConnection(ctx, l); err != nil {
 				l.cfg.Log.WithError(err).Error("Middleware failed to handle client connection.")
 				if err := conn.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
 					l.cfg.Log.WithError(err).Debug("Failed to close client connection.")
@@ -232,19 +232,57 @@ func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamC
 		return trace.Wrap(err)
 	}
 
-	tlsConn, err := client.DialALPN(ctx, l.cfg.RemoteProxyAddr, l.getALPNDialerConfig(cert))
+	upstreamConn, err := dialALPNMaybePing(ctx, l.cfg.RemoteProxyAddr, l.getALPNDialerConfig(cert))
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer tlsConn.Close()
-
-	var upstreamConn net.Conn = tlsConn
-	if common.IsPingProtocol(common.Protocol(tlsConn.ConnectionState().NegotiatedProtocol)) {
-		l.cfg.Log.Debug("Using ping connection")
-		upstreamConn = pingconn.NewTLS(tlsConn)
-	}
+	defer upstreamConn.Close()
 
 	return trace.Wrap(utils.ProxyConn(ctx, downstreamConn, upstreamConn))
+}
+
+// HandleTCPConnector injects an inbound TCP connection (via [connector]) that doesn't come in through any
+// net.Listener. It is used by VNet to share the common local proxy code. [connector] should be called as late
+// as possible so that in case of error VNet clients get a failed TCP dial (with RST) rather than a successful
+// dial with an immediately closed connection.
+func (l *LocalProxy) HandleTCPConnector(ctx context.Context, connector func() (net.Conn, error)) error {
+	if l.cfg.Middleware != nil {
+		if err := l.cfg.Middleware.OnNewConnection(ctx, l); err != nil {
+			return trace.Wrap(err, "middleware failed to handle client connection")
+		}
+	}
+
+	cert, err := l.getCertWithoutConn()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	upstreamConn, err := dialALPNMaybePing(ctx, l.cfg.RemoteProxyAddr, l.getALPNDialerConfig(cert))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer upstreamConn.Close()
+
+	downstreamConn, err := connector()
+	if err != nil {
+		return trace.Wrap(err, "getting downstream conn")
+	}
+	defer downstreamConn.Close()
+
+	return trace.Wrap(utils.ProxyConn(ctx, downstreamConn, upstreamConn))
+}
+
+// dialALPNMaybePing is a helper to dial using an ALPNDialer, it wraps the tls conn in a ping conn if
+// necessary, and returns a net.Conn if successful.
+func dialALPNMaybePing(ctx context.Context, addr string, cfg client.ALPNDialerConfig) (net.Conn, error) {
+	tlsConn, err := client.DialALPN(ctx, addr, cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if common.IsPingProtocol(common.Protocol(tlsConn.ConnectionState().NegotiatedProtocol)) {
+		return pingconn.NewTLS(tlsConn), nil
+	}
+	return tlsConn, nil
 }
 
 func (l *LocalProxy) Close() error {
@@ -499,6 +537,13 @@ func (l *LocalProxy) getCertForConn(downstreamConn net.Conn) (tls.Certificate, n
 		return cert, conn, nil
 	}
 	return tls.Certificate{}, downstreamConn, nil
+}
+
+func (l *LocalProxy) getCertWithoutConn() (tls.Certificate, error) {
+	if l.cfg.CheckCertNeeded {
+		return tls.Certificate{}, trace.BadParameter("getCertWithoutConn called while CheckCertNeeded is true: this is a bug")
+	}
+	return l.getCert(), nil
 }
 
 func (l *LocalProxy) isPostgresProxy() bool {

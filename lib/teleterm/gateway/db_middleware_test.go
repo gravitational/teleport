@@ -125,7 +125,7 @@ func TestDBMiddleware_OnNewConnection(t *testing.T) {
 
 			localProxy.SetCert(tlsCert)
 
-			err = middleware.OnNewConnection(ctx, localProxy, nil /* net.Conn, not used by middleware */)
+			err = middleware.OnNewConnection(ctx, localProxy)
 			tt.expectation(t, err, hasCalledOnExpiredCert)
 		})
 	}
