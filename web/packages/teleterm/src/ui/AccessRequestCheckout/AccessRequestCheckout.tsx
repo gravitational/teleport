@@ -80,6 +80,7 @@ export function AccessRequestCheckout() {
     toggleResource,
     selectedResourceRequestRoles,
     createRequest,
+    reset,
     resourceRequestRoles,
     fetchResourceRolesAttempt,
     setSelectedResourceRequestRoles,
@@ -225,7 +226,7 @@ export function AccessRequestCheckout() {
                 goToRequests: goToRequestsList,
               })
             }
-            reset={closeCheckout}
+            reset={reset}
             data={data}
             createAttempt={createRequestAttempt}
             resourceRequestRoles={resourceRequestRoles}
