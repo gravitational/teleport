@@ -21,6 +21,7 @@ package web
 import (
 	"context"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"slices"
@@ -31,13 +32,13 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/pingconn"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // selectConnectionUpgrade selects the requested upgrade type and returns the
@@ -87,12 +88,12 @@ func (h *Handler) connectionUpgrade(w http.ResponseWriter, r *http.Request, p ht
 	// Since w is hijacked, there is no point returning an error for response
 	// starting at this point.
 	if err := writeUpgradeResponse(conn, upgradeType); err != nil {
-		h.log.WithError(err).Error("Failed to write upgrade response.")
+		h.logger.ErrorContext(r.Context(), "Failed to write upgrade response.", "error", err)
 		return nil, nil
 	}
 
 	if err := upgradeHandler(r.Context(), conn); err != nil && !utils.IsOKNetworkError(err) {
-		h.log.WithError(err).Errorf("Failed to handle %v upgrade request.", upgradeType)
+		h.logger.ErrorContext(r.Context(), "Failed to handle upgrade request.", "type", upgradeType, "error", err)
 	}
 	return nil, nil
 }
@@ -107,14 +108,14 @@ func (h *Handler) upgradeALPNWebSocket(w http.ResponseWriter, r *http.Request, u
 	}
 	wsConn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		h.log.WithError(err).Debug("Failed to upgrade weboscket.")
+		h.logger.DebugContext(r.Context(), "Failed to upgrade weboscket.", "error", err)
 		return nil, trace.Wrap(err)
 	}
 	defer wsConn.Close()
 
-	logrus.WithField("protocol", wsConn.Subprotocol()).Trace("Received WebSocket upgrade.")
+	h.logger.Log(r.Context(), logutils.TraceLevel, "Received WebSocket upgrade.", "protocol", wsConn.Subprotocol())
 
-	conn := newWebSocketALPNServerConn(wsConn)
+	conn := newWebSocketALPNServerConn(r.Context(), wsConn, h.logger)
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 
@@ -127,14 +128,13 @@ func (h *Handler) upgradeALPNWebSocket(w http.ResponseWriter, r *http.Request, u
 	default:
 		// Just close the connection. Upgrader hijacks the connection so no
 		// point returning an error.
-		h.log.WithField("client-protocols", websocket.Subprotocols(r)).
-			Debug("Unknown or empty WebSocket subprotocol.")
+		h.logger.DebugContext(ctx, "Unknown or empty WebSocket subprotocol.", "client-protocols", websocket.Subprotocols(r))
 		return nil, nil
 	}
 
 	if err := upgradeHandler(ctx, conn); err != nil && !utils.IsOKNetworkError(err) {
 		// Upgrader hijacks the connection so no point returning an error here.
-		h.log.WithError(err).WithField("protocol", wsConn.Subprotocol()).Errorf("Failed to handle WebSocket upgrade request.")
+		h.logger.ErrorContext(ctx, "Failed to handle WebSocket upgrade request.", "protocol", wsConn.Subprotocol(), "error", err)
 	}
 	return nil, nil
 }
@@ -183,7 +183,7 @@ func (h *Handler) startPing(ctx context.Context, pingConn pingWriter) {
 			err := pingConn.WritePing()
 			if err != nil {
 				if !utils.IsOKNetworkError(err) {
-					h.log.WithError(err).Warn("Failed to write ping message")
+					h.logger.WarnContext(ctx, "Failed to write ping message.", "error", err)
 				}
 				return
 			}
@@ -242,11 +242,22 @@ type websocketALPNServerConn struct {
 	readError  error
 	readMutex  sync.Mutex
 	writeMutex sync.Mutex
+
+	logContext context.Context
+	logger     *slog.Logger
 }
 
-func newWebSocketALPNServerConn(wsConn *websocket.Conn) *websocketALPNServerConn {
+func newWebSocketALPNServerConn(ctx context.Context, wsConn *websocket.Conn, logger *slog.Logger) *websocketALPNServerConn {
 	return &websocketALPNServerConn{
-		Conn: wsConn.NetConn(),
+		// Here "github.com/gobwas/ws" is used on the raw net.Conn instead of
+		// gorilla's websocket.Conn to workaround an issue that websocket.Conn
+		// caches read error when websocketALPNServerConn is passed to a HTTP
+		// server and get hijacked for another upgrade. Note that client side's
+		// (api/client) websocket ALPN connection wrapper also uses
+		// "github.com/gobwas/ws".
+		Conn:       wsConn.NetConn(),
+		logContext: ctx,
+		logger:     logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentWeb, "alpnws")),
 	}
 }
 
@@ -255,13 +266,17 @@ func (c *websocketALPNServerConn) Read(b []byte) (int, error) {
 	defer c.readMutex.Unlock()
 
 	n, err := c.readLocked(b)
-	// TODO do not convert "temporary" net.Error and clear cached err.
+
+	// Timeout errors can be temporary. For example, when this connection is
+	// passed to the kube TLS server, it may get "hijacked" again. During the
+	// hijack, the SetReadDeadline is called with a past timepoint to fail this
+	// Read so that the HTTP server's background read can be stopped. In such
+	// cases, return the original net.Error and clear the cached read error.
 	if netError, ok := trace.Unwrap(err).(net.Error); ok && netError.Timeout() {
 		c.readError = nil
-		logrus.Errorf("=== READ converting err back to %T %v %v", netError, netError, netError.Timeout())
+		c.logger.Log(c.logContext, logutils.TraceLevel, "Cleared cached read error.", "err", netError)
 		return n, netError
 	}
-	logrus.Errorf("=== READ n %v err %v", n, err)
 	return n, trace.Wrap(err)
 }
 
@@ -287,35 +302,42 @@ func (c *websocketALPNServerConn) readLocked(b []byte) (int, error) {
 			c.readError = err
 			return 0, trace.Wrap(err)
 		}
+
+		c.logger.Log(c.logContext, logutils.TraceLevel, "Read websocket frame.", "op", frame.Header.OpCode, "payload_len", len(frame.Payload))
+
 		switch frame.Header.OpCode {
 		case ws.OpClose:
 			return 0, io.EOF
 		case ws.OpBinary:
 			c.readBuffer = frame.Payload
 			return c.readLocked(b)
+		case ws.OpPong:
+			// Receives Pong as response to Ping. Nothing to do.
 		}
 	}
 }
 
-func (c *websocketALPNServerConn) Write(b []byte) (n int, err error) {
+func (c *websocketALPNServerConn) writeFrame(frame ws.Frame) error {
+	c.logger.Log(c.logContext, logutils.TraceLevel, "Writing websocket frame.", "op", frame.Header.OpCode, "payload_len", len(frame.Payload))
+
 	c.writeMutex.Lock()
 	defer c.writeMutex.Unlock()
 
-	frame := ws.NewBinaryFrame(b)
 	frame.Header.Masked = true
-	if err := ws.WriteFrame(c.Conn, frame); err != nil {
+	return trace.Wrap(ws.WriteFrame(c.Conn, frame))
+}
+
+func (c *websocketALPNServerConn) Write(b []byte) (n int, err error) {
+	binaryFrame := ws.NewBinaryFrame(b)
+	if err := c.writeFrame(binaryFrame); err != nil {
 		return 0, trace.Wrap(err)
 	}
 	return len(b), nil
 }
 
 func (c *websocketALPNServerConn) WritePing() error {
-	c.writeMutex.Lock()
-	defer c.writeMutex.Unlock()
-
-	frame := ws.NewPingFrame([]byte(teleport.ComponentTeleport))
-	frame.Header.Masked = true
-	return trace.Wrap(ws.WriteFrame(c.Conn, frame))
+	pingFrame := ws.NewPingFrame([]byte(teleport.ComponentTeleport))
+	return trace.Wrap(c.writeFrame(pingFrame))
 }
 
 func (c *websocketALPNServerConn) SetDeadline(t time.Time) error {
@@ -333,6 +355,5 @@ func (c *websocketALPNServerConn) SetWriteDeadline(t time.Time) error {
 func (c *websocketALPNServerConn) SetReadDeadline(t time.Time) error {
 	c.writeMutex.Lock()
 	defer c.writeMutex.Unlock()
-	logrus.Errorf("=== SetReadDeadline %v", t)
 	return trace.Wrap(c.Conn.SetReadDeadline(t))
 }
