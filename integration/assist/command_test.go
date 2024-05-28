@@ -66,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
+	"github.com/gravitational/teleport/lib/web/terminal"
 )
 
 const (
@@ -453,12 +454,12 @@ type executionWebsocketReader struct {
 	*websocket.Conn
 }
 
-func (r executionWebsocketReader) Read() (web.Envelope, error) {
+func (r executionWebsocketReader) Read() (terminal.Envelope, error) {
 	_, data, err := r.ReadMessage()
 	if err != nil {
-		return web.Envelope{}, trace.Wrap(err)
+		return terminal.Envelope{}, trace.Wrap(err)
 	}
-	var envelope web.Envelope
+	var envelope terminal.Envelope
 	return envelope, trace.Wrap(proto.Unmarshal(data, &envelope))
 }
 
