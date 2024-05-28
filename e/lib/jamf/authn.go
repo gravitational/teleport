@@ -59,12 +59,19 @@ func (c *Client) createOrRenewCurrentToken(ctx context.Context) (string, error) 
 		return "", trace.Wrap(ErrMaxAuthnAttemptsReached)
 	}
 
-	if err := c.renewUserPassLocked(ctx); err != nil {
+	// Refresh/reacquire token.
+	var err error
+	if c.clientSecret != nil {
+		err = c.renewClientSecretLocked(ctx)
+	} else {
+		err = c.renewUserPassLocked(ctx)
+	}
+	if err != nil {
 		c.repeatedAuthnFailures++
 		return "", trace.Wrap(err)
 	}
 	c.repeatedAuthnFailures = 0
 
 	// Guaranteed non-nil by the success above.
-	return c.currentToken.Token, nil
+	return c.currentToken.GetAccessToken(), nil
 }

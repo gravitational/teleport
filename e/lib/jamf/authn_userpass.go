@@ -18,15 +18,35 @@ type AuthToken struct {
 	Expires time.Time `json:"expires"`
 }
 
+// GetAccessToken returns the access token proper.
+func (t *AuthToken) GetAccessToken() string {
+	if t == nil {
+		return ""
+	}
+	return t.Token
+}
+
+// GetExpires returns the token expiry time.
+func (t *AuthToken) GetExpires() time.Time {
+	if t == nil {
+		return time.Time{}
+	}
+	return t.Expires
+}
+
+type userPasswordCreds struct {
+	username, password string
+}
+
 func (c *Client) renewUserPassLocked(ctx context.Context) error {
 	// Refresh deadline for user/pass bearer token.
 	// Typically these tokens expire in 20m.
-	const tokenRefreshDeadline = 5 * time.Minute
+	const tokenRefreshDeadline = 5 * time.Second
 
 	t := c.currentToken
 	timeLeft := time.Duration(-1)
 	if t != nil {
-		timeLeft = t.Expires.Sub(c.nowUTC())
+		timeLeft = t.GetExpires().Sub(c.nowUTC())
 	}
 	if timeLeft >= tokenRefreshDeadline {
 		return nil
@@ -35,7 +55,7 @@ func (c *Client) renewUserPassLocked(ctx context.Context) error {
 	// Attempt token refresh.
 	if timeLeft > 0 {
 		newToken, err := c.postAuthKeepAlive(ctx, &authKeepAliveRequest{
-			Token: t.Token,
+			Token: t.GetAccessToken(),
 		})
 		// OK, successfully refreshed.
 		if err == nil {
@@ -51,11 +71,11 @@ func (c *Client) renewUserPassLocked(ctx context.Context) error {
 
 	// Attempt to acquire a fresh token.
 	newToken, err := c.postAuthToken(ctx, &authTokenRequest{
-		Username: c.username,
-		Password: c.password,
+		Username: c.userPass.username,
+		Password: c.userPass.password,
 	})
 	if err != nil {
-		return trace.Wrap(err, "authentication against Jamf API failed")
+		return trace.Wrap(err, "authentication against Jamf username+password API failed")
 	}
 
 	c.currentToken = newToken

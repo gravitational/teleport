@@ -23,12 +23,6 @@ func TestClient_authn(t *testing.T) {
 
 	ctx := context.Background()
 
-	mustGetComputersInventory := func(t *testing.T, client *jamf.Client) {
-		if _, err := client.GetComputersInventory(ctx, &jamf.GetComputersInventoryRequest{}); err != nil {
-			t.Fatalf("GetComputersInventory failed: %v", err)
-		}
-	}
-
 	t.Run("automatic authn", func(t *testing.T) {
 		client := env.MustNewClient()
 
@@ -54,7 +48,7 @@ func TestClient_authn(t *testing.T) {
 		}
 
 		// Advance the clock closer to expiration.
-		clock.Advance(jamffake.TokenExpiryPeriod - 1*time.Minute)
+		clock.Advance(jamffake.TokenExpiryPeriod - 1*time.Second)
 
 		// Hit the API, a token refresh is now expected.
 		mustGetComputersInventory(t, client)
@@ -151,4 +145,58 @@ func TestClient_authn(t *testing.T) {
 		}
 		t.Fatal("Client never reached ErrMaxAuthnAttemptsReached")
 	})
+}
+
+func TestClient_clientCredentialsAuthn(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	env := testenv.MustNew(&testenv.Opts{
+		Clock: clock,
+	})
+	defer env.Close()
+
+	// Setup API for client credential authn.
+	const clientID = "llama-UUID"
+	const clientSecret = "supersecretsecret"
+	api := env.API
+	api.SetUsers(nil)
+	api.SetAPIClients([]*jamffake.APIClient{
+		{
+			ID:     clientID,
+			Secret: clientSecret,
+		},
+	})
+
+	ctx := context.Background()
+	client, err := jamf.NewClient(ctx, jamf.ClientOpts{
+		Clock:        env.Clock,
+		Logger:       env.Logger,
+		HTTPClient:   env.HTTPClient,
+		APIURL:       env.APIEndpoint,
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+	})
+	if err != nil {
+		t.Fatalf("NewClient failed: %v", err)
+	}
+
+	t.Run("ok", func(t *testing.T) {
+		// Absence of errors is good enough for us.
+		mustGetComputersInventory(t, client)
+	})
+
+	t.Run("acquire new token after expiration", func(t *testing.T) {
+		clock.Advance(jamffake.CredentialExpiryPeriod + 1*time.Second)
+
+		// Absence of errors is good enough for us.
+		mustGetComputersInventory(t, client)
+	})
+}
+
+func mustGetComputersInventory(t *testing.T, client *jamf.Client) {
+	t.Helper()
+
+	ctx := context.Background()
+	if _, err := client.GetComputersInventory(ctx, &jamf.GetComputersInventoryRequest{}); err != nil {
+		t.Fatalf("GetComputersInventory failed: %v", err)
+	}
 }

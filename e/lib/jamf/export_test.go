@@ -9,8 +9,8 @@ func (c *Client) AuthToken() *AuthToken {
 	}
 
 	return &AuthToken{
-		Token:   c.currentToken.Token,
-		Expires: c.currentToken.Expires,
+		Token:   c.currentToken.GetAccessToken(),
+		Expires: c.currentToken.GetExpires(),
 	}
 }
 

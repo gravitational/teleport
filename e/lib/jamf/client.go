@@ -19,8 +19,20 @@ import (
 	"github.com/gravitational/teleport/lib/utils/log"
 )
 
-// ErrJamfClientInvalidCredential is returned by Jamf client when the Jamf API credentials are invalid.
-var ErrJamfClientInvalidCredential = errors.New("invalid Jamf API credentials")
+var (
+	// ErrJamfClientInvalidCredential is returned by Jamf client when the Jamf API
+	// credentials are invalid.
+	ErrJamfClientInvalidCredential = errors.New("invalid Jamf API credentials")
+
+	// ErrJamfClientInvalidPrivilege is returned by Jamf client when the Jamf API
+	// permissions are invalid.
+	ErrJamfClientInvalidPrivilege = errors.New("invalid Jamf API permissions, verify your role and permission setup")
+)
+
+type authToken interface {
+	GetAccessToken() string
+	GetExpires() time.Time
+}
 
 // Client is the Jamf API client.
 // It automatically manages authentication and refreshes existing bearer tokens,
@@ -30,12 +42,16 @@ type Client struct {
 	logger     *slog.Logger
 	httpClient *http.Client
 
-	baseURL            string
-	username, password string
+	baseURL string
+
+	// userPass or clientSecret are set depending on which type of API credentials
+	// are supplied during Client creation.
+	userPass     *userPasswordCreds
+	clientSecret *clientSecretCreds
 
 	// mu guards the fields below it.
 	mu                    sync.Mutex
-	currentToken          *AuthToken
+	currentToken          authToken
 	repeatedAuthnFailures int
 }
 
@@ -49,10 +65,20 @@ type ClientOpts struct {
 	// APIURL is the URL for the Jamf API, usually including the "/api" path.
 	// Example: "https://yourtenant.jamfcloud.com/api".
 	APIURL string
+
 	// Username for the Jamf API.
+	// Prefer using ClientID and ClientSecret.
 	Username string
 	// Password for the Jamf API.
+	// Prefer using ClientID and ClientSecret.
 	Password string
+
+	// ClientID is the Jamf API client ID.
+	// See https://developer.jamf.com/jamf-pro/docs/client-credentials.
+	ClientID string
+	// ClientSecret is the Jamf API client secret.
+	// See https://developer.jamf.com/jamf-pro/docs/client-credentials.
+	ClientSecret string
 }
 
 // NewClient creates a new Jamf API client.
@@ -63,10 +89,34 @@ func NewClient(ctx context.Context, opts ClientOpts) (*Client, error) {
 		return nil, trace.BadParameter("param HTTPClient required")
 	case opts.APIURL == "":
 		return nil, trace.BadParameter("param APIURL required")
-	case opts.Username == "":
-		return nil, trace.BadParameter("param Username required")
-	case opts.Password == "":
-		return nil, trace.BadParameter("param Password required")
+	}
+
+	logger := opts.Logger
+	if logger == nil {
+		logger = slog.Default()
+	}
+
+	// Verify credentials, either user+pass or clientID+secret.
+	hasUserPass := opts.Username != "" && opts.Password != ""
+	hasAPICreds := opts.ClientID != "" && opts.ClientSecret != ""
+	var userPass *userPasswordCreds
+	var clientSecret *clientSecretCreds
+	switch {
+	case !hasUserPass && !hasAPICreds:
+		return nil, trace.BadParameter("client credentials required, either set ClientID+ClientSecret (preferred) or Username+Password (legacy)")
+	case hasUserPass && hasAPICreds:
+		logger.InfoContext(ctx, "Both Username+Password and ClientID+ClientSecret are set, using the latter for authentication")
+		fallthrough
+	case hasAPICreds:
+		clientSecret = &clientSecretCreds{
+			clientID:     opts.ClientID,
+			clientSecret: opts.ClientSecret,
+		}
+	default:
+		userPass = &userPasswordCreds{
+			username: opts.Username,
+			password: opts.Password,
+		}
 	}
 
 	u, err := url.Parse(opts.APIURL)
@@ -80,11 +130,6 @@ func NewClient(ctx context.Context, opts ClientOpts) (*Client, error) {
 		Scheme: "https",
 		Host:   u.Host,
 		Path:   strings.TrimSuffix(u.Path, "/"),
-	}
-
-	logger := opts.Logger
-	if logger == nil {
-		logger = slog.Default()
 	}
 
 	clock := opts.Clock
@@ -113,12 +158,12 @@ func NewClient(ctx context.Context, opts ClientOpts) (*Client, error) {
 	}
 
 	c := &Client{
-		clock:      clock,
-		logger:     logger,
-		httpClient: httpClient,
-		baseURL:    baseURL.String(),
-		username:   opts.Username,
-		password:   opts.Password,
+		clock:        clock,
+		logger:       logger,
+		httpClient:   httpClient,
+		baseURL:      baseURL.String(),
+		userPass:     userPass,
+		clientSecret: clientSecret,
 	}
 	if err := c.verifyCredentials(ctx); err != nil {
 		return nil, trace.Wrap(err)
@@ -146,9 +191,14 @@ func (c *Client) verifyCredentials(ctx context.Context) error {
 	switch {
 	case apiError.StatusCode == http.StatusUnauthorized:
 		return trace.Wrap(ErrJamfClientInvalidCredential)
+
+	case apiError.StatusCode == http.StatusForbidden:
+		return trace.Wrap(ErrJamfClientInvalidPrivilege)
+
 	case apiError.StatusCode == http.StatusNotFound && !strings.HasSuffix(c.baseURL, "/api"):
 		c.baseURL += "/api"
 		return c.verifyCredentials(ctx)
+
 	default:
 		return trace.Wrap(err, "connecting to Jamf API")
 	}

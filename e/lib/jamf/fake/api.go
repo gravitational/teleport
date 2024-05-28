@@ -20,13 +20,24 @@ import (
 	"github.com/gravitational/teleport/e/lib/jamf"
 )
 
-// TokenExpiryPeriod is the expiration period for bearer tokens.
-const TokenExpiryPeriod = 30 * time.Minute
+const (
+	// CredentialExpiryPeriod is the expiration period for API client credentials.
+	CredentialExpiryPeriod = 1 * time.Minute
+
+	// TokenExpiryPeriod is the expiration period for user/password bearer tokens.
+	TokenExpiryPeriod = 20 * time.Minute
+)
 
 // User holds credentials for an API user.
 type User struct {
 	Username string
 	Password string
+}
+
+// APIClient holds credentials for an API client.
+type APIClient struct {
+	ID     string
+	Secret string
 }
 
 // API is a fake implementation for the Jamf PRO API.
@@ -36,6 +47,7 @@ type API struct {
 	// mu guards all fields below it
 	mu                 sync.Mutex
 	users              []*User
+	apiClients         []*APIClient
 	inventory          []*jamf.ComputerInventory
 	issuedTokens       map[string]*authToken // key is authToken.Token
 	simulatePagingGaps bool
@@ -66,6 +78,12 @@ func New(opts *Opts) *API {
 func (a *API) SetUsers(users []*User) {
 	a.mu.Lock()
 	a.users = users
+	a.mu.Unlock()
+}
+
+func (a *API) SetAPIClients(apiClients []*APIClient) {
+	a.mu.Lock()
+	a.apiClients = apiClients
 	a.mu.Unlock()
 }
 
@@ -109,9 +127,14 @@ func (a *rootHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	// Strip prefix from the path, we route from `/v1` onwards.
 	path := strings.TrimPrefix(req.URL.Path, a.prefix)
 
-	// The only unauthorized endpoint is POST /v1/auth/token, anything else
-	// requires a bearer token.
-	if req.Method == http.MethodPost && path == "/v1/auth/token" {
+	// Handle unauthenticated endpoints:
+	// - /oauth/token   - client credentials authn
+	// - /v1/auth/token - user/password authn
+	switch {
+	case req.Method == http.MethodPost && path == "/oauth/token":
+		a.postOauthToken(w, req)
+		return
+	case req.Method == http.MethodPost && path == "/v1/auth/token":
 		a.postAuthToken(w, req)
 		return
 	}
@@ -208,12 +231,18 @@ func (a *API) isAuthorized(req *http.Request) (*authToken, bool) {
 
 	// Token expired?
 	now := a.clock.Now().UTC()
-	if now.After(issuedToken.Expires) {
+	if now.After(issuedToken.expires) {
 		delete(a.issuedTokens, token)
 		return nil, false
 	}
 
 	return issuedToken, true
+}
+
+type oauthTokenError struct {
+	Error            string `json:"error"`
+	ErrorDescription string `json:"error_description,omitempty"`
+	ErrorURI         string `json:"error_uri,omitempty"`
 }
 
 type errorResponse struct {
@@ -229,8 +258,69 @@ type apiError struct {
 }
 
 type authToken struct {
-	jamf.AuthToken
-	owner string
+	owner   string
+	token   string
+	expires time.Time
+}
+
+func (a *API) postOauthToken(w http.ResponseWriter, req *http.Request) {
+	const invalidClient = "invalid client"
+
+	// Require a specific Content-Type. This is a fake only check.
+	if ct := req.Header.Get("Content-Type"); ct != "application/x-www-form-urlencoded" {
+		a.replyJSON(w, 400, oauthTokenError{
+			Error: invalidClient,
+		})
+		return
+	}
+
+	// Parse form from body. This is a fake only check.
+	if err := req.ParseForm(); err != nil {
+		a.replyJSON(w, 400, oauthTokenError{
+			Error: invalidClient,
+		})
+		return
+	}
+
+	// Grant must be "client_credentials".
+	// Jamf API appears to validate credentials first, but we won't do that.
+	if grantType := req.PostForm.Get("grant_type"); grantType != "client_credentials" {
+		a.replyJSON(w, 400, oauthTokenError{
+			Error:            "invalid_request",
+			ErrorDescription: "OAuth 2.0 Parameter: grant_type",
+			ErrorURI:         "https://datatracker.ietf.org/doc/html/rfc6749#section-5.2",
+		})
+		return
+	}
+
+	clientID := req.PostForm.Get("client_id")
+	clientSecret := req.PostForm.Get("client_secret")
+
+	// Find API client.
+	match := false
+	a.mu.Lock()
+	for _, c := range a.apiClients {
+		if c.ID == clientID && c.Secret == clientSecret {
+			match = true
+			break
+		}
+	}
+	a.mu.Unlock()
+	if !match {
+		a.replyJSON(w, 401, oauthTokenError{
+			Error: invalidClient,
+		})
+		return
+	}
+
+	if token := a.issueAuthToken(w, clientID, CredentialExpiryPeriod); token != nil {
+		a.replyJSON(w, 200, jamf.AccessToken{
+			AccessToken: token.token,
+			Scope:       "api-role:1", // "1" is a mock role ID
+			TokenType:   "Bearer",
+			ExpiresIn:   int(CredentialExpiryPeriod.Seconds()),
+		})
+	}
 }
 
 func (a *API) postAuthToken(w http.ResponseWriter, req *http.Request) {
@@ -255,26 +345,34 @@ func (a *API) postAuthToken(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	token, err := a.newAuthToken(user)
+	if token := a.issueAuthToken(w, user, TokenExpiryPeriod); token != nil {
+		a.replyJSON(w, 200, jamf.AuthToken{
+			Token:   token.token,
+			Expires: token.expires,
+		})
+	}
+}
+
+func (a *API) issueAuthToken(w http.ResponseWriter, owner string, expiryPeriod time.Duration) *authToken {
+	token, err := a.newAuthToken(owner, expiryPeriod)
 	if err != nil {
 		// Error not observed in practice.
 		a.replyError(w, errorResponse{
 			HTTPStatus: 500,
 			Errors:     []*apiError{{Description: err.Error()}},
 		})
-		return
+		return nil
 	}
 
 	// Commit token to memory.
 	a.mu.Lock()
-	a.issuedTokens[token.Token] = token
+	a.issuedTokens[token.token] = token
 	a.mu.Unlock()
 
-	// Reply.
-	a.replyJSON(w, 200, token)
+	return token
 }
 
-func (a *API) newAuthToken(owner string) (*authToken, error) {
+func (a *API) newAuthToken(owner string, expiryPeriod time.Duration) (*authToken, error) {
 	// An opaque string is good enough for our purposes.
 	// Size is arbitrary.
 	token := make([]byte, 40)
@@ -283,20 +381,18 @@ func (a *API) newAuthToken(owner string) (*authToken, error) {
 	}
 
 	tokenB64 := base64.StdEncoding.EncodeToString(token)
-	expires := a.clock.Now().Add(TokenExpiryPeriod).UTC()
+	expires := a.clock.Now().Add(expiryPeriod).UTC()
 	return &authToken{
-		AuthToken: jamf.AuthToken{
-			Token:   tokenB64,
-			Expires: expires,
-		},
-		owner: owner,
+		token:   tokenB64,
+		expires: expires,
+		owner:   owner,
 	}, nil
 }
 
 func (a *API) postAuthKeepAlive(w http.ResponseWriter, req *http.Request) {
 	currentToken := req.Context().Value(authTokenKey{}).(*authToken)
 
-	newToken, err := a.newAuthToken(currentToken.owner)
+	newToken, err := a.newAuthToken(currentToken.owner, TokenExpiryPeriod)
 	if err != nil {
 		// Unexpected. Error not observed in practice.
 		a.replyError(w, errorResponse{HTTPStatus: 500})
@@ -306,10 +402,10 @@ func (a *API) postAuthKeepAlive(w http.ResponseWriter, req *http.Request) {
 	a.mu.Lock()
 
 	// Issue new token for user.
-	a.issuedTokens[newToken.Token] = newToken
+	a.issuedTokens[newToken.token] = newToken
 
 	// Rescind old token.
-	delete(a.issuedTokens, currentToken.Token)
+	delete(a.issuedTokens, currentToken.token)
 
 	a.mu.Unlock()
 
