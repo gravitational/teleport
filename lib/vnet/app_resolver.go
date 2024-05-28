@@ -17,6 +17,7 @@
 package vnet
 
 import (
+	"cmp"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -185,10 +186,7 @@ func (r *TCPAppResolver) resolveTCPHandlerForCluster(
 	vnetConfig, err := r.clusterConfigCache.getVnetConfig(ctx, profileName, leafClusterName)
 	switch {
 	case err == nil:
-		cidrRange = vnetConfig.GetSpec().GetIpv4CidrRange()
-		if cidrRange == "" {
-			cidrRange = defaultIPv4CIDRRange
-		}
+		cidrRange = cmp.Or(vnetConfig.GetSpec().GetIpv4CidrRange(), defaultIPv4CIDRRange)
 	case trace.IsNotFound(err) || trace.IsNotImplemented(err):
 		cidrRange = defaultIPv4CIDRRange
 	default:
