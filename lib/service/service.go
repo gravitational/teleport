@@ -3361,8 +3361,14 @@ func (process *TeleportProcess) initDebugService() error {
 		Handler:           debug.NewServeMux(logger, process.Config),
 		ReadTimeout:       apidefaults.DefaultIOTimeout,
 		ReadHeaderTimeout: defaults.ReadHeadersTimeout,
-		WriteTimeout:      apidefaults.DefaultIOTimeout,
-		IdleTimeout:       apidefaults.DefaultIdleTimeout,
+		// pprof endpoints support delta profiles and cpu and trace profiling
+		// over time, both of which can be effectively unbounded in time; care
+		// should be taken when adding more endpoints to this server, however,
+		// and if necessary, a timeout can be either added to some more
+		// sensitive endpoint, or the timeout can be removed from the more lax
+		// ones
+		WriteTimeout: 0,
+		IdleTimeout:  apidefaults.DefaultIdleTimeout,
 	}
 
 	process.RegisterFunc("debug.service", func() error {
