@@ -57,7 +57,7 @@ type osConfigurator struct {
 	clusterConfigCache *clusterConfigCache
 }
 
-func newOSConfigurator(ctx context.Context, tunName, ipv6Prefix, dnsAddr string) (*osConfigurator, error) {
+func newOSConfigurator(tunName, ipv6Prefix, dnsAddr string) (*osConfigurator, error) {
 	homePath := os.Getenv(types.HomeEnvVar)
 	if homePath == "" {
 		// This runs as root so we need to be configured with the user's home path.

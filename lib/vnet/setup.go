@@ -177,7 +177,7 @@ func createAndSetupTUNDeviceAsRoot(ctx context.Context, ipv6Prefix, dnsAddr stri
 	}
 	tunCh <- tun
 
-	osConfigurator, err := newOSConfigurator(ctx, tunName, ipv6Prefix, dnsAddr)
+	osConfigurator, err := newOSConfigurator(tunName, ipv6Prefix, dnsAddr)
 	if err != nil {
 		errCh <- trace.Wrap(err, "creating OS configurator")
 		return tunCh, errCh
