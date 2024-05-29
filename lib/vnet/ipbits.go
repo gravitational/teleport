@@ -52,7 +52,7 @@ func NewIPv6Prefix() (tcpip.Address, error) {
 //
 // The strategy here is to start with a random address from the range, and if it's free return it, else
 // increment it until a free address is found. This should have pretty good performance when the range is
-// mostly free, and degrade as it fills. 
+// mostly free, and degrade as it fills.
 //
 // Most importantly, this strategy allows us to assign IPs in different, possibly overlapping ranges, from
 // different clusters without being overly complicated or risking collision.
