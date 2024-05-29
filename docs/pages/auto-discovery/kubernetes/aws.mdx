@@ -11,12 +11,12 @@ configured labels.
 
 ## How it works
 
-The Teleport Discovery Service scans configured cloud providers, including AWS, 
+The Teleport Discovery Service scans configured cloud providers, including AWS,
 for Kubernetes clusters that match specified filtering labels, creating dynamic
 resources within Teleport for any new clusters identified. The Teleport Kubernetes
 Service monitors these dynamic resources, forwarding requests to the corresponding
 Kubernetes clusters. Both services require access to the AWS API to perform their
-functions. 
+functions.
 
 Additionally, the Kubernetes Service needs direct access to the target clusters
 and the necessary permissions to forward requests.
@@ -157,9 +157,9 @@ subjects:
 ### IAM mapping
 
 <Tabs>
-  <TabItem label="EKS Access Entry" >
+  <TabItem label="EKS access entry" >
 
-Create an EKS Access Entry to link the <Var name="arn:aws:iam::222222222222:role/teleport-role" />
+Create an EKS access entry to link the <Var name="arn:aws:iam::222222222222:role/teleport-role" />
 to the Kubernetes Group `teleport` we created in the previous step.
 
 ```shell
@@ -237,9 +237,9 @@ To follow least privilege principle we do not recommend using this method in pro
 
 
 <Tabs>
-  <TabItem label="EKS Access Entry" >
+  <TabItem label="EKS access entry" >
 
-Create an EKS Access Entry and Access Policy to link the <Var name="arn:aws:iam::222222222222:role/teleport-role" />
+Create an EKS access entry and Access Policy to link the <Var name="arn:aws:iam::222222222222:role/teleport-role" />
 to the cluster wide policy `arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy` (equivalent of `cluster-admin` `ClusterRole`).
 
 ```shell
@@ -298,7 +298,7 @@ to forward requests to the cluster.
 
 <Notice type="tip">
 If you provision your EKS clusters using tools such as `terraform`, `eksctl` or
-`Cloudformation`, you can use them to automatically configure the `aws-auth` `Configmap` or Access Entry
+`Cloudformation`, you can use them to automatically configure the `aws-auth` `Configmap` or access entry
 and create the `ClusterRole` and `ClusterRoleBinding` resources during cluster provisioning.
 </Notice>
 

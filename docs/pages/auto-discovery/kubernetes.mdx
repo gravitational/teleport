@@ -1,7 +1,6 @@
 ---
 title: Kubernetes Clusters Discovery
 description: Detailed guides for configuring Kubernetes Clusters Discovery.
-layout: tocless-doc
 ---
 
 Kubernetes Clusters Discovery allows Kubernetes clusters
@@ -83,10 +82,10 @@ discovery_service:
        # AWS role to assume when discovering resources in the AWS Account.
        # This value is an optional AWS role ARN to assume when polling EKS clusters
        assume_role_arn: arn:aws:iam::123456789012:role/iam-discovery-role
-       # External Id is an optional value that should be set when accessing 
-       # your AWS account from a 3rd party access (delegate access).
+       # External ID is an optional value that should be set when accessing
+	     # your AWS account from a third-party service (delegated access).
        external_id: "example-external-id"
-       # Specifies the role for which the Discovery Service should create the EKS Access Entry.
+       # Specifies the role for which the Discovery Service should create the EKS access entry.
        # This is an optional parameter. If not set, the Discovery Service will attempt to create
        # the access entry using its own identity.
        # If used, the role must match the role configured for the Kubernetes Service.
@@ -152,8 +151,8 @@ kubernetes_service:
        # This value is an optional AWS role ARN to assume when forwarding requests
        # to EKS clusters.
        assume_role_arn: arn:aws:iam::123456789012:role/iam-discovery-role
-       # External Id is an optional value that should be set when accessing
-       # your AWS account from a 3rd party access (delegate access).
+       # External ID is an optional value that should be set when accessing
+	     # your AWS account from a third-party service (delegated access).
        external_id: "example-external-id"
 ```
 
