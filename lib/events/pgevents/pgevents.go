@@ -189,7 +189,10 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err := metrics.RegisterPrometheusCollectors(prometheusCollectors...)
+
+	if err := metrics.RegisterPrometheusCollectors(prometheusCollectors...); err != nil {
+		return nil, trace.Wrap(err, "registering prometheus collectors")
+	}
 
 	if cfg.AuthMode == AzureADAuth {
 		bc, err := pgcommon.AzureBeforeConnect(cfg.Log)
