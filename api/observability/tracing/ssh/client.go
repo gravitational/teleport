@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"sync/atomic"
 
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/otel/attribute"
@@ -266,7 +267,7 @@ func (c *clientWrapper) NewSession(callback ChannelRequestCallback) (*Session, e
 			}
 		}()
 
-		session, err = newCryptoSSHSession(c, ch, reqs)
+		session, err = newCryptoSSHSession(ch, reqs)
 		if err != nil {
 			_ = ch.Close()
 			return nil, trace.Wrap(err)
@@ -290,11 +291,18 @@ func (c *clientWrapper) NewSession(callback ChannelRequestCallback) (*Session, e
 // callers to take ownership of the SSH channel requests chan.
 type wrappedSSHConn struct {
 	ssh.Conn
+
+	channelOpened atomic.Bool
+
 	ch   ssh.Channel
 	reqs <-chan *ssh.Request
 }
 
-func (f wrappedSSHConn) OpenChannel(_ string, _ []byte) (ssh.Channel, <-chan *ssh.Request, error) {
+func (f *wrappedSSHConn) OpenChannel(_ string, _ []byte) (ssh.Channel, <-chan *ssh.Request, error) {
+	if !f.channelOpened.CompareAndSwap(false, true) {
+		panic("wrappedSSHConn OpenChannel called more than once")
+	}
+
 	return f.ch, f.reqs, nil
 }
 
@@ -303,10 +311,9 @@ func (f wrappedSSHConn) OpenChannel(_ string, _ []byte) (ssh.Channel, <-chan *ss
 // golang.org/x/crypto/ssh.(Client).NewSession takes ownership of all
 // SSH channel requests and doesn't allow the caller to view or reply
 // to them, so this workaround is needed.
-func newCryptoSSHSession(conn ssh.Conn, ch ssh.Channel, reqs <-chan *ssh.Request) (*ssh.Session, error) {
+func newCryptoSSHSession(ch ssh.Channel, reqs <-chan *ssh.Request) (*ssh.Session, error) {
 	return (&ssh.Client{
-		Conn: wrappedSSHConn{
-			Conn: conn,
+		Conn: &wrappedSSHConn{
 			ch:   ch,
 			reqs: reqs,
 		},
