@@ -728,7 +728,7 @@ exports[`render with URL loc state set to "server" 1`] = `
     font-size="12px"
   >
     Looking for something else?
-
+     
     <a
       class="c26"
       href="https://github.com/gravitational/teleport/issues/new?assignees=&labels=feature-request&template=feature_request.md"
@@ -2722,7 +2722,7 @@ exports[`render with all access 1`] = `
     font-size="12px"
   >
     Looking for something else?
-
+     
     <a
       class="c20"
       href="https://github.com/gravitational/teleport/issues/new?assignees=&labels=feature-request&template=feature_request.md"
@@ -3179,8 +3179,6 @@ exports[`render with no access 1`] = `
           class="c16"
         >
           <div
-<<<<<<< HEAD
-=======
             class="c19"
           >
             AWS CLI/Console Access
@@ -3219,7 +3217,6 @@ exports[`render with no access 1`] = `
           class="c16"
         >
           <div
->>>>>>> master
             class="c17"
             color="text.slightlyMuted"
             font-size="12px"
@@ -4874,7 +4871,7 @@ exports[`render with no access 1`] = `
     font-size="12px"
   >
     Looking for something else?
-
+     
     <a
       class="c21"
       href="https://github.com/gravitational/teleport/issues/new?assignees=&labels=feature-request&template=feature_request.md"
@@ -7032,7 +7029,7 @@ exports[`render with partial access 1`] = `
     font-size="12px"
   >
     Looking for something else?
-
+     
     <a
       class="c23"
       href="https://github.com/gravitational/teleport/issues/new?assignees=&labels=feature-request&template=feature_request.md"
