@@ -20,6 +20,7 @@ package auth
 
 import (
 	"context"
+	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/base32"
@@ -2423,9 +2424,10 @@ func TestGenerateDatabaseCerts(t *testing.T) {
 	require.NotNil(t, certs)
 }
 
-// TestInstanceCertAndControlStream uses an instance cert to send an
-// inventory ping via the control stream.
+// TestInstanceCertAndControlStream attempts to generate an instance cert via the
+// assertion API and use it to handle an inventory ping via the control stream.
 func TestInstanceCertAndControlStream(t *testing.T) {
+	const assertionID = "test-assertion"
 	const serverID = "test-server"
 	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -2433,17 +2435,68 @@ func TestInstanceCertAndControlStream(t *testing.T) {
 
 	srv := newTestTLSServer(t)
 
-	instanceClt, err := srv.NewClient(TestIdentity{
-		I: authz.BuiltinRole{
-			Role: types.RoleInstance,
-			AdditionalSystemRoles: []types.SystemRole{
-				types.RoleNode,
-			},
-			Username: serverID,
-		},
-	})
+	roles := []types.SystemRole{
+		types.RoleNode,
+		types.RoleAuth,
+		types.RoleProxy,
+	}
+
+	clt, err := srv.NewClient(TestServerID(types.RoleNode, serverID))
 	require.NoError(t, err)
-	defer instanceClt.Close()
+	defer clt.Close()
+
+	priv, pub, err := testauthority.New().GenerateKeyPair()
+	require.NoError(t, err)
+
+	pubTLS, err := PrivateKeyToPublicKeyTLS(priv)
+	require.NoError(t, err)
+
+	req := proto.HostCertsRequest{
+		HostID:       serverID,
+		Role:         types.RoleInstance,
+		PublicSSHKey: pub,
+		PublicTLSKey: pubTLS,
+		SystemRoles:  roles,
+		// assertion ID is omitted initially to test
+		// the failure case
+	}
+
+	// request should fail since clt only holds RoleNode
+	_, err = clt.GenerateHostCerts(ctx, &req)
+	require.True(t, trace.IsAccessDenied(err))
+
+	// perform assertions
+	for _, role := range roles {
+		func() {
+			clt, err := srv.NewClient(TestServerID(role, serverID))
+			require.NoError(t, err)
+			defer clt.Close()
+
+			err = clt.AssertSystemRole(ctx, proto.SystemRoleAssertion{
+				ServerID:    serverID,
+				AssertionID: assertionID,
+				SystemRole:  role,
+			})
+			require.NoError(t, err)
+		}()
+	}
+
+	// set assertion ID
+	req.SystemRoleAssertionID = assertionID
+
+	// assertion should allow us to generate certs
+	certs, err := clt.GenerateHostCerts(ctx, &req)
+	require.NoError(t, err)
+
+	// make an instance client
+	instanceCert, err := tls.X509KeyPair(certs.TLS, priv)
+	require.NoError(t, err)
+	instanceClt := srv.NewClientWithCert(instanceCert)
+
+	// instance cert can self-renew without assertions
+	req.SystemRoleAssertionID = ""
+	_, err = instanceClt.GenerateHostCerts(ctx, &req)
+	require.NoError(t, err)
 
 	stream, err := instanceClt.InventoryControlStream(ctx)
 	require.NoError(t, err)
@@ -2452,7 +2505,7 @@ func TestInstanceCertAndControlStream(t *testing.T) {
 	err = stream.Send(ctx, proto.UpstreamInventoryHello{
 		ServerID: serverID,
 		Version:  teleport.Version,
-		Services: types.SystemRoles{types.RoleInstance},
+		Services: roles,
 	})
 	require.NoError(t, err)
 

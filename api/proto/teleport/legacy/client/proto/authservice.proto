@@ -49,7 +49,6 @@ message Watch {
 message HostCertsRequest {
   reserved 12; // system_role_assertion_id
   reserved "UnstableSystemRoleAssertionID";
-
   // HostID is a unique ID of the host.
   string HostID = 1 [(gogoproto.jsontag) = "host_id"];
   // NodeName is a user-friendly host name.
@@ -87,6 +86,11 @@ message HostCertsRequest {
     (gogoproto.jsontag) = "system_roles,omitempty",
     (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.SystemRole"
   ];
+  // SystemRoleAssertionID is used by agents to prove that they have a given system role when
+  // their credentials originate from multiple separate join tokens so that they can be issued
+  // an instance certificate that encompasses all of their capabilities. This field will be
+  // deprecated once we have a more comprehensive model for join token joining/replacement.
+  string SystemRoleAssertionID = 13 [(gogoproto.jsontag) = "system_role_assertion_id,omitempty"];
 }
 
 // OpenSSHCertRequest specifies certificate-generation parameters
@@ -2289,6 +2293,41 @@ message GetSSODiagnosticInfoRequest {
   string AuthRequestID = 2 [(gogoproto.jsontag) = "auth_request_id"];
 }
 
+// SystemRoleAssertion is used by agents to prove that they have a given system role when their
+// credentials originate from multiple separate join tokens so that they can be issued an
+// instance certificate that encompasses all of their capabilities. This type will be
+// deprecated once we have a more comprehensive model for join token joining/replacement.
+message SystemRoleAssertion {
+  // ServerID is the server ID of the instance that the assertion is for. Assertions are
+  // only accepted if the calling agent's certificate matches this server id.
+  string ServerID = 1 [(gogoproto.jsontag) = "server_id,omitempty"];
+  // AssertionID is a random UUID that uniquely identifies a set of assertions
+  // as originating from the same teleport process.
+  string AssertionID = 2 [(gogoproto.jsontag) = "assertion_id,omitempty"];
+  // SystemRole is the system role being asserted. Assertions are only accepted if
+  // the calling agent's certificate authorizes it for this system role.
+  string SystemRole = 3 [
+    (gogoproto.jsontag) = "system_role,omitempty",
+    (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.SystemRole"
+  ];
+}
+
+// SystemRoleAssertionSet is an aggregate generated as a result of one or more successful
+// assertions. This type will be deprecated once we have a more comprehensive model for
+// join token joining/replacement.
+message SystemRoleAssertionSet {
+  // ServerID is the server ID of the agent that generated the assertions.
+  string ServerID = 1 [(gogoproto.jsontag) = "server_id,omitempty"];
+  // AssertionID is a random UUID that identified all constituent assertions as originating
+  // from the same teleport process.
+  string AssertionID = 2 [(gogoproto.jsontag) = "assertion_id,omitempty"];
+  // SystemRoles is the set of system roles that the agent has successfully asserted.
+  repeated string SystemRoles = 3 [
+    (gogoproto.jsontag) = "system_roles,omitempty",
+    (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.SystemRole"
+  ];
+}
+
 // UpstreamInventoryOneOf is the upstream message for the inventory control stream,
 // sent from teleport instances to the auth server.
 message UpstreamInventoryOneOf {
@@ -3413,6 +3452,12 @@ service AuthService {
   // without signing keys. If the cluster has multiple TLS certs, they will
   // all be appended.
   rpc GetClusterCACert(google.protobuf.Empty) returns (GetClusterCACertResponse);
+
+  // AssertSystemRole is used by agents to prove that they have a given system role when their
+  // credentials originate from multiple separate join tokens so that they can be issued an instance
+  // certificate that encompasses all of their capabilities. This method will be deprecated once we
+  // have a more comprehensive model for join token joining/replacement.
+  rpc AssertSystemRole(SystemRoleAssertion) returns (google.protobuf.Empty);
 
   // SubmitUsageEvent submits an external usage event.
   rpc SubmitUsageEvent(SubmitUsageEventRequest) returns (google.protobuf.Empty);
