@@ -26,7 +26,6 @@ There should be a cluster dropdown for:
 - [ ] audit log
 - [ ] session recordings
 - [ ] web terminal console view (can get to it by ssh into a node, or route to: `/web/cluster/<cluster-name>/console/nodes`)
-
 - [ ] Can edit and delete a trusted cluster
 
 ### Top Bar Nav
@@ -57,7 +56,7 @@ There should be a cluster dropdown for:
 
 ### Unified Resources
 
-- [ ] Verify that scrolling to - [ ] Verify connecting to a ssh node prompts you to tap your registered WebAuthn keythe bottom of the page renders more resources
+- [ ] Verify that scrolling to the bottom of the page renders more resources
 - [ ] Verify that all resource types are visible if no filters are present
 - [ ] Verify that "Search" by (host)name, address, labels works for all resources
 - [ ] Verify that clicking on `Add Resource` button correctly sends to the resource discovery page
@@ -104,7 +103,6 @@ There should be a cluster dropdown for:
 - [ ] Verify that it can replay an interactive session
 - Session Player:
   - [ ] Verify that when playing, scroller auto scrolls to bottom most content
-  - [ ] Verify when resizing player to a small screen, scroller appears and is working
   - [ ] Verify that error message is displayed (enter an invalid SID in the URL)
 
 #### Audit log
@@ -115,7 +113,7 @@ There should be a cluster dropdown for:
 
 #### Users
 
-All actions should require re-authn with a mfa device.
+All actions should require re-authn with a webauthn device.
 
 - [ ] Verify that creating and editing a user works
 - [ ] Verify that removing a user works
@@ -138,22 +136,22 @@ For each, test the invite, reset, and login flows
 
 For help with setting up auth connectors, check out the [Quick GitHub/SAML/OIDC Setup Tips]
 
-All actions should require re-authn with a mfa device.
+All actions should require re-authn with a webauthn device.
 
 - [ ] Verify when there are no connectors, empty state renders
-- [ ] Verify that creating, editing, and deleting OIDC/SAML/GITHUB connectors works
-- [ ] Verify that login works for Github/SAML/OIDC
+- [ ] Verify that creating, editing, and deleting OIDC/SAML/GitHub connectors works
+- [ ] Verify that login works for GitHub/SAML/OIDC
 - [ ] Verify that error is shown when saving an invalid YAML
 - [ ] Verify that correct side hint text and doc link is shown
 - [ ] Verify that encrypted SAML assertions work with an identity provider that supports it (Azure).
-- [ ] Verify that created GitHub, saml, oidc card has their icons
+- [ ] Verify that created GitHub, SAML, OIDC card has their icons
 - OSS only:
-  - [ ] github is allowed
-  - [ ] saml + oidc are locked behind CTA's
+  - [ ] GitHub is allowed
+  - [ ] SAML + OIDC are locked behind CTAs
 
 #### Roles
 
-All actions should require re-authn with a mfa device.
+All actions should require re-authn with a webauthn device.
 
 - [ ] Verify that "Create New Role" dialog works
 - [ ] Verify that deleting and editing works
@@ -177,34 +175,57 @@ All actions should require re-authn with a mfa device.
 
 Use Discover Wizard to enroll new resources and access them:
 
-- [ ] SSH Server
-- [ ] Self-Hosted PostgreSQL
-- [ ] AWS RDS PostgreSQL
+- [ ] SSH Server (teleport service, singular EC2, SSM agent)
+- [ ] Self-Hosted PostgreSQL and Mongo
+- [ ] AWS RDS (singular RDS, auto discover with ECS)
 - [ ] Kubernetes
 - [ ] AWS EKS cluster
-- [ ] Windows Desktop Active Directory
 - [ ] Non-guided cards link out to correct docs
 
 #### Access Lists
 
 Not available for OSS
 
-Admin refers to users with access_list RBAC defined
+Admin refers to users with access_list RBAC defined:
+
+```
+spec:
+  allow:
+    rules:
+    - resources:
+      - access_list
+      verbs:
+      - list
+      - create
+      - read
+      - update
+      - delete
+```
 
 - [ ] Renders empty state animation highlighting different features of access lsit
 - [ ] Admins can create, delete, edit, and review access list
 - [ ] Owners (WITHOUT access_list RBAC defined) can still review and edit access lists that they are a owner of
 - [ ] Members can only read access list that they are a member of (edit buttons should be disabled)
 - [ ] Non members, owners, or admins should not be shown any access list
-- [ ] Access list reviews due in two weeks or less
-  - [ ] Red dot is rendered on the notification bell on top bar nav and access lists due are listed
-  - [ ] Red dot is also rendered next to the `Access List` navigation
+- [ ] Access list reviews due in two weeks or less are listed under notification bell
 - [ ] (Team) and (On-Prem and Cloud Without IGS addon): Renders CTA on empty state or when there are access lists
 - [ ] With IGS: Can create unlimited access list
 
 #### Session & Identity Locks
 
-Checking that you can view, create, and delete locks.
+```
+spec:
+  allow:
+    rules:
+    - resources:
+      - lock
+      verbs:
+      - list
+      - create
+      - read
+      - update
+      - delete
+```
 
 - [ ] Existing locks listing page.
   - [ ] It lists all of the existing locks in the system.
@@ -244,6 +265,17 @@ Not available for OSS
 
 - [ ] (Team) and (On-Prem and Cloud Without IGS addon): Limited to 5 monthly requests
 - [ ] With IGS: Unlimited requests
+
+### Access Request Notification Routing Rule (cloud only)
+
+- [ ] Test the default integration rule notifies using default settings
+- [ ] Test creating a custom rule that overwrites the default rule (default recipients should not be notified)
+- [ ] Test update rule to a different recipient (the previous recipient should not be notified)
+- [ ] Test email recipient notification works if applicable (eg slack)
+- [ ] Test a rule with multiple recipients and channels (eg slack)
+- [ ] Test multiple rules with different condition notifies correctly
+- [ ] Test deleting all rules, notifications fallbacks to the default (deleted rules should not be notified)
+- [ ] Test pre-defined predicate expressions from default editor work as match condition
 
 ### Creating Access Requests (Role Based)
 
@@ -317,7 +349,7 @@ version: v5
 - [ ] Verify there is list of reviewers you selected (empty list if none selected AND suggested_reviewers wasn't defined)
 - [ ] Verify you can't review own requests
 
-### Creating Access Requests (Search Based)
+### Creating Access Requests (Resource Based)
 
 Create a role with access to searcheable resources (apps, db, kubes, nodes, desktops). The template `searcheable-resources` is below.
 
@@ -483,6 +515,12 @@ From your cloud staging account, change the field `teleportVersion` to the test 
 ```
 $ kubectl -n <namespace> edit tenant
 ```
+
+#### Dashboard Tenants (self-hosted license)
+
+- [ ] Can see download page
+- [ ] Can download license
+- [ ] Can download teleport binaries
 
 #### Recovery Code Management
 
@@ -848,41 +886,19 @@ Add the following to enable read access to trusted clusters
     - [ ] Verify that an error notification was shown related to another login attempt being in
           progress.
 - Access Requests
-  - **Creating Access Requests (Role Based)**
-    - To setup a test environment, follow the steps laid out in `Created Access Requests (Role
-Based)` from the Web UI testplan and then verify the tasks below.
-    - [ ] Verify that under requestable roles, only `allow-roles-and-nodes` and
-          `allow-users-with-short-ttl` are listed
-    - [ ] Verify you can select/input/modify reviewers
-    - [ ] Verify you can view the request you created from request list (should be in a pending
-          state)
-    - [ ] Verify there is list of reviewers you selected (empty list if none selected AND
-          suggested_reviewers wasn't defined)
-    - [ ] Verify you can't review own requests
-  - **Creating Access Requests (Search Based)**
-    - To setup a test environment, follow the steps laid out in `Created Access Requests (Search
-Based)` from the Web UI testplan and then verify the tasks below.
-    - [ ] Verify that a user can see resources based on the `searcheable-resources` rules
-    - [ ] Verify you can select/input/modify reviewers
-    - [ ] Verify you can view the request you created from request list (should be in a pending
-          state)
-    - [ ] Verify there is list of reviewers you selected (empty list if none selected AND
-          suggested_reviewers wasn't defined)
-    - [ ] Verify you can't review own requests
-    - [ ] Verify that you can mix adding resources from the root and leaf clusters.
-    - [ ] Verify that you can't mix roles and resources into the same request.
-    - [ ] Verify that you can request resources from both the unified view and the search bar.
-    - Change `proxy_service.ui.show_resources` to `accessible_only`.
-      - [ ] Verify that you can now only request resources from the new request tab.
-  - **Viewing & Approving/Denying Requests**
-    - To setup a test environment, follow the steps laid out in `Viewing & Approving/Denying
-Requests` from the Web UI testplan and then verify the tasks below.
-    - [ ] Verify you can view access request from request list
-    - [ ] Verify you can approve a request with message, and immediately see updated state with
-          your review stamp (green checkmark) and message box
-    - [ ] Verify you can deny a request, and immediately see updated state with your review stamp
-          (red cross)
-    - [ ] Verify deleting the denied request is removed from list
+  - **Creating Access Requests (Role Based)** - To setup a test environment, follow the steps laid out in `Created Access Requests (Role
+Based)` from the Web UI testplan and then verify the tasks below. - [ ] Verify that under requestable roles, only `allow-roles-and-nodes` and
+    `allow-users-with-short-ttl` are listed - [ ] Verify you can select/input/modify reviewers - [ ] Verify you can view the request you created from request list (should be in a pending
+    state) - [ ] Verify there is list of reviewers you selected (empty list if none selected AND
+    suggested_reviewers wasn't defined) - [ ] Verify you can't review own requests
+  - **Creating Access Requests (Search Based)** - To setup a test environment, follow the steps laid out in `Created Access Requests (Search
+Based)` from the Web UI testplan and then verify the tasks below. - [ ] Verify that a user can see resources based on the `searcheable-resources` rules - [ ] Verify you can select/input/modify reviewers - [ ] Verify you can view the request you created from request list (should be in a pending
+    state) - [ ] Verify there is list of reviewers you selected (empty list if none selected AND
+    suggested_reviewers wasn't defined) - [ ] Verify you can't review own requests - [ ] Verify that you can mix adding resources from the root and leaf clusters. - [ ] Verify that you can't mix roles and resources into the same request. - [ ] Verify that you can request resources from both the unified view and the search bar. - Change `proxy_service.ui.show_resources` to `accessible_only`. - [ ] Verify that you can now only request resources from the new request tab.
+  - **Viewing & Approving/Denying Requests** - To setup a test environment, follow the steps laid out in `Viewing & Approving/Denying
+Requests` from the Web UI testplan and then verify the tasks below. - [ ] Verify you can view access request from request list - [ ] Verify you can approve a request with message, and immediately see updated state with
+    your review stamp (green checkmark) and message box - [ ] Verify you can deny a request, and immediately see updated state with your review stamp
+    (red cross) - [ ] Verify deleting the denied request is removed from list
   - **Assuming Approved Requests (Role Based)**
     - [ ] Verify that assuming `allow-roles-and-nodes` allows you to see roles screen and ssh into
           nodes
