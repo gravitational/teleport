@@ -208,6 +208,28 @@ func TestAuth_RegisterUsingAzureMethod(t *testing.T) {
 			assertError: require.NoError,
 		},
 		{
+			name:             "resource group is case insensitive",
+			tokenName:        "test-token",
+			requestTokenName: "test-token",
+			subscription:     subID,
+			resourceGroup:    "my-RESOURCE-GROUP",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Azure: &types.ProvisionTokenSpecV2Azure{
+					Allow: []*types.ProvisionTokenSpecV2Azure_Rule{
+						{
+							Subscription:   subID,
+							ResourceGroups: []string{"MY-resource-group"},
+						},
+					},
+				},
+				JoinMethod: types.JoinMethodAzure,
+			},
+			verify:      mockVerifyToken(nil),
+			certs:       []*x509.Certificate{tlsConfig.Certificate},
+			assertError: require.NoError,
+		},
+		{
 			name:             "wrong token",
 			tokenName:        "test-token",
 			requestTokenName: "wrong-token",
