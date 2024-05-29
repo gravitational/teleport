@@ -143,7 +143,7 @@ module.exports = {
   win: {
     target: ['nsis'],
     sign: customSign => {
-      if (process.env.CI != "true") {
+      if (process.env.CI !== "true") {
         console.warn(
           'Not running in CI pipeline: signing will be skipped'
         );
