@@ -72,7 +72,16 @@ type testPack struct {
 	localAddress     tcpip.Address
 }
 
-func newTestPack(t *testing.T, ctx context.Context, clock clockwork.FakeClock, appProvider AppProvider) *testPack {
+type testPackConfig struct {
+	clock       clockwork.FakeClock
+	appProvider AppProvider
+
+	// customDNSZones is a map where the keys are custom DNS zones that should be valid, and the values are a
+	// slice of all Teleport clusters they should be valid for.
+	customDNSZones map[string][]string
+}
+
+func newTestPack(t *testing.T, ctx context.Context, cfg testPackConfig) *testPack {
 	// Create two sides of an emulated TUN interface: writes to one can be read on the other, and vice versa.
 	tun1, tun2 := newSplitTUN()
 
@@ -121,7 +130,22 @@ func newTestPack(t *testing.T, ctx context.Context, clock clockwork.FakeClock, a
 	}})
 
 	dnsIPv6 := ipv6WithSuffix(vnetIPv6Prefix, []byte{2})
-	tcpHandlerResolver, err := NewTCPAppResolver(appProvider, withClock(clock))
+
+	lookupTXT := func(ctx context.Context, customDNSZone string) ([]string, error) {
+		clusters, ok := cfg.customDNSZones[customDNSZone]
+		if !ok {
+			return nil, nil
+		}
+		txtRecords := make([]string, 0, len(clusters))
+		for _, cluster := range clusters {
+			txtRecords = append(txtRecords, clusterTXTRecordPrefix+cluster)
+		}
+		return txtRecords, nil
+	}
+
+	tcpHandlerResolver, err := NewTCPAppResolver(cfg.appProvider,
+		withClock(cfg.clock),
+		withLookupTXTFunc(lookupTXT))
 	require.NoError(t, err)
 
 	// Create the VNet and connect it to the other side of the TUN.
@@ -412,9 +436,16 @@ func TestDialFakeApp(t *testing.T) {
 				"echo2.root1.example.com",
 				"echo.myzone.example.com",
 				"echo.nested.myzone.example.com",
+				"not.in.a.custom.zone",
+				"in.an.invalid.zone",
 			},
-			cidrRange:      "192.168.2.0/24",
-			customDNSZones: []string{"myzone.example.com"},
+			customDNSZones: []string{
+				"myzone.example.com",
+				// This zone will not have a valid TXT record because it is not included in the
+				// customDNSZones passed to newTestPack.
+				"an.invalid.zone",
+			},
+			cidrRange: "192.168.2.0/24",
 			leafClusters: map[string]testClusterSpec{
 				"leaf1.example.com": {
 					apps: []string{"echo1.leaf1.example.com"},
@@ -431,7 +462,13 @@ func TestDialFakeApp(t *testing.T) {
 		},
 	}, dialOpts, reissueClientCert)
 
-	p := newTestPack(t, ctx, clock, appProvider)
+	p := newTestPack(t, ctx, testPackConfig{
+		clock:       clock,
+		appProvider: appProvider,
+		customDNSZones: map[string][]string{
+			"myzone.example.com": {"root1.example.com", "another.random.cluster.example.com"},
+		},
+	})
 
 	validTestCases := []struct {
 		app        string
@@ -506,6 +543,8 @@ func TestDialFakeApp(t *testing.T) {
 		t.Parallel()
 		invalidTestCases := []string{
 			"not.an.app.example.com.",
+			"not.in.a.custom.zone",
+			"in.an.invalid.zone",
 			// Leaf clusters not supported yet.
 			"echo1.leaf1.example.com.",
 			"echo2.leaf1.example.com.",

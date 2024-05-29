@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
-	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -89,10 +88,12 @@ type DialOptions struct {
 
 // TCPAppResolver implements [TCPHandlerResolver] for Teleport TCP apps.
 type TCPAppResolver struct {
-	appProvider        AppProvider
-	clusterConfigCache *clusterConfigCache
-	slog               *slog.Logger
-	clock              clockwork.Clock
+	appProvider          AppProvider
+	clusterConfigCache   *clusterConfigCache
+	customDNSZoneChecker *customDNSZoneValidator
+	slog                 *slog.Logger
+	clock                clockwork.Clock
+	lookupTXT            lookupTXTFunc
 }
 
 // NewTCPAppResolver returns a new *TCPAppResolver which will resolve full-qualified domain names to
@@ -111,18 +112,25 @@ func NewTCPAppResolver(appProvider AppProvider, opts ...tcpAppResolverOption) (*
 	for _, opt := range opts {
 		opt(r)
 	}
-	if r.clock == nil {
-		r.clock = clockwork.NewRealClock()
-	}
+	r.clock = cmp.Or(r.clock, clockwork.NewRealClock())
 	r.clusterConfigCache = newClusterConfigCache(appProvider.GetVnetConfig, r.clock)
+	r.customDNSZoneChecker = newCustomDNSZoneValidator(r.lookupTXT)
 	return r, nil
 }
 
 type tcpAppResolverOption func(*TCPAppResolver)
 
+// withClock is a functional option to override the default clock (for tests).
 func withClock(clock clockwork.Clock) tcpAppResolverOption {
 	return func(r *TCPAppResolver) {
 		r.clock = clock
+	}
+}
+
+// withLookupTXTFunc is a functional option to override the DNS TXT record lookup function (for tests).
+func withLookupTXTFunc(lookupTXT lookupTXTFunc) tcpAppResolverOption {
+	return func(r *TCPAppResolver) {
+		r.lookupTXT = lookupTXT
 	}
 }
 
@@ -140,7 +148,9 @@ func (r *TCPAppResolver) ResolveTCPHandler(ctx context.Context, fqdn string) (*T
 			// This is a query for the proxy address, which we'll never want to handle.
 			return nil, ErrNoTCPHandler
 		}
-		if !r.fqdnMatchesProfile(ctx, profileName, fqdn) {
+		if match, err := r.fqdnMatchesProfile(ctx, profileName, fqdn); err != nil {
+			return nil, trace.Wrap(err)
+		} else if !match {
 			continue
 		}
 
@@ -160,19 +170,40 @@ func (r *TCPAppResolver) ResolveTCPHandler(ctx context.Context, fqdn string) (*T
 	return nil, ErrNoTCPHandler
 }
 
-func (r *TCPAppResolver) fqdnMatchesProfile(ctx context.Context, profileName, fqdn string) bool {
+func (r *TCPAppResolver) fqdnMatchesProfile(ctx context.Context, profileName, fqdn string) (bool, error) {
 	if isSubdomain(fqdn, profileName) {
-		return true
+		// The queried app fqdn is a subdomain of the proxy address, this is a match.
+		return true, nil
 	}
+	// Not a proxy address subdomain, must check custom DNS zones.
+
 	// TODO(nklaassen): support leaf clusters.
 	vnetConfig, err := r.clusterConfigCache.getVnetConfig(ctx, profileName, "" /*leafClustername*/)
 	if err != nil {
+		// Good chance we're here because the user is not logged in to the profile.
 		r.slog.ErrorContext(ctx, "Failed to get VnetConfig, not checking custom DNS zones.", "profile", profileName, "error", err)
-		return false
+		return false, nil
 	}
-	return slices.ContainsFunc(vnetConfig.GetSpec().GetCustomDnsZones(), func(zone *vnet.CustomDNSZone) bool {
-		return isSubdomain(fqdn, zone.GetSuffix())
-	})
+
+	// TODO(nklaassen): support leaf clusters.
+	rootClient, err := r.appProvider.GetCachedClient(ctx, profileName, "")
+	if err != nil {
+		r.slog.ErrorContext(ctx, "Failed to get teleport client, not checking custom DNS zones.", "profile", profileName, "error", err)
+		return false, nil
+	}
+	clusterName := rootClient.ClusterName()
+	for _, zone := range vnetConfig.GetSpec().GetCustomDnsZones() {
+		if !isSubdomain(fqdn, zone.GetSuffix()) {
+			// The queried app fqdn is not a subdomain of this custom zone suffix, skip it.
+			continue
+		}
+		// The queried app fqdn is a subdomain of this custom zone suffix. Check if the custom zone is valid.
+		if err := r.customDNSZoneChecker.validate(ctx, clusterName, zone.GetSuffix()); err != nil {
+			return false, trace.Wrap(err, "validating custom DNS zone %q for cluster %q", zone.GetSuffix(), clusterName)
+		}
+		return true, nil
+	}
+	return false, nil
 }
 
 // resolveTCPHandlerForCluster takes a cluster client and resolves [fqdn] to a [TCPHandlerSpec] if a matching
