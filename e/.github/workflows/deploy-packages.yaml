@@ -435,9 +435,9 @@ jobs:
           chmod +x "$SUDO_PATH"
           sudo echo "Running this with pseudo-sudo"
 
-          # Install apt-file
+          # Install apt-file and curl
           apt update
-          apt install -y apt-file
+          apt install -y apt-file curl
 
           # Set the package version
           echo "PACKAGE_VERSION=${ARTIFACT_TAG#v}" >> "$GITHUB_ENV"
