@@ -310,7 +310,7 @@ function Invoke-SignBinary {
     Write-Host "invertd truthy val: $(! $SignedBinaryPath)"
 
     if (! $SignedBinaryPath) {
-        $ShouldMoveSignedBinary = True
+        $ShouldMoveSignedBinary = $true
         $SignedBinaryPath = Join-Path -Path $(New-TempDirectory) -ChildPath "signed.exe"
         Write-Host "OVERRIDDING BINARY PATH"
     }
