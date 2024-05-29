@@ -26,7 +26,9 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
@@ -37,6 +39,8 @@ import (
 	"k8s.io/kubectl/pkg/scheme"
 
 	"github.com/gravitational/teleport"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/events"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 )
 
@@ -310,6 +314,7 @@ func TestExecMissingGETPermissionError(t *testing.T) {
 		name           string
 		errorMessage   string
 		errorInspector func(*testing.T, error)
+		interactive    bool
 	}{
 		{
 			name:         "missing get permission",
@@ -325,9 +330,27 @@ func TestExecMissingGETPermissionError(t *testing.T) {
 				require.NotContains(t, err.Error(), kubernetes130BreakingChangeHint)
 			},
 		},
+		{
+			name:         "missing get permission interactive session",
+			errorMessage: fmt.Sprintf(errorMessage, "get"),
+			errorInspector: func(t *testing.T, err error) {
+				require.Contains(t, err.Error(), kubernetes130BreakingChangeHint)
+			},
+			interactive: true,
+		},
+		{
+			name:         "missing create permission interactive session",
+			errorMessage: fmt.Sprintf(errorMessage, "create"),
+			errorInspector: func(t *testing.T, err error) {
+				require.NotContains(t, err.Error(), kubernetes130BreakingChangeHint)
+			},
+			interactive: true,
+		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			const errorCode = http.StatusForbidden
 
 			kubeMock, err := testingkubemock.NewKubeAPIMock(
@@ -342,6 +365,10 @@ func TestExecMissingGETPermissionError(t *testing.T) {
 			)
 			require.NoError(t, err)
 			t.Cleanup(func() { kubeMock.Close() })
+			var (
+				execEvent  *apievents.Exec
+				eventsLock sync.Mutex
+			)
 
 			// creates a Kubernetes service with a configured cluster pointing to mock api server
 			testCtx := SetupTestContext(
@@ -349,6 +376,13 @@ func TestExecMissingGETPermissionError(t *testing.T) {
 				t,
 				TestConfig{
 					Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
+					OnEvent: func(evt apievents.AuditEvent) {
+						eventsLock.Lock()
+						defer eventsLock.Unlock()
+						if exec, ok := evt.(*apievents.Exec); ok {
+							execEvent = exec
+						}
+					},
 				},
 			)
 
@@ -371,14 +405,24 @@ func TestExecMissingGETPermissionError(t *testing.T) {
 				user.GetName(),
 				kubeCluster,
 			)
-
-			streamOpts := remotecommand.StreamOptions{
-				Stdin:  nil,
-				Stdout: &bytes.Buffer{},
-				Stderr: &bytes.Buffer{},
-				Tty:    false,
+			var streamOpts remotecommand.StreamOptions
+			if !tt.interactive {
+				streamOpts = remotecommand.StreamOptions{
+					Stdin:  nil,
+					Stdout: &bytes.Buffer{},
+					Stderr: &bytes.Buffer{},
+					Tty:    false,
+				}
+			} else {
+				stdinReader, _ := io.Pipe()
+				t.Cleanup(func() { stdinReader.Close() })
+				streamOpts = remotecommand.StreamOptions{
+					Stdin:  stdinReader,
+					Stdout: &bytes.Buffer{},
+					Stderr: nil,
+					Tty:    true,
+				}
 			}
-
 			req, err := generateExecRequest(
 				generateExecRequestConfig{
 					addr:          testCtx.KubeProxyAddress(),
@@ -396,6 +440,18 @@ func TestExecMissingGETPermissionError(t *testing.T) {
 			err = exec.StreamWithContext(testCtx.Context, streamOpts)
 			require.Error(t, err)
 			tt.errorInspector(t, err)
+
+			require.Eventually(t, func() bool {
+				eventsLock.Lock()
+				defer eventsLock.Unlock()
+				return execEvent != nil
+			}, 5*time.Second, 100*time.Millisecond, "expected exec event to be recorded")
+
+			eventsLock.Lock()
+			require.Equal(t, events.ExecFailureCode, execEvent.Code)
+			require.Equal(t, "403", execEvent.ExitCode)
+			require.NotEmpty(t, execEvent.Error)
+			eventsLock.Unlock()
 		})
 	}
 }
