@@ -213,6 +213,8 @@ If the proxy address is not provided with `--proxy`, the current proxy address f
 The `enable` subcommand will change the behavior of `teleport-update update` to update teleport and restart the existing agent, if running.
 It will also run update teleport immediately, to ensure that subsequent executions succeed.
 
+Both `update` and `enable` will maintain a shared lock file preventing any re-entrant executions.
+
 The `enable` subcommand will:
 1. Query the `/v1/webapi/find` endpoint.
 2. If the current updater-managed version of Teleport is the latest, and teleport package is not installed, jump to (16).
