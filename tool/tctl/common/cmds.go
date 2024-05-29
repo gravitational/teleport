@@ -61,5 +61,6 @@ func Commands() []CLICommand {
 		&fido2Command{},
 		&webauthnwinCommand{},
 		&touchIDCommand{},
+		&BenchCommand{},
 	}
 }
