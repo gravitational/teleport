@@ -35,7 +35,7 @@ function New-TempDirectory {
     string
     #>
 
-    $TempDirectoryPath = Join-Path -Path "$([System.IO.Path]::GetTempPath())" -ChildPath "$($(New-Guid).Guid)"
+    $TempDirectoryPath = Join-Path -Path "$([System.IO.Path]::GetTempPath())" -ChildPath "$([guid]::newguid().Guid)"
     New-Item -ItemType Directory -Path "$TempDirectoryPath" | Out-Null
 
     return "$TempDirectoryPath"
