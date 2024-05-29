@@ -294,6 +294,8 @@ export const eventCodes = {
   AUTH_PREFERENCE_UPDATE: 'TCAUTH001I',
   CLUSTER_NETWORKING_CONFIG_UPDATE: 'TCNET002I',
   SESSION_RECORDING_CONFIG_UPDATE: 'TCREC003I',
+  SPANNER_RPC: 'TSPN001I',
+  SPANNER_RPC_DENIED: 'TSPN001W',
 } as const;
 
 /**
@@ -1628,6 +1630,10 @@ export type RawEvents = {
       user: string;
     }
   >;
+  [eventCodes.SPANNER_RPC]: RawSpannerRPCEvent<typeof eventCodes.SPANNER_RPC>;
+  [eventCodes.SPANNER_RPC_DENIED]: RawSpannerRPCEvent<
+    typeof eventCodes.SPANNER_RPC_DENIED
+  >;
 };
 
 /**
@@ -1816,6 +1822,16 @@ type RawDatabaseSessionEvent<T extends EventCode, K = unknown> = Merge<
     }
   >,
   K
+>;
+
+type RawSpannerRPCEvent<T extends EventCode> = RawEvent<
+  T,
+  {
+    procedure: string;
+    db_service: string;
+    db_name: string;
+    args: { sql?: string };
+  }
 >;
 
 /**

@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -629,6 +630,102 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			databaseName: "oracle01",
 			cmd:          []string{"sql", "-L", "'jdbc:oracle:thin:@tcps://localhost:12345/oracle01?TNS_ADMIN=/tmp/keys/example.com/bob-db/mysql-wallet'"},
 			wantErr:      false,
+		},
+		{
+			name:       "Spanner for exec is ok",
+			dbProtocol: defaults.ProtocolSpanner,
+			opts: []ConnectCommandFunc{
+				WithLocalProxy("localhost", 12345, ""),
+				WithNoTLS(),
+				WithGCP(types.GCPCloudSQL{ProjectID: "foo-proj", InstanceID: "bar-instance"}),
+			},
+			execer:       &fakeExec{},
+			databaseName: "googlesql-db",
+			cmd:          []string{"spanner-cli", "-p", "foo-proj", "-i", "bar-instance", "-d", "googlesql-db"},
+			wantErr:      false,
+		},
+		{
+			name:       "Spanner with print format is ok",
+			dbProtocol: defaults.ProtocolSpanner,
+			opts: []ConnectCommandFunc{
+				WithPrintFormat(),
+				WithLocalProxy("localhost", 12345, ""),
+				WithNoTLS(),
+				WithGCP(types.GCPCloudSQL{ProjectID: "foo-proj", InstanceID: "bar-instance"}),
+			},
+			execer:       &fakeExec{},
+			databaseName: "googlesql-db",
+			cmd:          []string{"spanner-cli", "-p", "foo-proj", "-i", "bar-instance", "-d", "googlesql-db"},
+			wantErr:      false,
+		},
+		{
+			name:       "Spanner with print format and placeholders is ok",
+			dbProtocol: defaults.ProtocolSpanner,
+			opts: []ConnectCommandFunc{
+				WithPrintFormat(),
+				WithLocalProxy("localhost", 12345, ""),
+				WithNoTLS(),
+				WithGCP(types.GCPCloudSQL{}),
+			},
+			execer:       &fakeExec{},
+			databaseName: "",
+			cmd:          []string{"spanner-cli", "-p", "<project>", "-i", "<instance>", "-d", "<database>"},
+			wantErr:      false,
+		},
+		{
+			name:       "Spanner for exec without GCP project is an error",
+			dbProtocol: defaults.ProtocolSpanner,
+			opts: []ConnectCommandFunc{
+				WithLocalProxy("localhost", 12345, ""),
+				WithNoTLS(),
+				WithGCP(types.GCPCloudSQL{InstanceID: "bar-instance"}),
+			},
+			execer:       &fakeExec{},
+			databaseName: "googlesql-db",
+			wantErr:      true,
+		},
+		{
+			name:       "Spanner for exec without GCP instance is an error",
+			dbProtocol: defaults.ProtocolSpanner,
+			opts: []ConnectCommandFunc{
+				WithLocalProxy("localhost", 12345, ""),
+				WithNoTLS(),
+				WithGCP(types.GCPCloudSQL{ProjectID: "foo-proj"}),
+			},
+			execer:       &fakeExec{},
+			databaseName: "googlesql-db",
+			wantErr:      true,
+		},
+		{
+			name:       "Spanner for exec without database name is an error",
+			dbProtocol: defaults.ProtocolSpanner,
+			opts: []ConnectCommandFunc{
+				WithLocalProxy("localhost", 12345, ""),
+				WithNoTLS(),
+				WithGCP(types.GCPCloudSQL{ProjectID: "foo-proj"}),
+			},
+			execer:       &fakeExec{},
+			databaseName: "googlesql-db",
+			wantErr:      true,
+		},
+		{
+			name:       "Spanner without a local proxy is an error",
+			dbProtocol: defaults.ProtocolSpanner,
+			opts: []ConnectCommandFunc{
+				WithLocalProxy("", 0, ""),
+				WithNoTLS(),
+				WithGCP(types.GCPCloudSQL{ProjectID: "foo-proj", InstanceID: "bar-instance"}),
+			},
+			execer:       &fakeExec{},
+			databaseName: "googlesql-db",
+			wantErr:      true,
+		},
+		{
+			name:       "Spanner with TLS local proxy is an error",
+			dbProtocol: defaults.ProtocolSpanner,
+			opts:       []ConnectCommandFunc{WithPrintFormat(), WithLocalProxy("localhost", 12345, "")},
+			execer:     &fakeExec{},
+			wantErr:    true,
 		},
 	}
 

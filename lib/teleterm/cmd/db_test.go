@@ -92,6 +92,12 @@ func TestNewDBCLICommand(t *testing.T) {
 			protocol:              defaults.ProtocolDynamoDB,
 			checkCmds:             checkArgsNotEmpty,
 		},
+		{
+			name:                  "custom handling of Spanner does not blow up",
+			targetSubresourceName: "bar",
+			protocol:              defaults.ProtocolSpanner,
+			checkCmds:             checkArgsNotEmpty,
+		},
 	}
 
 	for _, tc := range testCases {

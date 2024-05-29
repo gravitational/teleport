@@ -4101,6 +4101,7 @@ message OneOf {
     events.ClusterNetworkingConfigUpdate ClusterNetworkingConfigUpdate = 154;
     events.DatabaseUserCreate DatabaseUserCreate = 155;
     events.DatabaseUserDeactivate DatabaseUserDeactivate = 156;
+    events.SpannerRPC SpannerRPC = 158;
   }
 }
 
@@ -6157,5 +6158,46 @@ message SessionRecordingConfigUpdate {
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
+  ];
+}
+
+// SpannerRPC is an event emitted when a Spanner client calls a Spanner RPC.
+message SpannerRPC {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // SessionMetadata is a common event session metadata.
+  SessionMetadata Session = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Database contains database related metadata.
+  DatabaseMetadata Database = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Status indicates whether the RPC was successfully sent to the database.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Procedure is the name of the remote procedure.
+  string Procedure = 6 [(gogoproto.jsontag) = "procedure,omitempty"];
+  // Args are the RPC arguments.
+  google.protobuf.Struct Args = 7 [
+    (gogoproto.jsontag) = "args,omitempty",
+    (gogoproto.casttype) = "Struct"
   ];
 }

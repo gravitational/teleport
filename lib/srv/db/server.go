@@ -60,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/srv/db/redis"
 	"github.com/gravitational/teleport/lib/srv/db/snowflake"
+	"github.com/gravitational/teleport/lib/srv/db/spanner"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver"
 	discoverycommon "github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/utils"
@@ -78,6 +79,7 @@ func init() {
 	common.RegisterEngine(dynamodb.NewEngine, defaults.ProtocolDynamoDB)
 	common.RegisterEngine(clickhouse.NewEngine, defaults.ProtocolClickHouse)
 	common.RegisterEngine(clickhouse.NewEngine, defaults.ProtocolClickHouseHTTP)
+	common.RegisterEngine(spanner.NewEngine, defaults.ProtocolSpanner)
 }
 
 // Config is the configuration for a database proxy server.
