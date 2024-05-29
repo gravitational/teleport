@@ -198,6 +198,7 @@ func TestIntegrations(t *testing.T) {
 	t.Run("AuthLocalNodeControlStream", suite.bind(testAuthLocalNodeControlStream))
 	t.Run("AgentlessConnection", suite.bind(testAgentlessConnection))
 	t.Run("LeafAgentlessConnection", suite.bind(testTrustedClusterAgentless))
+	t.Run("SyncRecordingFailures", suite.bind(testSyncRecordingFailures))
 }
 
 // testDifferentPinnedIP tests connection is rejected when source IP doesn't match the pinned one
@@ -1139,6 +1140,150 @@ func testSessionRecordingModes(t *testing.T, suite *integrationTestSuite) {
 				term.Type("exit\n\r")
 				waitSessionTermination(t, errCh, require.NoError)
 			})
+		})
+	}
+}
+
+// testSyncRecordingFailures given a cluster with recording mode set to
+// sync, ensures the session is terminated in case of session recording
+// failures.
+//
+// To simulate failures, we will start an auth server, proxy and ssh server
+// separated. With the session running, we'll stop the auth server, causing any
+// sync recordings to fail. This will works for both, proxy and node recordings.
+func testSyncRecordingFailures(t *testing.T, suite *integrationTestSuite) {
+	ctx := context.Background()
+	tr := utils.NewTracer(utils.ThisFunction()).Start()
+	defer tr.Stop()
+
+	for _, test := range []struct {
+		mode string
+	}{
+		{mode: types.RecordAtNodeSync},
+		{mode: types.RecordAtProxySync},
+	} {
+		t.Run(test.mode, func(t *testing.T) {
+			t.Parallel()
+
+			recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
+				Mode: test.mode,
+			})
+			require.NoError(t, err)
+
+			authCfg := suite.defaultServiceConfig()
+			authCfg.Console = nil
+			authCfg.Log = utils.NewLoggerForTests()
+			authCfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+			authCfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+			authCfg.Auth.Preference.SetSecondFactor("off")
+			authCfg.Auth.Enabled = true
+			authCfg.Auth.SessionRecordingConfig = recConfig
+			authCfg.Proxy.Enabled = false
+			authCfg.SSH.Enabled = false
+
+			auth := helpers.NewInstance(t, helpers.InstanceConfig{
+				ClusterName: helpers.Site,
+				HostID:      uuid.New().String(),
+				NodeName:    Host,
+				Log:         utils.NewLoggerForTests(),
+			})
+
+			require.NoError(t, auth.CreateEx(t, nil, authCfg))
+			require.NoError(t, auth.Start())
+			defer auth.StopAll()
+
+			username := suite.Me.Username
+			role, err := types.NewRole("devs", types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					Logins:     []string{username},
+					NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				},
+			})
+			require.NoError(t, err)
+			require.NoError(t, helpers.SetupUser(auth.Process, username, []types.Role{role}))
+
+			node := helpers.NewInstance(t, helpers.InstanceConfig{
+				ClusterName: helpers.Site,
+				HostID:      uuid.New().String(),
+				NodeName:    Host,
+				Log:         utils.NewLoggerForTests(),
+			})
+
+			// Create node config.
+			nodeCfg := servicecfg.MakeDefaultConfig()
+			nodeCfg.SetAuthServerAddress(authCfg.Auth.ListenAddr)
+			nodeCfg.SetToken("token")
+			nodeCfg.Auth.Enabled = false
+			nodeCfg.CachePolicy.Enabled = true
+			nodeCfg.DataDir = t.TempDir()
+			nodeCfg.Console = nil
+			nodeCfg.Log = utils.NewLoggerForTests()
+			nodeCfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+			nodeCfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+
+			nodeCfg.Proxy.Enabled = true
+			nodeCfg.Proxy.DisableWebService = false
+			nodeCfg.Proxy.DisableWebInterface = true
+			nodeCfg.FileDescriptors = append(nodeCfg.FileDescriptors, node.Fds...)
+			nodeCfg.Proxy.SSHAddr.Addr = node.SSHProxy
+			nodeCfg.Proxy.WebAddr.Addr = node.Web
+			nodeCfg.Proxy.ReverseTunnelListenAddr.Addr = node.Secrets.TunnelAddr
+
+			nodeCfg.SSH.Enabled = true
+			nodeCfg.SSH.Addr.Addr = node.SSH
+
+			require.NoError(t, node.CreateWithConf(t, nodeCfg))
+			require.NoError(t, node.Start())
+			defer node.StopAll()
+
+			// Start session.
+			term := NewTerminal(250)
+			errCh := make(chan error)
+
+			cl, err := auth.NewClient(helpers.ClientConfig{
+				Login:   username,
+				Cluster: helpers.Site,
+				Host:    Host,
+				Port:    helpers.Port(t, node.SSH),
+				Proxy: &helpers.ProxyConfig{
+					SSHAddr: nodeCfg.Proxy.SSHAddr.String(),
+					WebAddr: nodeCfg.Proxy.WebAddr.String(),
+				},
+			})
+			require.NoError(t, err)
+			cl.Stdout = term
+			cl.Stdin = term
+
+			go func() {
+				errCh <- cl.SSH(ctx, []string{}, false)
+			}()
+
+			// Guarantee the session started properly.
+			select {
+			case err := <-errCh:
+				require.Fail(t, "failed to initialize the session: %s", err)
+			case <-time.After(time.Second):
+			}
+
+			// Run a command and give enough time for it to be processed and be
+			// recordered.
+			term.Type("echo Hello\n\r")
+			select {
+			case err := <-errCh:
+				require.Fail(t, "expected the session to not fail but got %q", err)
+			case <-time.After(5 * time.Second):
+			}
+
+			// Stop auth and send commands to the session again.
+			require.NoError(t, auth.StopAuth(false))
+			term.Type("echo Second Hello\n\r")
+
+			select {
+			case err := <-errCh:
+				require.Error(t, err)
+			case <-time.After(30 * time.Second):
+				require.Fail(t, "expected session to complete")
+			}
 		})
 	}
 }
@@ -8534,10 +8679,11 @@ func TestConnectivityWithoutAuth(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
 
 	tests := []struct {
-		name         string
-		adjustRole   func(r types.Role)
-		command      []string
-		sshAssertion func(t *testing.T, authRunning bool, errChan chan error, term *Terminal)
+		name          string
+		recordingMode string
+		adjustRole    func(r types.Role)
+		command       []string
+		sshAssertion  func(t *testing.T, authRunning bool, errChan chan error, term *Terminal)
 	}{
 		{
 			name:       "offline connectivity allowed",
@@ -8585,6 +8731,50 @@ func TestConnectivityWithoutAuth(t *testing.T) {
 				}
 			},
 		},
+		{
+			name:          "proxy-sync recording requires auth connectivity",
+			recordingMode: types.RecordAtProxySync,
+			adjustRole:    func(r types.Role) {},
+			sshAssertion: func(t *testing.T, authRunning bool, errChan chan error, term *Terminal) {
+				term.Type("echo hi\n\rexit\n\r")
+
+				select {
+				case err := <-errChan:
+					t.Log("===>>>", err)
+					if !authRunning {
+						require.Error(t, err)
+						return
+					}
+
+					require.NoError(t, err)
+					require.Contains(t, term.AllOutput(), "hi")
+				case <-time.After(5 * time.Second):
+					t.Fatal("timeout waiting for session to exit")
+				}
+			},
+		},
+		{
+			name:          "node-sync recording requires auth connectivity",
+			recordingMode: types.RecordAtNodeSync,
+			adjustRole:    func(r types.Role) {},
+			sshAssertion: func(t *testing.T, authRunning bool, errChan chan error, term *Terminal) {
+				term.Type("echo hi\n\rexit\n\r")
+
+				select {
+				case err := <-errChan:
+					t.Log("===>>>", err)
+					if !authRunning {
+						require.Error(t, err)
+						return
+					}
+
+					require.NoError(t, err)
+					require.Contains(t, term.AllOutput(), "hi")
+				case <-time.After(5 * time.Second):
+					t.Fatal("timeout waiting for session to exit")
+				}
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -8603,6 +8793,16 @@ func TestConnectivityWithoutAuth(t *testing.T) {
 			authCfg.Auth.NoAudit = true
 			authCfg.Proxy.Enabled = false
 			authCfg.SSH.Enabled = false
+
+			if test.recordingMode != "" {
+				recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
+					Mode: test.recordingMode,
+				})
+				require.NoError(t, err)
+
+				authCfg.Auth.NoAudit = false
+				authCfg.Auth.SessionRecordingConfig = recConfig
+			}
 
 			privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
 			require.NoError(t, err)

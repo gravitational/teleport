@@ -29,6 +29,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
@@ -138,7 +139,7 @@ func TestLoginDefsParser(t *testing.T) {
 }
 
 func newExecServerContext(t *testing.T, srv Server) *ServerContext {
-	scx := newTestServerContext(t, srv, nil)
+	scx := newTestServerContext(t, srv, nil, types.DefaultSessionRecordingConfig())
 
 	term, err := newLocalTerminal(scx)
 	require.NoError(t, err)

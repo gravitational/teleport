@@ -1160,6 +1160,18 @@ func (s *session) sessionRecordingMode() string {
 	return sessionRecMode
 }
 
+// roleSessionRecordingMode returns the session recording mode defined for SSH
+// sessions.
+func (s *session) roleSessionRecordingMode() constants.SessionRecordingMode {
+	// When recording mode is sync, any failure should abort the session to
+	// honor the definition.
+	if services.IsRecordSync(s.scx.SessionRecordingConfig.GetMode()) {
+		return constants.SessionRecordingModeStrict
+	}
+
+	return s.scx.Identity.AccessChecker.SessionRecordingMode(constants.SessionRecordingServiceSSH)
+}
+
 func (s *session) setEndingContext(ctx *ServerContext) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -1384,6 +1396,7 @@ func newRecorder(s *session, ctx *ServerContext) (events.SessionPreparerRecorder
 		return events.WithNoOpPreparer(events.NewDiscardRecorder()), nil
 	}
 
+	recMode := s.roleSessionRecordingMode()
 	rec, err := recorder.New(recorder.Config{
 		SessionID:    s.id,
 		ServerID:     s.serverMeta.ServerID,
@@ -1397,9 +1410,10 @@ func newRecorder(s *session, ctx *ServerContext) (events.SessionPreparerRecorder
 		// Session stream is using server context, not session context,
 		// to make sure that session is uploaded even after it is closed
 		Context: ctx.srv.Context(),
+		Strict:  recMode == constants.SessionRecordingModeStrict,
 	})
 	if err != nil {
-		switch ctx.Identity.AccessChecker.SessionRecordingMode(constants.SessionRecordingServiceSSH) {
+		switch recMode {
 		case constants.SessionRecordingModeBestEffort:
 			s.log.WithError(err).Warning("Failed to initialize session recording, disabling it for this session.")
 
@@ -2210,7 +2224,7 @@ func (s *session) recordEvent(ctx context.Context, event apievents.PreparedSessi
 // onWriteError defines the `OnWriteError` `TermManager` callback.
 func (s *session) onWriteError(idString string, err error) {
 	if idString == sessionRecorderID {
-		switch s.scx.Identity.AccessChecker.SessionRecordingMode(constants.SessionRecordingServiceSSH) {
+		switch s.roleSessionRecordingMode() {
 		case constants.SessionRecordingModeBestEffort:
 			s.log.WithError(err).Warning("Failed to write to session recorder, disabling session recording.")
 			// Send inside a goroutine since the callback is called from inside
@@ -2221,7 +2235,8 @@ func (s *session) onWriteError(idString string, err error) {
 			// stop in goroutine to avoid deadlock
 			go func() {
 				s.BroadcastSystemMessage(sessionRecordingErrorMessage)
-				s.Stop()
+				// s.Stop()
+				s.Close()
 			}()
 		}
 	}

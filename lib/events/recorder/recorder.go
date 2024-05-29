@@ -91,6 +91,9 @@ type Config struct {
 	// StartTime represents the time the recorder started. If not zero, this
 	// value is used to generate the events index.
 	StartTime time.Time
+
+	// Strict defines if RecordEvent should return error when an event is lost.
+	Strict bool
 }
 
 // New returns a [events.SessionPreparerRecorder]. If session recording is disabled,
@@ -149,6 +152,7 @@ func New(cfg Config) (events.SessionPreparerRecorder, error) {
 		Clock:           cfg.Clock,
 		BackoffTimeout:  cfg.BackoffTimeout,
 		BackoffDuration: cfg.BackoffDuration,
+		Strict:          cfg.Strict,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

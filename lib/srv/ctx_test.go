@@ -51,7 +51,7 @@ func TestDecodeChildError(t *testing.T) {
 
 func TestCheckSFTPAllowed(t *testing.T) {
 	srv := newMockServer(t)
-	ctx := newTestServerContext(t, srv, nil)
+	ctx := newTestServerContext(t, srv, nil, types.DefaultSessionRecordingConfig())
 
 	tests := []struct {
 		name                 string
