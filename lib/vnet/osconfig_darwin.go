@@ -33,8 +33,24 @@ import (
 // configureOS configures the host OS according to [cfg]. It is safe to call repeatedly, and it is meant to be
 // called with an empty [osConfig] to deconfigure anything necessary before exiting.
 func configureOS(ctx context.Context, cfg *osConfig) error {
-	// There is no need to remove IPs or the IPv6 route, they will automatically be cleaned up when the
+	// There is no need to remove IP addresses or routes, they will automatically be cleaned up when the
 	// process exits and the TUN is deleted.
+
+	if cfg.tunIPv4 != "" {
+		slog.InfoContext(ctx, "Setting IPv4 address for the TUN device.", "device", cfg.tunName, "address", cfg.tunIPv4)
+		cmd := exec.CommandContext(ctx, "ifconfig", cfg.tunName, cfg.tunIPv4, cfg.tunIPv4, "up")
+		if err := cmd.Run(); err != nil {
+			return trace.Wrap(err, "running %v", cmd.Args)
+		}
+	}
+	for _, cidrRange := range cfg.cidrRanges {
+		slog.InfoContext(ctx, "Setting an IP route for the VNet.", "netmask", cidrRange)
+		cmd := exec.CommandContext(ctx, "route", "add", "-net", cidrRange, "-interface", cfg.tunName)
+		if err := cmd.Run(); err != nil {
+			return trace.Wrap(err, "running %v", cmd.Args)
+		}
+	}
+
 	if cfg.tunIPv6 != "" {
 		slog.InfoContext(ctx, "Setting IPv6 address for the TUN device.", "device", cfg.tunName, "address", cfg.tunIPv6)
 		cmd := exec.CommandContext(ctx, "ifconfig", cfg.tunName, "inet6", cfg.tunIPv6, "prefixlen", "64")
