@@ -24,6 +24,7 @@ import (
 	"os"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/profile"
@@ -74,12 +75,7 @@ func newOSConfigurator(ctx context.Context, tunName, ipv6Prefix, dnsAddr string)
 		homePath:    homePath,
 		clientStore: client.NewFSClientStore(homePath),
 	}
-
-	clusterConfigCache, err := newClusterConfigCache(configurator.getVnetConfig)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	configurator.clusterConfigCache = clusterConfigCache
+	configurator.clusterConfigCache = newClusterConfigCache(configurator.getVnetConfig, clockwork.NewRealClock())
 
 	return configurator, nil
 }

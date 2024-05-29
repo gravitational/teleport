@@ -95,19 +95,17 @@ type TCPAppResolver struct {
 //
 // [appProvider] is also used to get app certificates used to dial the apps.
 func NewTCPAppResolver(appProvider AppProvider, opts ...tcpAppResolverOption) (*TCPAppResolver, error) {
-	clusterConfigCache, err := newClusterConfigCache(appProvider.GetVnetConfig)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	r := &TCPAppResolver{
-		appProvider:        appProvider,
-		slog:               slog.With(teleport.ComponentKey, "VNet.AppResolver"),
-		clusterConfigCache: clusterConfigCache,
-		clock:              clockwork.NewRealClock(),
+		appProvider: appProvider,
+		slog:        slog.With(teleport.ComponentKey, "VNet.AppResolver"),
 	}
 	for _, opt := range opts {
 		opt(r)
 	}
+	if r.clock == nil {
+		r.clock = clockwork.NewRealClock()
+	}
+	r.clusterConfigCache = newClusterConfigCache(appProvider.GetVnetConfig, r.clock)
 	return r, nil
 }
 

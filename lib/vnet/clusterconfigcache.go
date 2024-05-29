@@ -18,50 +18,96 @@ package vnet
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"golang.org/x/sync/singleflight"
 
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 type getClusterConfigFunc = func(ctx context.Context, profileName, leafClusterName string) (*vnet.VnetConfig, error)
 
-type clusterConfigCache struct {
-	get      getClusterConfigFunc
-	ttlCache *utils.FnCache
+type cacheEntry struct {
+	vnetConfig *vnet.VnetConfig
+	expires    time.Time
 }
 
-func newClusterConfigCache(get getClusterConfigFunc) (*clusterConfigCache, error) {
-	ttlCache, err := utils.NewFnCache(utils.FnCacheConfig{
-		TTL: 5 * time.Minute,
+func (e *cacheEntry) stale(clock clockwork.Clock) bool {
+	return clock.Now().After(e.expires)
+}
+
+// clusterConfigCache is a read-through cache for cluster VnetConfigs. Cached entries go stale after 5
+// minutes, after which they will be re-fetched on the next read.
+//
+// If a read from the cluster fails but there is a stale cache entry present, this prefers to return the stale
+// cached entry. This is desirable in cases where the profile for a cluster expires during VNet operation,
+// it's better to use the stale custom DNS zones than to remove all DNS configuration for that cluster.
+type clusterConfigCache struct {
+	get         getClusterConfigFunc
+	cache       map[string]cacheEntry
+	mu          sync.RWMutex
+	flightGroup singleflight.Group
+	clock       clockwork.Clock
+}
+
+func newClusterConfigCache(get getClusterConfigFunc, clock clockwork.Clock) *clusterConfigCache {
+	return &clusterConfigCache{
+		get:   get,
+		cache: make(map[string]cacheEntry),
+		clock: clock,
+	}
+}
+
+func (c *clusterConfigCache) getVnetConfig(ctx context.Context, profileName, leafClusterName string) (*vnet.VnetConfig, error) {
+	k := clusterCacheKey(profileName, leafClusterName)
+
+	// Use a singleflight.Group to avoid concurrent requests for the same cluster VnetConfig.
+	vnetConfig, err, _ := c.flightGroup.Do(k, func() (any, error) {
+		// Check the cache inside flightGroup.Do to avoid the chance of immediate repeat calls to the cluster.
+		c.mu.RLock()
+		existingCacheEntry, existingCacheEntryExists := c.cache[k]
+		c.mu.RUnlock()
+		if existingCacheEntryExists && !existingCacheEntry.stale(c.clock) {
+			return existingCacheEntry.vnetConfig, nil
+		}
+
+		vnetConfig, err := c.get(ctx, profileName, leafClusterName)
+		if trace.IsNotFound(err) || trace.IsNotImplemented(err) {
+			// Default to the empty config on NotFound or NotImplemented.
+			vnetConfig = &vnet.VnetConfig{}
+			err = nil
+		}
+		if err != nil {
+			// It's better to return a stale cached VnetConfig than an error. The profile probably expired and
+			// we want to keep functioning until a relogin. We don't expect the VnetConfig to change very
+			// often.
+			if existingCacheEntryExists {
+				return existingCacheEntry.vnetConfig, nil
+			}
+			return nil, trace.Wrap(err)
+		}
+
+		c.mu.Lock()
+		c.cache[k] = cacheEntry{
+			vnetConfig: vnetConfig,
+			expires:    c.clock.Now().Add(5 * time.Minute),
+		}
+		c.mu.Unlock()
+
+		return vnetConfig, nil
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &clusterConfigCache{
-		get:      get,
-		ttlCache: ttlCache,
-	}, nil
+	return vnetConfig.(*vnet.VnetConfig), nil
 }
 
-func (c *clusterConfigCache) getVnetConfig(ctx context.Context, profileName, leafClusterName string) (*vnet.VnetConfig, error) {
-	k := clusterCacheKey{
-		profileName:     profileName,
-		leafClusterName: leafClusterName,
+func clusterCacheKey(profileName, leafClusterName string) string {
+	if leafClusterName != "" {
+		return profileName + "/" + leafClusterName
 	}
-	vnetConfig, err := utils.FnCacheGet(ctx, c.ttlCache, k, func(ctx context.Context) (*vnet.VnetConfig, error) {
-		return c.get(ctx, profileName, leafClusterName)
-	})
-	if trace.IsNotFound(err) || trace.IsNotImplemented(err) {
-		// Default to the empty config on NotFound for NotImplemented.
-		return &vnet.VnetConfig{}, nil
-	}
-	return vnetConfig, trace.Wrap(err)
-}
-
-type clusterCacheKey struct {
-	profileName     string
-	leafClusterName string
+	return profileName
 }
