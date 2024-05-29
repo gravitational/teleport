@@ -20,7 +20,7 @@ This script will configure your Active Directory system to integrate with Telepo
 5. Generate a Teleport configuration file for the Windows Desktop Service.
 
 Ensure you've reviewed this script itself and/or the equivalent manual documentation before proceeding.
-For the manual documentation, see: https://goteleport.com/docs/desktop-access/active-directory-manual
+For the manual documentation, see: https://goteleport.com/docs/desktop-access/active-directory
 
 Press 'Y' to acknowledge and continue, or any other key to exit.
 "@
