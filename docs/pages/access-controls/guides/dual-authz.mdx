@@ -87,9 +87,10 @@ We'll reference the exported file(s) later when configuring the plugin.
   To install from source you need `git` and `go >= (=teleport.golang=)` installed.
 
   ```code
-  # Checkout teleport-plugins
-  $ git clone https://github.com/gravitational/teleport-plugins.git
-  $ cd teleport-plugins/access/mattermost
+  # Checkout the Teleport repo and go in the mattermost access plugin directory
+  $ git clone https://github.com/gravitational/teleport.git
+  $ cd teleport/integrations/access/mattermost
+  $ git checkout (=teleport.plugin.version=)
   $ make
   ```
 </TabItem>
