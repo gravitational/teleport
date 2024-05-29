@@ -1,18 +1,35 @@
 ---
-title: Database Access RBAC
+title: Database Access Controls
 description: Role-based access control (RBAC) for Teleport database access.
 ---
 
-Role-based access control (or RBAC, for short) allows administrators to set up
-granular access policies for databases connected to Teleport.
+**Database Access Controls** is a Teleport feature that lets you configure
+role-based access controls for databases and the data within them. With Database
+Access Controls, you can ensure that users only have permissions to manage the
+data they need.
 
-An example of a policy could be, *"database administrators have access to
-everything, QA team and engineers have full access to staging databases, and
-engineers can gain temporary access to the production database in case of
-emergency"*.
+Access Controls encompasses two levels of granularity:
 
-For a more general description of Teleport roles and examples see [RBAC](../access-controls/introduction.mdx), as
-this section focuses on configuring RBAC for database access.
+- **Databases:** databases enrolled with your Teleport cluster.
+- **Database objects:** tables, views, or stored
+  procedures. 
+
+For both databases and database objects, Database Access Controls grants or
+denies access based on Teleport labels. When you enroll a database with
+Teleport, you can configure the labels associated with the databse. For database
+objects, you can define import rules that instruct the Teleport Database Service
+to apply labels to database objects imported from databases that match labels
+configured within the import rule.
+
+When a user connects to a database, the Database Service selectively grants
+permissions by checking labels against the user's Teleport roles.
+
+The Database Service grants object-level permissions for the duration of a
+connection and revokes them automatically when the connection ends.
+
+For a more general description of Teleport roles and examples see
+[RBAC](../access-controls/introduction.mdx), as this section focuses on
+configuring RBAC for database access.
 
 ## Role configuration
 
