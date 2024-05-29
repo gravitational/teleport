@@ -321,7 +321,7 @@ function Invoke-SignBinary {
 
     if ($ShouldMoveSignedBinary) {
         Write-Host "MOVING FROM $SignedBinaryPath TO $UnsignedBinaryPath"
-        Move-Item -Path $SignedBinaryPath -Destination $UnsignedBinaryPath
+        Move-Item -Path $SignedBinaryPath -Destination $UnsignedBinaryPath -Force
     }
 }
 
