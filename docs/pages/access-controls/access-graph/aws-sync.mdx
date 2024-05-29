@@ -1,13 +1,16 @@
 ---
-title: Discover AWS Access Patterns with Teleport Access Graph
-description: Describes how to import and visualize AWS accounts access patterns using Teleport Access Graph.
+title: Discover AWS Access Patterns with Teleport Policy
+description: Describes how to import and visualize AWS accounts access patterns using Teleport Policy and Access Graph.
 ---
 
-Teleport Access Graph offers insights into access patterns within
-your AWS account. By scanning IAM permissions, users, groups, resources, and 
-identities, it provides a visual representation and aids in enhancing the 
-permission model within your AWS environment. This functionality enables you
-to address queries such as:
+Teleport Policy will streamline and centralize access management accross your entire infrastructure. You can view access relationships in seconds, 
+viewing unified, up-to-date relationships and policies between all users, groups, and computing resources.
+
+## Teleport Access Graph
+
+Teleport Access Graph offers insights into access patterns within your AWS account. By scanning IAM 
+permissions, users, groups, resources, and identities, it provides a visual representation and aids in 
+enhancing the permission model within your AWS environment. This functionality enables you to address queries such as:
 
 - What resources are accessible to AWS users and roles?
 - Which resources can be reached via identities associated with EC2 instances?
@@ -37,8 +40,7 @@ The importing process involves two primary steps:
 ### Polling Cloud APIs
 
 The Teleport Discovery Service continuously scans the configured AWS accounts. 
-At intervals of 15 minutes, it retrieves the following resources from your
-AWS account:
+At intervals of 15 minutes, it retrieves the following resources from your AWS account:
 
 - Users
 - Groups
