@@ -3,10 +3,8 @@ title: Discover AWS Access Patterns with Teleport Policy
 description: Describes how to import and visualize AWS accounts access patterns using Teleport Policy and Access Graph.
 ---
 
-Teleport Policy will streamline and centralize access management accross your entire infrastructure. You can view access relationships in seconds, 
+Teleport Policy will streamline and centralize access management across your entire infrastructure. You can view access relationships in seconds, 
 viewing unified, up-to-date relationships and policies between all users, groups, and computing resources.
-
-## Teleport Policy
 
 Teleport Policy with Access Graph offers insights into access patterns within your AWS account. By scanning IAM 
 permissions, users, groups, resources, and identities, it provides a visual representation and aids in 
@@ -27,12 +25,11 @@ to Teleport Enterprise customers.
 After logging in to the Teleport UI, go to the Management tab. If enabled, 
 Access Graph options can be found under the Permission Management section.
 
-## How TAG discovers AWS access patterns
+## How it works
 
-Teleport Access Graph synchronizes various AWS resources,
-including IAM Policies, Groups, Users, User Groups, EC2 instances, 
-EKS clusters, and RDS databases. These resources are then visualized
-using the graph representation detailed in the
+Teleport Access Graph discovers AWS access patterns, synchronizes various AWS resources,
+including IAM Policies, Groups, Users, User Groups, EC2 instances, EKS clusters, and RDS databases. 
+These resources are then visualized using the graph representation detailed in the
 [Access Graph page](../access-graph.mdx).
 
 The importing process involves two primary steps:
@@ -78,8 +75,8 @@ from Teleport Auth Service and Discovery Service.
 
 <Notice type="warning">
 
-If you have a Teleport Cloud cluster, you can disregard
-this step, as Teleport Cloud already operates a properly configured 
+If you have a Teleport Enterprise cluster, you can disregard
+this step, as Teleport Enterprise already operates a properly configured 
 Discovery Service within your cluster.
 </Notice>
 
