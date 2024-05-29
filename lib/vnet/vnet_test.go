@@ -239,7 +239,6 @@ type testClusterSpec struct {
 type echoAppProvider struct {
 	clusters       map[string]testClusterSpec
 	dialOpts       DialOptions
-	clientCert     tls.Certificate
 	reissueAppCert func() tls.Certificate
 }
 
@@ -564,7 +563,6 @@ func TestDialFakeApp(t *testing.T) {
 				defer cancel()
 				_, err := p.lookupHost(ctx, fqdn)
 				require.Error(t, err)
-				return
 			})
 		}
 	})
