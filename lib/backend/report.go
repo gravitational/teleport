@@ -447,7 +447,6 @@ func (s *Reporter) KeepAlive(ctx context.Context, lease Lease, expires time.Time
 		"backend/KeepAlive",
 		oteltrace.WithAttributes(
 			attribute.String("revision", lease.Revision),
-			attribute.Int64("lease", lease.ID),
 			attribute.String("key", string(lease.Key)),
 		),
 	)

@@ -676,6 +676,8 @@ func createCertificateBlob(certData []byte) []byte {
 	return buf.Bytes()
 }
 
+// Deprecated: AD discovery flow is deprecated and will be removed in v17.0.0.
+// TODO(isaiah): Delete in v17.0.0.
 func (h *Handler) desktopAccessScriptConfigureHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	tokenStr := p.ByName("token")
 	if tokenStr == "" {
@@ -745,6 +747,8 @@ func (h *Handler) desktopAccessScriptConfigureHandle(w http.ResponseWriter, r *h
 	return nil, trace.Wrap(err)
 }
 
+// Deprecated: AD discovery flow is deprecated and will be removed in v17.0.0.
+// TODO(isaiah): Delete in v17.0.0.
 func (h *Handler) desktopAccessScriptInstallADDSHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	httplib.SetScriptHeaders(w.Header())
 	w.WriteHeader(http.StatusOK)
@@ -752,6 +756,8 @@ func (h *Handler) desktopAccessScriptInstallADDSHandle(w http.ResponseWriter, r 
 	return nil, trace.Wrap(err)
 }
 
+// Deprecated: AD discovery flow is deprecated and will be removed in v17.0.0.
+// TODO(isaiah): Delete in v17.0.0.
 func (h *Handler) desktopAccessScriptInstallADCSHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	httplib.SetScriptHeaders(w.Header())
 	w.WriteHeader(http.StatusOK)

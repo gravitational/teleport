@@ -1803,10 +1803,12 @@ func TestStreamSessionEventsRBAC(t *testing.T) {
 	clt, err := srv.NewClient(identity)
 	require.NoError(t, err)
 
-	_, errC := clt.StreamSessionEvents(context.Background(), "foo", 0)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	_, errC := clt.StreamSessionEvents(ctx, "foo", 0)
 	select {
 	case err := <-errC:
-		require.True(t, trace.IsAccessDenied(err), "expected access denied error, got %v", err)
+		require.ErrorAs(t, err, new(*trace.AccessDeniedError))
 	case <-time.After(5 * time.Second):
 		require.FailNow(t, "expected access denied error but stream succeeded")
 	}
@@ -1816,7 +1818,8 @@ func TestStreamSessionEventsRBAC(t *testing.T) {
 func TestStreamSessionEvents_User(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	srv := newTestTLSServer(t)
 
 	username := "user"
@@ -1851,7 +1854,8 @@ func TestStreamSessionEvents_User(t *testing.T) {
 func TestStreamSessionEvents_Builtin(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	srv := newTestTLSServer(t)
 
 	identity := TestBuiltin(types.RoleProxy)
@@ -2052,33 +2056,33 @@ func TestDatabasesCRUDRBAC(t *testing.T) {
 	db, err := devClt.GetDatabase(ctx, devDatabase.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(devDatabase, db,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
 	// Admin can get both databases.
 	db, err = adminClt.GetDatabase(ctx, adminDatabase.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(adminDatabase, db,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 	db, err = adminClt.GetDatabase(ctx, devDatabase.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(devDatabase, db,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
 	// When listing databases, dev should only see one.
 	dbs, err := devClt.GetDatabases(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.Database{devDatabase}, dbs,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
 	// Admin should see both.
 	dbs, err = adminClt.GetDatabases(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.Database{adminDatabase, devDatabase}, dbs,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
 	// Dev shouldn't be able to delete dev database...
@@ -2172,7 +2176,7 @@ func mustGetDatabases(t *testing.T, client *authclient.Client, wantDatabases []t
 	require.NoError(t, err)
 
 	require.Empty(t, cmp.Diff(wantDatabases, actualDatabases,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 		cmpopts.EquateEmpty(),
 	))
 }
@@ -2227,7 +2231,7 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 	t.Run("Read", func(t *testing.T) {
 		clusters, err := discoveryClt.GetKubernetesClusters(ctx)
 		require.NoError(t, err)
-		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster}, clusters, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster}, clusters, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 	})
 	t.Run("Update", func(t *testing.T) {
 		require.NoError(t, discoveryClt.UpdateKubernetesCluster(ctx, eksCluster))
@@ -2849,33 +2853,33 @@ func TestApps(t *testing.T) {
 	app, err := devClt.GetApp(ctx, devApp.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(devApp, app,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
 	// Admin can get both apps.
 	app, err = adminClt.GetApp(ctx, adminApp.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(adminApp, app,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 	app, err = adminClt.GetApp(ctx, devApp.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(devApp, app,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
 	// When listing apps, dev should only see one.
 	apps, err := devClt.GetApps(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.Application{devApp}, apps,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
 	// Admin should see both.
 	apps, err = adminClt.GetApps(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.Application{adminApp, devApp}, apps,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
 	// Dev shouldn't be able to delete dev app...
@@ -2900,7 +2904,7 @@ func TestApps(t *testing.T) {
 	apps, err = adminClt.GetApps(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.Application{adminApp}, apps,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
 	// Admin should be able to delete all.
@@ -4113,7 +4117,7 @@ func TestListResources_KindUserGroup(t *testing.T) {
 		slices.SortFunc(userGroups, func(a, b types.UserGroup) int {
 			return strings.Compare(a.GetName(), b.GetName())
 		})
-		require.Empty(t, cmp.Diff([]types.UserGroup{testUg2, testUg3, testUg1}, userGroups, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+		require.Empty(t, cmp.Diff([]types.UserGroup{testUg2, testUg3, testUg1}, userGroups, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 	})
 
 	t.Run("start keys", func(t *testing.T) {
@@ -7243,7 +7247,7 @@ func TestCreateAccessRequest(t *testing.T) {
 			// We have to ignore the name here, as it's auto-generated by the underlying access request
 			// logic.
 			require.Empty(t, cmp.Diff(test.expected, accessRequests[0],
-				cmpopts.IgnoreFields(types.Metadata{}, "Name", "ID", "Revision"),
+				cmpopts.IgnoreFields(types.Metadata{}, "Name", "Revision"),
 				cmpopts.IgnoreFields(types.AccessRequestSpecV3{}),
 			))
 		})
@@ -7253,12 +7257,17 @@ func TestCreateAccessRequest(t *testing.T) {
 func TestAccessRequestNonGreedyAnnotations(t *testing.T) {
 	t.Parallel()
 
+	userTraits := map[string][]string{
+		"email": {"tester@example.com"},
+	}
+
 	paymentsRequester, err := types.NewRole("payments-requester", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Request: &types.AccessRequestConditions{
 				Annotations: map[string][]string{
-					"services":   {"payments"},
-					"requesting": {"role"},
+					"services":     {"payments"},
+					"requesting":   {"role"},
+					"requested-by": {"{{email.local(external.email)}}"},
 				},
 				Roles: []string{"payments-access"},
 			},
@@ -7270,8 +7279,9 @@ func TestAccessRequestNonGreedyAnnotations(t *testing.T) {
 		Allow: types.RoleConditions{
 			Request: &types.AccessRequestConditions{
 				Annotations: map[string][]string{
-					"services":   {"payments"},
-					"requesting": {"resources"},
+					"services":     {"payments"},
+					"requesting":   {"resources"},
+					"requested-by": {"{{email.local(external.email)}}"},
 				},
 				SearchAsRoles: []string{"payments-access"},
 			},
@@ -7295,8 +7305,9 @@ func TestAccessRequestNonGreedyAnnotations(t *testing.T) {
 		Allow: types.RoleConditions{
 			Request: &types.AccessRequestConditions{
 				Annotations: map[string][]string{
-					"services":   {"identity"},
-					"requesting": {"role"},
+					"services":     {"identity"},
+					"requesting":   {"role"},
+					"requested-by": {"{{email.local(external.email)}}"},
 				},
 				Roles: []string{"identity-access"},
 			},
@@ -7308,8 +7319,9 @@ func TestAccessRequestNonGreedyAnnotations(t *testing.T) {
 		Allow: types.RoleConditions{
 			Request: &types.AccessRequestConditions{
 				Annotations: map[string][]string{
-					"services":   {"identity"},
-					"requesting": {"resources"},
+					"services":     {"identity"},
+					"requesting":   {"resources"},
+					"requested-by": {"{{email.local(external.email)}}"},
 				},
 				SearchAsRoles: []string{"identity-access"},
 			},
@@ -7333,20 +7345,87 @@ func TestAccessRequestNonGreedyAnnotations(t *testing.T) {
 		Allow: types.RoleConditions{
 			Request: &types.AccessRequestConditions{
 				Annotations: map[string][]string{
-					"any-requestor": {"true"},
+					"any-requester": {"true"},
+					"requested-by":  {"{{email.local(external.email)}}"},
 				},
 				SearchAsRoles: []string{"identity-access", "payments-access"},
 				Roles:         []string{"identity-access", "payments-access"},
 			},
 		},
 	})
+	require.NoError(t, err)
 
+	globRequester, err := types.NewRole("glob-requester", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Annotations: map[string][]string{
+					"glob-requester": {"true"},
+					"requested-by":   {"{{email.local(external.email)}}"},
+				},
+				Roles: []string{"*"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	reRequester, err := types.NewRole("re-requester", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Annotations: map[string][]string{
+					"re-requester": {"true"},
+					"requested-by": {"{{email.local(external.email)}}"},
+				},
+				Roles: []string{"identity-*", "^payments-acces.$"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// This role denies the services: identity annotation
+	denyIdentityService, err := types.NewRole("deny-identity-service", types.RoleSpecV6{
+		Deny: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Annotations: map[string][]string{
+					"services": {"identity"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// This role allows roles and annotations based on claims.
+	claimsRequester, err := types.NewRole("claims-requester", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				ClaimsToRoles: []types.ClaimMapping{
+					{
+						Claim: "email",
+						Value: "tester@example.com",
+						Roles: []string{"identity-access"},
+					},
+				},
+				Annotations: map[string][]string{
+					"services":           {"identity"},
+					"requested-by":       {"{{email.local(external.email)}}"},
+					"should-be-excluded": {"true"},
+				},
+			},
+		},
+		Deny: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Annotations: map[string][]string{
+					"should-be-excluded": {"true"},
+				},
+			},
+		},
+	})
 	require.NoError(t, err)
 
 	roles := []types.Role{
 		paymentsRequester, paymentsResourceRequester, paymentsAccess,
 		identityRequester, identityResourceRequester, identityAccess,
-		anyResourceRequester,
+		anyResourceRequester, globRequester, reRequester,
+		denyIdentityService, claimsRequester,
 	}
 
 	paymentsServer, err := types.NewServer("server-payments", types.KindNode, types.ServerSpecV2{})
@@ -7382,8 +7461,9 @@ func TestAccessRequestNonGreedyAnnotations(t *testing.T) {
 			roles:          []string{"payments-requester"},
 			requestedRoles: []string{"payments-access"},
 			expectedAnnotations: map[string][]string{
-				"services":   {"payments"},
-				"requesting": {"role"},
+				"services":     {"payments"},
+				"requesting":   {"role"},
+				"requested-by": {"tester"},
 			},
 		},
 		{
@@ -7392,8 +7472,9 @@ func TestAccessRequestNonGreedyAnnotations(t *testing.T) {
 			requestedRoles:       []string{"payments-access"},
 			requestedResourceIDs: []string{"server-payments"},
 			expectedAnnotations: map[string][]string{
-				"services":   {"payments"},
-				"requesting": {"resources"},
+				"services":     {"payments"},
+				"requesting":   {"resources"},
+				"requested-by": {"tester"},
 			},
 		},
 		{
@@ -7414,8 +7495,9 @@ func TestAccessRequestNonGreedyAnnotations(t *testing.T) {
 			roles:          []string{"identity-requester"},
 			requestedRoles: []string{"identity-access"},
 			expectedAnnotations: map[string][]string{
-				"services":   {"identity"},
-				"requesting": {"role"},
+				"services":     {"identity"},
+				"requesting":   {"role"},
+				"requested-by": {"tester"},
 			},
 		},
 		{
@@ -7424,8 +7506,9 @@ func TestAccessRequestNonGreedyAnnotations(t *testing.T) {
 			requestedRoles:       []string{"identity-access"},
 			requestedResourceIDs: []string{"server-identity"},
 			expectedAnnotations: map[string][]string{
-				"services":   {"identity"},
-				"requesting": {"resources"},
+				"services":     {"identity"},
+				"requesting":   {"resources"},
+				"requested-by": {"tester"},
 			},
 		},
 		{
@@ -7446,7 +7529,8 @@ func TestAccessRequestNonGreedyAnnotations(t *testing.T) {
 			roles:          []string{"any-requester"},
 			requestedRoles: []string{"payments-access"},
 			expectedAnnotations: map[string][]string{
-				"any-requestor": {"true"},
+				"any-requester": {"true"},
+				"requested-by":  {"tester"},
 			},
 		},
 		{
@@ -7455,7 +7539,8 @@ func TestAccessRequestNonGreedyAnnotations(t *testing.T) {
 			requestedRoles:       []string{"payments-access"},
 			requestedResourceIDs: []string{"server-payments"},
 			expectedAnnotations: map[string][]string{
-				"any-requestor": {"true"},
+				"any-requester": {"true"},
+				"requested-by":  {"tester"},
 			},
 		},
 		{
@@ -7463,8 +7548,9 @@ func TestAccessRequestNonGreedyAnnotations(t *testing.T) {
 			roles:          []string{"identity-requester", "payments-requester"},
 			requestedRoles: []string{"payments-access"},
 			expectedAnnotations: map[string][]string{
-				"requesting": {"role"},
-				"services":   {"payments"},
+				"requesting":   {"role"},
+				"services":     {"payments"},
+				"requested-by": {"tester"},
 			},
 		},
 		{
@@ -7472,12 +7558,14 @@ func TestAccessRequestNonGreedyAnnotations(t *testing.T) {
 			roles: []string{
 				"identity-requester", "payments-requester",
 				"identity-resource-requester", "payments-resource-requester",
-				"any-requester"},
+				"any-requester",
+			},
 			requestedRoles: []string{"payments-access"},
 			expectedAnnotations: map[string][]string{
 				"requesting":    {"role"},
 				"services":      {"payments"},
-				"any-requestor": {"true"},
+				"any-requester": {"true"},
+				"requested-by":  {"tester"},
 			},
 		},
 		{
@@ -7485,13 +7573,70 @@ func TestAccessRequestNonGreedyAnnotations(t *testing.T) {
 			roles: []string{
 				"identity-requester", "payments-requester",
 				"identity-resource-requester", "payments-resource-requester",
-				"any-requester"},
+				"any-requester",
+			},
 			requestedRoles:       []string{"payments-access"},
 			requestedResourceIDs: []string{"server-payments"},
 			expectedAnnotations: map[string][]string{
 				"requesting":    {"resources"},
 				"services":      {"payments"},
-				"any-requestor": {"true"},
+				"any-requester": {"true"},
+				"requested-by":  {"tester"},
+			},
+		},
+		{
+			name:           "glob-requester requests payments role, receives annotations",
+			roles:          []string{"glob-requester"},
+			requestedRoles: []string{"payments-access"},
+			expectedAnnotations: map[string][]string{
+				"glob-requester": {"true"},
+				"requested-by":   {"tester"},
+			},
+		},
+		{
+			name:           "glob-requester requests identity role, receives annotations",
+			roles:          []string{"glob-requester"},
+			requestedRoles: []string{"identity-access"},
+			expectedAnnotations: map[string][]string{
+				"glob-requester": {"true"},
+				"requested-by":   {"tester"},
+			},
+		},
+		{
+			name:           "re-requester requests both roles, receives annotations",
+			roles:          []string{"re-requester"},
+			requestedRoles: []string{"identity-access", "payments-access"},
+			expectedAnnotations: map[string][]string{
+				"re-requester": {"true"},
+				"requested-by": {"tester"},
+			},
+		},
+		{
+			name:           "re-requester requests payments role, receives annotations",
+			roles:          []string{"re-requester"},
+			requestedRoles: []string{"payments-access"},
+			expectedAnnotations: map[string][]string{
+				"re-requester": {"true"},
+				"requested-by": {"tester"},
+			},
+		},
+		{
+			name:           "deny identity services annotation",
+			roles:          []string{"identity-requester", "payments-requester", "deny-identity-service"},
+			requestedRoles: []string{"identity-access", "payments-access"},
+			expectedAnnotations: map[string][]string{
+				"requesting":   {"role"},
+				"services":     {"payments"},
+				"requested-by": {"tester"},
+			},
+		},
+		{
+			name:           "annotations based on claims",
+			roles:          []string{"claims-requester"},
+			requestedRoles: []string{"identity-access"},
+			expectedAnnotations: map[string][]string{
+				"services":     {"identity"},
+				"requested-by": {"tester"},
 			},
 		},
 	} {
@@ -7499,6 +7644,7 @@ func TestAccessRequestNonGreedyAnnotations(t *testing.T) {
 			user, err := types.NewUser("requester")
 			require.NoError(t, err)
 			user.SetRoles(tc.roles)
+			user.SetTraits(userTraits)
 			_, err = srv.Auth().UpsertUser(ctx, user)
 			require.NoError(t, err)
 
@@ -7527,10 +7673,8 @@ func TestAccessRequestNonGreedyAnnotations(t *testing.T) {
 			} else {
 				tc.errfn(t, err)
 			}
-
 		})
 	}
-
 }
 
 func mustAccessRequest(t *testing.T, user string, state types.RequestState, created, expires time.Time, roles []string, resourceIDs []types.ResourceID) types.AccessRequest {

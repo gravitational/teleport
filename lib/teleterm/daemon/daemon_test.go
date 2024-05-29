@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/clientcache"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
@@ -272,8 +273,8 @@ func TestGatewayCRUD(t *testing.T) {
 				GatewayCreator: mockGatewayCreator,
 				KubeconfigsDir: t.TempDir(),
 				AgentsDir:      t.TempDir(),
-				CreateClientCacheFunc: func(resolver ResolveClusterFunc) ClientCache {
-					return fakeClientCache{}
+				CreateClientCacheFunc: func(newClientFunc clientcache.NewClientFunc) (ClientCache, error) {
+					return fakeClientCache{}, nil
 				},
 			})
 			require.NoError(t, err)
@@ -453,8 +454,8 @@ func TestRetryWithRelogin(t *testing.T) {
 				},
 				KubeconfigsDir: t.TempDir(),
 				AgentsDir:      t.TempDir(),
-				CreateClientCacheFunc: func(resolver ResolveClusterFunc) ClientCache {
-					return fakeClientCache{}
+				CreateClientCacheFunc: func(newClientFunc clientcache.NewClientFunc) (ClientCache, error) {
+					return fakeClientCache{}, nil
 				},
 			})
 			require.NoError(t, err)
@@ -506,8 +507,8 @@ func TestImportantModalSemaphore(t *testing.T) {
 		},
 		KubeconfigsDir: t.TempDir(),
 		AgentsDir:      t.TempDir(),
-		CreateClientCacheFunc: func(resolver ResolveClusterFunc) ClientCache {
-			return fakeClientCache{}
+		CreateClientCacheFunc: func(newClientFunc clientcache.NewClientFunc) (ClientCache, error) {
+			return fakeClientCache{}, nil
 		},
 	})
 	require.NoError(t, err)
@@ -657,8 +658,8 @@ func TestGetGatewayCLICommand(t *testing.T) {
 		},
 		KubeconfigsDir: t.TempDir(),
 		AgentsDir:      t.TempDir(),
-		CreateClientCacheFunc: func(resolver ResolveClusterFunc) ClientCache {
-			return fakeClientCache{}
+		CreateClientCacheFunc: func(newClientFunc clientcache.NewClientFunc) (ClientCache, error) {
+			return fakeClientCache{}, nil
 		},
 	})
 	require.NoError(t, err)
@@ -744,6 +745,6 @@ type fakeClientCache struct {
 	ClientCache
 }
 
-func (f fakeClientCache) Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.ClusterClient, error) {
+func (f fakeClientCache) Get(ctx context.Context, profileName, leafClusterName string) (*client.ClusterClient, error) {
 	return &client.ClusterClient{}, nil
 }

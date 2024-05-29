@@ -1325,9 +1325,9 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 
 	// Apply any requested additional search_as_roles and/or preview_as_roles
 	// for the duration of the search.
-	if req.UseSearchAsRoles || req.UsePreviewAsRoles {
+	if req.UseSearchAsRoles || req.UsePreviewAsRoles || req.IncludeRequestable {
 		extendedContext, err := a.authContextForSearch(ctx, &proto.ListResourcesRequest{
-			UseSearchAsRoles:    req.UseSearchAsRoles,
+			UseSearchAsRoles:    req.UseSearchAsRoles || req.IncludeRequestable,
 			UsePreviewAsRoles:   req.UsePreviewAsRoles,
 			ResourceType:        types.KindUnifiedResource,
 			Namespace:           apidefaults.Namespace,

@@ -54,6 +54,33 @@ describe('rankResults', () => {
     expect(sortedResults[1]).toEqual(server);
   });
 
+  it('prefers accessible resources over requestable ones', () => {
+    const serverAccessible = makeResourceResult({
+      kind: 'server',
+      resource: makeServer({ hostname: 'sales-foo' }),
+    });
+    const serverRequestable = makeResourceResult({
+      kind: 'server',
+      resource: makeServer({ hostname: 'sales-bar' }),
+      requiresRequest: true,
+    });
+    const labelMatch = makeResourceResult({
+      kind: 'server',
+      resource: makeServer({
+        hostname: 'lorem-ipsum',
+        labels: makeLabelsList({ foo: 'sales' }),
+      }),
+    });
+    const sortedResults = rankResults(
+      [labelMatch, serverRequestable, serverAccessible],
+      'sales'
+    );
+
+    expect(sortedResults[0].resource).toEqual(serverAccessible.resource);
+    expect(sortedResults[1].resource).toEqual(serverRequestable.resource);
+    expect(sortedResults[2].resource).toEqual(labelMatch.resource);
+  });
+
   it('saves individual label match scores', () => {
     const server = makeResourceResult({
       kind: 'server',
@@ -140,6 +167,7 @@ describe('useResourceSearch', () => {
       .map(() => ({
         kind: 'server' as const,
         resource: makeServer({}),
+        requiresRequest: false,
       }));
     jest
       .spyOn(appContext.resourcesService, 'searchResources')
@@ -160,6 +188,7 @@ describe('useResourceSearch', () => {
       search: 'foo',
       filters: [],
       limit: 100,
+      includeRequestable: true,
     });
     expect(appContext.resourcesService.searchResources).toHaveBeenCalledTimes(
       1
@@ -191,6 +220,7 @@ describe('useResourceSearch', () => {
       search: '',
       filters: [],
       limit: 10,
+      includeRequestable: true,
     });
     expect(appContext.resourcesService.searchResources).toHaveBeenCalledTimes(
       1
