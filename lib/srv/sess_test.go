@@ -1088,6 +1088,7 @@ func TestTrackingSession(t *testing.T) {
 					},
 				},
 				serverMeta: apievents.ServerMetadata{
+					ServerVersion:  teleport.Version,
 					ServerHostname: "test",
 					ServerID:       "123",
 				},
