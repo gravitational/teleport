@@ -256,6 +256,9 @@ The `/usr/local/bin/teleport-updater` symlink will take precedence to avoid reex
 
 To ensure that SELinux permissions do not prevent the `teleport-updater` binary from installing/removing Teleport versions, the updater package will configure SELinux contexts to allow changes to all required paths.
 
+To ensure that `teleport` package removal does not interfere with `teleport-updater`, package removal will run `apt purge` (or `yum` equivalent) while ensuring that `/etc/teleport.yaml` and `/var/lib/teleport` are not purged.
+Failure to do this could result in `/etc/teleport.yaml` being removed when an operator runs `apt purge` at a later date.
+
 #### Failure Conditions
 
 If the new version of Teleport fails to start, the installation of Teleport is reverted as described above.
