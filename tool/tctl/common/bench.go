@@ -32,12 +32,16 @@ import (
 
 type BenchCommand struct {
 	benchDesktop *kingpin.CmdClause
+	numDesktops  int
+	numRuns      int
 }
 
 func (b *BenchCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
 	bench := app.Command("bench", "Benchmarking tool for Teleport").Alias("benchmark").Hidden()
 
-	benchDesktop := bench.Command("desktop", "Run benchmark for creating and deleting desktop resources").Hidden()
+	benchDesktop := bench.Command("windows_desktops", "Run benchmark for creating and deleting desktop resources").Alias("windows_desktop").Alias("desktops").Alias("desktop").Hidden()
+	benchDesktop.Flag("desktops", "Number of desktops to create per run").Default("1000").IntVar(&b.numDesktops)
+	benchDesktop.Flag("runs", "Number of runs to perform").Default("10").IntVar(&b.numRuns)
 	b.benchDesktop = benchDesktop
 }
 
@@ -52,6 +56,12 @@ func (b *BenchCommand) TryRun(ctx context.Context, cmd string, client *authclien
 }
 
 func (b *BenchCommand) RunDesktopBench(ctx context.Context, client *authclient.Client) error {
+	fmt.Printf("Running desktop benchmark with %d desktops and %d runs\n", b.numDesktops, b.numRuns)
+
+	if b.numDesktops <= 0 || b.numRuns <= 0 {
+		return trace.BadParameter("number of desktops and runs must be greater than 0")
+	}
+
 	// Get a wds to benchmark against
 	wdss, err := client.GetWindowsDesktopServices(ctx)
 	if err != nil {
@@ -65,22 +75,19 @@ func (b *BenchCommand) RunDesktopBench(ctx context.Context, client *authclient.C
 
 	fmt.Printf("Benchmarking desktop creation against w_d_s: %s\n", hostID)
 
-	const numDesktops = 1000
-	const numRuns = 10
-
 	var totalCreationTime time.Duration
 
-	for run := 0; run < numRuns; run++ {
-		creationTime, err := b.benchmarkDesktopUpsert(ctx, client, hostID, numDesktops)
+	for run := 0; run < b.numRuns; run++ {
+		creationTime, err := b.benchmarkDesktopUpsert(ctx, client, hostID, b.numDesktops)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		totalCreationTime += creationTime
 	}
 
-	avgCreationTime := totalCreationTime / numRuns
+	avgCreationTime := totalCreationTime / time.Duration(b.numRuns)
 
-	fmt.Printf("Average creation time for %d desktops over %d runs: %v\n", numDesktops, numRuns, avgCreationTime)
+	fmt.Printf("Average creation time for %d desktops over %d runs: %v\n", b.numDesktops, b.numRuns, avgCreationTime)
 
 	return nil
 }
@@ -118,7 +125,7 @@ func (b *BenchCommand) benchmarkDesktopUpsert(ctx context.Context, client *authc
 		createdDesktops = append(createdDesktops, desktop)
 	}
 	creationTime := time.Since(startCreation)
-	fmt.Printf("Creation completed in %v\n", creationTime)
+	fmt.Printf("%d UpsertWindowsDesktop calls completed in %v\n", numDesktops, creationTime)
 
 	return creationTime, nil
 }
