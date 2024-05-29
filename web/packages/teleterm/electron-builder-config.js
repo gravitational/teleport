@@ -142,6 +142,7 @@ module.exports = {
   },
   win: {
     target: ['nsis'],
+    signingHashAlgorithms: ['sha256'],
     sign: customSign => {
       if (process.env.CI !== 'true') {
         console.warn('Not running in CI pipeline: signing will be skipped');
