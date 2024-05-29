@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -114,6 +115,7 @@ type testPack struct {
 	secReports              services.SecReports
 	accessLists             services.AccessLists
 	kubeWaitingContainers   services.KubeWaitingContainer
+	accessMonitoringRules   services.AccessMonitoringRules
 }
 
 // testFuncs are functions to support testing an object in a cache.
@@ -290,6 +292,11 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 	p.accessLists = accessListsSvc
+	accessMonitoringRuleService, err := local.NewAccessMonitoringRulesService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.accessMonitoringRules = accessMonitoringRuleService
 
 	kubeWaitingContSvc, err := local.NewKubeWaitingContainerService(p.backend)
 	if err != nil {
@@ -339,6 +346,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		SecReports:              p.secReports,
 		AccessLists:             p.accessLists,
 		KubeWaitingContainers:   p.kubeWaitingContainers,
+		AccessMonitoringRules:   p.accessMonitoringRules,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -738,6 +746,7 @@ func TestCompletenessInit(t *testing.T) {
 			SecReports:              p.secReports,
 			AccessLists:             p.accessLists,
 			KubeWaitingContainers:   p.kubeWaitingContainers,
+			AccessMonitoringRules:   p.accessMonitoringRules,
 			MaxRetryPeriod:          200 * time.Millisecond,
 			EventsC:                 p.eventsC,
 		}))
@@ -811,6 +820,7 @@ func TestCompletenessReset(t *testing.T) {
 		SecReports:              p.secReports,
 		AccessLists:             p.accessLists,
 		KubeWaitingContainers:   p.kubeWaitingContainers,
+		AccessMonitoringRules:   p.accessMonitoringRules,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -996,6 +1006,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		SecReports:              p.secReports,
 		AccessLists:             p.accessLists,
 		KubeWaitingContainers:   p.kubeWaitingContainers,
+		AccessMonitoringRules:   p.accessMonitoringRules,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		neverOK:                 true, // ensure reads are never healthy
@@ -1080,6 +1091,7 @@ func initStrategy(t *testing.T) {
 		SecReports:              p.secReports,
 		AccessLists:             p.accessLists,
 		KubeWaitingContainers:   p.kubeWaitingContainers,
+		AccessMonitoringRules:   p.accessMonitoringRules,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -2936,6 +2948,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindAccessListMember:        newAccessListMember(t, "access-list", "member"),
 		types.KindAccessListReview:        newAccessListReview(t, "access-list", "review"),
 		types.KindKubeWaitingContainer:    newKubeWaitingContainer(t),
+		types.KindAccessMonitoringRule:    types.Resource153ToLegacy(newAccessMonitoringRule(t)),
 	}
 
 	for name, cfg := range cases {
@@ -3385,6 +3398,16 @@ func newKubeWaitingContainer(t *testing.T) types.Resource {
 	require.NoError(t, err)
 
 	return types.Resource153ToLegacy(waitingCont)
+}
+
+func newAccessMonitoringRule(t *testing.T) *accessmonitoringrulesv1.AccessMonitoringRule {
+	t.Helper()
+	notification := &accessmonitoringrulesv1.AccessMonitoringRule{
+		Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
+			Notification: &accessmonitoringrulesv1.Notification{},
+		},
+	}
+	return notification
 }
 
 func withKeepalive[T any](fn func(context.Context, T) (*types.KeepAlive, error)) func(context.Context, T) error {
