@@ -214,22 +214,22 @@ The `enable` subcommand will change the behavior of `teleport-update update` to 
 It will also run update teleport immediately, to ensure that subsequent executions succeed.
 
 The `enable` subcommand will:
-1. Configure `updates.yaml` with the current proxy address and set `enabled` to true.
-2. Query the `/v1/webapi/find` endpoint.
-3. If the current updater-managed version of Teleport is the latest, and teleport package is not installed, quit.
-4. If the current updater-managed version of Teleport is the latest, but the teleport package is installed, jump to (14).
-5. Ensure there is enough free disk space to upgrade Teleport.
-6. Download the desired Teleport tarball specified by `agent_version` and `server_edition`.
-7. Download and verify the checksum (tarball URL suffixed with `.sha256`).
-8. Extract the tarball to `/var/lib/teleport/versions/VERSION`.
-9. Replace any existing binaries or symlinks with symlinks to the current version.
-10. Backup `/var/lib/teleport/proc/sqlite.db` into `/var/lib/teleport/versions/OLD-VERSION/backup/sqlite.db` and create `backup.yaml`.
-11. Restart the agent if the systemd service is already enabled.
-12. Set `active_version` in `updates.yaml` if successful or not enabled.
-13. Replace the symlinks/binaries and `/var/lib/teleport/proc/sqlite.db` and quit (exit 1) if unsuccessful.
-14. Remove any `teleport` package if installed.
-15. Verify the symlinks to the active version still exists.
-16. Remove all stored versions of the agent except the current version and last working version.
+1. Query the `/v1/webapi/find` endpoint.
+2. If the current updater-managed version of Teleport is the latest, and teleport package is not installed, jump to (16).
+3. If the current updater-managed version of Teleport is the latest, but the teleport package is installed, jump to (13).
+4. Ensure there is enough free disk space to upgrade Teleport.
+5. Download the desired Teleport tarball specified by `agent_version` and `server_edition`.
+6. Download and verify the checksum (tarball URL suffixed with `.sha256`).
+7. Extract the tarball to `/var/lib/teleport/versions/VERSION`.
+8. Replace any existing binaries or symlinks with symlinks to the current version.
+9. Backup `/var/lib/teleport/proc/sqlite.db` into `/var/lib/teleport/versions/OLD-VERSION/backup/sqlite.db` and create `backup.yaml`.
+10. Restart the agent if the systemd service is already enabled.
+11. Set `active_version` in `updates.yaml` if successful or not enabled.
+12. Replace the symlinks/binaries and `/var/lib/teleport/proc/sqlite.db` and quit (exit 1) if unsuccessful.
+13. Remove and purge any `teleport` package if installed.
+14. Verify the symlinks to the active version still exists.
+15. Remove all stored versions of the agent except the current version and last working version.
+16. Configure `updates.yaml` with the current proxy address and set `enabled` to true.
 
 The `disable` subcommand will:
 1. Configure `updates.yaml` to set `enabled` to false.
