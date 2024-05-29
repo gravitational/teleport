@@ -36,10 +36,6 @@ on:
         required: true
         type: string
 
-      artifact-name:
-        description: Name of artifact to upload to. If empty, artifacts are not uploaded.
-        type: string
-
       build-connect:
         description: "Should Teleport Connect be built"
         required: false
@@ -271,22 +267,122 @@ jobs:
           # TODO(camscale): Move artifact copying to Makefile(s)
           cp e/build/*.rpm build/artifacts
 
-      - name: Checksum artifacts
-        if: inputs.artifact-name != ''
+      - name: Assume AWS ECR pull role
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        with:
+          role-skip-session-tagging: true
+          aws-region: ${{ vars.ECR_PRIVATE_REPOS_REGION }}
+          role-to-assume: ${{ vars.ECR_PROD_PULL_ROLE_ARN }}
+          role-session-name: "pull-relcli-build-linux-${{ github.run_attempt }}"
+          role-duration-seconds: 900
+  
+      - name: Log into ECR
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
+
+      - name: Generate release server manifests
+        working-directory: build/artifacts
+        env:
+          RELCLI_BASE_URL: ${{ vars.RELEASES_HOST }}
+          RELCLI_IMAGE: ${{ vars.RELCLI_IMAGE }}
         run: |
-          cd build/artifacts
-          for f in *; do
-            [ -f "$f.sha256" ] && continue
-            shasum -a 256 "$f" > "$f.sha256"
-            cat "$f.sha256"
+          docker pull "${RELCLI_IMAGE}"
+
+          ls -lah
+
+          rhel='RHEL/CentOS 7.x compatible'
+          fips='FedRAMP/FIPS'
+          tc64='Teleport Connect 64-bit'
+          both=(teleport teleport-ent)
+          declare -A archDesc=([amd64]='64-bit' [386]='32-bit' [arm64]='ARM64/ARMv8 (64-bit)' [arm]='ARMv7 (32-bit)')
+
+          for file in *; do
+            # Checksums are still created via Makefile for tarballs. This should be removed eventually.
+            [[ "${file##*.}" == sha256 ]] && continue
+            # Don't treat existing manifest files as artifacts.
+            [[ "${file##*.}" == manifest ]] && continue
+            # Skip files if a manifest for them already exists.
+            [[ -f "${file}.manifest" ]] && continue
+
+            # Classify products, OS, architecture, description, variants and pkg type for each file.
+            p=''; os=''; a=''; d='' v='' pkg=''
+            case "$file" in
+              # Teleport connect
+              teleport-connect-*-x64.tar.gz) p="$both"; os=linux; a=amd64; d="$tc64" ;;
+              teleport-connect-*.x86_64.rpm) p="$both"; os=linux; a=amd64; pkg=RPM; d="$tc64 RPM" ;;
+              teleport-connect_*_amd64.deb) p="$both"; os=linux; a=amd64; pkg=DEB; d="$tc64 DEB" ;;
+
+              # tarballs: teleport-ent-* must be before teleport-*
+              teleport-ent-*-linux-386-bin.tar.gz) p=teleport-ent; os=linux; a=386 ;;
+              teleport-ent-*-linux-amd64-bin.tar.gz) p=teleport-ent; os=linux; a=amd64 ;;
+              teleport-ent-*-linux-amd64-centos7-bin.tar.gz) p=teleport-ent; os=linux; a=amd64; v="$rhel" ;;
+              teleport-ent-*-linux-amd64-centos7-fips-bin.tar.gz) p=teleport-ent; os=linux; a=amd64; v="$rhel, $fips" ;;
+              teleport-ent-*-linux-amd64-fips-bin.tar.gz) p=teleport-ent; os=linux; a=amd64; v="$fips" ;;
+              teleport-ent-*-linux-arm-bin.tar.gz) p=teleport-ent; os=linux; a=arm ;;
+              teleport-ent-*-linux-arm64-bin.tar.gz) p=teleport-ent; os=linux; a=arm64 ;;
+              teleport-ent-*-linux-arm64-fips-bin.tar.gz) p=teleport-ent; os=linux; a=arm64; v="$fips" ;;
+
+              teleport-*-linux-386-bin.tar.gz) p=teleport; os=linux; a=386 ;;
+              teleport-*-linux-amd64-bin.tar.gz) p=teleport; os=linux; a=amd64 ;;
+              teleport-*-linux-amd64-centos7-bin.tar.gz) p=teleport; os=linux; a=amd64; v="$rhel" ;;
+              teleport-*-linux-arm-bin.tar.gz) p=teleport; os=linux; a=arm ;;
+              teleport-*-linux-arm64-bin.tar.gz) p=teleport; os=linux; a=arm64 ;;
+
+              # rpm: teleport-ent-* must be before teleport-*
+              teleport-ent-*-fips.x86_64.rpm) p=teleport-ent; os=linux; a=amd64; pkg=RPM; v="$rhel, $fips" ;;
+              teleport-ent-*-fips.arm64.rpm) p=teleport-ent; os=linux; a=arm64; pkg=RPM; v="$rhel, $fips" ;;
+              teleport-ent-*.arm.rpm) p=teleport-ent; os=linux; a=arm; pkg=RPM ;;
+              teleport-ent-*.arm64.rpm) p=teleport-ent; os=linux; a=arm64; pkg=RPM ;;
+              teleport-ent-*.i386.rpm) p=teleport-ent; os=linux; a=386; pkg=RPM ;;
+              teleport-ent-*.x86_64.rpm) p=teleport-ent; os=linux a=amd64; pkg=RPM ;;
+
+              teleport-*.arm.rpm) p=teleport; os=linux; a=arm; pkg=RPM ;;
+              teleport-*.arm64.rpm) p=teleport; os=linux; a=arm64; pkg=RPM ;;
+              teleport-*.i386.rpm) p=teleport; os=linux; a=386; pkg=RPM ;;
+              teleport-*.x86_64.rpm) p=teleport; os=linux a=amd64; pkg=RPM ;;
+
+              # deb: teleport-ent-* must be before teleport-*
+              teleport-ent_*-fips_amd64.deb) p=teleport-ent; os=linux; a=amd64; pkg=DEB; v="$fips" ;;
+              teleport-ent_*-fips_arm64.deb) p=teleport-ent; os=linux; a=arm64; pkg=DEB; v="$fips" ;;
+              teleport-ent_*_amd64.deb) p=teleport-ent; os=linux; a=amd64; pkg=DEB ;;
+              teleport-ent_*_arm.deb) p=teleport-ent; os=linux; a=arm; pkg=DEB ;;
+              teleport-ent_*_arm64.deb) p=teleport-ent; os=linux; a=arm64; pkg=DEB ;;
+              teleport-ent_*_i386.deb) p=teleport-ent; os=linux; a=386; pkg=DEB ;;
+
+              teleport_*_amd64.deb) p=teleport; os=linux; a=amd64; pkg=DEB ;;
+              teleport_*_arm.deb) p=teleport; os=linux; a=arm; pkg=DEB ;;
+              teleport_*_arm64.deb) p=teleport; os=linux; a=arm64; pkg=DEB ;;
+              teleport_*_i386.deb) p=teleport; os=linux; a=386; pkg=DEB ;;
+
+              *) echo "Unknown filename: $file"; exit 1 ;;
+            esac
+
+            # Use a default description if none given
+            if [[ -z "${d:-}" ]]; then
+              d="${os^} ${archDesc[$a]}${pkg:+ $pkg}${v:+ ($v)}"
+            fi
+
+            # Generate the manifest
+            docker run -u "$(id -u):$(id -g)" \
+              -e RELCLI_BASE_URL -v "$(pwd):/assets" \
+              "${RELCLI_IMAGE}" generate-manifest \
+              --path "/assets/$file" "${p[@]/#/--products=}" --os "$os" --architecture "$a" \
+                --description "$d"
           done
 
-      - name: Upload artifacts
-        if: inputs.artifact-name != ''
-        uses: actions/upload-artifact@v4
+          ls -lah
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
-          name: ${{ inputs.artifact-name }}
-          compression-level: 0 # artifacts are already compressed
-          retention-days: 1 # minimum; only needed until calling workflow downloads the artifacts
-          path: |
-            build/artifacts
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+          role-to-assume: ${{ vars.ARTIFACT_UPLOAD_AWS_ROLE }}
+          role-session-name: upload-artifacts-${{ github.run_number }}
+          role-duration-seconds: 3600
+  
+      - name: Copy artifacts to S3 bucket
+        working-directory: build/artifacts
+        env:
+          PENDING_BUCKET_NAME: ${{ vars.ARTIFACT_SOURCE_BUCKET}}
+        run: |
+          aws s3 sync . "s3://$PENDING_BUCKET_NAME/teleport/tag/${VERSION#v}/"

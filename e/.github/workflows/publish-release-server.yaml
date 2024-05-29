@@ -3,10 +3,6 @@ name: Publish releases via the Release service
 on:
   workflow_call:
     inputs:
-      oss-teleport-repo:
-        description: The name of the OSS teleport repo to publish the release for.
-        type: string
-        default: gravitational/teleport
       version:
         description: The version should be published.
         type: string
@@ -19,9 +15,6 @@ on:
   # The workflow_dispatch event duplicates the workflow_call input parameters, without descriptions.
   workflow_dispatch:
     inputs:
-      oss-teleport-repo:
-        type: string
-        default: gravitational/teleport
       version:
         type: string
         required: true
@@ -35,7 +28,11 @@ jobs:
     environment: ${{ inputs.environment }}
     permissions:
       id-token: write
+    env:
+      RELCLI_IMAGE: ${{ vars.RELCLI_IMAGE }}
+      ARTIFACT_DIRECTORY: /tmp/artifacts
     steps:
+      # Setup
       - name: Assume AWS ECR pull role
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
@@ -47,25 +44,70 @@ jobs:
 
       - name: Log into ECR
         uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
-
-      - name: Publish the release
-        env:
-          DRONE_TAG: ${{ inputs.version }}
-          RELCLI_BASE_URL: ${{ vars.RELEASES_HOST }}
-          RELCLI_REPO: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli
-          RELCLI_LABEL: prod-a004819-20240213T215723
-          RELCLI_CERT: /tmp/releases.crt
-          RELCLI_KEY: /tmp/releases.key
-          RELEASES_CERT: ${{ vars.RELEASES_CERT }}
-          RELEASES_KEY: ${{ secrets.RELEASES_KEY }}
+      
+      - name: Setup
         run: |
-          printenv RELEASES_CERT > "$RELCLI_CERT"
-          printenv RELEASES_KEY > "$RELCLI_KEY"
+          docker pull "$RELCLI_IMAGE"
+          mkdir -pv "$ARTIFACT_DIRECTORY"
+        
+      - name: Assume artifact download role
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        with:
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+          role-to-assume: ${{ vars.ARTIFACT_DOWNLOAD_AWS_ROLE }}
+          role-session-name: "publish-release-server-${{ github.run_attempt }}"
+          role-duration-seconds: 900
+      
+      - name: Download the artifacts (with manifests)
+        env:
+          PENDING_BUCKET_NAME: ${{ vars.ARTIFACT_SOURCE_BUCKET }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        working-directory: ${{ env.ARTIFACT_DIRECTORY }}
+        run: |
+          # The manifests could refer to any file under this path, so it's generally best just to pull
+          # all artifacts for the tag.
+          aws s3 cp "s3://$PENDING_BUCKET_NAME/teleport/tag/${RELEASE_VERSION#v}/" . --recursive --include "*" --no-progress
+          aws s3 cp "s3://$PENDING_BUCKET_NAME/teleport-plugins/tag/${RELEASE_VERSION#v}/" . --recursive --include "*" --no-progress
+
+      - name: Install Teleport
+        uses: teleport-actions/setup@176c25dfcd19cd31a252f275d579822b243e7b9c # v1
+        with:
+          version: 15.3.4
+
+      - name: Fetch release service application credentials
+        id: relsrv-auth
+        uses: teleport-actions/auth-application@e410d36597fb6b1d7d53334f08823ab37ac34a38 # v2
+        with:
+          proxy: platform.teleport.sh:443
+          token: ${{ vars.RELCLI_TBOT_TOKEN }}
+          app: ${{ vars.RELCLI_TBOT_APP_NAME }}
+      
+      - name: Upload artifacts and publish release
+        env:
+          DRONE_TAG: ${{ inputs.version }}  # I swear we'll get rid of this some day
+          VERSION: ${{ inputs.version }}
+          RELCLI_BASE_URL: ${{ vars.RELEASES_HOST }}
+          RELCLI_CERT: ${{ steps.relsrv-auth.outputs.certificate-file }}
+          RELCLI_KEY: ${{ steps.relsrv-auth.outputs.key-file }}
+        working-directory: ${{ env.ARTIFACT_DIRECTORY }}
+        run: |
+
           # Use docker run instead of running the whole job in a container as running a
           # job in a container requires the `tail` command be available and the relcli
           # image does not have `tail` (GHA seems to run `tail -f /dev/null` when
           # initializing a container to keep it alive between each step).
-          docker run \
-            -e DRONE_TAG -e RELCLI_BASE_URL -e RELCLI_CERT -e RELCLI_KEY \
-            -v "${RELCLI_CERT}":"${RELCLI_CERT}" -v "${RELCLI_KEY}":"${RELCLI_KEY}" \
-            "${RELCLI_REPO}:${RELCLI_LABEL}" auto_publish -f -v 6
+          # Upload artifacts
+          docker run -u "$(id -u):$(id -g)" \
+            -e RELCLI_BASE_URL -e RELCLI_CERT -e RELCLI_KEY \
+            -v "${RELCLI_CERT}:${RELCLI_CERT}" -v "${RELCLI_KEY}:${RELCLI_KEY}" \
+            -v "$(pwd):/assets" \
+            "${RELCLI_IMAGE}" upload-manifest \
+            --manifest-directory-path "/assets" --artifact-version "$VERSION" -f -v 6
+
+          # Publish releases
+          docker run -u "$(id -u):$(id -g)" \
+            -e RELCLI_BASE_URL -e RELCLI_CERT -e RELCLI_KEY \
+            -v "${RELCLI_CERT}:${RELCLI_CERT}" -v "${RELCLI_KEY}:${RELCLI_KEY}" \
+            -e DRONE_TAG \
+            "${RELCLI_IMAGE}" auto_publish -f -v 6

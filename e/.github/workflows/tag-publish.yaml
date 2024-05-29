@@ -226,6 +226,5 @@ jobs:
       id-token: write
     uses: ./.github/workflows/publish-release-server.yaml
     with:
-      oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
       version: "v${{ needs.setup.outputs.version }}"
       environment: ${{ inputs.environment }}
