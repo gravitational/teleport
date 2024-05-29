@@ -123,11 +123,14 @@ discovery_service:
 {{- if $discoveryEnabled }}
   enabled: true
   discovery_group: {{ required "kubeClusterName is required in chart values when kube or discovery role is enabled, see README" .Values.kubeClusterName }}
-  {{- if .Values.kubernetesDiscovery }}
-  kubernetes: {{- toYaml .Values.kubernetesDiscovery | nindent 4 }}
+  {{- if .Values.awsDiscovery }}
+  aws: {{- toYaml .Values.awsDiscovery | nindent 4 }}
   {{- end }}
   {{- if .Values.gcpDiscovery }}
   gcp: {{- toYaml .Values.gcpDiscovery | nindent 4 }}
+  {{- end }}
+  {{- if .Values.kubernetesDiscovery }}
+  kubernetes: {{- toYaml .Values.kubernetesDiscovery | nindent 4 }}
   {{- end }}
 {{- else }}
   enabled: false
