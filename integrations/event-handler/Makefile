@@ -15,7 +15,7 @@ GENTERRAFORMPATH := $(shell go env GOPATH)/bin
 BUILDDIR ?= build
 BINARY = $(BUILDDIR)/teleport-event-handler
 
-GITREF ?= $(shell git describe --dirty --long --tags --match '*event-handler*')
+GITREF ?= $(shell git describe --dirty --long --tags --match '$(VERSION)')
 ADDFLAGS ?=
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags "-w -s -X main.Gitref=$(GITREF) -X main.Version=$(VERSION)"
 CGOFLAG ?= CGO_ENABLED=0
@@ -34,7 +34,7 @@ DOCKER_IMAGE_BASE = $(DOCKER_PRIVATE_REGISTRY)/gravitational
 DOCKER_IMAGE = $(DOCKER_IMAGE_BASE)/$(DOCKER_NAME):$(DOCKER_VERSION)
 DOCKER_ECR_PUBLIC_REGISTRY = public.ecr.aws/gravitational
 DOCKER_IMAGE_ECR_PUBLIC = $(DOCKER_ECR_PUBLIC_REGISTRY)/$(DOCKER_NAME):$(DOCKER_VERSION)
-DOCKER_BUILD_ARGS = --build-arg GO_VERSION=${GO_VERSION} --build-arg GITREF=$(GITREF) --build-arg VERSION=$(VERSION) --build-arg VERSION=$(VERSION) --load --platform="$(OS)/$(ARCH)" --build-arg BUILDBOX=$(BUILDBOX)
+DOCKER_BUILD_ARGS = --load --platform="$(OS)/$(ARCH)"
 RELEASE_NAME = teleport-event-handler
 RELEASE = $(RELEASE_NAME)-v$(VERSION)-$(OS)-$(ARCH)-bin
 RELEASE_MESSAGE = "Building with GOOS=$(OS) GOARCH=$(ARCH)."
@@ -43,7 +43,7 @@ RELEASE_MESSAGE = "Building with GOOS=$(OS) GOARCH=$(ARCH)."
 # DOCKER_ECR_PUBLIC_REGISTRY = public.ecr.aws/gravitational-staging
 
 .PHONY: build
-build: clean
+build:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -o $(BUILDDIR)/teleport-event-handler $(BUILDFLAGS)
 
 .PHONY: release
@@ -65,8 +65,9 @@ clean:
 	go clean
 
 .PHONY: docker-build
-docker-build: ## Build docker image with the plugin.
-	docker build ${DOCKER_BUILD_ARGS} -t ${DOCKER_IMAGE} -f ./Dockerfile ../..
+docker-build: OS = linux
+docker-build: release ## Build docker image with the plugin.
+	docker build ${DOCKER_BUILD_ARGS} -t ${DOCKER_IMAGE} -f ./Dockerfile .
 
 .PHONY: docker-push
 docker-push:
