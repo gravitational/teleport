@@ -675,9 +675,6 @@ func (t *commandHandler) streamOutput(ctx context.Context, tc *client.TeleportCl
 
 	defer nc.Close()
 
-	// Enable session recording
-	nc.AddEnv(teleport.EnableNonInteractiveSessionRecording, "true")
-
 	// Establish SSH connection to the server. This function will block until
 	// either an error occurs or it completes successfully.
 	if err = nc.RunCommand(ctx, t.interactiveCommand); err != nil {
