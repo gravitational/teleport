@@ -559,7 +559,7 @@ func (s *session) launch(isEphemeralCont bool) (returnErr error) {
 			s.log.WithError(returnErr).Warning("Executor failed while streaming.")
 		}
 		// call onFinished to emit the session.end and exec events.
-		// onFinish is never nil.
+		// onFinished is never nil.
 		onFinished(returnErr)
 	}()
 	if err != nil {
