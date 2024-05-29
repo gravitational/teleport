@@ -18,7 +18,11 @@
 
 package pgevents
 
-import "github.com/prometheus/client_golang/prometheus"
+import (
+	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/gravitational/teleport"
+)
 
 var (
 	statusLabel   = "status"
@@ -29,32 +33,32 @@ var (
 	writeRequests = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: teleport.MetricNamespace,
-			Name: "postgres_events_backend_write_requests",
-			Help: "Number of write requests to postgres events",
+			Name:      "postgres_events_backend_write_requests",
+			Help:      "Number of write requests to postgres events",
 		},
 		labels,
 	)
 	batchReadRequests = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: teleport.MetricNamespace,
-			Name: "postgres_events_backend_batch_read_requests",
-			Help: "Number of batch read requests to postgres events",
+			Name:      "postgres_events_backend_batch_read_requests",
+			Help:      "Number of batch read requests to postgres events",
 		},
 		labels,
 	)
 	cleanupRequests = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: teleport.MetricNamespace,
-			Name: "postgres_events_backend_cleanup_requests",
-			Help: "Number of cleanup requests to postgres events",
+			Name:      "postgres_events_backend_cleanup_requests",
+			Help:      "Number of cleanup requests to postgres events",
 		},
 		labels,
 	)
 	writeLatencies = prometheus.NewHistogram(
 		prometheus.HistogramOpts{
 			Namespace: teleport.MetricNamespace,
-			Name: "postgres_events_backend_write_seconds",
-			Help: "Latency for postgres events write operations",
+			Name:      "postgres_events_backend_write_seconds",
+			Help:      "Latency for postgres events write operations",
 			// lowest bucket start of upper bound 0.001 sec (1 ms) with factor 2
 			// highest bucket start of 0.001 sec * 2^15 == 32.768 sec
 			Buckets: prometheus.ExponentialBuckets(0.001, 2, 16),
@@ -63,8 +67,8 @@ var (
 	batchReadLatencies = prometheus.NewHistogram(
 		prometheus.HistogramOpts{
 			Namespace: teleport.MetricNamespace,
-			Name: "postgres_events_backend_batch_read_seconds",
-			Help: "Latency for postgres events batch read operations",
+			Name:      "postgres_events_backend_batch_read_seconds",
+			Help:      "Latency for postgres events batch read operations",
 			// lowest bucket start of upper bound 0.001 sec (1 ms) with factor 2
 			// highest bucket start of 0.001 sec * 2^15 == 32.768 sec
 			Buckets: prometheus.ExponentialBuckets(0.001, 2, 16),
@@ -73,8 +77,8 @@ var (
 	cleanupLatencies = prometheus.NewHistogram(
 		prometheus.HistogramOpts{
 			Namespace: teleport.MetricNamespace,
-			Name: "postgres_events_backend_cleanup_seconds",
-			Help: "Latency for postgres events cleanup operations",
+			Name:      "postgres_events_backend_cleanup_seconds",
+			Help:      "Latency for postgres events cleanup operations",
 			// lowest bucket start of upper bound 0.001 sec (1 ms) with factor 2
 			// highest bucket start of 0.001 sec * 2^17 == 131 sec
 			Buckets: prometheus.ExponentialBuckets(0.001, 2, 18),
@@ -93,4 +97,3 @@ var (
 		writeLatencies, batchReadLatencies, cleanupLatencies,
 	}
 )
-
