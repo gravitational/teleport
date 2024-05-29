@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/gravitational/ttlmap"
 
+	ossteleport "github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	controlgroup "github.com/gravitational/teleport/lib/cgroup"
@@ -388,6 +389,7 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 				Code: events.SessionCommandCode,
 			},
 			ServerMetadata: apievents.ServerMetadata{
+				ServerVersion:   ossteleport.Version,
 				ServerID:        ctx.ServerID,
 				ServerHostname:  ctx.ServerHostname,
 				ServerNamespace: ctx.Namespace,
@@ -446,6 +448,7 @@ func (s *Service) emitDiskEvent(eventBytes []byte) {
 			Code: events.SessionDiskCode,
 		},
 		ServerMetadata: apievents.ServerMetadata{
+			ServerVersion:   ossteleport.Version,
 			ServerID:        ctx.ServerID,
 			ServerHostname:  ctx.ServerHostname,
 			ServerNamespace: ctx.Namespace,
@@ -500,6 +503,7 @@ func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 			Code: events.SessionNetworkCode,
 		},
 		ServerMetadata: apievents.ServerMetadata{
+			ServerVersion:   ossteleport.Version,
 			ServerID:        ctx.ServerID,
 			ServerHostname:  ctx.ServerHostname,
 			ServerNamespace: ctx.Namespace,
@@ -556,6 +560,7 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 			Code: events.SessionNetworkCode,
 		},
 		ServerMetadata: apievents.ServerMetadata{
+			ServerVersion:   ossteleport.Version,
 			ServerID:        ctx.ServerID,
 			ServerHostname:  ctx.ServerHostname,
 			ServerNamespace: ctx.Namespace,
