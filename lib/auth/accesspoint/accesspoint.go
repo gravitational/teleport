@@ -143,6 +143,7 @@ func NewAccessCache(cfg AccessCacheConfig) (*cache.Cache, error) {
 		UserGroups:              cfg.Services,
 		Okta:                    cfg.Services.OktaClient(),
 		AccessLists:             cfg.Services.AccessListClient(),
+		AccessMonitoringRules:   cfg.Services.AccessMonitoringRuleClient(),
 		SecReports:              cfg.Services.SecReportsClient(),
 		UserLoginStates:         cfg.Services.UserLoginStateClient(),
 		Integrations:            cfg.Services,
