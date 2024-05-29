@@ -9,6 +9,18 @@ configured labels.
 
 (!docs/pages/includes/discovery/step-description.mdx!)
 
+## How it works
+
+The Teleport Discovery Service scans configured cloud providers, including AWS, 
+for Kubernetes clusters that match specified filtering labels, creating dynamic
+resources within Teleport for any new clusters identified. The Teleport Kubernetes
+Service monitors these dynamic resources, forwarding requests to the corresponding
+Kubernetes clusters. Both services require access to the AWS API to perform their
+functions. 
+
+Additionally, the Kubernetes Service needs direct access to the target clusters
+and the necessary permissions to forward requests.
+
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
