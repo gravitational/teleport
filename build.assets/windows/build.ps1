@@ -303,8 +303,14 @@ function Invoke-SignBinary {
         [string] $SignedBinaryPath
     )
 
+    Write-Host "Is null: $($SignedBinaryPath -eq $null)"
+    Write-Host "Is whitespace: $($SignedBinaryPath -eq '')"
+    Write-Host "type: $($SignedBinaryPath.GetType())"
+    Write-Host "members: $($SignedBinaryPath | Get-Member)"
+    Write-Host "invertd truthy val: $(! $SignedBinaryPath)"
+
     if (! $SignedBinaryPath) {
-        $ShouldMoveSignedBinary = true
+        $ShouldMoveSignedBinary = True
         $SignedBinaryPath = Join-Path -Path $(New-TempDirectory) -ChildPath "signed.exe"
         Write-Host "OVERRIDDING BINARY PATH"
     }
