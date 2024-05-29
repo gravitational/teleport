@@ -436,6 +436,7 @@ jobs:
           sudo echo "Running this with pseudo-sudo"
 
           # Install apt-file
+          apt update
           apt install -y apt-file
 
           # Set the package version
