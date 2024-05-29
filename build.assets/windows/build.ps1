@@ -306,12 +306,15 @@ function Invoke-SignBinary {
     if (! $SignedBinaryPath) {
         $ShouldMoveSignedBinary = true
         $SignedBinaryPath = Join-Path -Path $(New-TempDirectory) -ChildPath "signed.exe"
+        Write-Host "OVERRIDDING BINARY PATH"
     }
 
     Write-Host "Signing $UnsignedBinaryPath using WSL sign-binary script:"
+    Write-Host "SIGNED BINARY PATH: $SignedBinaryPath"
     wsl-ubuntu-command sign-binary "$UnsignedBinaryPath" "$SignedBinaryPath"
 
     if ($ShouldMoveSignedBinary) {
+        Write-Host "MOVING FROM $SignedBinaryPath TO $UnsignedBinaryPath"
         Move-Item -Path $SignedBinaryPath -Destination $UnsignedBinaryPath
     }
 }
