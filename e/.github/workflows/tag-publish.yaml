@@ -36,7 +36,6 @@ jobs:
     outputs:
       pre-release: ${{ steps.determine-version.outputs.pre-release }}
       version: ${{ steps.determine-version.outputs.full }}
-      is-latest-major: ${{ steps.determine-latest.outputs.is-latest }}
     steps:
       - name: Determine Teleport version
         id: determine-version
@@ -44,11 +43,6 @@ jobs:
         with:
           ref: ${{ inputs.oss-teleport-ref }}
           version: ${{ inputs.teleport-version }}
-      - name: Determine if this is the latest major version
-        id: determine-latest
-        uses: gravitational/teleport.e/.github/actions/latest-version@master
-        with:
-          check-version: ${{ steps.determine-version.outputs.full }}
       - name: Reject non-cloud prereleases being sent to production
         if: ${{ contains(inputs.environment, 'prod') && !contains(fromJson('["", "cloud"]'), steps.determine-version.outputs.pre-release) }}
         env:
@@ -179,7 +173,7 @@ jobs:
 
   publish-plugins:
     name: Publish Teleport Plugins
-    if: ${{ !inputs.cloud-only && needs.setup.outputs.is-latest-major }}
+    if: ${{ !inputs.cloud-only }}
     needs: setup
     secrets: inherit
     permissions:
@@ -207,8 +201,8 @@ jobs:
       && needs.publish-kube-agent-updater-oci.result == 'success'
       && needs.publish-operator-oci.result == 'success'
       && needs.publish-os-packages.result == 'success'
+      && needs.publish-plugins.result == 'success'
       && needs.publish-spacelift-runner.result == 'success'
-      && contains(fromJSON('["success", "skipped"]'), needs.publish-plugins.result)
       && contains(fromJSON('["success", "skipped"]'), needs.publish-to-houston.result)
     needs:
       - setup
