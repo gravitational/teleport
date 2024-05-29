@@ -151,7 +151,7 @@ func (r *TCPAppResolver) ResolveTCPHandler(ctx context.Context, fqdn string) (*T
 			// return an error so that DNS resolution will be forwarded upstream instead of failing, to avoid
 			// breaking e.g. web app access (we don't know if this is a web or TCP app yet because we can't
 			// log in).
-			slog.InfoContext(ctx, "Failed to get teleport client.", "error", err)
+			slog.ErrorContext(ctx, "Failed to get teleport client.", "error", err)
 			continue
 		}
 		return r.resolveTCPHandlerForCluster(ctx, slog, rootClient.CurrentCluster(), profileName, "", fqdn)
@@ -167,7 +167,7 @@ func (r *TCPAppResolver) fqdnMatchesProfile(ctx context.Context, profileName, fq
 	// TODO(nklaassen): support leaf clusters.
 	vnetConfig, err := r.clusterConfigCache.getVnetConfig(ctx, profileName, "" /*leafClustername*/)
 	if err != nil {
-		r.slog.DebugContext(ctx, "Failed to get VnetConfig, not checking custom DNS zones.", "profile", profileName, "error", err)
+		r.slog.ErrorContext(ctx, "Failed to get VnetConfig, not checking custom DNS zones.", "profile", profileName, "error", err)
 		return false
 	}
 	return slices.ContainsFunc(vnetConfig.GetSpec().GetCustomDnsZones(), func(zone *vnet.CustomDNSZone) bool {
