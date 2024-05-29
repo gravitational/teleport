@@ -25,6 +25,7 @@ import (
 	"encoding/pem"
 	"net/url"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -286,14 +287,30 @@ func checkAzureAllowRules(vm *azure.VirtualMachine, token string, allowRules []*
 		if rule.Subscription != vm.Subscription {
 			continue
 		}
-		if len(rule.ResourceGroups) > 0 {
-			if !slices.Contains(rule.ResourceGroups, vm.ResourceGroup) {
-				continue
-			}
+		if !azureResourceGroupIsAllowed(rule.ResourceGroups, vm.ResourceGroup) {
+			continue
 		}
 		return nil
 	}
 	return trace.AccessDenied("instance %v did not match any allow rules in token %v", vm.Name, token)
+}
+func azureResourceGroupIsAllowed(allowedResourceGroups []string, vmResourceGroup string) bool {
+	if len(allowedResourceGroups) == 0 {
+		return true
+	}
+
+	// ResourceGroups are case insensitive.
+	// https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/frequently-asked-questions#are-resource-group-names-case-sensitive
+	// The API returns them using capital case, but docs don't mention a specific case.
+	// Converting everything to the same case will ensure a proper comparison.
+	resourceGroup := strings.ToUpper(vmResourceGroup)
+	for _, allowedResourceGroup := range allowedResourceGroups {
+		if strings.EqualFold(resourceGroup, allowedResourceGroup) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (a *Server) checkAzureRequest(ctx context.Context, challenge string, req *proto.RegisterUsingAzureMethodRequest, cfg *azureRegisterConfig) error {
