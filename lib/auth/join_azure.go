@@ -303,7 +303,7 @@ func azureResourceGroupIsAllowed(allowedResourceGroups []string, vmResourceGroup
 	// Converting everything to the same case will ensure a proper comparison.
 	resourceGroup := strings.ToUpper(vmResourceGroup)
 	for _, allowedResourceGroup := range allowedResourceGroups {
-		if resourceGroup == strings.ToUpper(allowedResourceGroup) {
+		if strings.EqualFold(resourceGroup, allowedResourceGroup) {
 			return true
 		}
 	}
