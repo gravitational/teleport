@@ -88,6 +88,12 @@ message HostCertsRequest {
   // system roles are held.
   // DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
   string UnstableSystemRoleAssertionID = 12 [(gogoproto.jsontag) = "system_role_assertion_id,omitempty"];
+
+  // SystemRoleAssertionID is used by agents to prove that they have a given system role when
+  // their credentials originate from multiple separate join tokens so that they can be issued
+  // an instance certificate that encompasses all of their capabilities. This field will be
+  // deprecated once we have a more comprehensive model for join token joining/replacement.
+  string SystemRoleAssertionID = 13 [(gogoproto.jsontag) = "system_role_assertion_id,omitempty"];
 }
 
 // OpenSSHCertRequest specifies certificate-generation parameters
@@ -1983,12 +1989,47 @@ message UnstableSystemRoleAssertion {
   ];
 }
 
+// SystemRoleAssertion is used by agents to prove that they have a given system role when their
+// credentials originate from multiple separate join tokens so that they can be issued an
+// instance certificate that encompasses all of their capabilities. This type will be
+// deprecated once we have a more comprehensive model for join token joining/replacement.
+message SystemRoleAssertion {
+  // ServerID is the server ID of the instance that the assertion is for. Assertions are
+  // only accepted if the calling agent's certificate matches this server id.
+  string ServerID = 1 [(gogoproto.jsontag) = "server_id,omitempty"];
+  // AssertionID is a random UUID that uniquely identifies a set of assertions
+  // as originating from the same teleport process.
+  string AssertionID = 2 [(gogoproto.jsontag) = "assertion_id,omitempty"];
+  // SystemRole is the system role being asserted. Assertions are only accepted if
+  // the calling agent's certificate authorizes it for this system role.
+  string SystemRole = 3 [
+    (gogoproto.jsontag) = "system_role,omitempty",
+    (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.SystemRole"
+  ];
+}
+
 // UnstableSystemRoleAssertionSet is not a stable part of the public API. Records the sum of system
 // role assertions provided by a given instance.
 // DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
 message UnstableSystemRoleAssertionSet {
   string ServerID = 1 [(gogoproto.jsontag) = "server_id,omitempty"];
   string AssertionID = 2 [(gogoproto.jsontag) = "assertion_id,omitempty"];
+  repeated string SystemRoles = 3 [
+    (gogoproto.jsontag) = "system_roles,omitempty",
+    (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.SystemRole"
+  ];
+}
+
+// SystemRoleAssertionSet is an aggregate generated as a result of one or more successful
+// assertions. This type will be deprecated once we have a more comprehensive model for
+// join token joining/replacement.
+message SystemRoleAssertionSet {
+  // ServerID is the server ID of the agent that generated the assertions.
+  string ServerID = 1 [(gogoproto.jsontag) = "server_id,omitempty"];
+  // AssertionID is a random UUID that identified all constituent assertions as originating
+  // from the same teleport process.
+  string AssertionID = 2 [(gogoproto.jsontag) = "assertion_id,omitempty"];
+  // SystemRoles is the set of system roles that the agent has successfully asserted.
   repeated string SystemRoles = 3 [
     (gogoproto.jsontag) = "system_roles,omitempty",
     (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.SystemRole"
@@ -2948,6 +2989,12 @@ service AuthService {
   // instances to prove that they hold a given system role.
   // DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
   rpc UnstableAssertSystemRole(UnstableSystemRoleAssertion) returns (google.protobuf.Empty);
+
+  // AssertSystemRole is used by agents to prove that they have a given system role when their
+  // credentials originate from multiple separate join tokens so that they can be issued an instance
+  // certificate that encompasses all of their capabilities. This method will be deprecated once we
+  // have a more comprehensive model for join token joining/replacement.
+  rpc AssertSystemRole(SystemRoleAssertion) returns (google.protobuf.Empty);
 
   // SubmitUsageEvent submits an external usage event.
   rpc SubmitUsageEvent(SubmitUsageEventRequest) returns (google.protobuf.Empty);
