@@ -190,7 +190,7 @@ func TestAuth_RegisterUsingAzureMethod(t *testing.T) {
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
 			subscription:     subID,
-			resourceGroup:    "rg",
+			resourceGroup:    "RG",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Azure: &types.ProvisionTokenSpecV2Azure{
@@ -212,7 +212,7 @@ func TestAuth_RegisterUsingAzureMethod(t *testing.T) {
 			tokenName:        "test-token",
 			requestTokenName: "wrong-token",
 			subscription:     subID,
-			resourceGroup:    "rg",
+			resourceGroup:    "RG",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Azure: &types.ProvisionTokenSpecV2Azure{
@@ -233,7 +233,7 @@ func TestAuth_RegisterUsingAzureMethod(t *testing.T) {
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
 			subscription:     subID,
-			resourceGroup:    "rg",
+			resourceGroup:    "RG",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Azure: &types.ProvisionTokenSpecV2Azure{
@@ -255,7 +255,7 @@ func TestAuth_RegisterUsingAzureMethod(t *testing.T) {
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
 			subscription:     "some-junk",
-			resourceGroup:    "rg",
+			resourceGroup:    "RG",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Azure: &types.ProvisionTokenSpecV2Azure{
@@ -276,7 +276,7 @@ func TestAuth_RegisterUsingAzureMethod(t *testing.T) {
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
 			subscription:     subID,
-			resourceGroup:    "wrong-rg",
+			resourceGroup:    "WRONG-RG",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Azure: &types.ProvisionTokenSpecV2Azure{
@@ -298,7 +298,7 @@ func TestAuth_RegisterUsingAzureMethod(t *testing.T) {
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
 			subscription:     subID,
-			resourceGroup:    "rg",
+			resourceGroup:    "RG",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Azure: &types.ProvisionTokenSpecV2Azure{
@@ -322,7 +322,7 @@ func TestAuth_RegisterUsingAzureMethod(t *testing.T) {
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
 			subscription:     subID,
-			resourceGroup:    "rg",
+			resourceGroup:    "RG",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Azure: &types.ProvisionTokenSpecV2Azure{
@@ -343,7 +343,7 @@ func TestAuth_RegisterUsingAzureMethod(t *testing.T) {
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
 			subscription:     subID,
-			resourceGroup:    "rg",
+			resourceGroup:    "RG",
 			vmID:             "vm-id",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
@@ -358,7 +358,7 @@ func TestAuth_RegisterUsingAzureMethod(t *testing.T) {
 			},
 			vmResult: &azure.VirtualMachine{
 				Subscription:  subID,
-				ResourceGroup: "rg",
+				ResourceGroup: "RG",
 				VMID:          "different-id",
 			},
 			verify:      mockVerifyToken(nil),
