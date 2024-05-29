@@ -4,18 +4,26 @@ import (
 	"context"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/bcrypt"
 
 	"github.com/gravitational/teleport/api/defaults"
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
+	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/e/lib/okta"
+	"github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/services"
 )
 
-// enableIGS configures the system modules to allow IGS features for tge life of
+// enableIGS configures the system modules to allow IGS features for the life of
 // the supplied test.
 func enableIGS(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
@@ -201,4 +209,189 @@ func requireNotFound(t require.TestingT, err error, _ ...interface{}) {
 
 func requireAlreadyExists(t require.TestingT, err error, _ ...interface{}) {
 	require.True(t, trace.IsAlreadyExists(err), "Expected AlreadyExists, got %s", err)
+}
+
+type authMock struct {
+}
+
+type mockChecker struct {
+	services.AccessChecker
+}
+
+func (a *mockChecker) HasRole(role string) bool {
+	return true
+}
+
+func (a authMock) Authorize(ctx context.Context) (*authz.Context, error) {
+	return &authz.Context{
+		Checker:  &mockChecker{},
+		Identity: authz.BuiltinRole{},
+	}, nil
+}
+
+type pluginMock struct {
+	plugin *types.PluginV1
+}
+
+func (p pluginMock) GetPlugin(ctx context.Context, name string, withSecrets bool) (types.Plugin, error) {
+	return p.plugin, nil
+}
+
+type userMock struct {
+	UsersService
+	users []*types.UserV2
+}
+
+func (u *userMock) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error) {
+	return &userspb.ListUsersResponse{
+		Users: u.users,
+	}, nil
+}
+
+type credMock struct {
+	CredentialsService
+	creds []types.PluginStaticCredentials
+}
+
+func (c *credMock) GetPluginStaticCredentialsByLabels(ctx context.Context, labels map[string]string) ([]types.PluginStaticCredentials, error) {
+	return c.creds, nil
+}
+
+func TestListSCIMResourcesUserPredicate(t *testing.T) {
+	enableIGS(t)
+	plugin := &types.PluginV1{
+		Spec: types.PluginSpecV1{
+			Settings: &types.PluginSpecV1_Okta{
+				Okta: &types.PluginOktaSettings{
+					OrgUrl: testPluginOrgUrl,
+					SyncSettings: &types.PluginOktaSyncSettings{
+						SyncAccessLists: true,
+						SsoConnectorId:  testSSOConnectorID,
+					},
+				},
+			},
+		},
+		Credentials: &types.PluginCredentialsV1{
+			Credentials: &types.PluginCredentialsV1_StaticCredentialsRef{
+				StaticCredentialsRef: &types.PluginStaticCredentialsRef{
+					Labels: map[string]string{
+						"plugin": testPluginID,
+					},
+				},
+			},
+		},
+	}
+
+	scimTokenEnc, err := bcrypt.GenerateFromPassword([]byte("scim_token"), bcrypt.DefaultCost)
+	require.NoError(t, err)
+
+	pluginCreds := []types.PluginStaticCredentials{
+		&types.PluginStaticCredentialsV1{
+			ResourceHeader: types.ResourceHeader{
+				Metadata: types.Metadata{
+					Labels: map[string]string{
+						okta.CredPurposeLabel: okta.CredPurposeSCIMToken,
+					},
+				},
+			},
+			Spec: &types.PluginStaticCredentialsSpecV1{
+				Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
+					APIToken: string(scimTokenEnc),
+				},
+			},
+		},
+	}
+
+	aliceUserCreateByOktaConnector := &types.UserV2{
+		Metadata: types.Metadata{Name: "alice@example.com"},
+		Spec: types.UserSpecV2{
+			CreatedBy: types.CreatedBy{Connector: &types.ConnectorRef{ID: testSSOConnectorID}},
+		},
+	}
+
+	bobUserCreateByNonOktaConnector := &types.UserV2{
+		Metadata: types.Metadata{Name: "bob@example.com"},
+		Spec: types.UserSpecV2{
+			CreatedBy: types.CreatedBy{Connector: &types.ConnectorRef{ID: "some-other-connector"}},
+		},
+	}
+
+	richardUserProvidedBySCIM := &types.UserV2{
+		Metadata: types.Metadata{
+			Name: "richard@example.com",
+			Labels: map[string]string{
+				teleport.OktaOrgURLLabel: testPluginOrgUrl,
+				types.OriginLabel:        types.OriginOkta,
+			},
+		},
+		Spec: types.UserSpecV2{
+			CreatedBy: types.CreatedBy{Connector: &types.ConnectorRef{ID: "some-other-connector"}},
+		},
+	}
+
+	users := []*types.UserV2{
+		aliceUserCreateByOktaConnector,
+		bobUserCreateByNonOktaConnector,
+		richardUserProvidedBySCIM,
+	}
+
+	clock := clockwork.NewFakeClock()
+	ctx := context.Background()
+	sut, err := NewService(&Config{
+		Authorizer:         &authMock{},
+		Log:                logrus.New(),
+		UsersService:       &userMock{users: users},
+		RolesService:       &mockRoleService{},
+		PluginsService:     &pluginMock{plugin: plugin},
+		CredentialsService: &credMock{creds: pluginCreds},
+		AccessListsService: &mockAccessListService{},
+		LocksService:       &mockLocksService{},
+		IdentityService:    &mockIdentityService{},
+		Clock:              clock,
+	})
+	require.NoError(t, err)
+
+	cmpResourceID := cmp.Comparer(func(x, y *scimpb.Resource) bool {
+		return x.Id == y.Id
+	})
+
+	t.Run("list user by filter should return SAML originated user", func(t *testing.T) {
+		// alice user is SAML ephemeral users SCIM List call should  also list SAML users
+		// if SAML from the user object and okta SCIM settings are the same.
+		resp, err := sut.ListSCIMResources(ctx, &scimpb.ListSCIMResourcesRequest{
+			Target: &scimpb.RequestTarget{
+				Authorization: "Bearer scim_token",
+				PluginId:      "okta",
+				ResourceType:  "Users",
+			},
+			Page:   &scimpb.Page{StartIndex: 1, Count: 100},
+			Filter: `userName eq "alice@example.com"`,
+		})
+		require.NoError(t, err)
+		require.Len(t, resp.Resources, 1)
+
+		want := []*scimpb.Resource{
+			{Id: aliceUserCreateByOktaConnector.GetName()},
+		}
+		require.Empty(t, cmp.Diff(want, resp.Resources, cmpResourceID))
+	})
+
+	t.Run("list SCIM resource should return SCIM and SAML originated users", func(t *testing.T) {
+		resp, err := sut.ListSCIMResources(ctx, &scimpb.ListSCIMResourcesRequest{
+			Target: &scimpb.RequestTarget{
+				Authorization: "Bearer scim_token",
+				PluginId:      "okta",
+				ResourceType:  "Users",
+			},
+			Page: &scimpb.Page{StartIndex: 1, Count: 100},
+		})
+		require.NoError(t, err)
+		require.Len(t, resp.Resources, 2)
+
+		want := []*scimpb.Resource{
+			{Id: aliceUserCreateByOktaConnector.GetName()},
+			{Id: richardUserProvidedBySCIM.GetName()},
+		}
+		require.Empty(t, cmp.Diff(want, resp.Resources, cmpResourceID))
+	})
 }

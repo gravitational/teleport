@@ -32,15 +32,13 @@ const (
 // and resource handlers. A new shim will be created for every request requiring
 // Okta-specific behavior.
 type oktaShim struct {
-	isValidUser       func(types.User) bool
-	isValidAccessList func(*accesslist.AccessList) bool
-	creds             CredentialsService
-	locks             LocksService
-	users             UsersService
-	plugin            *types.PluginV1
-	clock             clockwork.Clock
-	log               logrus.FieldLogger
-	identity          IdentityService
+	creds    CredentialsService
+	locks    LocksService
+	users    UsersService
+	plugin   *types.PluginV1
+	clock    clockwork.Clock
+	log      logrus.FieldLogger
+	identity IdentityService
 }
 
 // Static assertion that the oktaShim implements the `shim` interface
@@ -107,17 +105,30 @@ func (s *oktaShim) authorizeRequest(ctx context.Context, authHeader string) erro
 }
 
 func (s *oktaShim) accessListPredicate(_ context.Context, accessList *accesslist.AccessList) bool {
-	if s.isValidAccessList == nil {
-		s.isValidAccessList = okta.MatchByLabels[*accesslist.AccessList](s.plugin.Spec.GetOkta().OrgUrl)
-	}
-	return s.isValidAccessList(accessList)
+	return okta.MatchByLabels[*accesslist.AccessList](s.plugin.Spec.GetOkta().OrgUrl)(accessList)
 }
 
-func (s *oktaShim) userPredicate(_ context.Context, user types.User) bool {
-	if s.isValidUser == nil {
-		s.isValidUser = okta.MatchByLabels[types.User](s.plugin.Spec.GetOkta().OrgUrl)
+func (s *oktaShim) userPredicate(ctx context.Context, user types.User) bool {
+	if ok := s.userCreatedByOKTAConnector(user); ok {
+		// User was created by the same connector.
+		// This can happen when SCIM user provisioning is enabled but a SAML transient user still exists in
+		// backend. The OKTA SCIM user provisioning will update SAML user to SCIM user without
+		// waiting for SAML user expiration.
+		return true
 	}
-	return s.isValidUser(user)
+	return okta.MatchByLabels[types.User](s.plugin.Spec.GetOkta().OrgUrl)(user)
+}
+
+func (s *oktaShim) userCreatedByOKTAConnector(user types.User) bool {
+	userConnector := user.GetCreatedBy().Connector
+	if userConnector == nil || userConnector.ID == "" {
+		return false
+	}
+	pluginConnectorID := s.plugin.Spec.GetOkta().SyncSettings.SsoConnectorId
+	if pluginConnectorID == "" {
+		return false
+	}
+	return userConnector.ID == pluginConnectorID
 }
 
 func (s *oktaShim) userToResource(_ context.Context, user types.User) (*scimpb.Resource, error) {
