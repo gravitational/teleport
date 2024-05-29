@@ -18,7 +18,7 @@ const isMac = platform === 'darwin';
 if (
   isMac &&
   (env.CONNECT_TSH_APP_PATH === undefined) ===
-  (env.CONNECT_TSH_BIN_PATH === undefined)
+    (env.CONNECT_TSH_BIN_PATH === undefined)
 ) {
   throw new Error(
     'You must provide CONNECT_TSH_APP_PATH xor CONNECT_TSH_BIN_PATH'
@@ -143,10 +143,8 @@ module.exports = {
   win: {
     target: ['nsis'],
     sign: customSign => {
-      if (process.env.CI !== "true") {
-        console.warn(
-          'Not running in CI pipeline: signing will be skipped'
-        );
+      if (process.env.CI !== 'true') {
+        console.warn('Not running in CI pipeline: signing will be skipped');
         return;
       }
 
@@ -157,10 +155,10 @@ module.exports = {
           '-executionpolicy',
           'bypass',
           '-c',
-          '$ProgressPreference = \'SilentlyContinue\'; ' +
-          '$ErrorActionPreference = \'Stop\'; ' +
-          '. ../../../build.assets/windows/build.ps1; ' +
-          `Invoke-SignBinary -UnsignedBinaryPath "${customSign.path}"`,
+          "$ProgressPreference = 'SilentlyContinue'; " +
+            "$ErrorActionPreference = 'Stop'; " +
+            '. ../../../build.assets/windows/build.ps1; ' +
+            `Invoke-SignBinary -UnsignedBinaryPath "${customSign.path}"`,
         ],
         { stdio: 'inherit' }
       );
