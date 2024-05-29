@@ -92,12 +92,8 @@ func (*HostUsersProvisioningBackend) CreateGroup(name string, gid string) error 
 }
 
 // CreateUser creates a user on a host
-func (*HostUsersProvisioningBackend) CreateUser(name string, groups []string, uid, gid string) error {
-	home, err := readDefaultHome(name)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = host.UserAdd(name, groups, home, uid, gid)
+func (*HostUsersProvisioningBackend) CreateUser(name string, groups []string, home, uid, gid string) error {
+	_, err := host.UserAdd(name, groups, home, uid, gid)
 	return trace.Wrap(err)
 }
 
@@ -214,17 +210,12 @@ func readDefaultSkel() (string, error) {
 	return skel, trace.Wrap(err)
 }
 
-func (u *HostUsersProvisioningBackend) CreateHomeDirectory(user string, uidS, gidS string) error {
+func (u *HostUsersProvisioningBackend) CreateHomeDirectory(userHome, uidS, gidS string) error {
 	uid, err := strconv.Atoi(uidS)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	gid, err := strconv.Atoi(gidS)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	userHome, err := readDefaultHome(user)
 	if err != nil {
 		return trace.Wrap(err)
 	}
