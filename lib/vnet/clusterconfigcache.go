@@ -46,18 +46,18 @@ func (e *cacheEntry) stale(clock clockwork.Clock) bool {
 // cached entry. This is desirable in cases where the profile for a cluster expires during VNet operation,
 // it's better to use the stale custom DNS zones than to remove all DNS configuration for that cluster.
 type clusterConfigCache struct {
+	flightGroup singleflight.Group
+	clock       clockwork.Clock
 	get         getClusterConfigFunc
 	cache       map[string]cacheEntry
 	mu          sync.RWMutex
-	flightGroup singleflight.Group
-	clock       clockwork.Clock
 }
 
 func newClusterConfigCache(get getClusterConfigFunc, clock clockwork.Clock) *clusterConfigCache {
 	return &clusterConfigCache{
+		clock: clock,
 		get:   get,
 		cache: make(map[string]cacheEntry),
-		clock: clock,
 	}
 }
 
