@@ -140,14 +140,14 @@ func (c *osConfigurator) setTunIPv4FromCIDR(cidrRange string) error {
 		return nil
 	}
 
-	_, net, err := net.ParseCIDR(cidrRange)
+	_, ipnet, err := net.ParseCIDR(cidrRange)
 	if err != nil {
 		return trace.Wrap(err, "parsing CIDR %q", cidrRange)
 	}
 
-	// net.IP is the network address, ending in 0s, like 100.64.0.0
+	// ipnet.IP is the network address, ending in 0s, like 100.64.0.0
 	// Add 1 to assign the TUN address, like 100.64.0.1
-	tunAddress := net.IP
+	tunAddress := ipnet.IP
 	tunAddress[len(tunAddress)-1]++
 	c.tunIPv4 = tunAddress.String()
 	return nil
