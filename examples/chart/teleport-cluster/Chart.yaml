@@ -1,4 +1,4 @@
-.version: &version "17.0.0-dev.fred-win-fix.3"
+.version: &version "17.0.0-dev.fred-win-fix-1.1"
 
 name: teleport-cluster
 apiVersion: v2
