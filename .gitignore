@@ -2,6 +2,8 @@
 gitref.go
 .data
 debug
+!/lib/srv/debug
+!/lib/client/debug
 default.etcd
 /darwin
 

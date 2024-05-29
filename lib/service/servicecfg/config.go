@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // Config contains the configuration for all services that Teleport can run.
@@ -104,6 +105,9 @@ type Config struct {
 
 	// Metrics defines the metrics service configuration.
 	Metrics MetricsConfig
+
+	// DebugService defines the debug service configuration.
+	DebugService DebugConfig
 
 	// WindowsDesktop defines the Windows desktop service configuration.
 	WindowsDesktop WindowsDesktopConfig
@@ -222,6 +226,8 @@ type Config struct {
 	// Logger outputs messages using slog. The underlying handler respects
 	// the user supplied logging config.
 	Logger *slog.Logger
+	// LoggerLevel defines the Logger log level.
+	LoggerLevel *slog.LevelVar
 
 	// PluginRegistry allows adding enterprise logic to Teleport services
 	PluginRegistry plugin.Registry
@@ -516,6 +522,10 @@ func ApplyDefaults(cfg *Config) {
 		cfg.Logger = slog.Default()
 	}
 
+	if cfg.LoggerLevel == nil {
+		cfg.LoggerLevel = new(slog.LevelVar)
+	}
+
 	// Remove insecure and (borderline insecure) cryptographic primitives from
 	// default configuration. These can still be added back in file configuration by
 	// users, but not supported by default by Teleport. See #1856 for more
@@ -680,6 +690,10 @@ func applyDefaults(cfg *Config) {
 		cfg.Logger = slog.Default()
 	}
 
+	if cfg.LoggerLevel == nil {
+		cfg.LoggerLevel = new(slog.LevelVar)
+	}
+
 	if cfg.PollingPeriod == 0 {
 		cfg.PollingPeriod = defaults.LowResPollingPeriod
 	}
@@ -762,4 +776,18 @@ func verifyEnabledService(cfg *Config) error {
 
 	return trace.BadParameter(
 		"config: enable at least one of auth_service, ssh_service, proxy_service, app_service, database_service, kubernetes_service, windows_desktop_service, discovery_service, okta_service or jamf_service")
+}
+
+// SetLogLevel changes the loggers log level.
+//
+// If called after `config.ApplyFileConfig` or `config.Configure` it will also
+// change the global loggers.
+func (c *Config) SetLogLevel(level slog.Level) {
+	c.Log.SetLevel(logutils.SlogLevelToLogrusLevel(level))
+	c.LoggerLevel.Set(level)
+}
+
+// GetLogLevel returns the current log level.
+func (c *Config) GetLogLevel() slog.Level {
+	return c.LoggerLevel.Level()
 }
