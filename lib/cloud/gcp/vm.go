@@ -32,11 +32,16 @@ import (
 
 	compute "cloud.google.com/go/compute/apiv1"
 	"cloud.google.com/go/compute/apiv1/computepb"
+	resourcemanager "cloud.google.com/go/resourcemanager/apiv3"
+	"cloud.google.com/go/resourcemanager/apiv3/resourcemanagerpb"
+	"github.com/googleapis/gax-go/v2/apierror"
 	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/iterator"
+	"google.golang.org/api/option"
 
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
@@ -55,6 +60,14 @@ func convertAPIError(err error) error {
 	var googleError *googleapi.Error
 	if errors.As(err, &googleError) {
 		return trace.ReadError(googleError.Code, []byte(googleError.Message))
+	}
+	var apiError *apierror.APIError
+	if errors.As(err, &apiError) {
+		if code := apiError.HTTPCode(); code != -1 {
+			return trace.ReadError(code, []byte(apiError.Reason()))
+		} else if apiError.GRPCStatus() != nil {
+			return trail.FromGRPC(apiError)
+		}
 	}
 	return err
 }
@@ -75,6 +88,10 @@ type InstancesClient interface {
 	AddSSHKey(ctx context.Context, req *SSHKeyRequest) error
 	// RemoveSSHKey removes an SSH key from a GCP VM's metadata.
 	RemoveSSHKey(ctx context.Context, req *SSHKeyRequest) error
+	// GetInstanceTags gets the GCP tags associated with an instance (which are
+	// distinct from its labels). It is separate from GetInstance because fetching
+	// tags requires its own permissions.
+	GetInstanceTags(ctx context.Context, req *InstanceRequest) (map[string]string, error)
 }
 
 // InstancesClientConfig is the client configuration for InstancesClient.
@@ -233,9 +250,9 @@ func (clt *instancesClient) StreamInstances(ctx context.Context, projectID, zone
 		getInstances = func() ([]*Instance, error) {
 			resp, err := it.Next()
 			if resp == nil {
-				return nil, trace.Wrap(err)
+				return nil, trace.Wrap(convertAPIError(err))
 			}
-			return []*Instance{toInstance(resp, projectID)}, trace.Wrap(err)
+			return []*Instance{toInstance(resp, projectID)}, trace.Wrap(convertAPIError(err))
 		}
 	}
 
@@ -256,6 +273,11 @@ type InstanceRequest struct {
 	Zone string
 	// Name is the instance's name.
 	Name string
+	// ID is the instance's ID.
+	ID uint64
+	// WithoutHostKeys indicates that the client should not request the instance's
+	// host keys.
+	WithoutHostKeys bool
 }
 
 func (req *InstanceRequest) CheckAndSetDefaults() error {
@@ -312,13 +334,55 @@ func (clt *instancesClient) GetInstance(ctx context.Context, req *InstanceReques
 	inst := toInstance(resp, req.ProjectID)
 	inst.ProjectID = req.ProjectID
 
-	hostKeys, err := clt.getHostKeys(ctx, req)
-	if err == nil {
-		inst.hostKeys = hostKeys
-	} else if !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
+	if !req.WithoutHostKeys {
+		hostKeys, err := clt.getHostKeys(ctx, req)
+		if err == nil {
+			inst.hostKeys = hostKeys
+		} else if !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
 	}
 	return inst, nil
+}
+
+func (clt *instancesClient) getTagBindingsClient(ctx context.Context, zone string) (*resourcemanager.TagBindingsClient, error) {
+	var opts []option.ClientOption
+	if zone != "" {
+		endpoint := zone + "-cloudresourcemanager.googleapis.com:443"
+		opts = append(opts, option.WithEndpoint(endpoint))
+	}
+	client, err := resourcemanager.NewTagBindingsClient(ctx, opts...)
+	return client, trace.Wrap(convertAPIError(err))
+}
+
+// GetInstanceTags gets the GCP tags for the instance.
+func (clt *instancesClient) GetInstanceTags(ctx context.Context, req *InstanceRequest) (map[string]string, error) {
+	tagClient, err := clt.getTagBindingsClient(ctx, req.Zone)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	it := tagClient.ListEffectiveTags(ctx, &resourcemanagerpb.ListEffectiveTagsRequest{
+		Parent: fmt.Sprintf(
+			"//compute.googleapis.com/projects/%s/zones/%s/instances/%d",
+			req.ProjectID, req.Zone, req.ID,
+		),
+	})
+
+	tags := make(map[string]string)
+	for {
+		resp, err := it.Next()
+		if err != nil {
+			if errors.Is(err, iterator.Done) {
+				return tags, nil
+			}
+			return nil, trace.Wrap(convertAPIError(err))
+		}
+		// Tag value is in the form <project-name>/<key>/<value>
+		fields := strings.Split(resp.GetNamespacedTagValue(), "/")
+		k := fields[len(fields)-2]
+		v := fields[len(fields)-1]
+		tags[k] = v
+	}
 }
 
 // SSHKeyRequest contains parameters to add/removed SSH keys from an instance.

@@ -28,7 +28,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/tbot/bot"
@@ -155,7 +155,7 @@ func newClientKey(ident *identity.Identity, hostCAs []types.CertAuthority) (*cli
 		PrivateKey:   pk,
 		Cert:         ident.CertBytes,
 		TLSCert:      ident.TLSCertBytes,
-		TrustedCerts: auth.AuthoritiesToTrustedCerts(hostCAs),
+		TrustedCerts: authclient.AuthoritiesToTrustedCerts(hostCAs),
 
 		// Note: these fields are never used or persisted with identity files,
 		// so we won't bother to set them. (They may need to be reconstituted

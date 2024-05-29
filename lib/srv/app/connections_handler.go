@@ -85,7 +85,7 @@ type ConnectionsHandlerConfig struct {
 	AuthClient authclient.ClientI
 
 	// AccessPoint is a caching client connected to the Auth Server.
-	AccessPoint auth.AppsAccessPoint
+	AccessPoint authclient.AppsAccessPoint
 
 	// Cloud provides cloud provider access related functionality.
 	Cloud Cloud
@@ -769,7 +769,7 @@ func (c *ConnectionsHandler) deleteConnAuth(conn net.Conn) {
 
 // CopyAndConfigureTLS can be used to copy and modify an existing *tls.Config
 // for Teleport application proxy servers.
-func CopyAndConfigureTLS(log logrus.FieldLogger, client auth.AccessCache, config *tls.Config) *tls.Config {
+func CopyAndConfigureTLS(log logrus.FieldLogger, client authclient.AccessCache, config *tls.Config) *tls.Config {
 	tlsConfig := config.Clone()
 
 	// Require clients to present a certificate
@@ -784,7 +784,7 @@ func CopyAndConfigureTLS(log logrus.FieldLogger, client auth.AccessCache, config
 	return tlsConfig
 }
 
-func newGetConfigForClientFn(log logrus.FieldLogger, client auth.AccessCache, tlsConfig *tls.Config) func(*tls.ClientHelloInfo) (*tls.Config, error) {
+func newGetConfigForClientFn(log logrus.FieldLogger, client authclient.AccessCache, tlsConfig *tls.Config) func(*tls.ClientHelloInfo) (*tls.Config, error) {
 	return func(info *tls.ClientHelloInfo) (*tls.Config, error) {
 		var clusterName string
 		var err error
@@ -801,7 +801,7 @@ func newGetConfigForClientFn(log logrus.FieldLogger, client auth.AccessCache, tl
 
 		// Fetch list of CAs that could have signed this certificate. If clusterName
 		// is empty, all CAs that this cluster knows about are returned.
-		pool, _, err := auth.DefaultClientCertPool(client, clusterName)
+		pool, _, err := authclient.DefaultClientCertPool(info.Context(), client, clusterName)
 		if err != nil {
 			// If this request fails, return nil and fallback to the default ClientCAs.
 

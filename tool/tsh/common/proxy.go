@@ -606,7 +606,7 @@ func loadAppCertificateWithAppLogin(cf *CLIConf, tc *libclient.TeleportClient, a
 		if !needLogin {
 			return tls.Certificate{}, trace.Wrap(err)
 		}
-		log.WithError(err).Debugf("Loading app certificate failed, attempting to login into app %q", appName)
+		log.WithError(err).Debugf("Loading app certificate failed, attempting to login to app %q", appName)
 		quiet := cf.Quiet
 		cf.Quiet = true
 		errLogin := onAppLogin(cf)

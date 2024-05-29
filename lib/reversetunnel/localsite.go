@@ -36,7 +36,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/multiplexer"
@@ -151,7 +150,7 @@ type localSite struct {
 	client authclient.ClientI
 	// accessPoint provides access to a cached subset of the Auth Server API of
 	// the local cluster.
-	accessPoint auth.RemoteProxyAccessPoint
+	accessPoint authclient.RemoteProxyAccessPoint
 
 	// certificateCache caches host certificates for the forwarding server.
 	certificateCache *certificateCache
@@ -189,7 +188,7 @@ func (s *localSite) GetTunnelsCount() int {
 }
 
 // CachingAccessPoint returns an auth.RemoteProxyAccessPoint for this cluster.
-func (s *localSite) CachingAccessPoint() (auth.RemoteProxyAccessPoint, error) {
+func (s *localSite) CachingAccessPoint() (authclient.RemoteProxyAccessPoint, error) {
 	return s.accessPoint, nil
 }
 
@@ -773,7 +772,7 @@ func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-ch
 
 			log := logger
 			if roundtrip != 0 {
-				log = logger.WithField("latency", roundtrip)
+				log = logger.WithField("latency", roundtrip.String())
 			}
 			log.Debugf("Ping <- %v", rconn.conn.RemoteAddr())
 

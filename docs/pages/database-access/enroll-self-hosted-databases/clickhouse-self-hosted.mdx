@@ -220,8 +220,8 @@ To configure the Teleport Database Service to trust a custom CA:
         protocol: <Var name="protocol" />
   +     tls:
   +       ca_cert_file: "/etc/teleport-tls-db/db-ca/ca.pem"
-    labels:
-      env: dev
+        static_labels:
+          env: dev
   + extraVolumes:
   +   - name: db-ca
   +     secret:

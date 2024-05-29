@@ -27,13 +27,14 @@ import {
   useUnifiedResourcesFetch,
   UnifiedResourcesPinning,
   BulkAction,
+  IncludedResourceMode,
+  ResourceAvailabilityFilter,
 } from 'shared/components/UnifiedResources';
 import { ClusterDropdown } from 'shared/components/ClusterDropdown/ClusterDropdown';
 
 import { DefaultTab } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 
 import useStickyClusterId from 'teleport/useStickyClusterId';
-import { storageService } from 'teleport/services/storageService';
 import { useUser } from 'teleport/User/UserContext';
 import { useTeleport } from 'teleport';
 import { useUrlFiltering } from 'teleport/components/hooks';
@@ -96,24 +97,26 @@ export function ClusterResources({
   clusterId,
   isLeafCluster,
   getActionButton,
-  includeRequestable,
   showCheckout = false,
+  availabilityFilter,
   bulkActions = [],
 }: {
   clusterId: string;
   isLeafCluster: boolean;
-  getActionButton?: (resource: UnifiedResource) => JSX.Element;
-  includeRequestable?: boolean;
+  getActionButton?: (
+    resource: UnifiedResource,
+    includedResourceMode: IncludedResourceMode
+  ) => JSX.Element;
   showCheckout?: boolean;
   /** A list of actions that can be performed on the selected items. */
   bulkActions?: BulkAction[];
+  availabilityFilter?: ResourceAvailabilityFilter;
 }) {
   const teleCtx = useTeleport();
   const flags = teleCtx.getFeatureFlags();
 
   useNoMinWidth();
 
-  const pinningNotSupported = storageService.arePinnedResourcesDisabled();
   const {
     getClusterPinnedResources,
     preferences,
@@ -128,6 +131,7 @@ export function ClusterResources({
       fieldName: 'name',
       dir: 'ASC',
     },
+    includedResourceMode: availabilityFilter?.mode,
     pinnedOnly:
       preferences?.unifiedResourcePreferences?.defaultTab === DefaultTab.PINNED,
   });
@@ -139,13 +143,11 @@ export function ClusterResources({
   const updateCurrentClusterPinnedResources = (pinnedResources: string[]) =>
     updateClusterPinnedResources(clusterId, pinnedResources);
 
-  const pinning: UnifiedResourcesPinning = pinningNotSupported
-    ? { kind: 'not-supported' }
-    : {
-        kind: 'supported',
-        updateClusterPinnedResources: updateCurrentClusterPinnedResources,
-        getClusterPinnedResources: getCurrentClusterPinnedResources,
-      };
+  const pinning: UnifiedResourcesPinning = {
+    kind: 'supported',
+    updateClusterPinnedResources: updateCurrentClusterPinnedResources,
+    getClusterPinnedResources: getCurrentClusterPinnedResources,
+  };
 
   const { fetch, resources, attempt, clear } = useUnifiedResourcesFetch({
     fetchFunc: useCallback(
@@ -161,7 +163,7 @@ export function ClusterResources({
             searchAsRoles: '',
             limit: paginationParams.limit,
             startKey: paginationParams.startKey,
-            includeRequestable,
+            includedResourceMode: params.includedResourceMode,
           },
           signal
         );
@@ -179,8 +181,8 @@ export function ClusterResources({
         params.query,
         params.search,
         params.sort,
+        params.includedResourceMode,
         teleCtx.resourceService,
-        includeRequestable,
       ]
     ),
   });
@@ -213,6 +215,7 @@ export function ClusterResources({
         params={params}
         fetchResources={fetch}
         resourcesFetchAttempt={attempt}
+        availabilityFilter={availabilityFilter}
         unifiedResourcePreferences={preferences.unifiedResourcePreferences}
         updateUnifiedResourcesPreferences={preferences => {
           updatePreferences({ unifiedResourcePreferences: preferences });
@@ -236,9 +239,10 @@ export function ClusterResources({
         resources={resources.map(resource => ({
           resource,
           ui: {
-            ActionButton: getActionButton?.(resource) || (
-              <ResourceActionButton resource={resource} />
-            ),
+            ActionButton: getActionButton?.(
+              resource,
+              params.includedResourceMode
+            ) || <ResourceActionButton resource={resource} />,
           },
         }))}
         setParams={newParams => {
