@@ -47,21 +47,21 @@ Make sure that your Jamf role has the "Read Computers" privilege.
 You can test your client credentials using the following Jamf query:
 
 ```code
-URL='<Var name="(=jamf.api_endpoint=)" description="Jamf API URL"/>'
-CLIENT_ID='<Var name="(=jamf.client_id=)" description="Jamf API client ID" />'
-CLIENT_SECRET='<Var name="(=jamf.client_secret=)" description="Jamf API client secret" />'
+$ URL='<Var name="(=jamf.api_endpoint=)" description="Jamf API URL"/>'
+$ CLIENT_ID='<Var name="(=jamf.client_id=)" description="Jamf API client ID" />'
+$ CLIENT_SECRET='<Var name="(=jamf.client_secret=)" description="Jamf API client secret" />'
 
 ## Acquire access token from Jamf.
-TOKEN_RESP="$(curl -X POST "$URL/api/oauth/token" \
+$ TOKEN_RESP="$(curl -X POST "$URL/api/oauth/token" \
   -H 'Content-Type: application/x-www-form-urlencoded' \
   --data-urlencode 'grant_type=client_credentials' \
   --data-urlencode "client_id=$CLIENT_ID" \
   --data-urlencode "client_secret=$CLIENT_SECRET" -s)"
-echo "$TOKEN_RESP"
-ACCESS_TOKEN="$(echo "$TOKEN_RESP" | jq -r .access_token)"
+$ echo "$TOKEN_RESP"
+$ ACCESS_TOKEN="$(echo "$TOKEN_RESP" | jq -r .access_token)"
 
 ## Test access token privileges.
-curl -H "Authorization: Bearer $ACCESS_TOKEN" "$URL/api/v1/computers-inventory?page-size=1"
+$ curl -H "Authorization: Bearer $ACCESS_TOKEN" "$URL/api/v1/computers-inventory?page-size=1"
 ```
 
 The query above should print an inventory entry from Jamf. If you get permission
