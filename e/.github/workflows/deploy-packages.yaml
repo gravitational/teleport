@@ -185,6 +185,8 @@ jobs:
           echo
           echo "Disk info:"
           df -hT
+      - name: Setup common runner tools
+        uses: gravitational/teleport.e/.github/actions/setup-self-hosted-runner@master
       # Future TODO package the tool as an action or separate workflow
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -237,23 +239,6 @@ jobs:
 
           # Verify the install
           aptly version
-
-          # AWS CLI
-          # Ubuntu 22.04 latest version of the CLI is v1, so v2 is installed manually based on the AWS docs
-          # Download the release
-          AWSCLI_DOWNLOAD_PATH="/tmp/awscli.zip"
-          curl -s "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "$AWSCLI_DOWNLOAD_PATH"
-
-          # Extract and install
-          EXTRACT_DIR="/tmp/awscli-extract"
-          unzip "$AWSCLI_DOWNLOAD_PATH" -d "$EXTRACT_DIR"
-          sudo "$EXTRACT_DIR/aws/install"
-
-          # Cleanup
-          rm -rf "$AWSCLI_DOWNLOAD_PATH" "$EXTRACT_DIR"
-
-          # Verify the install
-          aws --version
 
       # Download the artifacts
       - name: Assume AWS role for downloading the artifacts
@@ -449,10 +434,6 @@ jobs:
           echo '$@' > "$SUDO_PATH"
           chmod +x "$SUDO_PATH"
           sudo echo "Running this with pseudo-sudo"
-
-          # Install curl
-          apt update
-          apt install -y curl
 
           # Install apt-file
           apt install -y apt-file

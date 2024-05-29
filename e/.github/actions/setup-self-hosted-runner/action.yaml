@@ -1,0 +1,63 @@
+---
+# If this grows very much then we should probably start hosting our own runner
+# images
+name: Setup self hosted runner
+description: |
+  Self hosted runners are lacking some common tools (such as `aws` and `make`)
+  that are required for most jobs. This action installs them.
+
+runs:
+  using: composite
+  steps:
+    - name: Check if running on a self-hosted runner
+      id: runner-check
+      shell: bash
+      run: |
+        SELF_HOSTED="false"
+        if [[ "$CI_SYSTEM" == "ARC" ]]; then
+          SELF_HOSTED="true"
+        fi
+
+        echo "self-hosted=${SELF_HOSTED}" >> "$GITHUB_OUTPUT"
+
+    - name: Setup and update package repos
+      if: steps.runner-check.outputs.self-hosted == 'true'
+      shell: bash
+      run: |
+        export DEBIAN_FRONTEND=noninteractive
+        echo "DEBIAN_FRONTEND=$DEBIAN_FRONTEND" >> "$GITHUB_ENV"
+
+        sudo apt update
+
+    - name: Install packages from apt
+      if: steps.runner-check.outputs.self-hosted == 'true'
+      shell: bash
+      env:
+        APT_PACKAGES: >-
+          make
+          curl
+      run: |
+        sudo apt install -y $APT_PACKAGES
+
+    - name: Install AWS CLI v2
+      if: steps.runner-check.outputs.self-hosted == 'true'
+      shell: bash
+      run: |
+        # Ubuntu 22.04 latest version of the CLI is v1, so v2 is installed
+        # manually based on the AWS docs
+
+        # Download the release
+        AWSCLI_DOWNLOAD_PATH="/tmp/awscli.zip"
+        REL_URL="https://awscli.amazonaws.com/awscli-exe-linux-$(uname -m).zip"
+        curl -s "$REL_URL" -o "$AWSCLI_DOWNLOAD_PATH"
+
+        # Extract and install
+        EXTRACT_DIR="/tmp/awscli-extract"
+        unzip "$AWSCLI_DOWNLOAD_PATH" -d "$EXTRACT_DIR"
+        sudo "$EXTRACT_DIR/aws/install"
+
+        # Cleanup
+        rm -rf "$AWSCLI_DOWNLOAD_PATH" "$EXTRACT_DIR"
+
+        # Verify the install
+        aws --version

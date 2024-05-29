@@ -102,13 +102,7 @@ jobs:
 
     steps:
       - name: Ensure required packages are installed
-        env:
-          DEBIAN_FRONTEND: noninteractive
-        run: |
-          if [[ "${CI_SYSTEM}" == "ARC" ]]; then
-            sudo apt update
-            sudo apt install -y make
-          fi
+        uses: gravitational/teleport.e/.github/actions/setup-self-hosted-runner@master
 
       - name: Determine FIPS
         id: determine-fips
