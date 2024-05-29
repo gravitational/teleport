@@ -68,9 +68,9 @@ func (c *clusterConfigCache) getVnetConfig(ctx context.Context, profileName, lea
 	vnetConfig, err, _ := c.flightGroup.Do(k, func() (any, error) {
 		// Check the cache inside flightGroup.Do to avoid the chance of immediate repeat calls to the cluster.
 		c.mu.RLock()
-		existingCacheEntry, existingCacheEntryExists := c.cache[k]
+		existingCacheEntry, existingCacheEntryFound := c.cache[k]
 		c.mu.RUnlock()
-		if existingCacheEntryExists && !existingCacheEntry.stale(c.clock) {
+		if existingCacheEntryFound && !existingCacheEntry.stale(c.clock) {
 			return existingCacheEntry.vnetConfig, nil
 		}
 
@@ -84,7 +84,7 @@ func (c *clusterConfigCache) getVnetConfig(ctx context.Context, profileName, lea
 			// It's better to return a stale cached VnetConfig than an error. The profile probably expired and
 			// we want to keep functioning until a relogin. We don't expect the VnetConfig to change very
 			// often.
-			if existingCacheEntryExists {
+			if existingCacheEntryFound {
 				return existingCacheEntry.vnetConfig, nil
 			}
 			return nil, trace.Wrap(err)
