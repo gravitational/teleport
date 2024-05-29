@@ -223,6 +223,7 @@ windows_desktop_service:
   # Windows desktops belonging to an Active Directory domain configured for
   # Teleport access.
   ldap:
+    # Ensure this is a public IP address or DNS name.
     addr:     '$LDAP_ADDR'
     domain:   '$DOMAIN_NAME'
     username: '$LDAP_USERNAME'
@@ -245,8 +246,9 @@ $CA_CERT_YAML
   #   addr: win1.dev.example.com
   #   labels:
   #     datacenter: dc1
+  # name will be generated based on address if not provided
   # - ad: true
-  #   addr: win2.dev.example.com # name will be generated based on address
+  #   addr: win2.dev.example.com
   #   labels:
   #     controller: all
 ### YAML FILE END ###
@@ -279,3 +281,7 @@ if ($host.name -match 'ISE')
 Remove-Item $TeleportPEMFile -Recurse
 Remove-Item $WindowsDERFile -Recurse
 Remove-Item $WindowsPEMFile -Recurse
+
+# Prompt the user to press any key to exit
+Write-Output "Press any key to exit..."
+$x = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
