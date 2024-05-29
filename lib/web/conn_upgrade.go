@@ -250,7 +250,11 @@ func newWebSocketALPNServerConn(wsConn *websocket.Conn) *websocketALPNServerConn
 }
 
 func (c *websocketALPNServerConn) convertError(err error) error {
-	if isOKWebsocketCloseError(err) {
+	if websocket.IsCloseError(err,
+		websocket.CloseAbnormalClosure,
+		websocket.CloseGoingAway,
+		websocket.CloseNormalClosure,
+	) {
 		return io.EOF
 	}
 	return err

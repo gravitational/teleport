@@ -358,6 +358,7 @@
     "clusterrolebinding",
     "clusterrolebindings",
     "clusterroles",
+    "cmdkey",
     "cockroachdb",
     "codingllama",
     "compat",
@@ -551,6 +552,7 @@
     "libgcc",
     "libm",
     "libpq",
+    "livez",
     "lmnop",
     "loadbalancer",
     "localca",
@@ -934,7 +936,8 @@
     "yubishm",
     "znmqk",
     "zxvf",
-    "zztop"
+    "zztop",
+    "SPDY"
   ],
   "flagWords": [
     "hte"

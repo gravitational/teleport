@@ -60,12 +60,6 @@ type Resource interface {
 	SetExpiry(time.Time)
 	// GetMetadata returns object metadata
 	GetMetadata() Metadata
-	// GetResourceID returns resource ID
-	// Deprecated: use GetRevision instead
-	GetResourceID() int64
-	// SetResourceID sets resource ID
-	// Deprecated: use SetRevision instead
-	SetResourceID(int64)
 	// GetRevision returns the revision
 	GetRevision() string
 	// SetRevision sets the revision
@@ -309,18 +303,6 @@ func (h *ResourceHeader) GetVersion() string {
 	return h.Version
 }
 
-// GetResourceID returns resource ID
-// Deprecated: Use GetRevision instead.
-func (h *ResourceHeader) GetResourceID() int64 {
-	return h.Metadata.ID
-}
-
-// SetResourceID sets resource ID
-// Deprecated: Use SetRevision instead.
-func (h *ResourceHeader) SetResourceID(id int64) {
-	h.Metadata.ID = id
-}
-
 // GetRevision returns the revision
 func (h *ResourceHeader) GetRevision() string {
 	return h.Metadata.GetRevision()
@@ -416,16 +398,6 @@ func (h *ResourceHeader) CheckAndSetDefaults() error {
 		return trace.BadParameter("resource has an empty Version field")
 	}
 	return trace.Wrap(h.Metadata.CheckAndSetDefaults())
-}
-
-// GetID returns resource ID
-func (m *Metadata) GetID() int64 {
-	return m.ID
-}
-
-// SetID sets resource ID
-func (m *Metadata) SetID(id int64) {
-	m.ID = id
 }
 
 // GetRevision returns the revision
@@ -801,22 +773,4 @@ func GetExpiry(v any) (time.Time, error) {
 		return exp.AsTime(), nil
 	}
 	return time.Time{}, trace.BadParameter("unable to determine expiry from resource of type %T", v)
-}
-
-// GetResourceID returns the id, if one can be obtained, otherwise returns
-// zero.
-//
-// Works for both [Resource] and [ResourceMetadata] instances.
-//
-// Deprecated: GetRevision should be used instead.
-func GetResourceID(v any) (int64, error) {
-	switch r := v.(type) {
-	case Resource:
-		//nolint:staticcheck // SA1019. Added for backward compatibility.
-		return r.GetResourceID(), nil
-	case ResourceMetadata:
-		//nolint:staticcheck // SA1019. Added for backward compatibility.
-		return r.GetMetadata().Id, nil
-	}
-	return 0, trace.BadParameter("unable to determine resource ID from resource of type %T", v)
 }

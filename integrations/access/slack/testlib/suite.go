@@ -35,6 +35,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
@@ -88,6 +90,7 @@ func (s *SlackBaseSuite) SetupTest() {
 	conf.Slack.APIURL = s.fakeSlack.URL() + "/"
 	conf.AccessTokenProvider = auth.NewStaticAccessTokenProvider(conf.Slack.Token)
 	conf.StatusSink = s.fakeStatusSink
+	conf.PluginType = types.PluginTypeSlack
 
 	s.appConfig = &conf
 }
@@ -208,6 +211,75 @@ func (s *SlackSuiteOSS) TestRecipientsConfig() {
 
 	s.startApp()
 	const numMessages = 3
+
+	// Test execution: we create an access request
+	userName := integration.RequesterOSSUserName
+	request := s.CreateAccessRequest(ctx, userName, nil)
+	pluginData := s.checkPluginData(ctx, request.GetName(), func(data accessrequest.PluginData) bool {
+		return len(data.SentMessages) > 0
+	})
+	assert.Len(t, pluginData.SentMessages, numMessages)
+
+	var messages []slack.Message
+
+	messageSet := make(SlackDataMessageSet)
+
+	// Validate we got 3 messages: one for each recipient and one for the requester.
+	for i := 0; i < numMessages; i++ {
+		msg, err := s.fakeSlack.CheckNewMessage(ctx)
+		require.NoError(t, err)
+		messageSet.Add(accessrequest.MessageData{ChannelID: msg.Channel, MessageID: msg.Timestamp})
+		messages = append(messages, msg)
+	}
+
+	assert.Len(t, messageSet, numMessages)
+	for i := 0; i < numMessages; i++ {
+		assert.Contains(t, messageSet, pluginData.SentMessages[i])
+	}
+
+	// Validate the message recipients
+	sort.Sort(SlackMessageSlice(messages))
+	assert.Equal(t, s.requesterOSSSlackUser.ID, messages[0].Channel)
+	assert.Equal(t, s.reviewer1SlackUser.ID, messages[1].Channel)
+	assert.Equal(t, s.reviewer2SlackUser.ID, messages[2].Channel)
+}
+
+func (s *SlackSuiteOSS) TestRecipientsFromAccessMonitoringRule() {
+	t := s.T()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	t.Cleanup(cancel)
+
+	// Setup base config to ensure access monitoring rule recipient take precidence
+	s.appConfig.Recipients = common.RawRecipientsMap{
+		types.Wildcard: []string{
+			s.reviewer2SlackUser.Profile.Email,
+		},
+	}
+
+	s.startApp()
+	const numMessages = 3
+
+	_, err := s.ClientByName(integration.RulerUserName).
+		AccessMonitoringRulesClient().
+		CreateAccessMonitoringRule(ctx, &accessmonitoringrulesv1.AccessMonitoringRule{
+			Kind:    types.KindAccessMonitoringRule,
+			Version: types.V1,
+			Metadata: &v1.Metadata{
+				Name: "test-slack-amr",
+			},
+			Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
+				Subjects:  []string{types.KindAccessRequest},
+				Condition: "!is_empty(access_request.spec.roles)",
+				Notification: &accessmonitoringrulesv1.Notification{
+					Name: "slack",
+					Recipients: []string{
+						s.reviewer1SlackUser.ID,
+						s.reviewer2SlackUser.Profile.Email,
+					},
+				},
+			},
+		})
+	assert.NoError(t, err)
 
 	// Test execution: we create an access request
 	userName := integration.RequesterOSSUserName

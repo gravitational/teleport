@@ -33,8 +33,8 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/join"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -403,7 +403,7 @@ func botIdentityFromToken(ctx context.Context, log *slog.Logger, cfg *config.Bot
 	}
 
 	expires := time.Now().Add(cfg.CertificateTTL)
-	params := auth.RegisterParams{
+	params := join.RegisterParams{
 		Token: token,
 		ID: state.IdentityID{
 			Role: types.RoleBot,
@@ -439,12 +439,12 @@ func botIdentityFromToken(ctx context.Context, log *slog.Logger, cfg *config.Bot
 	}
 
 	if params.JoinMethod == types.JoinMethodAzure {
-		params.AzureParams = auth.AzureParams{
+		params.AzureParams = join.AzureParams{
 			ClientID: cfg.Onboarding.Azure.ClientID,
 		}
 	}
 
-	certs, err := auth.Register(ctx, params)
+	certs, err := join.Register(ctx, params)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

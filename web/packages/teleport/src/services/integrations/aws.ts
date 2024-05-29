@@ -21,6 +21,17 @@ export const AWS_IAM_ARN_CHINA_PARTITION = 'arn:aws-cn:iam::';
 export const AWS_IAM_ARN_USGOV_PARTITION = 'arn:aws-us-gov:iam::';
 
 /**
+ * ROLE_ARN_REGEX uses the same regex matcher used in the backend:
+ * https://github.com/gravitational/teleport/blob/2cba82cb332e769ebc8a658d32ff24ddda79daff/api/utils/aws/identifiers.go#L43
+ *
+ * The regex checks for alphanumerics and select few characters.
+ */
+export const IAM_ROLE_NAME_REGEX = /^[\w+=,.@-]+$/;
+
+export const IAM_ROLE_ARN_REGEX =
+  /^arn:(aws|aws-cn|aws-us-gov):iam::\d{12}:role\/[\w+=,.@-]+$/;
+
+/**
  * @returns
  *   - awsAccountId: the 12 digit aws account Id
  *   - arnStartingPart: starting part is returned in the format

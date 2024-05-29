@@ -198,9 +198,7 @@ func (rd *Redirector) Start() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	query := u.Query()
-	query.Set("secret_key", rd.key.String())
-	u.RawQuery = query.Encode()
+	u.RawQuery = url.Values{"secret_key": {rd.key.String()}}.Encode()
 
 	req := SSOLoginConsoleReq{
 		RedirectURL:          u.String(),

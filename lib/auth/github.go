@@ -52,6 +52,12 @@ import (
 // ErrGithubNoTeams results from a github user not belonging to any teams.
 var ErrGithubNoTeams = trace.BadParameter("user does not belong to any teams configured in connector; the configuration may have typos.")
 
+// InvalidClientRedirectErrorMessage is a string added to SSO login errors
+// caused by an invalid client redirect URL; the presence of this string is
+// checked by the proxy to provide a more useful error message to the user when
+// logging in.
+const InvalidClientRedirectErrorMessage = "invalid or disallowed client redirect URL"
+
 // GithubConverter is a thin wrapper around the [authclient.ClientI] interface that
 // ensures GitHub auth connectors use the registered implementation.
 type GithubConverter struct {
@@ -138,9 +144,14 @@ func (a *Server) CreateGithubAuthRequest(ctx context.Context, req types.GithubAu
 		return nil, trace.Wrap(err)
 	}
 
-	if hook := GithubAuthRequestHook; hook != nil {
-		if err := hook(ctx, &req, connector); err != nil {
-			return nil, trace.Wrap(err)
+	// requests for a web session originate from the proxy, so they are trusted
+	// and they're handled in such a way that minimizes misuse in the callback
+	// endpoint; requests for a client session (as used by tsh login) need to be
+	// checked, as they will point the browser away from the IdP or the web UI
+	// after the authentication is done
+	if !req.CreateWebSession {
+		if err := ValidateClientRedirect(req.ClientRedirectURL, req.SSOTestFlow, connector.GetClientRedirectSettings()); err != nil {
+			return nil, trace.Wrap(err, InvalidClientRedirectErrorMessage)
 		}
 	}
 
@@ -896,6 +907,84 @@ func (a *Server) createGithubUser(ctx context.Context, p *CreateUserParams, dryR
 	return user, nil
 }
 
+// ValidateClientRedirect checks a desktop client redirect URL for SSO logins
+// against some (potentially nil) settings from an auth connector; in the
+// current implementation, that means either "http" schema with a hostname of
+// "localhost", "127.0.0.1", or "::1" and a path of "/callback" (with any port),
+// or "https" schema with a hostname that matches one in the https_hostname
+// list, a path of "/callback" and either an empty port or explicitly 443. The
+// settings are ignored and only localhost URLs are allowed if we're using an
+// ephemeral connector (in the SSO testing flow).
+func ValidateClientRedirect(clientRedirect string, ssoTestFlow bool, settings *types.SSOClientRedirectSettings) error {
+	if clientRedirect == "" {
+		// empty redirects are non-functional and harmless, so we allow them as
+		// they're used a lot in test code
+		return nil
+	}
+	u, err := url.Parse(clientRedirect)
+	if err != nil {
+		return trace.Wrap(err, "parsing client redirect URL")
+	}
+	if u.Opaque != "" {
+		return trace.BadParameter("unexpected opaque client redirect URL")
+	}
+	if u.User != nil {
+		return trace.BadParameter("unexpected userinfo in client redirect URL")
+	}
+	if u.EscapedPath() != "/callback" {
+		return trace.BadParameter("invalid path in client redirect URL")
+	}
+	if q, err := url.ParseQuery(u.RawQuery); err != nil {
+		return trace.Wrap(err, "parsing query in client redirect URL")
+	} else if len(q) != 1 || len(q["secret_key"]) != 1 {
+		return trace.BadParameter("malformed query parameters in client redirect URL")
+	}
+	if u.Fragment != "" || u.RawFragment != "" {
+		return trace.BadParameter("unexpected fragment in client redirect URL")
+	}
+
+	// we checked everything but u.Scheme and u.Host now
+
+	switch u.Scheme {
+	default:
+		return trace.BadParameter("invalid scheme in client redirect URL")
+
+	case "http":
+		switch u.Hostname() {
+		default:
+			return trace.BadParameter("invalid hostname in client redirect URL")
+		case "localhost", "127.0.0.1", "::1":
+			return nil
+		}
+
+	case "https":
+		if ssoTestFlow {
+			return trace.AccessDenied("custom client redirect URLs are not allowed in SSO test")
+		}
+
+		switch u.Port() {
+		default:
+			return trace.BadParameter("invalid port in client redirect URL")
+		case "", "443":
+		}
+
+		var allowedHostnames []string
+		if settings != nil {
+			allowedHostnames = settings.AllowedHttpsHostnames
+		}
+
+		ok, err := utils.SliceMatchesRegex(u.Hostname(), allowedHostnames)
+		if err != nil {
+			return trace.Wrap(err, "matching custom client redirect URL hostname")
+		}
+		if !ok {
+			return trace.AccessDenied("unknown custom client redirect URL hostname")
+		}
+
+		return nil
+	}
+}
+
 // populateGithubClaims builds a GithubClaims using queried
 // user, organization and teams information.
 func populateGithubClaims(user *userResponse, teams []teamResponse) (*types.GithubClaims, error) {
@@ -1089,9 +1178,22 @@ var GithubScopes = []string{
 	"read:org",
 }
 
-// Hooks for future use in Enterprise-only code.
-var (
-	GithubAuthRequestHook func(context.Context, *types.GithubAuthRequest, types.GithubConnector) error
-	OIDCAuthRequestHook   func(context.Context, *types.OIDCAuthRequest, types.OIDCConnector) error
-	SAMLAuthRequestHook   func(context.Context, *types.SAMLAuthRequest, types.SAMLConnector) error
-)
+var OIDCAuthRequestHook = func(_ context.Context, req *types.OIDCAuthRequest, connector types.OIDCConnector) error {
+	// see CreateGithubAuthRequest
+	if !req.CreateWebSession {
+		if err := ValidateClientRedirect(req.ClientRedirectURL, req.SSOTestFlow, connector.GetClientRedirectSettings()); err != nil {
+			return trace.Wrap(err, InvalidClientRedirectErrorMessage)
+		}
+	}
+	return nil
+}
+
+var SAMLAuthRequestHook = func(_ context.Context, req *types.SAMLAuthRequest, connector types.SAMLConnector) error {
+	// see CreateGithubAuthRequest
+	if !req.CreateWebSession {
+		if err := ValidateClientRedirect(req.ClientRedirectURL, req.SSOTestFlow, connector.GetClientRedirectSettings()); err != nil {
+			return trace.Wrap(err, InvalidClientRedirectErrorMessage)
+		}
+	}
+	return nil
+}

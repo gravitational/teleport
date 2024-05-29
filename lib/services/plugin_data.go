@@ -54,7 +54,7 @@ func MarshalPluginData(pluginData types.PluginData, opts ...MarshalOption) ([]by
 			return nil, trace.Wrap(err)
 		}
 
-		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, pluginData))
+		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, pluginData))
 	default:
 		return nil, trace.BadParameter("unrecognized plugin data type: %T", pluginData)
 	}
@@ -72,9 +72,6 @@ func UnmarshalPluginData(raw []byte, opts ...MarshalOption) (types.PluginData, e
 	}
 	if err := data.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
-	}
-	if cfg.ID != 0 {
-		data.SetResourceID(cfg.ID)
 	}
 	if cfg.Revision != "" {
 		data.SetRevision(cfg.Revision)

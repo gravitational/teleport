@@ -19,6 +19,7 @@
 import React from 'react';
 import { MemoryRouter } from 'react-router';
 import { renderHook, act, waitFor } from '@testing-library/react';
+import { AwsRole } from 'shared/services/apps';
 
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { ContextProvider } from 'teleport';
@@ -31,12 +32,14 @@ import {
   defaultResourceSpec,
 } from 'teleport/Discover/Fixtures/fixtures';
 import TeleportContext from 'teleport/teleportContext';
+import { app } from 'teleport/Discover/AwsMangementConsole/fixtures';
 
 import { ResourceKind } from '../ResourceKind';
 
 import { useUserTraits } from './useUserTraits';
 
 import type {
+  AppMeta,
   DbMeta,
   DiscoverContextState,
   KubeMeta,
@@ -446,6 +449,99 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
     ]);
   });
 
+  test('only update user traits with dynamic awsRoleArns', async () => {
+    const staticAwsRoles: AwsRole[] = [
+      {
+        name: 'static-arn1',
+        arn: 'arn:aws:iam::123456789012:role/static-arn1',
+        display: 'static-arn1',
+        accountId: '123456789012',
+      },
+      {
+        name: 'static-arn2',
+        arn: 'arn:aws:iam::123456789012:role/static-arn2',
+        display: 'static-arn2',
+        accountId: '123456789012',
+      },
+    ];
+    const discoverCtx = defaultDiscoverContext({
+      resourceSpec: {
+        ...defaultResourceSpec(ResourceKind.Application),
+        appMeta: { awsConsole: true },
+      },
+      agentMeta: {
+        app: {
+          ...app,
+          awsRoles: staticAwsRoles,
+        },
+      },
+    });
+    const spyUpdateAgentMeta = jest
+      .spyOn(discoverCtx, 'updateAgentMeta')
+      .mockImplementation(x => x);
+
+    const { result } = renderHook(() => useUserTraits(), {
+      wrapper: wrapperFn(discoverCtx, teleCtx),
+    });
+
+    await waitFor(() =>
+      expect(result.current.staticTraits.awsRoleArns.length).toBeGreaterThan(0)
+    );
+
+    const dynamicTraits = result.current.dynamicTraits;
+    const staticTraits = result.current.staticTraits;
+    const mockedSelectedOptions = {
+      awsRoleArns: [
+        {
+          isFixed: false,
+          label: staticTraits.awsRoleArns[0],
+          value: staticTraits.awsRoleArns[0],
+        },
+        {
+          isFixed: false,
+          label: dynamicTraits.awsRoleArns[0],
+          value: dynamicTraits.awsRoleArns[0],
+        },
+        // duplicate
+        {
+          isFixed: false,
+          label: dynamicTraits.awsRoleArns[0],
+          value: dynamicTraits.awsRoleArns[0],
+        },
+      ],
+    };
+
+    act(() => {
+      result.current.onProceed(mockedSelectedOptions);
+    });
+
+    await waitFor(() => {
+      expect(teleCtx.userService.reloadUser).toHaveBeenCalledTimes(1);
+    });
+
+    // Test that we are updating the user with the correct traits.
+    const mockUser = getMockUser();
+    expect(teleCtx.userService.updateUser).toHaveBeenCalledWith({
+      ...mockUser,
+      traits: {
+        ...mockUser.traits,
+        awsRoleArns: [dynamicTraits.awsRoleArns[0]],
+      },
+    });
+
+    // Test that app's awsRoles field got updated with the dynamic trait.
+    const updatedMeta = spyUpdateAgentMeta.mock.results[0].value as AppMeta;
+    expect(updatedMeta.app.awsRoles).toStrictEqual([
+      ...staticAwsRoles,
+      {
+        name: 'dynamicArn1',
+        display: 'dynamicArn1',
+        arn: 'arn:aws:iam::123456789012:role/dynamicArn1',
+        accountId: '123456789012',
+      },
+    ]);
+  });
+
   test('node with auto discover preserves existing + new dynamic traits', async () => {
     const discoverCtx = defaultDiscoverContext({
       resourceSpec: defaultResourceSpec(ResourceKind.Server),
@@ -639,7 +735,10 @@ function getMockUser() {
       kubeUsers: ['dynamicKbUser1', 'dynamicKbUser2'],
       kubeGroups: ['dynamicKbGroup1', 'dynamicKbGroup2'],
       windowsLogins: [],
-      awsRoleArns: [],
+      awsRoleArns: [
+        'arn:aws:iam::123456789012:role/dynamicArn1',
+        'arn:aws:iam::123456789012:role/dynamicArn2',
+      ],
     },
   };
 }

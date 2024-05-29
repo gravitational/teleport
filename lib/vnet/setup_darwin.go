@@ -33,77 +33,90 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/sys/unix"
 	"golang.zx2c4.com/wireguard/tun"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/profile"
+	"github.com/gravitational/teleport/api/types"
 )
 
-const (
-	tunHandoverTimeout = time.Minute
-)
+// createAndSetupTUNDeviceWithoutRoot creates a virtual network device and configures the host OS to use that
+// device for VNet connections. It will spawn a root process to handle the TUN creation and host
+// configuration.
+//
+// After the TUN device is created, it will be sent on the result channel. Any error will be sent on the err
+// channel. Always select on both the result channel and the err channel when waiting for a result.
+//
+// This will keep running until [ctx] is canceled or an unrecoverable error is encountered, in order to keep
+// the host OS configuration up to date.
+func createAndSetupTUNDeviceWithoutRoot(ctx context.Context, ipv6Prefix, dnsAddr string) (<-chan tun.Device, <-chan error) {
+	tunCh := make(chan tun.Device, 1)
+	errCh := make(chan error, 1)
 
-func createAndSetupTUNDeviceWithoutRoot(ctx context.Context, ipv6Prefix string) (tun.Device, string, error) {
 	slog.InfoContext(ctx, "Spawning child process as root to create and setup TUN device")
 	socket, socketPath, err := createUnixSocket()
 	if err != nil {
-		return nil, "", trace.Wrap(err)
+		errCh <- trace.Wrap(err, "creating unix socket")
+		return tunCh, errCh
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	adminCommandErr := make(chan error, 1)
-	go func() {
-		adminCommandErr <- trace.Wrap(execAdminSubcommand(ctx, socketPath, ipv6Prefix))
-	}()
-
-	recvTunErr := make(chan error, 1)
-	var tunName string
-	var tunFd uintptr
-	go func() {
-		tunName, tunFd, err = recvTUNNameAndFd(ctx, socket)
-		recvTunErr <- trace.Wrap(err, "receiving TUN name and file descriptor")
-	}()
-
-loop:
-	for {
-		select {
-		case err := <-adminCommandErr:
-			if err != nil {
-				return nil, "", trace.Wrap(err)
-			}
-		case err := <-recvTunErr:
-			if err != nil {
-				return nil, "", trace.Wrap(err)
-			}
-			break loop
+	// Make sure all goroutines complete before sending an err on the error chan, to be sure they all have a
+	// chance to clean up before the process terminates.
+	g, ctx := errgroup.WithContext(ctx)
+	g.Go(func() error {
+		// Requirements:
+		// - must close the socket concurrently with recvTUNNameAndFd if the context is canceled to unblock
+		//   a stuck AcceptUnix (can't defer).
+		// - must close the socket exactly once before letting the process terminate.
+		<-ctx.Done()
+		return trace.Wrap(socket.Close())
+	})
+	g.Go(func() error {
+		// Admin command is expected to run until ctx is canceled.
+		return trace.Wrap(execAdminSubcommand(ctx, socketPath, ipv6Prefix, dnsAddr))
+	})
+	g.Go(func() error {
+		tunName, tunFd, err := recvTUNNameAndFd(ctx, socket)
+		if err != nil {
+			return trace.Wrap(err, "receiving TUN name and file descriptor")
 		}
-	}
+		tunDevice, err := tun.CreateTUNFromFile(os.NewFile(tunFd, tunName), 0)
+		if err != nil {
+			return trace.Wrap(err, "creating TUN device from file descriptor")
+		}
+		tunCh <- tunDevice
+		return nil
+	})
+	go func() { errCh <- g.Wait() }()
 
-	tunDevice, err := tun.CreateTUNFromFile(os.NewFile(tunFd, ""), 0)
-	if err != nil {
-		return nil, "", trace.Wrap(err, "creating TUN device from file descriptor")
-	}
-
-	return tunDevice, tunName, nil
+	return tunCh, errCh
 }
 
-func execAdminSubcommand(ctx context.Context, socketPath, ipv6Prefix string) error {
+func execAdminSubcommand(ctx context.Context, socketPath, ipv6Prefix, dnsAddr string) error {
 	executableName, err := os.Executable()
 	if err != nil {
 		return trace.Wrap(err, "getting executable path")
+	}
+
+	if homePath := os.Getenv(types.HomeEnvVar); homePath == "" {
+		// Explicitly set TELEPORT_HOME if not already set.
+		os.Setenv(types.HomeEnvVar, profile.FullProfilePath(""))
 	}
 
 	appleScript := fmt.Sprintf(`
 set executableName to "%s"
 set socketPath to "%s"
 set ipv6Prefix to "%s"
+set dnsAddr to "%s"
 do shell script quoted form of executableName & `+
-		`" %s --socket " & quoted form of socketPath & `+
-		`" --ipv6-prefix " & quoted form of ipv6Prefix `+
+		`" %s -d --socket " & quoted form of socketPath & `+
+		`" --ipv6-prefix " & quoted form of ipv6Prefix & `+
+		`" --dns-addr " & quoted form of dnsAddr & `+
+		`" >/var/log/vnet.log 2>&1" `+
 		`with prompt "VNet wants to set up a virtual network device" with administrator privileges`,
-		executableName, socketPath, ipv6Prefix, teleport.VnetAdminSetupSubCommand)
+		executableName, socketPath, ipv6Prefix, dnsAddr, teleport.VnetAdminSetupSubCommand)
 
 	// The context we pass here has effect only on the password prompt being shown. Once osascript spawns the
 	// privileged process, canceling the context (and thus killing osascript) has no effect on the privileged
@@ -150,10 +163,8 @@ func sendTUNNameAndFd(socketPath, tunName string, fd uintptr) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer conn.Close()
 
-	err = conn.SetDeadline(time.Now().Add(tunHandoverTimeout))
-	if err != nil {
+	if err := conn.SetDeadline(time.Now().Add(time.Second)); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -168,25 +179,15 @@ func sendTUNNameAndFd(socketPath, tunName string, fd uintptr) error {
 // recvTUNNameAndFd receives the name of a TUN device and its open file descriptor over a unix socket, meant
 // for passing the TUN from the root process which must create it to the user process.
 func recvTUNNameAndFd(ctx context.Context, socket *net.UnixListener) (string, uintptr, error) {
-	ctx, cancel := context.WithTimeout(ctx, tunHandoverTimeout)
-	defer cancel()
-	deadline, _ := ctx.Deadline()
-
-	err := socket.SetDeadline(deadline)
-	if err != nil {
-		return "", 0, trace.Wrap(err)
-	}
-	go func() {
-		<-ctx.Done()
-		socket.Close()
-	}()
-
 	conn, err := socket.AcceptUnix()
 	if err != nil {
-		return "", 0, trace.Wrap(err)
+		return "", 0, trace.Wrap(err, "accepting connection on unix socket")
 	}
+
+	// Close the connection early to unblock reads if the context is canceled.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	go func() {
-		// Close the connection early to unblock reads if the context is canceled.
 		<-ctx.Done()
 		conn.Close()
 	}()
@@ -225,21 +226,4 @@ func recvTUNNameAndFd(ctx context.Context, socket *net.UnixListener) (string, ui
 	fd := uintptr(fds[0])
 
 	return tunName, fd, nil
-}
-
-func configureOS(ctx context.Context, cfg *osConfig) error {
-	if cfg.tunIPv6 != "" && cfg.tunName != "" {
-		slog.InfoContext(ctx, "Setting IPv6 address for the TUN device.", "device", cfg.tunName, "address", cfg.tunIPv6)
-		cmd := exec.CommandContext(ctx, "ifconfig", cfg.tunName, "inet6", cfg.tunIPv6, "prefixlen", "64")
-		if err := cmd.Run(); err != nil {
-			return trace.Wrap(err, "running %v", cmd.Args)
-		}
-
-		slog.InfoContext(ctx, "Setting an IPv6 route for the VNet.")
-		cmd = exec.CommandContext(ctx, "route", "add", "-inet6", cfg.tunIPv6, "-prefixlen", "64", "-interface", cfg.tunName)
-		if err := cmd.Run(); err != nil {
-			return trace.Wrap(err, "running %v", cmd.Args)
-		}
-	}
-	return nil
 }

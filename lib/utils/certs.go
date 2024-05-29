@@ -319,7 +319,7 @@ func InitCertLeaf(cert *tls.Certificate) error {
 
 const pemBlockCertificate = "CERTIFICATE"
 
-// createCertificateBlob creates Certificate BLOB
+// CreateCertificateBlob creates Certificate BLOB
 // It has following structure:
 //
 //	CertificateBlob {

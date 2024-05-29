@@ -636,18 +636,14 @@ func (rc *ResourceCommand) createDatabaseObject(ctx context.Context, client *aut
 		return trace.Wrap(err)
 	}
 	if rc.IsForced() {
-		_, err = client.DatabaseObjectClient().UpsertDatabaseObject(ctx, &dbobjectv1.UpsertDatabaseObjectRequest{
-			Object: object,
-		})
+		_, err = client.DatabaseObjectsClient().UpsertDatabaseObject(ctx, object)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("object %q has been created\n", object.GetMetadata().GetName())
 		return nil
 	}
-	_, err = client.DatabaseObjectClient().CreateDatabaseObject(ctx, &dbobjectv1.CreateDatabaseObjectRequest{
-		Object: object,
-	})
+	_, err = client.DatabaseObjectsClient().CreateDatabaseObject(ctx, object)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1772,7 +1768,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		}
 		fmt.Printf("Rule %q has been deleted\n", rc.ref.Name)
 	case types.KindDatabaseObject:
-		if _, err := client.DatabaseObjectClient().DeleteDatabaseObject(ctx, &dbobjectv1.DeleteDatabaseObjectRequest{Name: rc.ref.Name}); err != nil {
+		if err := client.DatabaseObjectsClient().DeleteDatabaseObject(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("Object %q has been deleted\n", rc.ref.Name)
@@ -2545,29 +2541,29 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 		return &databaseObjectImportRuleCollection{rules: rules}, nil
 	case types.KindDatabaseObject:
-		remote := client.DatabaseObjectClient()
+		remote := client.DatabaseObjectsClient()
 		if rc.ref.Name != "" {
-			object, err := remote.GetDatabaseObject(ctx, &dbobjectv1.GetDatabaseObjectRequest{Name: rc.ref.Name})
+			object, err := remote.GetDatabaseObject(ctx, rc.ref.Name)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			return &databaseObjectCollection{objects: []*dbobjectv1.DatabaseObject{object}}, nil
 		}
 
-		req := &dbobjectv1.ListDatabaseObjectsRequest{}
+		token := ""
 		var objects []*dbobjectv1.DatabaseObject
 		for {
-			resp, err := remote.ListDatabaseObjects(ctx, req)
+			resp, nextToken, err := remote.ListDatabaseObjects(ctx, 0, token)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 
-			objects = append(objects, resp.Objects...)
+			objects = append(objects, resp...)
 
-			if resp.NextPageToken == "" {
+			if nextToken == "" {
 				break
 			}
-			req.PageToken = resp.NextPageToken
+			token = nextToken
 		}
 		return &databaseObjectCollection{objects: objects}, nil
 	case types.KindOktaImportRule:
@@ -2787,6 +2783,9 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return nil, trace.Wrap(err)
 		}
 		return &vnetConfigCollection{vnetConfig: vnetConfig}, nil
+	case types.KindAccessRequest:
+		resource, err := client.GetAccessRequests(ctx, types.AccessRequestFilter{ID: rc.ref.Name})
+		return &accessRequestCollection{accessRequests: resource}, trace.Wrap(err)
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }

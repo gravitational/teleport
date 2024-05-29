@@ -58,6 +58,9 @@ type App struct {
 	SAMLApp bool `json:"samlApp,omitempty"`
 	// RequireRequest indicates if a returned resource is only accessible after an access request
 	RequiresRequest bool `json:"requiresRequest,omitempty"`
+	// Integration is the integration name that must be used to access this Application.
+	// Only applicable to AWS App Access.
+	Integration string `json:"integration,omitempty"`
 }
 
 // UserGroupAndDescription is a user group name and its description.
@@ -135,6 +138,7 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 		UserGroups:      userGroupAndDescriptions,
 		SAMLApp:         false,
 		RequiresRequest: c.RequiresRequest,
+		Integration:     app.GetIntegration(),
 	}
 
 	if app.IsAWSConsole() {

@@ -67,6 +67,20 @@ spec:
                 description: ClientID is the id of the authentication client (Teleport
                   Auth server).
                 type: string
+              client_redirect_settings:
+                description: ClientRedirectSettings defines which client redirect
+                  URLs are allowed for non-browser SSO logins other than the standard
+                  localhost ones.
+                nullable: true
+                properties:
+                  allowed_https_hostnames:
+                    description: a list of hostnames allowed for https client redirect
+                      URLs
+                    items:
+                      type: string
+                    nullable: true
+                    type: array
+                type: object
               client_secret:
                 description: ClientSecret is used to authenticate the client.
                 type: string

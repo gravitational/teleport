@@ -41,6 +41,7 @@ import {
   Notification as NotificationType,
   NotificationState,
 } from 'teleport/services/notifications';
+import history from 'teleport/services/history';
 
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
@@ -53,9 +54,11 @@ import { View } from './Notifications';
 export function Notification({
   notification,
   view = 'All',
+  closeNotificationsList,
 }: {
   notification: NotificationType;
   view?: View;
+  closeNotificationsList: () => void;
 }) {
   const ctx = useTeleport();
   const { clusterId } = useStickyClusterId();
@@ -116,6 +119,7 @@ export function Notification({
   const formattedDate = formatDate(notification.createdDate);
 
   function onNotificationClick(e: React.MouseEvent<HTMLElement>) {
+    markAsClicked();
     // Prevents this from being triggered when the user is just clicking away from
     // an open "mark as read/hide this notification" menu popover.
     if (e.currentTarget.contains(e.target as HTMLElement)) {
@@ -123,7 +127,8 @@ export function Notification({
         setShowTextContentDialog(true);
         return;
       }
-      // TODO rudream - add notification redirect functionality
+      closeNotificationsList();
+      history.push(content.redirectRoute);
     }
   }
 
@@ -152,18 +157,8 @@ export function Notification({
         <ContentContainer>
           <ContentBody>
             <Text>{content.title}</Text>
-            {content.kind === 'redirect' && content.quickAction && (
-              <ButtonSecondary
-                css={`
-                  text-transform: none;
-                `}
-                onClick={(event: React.MouseEvent<HTMLButtonElement>) => {
-                  event.stopPropagation();
-                  content.quickAction.onClick();
-                }}
-              >
-                {content.quickAction.buttonText}
-              </ButtonSecondary>
+            {content.kind === 'redirect' && content.QuickAction && (
+              <content.QuickAction markAsClicked={markAsClicked} />
             )}
             {hideNotificationAttempt.status === 'error' && (
               <Text typography="subtitle3" color="error.main">
@@ -282,6 +277,10 @@ const ContentBody = styled.div`
   justify-content: center;
   align-items: flex-start;
   gap: ${props => props.theme.space[2]}px;
+
+  button {
+    text-transform: none;
+  }
 `;
 
 const SideContent = styled.div`

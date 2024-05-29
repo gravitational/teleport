@@ -78,6 +78,7 @@ export enum SamlServiceProviderPreset {
 export interface ResourceSpec {
   dbMeta?: { location: DatabaseLocation; engine: DatabaseEngine };
   nodeMeta?: { location: ServerLocation };
+  appMeta?: { awsConsole?: boolean };
   kubeMeta?: { location: KubeLocation };
   samlMeta?: { preset: SamlServiceProviderPreset };
   name: string;

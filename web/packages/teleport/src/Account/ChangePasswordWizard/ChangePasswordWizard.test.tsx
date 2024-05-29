@@ -118,6 +118,24 @@ describe('with passwordless reauthentication', () => {
     expect(onSuccess).toHaveBeenCalled();
   });
 
+  it('cancels changing password', async () => {
+    await reauthenticate();
+    const changePasswordStep = within(
+      screen.getByTestId('change-password-step')
+    );
+    await user.type(
+      changePasswordStep.getByLabelText('New Password'),
+      'new-pass1234'
+    );
+    await user.type(
+      changePasswordStep.getByLabelText('Confirm Password'),
+      'new-pass1234'
+    );
+    await user.click(changePasswordStep.getByText('Back'));
+    expect(auth.changePassword).not.toHaveBeenCalled();
+    expect(onSuccess).not.toHaveBeenCalled();
+  });
+
   it('validates the password form', async () => {
     await reauthenticate();
     const changePasswordStep = within(
@@ -191,6 +209,24 @@ describe('with WebAuthn MFA reauthentication', () => {
       credential: dummyCredential,
     });
     expect(onSuccess).toHaveBeenCalled();
+  });
+
+  it('cancels changing password', async () => {
+    await reauthenticate();
+    const changePasswordStep = within(
+      screen.getByTestId('change-password-step')
+    );
+    await user.type(
+      changePasswordStep.getByLabelText('New Password'),
+      'new-pass1234'
+    );
+    await user.type(
+      changePasswordStep.getByLabelText('Confirm Password'),
+      'new-pass1234'
+    );
+    await user.click(changePasswordStep.getByText('Back'));
+    expect(auth.changePassword).not.toHaveBeenCalled();
+    expect(onSuccess).not.toHaveBeenCalled();
   });
 
   it('validates the password form', async () => {
@@ -275,6 +311,24 @@ describe('with OTP MFA reauthentication', () => {
     expect(onSuccess).toHaveBeenCalled();
   });
 
+  it('cancels changing password', async () => {
+    await reauthenticate();
+    const changePasswordStep = within(
+      screen.getByTestId('change-password-step')
+    );
+    await user.type(
+      changePasswordStep.getByLabelText('New Password'),
+      'new-pass1234'
+    );
+    await user.type(
+      changePasswordStep.getByLabelText('Confirm Password'),
+      'new-pass1234'
+    );
+    await user.click(changePasswordStep.getByText('Back'));
+    expect(auth.changePassword).not.toHaveBeenCalled();
+    expect(onSuccess).not.toHaveBeenCalled();
+  });
+
   it('validates the password form', async () => {
     await reauthenticate();
     const changePasswordStep = within(
@@ -350,6 +404,25 @@ describe('without reauthentication', () => {
       secondFactorToken: '',
     });
     expect(onSuccess).toHaveBeenCalled();
+  });
+
+  it('cancels changing password', async () => {
+    render(<TestWizard auth2faType="off" passwordlessEnabled={false} />);
+
+    const changePasswordStep = within(
+      screen.getByTestId('change-password-step')
+    );
+    await user.type(
+      changePasswordStep.getByLabelText('New Password'),
+      'new-pass1234'
+    );
+    await user.type(
+      changePasswordStep.getByLabelText('Confirm Password'),
+      'new-pass1234'
+    );
+    await user.click(changePasswordStep.getByText('Cancel'));
+    expect(auth.changePassword).not.toHaveBeenCalled();
+    expect(onSuccess).not.toHaveBeenCalled();
   });
 
   it('validates the password form', async () => {

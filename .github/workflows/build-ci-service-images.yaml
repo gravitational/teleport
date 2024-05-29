@@ -4,7 +4,7 @@ on:
   push:
     paths:
       - .github/services/Dockerfile.*
-      - examples/etcd/certs/*.pem
+      - fixtures/etcdcerts/*.pem
     branches:
       - master
 

@@ -34,8 +34,8 @@ import {
   ArrowBack,
   ChevronDown,
   ChevronRight,
-  Trash,
   Warning,
+  Cross,
 } from 'design/Icon';
 import Table, { Cell } from 'design/DataTable';
 import { CheckboxInput, CheckboxWrapper } from 'design/Checkbox';
@@ -245,17 +245,17 @@ export function RequestCheckout({
                 columns={[
                   {
                     key: 'kind',
-                    headerText: 'Resource Kind',
+                    headerText: 'Type',
                   },
                   {
                     key: 'name',
-                    headerText: 'Resource Name',
+                    headerText: 'Name',
                   },
                   {
                     altKey: 'delete-btn',
                     render: resource => (
                       <Cell align="right">
-                        <Trash
+                        <Cross
                           size="small"
                           borderRadius={2}
                           p={2}
@@ -354,11 +354,14 @@ export function RequestCheckout({
                         bottom: 0;
                         background: ${({ theme }) =>
                           theme.colors.levels.sunken};
+                        border-top: 1px solid
+                          ${props => props.theme.colors.spotBackground[1]};
                       `}
                     >
                       <ButtonPrimary
                         width="100%"
                         size="large"
+                        textTransform="none"
                         onClick={() => handleOnSubmit(validator)}
                         disabled={submitBtnDisabled}
                       >
@@ -366,6 +369,7 @@ export function RequestCheckout({
                       </ButtonPrimary>
                       <ButtonSecondary
                         width="100%"
+                        textTransform="none"
                         size="large"
                         onClick={() => {
                           reset();
@@ -459,6 +463,10 @@ function ResourceRequestRoles({
       return setSelectedRoles([...selectedRoles, roleName]);
     }
     setSelectedRoles(selectedRoles.filter(role => role !== roleName));
+  }
+  // only show the role selector if there is more than one role that can be selected
+  if (roles.length < 2) {
+    return;
   }
 
   return (
@@ -697,7 +705,13 @@ export type RequestCheckoutProps = {
   isResourceRequest: boolean;
   requireReason: boolean;
   selectedReviewers: ReviewerOption[];
-  data: { kind: ResourceKind; name: string; id: string }[];
+  data: {
+    kind: ResourceKind;
+    /** Name of the resource, for presentation purposes only. */
+    name: string;
+    /** Identifier of the resource. Should be sent in requests. */
+    id: string;
+  }[];
   setRequestTTL: (value: Option<number>) => void;
   createRequest: (req: CreateRequest) => void;
   fetchStatus: 'loading' | 'loaded';

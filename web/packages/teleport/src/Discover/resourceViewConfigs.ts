@@ -17,6 +17,7 @@
  */
 
 import { ServerResource } from 'teleport/Discover/Server';
+import { AwsMangementConsole } from 'teleport/Discover/AwsMangementConsole';
 import { DatabaseResource } from 'teleport/Discover/Database';
 import { KubernetesResource } from 'teleport/Discover/Kubernetes';
 import { ConnectMyComputerResource } from 'teleport/Discover/ConnectMyComputer';
@@ -24,6 +25,7 @@ import { ConnectMyComputerResource } from 'teleport/Discover/ConnectMyComputer';
 import { ResourceViewConfig } from './flow';
 
 export const viewConfigs: ResourceViewConfig[] = [
+  AwsMangementConsole,
   ServerResource,
   DatabaseResource,
   KubernetesResource,

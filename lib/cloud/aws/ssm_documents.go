@@ -58,3 +58,10 @@ mainSteps:
 }
 
 const EC2DiscoveryPolicyName = "TeleportEC2Discovery"
+
+// EC2DiscoverySSMDocumentSteps is the list of Steps defined in the default SSM Document for Teleport Discovery.
+// Used to query step results after executing a command using SSM.
+var EC2DiscoverySSMDocumentSteps = []string{
+	"downloadContent",
+	"runShellScript",
+}

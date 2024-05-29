@@ -58,12 +58,14 @@ func TestStartCmdConfig(t *testing.T) {
 				IngestConfig: IngestConfig{
 					StorageDir:          "./storage",
 					BatchSize:           20,
+					SkipEventTypes:      map[string]struct{}{},
 					SkipSessionTypesRaw: []string{"print"},
 					SkipSessionTypes: map[string]struct{}{
 						"print": {},
 					},
 					Timeout:     10 * time.Second,
 					Concurrency: 5,
+					WindowSize:  24 * time.Hour,
 				},
 				LockConfig: LockConfig{
 					LockFailedAttemptsCount: 3,

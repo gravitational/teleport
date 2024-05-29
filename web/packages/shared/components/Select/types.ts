@@ -32,7 +32,7 @@ export type Props = {
   hideSelectedOptions?: boolean;
   controlShouldRenderValue?: boolean;
   maxMenuHeight?: number;
-  onChange(e: Option<any, any> | Option<any, any>[]): void;
+  onChange(e: Option<any, any> | Option<any, any>[], action?: ActionMeta): void;
   onKeyDown?(e: KeyboardEvent | React.KeyboardEvent): void;
   value: null | Option<any, any> | Option<any, any>[];
   isMulti?: boolean;
@@ -92,7 +92,7 @@ export type GroupOption = {
 };
 
 export type ActionMeta = {
-  action: 'set-value' | 'input-change' | 'input-blur' | 'menu-close';
+  action: 'set-value' | 'input-change' | 'input-blur' | 'menu-close' | 'clear';
 };
 
 /**

@@ -20,8 +20,6 @@ import { z } from 'zod';
 import { useStore } from 'shared/libs/stores';
 import { arrayObjectIsEqual } from 'shared/utils/highbar';
 
-import { ResourceKind } from 'shared/components/AccessRequests/NewRequest';
-
 import {
   DefaultTab,
   LabelsViewMode,
@@ -48,6 +46,7 @@ import {
 import {
   AccessRequestsService,
   getEmptyPendingAccessRequest,
+  PendingAccessRequest,
 } from './accessRequestsService';
 
 import {
@@ -189,6 +188,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
       this.accessRequestsServicesCache.set(
         clusterUri,
         new AccessRequestsService(
+          this.modalsService,
           () => {
             return this.state.workspaces[clusterUri].accessRequests;
           },
@@ -556,7 +556,3 @@ const unifiedResourcePreferencesSchema = z.object({
   viewMode: z.nativeEnum(ViewMode),
   labelsViewMode: z.nativeEnum(LabelsViewMode),
 });
-
-export type PendingAccessRequest = {
-  [k in Exclude<ResourceKind, 'resource'>]: Record<string, string>;
-};

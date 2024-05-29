@@ -26,6 +26,7 @@ import (
 	"net"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -307,6 +308,13 @@ func dialResumable(ctx context.Context, token resumptionToken, hostID string, re
 	logrus.Debug("Dialing server for connection resumption.")
 	nc, err := redial(ctx, hostID)
 	if err != nil {
+		// If connections are failing because client certificates are expired
+		// abandon all future connection resumption attempts.
+		const expiredCertError = "remote error: tls: expired certificate"
+		if strings.Contains(err.Error(), expiredCertError) {
+			return nil, nil
+		}
+
 		return nil, trace.Wrap(err)
 	}
 

@@ -610,3 +610,121 @@ func TestBuildAPIEndpoint(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateClientRedirect(t *testing.T) {
+	t.Run("StandardLocalhost", func(t *testing.T) {
+		for _, goodURL := range []string{
+			"http://127.0.0.1/callback",
+			"http://127.0.0.1:1234/callback",
+			"http://[::1]/callback",
+			"http://[::1]:1234/callback",
+			"http://localhost/callback",
+			"http://localhost:1234/callback",
+		} {
+			const ssoTestFlowFalse = false
+			var defaultSettings *types.SSOClientRedirectSettings
+			require.NoError(t, ValidateClientRedirect(goodURL+"?secret_key=", ssoTestFlowFalse, defaultSettings))
+		}
+	})
+
+	t.Run("InvalidLocalhostLike", func(t *testing.T) {
+		for _, badURL := range []string{
+			"http://127.0.0.1:12345/notcallback",
+			"http://127a0.0.1/callback",
+			"http://127a0.0.1:1234/callback",
+			"http://::1/callback",
+			"http://notlocalhost/callback",
+			"http://sub.localhost/callback",
+			"http://localhost.com/callback",
+			"http://127.0.0.1.example.com/callback",
+			"http://[::1].example.com/callback",
+			"http://username@127.0.0.1:12345/callback",
+			"http://@localhost:12345/callback",
+			"http://localhost@example.com/callback",
+			"http://127.0.0.1:12345@example.com/callback",
+			"https://127.0.0.1:12345/callback",
+			"https://localhost:12345/callback",
+			"https://localhost/callback",
+		} {
+			const ssoTestFlowFalse = false
+			var defaultSettings *types.SSOClientRedirectSettings
+			require.Error(t, ValidateClientRedirect(badURL+"?secret_key=", ssoTestFlowFalse, defaultSettings))
+		}
+	})
+
+	t.Run("BadQuery", func(t *testing.T) {
+		for _, badURL := range []string{
+			"http://127.0.0.1:12345/callback",
+			"http://127.0.0.1:12345/callback?secret=a",
+			"http://127.0.0.1:12345/callback?secret_key=a&foo=b",
+		} {
+			const ssoTestFlowFalse = false
+			var defaultSettings *types.SSOClientRedirectSettings
+			require.Error(t, ValidateClientRedirect(badURL, ssoTestFlowFalse, defaultSettings))
+		}
+	})
+
+	t.Run("AllowedHttpsHostnames", func(t *testing.T) {
+		for _, goodURL := range []string{
+			"https://allowed.domain.invalid/callback",
+			"https://foo.allowed.with.subdomain.invalid/callback",
+			"https://but.no.subsubdomain.invalid/callback",
+		} {
+			const ssoTestFlowFalse = false
+			settings := &types.SSOClientRedirectSettings{
+				AllowedHttpsHostnames: []string{
+					"allowed.domain.invalid",
+					"*.allowed.with.subdomain.invalid",
+					"^[-a-zA-Z0-9]+.no.subsubdomain.invalid$",
+				},
+			}
+			require.NoError(t, ValidateClientRedirect(goodURL+"?secret_key=", ssoTestFlowFalse, settings))
+		}
+
+		for _, badURL := range []string{
+			"https://allowed.domain.invalid/notcallback",
+			"https://allowed.domain.invalid:12345/callback",
+			"http://allowed.domain.invalid/callback",
+			"https://not.allowed.domain.invalid/callback",
+			"https://allowed.with.subdomain.invalid/callback",
+			"https://i.said.no.subsubdomain.invalid/callback",
+		} {
+			const ssoTestFlowFalse = false
+			settings := &types.SSOClientRedirectSettings{
+				AllowedHttpsHostnames: []string{
+					"allowed.domain.invalid",
+					"*.allowed.with.subdomain.invalid",
+					"^[-a-zA-Z0-9]+.no.subsubdomain.invalid",
+				},
+			}
+			require.Error(t, ValidateClientRedirect(badURL+"?secret_key=", ssoTestFlowFalse, settings))
+		}
+	})
+
+	t.Run("SSOTestFlow", func(t *testing.T) {
+		for _, goodURL := range []string{
+			"http://127.0.0.1:12345/callback",
+		} {
+			const ssoTestFlowTrue = true
+			settings := &types.SSOClientRedirectSettings{
+				AllowedHttpsHostnames: []string{
+					"allowed.domain.invalid",
+				},
+			}
+			require.NoError(t, ValidateClientRedirect(goodURL+"?secret_key=", ssoTestFlowTrue, settings))
+		}
+
+		for _, badURL := range []string{
+			"https://allowed.domain.invalid/callback",
+			"http://allowed.domain.invalid/callback",
+		} {
+			const ssoTestFlowTrue = true
+			settings := &types.SSOClientRedirectSettings{
+				AllowedHttpsHostnames: []string{
+					"allowed.domain.invalid",
+				},
+			}
+			require.Error(t, ValidateClientRedirect(badURL+"?secret_key=", ssoTestFlowTrue, settings))
+		}
+	})
+}

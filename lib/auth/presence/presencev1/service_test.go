@@ -661,7 +661,7 @@ func TestUpdateRemoteCluster(t *testing.T) {
 					cmp.Diff(
 						tt.want,
 						got,
-						cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+						cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 					),
 				)
 			}

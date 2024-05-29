@@ -10,13 +10,12 @@ description: How to configure Teleport database access with GCP Cloud SQL MySQL.
 (!docs/pages/includes/database-access/how-it-works/iam.mdx db="MySQL" cloud="Google Cloud"!)
 
 <Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-![Teleport Database Access CloudSQL Self-Hosted](../../../img/database-access/guides/cloudsql_selfhosted.png)
+<TabItem label="Self-Hosted">
+![Self-Hosted Teleport Architecture for Cloud SQL Access](../../../img/database-access/guides/cloudsql_selfhosted.png)
 </TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-![Teleport Database Access CloudSQL Cloud](../../../img/database-access/guides/cloudsql_cloud.png)
+<TabItem label="Cloud-Hosted">
+![Cloud-Hosted Teleport Architecture for Cloud SQL Access](../../../img/database-access/guides/cloudsql_cloud.png)
 </TabItem>
-
 </Tabs>
 
 ## Prerequisites
@@ -28,15 +27,46 @@ description: How to configure Teleport database access with GCP Cloud SQL MySQL.
   Service
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/7. Enable Cloud SQL IAM authentication
+## Step 1/9. Create a service account for the Teleport Database Service
 
-Teleport uses [IAM
-authentication](https://cloud.google.com/sql/docs/mysql/iam-authentication)
-with Cloud SQL MySQL instances.
+(!docs/pages/includes/database-access/cloudsql-create-service-account-for-db-service.mdx !)
 
-(!docs/pages/includes/database-access/cloudsql_enable_iam_auth.mdx type="MySQL" !)
+### (Optional) Grant permissions
 
-## Step 2/7. Create a service account for a database user
+(!docs/pages/includes/database-access/cloudsql_grant_db_service_account.mdx!)
+
+### (Optional) Grant permission to check user type
+
+When users connect to the Cloud SQL database via Teleport, they must specify
+the name of the service account that they intend to use as a database user.
+They can use either the short name or the full email of the service account,
+e.g. if the account email is `cloudsql-user@project.iam.gserviceaccount.com` 
+then they can use "cloudsql-user" instead of the full email.
+
+However, if they use the short name of the service account, then Teleport will
+need permissions to determine the kind of authentication that it should use: 
+IAM auth or legacy one-time password auth. If it does not have this permission,
+then it will attempt to use a one-time password by default.
+The following permission is required to support IAM auth with the short name
+of a service account:
+
+```ini
+# Used to check database user type.
+cloudsql.users.get
+```
+
+The pre-defined "Cloud SQL Viewer" role has this permission, but also has other
+permissions that are not needed. Define and bind a custom role to the service
+account to follow the  principal of least privilege.
+
+<Notice type="note">
+Support for legacy one-time password authentication will be deprecated.
+If you are following this guide and have already set up Teleport prior to the
+introduction of support for IAM database user authentication, then you should
+configure your database users to use IAM auth as described in this guide.
+</Notice>
+
+## Step 2/9. Create a service account for a database user
 
 Teleport uses service accounts to connect to Cloud SQL databases.
 
@@ -44,11 +74,39 @@ Teleport uses service accounts to connect to Cloud SQL databases.
 
 (!docs/pages/includes/database-access/cloudsql_grant_db_user.mdx!)
 
-### Configure authentication for your service account
+(!docs/pages/includes/database-access/cloudsql-grant-impersonation.mdx!)
+
+## Step 3/9. Configure your Cloud SQL database
+
+### Enable Cloud SQL IAM authentication
+
+Teleport uses [IAM
+authentication](https://cloud.google.com/sql/docs/mysql/iam-authentication)
+with Cloud SQL MySQL instances.
+
+(!docs/pages/includes/database-access/cloudsql_enable_iam_auth.mdx type="MySQL" !)
+
+### (Optional) SSL mode "require trusted client certificates"
+
+When using Cloud SQL MySQL with "require trusted client certificates" enabled,
+Teleport connects to the database's Cloud SQL Proxy port 3307 instead of the
+default 3306 as the default Cloud SQL MySQL listener does not trust generated 
+ephemeral certificates. For this reason, you should make sure to allow port 
+3307 when using "require trusted client certificates".
+
+<Notice type="note">
+The "require trusted client certificates" SSL mode only forces the client
+(Teleport) to provide a trusted client certificate. Teleport will always connect
+to the database over encrypted TLS regardless of the instance's SSL mode 
+setting.
+</Notice>
+
+### Create a database user
 
 Now go back to the Users page of your Cloud SQL instance and add a new user
 account. In the sidebar, choose "Cloud IAM" authentication type and add the
-service account you've just created:
+"cloudsql-user" service account you created in
+[the second step](#step-29-create-a-service-account-for-a-database-user):
 
 ![Add Cloud SQL User Account](../../../img/database-access/guides/cloudsql/add-user-account-mysql@2x.png)
 
@@ -56,210 +114,43 @@ Press "Add". See [Creating and managing IAM
 users](https://cloud.google.com/sql/docs/mysql/add-manage-iam-users) in Google
 Cloud documentation for more info.
 
-## Step 3/7. Create a service account for the Teleport Database Service
-
-The final part of GCP configuration is to create a service account for the
-Teleport Database Service.
-
-### Create a service account
-
-If creating a new service account, go to the
-[Service Accounts](https://console.cloud.google.com/iam-admin/serviceaccounts)
-page and create another service account:
-
-![Create Service Account](../../../img/database-access/guides/cloudsql/service-account-db-service@2x.png)
-
-### Grant permissions
-
-(!docs/pages/includes/database-access/cloudsql_grant_db_service_account.mdx!)
-
-<Admonition type="note" title="Service account permissions">
-  "Service Account Token Creator", "Cloud SQL Viewer", and "Cloud SQL Admin"
-  IAM roles include more permissions than the Database Service needs. To further
-  restrict the service account, you can create a role that includes only the
-  following permissions:
-  ```ini
-  # Used to generate IAM auth tokens when connecting to a database instance.
-  iam.serviceAccounts.getAccessToken
-  # Used to check database user type.
-  cloudsql.users.get
-  # Used to auto-download the instance's root CA certificate.
-  cloudsql.instances.get
-  ```
-</Admonition>
-
-### (Optional) Allow only SSL connections
-
-(!docs/pages/includes/database-access/cloudsql-ssl.mdx!)
-
-In addition, when using Cloud SQL MySQL with "Allow only SSL connections"
-enabled, Teleport connects to the database's Cloud SQL Proxy port `3307`
-instead of the default `3306` as the default Cloud SQL MySQL listener does not
-trust generated ephemeral certificates. For this reason, you should make sure
-to allow port `3307` when using "Allow only SSL connections" with MySQL.
-
-### (Optional) Create a key for the service account
-
-(!docs/pages/includes/database-access/cloudsql_service_account_key.mdx!)
-
-## Step 4/7. Gather Cloud SQL instance information
-
-To connect a Cloud SQL database to Teleport, you'll need to gather a few pieces
-of information about the instance.
-
-- GCP Project ID.
-
-You can normally see it in the organization view at the top of the GCP dashboard.
-
-- Cloud SQL instance ID.
-
-The instance ID is the name of your Cloud SQL instance shown at the top of the
-Overview page:
-
-![Instance ID](../../../img/database-access/guides/cloudsql/instance-id-mysql@2x.png)
-
-- Cloud SQL instance endpoint.
-
-You will use the instance's public IP address to connect to it. It can be viewed
-on the "Connect to this instance" panel on the Overview page:
-
-![Instance Public IP](../../../img/database-access/guides/cloudsql/instance-public-ip@2x.png)
-
-- (Optional) Cloud SQL instance root certificate.
-
-(!docs/pages/includes/database-access/cloudsql_download_root_ca.mdx!)
-
-## Step 5/7. Create a Teleport user
-
-(!docs/pages/includes/database-access/create-user.mdx!)
-
-## Step 6/7. Set up the Teleport Database service
-
-(!docs/pages/includes/database-access/token.mdx!)
-
-Install Teleport on the host where you will run the Teleport Database Service:
+## Step 4/9. Install Teleport
 
 (!docs/pages/includes/install-linux.mdx!)
 
-Below is an example of a Database Service configuration file that proxies
-a single Cloud SQL MySQL database. Save this file as `/etc/teleport.yaml`:
+## Step 5/9. Configure the Teleport Database Service
 
-<Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+### Create a join token
 
-```yaml
-version: v3
-teleport:
-  data_dir: /var/lib/teleport
-  nodename: test
-  # Proxy address to connect to. Note that it has to be the proxy address
-  # because the Database Service always connects to the cluster over a reverse
-  # tunnel.
-  proxy_server: teleport.example.com:443
-  auth_token: "/tmp/token"
-db_service:
-  enabled: "yes"
-  # This section contains definitions of all databases proxied by this
-  # service. Can contain multiple items.
-  databases:
-    # Name of the database proxy instance. Used to reference in CLI.
-  - name: "cloudsql"
-    # Free-form description of the database proxy instance.
-    description: "GCP Cloud SQL MySQL"
-    # Database protocol.
-    protocol: "mysql"
-    # Database endpoint. For Cloud SQL use instance's public IP address.
-    uri: "35.1.2.3:3306"
-    # (Optional) path to Cloud SQL instance root certificate you downloaded
-    # manually above.
-    ca_cert_file: /path/to/cloudsql/instance/root.pem
-    # GCP-specific configuration when connecting a Cloud SQL instance.
-    gcp:
-      # GCP project ID.
-      project_id: "<project-id>"
-      # Cloud SQL instance ID.
-      instance_id: "test"
-    # Labels to assign to the database, used in RBAC.
-    static_labels:
-      env: dev
-auth_service:
-  enabled: "no"
-ssh_service:
-  enabled: "no"
-proxy_service:
-  enabled: "no"
-```
+(!docs/pages/includes/database-access/token.mdx tokenFile="/tmp/token" !)
 
-</TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+### (Optional) Download the Cloud SQL CA certificate
 
-```yaml
-version: v3
-teleport:
-  data_dir: /var/lib/teleport
-  nodename: test
-  # Proxy address to connect to. Use your Teleport Cloud tenant address.
-  proxy_server: mytenant.teleport.sh:443
-  auth_token: "/tmp/token"
-db_service:
-  enabled: "yes"
-  # This section contains definitions of all databases proxied by this
-  # service. Can contain multiple items.
-  databases:
-    # Name of the database proxy instance. Used to reference in CLI.
-  - name: "cloudsql"
-    # Free-form description of the database proxy instance.
-    description: "GCP Cloud SQL MySQL"
-    # Database protocol.
-    protocol: "mysql"
-    # Database endpoint. For Cloud SQL use instance's public IP address.
-    uri: "35.1.2.3:3306"
-    # (Optional) path to Cloud SQL instance root certificate you downloaded
-    # manually above.
-    ca_cert_file: /path/to/cloudsql/instance/root.pem
-    # GCP-specific configuration when connecting a Cloud SQL instance.
-    gcp:
-      # GCP project ID.
-      project_id: "<project-id>"
-      # Cloud SQL instance ID.
-      instance_id: "test"
-    # Labels to assign to the database, used in RBAC.
-    static_labels:
-      env: dev
-auth_service:
-  enabled: "no"
-ssh_service:
-  enabled: "no"
-proxy_service:
-  enabled: "no"
-```
+(!docs/pages/includes/database-access/cloudsql_download_root_ca.mdx!)
 
-</TabItem>
+### Generate Teleport config
 
-</Tabs>
+(!docs/pages/includes/database-access/cloudsql-configure-create.mdx dbPort="3306" dbProtocol="mysql" token="/tmp/token" !)
 
-<Admonition
-  type="tip"
-  title="Tip"
->
-  A single Teleport process can run multiple different services, for example
-  multiple Database Service instances as well as other services such the SSH
-  Service or Application Service.
-</Admonition>
+## Step 6/9. Configure GCP credentials
+
+(!docs/pages/includes/database-access/cloudsql_service_credentials.mdx serviceAccount="teleport-db-service"!)
+
+## Step 7/9. Start the Teleport Database Service
 
 (!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)
 
-### GCP credentials
+## Step 8/9. Create a Teleport user
 
-(!docs/pages/includes/database-access/cloudsql_service_credentials.mdx!)
+(!docs/pages/includes/database-access/create-user.mdx!)
 
-## Step 7/7. Connect
+## Step 9/9. Connect
 
-Once the Database Service has joined the cluster, log in to see the available
-databases:
+Once the Teleport Database Service has joined the cluster, log in to see the
+available databases:
 
 <Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+<TabItem label="Self-Hosted">
 
 ```code
 $ tsh login --proxy=teleport.example.com --user=alice
@@ -270,7 +161,7 @@ $ tsh db ls
 ```
 
 </TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+<TabItem label="Teleport Enterprise (cloud-hosted)">
 
 ```code
 $ tsh login --proxy=mytenant.teleport.sh --user=alice
@@ -284,32 +175,31 @@ $ tsh db ls
 
 </Tabs>
 
-Note that you will only be able to see databases your role has access to. See
-our [RBAC](../rbac.mdx) guide for more details.
-
-To retrieve credentials for a database and connect to it:
-
-```code
-$ tsh db connect --db-user=teleport --db-name=mysql cloudsql
-```
-
-<Admonition
+<Notice
   type="note"
-  title="What database user name to use?"
 >
+You will only be able to see databases that your Teleport role has
+access to. See our [RBAC](../rbac.mdx) guide for more details.
+</Notice>
 
 When connecting to the database, use either the database user name or the
 service account's Email ID. Both the user name and the service account's Email
 ID are shown on the Users page of your Cloud SQL instance.
+Retrieve credentials for the "cloudsql" example database and connect to it:
 
-</Admonition>
+```code
+# Connect with the short name of the database user service account:
+$ tsh db connect --db-user=cloudsql-user --db-name=mysql cloudsql
+# Or connect the full email ID:
+$ tsh db connect --db-user=cloudsql-user@<Var name="project-id"/>.iam.gserviceaccount.com --db-name=mysql cloudsql
+```
 
 To log out of the database and remove credentials:
 
 ```code
-# Remove credentials for a particular database instance.
+# Remove credentials for a particular database instance:
 $ tsh db logout cloudsql
-# Remove credentials for all database instances.
+# Or remove credentials for all databases:
 $ tsh db logout
 ```
 
@@ -320,7 +210,7 @@ $ tsh db logout
 You may encounter the following error when connecting to a replica instance:
 
 ```code
-$ tsh db connect --db-user root -n test cloudsql-replica 
+$ tsh db connect --db-user=cloudsql-user --db-name=test cloudsql-replica
 ERROR 1105 (HY000): Could not update Cloud SQL user "<username>" password:
 
   The requested operation is not valid for a replica instance.
@@ -331,6 +221,8 @@ ERROR 1105 (HY000): Could not update Cloud SQL user "<username>" password:
 Connecting as built-in database users with passwords are not supported for
 Cloud SQL replica instances. Please follow this guide to use IAM authentication
 instead.
+
+(!docs/pages/includes/database-access/gcp-troubleshooting.mdx!)
 
 ## Next steps
 

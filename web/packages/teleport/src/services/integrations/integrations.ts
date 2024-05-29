@@ -20,8 +20,9 @@ import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 
 import makeNode from '../nodes/makeNode';
-
 import auth from '../auth/auth';
+import { App } from '../apps';
+import makeApp from '../apps/makeApps';
 
 import {
   Integration,
@@ -159,6 +160,12 @@ export const integrationService = {
         webauthnResponse
       )
       .then(resp => resp.serviceDashboardUrl);
+  },
+
+  async createAwsAppAccess(integrationName): Promise<App> {
+    return api
+      .post(cfg.getAwsAppAccessUrl(integrationName), null)
+      .then(makeApp);
   },
 
   async deployDatabaseServices(
