@@ -360,12 +360,12 @@ script](#one-line-installation-script) or manually install Teleport from a
    install binaries:
 
    ```code
-   $ curl https://get.gravitational.com/${TELEPORT_PKG?}-v(=teleport.version=)-linux-${SYSTEM_ARCH?}-bin.tar.gz.sha256
+   $ curl https://cdn.teleport.dev/${TELEPORT_PKG?}-v${TELEPORT_VERSION?}-linux-${SYSTEM_ARCH?}-bin.tar.gz.sha256
    # <checksum> <filename>
-   $ curl -O https://cdn.teleport.dev/${TELEPORT_PKG?}-v(=teleport.version=)-linux-${SYSTEM_ARCH?}-bin.tar.gz
-   $ shasum -a 256 ${TELEPORT_PKG?}-v(=teleport.version=)-linux-${SYSTEM_ARCH?}-bin.tar.gz
+   $ curl -O https://cdn.teleport.dev/${TELEPORT_PKG?}-v${TELEPORT_VERSION?}-linux-${SYSTEM_ARCH?}-bin.tar.gz
+   $ shasum -a 256 ${TELEPORT_PKG?}-v${TELEPORT_VERSION?}-linux-${SYSTEM_ARCH?}-bin.tar.gz
    # Verify that the checksums match
-   $ tar -xvf ${TELEPORT_PKG?}-v(=teleport.version=)-linux-${SYSTEM_ARCH?}-bin.tar.gz
+   $ tar -xvf ${TELEPORT_PKG?}-v${TELEPORT_VERSION?}-linux-${SYSTEM_ARCH?}-bin.tar.gz
    $ cd ${TELEPORT_PKG?}
    $ sudo ./install
    ```
@@ -374,12 +374,12 @@ script](#one-line-installation-script) or manually install Teleport from a
    are slightly different:
 
    ```code
-   $ curl https://get.gravitational.com/teleport-ent-v(=teleport.version=)-linux-${SYSTEM_ARCH?}-fips-bin.tar.gz.sha256
+   $ curl https://cdn.teleport.dev/teleport-ent-v${TELEPORT_VERSION?}-linux-${SYSTEM_ARCH?}-fips-bin.tar.gz.sha256
    # <checksum> <filename>
-   $ curl -O https://cdn.teleport.dev/teleport-ent-v(=teleport.version=)-linux-${SYSTEM_ARCH?}-fips-bin.tar.gz
-   $ shasum -a 256 teleport-ent-v(=teleport.version=)-linux-${SYSTEM_ARCH?}-fips-bin.tar.gz
+   $ curl -O https://cdn.teleport.dev/teleport-ent-v${TELEPORT_VERSION?}-linux-${SYSTEM_ARCH?}-fips-bin.tar.gz
+   $ shasum -a 256 teleport-ent-v${TELEPORT_VERSION?}-linux-${SYSTEM_ARCH?}-fips-bin.tar.gz
    # Verify that the checksums match
-   $ tar -xvf teleport-ent-v(=teleport.version=)-linux-${SYSTEM_ARCH?}-fips-bin.tar.gz
+   $ tar -xvf teleport-ent-v${TELEPORT_VERSION?}-linux-${SYSTEM_ARCH?}-fips-bin.tar.gz
    $ cd teleport-ent
    $ sudo ./install
    ```

@@ -50,6 +50,7 @@ import (
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
@@ -1659,6 +1660,11 @@ type ClientI interface {
 	// still get a client when calling this method, but all RPCs will return
 	// "not implemented" errors (as per the default gRPC behavior).
 	ClusterConfigClient() clusterconfigpb.ClusterConfigServiceClient
+
+	// VnetConfigServiceClient returns a VnetConfig service client.
+	// Clients connecting to older Teleport versions still get a client when calling this method, but all RPCs
+	// will return "not implemented" errors (as per the default gRPC behavior).
+	VnetConfigServiceClient() vnet.VnetConfigServiceClient
 
 	// CloneHTTPClient creates a new HTTP client with the same configuration.
 	CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error)

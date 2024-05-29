@@ -38,6 +38,8 @@ import (
 	"golang.zx2c4.com/wireguard/tun"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/profile"
+	"github.com/gravitational/teleport/api/types"
 )
 
 // createAndSetupTUNDeviceWithoutRoot creates a virtual network device and configures the host OS to use that
@@ -96,6 +98,11 @@ func execAdminSubcommand(ctx context.Context, socketPath, ipv6Prefix, dnsAddr st
 	executableName, err := os.Executable()
 	if err != nil {
 		return trace.Wrap(err, "getting executable path")
+	}
+
+	if homePath := os.Getenv(types.HomeEnvVar); homePath == "" {
+		// Explicitly set TELEPORT_HOME if not already set.
+		os.Setenv(types.HomeEnvVar, profile.FullProfilePath(""))
 	}
 
 	appleScript := fmt.Sprintf(`

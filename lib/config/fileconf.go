@@ -330,13 +330,6 @@ func makeSampleSSHConfig(conf *servicecfg.Config, flags SampleFlags, enabled boo
 	if enabled {
 		s.EnabledFlag = "yes"
 		s.ListenAddress = conf.SSH.Addr.Addr
-		s.Commands = []CommandLabel{
-			{
-				Name:    defaults.HostnameLabel,
-				Command: []string{"hostname"},
-				Period:  time.Minute,
-			},
-		}
 		labels, err := client.ParseLabelSpec(flags.NodeLabels)
 		if err != nil {
 			return s, trace.Wrap(err)

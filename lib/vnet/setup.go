@@ -25,14 +25,11 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
 	"golang.zx2c4.com/wireguard/tun"
-
-	"github.com/gravitational/teleport/api/profile"
-	"github.com/gravitational/teleport/api/types"
 )
 
 // Run is a blocking call to create and start Teleport VNet.
 func Run(ctx context.Context, appProvider AppProvider) error {
-	ipv6Prefix, err := IPv6Prefix()
+	ipv6Prefix, err := NewIPv6Prefix()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -51,7 +48,10 @@ func Run(ctx context.Context, appProvider AppProvider) error {
 	case tun = <-tunCh:
 	}
 
-	appResolver := NewTCPAppResolver(appProvider)
+	appResolver, err := NewTCPAppResolver(appProvider)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	manager, err := NewManager(&Config{
 		TUNDevice:          tun,
@@ -177,40 +177,32 @@ func createAndSetupTUNDeviceAsRoot(ctx context.Context, ipv6Prefix, dnsAddr stri
 	}
 	tunCh <- tun
 
+	osConfigurator, err := newOSConfigurator(tunName, ipv6Prefix, dnsAddr)
+	if err != nil {
+		errCh <- trace.Wrap(err, "creating OS configurator")
+		return tunCh, errCh
+	}
+
 	go func() {
 		defer func() {
 			// Shutting down, deconfigure OS.
-			errCh <- trace.Wrap(configureOS(context.Background(), &osConfig{}))
+			errCh <- trace.Wrap(osConfigurator.deconfigureOS())
 		}()
 
-		var err error
-		tunIPv6 := ipv6Prefix + "1"
-		cfg := osConfig{
-			tunName: tunName,
-			tunIPv6: tunIPv6,
-			dnsAddr: dnsAddr,
-		}
-		if cfg.dnsZones, err = dnsZones(); err != nil {
-			errCh <- trace.Wrap(err, "getting DNS zones")
-			return
-		}
-		if err := configureOS(ctx, &cfg); err != nil {
-			errCh <- trace.Wrap(err, "configuring OS")
+		if err := osConfigurator.updateOSConfiguration(ctx); err != nil {
+			errCh <- trace.Wrap(err, "applying initial OS configuration")
 			return
 		}
 
-		// Re-check the DNS zones every 10 seconds, and configure the host OS appropriately.
+		// Re-configure the host OS every 10 seconds. This will pick up any newly logged-in clusters by
+		// reading profiles from TELEPORT_HOME.
 		ticker := time.NewTicker(10 * time.Second)
 		defer ticker.Stop()
 		for {
 			select {
 			case <-ticker.C:
-				if cfg.dnsZones, err = dnsZones(); err != nil {
-					errCh <- trace.Wrap(err, "getting DNS zones")
-					return
-				}
-				if err := configureOS(ctx, &cfg); err != nil {
-					errCh <- trace.Wrap(err, "configuring OS")
+				if err := osConfigurator.updateOSConfiguration(ctx); err != nil {
+					errCh <- trace.Wrap(err, "updating OS configuration")
 					return
 				}
 			case <-ctx.Done():
@@ -232,23 +224,4 @@ func createTUNDevice(ctx context.Context) (tun.Device, string, error) {
 		return nil, "", trace.Wrap(err, "getting TUN device name")
 	}
 	return dev, name, nil
-}
-
-type osConfig struct {
-	tunName  string
-	tunIPv6  string
-	dnsAddr  string
-	dnsZones []string
-}
-
-func dnsZones() ([]string, error) {
-	profileDir := profile.FullProfilePath(os.Getenv(types.HomeEnvVar))
-	profileNames, err := profile.ListProfileNames(profileDir)
-	if err != nil {
-		return nil, trace.Wrap(err, "listing profiles")
-	}
-	// profile names are Teleport proxy addresses.
-	// TODO(nklaassen): support leaf clusters and custom DNS zones.
-	// TODO(nklaassen): check if profiles are expired.
-	return profileNames, nil
 }

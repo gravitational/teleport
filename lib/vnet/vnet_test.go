@@ -38,7 +38,9 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/maps"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 	"gvisor.dev/gvisor/pkg/tcpip/link/channel"
@@ -46,6 +48,8 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
@@ -106,7 +110,7 @@ func newTestPack(t *testing.T, ctx context.Context, clock clockwork.FakeClock, a
 	require.Nil(t, tcpErr)
 
 	// Route the VNet range to the TUN interface - this emulates the route that will be installed on the host.
-	vnetIPv6Prefix, err := IPv6Prefix()
+	vnetIPv6Prefix, err := NewIPv6Prefix()
 	require.NoError(t, err)
 	subnet, err := tcpip.NewSubnet(vnetIPv6Prefix, tcpip.MaskFromBytes(net.CIDRMask(64, 128)))
 	require.NoError(t, err)
@@ -117,14 +121,15 @@ func newTestPack(t *testing.T, ctx context.Context, clock clockwork.FakeClock, a
 
 	dnsIPv6 := ipv6WithSuffix(vnetIPv6Prefix, []byte{2})
 
-	tcpAppResolver := NewTCPAppResolver(appProvider, withClock(clock))
+	tcpHandlerResolver, err := NewTCPAppResolver(appProvider, withClock(clock))
+	require.NoError(t, err)
 
 	// Create the VNet and connect it to the other side of the TUN.
 	manager, err := NewManager(&Config{
 		TUNDevice:                tun2,
 		IPv6Prefix:               vnetIPv6Prefix,
 		DNSIPv6:                  dnsIPv6,
-		TCPHandlerResolver:       tcpAppResolver,
+		TCPHandlerResolver:       tcpHandlerResolver,
 		upstreamNameserverSource: noUpstreamNameservers{},
 	})
 	require.NoError(t, err)
@@ -225,53 +230,58 @@ func (n noUpstreamNameservers) UpstreamNameservers(ctx context.Context) ([]strin
 	return nil, nil
 }
 
+type testClusterSpec struct {
+	apps         []string
+	cidrRange    string
+	leafClusters map[string]testClusterSpec
+}
+
 type echoAppProvider struct {
-	profiles       []string
-	clients        map[string]map[string]*client.ClusterClient
+	clusters       map[string]testClusterSpec
 	dialOpts       DialOptions
 	reissueAppCert func() tls.Certificate
 }
 
 // newEchoAppProvider returns an app provider with the list of named apps in each profile and leaf cluster.
-func newEchoAppProvider(apps map[string]map[string][]string, dialOpts DialOptions, reissueAppCert func() tls.Certificate) *echoAppProvider {
-	p := &echoAppProvider{
-		clients:        make(map[string]map[string]*client.ClusterClient, len(apps)),
+func newEchoAppProvider(clusterSpecs map[string]testClusterSpec, dialOpts DialOptions, reissueAppCert func() tls.Certificate) *echoAppProvider {
+	return &echoAppProvider{
+		clusters:       clusterSpecs,
 		dialOpts:       dialOpts,
 		reissueAppCert: reissueAppCert,
 	}
-	for profileName, leafClusters := range apps {
-		p.profiles = append(p.profiles, profileName)
-		p.clients[profileName] = make(map[string]*client.ClusterClient, len(leafClusters))
-		for leafClusterName, apps := range leafClusters {
-			clusterName := profileName
-			if leafClusterName != "" {
-				clusterName = leafClusterName
-			}
-			p.clients[profileName][leafClusterName] = &client.ClusterClient{
-				AuthClient: &echoAppAuthClient{
-					clusterName: clusterName,
-					apps:        apps,
-				},
-			}
-		}
-	}
-	return p
 }
 
 // ListProfiles lists the names of all profiles saved for the user.
 func (p *echoAppProvider) ListProfiles() ([]string, error) {
-	return p.profiles, nil
+	return maps.Keys(p.clusters), nil
 }
 
 // GetCachedClient returns a [*client.ClusterClient] for the given profile and leaf cluster.
 // [leafClusterName] may be empty when requesting a client for the root cluster. Returned clients are
 // expected to be cached, as this may be called frequently.
 func (p *echoAppProvider) GetCachedClient(ctx context.Context, profileName, leafClusterName string) (*client.ClusterClient, error) {
-	c, ok := p.clients[profileName][leafClusterName]
+	rootCluster, ok := p.clusters[profileName]
 	if !ok {
-		return nil, trace.NotFound("no client for %s:%s", profileName, leafClusterName)
+		return nil, trace.NotFound("no cluster for %s", profileName)
 	}
-	return c, nil
+	if leafClusterName == "" {
+		return &client.ClusterClient{
+			AuthClient: &echoAppAuthClient{
+				clusterName: profileName,
+				apps:        rootCluster.apps,
+			},
+		}, nil
+	}
+	leafCluster, ok := rootCluster.leafClusters[leafClusterName]
+	if !ok {
+		return nil, trace.NotFound("no cluster for %s.%s", profileName, leafClusterName)
+	}
+	return &client.ClusterClient{
+		AuthClient: &echoAppAuthClient{
+			clusterName: leafClusterName,
+			apps:        leafCluster.apps,
+		},
+	}, nil
 }
 
 func (p *echoAppProvider) ReissueAppCert(ctx context.Context, profileName, leafClusterName string, app types.Application) (tls.Certificate, error) {
@@ -280,6 +290,45 @@ func (p *echoAppProvider) ReissueAppCert(ctx context.Context, profileName, leafC
 
 func (p *echoAppProvider) GetDialOptions(ctx context.Context, profileName string) (*DialOptions, error) {
 	return &p.dialOpts, nil
+}
+
+func (p *echoAppProvider) GetVnetConfig(ctx context.Context, profileName, leafClusterName string) (*vnet.VnetConfig, error) {
+	rootCluster, ok := p.clusters[profileName]
+	if !ok {
+		return nil, trace.Errorf("no cluster for %s", profileName)
+	}
+	if leafClusterName == "" {
+		if rootCluster.cidrRange == "" {
+			return nil, trace.NotFound("vnet_config not found")
+		}
+		return &vnet.VnetConfig{
+			Kind:    types.KindVnetConfig,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: "vnet-config",
+			},
+			Spec: &vnet.VnetConfigSpec{
+				Ipv4CidrRange: rootCluster.cidrRange,
+			},
+		}, nil
+	}
+	leafCluster, ok := rootCluster.leafClusters[leafClusterName]
+	if !ok {
+		return nil, trace.Errorf("no cluster for %s.%s", profileName, leafClusterName)
+	}
+	if leafCluster.cidrRange == "" {
+		return nil, trace.NotFound("vnet_config not found")
+	}
+	return &vnet.VnetConfig{
+		Kind:    types.KindVnetConfig,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: "vnet-config",
+		},
+		Spec: &vnet.VnetConfigSpec{
+			Ipv4CidrRange: leafCluster.cidrRange,
+		},
+	}, nil
 }
 
 // echoAppAuthClient is a fake auth client that answers GetResources requests with a static list of apps and
@@ -416,36 +465,52 @@ func TestDialFakeApp(t *testing.T) {
 		return newClientCert(t, ca, "testclient", clock.Now().Add(appCertLifetime))
 	}
 
-	appProvider := newEchoAppProvider(map[string]map[string][]string{
-		"root1.example.com": map[string][]string{
-			"":                 {"echo1", "echo2"},
-			"leaf.example.com": {"echo1"},
+	appProvider := newEchoAppProvider(map[string]testClusterSpec{
+		"root1.example.com": {
+			apps:      []string{"echo1", "echo2"},
+			cidrRange: "192.168.2.0/24",
+			leafClusters: map[string]testClusterSpec{
+				"leaf1.example.com": {
+					apps: []string{"echo1"},
+				},
+			},
 		},
-		"root2.example.com": map[string][]string{
-			"":                  {"echo1", "echo2"},
-			"leaf2.example.com": {"echo1"},
+		"root2.example.com": {
+			apps: []string{"echo1", "echo2"},
+			leafClusters: map[string]testClusterSpec{
+				"leaf2.example.com": {
+					apps: []string{"echo1"},
+				},
+			},
 		},
 	}, dialOpts, reissueClientCert)
 
-	validAppNames := []string{
-		"echo1.root1.example.com",
-		"echo2.root1.example.com",
-		"echo1.root2.example.com",
-		"echo2.root2.example.com",
-		// Leaf clusters not yet supported.
-	}
-
-	invalidAppNames := []string{
-		"not.an.app.example.com.",
-		"echo1.leaf1.example.com.",
-		"echo1.leaf2.example.com.",
-	}
-
 	p := newTestPack(t, ctx, clock, appProvider)
+
+	validTestCases := []struct {
+		app        string
+		expectCIDR string
+	}{
+		{
+			app:        "echo1.root1.example.com",
+			expectCIDR: "192.168.2.0/24",
+		},
+		{
+			app:        "echo2.root1.example.com",
+			expectCIDR: "192.168.2.0/24",
+		},
+		{
+			app:        "echo1.root2.example.com",
+			expectCIDR: defaultIPv4CIDRRange,
+		},
+		{
+			app:        "echo2.root2.example.com",
+			expectCIDR: defaultIPv4CIDRRange,
+		},
+	}
 
 	t.Run("valid", func(t *testing.T) {
 		t.Parallel()
-
 		// Connect to each app 3 times, advancing the clock past the cert lifetime between each
 		// connection to trigger a cert refresh.
 		//
@@ -453,14 +518,27 @@ func TestDialFakeApp(t *testing.T) {
 		// the inner app dial/connection tests to run in parallel because they don't advance the clock.
 		for i := 0; i < 3; i++ {
 			t.Run(fmt.Sprint(i), func(t *testing.T) {
-				for _, app := range validAppNames {
-					app := app
-					t.Run(app, func(t *testing.T) {
+				for _, tc := range validTestCases {
+					tc := tc
+					t.Run(tc.app, func(t *testing.T) {
 						t.Parallel()
 
-						conn, err := p.dialHost(ctx, app)
+						_, expectNet, err := net.ParseCIDR(tc.expectCIDR)
 						require.NoError(t, err)
-						t.Cleanup(func() { require.NoError(t, conn.Close()) })
+
+						conn, err := p.dialHost(ctx, tc.app)
+						require.NoError(t, err)
+						t.Cleanup(func() { assert.NoError(t, conn.Close()) })
+
+						remoteAddr, _, err := net.SplitHostPort(conn.RemoteAddr().String())
+						require.NoError(t, err)
+						remoteIP := net.ParseIP(remoteAddr)
+						require.NotNil(t, remoteIP)
+
+						// The app name may have resolved to a v4 or v6 address, either way the 4-byte suffix should be a
+						// valid IPv4 address in the expected CIDR range.
+						remoteIPSuffix := remoteIP[len(remoteIP)-4:]
+						require.True(t, expectNet.Contains(remoteIPSuffix), "expected CIDR range %s does not include remote IP %s", expectNet, remoteIPSuffix)
 
 						testEchoConnection(t, conn)
 					})
@@ -471,18 +549,20 @@ func TestDialFakeApp(t *testing.T) {
 	})
 
 	t.Run("invalid", func(t *testing.T) {
-		// It's safe to run these invalid app tests in parallel because they fail the DNS lookup and don't
-		// even make it to a TCP dial, so the clock used for TLS cert expiry doesn't matter.
 		t.Parallel()
-		for _, app := range invalidAppNames {
-			app := app
-			t.Run("invalid/"+app, func(t *testing.T) {
+		invalidTestCases := []string{
+			"not.an.app.example.com.",
+			// Leaf clusters not supported yet.
+			"echo1.leaf1.example.com.",
+			"echo2.leaf1.example.com.",
+		}
+		for _, fqdn := range invalidTestCases {
+			t.Run(fqdn, func(t *testing.T) {
 				t.Parallel()
-
 				ctx, cancel := context.WithTimeout(ctx, 200*time.Millisecond)
 				defer cancel()
-				_, err := p.lookupHost(ctx, app)
-				require.Error(t, err, "asdf")
+				_, err := p.lookupHost(ctx, fqdn)
+				require.Error(t, err)
 			})
 		}
 	})
