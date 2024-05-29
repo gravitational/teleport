@@ -9,7 +9,7 @@ state: draft
 
 * Engineering: @russjones && @bernardjkim
 * Product: @klizhentas || @xinding33 
-* Security: @reedloden
+* Security: Vendor TBD
 
 ## What
 
@@ -301,8 +301,21 @@ When restarting the agent during an upgrade, `SIGHUP` is used.
 When restarting the agent during a downgrade, `systemd stop/start` are used before/after the downgrade.
 
 Teleport CA certificate rotations will break rollbacks.
-This may be addressed in the future by additional validation of the agent's client certificate issuer fingerprints.
-This would prevent downgrades to backups with invalid certs.
+In the future, this could be addressed with additional validation of the agent's client certificate issuer fingerprints.
+For now, rolling forward will allow recovery from a broken rollback.
+
+Given that rollbacks may fail, we must maintain the following invariants:
+1. Broken rollbacks can always be reverted by reversing the rollback exactly.
+2. Broken versions can always be reverted by rolling back and then skipping the broken version.
+
+When rolling forward, the backup of the newer version's `sqlite.db` is only restored if that exact version is the roll-forward version.
+Otherwise, the older, rollback version of `sqlite.db` is preserved (i.e., the newer version's backup is not used).
+This ensures that a version upgrade which broke the database can be recovered with a rollback and a new patch.
+It also ensures that a broken rollback is always recoverable by reversing the rollback.
+
+Example: Given v1, v2, v3 versions of Teleport, where v2 is broken:
+1. v1 -> v2 -> v1 -> v3 => DB from v1 is migrated directly to v3, avoiding v2 breakage.
+2. v1 -> v2 -> v1 -> v2 -> v3 => DB from v2 is recovered, in case v1 database no longer has a valid certificate.
 
 ### Manual Workflow
 
