@@ -109,6 +109,8 @@ $ tctl autoupdate update --set-agent-update-now=true
 Automatic updates configuration has been updated.
 $ tctl autoupdate update --set-agent-update-jitter-seconds=600
 Automatic updates configuration has been updated.
+$ tctl autoupdate reset
+Automatic updates configuration has been reset to defaults.
 ```
 
 ```yaml
