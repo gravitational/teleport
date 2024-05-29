@@ -552,8 +552,7 @@ func (s *session) launch(isEphemeralCont bool) (returnErr error) {
 		return trace.Wrap(err)
 	}
 	defer func() {
-		// The closure captures the err variable pointer so that the variable can
-		// be changed by the code below, but when defer runs, it gets the last value.
+		// call onFinished to emit the session.end and exec events.
 		onFinished(returnErr)
 	}()
 
