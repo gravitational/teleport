@@ -170,9 +170,14 @@ jobs:
           - slack
           # Event handler
           - event-handler
+        image-type:
+          - name: production  # The `name` field is just here for documentation
+            repo-suffix: ''
+          - name: debug
+            repo-suffix: '-debug'
     uses: ./.github/workflows/oci-image-publish.yml
     with:
-      repository: teleport-plugin-${{ matrix.plugins }}
+      repository: teleport-plugin-${{ matrix.plugins }}${{ matrix.image-type.repo-suffix }}
       pending-tag: ${{ needs.images-setup.outputs.teleport-version }}
       production-tags: ${{ needs.images-setup.outputs.dest-image-tags }}
       environment: ${{ inputs.environment }}

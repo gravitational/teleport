@@ -166,16 +166,23 @@ jobs:
           - name: event-handler
             artifact-name: event-handler
             dockerfile-path: integrations/event-handler/Dockerfile
+        image-type:
+          - name: production  # The `name` field is just here for documentation
+            repo-suffix: ''
+            base-image-tag: latest
+          - name: debug
+            repo-suffix: '-debug'
+            base-image-tag: debug
     needs: build-plugins
     uses: ./.github/workflows/oci-image-build.yml
     with:
       teleport-release: oss
-      base-image: 'gcr.io/distroless/static-debian12:latest'
+      base-image: 'gcr.io/distroless/static-debian12:${{ matrix.image-type.base-image-tag }}'
       oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
       oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
       source-tag: ${{ inputs.teleport-version }}
       teleport-version: ${{ inputs.teleport-version }}
-      dest-image-repo: teleport-plugin-${{ matrix.plugins.name }}
+      dest-image-repo: teleport-plugin-${{ matrix.plugins.name }}${{ matrix.image-type.repo-suffix }}
       dest-image-tags: ${{ inputs.teleport-version }}
       architectures: |
         amd64
