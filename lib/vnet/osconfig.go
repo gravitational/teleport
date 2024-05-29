@@ -43,18 +43,13 @@ type osConfig struct {
 }
 
 type osConfigurator struct {
-	// Static config values.
-	tunName string
-	tunIPv6 string
-	dnsAddr string
-
-	// Computed config values.
-	tunIPv4 string
-
-	// Other state.
-	homePath           string
 	clientStore        *client.Store
 	clusterConfigCache *clusterConfigCache
+	tunName            string
+	tunIPv6            string
+	dnsAddr            string
+	homePath           string
+	tunIPv4            string
 }
 
 func newOSConfigurator(tunName, ipv6Prefix, dnsAddr string) (*osConfigurator, error) {
