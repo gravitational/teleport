@@ -116,6 +116,7 @@ export { Info } from './Icons/Info';
 export { Integrations } from './Icons/Integrations';
 export { Invoices } from './Icons/Invoices';
 export { Key } from './Icons/Key';
+export { Keyboard } from './Icons/Keyboard';
 export { Keypair } from './Icons/Keypair';
 export { Kubernetes } from './Icons/Kubernetes';
 export { Label } from './Icons/Label';
