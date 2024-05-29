@@ -132,6 +132,14 @@ export const plugins: Plugin[] = [
     statusCode: IntegrationStatusCode.Running,
     spec: {},
   },
+  {
+    resourceType: 'plugin',
+    name: 'entra-id',
+    details: '',
+    kind: 'entra-id',
+    statusCode: IntegrationStatusCode.Running,
+    spec: {},
+  },
 ];
 
 export const integrations: Integration[] = [
