@@ -407,7 +407,12 @@ func TestDialFakeApp(t *testing.T) {
 
 	appProvider := newEchoAppProvider(map[string]testClusterSpec{
 		"root1.example.com": {
-			apps:           []string{"echo1.root1.example.com", "echo2.root1.example.com", "echo.myzone.example.com"},
+			apps: []string{
+				"echo1.root1.example.com",
+				"echo2.root1.example.com",
+				"echo.myzone.example.com",
+				"echo.nested.myzone.example.com",
+			},
 			cidrRange:      "192.168.2.0/24",
 			customDNSZones: []string{"myzone.example.com"},
 			leafClusters: map[string]testClusterSpec{
@@ -442,6 +447,10 @@ func TestDialFakeApp(t *testing.T) {
 		},
 		{
 			app:        "echo.myzone.example.com",
+			expectCIDR: "192.168.2.0/24",
+		},
+		{
+			app:        "echo.nested.myzone.example.com",
 			expectCIDR: "192.168.2.0/24",
 		},
 		{
