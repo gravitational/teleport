@@ -10,12 +10,11 @@ data they need.
 
 Access Controls encompasses two levels of granularity:
 
-- **Databases:** databases enrolled with your Teleport cluster.
-- **Database objects:** tables, views, or stored
-  procedures. 
+- **Database servers:** database resources enrolled with your Teleport cluster.
+- **Database objects:** tables, views, or stored procedures. 
 
-For both databases and database objects, Database Access Controls grants or
-denies access based on Teleport labels. When you enroll a database with
+For both database servers and database objects, Database Access Controls grants
+or denies access based on Teleport labels. When you enroll a database with
 Teleport, you can configure the labels associated with the databse. For database
 objects, you can define import rules that instruct the Teleport Database Service
 to apply labels to database objects imported from databases that match labels
@@ -30,6 +29,13 @@ connection and revokes them automatically when the connection ends.
 For a more general description of Teleport roles and examples see
 [RBAC](../access-controls/introduction.mdx), as this section focuses on
 configuring RBAC for database access.
+
+<Notice type="warning">
+
+Database Access Controls for database objects only supports PostgreSQL
+databases.
+
+</Notice>
 
 ## Role configuration
 
