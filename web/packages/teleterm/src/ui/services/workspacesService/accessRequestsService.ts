@@ -76,10 +76,7 @@ export class AccessRequestsService {
     }
   }
 
-  async addOrRemoveResource({
-    kind,
-    resource,
-  }: ResourceRequest): Promise<void> {
+  async addOrRemoveResource(request: ResourceRequest): Promise<void> {
     if (!(await this.canUpdateRequest('resource'))) {
       return;
     }
@@ -93,22 +90,32 @@ export class AccessRequestsService {
 
       const { resources } = draftState.pending;
 
-      if (resources.has(resource.uri)) {
-        resources.delete(resource.uri);
+      if (resources.has(request.resource.uri)) {
+        resources.delete(request.resource.uri);
       } else {
-        // Store only properties required by the type.
-        if (kind === 'server') {
-          resources.set(resource.uri, {
-            kind,
-            resource: { uri: resource.uri, hostname: resource.hostname },
-          });
-        } else {
-          resources.set(resource.uri, {
-            kind,
-            resource: { uri: resource.uri },
-          });
-        }
+        resources.set(request.resource.uri, getRequiredProperties(request));
       }
+    });
+  }
+
+  async addResource(request: ResourceRequest): Promise<void> {
+    if (!(await this.canUpdateRequest('resource'))) {
+      return;
+    }
+    this.setState(draftState => {
+      if (draftState.pending.kind !== 'resource') {
+        draftState.pending = {
+          kind: 'resource',
+          resources: new Map(),
+        };
+      }
+
+      const { resources } = draftState.pending;
+
+      if (resources.has(request.resource.uri)) {
+        return;
+      }
+      resources.set(request.resource.uri, getRequiredProperties(request));
     });
   }
 
@@ -156,6 +163,23 @@ export class AccessRequestsService {
     }
     return shouldProceed;
   }
+}
+
+/** Returns only the properties required by the type. */
+function getRequiredProperties({
+  kind,
+  resource,
+}: ResourceRequest): ResourceRequest {
+  if (kind === 'server') {
+    return {
+      kind,
+      resource: { uri: resource.uri, hostname: resource.hostname },
+    };
+  }
+  return {
+    kind,
+    resource: { uri: resource.uri },
+  };
 }
 
 /** Returns an empty access request. We default to the resource access request. */

@@ -175,6 +175,22 @@ const SearchResultItems = () => {
       }),
     }),
     makeResourceResult({
+      kind: 'server',
+      requiresRequest: true,
+      resource: makeServer({
+        hostname: 'long-label-list',
+        uri: `${clusterUri}/servers/2f96e498-88ec-442f-a25b-569fa915041c`,
+        name: '2f96e498-88ec-442f-a25b-569fa915041c',
+        labels: makeLabelsList({
+          arch: 'aarch64',
+          external: '32.192.113.93',
+          internal: '10.0.0.175',
+          kernel: '5.13.0-1234-aws',
+          service: 'ansible',
+        }),
+      }),
+    }),
+    makeResourceResult({
       kind: 'app',
       resource: makeAppWithAddr({
         uri: `${clusterUri}/apps/web-app`,
@@ -284,6 +300,23 @@ const SearchResultItems = () => {
     }),
 
     makeResourceResult({
+      kind: 'app',
+      requiresRequest: true,
+      resource: makeAppWithAddr({
+        uri: `${clusterUri}/apps/web-app`,
+        name: 'web-app',
+        endpointUri: 'http://localhost:3000',
+        desc: '',
+        labels: makeLabelsList({
+          access: 'cloudwatch-metrics,ec2,s3,cloudtrail',
+          'aws/Environment': 'demo-13-biz',
+          'aws/Owner': 'foobar',
+          env: 'dev',
+          'teleport.dev/origin': 'config-file',
+        }),
+      }),
+    }),
+    makeResourceResult({
       kind: 'database',
       resource: makeDatabase({
         uri: `${clusterUri}/dbs/no-desc`,
@@ -373,6 +406,25 @@ const SearchResultItems = () => {
       }),
     }),
     makeResourceResult({
+      kind: 'database',
+      requiresRequest: true,
+      resource: makeDatabase({
+        uri: `${clusterUri}/dbs/no-desc`,
+        name: 'no-desc',
+        desc: '',
+        labels: makeLabelsList({
+          'aws/Accounting': 'dev-ops',
+          'aws/Environment': 'demo-13-biz',
+          'aws/Name': 'db-bastion-4-13biz',
+          'aws/Owner': 'foobar',
+          'aws/Service': 'teleport-db',
+          engine: '🐘',
+          env: 'dev',
+          'teleport.dev/origin': 'config-file',
+        }),
+      }),
+    }),
+    makeResourceResult({
       kind: 'kube',
       resource: makeKube({
         name: 'short-label-list',
@@ -402,6 +454,18 @@ const SearchResultItems = () => {
       resource: makeKube({
         name: 'super-long-kube-name-with-uuid-2f96e498-88ec-442f-a25b-569fa915041c',
         uri: `/clusters/teleport-very-long-cluster-name-with-uuid-2f96e498-88ec-442f-a25b-569fa915041c/kubes/super-long-desc`,
+        labels: makeLabelsList({
+          'im-just-a-smol': 'kube',
+          kube: 'kubersson',
+          with: 'little-to-no-labels',
+        }),
+      }),
+    }),
+    makeResourceResult({
+      kind: 'kube',
+      requiresRequest: true,
+      resource: makeKube({
+        name: 'short-label-list',
         labels: makeLabelsList({
           'im-just-a-smol': 'kube',
           kube: 'kubersson',

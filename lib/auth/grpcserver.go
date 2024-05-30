@@ -233,16 +233,14 @@ func (g *GRPCServer) EmitAuditEvent(ctx context.Context, req *apievents.OneOf) (
 	return &emptypb.Empty{}, nil
 }
 
-var (
-	connectedResourceGauges = map[string]prometheus.Gauge{
-		constants.KeepAliveNode:                  connectedResources.WithLabelValues(constants.KeepAliveNode),
-		constants.KeepAliveKube:                  connectedResources.WithLabelValues(constants.KeepAliveKube),
-		constants.KeepAliveApp:                   connectedResources.WithLabelValues(constants.KeepAliveApp),
-		constants.KeepAliveDatabase:              connectedResources.WithLabelValues(constants.KeepAliveDatabase),
-		constants.KeepAliveDatabaseService:       connectedResources.WithLabelValues(constants.KeepAliveDatabaseService),
-		constants.KeepAliveWindowsDesktopService: connectedResources.WithLabelValues(constants.KeepAliveWindowsDesktopService),
-	}
-)
+var connectedResourceGauges = map[string]prometheus.Gauge{
+	constants.KeepAliveNode:                  connectedResources.WithLabelValues(constants.KeepAliveNode),
+	constants.KeepAliveKube:                  connectedResources.WithLabelValues(constants.KeepAliveKube),
+	constants.KeepAliveApp:                   connectedResources.WithLabelValues(constants.KeepAliveApp),
+	constants.KeepAliveDatabase:              connectedResources.WithLabelValues(constants.KeepAliveDatabase),
+	constants.KeepAliveDatabaseService:       connectedResources.WithLabelValues(constants.KeepAliveDatabaseService),
+	constants.KeepAliveWindowsDesktopService: connectedResources.WithLabelValues(constants.KeepAliveWindowsDesktopService),
+}
 
 // SendKeepAlives allows node to send a stream of keep alive requests
 func (g *GRPCServer) SendKeepAlives(stream authpb.AuthService_SendKeepAlivesServer) error {
@@ -685,6 +683,23 @@ func (g *GRPCServer) GenerateOpenSSHCert(ctx context.Context, req *authpb.OpenSS
 	}
 
 	return cert, nil
+}
+
+// AssertSystemRole is used by agents to prove that they have a given system role when their credentials
+// originate from multiple separate join tokens so that they can be issued an instance certificate that
+// encompasses all of their capabilities. This method will be deprecated once we have a more comprehensive
+// model for join token joining/replacement.
+func (g *GRPCServer) AssertSystemRole(ctx context.Context, req *authpb.SystemRoleAssertion) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if err := auth.AssertSystemRole(ctx, *req); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &emptypb.Empty{}, nil
 }
 
 // icsServicesToMetricName is a helper for translating service names to keepalive names for control-stream

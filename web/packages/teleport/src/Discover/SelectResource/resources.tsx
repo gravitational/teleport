@@ -114,7 +114,7 @@ export const APPLICATIONS: ResourceSpec[] = [
     kind: ResourceKind.Application,
     keywords: 'application aws cli console access',
     icon: 'Aws',
-    event: DiscoverEventResource.ApplicationHttp,
+    event: DiscoverEventResource.ApplicationAwsConsole,
     appMeta: { awsConsole: true },
   },
 ];
@@ -126,7 +126,8 @@ export const WINDOWS_DESKTOPS: ResourceSpec[] = [
     keywords: 'windows desktop active directory ad',
     icon: 'Windows',
     event: DiscoverEventResource.WindowsDesktop,
-    platform: Platform.Windows,
+    unguidedLink:
+      'https://goteleport.com/docs/desktop-access/active-directory-manual/',
   },
   {
     name: 'Local Users',

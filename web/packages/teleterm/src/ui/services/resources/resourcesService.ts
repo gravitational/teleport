@@ -111,11 +111,13 @@ export class ResourcesService {
     search,
     filters,
     limit,
+    includeRequestable,
   }: {
     clusterUri: uri.ClusterUri;
     search: string;
     filters: ResourceTypeFilter[];
     limit: number;
+    includeRequestable: boolean;
   }): Promise<SearchResult[]> {
     try {
       const { resources } = await this.listUnifiedResources({
@@ -128,7 +130,7 @@ export class ResourcesService {
         pinnedOnly: false,
         startKey: '',
         sortBy: { field: 'name', isDesc: true },
-        includeRequestable: false, //TODO(gzdunek): Support requestable resources in the search bar.
+        includeRequestable,
       });
       return resources.map(r => {
         if (r.kind === 'app') {
@@ -238,15 +240,25 @@ export class ResourceSearchError extends Error {
   }
 }
 
-export type SearchResultServer = { kind: 'server'; resource: types.Server };
+export type SearchResultServer = {
+  kind: 'server';
+  resource: types.Server;
+  requiresRequest: boolean;
+};
 export type SearchResultDatabase = {
   kind: 'database';
   resource: types.Database;
+  requiresRequest: boolean;
 };
-export type SearchResultKube = { kind: 'kube'; resource: types.Kube };
+export type SearchResultKube = {
+  kind: 'kube';
+  resource: types.Kube;
+  requiresRequest: boolean;
+};
 export type SearchResultApp = {
   kind: 'app';
   resource: types.App & { addrWithProtocol: string };
+  requiresRequest: boolean;
 };
 
 export type SearchResult =

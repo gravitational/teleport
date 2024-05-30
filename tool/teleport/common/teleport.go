@@ -515,6 +515,11 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	integrationConfExternalAuditCmd.Flag("glue-table", "The name of the Glue table used.").Required().StringVar(&ccf.IntegrationConfExternalAuditStorageArguments.GlueTable)
 	integrationConfExternalAuditCmd.Flag("aws-partition", "AWS partition (default: aws).").Default("aws").StringVar(&ccf.IntegrationConfExternalAuditStorageArguments.Partition)
 
+	integrationConfAzureOIDCCmd := integrationConfigureCmd.Command("azure-oidc", "Configures Azure / Entra ID OIDC integration")
+	integrationConfAzureOIDCCmd.Flag("proxy-public-addr", "The public address of Teleport Proxy Service").Required().StringVar(&ccf.IntegrationConfAzureOIDCArguments.ProxyPublicAddr)
+	integrationConfAzureOIDCCmd.Flag("auth-connector-name", "The name of Entra ID SAML Auth connector in Teleport.").Required().StringVar(&ccf.IntegrationConfAzureOIDCArguments.AuthConnectorName)
+	integrationConfAzureOIDCCmd.Flag("access-graph", "Enable Access Graph integration.").BoolVar(&ccf.IntegrationConfAzureOIDCArguments.AccessGraphEnabled)
+
 	integrationConfSAMLIdP := integrationConfigureCmd.Command("samlidp", "Manage SAML IdP integrations.")
 	integrationSAMLIdPGCPWorkforce := integrationConfSAMLIdP.Command("gcp-workforce", "Configures GCP Workforce Identity Federation pool and SAML provider.")
 	integrationSAMLIdPGCPWorkforce.Flag("org-id", "GCP organization ID.").Required().StringVar(&ccf.IntegrationConfSAMLIdPGCPWorkforceArguments.OrganizationID)
@@ -640,6 +645,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		err = onIntegrationConfExternalAuditCmd(ctx, ccf.IntegrationConfExternalAuditStorageArguments)
 	case integrationConfTAGSyncCmd.FullCommand():
 		err = onIntegrationConfAccessGraphAWSSync(ctx, ccf.IntegrationConfAccessGraphAWSSyncArguments)
+	case integrationConfAzureOIDCCmd.FullCommand():
+		err = onIntegrationConfAzureOIDCCmd(ctx, ccf.IntegrationConfAzureOIDCArguments)
 	case integrationSAMLIdPGCPWorkforce.FullCommand():
 		err = onIntegrationConfSAMLIdPGCPWorkforce(ctx, ccf.IntegrationConfSAMLIdPGCPWorkforceArguments)
 	case tpmIdentifyCmd.FullCommand():

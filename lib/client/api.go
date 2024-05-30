@@ -601,9 +601,9 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 	case !IsErrorResolvableWithRelogin(fnErr):
 		return trace.Wrap(fnErr)
 	}
-	opt := retryWithReloginOptions{}
+	opt := defaultRetryWithReloginOptions()
 	for _, o := range opts {
-		o(&opt)
+		o(opt)
 	}
 	log.Debugf("Activating relogin on error=%q (type=%T)", fnErr, trace.Unwrap(fnErr))
 
@@ -650,9 +650,15 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 	}
 
 	// Save profile to record proxy credentials
-	if err := tc.SaveProfile(true); err != nil {
+	if err := tc.SaveProfile(opt.makeCurrentProfile); err != nil {
 		log.Warningf("Failed to save profile: %v", err)
 		return trace.Wrap(err)
+	}
+
+	if opt.afterLoginHook != nil {
+		if err := opt.afterLoginHook(); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return fn()
@@ -666,13 +672,39 @@ type RetryWithReloginOption func(*retryWithReloginOptions)
 type retryWithReloginOptions struct {
 	// beforeLoginHook is a function that will be called before the login attempt.
 	beforeLoginHook func() error
+	// afterLoginHook is a function that will be called after a successful login.
+	afterLoginHook func() error
+	// makeCurrentProfile determines whether to update the current profile after login.
+	makeCurrentProfile bool
 }
 
-// WithBeforeLogin is a functional option for configuring a function that will
+func defaultRetryWithReloginOptions() *retryWithReloginOptions {
+	return &retryWithReloginOptions{
+		makeCurrentProfile: true,
+	}
+}
+
+// WithBeforeLoginHook is a functional option for configuring a function that will
 // be called before the login attempt.
 func WithBeforeLoginHook(fn func() error) RetryWithReloginOption {
 	return func(o *retryWithReloginOptions) {
 		o.beforeLoginHook = fn
+	}
+}
+
+// WithAfterLoginHook is a functional option for configuring a function that will
+// be called after a successful login.
+func WithAfterLoginHook(fn func() error) RetryWithReloginOption {
+	return func(o *retryWithReloginOptions) {
+		o.afterLoginHook = fn
+	}
+}
+
+// WithMakeCurrentProfile is a functional option for configuring whether to update the current profile after a
+// successful login.
+func WithMakeCurrentProfile(makeCurrentProfile bool) RetryWithReloginOption {
+	return func(o *retryWithReloginOptions) {
+		o.makeCurrentProfile = makeCurrentProfile
 	}
 }
 
@@ -1078,6 +1110,10 @@ type dtAutoEnrollFunc func(context.Context, devicepb.DeviceTrustServiceClient) (
 type TeleportClient struct {
 	Config
 	localAgent *LocalKeyAgent
+
+	// OnChannelRequest gets called when SSH channel requests are
+	// received. It's safe to keep it nil.
+	OnChannelRequest tracessh.ChannelRequestCallback
 
 	// OnShellCreated gets called when the shell is created. It's
 	// safe to keep it nil.
@@ -1909,7 +1945,7 @@ func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, clt
 		// Reuse the existing nodeClient we connected above.
 		return nodeClient.RunCommand(ctx, command)
 	}
-	return trace.Wrap(nodeClient.RunInteractiveShell(ctx, types.SessionPeerMode, nil, nil))
+	return trace.Wrap(nodeClient.RunInteractiveShell(ctx, types.SessionPeerMode, nil, tc.OnChannelRequest, nil))
 }
 
 func (tc *TeleportClient) runShellOrCommandOnMultipleNodes(ctx context.Context, clt *ClusterClient, nodes []targetNode, command []string) error {
@@ -2068,7 +2104,7 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	fmt.Printf("Joining session with participant mode: %v. \n\n", mode)
 
 	// running shell with a given session means "join" it:
-	err = nc.RunInteractiveShell(ctx, mode, session, beforeStart)
+	err = nc.RunInteractiveShell(ctx, mode, session, tc.OnChannelRequest, beforeStart)
 	return trace.Wrap(err)
 }
 

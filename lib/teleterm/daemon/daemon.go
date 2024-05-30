@@ -95,7 +95,11 @@ func New(cfg Config) (*Service, error) {
 	// That's because Daemon.ResolveClusterURI sets a custom MFAPromptConstructor that
 	// shows an MFA prompt in Connect.
 	// At the level of Storage.ResolveClusterFunc we don't have access to it.
-	service.clientCache = cfg.CreateClientCacheFunc(service.ResolveClusterURI)
+	service.clientCache, err = cfg.CreateClientCacheFunc(service.NewClusterClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return service, nil
 }
 
@@ -219,6 +223,14 @@ func (s *Service) RemoveCluster(ctx context.Context, uri string) error {
 	}
 
 	return nil
+}
+
+// NewClusterClient is a wrapper on ResolveClusterURI that can be passed as an argument to
+// s.cfg.CreateClientCacheFunc.
+func (s *Service) NewClusterClient(ctx context.Context, profileName, leafClusterName string) (*client.TeleportClient, error) {
+	uri := uri.NewClusterURI(profileName).AppendLeafCluster(leafClusterName)
+	_, clusterClient, err := s.ResolveClusterURI(uri)
+	return clusterClient, trace.Wrap(err)
 }
 
 // ResolveCluster resolves a cluster by URI by reading data stored on disk in the profile.
@@ -1119,14 +1131,17 @@ func (s *Service) findGatewayByTargetURI(targetURI uri.ResourceURI) (gateway.Gat
 // GetCachedClient returns a client from the cache if it exists,
 // otherwise it dials the remote server.
 func (s *Service) GetCachedClient(ctx context.Context, clusterURI uri.ResourceURI) (*client.ClusterClient, error) {
-	clt, err := s.clientCache.Get(ctx, clusterURI)
+	profileName := clusterURI.GetProfileName()
+	leafClusterName := clusterURI.GetLeafClusterName()
+	clt, err := s.clientCache.Get(ctx, profileName, leafClusterName)
 	return clt, trace.Wrap(err)
 }
 
 // ClearCachedClientsForRoot closes and removes clients from the cache
 // for the root cluster and its leaf clusters.
 func (s *Service) ClearCachedClientsForRoot(clusterURI uri.ResourceURI) error {
-	return trace.Wrap(s.clientCache.ClearForRoot(clusterURI))
+	profileName := clusterURI.GetProfileName()
+	return trace.Wrap(s.clientCache.ClearForRoot(profileName))
 }
 
 // Service is the daemon service

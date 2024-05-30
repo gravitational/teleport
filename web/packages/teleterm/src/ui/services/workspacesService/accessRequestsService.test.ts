@@ -298,3 +298,36 @@ test('updates the request when the user tries to mix roles with resources and ag
     },
   });
 });
+
+test('adding the same resource twice with addResource does not toggle it', async () => {
+  const { accessRequestsService } = getTestSetup(
+    getMockPendingResourceAccessRequest()
+  );
+
+  const server = makeServer({
+    uri: `/clusters/${rootClusterUri}/servers/foo1`,
+    hostname: 'foo1',
+  });
+
+  // Try to add the same resource twice.
+  await accessRequestsService.addResource({
+    kind: 'server',
+    resource: server,
+  });
+  await accessRequestsService.addResource({
+    kind: 'server',
+    resource: server,
+  });
+
+  const pendingRequest = accessRequestsService.getPendingAccessRequest();
+  expect(
+    pendingRequest.kind === 'resource' &&
+      pendingRequest.resources.get(server.uri)
+  ).toStrictEqual({
+    kind: 'server',
+    resource: {
+      hostname: server.hostname,
+      uri: server.uri,
+    },
+  });
+});
