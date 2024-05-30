@@ -54,6 +54,7 @@ func TestStartCmdConfig(t *testing.T) {
 					TeleportIdentityFile:    path.Join(wd, "testdata", "fake-file"),
 					TeleportRefreshEnabled:  true,
 					TeleportRefreshInterval: 2 * time.Minute,
+					TeleporDebugEnabled:     false,
 				},
 				IngestConfig: IngestConfig{
 					StorageDir:          "./storage",
