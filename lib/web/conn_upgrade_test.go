@@ -88,6 +88,7 @@ func TestHandlerConnectionUpgrade(t *testing.T) {
 				defer conn.Close()
 				upgrader := websocket.Upgrader{}
 				wsConn, err := upgrader.Upgrade(w, r, nil)
+				require.NoError(t, err)
 
 				op, payload, err := wsConn.ReadMessage()
 				require.NoError(t, err)
@@ -285,7 +286,10 @@ func mustWriteNestedWebSocketConnString(t *testing.T, clientConn net.Conn, paylo
 			return clientConn, nil
 		},
 	}
-	nestedConn, _, err := dialer.DialContext(context.Background(), "ws://does-not-matter", nil)
+	nestedConn, response, err := dialer.DialContext(context.Background(), "ws://does-not-matter", nil)
+	if response != nil && response.Body != nil {
+		defer response.Body.Close()
+	}
 	require.NoError(t, err)
 	require.NoError(t, nestedConn.WriteMessage(websocket.BinaryMessage, []byte(payload)))
 }
