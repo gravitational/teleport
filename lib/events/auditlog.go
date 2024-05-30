@@ -961,6 +961,17 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 		e <- trace.Wrap(trace.ConvertSystemError(err), "creating temporary stream file")
 		return c, e
 	}
+	// The file is still perfectly usable after unlinking it, and the space it's
+	// using on disk will get reclaimed as soon as the file is closed (or the
+	// process terminates) - and if the session is small enough and we go
+	// through it quickly enough, we're likely not even going to end up with any
+	// bytes on the physical disk, anyway. We're using the same playback
+	// directory as the GetSessionChunk flow, which means that if we crash
+	// between creating the empty file and unlinking it, we'll end up with an
+	// empty file that will eventually be cleaned up by periodicCleanupPlaybacks
+	//
+	// TODO(espadolini): investigate the use of O_TMPFILE on Linux, so we don't
+	// even have to bother with the unlink and we avoid writing on the directory
 	if err := os.Remove(rawSession.Name()); err != nil {
 		_ = rawSession.Close()
 		e <- trace.Wrap(trace.ConvertSystemError(err), "removing temporary stream file")
