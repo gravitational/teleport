@@ -1,4 +1,4 @@
-package migration
+package clone
 
 import (
 	"context"
@@ -7,11 +7,11 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 func TestMigration(t *testing.T) {
@@ -35,14 +35,14 @@ func TestMigration(t *testing.T) {
 		items[i] = item
 	}
 
-	migration := Migration{
+	cloner := Cloner{
 		src:      src,
 		dst:      dst,
 		parallel: 10,
-		log:      logrus.New(),
+		log:      logutils.NewPackageLogger(),
 	}
 
-	err = migration.Run(ctx)
+	err = cloner.Clone(ctx)
 	require.NoError(t, err)
 
 	start := backend.Key("")
@@ -51,6 +51,6 @@ func TestMigration(t *testing.T) {
 
 	diff := cmp.Diff(items, result.Items, cmpopts.IgnoreFields(backend.Item{}, "Revision", "ID"))
 	require.Empty(t, diff)
-	require.Equal(t, itemCount, int(migration.migrated.Load()))
-	require.NoError(t, migration.Close())
+	require.Equal(t, itemCount, int(cloner.migrated.Load()))
+	require.NoError(t, cloner.Close())
 }

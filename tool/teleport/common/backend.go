@@ -6,27 +6,27 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/gravitational/teleport/lib/backend/migration"
+	"github.com/gravitational/teleport/lib/backend/clone"
 	"github.com/gravitational/trace"
 )
 
-func runMigration(ctx context.Context, path string) error {
-	data, err := os.ReadFile(path)
+func onClone(ctx context.Context, configPath string) error {
+	data, err := os.ReadFile(configPath)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	var config migration.MigrationConfig
+	var config clone.Config
 	if err := yaml.Unmarshal(data, &config); err != nil {
 		return trace.Wrap(err)
 	}
 
-	migration, err := migration.New(ctx, config)
+	cloner, err := clone.New(ctx, config)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer migration.Close()
+	defer cloner.Close()
 
-	if err := migration.Run(ctx); err != nil {
+	if err := cloner.Clone(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
