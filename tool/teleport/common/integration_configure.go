@@ -228,6 +228,8 @@ func onIntegrationConfAzureOIDCCmd(ctx context.Context, params config.Integratio
 		return trace.Wrap(err)
 	}
 
+	fmt.Println("Teleport is setting up the Azure integration. This may take a few minutes.")
+
 	appID, tenantID, err := azureoidc.SetupEnterpriseApp(ctx, params.ProxyPublicAddr, params.AuthConnectorName)
 	if err != nil {
 		return trace.Wrap(err)
