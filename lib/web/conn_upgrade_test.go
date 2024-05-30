@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/pingconn"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/listener"
 )
 
 func TestWriteUpgradeResponse(t *testing.T) {
@@ -82,7 +83,7 @@ func TestHandlerConnectionUpgrade(t *testing.T) {
 	nestedUpgradeHandler := func(t *testing.T) ConnectionHandler {
 		t.Helper()
 		return func(ctx context.Context, conn net.Conn) error {
-			connListener := utils.NewSingleUseListener(conn)
+			connListener := listener.NewSingleUseListener(conn)
 			http.Serve(connListener, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				defer conn.Close()
 				upgrader := websocket.Upgrader{}
