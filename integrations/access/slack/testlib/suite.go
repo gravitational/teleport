@@ -329,7 +329,8 @@ func (s *SlackSuiteOSS) TestRecipientsFromAccessMonitoringRuleAfterUpdate() {
 	}
 
 	s.startApp()
-	const numMessages = 2
+	const numMessagesInitial = 3
+	const numMessagesFinal = 2
 
 	_, err := s.ClientByName(integration.RulerUserName).
 		AccessMonitoringRulesClient().
@@ -353,6 +354,37 @@ func (s *SlackSuiteOSS) TestRecipientsFromAccessMonitoringRuleAfterUpdate() {
 		})
 	assert.NoError(t, err)
 
+	// Test execution: we create an access request
+	userName := integration.RequesterOSSUserName
+	request := s.CreateAccessRequest(ctx, userName, nil)
+	pluginData := s.checkPluginData(ctx, request.GetName(), func(data accessrequest.PluginData) bool {
+		return len(data.SentMessages) > 0
+	})
+	assert.Len(t, pluginData.SentMessages, numMessagesInitial)
+
+	var messages []slack.Message
+
+	messageSet := make(SlackDataMessageSet)
+
+	// Validate we got 3 messages: one for each recipient and one for the requester.
+	for i := 0; i < numMessagesInitial; i++ {
+		msg, err := s.fakeSlack.CheckNewMessage(ctx)
+		require.NoError(t, err)
+		messageSet.Add(accessrequest.MessageData{ChannelID: msg.Channel, MessageID: msg.Timestamp})
+		messages = append(messages, msg)
+	}
+
+	assert.Len(t, messageSet, numMessagesInitial)
+	for i := 0; i < numMessagesInitial; i++ {
+		assert.Contains(t, messageSet, pluginData.SentMessages[i])
+	}
+
+	// Validate the message recipients
+	sort.Sort(SlackMessageSlice(messages))
+	assert.Equal(t, s.requesterOSSSlackUser.ID, messages[0].Channel)
+	assert.Equal(t, s.reviewer1SlackUser.ID, messages[1].Channel)
+	assert.Equal(t, s.reviewer2SlackUser.ID, messages[2].Channel)
+
 	_, err = s.ClientByName(integration.RulerUserName).
 		AccessMonitoringRulesClient().
 		UpdateAccessMonitoringRule(ctx, &accessmonitoringrulesv1.AccessMonitoringRule{
@@ -375,28 +407,26 @@ func (s *SlackSuiteOSS) TestRecipientsFromAccessMonitoringRuleAfterUpdate() {
 		})
 	assert.NoError(t, err)
 
+	messages = []slack.Message{}
+	messageSet = make(SlackDataMessageSet)
+
 	// Test execution: we create an access request
-	userName := integration.RequesterOSSUserName
-	request := s.CreateAccessRequest(ctx, userName, nil)
-	pluginData := s.checkPluginData(ctx, request.GetName(), func(data accessrequest.PluginData) bool {
+	request = s.CreateAccessRequest(ctx, userName, nil)
+	pluginData = s.checkPluginData(ctx, request.GetName(), func(data accessrequest.PluginData) bool {
 		return len(data.SentMessages) > 0
 	})
-	assert.Len(t, pluginData.SentMessages, numMessages)
-
-	var messages []slack.Message
-
-	messageSet := make(SlackDataMessageSet)
+	assert.Len(t, pluginData.SentMessages, numMessagesFinal)
 
 	// Validate we got 2 messages since the base config should kick back in
-	for i := 0; i < numMessages; i++ {
+	for i := 0; i < numMessagesFinal; i++ {
 		msg, err := s.fakeSlack.CheckNewMessage(ctx)
 		require.NoError(t, err)
 		messageSet.Add(accessrequest.MessageData{ChannelID: msg.Channel, MessageID: msg.Timestamp})
 		messages = append(messages, msg)
 	}
 
-	assert.Len(t, messageSet, numMessages)
-	for i := 0; i < numMessages; i++ {
+	assert.Len(t, messageSet, numMessagesFinal)
+	for i := numMessagesInitial - 1; i < numMessagesFinal; i++ {
 		assert.Contains(t, messageSet, pluginData.SentMessages[i])
 	}
 
