@@ -293,13 +293,13 @@ func (l *Log) periodicCleanup(ctx context.Context, cleanupInterval, retentionPer
 
 			return tag.RowsAffected(), nil
 		})
-		cleanupLatencies.Observe(time.Since(start).Seconds())
+		batchDeleteLatencies.Observe(time.Since(start).Seconds())
 
 		if err != nil {
-			cleanupRequestsFailure.Inc()
+			batchDeleteRequestsFailure.Inc()
 			l.log.WithError(err).Error("Failed to execute periodic cleanup.")
 		} else {
-			cleanupRequestsSuccess.Inc()
+			batchDeleteRequestsSuccess.Inc()
 			l.log.WithField("deleted_rows", deleted).Debug("Executed periodic cleanup.")
 		}
 	}
