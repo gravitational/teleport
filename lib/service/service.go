@@ -143,6 +143,7 @@ import (
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/app"
 	"github.com/gravitational/teleport/lib/srv/db"
+	"github.com/gravitational/teleport/lib/srv/debug"
 	"github.com/gravitational/teleport/lib/srv/desktop"
 	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/srv/regular"
@@ -1108,6 +1109,14 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		if err := process.initTracingService(); err != nil {
 			return nil, trace.Wrap(err)
 		}
+	}
+
+	if cfg.DebugService.Enabled {
+		if err := process.initDebugService(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		warnOnErr(process.ExitContext(), process.closeImportedDescriptors(teleport.ComponentDebug), process.logger)
 	}
 
 	// Create a process wide key generator that will be shared. This is so the
@@ -3338,6 +3347,53 @@ func (process *TeleportProcess) initDiagnosticService() error {
 	return nil
 }
 
+// initDebugService starts debug service serving endpoints used for
+// troubleshooting the instance.
+func (process *TeleportProcess) initDebugService() error {
+	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentDebug, process.id))
+
+	listener, err := process.importOrCreateListener(ListenerDebug, filepath.Join(process.Config.DataDir, teleport.DebugServiceSocketName))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	server := &http.Server{
+		Handler:           debug.NewServeMux(logger, process.Config),
+		ReadTimeout:       apidefaults.DefaultIOTimeout,
+		ReadHeaderTimeout: defaults.ReadHeadersTimeout,
+		// pprof endpoints support delta profiles and cpu and trace profiling
+		// over time, both of which can be effectively unbounded in time; care
+		// should be taken when adding more endpoints to this server, however,
+		// and if necessary, a timeout can be either added to some more
+		// sensitive endpoint, or the timeout can be removed from the more lax
+		// ones
+		WriteTimeout: 0,
+		IdleTimeout:  apidefaults.DefaultIdleTimeout,
+	}
+
+	process.RegisterFunc("debug.service", func() error {
+		if err := server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			logger.WarnContext(process.ExitContext(), "Debug server exited with error.", "error", err)
+		}
+		return nil
+	})
+	warnOnErr(process.ExitContext(), process.closeImportedDescriptors(teleport.ComponentDebug), logger)
+
+	process.OnExit("debug.shutdown", func(payload interface{}) {
+		if payload == nil {
+			logger.InfoContext(process.ExitContext(), "Shutting down immediately.")
+			warnOnErr(process.ExitContext(), server.Close(), logger)
+		} else {
+			logger.InfoContext(process.ExitContext(), "Shutting down gracefully.")
+			ctx := payloadContext(payload)
+			warnOnErr(process.ExitContext(), server.Shutdown(ctx), logger)
+		}
+		logger.InfoContext(process.ExitContext(), "Exited.")
+	})
+
+	return nil
+}
+
 func (process *TeleportProcess) initTracingService() error {
 	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentTracing, process.id))
 	logger.InfoContext(process.ExitContext(), "Initializing tracing provider and exporter.")
@@ -4804,7 +4860,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 					alpncommon.ProtocolRedisDB,
 					alpncommon.ProtocolSnowflake,
 					alpncommon.ProtocolSQLServer,
-					alpncommon.ProtocolCassandra),
+					alpncommon.ProtocolCassandra,
+					alpncommon.ProtocolSpanner,
+				),
 			})
 		}
 

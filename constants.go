@@ -145,6 +145,10 @@ const (
 	// ComponentDiagnostic is a diagnostic service
 	ComponentDiagnostic = "diag"
 
+	// ComponentDebug is the debug service, which exposes debugging
+	// configuration over a Unix socket.
+	ComponentDebug = "debug"
+
 	// ComponentClient is a client
 	ComponentClient = "client"
 
@@ -921,4 +925,10 @@ const (
 	// KubeLegacyProxySuffix is the suffix used for legacy proxy services when
 	// generating their names Server names.
 	KubeLegacyProxySuffix = "-proxy_service"
+)
+
+const (
+	// DebugServiceSocketName represents the Unix domain socket name of the
+	// debug service.
+	DebugServiceSocketName = "debug.sock"
 )

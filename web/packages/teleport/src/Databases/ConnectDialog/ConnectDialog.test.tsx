@@ -32,6 +32,16 @@ test('correct connect command generated for postgres db', () => {
   expect(screen.getByText(expectedOutput)).toBeInTheDocument();
 });
 
+test('correct connect command generated for spanner', () => {
+  render(<ConnectDialog {...props} dbName="gspanner" dbProtocol="spanner" />);
+
+  // --db-name flag should be required
+  const expectedOutput =
+    'tsh db connect gspanner --db-user=<user> --db-name=<name>';
+
+  expect(screen.getByText(expectedOutput)).toBeInTheDocument();
+});
+
 test('correct connect command generated for mysql db', () => {
   render(<ConnectDialog {...props} dbProtocol="mysql" />);
 

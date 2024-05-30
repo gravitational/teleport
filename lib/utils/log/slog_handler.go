@@ -41,6 +41,9 @@ import (
 // TraceLevel is the logging level when set to Trace verbosity.
 const TraceLevel = slog.LevelDebug - 1
 
+// TraceLevelText is the text representation of Trace verbosity.
+const TraceLevelText = "TRACE"
+
 // SlogTextHandler is a [slog.Handler] that outputs messages in a textual
 // manner as configured by the Teleport configuration.
 type SlogTextHandler struct {

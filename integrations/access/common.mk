@@ -12,7 +12,7 @@ CGOFLAG ?= CGO_ENABLED=0
 OS ?= $(shell go env GOOS)
 ARCH ?= $(shell go env GOARCH)
 RELEASE_NAME=teleport-access-$(ACCESS_PLUGIN)
-RELEASE=$(RELEASE_NAME)-$(VERSION)-$(OS)-$(ARCH)-bin
+RELEASE=$(RELEASE_NAME)-v$(VERSION)-$(OS)-$(ARCH)-bin
 
 RELEASE_MESSAGE = "Building with GOOS=$(OS) GOARCH=$(ARCH)."
 

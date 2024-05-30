@@ -32,6 +32,7 @@ import (
 	"testing"
 	"time"
 
+	gspanner "cloud.google.com/go/spanner"
 	"github.com/ClickHouse/ch-go"
 	cqlclient "github.com/datastax/go-cassandra-native-protocol/client"
 	elastic "github.com/elastic/go-elasticsearch/v8"
@@ -87,6 +88,7 @@ import (
 	redisprotocol "github.com/gravitational/teleport/lib/srv/db/redis/protocol"
 	"github.com/gravitational/teleport/lib/srv/db/secrets"
 	"github.com/gravitational/teleport/lib/srv/db/snowflake"
+	"github.com/gravitational/teleport/lib/srv/db/spanner"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -1460,6 +1462,8 @@ type testContext struct {
 	dynamodb map[string]testDynamoDB
 	// clickHouse is a collection of ClickHouse databases the test uses.
 	clickHouse map[string]testClickHouse
+	// spanner is a collection of Spanner databases the test uses.
+	spanner map[string]testSpannerDB
 
 	// clock to override clock in tests.
 	clock clockwork.FakeClock
@@ -1546,6 +1550,14 @@ type testDynamoDB struct {
 	// db is the test Dynamodb database server.
 	db *dynamodb.TestServer
 	// resource is the resource representing this DynamoDB database.
+	resource types.Database
+}
+
+// testSpannerDB represents a single proxied Spanner database.
+type testSpannerDB struct {
+	// db is the test Spanner database server.
+	db *spanner.TestServer
+	// resource is the resource representing this Spanner database.
 	resource types.Database
 }
 
@@ -2088,7 +2100,47 @@ func (c *testContext) dynamodbClient(ctx context.Context, teleportUser, dbServic
 	return db, proxy, nil
 }
 
+func (c *testContext) spannerClient(ctx context.Context, teleportUser, dbService, dbUser, dbName string) (*gspanner.Client, *alpnproxy.LocalProxy, error) {
+	route := tlsca.RouteToDatabase{
+		ServiceName: dbService,
+		Protocol:    defaults.ProtocolSpanner,
+		Username:    dbUser,
+		Database:    dbName,
+	}
+
+	proxy, err := c.startLocalALPNProxy(ctx, c.webListener.Addr().String(), teleportUser, route)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	db, err := spanner.MakeTestClient(ctx, common.TestClientConfig{
+		AuthClient:      c.authClient,
+		AuthServer:      c.authServer,
+		Address:         proxy.GetAddr(),
+		Cluster:         c.clusterName,
+		Username:        teleportUser,
+		RouteToDatabase: route,
+	})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return db, proxy, nil
+}
+
 type roleOptFn func(types.Role)
+
+func withDeniedDatabaseUsers(users ...string) roleOptFn {
+	return func(role types.Role) {
+		role.SetDatabaseUsers(types.Deny, users)
+	}
+}
+
+func withDeniedDatabaseNames(names ...string) roleOptFn {
+	return func(role types.Role) {
+		role.SetDatabaseNames(types.Deny, names)
+	}
+}
 
 func withAllowedDBLabels(labels types.Labels) roleOptFn {
 	return func(role types.Role) {
@@ -2178,6 +2230,7 @@ func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDa
 		cassandra:     make(map[string]testCassandra),
 		dynamodb:      make(map[string]testDynamoDB),
 		clickHouse:    make(map[string]testClickHouse),
+		spanner:       make(map[string]testSpannerDB),
 		clock:         clockwork.NewFakeClockAt(time.Now()),
 	}
 	t.Cleanup(func() { testCtx.Close() })
@@ -2276,6 +2329,9 @@ func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDa
 	require.NoError(t, err)
 
 	// Create test audit events emitter.
+	// NOTE(gavin): this emitter is just a buffered channel and it will block if
+	// a test does not consume the events, which can make your test fail
+	// mysteriously with a timeout.
 	testCtx.emitter = eventstest.NewChannelEmitter(100)
 
 	connMonitor, err := srv.NewConnectionMonitor(srv.ConnectionMonitorConfig{

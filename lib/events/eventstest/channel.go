@@ -20,6 +20,7 @@ package eventstest
 
 import (
 	"context"
+	"time"
 
 	"github.com/sirupsen/logrus"
 
@@ -44,11 +45,19 @@ func NewChannelEmitter(capacity int) *ChannelEmitter {
 
 func (e *ChannelEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	e.log.Infof("EmitAuditEvent(%v)", event)
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case e.events <- event:
-		return nil
+	start := time.Now()
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case e.events <- event:
+			return nil
+		case <-time.After(5 * time.Second):
+			e.log.WithFields(logrus.Fields{
+				"event":   event,
+				"elapsed": time.Since(start),
+			}).Info("EmitAuditEvent has been blocked sending to a full ChannelEmitter for a long time")
+		}
 	}
 }
 
@@ -88,11 +97,19 @@ func (*ChannelRecorder) Write(b []byte) (int, error) {
 
 func (e *ChannelRecorder) RecordEvent(ctx context.Context, event apievents.PreparedSessionEvent) error {
 	e.log.Infof("RecordEvent(%v)", event.GetAuditEvent())
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case e.events <- event.GetAuditEvent():
-		return nil
+	start := time.Now()
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case e.events <- event.GetAuditEvent():
+			return nil
+		case <-time.After(5 * time.Second):
+			e.log.WithFields(logrus.Fields{
+				"event":   event.GetAuditEvent(),
+				"elapsed": time.Since(start),
+			}).Info("RecordEvent has been blocked sending to a full ChannelRecorder for a long time")
+		}
 	}
 }
 

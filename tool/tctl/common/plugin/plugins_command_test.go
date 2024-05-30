@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package common
+package plugin
 
 import (
 	"context"
@@ -30,6 +30,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/emptypb"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -40,6 +41,7 @@ func TestPluginsInstallOkta(t *testing.T) {
 		name                     string
 		cmd                      PluginsCommand
 		expectSAMLConnectorQuery string
+		expectPing               bool
 		expectRequest            *pluginsv1.CreatePluginRequest
 		expectError              require.ErrorAssertionFunc
 	}{
@@ -78,6 +80,9 @@ func TestPluginsInstallOkta(t *testing.T) {
 						samlConnector: "fake-saml-connector",
 						scimToken:     "i am a scim token",
 						defaultOwners: []string{"admin"},
+						scimEnabled:   true,
+						userSync:      true,
+						apiToken:      "api-token-goes-here",
 					},
 				},
 			},
@@ -93,6 +98,7 @@ func TestPluginsInstallOkta(t *testing.T) {
 						org:           mustParseURL("https://example.okta.com"),
 						samlConnector: "okta-integration",
 						apiToken:      "api-token-goes-here",
+						appGroupSync:  true,
 					},
 				},
 			},
@@ -151,6 +157,7 @@ func TestPluginsInstallOkta(t *testing.T) {
 						samlConnector:  "saml-connector-name",
 						userSync:       true,
 						accessListSync: true,
+						appGroupSync:   true,
 						defaultOwners:  []string{"admin"},
 						groupFilters:   []string{"group-alpha", "group-beta"},
 						appFilters:     []string{"app-gamma", "app-delta", "app-epsilon"},
@@ -219,6 +226,7 @@ func TestPluginsInstallOkta(t *testing.T) {
 						scimToken:      "i am a scim token",
 						userSync:       true,
 						accessListSync: true,
+						appGroupSync:   true,
 						defaultOwners:  []string{"admin"},
 						groupFilters:   []string{"group-alpha", "group-beta"},
 						appFilters:     []string{"app-gamma", "app-delta", "app-epsilon"},
@@ -226,6 +234,7 @@ func TestPluginsInstallOkta(t *testing.T) {
 				},
 			},
 			expectSAMLConnectorQuery: "teleport-saml-connector-id",
+			expectPing:               true,
 			expectRequest: &pluginsv1.CreatePluginRequest{
 				Plugin: &types.PluginV1{
 					SubKind: types.PluginSubkindAccess,
@@ -290,6 +299,65 @@ func TestPluginsInstallOkta(t *testing.T) {
 			},
 			expectError: require.NoError,
 		},
+		{
+			name: "app group sync sync disabled should send okta-auth-scim-only creds",
+			cmd: PluginsCommand{
+				install: pluginInstallArgs{
+					name: "okta-barebones-test",
+					okta: oktaArgs{
+						org:           mustParseURL("https://example.okta.com"),
+						samlConnector: "okta-integration",
+						apiToken:      "api-token-goes-here",
+						appGroupSync:  false,
+						scimToken:     "OktaCredPurposeSCIMToken",
+					},
+				},
+			},
+			expectSAMLConnectorQuery: "okta-integration",
+			expectPing:               true,
+			expectRequest: &pluginsv1.CreatePluginRequest{
+				Plugin: &types.PluginV1{
+					SubKind: types.PluginSubkindAccess,
+					Metadata: types.Metadata{
+						Labels: map[string]string{
+							types.HostedPluginLabel: "true",
+						},
+						Name: "okta-barebones-test",
+					},
+					Spec: types.PluginSpecV1{
+						Settings: &types.PluginSpecV1_Okta{
+							Okta: &types.PluginOktaSettings{
+								OrgUrl: "https://example.okta.com",
+								SyncSettings: &types.PluginOktaSyncSettings{
+									SsoConnectorId: "okta-integration",
+								},
+							},
+						},
+					},
+				},
+				StaticCredentialsList: []*types.PluginStaticCredentialsV1{
+					{
+						ResourceHeader: types.ResourceHeader{
+							Metadata: types.Metadata{
+								Name: "okta-barebones-test",
+								Labels: map[string]string{
+									types.OktaCredPurposeLabel: types.CredPurposeOKTAAPITokenWithSCIMOnlyIntegration,
+								},
+							},
+						},
+						Spec: &types.PluginStaticCredentialsSpecV1{
+							Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
+								APIToken: "api-token-goes-here",
+							},
+						},
+					},
+				},
+				CredentialLabels: map[string]string{
+					types.OktaOrgURLLabel: "https://example.okta.com",
+				},
+			},
+			expectError: require.NoError,
+		},
 	}
 
 	cmpOptions := []cmp.Option{
@@ -326,17 +394,24 @@ func TestPluginsInstallOkta(t *testing.T) {
 				args.plugins = pluginsClient
 			}
 
+			authClient := &mockAuthClient{}
 			if testCase.expectSAMLConnectorQuery != "" {
-				samlConnectorsClient := &mockSAMLConnectorsClient{}
-				t.Cleanup(func() { samlConnectorsClient.AssertExpectations(t) })
+				t.Cleanup(func() { authClient.AssertExpectations(t) })
 
-				samlConnectorsClient.
+				authClient.
 					On("GetSAMLConnector", anyContext, testCase.expectSAMLConnectorQuery, false).
 					Return(&types.SAMLConnectorV2{}, nil)
 
-				args.samlConnectors = samlConnectorsClient
+				args.authClient = authClient
 			}
 
+			if testCase.expectPing {
+				authClient.
+					On("Ping", anyContext).
+					Return(proto.PingResponse{
+						ProxyPublicAddr: "example.com",
+					}, nil)
+			}
 			ctx, cancel := context.WithCancel(context.Background())
 			t.Cleanup(cancel)
 
@@ -372,13 +447,18 @@ func (m *mockPluginsClient) CreatePlugin(ctx context.Context, in *pluginsv1.Crea
 	return result.Get(0).(*emptypb.Empty), result.Error(1)
 }
 
-type mockSAMLConnectorsClient struct {
+type mockAuthClient struct {
 	mock.Mock
 }
 
-func (m *mockSAMLConnectorsClient) GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error) {
+func (m *mockAuthClient) GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error) {
 	result := m.Called(ctx, id, withSecrets)
 	return result.Get(0).(types.SAMLConnector), result.Error(1)
+}
+
+func (m *mockAuthClient) Ping(ctx context.Context) (proto.PingResponse, error) {
+	result := m.Called(ctx)
+	return result.Get(0).(proto.PingResponse), result.Error(1)
 }
 
 // anyContext is an argument matcher for testify mocks that matches any context.

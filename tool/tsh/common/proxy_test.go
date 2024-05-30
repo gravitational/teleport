@@ -1263,7 +1263,7 @@ Use one of the following commands to connect to the database or to the address a
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			templateArgs := map[string]any{}
-			tpl := chooseProxyCommandTemplate(templateArgs, tt.commands, "")
+			tpl := chooseProxyCommandTemplate(templateArgs, tt.commands, &databaseInfo{})
 			require.Equal(t, tt.wantTemplate, tpl)
 			require.Equal(t, tt.wantTemplateArgs, templateArgs)
 

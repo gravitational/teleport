@@ -16,13 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package common
+package plugin
 
 import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net/url"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
@@ -31,6 +30,7 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -53,20 +53,6 @@ type pluginInstallArgs struct {
 	name string
 	okta oktaArgs
 	scim scimArgs
-}
-
-type oktaArgs struct {
-	cmd            *kingpin.CmdClause
-	org            *url.URL
-	appID          string
-	samlConnector  string
-	apiToken       string
-	scimToken      string
-	userSync       bool
-	accessListSync bool
-	defaultOwners  []string
-	appFilters     []string
-	groupFilters   []string
 }
 
 type scimArgs struct {
@@ -112,52 +98,6 @@ func (p *PluginsCommand) initInstall(parent *kingpin.CmdClause, config *servicec
 
 	p.initInstallOkta(p.install.cmd)
 	p.initInstallSCIM(p.install.cmd)
-}
-
-func (p *PluginsCommand) initInstallOkta(parent *kingpin.CmdClause) {
-	p.install.okta.cmd = parent.Command("okta", "Install an okta integration")
-	p.install.okta.cmd.
-		Flag("name", "Name of the plugin resource to create").
-		Default("okta").
-		StringVar(&p.install.name)
-	p.install.okta.cmd.
-		Flag("org", "URL of Okta organization").
-		Required().
-		URLVar(&p.install.okta.org)
-	p.install.okta.cmd.
-		Flag("api-token", "Okta API token for the plugin to use").
-		Required().
-		StringVar(&p.install.okta.apiToken)
-	p.install.okta.cmd.
-		Flag("saml-connector", "SAML connector used for Okta SSO login.").
-		Required().
-		StringVar(&p.install.okta.samlConnector)
-	p.install.okta.cmd.
-		Flag("app-id", "Okta ID of the APP used for SSO via SAML").
-		StringVar(&p.install.okta.appID)
-	p.install.okta.cmd.
-		Flag("scim-token", "Okta SCIM auth token for the plugin to use").
-		StringVar(&p.install.okta.scimToken)
-	p.install.okta.cmd.
-		Flag("sync-users", "Enable user synchronization").
-		Default("true").
-		BoolVar(&p.install.okta.userSync)
-	p.install.okta.cmd.
-		Flag("owner", "Add default owners for synced Access Lists").
-		Short('o').
-		StringsVar(&p.install.okta.defaultOwners)
-	p.install.okta.cmd.
-		Flag("sync-groups", "Enable group to Access List synchronization").
-		Default("true").
-		BoolVar(&p.install.okta.accessListSync)
-	p.install.okta.cmd.
-		Flag("group", "Add a group filter. Supports globbing by default. Enclose in `^pattern$` for full regex support.").
-		Short('g').
-		StringsVar(&p.install.okta.groupFilters)
-	p.install.okta.cmd.
-		Flag("app", "Add an app filter. Supports globbing by default. Enclose in `^pattern$` for full regex support.").
-		Short('a').
-		StringsVar(&p.install.okta.appFilters)
 }
 
 func (p *PluginsCommand) initInstallSCIM(parent *kingpin.CmdClause) {
@@ -258,8 +198,9 @@ func (p *PluginsCommand) Cleanup(ctx context.Context, clusterAPI *authclient.Cli
 	return nil
 }
 
-type samlConnectorsClient interface {
+type authClient interface {
 	GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error)
+	Ping(ctx context.Context) (proto.PingResponse, error)
 }
 
 type pluginsClient interface {
@@ -267,131 +208,8 @@ type pluginsClient interface {
 }
 
 type installPluginArgs struct {
-	samlConnectors samlConnectorsClient
-	plugins        pluginsClient
-}
-
-func (p *PluginsCommand) InstallOkta(ctx context.Context, args installPluginArgs) error {
-	log := p.config.Logger.With(logFieldPlugin, p.install.name)
-	oktaSettings := p.install.okta
-
-	if oktaSettings.accessListSync {
-		if len(oktaSettings.defaultOwners) == 0 {
-			return trace.BadParameter("AccessList sync requires at least one default owner to be set")
-		}
-	}
-
-	if oktaSettings.scimToken != "" {
-		if len(oktaSettings.defaultOwners) == 0 {
-			return trace.BadParameter("SCIM support requires at least one default owner to be set")
-		}
-	}
-
-	log.DebugContext(ctx, "Validating SAML Connector...",
-		logFieldSAMLConnector, oktaSettings.samlConnector)
-	connector, err := args.samlConnectors.GetSAMLConnector(ctx, oktaSettings.samlConnector, false)
-	if err != nil {
-		log.ErrorContext(ctx, "Failed validating SAML connector",
-			slog.String(logFieldSAMLConnector, oktaSettings.samlConnector),
-			logErrorMessage(err))
-		return trace.Wrap(err)
-	}
-
-	if p.install.okta.appID == "" {
-		log.DebugContext(ctx, "Deducing Okta App ID from SAML Connector...",
-			logFieldSAMLConnector, oktaSettings.samlConnector)
-		appID, ok := connector.GetMetadata().Labels[types.OktaAppIDLabel]
-		if ok {
-			p.install.okta.appID = appID
-		}
-	}
-
-	if oktaSettings.scimToken != "" && oktaSettings.appID == "" {
-		log.ErrorContext(ctx, "SCIM support requires App ID, which was not supplied and couldn't be deduced from the SAML connector")
-		log.ErrorContext(ctx, "Specify the App ID explicitly with --app-id")
-		return trace.BadParameter("SCIM support requires app-id to be set")
-	}
-
-	creds := []*types.PluginStaticCredentialsV1{
-		{
-			ResourceHeader: types.ResourceHeader{
-				Metadata: types.Metadata{
-					Name: p.install.name,
-					Labels: map[string]string{
-						types.OktaCredPurposeLabel: types.OktaCredPurposeAuth,
-					},
-				},
-			},
-			Spec: &types.PluginStaticCredentialsSpecV1{
-				Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
-					APIToken: oktaSettings.apiToken,
-				},
-			},
-		},
-	}
-
-	if oktaSettings.scimToken != "" {
-		scimTokenHash, err := bcrypt.GenerateFromPassword([]byte(oktaSettings.scimToken), bcrypt.DefaultCost)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		creds = append(creds, &types.PluginStaticCredentialsV1{
-			ResourceHeader: types.ResourceHeader{
-				Metadata: types.Metadata{
-					Name: p.install.name + "-scim-token",
-					Labels: map[string]string{
-						types.OktaCredPurposeLabel: types.OktaCredPurposeSCIMToken,
-					},
-				},
-			},
-			Spec: &types.PluginStaticCredentialsSpecV1{
-				Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
-					APIToken: string(scimTokenHash),
-				},
-			},
-		})
-	}
-
-	req := &pluginsv1.CreatePluginRequest{
-		Plugin: &types.PluginV1{
-			SubKind: types.PluginSubkindAccess,
-			Metadata: types.Metadata{
-				Labels: map[string]string{
-					types.HostedPluginLabel: "true",
-				},
-				Name: p.install.name,
-			},
-			Spec: types.PluginSpecV1{
-				Settings: &types.PluginSpecV1_Okta{
-					Okta: &types.PluginOktaSettings{
-						OrgUrl: oktaSettings.org.String(),
-						SyncSettings: &types.PluginOktaSyncSettings{
-							SsoConnectorId:  oktaSettings.samlConnector,
-							AppId:           oktaSettings.appID,
-							SyncUsers:       oktaSettings.userSync,
-							SyncAccessLists: oktaSettings.accessListSync,
-							DefaultOwners:   oktaSettings.defaultOwners,
-							GroupFilters:    oktaSettings.groupFilters,
-							AppFilters:      oktaSettings.appFilters,
-						},
-					},
-				},
-			},
-		},
-		StaticCredentialsList: creds,
-		CredentialLabels: map[string]string{
-			types.OktaOrgURLLabel: oktaSettings.org.String(),
-		},
-	}
-
-	if _, err := args.plugins.CreatePlugin(ctx, req); err != nil {
-		log.ErrorContext(ctx, "Plugin creation failed", logErrorMessage(err))
-		return trace.Wrap(err)
-	}
-
-	fmt.Println("See https://goteleport.com/docs/application-access/okta/hosted-guide for help configuring provisioning in Okta")
-	return nil
+	authClient authClient
+	plugins    pluginsClient
 }
 
 // InstallSCIM implements `tctl plugins install scim`, installing a SCIM integration
@@ -488,7 +306,7 @@ func (p *PluginsCommand) TryRun(ctx context.Context, cmd string, client *authcli
 	case p.cleanupCmd.FullCommand():
 		err = p.Cleanup(ctx, client)
 	case p.install.okta.cmd.FullCommand():
-		args := installPluginArgs{samlConnectors: client, plugins: client.PluginsClient()}
+		args := installPluginArgs{authClient: client, plugins: client.PluginsClient()}
 		err = p.InstallOkta(ctx, args)
 	case p.install.scim.cmd.FullCommand():
 		err = p.InstallSCIM(ctx, client)

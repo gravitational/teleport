@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	debugclient "github.com/gravitational/teleport/lib/client/debug"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/configurators"
@@ -51,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/tpm"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // Options combines init/start teleport options
@@ -523,6 +525,16 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	tpmCmd := app.Command("tpm", "Commands related to managing TPM joining functionality.")
 	tpmIdentifyCmd := tpmCmd.Command("identify", "Output identifying information related to the TPM detected on the system.")
 
+	debugCmd := app.Command("debug", "Debug commands")
+	debugCmd.Flag("config", fmt.Sprintf("Path to a configuration file [%v].", defaults.ConfigFilePath)).Short('c').ExistingFileVar(&ccf.ConfigFile)
+	setLogLevelCmd := debugCmd.Command("set-log-level", "Changes the log level.")
+	setLogLevelCmd.Arg("LEVEL", fmt.Sprintf("Log level (case-insensitive). Any of: %s", strings.Join(logutils.SupportedLevelsText, ","))).Required().StringVar(&ccf.LogLevel)
+	getLogLevelCmd := debugCmd.Command("get-log-level", "Fetches current log level.")
+	collectProfilesCmd := debugCmd.Command("profile", "Export the application profiles (pprof format). Outputs to stdout .tar.gz file contents.")
+	collectProfilesCmd.Alias(collectProfileUsageExamples) // We're using "alias" section to display usage examples.
+	collectProfilesCmd.Arg("PROFILES", fmt.Sprintf("Comma-separated profile names to be exported. Supported profiles: %s. Default: %s", strings.Join(maps.Keys(debugclient.SupportedProfiles), ","), strings.Join(defaultCollectProfiles, ","))).StringVar(&ccf.Profiles)
+	collectProfilesCmd.Flag("seconds", "For CPU and trace profiles, profile for the given duration (if set to 0, it returns a profile snapshot). For other profiles, return a delta profile. Default: 0").Short('s').Default("0").IntVar(&ccf.ProfileSeconds)
+
 	// parse CLI commands+flags:
 	utils.UpdateAppUsageTemplate(app, options.Args)
 	command, err := app.Parse(options.Args)
@@ -637,6 +649,12 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 			break
 		}
 		tpm.PrintQuery(query, ccf.Debug, os.Stdout)
+	case setLogLevelCmd.FullCommand():
+		err = onSetLogLevel(ccf.ConfigFile, ccf.LogLevel)
+	case getLogLevelCmd.FullCommand():
+		err = onGetLogLevel(ccf.ConfigFile)
+	case collectProfilesCmd.FullCommand():
+		err = onCollectProfiles(ccf.ConfigFile, ccf.Profiles, ccf.ProfileSeconds)
 	}
 	if err != nil {
 		utils.FatalError(err)

@@ -478,6 +478,8 @@ const (
 	ProtocolClickHouse = "clickhouse"
 	// ProtocolClickHouseHTTP is the ClickHouse database HTTP protocol.
 	ProtocolClickHouseHTTP = "clickhouse-http"
+	// ProtocolSpanner is the GCP Spanner database protocol.
+	ProtocolSpanner = "spanner"
 )
 
 // DatabaseProtocols is a list of all supported database protocols.
@@ -496,6 +498,7 @@ var DatabaseProtocols = []string{
 	ProtocolDynamoDB,
 	ProtocolClickHouse,
 	ProtocolClickHouseHTTP,
+	ProtocolSpanner,
 }
 
 // ReadableDatabaseProtocol returns a more human-readable string of the
@@ -530,6 +533,8 @@ func ReadableDatabaseProtocol(p string) string {
 		return "Clickhouse"
 	case ProtocolClickHouseHTTP:
 		return "Clickhouse (HTTP)"
+	case ProtocolSpanner:
+		return "GCloud Spanner"
 	default:
 		// Unknown protocol. Return original string.
 		return p

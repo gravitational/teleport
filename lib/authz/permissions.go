@@ -1173,6 +1173,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindClusterAuthPreference, services.RO()),
 						types.NewRule(types.KindRole, services.RO()),
 						types.NewRule(types.KindLock, services.RW()),
+						types.NewRule(types.KindSAML, services.ReadNoSecrets()),
 						// Okta can manage access lists and roles it creates.
 						{
 							Resources: []string{types.KindRole},
