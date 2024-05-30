@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package spanner
+package listener
 
 import (
 	"io"
@@ -24,30 +24,39 @@ import (
 	"sync/atomic"
 )
 
-// singleUseListener wraps a single [net.Conn] and returns it from Accept()
+// SingleUseListener wraps a single [net.Conn] and returns it from Accept()
 // once.
-type singleUseListener struct {
+type SingleUseListener struct {
 	conn     net.Conn
 	accepted atomic.Bool
 }
 
-func newSingleUseListener(c net.Conn) *singleUseListener {
-	return &singleUseListener{
+// NewSingleUseListener creates a new SingleUseListener.
+//
+// SingleUseListener does not assume ownership of the provided net.Conn. The
+// caller must close the provided net.Conn after use.
+func NewSingleUseListener(c net.Conn) *SingleUseListener {
+	return &SingleUseListener{
 		conn: c,
 	}
 }
 
-func (l *singleUseListener) Accept() (net.Conn, error) {
+// Accept returns the provided net.Conn on first call and returns io.EOF on
+// subsequent calls.
+func (l *SingleUseListener) Accept() (net.Conn, error) {
 	if l.accepted.Swap(true) {
 		return nil, io.EOF
 	}
 	return l.conn, nil
 }
 
-func (l *singleUseListener) Addr() net.Addr {
+// Addr returns the provided net.Conn's local address.
+func (l *SingleUseListener) Addr() net.Addr {
 	return l.conn.LocalAddr()
 }
 
-func (l *singleUseListener) Close() error {
+// Close is a no-op. The caller is responsible for closing the provided
+// net.Conn after use.
+func (l *SingleUseListener) Close() error {
 	return nil
 }
