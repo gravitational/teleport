@@ -241,16 +241,9 @@ func (a *App) handleAccessMonitoringRule(ctx context.Context, event types.Event)
 			return trace.BadParameter("expected AccessMonitoringRule resource type, got %T", event.Resource)
 		}
 
-		// If an Access Monitoring Rule with KindAccessRequest is already in the cache and the subjects
-		// change to no longer contain KindAccessRequest.
-		if ok := slices.ContainsFunc(req.Spec.Subjects, func(subject string) bool {
-			return subject == types.KindAccessRequest
-		}); !ok {
-			delete(a.accessMonitoringRules.rules, event.Resource.GetName())
-			return nil
-		}
-
+		// In the event an existing rule no longer applies we must remove it.
 		if !a.amrAppliesToThisPlugin(req) {
+			delete(a.accessMonitoringRules.rules, event.Resource.GetName())
 			return nil
 		}
 		a.accessMonitoringRules.rules[req.Metadata.Name] = req
