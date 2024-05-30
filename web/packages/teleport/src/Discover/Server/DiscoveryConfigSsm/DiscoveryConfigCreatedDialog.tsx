@@ -21,8 +21,6 @@ import { Text, Flex, ButtonPrimary, Box } from 'design';
 import * as Icons from 'design/Icon';
 import Dialog, { DialogContent } from 'design/DialogConfirmation';
 
-import cfg from 'teleport/config';
-
 export function DiscoveryConfigCreatedDialog({
   toNextStep,
 }: {
@@ -40,12 +38,6 @@ export function DiscoveryConfigCreatedDialog({
           <Icons.Check size="small" ml={1} mr={2} color="success.main" />
           <Box>
             <Text>Discovery configuration successfully created.</Text>
-            {cfg.isCloud && (
-              <Text mt={2}>
-                It can take up to 30 minutes for the instances to be discovered
-                and listed in Teleport.
-              </Text>
-            )}
           </Box>
         </Flex>
         <ButtonPrimary width="100%" onClick={() => toNextStep()}>

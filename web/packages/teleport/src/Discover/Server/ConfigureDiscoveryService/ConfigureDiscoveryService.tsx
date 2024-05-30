@@ -26,6 +26,7 @@ import { SelfHostedAutoDiscoverDirections } from 'teleport/Discover/Shared/AutoD
 import { DEFAULT_DISCOVERY_GROUP_NON_CLOUD } from 'teleport/services/discovery';
 
 import { ActionButtons, Header } from '../../Shared';
+import { SingleEc2InstanceInstallation } from '../Shared';
 
 export function ConfigureDiscoveryService() {
   const { nextStep, agentMeta, updateAgentMeta } = useDiscover();
@@ -53,6 +54,7 @@ export function ConfigureDiscoveryService() {
         The Teleport Discovery Service can connect to Amazon EC2 and
         automatically discover and enroll EC2 instances.
       </Text>
+      <SingleEc2InstanceInstallation />
       <SelfHostedAutoDiscoverDirections
         showSubHeader={false}
         clusterPublicUrl={storeUser.state.cluster.publicURL}
