@@ -1,5 +1,19 @@
 # Changelog
 
+## 15.3.8 (unreleased)
+
+* Improved temporary disk space usage for session recording processing. [#42174](https://github.com/gravitational/teleport/pull/42174)
+* Fixed a regression where Kubernetes Exec audit events were not properly populated and lacked error details. [#42145](https://github.com/gravitational/teleport/pull/42145)
+* Fix Azure join method when using Resource Groups in the allow section. [#42141](https://github.com/gravitational/teleport/pull/42141)
+* Fix userState forwarding in CreateSessionCert. [#42136](https://github.com/gravitational/teleport/pull/42136)
+* New commands for debugging/troubleshooting Teleport instances. `teleport debug set-log-level` enables changing the instance log level without a restart. Also, the `teleport debug profile` can collect pprof profiles. [#42122](https://github.com/gravitational/teleport/pull/42122)
+* Add ability to manage access monitoring rules via tctl. [#42092](https://github.com/gravitational/teleport/pull/42092)
+* Extended Discovery Service to self-bootstrap necessary permissions for Kubernetes Service to interact with the Kubernetes API on behalf of users. [#42075](https://github.com/gravitational/teleport/pull/42075)
+* Fixed resource leak in session recording cleanup. [#42066](https://github.com/gravitational/teleport/pull/42066)
+* Reduced memory and cpu usage after control plane restarts in clusters with a high number of roles. [#42062](https://github.com/gravitational/teleport/pull/42062)
+* Added an option to send a Ctrl+Alt+Del sequence to remote desktops. [#41720](https://github.com/gravitational/teleport/pull/41720)
+* Added support for GCP Spanner to Teleport Database Service. [#41349](https://github.com/gravitational/teleport/pull/41349)
+
 ## 15.3.7 (05/23/24)
 
 * Fixed creating access requests for servers in Teleport Connect that were blocked due to a "no roles configured" error. [#41959](https://github.com/gravitational/teleport/pull/41959)
