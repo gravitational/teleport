@@ -16,15 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
-import {
-  Box,
-  Link as ExternalLink,
-  Text,
-  Flex,
-  ButtonSecondary,
-  Link,
-} from 'design';
+import React, { useState, useRef } from 'react';
+import { Box, Link as ExternalLink, Text, Flex, ButtonSecondary } from 'design';
 import styled from 'styled-components';
 import { Danger, Info } from 'design/Alert';
 import TextEditor from 'shared/components/TextEditor';
@@ -58,7 +51,7 @@ import { DiscoveryConfigCreatedDialog } from './DiscoveryConfigCreatedDialog';
 const IAM_POLICY_NAME = 'EC2DiscoverWithSSM';
 
 export function DiscoveryConfigSsm() {
-  const { agentMeta, emitErrorEvent, nextStep, updateAgentMeta } =
+  const { agentMeta, emitErrorEvent, nextStep, updateAgentMeta, prevStep } =
     useDiscover();
 
   const { arnResourceName, awsAccountId } = splitAwsIamArn(
@@ -72,7 +65,7 @@ export function DiscoveryConfigSsm() {
     'TeleportDiscoveryInstaller'
   );
   const [scriptUrl, setScriptUrl] = useState('');
-  const [createdToken, setCreatedToken] = useState<JoinToken>();
+  const joinTokenRef = useRef<JoinToken>();
   const [showRestOfSteps, setShowRestOfSteps] = useState(false);
 
   const [attempt, createJoinTokenAndDiscoveryConfig, setAttempt] = useAsync(
@@ -82,14 +75,12 @@ export function DiscoveryConfigSsm() {
         // Don't create another token if token was already created.
         // This can happen if creating discovery config attempt failed
         // and the user retries.
-        let joinToken = createdToken;
-        if (!joinToken) {
-          joinToken = await joinTokenService.fetchJoinToken({
+        if (!joinTokenRef.current) {
+          joinTokenRef.current = await joinTokenService.fetchJoinToken({
             roles: ['Node'],
             method: 'iam',
             rules: [{ awsAccountId }],
           });
-          setCreatedToken(joinToken);
         }
 
         const config = await createDiscoveryConfig(clusterId, {
@@ -107,7 +98,7 @@ export function DiscoveryConfigSsm() {
               install: {
                 enrollMode: InstallParamEnrollMode.Script,
                 installTeleport: true,
-                joinToken: joinToken.id,
+                joinToken: joinTokenRef.current.id,
               },
             },
           ],
@@ -140,7 +131,19 @@ export function DiscoveryConfigSsm() {
 
   function clear() {
     setAttempt(makeEmptyAttempt);
-    setCreatedToken(null);
+    joinTokenRef.current = undefined;
+  }
+
+  function handleOnSubmit(
+    e: React.MouseEvent<HTMLButtonElement>,
+    validator: Validator
+  ) {
+    e.preventDefault();
+    if (scriptUrl) {
+      setScriptUrl('');
+      return;
+    }
+    generateScriptUrl(validator);
   }
 
   return (
@@ -149,12 +152,12 @@ export function DiscoveryConfigSsm() {
       {cfg.isCloud ? (
         <Text>
           The Teleport Discovery Service can connect to Amazon EC2 and
-          automatically discover and enroll EC2 instances. <SharedText />
+          automatically discover and enroll EC2 instances. <SsmInfoHeaderText />
         </Text>
       ) : (
         <Text>
           Discovery config defines the setup that enables Teleport to
-          automatically discover and register instances. <SharedText />
+          automatically discover and register instances. <SsmInfoHeaderText />
         </Text>
       )}
       {cfg.isCloud && <SingleEc2InstanceInstallation />}
@@ -195,12 +198,12 @@ export function DiscoveryConfigSsm() {
             <Text bold>Step 2</Text>
             <Text typography="subtitle1">
               Attach AWS managed{' '}
-              <Link
+              <ExternalLink
                 target="_blank"
                 href="https://docs.aws.amazon.com/aws-managed-policy/latest/reference/AmazonSSMManagedInstanceCore.html"
               >
                 AmazonSSMManagedInstanceCore
-              </Link>{' '}
+              </ExternalLink>{' '}
               policy to EC2 instances IAM profile. The policy enables EC2
               instances to use SSM core functionality.
             </Text>
@@ -208,19 +211,19 @@ export function DiscoveryConfigSsm() {
           <StyledBox mt={4}>
             <Text bold>Step 3</Text>
             Each EC2 instance requires{' '}
-            <Link
+            <ExternalLink
               target="_blank"
               href="https://docs.aws.amazon.com/systems-manager/latest/userguide/ssm-agent-status-and-restart.html"
             >
               SSM Agent
-            </Link>{' '}
+            </ExternalLink>{' '}
             to be running. The SSM{' '}
-            <Link
+            <ExternalLink
               target="_blank"
               href={`https://${selectedRegion}.console.aws.amazon.com/systems-manager/fleet-manager/managed-nodes?region=${selectedRegion}`}
             >
               Nodes Manager dashboard
-            </Link>{' '}
+            </ExternalLink>{' '}
             will list all instances that have SSM agent already running. Ensure
             ping statuses are <Mark>Online</Mark>.
             <Info mt={3} mb={0}>
@@ -231,38 +234,39 @@ export function DiscoveryConfigSsm() {
           </StyledBox>
           <Validation>
             {({ validator }) => (
-              <StyledBox mt={4}>
-                <Text bold>Step 4</Text>
-                <Box>
-                  <Text typography="subtitle1" mb={1}>
-                    Give a name for the{' '}
-                    <Link
-                      target="_blank"
-                      href="https://docs.aws.amazon.com/systems-manager/latest/userguide/documents.html"
-                    >
-                      AWS SSM Document
-                    </Link>{' '}
-                    that will be created on your behalf. Required to run the
-                    installer script on each discovered instances.
-                  </Text>
-                  <FieldInput
-                    rule={requiredSsmDocument}
-                    label="SSM Document Name"
-                    value={ssmDocumentName}
-                    onChange={e => setSsmDocumentName(e.target.value)}
-                    placeholder="ssm-document-name"
-                    disabled={!!scriptUrl}
-                  />
-                </Box>
-                <ButtonSecondary
-                  onClick={() =>
-                    scriptUrl ? setScriptUrl('') : generateScriptUrl(validator)
-                  }
-                  disabled={!selectedRegion}
-                >
-                  {scriptUrl ? 'Edit' : 'Next'}
-                </ButtonSecondary>
-              </StyledBox>
+              <form>
+                <StyledBox mt={4}>
+                  <Text bold>Step 4</Text>
+                  <Box>
+                    <Text typography="subtitle1" mb={1}>
+                      Give a name for the{' '}
+                      <ExternalLink
+                        target="_blank"
+                        href="https://docs.aws.amazon.com/systems-manager/latest/userguide/documents.html"
+                      >
+                        AWS SSM Document
+                      </ExternalLink>{' '}
+                      that will be created on your behalf. Required to run the
+                      installer script on each discovered instances.
+                    </Text>
+                    <FieldInput
+                      rule={requiredSsmDocument}
+                      label="SSM Document Name"
+                      value={ssmDocumentName}
+                      onChange={e => setSsmDocumentName(e.target.value)}
+                      placeholder="ssm-document-name"
+                      disabled={!!scriptUrl}
+                    />
+                  </Box>
+                  <ButtonSecondary
+                    type="submit"
+                    onClick={e => handleOnSubmit(e, validator)}
+                    disabled={!selectedRegion}
+                  >
+                    {scriptUrl ? 'Edit' : 'Next'}
+                  </ButtonSecondary>
+                </StyledBox>
+              </form>
             )}
           </Validation>
           {scriptUrl && (
@@ -308,6 +312,7 @@ export function DiscoveryConfigSsm() {
 
       <ActionButtons
         onProceed={createJoinTokenAndDiscoveryConfig}
+        onPrev={prevStep}
         disableProceed={attempt.status === 'processing' || !scriptUrl}
       />
     </Box>
@@ -360,7 +365,7 @@ const requiredSsmDocument: Rule = name => () => {
   };
 };
 
-const SharedText = () => (
+const SsmInfoHeaderText = () => (
   <>
     The service will execute an install script on these discovered instances
     using{' '}
