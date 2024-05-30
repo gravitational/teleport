@@ -2,6 +2,7 @@ package clone
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"sync/atomic"
 	"time"
@@ -25,6 +26,7 @@ type Cloner struct {
 	src      backend.Backend
 	dst      backend.Backend
 	parallel int
+	force    bool
 	migrated atomic.Int64
 	log      *slog.Logger
 }
@@ -40,6 +42,9 @@ type Config struct {
 	Destination backend.Config `yaml:"dst"`
 	// Parallel is the number of items that will be cloned in parallel.
 	Parallel int `yaml:"parallel"`
+	// Force indicates whether to clone data regardless of whether data already
+	// exists in the destination [backend.Backend].
+	Force bool `yaml:"force"`
 	// Log logs the progress of cloning.
 	Log *slog.Logger
 }
@@ -58,6 +63,7 @@ func New(ctx context.Context, config Config) (*Cloner, error) {
 		src:      src,
 		dst:      dst,
 		parallel: config.Parallel,
+		force:    config.Force,
 		log:      config.Log,
 	}
 	if cloner.parallel <= 0 {
@@ -95,6 +101,18 @@ func (c *Cloner) Clone(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	if !c.force {
+		result, err := c.dst.GetRange(ctx, start, backend.RangeEnd(start), 1)
+		if err != nil {
+			return trace.Wrap(err, "failed to check destination for existing data")
+		}
+		if len(result.Items) > 0 {
+			return trace.Errorf("unable to clone data to destination with existing data; this may be overriden by configuring 'force: true'")
+		}
+	} else {
+		c.log.Warn("Skipping check for existing data in destination.")
+	}
+
 	group, ctx := errgroup.WithContext(ctx)
 	// Add 1 to ensure a goroutine exists for getting items.
 	group.SetLimit(c.parallel + 1)
@@ -130,7 +148,7 @@ func (c *Cloner) Clone(ctx context.Context) error {
 	})
 
 	logProgress := func() {
-		c.log.Info("Migrated %d", c.migrated.Load())
+		c.log.Info(fmt.Sprintf("Migrated %d", c.migrated.Load()))
 	}
 	defer logProgress()
 	go func() {
