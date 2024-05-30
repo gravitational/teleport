@@ -59,7 +59,6 @@ func TestAzureOIDCConfigureScript(t *testing.T) {
 		{
 			name: "valid",
 			reqQuery: url.Values{
-				"integrationName":   []string{"myintegration"},
 				"authConnectorName": []string{"myconnector"},
 				"accessGraph":       []string{"true"},
 			},
@@ -72,7 +71,6 @@ func TestAzureOIDCConfigureScript(t *testing.T) {
 		{
 			name: "valid without accessGraph",
 			reqQuery: url.Values{
-				"integrationName":   []string{"myintegration"},
 				"authConnectorName": []string{"myconnector"},
 			},
 			errCheck: require.NoError,
@@ -81,25 +79,10 @@ func TestAzureOIDCConfigureScript(t *testing.T) {
 				`--auth-connector-name=myconnector`,
 		},
 		{
-			name: "integrationName invalid",
-			reqQuery: url.Values{
-				"integrationName":   []string{"myintegration;"},
-				"authConnectorName": []string{"myconnector"},
-			},
-			errCheck: isBadParamErrFn,
-		},
-		{
 			name: "authConnectorName invalid",
 			reqQuery: url.Values{
 				"integrationName":   []string{"myintegration"},
 				"authConnectorName": []string{"myconnector;"},
-			},
-			errCheck: isBadParamErrFn,
-		},
-		{
-			name: "integrationName missing",
-			reqQuery: url.Values{
-				"authConnectorName": []string{"myconnector"},
 			},
 			errCheck: isBadParamErrFn,
 		},
