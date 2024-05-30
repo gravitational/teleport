@@ -319,6 +319,9 @@ const cfg = {
     awsConfigureIamAppAccessPath:
       '/v1/webapi/scripts/integrations/configure/aws-app-access-iam.sh?role=:iamRoleName',
 
+    awsConfigureIamEc2AutoDiscoverWithSsmPath:
+      '/v1/webapi/scripts/integrations/configure/ec2-ssm-iam.sh?role=:iamRoleName&awsRegion=:region&ssmDocument=:ssmDocument',
+
     eksClustersListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/eksclusters',
     eksEnrollClustersPath:
@@ -1089,6 +1092,17 @@ const cfg = {
     );
   },
 
+  getAwsIamConfigureScriptEc2AutoDiscoverWithSsmUrl(
+    params: UrlAwsConfigureIamEc2AutoDiscoverWithSsmScriptParams
+  ) {
+    return (
+      cfg.baseUrl +
+      generatePath(cfg.api.awsConfigureIamEc2AutoDiscoverWithSsmPath, {
+        ...params,
+      })
+    );
+  },
+
   getAwsConfigureIamScriptListDatabasesUrl(
     params: UrlAwsConfigureIamScriptParams
   ) {
@@ -1246,6 +1260,12 @@ export interface UrlAwsOidcConfigureIdp {
 export interface UrlAwsConfigureIamScriptParams {
   region: Regions;
   iamRoleName: string;
+}
+
+export interface UrlAwsConfigureIamEc2AutoDiscoverWithSsmScriptParams {
+  region: Regions;
+  iamRoleName: string;
+  ssmDocument: string;
 }
 
 export interface UrlGcpWorkforceConfigParam {
