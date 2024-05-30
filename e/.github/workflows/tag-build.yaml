@@ -55,12 +55,29 @@ jobs:
           ref: ${{ inputs.oss-teleport-ref }}
           version: ${{ inputs.teleport-version }}
       - name: Reject non-cloud prereleases being sent to production
-        if: ${{ contains(inputs.environment, 'prod') && !contains(fromJson('["", "cloud"]'), steps.determine-version.outputs.pre-release) }}
         env:
-          VERSION: ${{ steps.determine-version.outputs.full }}
-          GH_ENVIRONMENT: ${{ inputs.environment }}
+          PRERELEASE_VERSION: ${{ steps.determine-version.outputs.pre-release }}
+          IS_CLOUD_ONLY: ${{ inputs.cloud-only }}
+          TARGET_ENVIRONMENT: ${{ inputs.environment }}
         run: |
-          echo "::error title=Prerelease sent to production environment::Prereleases ($VERSION) must not be sent to production environments ($GH_ENVIRONMENT)." >&2
+          # If not a production release, allow it
+          if [[ "${TARGET_ENVIRONMENT}" != *prod* ]]; then
+            exit 0
+          fi
+
+          # If the prerelease version is not set (full release),
+          # allow it
+          if [[ -z "${PRERELEASE_VERSION}"  ]]; then
+            exit 0
+          fi
+
+          # If a cloud prerelease and a cloud only build, allow it
+          if [[ "${PRERELEASE_VERSION}" == cloud* && "${IS_CLOUD_ONLY}" == 'true' ]]; then
+            exit 0
+          fi
+
+          # Else reject it
+          echo "::error title=Prerelease sent to production environment::Prereleases must not be sent to production environments (${TARGET_ENVIRONMENT})." >&2
           exit 1
 
       - name: ${{ inputs.workflow-tag }}
