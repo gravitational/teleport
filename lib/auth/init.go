@@ -472,12 +472,15 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 			return trace.Wrap(err)
 		}
 		if cn.GetClusterName() != cfg.ClusterName.GetClusterName() {
-			warnMessage := "Cannot rename cluster to %q: continuing with %q. Teleport " +
+			msg := "Cannot rename cluster: continuing with current cluster name. Teleport " +
 				"clusters can not be renamed once they are created. You are seeing this " +
-				"warning for one of two reasons. Either you have not set \"cluster_name\" in " +
+				"message for one of two reasons. Either you have not set \"cluster_name\" in " +
 				"Teleport configuration and changed the hostname of the auth server or you " +
 				"are trying to change the value of \"cluster_name\"."
-			log.Warnf(warnMessage, cfg.ClusterName.GetClusterName(), cn.GetClusterName())
+			log.WithFields(logrus.Fields{
+				"current_cluster_name":    cn.GetClusterName(),
+				"configured_cluster_name": cfg.ClusterName.GetClusterName(),
+			}).Error(msg)
 		}
 
 		log.Debugf("Cluster configuration: %v.", cn.GetClusterName())
