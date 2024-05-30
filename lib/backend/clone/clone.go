@@ -1,16 +1,17 @@
-package migration
+package clone
 
 import (
 	"context"
+	"log/slog"
 	"sync/atomic"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/trace"
 )
 
@@ -19,32 +20,32 @@ const (
 	bufferSize = 10000
 )
 
-// Migration manages a migration between two [backend.Backend] interfaces.
-type Migration struct {
+// Cloner manages cloning data between two [backend.Backend] interfaces.
+type Cloner struct {
 	src      backend.Backend
 	dst      backend.Backend
 	parallel int
 	migrated atomic.Int64
-	log      logrus.FieldLogger
+	log      *slog.Logger
 }
 
-// MigrationConfig configures a [Migration] with a source and destination backend.
+// Config contains the configuration for cloning a [backend.Backend].
 // All items from the source are copied to the destination. All Teleport Auth
-// Service instances should be stopped when running a migration to avoid data
+// Service instances should be stopped when running clone to avoid data
 // inconsistencies.
-type MigrationConfig struct {
-	// Source is the backend [backend.Config] items are migrated from.
+type Config struct {
+	// Source is the backend [backend.Config] items are cloned from.
 	Source backend.Config `yaml:"src"`
-	// Destination is the [backend.Config] items are migrated to.
+	// Destination is the [backend.Config] items are cloned to.
 	Destination backend.Config `yaml:"dst"`
-	// Parallel is the number of items that will be migraated in parallel.
+	// Parallel is the number of items that will be cloned in parallel.
 	Parallel int `yaml:"parallel"`
-	// Log logs the progress of a [Migration]
-	Log logrus.FieldLogger
+	// Log logs the progress of cloning.
+	Log *slog.Logger
 }
 
-// New returns a [Migration] based on the provided [MigrationConfig].
-func New(ctx context.Context, config MigrationConfig) (*Migration, error) {
+// New returns a [Cloner] based on the provided [Config].
+func New(ctx context.Context, config Config) (*Cloner, error) {
 	src, err := backend.New(ctx, config.Source.Type, config.Source.Params)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to create source backend")
@@ -53,31 +54,32 @@ func New(ctx context.Context, config MigrationConfig) (*Migration, error) {
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to create destination backend")
 	}
-	migration := &Migration{
+	cloner := &Cloner{
 		src:      src,
 		dst:      dst,
 		parallel: config.Parallel,
 		log:      config.Log,
 	}
-	if migration.parallel <= 0 {
-		migration.parallel = 1
+	if cloner.parallel <= 0 {
+		cloner.parallel = 1
 	}
-	if migration.log == nil {
-		migration.log = logrus.WithField(teleport.ComponentKey, "migration")
+	if cloner.log == nil {
+		cloner.log = logutils.NewPackageLogger(teleport.ComponentKey, "backend.clone")
 	}
-	return migration, nil
+	return cloner, nil
 }
 
-func (m *Migration) Close() error {
+// Close ensures the source and destination backends are closed.
+func (c *Cloner) Close() error {
 	var errs []error
-	if m.src != nil {
-		err := m.src.Close()
+	if c.src != nil {
+		err := c.src.Close()
 		if err != nil {
 			errs = append(errs, err)
 		}
 	}
-	if m.dst != nil {
-		err := m.dst.Close()
+	if c.dst != nil {
+		err := c.dst.Close()
 		if err != nil {
 			errs = append(errs, err)
 		}
@@ -85,8 +87,8 @@ func (m *Migration) Close() error {
 	return trace.NewAggregate(errs...)
 }
 
-// Run runs a [Migration] until complete.
-func (m *Migration) Run(ctx context.Context) error {
+// Run runs backend cloning until complete.
+func (c *Cloner) Clone(ctx context.Context) error {
 	itemC := make(chan backend.Item, bufferSize)
 	start := backend.Key("")
 
@@ -95,7 +97,7 @@ func (m *Migration) Run(ctx context.Context) error {
 
 	group, ctx := errgroup.WithContext(ctx)
 	// Add 1 to ensure a goroutine exists for getting items.
-	group.SetLimit(m.parallel + 1)
+	group.SetLimit(c.parallel + 1)
 
 	group.Go(func() error {
 		var result *backend.GetResult
@@ -104,7 +106,7 @@ func (m *Migration) Run(ctx context.Context) error {
 		for {
 			err := retry(ctx, 3, func() error {
 				var err error
-				result, err = m.src.GetRange(ctx, pageKey, backend.RangeEnd(start), bufferSize)
+				result, err = c.src.GetRange(ctx, pageKey, backend.RangeEnd(start), bufferSize)
 				if err != nil {
 					return trace.Wrap(err)
 				}
@@ -128,7 +130,7 @@ func (m *Migration) Run(ctx context.Context) error {
 	})
 
 	logProgress := func() {
-		m.log.Infof("Migrated %d", m.migrated.Load())
+		c.log.Info("Migrated %d", c.migrated.Load())
 	}
 	defer logProgress()
 	go func() {
@@ -146,14 +148,14 @@ func (m *Migration) Run(ctx context.Context) error {
 		item := item
 		group.Go(func() error {
 			if err := retry(ctx, 3, func() error {
-				if _, err := m.dst.Put(ctx, item); err != nil {
+				if _, err := c.dst.Put(ctx, item); err != nil {
 					return trace.Wrap(err)
 				}
 				return nil
 			}); err != nil {
 				return trace.Wrap(err)
 			}
-			m.migrated.Add(1)
+			c.migrated.Add(1)
 			return nil
 		})
 		if err := ctx.Err(); err != nil {
