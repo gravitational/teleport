@@ -31,14 +31,14 @@ to Teleport Enterprise customers.
     and must list the IP or DNS name of the TAG service in an X.509 v3 `subjectAltName` extension.
   - Starting from version 1.20.4 of the Access Graph service, the container runs as a non-root user by default.
     Make sure the certificate files are readable by the user running the container. You can set correct permissions with the following command:
-    ```console
+    ```code
     $ sudo chown 65532 /etc/access_graph/tls.key
     ```
 - The node running the Access Graph service must be reachable from Teleport Auth Service and Proxy Service.
 
 <Notice type="warning">
     The deployment with Docker is suitable for testing and development purposes. For production deployments,
-    consider using a container orchestration system like Kubernetes and Helm.
+    consider using the Teleport Access Graph Helm chart to deploy this service on Kubernetes.
     Refer to [Helm chart for Access Graph](self-hosted-helm.mdx) for instructions.
 </Notice>
 
