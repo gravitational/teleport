@@ -84,22 +84,11 @@ export const SERVERS: ResourceSpec[] = [
     platform: Platform.macOS,
   },
   {
-    name: 'EC2 Instance',
+    name: 'EC2 Auto Enrollment',
     kind: ResourceKind.Server,
     keywords:
-      baseServerKeywords + 'ec2 instance connect endpoint aws amazon eice',
-    icon: 'Aws',
-    event: DiscoverEventResource.Ec2Instance,
-    nodeMeta: {
-      location: ServerLocation.Aws,
-      discoveryConfigMethod: DiscoverDiscoveryConfigMethod.AwsEc2Eice,
-    },
-  },
-  {
-    name: 'EC2 Auto Discover with SSM',
-    kind: ResourceKind.Server,
-    keywords:
-      baseServerKeywords + 'ec2 instance aws amazon simple systems manager ssm',
+      baseServerKeywords +
+      'ec2 instance aws amazon simple systems manager ssm auto enrollment',
     icon: 'Aws',
     event: DiscoverEventResource.Ec2Instance,
     nodeMeta: {

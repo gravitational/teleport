@@ -51,6 +51,8 @@ import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import { ActionButtons, Header, Mark, StyledBox } from '../../Shared';
 
+import { SingleEc2InstanceInstallation } from '../Shared';
+
 import { DiscoveryConfigCreatedDialog } from './DiscoveryConfigCreatedDialog';
 
 const IAM_POLICY_NAME = 'EC2DiscoverWithSSM';
@@ -155,6 +157,7 @@ export function DiscoveryConfigSsm() {
           automatically discover and register instances. <SharedText />
         </Text>
       )}
+      {cfg.isCloud && <SingleEc2InstanceInstallation />}
       {attempt.status === 'error' && (
         <Danger mt={3}>{attempt.statusText}</Danger>
       )}
