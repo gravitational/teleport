@@ -67,7 +67,8 @@ type azureCLIProfile struct {
 }
 
 type azureCLISubscription struct {
-	TenantID string `json:"tenantID"`
+	TenantID  string `json:"tenantID"`
+	IsDefault bool   `json:"isDefault"`
 }
 
 // getTenantID infers the Azure tenant ID from the Azure CLI profiles.
@@ -87,14 +88,14 @@ func getTenantID() (string, error) {
 
 	var profile azureCLIProfile
 	if err := json.Unmarshal(payload, &profile); err != nil {
-		return "", trace.Wrap(err)
-	}
-	if len(profile.Subscriptions) == 0 {
-		return "", trace.BadParameter("subscription not found")
+		return "", trace.Wrap(err, "failed to parse Azure profile")
 	}
 
-	// Users are expected to run this in the Azure Cloud Shell,
-	// where they are by default authenticated to only one subscription.
-	return profile.Subscriptions[0].TenantID, nil
+	for _, subscription := range profile.Subscriptions {
+		if subscription.IsDefault {
+			return subscription.TenantID, nil
+		}
+	}
 
+	return "", trace.NotFound("subscription not found")
 }
