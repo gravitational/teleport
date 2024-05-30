@@ -24,7 +24,10 @@ import { AuthType } from 'teleport/services/user';
 
 import { ResourceKind } from '../Shared/ResourceKind';
 
-import type { DiscoverEventResource } from 'teleport/services/userEvent';
+import type {
+  DiscoverDiscoveryConfigMethod,
+  DiscoverEventResource,
+} from 'teleport/services/userEvent';
 
 import type { ResourceIconName } from 'design/ResourceIcon';
 
@@ -77,8 +80,11 @@ export enum SamlServiceProviderPreset {
 
 export interface ResourceSpec {
   dbMeta?: { location: DatabaseLocation; engine: DatabaseEngine };
-  nodeMeta?: { location: ServerLocation };
   appMeta?: { awsConsole?: boolean };
+  nodeMeta?: {
+    location: ServerLocation;
+    discoveryConfigMethod: DiscoverDiscoveryConfigMethod;
+  };
   kubeMeta?: { location: KubeLocation };
   samlMeta?: { preset: SamlServiceProviderPreset };
   name: string;
