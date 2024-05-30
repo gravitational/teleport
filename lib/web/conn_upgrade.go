@@ -20,6 +20,7 @@ package web
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"net"
@@ -134,7 +135,7 @@ func (h *Handler) upgradeALPNWebSocket(w http.ResponseWriter, r *http.Request, u
 	default:
 		// Just close the connection. Upgrader hijacks the connection so no
 		// point returning an error.
-		h.logger.DebugContext(ctx, "Unknown or empty WebSocket subprotocol.", "client-protocols", websocket.Subprotocols(r))
+		h.logger.DebugContext(ctx, "Unknown or empty WebSocket subprotocol.", "client_protocols", websocket.Subprotocols(r))
 		return nil, nil
 	}
 
@@ -272,7 +273,8 @@ func (c *websocketALPNServerConn) Read(b []byte) (int, error) {
 	// hijack, the SetReadDeadline is called with a past timepoint to fail this
 	// Read so that the HTTP server's background read can be stopped. In such
 	// cases, return the original net.Error and clear the cached read error.
-	if netError, ok := trace.Unwrap(err).(net.Error); ok && netError.Timeout() {
+	var netError net.Error
+	if errors.As(err, &netError) && netError.Timeout() {
 		c.readError = nil
 		c.logger.Log(c.logContext, logutils.TraceLevel, "Cleared cached read error.", "err", netError)
 		return n, netError
