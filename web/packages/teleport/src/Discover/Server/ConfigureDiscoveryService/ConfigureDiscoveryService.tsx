@@ -29,7 +29,7 @@ import { ActionButtons, Header } from '../../Shared';
 import { SingleEc2InstanceInstallation } from '../Shared';
 
 export function ConfigureDiscoveryService() {
-  const { nextStep, agentMeta, updateAgentMeta } = useDiscover();
+  const { nextStep, prevStep, agentMeta, updateAgentMeta } = useDiscover();
 
   const [discoveryGroupName, setDiscoveryGroupName] = useState(
     DEFAULT_DISCOVERY_GROUP_NON_CLOUD
@@ -61,7 +61,7 @@ export function ConfigureDiscoveryService() {
         discoveryGroupName={discoveryGroupName}
         setDiscoveryGroupName={setDiscoveryGroupName}
       />
-      <ActionButtons onProceed={handleNextStep} />
+      <ActionButtons onProceed={handleNextStep} onPrev={prevStep} />
     </Box>
   );
 }
