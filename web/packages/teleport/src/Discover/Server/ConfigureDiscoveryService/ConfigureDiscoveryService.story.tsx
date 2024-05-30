@@ -40,7 +40,7 @@ import { ServerLocation } from 'teleport/Discover/SelectResource';
 import { ConfigureDiscoveryService as Comp } from './ConfigureDiscoveryService';
 
 export default {
-  title: 'Teleport/Discover/Server',
+  title: 'Teleport/Discover/Server/EC2',
 };
 
 export const ConfigureDiscoveryService = () => {

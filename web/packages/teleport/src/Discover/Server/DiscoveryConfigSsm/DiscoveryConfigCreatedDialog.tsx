@@ -38,6 +38,10 @@ export function DiscoveryConfigCreatedDialog({
           <Icons.Check size="small" ml={1} mr={2} color="success.main" />
           <Box>
             <Text>Discovery configuration successfully created.</Text>
+            <Text>
+              The discovery service can take a few minutes to finish
+              auto-enrolling resources.
+            </Text>
           </Box>
         </Flex>
         <ButtonPrimary width="100%" onClick={() => toNextStep()}>

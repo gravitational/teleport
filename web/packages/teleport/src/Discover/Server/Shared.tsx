@@ -43,7 +43,7 @@ export const SingleEc2InstanceInstallation = () => (
       >
         Teleport service installation
       </InternalLink>{' '}
-      flow instead.
+      flow.
     </Box>
   </OutlineInfo>
 );
