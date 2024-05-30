@@ -13,6 +13,9 @@
 * Reduced memory and cpu usage after control plane restarts in clusters with a high number of roles. [#42062](https://github.com/gravitational/teleport/pull/42062)
 * Added an option to send a Ctrl+Alt+Del sequence to remote desktops. [#41720](https://github.com/gravitational/teleport/pull/41720)
 * Added support for GCP Spanner to Teleport Database Service. [#41349](https://github.com/gravitational/teleport/pull/41349)
+* Fixed "kubectl exec" functionality when Teleport is running behind L7 load balancer. [#42192](https://github.com/gravitational/teleport/pull/42192)
+* Fixed bug where the plugins AMR cache is not updated in the event Access requests are removed from the subject of an existing rule. [#42186](https://github.com/gravitational/teleport/pull/42186)
+* Added access monitoring rule routing for slack access plugin. [#42087](https://github.com/gravitational/teleport/pull/42087)
 
 ## 15.3.7 (05/23/24)
 
