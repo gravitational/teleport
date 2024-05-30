@@ -311,6 +311,9 @@ func (s *SlackSuiteOSS) TestRecipientsFromAccessMonitoringRule() {
 	assert.Equal(t, s.requesterOSSSlackUser.ID, messages[0].Channel)
 	assert.Equal(t, s.reviewer1SlackUser.ID, messages[1].Channel)
 	assert.Equal(t, s.reviewer2SlackUser.ID, messages[2].Channel)
+
+	assert.NoError(t, s.ClientByName(integration.RulerUserName).
+		AccessMonitoringRulesClient().DeleteAccessMonitoringRule(ctx, "test-slack-amr"))
 }
 
 func (s *SlackSuiteOSS) TestRecipientsFromAccessMonitoringRuleAfterUpdate() {
@@ -334,7 +337,7 @@ func (s *SlackSuiteOSS) TestRecipientsFromAccessMonitoringRuleAfterUpdate() {
 			Kind:    types.KindAccessMonitoringRule,
 			Version: types.V1,
 			Metadata: &v1.Metadata{
-				Name: "test-slack-amr",
+				Name: "test-slack-amr-2",
 			},
 			Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
 				Subjects:  []string{types.KindAccessRequest},
@@ -356,7 +359,7 @@ func (s *SlackSuiteOSS) TestRecipientsFromAccessMonitoringRuleAfterUpdate() {
 			Kind:    types.KindAccessMonitoringRule,
 			Version: types.V1,
 			Metadata: &v1.Metadata{
-				Name: "test-slack-amr",
+				Name: "test-slack-amr-2",
 			},
 			Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
 				Subjects:  []string{"someOtherKind"},
@@ -401,6 +404,9 @@ func (s *SlackSuiteOSS) TestRecipientsFromAccessMonitoringRuleAfterUpdate() {
 	sort.Sort(SlackMessageSlice(messages))
 	assert.Equal(t, s.requesterOSSSlackUser.ID, messages[0].Channel)
 	assert.Equal(t, s.reviewer2SlackUser.ID, messages[1].Channel)
+
+	assert.NoError(t, s.ClientByName(integration.RulerUserName).
+		AccessMonitoringRulesClient().DeleteAccessMonitoringRule(ctx, "test-slack-amr-2"))
 }
 
 // TestApproval tests that when a request is approved, its corresponding message
