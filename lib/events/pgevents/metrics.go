@@ -34,7 +34,7 @@ var (
 		prometheus.CounterOpts{
 			Namespace: teleport.MetricNamespace,
 			Name:      "postgres_events_backend_write_requests",
-			Help:      "Number of write requests to postgres events, labelled with the request `status` (success or failure).",
+			Help:      "Number of write requests to postgres events, labeled with the request `status` (success or failure).",
 		},
 		labels,
 	)
@@ -42,7 +42,7 @@ var (
 		prometheus.CounterOpts{
 			Namespace: teleport.MetricNamespace,
 			Name:      "postgres_events_backend_batch_read_requests",
-			Help:      "Number of batch read requests to postgres events, labelled with the request `status` (success or failure).",
+			Help:      "Number of batch read requests to postgres events, labeled with the request `status` (success or failure).",
 		},
 		labels,
 	)
@@ -50,7 +50,7 @@ var (
 		prometheus.CounterOpts{
 			Namespace: teleport.MetricNamespace,
 			Name:      "postgres_events_backend_batch_delete_requests",
-			Help:      "Number of batch delete requests to postgres events, labelled with the request `status` (success or failure).",
+			Help:      "Number of batch delete requests to postgres events, labeled with the request `status` (success or failure).",
 		},
 		labels,
 	)
