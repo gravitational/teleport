@@ -240,7 +240,10 @@ func (a *App) handleAccessMonitoringRule(ctx context.Context, event types.Event)
 		if !ok {
 			return trace.BadParameter("expected AccessMonitoringRule resource type, got %T", event.Resource)
 		}
+
+		// In the event an existing rule no longer applies we must remove it.
 		if !a.amrAppliesToThisPlugin(req) {
+			delete(a.accessMonitoringRules.rules, event.Resource.GetName())
 			return nil
 		}
 		a.accessMonitoringRules.rules[req.Metadata.Name] = req
