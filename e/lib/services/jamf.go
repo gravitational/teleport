@@ -147,7 +147,7 @@ func JamfPluginInit(ctx context.Context, process *service.TeleportProcess, httpC
 	}
 
 	// Set the expected instance role for this identity event since it's unique to this plugin.
-	process.SetExpectedInstanceRole(types.RoleMDM, jamfIdentityEvent)
+	process.SetExpectedHostedPluginRole(types.RoleMDM, jamfIdentityEvent)
 
 	// We don't want auth process to exit due to faulty jamf config.
 	process.RegisterFunc("jamf.init", func() error {

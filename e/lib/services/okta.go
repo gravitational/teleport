@@ -101,7 +101,7 @@ func InitOktaPlugin(ctx context.Context, params OktaPluginPrams) string {
 	process := params.Process
 	settings := params.Settings
 	// Set the expected instance role for this identity event since it's unique to this plugin.
-	process.SetExpectedInstanceRole(types.RoleOkta, identityEvent)
+	process.SetExpectedHostedPluginRole(types.RoleOkta, identityEvent)
 
 	process.RegisterWithAuthServer(types.RoleOkta, identityEvent)
 	process.RegisterFunc(oktaInit, func() error {
