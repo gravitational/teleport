@@ -64,7 +64,7 @@ func createGraphClient() (*msgraphsdk.GraphServiceClient, error) {
 func EnsureAZLogin(ctx context.Context) error {
 	fmt.Println("We will execute `az login` to acquire the necessary permissions and allow you to choose the desired Entra ID tenant.")
 	fmt.Println("Please follow the instructions below.")
-	cmd := exec.CommandContext(ctx, "az", "login")
+	cmd := exec.CommandContext(ctx, "az", "login", "--only-show-errors")
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
