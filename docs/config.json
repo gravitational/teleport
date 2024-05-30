@@ -1482,10 +1482,6 @@
           "slug": "/desktop-access/getting-started/"
         },
         {
-          "title": "Active Directory",
-          "slug": "/desktop-access/active-directory/"
-        },
-        {
           "title": "Active Directory (Manual)",
           "slug": "/desktop-access/active-directory-manual/"
         },

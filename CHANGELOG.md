@@ -43,6 +43,21 @@ We also updated the shortcut to open a new terminal on macOS to Cmd + \`.
 See [configuration](docs/pages/connect-your-client/teleport-connect.mdx#configuration)
 for the current list of shortcuts.
 
+### Teleport plugins improvement
+
+Teleport plugins have under major improvements in v16. Starting with v16, all
+plugins will have:
+* amd64 and arm64 binaries available
+* amd64 and arm64 images available via multi-arch image manifests
+* major and minor version rolling tags (i.e. `public.ecr.aws/gravitational/teleport-plugin-email:16`)
+* image signatures for all images
+* additional debug images with all of the above features (i.e. public.ecr.aws/gravitational/teleport-plugin-email-debug:16)
+
+Additionally, we will now support plugins for all supported major Teleport
+versions, starting with v15. This means that if we fix a bug or security issue
+in a v16 plugin version, we will now also apply and release the change for the
+v15 plugin version.
+
 ## 15.0.0 (xx/xx/24)
 
 ### New features
