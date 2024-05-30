@@ -3092,6 +3092,21 @@ func (c *Cache) ListAccessMonitoringRules(ctx context.Context, pageSize int, nex
 	return out, nextKey, trace.Wrap(err)
 }
 
+// ListAccessMonitoringRulesWithFilter returns a paginated list of access monitoring rules.
+func (c *Cache) ListAccessMonitoringRulesWithFilter(ctx context.Context, pageSize int, nextToken string, subjects []string, notificationName string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListAccessMonitoringRules")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.accessMonitoringRules)
+
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	out, nextKey, err := rg.reader.ListAccessMonitoringRulesWithFilter(ctx, pageSize, nextToken, subjects, notificationName)
+	return out, nextKey, trace.Wrap(err)
+}
+
 // GetAccessMonitoringRule returns the specified AccessMonitoringRule resources.
 func (c *Cache) GetAccessMonitoringRule(ctx context.Context, name string) (*accessmonitoringrulesv1.AccessMonitoringRule, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetAccessMonitoringRule")
