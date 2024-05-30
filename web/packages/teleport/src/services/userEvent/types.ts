@@ -62,7 +62,6 @@ export enum IntegrationEnrollKind {
   OpsGenie = 'INTEGRATION_ENROLL_KIND_OPSGENIE',
   Okta = 'INTEGRATION_ENROLL_KIND_OKTA',
   Jamf = 'INTEGRATION_ENROLL_KIND_JAMF',
-  EntraId = 'INTEGRATION_ENROLL_KIND_ENTRA_ID',
   ServiceNow = 'INTEGRATION_ENROLL_KIND_SERVICENOW',
   MachineID = 'INTEGRATION_ENROLL_KIND_MACHINE_ID',
   MachineIDGitHubActions = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_GITHUB_ACTIONS',
@@ -75,6 +74,7 @@ export enum IntegrationEnrollKind {
   MachineIDAzure = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_AZURE',
   MachineIDSpacelift = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_SPACELIFT',
   MachineIDKubernetes = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_KUBERNETES',
+  EntraId = 'INTEGRATION_ENROLL_KIND_ENTRA_ID',
 }
 
 // These constants should match the constant defined in backend found in:
