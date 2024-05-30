@@ -577,12 +577,7 @@ func (s *session) launch(isEphemeralCont bool) (returnErr error) {
 			Code:        events.SessionStartCode,
 			ClusterName: s.forwarder.cfg.ClusterName,
 		},
-		ServerMetadata: apievents.ServerMetadata{
-			ServerID:        s.forwarder.cfg.HostID,
-			ServerNamespace: s.forwarder.cfg.Namespace,
-			ServerHostname:  s.sess.teleportCluster.name,
-			ServerAddr:      s.sess.kubeAddress,
-		},
+		ServerMetadata:  s.sess.getServerMetadata(),
 		SessionMetadata: s.getSessionMetadata(),
 		UserMetadata:    s.ctx.eventUserMeta(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
@@ -747,9 +742,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, eventPodMeta 
 					RemoteAddr: s.req.RemoteAddr,
 					Protocol:   events.EventProtocolKube,
 				},
-				ServerMetadata: apievents.ServerMetadata{
-					ServerNamespace: s.forwarder.cfg.Namespace,
-				},
+				ServerMetadata:            s.sess.getServerMetadata(),
 				SessionMetadata:           s.getSessionMetadata(),
 				UserMetadata:              s.ctx.eventUserMeta(),
 				TerminalSize:              params.Serialize(),
@@ -781,10 +774,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, eventPodMeta 
 		s.mu.Lock()
 		defer s.mu.Unlock()
 
-		serverMetadata := apievents.ServerMetadata{
-			ServerID:        s.forwarder.cfg.HostID,
-			ServerNamespace: s.forwarder.cfg.Namespace,
-		}
+		serverMetadata := s.sess.getServerMetadata()
 
 		sessionMetadata := s.getSessionMetadata()
 
