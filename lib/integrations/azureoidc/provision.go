@@ -18,8 +18,11 @@ package azureoidc
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"fmt"
 	"os"
+	"os/exec"
 	"os/user"
 	"path/filepath"
 
@@ -52,6 +55,20 @@ func createGraphClient() (*msgraphsdk.GraphServiceClient, error) {
 
 	// Create a Graph client using request adapter
 	return msgraphsdk.NewGraphServiceClient(adapter), nil
+}
+
+// EnsureAZLogin invokes `az login` and waits for the command to successfully complete.
+// In Azure Cloud Shell, this has the effect of retrieving on-behalf-of user credentials
+// which we need to read SSO information (see [CreateTAGCacheFile] and ./private.go),
+// as well as prompting the user to choose the desired Azure subscription / directory tenant.
+func EnsureAZLogin(ctx context.Context) error {
+	fmt.Println("We will execute `az login` to acquire the necessary permissions and allow you to choose the desired Entra ID tenant.")
+	fmt.Println("Please follow the instructions below.")
+	cmd := exec.CommandContext(ctx, "az", "login")
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return trace.Wrap(cmd.Run())
 }
 
 func getAzureDir() (string, error) {
