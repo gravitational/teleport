@@ -115,7 +115,13 @@ func (h *Handler) upgradeALPNWebSocket(w http.ResponseWriter, r *http.Request, u
 
 	h.logger.Log(r.Context(), logutils.TraceLevel, "Received WebSocket upgrade.", "protocol", wsConn.Subprotocol())
 
-	conn := newWebSocketALPNServerConn(r.Context(), wsConn, h.logger)
+	// websocketALPNServerConn uses "github.com/gobwas/ws" on the raw net.Conn
+	// instead of gorilla's websocket.Conn to workaround an issue that
+	// websocket.Conn caches read error when websocketALPNServerConn is passed
+	// to a HTTP server and get hijacked for another upgrade. Note that client
+	// side's (api/client) websocket ALPN connection wrapper also uses
+	// "github.com/gobwas/ws".
+	conn := newWebSocketALPNServerConn(r.Context(), wsConn.NetConn(), h.logger)
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 
@@ -247,15 +253,9 @@ type websocketALPNServerConn struct {
 	logger     *slog.Logger
 }
 
-func newWebSocketALPNServerConn(ctx context.Context, wsConn *websocket.Conn, logger *slog.Logger) *websocketALPNServerConn {
+func newWebSocketALPNServerConn(ctx context.Context, conn net.Conn, logger *slog.Logger) *websocketALPNServerConn {
 	return &websocketALPNServerConn{
-		// Here "github.com/gobwas/ws" is used on the raw net.Conn instead of
-		// gorilla's websocket.Conn to workaround an issue that websocket.Conn
-		// caches read error when websocketALPNServerConn is passed to a HTTP
-		// server and get hijacked for another upgrade. Note that client side's
-		// (api/client) websocket ALPN connection wrapper also uses
-		// "github.com/gobwas/ws".
-		Conn:       wsConn.NetConn(),
+		Conn:       conn,
 		logContext: ctx,
 		logger:     logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentWeb, "alpnws")),
 	}

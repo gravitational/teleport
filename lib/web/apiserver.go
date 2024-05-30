@@ -139,6 +139,7 @@ type healthCheckAppServerFunc func(ctx context.Context, publicAddr string, clust
 
 // Handler is HTTP web proxy handler
 type Handler struct {
+	// TODO(greedy52) deprecate logrus.FieldLogger.
 	log    logrus.FieldLogger
 	logger *slog.Logger
 

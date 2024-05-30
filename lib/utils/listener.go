@@ -19,10 +19,8 @@
 package utils
 
 import (
-	"io"
 	"net"
 	"os"
-	"sync/atomic"
 
 	"github.com/gravitational/trace"
 )
@@ -38,33 +36,4 @@ func GetListenerFile(listener net.Listener) (*os.File, error) {
 		return f, trace.Wrap(err)
 	}
 	return nil, trace.BadParameter("unsupported listener: %T", listener)
-}
-
-// SingleUseListener wraps a single [net.Conn] and returns it from Accept()
-// once.
-type SingleUseListener struct {
-	conn     net.Conn
-	accepted atomic.Bool
-}
-
-// NewSingleUseListener creates a new SingleUseListener.
-func NewSingleUseListener(c net.Conn) *SingleUseListener {
-	return &SingleUseListener{
-		conn: c,
-	}
-}
-
-func (l *SingleUseListener) Accept() (net.Conn, error) {
-	if l.accepted.Swap(true) {
-		return nil, io.EOF
-	}
-	return l.conn, nil
-}
-
-func (l *SingleUseListener) Addr() net.Addr {
-	return l.conn.LocalAddr()
-}
-
-func (l *SingleUseListener) Close() error {
-	return nil
 }
