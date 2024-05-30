@@ -53,7 +53,6 @@ import (
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -285,16 +284,16 @@ func (p *echoAppProvider) ListProfiles() ([]string, error) {
 // GetCachedClient returns a [*client.ClusterClient] for the given profile and leaf cluster.
 // [leafClusterName] may be empty when requesting a client for the root cluster. Returned clients are
 // expected to be cached, as this may be called frequently.
-func (p *echoAppProvider) GetCachedClient(ctx context.Context, profileName, leafClusterName string) (*client.ClusterClient, error) {
+func (p *echoAppProvider) GetCachedClient(ctx context.Context, profileName, leafClusterName string) (ClusterClient, error) {
 	rootCluster, ok := p.clusters[profileName]
 	if !ok {
 		return nil, trace.NotFound("no cluster for %s", profileName)
 	}
 	if leafClusterName == "" {
-		return &client.ClusterClient{
-			AuthClient: &echoAppAuthClient{
-				clusterName: profileName,
-				apps:        rootCluster.apps,
+		return &fakeClusterClient{
+			clusterName: profileName,
+			authClient: &fakeAuthClient{
+				apps: rootCluster.apps,
 			},
 		}, nil
 	}
@@ -302,10 +301,10 @@ func (p *echoAppProvider) GetCachedClient(ctx context.Context, profileName, leaf
 	if !ok {
 		return nil, trace.NotFound("no cluster for %s.%s", profileName, leafClusterName)
 	}
-	return &client.ClusterClient{
-		AuthClient: &echoAppAuthClient{
-			clusterName: leafClusterName,
-			apps:        leafCluster.apps,
+	return &fakeClusterClient{
+		clusterName: leafClusterName,
+		authClient: &fakeAuthClient{
+			apps: leafCluster.apps,
 		},
 	}, nil
 }
@@ -371,19 +370,30 @@ func (p *echoAppProvider) GetVnetConfig(ctx context.Context, profileName, leafCl
 
 func (p *echoAppProvider) OnNewConnection(ctx context.Context, profileName, leafClusterName string, app types.Application) error {
 	p.onNewConnectionCallCount.Add(1)
-
 	return nil
 }
 
-// echoAppAuthClient is a fake auth client that answers GetResources requests with a static list of apps and
-// basic/faked predicate filtering.
-type echoAppAuthClient struct {
-	authclient.ClientI
+type fakeClusterClient struct {
+	authClient  *fakeAuthClient
 	clusterName string
-	apps        []string
 }
 
-func (c *echoAppAuthClient) GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error) {
+func (c *fakeClusterClient) CurrentCluster() authclient.ClientI {
+	return c.authClient
+}
+
+func (c *fakeClusterClient) ClusterName() string {
+	return c.clusterName
+}
+
+// fakeAuthClient is a fake auth client that answers GetResources requests with a static list of apps and
+// basic/faked predicate filtering.
+type fakeAuthClient struct {
+	authclient.ClientI
+	apps []string
+}
+
+func (c *fakeAuthClient) GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error) {
 	resp := &proto.ListResourcesResponse{}
 	for _, app := range c.apps {
 		// Poor-man's predicate expression filter.
@@ -607,7 +617,10 @@ func TestOnNewConnection(t *testing.T) {
 	validAppName := "echo1.root1.example.com"
 	invalidAppName := "not.an.app.example.com."
 
-	p := newTestPack(t, ctx, clock, appProvider)
+	p := newTestPack(t, ctx, testPackConfig{
+		clock:       clock,
+		appProvider: appProvider,
+	})
 
 	// Attempt to establish a connection to an invalid app and verify that OnNewConnection was not
 	// called.

@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -50,7 +51,7 @@ type AppProvider interface {
 	// GetCachedClient returns a [*client.ClusterClient] for the given profile and leaf cluster.
 	// [leafClusterName] may be empty when requesting a client for the root cluster. Returned clients are
 	// expected to be cached, as this may be called frequently.
-	GetCachedClient(ctx context.Context, profileName, leafClusterName string) (*client.ClusterClient, error)
+	GetCachedClient(ctx context.Context, profileName, leafClusterName string) (ClusterClient, error)
 
 	// ReissueAppCert returns a new app certificate for the given app in the named profile and leaf cluster.
 	// Implementations may trigger a re-login to the cluster, but if they do, they MUST clear all cached
@@ -70,6 +71,12 @@ type AppProvider interface {
 	// The connection won't be established until OnNewConnection returns. Returning an error prevents
 	// the connection from being made.
 	OnNewConnection(ctx context.Context, profileName, leafClusterName string, app types.Application) error
+}
+
+// ClusterClient is an interface defining the subset of [client.ClusterClient] methods used by [AppProvider].
+type ClusterClient interface {
+	CurrentCluster() authclient.ClientI
+	ClusterName() string
 }
 
 // DialOptions holds ALPN dial options for dialing apps.
