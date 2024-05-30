@@ -29,10 +29,10 @@ to Teleport Enterprise customers.
 - A TLS certificate for the Access Graph service
   - The TLS certificate must be issued for "server authentication" key usage,
     and must list the IP or DNS name of the TAG service in an X.509 v3 `subjectAltName` extension.
-  - Starting from version 1.20.4 of the Access Graph service, the container by default runs as a non-root user.
+  - Starting from version 1.20.4 of the Access Graph service, the container runs as a non-root user by default.
     Make sure the certificate files are readable by the user running the container. You can set correct permissions with the following command:
     ```console
-    $ sudo chown 65532 /path/to/tls.key
+    $ sudo chown 65532 /etc/access_graph/tls.key
     ```
 - The node running the Access Graph service must be reachable from Teleport Auth Service and Proxy Service.
 
@@ -54,7 +54,7 @@ The host CA can be retrieved and saved into a file in one of the following ways:
 ```code
 $ sudo mkdir /etc/access_graph
 $ curl -s 'https://<Var name="teleport.example.com" />/webapi/auth/export?type=tls-host' | sudo tee /etc/access_graph/teleport_host_ca.pem
-    ```
+```
 </TabItem>
 
 <TabItem label="Via tctl">
