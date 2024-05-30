@@ -15,14 +15,15 @@
   ```
 
   After you have verified that the checksums match, you can extract the archive.
-  The executable will be available at
-  `teleport-v{{ version }}-windows-amd64-bin\tsh.exe`.
+  The executables will be available at `teleport-v{{ version }}-windows-amd64-bin\`.
 
   ```code
   $ Expand-Archive teleport-v{{ version }}-windows-amd64-bin.zip
   $ cd teleport-v{{ version }}-windows-amd64-bin
   $ .\tsh.exe version
   Teleport v{{ version }} git:v{{ version }} go(=teleport.golang=)
+  $ .\tctl.exe version
+  Teleport v{{ version }} git:v{{ version }} go(=teleport.golang=)
   ```
 
-  Make sure to move `tsh.exe` into your PATH.
+  Make sure to move `tsh.exe` and `tctl.exe` into your PATH.
