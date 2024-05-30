@@ -282,7 +282,8 @@
                 {
                     "address": "auth.example.com:3025",
                     "identitySecretName": "teleport-plugin-event-handler-auth-id",
-                    "identitySecretPath": "auth_id"
+                    "identitySecretPath": "auth_id",
+                    "debug": false
                 }
             ],
             "required": [
@@ -310,6 +311,14 @@
                     "default": "auth_id",
                     "examples": [
                         "auth_id"
+                    ]
+                },
+                "debug": {
+                    "$id": "#/properties/teleport/properties/debug",
+                    "type": "boolean",
+                    "default": false,
+                    "examples": [
+                        false
                     ]
                 }
             },

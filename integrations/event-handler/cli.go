@@ -55,6 +55,9 @@ type TeleportConfig struct {
 	// TeleportIdentityFile is a path to Teleport identity file
 	TeleportIdentityFile string `help:"Teleport identity file" type:"existingfile" name:"teleport-identity" env:"FDFWD_TELEPORT_IDENTITY"`
 
+	// TeleportDebugEnabled allows for debug logging
+	TeleporDebugEnabled bool `help:"Configures debug logging on" name:"teleport-debug" env:"FDFWD_DEBUG"`
+
 	// TeleportRefreshEnabled will reload the identity file from disk on the
 	// configured interval.
 	TeleportRefreshEnabled bool `help:"Configures the identity file to be reloaded from disk at a configured interval." env:"FDFWD_TELEPORT_REFRESH_ENABLED"`
@@ -213,7 +216,7 @@ type CLI struct {
 	Config kong.ConfigFlag `help:"Path to TOML configuration file" optional:"true" short:"c" type:"existingfile" env:"FDFWD_CONFIG"`
 
 	// Debug is a debug logging mode flag
-	Debug bool `help:"Debug logging" short:"d"`
+	Debug bool `help:"Debug logging" short:"d" env:"FDFWD_DEBUG"`
 
 	// Version is the version print command
 	Version struct{} `cmd:"true" help:"Print plugin version"`

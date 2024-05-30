@@ -15,6 +15,9 @@ data:
     addr = "{{ .Values.teleport.address }}"
     identity = "/var/lib/teleport/plugins/event-handler/teleport-identity/{{ .Values.teleport.identitySecretPath }}"
     refresh.enabled = true
+    {{- if .Values.teleport.debug }}
+    debug = {{ .Values.teleport.debug }}
+    {{- end}}
 
     [forward.fluentd]
     url = "{{ .Values.fluentd.url }}"
