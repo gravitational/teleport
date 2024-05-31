@@ -23,7 +23,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net"
 	"os"
 	"os/exec"
@@ -33,7 +32,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"golang.org/x/sync/errgroup"
 	"golang.org/x/sys/unix"
 	"golang.zx2c4.com/wireguard/tun"
 
@@ -42,56 +40,16 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-// createAndSetupTUNDeviceWithoutRoot creates a virtual network device and configures the host OS to use that
-// device for VNet connections. It will spawn a root process to handle the TUN creation and host
-// configuration.
-//
-// After the TUN device is created, it will be sent on the result channel. Any error will be sent on the err
-// channel. Always select on both the result channel and the err channel when waiting for a result.
-//
-// This will keep running until [ctx] is canceled or an unrecoverable error is encountered, in order to keep
-// the host OS configuration up to date.
-func createAndSetupTUNDeviceWithoutRoot(ctx context.Context, ipv6Prefix, dnsAddr string) (<-chan tun.Device, <-chan error) {
-	tunCh := make(chan tun.Device, 1)
-	errCh := make(chan error, 1)
-
-	slog.InfoContext(ctx, "Spawning child process as root to create and setup TUN device")
-	socket, socketPath, err := createUnixSocket()
+// receiveTUNDevice is a blocking call which waits for the admin subcommand to pass over the socket
+// the name and fd of the TUN device.
+func receiveTUNDevice(socket *net.UnixListener) (tun.Device, error) {
+	tunName, tunFd, err := recvTUNNameAndFd(socket)
 	if err != nil {
-		errCh <- trace.Wrap(err, "creating unix socket")
-		return tunCh, errCh
+		return nil, trace.Wrap(err, "receiving TUN name and file descriptor")
 	}
 
-	// Make sure all goroutines complete before sending an err on the error chan, to be sure they all have a
-	// chance to clean up before the process terminates.
-	g, ctx := errgroup.WithContext(ctx)
-	g.Go(func() error {
-		// Requirements:
-		// - must close the socket concurrently with recvTUNNameAndFd if the context is canceled to unblock
-		//   a stuck AcceptUnix (can't defer).
-		// - must close the socket exactly once before letting the process terminate.
-		<-ctx.Done()
-		return trace.Wrap(socket.Close())
-	})
-	g.Go(func() error {
-		// Admin command is expected to run until ctx is canceled.
-		return trace.Wrap(execAdminSubcommand(ctx, socketPath, ipv6Prefix, dnsAddr))
-	})
-	g.Go(func() error {
-		tunName, tunFd, err := recvTUNNameAndFd(ctx, socket)
-		if err != nil {
-			return trace.Wrap(err, "receiving TUN name and file descriptor")
-		}
-		tunDevice, err := tun.CreateTUNFromFile(os.NewFile(tunFd, tunName), 0)
-		if err != nil {
-			return trace.Wrap(err, "creating TUN device from file descriptor")
-		}
-		tunCh <- tunDevice
-		return nil
-	})
-	go func() { errCh <- g.Wait() }()
-
-	return tunCh, errCh
+	tunDevice, err := tun.CreateTUNFromFile(os.NewFile(tunFd, tunName), 0)
+	return tunDevice, trace.Wrap(err, "creating TUN device from file descriptor")
 }
 
 func execAdminSubcommand(ctx context.Context, socketPath, ipv6Prefix, dnsAddr string) error {
@@ -135,10 +93,36 @@ do shell script quoted form of executableName & `+
 			if strings.Contains(stderr, "-128") {
 				return trace.Errorf("password prompt closed by user")
 			}
-			return trace.Wrap(exitError, "admin subcommand exited, stderr: %s", stderr)
+
+			if errors.Is(ctx.Err(), context.Canceled) {
+				// osascript exiting due to canceled context.
+				return ctx.Err()
+			}
+
+			stderrDesc := ""
+			if stderr != "" {
+				stderrDesc = fmt.Sprintf(", stderr: %s", stderr)
+			}
+			return trace.Wrap(exitError, "osascript exited%s", stderrDesc)
 		}
+
 		return trace.Wrap(err)
 	}
+
+	if ctx.Err() == nil {
+		// The admin subcommand is expected to run until VNet gets stopped (in other words, until ctx
+		// gets canceled).
+		//
+		// If it exits with no error _before_ ctx is canceled, then it most likely means that the socket
+		// was unexpectedly removed. When the socket gets removed, the admin subcommand assumes that the
+		// unprivileged process (executing this code here) has quit and thus it should quit as well. But
+		// we know that it's not the case, so in this scenario we return an error instead.
+		//
+		// If we don't return an error here, then other code won't be properly notified about the fact
+		// that the admin process has quit.
+		return trace.Errorf("admin subcommand exited prematurely with no error (likely because socket was removed)")
+	}
+
 	return nil
 }
 
@@ -178,19 +162,12 @@ func sendTUNNameAndFd(socketPath, tunName string, fd uintptr) error {
 
 // recvTUNNameAndFd receives the name of a TUN device and its open file descriptor over a unix socket, meant
 // for passing the TUN from the root process which must create it to the user process.
-func recvTUNNameAndFd(ctx context.Context, socket *net.UnixListener) (string, uintptr, error) {
+func recvTUNNameAndFd(socket *net.UnixListener) (string, uintptr, error) {
 	conn, err := socket.AcceptUnix()
 	if err != nil {
 		return "", 0, trace.Wrap(err, "accepting connection on unix socket")
 	}
-
-	// Close the connection early to unblock reads if the context is canceled.
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	go func() {
-		<-ctx.Done()
-		conn.Close()
-	}()
+	defer conn.Close()
 
 	msg := make([]byte, 128)
 	oob := make([]byte, unix.CmsgSpace(4)) // Fd is 4 bytes
