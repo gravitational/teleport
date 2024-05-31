@@ -110,25 +110,7 @@ func (a *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 var desktopAccessScriptConfigure string
 var DesktopAccessScriptConfigure = template.Must(template.New("desktop-access-configure-ad").Parse(desktopAccessScriptConfigure))
 
-func (a *Server) GetDesktopBootstrapScript(ctx context.Context, token string) (*proto.DesktopBootstrapScriptResponse, error) {
-	// Check if the token is valid.
-	_, err := a.GetToken(ctx, token)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	proxyServers, err := a.GetProxies()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if len(proxyServers) == 0 {
-		return nil, trace.NotFound("no proxy servers found")
-	}
-
-	// Use the first proxy server for the template, the user can change it later if needed.
-	proxyServer := proxyServers[0]
-
+func (a *Server) GetDesktopBootstrapScript(ctx context.Context) (*proto.DesktopBootstrapScriptResponse, error) {
 	clusterName, err := a.GetDomainName()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -155,12 +137,13 @@ func (a *Server) GetDesktopBootstrapScript(ctx context.Context, token string) (*
 
 	var buf bytes.Buffer
 	err = DesktopAccessScriptConfigure.Execute(&buf, map[string]string{
-		"caCertPEM":       string(keyPair.Cert),
-		"caCertSHA1":      fmt.Sprintf("%X", sha1.Sum(block.Bytes)),
-		"caCertBase64":    base64.StdEncoding.EncodeToString(utils.CreateCertificateBlob(block.Bytes)),
-		"proxyPublicAddr": proxyServer.GetPublicAddr(),
-		"provisionToken":  token,
+		"caCertPEM":    string(keyPair.Cert),
+		"caCertSHA1":   fmt.Sprintf("%X", sha1.Sum(block.Bytes)),
+		"caCertBase64": base64.StdEncoding.EncodeToString(utils.CreateCertificateBlob(block.Bytes)),
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	return &proto.DesktopBootstrapScriptResponse{
 		Script: buf.String(),

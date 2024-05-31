@@ -16,8 +16,6 @@ This script will configure your Active Directory system to integrate with Telepo
    - Configuring firewall rules.
    - Allowing remote RDP connections.
    - Enabling RemoteFX for improved remote desktop performance.
-4. Read the LDAP CA certificate (required for secure LDAPS connections).
-5. Generate a Teleport configuration file for the Windows Desktop Service.
 
 Ensure you've reviewed this script itself and/or the equivalent manual documentation before proceeding.
 For the manual documentation, see: https://goteleport.com/docs/desktop-access/active-directory
@@ -192,78 +190,43 @@ $COMPUTER_NAME = (Resolve-DnsName -Type A $Env:COMPUTERNAME).Name
 $COMPUTER_IP = (Resolve-DnsName -Type A $Env:COMPUTERNAME).Address
 $LDAP_ADDR="$COMPUTER_IP" + ":636"
 
-$DESKTOP_ACCESS_CONFIG_YAML=@"
-### YAML FILE START ###
-version: v3
-# This section of the configuration file applies to all teleport
-# services. For more information, see
-# https://goteleport.com/docs/reference/config/#instance-wide-settings
-teleport:
-  auth_token: $TELEPORT_PROVISION_TOKEN
-  proxy_server: $TELEPORT_PROXY_PUBLIC_ADDR
-
-# The following services are enabled by default. Here we assume that the
-# Windows Desktop Service will run on a dedicated machine/process and the
-# following services are running elsewhere, thus we disable them.
-auth_service:
-  enabled: no
-ssh_service:
-  enabled: no
-proxy_service:
-  enabled: no
-
-# This section of the configuration file applies to the Windows
-# Desktop Service. For more information, see
-# https://goteleport.com/docs/desktop-access/reference/configuration
-windows_desktop_service:
-  enabled: yes
-
-  # (optional) ldap contains configuration keys used when connecting Teleport
-  # to an Active Directory domain. This enables the discovery service for
-  # Windows desktops belonging to an Active Directory domain configured for
-  # Teleport access.
+$LDAP_CONFIG_YAML=@"
   ldap:
     # Ensure this is a public IP address or DNS name.
     addr:     '$LDAP_ADDR'
+    # The Active Directory domain name.
     domain:   '$DOMAIN_NAME'
+    # The service account username, prefixed with the NetBIOS name of the domain.
     username: '$LDAP_USERNAME'
+    # The security identifier of the service account specified by the username
+    # field above.
     sid: '$LDAP_USER_SID'
+    # The server name to use when validating the LDAP server's
+    # certificate. Useful in cases where addr is an IP but the server
+    # presents a cert with some other hostname.
     server_name: '$COMPUTER_NAME'
     insecure_skip_verify: false
+    # The PEM encoded LDAP CA certificate of this AD's LDAP server.
     ldap_ca_cert: |
 $CA_CERT_YAML
-
-  # (optional) settings for enabling automatic desktop discovery via LDAP
-  discovery:
-    # Discover all the hosts in the Active Directory Domain.
-    base_dn: '*'
-
-  # (optional) static_hosts is a list of hosts to register as WindowsDesktop
-  # objects in Teleport. You can define host name and labels directly.
-  # static_hosts:
-  # - name: example1
-  #   ad: false
-  #   addr: win1.dev.example.com
-  #   labels:
-  #     datacenter: dc1
-  # name will be generated based on address if not provided
-  # - ad: true
-  #   addr: win2.dev.example.com
-  #   labels:
-  #     controller: all
-### YAML FILE END ###
 "@
 
-$OUTPUT=@'
+$OUTPUT=@"
+Your Teleport Desktop Access configuration is complete. A restrictive service account
+named $AD_USER_NAME has been created with the SAM account name $SAM_ACCOUNT_NAME.
+That account has been prevented from performing interactive logins by creating and
+linking a Group Policy Object (GPO) named $BLOCK_GPO_NAME. Finally a GPO named
+$ACCESS_GPO_NAME has been configured and applied to your domain to allow Teleport
+connections.
 
-{0}
+`n{0}
 
-Use the teleport.yaml printed above as the basis for your Windows Desktop Service.
-For a detailed configuration reference, see
-
-https://goteleport.com/docs/desktop-access/reference/configuration/
-
-'@ -f $DESKTOP_ACCESS_CONFIG_YAML
+The next step is to connect a Windows Desktop Service to your Teleport cluster and configure
+it to connect to the LDAP server of this domain. Instructions for this can be found starting at
+https://goteleport.com/docs/desktop-access/active-directory/#step-67-configure-teleport. You may
+use the `ldap` section printed above as the basis for your Windows Desktop Service configuration,
+which contains values derived from the configuration of this domain.`n
+"@ -f $LDAP_CONFIG_YAML
 
 Write-Output $OUTPUT
 
@@ -271,7 +234,7 @@ if ($host.name -match 'ISE')
 {
   $WHITESPACE_WARNING=@'
 # WARNING:
-# When copying and pasting the config from above, PowerShell ISE will add whitespace to the start - delete this before you save the config.
+# If you'r copying and pasting the ldap config from above, PowerShell ISE will add whitespace to the start - delete this before you save the config.
 '@
 
   Write-Output $WHITESPACE_WARNING
@@ -283,5 +246,5 @@ Remove-Item $WindowsDERFile -Recurse
 Remove-Item $WindowsPEMFile -Recurse
 
 # Prompt the user to press any key to exit
-Write-Output "Press any key to exit..."
+Write-Output "Press any key to exit, which will close this window."
 $x = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")

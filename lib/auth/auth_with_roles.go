@@ -6572,26 +6572,8 @@ func (a *ServerWithRoles) GenerateWindowsDesktopCert(ctx context.Context, req *p
 }
 
 func (a *ServerWithRoles) GetDesktopBootstrapScript(ctx context.Context) (*proto.DesktopBootstrapScriptResponse, error) {
-	// Create the provision token required by the bootstrap script.
-	// This calls the CreateToken method, which will check the caller's permissions.
-	token, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
-	if err != nil {
-		return nil, trace.Wrap(err, "generating token value")
-	}
-	pt, err := types.NewProvisionToken(
-		token,
-		types.SystemRoles{types.RoleWindowsDesktop},
-		time.Now().UTC().Add(time.Hour*10),
-	)
-	if err != nil {
-		return nil, trace.Wrap(err, "creating provision token")
-	}
-
-	if err = a.CreateToken(ctx, pt); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return a.authServer.GetDesktopBootstrapScript(ctx, token)
+	// No sensitive information is returned in the bootstrap script.
+	return a.authServer.GetDesktopBootstrapScript(ctx)
 }
 
 // GetConnectionDiagnostic returns the connection diagnostic with the matching name
