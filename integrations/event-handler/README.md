@@ -34,6 +34,7 @@ You may specify configuration options via command line arguments, environment va
 | storage                   | Storage directory                                                                                     | FDFWD_STORAGE                   |
 | batch                     | Fetch batch size                                                                                      | FDFWD_BATCH                     |
 | types                     | Comma-separated list of event types to forward                                                        | FDFWD_TYPES                     |
+| skip-event-types              | Comma-separated list of event types to skip                                                           | FDFWD_SKIP_EVENT_TYPES              |
 | skip-session-types        | Comma-separated list of session event types to skip                                                   | FDFWD_SKIP_SESSION_TYPES        |
 | start-time                | Minimum event time (RFC3339 format)                                                                   | FDFWD_START_TIME                |
 | timeout                   | Polling timeout                                                                                       | FDFWD_TIMEOUT                   |

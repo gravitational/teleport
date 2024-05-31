@@ -36,9 +36,15 @@ proxy_service:
     # v1: defaults to 0.0.0.0:3024
     tunnel_listen_addr: 0.0.0.0:3024
 
-    # Proxy Peering listening address. Teleport Proxy Services will advertise this address
-    # for dialing agents in Proxy Peering mode.
+    # Proxy Peering listening address. Teleport Proxy Services will bind to this address
+    # to listen for incoming connections from dialing agents in Proxy Peering mode.
     peer_listen_addr: 0.0.0.0:3021
+
+    # Proxy Peering public address. Teleport Proxy Services will advertise this address
+    # for dialing agents in Proxy Peering mode.
+    # NOTE: This address should be unique to each proxy and should not point to a load balancer.
+    # Using a load balancer address here will lead to unpredictable results and connection delays.
+    peer_public_addr: teleport-proxy-host-1.example.com:3021
 
     # The HTTPS listen address to serve the Web UI and authenticate users.
     # Handles the PostgreSQL proxy if the Database Service is enabled.

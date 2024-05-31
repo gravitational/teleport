@@ -77,6 +77,7 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/modules"
@@ -87,6 +88,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
+	"github.com/gravitational/teleport/lib/web/terminal"
 )
 
 type KubeSuite struct {
@@ -1677,21 +1679,41 @@ func testKubeExecWeb(t *testing.T, suite *KubeSuite) {
 	endpoint := "sites/$site/kube/exec/ws"
 
 	openWebsocketAndReadSession := func(t *testing.T, endpoint string, req web.PodExecRequest) *websocket.Conn {
-		ws, resp, err := webPack.OpenWebsocket(t, endpoint, req)
+		termSize := struct {
+			Term session.TerminalParams `json:"term"`
+		}{
+			Term: session.TerminalParams{W: req.Term.W, H: req.Term.H},
+		}
+		ws, resp, err := webPack.OpenWebsocket(t, endpoint, termSize)
 		require.NoError(t, err)
 		require.NoError(t, resp.Body.Close())
 
-		_, data, err := ws.ReadMessage()
+		data, err := json.Marshal(req)
+		require.NoError(t, err)
+
+		reqEnvelope := &terminal.Envelope{
+			Version: defaults.WebsocketVersion,
+			Type:    defaults.WebsocketKubeExec,
+			Payload: string(data),
+		}
+
+		envelopeBytes, err := proto.Marshal(reqEnvelope)
+		require.NoError(t, err)
+
+		err = ws.WriteMessage(websocket.BinaryMessage, envelopeBytes)
+		require.NoError(t, err)
+
+		_, data, err = ws.ReadMessage()
 		require.NoError(t, err)
 		require.Equal(t, `{"type":"create_session_response","status":"ok"}`+"\n", string(data))
 
 		execSocket := executionWebsocketReader{ws}
 
 		// First message: session metadata
-		envelope, err := execSocket.Read()
+		sessionEnvelope, err := execSocket.Read()
 		require.NoError(t, err)
 		var sessionMetadata sessionMetadataResponse
-		require.NoError(t, json.Unmarshal([]byte(envelope.Payload), &sessionMetadata))
+		require.NoError(t, json.Unmarshal([]byte(sessionEnvelope.Payload), &sessionMetadata))
 
 		return ws
 	}
@@ -1726,7 +1748,7 @@ func testKubeExecWeb(t *testing.T, suite *KubeSuite) {
 
 		ws := openWebsocketAndReadSession(t, endpoint, req)
 
-		wsStream := web.NewWStream(context.Background(), ws, suite.log, nil)
+		wsStream := terminal.NewWStream(context.Background(), ws, suite.log, nil)
 
 		// Check for the expected string in the output.
 		findTextInReader(t, wsStream, testNamespace, time.Second*2)
@@ -1747,7 +1769,7 @@ func testKubeExecWeb(t *testing.T, suite *KubeSuite) {
 
 		ws := openWebsocketAndReadSession(t, endpoint, req)
 
-		wsStream := web.NewWStream(context.Background(), ws, suite.log, nil)
+		wsStream := terminal.NewWStream(context.Background(), ws, suite.log, nil)
 
 		// Read first prompt from the server.
 		readData := make([]byte, 255)
@@ -1778,12 +1800,12 @@ type executionWebsocketReader struct {
 	*websocket.Conn
 }
 
-func (r executionWebsocketReader) Read() (web.Envelope, error) {
+func (r executionWebsocketReader) Read() (terminal.Envelope, error) {
 	_, data, err := r.ReadMessage()
 	if err != nil {
-		return web.Envelope{}, trace.Wrap(err)
+		return terminal.Envelope{}, trace.Wrap(err)
 	}
-	var envelope web.Envelope
+	var envelope terminal.Envelope
 	return envelope, trace.Wrap(proto.Unmarshal(data, &envelope))
 }
 

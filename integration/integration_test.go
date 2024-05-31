@@ -78,13 +78,14 @@ import (
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/events/filesessions"
@@ -440,7 +441,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 
 			// wait 10 seconds for both nodes to show up, otherwise
 			// we'll have trouble connecting to the node below.
-			waitForNodes := func(site auth.ClientI, count int) error {
+			waitForNodes := func(site authclient.ClientI, count int) error {
 				tickCh := time.Tick(500 * time.Millisecond)
 				stopCh := time.After(10 * time.Second)
 				for {
@@ -489,7 +490,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			}()
 
 			// wait until we've found the session in the audit log
-			getSession := func(site auth.ClientI) (types.SessionTracker, error) {
+			getSession := func(site authclient.ClientI) (types.SessionTracker, error) {
 				timeout, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 				defer cancel()
 				sessions, err := waitForSessionToBeEstablished(timeout, defaults.Namespace, site)
@@ -569,7 +570,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			require.Contains(t, text, "exit")
 
 			// Wait until session.start, session.leave, and session.end events have arrived.
-			getSessions := func(site auth.ClientI) ([]events.EventFields, error) {
+			getSessions := func(site authclient.ClientI) ([]events.EventFields, error) {
 				tickCh := time.Tick(500 * time.Millisecond)
 				stopCh := time.After(10 * time.Second)
 				for {
@@ -885,7 +886,7 @@ func testUUIDBasedProxy(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 
 	// wait up to 10 seconds for supplied node names to show up.
-	waitForNodes := func(site auth.ClientI, nodes ...string) error {
+	waitForNodes := func(site authclient.ClientI, nodes ...string) error {
 		tickCh := time.Tick(500 * time.Millisecond)
 		stopCh := time.After(10 * time.Second)
 	Outer:
@@ -1235,7 +1236,7 @@ func testLeafProxySessionRecording(t *testing.T, suite *integrationTestSuite) {
 				)
 				assert.NoError(t, err)
 
-				errCh <- nodeClient.RunInteractiveShell(ctx, types.SessionPeerMode, nil, nil)
+				errCh <- nodeClient.RunInteractiveShell(ctx, types.SessionPeerMode, nil, nil, nil)
 				assert.NoError(t, nodeClient.Close())
 			}()
 
@@ -1626,7 +1627,7 @@ func testIPPropagation(t *testing.T, suite *integrationTestSuite) {
 		authClientCfg, err := clt.ProxyClient.ClientConfig(ctx, clusterName)
 		require.NoError(t, err)
 		authClientCfg.DialOpts = nil
-		authClient, err := auth.NewClient(authClientCfg)
+		authClient, err := authclient.NewClient(authClientCfg)
 		require.NoError(t, err)
 
 		pingResp, err := authClient.Ping(ctx)
@@ -2001,7 +2002,7 @@ func testClientIdleConnection(t *testing.T, suite *integrationTestSuite) {
 	tconf.Proxy.DisableWebInterface = true
 	tconf.Auth.NetworkingConfig = netConfig
 	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	tconf.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	tconf.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 
 	instance := suite.NewTeleportWithConfig(t, nil, nil, tconf)
 	t.Cleanup(func() { require.NoError(t, instance.StopAll()) })
@@ -2563,7 +2564,7 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	require.NoError(t, err)
 	require.Equal(t, outputA.String(), outputB.String())
 
-	clientHasEvents := func(site auth.ClientI, count int) func() bool {
+	clientHasEvents := func(site authclient.ClientI, count int) func() bool {
 		// only look for exec events
 		eventTypes := []string{events.ExecEvent}
 
@@ -6069,7 +6070,7 @@ func testList(t *testing.T, suite *integrationTestSuite) {
 
 	// Wait 10 seconds for both nodes to show up to make sure they both have
 	// registered themselves.
-	waitForNodes := func(clt auth.ClientI, count int) error {
+	waitForNodes := func(clt authclient.ClientI, count int) error {
 		tickCh := time.Tick(500 * time.Millisecond)
 		stopCh := time.After(10 * time.Second)
 		for {
@@ -7252,7 +7253,7 @@ func (s *integrationTestSuite) defaultServiceConfig() *servicecfg.Config {
 	cfg.Console = nil
 	cfg.Log = s.Log
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	return cfg
 }
 
@@ -8596,7 +8597,7 @@ func TestConnectivityWithoutAuth(t *testing.T) {
 			authCfg.Console = nil
 			authCfg.Log = utils.NewLoggerForTests()
 			authCfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-			authCfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+			authCfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 			authCfg.Auth.Preference.SetSecondFactor("off")
 			authCfg.Auth.Enabled = true
 			authCfg.Auth.NoAudit = true
@@ -8659,7 +8660,7 @@ func TestConnectivityWithoutAuth(t *testing.T) {
 			nodeCfg.Console = nil
 			nodeCfg.Log = utils.NewLoggerForTests()
 			nodeCfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-			nodeCfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+			nodeCfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 			nodeCfg.Auth.Enabled = false
 			// Configure Proxy.
 			nodeCfg.Proxy.Enabled = true
@@ -8740,7 +8741,7 @@ func TestConnectivityDuringAuthRestart(t *testing.T) {
 	authCfg.Console = nil
 	authCfg.Log = utils.NewLoggerForTests()
 	authCfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	authCfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	authCfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	authCfg.Auth.Preference.SetSecondFactor("off")
 	authCfg.Auth.Enabled = true
 	authCfg.Auth.NoAudit = true
@@ -8800,7 +8801,7 @@ func TestConnectivityDuringAuthRestart(t *testing.T) {
 	nodeCfg.Console = nil
 	nodeCfg.Log = utils.NewLoggerForTests()
 	nodeCfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	nodeCfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	nodeCfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	nodeCfg.DiagnosticAddr = *utils.MustParseAddr(helpers.NewListener(t, service.ListenerType("diag"), &node.Fds))
 	nodeCfg.Auth.Enabled = false
 	// Configure Proxy.
@@ -8983,7 +8984,7 @@ func testModeratedSessions(t *testing.T, suite *integrationTestSuite) {
 		_, err = asrv.CreateUser(ctx, u)
 		require.NoError(t, err)
 
-		token, err := asrv.CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
+		token, err := asrv.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 			Name: user,
 		})
 		require.NoError(t, err)

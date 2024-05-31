@@ -31,7 +31,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/windows"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -185,7 +185,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 				logger.DebugContext(process.ExitContext(), "Ignoring unsupported cluster name.", "cluster_name", info.ServerName)
 			}
 		}
-		pool, _, err := auth.DefaultClientCertPool(accessPoint, clusterName)
+		pool, _, err := authclient.DefaultClientCertPool(info.Context(), accessPoint, clusterName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

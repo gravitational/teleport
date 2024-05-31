@@ -55,7 +55,6 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -325,20 +324,18 @@ func (s *SessionRegistry) OpenSession(ctx context.Context, ch ssh.Channel, scx *
 		return trace.AccessDenied("join-only mode was used to create this connection but attempted to create a new session.")
 	}
 
-	// session not found? need to create one. start by getting/generating an ID for it
-	sid, found := scx.GetEnv(sshutils.SessionEnvVar)
-	if !found {
-		sid = string(rsession.NewID())
-		scx.SetEnv(sshutils.SessionEnvVar, sid)
+	sid := scx.SessionID()
+	if sid.IsZero() {
+		return trace.BadParameter("session ID is not set")
 	}
 
 	// This logic allows concurrent request to create a new session
 	// to fail, what is ok because we should never have this condition
-	sess, p, err := newSession(ctx, rsession.ID(sid), s, scx, ch)
+	sess, p, err := newSession(ctx, sid, s, scx, ch)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	scx.setSession(sess)
+	scx.setSession(sess, ch)
 	s.addSession(sess)
 	scx.Infof("Creating (interactive) session %v.", sid)
 
@@ -353,23 +350,15 @@ func (s *SessionRegistry) OpenSession(ctx context.Context, ch ssh.Channel, scx *
 
 // OpenExecSession opens a non-interactive exec session.
 func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Channel, scx *ServerContext) error {
-	var sessionID rsession.ID
+	sessionID := scx.SessionID()
 
-	sid, found := scx.GetEnv(sshutils.SessionEnvVar)
-	if !found {
-		// Create a new session ID. These sessions can not be joined
+	if sessionID.IsZero() {
 		sessionID = rsession.NewID()
 		scx.Tracef("Session not found, creating a new session %s", sessionID)
 	} else {
 		// Use passed session ID. Assist uses this "feature" to record
 		// the execution output.
-		sessionID = rsession.ID(sid)
 		scx.Tracef("Session found, reusing it %s", sessionID)
-	}
-
-	_, found = scx.GetEnv(teleport.EnableNonInteractiveSessionRecording)
-	if found {
-		scx.recordNonInteractiveSession = true
 	}
 
 	// This logic allows concurrent request to create a new session
@@ -398,7 +387,7 @@ func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Chann
 
 	// Start a non-interactive session (TTY attached). Close the session if an error
 	// occurs, otherwise it will be closed by the callee.
-	scx.setSession(sess)
+	scx.setSession(sess, channel)
 
 	err = sess.startExec(ctx, channel, scx)
 	if err != nil {
@@ -910,18 +899,19 @@ func (s *session) haltTerminal() {
 // prematurely can result in missing audit events, session recordings, and other
 // unexpected errors.
 func (s *session) Close() error {
-	s.Stop()
-
 	s.BroadcastMessage("Closing session...")
 	s.log.Infof("Closing session")
 
-	serverSessions.Dec()
-
-	// Remove session parties and close client connections.
+	// Remove session parties and close client connections. Since terminals
+	// might await for all the parties to be released, we must close them first.
+	// Closing the parties will cause their SSH channel to be closed, meaning
+	// any goroutine reading from it will be released.
 	for _, p := range s.getParties() {
 		p.Close()
 	}
 
+	s.Stop()
+	serverSessions.Dec()
 	s.registry.removeSession(s)
 
 	// Complete the session recording
@@ -1014,8 +1004,18 @@ func (s *session) emitSessionJoinEvent(ctx *ServerContext) {
 		sessionJoinEvent.ConnectionMetadata.LocalAddr = ctx.ServerConn.LocalAddr().String()
 	}
 
+	var notifyPartyPayload []byte
 	preparedEvent, err := s.Recorder().PrepareSessionEvent(sessionJoinEvent)
 	if err == nil {
+		// Try marshaling the event prior to emitting it to prevent races since
+		// the audit/recording machinery might try to set some fields while the
+		// marshal is underway.
+		if eventPayload, err := json.Marshal(preparedEvent); err != nil {
+			s.log.Warnf("Unable to marshal %v: %v.", events.SessionJoinEvent, err)
+		} else {
+			notifyPartyPayload = eventPayload
+		}
+
 		if err := s.recordEvent(ctx.srv.Context(), preparedEvent); err != nil {
 			s.log.WithError(err).Warn("Failed to record session join event.")
 		}
@@ -1029,12 +1029,15 @@ func (s *session) emitSessionJoinEvent(ctx *ServerContext) {
 	// Notify all members of the party that a new member has joined over the
 	// "x-teleport-event" channel.
 	for _, p := range s.parties {
-		eventPayload, err := json.Marshal(sessionJoinEvent)
-		if err != nil {
-			s.log.Warnf("Unable to marshal %v for %v: %v.", events.SessionJoinEvent, p.sconn.RemoteAddr(), err)
+		if len(notifyPartyPayload) == 0 {
+			s.log.Warnf("No join event to send to %v", p.sconn.RemoteAddr())
 			continue
 		}
-		_, _, err = p.sconn.SendRequest(teleport.SessionEvent, false, eventPayload)
+
+		payload := make([]byte, len(notifyPartyPayload))
+		copy(payload, notifyPartyPayload)
+
+		_, _, err = p.sconn.SendRequest(teleport.SessionEvent, false, payload)
 		if err != nil {
 			s.log.Warnf("Unable to send %v to %v: %v.", events.SessionJoinEvent, p.sconn.RemoteAddr(), err)
 			continue
@@ -1383,6 +1386,11 @@ func newRecorder(s *session, ctx *ServerContext) (events.SessionPreparerRecorder
 		return events.WithNoOpPreparer(events.NewDiscardRecorder()), nil
 	}
 
+	// Don't record non-interactive sessions when enhanced recording is disabled.
+	if ctx.GetTerm() == nil && !ctx.srv.GetBPF().Enabled() {
+		return events.WithNoOpPreparer(events.NewDiscardRecorder()), nil
+	}
+
 	rec, err := recorder.New(recorder.Config{
 		SessionID:    s.id,
 		ServerID:     s.serverMeta.ServerID,
@@ -1413,12 +1421,6 @@ func newRecorder(s *session, ctx *ServerContext) (events.SessionPreparerRecorder
 }
 
 func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *ServerContext) error {
-	if scx.recordNonInteractiveSession {
-		// enable recording.
-		s.io.AddWriter(sessionRecorderID, utils.WriteCloserWithContext(scx.srv.Context(), s.Recorder()))
-		s.scx.multiWriter = s.io
-	}
-
 	// Emit a session.start event for the exec session.
 	s.emitSessionStartEvent(scx)
 
@@ -1472,10 +1474,6 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 
 	// Process has been placed in a cgroup, continue execution.
 	execRequest.Continue()
-
-	if scx.recordNonInteractiveSession {
-		s.io.On()
-	}
 
 	// Process is running, wait for it to stop.
 	go func() {

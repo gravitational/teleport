@@ -119,7 +119,6 @@ func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.Conditiona
 				FullPath:  fullPath,
 				Value:     ca.Action.Item.Value,
 				Timestamp: time.Now().UTC().Unix(),
-				ID:        time.Now().UTC().UnixNano(),
 				Revision:  revision,
 			}
 			if !ca.Action.Item.Expires.IsZero() {

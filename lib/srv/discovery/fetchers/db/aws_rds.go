@@ -62,7 +62,7 @@ func (f *rdsDBInstancesPlugin) GetDatabases(ctx context.Context, cfg *awsFetcher
 	}
 	databases := make(types.Databases, 0, len(instances))
 	for _, instance := range instances {
-		if !services.IsRDSInstanceSupported(instance) {
+		if !libcloudaws.IsRDSInstanceSupported(instance) {
 			cfg.Log.Debugf("RDS instance %q (engine mode %v, engine version %v) doesn't support IAM authentication. Skipping.",
 				aws.StringValue(instance.DBInstanceIdentifier),
 				aws.StringValue(instance.Engine),
@@ -70,14 +70,14 @@ func (f *rdsDBInstancesPlugin) GetDatabases(ctx context.Context, cfg *awsFetcher
 			continue
 		}
 
-		if !services.IsRDSInstanceAvailable(instance.DBInstanceStatus, instance.DBInstanceIdentifier) {
+		if !libcloudaws.IsRDSInstanceAvailable(instance.DBInstanceStatus, instance.DBInstanceIdentifier) {
 			cfg.Log.Debugf("The current status of RDS instance %q is %q. Skipping.",
 				aws.StringValue(instance.DBInstanceIdentifier),
 				aws.StringValue(instance.DBInstanceStatus))
 			continue
 		}
 
-		database, err := services.NewDatabaseFromRDSInstance(instance)
+		database, err := common.NewDatabaseFromRDSInstance(instance)
 		if err != nil {
 			cfg.Log.Warnf("Could not convert RDS instance %q to database resource: %v.",
 				aws.StringValue(instance.DBInstanceIdentifier), err)
@@ -150,7 +150,7 @@ func (f *rdsAuroraClustersPlugin) GetDatabases(ctx context.Context, cfg *awsFetc
 	}
 	databases := make(types.Databases, 0, len(clusters))
 	for _, cluster := range clusters {
-		if !services.IsRDSClusterSupported(cluster) {
+		if !libcloudaws.IsRDSClusterSupported(cluster) {
 			cfg.Log.Debugf("Aurora cluster %q (engine mode %v, engine version %v) doesn't support IAM authentication. Skipping.",
 				aws.StringValue(cluster.DBClusterIdentifier),
 				aws.StringValue(cluster.EngineMode),
@@ -158,7 +158,7 @@ func (f *rdsAuroraClustersPlugin) GetDatabases(ctx context.Context, cfg *awsFetc
 			continue
 		}
 
-		if !services.IsRDSClusterAvailable(cluster.Status, cluster.DBClusterIdentifier) {
+		if !libcloudaws.IsRDSClusterAvailable(cluster.Status, cluster.DBClusterIdentifier) {
 			cfg.Log.Debugf("The current status of Aurora cluster %q is %q. Skipping.",
 				aws.StringValue(cluster.DBClusterIdentifier),
 				aws.StringValue(cluster.Status))
@@ -171,7 +171,7 @@ func (f *rdsAuroraClustersPlugin) GetDatabases(ctx context.Context, cfg *awsFetc
 				aws.StringValue(cluster.DBClusterIdentifier), err)
 		}
 
-		dbs, err := services.NewDatabasesFromRDSCluster(cluster, rdsDBInstances)
+		dbs, err := common.NewDatabasesFromRDSCluster(cluster, rdsDBInstances)
 		if err != nil {
 			cfg.Log.Warnf("Could not convert RDS cluster %q to database resources: %v.",
 				aws.StringValue(cluster.DBClusterIdentifier), err)

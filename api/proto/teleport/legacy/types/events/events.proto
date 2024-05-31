@@ -141,6 +141,9 @@ message ServerMetadata {
 
   // ServerSubKind is the sub kind of the server the session occurred on.
   string ServerSubKind = 7 [(gogoproto.jsontag) = "server_sub_kind,omitempty"];
+
+  // ServerVersion is the component version the session occurred on.
+  string ServerVersion = 8 [(gogoproto.jsontag) = "server_version,omitempty"];
 }
 
 // Connection contains connection info
@@ -3784,6 +3787,12 @@ message BotJoin {
   ];
   // UserName is the name of the user associated with the bot which has joined.
   string UserName = 7 [(gogoproto.jsontag) = "user_name,omitempty"];
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 8 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }
 
 // InstanceJoin records an instance join event.
@@ -3822,6 +3831,12 @@ message InstanceJoin {
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "token_expires"
+  ];
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 10 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
   ];
 }
 
@@ -5207,6 +5222,18 @@ message SSMRun {
 
   // Region is the AWS region the command was ran in.
   string Region = 7 [(gogoproto.jsontag) = "region"];
+
+  // StandardOutput contains the stdout of the executed command.
+  // Only the first 24000 chars are returned.
+  string StandardOutput = 8 [(gogoproto.jsontag) = "stdout"];
+
+  // StandardError contains the stderr of the executed command.
+  // Only the first 24000 chars are returned.
+  string StandardError = 9 [(gogoproto.jsontag) = "stderr"];
+
+  // InvocationURL is a link to AWS Web Console for this invocation.
+  // An invocation is the execution of a Command in an Instance.
+  string InvocationURL = 10 [(gogoproto.jsontag) = "invocation_url"];
 }
 
 // CassandraSession is emitted when a Cassandra client sends

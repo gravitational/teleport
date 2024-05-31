@@ -63,10 +63,12 @@ func fakeGetExecutablePath() (string, error) {
 
 // mockProvider is a minimal Bot impl that can be used in tests
 type mockProvider struct {
-	cfg               *BotConfig
-	proxyAddr         string
-	remoteClusterName string
-	clusterName       string
+	cfg                   *BotConfig
+	proxyAddr             string
+	remoteClusterName     string
+	clusterName           string
+	isTLSRouting          bool
+	isALPNUpgradeRequired bool
 }
 
 func newMockProvider(cfg *BotConfig) *mockProvider {
@@ -75,7 +77,14 @@ func newMockProvider(cfg *BotConfig) *mockProvider {
 		proxyAddr:         mockProxyAddr,
 		clusterName:       mockClusterName,
 		remoteClusterName: mockRemoteClusterName,
+		isTLSRouting:      true,
 	}
+}
+
+func (p *mockProvider) IsALPNConnUpgradeRequired(
+	ctx context.Context, addr string, insecure bool,
+) (bool, error) {
+	return p.isALPNUpgradeRequired, nil
 }
 
 func (p *mockProvider) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error) {
@@ -167,7 +176,7 @@ func (p *mockProvider) ProxyPing(ctx context.Context) (*webclient.PingResponse, 
 	return &webclient.PingResponse{
 		ClusterName: p.clusterName,
 		Proxy: webclient.ProxySettings{
-			TLSRoutingEnabled: true,
+			TLSRoutingEnabled: p.isTLSRouting,
 			SSH: webclient.SSHProxySettings{
 				PublicAddr: p.proxyAddr,
 			},

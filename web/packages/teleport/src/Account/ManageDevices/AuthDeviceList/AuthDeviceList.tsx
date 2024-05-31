@@ -98,7 +98,7 @@ interface RemoveCellProps {
 function RemoveCell({ onRemove }: RemoveCellProps) {
   return (
     <Cell>
-      <ButtonWarningBorder p={2} onClick={onRemove}>
+      <ButtonWarningBorder title="Delete" p={2} onClick={onRemove}>
         <Icon.Trash size="small" />
       </ButtonWarningBorder>
     </Cell>

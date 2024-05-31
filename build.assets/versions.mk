@@ -6,7 +6,7 @@
 GOLANG_VERSION ?= go1.22.3
 GOLANGCI_LINT_VERSION ?= v1.58.1
 
-NODE_VERSION ?= 20.11.1
+NODE_VERSION ?= 20.13.0
 
 # Run lint-rust check locally before merging code after you bump this.
 RUST_VERSION ?= 1.77.0
@@ -17,7 +17,7 @@ LIBPCSCLITE_VERSION ?= 1.9.9-teleport
 DEVTOOLSET ?= devtoolset-12
 
 # Protogen related versions.
-BUF_VERSION ?= v1.31.0
+BUF_VERSION ?= v1.32.1
 # Keep in sync with api/proto/buf.yaml (and buf.lock).
 GOGO_PROTO_TAG ?= v1.3.2
 NODE_GRPC_TOOLS_VERSION ?= 1.12.4

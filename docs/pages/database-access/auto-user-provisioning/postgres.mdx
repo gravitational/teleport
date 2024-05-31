@@ -8,8 +8,8 @@ description: Configure automatic user provisioning for PostgreSQL.
 ## Prerequisites
 
 - Teleport cluster v13.1 or above with a configured [self-hosted
-  PostgreSQL](../guides/postgres-self-hosted.mdx) or [RDS
-  PostgreSQL](../guides/rds.mdx) database.
+  PostgreSQL](../enroll-self-hosted-databases/postgres-self-hosted.mdx) or [RDS
+  PostgreSQL](../enroll-aws-databases/rds.mdx) database.
 - Ability to connect to and create user accounts in the target database.
 
 <Admonition type="warning" title="RDS compatibility">
@@ -55,7 +55,7 @@ hostssl all             all             ::/0                    cert
 hostssl all             all             0.0.0.0/0               cert
 ```
 
-Refer to the [self-hosted PostgreSQL guide](../guides/postgres-self-hosted.mdx#step-35-configure-your-postgresql-server)
+Refer to the [self-hosted PostgreSQL guide](../enroll-self-hosted-databases/postgres-self-hosted.mdx#step-35-configure-your-postgresql-server)
 to ensure that your configuration is correct.
 </TabItem>
 </Tabs>

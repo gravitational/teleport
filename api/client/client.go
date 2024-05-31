@@ -76,6 +76,7 @@ import (
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	notificationsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	presencepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
@@ -85,6 +86,7 @@ import (
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	userpreferencespb "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
@@ -111,6 +113,7 @@ type AuthServiceClient struct {
 	assist.AssistServiceClient
 	auditlogpb.AuditLogServiceClient
 	userpreferencespb.UserPreferencesServiceClient
+	notificationsv1pb.NotificationServiceClient
 }
 
 // Client is a gRPC Client that connects to a Teleport Auth server either
@@ -522,6 +525,7 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 		AssistServiceClient:          assist.NewAssistServiceClient(c.conn),
 		AuditLogServiceClient:        auditlogpb.NewAuditLogServiceClient(c.conn),
 		UserPreferencesServiceClient: userpreferencespb.NewUserPreferencesServiceClient(c.conn),
+		NotificationServiceClient:    notificationsv1pb.NewNotificationServiceClient(c.conn),
 	}
 	c.JoinServiceClient = NewJoinServiceClient(proto.NewJoinServiceClient(c.conn))
 
@@ -865,6 +869,16 @@ func (c *Client) WorkloadIdentityServiceClient() machineidv1pb.WorkloadIdentityS
 	return machineidv1pb.NewWorkloadIdentityServiceClient(c.conn)
 }
 
+// NotificationServiceClient returns a notification service client that can be used to fetch notifications.
+func (c *Client) NotificationServiceClient() notificationsv1pb.NotificationServiceClient {
+	return notificationsv1pb.NewNotificationServiceClient(c.conn)
+}
+
+// VnetConfigServiceClient returns an unadorned client for the VNet config service.
+func (c *Client) VnetConfigServiceClient() vnet.VnetConfigServiceClient {
+	return vnet.NewVnetConfigServiceClient(c.conn)
+}
+
 // Ping gets basic info about the auth server.
 func (c *Client) Ping(ctx context.Context) (proto.PingResponse, error) {
 	rsp, err := c.grpc.Ping(ctx, &proto.PingRequest{})
@@ -884,18 +898,6 @@ func (c *Client) CreateUser(ctx context.Context, user types.User) (types.User, e
 
 	resp, err := userspb.NewUsersServiceClient(c.conn).CreateUser(ctx, &userspb.CreateUserRequest{User: userV2})
 	if err != nil {
-		// TODO(tross): DELETE IN 16.0.0
-		if trace.IsNotImplemented(err) {
-			//nolint:staticcheck // SA1019. Kept for backward compatibility.
-			if _, err := c.grpc.CreateUser(ctx, userV2); err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			//nolint:staticcheck // SA1019. Kept for backward compatibility.
-			created, err := c.grpc.GetUser(ctx, &proto.GetUserRequest{Name: user.GetName()})
-			return created, trace.Wrap(err)
-		}
-
 		return nil, trace.Wrap(err)
 	}
 
@@ -926,18 +928,6 @@ func (c *Client) UpdateUser(ctx context.Context, user types.User) (types.User, e
 
 	resp, err := userspb.NewUsersServiceClient(c.conn).UpdateUser(ctx, &userspb.UpdateUserRequest{User: userV2})
 	if err != nil {
-		// TODO(tross): DELETE IN 16.0.0
-		if trace.IsNotImplemented(err) {
-			//nolint:staticcheck // SA1019. Kept for backward compatibility.
-			if _, err := c.grpc.UpdateUser(ctx, userV2); err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			//nolint:staticcheck // SA1019. Kept for backward compatibility.
-			updated, err := c.grpc.GetUser(ctx, &proto.GetUserRequest{Name: user.GetName()})
-			return updated, trace.Wrap(err)
-		}
-
 		return nil, trace.Wrap(err)
 	}
 
@@ -952,16 +942,6 @@ func (c *Client) GetUser(ctx context.Context, name string, withSecrets bool) (ty
 	}
 	resp, err := userspb.NewUsersServiceClient(c.conn).GetUser(ctx, &userspb.GetUserRequest{Name: name, WithSecrets: withSecrets})
 	if err != nil {
-		// TODO(tross): DELETE IN 16.0.0
-		if trace.IsNotImplemented(err) {
-			//nolint:staticcheck // SA1019. Kept for backward compatibility.
-			user, err := c.grpc.GetUser(ctx, &proto.GetUserRequest{
-				Name:        name,
-				WithSecrets: withSecrets,
-			})
-			return user, trace.Wrap(err)
-		}
-
 		return nil, trace.Wrap(err)
 	}
 	return resp.User, nil
@@ -972,12 +952,6 @@ func (c *Client) GetUser(ctx context.Context, name string, withSecrets bool) (ty
 func (c *Client) GetCurrentUser(ctx context.Context) (types.User, error) {
 	resp, err := userspb.NewUsersServiceClient(c.conn).GetUser(ctx, &userspb.GetUserRequest{CurrentUser: true})
 	if err != nil {
-		// TODO(tross): DELETE IN 16.0.0
-		if trace.IsNotImplemented(err) {
-			//nolint:staticcheck // SA1019. Kept for backward compatibility.
-			currentUser, err := c.grpc.GetCurrentUser(ctx, &emptypb.Empty{})
-			return currentUser, trace.Wrap(err)
-		}
 		return nil, trace.Wrap(err)
 	}
 	return resp.User, nil
@@ -1010,11 +984,6 @@ func (c *Client) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, 
 	for {
 		rsp, err := c.ListUsers(ctx, &req)
 		if err != nil {
-			// TODO(tross): DELETE IN 16.0.0
-			if trace.IsNotImplemented(err) {
-				return c.getUsersCompat(ctx, withSecrets)
-			}
-
 			return nil, trace.Wrap(err)
 		}
 
@@ -1029,26 +998,6 @@ func (c *Client) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, 
 	}
 
 	return out, nil
-}
-
-// getUsersCompat is a fallback used to load users when talking to older auth servers that
-// don't implement the newer ListUsers method.
-func (c *Client) getUsersCompat(ctx context.Context, withSecrets bool) ([]types.User, error) {
-	//nolint:staticcheck // SA1019. Kept for backward compatibility.
-	stream, err := c.grpc.GetUsers(ctx, &proto.GetUsersRequest{
-		WithSecrets: withSecrets,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var users []types.User
-	for user, err := stream.Recv(); !errors.Is(err, io.EOF); user, err = stream.Recv() {
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		users = append(users, user)
-	}
-	return users, nil
 }
 
 // ListUsers returns a page of users.
@@ -1085,13 +1034,6 @@ func (c *Client) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (
 // DeleteUser deletes a user by name.
 func (c *Client) DeleteUser(ctx context.Context, user string) error {
 	_, err := userspb.NewUsersServiceClient(c.conn).DeleteUser(ctx, &userspb.DeleteUserRequest{Name: user})
-	// TODO(tross): DELETE IN 16.0.0
-	if trace.IsNotImplemented(err) {
-		//nolint:staticcheck // SA1019. Kept for backward compatibility.
-		_, err := c.grpc.DeleteUser(ctx, &proto.DeleteUserRequest{Name: user})
-		return trace.Wrap(err)
-	}
-
 	return trace.Wrap(err)
 }
 
@@ -1126,6 +1068,15 @@ func (c *Client) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 		return nil, trace.Wrap(err)
 	}
 	return cert, nil
+}
+
+// AssertSystemRole is used by agents to prove that they have a given system role when their credentials originate
+// from multiple separate join tokens so that they can be issued an instance certificate that encompasses
+// all of their capabilities. This method will be deprecated once we have a more comprehensive
+// model for join token joining/replacement.
+func (c *Client) AssertSystemRole(ctx context.Context, req proto.SystemRoleAssertion) error {
+	_, err := c.grpc.AssertSystemRole(ctx, &req)
+	return trace.Wrap(err)
 }
 
 // EmitAuditEvent sends an auditable event to the auth server.
@@ -1987,25 +1938,6 @@ func (c *Client) UpsertOIDCConnector(ctx context.Context, oidcConnector types.OI
 	}
 
 	upserted, err := c.grpc.UpsertOIDCConnectorV2(ctx, &proto.UpsertOIDCConnectorRequest{Connector: connector})
-	// TODO(tross) DELETE IN 16.0.0
-	if err != nil && trace.IsNotImplemented(err) {
-		//nolint:staticcheck // SA1019. Kept for backward compatibility.
-		if _, err := c.grpc.UpsertOIDCConnector(ctx, connector); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		conn, err := c.GetOIDCConnector(ctx, oidcConnector.GetName(), false)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		// Override the secrets with the values from the passed in connector since
-		// the call to GetOIDCConnector above did not request secrets.
-		conn.SetClientSecret(connector.GetClientSecret())
-		conn.SetGoogleServiceAccount(connector.GetGoogleServiceAccount())
-
-		return conn, nil
-	}
 	return upserted, trace.Wrap(err)
 }
 
@@ -2092,23 +2024,6 @@ func (c *Client) UpsertSAMLConnector(ctx context.Context, connector types.SAMLCo
 	}
 
 	upserted, err := c.grpc.UpsertSAMLConnectorV2(ctx, &proto.UpsertSAMLConnectorRequest{Connector: samlConnector})
-	// TODO(tross) DELETE IN 16.0.0
-	if err != nil && trace.IsNotImplemented(err) {
-		//nolint:staticcheck // SA1019. Kept for backward compatibility.
-		if _, err := c.grpc.UpsertSAMLConnector(ctx, samlConnector); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		conn, err := c.GetSAMLConnector(ctx, samlConnector.GetName(), false)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		// Override the secrets with the values from the passed in connector since
-		// the call to GetSAMLConnector above did not request secrets.
-		conn.SetSigningKeyPair(connector.GetSigningKeyPair())
-
-		return conn, nil
-	}
 	return upserted, trace.Wrap(err)
 }
 
@@ -2194,24 +2109,6 @@ func (c *Client) UpsertGithubConnector(ctx context.Context, connector types.Gith
 		return nil, trace.BadParameter("invalid type %T", connector)
 	}
 	conn, err := c.grpc.UpsertGithubConnectorV2(ctx, &proto.UpsertGithubConnectorRequest{Connector: githubConnector})
-	// TODO(tross) DELETE IN 16.0.0
-	if err != nil && trace.IsNotImplemented(err) {
-		//nolint:staticcheck // SA1019. Kept for backward compatibility testing.
-		if _, err := c.grpc.UpsertGithubConnector(ctx, githubConnector); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		resp, err := c.grpc.GetGithubConnector(ctx, &types.ResourceWithSecretsRequest{Name: connector.GetName(), WithSecrets: false})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		// Override the client secret with the value from the passed in connector since
-		// the call to GetGithubConnector above did not request secrets.
-		resp.SetClientSecret(connector.GetClientSecret())
-
-		return resp, nil
-	}
 	return conn, trace.Wrap(err)
 }
 
@@ -5023,6 +4920,25 @@ func (c *Client) UpsertUserPreferences(ctx context.Context, in *userpreferencesp
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// ListNotifications returns a paginated list of notifications for the user.
+// This includes global notifications which match the user, as well as user-specific notifications for the user.
+func (c *Client) ListNotifications(ctx context.Context, req *notificationsv1pb.ListNotificationsRequest) (*notificationsv1pb.ListNotificationsResponse, error) {
+	rsp, err := c.NotificationServiceClient().ListNotifications(ctx, req)
+	return rsp, trace.Wrap(err)
+}
+
+// UpsertUserNotificationState creates or updates a user notification state which records whether the user has clicked on or dismissed a notification.
+func (c *Client) UpsertUserNotificationState(ctx context.Context, req *notificationsv1pb.UpsertUserNotificationStateRequest) (*notificationsv1pb.UserNotificationState, error) {
+	rsp, err := c.NotificationServiceClient().UpsertUserNotificationState(ctx, req)
+	return rsp, trace.Wrap(err)
+}
+
+// UpsertUserLastSeenNotification creates or updates a user's last seen notification timestamp.
+func (c *Client) UpsertUserLastSeenNotification(ctx context.Context, req *notificationsv1pb.UpsertUserLastSeenNotificationRequest) (*notificationsv1pb.UserLastSeenNotification, error) {
+	rsp, err := c.NotificationServiceClient().UpsertUserLastSeenNotification(ctx, req)
+	return rsp, trace.Wrap(err)
 }
 
 // ResourceUsageClient returns an unadorned Resource Usage service client,

@@ -165,7 +165,7 @@ func (c *Cluster) createAppGateway(ctx context.Context, params CreateGatewayPara
 	var cert tls.Certificate
 
 	if err := AddMetadataToRetryableError(ctx, func() error {
-		cert, err = c.reissueAppCert(ctx, params.ClusterClient, app)
+		cert, err = c.ReissueAppCert(ctx, params.ClusterClient, app)
 		return trace.Wrap(err)
 	}); err != nil {
 		return nil, trace.Wrap(err)
@@ -230,7 +230,7 @@ func (c *Cluster) ReissueGatewayCerts(ctx context.Context, clusterClient *client
 		}
 
 		// The cert is returned from this function and finally set on LocalProxy by the middleware.
-		cert, err := c.reissueAppCert(ctx, clusterClient, app)
+		cert, err := c.ReissueAppCert(ctx, clusterClient, app)
 		return cert, trace.Wrap(err)
 	default:
 		return tls.Certificate{}, trace.NotImplemented("ReissueGatewayCerts does not support this gateway kind %v", g.TargetURI().String())

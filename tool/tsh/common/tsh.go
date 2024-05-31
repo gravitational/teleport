@@ -69,7 +69,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/benchmark"
 	benchmarkdb "github.com/gravitational/teleport/lib/benchmark/db"
@@ -89,6 +89,9 @@ import (
 	"github.com/gravitational/teleport/lib/utils/diagnostics/latency"
 	"github.com/gravitational/teleport/lib/utils/mlock"
 	"github.com/gravitational/teleport/tool/common"
+	"github.com/gravitational/teleport/tool/common/fido2"
+	"github.com/gravitational/teleport/tool/common/touchid"
+	"github.com/gravitational/teleport/tool/common/webauthnwin"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -1164,9 +1167,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	}
 
 	// FIDO2, TouchID and WebAuthnWin commands.
-	f2 := newFIDO2Command(app)
-	tid := newTouchIDCommand(app)
-	webauthnwin := newWebauthnwinCommand(app)
+	f2 := fido2.NewCommand(app)
+	tid := touchid.NewCommand(app)
+	wanwin := webauthnwin.NewCommand(app)
 
 	// Device Trust commands.
 	deviceCmd := newDeviceCommand(app)
@@ -1511,14 +1514,14 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onDaemonStart(&cf)
 	case daemonStop.FullCommand():
 		err = onDaemonStop(&cf)
-	case f2.diag.FullCommand():
-		err = f2.diag.run(&cf)
-	case f2.attobj.FullCommand():
-		err = f2.attobj.run(&cf)
-	case tid.diag.FullCommand():
-		err = tid.diag.run(&cf)
-	case webauthnwin.diag.FullCommand():
-		err = webauthnwin.diag.run(&cf)
+	case f2.Diag.FullCommand():
+		err = f2.Diag.Run(cf.Context)
+	case f2.Attobj.FullCommand():
+		err = f2.Attobj.Run()
+	case tid.Diag.FullCommand():
+		err = tid.Diag.Run()
+	case wanwin.Diag.FullCommand():
+		err = wanwin.Diag.Run(cf.Context)
 	case deviceCmd.enroll.FullCommand():
 		err = deviceCmd.enroll.run(&cf)
 	case deviceCmd.collect.FullCommand():
@@ -1545,10 +1548,10 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	default:
 		// Handle commands that might not be available.
 		switch {
-		case tid.ls != nil && command == tid.ls.FullCommand():
-			err = tid.ls.run(&cf)
-		case tid.rm != nil && command == tid.rm.FullCommand():
-			err = tid.rm.run(&cf)
+		case tid.Ls.MatchesCommand(command):
+			err = tid.Ls.Run()
+		case tid.Rm.MatchesCommand(command):
+			err = tid.Rm.Run()
 		default:
 			// This should only happen when there's a missing switch case above.
 			err = trace.BadParameter("command %q not configured", command)
@@ -1937,7 +1940,7 @@ func onLogin(cf *CLIConf) error {
 
 	key, err := tc.Login(cf.Context)
 	if err != nil {
-		if !cf.ExplicitUsername && auth.IsInvalidLocalCredentialError(err) {
+		if !cf.ExplicitUsername && authclient.IsInvalidLocalCredentialError(err) {
 			fmt.Fprintf(os.Stderr, "\nhint: set the --user flag to log in as a specific user, or leave it empty to use the system user (%v)\n\n", tc.Username)
 		}
 		return trace.Wrap(err)
@@ -1968,7 +1971,7 @@ func onLogin(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		key.TrustedCerts = auth.AuthoritiesToTrustedCerts(authorities)
+		key.TrustedCerts = authclient.AuthoritiesToTrustedCerts(authorities)
 		// If we're in multiplexed mode get SNI name for kube from single multiplexed proxy addr
 		kubeTLSServerName := ""
 		if tc.TLSRoutingEnabled {
@@ -2223,7 +2226,7 @@ type clusterClient struct {
 	name            string
 	connectionError error
 	cluster         *client.ClusterClient
-	auth            auth.ClientI
+	auth            authclient.ClientI
 	profile         *client.ProfileStatus
 	req             proto.ListResourcesRequest
 }
@@ -2487,7 +2490,7 @@ func serializeNodesWithClusters(nodes []nodeListing, format string) (string, err
 
 func getAccessRequest(ctx context.Context, tc *client.TeleportClient, requestID, username string) (types.AccessRequest, error) {
 	var req types.AccessRequest
-	err := tc.WithRootClusterClient(ctx, func(clt auth.ClientI) error {
+	err := tc.WithRootClusterClient(ctx, func(clt authclient.ClientI) error {
 		reqs, err := clt.GetAccessRequests(ctx, types.AccessRequestFilter{
 			ID:   requestID,
 			User: username,
@@ -2585,7 +2588,7 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 	if cf.RequestID == "" {
 		fmt.Fprint(os.Stdout, "Creating request...\n")
 		// always create access request against the root cluster
-		if err := tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
+		if err := tc.WithRootClusterClient(cf.Context, func(clt authclient.ClientI) error {
 			req, err = clt.CreateAccessRequestV2(cf.Context, req)
 			return trace.Wrap(err)
 		}); err != nil {
@@ -2606,7 +2609,7 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 	fmt.Fprintf(os.Stdout, "Waiting for request approval...\n")
 
 	var resolvedReq types.AccessRequest
-	if err := tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
+	if err := tc.WithRootClusterClient(cf.Context, func(clt authclient.ClientI) error {
 		resolvedReq, err = awaitRequestResolution(cf.Context, clt, req)
 		return trace.Wrap(err)
 	}); err != nil {
@@ -3313,7 +3316,7 @@ func getAutoResourceRequest(ctx context.Context, tc *client.TeleportClient, requ
 	// the requested login, we will get an error here.
 	req.SetDryRun(true)
 	req.SetRequestReason("Dry run, this request will not be created. If you see this, there is a bug.")
-	if err := tc.WithRootClusterClient(ctx, func(clt auth.ClientI) error {
+	if err := tc.WithRootClusterClient(ctx, func(clt authclient.ClientI) error {
 		req, err = clt.CreateAccessRequestV2(ctx, req)
 		return trace.Wrap(err)
 	}); err != nil {
@@ -3432,7 +3435,7 @@ func sendAccessRequestAndWaitForApproval(cf *CLIConf, tc *client.TeleportClient,
 	cf.RequestID = req.GetName()
 	fmt.Fprint(os.Stdout, "Creating request...\n")
 	// Always create access request against the root cluster.
-	if err := tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
+	if err := tc.WithRootClusterClient(cf.Context, func(clt authclient.ClientI) error {
 		req, err = clt.CreateAccessRequestV2(cf.Context, req)
 		return trace.Wrap(err)
 	}); err != nil {
@@ -3449,7 +3452,7 @@ func sendAccessRequestAndWaitForApproval(cf *CLIConf, tc *client.TeleportClient,
 	// Wait for the request to be resolved.
 	fmt.Fprintf(os.Stdout, "Waiting for request approval...\n")
 	var resolvedReq types.AccessRequest
-	if err := tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
+	if err := tc.WithRootClusterClient(cf.Context, func(clt authclient.ClientI) error {
 		resolvedReq, err = awaitRequestResolution(cf.Context, clt, req)
 		return trace.Wrap(err)
 	}); err != nil {
@@ -4712,7 +4715,7 @@ func host(in string) string {
 	return out
 }
 
-func awaitRequestResolution(ctx context.Context, clt auth.ClientI, req types.AccessRequest) (types.AccessRequest, error) {
+func awaitRequestResolution(ctx context.Context, clt authclient.ClientI, req types.AccessRequest) (types.AccessRequest, error) {
 	filter := types.AccessRequestFilter{
 		User: req.GetUser(),
 		ID:   req.GetName(),

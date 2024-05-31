@@ -72,6 +72,7 @@ import (
 	"github.com/gravitational/teleport/integration/kube"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/native"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
@@ -134,7 +135,7 @@ func handleReexec() {
 	// is re-executed.
 	if addr := os.Getenv(tshBinMockHeadlessAddrEnv); addr != "" {
 		runOpts = append(runOpts, func(c *CLIConf) error {
-			c.MockHeadlessLogin = func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
+			c.MockHeadlessLogin = func(ctx context.Context, priv *keys.PrivateKey) (*authclient.SSHLoginResponse, error) {
 				conn, err := net.Dial("tcp", addr)
 				if err != nil {
 					return nil, trace.Wrap(err, "dialing mock headless server")
@@ -151,7 +152,7 @@ func handleReexec() {
 				if err != nil {
 					return nil, trace.Wrap(err, "reading reply from mock headless server")
 				}
-				var loginResp auth.SSHLoginResponse
+				var loginResp authclient.SSHLoginResponse
 				if err := json.Unmarshal(reply, &loginResp); err != nil {
 					return nil, trace.Wrap(err, "decoding reply from mock headless server")
 				}
@@ -382,7 +383,7 @@ func TestFailedLogin(t *testing.T) {
 
 	// build a mock SSO login function to patch into tsh
 	loginFailed := trace.AccessDenied("login failed")
-	ssoLogin := func(ctx context.Context, connectorID string, priv *keys.PrivateKey, protocol string) (*auth.SSHLoginResponse, error) {
+	ssoLogin := func(ctx context.Context, connectorID string, priv *keys.PrivateKey, protocol string) (*authclient.SSHLoginResponse, error) {
 		return nil, loginFailed
 	}
 
@@ -1190,7 +1191,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			return
 		}
 
-		token, err := asrv.CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
+		token, err := asrv.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 			Name: name,
 		})
 		require.NoError(t, err)
@@ -2285,7 +2286,7 @@ func TestKubeCredentialsLock(t *testing.T) {
 
 		var ssoCalls atomic.Int32
 		mockSSOLogin := mockSSOLogin(authServer, alice)
-		mockSSOLoginWithCountCalls := func(ctx context.Context, connectorID string, priv *keys.PrivateKey, protocol string) (*auth.SSHLoginResponse, error) {
+		mockSSOLoginWithCountCalls := func(ctx context.Context, connectorID string, priv *keys.PrivateKey, protocol string) (*authclient.SSHLoginResponse, error) {
 			ssoCalls.Add(1)
 			return mockSSOLogin(ctx, connectorID, priv, protocol)
 		}
@@ -3570,7 +3571,7 @@ func mockConnector(t *testing.T) types.OIDCConnector {
 }
 
 func mockSSOLogin(authServer *auth.Server, user types.User) client.SSOLoginFunc {
-	return func(ctx context.Context, connectorID string, priv *keys.PrivateKey, protocol string) (*auth.SSHLoginResponse, error) {
+	return func(ctx context.Context, connectorID string, priv *keys.PrivateKey, protocol string) (*authclient.SSHLoginResponse, error) {
 		// generate certificates for our user
 		clusterName, err := authServer.GetClusterName()
 		if err != nil {
@@ -3599,17 +3600,17 @@ func mockSSOLogin(authServer *auth.Server, user types.User) client.SSOLoginFunc 
 		}
 
 		// build login response
-		return &auth.SSHLoginResponse{
+		return &authclient.SSHLoginResponse{
 			Username:    user.GetName(),
 			Cert:        sshCert,
 			TLSCert:     tlsCert,
-			HostSigners: auth.AuthoritiesToTrustedCerts([]types.CertAuthority{authority}),
+			HostSigners: authclient.AuthoritiesToTrustedCerts([]types.CertAuthority{authority}),
 		}, nil
 	}
 }
 
 func mockHeadlessLogin(t *testing.T, authServer *auth.Server, user types.User) client.SSHLoginFunc {
-	return func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
+	return func(ctx context.Context, priv *keys.PrivateKey) (*authclient.SSHLoginResponse, error) {
 		// generate certificates for our user
 		clusterName, err := authServer.GetClusterName()
 		require.NoError(t, err)
@@ -3631,11 +3632,11 @@ func mockHeadlessLogin(t *testing.T, authServer *auth.Server, user types.User) c
 		require.NoError(t, err)
 
 		// build login response
-		return &auth.SSHLoginResponse{
+		return &authclient.SSHLoginResponse{
 			Username:    user.GetName(),
 			Cert:        sshCert,
 			TLSCert:     tlsCert,
-			HostSigners: auth.AuthoritiesToTrustedCerts([]types.CertAuthority{authority}),
+			HostSigners: authclient.AuthoritiesToTrustedCerts([]types.CertAuthority{authority}),
 		}, nil
 	}
 }

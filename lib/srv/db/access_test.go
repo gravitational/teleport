@@ -55,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client"
@@ -1431,7 +1432,7 @@ type testContext struct {
 	clusterName    string
 	tlsServer      *auth.TestTLSServer
 	authServer     *auth.Server
-	authClient     *auth.Client
+	authClient     *authclient.Client
 	proxyServer    *ProxyServer
 	mux            *multiplexer.Mux
 	mysqlListener  net.Listener
@@ -2186,7 +2187,7 @@ func (c *testContext) makeTLSConfig(t testing.TB) *tls.Config {
 	conf := utils.TLSConfig(nil)
 	conf.Certificates = append(conf.Certificates, cert)
 	conf.ClientAuth = tls.VerifyClientCertIfGiven
-	conf.ClientCAs, _, err = auth.DefaultClientCertPool(c.authServer, c.clusterName)
+	conf.ClientCAs, _, err = authclient.DefaultClientCertPool(context.Background(), c.authServer, c.clusterName)
 	require.NoError(t, err)
 	return conf
 }

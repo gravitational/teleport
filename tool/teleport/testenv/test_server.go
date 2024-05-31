@@ -46,7 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
@@ -139,7 +139,7 @@ func MakeTestServer(t *testing.T, opts ...TestServerOptFunc) (process *service.T
 	//
 	// It is also found that Azure metadata client can throw "Too many
 	// requests" during CI which fails services.NewTeleport.
-	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 
 	cfg.Hostname = "server01"
 	cfg.DataDir = t.TempDir()

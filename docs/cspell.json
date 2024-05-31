@@ -18,6 +18,7 @@
     "AWSARN",
     "AWSIIDTTL",
     "Aarch",
+    "Activ",
     "Addrs",
     "Afax",
     "Aqxs",
@@ -288,6 +289,7 @@
     "autodiscovery",
     "autoload",
     "automaticupgrades",
+    "automations",
     "automount",
     "autoscale",
     "awly",
@@ -297,6 +299,7 @@
     "awsconsole",
     "awsdatabases",
     "awskms",
+    "awsoidc",
     "awsuser",
     "azblob",
     "azuread",
@@ -355,6 +358,7 @@
     "clusterrolebinding",
     "clusterrolebindings",
     "clusterroles",
+    "cmdkey",
     "cockroachdb",
     "codingllama",
     "compat",
@@ -548,6 +552,7 @@
     "libgcc",
     "libm",
     "libpq",
+    "livez",
     "lmnop",
     "loadbalancer",
     "localca",
@@ -586,6 +591,7 @@
     "mongosh",
     "mpghq",
     "msapi",
+    "msclmd",
     "mspan",
     "msprod",
     "msteams",
@@ -879,6 +885,7 @@
     "upgrader",
     "uqcje",
     "urandom",
+    "urlfetch",
     "usename",
     "userdata",
     "userdel",
@@ -929,7 +936,10 @@
     "yubishm",
     "znmqk",
     "zxvf",
-    "zztop"
+    "zztop",
+    "SPDY"
   ],
-  "flagWords": ["hte"]
+  "flagWords": [
+    "hte"
+  ]
 }

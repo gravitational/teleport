@@ -47,10 +47,11 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/multiplexer"
@@ -207,7 +208,7 @@ func MustCreateUserIdentityFile(t *testing.T, tc *TeleInstance, username string,
 
 	hostCAs, err := tc.Process.GetAuthServer().GetCertAuthorities(context.Background(), types.HostCA, false)
 	require.NoError(t, err)
-	key.TrustedCerts = auth.AuthoritiesToTrustedCerts(hostCAs)
+	key.TrustedCerts = authclient.AuthoritiesToTrustedCerts(hostCAs)
 
 	idPath := filepath.Join(t.TempDir(), "user_identity")
 	_, err = identityfile.Write(context.Background(), identityfile.WriteConfig{
@@ -237,7 +238,7 @@ func WaitForProxyCount(t *TeleInstance, clusterName string, count int) error {
 }
 
 func WaitForAuditEventTypeWithBackoff(t *testing.T, cli *auth.Server, startTime time.Time, eventType string) []apievents.AuditEvent {
-	max := time.Second
+	max := time.Second * 2
 	timeout := time.After(max)
 	bf, err := retryutils.NewLinear(retryutils.LinearConfig{
 		Step: max / 10,
@@ -336,7 +337,7 @@ func MakeTestServers(t *testing.T) (auth *service.TeleportProcess, proxy *servic
 	// execution of this test.
 	cfg := servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	cfg.Hostname = "localhost"
 	cfg.DataDir = t.TempDir()
 	cfg.SetAuthServerAddress(cfg.Auth.ListenAddr)
@@ -377,7 +378,7 @@ func MakeTestServers(t *testing.T) (auth *service.TeleportProcess, proxy *servic
 	// Set up a test proxy service.
 	cfg = servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	cfg.Hostname = "localhost"
 	cfg.DataDir = t.TempDir()
 
@@ -420,7 +421,7 @@ func MakeTestDatabaseServer(t *testing.T, proxyAddr utils.NetAddr, token string,
 	cfg.Hostname = "localhost"
 	cfg.DataDir = t.TempDir()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	cfg.SetAuthServerAddress(proxyAddr)
 	cfg.SetToken(token)
 	cfg.SSH.Enabled = false

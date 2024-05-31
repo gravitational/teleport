@@ -156,7 +156,9 @@ function TdpClientCanvas(props: Props) {
       const renderBuffer = () => {
         if (bitmapBuffer.length) {
           for (let i = 0; i < bitmapBuffer.length; i++) {
-            clientOnBmpFrame(ctx, bitmapBuffer[i]);
+            if (bitmapBuffer[i].image_data.data.length != 0) {
+              clientOnBmpFrame(ctx, bitmapBuffer[i]);
+            }
           }
           bitmapBuffer = [];
         }

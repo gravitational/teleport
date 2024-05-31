@@ -29,7 +29,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
 	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
@@ -60,7 +59,7 @@ func (f *openSearchPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConf
 	}
 	var eligibleDomains []*opensearchservice.DomainStatus
 	for _, domain := range domains {
-		if !services.IsOpenSearchDomainAvailable(domain) {
+		if !libcloudaws.IsOpenSearchDomainAvailable(domain) {
 			cfg.Log.Debugf("OpenSearch domain %q is unavailable. Skipping.", aws.StringValue(domain.DomainName))
 			continue
 		}
@@ -84,7 +83,7 @@ func (f *openSearchPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConf
 			}
 		}
 
-		dbs, err := services.NewDatabasesFromOpenSearchDomain(domain, tags)
+		dbs, err := common.NewDatabasesFromOpenSearchDomain(domain, tags)
 		if err != nil {
 			cfg.Log.WithError(err).Infof("Could not convert OpenSearch domain %q configuration to database resource.", aws.StringValue(domain.DomainName))
 		} else {

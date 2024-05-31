@@ -36,7 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	dtauthn "github.com/gravitational/teleport/lib/devicetrust/authn"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
@@ -95,7 +95,11 @@ func New(cfg Config) (*Service, error) {
 	// That's because Daemon.ResolveClusterURI sets a custom MFAPromptConstructor that
 	// shows an MFA prompt in Connect.
 	// At the level of Storage.ResolveClusterFunc we don't have access to it.
-	service.clientCache = cfg.CreateClientCacheFunc(service.ResolveClusterURI)
+	service.clientCache, err = cfg.CreateClientCacheFunc(service.NewClusterClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return service, nil
 }
 
@@ -156,14 +160,17 @@ func (s *Service) retryWithRelogin(ctx context.Context, reloginReq *api.ReloginR
 	return trace.Wrap(err)
 }
 
+// ListProfileNames lists profile names from storage. It's a lightweight alternative to
+// ListRootClusters, which also reads all profiles beyond their names and initializes clients.
+func (s *Service) ListProfileNames() ([]string, error) {
+	pfNames, err := s.cfg.Storage.ListProfileNames()
+	return pfNames, trace.Wrap(err)
+}
+
 // ListRootClusters returns a list of root clusters
 func (s *Service) ListRootClusters(ctx context.Context) ([]*clusters.Cluster, error) {
-	clusters, err := s.cfg.Storage.ReadAll()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return clusters, nil
+	clusters, err := s.cfg.Storage.ListRootClusters()
+	return clusters, trace.Wrap(err)
 }
 
 // ListLeafClusters returns a list of leaf clusters
@@ -219,6 +226,14 @@ func (s *Service) RemoveCluster(ctx context.Context, uri string) error {
 	}
 
 	return nil
+}
+
+// NewClusterClient is a wrapper on ResolveClusterURI that can be passed as an argument to
+// s.cfg.CreateClientCacheFunc.
+func (s *Service) NewClusterClient(ctx context.Context, profileName, leafClusterName string) (*client.TeleportClient, error) {
+	uri := uri.NewClusterURI(profileName).AppendLeafCluster(leafClusterName)
+	_, clusterClient, err := s.ResolveClusterURI(uri)
+	return clusterClient, trace.Wrap(err)
 }
 
 // ResolveCluster resolves a cluster by URI by reading data stored on disk in the profile.
@@ -1026,7 +1041,7 @@ func (s *Service) GetUserPreferences(ctx context.Context, clusterURI uri.Resourc
 	err = clusters.AddMetadataToRetryableError(ctx, func() error {
 		rootAuthClient := rootProxyClient.CurrentCluster()
 
-		var leafAuthClient auth.ClientI
+		var leafAuthClient authclient.ClientI
 		if clusterURI.IsLeaf() {
 			leafProxyClient, err := s.GetCachedClient(ctx, clusterURI.GetClusterURI())
 			if err != nil {
@@ -1059,7 +1074,7 @@ func (s *Service) UpdateUserPreferences(ctx context.Context, clusterURI uri.Reso
 	err = clusters.AddMetadataToRetryableError(ctx, func() error {
 		rootAuthClient := rootProxyClient.CurrentCluster()
 
-		var leafAuthClient auth.ClientI
+		var leafAuthClient authclient.ClientI
 		if clusterURI.IsLeaf() {
 			leafProxyClient, err := s.GetCachedClient(ctx, clusterURI.GetClusterURI())
 			if err != nil {
@@ -1119,14 +1134,17 @@ func (s *Service) findGatewayByTargetURI(targetURI uri.ResourceURI) (gateway.Gat
 // GetCachedClient returns a client from the cache if it exists,
 // otherwise it dials the remote server.
 func (s *Service) GetCachedClient(ctx context.Context, clusterURI uri.ResourceURI) (*client.ClusterClient, error) {
-	clt, err := s.clientCache.Get(ctx, clusterURI)
+	profileName := clusterURI.GetProfileName()
+	leafClusterName := clusterURI.GetLeafClusterName()
+	clt, err := s.clientCache.Get(ctx, profileName, leafClusterName)
 	return clt, trace.Wrap(err)
 }
 
 // ClearCachedClientsForRoot closes and removes clients from the cache
 // for the root cluster and its leaf clusters.
 func (s *Service) ClearCachedClientsForRoot(clusterURI uri.ResourceURI) error {
-	return trace.Wrap(s.clientCache.ClearForRoot(clusterURI))
+	profileName := clusterURI.GetProfileName()
+	return trace.Wrap(s.clientCache.ClearForRoot(profileName))
 }
 
 // Service is the daemon service

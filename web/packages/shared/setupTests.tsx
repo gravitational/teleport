@@ -61,6 +61,7 @@ const failOnConsoleIgnoreList = new Set([
   'web/packages/teleport/src/Console/DocumentNodes/DocumentNodes.story.test.tsx',
   'web/packages/teleport/src/Recordings/Recordings.story.test.tsx',
   'web/packages/teleport/src/Audit/Audit.story.test.tsx',
+  'web/packages/teleport/src/Discover/Database/DeployService/AutoDeploy/AutoDeploy.test.tsx',
   ...entFailOnConsoleIgnoreList,
 ]);
 failOnConsole({

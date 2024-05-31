@@ -69,7 +69,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/prompt"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/touchid"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
@@ -601,9 +601,9 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 	case !IsErrorResolvableWithRelogin(fnErr):
 		return trace.Wrap(fnErr)
 	}
-	opt := retryWithReloginOptions{}
+	opt := defaultRetryWithReloginOptions()
 	for _, o := range opts {
-		o(&opt)
+		o(opt)
 	}
 	log.Debugf("Activating relogin on error=%q (type=%T)", fnErr, trace.Unwrap(fnErr))
 
@@ -650,9 +650,15 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 	}
 
 	// Save profile to record proxy credentials
-	if err := tc.SaveProfile(true); err != nil {
+	if err := tc.SaveProfile(opt.makeCurrentProfile); err != nil {
 		log.Warningf("Failed to save profile: %v", err)
 		return trace.Wrap(err)
+	}
+
+	if opt.afterLoginHook != nil {
+		if err := opt.afterLoginHook(); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return fn()
@@ -666,13 +672,39 @@ type RetryWithReloginOption func(*retryWithReloginOptions)
 type retryWithReloginOptions struct {
 	// beforeLoginHook is a function that will be called before the login attempt.
 	beforeLoginHook func() error
+	// afterLoginHook is a function that will be called after a successful login.
+	afterLoginHook func() error
+	// makeCurrentProfile determines whether to update the current profile after login.
+	makeCurrentProfile bool
 }
 
-// WithBeforeLogin is a functional option for configuring a function that will
+func defaultRetryWithReloginOptions() *retryWithReloginOptions {
+	return &retryWithReloginOptions{
+		makeCurrentProfile: true,
+	}
+}
+
+// WithBeforeLoginHook is a functional option for configuring a function that will
 // be called before the login attempt.
 func WithBeforeLoginHook(fn func() error) RetryWithReloginOption {
 	return func(o *retryWithReloginOptions) {
 		o.beforeLoginHook = fn
+	}
+}
+
+// WithAfterLoginHook is a functional option for configuring a function that will
+// be called after a successful login.
+func WithAfterLoginHook(fn func() error) RetryWithReloginOption {
+	return func(o *retryWithReloginOptions) {
+		o.afterLoginHook = fn
+	}
+}
+
+// WithMakeCurrentProfile is a functional option for configuring whether to update the current profile after a
+// successful login.
+func WithMakeCurrentProfile(makeCurrentProfile bool) RetryWithReloginOption {
+	return func(o *retryWithReloginOptions) {
+		o.makeCurrentProfile = makeCurrentProfile
 	}
 }
 
@@ -1078,6 +1110,10 @@ type dtAutoEnrollFunc func(context.Context, devicepb.DeviceTrustServiceClient) (
 type TeleportClient struct {
 	Config
 	localAgent *LocalKeyAgent
+
+	// OnChannelRequest gets called when SSH channel requests are
+	// received. It's safe to keep it nil.
+	OnChannelRequest tracessh.ChannelRequestCallback
 
 	// OnShellCreated gets called when the shell is created. It's
 	// safe to keep it nil.
@@ -1539,7 +1575,7 @@ func (tc *TeleportClient) NewWatcher(ctx context.Context, watch types.Watch) (ty
 // against the root cluster's auth server.
 // Deprecated: Prefer reusing auth clients instead of creating at worst two
 // clients for a single function.
-func (tc *TeleportClient) WithRootClusterClient(ctx context.Context, do func(clt auth.ClientI) error) error {
+func (tc *TeleportClient) WithRootClusterClient(ctx context.Context, do func(clt authclient.ClientI) error) error {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/WithRootClusterClient",
@@ -1749,7 +1785,7 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 	// Any direct connection errors other than access denied, which should be returned
 	// if MFA is required, take precedent over MFA errors due to users not having any
 	// enrolled devices.
-	case !trace.IsAccessDenied(directErr) && errors.Is(mfaErr, auth.ErrNoMFADevices):
+	case !trace.IsAccessDenied(directErr) && errors.Is(mfaErr, authclient.ErrNoMFADevices):
 		return nil, trace.Wrap(directErr)
 	case !errors.Is(mfaErr, io.EOF) && // Ignore any errors from MFA due to locks being enforced, the direct error will be friendlier
 		!errors.Is(mfaErr, MFARequiredUnknownErr{}) && // Ignore any failures that occurred before determining if MFA was required
@@ -1909,7 +1945,7 @@ func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, clt
 		// Reuse the existing nodeClient we connected above.
 		return nodeClient.RunCommand(ctx, command)
 	}
-	return trace.Wrap(nodeClient.RunInteractiveShell(ctx, types.SessionPeerMode, nil, nil))
+	return trace.Wrap(nodeClient.RunInteractiveShell(ctx, types.SessionPeerMode, nil, tc.OnChannelRequest, nil))
 }
 
 func (tc *TeleportClient) runShellOrCommandOnMultipleNodes(ctx context.Context, clt *ClusterClient, nodes []targetNode, command []string) error {
@@ -1990,7 +2026,7 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	defer span.End()
 
 	if namespace == "" {
-		return trace.BadParameter(auth.MissingNamespaceError)
+		return trace.BadParameter(authclient.MissingNamespaceError)
 	}
 	tc.Stdin = input
 	if sessionID.Check() != nil {
@@ -2068,7 +2104,7 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	fmt.Printf("Joining session with participant mode: %v. \n\n", mode)
 
 	// running shell with a given session means "join" it:
-	err = nc.RunInteractiveShell(ctx, mode, session, beforeStart)
+	err = nc.RunInteractiveShell(ctx, mode, session, tc.OnChannelRequest, beforeStart)
 	return trace.Wrap(err)
 }
 
@@ -2874,7 +2910,7 @@ func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (_ *ClusterClien
 		return nil, trace.NewAggregate(err, pclt.Close())
 	}
 	authClientCfg.MFAPromptConstructor = tc.NewMFAPrompt
-	authClient, err := auth.NewClient(authClientCfg)
+	authClient, err := authclient.NewClient(authClientCfg)
 	if err != nil {
 		return nil, trace.NewAggregate(err, pclt.Close())
 	}
@@ -3254,7 +3290,7 @@ func (tc *TeleportClient) LoginWeb(ctx context.Context) (*WebClient, types.WebSe
 // successful, as skipping the ceremony is valid for various reasons (Teleport
 // cluster doesn't support device authn, device wasn't enrolled, etc).
 // Use [TeleportClient.DeviceLogin] if you want more control over process.
-func (tc *TeleportClient) AttemptDeviceLogin(ctx context.Context, key *Key, rootAuthClient auth.ClientI) error {
+func (tc *TeleportClient) AttemptDeviceLogin(ctx context.Context, key *Key, rootAuthClient authclient.ClientI) error {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/AttemptDeviceLogin",
@@ -3312,7 +3348,7 @@ func (tc *TeleportClient) AttemptDeviceLogin(ctx context.Context, key *Key, root
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	trustedCerts := auth.AuthoritiesToTrustedCerts(hostCerts)
+	trustedCerts := authclient.AuthoritiesToTrustedCerts(hostCerts)
 
 	// Update the CA pool and known hosts for all CAs the cluster knows about.
 	return trace.Wrap(tc.localAgent.SaveTrustedCerts(trustedCerts))
@@ -3331,7 +3367,7 @@ func (tc *TeleportClient) AttemptDeviceLogin(ctx context.Context, key *Key, root
 // `tsh login`).
 //
 // Device Trust is a Teleport Enterprise feature.
-func (tc *TeleportClient) DeviceLogin(ctx context.Context, rootAuthClient auth.ClientI, certs *devicepb.UserCertificates) (*devicepb.UserCertificates, error) {
+func (tc *TeleportClient) DeviceLogin(ctx context.Context, rootAuthClient authclient.ClientI, certs *devicepb.UserCertificates) (*devicepb.UserCertificates, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/DeviceLogin",
@@ -3398,7 +3434,7 @@ func (tc *TeleportClient) getSSHLoginFunc(pr *webclient.PingResponse) (SSHLoginF
 				return nil, trace.BadParameter("headless disallowed by cluster settings")
 			}
 			if tc.AllowHeadless {
-				return func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
+				return func(ctx context.Context, priv *keys.PrivateKey) (*authclient.SSHLoginResponse, error) {
 					return tc.headlessLogin(ctx, priv)
 				}, nil
 			}
@@ -3414,7 +3450,7 @@ func (tc *TeleportClient) getSSHLoginFunc(pr *webclient.PingResponse) (SSHLoginF
 				return tc.pwdlessLogin, nil
 			}
 
-			return func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
+			return func(ctx context.Context, priv *keys.PrivateKey) (*authclient.SSHLoginResponse, error) {
 				return tc.localLogin(ctx, priv, pr.Auth.SecondFactor)
 			}, nil
 		default:
@@ -3422,17 +3458,17 @@ func (tc *TeleportClient) getSSHLoginFunc(pr *webclient.PingResponse) (SSHLoginF
 		}
 	case constants.OIDC:
 		oidc := pr.Auth.OIDC
-		return func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
+		return func(ctx context.Context, priv *keys.PrivateKey) (*authclient.SSHLoginResponse, error) {
 			return tc.ssoLogin(ctx, priv, oidc.Name, oidc.Display, constants.OIDC)
 		}, nil
 	case constants.SAML:
 		saml := pr.Auth.SAML
-		return func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
+		return func(ctx context.Context, priv *keys.PrivateKey) (*authclient.SSHLoginResponse, error) {
 			return tc.ssoLogin(ctx, priv, saml.Name, saml.Display, constants.SAML)
 		}, nil
 	case constants.Github:
 		github := pr.Auth.Github
-		return func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
+		return func(ctx context.Context, priv *keys.PrivateKey) (*authclient.SSHLoginResponse, error) {
 			return tc.ssoLogin(ctx, priv, github.Name, github.Display, constants.Github)
 		}, nil
 	default:
@@ -3601,7 +3637,7 @@ func (tc *TeleportClient) canDefaultToPasswordless(pr *webclient.PingResponse) b
 }
 
 // SSHLoginFunc is a function which carries out authn with an auth server and returns an auth response.
-type SSHLoginFunc func(context.Context, *keys.PrivateKey) (*auth.SSHLoginResponse, error)
+type SSHLoginFunc func(context.Context, *keys.PrivateKey) (*authclient.SSHLoginResponse, error)
 
 // SSHLogin uses the given login function to login the client. This function handles
 // private key logic and parsing the resulting auth response.
@@ -3613,7 +3649,7 @@ func (tc *TeleportClient) SSHLogin(ctx context.Context, sshLoginFunc SSHLoginFun
 	)
 	defer span.End()
 
-	var response *auth.SSHLoginResponse
+	var response *authclient.SSHLoginResponse
 	priv, err := tc.loginWithHardwareKeyRetry(ctx, func(ctx context.Context, priv *keys.PrivateKey) error {
 		var err error
 		response, err = sshLoginFunc(ctx, priv)
@@ -3742,7 +3778,7 @@ func (tc *TeleportClient) newSSHLogin(priv *keys.PrivateKey) (SSHLogin, error) {
 	}, nil
 }
 
-func (tc *TeleportClient) pwdlessLogin(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
+func (tc *TeleportClient) pwdlessLogin(ctx context.Context, priv *keys.PrivateKey) (*authclient.SSHLoginResponse, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/pwdlessLogin",
@@ -3773,9 +3809,9 @@ func (tc *TeleportClient) pwdlessLogin(ctx context.Context, priv *keys.PrivateKe
 	return response, trace.Wrap(err)
 }
 
-func (tc *TeleportClient) localLogin(ctx context.Context, priv *keys.PrivateKey, secondFactor constants.SecondFactorType) (*auth.SSHLoginResponse, error) {
+func (tc *TeleportClient) localLogin(ctx context.Context, priv *keys.PrivateKey, secondFactor constants.SecondFactorType) (*authclient.SSHLoginResponse, error) {
 	var err error
-	var response *auth.SSHLoginResponse
+	var response *authclient.SSHLoginResponse
 
 	// TODO(awly): mfa: ideally, clients should always go through mfaLocalLogin
 	// (with a nop MFA challenge if no 2nd factor is required). That way we can
@@ -3801,7 +3837,7 @@ func (tc *TeleportClient) localLogin(ctx context.Context, priv *keys.PrivateKey,
 }
 
 // directLogin asks for a password + OTP token, makes a request to CA via proxy
-func (tc *TeleportClient) directLogin(ctx context.Context, secondFactorType constants.SecondFactorType, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
+func (tc *TeleportClient) directLogin(ctx context.Context, secondFactorType constants.SecondFactorType, priv *keys.PrivateKey) (*authclient.SSHLoginResponse, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/directLogin",
@@ -3840,7 +3876,7 @@ func (tc *TeleportClient) directLogin(ctx context.Context, secondFactorType cons
 }
 
 // mfaLocalLogin asks for a password and performs the challenge-response authentication
-func (tc *TeleportClient) mfaLocalLogin(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
+func (tc *TeleportClient) mfaLocalLogin(ctx context.Context, priv *keys.PrivateKey) (*authclient.SSHLoginResponse, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/mfaLocalLogin",
@@ -3868,7 +3904,7 @@ func (tc *TeleportClient) mfaLocalLogin(ctx context.Context, priv *keys.PrivateK
 	return response, trace.Wrap(err)
 }
 
-func (tc *TeleportClient) headlessLogin(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
+func (tc *TeleportClient) headlessLogin(ctx context.Context, priv *keys.PrivateKey) (*authclient.SSHLoginResponse, error) {
 	if tc.MockHeadlessLogin != nil {
 		return tc.MockHeadlessLogin(ctx, priv)
 	}
@@ -3904,7 +3940,7 @@ func (tc *TeleportClient) headlessLogin(ctx context.Context, priv *keys.PrivateK
 }
 
 // SSOLoginFunc is a function used in tests to mock SSO logins.
-type SSOLoginFunc func(ctx context.Context, connectorID string, priv *keys.PrivateKey, protocol string) (*auth.SSHLoginResponse, error)
+type SSOLoginFunc func(ctx context.Context, connectorID string, priv *keys.PrivateKey, protocol string) (*authclient.SSHLoginResponse, error)
 
 // TODO(atburke): DELETE in v17.0.0
 func versionSupportsKeyPolicyMessage(proxyVersion *semver.Version) bool {
@@ -3921,7 +3957,7 @@ func versionSupportsKeyPolicyMessage(proxyVersion *semver.Version) bool {
 }
 
 // samlLogin opens browser window and uses OIDC or SAML redirect cycle with browser
-func (tc *TeleportClient) ssoLogin(ctx context.Context, priv *keys.PrivateKey, connectorID, connectorName, protocol string) (*auth.SSHLoginResponse, error) {
+func (tc *TeleportClient) ssoLogin(ctx context.Context, priv *keys.PrivateKey, connectorID, connectorName, protocol string) (*authclient.SSHLoginResponse, error) {
 	if tc.MockSSOLogin != nil {
 		// sso login response is being mocked for testing purposes
 		return tc.MockSSOLogin(ctx, connectorID, priv, protocol)
@@ -3955,7 +3991,7 @@ func (tc *TeleportClient) ssoLogin(ctx context.Context, priv *keys.PrivateKey, c
 
 // ConnectToRootCluster activates the provided key and connects to the
 // root cluster with its credentials.
-func (tc *TeleportClient) ConnectToRootCluster(ctx context.Context, key *Key) (*ClusterClient, auth.ClientI, error) {
+func (tc *TeleportClient) ConnectToRootCluster(ctx context.Context, key *Key) (*ClusterClient, authclient.ClientI, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/ConnectToRootCluster",
@@ -4178,7 +4214,7 @@ func (tc *TeleportClient) UpdateTrustedCA(ctx context.Context, getter services.A
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	trustedCerts := auth.AuthoritiesToTrustedCerts(hostCerts)
+	trustedCerts := authclient.AuthoritiesToTrustedCerts(hostCerts)
 
 	// Update the CA pool and known hosts for all CAs the cluster knows about.
 	err = tc.localAgent.SaveTrustedCerts(trustedCerts)
@@ -4371,7 +4407,7 @@ func (tc *TeleportClient) AddTrustedCA(ctx context.Context, ca types.CertAuthori
 		return trace.BadParameter("TeleportClient.AddTrustedCA called on a client without localAgent")
 	}
 
-	err := tc.localAgent.SaveTrustedCerts(auth.AuthoritiesToTrustedCerts([]types.CertAuthority{ca}))
+	err := tc.localAgent.SaveTrustedCerts(authclient.AuthoritiesToTrustedCerts([]types.CertAuthority{ca}))
 	if err != nil {
 		return trace.Wrap(err)
 	}

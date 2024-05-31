@@ -41,7 +41,6 @@ export default function useRouting(ctx: ConsoleContext) {
     if (ctx.getActiveDocId(pathname) !== -1) {
       return;
     }
-    const searchParams = new URLSearchParams(search);
 
     // When no document matches current URL that means we need to
     // create one base on URL parameters.
@@ -49,6 +48,7 @@ export default function useRouting(ctx: ConsoleContext) {
       ctx.addSshDocument(sshRouteMatch.params);
     } else if (joinSshRouteMatch) {
       // Extract the mode param from the URL if it is present.
+      const searchParams = new URLSearchParams(search);
       const mode = searchParams.get('mode');
       if (mode) {
         joinSshRouteMatch.params.mode = mode as ParticipantMode;
@@ -57,12 +57,7 @@ export default function useRouting(ctx: ConsoleContext) {
     } else if (nodesRouteMatch) {
       ctx.addNodeDocument(clusterId);
     } else if (kubeExecRouteMatch) {
-      const isInteractive = searchParams.get('isInteractive') === 'true';
-      const command = searchParams.get('command');
-      ctx.addKubeExecDocument(kubeExecRouteMatch.params, {
-        isInteractive,
-        command,
-      });
+      ctx.addKubeExecDocument(kubeExecRouteMatch.params);
     }
   }, [ctx, pathname]);
 

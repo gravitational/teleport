@@ -9,6 +9,7 @@ data:
     storage = {{ .Values.eventHandler.storagePath | toJson }}
     timeout = {{ .Values.eventHandler.timeout | toJson }}
     batch = {{ .Values.eventHandler.batch }}
+    window-size = {{ default "24h" .Values.eventHandler.windowSize | quote }}
 
     [teleport]
     addr = "{{ .Values.teleport.address }}"

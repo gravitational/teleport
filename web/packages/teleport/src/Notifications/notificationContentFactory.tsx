@@ -83,13 +83,11 @@ type NotificationContentRedirect = NotificationContentBase & {
   kind: 'redirect';
   /** redirectRoute is the route the user should be redirected to when clicking the notification, if any. */
   redirectRoute: string;
-  quickAction?: {
-    /** onClick is what should be run when the user clicks on the quick action button */
-    onClick: () => void;
-    /** buttonText is the text that should be shown on the quick action button */
-    buttonText: string;
-  };
+  /** QuickAction is a custom button which can be used as a quick action. */
+  QuickAction?: (props: QuickActionProps) => JSX.Element;
 };
+
+export type QuickActionProps = { markAsClicked: () => Promise<any> };
 
 /** For notifications that only contain text and are not interactive in any other way. This is used for user-created notifications. */
 type NotificationContentText = NotificationContentBase & {

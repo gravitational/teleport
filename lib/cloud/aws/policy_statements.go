@@ -145,8 +145,10 @@ func StatementForEC2SSMAutoDiscover() *Statement {
 		Effect: EffectAllow,
 		Actions: []string{
 			"ec2:DescribeInstances",
-			"ssm:SendCommand",
+			"ssm:DescribeInstanceInformation",
 			"ssm:GetCommandInvocation",
+			"ssm:ListCommandInvocations",
+			"ssm:SendCommand",
 		},
 		Resources: allResources,
 	}
@@ -422,6 +424,10 @@ func StatementAccessGraphAWSSync() *Statement {
 			"iam:ListRolePolicies",
 			"iam:ListAttachedRolePolicies",
 			"iam:GetRolePolicy",
+			"iam:ListSAMLProviders",
+			"iam:GetSAMLProvider",
+			"iam:ListOpenIDConnectProviders",
+			"iam:GetOpenIDConnectProvider",
 		},
 		Resources: allResources,
 	}

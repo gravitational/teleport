@@ -31,7 +31,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -133,7 +133,7 @@ func (s *Store) AddTrustedHostKeys(proxyHost string, clusterName string, hostKey
 	for _, hostKey := range hostKeys {
 		authorizedKeys = append(authorizedKeys, ssh.MarshalAuthorizedKey(hostKey))
 	}
-	err := s.SaveTrustedCerts(proxyHost, []auth.TrustedCerts{
+	err := s.SaveTrustedCerts(proxyHost, []authclient.TrustedCerts{
 		{
 			ClusterName:    clusterName,
 			AuthorizedKeys: authorizedKeys,

@@ -33,7 +33,17 @@ import { darkTheme, lightTheme, bblpTheme } from '../theme';
 import { GlobalStyle } from './globals';
 
 function themePreferenceToTheme(themePreference: Theme) {
+  if (themePreference === Theme.UNSPECIFIED) {
+    return getPrefersDark() ? lightTheme : darkTheme;
+  }
   return themePreference === Theme.LIGHT ? lightTheme : darkTheme;
+}
+
+export function getPrefersDark(): boolean {
+  return (
+    window.matchMedia &&
+    window.matchMedia('(prefers-color-scheme: dark)').matches
+  );
 }
 
 const ThemeProvider = props => {
@@ -52,7 +62,10 @@ const ThemeProvider = props => {
       }
 
       const preferences = JSON.parse(newValue);
-      if (preferences.theme !== themePreference) {
+      if (
+        preferences.theme !== Theme.UNSPECIFIED &&
+        preferences.theme !== themePreference
+      ) {
         setThemePreference(preferences.theme);
       }
     }

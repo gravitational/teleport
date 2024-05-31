@@ -23,10 +23,16 @@ import { arrayStrDiff } from 'teleport/lib/util';
 import useTeleport from 'teleport/useTeleport';
 import { Option } from 'teleport/Discover/Shared/SelectCreatable';
 import { useDiscover } from 'teleport/Discover/useDiscover';
+import { splitAwsIamArn } from 'teleport/services/integrations/aws';
 
 import { ResourceKind } from '../ResourceKind';
 
-import type { DbMeta, KubeMeta, NodeMeta } from 'teleport/Discover/useDiscover';
+import type {
+  AppMeta,
+  DbMeta,
+  KubeMeta,
+  NodeMeta,
+} from 'teleport/Discover/useDiscover';
 import type { User, UserTraits } from 'teleport/services/user';
 
 // useUserTraits handles:
@@ -98,10 +104,22 @@ export function useUserTraits() {
       }
       break;
 
-    default:
+    // Note: specific to AWS CLI access
+    case ResourceKind.Application:
+      if (resourceSpec.appMeta?.awsConsole) {
+        const { awsRoles } = (agentMeta as AppMeta).app;
+        staticTraits.awsRoleArns = arrayStrDiff(
+          awsRoles.map(r => r.arn),
+          dynamicTraits.awsRoleArns
+        );
+        break;
+      }
       throw new Error(
-        `useUserTraits.ts:statiTraits: resource kind ${resourceSpec.kind} is not handled`
+        `resource kind is application, but there is no handler defined`
       );
+
+    default:
+      throw new Error(`resource kind ${resourceSpec.kind} is not handled`);
   }
 
   useEffect(() => {
@@ -186,10 +204,28 @@ export function useUserTraits() {
         );
         break;
 
-      default:
+      case ResourceKind.Application:
+        if (resourceSpec.appMeta?.awsConsole) {
+          let newDynamicArns = new Set<string>();
+          traitOpts.awsRoleArns.forEach(o => {
+            if (!staticTraits.awsRoleArns.includes(o.value)) {
+              newDynamicArns.add(o.value);
+            }
+          });
+
+          nextStep(
+            {
+              awsRoleArns: [...newDynamicArns],
+            },
+            numStepsToIncrement
+          );
+          break;
+        }
         throw new Error(
-          `useUserTrait.ts:onProceed: resource kind ${resourceSpec.kind} is not handled`
+          `resource kind is application, but there is no handler defined`
         );
+      default:
+        throw new Error(`resource kind ${resourceSpec.kind} is not handled`);
     }
   }
 
@@ -244,10 +280,37 @@ export function useUserTraits() {
         });
         break;
 
-      default:
+      case ResourceKind.Application:
+        if (resourceSpec.appMeta?.awsConsole) {
+          const app = (meta as AppMeta).app;
+          const arns = [
+            ...staticTraits.awsRoleArns,
+            ...newDynamicTraits.awsRoleArns,
+          ];
+          const awsRoles = arns.map(arn => {
+            const { arnResourceName, awsAccountId } = splitAwsIamArn(arn);
+            return {
+              name: arnResourceName,
+              arn,
+              display: arnResourceName,
+              accountId: awsAccountId,
+            };
+          });
+          updateAgentMeta({
+            ...meta,
+            app: {
+              ...app,
+              awsRoles,
+            },
+          });
+          break;
+        }
         throw new Error(
-          `useUserTraits.ts:updateResourceMetaDynamicTraits: resource kind ${resourceSpec.kind} is not handled`
+          `resource kind is application, but there is no handler defined`
         );
+
+      default:
+        throw new Error(`resource kind ${resourceSpec.kind} is not handled`);
     }
   }
 

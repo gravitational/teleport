@@ -95,14 +95,14 @@ $ sudo teleport join openssh \
   --address <Var name="server1.example.com:22" /> \
   --proxy-server <Var name="teleport.example.com:443" /> \
   --join-method token \
-  --token <Var name="token" /> \
+  --token <Var name="(=presets.tokens.first=)" /> \
   --labels env=dev
 ```
 
 Change the command-line options to assign the following values:
-- Set to the address and port of your Teleport Proxy Service.
-- Set to the address and port of the node that will join the cluster.
-- Set to the token value.
+- <Var name="server1.example.com:22" /> Set to the address and port of the node that will join your Teleport cluster.
+- <Var name="teleport.example.com:443" /> Set to the address and port of your Teleport Proxy Service.
+- <Var name="(=presets.tokens.first=)" /> Set to the join token value.
 
 Check that your new node is listed with `tsh ls` or in the Web UI. You can edit the
 hostname and labels with `tctl edit nodes/<hostname>`.  If the hostname isn't unique, get the UUID

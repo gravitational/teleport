@@ -26,7 +26,6 @@ import (
 	"net"
 	"os"
 	"os/exec"
-	"os/signal"
 	"strings"
 	"syscall"
 	"time"
@@ -67,21 +66,21 @@ func (process *TeleportProcess) printShutdownStatus(ctx context.Context) {
 	}
 }
 
+// teleportSignals contains all the signals that
+// [TeleportProcess.WaitForSignals] cares about.
+var teleportSignals = []os.Signal{
+	// Note: SIGKILL can't be trapped.
+	syscall.SIGQUIT, // graceful shutdown
+	syscall.SIGTERM, // fast shutdown
+	syscall.SIGINT,  // fast shutdown
+	syscall.SIGUSR1, // log process diagnostic info
+	syscall.SIGUSR2, // initiate process restart procedure
+	syscall.SIGHUP,  // graceful restart procedure
+}
+
 // WaitForSignals waits for system signals and processes them.
 // Should not be called twice by the process.
-func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
-	sigC := make(chan os.Signal, 1024)
-	// Note: SIGKILL can't be trapped.
-	signal.Notify(sigC,
-		syscall.SIGQUIT, // graceful shutdown
-		syscall.SIGTERM, // fast shutdown
-		syscall.SIGINT,  // fast shutdown
-		syscall.SIGUSR1, // log process diagnostic info
-		syscall.SIGUSR2, // initiate process restart procedure
-		syscall.SIGHUP,  // graceful restart procedure
-	)
-	defer signal.Stop(sigC)
-
+func (process *TeleportProcess) WaitForSignals(ctx context.Context, sigC <-chan os.Signal) error {
 	serviceErrorsC := make(chan Event, 10)
 	eventCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -156,16 +155,6 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 				process.logger.InfoContext(process.ExitContext(), "Ignoring unknown signal.", "signal", signal)
 			}
 		case <-process.ReloadContext().Done():
-			// it's fine to signal.Stop the same channel multiple times, and
-			// after the function returns we're guaranteed to have restored the
-			// default handlers for the signals and that no more signals are
-			// pushed into the channel
-			signal.Stop(sigC)
-			if len(sigC) > 0 {
-				// exhaust all signals before the internal reload, so we don't
-				// miss signals to exit or to graceful restart instead
-				continue
-			}
 			process.logger.InfoContext(process.ExitContext(), "Exiting signal handler: process has started internal reload.")
 			return ErrTeleportReloading
 		case <-process.ExitContext().Done():

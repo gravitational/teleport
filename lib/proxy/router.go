@@ -39,7 +39,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/agentless"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
@@ -550,7 +550,7 @@ func (r *Router) DialSite(ctx context.Context, clusterName string, clientSrcAddr
 }
 
 // GetSiteClient returns an auth client for the provided cluster.
-func (r *Router) GetSiteClient(ctx context.Context, clusterName string) (auth.ClientI, error) {
+func (r *Router) GetSiteClient(ctx context.Context, clusterName string) (authclient.ClientI, error) {
 	if clusterName == r.clusterName {
 		return r.localSite.GetClient()
 	}

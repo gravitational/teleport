@@ -62,6 +62,7 @@ func TestNewAppServerForAWSOIDCIntegration(t *testing.T) {
 		name           string
 		integratioName string
 		hostID         string
+		publicAddr     string
 		expectedApp    *AppServerV3
 		errCheck       require.ErrorAssertionFunc
 	}{
@@ -69,6 +70,7 @@ func TestNewAppServerForAWSOIDCIntegration(t *testing.T) {
 			name:           "valid",
 			integratioName: "valid",
 			hostID:         "my-host-id",
+			publicAddr:     "valid.proxy.example.com",
 			expectedApp: &AppServerV3{
 				Kind:    KindAppServer,
 				Version: V3,
@@ -90,6 +92,7 @@ func TestNewAppServerForAWSOIDCIntegration(t *testing.T) {
 							URI:         "https://console.aws.amazon.com",
 							Cloud:       "AWS",
 							Integration: "valid",
+							PublicAddr:  "valid.proxy.example.com",
 						},
 					},
 				},
@@ -103,7 +106,7 @@ func TestNewAppServerForAWSOIDCIntegration(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			app, err := NewAppServerForAWSOIDCIntegration(tt.integratioName, tt.hostID)
+			app, err := NewAppServerForAWSOIDCIntegration(tt.integratioName, tt.hostID, tt.publicAddr)
 			if tt.errCheck != nil {
 				tt.errCheck(t, err)
 			}

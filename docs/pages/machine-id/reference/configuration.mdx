@@ -387,6 +387,35 @@ svids:
       # ip specifies the IP SANs. If omitted, no IP SANs are included.
       ip:
         - 10.0.0.1
+    # rules specifies a list of workload attestation rules. At least one of
+    # these rules must be satisfied by the workload in order for it to receive
+    # this SVID.
+    #
+    # If no rules are specified, the SVID will be issued to all workloads that
+    # connect to this service.
+    rules:
+        # unix is a group of workload attestation criteria that are available
+        # when the workload is running on the same host, and is connected to
+        # the Workload API using a Unix socket.
+        #
+        # If any of the criteria in this group are specified, then workloads
+        # that do not connect using a Unix socket will not receive this SVID.
+      - unix:
+          # uid is the ID of the user that the workload process must be running
+          # as to receive this SVID.
+          #
+          # If unspecified, the UID is not checked.
+          uid: 1000
+          # pid is the ID that the workload process must have to receive this
+          # SVID.
+          #
+          # If unspecified, the PID is not checked.
+          pid: 1234
+          # gid is the ID of the primary group that the workload process must be
+          # running as to receive this SVID.
+          #
+          # If unspecified, the GID is not checked.
+          gid: 50
 ```
 
 #### `database-tunnel`

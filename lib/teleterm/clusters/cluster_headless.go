@@ -26,11 +26,11 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 )
 
 // WatchPendingHeadlessAuthentications watches the backend for pending headless authentication requests for the user.
-func (c *Cluster) WatchPendingHeadlessAuthentications(ctx context.Context, rootAuthClient auth.ClientI) (watcher types.Watcher, close func(), err error) {
+func (c *Cluster) WatchPendingHeadlessAuthentications(ctx context.Context, rootAuthClient authclient.ClientI) (watcher types.Watcher, close func(), err error) {
 	watcher, err = rootAuthClient.WatchPendingHeadlessAuthentications(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -44,7 +44,7 @@ func (c *Cluster) WatchPendingHeadlessAuthentications(ctx context.Context, rootA
 }
 
 // WatchHeadlessAuthentications watches the backend for headless authentication events for the user.
-func (c *Cluster) WatchHeadlessAuthentications(ctx context.Context, rootAuthClient auth.ClientI) (watcher types.Watcher, close func(), err error) {
+func (c *Cluster) WatchHeadlessAuthentications(ctx context.Context, rootAuthClient authclient.ClientI) (watcher types.Watcher, close func(), err error) {
 	watch := types.Watch{
 		Kinds: []types.WatchKind{{
 			Kind: types.KindHeadlessAuthentication,
@@ -68,7 +68,7 @@ func (c *Cluster) WatchHeadlessAuthentications(ctx context.Context, rootAuthClie
 
 // UpdateHeadlessAuthenticationState updates the headless authentication matching the given id to the given state.
 // MFA will be prompted when updating to the approve state.
-func (c *Cluster) UpdateHeadlessAuthenticationState(ctx context.Context, rootAuthClient auth.ClientI, headlessID string, state types.HeadlessAuthenticationState) error {
+func (c *Cluster) UpdateHeadlessAuthenticationState(ctx context.Context, rootAuthClient authclient.ClientI, headlessID string, state types.HeadlessAuthenticationState) error {
 	err := AddMetadataToRetryableError(ctx, func() error {
 		// If changing state to approved, create an MFA challenge and prompt for MFA.
 		var mfaResponse *proto.MFAAuthenticateResponse

@@ -45,11 +45,12 @@ import (
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/web/terminal"
 )
 
 // podHandler connects Kube exec session and web-based terminal via a websocket.
@@ -63,7 +64,7 @@ type podHandler struct {
 	ws                  *websocket.Conn
 	keepAliveInterval   time.Duration
 	log                 *logrus.Entry
-	userClient          auth.ClientI
+	userClient          authclient.ClientI
 	localCA             types.CertAuthority
 
 	// closedByClient indicates if the websocket connection was closed by the
@@ -104,7 +105,7 @@ func (p *podHandler) ServeHTTP(_ http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	envelope := &Envelope{
+	envelope := &terminal.Envelope{
 		Version: defaults.WebsocketVersion,
 		Type:    defaults.WebsocketSessionMetadata,
 		Payload: string(sessionMetadataResponse),
@@ -138,7 +139,7 @@ func (p *podHandler) sendAndLogError(err error) {
 		return
 	}
 
-	envelope := &Envelope{
+	envelope := &terminal.Envelope{
 		Version: defaults.WebsocketVersion,
 		Type:    defaults.WebsocketError,
 		Payload: err.Error(),
@@ -195,7 +196,7 @@ func (p *podHandler) handler(r *http.Request) error {
 		Width:  p.req.Term.Winsize().Width,
 		Height: p.req.Term.Winsize().Height,
 	})
-	stream := NewTerminalStream(ctx, TerminalStreamConfig{WS: p.ws, Logger: p.log, Handlers: map[string]WSHandlerFunc{defaults.WebsocketResize: p.handleResize(resizeQueue)}})
+	stream := terminal.NewStream(ctx, terminal.StreamConfig{WS: p.ws, Logger: p.log, Handlers: map[string]terminal.WSHandlerFunc{defaults.WebsocketResize: p.handleResize(resizeQueue)}})
 
 	certsReq := clientproto.UserCertsRequest{
 		PublicKey:         userKey.MarshalSSHPublicKey(),
@@ -292,7 +293,7 @@ func (p *podHandler) handler(r *http.Request) error {
 	// never has the chance to see the output.
 	if p.req.IsInteractive {
 		// Send close envelope to web terminal upon exit without an error.
-		if err := stream.SendCloseMessage(sessionEndEvent{}); err != nil {
+		if err := stream.SendCloseMessage(""); err != nil {
 			p.log.WithError(err).Error("unable to send close event to web client.")
 		}
 	}
@@ -307,8 +308,8 @@ func (p *podHandler) handler(r *http.Request) error {
 	return nil
 }
 
-func (p *podHandler) handleResize(termSizeQueue *termSizeQueue) func(context.Context, Envelope) {
-	return func(ctx context.Context, envelope Envelope) {
+func (p *podHandler) handleResize(termSizeQueue *termSizeQueue) func(context.Context, terminal.Envelope) {
+	return func(ctx context.Context, envelope terminal.Envelope) {
 		var e map[string]interface{}
 		err := json.Unmarshal([]byte(envelope.Payload), &e)
 		if err != nil {

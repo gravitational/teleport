@@ -68,7 +68,7 @@ test('handling of join ssh session route', async () => {
 test('handling of init kubeExec session route', async () => {
   const ctx = new ConsoleContext();
   const wrapper = makeWrapper(
-    '/web/cluster/localhost/console/kube/exec/kubeCluster/kubeNamespace/pod'
+    '/web/cluster/localhost/console/kube/exec/kubeCluster/'
   );
   const { current } = renderHook(() => useTabRouting(ctx), { wrapper });
   const docs = ctx.getDocuments();
@@ -80,7 +80,7 @@ test('handling of init kubeExec session route', async () => {
 test('handling of init kubeExec session route with container', async () => {
   const ctx = new ConsoleContext();
   const wrapper = makeWrapper(
-    '/web/cluster/localhost/console/kube/exec/kubeCluster/kubeNamespace/pod/container'
+    '/web/cluster/localhost/console/kube/exec/kubeCluster/'
   );
   const { current } = renderHook(() => useTabRouting(ctx), { wrapper });
   const docs = ctx.getDocuments();
@@ -107,20 +107,13 @@ test('active document id', async () => {
 
 test('active document id, document url with query parameters', async () => {
   const ctx = new ConsoleContext();
-  const doc = ctx.addKubeExecDocument(
-    {
-      clusterId: 'cluster1',
-      kubeId: 'kube1',
-      namespace: 'namespace1',
-      pod: 'pod1',
-    },
-    { isInteractive: false, command: 'ls -lah' }
-  );
+  const doc = ctx.addKubeExecDocument({
+    clusterId: 'cluster1',
+    kubeId: 'kube1',
+  });
 
   const countBefore = ctx.getDocuments();
-  const wrapper = makeWrapper(
-    '/web/cluster/cluster1/console/kube/exec/kube1/namespace1/pod1'
-  );
+  const wrapper = makeWrapper('/web/cluster/cluster1/console/kube/exec/kube1/');
   const { current } = renderHook(() => useTabRouting(ctx), { wrapper });
   const countAfter = ctx.getDocuments();
   expect(doc.id).toBe(current.activeDocId);

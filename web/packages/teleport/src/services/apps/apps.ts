@@ -20,9 +20,7 @@ import api from 'teleport/services/api';
 import cfg, { UrlAppParams, UrlResourcesParams } from 'teleport/config';
 import { ResourcesResponse } from 'teleport/services/agents';
 
-import auth from 'teleport/services/auth/auth';
-
-import { MfaChallengeScope } from 'teleport/services/auth/auth';
+import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
 
 import makeApp from './makeApps';
 import { App } from './types';

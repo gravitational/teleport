@@ -18,6 +18,7 @@
 
 import { generatePath } from 'react-router';
 import { mergeDeep } from 'shared/utils/highbar';
+import { IncludedResourceMode } from 'shared/components/UnifiedResources';
 
 import generateResourcePath from './generateResourcePath';
 
@@ -37,7 +38,11 @@ import type { ParticipantMode } from 'teleport/services/session';
 import type { YamlSupportedResourceKind } from './services/yaml/types';
 
 const cfg = {
+  /**
+   * @deprecated use cfg.edition instead
+   */
   isEnterprise: false,
+  edition: 'oss',
   isCloud: false,
   assistEnabled: false,
   automaticUpgrades: false,
@@ -77,6 +82,9 @@ const cfg = {
   // It refers to a group of features: access request, device trust,
   // access list, and access monitoring.
   isIgsEnabled: false,
+
+  // isPolicyEnabled refers to the Teleport Policy product
+  isPolicyEnabled: false,
 
   configDir: '$HOME/.config',
 
@@ -207,7 +215,7 @@ const cfg = {
     passwordTokenPath: '/v1/webapi/users/password/token/:tokenId?',
     changeUserPasswordPath: '/v1/webapi/users/password',
     unifiedResourcesPath:
-      '/v1/webapi/sites/:clusterId/resources?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&kinds=:kinds?&query=:query?&search=:search?&sort=:sort?&pinnedOnly=:pinnedOnly?&includeRequestable=:includeRequestable?',
+      '/v1/webapi/sites/:clusterId/resources?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&kinds=:kinds?&query=:query?&search=:search?&sort=:sort?&pinnedOnly=:pinnedOnly?&includedResourceMode=:includedResourceMode?',
     nodesPath:
       '/v1/webapi/sites/:clusterId/nodes?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
     nodesPathNoParams: '/v1/webapi/sites/:clusterId/nodes',
@@ -281,11 +289,6 @@ const cfg = {
 
     dbSign: 'v1/webapi/sites/:clusterId/sign/db',
 
-    installADDSPath: '/v1/webapi/scripts/desktop-access/install-ad-ds.ps1',
-    installADCSPath: '/v1/webapi/scripts/desktop-access/install-ad-cs.ps1',
-    configureADPath:
-      '/v1/webapi/scripts/desktop-access/configure/:token/configure-ad.ps1',
-
     captureUserEventPath: '/v1/webapi/capture',
     capturePreUserEventPath: '/v1/webapi/precapture',
 
@@ -317,6 +320,14 @@ const cfg = {
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/deployservice',
     awsSecurityGroupsListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/securitygroups',
+
+    awsAppAccessPath:
+      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/aws-app-access',
+    awsConfigureIamAppAccessPath:
+      '/v1/webapi/scripts/integrations/configure/aws-app-access-iam.sh?role=:iamRoleName',
+
+    awsConfigureIamEc2AutoDiscoverWithSsmPath:
+      '/v1/webapi/scripts/integrations/configure/ec2-ssm-iam.sh?role=:iamRoleName&awsRegion=:region&ssmDocument=:ssmDocument',
 
     eksClustersListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/eksclusters',
@@ -359,7 +370,10 @@ const cfg = {
       '/webapi/scripts/integrations/configure/gcp-workforce-saml.sh?orgId=:orgId&poolName=:poolName&poolProviderName=:poolProviderName',
 
     notificationsPath:
-      '/v1/webapi/sites/:clusterId/notifications?limit=:limit?&userNotificationsStartKey=:userNotificationsStartKey?&globalNotificationsStartKey=:globalNotificationsStartKey?',
+      '/v1/webapi/sites/:clusterId/notifications?limit=:limit?&startKey=:startKey?',
+    notificationLastSeenTimePath:
+      '/v1/webapi/sites/:clusterId/lastseennotification',
+    notificationStatePath: '/v1/webapi/sites/:clusterId/notificationstate',
 
     yaml: {
       parse: '/v1/webapi/yaml/parse/:kind',
@@ -513,18 +527,6 @@ const cfg = {
 
   getDbScriptUrl(token: string) {
     return cfg.baseUrl + generatePath(cfg.api.dbScriptPath, { token });
-  },
-
-  getConfigureADUrl(token: string) {
-    return cfg.baseUrl + generatePath(cfg.api.configureADPath, { token });
-  },
-
-  getInstallADDSPath() {
-    return cfg.baseUrl + cfg.api.installADDSPath;
-  },
-
-  getInstallADCSPath() {
-    return cfg.baseUrl + cfg.api.installADCSPath;
   },
 
   getAppNodeScriptUrl(token: string, name: string, uri: string) {
@@ -931,6 +933,15 @@ const cfg = {
     });
   },
 
+  getAwsAppAccessUrl(integrationName: string) {
+    const clusterId = cfg.proxyCluster;
+
+    return generatePath(cfg.api.awsAppAccessPath, {
+      clusterId,
+      name: integrationName,
+    });
+  },
+
   getUserGroupsListUrl(clusterId: string, params: UrlResourcesParams) {
     return generateResourcePath(cfg.api.userGroupsListPath, {
       clusterId,
@@ -1095,6 +1106,28 @@ const cfg = {
     );
   },
 
+  getAwsIamConfigureScriptAppAccessUrl(
+    params: Omit<UrlAwsConfigureIamScriptParams, 'region'>
+  ) {
+    return (
+      cfg.baseUrl +
+      generatePath(cfg.api.awsConfigureIamAppAccessPath, {
+        ...params,
+      })
+    );
+  },
+
+  getAwsIamConfigureScriptEc2AutoDiscoverWithSsmUrl(
+    params: UrlAwsConfigureIamEc2AutoDiscoverWithSsmScriptParams
+  ) {
+    return (
+      cfg.baseUrl +
+      generatePath(cfg.api.awsConfigureIamEc2AutoDiscoverWithSsmPath, {
+        ...params,
+      })
+    );
+  },
+
   getAwsConfigureIamScriptListDatabasesUrl(
     params: UrlAwsConfigureIamScriptParams
   ) {
@@ -1129,6 +1162,14 @@ const cfg = {
 
   getNotificationsUrl(params: UrlNotificationParams) {
     return generatePath(cfg.api.notificationsPath, { ...params });
+  },
+
+  getNotificationLastSeenUrl(clusterId: string) {
+    return generatePath(cfg.api.notificationLastSeenTimePath, { clusterId });
+  },
+
+  getNotificationStateUrl(clusterId: string) {
+    return generatePath(cfg.api.notificationStatePath, { clusterId });
   },
 
   init(backendConfig = {}) {
@@ -1227,7 +1268,7 @@ export interface UrlResourcesParams {
   startKey?: string;
   searchAsRoles?: 'yes' | '';
   pinnedOnly?: boolean;
-  includeRequestable?: boolean;
+  includedResourceMode?: IncludedResourceMode;
   // TODO(bl-nero): Remove this once filters are expressed as advanced search.
   kinds?: string[];
 }
@@ -1251,6 +1292,12 @@ export interface UrlAwsConfigureIamScriptParams {
   iamRoleName: string;
 }
 
+export interface UrlAwsConfigureIamEc2AutoDiscoverWithSsmScriptParams {
+  region: Regions;
+  iamRoleName: string;
+  ssmDocument: string;
+}
+
 export interface UrlGcpWorkforceConfigParam {
   orgId: string;
   poolName: string;
@@ -1260,8 +1307,9 @@ export interface UrlGcpWorkforceConfigParam {
 export interface UrlNotificationParams {
   clusterId: string;
   limit?: number;
-  userNotificationsStartKey?: string;
-  globalNotificationsStartKey?: string;
+  startKey?: string;
 }
 
 export default cfg;
+
+export type TeleportEdition = 'ent' | 'community' | 'oss';

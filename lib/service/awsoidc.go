@@ -32,7 +32,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
@@ -103,7 +103,7 @@ type AWSOIDCDeployServiceUpdaterConfig struct {
 	// Log is the logger
 	Log *slog.Logger
 	// AuthClient is the auth api client
-	AuthClient *auth.Client
+	AuthClient *authclient.Client
 	// Clock is the local clock
 	Clock clockwork.Clock
 	// TeleportClusterName specifies the teleport cluster name

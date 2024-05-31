@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { RequestCheckout } from './RequestCheckout';
+export { RequestCheckoutWithSlider, RequestCheckout } from './RequestCheckout';
 export type { RequestCheckoutProps } from './RequestCheckout';
 
 export * from './utils';

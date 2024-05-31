@@ -20,7 +20,11 @@
 
 package uds
 
-import "net"
+import (
+	"net"
+
+	"github.com/gravitational/trace"
+)
 
 func getCreds(conn *net.UnixConn) (*Creds, error) {
 	return nil, trace.NotImplemented("getCreds")

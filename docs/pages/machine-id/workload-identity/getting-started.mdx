@@ -122,6 +122,41 @@ services:
       - 10.0.0.1
 ```
 
+### Configuring Unix Workload Attestation
+
+By default, an SVID listed under the Workload API service will be issued to any
+workload that connects to the Workload API. You may wish to restrict which SVIDs
+are issued based on certain characteristics of the workload. This is known as
+Workload Attestation.
+
+When using the Unix listener, `tbot` supports workload attestation based on
+three characteristics of the workload process:
+
+- `uid`: The UID of the user that the workload process is running as.
+- `gid`: The primary GID of the user that the workload process is running as.
+- `pid`: The PID of the workload process.
+
+To configure Workload Attestation, you configure a set of rules for each SVID.
+Each rule is a list of characteristics, and all characteristics within the rule
+must match for that rule to pass. If you have multiple rules, any one rule can
+pass for the SVID to be issued.
+
+For example, to configure an SVID to be issued only to workloads that are
+running as the user with ID 1000 or running as a user with a primary group ID
+of 50:
+
+```yaml
+services:
+- type: spiffe-workload-api
+  listen: unix:///opt/machine-id/workload.sock
+  svids:
+  - path: /svc/foo
+    hint: my-hint
+    rules:
+      - uid: 1000
+      - gid: 50
+```
+
 ## Step 3/4. Testing the Workload API with `tbot spiffe-inspect`
 
 The `tbot` binary includes a `spiffe-inspect` command that can be used to

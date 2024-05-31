@@ -19,6 +19,7 @@
 package common
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"sort"
@@ -35,6 +36,7 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -1459,6 +1461,190 @@ func (c *accessListCollection) writeText(w io.Writer, verbose bool) error {
 			al.Spec.Title,
 			al.Spec.Audit.Recurrence.Frequency.String(),
 			al.Spec.Audit.NextAuditDate.Format(time.RFC822),
+		})
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type vnetConfigCollection struct {
+	vnetConfig *vnet.VnetConfig
+}
+
+func (c *vnetConfigCollection) resources() []types.Resource {
+	return []types.Resource{types.Resource153ToLegacy(c.vnetConfig)}
+}
+
+func (c *vnetConfigCollection) writeText(w io.Writer, verbose bool) error {
+	var dnsZoneSuffixes []string
+	for _, dnsZone := range c.vnetConfig.Spec.CustomDnsZones {
+		dnsZoneSuffixes = append(dnsZoneSuffixes, dnsZone.Suffix)
+	}
+	t := asciitable.MakeTable([]string{"IPv4 CIDR range", "Custom DNS Zones"})
+	t.AddRow([]string{
+		c.vnetConfig.GetSpec().GetIpv4CidrRange(),
+		strings.Join(dnsZoneSuffixes, ", "),
+	})
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type accessRequestCollection struct {
+	accessRequests []types.AccessRequest
+}
+
+func (c *accessRequestCollection) resources() []types.Resource {
+	r := make([]types.Resource, len(c.accessRequests))
+	for i, resource := range c.accessRequests {
+		r[i] = resource
+	}
+	return r
+}
+
+func (c *accessRequestCollection) writeText(w io.Writer, verbose bool) error {
+	var t asciitable.Table
+	var rows [][]string
+	for _, al := range c.accessRequests {
+		var annotations []string
+		for k, v := range al.GetSystemAnnotations() {
+			annotations = append(annotations, fmt.Sprintf("%s/%s", k, strings.Join(v, ",")))
+		}
+		rows = append(rows, []string{
+			al.GetName(),
+			al.GetUser(),
+			strings.Join(al.GetRoles(), ", "),
+			strings.Join(annotations, ", "),
+		})
+	}
+	if verbose {
+		t = asciitable.MakeTable([]string{"Name", "User", "Roles", "Annotations"}, rows...)
+	} else {
+		t = asciitable.MakeTableWithTruncatedColumn([]string{"Name", "User", "Roles", "Annotations"}, rows, "Annotations")
+	}
+
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type pluginCollection struct {
+	plugins []types.Plugin
+}
+
+type pluginResourceWrapper struct {
+	types.PluginV1
+}
+
+func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
+
+	const (
+		credOauth2AccessToken     = "oauth2_access_token"
+		credBearerToken           = "bearer_token"
+		credIdSecret              = "id_secret"
+		credStaticCredentialsRef  = "static_credentials_ref"
+		settingsSlackAccessPlugin = "slack_access_plugin"
+		settingsOpsgenie          = "opsgenie"
+		settingsOpenAI            = "openai"
+		settingsOkta              = "okta"
+		settingsJamf              = "jamf"
+		settingsPagerDuty         = "pager_duty"
+		settingsMattermost        = "mattermost"
+		settingsJira              = "jira"
+		settingsDiscord           = "discord"
+		settingsServiceNow        = "serviceNow"
+		settingsGitlab            = "gitlab"
+		settingsEntraID           = "entra_id"
+	)
+	type unknownPluginType struct {
+		Spec struct {
+			Settings map[string]json.RawMessage `json:"Settings"`
+		} `json:"spec"`
+		Credentials struct {
+			Credentials map[string]json.RawMessage `json:"Credentials"`
+		} `json:"credentials"`
+	}
+
+	var unknownPlugin unknownPluginType
+	if err := json.Unmarshal(data, &unknownPlugin); err != nil {
+		return err
+	}
+
+	if unknownPlugin.Spec.Settings == nil {
+		return trace.BadParameter("plugin settings are missing")
+	}
+	if len(unknownPlugin.Spec.Settings) != 1 {
+		return trace.BadParameter("unknown plugin settings count")
+	}
+
+	if len(unknownPlugin.Credentials.Credentials) == 1 {
+		p.PluginV1.Credentials = &types.PluginCredentialsV1{}
+		for k := range unknownPlugin.Credentials.Credentials {
+			switch k {
+			case credOauth2AccessToken:
+				p.PluginV1.Credentials.Credentials = &types.PluginCredentialsV1_Oauth2AccessToken{}
+			case credBearerToken:
+				p.PluginV1.Credentials.Credentials = &types.PluginCredentialsV1_BearerToken{}
+			case credIdSecret:
+				p.PluginV1.Credentials.Credentials = &types.PluginCredentialsV1_IdSecret{}
+			case credStaticCredentialsRef:
+				p.PluginV1.Credentials.Credentials = &types.PluginCredentialsV1_StaticCredentialsRef{}
+			default:
+				return trace.BadParameter("unsupported plugin credential type: %v", k)
+			}
+		}
+	}
+
+	for k := range unknownPlugin.Spec.Settings {
+
+		switch k {
+		case settingsSlackAccessPlugin:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_SlackAccessPlugin{}
+		case settingsOpsgenie:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Opsgenie{}
+		case settingsOpenAI:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Openai{}
+		case settingsOkta:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Okta{}
+		case settingsJamf:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Jamf{}
+		case settingsPagerDuty:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_PagerDuty{}
+		case settingsMattermost:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Mattermost{}
+		case settingsJira:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Jira{}
+		case settingsDiscord:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Discord{}
+		case settingsServiceNow:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_ServiceNow{}
+		case settingsGitlab:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Gitlab{}
+		case settingsEntraID:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_EntraId{}
+		default:
+			return trace.BadParameter("unsupported plugin type: %v", k)
+		}
+	}
+
+	if err := json.Unmarshal(data, &p.PluginV1); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *pluginCollection) resources() []types.Resource {
+	r := make([]types.Resource, len(c.plugins))
+	for i, resource := range c.plugins {
+		r[i] = resource
+	}
+	return r
+}
+
+func (c *pluginCollection) writeText(w io.Writer, verbose bool) error {
+	t := asciitable.MakeTable([]string{"Name", "Status"})
+	for _, plugin := range c.plugins {
+		t.AddRow([]string{
+			plugin.GetName(),
+			plugin.GetStatus().GetCode().String(),
 		})
 	}
 	_, err := t.AsBuffer().WriteTo(w)

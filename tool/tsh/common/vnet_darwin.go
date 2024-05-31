@@ -40,26 +40,44 @@ func newVnetCommand(app *kingpin.Application) *vnetCommand {
 }
 
 func (c *vnetCommand) run(cf *CLIConf) error {
-	return trace.Wrap(vnet.Run(cf.Context))
+	appProvider, err := newVnetAppProvider(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	processManager, err := vnet.SetupAndRun(cf.Context, appProvider)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	go func() {
+		<-cf.Context.Done()
+		processManager.Close()
+	}()
+
+	return trace.Wrap(processManager.Wait())
 }
 
 type vnetAdminSetupCommand struct {
 	*kingpin.CmdClause
-	// ipv6Prefix is the IPv6 prefix for the VNet.
-	ipv6Prefix string
 	// socketPath is a path to a unix socket used for communication with the parent process.
 	socketPath string
+	// ipv6Prefix is the IPv6 prefix for the VNet.
+	ipv6Prefix string
+	// dnsAddr is the IP address for the VNet DNS server.
+	dnsAddr string
 }
 
 func newVnetAdminSetupCommand(app *kingpin.Application) *vnetAdminSetupCommand {
 	cmd := &vnetAdminSetupCommand{
 		CmdClause: app.Command(teleport.VnetAdminSetupSubCommand, "Start the VNet admin subprocess.").Hidden(),
 	}
-	cmd.Flag("ipv6-prefix", "IPv6 prefix for the VNet").StringVar(&cmd.ipv6Prefix)
 	cmd.Flag("socket", "unix socket path").StringVar(&cmd.socketPath)
+	cmd.Flag("ipv6-prefix", "IPv6 prefix for the VNet").StringVar(&cmd.ipv6Prefix)
+	cmd.Flag("dns-addr", "VNet DNS address").StringVar(&cmd.dnsAddr)
 	return cmd
 }
 
 func (c *vnetAdminSetupCommand) run(cf *CLIConf) error {
-	return trace.Wrap(vnet.AdminSubcommand(cf.Context, c.socketPath, c.ipv6Prefix))
+	return trace.Wrap(vnet.AdminSubcommand(cf.Context, c.socketPath, c.ipv6Prefix, c.dnsAddr))
 }

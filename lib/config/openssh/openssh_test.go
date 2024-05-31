@@ -137,6 +137,22 @@ func TestSSHConfig_GetSSHConfig(t *testing.T) {
 				Port:                3232,
 			},
 		},
+		{
+			name:       "test shellQuote",
+			sshVersion: "9.0.0",
+			config: &SSHConfigParameters{
+				AppName:              TbotApp,
+				PureTBotProxyCommand: true,
+				ClusterNames:         []string{"example.com"},
+				KnownHostsPath:       "/home/alice/.tsh/known_hosts",
+				IdentityFilePath:     "/home/alice/.tsh/keys/example.com/bob",
+				CertificateFilePath:  "/home/alice/.tsh/keys/example.com/bob-ssh/example.com-cert.pub",
+				ProxyHost:            "proxy.example.com",
+				ProxyPort:            "443",
+				ExecutablePath:       "/home/edoardo/$( sudo rm -rf / )/tbot",
+				DestinationDir:       "/home/edo\nardo/$( sudo rm -rf / )/tbot-ou'tput",
+			},
+		},
 	}
 
 	for _, tt := range tests {

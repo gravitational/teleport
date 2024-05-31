@@ -109,6 +109,28 @@ func TestUserPreferencesCRUD(t *testing.T) {
 			},
 		},
 		{
+			name: "update the availability view only",
+			req: &userpreferencesv1.UpsertUserPreferencesRequest{
+				Preferences: &userpreferencesv1.UserPreferences{
+					UnifiedResourcePreferences: &userpreferencesv1.UnifiedResourcePreferences{
+						AvailableResourceMode: userpreferencesv1.AvailableResourceMode_AVAILABLE_RESOURCE_MODE_ACCESSIBLE,
+					},
+				},
+			},
+			expected: &userpreferencesv1.UserPreferences{
+				Assist:  defaultPref.Assist,
+				Onboard: defaultPref.Onboard,
+				Theme:   defaultPref.Theme,
+				UnifiedResourcePreferences: &userpreferencesv1.UnifiedResourcePreferences{
+					DefaultTab:            userpreferencesv1.DefaultTab_DEFAULT_TAB_ALL,
+					ViewMode:              userpreferencesv1.ViewMode_VIEW_MODE_CARD,
+					LabelsViewMode:        userpreferencesv1.LabelsViewMode_LABELS_VIEW_MODE_COLLAPSED,
+					AvailableResourceMode: userpreferencesv1.AvailableResourceMode_AVAILABLE_RESOURCE_MODE_ACCESSIBLE,
+				},
+				ClusterPreferences: defaultPref.ClusterPreferences,
+			},
+		},
+		{
 			name: "update the unified tab preference only",
 			req: &userpreferencesv1.UpsertUserPreferencesRequest{
 				Preferences: &userpreferencesv1.UserPreferences{
@@ -122,9 +144,10 @@ func TestUserPreferencesCRUD(t *testing.T) {
 				Onboard: defaultPref.Onboard,
 				Theme:   defaultPref.Theme,
 				UnifiedResourcePreferences: &userpreferencesv1.UnifiedResourcePreferences{
-					DefaultTab:     userpreferencesv1.DefaultTab_DEFAULT_TAB_PINNED,
-					ViewMode:       userpreferencesv1.ViewMode_VIEW_MODE_CARD,
-					LabelsViewMode: userpreferencesv1.LabelsViewMode_LABELS_VIEW_MODE_COLLAPSED,
+					DefaultTab:            userpreferencesv1.DefaultTab_DEFAULT_TAB_PINNED,
+					ViewMode:              userpreferencesv1.ViewMode_VIEW_MODE_CARD,
+					LabelsViewMode:        userpreferencesv1.LabelsViewMode_LABELS_VIEW_MODE_COLLAPSED,
+					AvailableResourceMode: userpreferencesv1.AvailableResourceMode_AVAILABLE_RESOURCE_MODE_ALL,
 				},
 				ClusterPreferences: defaultPref.ClusterPreferences,
 			},
@@ -233,9 +256,10 @@ func TestUserPreferencesCRUD(t *testing.T) {
 				Preferences: &userpreferencesv1.UserPreferences{
 					Theme: userpreferencesv1.Theme_THEME_LIGHT,
 					UnifiedResourcePreferences: &userpreferencesv1.UnifiedResourcePreferences{
-						DefaultTab:     userpreferencesv1.DefaultTab_DEFAULT_TAB_PINNED,
-						ViewMode:       userpreferencesv1.ViewMode_VIEW_MODE_LIST,
-						LabelsViewMode: userpreferencesv1.LabelsViewMode_LABELS_VIEW_MODE_COLLAPSED,
+						DefaultTab:            userpreferencesv1.DefaultTab_DEFAULT_TAB_PINNED,
+						ViewMode:              userpreferencesv1.ViewMode_VIEW_MODE_LIST,
+						LabelsViewMode:        userpreferencesv1.LabelsViewMode_LABELS_VIEW_MODE_COLLAPSED,
+						AvailableResourceMode: userpreferencesv1.AvailableResourceMode_AVAILABLE_RESOURCE_MODE_ALL,
 					},
 					Assist: &userpreferencesv1.AssistUserPreferences{
 						PreferredLogins: []string{"baz"},
@@ -260,9 +284,10 @@ func TestUserPreferencesCRUD(t *testing.T) {
 			expected: &userpreferencesv1.UserPreferences{
 				Theme: userpreferencesv1.Theme_THEME_LIGHT,
 				UnifiedResourcePreferences: &userpreferencesv1.UnifiedResourcePreferences{
-					DefaultTab:     userpreferencesv1.DefaultTab_DEFAULT_TAB_PINNED,
-					ViewMode:       userpreferencesv1.ViewMode_VIEW_MODE_LIST,
-					LabelsViewMode: userpreferencesv1.LabelsViewMode_LABELS_VIEW_MODE_COLLAPSED,
+					DefaultTab:            userpreferencesv1.DefaultTab_DEFAULT_TAB_PINNED,
+					ViewMode:              userpreferencesv1.ViewMode_VIEW_MODE_LIST,
+					LabelsViewMode:        userpreferencesv1.LabelsViewMode_LABELS_VIEW_MODE_COLLAPSED,
+					AvailableResourceMode: userpreferencesv1.AvailableResourceMode_AVAILABLE_RESOURCE_MODE_ALL,
 				},
 				Assist: &userpreferencesv1.AssistUserPreferences{
 					PreferredLogins: []string{"baz"},
@@ -340,7 +365,7 @@ func TestLayoutUpdate(t *testing.T) {
 	require.NotNil(t, prefs.Onboard)
 	// Non-existing values should be set to the default value.
 	require.Equal(t, userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_DOCKED, prefs.Assist.ViewMode)
-	require.Equal(t, userpreferencesv1.Theme_THEME_LIGHT, prefs.Theme)
+	require.Equal(t, userpreferencesv1.Theme_THEME_UNSPECIFIED, prefs.Theme)
 	// Existing values should be preserved.
 	require.Equal(t, []string{"foo", "bar"}, prefs.Assist.PreferredLogins)
 }

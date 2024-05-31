@@ -17,3 +17,6 @@
  */
 
 export const WILD_CARD = '*';
+
+export const AWS_TAG_INFO_LINK =
+  'https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags_roles.html#id_tags_roles_procs-console';

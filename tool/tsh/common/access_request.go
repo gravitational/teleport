@@ -36,7 +36,7 @@ import (
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -57,7 +57,7 @@ func onRequestList(cf *CLIConf) error {
 
 	var reqs []types.AccessRequest
 
-	err = tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
+	err = tc.WithRootClusterClient(cf.Context, func(clt authclient.ClientI) error {
 		reqs, err = clt.GetAccessRequests(cf.Context, types.AccessRequestFilter{})
 		return trace.Wrap(err)
 	})
@@ -151,7 +151,7 @@ func onRequestShow(cf *CLIConf) error {
 	}
 
 	var req types.AccessRequest
-	err = tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
+	err = tc.WithRootClusterClient(cf.Context, func(clt authclient.ClientI) error {
 		req, err = services.GetAccessRequest(cf.Context, clt, cf.RequestID)
 		return trace.Wrap(err)
 	})
@@ -327,7 +327,7 @@ func onRequestReview(cf *CLIConf) error {
 	}
 
 	var req types.AccessRequest
-	err = tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
+	err = tc.WithRootClusterClient(cf.Context, func(clt authclient.ClientI) error {
 		req, err = clt.SubmitAccessReview(cf.Context, types.AccessReviewSubmission{
 			RequestID: cf.RequestID,
 			Review: types.AccessReview{

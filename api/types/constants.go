@@ -523,6 +523,9 @@ const (
 	// KindUserNotificationState is a resource which tracks whether a user has clicked on or dismissed a notification.
 	KindUserNotificationState = "user_notification_state"
 
+	// KindVnetConfig is a resource which holds cluster-wide configuration for VNet.
+	KindVnetConfig = "vnet_config"
+
 	// V7 is the seventh version of resources.
 	V7 = "v7"
 
@@ -984,6 +987,48 @@ const (
 
 	// PluginGenerationLabel is the label for the current generation of the plugin.
 	PluginGenerationLabel = TeleportInternalLabelPrefix + "plugin-generation"
+
+	// EntraTenantIDLabel is the label for the Entra tenant ID.
+	EntraTenantIDLabel = TeleportInternalLabelPrefix + "entra-tenant"
+
+	// EntraUniqueIDLabel is the label for the unique identifier of the object in the Entra ID directory.
+	EntraUniqueIDLabel = TeleportInternalLabelPrefix + "entra-unique-id"
+
+	// EntraUPNLabel is the label for the user principal name in Entra ID.
+	EntraUPNLabel = TeleportInternalLabelPrefix + "entra-upn"
+
+	// EntraDisplayNameLabel is the label for the display name of the object in the Entra ID directory.
+	// The display name may not be unique.
+	EntraDisplayNameLabel = TeleportInternalLabelPrefix + "entra-display-name"
+
+	// EntraSAMAccountNameLabel is the label for user's on-premises sAMAccountName.
+	EntraSAMAccountNameLabel = TeleportInternalLabelPrefix + "entra-sam-account-name"
+)
+
+const (
+	// NotificationTitleLabel is the label which contains the title of the notification.
+	NotificationTitleLabel = TeleportInternalLabelPrefix + "title"
+	// NotificationClickedLabel is the label which contains whether the notification has been clicked on by the user.
+	NotificationClickedLabel = TeleportInternalLabelPrefix + "clicked"
+	// NotificationScope is the label which contains the scope of the notification, either "user" or "global"
+	NotificationScope = TeleportInternalLabelPrefix + "scope"
+
+	// NotificationDefaultInformationalSubKind is the default subkind for an informational notification.
+	NotificationDefaultInformationalSubKind = "default-informational"
+	// NotificationDefaultWarningSubKind is the default subkind for a warning notification.
+	NotificationDefaultWarningSubKind = "default-warning"
+
+	// NotificationUserCreatedInformationalSubKind is the subkind for a user-created informational notification.
+	NotificationUserCreatedInformationalSubKind = "user-created-informational"
+	// NotificationUserCreatedWarningSubKind is the subkind for a user-created warning notification.
+	NotificationUserCreatedWarningSubKind = "user-created-warning"
+
+	// NotificationAccessRequestPendingSubKind is the subkind for a notification for an access request pending review.
+	NotificationAccessRequestPendingSubKind = "access-request-pending"
+	// NotificationAccessRequestApprovedSubKind is the subkind for a notification for a user's access request being approved.
+	NotificationAccessRequestApprovedSubKind = "access-request-approved"
+	// NotificationAccessRequestDeniedSubKind is the subkind for a notification for a user's access request being denied.
+	NotificationAccessRequestDeniedSubKind = "access-request-denied"
 )
 
 const (
@@ -1005,6 +1050,7 @@ const (
 	InstanceMetadataTypeDisabled InstanceMetadataType = "disabled"
 	InstanceMetadataTypeEC2      InstanceMetadataType = "EC2"
 	InstanceMetadataTypeAzure    InstanceMetadataType = "Azure"
+	InstanceMetadataTypeGCP      InstanceMetadataType = "GCP"
 )
 
 // OriginValues lists all possible origin values.
@@ -1231,4 +1277,47 @@ const (
 	ApplicationProtocolHTTP = "HTTP"
 	// ApplicationProtocolTCP is the TCP apps protocol.
 	ApplicationProtocolTCP = "TCP"
+)
+
+const (
+	// HostedPluginLabel defines the name for the hosted plugin label.
+	// When this label is set to "true" on a Plugin resource,
+	// it indicates that the Plugin should be run by the Cloud service,
+	// rather than self-hosted plugin services.
+	HostedPluginLabel = TeleportNamespace + "/hosted-plugin"
+)
+
+const (
+	// OktaOrgURLLabel is the label used by Okta-managed resources to indicate
+	// the upstream Okta organization that they come from.
+	OktaOrgURLLabel = "okta/org"
+
+	// OktaAppIDLabel is the label for the Okta application ID on appserver objects.
+	OktaAppIDLabel = TeleportInternalLabelPrefix + "okta-app-id"
+
+	// OktaCredPurposeLabel is used by Okta-managed PluginStaticCredentials to
+	// indicate their purpose
+	OktaCredPurposeLabel = "okta/purpose"
+
+	// OktaCredPurposeAuth indicates that the credential is intended for
+	// authenticating with the Okta REST API
+	OktaCredPurposeAuth = "okta-auth"
+
+	// OktaCredPurposeSCIMToken indicates that theis to be used for authenticating
+	// SCIM requests from the upstream organization. The content of the credential
+	// is a bcrypt hash of actual token.
+	OktaCredPurposeSCIMToken = "scim-bearer-token"
+
+	// CredPurposeOKTAAPITokenWithSCIMOnlyIntegration is used when okta integration was enabled without
+	// app groups sync. Due to backward compatibility when teleport was downgraded to version where the
+	// AppGroupSyncDisabled flag is not supported we need to prevent plugin from starting.
+	// This is done by distinguishing between OktaCredPurposeAuth and CredPurposeOKTAAPITokenWithSCIMOnlyIntegration
+	// that are only set when AppGroupSyncDisabled is set to true.
+	CredPurposeOKTAAPITokenWithSCIMOnlyIntegration = "okta-auth-scim-only"
+)
+
+const (
+	// SCIMBaseURLLabel defines a label indicating the base URL for
+	// interacting with a plugin via SCIM. Useful for diagnostic display.
+	SCIMBaseURLLabel = TeleportNamespace + "/scim-base-url"
 )

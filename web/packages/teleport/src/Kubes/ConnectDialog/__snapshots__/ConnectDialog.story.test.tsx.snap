@@ -69,12 +69,12 @@ exports[`kube connect dialogue local 1`] = `
   margin: 0px;
 }
 
-.c19 {
+.c21 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 600;
   margin: 0px;
-  margin-top: 16px;
+  margin-top: 4px;
 }
 
 .c4 {
@@ -125,20 +125,13 @@ exports[`kube connect dialogue local 1`] = `
   border-top: 1px solid;
 }
 
-.c20 {
+.c19 {
   box-sizing: border-box;
+  margin-top: 24px;
 }
 
 .c22 {
   box-sizing: border-box;
-  margin-bottom: 24px;
-  width: 50%;
-}
-
-.c34 {
-  box-sizing: border-box;
-  margin-left: 8px;
-  margin-right: 4px;
 }
 
 .c5 {
@@ -161,15 +154,9 @@ exports[`kube connect dialogue local 1`] = `
   display: flex;
 }
 
-.c21 {
-  display: flex;
-  gap: 16px;
-}
-
-.c29 {
+.c20 {
   display: flex;
   justify-content: space-between;
-  gap: 16px;
 }
 
 .c16 {
@@ -213,7 +200,7 @@ exports[`kube connect dialogue local 1`] = `
   cursor: auto;
 }
 
-.c35 {
+.c23 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -239,172 +226,19 @@ exports[`kube connect dialogue local 1`] = `
   padding: 0px 24px;
 }
 
-.c35:hover,
-.c35:focus {
+.c23:hover,
+.c23:focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c35:active {
+.c23:active {
   background: rgba(255,255,255,0.18);
 }
 
-.c35:disabled {
+.c23:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
-}
-
-.c26 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.c28 {
-  appearance: none;
-  border: 1px solid rgba(255,255,255,0.54);
-  border-radius: 4px;
-  box-sizing: border-box;
-  display: block;
-  height: 40px;
-  font-size: 16px;
-  padding: 0 16px;
-  outline: none;
-  width: 100%;
-  background: #222C59;
-  color: #FFFFFF;
-  margin-top: 4px;
-}
-
-.c28:hover,
-.c28:focus,
-.c28:active {
-  border: 1px solid rgba(255,255,255,0.72);
-}
-
-.c28::-ms-clear {
-  display: none;
-}
-
-.c28::placeholder {
-  color: rgba(255,255,255,0.54);
-  opacity: 1;
-}
-
-.c28:read-only {
-  cursor: not-allowed;
-}
-
-.c28:disabled {
-  color: rgba(255,255,255,0.36);
-  border-color: rgba(255,255,255,0.36);
-}
-
-.c23 {
-  color: #FFFFFF;
-  display: block;
-  font-size: 12px;
-  width: 100%;
-  margin-bottom: 0px;
-}
-
-.c30 {
-  position: relative;
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-}
-
-.c30[disabled] {
-  cursor: default;
-}
-
-.c33 {
-  width: 32px;
-  height: 16px;
-  border-radius: 10px;
-  cursor: inherit;
-  flex-shrink: 0;
-  background: rgba(255,255,255,0.07);
-  transition: background 0.15s ease-in-out;
-}
-
-.c33:hover {
-  background: rgba(255,255,255,0.13);
-}
-
-.c33:active {
-  background: rgba(255,255,255,0.18);
-}
-
-.c33:before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  width: 12px;
-  height: 12px;
-  transform: translate(2px,-50%);
-  border-radius: 14px;
-  background: #FFFFFF;
-  box-shadow: 0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12);
-  transition: transform 0.05s ease-in;
-}
-
-.c31 {
-  opacity: 0;
-  position: absolute;
-  cursor: inherit;
-  z-index: -1;
-}
-
-.c31:checked + .c32:before {
-  transform: translate(18px,-50%);
-}
-
-.c31:enabled:checked + .c32 {
-  background: #00BFA6;
-}
-
-.c31:enabled:checked + .c32:hover {
-  background: #33CCB8;
-}
-
-.c31:enabled:checked + .c32:active {
-  background: #66D9CA;
-}
-
-.c31:disabled + .c32 {
-  background: rgba(255,255,255,0.07);
-}
-
-.c31:disabled + .c32:before {
-  opacity: 0.36;
-  box-shadow: none;
-}
-
-.c31:disabled:checked + .c32 {
-  background: rgba(0,191,166,0.25);
-}
-
-.c27 {
-  height: 18px;
-  width: 18px;
-  color: inherit;
-}
-
-.c25 {
-  vertical-align: middle;
-  display: inline-block;
-  height: 18px;
-}
-
-.c25:hover {
-  cursor: pointer;
-}
-
-.c24 {
-  margin-right: 4px;
-  vertical-align: middle;
 }
 
 <body>
@@ -587,176 +421,27 @@ exports[`kube connect dialogue local 1`] = `
             class="c18"
           >
             <div
-              class="c19"
-            >
-              Or exec into a pod on this Kubernetes cluster
-            </div>
-            <div
-              class="c20 c21"
+              class="c19 c20"
             >
               <div
-                class="c22"
-                width="50%"
+                class="c21"
               >
-                <label
-                  class="c23"
-                  font-size="0"
-                >
-                  <span
-                    class="c24"
-                  >
-                    Pod to exec into
-                  </span>
-                  <span
-                    class="c25"
-                    role="icon"
-                  >
-                    <span
-                      class="c26 c27"
-                    >
-                      <svg
-                        fill="currentColor"
-                        height="20"
-                        viewBox="0 0 24 24"
-                        width="20"
-                      >
-                        <path
-                          d="M11.625 8.8125C12.1428 8.8125 12.5625 8.39277 12.5625 7.875C12.5625 7.35723 12.1428 6.9375 11.625 6.9375C11.1072 6.9375 10.6875 7.35723 10.6875 7.875C10.6875 8.39277 11.1072 8.8125 11.625 8.8125Z"
-                        />
-                        <path
-                          d="M10.5 11.25C10.5 10.8358 10.8358 10.5 11.25 10.5C11.6478 10.5 12.0294 10.658 12.3107 10.9393C12.592 11.2206 12.75 11.6022 12.75 12V15.75C13.1642 15.75 13.5 16.0858 13.5 16.5C13.5 16.9142 13.1642 17.25 12.75 17.25C12.3522 17.25 11.9706 17.092 11.6893 16.8107C11.408 16.5294 11.25 16.1478 11.25 15.75V12C10.8358 12 10.5 11.6642 10.5 11.25Z"
-                        />
-                        <path
-                          clip-rule="evenodd"
-                          d="M12 2.25C6.61522 2.25 2.25 6.61522 2.25 12C2.25 17.3848 6.61522 21.75 12 21.75C17.3848 21.75 21.75 17.3848 21.75 12C21.75 6.61522 17.3848 2.25 12 2.25ZM3.75 12C3.75 7.44365 7.44365 3.75 12 3.75C16.5563 3.75 20.25 7.44365 20.25 12C20.25 16.5563 16.5563 20.25 12 20.25C7.44365 20.25 3.75 16.5563 3.75 12Z"
-                          fill-rule="evenodd"
-                        />
-                      </svg>
-                    </span>
-                  </span>
-                  <input
-                    autocomplete="off"
-                    class="c28"
-                    inputmode="text"
-                    placeholder="namespace/pod"
-                    type="text"
-                    value=""
-                  />
-                </label>
+                Or exec into a pod on this Kubernetes cluster in Web UI
               </div>
-              <div
-                class="c22"
-                width="50%"
-              >
-                <label
-                  class="c23"
-                  font-size="0"
-                >
-                  <span
-                    class="c24"
-                  >
-                    Command to execute
-                  </span>
-                  <span
-                    class="c25"
-                    role="icon"
-                  >
-                    <span
-                      class="c26 c27"
-                    >
-                      <svg
-                        fill="currentColor"
-                        height="20"
-                        viewBox="0 0 24 24"
-                        width="20"
-                      >
-                        <path
-                          d="M11.625 8.8125C12.1428 8.8125 12.5625 8.39277 12.5625 7.875C12.5625 7.35723 12.1428 6.9375 11.625 6.9375C11.1072 6.9375 10.6875 7.35723 10.6875 7.875C10.6875 8.39277 11.1072 8.8125 11.625 8.8125Z"
-                        />
-                        <path
-                          d="M10.5 11.25C10.5 10.8358 10.8358 10.5 11.25 10.5C11.6478 10.5 12.0294 10.658 12.3107 10.9393C12.592 11.2206 12.75 11.6022 12.75 12V15.75C13.1642 15.75 13.5 16.0858 13.5 16.5C13.5 16.9142 13.1642 17.25 12.75 17.25C12.3522 17.25 11.9706 17.092 11.6893 16.8107C11.408 16.5294 11.25 16.1478 11.25 15.75V12C10.8358 12 10.5 11.6642 10.5 11.25Z"
-                        />
-                        <path
-                          clip-rule="evenodd"
-                          d="M12 2.25C6.61522 2.25 2.25 6.61522 2.25 12C2.25 17.3848 6.61522 21.75 12 21.75C17.3848 21.75 21.75 17.3848 21.75 12C21.75 6.61522 17.3848 2.25 12 2.25ZM3.75 12C3.75 7.44365 7.44365 3.75 12 3.75C16.5563 3.75 20.25 7.44365 20.25 12C20.25 16.5563 16.5563 20.25 12 20.25C7.44365 20.25 3.75 16.5563 3.75 12Z"
-                          fill-rule="evenodd"
-                        />
-                      </svg>
-                    </span>
-                  </span>
-                  <input
-                    autocomplete="off"
-                    class="c28"
-                    inputmode="text"
-                    placeholder="/bin/bash"
-                    type="text"
-                    value=""
-                  />
-                </label>
-              </div>
-            </div>
-            <div
-              class="c20 c29"
-            >
-              <label
-                class="c30"
-              >
-                <input
-                  checked=""
-                  class="c31"
-                  data-testid="toggle"
-                  type="checkbox"
-                />
-                <div
-                  class="c32 c33"
-                />
-                <div
-                  class="c34"
-                >
-                  Interactive shell
-                </div>
-                <span
-                  class="c25"
-                  role="icon"
-                >
-                  <span
-                    class="c26 c27"
-                  >
-                    <svg
-                      fill="currentColor"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      width="20"
-                    >
-                      <path
-                        d="M11.625 8.8125C12.1428 8.8125 12.5625 8.39277 12.5625 7.875C12.5625 7.35723 12.1428 6.9375 11.625 6.9375C11.1072 6.9375 10.6875 7.35723 10.6875 7.875C10.6875 8.39277 11.1072 8.8125 11.625 8.8125Z"
-                      />
-                      <path
-                        d="M10.5 11.25C10.5 10.8358 10.8358 10.5 11.25 10.5C11.6478 10.5 12.0294 10.658 12.3107 10.9393C12.592 11.2206 12.75 11.6022 12.75 12V15.75C13.1642 15.75 13.5 16.0858 13.5 16.5C13.5 16.9142 13.1642 17.25 12.75 17.25C12.3522 17.25 11.9706 17.092 11.6893 16.8107C11.408 16.5294 11.25 16.1478 11.25 15.75V12C10.8358 12 10.5 11.6642 10.5 11.25Z"
-                      />
-                      <path
-                        clip-rule="evenodd"
-                        d="M12 2.25C6.61522 2.25 2.25 6.61522 2.25 12C2.25 17.3848 6.61522 21.75 12 21.75C17.3848 21.75 21.75 17.3848 21.75 12C21.75 6.61522 17.3848 2.25 12 2.25ZM3.75 12C3.75 7.44365 7.44365 3.75 12 3.75C16.5563 3.75 20.25 7.44365 20.25 12C20.25 16.5563 16.5563 20.25 12 20.25C7.44365 20.25 3.75 16.5563 3.75 12Z"
-                        fill-rule="evenodd"
-                      />
-                    </svg>
-                  </span>
-                </span>
-              </label>
               <button
                 class="c16"
                 kind="primary"
               >
-                Run Command
+                Exec
               </button>
             </div>
           </div>
         </div>
         <div
-          class="c20"
+          class="c22"
         >
           <button
-            class="c35"
+            class="c23"
             kind="secondary"
           >
             Close
@@ -837,12 +522,12 @@ exports[`kube connect dialogue local with requestId 1`] = `
   margin: 0px;
 }
 
-.c20 {
+.c22 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 600;
   margin: 0px;
-  margin-top: 16px;
+  margin-top: 4px;
 }
 
 .c4 {
@@ -899,20 +584,13 @@ exports[`kube connect dialogue local with requestId 1`] = `
   border-top: 1px solid;
 }
 
-.c21 {
+.c20 {
   box-sizing: border-box;
+  margin-top: 24px;
 }
 
 .c23 {
   box-sizing: border-box;
-  margin-bottom: 24px;
-  width: 50%;
-}
-
-.c35 {
-  box-sizing: border-box;
-  margin-left: 8px;
-  margin-right: 4px;
 }
 
 .c5 {
@@ -935,15 +613,9 @@ exports[`kube connect dialogue local with requestId 1`] = `
   display: flex;
 }
 
-.c22 {
-  display: flex;
-  gap: 16px;
-}
-
-.c30 {
+.c21 {
   display: flex;
   justify-content: space-between;
-  gap: 16px;
 }
 
 .c16 {
@@ -987,7 +659,7 @@ exports[`kube connect dialogue local with requestId 1`] = `
   cursor: auto;
 }
 
-.c36 {
+.c24 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1013,172 +685,19 @@ exports[`kube connect dialogue local with requestId 1`] = `
   padding: 0px 24px;
 }
 
-.c36:hover,
-.c36:focus {
+.c24:hover,
+.c24:focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c36:active {
+.c24:active {
   background: rgba(255,255,255,0.18);
 }
 
-.c36:disabled {
+.c24:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
-}
-
-.c27 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.c29 {
-  appearance: none;
-  border: 1px solid rgba(255,255,255,0.54);
-  border-radius: 4px;
-  box-sizing: border-box;
-  display: block;
-  height: 40px;
-  font-size: 16px;
-  padding: 0 16px;
-  outline: none;
-  width: 100%;
-  background: #222C59;
-  color: #FFFFFF;
-  margin-top: 4px;
-}
-
-.c29:hover,
-.c29:focus,
-.c29:active {
-  border: 1px solid rgba(255,255,255,0.72);
-}
-
-.c29::-ms-clear {
-  display: none;
-}
-
-.c29::placeholder {
-  color: rgba(255,255,255,0.54);
-  opacity: 1;
-}
-
-.c29:read-only {
-  cursor: not-allowed;
-}
-
-.c29:disabled {
-  color: rgba(255,255,255,0.36);
-  border-color: rgba(255,255,255,0.36);
-}
-
-.c24 {
-  color: #FFFFFF;
-  display: block;
-  font-size: 12px;
-  width: 100%;
-  margin-bottom: 0px;
-}
-
-.c31 {
-  position: relative;
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-}
-
-.c31[disabled] {
-  cursor: default;
-}
-
-.c34 {
-  width: 32px;
-  height: 16px;
-  border-radius: 10px;
-  cursor: inherit;
-  flex-shrink: 0;
-  background: rgba(255,255,255,0.07);
-  transition: background 0.15s ease-in-out;
-}
-
-.c34:hover {
-  background: rgba(255,255,255,0.13);
-}
-
-.c34:active {
-  background: rgba(255,255,255,0.18);
-}
-
-.c34:before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  width: 12px;
-  height: 12px;
-  transform: translate(2px,-50%);
-  border-radius: 14px;
-  background: #FFFFFF;
-  box-shadow: 0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12);
-  transition: transform 0.05s ease-in;
-}
-
-.c32 {
-  opacity: 0;
-  position: absolute;
-  cursor: inherit;
-  z-index: -1;
-}
-
-.c32:checked + .c33:before {
-  transform: translate(18px,-50%);
-}
-
-.c32:enabled:checked + .c33 {
-  background: #00BFA6;
-}
-
-.c32:enabled:checked + .c33:hover {
-  background: #33CCB8;
-}
-
-.c32:enabled:checked + .c33:active {
-  background: #66D9CA;
-}
-
-.c32:disabled + .c33 {
-  background: rgba(255,255,255,0.07);
-}
-
-.c32:disabled + .c33:before {
-  opacity: 0.36;
-  box-shadow: none;
-}
-
-.c32:disabled:checked + .c33 {
-  background: rgba(0,191,166,0.25);
-}
-
-.c28 {
-  height: 18px;
-  width: 18px;
-  color: inherit;
-}
-
-.c26 {
-  vertical-align: middle;
-  display: inline-block;
-  height: 18px;
-}
-
-.c26:hover {
-  cursor: pointer;
-}
-
-.c25 {
-  margin-right: 4px;
-  vertical-align: middle;
 }
 
 <body>
@@ -1397,176 +916,27 @@ exports[`kube connect dialogue local with requestId 1`] = `
             class="c19"
           >
             <div
-              class="c20"
-            >
-              Or exec into a pod on this Kubernetes cluster
-            </div>
-            <div
-              class="c21 c22"
+              class="c20 c21"
             >
               <div
-                class="c23"
-                width="50%"
+                class="c22"
               >
-                <label
-                  class="c24"
-                  font-size="0"
-                >
-                  <span
-                    class="c25"
-                  >
-                    Pod to exec into
-                  </span>
-                  <span
-                    class="c26"
-                    role="icon"
-                  >
-                    <span
-                      class="c27 c28"
-                    >
-                      <svg
-                        fill="currentColor"
-                        height="20"
-                        viewBox="0 0 24 24"
-                        width="20"
-                      >
-                        <path
-                          d="M11.625 8.8125C12.1428 8.8125 12.5625 8.39277 12.5625 7.875C12.5625 7.35723 12.1428 6.9375 11.625 6.9375C11.1072 6.9375 10.6875 7.35723 10.6875 7.875C10.6875 8.39277 11.1072 8.8125 11.625 8.8125Z"
-                        />
-                        <path
-                          d="M10.5 11.25C10.5 10.8358 10.8358 10.5 11.25 10.5C11.6478 10.5 12.0294 10.658 12.3107 10.9393C12.592 11.2206 12.75 11.6022 12.75 12V15.75C13.1642 15.75 13.5 16.0858 13.5 16.5C13.5 16.9142 13.1642 17.25 12.75 17.25C12.3522 17.25 11.9706 17.092 11.6893 16.8107C11.408 16.5294 11.25 16.1478 11.25 15.75V12C10.8358 12 10.5 11.6642 10.5 11.25Z"
-                        />
-                        <path
-                          clip-rule="evenodd"
-                          d="M12 2.25C6.61522 2.25 2.25 6.61522 2.25 12C2.25 17.3848 6.61522 21.75 12 21.75C17.3848 21.75 21.75 17.3848 21.75 12C21.75 6.61522 17.3848 2.25 12 2.25ZM3.75 12C3.75 7.44365 7.44365 3.75 12 3.75C16.5563 3.75 20.25 7.44365 20.25 12C20.25 16.5563 16.5563 20.25 12 20.25C7.44365 20.25 3.75 16.5563 3.75 12Z"
-                          fill-rule="evenodd"
-                        />
-                      </svg>
-                    </span>
-                  </span>
-                  <input
-                    autocomplete="off"
-                    class="c29"
-                    inputmode="text"
-                    placeholder="namespace/pod"
-                    type="text"
-                    value=""
-                  />
-                </label>
+                Or exec into a pod on this Kubernetes cluster in Web UI
               </div>
-              <div
-                class="c23"
-                width="50%"
-              >
-                <label
-                  class="c24"
-                  font-size="0"
-                >
-                  <span
-                    class="c25"
-                  >
-                    Command to execute
-                  </span>
-                  <span
-                    class="c26"
-                    role="icon"
-                  >
-                    <span
-                      class="c27 c28"
-                    >
-                      <svg
-                        fill="currentColor"
-                        height="20"
-                        viewBox="0 0 24 24"
-                        width="20"
-                      >
-                        <path
-                          d="M11.625 8.8125C12.1428 8.8125 12.5625 8.39277 12.5625 7.875C12.5625 7.35723 12.1428 6.9375 11.625 6.9375C11.1072 6.9375 10.6875 7.35723 10.6875 7.875C10.6875 8.39277 11.1072 8.8125 11.625 8.8125Z"
-                        />
-                        <path
-                          d="M10.5 11.25C10.5 10.8358 10.8358 10.5 11.25 10.5C11.6478 10.5 12.0294 10.658 12.3107 10.9393C12.592 11.2206 12.75 11.6022 12.75 12V15.75C13.1642 15.75 13.5 16.0858 13.5 16.5C13.5 16.9142 13.1642 17.25 12.75 17.25C12.3522 17.25 11.9706 17.092 11.6893 16.8107C11.408 16.5294 11.25 16.1478 11.25 15.75V12C10.8358 12 10.5 11.6642 10.5 11.25Z"
-                        />
-                        <path
-                          clip-rule="evenodd"
-                          d="M12 2.25C6.61522 2.25 2.25 6.61522 2.25 12C2.25 17.3848 6.61522 21.75 12 21.75C17.3848 21.75 21.75 17.3848 21.75 12C21.75 6.61522 17.3848 2.25 12 2.25ZM3.75 12C3.75 7.44365 7.44365 3.75 12 3.75C16.5563 3.75 20.25 7.44365 20.25 12C20.25 16.5563 16.5563 20.25 12 20.25C7.44365 20.25 3.75 16.5563 3.75 12Z"
-                          fill-rule="evenodd"
-                        />
-                      </svg>
-                    </span>
-                  </span>
-                  <input
-                    autocomplete="off"
-                    class="c29"
-                    inputmode="text"
-                    placeholder="/bin/bash"
-                    type="text"
-                    value=""
-                  />
-                </label>
-              </div>
-            </div>
-            <div
-              class="c21 c30"
-            >
-              <label
-                class="c31"
-              >
-                <input
-                  checked=""
-                  class="c32"
-                  data-testid="toggle"
-                  type="checkbox"
-                />
-                <div
-                  class="c33 c34"
-                />
-                <div
-                  class="c35"
-                >
-                  Interactive shell
-                </div>
-                <span
-                  class="c26"
-                  role="icon"
-                >
-                  <span
-                    class="c27 c28"
-                  >
-                    <svg
-                      fill="currentColor"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      width="20"
-                    >
-                      <path
-                        d="M11.625 8.8125C12.1428 8.8125 12.5625 8.39277 12.5625 7.875C12.5625 7.35723 12.1428 6.9375 11.625 6.9375C11.1072 6.9375 10.6875 7.35723 10.6875 7.875C10.6875 8.39277 11.1072 8.8125 11.625 8.8125Z"
-                      />
-                      <path
-                        d="M10.5 11.25C10.5 10.8358 10.8358 10.5 11.25 10.5C11.6478 10.5 12.0294 10.658 12.3107 10.9393C12.592 11.2206 12.75 11.6022 12.75 12V15.75C13.1642 15.75 13.5 16.0858 13.5 16.5C13.5 16.9142 13.1642 17.25 12.75 17.25C12.3522 17.25 11.9706 17.092 11.6893 16.8107C11.408 16.5294 11.25 16.1478 11.25 15.75V12C10.8358 12 10.5 11.6642 10.5 11.25Z"
-                      />
-                      <path
-                        clip-rule="evenodd"
-                        d="M12 2.25C6.61522 2.25 2.25 6.61522 2.25 12C2.25 17.3848 6.61522 21.75 12 21.75C17.3848 21.75 21.75 17.3848 21.75 12C21.75 6.61522 17.3848 2.25 12 2.25ZM3.75 12C3.75 7.44365 7.44365 3.75 12 3.75C16.5563 3.75 20.25 7.44365 20.25 12C20.25 16.5563 16.5563 20.25 12 20.25C7.44365 20.25 3.75 16.5563 3.75 12Z"
-                        fill-rule="evenodd"
-                      />
-                    </svg>
-                  </span>
-                </span>
-              </label>
               <button
                 class="c16"
                 kind="primary"
               >
-                Run Command
+                Exec
               </button>
             </div>
           </div>
         </div>
         <div
-          class="c21"
+          class="c23"
         >
           <button
-            class="c36"
+            class="c24"
             kind="secondary"
           >
             Close
@@ -1647,12 +1017,12 @@ exports[`kube connect dialogue sso 1`] = `
   margin: 0px;
 }
 
-.c19 {
+.c21 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 600;
   margin: 0px;
-  margin-top: 16px;
+  margin-top: 4px;
 }
 
 .c4 {
@@ -1703,20 +1073,13 @@ exports[`kube connect dialogue sso 1`] = `
   border-top: 1px solid;
 }
 
-.c20 {
+.c19 {
   box-sizing: border-box;
+  margin-top: 24px;
 }
 
 .c22 {
   box-sizing: border-box;
-  margin-bottom: 24px;
-  width: 50%;
-}
-
-.c34 {
-  box-sizing: border-box;
-  margin-left: 8px;
-  margin-right: 4px;
 }
 
 .c5 {
@@ -1739,15 +1102,9 @@ exports[`kube connect dialogue sso 1`] = `
   display: flex;
 }
 
-.c21 {
-  display: flex;
-  gap: 16px;
-}
-
-.c29 {
+.c20 {
   display: flex;
   justify-content: space-between;
-  gap: 16px;
 }
 
 .c16 {
@@ -1791,7 +1148,7 @@ exports[`kube connect dialogue sso 1`] = `
   cursor: auto;
 }
 
-.c35 {
+.c23 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1817,172 +1174,19 @@ exports[`kube connect dialogue sso 1`] = `
   padding: 0px 24px;
 }
 
-.c35:hover,
-.c35:focus {
+.c23:hover,
+.c23:focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c35:active {
+.c23:active {
   background: rgba(255,255,255,0.18);
 }
 
-.c35:disabled {
+.c23:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
-}
-
-.c26 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.c28 {
-  appearance: none;
-  border: 1px solid rgba(255,255,255,0.54);
-  border-radius: 4px;
-  box-sizing: border-box;
-  display: block;
-  height: 40px;
-  font-size: 16px;
-  padding: 0 16px;
-  outline: none;
-  width: 100%;
-  background: #222C59;
-  color: #FFFFFF;
-  margin-top: 4px;
-}
-
-.c28:hover,
-.c28:focus,
-.c28:active {
-  border: 1px solid rgba(255,255,255,0.72);
-}
-
-.c28::-ms-clear {
-  display: none;
-}
-
-.c28::placeholder {
-  color: rgba(255,255,255,0.54);
-  opacity: 1;
-}
-
-.c28:read-only {
-  cursor: not-allowed;
-}
-
-.c28:disabled {
-  color: rgba(255,255,255,0.36);
-  border-color: rgba(255,255,255,0.36);
-}
-
-.c23 {
-  color: #FFFFFF;
-  display: block;
-  font-size: 12px;
-  width: 100%;
-  margin-bottom: 0px;
-}
-
-.c30 {
-  position: relative;
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-}
-
-.c30[disabled] {
-  cursor: default;
-}
-
-.c33 {
-  width: 32px;
-  height: 16px;
-  border-radius: 10px;
-  cursor: inherit;
-  flex-shrink: 0;
-  background: rgba(255,255,255,0.07);
-  transition: background 0.15s ease-in-out;
-}
-
-.c33:hover {
-  background: rgba(255,255,255,0.13);
-}
-
-.c33:active {
-  background: rgba(255,255,255,0.18);
-}
-
-.c33:before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  width: 12px;
-  height: 12px;
-  transform: translate(2px,-50%);
-  border-radius: 14px;
-  background: #FFFFFF;
-  box-shadow: 0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12);
-  transition: transform 0.05s ease-in;
-}
-
-.c31 {
-  opacity: 0;
-  position: absolute;
-  cursor: inherit;
-  z-index: -1;
-}
-
-.c31:checked + .c32:before {
-  transform: translate(18px,-50%);
-}
-
-.c31:enabled:checked + .c32 {
-  background: #00BFA6;
-}
-
-.c31:enabled:checked + .c32:hover {
-  background: #33CCB8;
-}
-
-.c31:enabled:checked + .c32:active {
-  background: #66D9CA;
-}
-
-.c31:disabled + .c32 {
-  background: rgba(255,255,255,0.07);
-}
-
-.c31:disabled + .c32:before {
-  opacity: 0.36;
-  box-shadow: none;
-}
-
-.c31:disabled:checked + .c32 {
-  background: rgba(0,191,166,0.25);
-}
-
-.c27 {
-  height: 18px;
-  width: 18px;
-  color: inherit;
-}
-
-.c25 {
-  vertical-align: middle;
-  display: inline-block;
-  height: 18px;
-}
-
-.c25:hover {
-  cursor: pointer;
-}
-
-.c24 {
-  margin-right: 4px;
-  vertical-align: middle;
 }
 
 <body>
@@ -2165,176 +1369,27 @@ exports[`kube connect dialogue sso 1`] = `
             class="c18"
           >
             <div
-              class="c19"
-            >
-              Or exec into a pod on this Kubernetes cluster
-            </div>
-            <div
-              class="c20 c21"
+              class="c19 c20"
             >
               <div
-                class="c22"
-                width="50%"
+                class="c21"
               >
-                <label
-                  class="c23"
-                  font-size="0"
-                >
-                  <span
-                    class="c24"
-                  >
-                    Pod to exec into
-                  </span>
-                  <span
-                    class="c25"
-                    role="icon"
-                  >
-                    <span
-                      class="c26 c27"
-                    >
-                      <svg
-                        fill="currentColor"
-                        height="20"
-                        viewBox="0 0 24 24"
-                        width="20"
-                      >
-                        <path
-                          d="M11.625 8.8125C12.1428 8.8125 12.5625 8.39277 12.5625 7.875C12.5625 7.35723 12.1428 6.9375 11.625 6.9375C11.1072 6.9375 10.6875 7.35723 10.6875 7.875C10.6875 8.39277 11.1072 8.8125 11.625 8.8125Z"
-                        />
-                        <path
-                          d="M10.5 11.25C10.5 10.8358 10.8358 10.5 11.25 10.5C11.6478 10.5 12.0294 10.658 12.3107 10.9393C12.592 11.2206 12.75 11.6022 12.75 12V15.75C13.1642 15.75 13.5 16.0858 13.5 16.5C13.5 16.9142 13.1642 17.25 12.75 17.25C12.3522 17.25 11.9706 17.092 11.6893 16.8107C11.408 16.5294 11.25 16.1478 11.25 15.75V12C10.8358 12 10.5 11.6642 10.5 11.25Z"
-                        />
-                        <path
-                          clip-rule="evenodd"
-                          d="M12 2.25C6.61522 2.25 2.25 6.61522 2.25 12C2.25 17.3848 6.61522 21.75 12 21.75C17.3848 21.75 21.75 17.3848 21.75 12C21.75 6.61522 17.3848 2.25 12 2.25ZM3.75 12C3.75 7.44365 7.44365 3.75 12 3.75C16.5563 3.75 20.25 7.44365 20.25 12C20.25 16.5563 16.5563 20.25 12 20.25C7.44365 20.25 3.75 16.5563 3.75 12Z"
-                          fill-rule="evenodd"
-                        />
-                      </svg>
-                    </span>
-                  </span>
-                  <input
-                    autocomplete="off"
-                    class="c28"
-                    inputmode="text"
-                    placeholder="namespace/pod"
-                    type="text"
-                    value=""
-                  />
-                </label>
+                Or exec into a pod on this Kubernetes cluster in Web UI
               </div>
-              <div
-                class="c22"
-                width="50%"
-              >
-                <label
-                  class="c23"
-                  font-size="0"
-                >
-                  <span
-                    class="c24"
-                  >
-                    Command to execute
-                  </span>
-                  <span
-                    class="c25"
-                    role="icon"
-                  >
-                    <span
-                      class="c26 c27"
-                    >
-                      <svg
-                        fill="currentColor"
-                        height="20"
-                        viewBox="0 0 24 24"
-                        width="20"
-                      >
-                        <path
-                          d="M11.625 8.8125C12.1428 8.8125 12.5625 8.39277 12.5625 7.875C12.5625 7.35723 12.1428 6.9375 11.625 6.9375C11.1072 6.9375 10.6875 7.35723 10.6875 7.875C10.6875 8.39277 11.1072 8.8125 11.625 8.8125Z"
-                        />
-                        <path
-                          d="M10.5 11.25C10.5 10.8358 10.8358 10.5 11.25 10.5C11.6478 10.5 12.0294 10.658 12.3107 10.9393C12.592 11.2206 12.75 11.6022 12.75 12V15.75C13.1642 15.75 13.5 16.0858 13.5 16.5C13.5 16.9142 13.1642 17.25 12.75 17.25C12.3522 17.25 11.9706 17.092 11.6893 16.8107C11.408 16.5294 11.25 16.1478 11.25 15.75V12C10.8358 12 10.5 11.6642 10.5 11.25Z"
-                        />
-                        <path
-                          clip-rule="evenodd"
-                          d="M12 2.25C6.61522 2.25 2.25 6.61522 2.25 12C2.25 17.3848 6.61522 21.75 12 21.75C17.3848 21.75 21.75 17.3848 21.75 12C21.75 6.61522 17.3848 2.25 12 2.25ZM3.75 12C3.75 7.44365 7.44365 3.75 12 3.75C16.5563 3.75 20.25 7.44365 20.25 12C20.25 16.5563 16.5563 20.25 12 20.25C7.44365 20.25 3.75 16.5563 3.75 12Z"
-                          fill-rule="evenodd"
-                        />
-                      </svg>
-                    </span>
-                  </span>
-                  <input
-                    autocomplete="off"
-                    class="c28"
-                    inputmode="text"
-                    placeholder="/bin/bash"
-                    type="text"
-                    value=""
-                  />
-                </label>
-              </div>
-            </div>
-            <div
-              class="c20 c29"
-            >
-              <label
-                class="c30"
-              >
-                <input
-                  checked=""
-                  class="c31"
-                  data-testid="toggle"
-                  type="checkbox"
-                />
-                <div
-                  class="c32 c33"
-                />
-                <div
-                  class="c34"
-                >
-                  Interactive shell
-                </div>
-                <span
-                  class="c25"
-                  role="icon"
-                >
-                  <span
-                    class="c26 c27"
-                  >
-                    <svg
-                      fill="currentColor"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      width="20"
-                    >
-                      <path
-                        d="M11.625 8.8125C12.1428 8.8125 12.5625 8.39277 12.5625 7.875C12.5625 7.35723 12.1428 6.9375 11.625 6.9375C11.1072 6.9375 10.6875 7.35723 10.6875 7.875C10.6875 8.39277 11.1072 8.8125 11.625 8.8125Z"
-                      />
-                      <path
-                        d="M10.5 11.25C10.5 10.8358 10.8358 10.5 11.25 10.5C11.6478 10.5 12.0294 10.658 12.3107 10.9393C12.592 11.2206 12.75 11.6022 12.75 12V15.75C13.1642 15.75 13.5 16.0858 13.5 16.5C13.5 16.9142 13.1642 17.25 12.75 17.25C12.3522 17.25 11.9706 17.092 11.6893 16.8107C11.408 16.5294 11.25 16.1478 11.25 15.75V12C10.8358 12 10.5 11.6642 10.5 11.25Z"
-                      />
-                      <path
-                        clip-rule="evenodd"
-                        d="M12 2.25C6.61522 2.25 2.25 6.61522 2.25 12C2.25 17.3848 6.61522 21.75 12 21.75C17.3848 21.75 21.75 17.3848 21.75 12C21.75 6.61522 17.3848 2.25 12 2.25ZM3.75 12C3.75 7.44365 7.44365 3.75 12 3.75C16.5563 3.75 20.25 7.44365 20.25 12C20.25 16.5563 16.5563 20.25 12 20.25C7.44365 20.25 3.75 16.5563 3.75 12Z"
-                        fill-rule="evenodd"
-                      />
-                    </svg>
-                  </span>
-                </span>
-              </label>
               <button
                 class="c16"
                 kind="primary"
               >
-                Run Command
+                Exec
               </button>
             </div>
           </div>
         </div>
         <div
-          class="c20"
+          class="c22"
         >
           <button
-            class="c35"
+            class="c23"
             kind="secondary"
           >
             Close
