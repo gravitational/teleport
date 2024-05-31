@@ -50,8 +50,8 @@ type adSingleSignOn struct {
 	CurrentSingleSignOnMode singleSignOnMode `json:"currentSingleSignOnMode"`
 }
 
-// tagInfoCache is the format for the file produced by CreateTAGCacheFile.
-type tagInfoCache struct {
+// TAGInfoCache is the format for the file produced by CreateTAGCacheFile.
+type TAGInfoCache struct {
 	AppSsoSettingsCache []*types.PluginEntraIDAppSSOSettings `json:"app_sso_settings_cache"`
 }
 
@@ -121,7 +121,7 @@ func CreateTAGCacheFile(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	cache := &tagInfoCache{}
+	cache := &TAGInfoCache{}
 
 	for _, app := range appResp.GetValue() {
 		appID := app.GetAppId()
