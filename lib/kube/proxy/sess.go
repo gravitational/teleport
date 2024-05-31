@@ -509,7 +509,7 @@ func (s *session) checkPresence() error {
 
 // launch waits until the session meets access requirements and then transitions the session
 // to a running state.
-func (s *session) launch(isEphemeralCont bool) error {
+func (s *session) launch(isEphemeralCont bool) (returnErr error) {
 	defer func() {
 		err := s.Close()
 		if err != nil {
@@ -547,9 +547,8 @@ func (s *session) launch(isEphemeralCont bool) error {
 		return trace.Wrap(err)
 	}
 	defer func() {
-		// The closure captures the err variable pointer so that the variable can
-		// be changed by the code below, but when defer runs, it gets the last value.
-		onFinished(err)
+		// call onFinished to emit the session.end and exec events.
+		onFinished(returnErr)
 	}()
 
 	termParams := tsession.TerminalParams{
