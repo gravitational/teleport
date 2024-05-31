@@ -82,7 +82,7 @@ This section presents a more detailed setup description.
 ### Teleport backend configuration
 
 Create Teleport databases and user in CockroachDB:
-  ```cockroach
+  ```sql
   CREATE DATABASE teleport_backend;
   CREATE DATABASE teleport_audit;
   CREATE USER teleport;
@@ -104,7 +104,7 @@ You must end up with 3 files:
 On CockroachDB core you must declare the physical regions as CockraochDB
 zones and configure zonal fault tolerance on the Teleport databases.
 
-```cockroach
+```sql
 ALTER DATABASE teleport_backend SURVIVE ZONE FAILURE;
 ALTER DATABASE teleport_audit SURVIVE ZONE FAILURE;
 ```
@@ -114,7 +114,7 @@ ALTER DATABASE teleport_audit SURVIVE ZONE FAILURE;
 For CockroachDB enterprise you must declare both zones and regions to
 CockroachDB and configure regional fault tolerance on the database.
 
-```cockroach
+```sql
 ALTER DATABASE teleport_backend SET PRIMARY REGION <region1>;
 ALTER DATABASE teleport_backend ADD REGION IF NOT EXISTS <region2>;
 ALTER DATABASE teleport_backend SET SECONDARY REGION <region2>;
