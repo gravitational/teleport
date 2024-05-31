@@ -1,21 +1,41 @@
 # Changelog
 
-## 15.3.8 (unreleased)
+## 15.4.0 (05/31/24)
 
+### Access requests notification routing rules
+
+Hosted Slack plugin users can now configure notification routing rules for
+role-based access requests.
+
+### Database access for Spanner
+
+Database access users can now connect to GCP Spanner.
+
+### Unix Workload Attestation
+
+*Delayed from Teleport 15.3.0*
+
+Teleport Workload ID now supports basic workload attestation on Unix systems,
+allowing cluster administrators to restrict the issuance of SVIDs to specific
+workloads based on UID/PID/GID.
+
+### Other improvements and fixes
+
+* Fixed an issue where mix-and-match of join tokens could interfere with some services appearing correctly in heartbeats. [#42189](https://github.com/gravitational/teleport/pull/42189)
+* Added an alternate EC2 auto discover flow using AWS Systems Manager as a more scalable method than EICE in the "Enroll New Resource" view in the web UI. [#42205](https://github.com/gravitational/teleport/pull/42205)
+* Fixed `kubectl exec` functionality when Teleport is running behind L7 load balancer. [#42192](https://github.com/gravitational/teleport/pull/42192)
+* Fixed the plugins AMR cache to be updated when Access requests are removed from the subject of an existing rule. [#42186](https://github.com/gravitational/teleport/pull/42186)
 * Improved temporary disk space usage for session recording processing. [#42174](https://github.com/gravitational/teleport/pull/42174)
 * Fixed a regression where Kubernetes Exec audit events were not properly populated and lacked error details. [#42145](https://github.com/gravitational/teleport/pull/42145)
-* Fix Azure join method when using Resource Groups in the allow section. [#42141](https://github.com/gravitational/teleport/pull/42141)
-* Fix userState forwarding in CreateSessionCert. [#42136](https://github.com/gravitational/teleport/pull/42136)
-* New commands for debugging/troubleshooting Teleport instances. `teleport debug set-log-level` enables changing the instance log level without a restart. Also, the `teleport debug profile` can collect pprof profiles. [#42122](https://github.com/gravitational/teleport/pull/42122)
-* Add ability to manage access monitoring rules via tctl. [#42092](https://github.com/gravitational/teleport/pull/42092)
+* Fixed Azure join method when using Resource Groups in the allow section. [#42141](https://github.com/gravitational/teleport/pull/42141)
+* Added new `teleport debug set-log-level / profile` commands changing instance log level without a restart and collecting pprof profiles. [#42122](https://github.com/gravitational/teleport/pull/42122)
+* Added ability to manage access monitoring rules via `tctl`. [#42092](https://github.com/gravitational/teleport/pull/42092)
+* Added access monitoring rule routing for slack access plugin. [#42087](https://github.com/gravitational/teleport/pull/42087)
 * Extended Discovery Service to self-bootstrap necessary permissions for Kubernetes Service to interact with the Kubernetes API on behalf of users. [#42075](https://github.com/gravitational/teleport/pull/42075)
 * Fixed resource leak in session recording cleanup. [#42066](https://github.com/gravitational/teleport/pull/42066)
-* Reduced memory and cpu usage after control plane restarts in clusters with a high number of roles. [#42062](https://github.com/gravitational/teleport/pull/42062)
-* Added an option to send a Ctrl+Alt+Del sequence to remote desktops. [#41720](https://github.com/gravitational/teleport/pull/41720)
+* Reduced memory and CPU usage after control plane restarts in clusters with a high number of roles. [#42062](https://github.com/gravitational/teleport/pull/42062)
+* Added an option to send a `Ctrl+Alt+Del` sequence to remote desktops. [#41720](https://github.com/gravitational/teleport/pull/41720)
 * Added support for GCP Spanner to Teleport Database Service. [#41349](https://github.com/gravitational/teleport/pull/41349)
-* Fixed "kubectl exec" functionality when Teleport is running behind L7 load balancer. [#42192](https://github.com/gravitational/teleport/pull/42192)
-* Fixed bug where the plugins AMR cache is not updated in the event Access requests are removed from the subject of an existing rule. [#42186](https://github.com/gravitational/teleport/pull/42186)
-* Added access monitoring rule routing for slack access plugin. [#42087](https://github.com/gravitational/teleport/pull/42087)
 
 ## 15.3.7 (05/23/24)
 
