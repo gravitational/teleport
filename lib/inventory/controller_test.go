@@ -279,6 +279,7 @@ func TestSSHServerBasics(t *testing.T) {
 // an app service.
 func TestAppServerBasics(t *testing.T) {
 	const serverID = "test-server"
+	const appCount = 3
 
 	t.Parallel()
 
@@ -311,7 +312,7 @@ func TestAppServerBasics(t *testing.T) {
 	require.True(t, ok)
 
 	// send a fake app server heartbeat
-	for i := 0; i < 3; i++ {
+	for i := 0; i < appCount; i++ {
 		err := downstream.Send(ctx, proto.InventoryHeartbeat{
 			AppServer: &types.AppServerV3{
 				Metadata: types.Metadata{
@@ -353,7 +354,7 @@ func TestAppServerBasics(t *testing.T) {
 		deny(appUpsertErr, handlerClose),
 	)
 
-	for i := 0; i < 3; i++ {
+	for i := 0; i < appCount; i++ {
 		err := downstream.Send(ctx, proto.InventoryHeartbeat{
 			AppServer: &types.AppServerV3{
 				Metadata: types.Metadata{
@@ -401,6 +402,38 @@ func TestAppServerBasics(t *testing.T) {
 	// execute ping
 	_, err := handle.Ping(pingCtx, 1)
 	require.NoError(t, err)
+
+	// ensure that local app keepalive states have reset to healthy by waiting
+	// on a full cycle+ worth of keepalives without errors.
+	awaitEvents(t, events,
+		expect(keepAliveTick, keepAliveTick),
+		deny(appKeepAliveErr, handlerClose),
+	)
+
+	// set up to induce enough consecutive keepalive errors to cause removal
+	// of server-side keepalive state.
+	auth.mu.Lock()
+	auth.failKeepAlives = 3 * appCount
+	auth.mu.Unlock()
+
+	// expect that all app keepalives fail, then the app is removed.
+	var expectedEvents []testEvent
+	for i := 0; i < appCount; i++ {
+		expectedEvents = append(expectedEvents, []testEvent{appKeepAliveErr, appKeepAliveErr, appKeepAliveErr, appKeepAliveDel}...)
+	}
+
+	// wait for failed keepalives to trigger removal
+	awaitEvents(t, events,
+		expect(expectedEvents...),
+		deny(handlerClose),
+	)
+
+	// verify that further keepalive ticks to not result in attempts to keepalive
+	// apps (successful or not).
+	awaitEvents(t, events,
+		expect(keepAliveTick, keepAliveTick, keepAliveTick),
+		deny(appKeepAliveOk, appKeepAliveErr, handlerClose),
+	)
 
 	// set up to induce enough consecutive errors to cause stream closure
 	auth.mu.Lock()
@@ -736,7 +769,7 @@ func awaitEvents(t *testing.T, ch <-chan testEvent, opts ...eventOption) {
 		opt(&options)
 	}
 
-	timeout := time.After(time.Second * 5)
+	timeout := time.After(time.Second * 30)
 	for {
 		if len(options.expect) == 0 {
 			return
