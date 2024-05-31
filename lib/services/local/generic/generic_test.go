@@ -332,3 +332,50 @@ func TestGenericListResourcesReturnNextResource(t *testing.T) {
 	))
 	require.Nil(t, next)
 }
+
+func TestGenericListResourcesWithFilter(t *testing.T) {
+	ctx := context.Background()
+
+	memBackend, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clockwork.NewFakeClock(),
+	})
+	require.NoError(t, err)
+
+	service, err := NewService(&ServiceConfig[*testResource]{
+		Backend:       memBackend,
+		ResourceKind:  "generic resource",
+		PageLimit:     200,
+		BackendPrefix: "generic_prefix",
+		UnmarshalFunc: unmarshalResource,
+		MarshalFunc:   marshalResource,
+	})
+	require.NoError(t, err)
+
+	// Create a couple test resources.
+	r1 := newTestResource("r1")
+	r2 := newTestResource("r2")
+
+	_, err = service.WithPrefix("a-unique-prefix").UpsertResource(ctx, r1)
+	require.NoError(t, err)
+	_, err = service.WithPrefix("another-unique-prefix").UpsertResource(ctx, r2)
+	require.NoError(t, err)
+
+	page, nextKey, err := service.ListResourcesWithFilter(ctx, 1, "", func(r *testResource) bool {
+		return r.Metadata.Name == "r1"
+	})
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]*testResource{r1}, page,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+	require.Equal(t, "", nextKey)
+
+	page, nextKey, err = service.ListResourcesWithFilter(ctx, 1, "", func(r *testResource) bool {
+		return r.Metadata.Name == "r2"
+	})
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]*testResource{r2}, page,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+	require.Equal(t, "", nextKey)
+}
