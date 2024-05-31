@@ -15,7 +15,7 @@ Access Controls encompasses two levels of granularity:
 
 For both database servers and database objects, Database Access Controls grants
 or denies access based on Teleport labels. When you enroll a database with
-Teleport, you can configure the labels associated with the databse. For database
+Teleport, you can configure the labels associated with the database. For database
 objects, you can define import rules that instruct the Teleport Database Service
 to apply labels to database objects imported from databases that match labels
 configured within the import rule.
@@ -388,8 +388,10 @@ database, the number of imported objects (the difference comprising objects not
 matched by any import rule), and the number of objects for which the user has
 been granted permissions:
 
+{/* spell-checker: disable */}
 ```text
 INFO [DB:SERVIC] Database objects fetched from the database (table:75). db:my-postgres id:b4a33740-1d82-4a8d-b2be-2aa90ae9d2eb total:75 postgres/users.go:212
 INFO [DB:SERVIC] Database objects imported (table:75). db:my-postgres err_count:0 id:b4a33740-1d82-4a8d-b2be-2aa90ae9d2eb total:75 postgres/users.go:216
 INFO [DB:SERVIC] Calculated database permissions: "INSERT": 75 objects (table:75), "SELECT": 75 objects (table:75), "UPDATE": 75 objects (table:75). db:my-postgres id:b4a33740-1d82-4a8d-b2be-2aa90ae9d2eb user:teleport-user postgres/users.go:223
 ```
+{/* spell-checker: enable */}
