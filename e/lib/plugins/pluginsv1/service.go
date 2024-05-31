@@ -130,6 +130,19 @@ func (s *Service) CreatePlugin(ctx context.Context, req *pluginspb.CreatePluginR
 		return nil, trace.Wrap(err)
 	}
 
+	if req.Plugin == nil {
+		return nil, trace.BadParameter("missing plugin")
+	}
+	_, err = s.pluginService.GetPlugin(ctx, req.GetPlugin().GetName(), false /* withSecrets */)
+	switch {
+	case err == nil:
+		return nil, trace.AlreadyExists("plugin %q already exists", req.Plugin.GetName())
+	case !trace.IsNotFound(err):
+		return nil, trace.Wrap(err)
+	default:
+		// If the plugin doesn't exist, we'll continue.
+	}
+
 	plugin := req.Plugin
 	if plugin == nil {
 		return nil, trace.BadParameter("Plugin must be set")
@@ -179,6 +192,50 @@ func (s *Service) CreatePlugin(ctx context.Context, req *pluginspb.CreatePluginR
 		return nil, trace.Wrap(err)
 	}
 	return &emptypb.Empty{}, nil
+}
+
+// UpdatePlugin updates the specified plugin instance.
+func (s *Service) UpdatePlugin(ctx context.Context, req *pluginspb.UpdatePluginRequest) (*types.PluginV1, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authCtx.CheckAccessToKind(types.KindPlugin, types.VerbRead, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	oldPlugin, err := s.pluginService.GetPlugin(ctx, req.Plugin.GetName(), true /* withSecrets */)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Don't allow to update the plugin state.
+	if err := req.Plugin.SetStatus(oldPlugin.GetStatus()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	inPlugin, ok := req.GetPlugin().Clone().(*types.PluginV1)
+	if !ok {
+		return nil, trace.BadParameter("unsupported plugin type %T", req.Plugin)
+	}
+
+	if inPlugin.Credentials == nil {
+		// If the credentials are not set, we'll copy the existing credentials.
+		if err := inPlugin.SetCredentials(oldPlugin.GetCredentials()); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	updatedPlugin, err := s.pluginService.UpdatePlugin(ctx, inPlugin)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	resource := updatedPlugin.WithoutSecrets()
+	out, ok := resource.(*types.PluginV1)
+	if !ok {
+		return nil, trace.BadParameter("unsupported plugin type %T, expected %T", updatedPlugin, out)
+	}
+	return out, nil
 }
 
 // updatePluginWithLiveCredentials will update the plugin with live credentials if needed.
