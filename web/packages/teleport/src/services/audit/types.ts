@@ -1658,6 +1658,7 @@ export type RawEvents = {
       change_id: string;
       affected_resource_name: string;
       affected_resource_source: string;
+      affected_resource_kind: string;
     }
   >;
   [eventCodes.SPANNER_RPC]: RawSpannerRPCEvent<typeof eventCodes.SPANNER_RPC>;
