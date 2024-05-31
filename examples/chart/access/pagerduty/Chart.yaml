@@ -1,4 +1,4 @@
-.version: &version "15.3.8-cloud.2"
+.version: &version "15.3.8-cloud.2.igs"
 
 apiVersion: v2
 name: teleport-plugin-pagerduty
