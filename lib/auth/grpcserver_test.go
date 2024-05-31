@@ -2393,7 +2393,7 @@ func TestInstanceCertAndControlStream(t *testing.T) {
 			require.NoError(t, err)
 			defer clt.Close()
 
-			err = clt.UnstableAssertSystemRole(ctx, proto.UnstableSystemRoleAssertion{
+			err = clt.AssertSystemRole(ctx, proto.SystemRoleAssertion{
 				ServerID:    serverID,
 				AssertionID: assertionID,
 				SystemRole:  role,
@@ -2403,7 +2403,7 @@ func TestInstanceCertAndControlStream(t *testing.T) {
 	}
 
 	// set assertion ID
-	req.UnstableSystemRoleAssertionID = assertionID
+	req.SystemRoleAssertionID = assertionID
 
 	// assertion should allow us to generate certs
 	certs, err := clt.GenerateHostCerts(ctx, &req)
@@ -2415,7 +2415,7 @@ func TestInstanceCertAndControlStream(t *testing.T) {
 	instanceClt := srv.NewClientWithCert(instanceCert)
 
 	// instance cert can self-renew without assertions
-	req.UnstableSystemRoleAssertionID = ""
+	req.SystemRoleAssertionID = ""
 	_, err = instanceClt.GenerateHostCerts(ctx, &req)
 	require.NoError(t, err)
 

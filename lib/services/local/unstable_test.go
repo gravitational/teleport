@@ -60,7 +60,7 @@ func TestSystemRoleAssertions(t *testing.T) {
 
 	for _, role := range roles {
 		expect[role] = struct{}{}
-		err = unstable.AssertSystemRole(ctx, proto.UnstableSystemRoleAssertion{
+		err = unstable.AssertSystemRole(ctx, proto.SystemRoleAssertion{
 			ServerID:    serverID,
 			AssertionID: assertionID,
 			SystemRole:  role,
@@ -72,9 +72,6 @@ func TestSystemRoleAssertions(t *testing.T) {
 
 		require.Equal(t, len(expect), len(assertions.SystemRoles))
 
-		for _, r := range assertions.SystemRoles {
-			_, ok := expect[r]
-			require.True(t, ok)
-		}
+		require.Subset(t, expect, assertions.SystemRoles)
 	}
 }

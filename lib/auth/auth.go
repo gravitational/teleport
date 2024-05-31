@@ -3812,14 +3812,18 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 	}, nil
 }
 
-// UnstableAssertSystemRole is not a stable part of the public API. Used by older
-// instances to prove that they hold a given system role.
-// DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
-func (a *Server) UnstableAssertSystemRole(ctx context.Context, req proto.UnstableSystemRoleAssertion) error {
+// AssertSystemRole is used by agents to prove that they have a given system role when their credentials
+// originate from multiple separate join tokens so that they can be issued an instance certificate that
+// encompasses all of their capabilities. This method will be deprecated once we have a more comprehensive
+// model for join token joining/replacement.
+func (a *Server) AssertSystemRole(ctx context.Context, req proto.SystemRoleAssertion) error {
 	return trace.Wrap(a.Unstable.AssertSystemRole(ctx, req))
 }
 
-func (a *Server) UnstableGetSystemRoleAssertions(ctx context.Context, serverID string, assertionID string) (proto.UnstableSystemRoleAssertionSet, error) {
+// GetSystemRoleAssertions is used in validated claims made by older instances to prove that they hold a given
+// system role. This method will be deprecated once we have a more comprehensive model for join token
+// joining/replacement.
+func (a *Server) GetSystemRoleAssertions(ctx context.Context, serverID string, assertionID string) (proto.SystemRoleAssertionSet, error) {
 	set, err := a.Unstable.GetSystemRoleAssertions(ctx, serverID, assertionID)
 	return set, trace.Wrap(err)
 }

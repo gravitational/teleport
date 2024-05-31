@@ -355,6 +355,12 @@ type TeleportProcess struct {
 	// the names of the associated identity events for these roles.
 	instanceRoles map[types.SystemRole]string
 
+	// hostedPluginRoles is the collection of dynamically enabled service roles. This element
+	// behaves equivalent to instanceRoles except that while instance roles are static assignments
+	// set up when the teleport process starts, hosted plugin roles are dynamically assigned by
+	// runtime configuration, and may not necessarily be present on the instance cert.
+	hostedPluginRoles map[types.SystemRole]string
+
 	// identities of this process (credentials to auth sever, basically)
 	Identities map[types.SystemRole]*auth.Identity
 
@@ -518,10 +524,25 @@ func (process *TeleportProcess) SetExpectedInstanceRole(role types.SystemRole, e
 	process.instanceRoles[role] = eventName
 }
 
+// SetExpectedHostedPluginRole marks a given hosted plugin role as active, storing the name of its associated
+// identity event.
+func (process *TeleportProcess) SetExpectedHostedPluginRole(role types.SystemRole, eventName string) {
+	process.Lock()
+	defer process.Unlock()
+	process.hostedPluginRoles[role] = eventName
+}
+
 func (process *TeleportProcess) instanceRoleExpected(role types.SystemRole) bool {
 	process.Lock()
 	defer process.Unlock()
 	_, ok := process.instanceRoles[role]
+	return ok
+}
+
+func (process *TeleportProcess) hostedPluginRoleExpected(role types.SystemRole) bool {
+	process.Lock()
+	defer process.Unlock()
+	_, ok := process.hostedPluginRoles[role]
 	return ok
 }
 
@@ -942,6 +963,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		Supervisor:          supervisor,
 		Config:              cfg,
 		instanceRoles:       make(map[types.SystemRole]string),
+		hostedPluginRoles:   make(map[types.SystemRole]string),
 		Identities:          make(map[types.SystemRole]*auth.Identity),
 		connectors:          make(map[types.SystemRole]*Connector),
 		importedDescriptors: cfg.FileDescriptors,
@@ -2721,9 +2743,10 @@ func (process *TeleportProcess) RegisterWithAuthServer(role types.SystemRole, ev
 	serviceName := strings.ToLower(role.String())
 
 	process.RegisterCriticalFunc(fmt.Sprintf("register.%v", serviceName), func() error {
-		if role.IsLocalService() && !process.instanceRoleExpected(role) {
+		if role.IsLocalService() && !(process.instanceRoleExpected(role) || process.hostedPluginRoleExpected(role)) {
 			// if you hit this error, your probably forgot to call SetExpectedInstanceRole inside of
-			// the registerExpectedServices function.
+			// the registerExpectedServices function, or forgot to call SetExpectedHostedPluginRole during
+			// the hosted plugin init process.
 			process.log.Errorf("Register called for unexpected instance role %q (this is a bug).", role)
 		}
 		connector, err := process.reconnectToAuthService(role)

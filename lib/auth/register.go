@@ -703,13 +703,17 @@ func registerUsingAzureMethod(client joinServiceClient, token string, params Reg
 // in the cluster (rotating certificates for existing members)
 type ReRegisterParams struct {
 	// Client is an authenticated client using old credentials
-	Client ClientI
+	Client ReRegisterClient
 	// ID is identity ID
 	ID IdentityID
 	// AdditionalPrincipals is a list of additional principals to dial
 	AdditionalPrincipals []string
 	// DNSNames is a list of DNS Names to add to the x509 client certificate
 	DNSNames []string
+	// RemoteAddr overrides the RemoteAddr host cert generation option when
+	// performing re-registration locally (this value has no effect for remote
+	// registration and can be omitted).
+	RemoteAddr string
 	// PrivateKey is a PEM encoded private key (not passed to auth servers)
 	PrivateKey []byte
 	// PublicTLSKey is a server's public key to sign
@@ -723,6 +727,13 @@ type ReRegisterParams struct {
 	// Used by older instances to requisition a multi-role cert by individually
 	// proving which system roles are held.
 	UnstableSystemRoleAssertionID string
+	SystemRoleAssertionID         string
+}
+
+// ReRegisterClient abstracts over local auth servers and remote clients when
+// performing a re-registration.
+type ReRegisterClient interface {
+	GenerateHostCerts(context.Context, *proto.HostCertsRequest) (*proto.Certs, error)
 }
 
 // ReRegister renews the certificates and private keys based on the client's existing identity.
@@ -746,6 +757,7 @@ func ReRegister(ctx context.Context, params ReRegisterParams) (*Identity, error)
 			Rotation:                      rotation,
 			SystemRoles:                   params.SystemRoles,
 			UnstableSystemRoleAssertionID: params.UnstableSystemRoleAssertionID,
+			SystemRoleAssertionID:         params.SystemRoleAssertionID,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)

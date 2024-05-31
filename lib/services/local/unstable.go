@@ -41,14 +41,19 @@ func NewUnstableService(backend backend.Backend, assertion *AssertionReplayServi
 	return UnstableService{backend, assertion}
 }
 
-func (s UnstableService) AssertSystemRole(ctx context.Context, req proto.UnstableSystemRoleAssertion) error {
+// AssertSystemRole is not a stable part of the public API. Used by agents to
+// prove that they have a given system role when their credentials originate from multiple
+// separate join tokens so that they can be issued an instance certificate that encompasses
+// all of their capabilities. This method will be deprecated once we have a more comprehensive
+// model for join token joining/replacement.
+func (s UnstableService) AssertSystemRole(ctx context.Context, req proto.SystemRoleAssertion) error {
 	key := systemRoleAssertionsKey(req.ServerID, req.AssertionID)
 	item, err := s.Get(ctx, key)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
 
-	var set proto.UnstableSystemRoleAssertionSet
+	var set proto.SystemRoleAssertionSet
 	if err == nil {
 		if err := utils.FastUnmarshal(item.Value, &set); err != nil {
 			return trace.Wrap(err)
@@ -85,8 +90,11 @@ func (s UnstableService) AssertSystemRole(ctx context.Context, req proto.Unstabl
 	return trace.Wrap(err)
 }
 
-func (s UnstableService) GetSystemRoleAssertions(ctx context.Context, serverID string, assertionID string) (proto.UnstableSystemRoleAssertionSet, error) {
-	var set proto.UnstableSystemRoleAssertionSet
+// GetSystemRoleAssertionsis not a stable part of the auth API. Used in validated claims
+// made by older instances to prove that they hold a given system role. This method will be
+// deprecated once we have a more comprehensive model for join token joining/replacement.
+func (s UnstableService) GetSystemRoleAssertions(ctx context.Context, serverID string, assertionID string) (proto.SystemRoleAssertionSet, error) {
+	var set proto.SystemRoleAssertionSet
 
 	item, err := s.Get(ctx, systemRoleAssertionsKey(serverID, assertionID))
 	if err != nil {

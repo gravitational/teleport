@@ -951,15 +951,19 @@ func (a *ServerWithRoles) checkAdditionalSystemRoles(ctx context.Context, req *p
 	}
 
 	// load system role assertions if relevant
-	var assertions proto.UnstableSystemRoleAssertionSet
+	var assertions proto.SystemRoleAssertionSet
 	var err error
-	if req.UnstableSystemRoleAssertionID != "" {
-		assertions, err = a.authServer.UnstableGetSystemRoleAssertions(ctx, req.HostID, req.UnstableSystemRoleAssertionID)
+	assertionID := req.UnstableSystemRoleAssertionID
+	if req.SystemRoleAssertionID != "" {
+		assertionID = req.SystemRoleAssertionID
+	}
+	if assertionID != "" {
+		assertions, err = a.authServer.GetSystemRoleAssertions(ctx, req.HostID, assertionID)
 		if err != nil {
 			// include this error in the logs, since it might be indicative of a bug if it occurs outside of the context
 			// of a general backend outage.
-			log.Warnf("Failed to load system role assertion set %q for instance %q: %v", req.UnstableSystemRoleAssertionID, req.HostID, err)
-			return trace.AccessDenied("failed to load system role assertion set with ID %q", req.UnstableSystemRoleAssertionID)
+			log.Warnf("Failed to load system role assertion set %q for instance %q: %v", assertionID, req.HostID, err)
+			return trace.AccessDenied("failed to load system role assertion set with ID %q", assertionID)
 		}
 	}
 
@@ -985,6 +989,18 @@ Outer:
 }
 
 func (a *ServerWithRoles) UnstableAssertSystemRole(ctx context.Context, req proto.UnstableSystemRoleAssertion) error {
+	return trace.Wrap(a.AssertSystemRole(ctx, proto.SystemRoleAssertion{
+		ServerID:    req.ServerID,
+		AssertionID: req.AssertionID,
+		SystemRole:  req.SystemRole,
+	}))
+}
+
+// AssertSystemRole is used by agents to prove that they have a given system role when their credentials
+// originate from multiple separate join tokens so that they can be issued an instance certificate that
+// encompasses all of their capabilities. This method will be deprecated once we have a more comprehensive
+// model for join token joining/replacement.
+func (a *ServerWithRoles) AssertSystemRole(ctx context.Context, req proto.SystemRoleAssertion) error {
 	role, ok := a.context.Identity.(authz.BuiltinRole)
 	if !ok || !role.IsServer() {
 		return trace.AccessDenied("system role assertions can only be executed by a teleport built-in server")
@@ -1002,7 +1018,7 @@ func (a *ServerWithRoles) UnstableAssertSystemRole(ctx context.Context, req prot
 		return trace.AccessDenied("cannot assert non-service system role %q", req.SystemRole)
 	}
 
-	return a.authServer.UnstableAssertSystemRole(ctx, req)
+	return a.authServer.AssertSystemRole(ctx, req)
 }
 
 // RegisterInventoryControlStream handles the upstream half of the control stream handshake, then passes the control stream to
