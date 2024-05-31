@@ -32,7 +32,7 @@ export function PaymentsAndInvoicesView() {
       stripeSubscriptionStatus: StripeSubscriptionStatus.ACTIVE,
 
       stripeMissingPaymentMethod: false,
-      stripeCardsList: [
+      stripeCards: [
         {
           id: '',
           last4: '4455',
@@ -49,7 +49,7 @@ export function PaymentsAndInvoicesView() {
           createdAt: 0,
         },
       ],
-      stripeInvoicesList: [
+      stripeInvoices: [
         {
           invoiceId: '777',
           status: 'paid',
@@ -90,8 +90,8 @@ export function NoPaymentsAndNoInvoicesView() {
       stripeSubscriptionStatus: StripeSubscriptionStatus.ACTIVE,
 
       stripeMissingPaymentMethod: true,
-      stripeCardsList: [],
-      stripeInvoicesList: [],
+      stripeCards: [],
+      stripeInvoices: [],
       productName: 'Team',
       stripeTrialEnd: 0,
       stripeDefaultSourceId: undefined,

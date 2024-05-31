@@ -292,7 +292,7 @@ describe('questionnaire', () => {
       expect.objectContaining({
         companyName: 'Teleport',
         employeeCount: '5000+',
-        resourcesList: [
+        resources: [
           'RESOURCE_WEB_APPLICATIONS',
           'RESOURCE_WINDOWS_DESKTOPS',
           'RESOURCE_KUBERNETES',

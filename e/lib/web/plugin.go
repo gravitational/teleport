@@ -19,6 +19,8 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/http2"
+	"google.golang.org/protobuf/encoding/protojson"
+	googleproto "google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -425,7 +427,30 @@ func (p *Plugin) withCloudAuth(fn CloudHandler) httprouter.Handle {
 			return nil, trace.Wrap(err)
 		}
 
-		return fn(w, r, ctx, cloudClient)
+		res, err := fn(w, r, ctx, cloudClient)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// if the handler being called as fn returns a protobuf type,
+		// encode it using protojson.
+		// Otherwise, return the response directly and let our middleware
+		// encode it with encoding/json.
+		pm, ok := res.(googleproto.Message)
+		if ok {
+			result, err := protojson.Marshal(pm)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			w.Write(result)
+
+			return nil, nil
+		}
+
+		return res, trace.Wrap(err)
 	})
 }
 

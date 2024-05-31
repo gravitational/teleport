@@ -99,25 +99,25 @@ func (r *UsageReporter) reportUsage(ctx context.Context) {
 			PeriodStart: reportingTime.Add(-r.Interval).Unix(),
 			PeriodEnd:   reportingTime.Unix(),
 			Items: []*cloudapi.UsageReportItem{{
-				Resource: cloudapi.USER,
+				Resource: cloudapi.UsageResourceType_USER,
 				Quantity: int64(len(users)),
 			}, {
-				Resource: cloudapi.SERVER,
+				Resource: cloudapi.UsageResourceType_SERVER,
 				Quantity: int64(len(nodes)),
 			}, {
-				Resource: cloudapi.DATABASE,
+				Resource: cloudapi.UsageResourceType_DATABASE,
 				Quantity: int64(len(databases)),
 			}, {
-				Resource: cloudapi.APPLICATION,
+				Resource: cloudapi.UsageResourceType_APPLICATION,
 				Quantity: int64(len(apps)),
 			}, {
-				Resource: cloudapi.KUBE_CLUSTER,
+				Resource: cloudapi.UsageResourceType_KUBE_CLUSTER,
 				Quantity: int64(len(kubeServers)),
 			}, {
-				Resource: cloudapi.ROLE,
+				Resource: cloudapi.UsageResourceType_ROLE,
 				Quantity: int64(len(roles)),
 			}, {
-				Resource: cloudapi.AUTH_CONNECTOR,
+				Resource: cloudapi.UsageResourceType_AUTH_CONNECTOR,
 				Quantity: int64(authConnectorCount),
 			}},
 		}},

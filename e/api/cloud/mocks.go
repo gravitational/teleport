@@ -32,7 +32,7 @@ type MockedClient struct {
 	// MockGetAccountUpgradeWindowStartHour returns tenant account upgrade window start
 	MockGetAccountUpgradeWindowStartHour func() (*v1.GetAccountUpgradeWindowStartHourResponse, error)
 	// MockUpdateAccountUpgradeWindowStartHour updates tenant account upgrade window start
-	MockUpdateAccountUpgradeWindowStartHour func() (*v1.EmptyResponse, error)
+	MockUpdateAccountUpgradeWindowStartHour func(in *v1.UpdateAccountUpgradeWindowStartHourRequest) (*v1.EmptyResponse, error)
 	// MockGetFeatures returns the subscription features
 	MockGetFeatures func(context.Context, *v1.EmptyRequest) (*v1.GetFeaturesResponse, error)
 	// MockGetBillingSummaryInformation returns the users Billing Summary Information
@@ -56,6 +56,9 @@ type MockedClient struct {
 	MockSetSurveyResults func(ctx context.Context, in *v1.SetSurveyResultsRequest, opts ...grpc.CallOption) (*v1.EmptyResponse, error)
 	// MockSendTeleportInvite sends a Teleport invite to a new user in an existing cluster
 	MockSendTeleportInvite func(ctx context.Context, req *v1.SendTeleportInviteRequest) (*v1.EmptyResponse, error)
+	// MockClusterAlertInfo is a mock implementation of ClusterAlertInfo which returns information about a cluster that
+	// will determine if the Teleport usage reporter should generate a cluster alert
+	MockClusterAlertInfo func(context.Context, *v1.EmptyRequest) (*v1.ClusterAlertInfoResponse, error)
 }
 
 func (m *MockedClient) SubmitUsageReports(ctx context.Context, in *v1.SubmitUsageReportsRequest, opts ...grpc.CallOption) (*v1.EmptyResponse, error) {
@@ -140,7 +143,7 @@ func (m *MockedClient) GetAccountUpgradeWindowStartHour(ctx context.Context, in 
 
 func (m *MockedClient) UpdateAccountUpgradeWindowStartHour(ctx context.Context, in *v1.UpdateAccountUpgradeWindowStartHourRequest, opts ...grpc.CallOption) (*v1.EmptyResponse, error) {
 	if m.MockUpdateAccountUpgradeWindowStartHour != nil {
-		return m.MockUpdateAccountUpgradeWindowStartHour()
+		return m.MockUpdateAccountUpgradeWindowStartHour(in)
 	}
 
 	return nil, trace.NotImplemented("MockUpdateAccountUpgradeWindowStartHour is not implemented")
@@ -232,4 +235,12 @@ func (m *MockedClient) SendTeleportInvite(ctx context.Context, req *v1.SendTelep
 	}
 
 	return nil, trace.NotImplemented("SendTeleportInvite is not implemented")
+}
+
+func (m *MockedClient) ClusterAlertInfo(ctx context.Context, in *v1.EmptyRequest, _ ...grpc.CallOption) (*v1.ClusterAlertInfoResponse, error) {
+	if m.MockClusterAlertInfo != nil {
+		return m.MockClusterAlertInfo(ctx, in)
+	}
+
+	return nil, trace.NotImplemented("ClusterAlertInfo is not implemented")
 }

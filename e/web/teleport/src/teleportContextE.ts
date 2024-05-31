@@ -111,7 +111,13 @@ class TeleportEContext extends TeleportContext {
       const { clusterResources, marketingParams, ...rest } = survey;
 
       // submit survey to sales center
-      surveyService.submitSurvey(rest);
+      surveyService.submitSurvey({
+        companyName: rest.companyName,
+        employeeCount: rest.employeeCount,
+        resources: rest.resourcesList,
+        role: rest.role,
+        team: rest.team,
+      });
 
       if (clusterResources && clusterResources.length > 0) {
         // add survey resources to cluster state

@@ -19,7 +19,6 @@ describe('cycle', () => {
         periodEnd: 1682989332,
         periodStart: 1672989632,
         usageMau: 0,
-        usageTia: 0, // not used, but required by proto definition
         usagePr: 0,
       },
       nonBillableUsage: {

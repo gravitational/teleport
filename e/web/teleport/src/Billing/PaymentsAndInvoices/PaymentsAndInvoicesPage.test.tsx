@@ -16,8 +16,8 @@ describe('paymentsAndInvoicesPage', () => {
         stripePublicKey: 'some-stripePublicKey',
         stripeCustomerId: 'some-stripeCustomerId',
         stripeMissingPaymentMethod: false,
-        stripeCardsList: [],
-        stripeInvoicesList: [],
+        stripeCards: [],
+        stripeInvoices: [],
         productName: 'some-productName',
         stripeTrialEnd: 0,
         stripeDefaultSourceId: 'some-stripeDefaultSourceId',
@@ -45,7 +45,7 @@ describe('paymentsAndInvoicesPage', () => {
 
   test('renders card list if present', () => {
     props.data.stripeMissingPaymentMethod = false;
-    props.data.stripeCardsList = [
+    props.data.stripeCards = [
       {
         id: 'some-id',
         last4: '9999',
@@ -69,14 +69,14 @@ describe('paymentsAndInvoicesPage', () => {
 
   test('does not render card list if not present', () => {
     props.data.stripeMissingPaymentMethod = false;
-    props.data.stripeCardsList = [];
+    props.data.stripeCards = [];
     renderWithElementsAndContext(<PaymentsAndInvoicesPage {...props} />);
 
     expect(screen.queryByText('Payment Methods')).not.toBeInTheDocument();
   });
 
   test('renders invoices if present', () => {
-    props.data.stripeInvoicesList = [
+    props.data.stripeInvoices = [
       {
         invoiceId: 'some-invoiceId',
         status: 'some-status',
@@ -97,7 +97,7 @@ describe('paymentsAndInvoicesPage', () => {
   });
 
   test('renders empty invoices if no invoices are present', () => {
-    props.data.stripeInvoicesList = [];
+    props.data.stripeInvoices = [];
     renderWithElementsAndContext(<PaymentsAndInvoicesPage {...props} />);
 
     expect(screen.queryByText('Invoices')).not.toBeInTheDocument();

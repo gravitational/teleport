@@ -11,7 +11,7 @@ export function useUpgradeWindowStart(ctx: TeleportContextE) {
   const { attempt, run } = useAttempt();
 
   const [scheduleUpgradesVisible, setScheduleUpgradesVisible] = useState(false);
-  const [selectedUpgradeWindowStart, setSelectedUpgradeWindowStart] =
+  const [selectedUpgradeWindowStartHour, setSelectedUpgradeWindowStartHour] =
     useState<UpgradeWindowStartHour>(8);
 
   useEffect(() => {
@@ -22,7 +22,7 @@ export function useUpgradeWindowStart(ctx: TeleportContextE) {
     run(() =>
       ctx.upgradeWindowService
         .getUpgradeWindowStartHour()
-        .then(setSelectedUpgradeWindowStart)
+        .then(setSelectedUpgradeWindowStartHour)
     );
   }, []);
 
@@ -37,7 +37,7 @@ export function useUpgradeWindowStart(ctx: TeleportContextE) {
   function onUpdate() {
     return run(() =>
       ctx.upgradeWindowService
-        .updateUpgradeWindowStart(selectedUpgradeWindowStart)
+        .updateUpgradeWindowStart(selectedUpgradeWindowStartHour)
         .then(closeScheduleUpgrade)
     );
   }
@@ -46,8 +46,8 @@ export function useUpgradeWindowStart(ctx: TeleportContextE) {
     scheduleUpgradesVisible,
     showScheduleUpgrade,
     closeScheduleUpgrade,
-    selectedUpgradeWindowStart,
-    setSelectedUpgradeWindowStart,
+    selectedUpgradeWindowStart: selectedUpgradeWindowStartHour,
+    setSelectedUpgradeWindowStart: setSelectedUpgradeWindowStartHour,
     onUpdate,
     attempt,
   };

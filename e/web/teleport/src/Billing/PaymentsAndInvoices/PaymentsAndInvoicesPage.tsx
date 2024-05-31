@@ -14,8 +14,8 @@ export const PaymentsAndInvoicesPage = ({
   const [pageState, setPageState] = useState<PaymentsInvoicesInformation>(data);
   const {
     stripeMissingPaymentMethod,
-    stripeCardsList,
-    stripeInvoicesList,
+    stripeCards,
+    stripeInvoices,
     productName,
     stripeTrialEnd,
     stripeDefaultSourceId,
@@ -30,19 +30,19 @@ export const PaymentsAndInvoicesPage = ({
           stripeTrialEnd={stripeTrialEnd}
         />
       )}
-      {!stripeMissingPaymentMethod && stripeCardsList.length > 0 && (
+      {!stripeMissingPaymentMethod && stripeCards.length > 0 && (
         <CardList
-          cards={stripeCardsList}
+          cards={stripeCards}
           setPageState={setPageState}
           defaultSourceID={stripeDefaultSourceId}
           stripeMissingPaymentMethod={stripeMissingPaymentMethod}
         />
       )}
-      {(!stripeInvoicesList || stripeInvoicesList.length === 0) && (
+      {(!stripeInvoices || stripeInvoices.length === 0) && (
         <InvoiceEmptyState />
       )}
-      {stripeInvoicesList && stripeInvoicesList.length > 0 && (
-        <InvoiceList invoices={stripeInvoicesList} productName={productName} />
+      {stripeInvoices && stripeInvoices.length > 0 && (
+        <InvoiceList invoices={stripeInvoices} productName={productName} />
       )}
     </>
   );

@@ -67,25 +67,25 @@ func TestUsageReport(t *testing.T) {
 		PeriodStart: 449884799,
 		PeriodEnd:   449884800,
 		Items: []*cloudapi.UsageReportItem{{
-			Resource: cloudapi.USER,
+			Resource: cloudapi.UsageResourceType_USER,
 			Quantity: 1,
 		}, {
-			Resource: cloudapi.SERVER,
+			Resource: cloudapi.UsageResourceType_SERVER,
 			Quantity: 1,
 		}, {
-			Resource: cloudapi.DATABASE,
+			Resource: cloudapi.UsageResourceType_DATABASE,
 			Quantity: 1,
 		}, {
-			Resource: cloudapi.APPLICATION,
+			Resource: cloudapi.UsageResourceType_APPLICATION,
 			Quantity: 1,
 		}, {
-			Resource: cloudapi.KUBE_CLUSTER,
+			Resource: cloudapi.UsageResourceType_KUBE_CLUSTER,
 			Quantity: 1,
 		}, {
-			Resource: cloudapi.ROLE,
+			Resource: cloudapi.UsageResourceType_ROLE,
 			Quantity: 2,
 		}, {
-			Resource: cloudapi.AUTH_CONNECTOR,
+			Resource: cloudapi.UsageResourceType_AUTH_CONNECTOR,
 			Quantity: 6,
 		}},
 	}}
@@ -133,25 +133,25 @@ func TestErrors(t *testing.T) {
 		PeriodStart: 449884799,
 		PeriodEnd:   449884800,
 		Items: []*cloudapi.UsageReportItem{{
-			Resource: cloudapi.USER,
+			Resource: cloudapi.UsageResourceType_USER,
 			Quantity: 0,
 		}, {
-			Resource: cloudapi.SERVER,
+			Resource: cloudapi.UsageResourceType_SERVER,
 			Quantity: 0,
 		}, {
-			Resource: cloudapi.DATABASE,
+			Resource: cloudapi.UsageResourceType_DATABASE,
 			Quantity: 1,
 		}, {
-			Resource: cloudapi.APPLICATION,
+			Resource: cloudapi.UsageResourceType_APPLICATION,
 			Quantity: 0,
 		}, {
-			Resource: cloudapi.KUBE_CLUSTER,
+			Resource: cloudapi.UsageResourceType_KUBE_CLUSTER,
 			Quantity: 0,
 		}, {
-			Resource: cloudapi.ROLE,
+			Resource: cloudapi.UsageResourceType_ROLE,
 			Quantity: 0,
 		}, {
-			Resource: cloudapi.AUTH_CONNECTOR,
+			Resource: cloudapi.UsageResourceType_AUTH_CONNECTOR,
 			Quantity: 0,
 		}},
 	}}

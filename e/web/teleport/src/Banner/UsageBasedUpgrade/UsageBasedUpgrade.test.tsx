@@ -167,7 +167,7 @@ const makeBillingInfo = (
   return Object.assign(
     {
       defaultPaymentMethodId: '',
-      cardsList: [],
+      cards: [],
       bankAccountsList: [],
       stripePublicKey: '',
       productName: 'Super Pro Product',

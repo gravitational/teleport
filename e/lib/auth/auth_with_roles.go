@@ -9,6 +9,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
 	v1 "github.com/gravitational/teleport/e/api/cloud/v1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
@@ -18,6 +19,7 @@ import (
 // cloudWithRoles extends OSS auth server API with enterprise-specific features
 type cloudWithRoles struct {
 	plugin *Plugin
+	cloudapi.UnimplementedTenantsServiceServer
 }
 
 // RemoveCard removes a credit card from tenant account
@@ -357,6 +359,16 @@ func (ac *cloudWithRoles) SendTeleportInvite(ctx context.Context, req *v1.SendTe
 	}
 
 	return res, nil
+}
+
+// ClusterAlertInfo returns information about a cluster that will determine if the Teleport usage reporter should generate a cluster alert
+func (ac *cloudWithRoles) ClusterAlertInfo(ctx context.Context, req *v1.EmptyRequest) (*v1.ClusterAlertInfoResponse, error) {
+	_, err := ac.plugin.authServer.Authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.AccessDenied("access denied")
+	}
+
+	return ac.plugin.cloudClient.ClusterAlertInfo(ctx, req)
 }
 
 func (ac *cloudWithRoles) action(ctx context.Context, namespace, resource, action string) error {

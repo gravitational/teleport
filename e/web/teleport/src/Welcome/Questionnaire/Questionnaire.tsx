@@ -53,12 +53,11 @@ export const Questionnaire = ({
   // If true, we only show a partial survey.
   // If false, we show the entire survey.
   const [fullSurvey, setFullSurvey] = useState<boolean>(true);
-  const [marketingPref, setMarketingPref] =
-    useState<MarketingParamData.AsObject>();
+  const [marketingPref, setMarketingPref] = useState<MarketingParamData>();
 
   useEffect(() => {
     async function getSurveyResults() {
-      const resp: SurveyCompanyResponse.AsObject =
+      const resp: SurveyCompanyResponse =
         await surveyService.getSurveyCompanyResults();
       const marketingResources = await getMarketingResources(
         resp.marketingParams
@@ -99,10 +98,10 @@ export const Questionnaire = ({
       r => resourceMapping[ResourceOption[r]]
     );
 
-    const request: SetSurveyResultsRequest.AsObject = {
+    const request: SetSurveyResultsRequest = {
       companyName: formFields.companyName,
       employeeCount: formFields.employeeCount,
-      resourcesList: formFields.resources,
+      resources: formFields.resources,
       role: formFields.role,
       team: formFields.team,
       username: username || '',
@@ -115,6 +114,7 @@ export const Questionnaire = ({
       // set survey result and marketing params in localstorage
       const lsRequest: LocalStorageSurvey = {
         ...request,
+        resourcesList: formFields.resources,
         clusterResources: clusterResources,
         marketingParams: marketingPref,
       };

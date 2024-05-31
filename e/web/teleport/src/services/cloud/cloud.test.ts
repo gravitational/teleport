@@ -109,7 +109,7 @@ describe('cloudService', () => {
     const cloud = new CloudSvc();
     const expected: BillingInformation = {
       defaultPaymentMethodId: '41c23fa8-5914-5283-90f7-2146bec2c39f',
-      cardsList: [
+      cards: [
         {
           id: 'abc',
           last4: '4242',
@@ -148,10 +148,10 @@ describe('cloudService', () => {
     expect(response).toEqual(expected);
 
     // Test with null arrays
-    expected.cardsList = null;
+    expected.cards = null;
 
     response = await cloud.fetchBillingInformation();
-    expect(response.cardsList).toEqual([]);
+    expect(response.cards).toEqual(null);
   });
 
   test('fetchBillingSummaryInformation', async () => {
@@ -165,7 +165,6 @@ describe('cloudService', () => {
         periodEnd: 1684773766,
         periodStart: 1684773766,
         usageMau: 0,
-        usageTia: 1,
         usagePr: 2,
       },
       stripeTrial: true,
@@ -190,8 +189,8 @@ describe('cloudService', () => {
       stripePublicKey: 'some-stripePublicKey',
       stripeCustomerId: 'some-stripeCustomerId',
       stripeMissingPaymentMethod: true,
-      stripeCardsList: [],
-      stripeInvoicesList: [],
+      stripeCards: [],
+      stripeInvoices: [],
       productName: 'some-productName',
       stripeTrialEnd: 0,
       stripeDefaultSourceId: 'some-stripeDefaultSourceId',

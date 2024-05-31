@@ -19,7 +19,6 @@ describe('cycle', () => {
         periodEnd: 1682989332,
         periodStart: 1672989632,
         usageMau: 0,
-        usageTia: 0, // not used, but required by proto definition
         usagePr: 0,
       },
       productName: 'some-product',
@@ -29,10 +28,8 @@ describe('cycle', () => {
       usageQuota: {
         mauMax: 2,
         tprMax: 20,
-        tiaMax: 20000, // not used, but required by proto definition
         mauInc: 2,
         tprInc: 20,
-        tiaInc: 20000, // not used, but required by proto definition
       },
     };
   });

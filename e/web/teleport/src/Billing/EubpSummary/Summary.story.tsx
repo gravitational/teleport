@@ -24,7 +24,6 @@ const defaultUsage: StripeUsage = {
   periodEnd: 0,
   periodStart: 0,
   usageMau: 31,
-  usageTia: 100000,
   usagePr: 351,
 };
 
@@ -47,8 +46,6 @@ const defaultProps = (): SummaryProps => ({
       mauInc: 30,
       tprMax: 500,
       tprInc: 500,
-      tiaMax: 500000,
-      tiaInc: 500000,
     },
   },
 });

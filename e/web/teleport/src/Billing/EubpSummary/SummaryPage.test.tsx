@@ -21,7 +21,6 @@ describe('summaryPage', () => {
     periodEnd: 0,
     periodStart: 0,
     usageMau: 0,
-    usageTia: 0,
     usagePr: 0,
   };
 
@@ -43,10 +42,8 @@ describe('summaryPage', () => {
         usageQuota: {
           mauMax: 2,
           tprMax: 20,
-          tiaMax: 20000,
           mauInc: 2,
           tprInc: 20,
-          tiaInc: 20000,
         },
       },
     };

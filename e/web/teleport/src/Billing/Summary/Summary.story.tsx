@@ -24,7 +24,6 @@ const defaultUsage: StripeUsage = {
   periodEnd: 0,
   periodStart: 0,
   usageMau: 31,
-  usageTia: 10000,
   usagePr: 51,
 };
 

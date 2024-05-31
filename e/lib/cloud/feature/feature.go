@@ -108,7 +108,7 @@ func FetchFromCloud(ctx context.Context, cloudClient cloud.Client) (*modules.Fea
 	}
 
 	// TODO(lisa): these should be set to true from salescenter.
-	if resp.ProductType == cloudapi.PRODUCT_TYPE_EUB {
+	if resp.ProductType == cloudapi.ProductType_PRODUCT_TYPE_EUB {
 		f.AdvancedAccessWorkflows = true // Gate action from OSS builds.
 		f.OIDC = true
 		f.SAML = true
@@ -119,7 +119,7 @@ func FetchFromCloud(ctx context.Context, cloudClient cloud.Client) (*modules.Fea
 	// Features will be limited for the following:
 	//   1) Team subscriptions
 	//   2) EUB subscriptions without IGS enabled
-	if resp.ProductType == cloudapi.PRODUCT_TYPE_TEAM || (resp.ProductType == cloudapi.PRODUCT_TYPE_EUB && !resp.IdentityGovernanceSecurity) {
+	if resp.ProductType == cloudapi.ProductType_PRODUCT_TYPE_TEAM || (resp.ProductType == cloudapi.ProductType_PRODUCT_TYPE_EUB && !resp.IdentityGovernanceSecurity) {
 		f.AccessList = GetUsageBasedAccessListFeatureLimits()
 		f.AccessRequests = GetUsageBasedAccessRequestFeatureLimits()
 		f.DeviceTrust = GetUsageBasedDeviceTrustFeatureLimits()

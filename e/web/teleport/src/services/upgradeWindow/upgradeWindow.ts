@@ -1,6 +1,10 @@
 import api from 'teleport/services/api';
 
 import cfg from 'e-teleport/config';
+import {
+  GetAccountUpgradeWindowStartHourResponse,
+  UpdateAccountUpgradeWindowStartHourRequest,
+} from 'e-teleport/services/cloud';
 
 export const availableUpgradeWindowStartHours = [8, 16, 23] as const;
 export type UpgradeWindowStartHour =
@@ -10,16 +14,23 @@ export const service = {
   getUpgradeWindowStartHour(): Promise<UpgradeWindowStartHour> {
     return api
       .get(cfg.api.upgradeWindowStartPath)
-      .then(res => res.upgradeWindowStart);
+      .then(
+        (res: GetAccountUpgradeWindowStartHourResponse) =>
+          res.upgradeWindowStartHour as UpgradeWindowStartHour
+      );
   },
 
   updateUpgradeWindowStart(
-    upgradeWindowStart: UpgradeWindowStartHour
+    upgradeWindowStartHour: UpgradeWindowStartHour
   ): Promise<UpgradeWindowStartHour> {
+    const req: UpdateAccountUpgradeWindowStartHourRequest = {
+      upgradeWindowStartHour,
+    };
     return api
-      .post(cfg.api.upgradeWindowStartPath, {
-        upgradeWindowStart,
-      })
-      .then(res => res.windowStart);
+      .post(cfg.api.upgradeWindowStartPath, req)
+      .then(
+        (res: GetAccountUpgradeWindowStartHourResponse) =>
+          res.upgradeWindowStartHour as UpgradeWindowStartHour
+      );
   },
 };

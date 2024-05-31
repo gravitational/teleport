@@ -167,7 +167,7 @@ func TestRun_UsageBased(t *testing.T) {
 			return &cloudapi.GetFeaturesResponse{
 				Kubernetes:   true,
 				IsUsageBased: true,
-				ProductType:  cloudapi.PRODUCT_TYPE_TEAM,
+				ProductType:  cloudapi.ProductType_PRODUCT_TYPE_TEAM,
 			}, nil
 		},
 	)
@@ -194,7 +194,7 @@ func TestRun_UsageBased(t *testing.T) {
 				Kubernetes:   false,
 				App:          true,
 				IsUsageBased: true,
-				ProductType:  cloudapi.PRODUCT_TYPE_TEAM,
+				ProductType:  cloudapi.ProductType_PRODUCT_TYPE_TEAM,
 			}, nil
 		},
 	)
@@ -225,7 +225,7 @@ func TestRun_UsageBased(t *testing.T) {
 			return &cloudapi.GetFeaturesResponse{
 				Db:           true,
 				IsUsageBased: true,
-				ProductType:  cloudapi.PRODUCT_TYPE_EUB,
+				ProductType:  cloudapi.ProductType_PRODUCT_TYPE_EUB,
 			}, nil
 		},
 	)
@@ -250,7 +250,7 @@ func TestRun_UsageBased(t *testing.T) {
 		func(ctx context.Context, r *cloudapi.EmptyRequest) (*cloudapi.GetFeaturesResponse, error) {
 			return &cloudapi.GetFeaturesResponse{
 				IsUsageBased:               true,
-				ProductType:                cloudapi.PRODUCT_TYPE_EUB,
+				ProductType:                cloudapi.ProductType_PRODUCT_TYPE_EUB,
 				IdentityGovernanceSecurity: true,
 			}, nil
 		},
@@ -379,7 +379,7 @@ func TestRun_Legacy_NonUsageBased_WithIGS(t *testing.T) {
 				CustomTheme:   "llama-theme",
 				// IGS is enabled for a subset of non-usage based products
 				IdentityGovernanceSecurity: true,
-				SupportType:                cloudapi.SUPPORT_TYPE_PREMIUM,
+				SupportType:                cloudapi.SupportType_SUPPORT_TYPE_PREMIUM,
 			}, nil
 		},
 	)

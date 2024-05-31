@@ -17,7 +17,7 @@ export interface CycleProps {
   stripeMissingPaymentMethod: boolean;
   stripeTrialEnd: number;
   usageUpdatedAt: number;
-  usageQuota: UsageQuota.AsObject;
+  usageQuota: UsageQuota;
 }
 
 export const Cycle = ({

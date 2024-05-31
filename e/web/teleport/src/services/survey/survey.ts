@@ -7,7 +7,7 @@ import {
 import cfg from 'e-teleport/config';
 
 export const surveyService = {
-  submitSurvey(survey: Omit<SetSurveyResultsRequest.AsObject, 'username'>) {
+  submitSurvey(survey: Omit<SetSurveyResultsRequest, 'username'>) {
     // using api.fetch instead of api.fetchJSON
     // because we are not expecting a JSON response
     void api.fetch(cfg.api.surveyPath, {
@@ -16,7 +16,7 @@ export const surveyService = {
     });
   },
 
-  getSurveyCompanyResults(): Promise<SurveyCompanyResponse.AsObject> {
+  getSurveyCompanyResults(): Promise<SurveyCompanyResponse> {
     return api.get(cfg.api.surveyCompanyPath);
   },
 };
