@@ -1,0 +1,108 @@
+---
+title: What is Teleport?
+description: Provides an overview of the purpose and benefits of Teleport Access Platform, which allows you to implement Zero Trust for all of your infrastructure.
+tocDepth: 3
+---
+
+The Teleport Access Platform is a suite of software and managed services that
+delivers on-demand, least-privileged access to infrastructure on a foundation of
+cryptographic identity and Zero Trust, with built-in identity security and
+policy governance.
+
+## Use cases
+
+Organizations use the Teleport Access Platform to:
+
+- **Eliminate infrastructure and access silos:** Teleport provides a single
+  system for role-based access controls, audit, and access for all of your
+  infrastructure, from cloud provider APIs to Kubernetes clusters.
+- **Introduce Zero Trust with theft-resistant credentials:** Teleport
+  authenticates access to all of your infrastructure with short-lived
+  certificates, verified at every endpoint. You can roll out a Zero Trust
+  strategy for your organization by setting up Teleport alone.
+- **Address complex compliance needs:** Teleport allows you to satisfy
+  compliance frameworks like SOC 2 and FedRAMP with no need for additional
+  tooling or process changes. 
+
+## Products
+
+The Teleport Access Platform consists of three products:
+
+- **Teleport Access** provides on-demand, least privileged access, on a
+  foundation of cryptographic identity and Zero Trust.
+- **Teleport Identity** hardens your infrastructure with identity governance and
+  security.
+- **Teleport Policy** unifies and controls access policies across all of your
+  infrastructure.  
+
+### Teleport Access
+
+**Teleport Access** provides Zero Trust connectivity to all of your
+infrastructure. You can enable users to access servers, databases, and other
+infrastructure components over the public internet, even if those components are
+protected behind a firewall. 
+
+All infrastructure resources belong to a unified inventory, with a single
+role-based access controls system to allow for least-privilege access. You can
+enable users to authenticate to resources using Single Sign-On providers like
+GitHub and Google Workspace. Connectivity takes place through short-lived
+credentials that Teleport components verify through strong cryptographic
+techniques.
+
+Get started with Teleport Access by enrolling resources in your cluster:
+
+- [Servers](server-access/introduction.mdx)
+- [Databases](database-access/introduction.mdx)
+- [Kubernetes clusters](kubernetes-access/introduction.mdx)
+- [Windows desktops](desktop-access/introduction.mdx)
+- [Applications](application-access/introduction.mdx)
+
+### Teleport Identity
+
+**Teleport Identity** is an add-on to Teleport Access that offers identity
+governance and security for all of your infrastructure. You can provide users
+less-privileged roles by default, requiring any user who wants additional
+permissions to request them for a limited time. This approach leaves no
+permanent admin roles for attackers to target. 
+
+As an additional layer of protection against phishing and exfiltration, you can
+restrict access to users with trusted devices. And during active security
+incidents, you can lock down specific users, roles, infrastructure resources and
+more, letting you contain the security incident with minimal disruption. An
+audit log provides visibility into access patterns, so you can identify weak
+restrictions and potential security breaches.
+
+Get started with Teleport Identity:
+
+- [Access Requests](./access-controls/access-requests.mdx)
+- [Access Lists](./access-controls/access-lists.mdx)
+- [Device Trust](./access-controls/device-trust.mdx)
+- [Access Monitoring](./access-controls/access-monitoring.mdx)
+- [Session & Identity Locks](./access-controls/guides/locking.mdx)
+- [Jamf Endpoint
+  Management](./access-controls/device-trust/jamf-integration.mdx)
+
+### Teleport Policy
+
+**Teleport Policy** unifies and controls access policies across all of your
+infrastructure. With Teleport Access Graph, you can get insight into role-based
+access control policies, including in Teleport and your cloud provider. 
+
+Get started with [Teleport Access Graph](access-controls/access-graph.mdx).
+
+## Architecture
+
+The Teleport Access Platform consists of a certificate authority and
+identity-aware access proxy that run either on the Teleport-managed cloud or, in
+special cases, a self-hosted private network. 
+
+Teleport Agents, which the user deploys on Linux servers or Kubernetes, proxy
+access to infrastructure resources and cloud provider APIs. Users authenticate
+to infrastructure resources through Teleport agents using short-lived
+certificates. Certificates indicate Teleport role membership, allowing Teleport
+Agents to enforce role-based access-controls.
+
+Learn more:
+
+- [Teleport Core Concepts](./core-concepts.mdx)
+- [Architectuire Guides](./architecture/introduction.mdx)
