@@ -1152,6 +1152,15 @@ func (c *Client) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 	return cert, nil
 }
 
+// AssertSystemRole is used by agents to prove that they have a given system role when their credentials originate
+// from multiple separate join tokens so that they can be issued an instance certificate that encompasses
+// all of their capabilities. This method will be deprecated once we have a more comprehensive
+// model for join token joining/replacement.
+func (c *Client) AssertSystemRole(ctx context.Context, req proto.SystemRoleAssertion) error {
+	_, err := c.grpc.AssertSystemRole(ctx, &req)
+	return trace.Wrap(err)
+}
+
 // EmitAuditEvent sends an auditable event to the auth server.
 func (c *Client) EmitAuditEvent(ctx context.Context, event events.AuditEvent) error {
 	grpcEvent, err := events.ToOneOf(event)
