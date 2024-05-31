@@ -51,6 +51,8 @@ It will be distributed as a separate package from Teleport, and manage the insta
 It will read the unauthenticated `/v1/webapi/find` endpoint from the Teleport proxy, parse new fields on that endpoint, and install the specified agent version according to the specified upgrade plan.
 It will download the correct version of Teleport as a tarball, unpack it in `/var/lib/teleport`, and ensure it is symlinked from `/usr/local/bin`.
 
+Source code for the updater will live in `integrations/updater`.
+
 ### Installation
 
 ```shell
