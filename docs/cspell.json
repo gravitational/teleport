@@ -184,6 +184,7 @@
     "SLAVEOF",
     "SLES",
     "SLOWLOG",
+    "SPDY",
     "SPIFFE",
     "SQLSTATE",
     "SSUBSCRIBE",
@@ -873,6 +874,7 @@
     "trustedclusters",
     "trustpolicy",
     "truststore",
+    "tshd",
     "turnoffuserassign",
     "ubunutu",
     "udev",
@@ -941,8 +943,7 @@
     "yubishm",
     "znmqk",
     "zxvf",
-    "zztop",
-    "SPDY"
+    "zztop"
   ],
   "flagWords": [
     "hte"
