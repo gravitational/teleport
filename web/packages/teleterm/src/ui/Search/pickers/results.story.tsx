@@ -35,7 +35,7 @@ import {
 import { ResourceSearchError } from 'teleterm/ui/services/resources';
 import { getAppAddrWithProtocol } from 'teleterm/services/tshd/app';
 
-import { SearchResult } from '../searchResult';
+import { SearchResult, SearchResultApp } from '../searchResult';
 import { makeResourceResult } from '../testHelpers';
 
 import {
@@ -44,9 +44,10 @@ import {
   ResourceSearchErrorsItem,
   TypeToSearchItem,
   AdvancedSearchEnabledItem,
+  AppItem,
 } from './ActionPicker';
 import { SuggestionsError, NoSuggestionsAvailable } from './ParameterPicker';
-import { ResultList } from './ResultList';
+import { NonInteractiveItem, ResultList } from './ResultList';
 
 import type * as uri from 'teleterm/ui/uri';
 
@@ -540,6 +541,7 @@ const SearchResultItems = () => {
             <Component
               searchResult={searchResult}
               getOptionalClusterName={routing.parseClusterName}
+              isVnetSupported={true}
             />
           ),
         };
@@ -577,6 +579,30 @@ const AuxiliaryItems = () => {
       })}
       ExtraTopComponent={
         <>
+          <NonInteractiveItem>
+            <AppItem
+              searchResult={
+                makeResourceResult({
+                  kind: 'app',
+                  resource: makeAppWithAddr({
+                    uri: `${clusterUri}/apps/tcp-app`,
+                    name: 'tcp-app-without-vnet',
+                    endpointUri: 'tcp://localhost:3001',
+                    desc: '',
+                    labels: makeLabelsList({
+                      access: 'cloudwatch-metrics,ec2,s3,cloudtrail',
+                      'aws/Environment': 'demo-13-biz',
+                      'aws/Owner': 'foobar',
+                      env: 'dev',
+                      'teleport.dev/origin': 'config-file',
+                    }),
+                  }),
+                }) as SearchResultApp
+              }
+              getOptionalClusterName={routing.parseClusterName}
+              isVnetSupported={false}
+            />
+          </NonInteractiveItem>
           <NoResultsItem
             clustersWithExpiredCerts={new Set()}
             getClusterName={routing.parseClusterName}
