@@ -165,6 +165,13 @@ func SetupAthenaContext(t *testing.T, ctx context.Context, cfg AthenaContextConf
 	if ok, _ := strconv.ParseBool(testEnabled); !ok {
 		t.Skip("Skipping AWS-dependent test suite.")
 	}
+	var bypassSNS bool
+	if s := os.Getenv(teleport.AWSRunTests + "_ATHENA_BYPASS_SNS"); s != "" {
+		if ok, _ := strconv.ParseBool(s); ok {
+			t.Log("bypassing SNS for Athena audit log events")
+			bypassSNS = true
+		}
+	}
 
 	testID := fmt.Sprintf("auditlogs-integrationtests-%v", uuid.New().String())
 
@@ -196,12 +203,16 @@ func SetupAthenaContext(t *testing.T, ctx context.Context, cfg AthenaContextConf
 		region = "eu-central-1"
 	}
 
+	topicARN := infraOut.TopicARN
+	if bypassSNS {
+		topicARN = topicARNBypass
+	}
 	log, err := New(ctx, Config{
 		Region:           region,
 		Clock:            clock,
 		Database:         ac.Database,
 		TableName:        ac.TableName,
-		TopicARN:         infraOut.TopicARN,
+		TopicARN:         topicARN,
 		QueueURL:         infraOut.QueueURL,
 		LocationS3:       ac.s3eventsLocation,
 		QueryResultsS3:   ac.S3ResultsLocation,

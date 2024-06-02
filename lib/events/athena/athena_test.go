@@ -331,7 +331,7 @@ func TestPublisherConsumer(t *testing.T) {
 			ID:   uuid.NewString(),
 			Time: time.Now().UTC(),
 			Type: events.AppCreateEvent,
-			Code: strings.Repeat("d", 2*maxSNSMessageSize),
+			Code: strings.Repeat("d", 2*maxDirectMessageSize),
 		},
 		AppMetadata: apievents.AppMetadata{
 			AppName: "app-large",
@@ -414,8 +414,8 @@ func TestPublisherConsumer(t *testing.T) {
 			fq := newFakeQueue()
 			p := &publisher{
 				PublisherConfig: PublisherConfig{
-					SNSPublisher: fq,
-					Uploader:     fS3,
+					MessagePublisher: fq,
+					Uploader:         fS3,
 				},
 			}
 			cfg := validCollectCfgForTests(t)
