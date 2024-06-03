@@ -1374,6 +1374,7 @@ func (c *ServerContext) GetExecRequest() (Exec, error) {
 
 func (c *ServerContext) GetServerMetadata() apievents.ServerMetadata {
 	return apievents.ServerMetadata{
+		ServerVersion:   teleport.Version,
 		ServerID:        c.srv.HostUUID(),
 		ServerHostname:  c.srv.GetInfo().GetHostname(),
 		ServerNamespace: c.srv.GetNamespace(),

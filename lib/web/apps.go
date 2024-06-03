@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
+	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -274,6 +275,7 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 			ClusterName: identity.RouteToApp.ClusterName,
 		},
 		ServerMetadata: apievents.ServerMetadata{
+			ServerVersion:   teleport.Version,
 			ServerID:        h.cfg.HostUUID,
 			ServerNamespace: apidefaults.Namespace,
 		},

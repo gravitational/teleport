@@ -242,6 +242,7 @@ type Server struct {
 // TargetMetadata returns metadata about the server.
 func (s *Server) TargetMetadata() apievents.ServerMetadata {
 	return apievents.ServerMetadata{
+		ServerVersion:   teleport.Version,
 		ServerNamespace: s.GetNamespace(),
 		ServerID:        s.ID(),
 		ServerAddr:      s.Addr(),
@@ -1371,6 +1372,7 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 						RemoteAddr: ccx.ServerConn.RemoteAddr().String(),
 					},
 					ServerMetadata: apievents.ServerMetadata{
+						ServerVersion:   teleport.Version,
 						ServerID:        s.uuid,
 						ServerNamespace: s.GetNamespace(),
 					},
