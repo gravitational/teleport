@@ -25,10 +25,24 @@ install -d -m 0700 -o teleport -g adm /var/lib/teleport
 install -d -m 0755 -o teleport -g adm /run/teleport /etc/teleport.d
 
 # Extract tarball to /tmp/teleport to get the binaries out
-mkdir /tmp/teleport
-tar -C /tmp/teleport -x -z -f /tmp/teleport.tar.gz --strip-components=1
-install -m 755 /tmp/teleport/{tctl,tsh,teleport,tbot} /usr/local/bin
-rm -rf /tmp/teleport /tmp/teleport.tar.gz
+# It is the caller's responsibility to ensure that only tarballs with binaries
+# that should be installed exist in under /tmp/tarballs.
+EXTRACTION_DIR="/tmp/teleport"
+mkdir -pv "${EXTRACTION_DIR}"
+for tarball in /tmp/tarballs/*.tar.gz; do
+    tar -C "${EXTRACTION_DIR}" -x -z -f "${tarball}"
+done
+
+find "${EXTRACTION_DIR}" -type f -executable \( \
+    -name tctl -o \
+    -name tsh -o \
+    -name teleport -o \
+    -name tbot -o \
+    -name 'teleport-*' ! -name '*.*' \
+    \) \
+    -exec install -m 755 {} /usr/local/bin \;
+
+rm -rf "${EXTRACTION_DIR}" /tmp/tarballs
 
 if [[ "${TELEPORT_FIPS}" == 1 ]]; then
     # add --fips to 'teleport start' commands in FIPS mode

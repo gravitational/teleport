@@ -69,8 +69,8 @@ variable "teleport_fips" {
   default = false
 }
 
-variable "teleport_tarball" {
-  description = "Path to teleport tarball"
+variable "tarball_directory" {
+  description = "Path to directory containing Teleport tarballs"
   type = string
 }
 
@@ -196,8 +196,8 @@ build {
   }
 
   provisioner "file" {
-    source = var.teleport_tarball
-    destination = "/tmp/teleport.tar.gz"
+    source = var.tarball_directory
+    destination = "/tmp/tarballs"
   }
 
   provisioner "shell" {
@@ -206,6 +206,7 @@ build {
       "sudo cp /tmp/files/system/* /etc/systemd/system/",
       "sudo cp /tmp/files/bin/* /usr/local/bin/"
     ]
+
   }
 
   provisioner "shell" {
