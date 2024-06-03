@@ -319,7 +319,8 @@ func (s *Service) updatePluginAndCreateStaticCredentials(ctx context.Context, pl
 			Username:   user,
 			Password:   pass,
 		}); err != nil {
-			return trace.Wrap(err, "verifying Jamf endpoint and credentials")
+			s.logger.WarnContext(ctx, "failed to verify Jamf endpoint and credentials", "error", err)
+			return trace.Errorf("failed to verify Jamf endpoint and credentials")
 		}
 	}
 

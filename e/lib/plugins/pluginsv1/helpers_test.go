@@ -2,6 +2,7 @@ package pluginsv1
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -94,6 +95,7 @@ func createSuite(t *testing.T) *suite {
 			pluginStaticCredentialsService: pluginStaticCredentialsService,
 			pluginAuthorizers:              pluginAuthorizers,
 			log:                            logrus.NewEntry(logrus.StandardLogger()),
+			logger:                         slog.Default(),
 		},
 	}
 }

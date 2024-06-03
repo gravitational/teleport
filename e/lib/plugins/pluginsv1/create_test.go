@@ -473,7 +473,7 @@ func TestService_CreatePlugin_jamf(t *testing.T) {
 				return cp
 			}(),
 			staticCreds: okStaticCreds,
-			wantErr:     "verifying Jamf",
+			wantErr:     "failed to verify Jamf endpoint and credentials",
 		},
 		{
 			name:   "bad plugin credentials",
@@ -483,7 +483,7 @@ func TestService_CreatePlugin_jamf(t *testing.T) {
 				cp.Spec.GetBasicAuth().Username = "badllama"
 				return cp
 			}(),
-			wantErr: "verifying Jamf",
+			wantErr: "failed to verify Jamf endpoint and credentials",
 		},
 	}
 	for _, test := range tests {
