@@ -383,7 +383,7 @@ spec:
   allow:
     request:
       search_as_roles:
-      - searcheable resources
+      - searcheable-resources
       suggested_reviewers:
       - random-user-1
       - random-user-2
@@ -887,7 +887,7 @@ Add the following to enable read access to trusted clusters
           progress.
 - Access Requests
   - **Creating Access Requests (Role Based)**
-    - To setup a test environment, follow the steps laid out in `Created Access Requests (Role Based)` from the Web UI testplan and then verify the tasks below.
+    - To setup a test environment, follow the steps laid out in `Creating Access Requests (Role Based)` from the Web UI testplan and then verify the tasks below.
     - [ ] Verify that under requestable roles, only `allow-roles-and-nodes` and
     `allow-users-with-short-ttl` are listed
     - [ ] Verify you can select/input/modify reviewers
@@ -897,7 +897,7 @@ Add the following to enable read access to trusted clusters
     suggested_reviewers wasn't defined)
     - [ ] Verify you can't review own requests
   - **Creating Access Requests (Search Based)**
-    - To setup a test environment, follow the steps laid out in `Created Access Requests (Search Based)` from the Web UI testplan and then verify the tasks below.
+    - To setup a test environment, follow the steps laid out in `Creating Access Requests (Resource Based)` from the Web UI testplan and then verify the tasks below.
     - [ ] Verify that a user can see resources based on the `searcheable-resources` rules
     - [ ] Verify you can select/input/modify reviewers
     - [ ] Verify you can view the request you created from request list (should be in a pending
