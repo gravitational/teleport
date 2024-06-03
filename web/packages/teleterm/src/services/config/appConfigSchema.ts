@@ -205,7 +205,7 @@ const getDefaultKeymap = (
         tab9: 'Command+9',
         closeTab: 'Command+W',
         newTab: 'Command+T',
-        newTerminalTab: 'Shift+Command+`',
+        newTerminalTab: 'Control+Shift+`',
         previousTab: 'Control+Shift+Tab',
         nextTab: 'Control+Tab',
         openSearchBar: 'Command+K',
