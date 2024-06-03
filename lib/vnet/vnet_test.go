@@ -64,7 +64,7 @@ func TestMain(m *testing.M) {
 type testPack struct {
 	vnetIPv6Prefix tcpip.Address
 	dnsIPv6        tcpip.Address
-	manager        *Manager
+	ns             *NetworkStack
 
 	testStack        *stack.Stack
 	testLinkEndpoint *channel.Endpoint
@@ -77,9 +77,9 @@ func newTestPack(t *testing.T, ctx context.Context, clock clockwork.FakeClock, a
 
 	// Create an isolated userspace networking stack that can be manipulated from test code. It will be
 	// connected to the VNet over the TUN interface. This emulates the host networking stack.
-	// This is a completely separate gvisor network stack than the one that will be created in NewManager -
-	// the two will be connected over a fake TUN interface. This exists so that the test can setup IP routes
-	// without affecting the host running the Test.
+	// This is a completely separate gvisor network stack than the one that will be created in
+	// NewNetworkStack - the two will be connected over a fake TUN interface. This exists so that the
+	// test can setup IP routes without affecting the host running the Test.
 	testStack, testLinkEndpoint, err := createStack()
 	require.NoError(t, err)
 
@@ -120,12 +120,11 @@ func newTestPack(t *testing.T, ctx context.Context, clock clockwork.FakeClock, a
 	}})
 
 	dnsIPv6 := ipv6WithSuffix(vnetIPv6Prefix, []byte{2})
-
 	tcpHandlerResolver, err := NewTCPAppResolver(appProvider, withClock(clock))
 	require.NoError(t, err)
 
 	// Create the VNet and connect it to the other side of the TUN.
-	manager, err := NewManager(&Config{
+	ns, err := newNetworkStack(&Config{
 		TUNDevice:                tun2,
 		IPv6Prefix:               vnetIPv6Prefix,
 		DNSIPv6:                  dnsIPv6,
@@ -137,7 +136,7 @@ func newTestPack(t *testing.T, ctx context.Context, clock clockwork.FakeClock, a
 	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
 		Name: "VNet",
 		Task: func(ctx context.Context) error {
-			if err := manager.Run(ctx); !errIsOK(err) {
+			if err := ns.Run(ctx); !errIsOK(err) {
 				return trace.Wrap(err)
 			}
 			return nil
@@ -147,7 +146,7 @@ func newTestPack(t *testing.T, ctx context.Context, clock clockwork.FakeClock, a
 	return &testPack{
 		vnetIPv6Prefix:   vnetIPv6Prefix,
 		dnsIPv6:          dnsIPv6,
-		manager:          manager,
+		ns:               ns,
 		testStack:        testStack,
 		testLinkEndpoint: testLinkEndpoint,
 		localAddress:     localAddress,
@@ -168,7 +167,7 @@ func (p *testPack) dialIPPort(ctx context.Context, addr tcpip.Address, port uint
 			NIC:      nicID,
 			Addr:     addr,
 			Port:     port,
-			LinkAddr: p.manager.linkEndpoint.LinkAddress(),
+			LinkAddr: p.ns.linkEndpoint.LinkAddress(),
 		},
 		ipv6.ProtocolNumber,
 	)
@@ -187,7 +186,7 @@ func (p *testPack) dialUDP(ctx context.Context, addr tcpip.Address, port uint16)
 			NIC:      nicID,
 			Addr:     addr,
 			Port:     port,
-			LinkAddr: p.manager.linkEndpoint.LinkAddress(),
+			LinkAddr: p.ns.linkEndpoint.LinkAddress(),
 		},
 		ipv6.ProtocolNumber,
 	)
