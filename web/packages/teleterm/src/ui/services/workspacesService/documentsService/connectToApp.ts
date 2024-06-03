@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { copyToClipboard } from 'design/utils/copyToClipboard';
 import { App } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
 import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 
@@ -156,8 +155,17 @@ export async function connectToAppWithVnet(
   }
 
   const addrToCopy = getVnetAddr(cluster, target);
-  await copyToClipboard(addrToCopy);
-
+  try {
+    await navigator.clipboard.writeText(addrToCopy);
+  } catch (error) {
+    // On macOS, if the user uses the mouse rather than the keyboard to proceed with the osascript
+    // prompt, the Electron app throws an error about clipboard write permission being denied.
+    if (error['name'] === 'NotAllowedError') {
+      console.error(error);
+      return;
+    }
+    throw error;
+  }
   ctx.notificationsService.notifyInfo(`Copied ${addrToCopy} to clipboard`);
 }
 
