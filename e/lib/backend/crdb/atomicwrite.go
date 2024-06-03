@@ -100,9 +100,9 @@ func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.Conditiona
 		return trace.Wrap(row.Scan(&success))
 	}
 
-	var tries int
+	var attempts int
 	err = pgcommon.RetryTx(ctx, b.log, b.pool, pgx.TxOptions{}, false, func(tx pgx.Tx) error {
-		tries++
+		attempts++
 
 		var condBatch, actBatch pgx.Batch
 		for _, bi := range condBatchItems {
@@ -129,10 +129,17 @@ func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.Conditiona
 		return nil
 	})
 
-	if tries > 2 {
+	if attempts > 1 {
+		backend.AtomicWriteContention.WithLabelValues(b.GetName()).Add(float64(attempts - 1))
+	}
+
+	if attempts > 2 {
 		// if we retried more than once, txn experienced non-trivial conflict and we should warn about it. Infrequent warnings of this kind
 		// are nothing to be concerned about, but high volumes may indicate that an automatic process is creating excessive conflicts.
-		b.log.Warnf("AtomicWrite retried %d times due to crdb transaction contention. Some conflict is expected, but persistent conflict warnings may indicate an unhealthy state.", tries)
+		b.log.WarnContext(ctx,
+			"AtomicWrite was retried several times due to transaction contention. Some conflict is expected, but persistent conflict warnings may indicate an unhealthy state.",
+			"attempts", attempts,
+		)
 	}
 
 	if err != nil {

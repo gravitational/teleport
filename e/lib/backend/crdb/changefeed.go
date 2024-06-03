@@ -3,6 +3,7 @@ package crdb
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -12,7 +13,6 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
@@ -28,14 +28,14 @@ var (
 
 func (b *Backend) backgroundChangeFeed(ctx context.Context) {
 	defer func() {
-		b.log.Info("Exited change feed loop.")
+		b.log.InfoContext(ctx, "Exited change feed loop.")
 		b.buf.Close()
 	}()
 
 	for ctx.Err() == nil {
-		b.log.Info("Starting change feed stream.")
+		b.log.InfoContext(ctx, "Starting change feed stream.")
 		err := b.runChangeFeed(ctx)
-		b.log.WithError(err).Error("Change feed stream lost.")
+		b.log.ErrorContext(ctx, "Change feed stream lost.", "error", err)
 		select {
 		case <-ctx.Done():
 			return
@@ -52,7 +52,7 @@ func (b *Backend) runChangeFeed(ctx context.Context) error {
 	defer func() {
 		err := cr.close(ctx)
 		if err != nil {
-			b.log.WithError(err).Warn("Error closing changefeed reader.")
+			b.log.WarnContext(ctx, "Error closing changefeed reader.")
 		}
 	}()
 
@@ -103,13 +103,13 @@ type kv struct {
 	Revision uuid.UUID  `json:"revision"`
 }
 
-func newChangeReader(ctx context.Context, config *pgxpool.Config, log logrus.FieldLogger) (_ *changeReader, err error) {
+func newChangeReader(ctx context.Context, config *pgxpool.Config, log *slog.Logger) (_ *changeReader, err error) {
 	ctx, cancel := context.WithCancel(ctx)
 
 	// Give extra time for initial connect before going back to default timeout.
 	watchdog := time.AfterFunc(defaultChangeFeedTimeout*2, sync.OnceFunc(func() {
 		cancel()
-		log.Warn("Timeout waiting for changefeed progression.")
+		log.WarnContext(ctx, "Timeout waiting for changefeed progression.")
 	}))
 	context.AfterFunc(ctx, func() { watchdog.Stop() })
 
@@ -139,7 +139,7 @@ func newChangeReader(ctx context.Context, config *pgxpool.Config, log logrus.Fie
 		closeCtx, cancel := context.WithTimeout(ctx, defaultCloseTimeout)
 		defer cancel()
 		if err := conn.Close(closeCtx); err != nil {
-			log.WithError(err).Warn("Error closing changefeed connection.")
+			log.WarnContext(ctx, "Error closing changefeed connection.", "error", err)
 		}
 	}()
 
@@ -150,7 +150,7 @@ func newChangeReader(ctx context.Context, config *pgxpool.Config, log logrus.Fie
 	}
 
 	if _, err := conn.Exec(ctx, "SET CLUSTER SETTING kv.rangefeed.enabled = true", pgx.QueryExecModeExec); err != nil {
-		log.WithError(err).Warn("Failed to configure cluster settings kv.rangefeed.enabled = true;")
+		log.WarnContext(ctx, "Failed to configure cluster settings kv.rangefeed.enabled = true;")
 	}
 
 	rr := conn.PgConn().ExecParams(

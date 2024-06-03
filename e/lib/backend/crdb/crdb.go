@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -16,7 +17,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils"
@@ -72,7 +72,7 @@ func newFromConfig(ctx context.Context, cfg Config) (*Backend, error) {
 		cfg.ChangeFeedConnString = cfg.ConnString
 	}
 
-	log := logrus.WithField(teleport.ComponentKey, component)
+	log := slog.With(teleport.ComponentKey, component)
 	poolConfig, err := pgxpool.ParseConfig(cfg.ConnString)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -82,7 +82,7 @@ func newFromConfig(ctx context.Context, cfg Config) (*Backend, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	log.Info("Setting up backend.")
+	log.InfoContext(ctx, "Setting up backend.")
 	pgcommon.TryEnsureDatabase(ctx, poolConfig, log)
 
 	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
@@ -141,7 +141,7 @@ type Backend struct {
 	buf    *backend.CircularBuffer
 	wg     sync.WaitGroup
 	cancel context.CancelFunc
-	log    logrus.FieldLogger
+	log    *slog.Logger
 
 	feedConfig *pgxpool.Config
 	pool       *pgxpool.Pool
