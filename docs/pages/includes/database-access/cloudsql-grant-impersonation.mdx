@@ -1,0 +1,22 @@
+### Grant access to the service account
+
+The Teleport Database Service must be able to impersonate this service account.
+Navigate to the "cloudsql-user" service account overview page and select the
+"permissions" tab:
+
+![Select Service Account Permissions Tab](../../../img/database-access/guides/cloudsql/service-account-permissions-tab@2x.png)
+
+Click "Grant Access" and add the "teleport-db-service" principal ID.
+Select the "Service Account Token Creator" role and save the change:
+
+![Grant Service Account Token Creator to Database Service](../../../img/database-access/guides/cloudsql/grant-token-creator@2x.png)
+
+<Admonition type="note" title="Service account permissions">
+  The "Service Account Token Creator" IAM role includes more permissions than
+  the Teleport Database Service needs. To further restrict the service 
+  account, you can create a role that includes only the following permission:
+  ```ini
+  # Used to generate IAM auth tokens when connecting to a database instance.
+  iam.serviceAccounts.getAccessToken
+  ```
+</Admonition>

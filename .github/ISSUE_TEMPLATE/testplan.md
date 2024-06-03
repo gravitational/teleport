@@ -559,6 +559,11 @@ and with tag `foo`: `bar`. Verify that a node running on the instance has label
 `aws/foo=bar`.
 - [ ] Create an Azure VM with tag `foo`: `bar`. Verify that a node running on the
 instance has label `azure/foo=bar`.
+- [ ] Create a GCP instance with [the required permissions]((https://goteleport.com/docs/management/guides/gcp-tags/))
+and with [label](https://cloud.google.com/compute/docs/labeling-resources)
+`foo`: `bar` and [tag](https://cloud.google.com/resource-manager/docs/tags/tags-overview)
+`baz`: `quux`. Verify that a node running on the instance has labels
+`gcp/label/foo=bar` and `gcp/tag/baz=quux`.
 
 ### Passwordless
 

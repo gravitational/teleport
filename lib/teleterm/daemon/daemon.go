@@ -95,7 +95,11 @@ func New(cfg Config) (*Service, error) {
 	// That's because Daemon.ResolveClusterURI sets a custom MFAPromptConstructor that
 	// shows an MFA prompt in Connect.
 	// At the level of Storage.ResolveClusterFunc we don't have access to it.
-	service.clientCache = cfg.CreateClientCacheFunc(service.ResolveClusterURI)
+	service.clientCache, err = cfg.CreateClientCacheFunc(service.NewClusterClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return service, nil
 }
 
@@ -128,15 +132,15 @@ func (s *Service) relogin(ctx context.Context, req *api.ReloginRequest) error {
 	return nil
 }
 
-// retryWithRelogin tries the given function. If the function returns an error that appears to be
+// RetryWithRelogin tries the given function. If the function returns an error that appears to be
 // resolvable with relogin, then it requests relogin and tries the function a second time.
 //
-// retryWithRelogin is reserved for cases where the retryable request does not originate from the
+// RetryWithRelogin is reserved for cases where the retryable request does not originate from the
 // Electron app, for example when the request is made a long-running goroutine such as a gateway.
 // When the request originates from the Electron app and daemon.Service is merely an intermediary,
 // the retry flow is handled by clusters.addMetadataToRetryableError and the JavaScript version of
 // client.RetryWithRelogin with the same name.
-func (s *Service) retryWithRelogin(ctx context.Context, reloginReq *api.ReloginRequest, fn func() error) error {
+func (s *Service) RetryWithRelogin(ctx context.Context, reloginReq *api.ReloginRequest, fn func() error) error {
 	err := fn()
 	if err == nil {
 		return nil
@@ -156,14 +160,17 @@ func (s *Service) retryWithRelogin(ctx context.Context, reloginReq *api.ReloginR
 	return trace.Wrap(err)
 }
 
+// ListProfileNames lists profile names from storage. It's a lightweight alternative to
+// ListRootClusters, which also reads all profiles beyond their names and initializes clients.
+func (s *Service) ListProfileNames() ([]string, error) {
+	pfNames, err := s.cfg.Storage.ListProfileNames()
+	return pfNames, trace.Wrap(err)
+}
+
 // ListRootClusters returns a list of root clusters
 func (s *Service) ListRootClusters(ctx context.Context) ([]*clusters.Cluster, error) {
-	clusters, err := s.cfg.Storage.ReadAll()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return clusters, nil
+	clusters, err := s.cfg.Storage.ListRootClusters()
+	return clusters, trace.Wrap(err)
 }
 
 // ListLeafClusters returns a list of leaf clusters
@@ -219,6 +226,14 @@ func (s *Service) RemoveCluster(ctx context.Context, uri string) error {
 	}
 
 	return nil
+}
+
+// NewClusterClient is a wrapper on ResolveClusterURI that can be passed as an argument to
+// s.cfg.CreateClientCacheFunc.
+func (s *Service) NewClusterClient(ctx context.Context, profileName, leafClusterName string) (*client.TeleportClient, error) {
+	uri := uri.NewClusterURI(profileName).AppendLeafCluster(leafClusterName)
+	_, clusterClient, err := s.ResolveClusterURI(uri)
+	return clusterClient, trace.Wrap(err)
 }
 
 // ResolveCluster resolves a cluster by URI by reading data stored on disk in the profile.
@@ -390,8 +405,8 @@ func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) (t
 	// This can happen if the user cert was refreshed by anything other than the gateway itself. For
 	// example, if you execute `tsh ssh` within Connect after your user cert expires or there are two
 	// gateways that subsequently go through this flow.
-	if err := s.retryWithRelogin(ctx, reloginReq, reissueGatewayCerts); err != nil {
-		notifyErr := s.notifyApp(ctx, &api.SendNotificationRequest{
+	if err := s.RetryWithRelogin(ctx, reloginReq, reissueGatewayCerts); err != nil {
+		notifyErr := s.NotifyApp(ctx, &api.SendNotificationRequest{
 			Subject: &api.SendNotificationRequest_CannotProxyGatewayConnection{
 				CannotProxyGatewayConnection: &api.CannotProxyGatewayConnection{
 					GatewayUri: g.URI().String(),
@@ -865,8 +880,8 @@ func (s *Service) UpdateAndDialTshdEventsServerAddress(serverAddress string) err
 	return nil
 }
 
-// notifyApp sends a notification (usually an error) to the Electron App.
-func (s *Service) notifyApp(ctx context.Context, notification *api.SendNotificationRequest) error {
+// NotifyApp sends a notification (usually an error) to the Electron App.
+func (s *Service) NotifyApp(ctx context.Context, notification *api.SendNotificationRequest) error {
 	tshdEventsCtx, cancelTshdEventsCtx := context.WithTimeout(ctx, tshdEventsTimeout)
 	defer cancelTshdEventsCtx()
 
@@ -1119,14 +1134,17 @@ func (s *Service) findGatewayByTargetURI(targetURI uri.ResourceURI) (gateway.Gat
 // GetCachedClient returns a client from the cache if it exists,
 // otherwise it dials the remote server.
 func (s *Service) GetCachedClient(ctx context.Context, clusterURI uri.ResourceURI) (*client.ClusterClient, error) {
-	clt, err := s.clientCache.Get(ctx, clusterURI)
+	profileName := clusterURI.GetProfileName()
+	leafClusterName := clusterURI.GetLeafClusterName()
+	clt, err := s.clientCache.Get(ctx, profileName, leafClusterName)
 	return clt, trace.Wrap(err)
 }
 
 // ClearCachedClientsForRoot closes and removes clients from the cache
 // for the root cluster and its leaf clusters.
 func (s *Service) ClearCachedClientsForRoot(clusterURI uri.ResourceURI) error {
-	return trace.Wrap(s.clientCache.ClearForRoot(clusterURI))
+	profileName := clusterURI.GetProfileName()
+	return trace.Wrap(s.clientCache.ClearForRoot(profileName))
 }
 
 // Service is the daemon service

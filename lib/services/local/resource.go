@@ -135,7 +135,6 @@ func itemFromClusterNetworkingConfig(cnc types.ClusterNetworkingConfig) (*backen
 	item := &backend.Item{
 		Key:      backend.Key(clusterConfigPrefix, networkingPrefix),
 		Value:    value,
-		ID:       cnc.GetResourceID(),
 		Revision: cnc.GetRevision(),
 	}
 	return item, nil
@@ -155,7 +154,6 @@ func itemFromAuthPreference(ap types.AuthPreference) (*backend.Item, error) {
 	item := &backend.Item{
 		Key:      backend.Key(authPrefix, preferencePrefix, generalPrefix),
 		Value:    value,
-		ID:       ap.GetResourceID(),
 		Revision: ap.GetRevision(),
 	}
 
@@ -177,7 +175,6 @@ func itemFromUser(user types.User) (*backend.Item, error) {
 		Key:      backend.Key(webPrefix, usersPrefix, user.GetName(), paramsPrefix),
 		Value:    value,
 		Expires:  user.Expiry(),
-		ID:       user.GetResourceID(),
 		Revision: rev,
 	}
 	return item, nil
@@ -188,7 +185,6 @@ func itemFromUser(user types.User) (*backend.Item, error) {
 func itemToUser(item backend.Item) (*types.UserV2, error) {
 	user, err := services.UnmarshalUser(
 		item.Value,
-		services.WithResourceID(item.ID),
 		services.WithExpires(item.Expires),
 		services.WithRevision(item.Revision),
 	)
@@ -216,7 +212,6 @@ func itemFromCertAuthority(ca types.CertAuthority) (*backend.Item, error) {
 		Key:      backend.Key(authoritiesPrefix, string(ca.GetType()), ca.GetName()),
 		Value:    value,
 		Expires:  ca.Expiry(),
-		ID:       ca.GetResourceID(),
 		Revision: rev,
 	}
 	return item, nil
@@ -237,7 +232,6 @@ func itemFromProvisionToken(p types.ProvisionToken) (*backend.Item, error) {
 		Key:      backend.Key(tokensPrefix, p.GetName()),
 		Value:    value,
 		Expires:  p.Expiry(),
-		ID:       p.GetResourceID(),
 		Revision: rev,
 	}
 	return item, nil
@@ -258,7 +252,6 @@ func itemFromTrustedCluster(tc types.TrustedCluster) (*backend.Item, error) {
 		Key:      backend.Key(trustedClustersPrefix, tc.GetName()),
 		Value:    value,
 		Expires:  tc.Expiry(),
-		ID:       tc.GetResourceID(),
 		Revision: rev,
 	}
 	return item, nil
@@ -279,7 +272,6 @@ func itemFromGithubConnector(gc types.GithubConnector) (*backend.Item, error) {
 		Key:      backend.Key(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, gc.GetName()),
 		Value:    value,
 		Expires:  gc.Expiry(),
-		ID:       gc.GetResourceID(),
 		Revision: rev,
 	}
 	return item, nil
@@ -298,7 +290,6 @@ func itemFromRole(role types.Role) (*backend.Item, error) {
 		Key:      backend.Key(rolesPrefix, role.GetName(), paramsPrefix),
 		Value:    value,
 		Expires:  role.Expiry(),
-		ID:       role.GetResourceID(),
 		Revision: rev,
 	}
 	return item, nil
@@ -316,7 +307,6 @@ func itemFromOIDCConnector(connector types.OIDCConnector) (*backend.Item, error)
 		Key:      backend.Key(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix, connector.GetName()),
 		Value:    value,
 		Expires:  connector.Expiry(),
-		ID:       connector.GetResourceID(),
 		Revision: rev,
 	}
 	return item, nil
@@ -337,7 +327,6 @@ func itemFromSAMLConnector(connector types.SAMLConnector) (*backend.Item, error)
 		Key:      backend.Key(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix, connector.GetName()),
 		Value:    value,
 		Expires:  connector.Expiry(),
-		ID:       connector.GetResourceID(),
 		Revision: rev,
 	}
 	return item, nil
@@ -431,7 +420,6 @@ func itemFromLock(l types.Lock) (*backend.Item, error) {
 		Key:      backend.Key(locksPrefix, l.GetName()),
 		Value:    value,
 		Expires:  l.Expiry(),
-		ID:       l.GetResourceID(),
 		Revision: rev,
 	}, nil
 }

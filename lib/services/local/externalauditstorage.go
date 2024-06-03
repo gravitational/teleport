@@ -273,7 +273,7 @@ func getExternalAuditStorage(ctx context.Context, bk backend.Backend, key []byte
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	out, err := services.UnmarshalExternalAuditStorage(item.Value, services.WithRevision(item.Revision), services.WithResourceID(item.ID))
+	out, err := services.UnmarshalExternalAuditStorage(item.Value, services.WithRevision(item.Revision))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -138,6 +138,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	utilsaws "github.com/gravitational/teleport/lib/utils/aws"
 	websession "github.com/gravitational/teleport/lib/web/session"
+	"github.com/gravitational/teleport/lib/web/terminal"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
@@ -1485,8 +1486,8 @@ func TestSiteNodeConnectInvalidSessionID(t *testing.T) {
 		host:      s.node.ID(),
 		proxy:     s.webServer.Listener.Addr().String(),
 		sessionID: "/../../../foo",
-		handlers: map[string]WSHandlerFunc{
-			defaults.WebsocketError: func(ctx context.Context, e Envelope) {
+		handlers: map[string]terminal.WSHandlerFunc{
+			defaults.WebsocketError: func(ctx context.Context, e terminal.Envelope) {
 				if e.Payload == "/../../../foo is not a valid UUID" {
 					result <- errors.New(e.Payload)
 				}
@@ -1571,7 +1572,7 @@ func TestResolveServerHostPort(t *testing.T) {
 	}
 }
 
-func isFileTransferRequest(e *Envelope) bool {
+func isFileTransferRequest(e *terminal.Envelope) bool {
 	if e.GetType() != defaults.WebsocketAudit {
 		return false
 	}
@@ -1582,7 +1583,7 @@ func isFileTransferRequest(e *Envelope) bool {
 	return ef.GetType() == string(srv.FileTransferUpdate)
 }
 
-func isFileTransferDecision(e *Envelope) bool {
+func isFileTransferDecision(e *terminal.Envelope) bool {
 	if e.GetType() != defaults.WebsocketAudit {
 		return false
 	}
@@ -1593,7 +1594,7 @@ func isFileTransferDecision(e *Envelope) bool {
 	return ef.GetType() == string(srv.FileTransferApproved)
 }
 
-func getRequestId(e *Envelope) (string, error) {
+func getRequestId(e *terminal.Envelope) (string, error) {
 	var ef events.EventFields
 	if err := json.Unmarshal([]byte(e.GetPayload()), &ef); err != nil {
 		return "", err
@@ -1609,13 +1610,13 @@ func TestFileTransferEvents(t *testing.T) {
 	t.Cleanup(cancel)
 
 	// Create a new user "foo", open a terminal to a new session
-	wsMessages := make(chan *Envelope)
+	wsMessages := make(chan *terminal.Envelope)
 	term, err := connectToHost(ctx, connectConfig{
 		pack:  s.authPack(t, "foo"),
 		host:  s.node.ID(),
 		proxy: s.webServer.Listener.Addr().String(),
-		handlers: map[string]WSHandlerFunc{
-			defaults.WebsocketAudit: func(ctx context.Context, envelope Envelope) {
+		handlers: map[string]terminal.WSHandlerFunc{
+			defaults.WebsocketAudit: func(ctx context.Context, envelope terminal.Envelope) {
 				wsMessages <- &envelope
 			},
 		},
@@ -1630,7 +1631,7 @@ func TestFileTransferEvents(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	envelope := &Envelope{
+	envelope := &terminal.Envelope{
 		Version: defaults.WebsocketVersion,
 		Type:    defaults.WebsocketFileTransferRequest,
 		Payload: string(data),
@@ -1654,7 +1655,7 @@ func TestFileTransferEvents(t *testing.T) {
 					"approved":  true,
 				})
 				require.NoError(t, err)
-				envelope := &Envelope{
+				envelope := &terminal.Envelope{
 					Version: defaults.WebsocketVersion,
 					Type:    defaults.WebsocketFileTransferDecision,
 					Payload: string(data),
@@ -1816,16 +1817,16 @@ func TestResizeTerminal(t *testing.T) {
 	ctx, cancel := context.WithCancel(s.ctx)
 	t.Cleanup(cancel)
 
-	ws1Messages := make(chan *Envelope)
+	ws1Messages := make(chan *terminal.Envelope)
 	ws1Raw := make(chan []byte)
-	ws2Messages := make(chan *Envelope)
+	ws2Messages := make(chan *terminal.Envelope)
 	// Create a new user "foo", open a terminal to a new session
 	term, err := connectToHost(ctx, connectConfig{
 		pack:  s.authPack(t, "foo"),
 		host:  s.node.ID(),
 		proxy: s.webServer.Listener.Addr().String(),
-		handlers: map[string]WSHandlerFunc{
-			defaults.WebsocketAudit: func(ctx context.Context, envelope Envelope) {
+		handlers: map[string]terminal.WSHandlerFunc{
+			defaults.WebsocketAudit: func(ctx context.Context, envelope terminal.Envelope) {
 				ws1Messages <- &envelope
 			},
 		},
@@ -1847,8 +1848,8 @@ func TestResizeTerminal(t *testing.T) {
 		proxy:           s.webServer.Listener.Addr().String(),
 		sessionID:       sess.ID,
 		participantMode: types.SessionPeerMode,
-		handlers: map[string]WSHandlerFunc{
-			defaults.WebsocketAudit: func(ctx context.Context, envelope Envelope) {
+		handlers: map[string]terminal.WSHandlerFunc{
+			defaults.WebsocketAudit: func(ctx context.Context, envelope terminal.Envelope) {
 				ws2Messages <- &envelope
 			},
 		},
@@ -1911,7 +1912,7 @@ t1ready:
 		events.TerminalSize:   params.Serialize(),
 	})
 	require.NoError(t, err)
-	envelope := &Envelope{
+	envelope := &terminal.Envelope{
 		Version: defaults.WebsocketVersion,
 		Type:    defaults.WebsocketResize,
 		Payload: string(data),
@@ -1935,7 +1936,7 @@ t1ready:
 	}
 }
 
-func isResizeEventEnvelope(e *Envelope) bool {
+func isResizeEventEnvelope(e *terminal.Envelope) bool {
 	if e.GetType() != defaults.WebsocketAudit {
 		return false
 	}
@@ -1962,7 +1963,7 @@ func TestTerminalPing(t *testing.T) {
 		host:              s.node.ID(),
 		proxy:             s.webServer.Listener.Addr().String(),
 		keepAliveInterval: time.Second,
-		pingHandler: func(ws WSConn, message string) error {
+		pingHandler: func(ws terminal.WSConn, message string) error {
 			if closed == false {
 				close(done)
 				closed = true
@@ -2169,7 +2170,7 @@ func TestTerminalRequireSessionMFA(t *testing.T) {
 				webauthnResBytes, err := json.Marshal(wantypes.CredentialAssertionResponseFromProto(res.GetWebauthn()))
 				require.NoError(t, err)
 
-				envelope := &Envelope{
+				envelope := &terminal.Envelope{
 					Version: defaults.WebsocketVersion,
 					Type:    defaults.WebsocketWebauthnChallenge,
 					Payload: string(webauthnResBytes),
@@ -9849,7 +9850,7 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 			webauthnResBytes, err := json.Marshal(wantypes.CredentialAssertionResponseFromProto(res.GetWebauthn()))
 			require.NoError(t, err)
 
-			envelope := &Envelope{
+			envelope := &terminal.Envelope{
 				Version: defaults.WebsocketVersion,
 				Type:    defaults.WebsocketWebauthnChallenge,
 				Payload: string(webauthnResBytes),
@@ -9880,7 +9881,7 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 			webauthnResBytes, err := json.Marshal(wantypes.CredentialAssertionResponseFromProto(res.GetWebauthn()))
 			require.NoError(t, err)
 
-			envelope := &Envelope{
+			envelope := &terminal.Envelope{
 				Version: defaults.WebsocketVersion,
 				Type:    defaults.WebsocketWebauthnChallenge,
 				Payload: string(webauthnResBytes),
@@ -9909,7 +9910,7 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 		presenceClock.Advance(30 * time.Second)
 		require.NoError(t, waitForOutput(moderatorTerm, "Teleport > Please tap your MFA key"), "waiting for moderator mfa prompt")
 
-		challenge, err := moderatorTerm.stream.readChallenge(protobufMFACodec{})
+		challenge, err := moderatorTerm.stream.ReadChallenge(protobufMFACodec{})
 		require.NoError(t, err)
 
 		res, err := moderator.device.SolveAuthn(challenge)
@@ -9918,7 +9919,7 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 		webauthnResBytes, err := json.Marshal(wantypes.CredentialAssertionResponseFromProto(res.GetWebauthn()))
 		require.NoError(t, err)
 
-		envelope := &Envelope{
+		envelope := &terminal.Envelope{
 			Version: defaults.WebsocketVersion,
 			Type:    defaults.WebsocketWebauthnChallenge,
 			Payload: string(webauthnResBytes),
@@ -10078,7 +10079,7 @@ func TestGithubConnector(t *testing.T) {
 	require.NoError(t, err, "creating initial connector resource")
 
 	createPayload := func(connector types.GithubConnector) ui.ResourceItem {
-		raw, err := services.MarshalGithubConnector(connector, services.PreserveResourceID())
+		raw, err := services.MarshalGithubConnector(connector, services.PreserveRevision())
 		require.NoError(t, err, "marshaling connector")
 
 		return ui.ResourceItem{
@@ -10118,7 +10119,7 @@ func TestGithubConnector(t *testing.T) {
 
 	updated := unmarshalResponse(resp.Bytes())
 
-	require.Empty(t, cmp.Diff(created, updated, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision", "Namespace"),
+	require.Empty(t, cmp.Diff(created, updated, cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Namespace"),
 		cmpopts.IgnoreFields(types.GithubConnectorSpecV3{}, "Display", "ClientSecret"),
 	))
 	require.NotEqual(t, expected.GetDisplay(), updated.GetDisplay(), "expected update to modify the display name")
@@ -10347,11 +10348,11 @@ func TestWebSocketClosedBeforeSSHSessionCreated(t *testing.T) {
 	// Create a stream that closes the web socket when the server writes the session metadata
 	// to the client. At this point, the SSH connection to the target should be in flight but
 	// not yet established.
-	stream := NewTerminalStream(ctx, TerminalStreamConfig{
+	stream := terminal.NewStream(ctx, terminal.StreamConfig{
 		WS:     ws,
 		Logger: utils.NewLogger(),
-		Handlers: map[string]WSHandlerFunc{
-			defaults.WebsocketSessionMetadata: func(ctx context.Context, envelope Envelope) {
+		Handlers: map[string]terminal.WSHandlerFunc{
+			defaults.WebsocketSessionMetadata: func(ctx context.Context, envelope terminal.Envelope) {
 				if envelope.Type != defaults.WebsocketSessionMetadata {
 					return
 				}

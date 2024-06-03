@@ -252,7 +252,7 @@ func TestUserNotificationStateCRUD(t *testing.T) {
 	}
 
 	cmpOpts := []cmp.Option{
-		protocmp.IgnoreFields(&headerv1.Metadata{}, "id", "revision"),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 		protocmp.Transform(),
 	}
 
@@ -349,7 +349,7 @@ func TestUserLastSeenNotificationCRUD(t *testing.T) {
 	require.True(t, trace.IsNotFound(err), "got error %T, expected a not found error due to user_last_seen_notification for test-username not existing", err)
 
 	cmpOpts := []cmp.Option{
-		protocmp.IgnoreFields(&headerv1.Metadata{}, "id", "revision"),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 		protocmp.Transform(),
 	}
 

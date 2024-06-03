@@ -401,6 +401,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dump.Flag("proxy", "Address of the proxy.").StringVar(&dumpFlags.ProxyAddress)
 	dump.Flag("app-name", "Name of the application to start when using app role.").StringVar(&dumpFlags.AppName)
 	dump.Flag("app-uri", "Internal address of the application to proxy.").StringVar(&dumpFlags.AppURI)
+	dump.Flag("node-name", "Name for the Teleport node.").StringVar(&dumpFlags.NodeName)
 	dump.Flag("node-labels", "Comma-separated list of labels to add to newly created nodes, for example env=staging,cloud=aws.").StringVar(&dumpFlags.NodeLabels)
 
 	ver.Flag("raw", "Print the raw teleport version string.").BoolVar(&rawVersion)
@@ -514,6 +515,11 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	integrationConfExternalAuditCmd.Flag("glue-database", "The name of the Glue database used.").Required().StringVar(&ccf.IntegrationConfExternalAuditStorageArguments.GlueDatabase)
 	integrationConfExternalAuditCmd.Flag("glue-table", "The name of the Glue table used.").Required().StringVar(&ccf.IntegrationConfExternalAuditStorageArguments.GlueTable)
 	integrationConfExternalAuditCmd.Flag("aws-partition", "AWS partition (default: aws).").Default("aws").StringVar(&ccf.IntegrationConfExternalAuditStorageArguments.Partition)
+
+	integrationConfAzureOIDCCmd := integrationConfigureCmd.Command("azure-oidc", "Configures Azure / Entra ID OIDC integration")
+	integrationConfAzureOIDCCmd.Flag("proxy-public-addr", "The public address of Teleport Proxy Service").Required().StringVar(&ccf.IntegrationConfAzureOIDCArguments.ProxyPublicAddr)
+	integrationConfAzureOIDCCmd.Flag("auth-connector-name", "The name of Entra ID SAML Auth connector in Teleport.").Required().StringVar(&ccf.IntegrationConfAzureOIDCArguments.AuthConnectorName)
+	integrationConfAzureOIDCCmd.Flag("access-graph", "Enable Access Graph integration.").BoolVar(&ccf.IntegrationConfAzureOIDCArguments.AccessGraphEnabled)
 
 	integrationConfSAMLIdP := integrationConfigureCmd.Command("samlidp", "Manage SAML IdP integrations.")
 	integrationSAMLIdPGCPWorkforce := integrationConfSAMLIdP.Command("gcp-workforce", "Configures GCP Workforce Identity Federation pool and SAML provider.")
@@ -640,6 +646,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		err = onIntegrationConfExternalAuditCmd(ctx, ccf.IntegrationConfExternalAuditStorageArguments)
 	case integrationConfTAGSyncCmd.FullCommand():
 		err = onIntegrationConfAccessGraphAWSSync(ctx, ccf.IntegrationConfAccessGraphAWSSyncArguments)
+	case integrationConfAzureOIDCCmd.FullCommand():
+		err = onIntegrationConfAzureOIDCCmd(ctx, ccf.IntegrationConfAzureOIDCArguments)
 	case integrationSAMLIdPGCPWorkforce.FullCommand():
 		err = onIntegrationConfSAMLIdPGCPWorkforce(ctx, ccf.IntegrationConfSAMLIdPGCPWorkforceArguments)
 	case tpmIdentifyCmd.FullCommand():

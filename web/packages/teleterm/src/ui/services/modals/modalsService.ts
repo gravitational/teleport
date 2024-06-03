@@ -17,6 +17,7 @@
  */
 
 import { useStore } from 'shared/libs/stores';
+import * as tshdEventsApi from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
 
 import * as types from 'teleterm/services/tshd/types';
 import { RootClusterUri } from 'teleterm/ui/uri';
@@ -149,7 +150,13 @@ export interface ClusterConnectReasonGatewayCertExpired {
   gateway: types.Gateway | undefined;
 }
 
-export type ClusterConnectReason = ClusterConnectReasonGatewayCertExpired;
+export type ClusterConnectReasonVnetCertExpired = {
+  kind: 'reason.vnet-cert-expired';
+} & tshdEventsApi.VnetCertExpired;
+
+export type ClusterConnectReason =
+  | ClusterConnectReasonGatewayCertExpired
+  | ClusterConnectReasonVnetCertExpired;
 
 export interface DialogClusterLogout {
   kind: 'cluster-logout';
@@ -209,6 +216,12 @@ export interface DialogReAuthenticate {
   onCancel(): void;
 }
 
+export interface DialogChangeAccessRequestKind {
+  kind: 'change-access-request-kind';
+  onConfirm(): void;
+  onCancel(): void;
+}
+
 export type Dialog =
   | DialogClusterConnect
   | DialogClusterLogout
@@ -219,4 +232,5 @@ export type Dialog =
   | DialogResourceSearchErrors
   | DialogHeadlessAuthentication
   | DialogReAuthenticate
+  | DialogChangeAccessRequestKind
   | DialogNone;

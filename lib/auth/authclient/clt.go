@@ -20,6 +20,7 @@ package authclient
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/url"
@@ -31,13 +32,13 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/crownjewel"
+	"github.com/gravitational/teleport/api/client/databaseobject"
 	"github.com/gravitational/teleport/api/client/externalauditstorage"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/secreport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	assistpb "github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
-	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
@@ -49,6 +50,7 @@ import (
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
@@ -72,10 +74,24 @@ const (
 	MissingNamespaceError = "missing required parameter: namespace"
 )
 
-// ErrNoMFADevices is returned when an MFA ceremony is performed without possible devices to
-// complete the challenge with.
-var ErrNoMFADevices = &trace.AccessDeniedError{
-	Message: "MFA is required to access this resource but user has no MFA devices; use 'tsh mfa add' to register MFA devices",
+var (
+	// ErrNoMFADevices is returned when an MFA ceremony is performed without possible devices to
+	// complete the challenge with.
+	ErrNoMFADevices = &trace.AccessDeniedError{
+		Message: "MFA is required to access this resource but user has no MFA devices; use 'tsh mfa add' to register MFA devices",
+	}
+	// InvalidUserPassError is the error for when either the provided username or
+	// password is incorrect.
+	InvalidUserPassError = &trace.AccessDeniedError{Message: "invalid username or password"}
+	// InvalidUserPass2FError is the error for when either the provided username,
+	// password, or second factor is incorrect.
+	InvalidUserPass2FError = &trace.AccessDeniedError{Message: "invalid username, password or second factor"}
+)
+
+// IsInvalidLocalCredentialError checks if an error resulted from an incorrect username,
+// password, or second factor.
+func IsInvalidLocalCredentialError(err error) bool {
+	return errors.Is(err, InvalidUserPassError) || errors.Is(err, InvalidUserPass2FError)
 }
 
 // HostFQDN consists of host UUID and cluster name joined via '.'.
@@ -643,6 +659,11 @@ func (c *Client) IntegrationAWSOIDCClient() integrationv1.AWSOIDCServiceClient {
 
 func (c *Client) NotificationServiceClient() notificationsv1.NotificationServiceClient {
 	return notificationsv1.NewNotificationServiceClient(c.APIClient.GetConnection())
+}
+
+// DatabaseObjectsClient returns a client for managing the DatabaseObject resource.
+func (c *Client) DatabaseObjectsClient() *databaseobject.Client {
+	return databaseobject.NewClient(c.APIClient.DatabaseObjectClient())
 }
 
 // DiscoveryConfigClient returns a client for managing the DiscoveryConfig resource.
@@ -1580,8 +1601,8 @@ type ClientI interface {
 	// DatabaseObjectImportRuleClient returns a database object import rule client.
 	DatabaseObjectImportRuleClient() dbobjectimportrulev1.DatabaseObjectImportRuleServiceClient
 
-	// DatabaseObjectClient returns a database object client.
-	DatabaseObjectClient() dbobjectv1.DatabaseObjectServiceClient
+	// DatabaseObjectsClient returns a database object client.
+	DatabaseObjectsClient() *databaseobject.Client
 
 	// SecReportsClient returns a client for security reports.
 	// Clients connecting to  older Teleport versions, still get an access list client
@@ -1639,6 +1660,11 @@ type ClientI interface {
 	// still get a client when calling this method, but all RPCs will return
 	// "not implemented" errors (as per the default gRPC behavior).
 	ClusterConfigClient() clusterconfigpb.ClusterConfigServiceClient
+
+	// VnetConfigServiceClient returns a VnetConfig service client.
+	// Clients connecting to older Teleport versions still get a client when calling this method, but all RPCs
+	// will return "not implemented" errors (as per the default gRPC behavior).
+	VnetConfigServiceClient() vnet.VnetConfigServiceClient
 
 	// CloneHTTPClient creates a new HTTP client with the same configuration.
 	CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error)

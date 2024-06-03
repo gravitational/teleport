@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -75,6 +76,8 @@ type ClusterWithDetails struct {
 	UserType types.UserType
 	// ProxyVersion is the cluster proxy's service version.
 	ProxyVersion string
+	// ShowResources tells if the cluster can show requestable resources on the resources page.
+	ShowResources constants.ShowResources
 }
 
 // Connected indicates if connection to the cluster can be established
@@ -88,6 +91,7 @@ func (c *Cluster) Connected() bool {
 func (c *Cluster) GetWithDetails(ctx context.Context, authClient authclient.ClientI) (*ClusterWithDetails, error) {
 	var (
 		clusterPingResponse *webclient.PingResponse
+		webConfig           *webclient.WebConfig
 		authPingResponse    proto.PingResponse
 		caps                *types.AccessCapabilities
 		authClusterID       string
@@ -97,6 +101,12 @@ func (c *Cluster) GetWithDetails(ctx context.Context, authClient authclient.Clie
 	)
 
 	group, groupCtx := errgroup.WithContext(ctx)
+
+	group.Go(func() error {
+		res, err := c.clusterClient.GetWebConfig(groupCtx)
+		webConfig = res
+		return trace.Wrap(err)
+	})
 
 	group.Go(func() error {
 		res, err := c.clusterClient.Ping(groupCtx)
@@ -187,6 +197,7 @@ func (c *Cluster) GetWithDetails(ctx context.Context, authClient authclient.Clie
 		ACL:                acl,
 		UserType:           user.GetUserType(),
 		ProxyVersion:       clusterPingResponse.ServerVersion,
+		ShowResources:      webConfig.UI.ShowResources,
 	}
 
 	return withDetails, nil

@@ -31,8 +31,6 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import ReAuthenticate from 'teleport/components/ReAuthenticate';
-import { RemoveDialog } from 'teleport/components/MfaDeviceList';
 
 import cfg from 'teleport/config';
 
@@ -46,7 +44,10 @@ import useManageDevices, {
 } from './ManageDevices/useManageDevices';
 import { ActionButtonPrimary, ActionButtonSecondary, Header } from './Header';
 import { PasswordBox } from './PasswordBox';
-import { AddAuthDeviceWizard } from './ManageDevices/AddAuthDeviceWizard';
+import {
+  AddAuthDeviceWizard,
+  DeleteAuthDeviceWizard,
+} from './ManageDevices/wizards';
 import { StatePill } from './StatePill';
 
 export interface EnterpriseComponentProps {
@@ -99,18 +100,14 @@ export interface AccountProps extends ManageDevicesState, AccountPageProps {
 export function Account({
   devices,
   token,
-  setToken,
   onAddDevice,
   onRemoveDevice,
   onDeviceAdded,
+  onDeviceRemoved,
   deviceToRemove,
-  removeDevice,
   fetchDevicesAttempt,
   createRestrictedTokenAttempt,
-  isReAuthenticateVisible,
-  isRemoveDeviceVisible,
   addDeviceWizardVisible,
-  hideReAuthenticate,
   hideRemoveDevice,
   closeAddDeviceWizard,
   isSso,
@@ -180,9 +177,18 @@ export function Account({
     const message =
       newDeviceUsage === 'passwordless'
         ? 'Passkey successfully saved.'
-        : 'MFA device successfully saved.';
+        : 'MFA method successfully saved.';
     addNotification('info', message);
     onDeviceAdded();
+  }
+
+  function onDeleteDeviceSuccess() {
+    const message =
+      deviceToRemove.usage === 'passwordless'
+        ? 'Passkey successfully deleted.'
+        : 'MFA method successfully deleted.';
+    addNotification('info', message);
+    onDeviceRemoved();
   }
 
   return (
@@ -257,26 +263,11 @@ export function Account({
               onRemove={onRemoveDevice}
             />
           </Box>
-          {isReAuthenticateVisible && (
-            <ReAuthenticate
-              onAuthenticated={setToken}
-              onClose={hideReAuthenticate}
-              actionText="registering a new device"
-            />
-          )}
           {EnterpriseComponent && (
             <EnterpriseComponent addNotification={addNotification} />
           )}
         </Flex>
       </FeatureBox>
-
-      {isRemoveDeviceVisible && (
-        <RemoveDialog
-          name={deviceToRemove.name}
-          onRemove={removeDevice}
-          onClose={hideRemoveDevice}
-        />
-      )}
 
       {addDeviceWizardVisible && (
         <AddAuthDeviceWizard
@@ -286,6 +277,16 @@ export function Account({
           devices={devices}
           onClose={closeAddDeviceWizard}
           onSuccess={onAddDeviceSuccess}
+        />
+      )}
+
+      {deviceToRemove && (
+        <DeleteAuthDeviceWizard
+          auth2faType={cfg.getAuth2faType()}
+          devices={devices}
+          deviceToDelete={deviceToRemove}
+          onClose={hideRemoveDevice}
+          onSuccess={onDeleteDeviceSuccess}
         />
       )}
 

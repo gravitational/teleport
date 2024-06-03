@@ -39,6 +39,7 @@ import (
 	pgcommon "github.com/gravitational/teleport/lib/backend/pgbk/common"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -170,6 +171,10 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	if err := metrics.RegisterPrometheusCollectors(prometheusCollectors...); err != nil {
+		return nil, trace.Wrap(err, "registering prometheus collectors")
+	}
+
 	if err := cfg.AuthConfig.ApplyToPoolConfigs(ctx, cfg.Log, cfg.PoolConfig); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -253,6 +258,7 @@ func (l *Log) periodicCleanup(ctx context.Context, cleanupInterval, retentionPer
 		}
 
 		l.log.DebugContext(ctx, "Executing periodic cleanup.")
+		start := time.Now()
 		deleted, err := pgcommon.RetryIdempotent(ctx, l.log, func() (int64, error) {
 			tag, err := l.pool.Exec(ctx,
 				"DELETE FROM events WHERE creation_time < (now() - $1::interval)",
@@ -264,9 +270,13 @@ func (l *Log) periodicCleanup(ctx context.Context, cleanupInterval, retentionPer
 
 			return tag.RowsAffected(), nil
 		})
+		batchDeleteLatencies.Observe(time.Since(start).Seconds())
+
 		if err != nil {
+			batchDeleteRequestsFailure.Inc()
 			l.log.ErrorContext(ctx, "Failed to execute periodic cleanup.", "error", err)
 		} else {
+			batchDeleteRequestsSuccess.Inc()
 			l.log.DebugContext(ctx, "Executed periodic cleanup.", "deleted", deleted)
 		}
 	}
@@ -293,9 +303,10 @@ func (l *Log) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) er
 
 	eventID := uuid.New()
 
+	start := time.Now()
 	// if an event with the same event_id exists, it means that we inserted it
 	// and then failed to receive the success reply from the commit
-	if _, err := pgcommon.RetryIdempotent(ctx, l.log, func() (struct{}, error) {
+	_, err = pgcommon.RetryIdempotent(ctx, l.log, func() (struct{}, error) {
 		_, err := l.pool.Exec(ctx,
 			"INSERT INTO events (event_time, event_id, event_type, session_id, event_data)"+
 				" VALUES ($1, $2, $3, $4, $5)"+
@@ -303,9 +314,15 @@ func (l *Log) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) er
 			event.GetTime().UTC(), eventID, event.GetType(), sessionID, eventJSON,
 		)
 		return struct{}{}, trace.Wrap(err)
-	}); err != nil {
+	})
+
+	writeLatencies.Observe(time.Since(start).Seconds())
+
+	if err != nil {
+		writeRequestsFailure.Inc()
 		return trace.Wrap(err)
 	}
+	writeRequestsSuccess.Inc()
 
 	return nil
 }
@@ -401,8 +418,9 @@ func (l *Log) searchEvents(
 	var endTime time.Time
 	var endID uuid.UUID
 
+	transactionStart := time.Now()
 	const idempotent = true
-	if err := pgcommon.RetryTx(ctx, l.log, l.pool, pgx.TxOptions{
+	err := pgcommon.RetryTx(ctx, l.log, l.pool, pgx.TxOptions{
 		AccessMode: pgx.ReadOnly,
 	}, idempotent, func(tx pgx.Tx) error {
 		evs = nil
@@ -468,9 +486,14 @@ func (l *Log) searchEvents(
 			}
 		}
 		return nil
-	}); err != nil {
+	})
+	batchReadLatencies.Observe(time.Since(transactionStart).Seconds())
+
+	if err != nil {
+		batchReadRequestsFailure.Inc()
 		return nil, "", trace.Wrap(err)
 	}
+	batchReadRequestsSuccess.Inc()
 
 	var nextKey string
 	if len(evs) > 0 && (len(evs) >= limit || sizeLimit) {

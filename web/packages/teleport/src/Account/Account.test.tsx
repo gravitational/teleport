@@ -29,6 +29,7 @@ import cfg from 'teleport/config';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { PasswordState } from 'teleport/services/user';
 import auth from 'teleport/services/auth/auth';
+import MfaService, { MfaDevice } from 'teleport/services/mfa';
 
 const defaultAuthType = cfg.auth.second_factor;
 const defaultPasswordless = cfg.auth.allowPasswordless;
@@ -55,6 +56,28 @@ async function renderComponent(ctx: TeleportContext) {
     }
   });
 }
+
+const testPasskey: MfaDevice = {
+  id: '1',
+  description: 'Hardware Key',
+  name: 'touch_id',
+  registeredDate: new Date(1628799417000),
+  lastUsedDate: new Date(1628799417000),
+  type: 'webauthn',
+  usage: 'passwordless',
+};
+
+const testMfaMethod: MfaDevice = {
+  id: '2',
+  description: 'Hardware Key',
+  name: 'touch_id',
+  registeredDate: new Date(1628799417000),
+  lastUsedDate: new Date(1628799417000),
+  type: 'webauthn',
+  usage: 'mfa',
+};
+
+const dummyCredential: Credential = { id: 'cred-id', type: 'public-key' };
 
 // Note: the "off" and "otp" cases don't make sense with passwordless turned
 // on (the auth server wouldn't start in this configuration), but we're still
@@ -96,24 +119,12 @@ test.each`
   }
 );
 
-const onePasskey = [
-  {
-    id: '1',
-    description: 'Hardware Key',
-    name: 'touch_id',
-    registeredDate: new Date(1628799417000),
-    lastUsedDate: new Date(1628799417000),
-    type: 'webauthn',
-    usage: 'passwordless',
-  },
-];
-
 test.each`
-  pwdless  | passkeys      | state
-  ${true}  | ${onePasskey} | ${/^active$/}
-  ${true}  | ${[]}         | ${null}
-  ${false} | ${onePasskey} | ${/^inactive$/}
-  ${false} | ${[]}         | ${null}
+  pwdless  | passkeys         | state
+  ${true}  | ${[testPasskey]} | ${/^active$/}
+  ${true}  | ${[]}            | ${null}
+  ${false} | ${[testPasskey]} | ${/^inactive$/}
+  ${false} | ${[]}            | ${null}
 `(
   "Passkey state pill: passwordless=$pwdless, $passkeys.length passkey(s) => state='$state'",
   async ({ pwdless, passkeys, state }) => {
@@ -136,24 +147,12 @@ test.each`
   }
 );
 
-const oneMfaMethod = [
-  {
-    id: '1',
-    description: 'Hardware Key',
-    name: 'touch_id',
-    registeredDate: new Date(1628799417000),
-    lastUsedDate: new Date(1628799417000),
-    type: 'webauthn',
-    usage: 'mfa',
-  },
-];
-
 test.each`
-  mfa      | methods         | state
-  ${'on'}  | ${oneMfaMethod} | ${/^active$/}
-  ${'on'}  | ${[]}           | ${/^inactive$/}
-  ${'off'} | ${oneMfaMethod} | ${/^inactive$/}
-  ${'off'} | ${[]}           | ${/^inactive$/}
+  mfa      | methods            | state
+  ${'on'}  | ${[testMfaMethod]} | ${/^active$/}
+  ${'on'}  | ${[]}              | ${/^inactive$/}
+  ${'off'} | ${[testMfaMethod]} | ${/^inactive$/}
+  ${'off'} | ${[]}              | ${/^inactive$/}
 `(
   "MFA state pill: mfa=$mfa, $methods.length MFA method(s) => state='$state'",
   async ({ mfa, methods, state }) => {
@@ -238,4 +237,113 @@ test('loading state', async () => {
     screen.queryByTestId('passwordless-state-pill')
   ).not.toBeInTheDocument();
   expect(screen.getByTestId('mfa-state-pill')).toBeEmptyDOMElement();
+});
+
+test('adding an MFA device', async () => {
+  const user = userEvent.setup();
+  const ctx = createTeleportContext();
+  jest.spyOn(ctx.mfaService, 'fetchDevices').mockResolvedValue([testPasskey]);
+  jest
+    .spyOn(auth, 'createNewWebAuthnDevice')
+    .mockResolvedValueOnce(dummyCredential);
+  jest
+    .spyOn(MfaService.prototype, 'saveNewWebAuthnDevice')
+    .mockResolvedValueOnce(undefined);
+  jest
+    .spyOn(auth, 'createPrivilegeTokenWithWebauthn')
+    .mockResolvedValueOnce('webauthn-privilege-token');
+  cfg.auth.second_factor = 'on';
+
+  await renderComponent(ctx);
+  await user.click(screen.getByRole('button', { name: 'Add MFA' }));
+  await user.click(screen.getByRole('button', { name: 'Verify my identity' }));
+  await user.click(
+    screen.getByRole('button', { name: 'Create an MFA method' })
+  );
+  await user.type(screen.getByLabelText('MFA Method Name'), 'new-mfa');
+
+  // The final assertion can be accidentally made irrelevant if the button name
+  // changes, so declare it separately for both places.
+  const saveButtonName = 'Save the MFA method';
+  await user.click(screen.getByRole('button', { name: saveButtonName }));
+  expect(ctx.mfaService.saveNewWebAuthnDevice).toHaveBeenCalledWith({
+    credential: dummyCredential,
+    addRequest: {
+      deviceName: 'new-mfa',
+      deviceUsage: 'mfa',
+      tokenId: 'webauthn-privilege-token',
+    },
+  });
+  expect(
+    screen.queryByRole('button', { name: saveButtonName })
+  ).not.toBeInTheDocument();
+});
+
+test('adding a passkey', async () => {
+  const user = userEvent.setup();
+  const ctx = createTeleportContext();
+  jest.spyOn(ctx.mfaService, 'fetchDevices').mockResolvedValue([testMfaMethod]);
+  jest
+    .spyOn(auth, 'createNewWebAuthnDevice')
+    .mockResolvedValueOnce(dummyCredential);
+  jest
+    .spyOn(MfaService.prototype, 'saveNewWebAuthnDevice')
+    .mockResolvedValueOnce(undefined);
+  jest
+    .spyOn(auth, 'createPrivilegeTokenWithWebauthn')
+    .mockResolvedValueOnce('webauthn-privilege-token');
+  cfg.auth.second_factor = 'on';
+  cfg.auth.allowPasswordless = true;
+
+  await renderComponent(ctx);
+  await user.click(screen.getByRole('button', { name: 'Add a Passkey' }));
+  await user.click(screen.getByRole('button', { name: 'Verify my identity' }));
+  await user.click(screen.getByRole('button', { name: 'Create a passkey' }));
+  await user.type(screen.getByLabelText('Passkey Nickname'), 'new-passkey');
+
+  // The final assertion can be accidentally made irrelevant if the button name
+  // changes, so declare it separately for both places.
+  const saveButtonName = 'Save the Passkey';
+  await user.click(screen.getByRole('button', { name: saveButtonName }));
+  expect(ctx.mfaService.saveNewWebAuthnDevice).toHaveBeenCalledWith({
+    credential: dummyCredential,
+    addRequest: {
+      deviceName: 'new-passkey',
+      deviceUsage: 'passwordless',
+      tokenId: 'webauthn-privilege-token',
+    },
+  });
+  expect(
+    screen.queryByRole('button', { name: saveButtonName })
+  ).not.toBeInTheDocument();
+});
+
+test('removing an MFA method', async () => {
+  const user = userEvent.setup();
+  const ctx = createTeleportContext();
+  jest.spyOn(ctx.mfaService, 'fetchDevices').mockResolvedValue([testMfaMethod]);
+  jest
+    .spyOn(auth, 'createPrivilegeTokenWithWebauthn')
+    .mockResolvedValueOnce('webauthn-privilege-token');
+  jest
+    .spyOn(MfaService.prototype, 'removeDevice')
+    .mockResolvedValueOnce(undefined);
+  cfg.auth.second_factor = 'on';
+  cfg.auth.allowPasswordless = true;
+
+  await renderComponent(ctx);
+  await user.click(
+    within(screen.getByTestId('mfa-list')).getByRole('button', {
+      name: 'Delete',
+    })
+  );
+  await user.click(screen.getByText('Verify my identity'));
+  const deleteStep = within(screen.getByTestId('delete-step'));
+  await user.click(deleteStep.getByRole('button', { name: 'Delete' }));
+
+  expect(ctx.mfaService.removeDevice).toHaveBeenCalledWith(
+    'webauthn-privilege-token',
+    'touch_id'
+  );
+  expect(screen.queryByTestId('delete-step')).not.toBeInTheDocument();
 });

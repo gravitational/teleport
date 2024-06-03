@@ -23,7 +23,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"log/slog"
-	"net"
 
 	"github.com/gravitational/trace"
 
@@ -42,13 +41,13 @@ import (
 var _ alpnproxy.LocalProxyMiddleware = (*alpnProxyMiddleware)(nil)
 
 type alpnProxyMiddleware struct {
-	onNewConnection func(ctx context.Context, lp *alpnproxy.LocalProxy, conn net.Conn) error
+	onNewConnection func(ctx context.Context, lp *alpnproxy.LocalProxy) error
 	onStart         func(ctx context.Context, lp *alpnproxy.LocalProxy) error
 }
 
-func (a alpnProxyMiddleware) OnNewConnection(ctx context.Context, lp *alpnproxy.LocalProxy, conn net.Conn) error {
+func (a alpnProxyMiddleware) OnNewConnection(ctx context.Context, lp *alpnproxy.LocalProxy) error {
 	if a.onNewConnection != nil {
-		return a.onNewConnection(ctx, lp, conn)
+		return a.onNewConnection(ctx, lp)
 	}
 	return nil
 }
@@ -123,7 +122,7 @@ func (s *DatabaseTunnelService) buildLocalProxyConfig(ctx context.Context) (lpCf
 	s.log.DebugContext(ctx, "Issued initial certificate for local proxy.")
 
 	middleware := alpnProxyMiddleware{
-		onNewConnection: func(ctx context.Context, lp *alpnproxy.LocalProxy, conn net.Conn) error {
+		onNewConnection: func(ctx context.Context, lp *alpnproxy.LocalProxy) error {
 			ctx, span := tracer.Start(ctx, "DatabaseTunnelService/OnNewConnection")
 			defer span.End()
 

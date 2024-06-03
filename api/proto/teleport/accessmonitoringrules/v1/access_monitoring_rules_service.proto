@@ -40,4 +40,7 @@ service AccessMonitoringRulesService {
 
   // ListAccessMonitoringRules lists current access monitoring rules.
   rpc ListAccessMonitoringRules(ListAccessMonitoringRulesRequest) returns (ListAccessMonitoringRulesResponse);
+
+  // ListAccessMonitoringRulesWithFilter lists current access monitoring rules that match the provided filter.
+  rpc ListAccessMonitoringRulesWithFilter(ListAccessMonitoringRulesWithFilterRequest) returns (ListAccessMonitoringRulesWithFilterResponse);
 }

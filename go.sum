@@ -1535,8 +1535,6 @@ github.com/gravitational/httprouter v1.3.1-0.20220408074523-c876c5e705a5 h1:qg8F
 github.com/gravitational/httprouter v1.3.1-0.20220408074523-c876c5e705a5/go.mod h1:JR6WtHb+2LUe8TCKY3cZOxFyyO8IZAc4RVcycCCAKdM=
 github.com/gravitational/kingpin/v2 v2.1.11-0.20230515143221-4ec6b70ecd33 h1:VFER/+0TfRypJhc9XeuggTtEZzhhe75DSVqMv/avHEU=
 github.com/gravitational/kingpin/v2 v2.1.11-0.20230515143221-4ec6b70ecd33/go.mod h1:0gyi0zQnjuFk8xrkNKamJoyUo382HRL7ATRpFZCw6tE=
-github.com/gravitational/kustomize/api v0.16.0-teleport.1 h1:d/aWgghHn/N6TlwGxjjbelUC7b0G0YRyUDf8XS1aScg=
-github.com/gravitational/kustomize/api v0.16.0-teleport.1/go.mod h1:E/0/egj7ED7xWEegMHlRagaZTiL6fxakmSR2pyiK2ZU=
 github.com/gravitational/license v0.0.0-20240313232707-8312e719d624 h1:TjiJ98fWU5N28MBktP5vj1/xohin7cX/JBPPJ8iCiTE=
 github.com/gravitational/license v0.0.0-20240313232707-8312e719d624/go.mod h1:pERQ8qtFfvV0Pfw9jA5o1WH1snupQQ3SZ+n8CVdRJNs=
 github.com/gravitational/oxy v0.0.0-20231219172753-f855322f2a6c h1:CINwa3yHKRph2q1Y5j2EeS85blKHm+0MeiFGf4Ncxow=
@@ -3174,6 +3172,8 @@ gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c/go.mod h1:JHkPIbrfpd72SG/EV
 gopkg.in/dnaeon/go-vcr.v3 v3.2.0 h1:Rltp0Vf+Aq0u4rQXgmXgtgoRDStTnFN83cWgSGSoRzM=
 gopkg.in/dnaeon/go-vcr.v3 v3.2.0/go.mod h1:2IMOnnlx9I6u9x+YBsM3tAMx6AlOxnJ0pWxQAzZ79Ag=
 gopkg.in/errgo.v2 v2.1.0/go.mod h1:hNsd1EY+bozCKY1Ytp96fpM3vjJbqLJn88ws8XvfDNI=
+gopkg.in/evanphx/json-patch.v4 v4.12.0 h1:n6jtcsulIzXPJaxegRbvFNNrZDjbij7ny3gmSPG+6V4=
+gopkg.in/evanphx/json-patch.v4 v4.12.0/go.mod h1:p8EYWUEYMpynmqDbY58zCKCFZw8pRWMG4EsWvDvM72M=
 gopkg.in/fsnotify.v1 v1.4.7/go.mod h1:Tz8NjZHkW78fSQdbUxIjBTcgA1z1m8ZHf0WmKUhAMys=
 gopkg.in/go-jose/go-jose.v2 v2.6.3 h1:nt80fvSDlhKWQgSWyHyy5CfmlQr+asih51R8PTWNKKs=
 gopkg.in/go-jose/go-jose.v2 v2.6.3/go.mod h1:zzZDPkNNw/c9IE7Z9jr11mBZQhKQTMzoEEIoEdZlFBI=
@@ -3298,10 +3298,12 @@ sigs.k8s.io/controller-tools v0.14.0 h1:rnNoCC5wSXlrNoBKKzL70LNJKIQKEzT6lloG6/LF
 sigs.k8s.io/controller-tools v0.14.0/go.mod h1:TV7uOtNNnnR72SpzhStvPkoS/U5ir0nMudrkrC4M9Sc=
 sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd h1:EDPBXCAspyGV4jQlpZSudPeMmr1bNJefnuqLsRAsHZo=
 sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd/go.mod h1:B8JuhiUyNFVKdsE8h686QcCxMaH6HrOAZj4vswFpcB0=
+sigs.k8s.io/kustomize/api v0.17.2 h1:E7/Fjk7V5fboiuijoZHgs4aHuexi5Y2loXlVOAVAG5g=
+sigs.k8s.io/kustomize/api v0.17.2/go.mod h1:UWTz9Ct+MvoeQsHcJ5e+vziRRkwimm3HytpZgIYqye0=
 sigs.k8s.io/kustomize/kustomize/v5 v5.0.4-0.20230601165947-6ce0bf390ce3 h1:vq2TtoDcQomhy7OxXLUOzSbHMuMYq0Bjn93cDtJEdKw=
 sigs.k8s.io/kustomize/kustomize/v5 v5.0.4-0.20230601165947-6ce0bf390ce3/go.mod h1:/d88dHCvoy7d0AKFT0yytezSGZKjsZBVs9YTkBHSGFk=
-sigs.k8s.io/kustomize/kyaml v0.16.0 h1:6J33uKSoATlKZH16unr2XOhDI+otoe2sR3M8PDzW3K0=
-sigs.k8s.io/kustomize/kyaml v0.16.0/go.mod h1:xOK/7i+vmE14N2FdFyugIshB8eF6ALpy7jI87Q2nRh4=
+sigs.k8s.io/kustomize/kyaml v0.17.1 h1:TnxYQxFXzbmNG6gOINgGWQt09GghzgTP6mIurOgrLCQ=
+sigs.k8s.io/kustomize/kyaml v0.17.1/go.mod h1:9V0mCjIEYjlXuCdYsSXvyoy2BTsLESH7TlGV81S282U=
 sigs.k8s.io/release-utils v0.7.7 h1:JKDOvhCk6zW8ipEOkpTGDH/mW3TI+XqtPp16aaQ79FU=
 sigs.k8s.io/release-utils v0.7.7/go.mod h1:iU7DGVNi3umZJ8q6aHyUFzsDUIaYwNnNKGHo3YE5E3s=
 sigs.k8s.io/structured-merge-diff/v4 v4.4.1 h1:150L+0vs/8DA78h1u02ooW1/fFq/Lwr+sGiqlzvrtq4=

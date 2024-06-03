@@ -1,6 +1,6 @@
 ---
 title: Best Practices for Teleport Workload Identity
-description: Teleport's Workload Identity for SPIFFE
+description: Answers common questions and describes best practices for using Teleport Workload Identity in production.
 ---
 
 This page covers common questions and best practices for using Teleport's
@@ -135,3 +135,37 @@ SAN which can then be mapped to database user. For example, you could issue
 a certificate with a DNS SAN of `myuser.mydb.db-access.example.com`. The
 behavior described above will then set the common name to this DNS SAN, and you
 can then configure Postgres to map this common name to `myuser`.
+
+## Direct database access
+
+There are certain circumstances where you may wish to use Teleport Workload ID
+to authenticate a workload's access to a database.
+
+This differs from using Machine ID with the Database Service in a few ways:
+
+- The connection is made directly from the workload to the database, rather
+  than through Teleport's Proxy Service and Database Service.
+- Reduced latency of the connection between the workload and database.
+- Teleport will not record the queries of the workload in the audit log.
+- Teleport will not be able to enforce fine-grained access control policies.
+- The database must natively support mTLS client authentication.
+- The database must be directly configured with authorization rules.
+
+Typically, the workload will connect to the database using its X509 SVID as a
+client certificate. The database will then validate this certificate using the
+trust bundle provided by Teleport Workload ID. We recommend installing `tbot`
+in close proximity to the database to ensure that the trust bundle remains
+up to date if a CA rotation occurs.
+
+Databases typically use the Common Name (CN) of the client certificate to
+determine which user the connection should be authenticated as. This means it
+is not compatible with the default behaviour of Workload ID where the SPIFFE ID
+is only present as a URI SAN. See [X509 SVID Subject](#x509-svid-subject) for
+information on how to set the CN.
+
+Follow the database's documentation for how to configure client authentication
+using mTLS:
+
+- [Postgres](https://www.postgresql.org/docs/current/auth-cert.html)
+- [MySQL](https://dev.mysql.com/doc/refman/8.0/en/using-encrypted-connections.html)
+- [MongoDB](https://www.mongodb.com/docs/manual/tutorial/configure-x509-client-authentication/)

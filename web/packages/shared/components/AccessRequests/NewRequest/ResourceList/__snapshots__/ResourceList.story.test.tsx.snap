@@ -31,6 +31,7 @@ exports[`render Apps 1`] = `
   min-height: 24px;
   padding: 0px 16px;
   width: 123px;
+  text-transform: none;
 }
 
 .c8:hover,

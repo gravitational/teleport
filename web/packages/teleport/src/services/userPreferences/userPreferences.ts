@@ -21,6 +21,7 @@ import {
   LabelsViewMode,
   UnifiedResourcePreferences,
   ViewMode,
+  AvailableResourceMode,
 } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 
 import {
@@ -107,6 +108,7 @@ export function makeDefaultUserPreferences(): UserPreferences {
       defaultTab: DefaultTab.ALL,
       viewMode: ViewMode.CARD,
       labelsViewMode: LabelsViewMode.COLLAPSED,
+      availableResourceMode: AvailableResourceMode.ALL,
     },
     clusterPreferences: makeDefaultUserClusterPreferences(),
   };
@@ -141,6 +143,10 @@ export function convertBackendUserPreferences(
     clusterPreferences: convertBackendClusterUserPreferences(
       preferences.clusterPreferences
     ),
+    unifiedResourcePreferences: {
+      availableResourceMode: AvailableResourceMode.ALL,
+      ...preferences.unifiedResourcePreferences,
+    },
   };
 }
 

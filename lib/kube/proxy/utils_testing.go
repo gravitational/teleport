@@ -92,11 +92,12 @@ type KubeClusterConfig struct {
 
 // TestConfig defines the suite options.
 type TestConfig struct {
-	Clusters         []KubeClusterConfig
-	ResourceMatchers []services.ResourceMatcher
-	OnReconcile      func(types.KubeClusters)
-	OnEvent          func(apievents.AuditEvent)
-	ClusterFeatures  func() proto.Features
+	Clusters             []KubeClusterConfig
+	ResourceMatchers     []services.ResourceMatcher
+	OnReconcile          func(types.KubeClusters)
+	OnEvent              func(apievents.AuditEvent)
+	ClusterFeatures      func() proto.Features
+	CreateAuditStreamErr error
 }
 
 // SetupTestContext creates a kube service with clusters configured.
@@ -205,7 +206,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 
 	// heartbeatsWaitChannel waits for clusters heartbeats to start.
 	heartbeatsWaitChannel := make(chan struct{}, len(cfg.Clusters)+1)
-	client := newAuthClientWithStreamer(testCtx)
+	client := newAuthClientWithStreamer(testCtx, cfg.CreateAuditStreamErr)
 
 	features := func() proto.Features { return proto.Features{Kubernetes: true} }
 	if cfg.ClusterFeatures != nil {
@@ -572,15 +573,19 @@ func (c *TestContext) NewJoiningSession(cfg *rest.Config, sessionID string, mode
 // even when recording mode is *-sync.
 type authClientWithStreamer struct {
 	*authclient.Client
-	streamer events.Streamer
+	streamer             events.Streamer
+	createAuditStreamErr error
 }
 
 // newAuthClientWithStreamer creates a new authClient wrapper.
-func newAuthClientWithStreamer(testCtx *TestContext) *authClientWithStreamer {
-	return &authClientWithStreamer{Client: testCtx.AuthClient, streamer: testCtx.AuthClient}
+func newAuthClientWithStreamer(testCtx *TestContext, createAuditStreamErr error) *authClientWithStreamer {
+	return &authClientWithStreamer{Client: testCtx.AuthClient, streamer: testCtx.AuthClient, createAuditStreamErr: createAuditStreamErr}
 }
 
 func (a *authClientWithStreamer) CreateAuditStream(ctx context.Context, sID sessPkg.ID) (apievents.Stream, error) {
+	if a.createAuditStreamErr != nil {
+		return nil, trace.Wrap(a.createAuditStreamErr)
+	}
 	return a.streamer.CreateAuditStream(ctx, sID)
 }
 

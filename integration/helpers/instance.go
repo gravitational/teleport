@@ -69,6 +69,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
 	websession "github.com/gravitational/teleport/lib/web/session"
+	"github.com/gravitational/teleport/lib/web/terminal"
 )
 
 const (
@@ -1558,7 +1559,7 @@ func makeAuthReqOverWS(ws *websocket.Conn, token string) error {
 // SSH establishes an SSH connection via the web api in the same manner that
 // the web UI does. The returned [web.TerminalStream] should be used as stdin/stdout
 // for the session.
-func (w *WebClient) SSH(termReq web.TerminalRequest) (*web.TerminalStream, error) {
+func (w *WebClient) SSH(termReq web.TerminalRequest) (*terminal.Stream, error) {
 	u := url.URL{
 		Host:   w.i.Web,
 		Scheme: client.WSS,
@@ -1594,7 +1595,7 @@ func (w *WebClient) SSH(termReq web.TerminalRequest) (*web.TerminalStream, error
 	}
 
 	defer resp.Body.Close()
-	return web.NewTerminalStream(context.Background(), web.TerminalStreamConfig{WS: ws}), nil
+	return terminal.NewStream(context.Background(), terminal.StreamConfig{WS: ws}), nil
 }
 
 // AddClientCredentials adds authenticated credentials to a client.

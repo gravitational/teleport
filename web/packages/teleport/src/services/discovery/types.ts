@@ -29,6 +29,11 @@ export type DiscoveryConfig = {
 
 type AwsMatcherTypes = 'rds' | 'eks' | 'ec2';
 
+export enum InstallParamEnrollMode {
+  Script = 1,
+  Eice = 2,
+}
+
 // AWSMatcher matches AWS EC2 instances, AWS EKS clusters and AWS Databases
 export type AwsMatcher = {
   // types are AWS types to match, "ec2", "eks", "rds", "redshift", "elasticache",
@@ -43,6 +48,29 @@ export type AwsMatcher = {
   integration: string;
   // kubeAppDiscovery specifies if Kubernetes App Discovery should be enabled for a discovered cluster.
   kubeAppDiscovery?: boolean;
+  /**
+   * install sets the join method when installing on
+   * discovered EC2 nodes
+   */
+  install?: {
+    /**
+     * enrollMode indicates the mode used to enroll the node into Teleport.
+     */
+    enrollMode: InstallParamEnrollMode;
+    /**
+     * installTeleport disables agentless discovery
+     */
+    installTeleport: boolean;
+    /**
+     * joinToken is the token to use when joining the cluster
+     */
+    joinToken: string;
+  };
+  /**
+   * ssm provides options to use when sending a document command to
+   * an EC2 node
+   */
+  ssm?: { documentName: string };
 };
 
 type Labels = Record<string, string[]>;

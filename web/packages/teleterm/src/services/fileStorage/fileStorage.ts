@@ -97,7 +97,7 @@ export function createFileStorage(opts: {
       return;
     }
     const text = stringify(state);
-    writeFile(filePath, text);
+    return writeFile(filePath, text);
   }
 
   function replace(json: any): void {

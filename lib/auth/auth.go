@@ -67,7 +67,9 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
@@ -662,6 +664,11 @@ func (r *Services) UserLoginStateClient() services.UserLoginStates {
 // KubernetesWaitingContainerClient returns the Kubernetes waiting
 // container client.
 func (r *Services) KubernetesWaitingContainerClient() services.KubeWaitingContainer {
+	return r
+}
+
+// DatabaseObjectsClient returns the database objects client.
+func (r *Services) DatabaseObjectsClient() services.DatabaseObjects {
 	return r
 }
 
@@ -1999,8 +2006,6 @@ type certRequest struct {
 	connectionDiagnosticID string
 	// attestationStatement is an attestation statement associated with the given public key.
 	attestationStatement *keys.AttestationStatement
-	// skipAttestation is a server-side flag which is used to skip the attestation check.
-	skipAttestation bool
 	// deviceExtensions holds device-aware user certificate extensions.
 	deviceExtensions DeviceExtensions
 	// botName is the name of the bot requesting this cert, if any
@@ -2813,7 +2818,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		return nil, trace.Wrap(err)
 	}
 
-	if !req.skipAttestation && requiredKeyPolicy != keys.PrivateKeyPolicyNone {
+	if requiredKeyPolicy != keys.PrivateKeyPolicyNone {
 		// Try to attest the given hardware key using the given attestation statement.
 		attestationData, err := modules.GetModules().AttestHardwareKey(ctx, a, req.attestationStatement, cryptoPubKey, sessionTTL)
 		if trace.IsNotFound(err) {
@@ -4395,6 +4400,22 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 	}, nil
 }
 
+// AssertSystemRole is used by agents to prove that they have a given system role when their credentials
+// originate from multiple separate join tokens so that they can be issued an instance certificate that
+// encompasses all of their capabilities. This method will be deprecated once we have a more comprehensive
+// model for join token joining/replacement.
+func (a *Server) AssertSystemRole(ctx context.Context, req proto.SystemRoleAssertion) error {
+	return trace.Wrap(a.Unstable.AssertSystemRole(ctx, req))
+}
+
+// GetSystemRoleAssertions is used in validated claims made by older instances to prove that they hold a given
+// system role. This method will be deprecated once we have a more comprehensive model for join token
+// joining/replacement.
+func (a *Server) GetSystemRoleAssertions(ctx context.Context, serverID string, assertionID string) (proto.SystemRoleAssertionSet, error) {
+	set, err := a.Unstable.GetSystemRoleAssertions(ctx, serverID, assertionID)
+	return set, trace.Wrap(err)
+}
+
 func (a *Server) RegisterInventoryControlStream(ics client.UpstreamInventoryControlStream, hello proto.UpstreamInventoryHello) error {
 	// upstream hello is pulled and checked at rbac layer. we wait to send the downstream hello until we get here
 	// in order to simplify creation of in-memory streams when dealing with local auth (note: in theory we could
@@ -4917,6 +4938,48 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		log.WithError(err).Warn("Failed to emit access request create event.")
 	}
 
+	// Create a notification.
+	var notificationText string
+	// If this is a resource request.
+	if len(req.GetRequestedResourceIDs()) > 0 {
+		notificationText = fmt.Sprintf("%s requested access to %d resources.", req.GetUser(), len(req.GetRequestedResourceIDs()))
+		if len(req.GetRequestedResourceIDs()) == 1 {
+			notificationText = fmt.Sprintf("%s requested access to a resource.", req.GetUser())
+		}
+		// If this is a role request.
+	} else {
+		notificationText = fmt.Sprintf("%s requested access to the '%s' role.", req.GetUser(), req.GetRoles()[0])
+		if len(req.GetRoles()) > 1 {
+			notificationText = fmt.Sprintf("%s requested access to %d roles.", req.GetUser(), len(req.GetRoles()))
+		}
+	}
+
+	_, err = a.Services.CreateGlobalNotification(ctx, &notificationsv1.GlobalNotification{
+		Spec: &notificationsv1.GlobalNotificationSpec{
+			Matcher: &notificationsv1.GlobalNotificationSpec_ByPermissions{
+				ByPermissions: &notificationsv1.ByPermissions{
+					RoleConditions: []*types.RoleConditions{
+						{
+							ReviewRequests: &types.AccessReviewConditions{
+								Roles: req.GetOriginalRoles(),
+							},
+						},
+					},
+				},
+			},
+			Notification: &notificationsv1.Notification{
+				Spec:    &notificationsv1.NotificationSpec{},
+				SubKind: types.NotificationAccessRequestPendingSubKind,
+				Metadata: &headerv1.Metadata{
+					Labels: map[string]string{types.NotificationTitleLabel: notificationText, "request-id": req.GetName()},
+				},
+			},
+		},
+	})
+	if err != nil {
+		log.WithError(err).Warn("Failed to create access request notification")
+	}
+
 	// calculate the promotions
 	reqCopy, promotions := a.generateAccessRequestPromotions(ctx, req)
 	if promotions != nil {
@@ -5107,6 +5170,14 @@ func (a *Server) submitAccessReview(
 		PromotedAccessListName: req.GetPromotedAccessListName(),
 	}
 
+	// Create a notification.
+	if !req.GetState().IsPending() {
+		_, err = a.Services.CreateUserNotification(ctx, generateAccessRequestReviewedNotification(req, params))
+		if err != nil {
+			log.WithError(err).Debugf("Failed to emit access request reviewed notification.")
+		}
+	}
+
 	if len(params.Review.Annotations) > 0 {
 		annotations, err := apievents.EncodeMapStrings(params.Review.Annotations)
 		if err != nil {
@@ -5120,6 +5191,55 @@ func (a *Server) submitAccessReview(
 	}
 
 	return req, nil
+}
+
+// generateAccessRequestReviewedNotification returns the notification object for a notification notifying a user of their
+// access request being approved or denied.
+func generateAccessRequestReviewedNotification(req types.AccessRequest, params types.AccessReviewSubmission) *notificationsv1.Notification {
+	var subKind string
+	var reviewVerb string
+
+	if req.GetState().IsApproved() {
+		subKind = types.NotificationAccessRequestApprovedSubKind
+		reviewVerb = "approved"
+	} else {
+		subKind = types.NotificationAccessRequestDeniedSubKind
+		reviewVerb = "denied"
+	}
+
+	var notificationText string
+	// If this was a resource request.
+	if len(req.GetRequestedResourceIDs()) > 0 {
+		notificationText = fmt.Sprintf("%s %s your access request for %d resources.", params.Review.Author, reviewVerb, len(req.GetRequestedResourceIDs()))
+		if len(req.GetRequestedResourceIDs()) == 1 {
+			notificationText = fmt.Sprintf("%s %s your access request for a resource.", params.Review.Author, reviewVerb)
+		}
+		// If this was a role request.
+	} else {
+		notificationText = fmt.Sprintf("%s %s your access request for the '%s' role.", params.Review.Author, reviewVerb, req.GetRoles()[0])
+		if len(req.GetRoles()) > 1 {
+			notificationText = fmt.Sprintf("%s %s your access request for %d roles.", params.Review.Author, reviewVerb, len(req.GetRoles()))
+		}
+	}
+
+	assumableTime := ""
+	if req.GetAssumeStartTime() != nil {
+		assumableTime = req.GetAssumeStartTime().Format("2006-01-02T15:04:05.000Z0700")
+	}
+
+	return &notificationsv1.Notification{
+		Spec: &notificationsv1.NotificationSpec{
+			Username: req.GetUser(),
+		},
+		SubKind: subKind,
+		Metadata: &headerv1.Metadata{
+			Labels: map[string]string{
+				types.NotificationTitleLabel: notificationText,
+				"request-id":                 params.RequestID,
+				"roles":                      strings.Join(req.GetRoles(), ","),
+				"assumable-time":             assumableTime,
+			}},
+	}
 }
 
 func (a *Server) GetAccessCapabilities(ctx context.Context, req types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error) {

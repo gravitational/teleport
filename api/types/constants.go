@@ -1012,6 +1012,23 @@ const (
 	NotificationClickedLabel = TeleportInternalLabelPrefix + "clicked"
 	// NotificationScope is the label which contains the scope of the notification, either "user" or "global"
 	NotificationScope = TeleportInternalLabelPrefix + "scope"
+
+	// NotificationDefaultInformationalSubKind is the default subkind for an informational notification.
+	NotificationDefaultInformationalSubKind = "default-informational"
+	// NotificationDefaultWarningSubKind is the default subkind for a warning notification.
+	NotificationDefaultWarningSubKind = "default-warning"
+
+	// NotificationUserCreatedInformationalSubKind is the subkind for a user-created informational notification.
+	NotificationUserCreatedInformationalSubKind = "user-created-informational"
+	// NotificationUserCreatedWarningSubKind is the subkind for a user-created warning notification.
+	NotificationUserCreatedWarningSubKind = "user-created-warning"
+
+	// NotificationAccessRequestPendingSubKind is the subkind for a notification for an access request pending review.
+	NotificationAccessRequestPendingSubKind = "access-request-pending"
+	// NotificationAccessRequestApprovedSubKind is the subkind for a notification for a user's access request being approved.
+	NotificationAccessRequestApprovedSubKind = "access-request-approved"
+	// NotificationAccessRequestDeniedSubKind is the subkind for a notification for a user's access request being denied.
+	NotificationAccessRequestDeniedSubKind = "access-request-denied"
 )
 
 const (
@@ -1290,6 +1307,13 @@ const (
 	// SCIM requests from the upstream organization. The content of the credential
 	// is a bcrypt hash of actual token.
 	OktaCredPurposeSCIMToken = "scim-bearer-token"
+
+	// CredPurposeOKTAAPITokenWithSCIMOnlyIntegration is used when okta integration was enabled without
+	// app groups sync. Due to backward compatibility when teleport was downgraded to version where the
+	// AppGroupSyncDisabled flag is not supported we need to prevent plugin from starting.
+	// This is done by distinguishing between OktaCredPurposeAuth and CredPurposeOKTAAPITokenWithSCIMOnlyIntegration
+	// that are only set when AppGroupSyncDisabled is set to true.
+	CredPurposeOKTAAPITokenWithSCIMOnlyIntegration = "okta-auth-scim-only"
 )
 
 const (

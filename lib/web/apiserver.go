@@ -29,6 +29,7 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -101,6 +102,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/app"
 	websession "github.com/gravitational/teleport/lib/web/session"
+	"github.com/gravitational/teleport/lib/web/terminal"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
@@ -128,6 +130,10 @@ const (
 	// Example values:
 	// - github-actions-ssh: indicates that the resource was added via the Bot GitHub Actions SSH flow
 	webUIFlowLabelKey = "teleport.internal/ui-flow"
+	// IncludedResourceModeAll describes that only requestable resources should be returned.
+	IncludedResourceModeRequestable = "requestable"
+	// IncludedResourceModeAll describes that all resources, requestable and available, should be returned.
+	IncludedResourceModeAll = "all"
 )
 
 // healthCheckAppServerFunc defines a function used to perform a health check
@@ -137,7 +143,9 @@ type healthCheckAppServerFunc func(ctx context.Context, publicAddr string, clust
 
 // Handler is HTTP web proxy handler
 type Handler struct {
-	log logrus.FieldLogger
+	// TODO(greedy52) deprecate logrus.FieldLogger.
+	log    logrus.FieldLogger
+	logger *slog.Logger
 
 	sync.Mutex
 	httprouter.Router
@@ -397,6 +405,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	h := &Handler{
 		cfg:                  cfg,
 		log:                  newPackageLogger(),
+		logger:               slog.Default().With(teleport.ComponentKey, teleport.ComponentWeb),
 		clock:                clockwork.NewRealClock(),
 		ClusterFeatures:      cfg.ClusterFeatures,
 		healthCheckAppServer: cfg.HealthCheckAppServer,
@@ -524,7 +533,6 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		}
 
 		h.Handle("GET", "/robots.txt", httplib.MakeHandler(serveRobotsTxt))
-		h.Handle("GET", "/web/config.js", h.WithUnauthenticatedLimiter(h.getWebConfig))
 
 		etagFromAppHash, err := readEtagFromAppHash(cfg.StaticFS)
 		if err != nil {
@@ -533,6 +541,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 			etag = etagFromAppHash
 		}
 	}
+
+	// This endpoint is used both by Web UI and Connect.
+	h.Handle("GET", "/web/config.js", h.WithUnauthenticatedLimiter(h.getWebConfig))
 
 	if cfg.NodeWatcher != nil {
 		h.nodeWatcher = cfg.NodeWatcher
@@ -699,7 +710,8 @@ func (h *Handler) bindDefaultEndpoints() {
 	// Teleport
 	h.GET("/webapi/scripts/installer/:name", h.WithLimiter(h.installer))
 
-	// desktop access configuration scripts
+	// Deprecated: AD discovery flow is deprecated and will be removed in v17.0.0.
+	// TODO(isaiah): Delete in v17.0.0.
 	h.GET("/webapi/scripts/desktop-access/install-ad-ds.ps1", h.WithLimiter(h.desktopAccessScriptInstallADDSHandle))
 	h.GET("/webapi/scripts/desktop-access/install-ad-cs.ps1", h.WithLimiter(h.desktopAccessScriptInstallADCSHandle))
 	h.GET("/webapi/scripts/desktop-access/configure/:token/configure-ad.ps1", h.WithLimiter(h.desktopAccessScriptConfigureHandle))
@@ -932,7 +944,10 @@ func (h *Handler) bindDefaultEndpoints() {
 	// SAML IDP integration endpoints
 	h.GET("/webapi/scripts/integrations/configure/gcp-workforce-saml.sh", h.WithLimiter(h.gcpWorkforceConfigScript))
 
-	// AWS OIDC Integration specific endpoints:
+	// Azure OIDC integration endpoints
+	h.GET("/webapi/scripts/integrations/configure/azureoidc.sh", h.WithLimiter(h.azureOIDCConfigure))
+
+	// OIDC Integration specific endpoints:
 	// Unauthenticated access to OpenID Configuration - used for AWS OIDC IdP integration
 	h.GET("/.well-known/openid-configuration", h.WithLimiter(h.openidConfiguration))
 	h.GET(OIDCJWKWURI, h.WithLimiter(h.jwksOIDC))
@@ -1692,6 +1707,8 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	// TODO(mcbattirola): remove isTeam when it is no longer used
 	isTeam := clusterFeatures.GetProductType() == proto.ProductType_PRODUCT_TYPE_TEAM
 
+	policy := clusterFeatures.GetPolicy()
+
 	webCfg := webclient.WebConfig{
 		Edition:                        modules.GetModules().BuildType(),
 		Auth:                           authSettings,
@@ -1708,6 +1725,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		HideInaccessibleFeatures:       clusterFeatures.GetFeatureHiding(),
 		CustomTheme:                    clusterFeatures.GetCustomTheme(),
 		IsIGSEnabled:                   clusterFeatures.GetIdentityGovernance(),
+		IsPolicyEnabled:                policy != nil && policy.Enabled,
 		FeatureLimits: webclient.FeatureLimits{
 			AccessListCreateLimit:               int(clusterFeatures.GetAccessList().GetCreateLimit()),
 			AccessMonitoringMaxReportRangeLimit: int(clusterFeatures.GetAccessMonitoring().GetMaxReportRangeLimit()),
@@ -2649,7 +2667,9 @@ func makeUnifiedResourceRequest(r *http.Request) (*proto.ListUnifiedResourcesReq
 	}
 
 	startKey := values.Get("startKey")
-	includeRequestable := values.Get("includeRequestable") == "true"
+	includeRequestable := values.Get("includedResourceMode") == IncludedResourceModeAll
+	useSearchAsRoles := values.Get("searchAsRoles") == "yes" || values.Get("includedResourceMode") == IncludedResourceModeRequestable
+
 	return &proto.ListUnifiedResourcesRequest{
 		Kinds:               kinds,
 		Limit:               limit,
@@ -2658,12 +2678,9 @@ func makeUnifiedResourceRequest(r *http.Request) (*proto.ListUnifiedResourcesReq
 		PinnedOnly:          values.Get("pinnedOnly") == "true",
 		PredicateExpression: values.Get("query"),
 		SearchKeywords:      client.ParseSearchKeywords(values.Get("search"), ' '),
-		// includeRequestable requires a searchAsRoles request, but we set it here instead of the frontend
-		// to protect the frontend from accidentally requesting a "SearchAsRoles" request to older proxy versions
-		// and then returning a bunch of resources that won't include "Requires Request" flags.
-		UseSearchAsRoles:   values.Get("searchAsRoles") == "yes" || includeRequestable,
-		IncludeLogins:      true,
-		IncludeRequestable: includeRequestable,
+		UseSearchAsRoles:    useSearchAsRoles,
+		IncludeLogins:       true,
+		IncludeRequestable:  includeRequestable,
 	}, nil
 }
 
@@ -4106,7 +4123,7 @@ func (h *Handler) writeErrToWebSocket(ws *websocket.Conn, err error) {
 	if err == nil {
 		return
 	}
-	errEnvelope := Envelope{
+	errEnvelope := terminal.Envelope{
 		Type:    defaults.WebsocketError,
 		Payload: trace.UserMessage(err),
 	}
