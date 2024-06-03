@@ -408,6 +408,7 @@ func (s *Server) TargetMetadata() apievents.ServerMetadata {
 	}
 
 	return apievents.ServerMetadata{
+		ServerVersion:   teleport.Version,
 		ServerNamespace: s.GetNamespace(),
 		ServerID:        s.targetID,
 		ServerAddr:      s.targetAddr,
