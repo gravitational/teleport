@@ -8,4 +8,10 @@ spec:
   # rows that are retained when lines are scrolled beyond the initial
   # viewport. Does not apply to session recording view.
   scrollback_lines: 1000
+
+  # Which resources should be shown in the web UI resources page resources the user
+  # has access to, and resources the user can request access to. By default, both types
+  # are included. If you wish for users to only see resources they have access to, set
+  # this to "accessible_only".
+  show_resources: 'requestable'
 ```
