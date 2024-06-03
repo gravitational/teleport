@@ -5,6 +5,7 @@ go 1.22.0
 toolchain go1.22.3
 
 require (
+	cloud.google.com/go/cloudsqlconn v1.10.0
 	cloud.google.com/go/compute v1.26.0
 	cloud.google.com/go/compute/metadata v0.3.0
 	cloud.google.com/go/container v1.35.1
@@ -146,7 +147,7 @@ require (
 	github.com/mailgun/ttlmap v0.0.0-20170619185759-c1c17f74874f
 	github.com/mattn/go-sqlite3 v1.14.22
 	github.com/mdlayher/netlink v1.7.2
-	github.com/microsoft/go-mssqldb v0.0.0-00010101000000-000000000000 // replaced
+	github.com/microsoft/go-mssqldb v1.7.1 // replaced
 	github.com/microsoft/kiota-authentication-azure-go v1.0.2
 	github.com/microsoftgraph/msgraph-sdk-go v1.40.0
 	github.com/microsoftgraph/msgraph-sdk-go-core v1.1.0
@@ -207,7 +208,7 @@ require (
 	golang.org/x/text v0.15.0
 	golang.org/x/time v0.5.0
 	golang.zx2c4.com/wireguard v0.0.0-20231211153847-12269c276173
-	google.golang.org/api v0.177.0
+	google.golang.org/api v0.180.0
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240520151616-dc85e6b867a5
 	google.golang.org/grpc v1.64.0
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.3.0
@@ -241,7 +242,7 @@ require github.com/mailgun/minheap v0.0.0-20170619185613-3dbe6c6bf55f // indirec
 
 require (
 	cloud.google.com/go v0.112.2 // indirect
-	cloud.google.com/go/auth v0.3.0 // indirect
+	cloud.google.com/go/auth v0.4.1 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.2 // indirect
 	cloud.google.com/go/longrunning v0.5.6 // indirect
 	cloud.google.com/go/pubsub v1.37.0 // indirect
@@ -355,7 +356,7 @@ require (
 	github.com/goccy/go-json v0.10.2 // indirect
 	github.com/godbus/dbus v0.0.0-20190726142602-4481cbc300e2 // indirect
 	github.com/golang-jwt/jwt/v5 v5.2.1 // indirect
-	github.com/golang-sql/civil v0.0.0-20190719163853-cb61b32ac6fe // indirect
+	github.com/golang-sql/civil v0.0.0-20220223132316-b832511892a9 // indirect
 	github.com/golang-sql/sqlexp v0.1.0 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
