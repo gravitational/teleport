@@ -72,12 +72,18 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
 
   async addRootCluster(addr: string) {
     const { response: cluster } = await this.client.addCluster({ name: addr });
-    this.setState(draft => {
-      draft.clusters.set(
-        cluster.uri as uri.RootClusterUri,
-        this.removeInternalLoginsFromCluster(cluster)
-      );
-    });
+    // Do not overwrite the existing cluster;
+    // otherwise we may lose properties fetched from the auth server.
+    // Consider separating properties read from profile and those
+    // fetched from the auth server at the RPC message level.
+    if (!this.state.clusters.has(cluster.uri)) {
+      this.setState(draft => {
+        draft.clusters.set(
+          cluster.uri,
+          this.removeInternalLoginsFromCluster(cluster)
+        );
+      });
+    }
 
     return cluster;
   }
