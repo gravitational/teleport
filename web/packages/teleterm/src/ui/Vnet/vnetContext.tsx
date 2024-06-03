@@ -55,7 +55,7 @@ export const VnetContext = createContext<VnetContext>(null);
 
 export const VnetContextProvider: FC<PropsWithChildren> = props => {
   const [status, setStatus] = useState<VnetStatus>('stopped');
-  const { vnet, mainProcessClient, configService } = useAppContext();
+  const { vnet, mainProcessClient } = useAppContext();
   const isWorkspaceStateInitialized = useStoreSelector(
     'workspacesService',
     useCallback(state => state.isInitialized, [])
@@ -65,10 +65,8 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
   });
 
   const isSupported = useMemo(
-    () =>
-      mainProcessClient.getRuntimeSettings().platform === 'darwin' &&
-      configService.get('feature.vnet').value,
-    [mainProcessClient, configService]
+    () => mainProcessClient.getRuntimeSettings().platform === 'darwin',
+    [mainProcessClient]
   );
 
   const [startAttempt, start] = useAsync(
