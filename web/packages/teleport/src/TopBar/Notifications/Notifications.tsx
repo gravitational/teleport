@@ -79,7 +79,12 @@ export function Notifications() {
 
       <Dropdown
         open={open}
-        style={{ width: '300px' }}
+        style={{
+          width: '300px',
+          maxHeight: '80vh',
+          overflowY: 'auto',
+          overflowX: 'hidden',
+        }}
         data-testid="tb-note-dropdown"
       >
         {items.length ? (
