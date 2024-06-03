@@ -582,6 +582,17 @@ func (l *Log) searchEventsRaw(ctx context.Context, fromUTC, toUTC time.Time, nam
 		return nil, "", trace.Wrap(err)
 	}
 
+	if checkpoint.Date != "" {
+		if t, err := time.Parse(time.DateOnly, checkpoint.Date); err == nil {
+			d := fromUTC.Unix()
+			// if fromUTC at 00:00:00 is bigger than the cursor,
+			// reset the cursor and advance to next day.
+			if time.Unix(d-d%(24*3600), 0).After(t) {
+				checkpoint = checkpointKey{}
+			}
+		}
+	}
+
 	totalSize := 0
 	dates := daysBetween(fromUTC, toUTC)
 	if order == types.EventOrderDescending {
@@ -602,8 +613,14 @@ func (l *Log) searchEventsRaw(ctx context.Context, fromUTC, toUTC time.Time, nam
 	// We need to perform a guard check on the length of `dates` here in case a query is submitted with
 	// `toUTC` occurring before `fromUTC`.
 	if checkpoint.Date != "" && len(dates) > 0 {
-		for dates[0] != checkpoint.Date {
+		for len(dates) > 0 && dates[0] != checkpoint.Date {
 			dates = dates[1:]
+		}
+		// if the initial data wasn't found in [fromUTC,toUTC]
+		// dates will be empty and we can return early since we
+		// won't find any events.
+		if len(dates) == 0 {
+			return nil, "", nil
 		}
 	}
 
