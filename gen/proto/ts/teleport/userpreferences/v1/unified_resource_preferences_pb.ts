@@ -148,7 +148,11 @@ export enum AvailableResourceMode {
     /**
      * @generated from protobuf enum value: AVAILABLE_RESOURCE_MODE_REQUESTABLE = 3;
      */
-    REQUESTABLE = 3
+    REQUESTABLE = 3,
+    /**
+     * @generated from protobuf enum value: AVAILABLE_RESOURCE_MODE_NONE = 4;
+     */
+    NONE = 4
 }
 // @generated message type with reflection information, may provide speed optimized methods
 class UnifiedResourcePreferences$Type extends MessageType<UnifiedResourcePreferences> {
