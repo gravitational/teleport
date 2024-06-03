@@ -111,7 +111,7 @@ func GCPCloudSQLDialFunc(ctx context.Context, config AuthConfig, dbUser string, 
 	return func(ctx context.Context, _, _ string) (net.Conn, error) {
 		// Use connection name and ignore network and host address.
 		logger.DebugContext(ctx, "Dialing GCP Cloud SQL.", "connection_name", config.GCPConnectionName, "service_account", targetServiceAccount, "ip_type", config.GCPIPType)
-		conn, err := dialer.Dial(ctx, targetServiceAccount, dialOptions...)
+		conn, err := dialer.Dial(ctx, config.GCPConnectionName, dialOptions...)
 		return conn, trace.Wrap(err)
 	}, nil
 }
