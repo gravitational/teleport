@@ -122,7 +122,6 @@ export const createAppConfigSchema = (platform: Platform) => {
       .boolean()
       .default(false)
       .describe('Disables SSH connection resumption.'),
-    'feature.vnet': z.boolean().default(false).describe('Shows UI for VNet.'),
   });
 };
 

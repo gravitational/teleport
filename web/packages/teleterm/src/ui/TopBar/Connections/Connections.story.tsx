@@ -265,7 +265,6 @@ const prepareAppContext = (appContext: MockAppContext) => {
   appContext.connectionTracker.disconnectItem = async () => {};
   appContext.connectionTracker.removeItem = async () => {};
   appContext.connectionTracker.useState = () => null;
-  appContext.configService.set('feature.vnet', true);
 };
 
 const useOpenConnections = () => {

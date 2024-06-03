@@ -44,7 +44,6 @@ export default {
 
 export function ActionButtons() {
   const appContext = new MockAppContext();
-  appContext.configService.set('feature.vnet', true);
   prepareAppContext(appContext);
 
   return (

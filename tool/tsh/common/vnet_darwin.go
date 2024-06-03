@@ -33,8 +33,7 @@ type vnetCommand struct {
 
 func newVnetCommand(app *kingpin.Application) *vnetCommand {
 	cmd := &vnetCommand{
-		// TODO(nklaassen): unhide this when ready to ship.
-		CmdClause: app.Command("vnet", "Start Teleport VNet, a virtual network for TCP application access.").Hidden(),
+		CmdClause: app.Command("vnet", "Start Teleport VNet, a virtual network for TCP application access."),
 	}
 	return cmd
 }
