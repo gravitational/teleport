@@ -29,6 +29,7 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -142,7 +143,9 @@ type healthCheckAppServerFunc func(ctx context.Context, publicAddr string, clust
 
 // Handler is HTTP web proxy handler
 type Handler struct {
-	log logrus.FieldLogger
+	// TODO(greedy52) deprecate logrus.FieldLogger.
+	log    logrus.FieldLogger
+	logger *slog.Logger
 
 	sync.Mutex
 	httprouter.Router
@@ -402,6 +405,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	h := &Handler{
 		cfg:                  cfg,
 		log:                  newPackageLogger(),
+		logger:               slog.Default().With(teleport.ComponentKey, teleport.ComponentWeb),
 		clock:                clockwork.NewRealClock(),
 		ClusterFeatures:      cfg.ClusterFeatures,
 		healthCheckAppServer: cfg.HealthCheckAppServer,
@@ -706,7 +710,8 @@ func (h *Handler) bindDefaultEndpoints() {
 	// Teleport
 	h.GET("/webapi/scripts/installer/:name", h.WithLimiter(h.installer))
 
-	// desktop access configuration scripts
+	// Deprecated: AD discovery flow is deprecated and will be removed in v17.0.0.
+	// TODO(isaiah): Delete in v17.0.0.
 	h.GET("/webapi/scripts/desktop-access/install-ad-ds.ps1", h.WithLimiter(h.desktopAccessScriptInstallADDSHandle))
 	h.GET("/webapi/scripts/desktop-access/install-ad-cs.ps1", h.WithLimiter(h.desktopAccessScriptInstallADCSHandle))
 	h.GET("/webapi/scripts/desktop-access/configure/:token/configure-ad.ps1", h.WithLimiter(h.desktopAccessScriptConfigureHandle))
@@ -1702,6 +1707,8 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	// TODO(mcbattirola): remove isTeam when it is no longer used
 	isTeam := clusterFeatures.GetProductType() == proto.ProductType_PRODUCT_TYPE_TEAM
 
+	policy := clusterFeatures.GetPolicy()
+
 	webCfg := webclient.WebConfig{
 		Edition:                        modules.GetModules().BuildType(),
 		Auth:                           authSettings,
@@ -1718,6 +1725,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		HideInaccessibleFeatures:       clusterFeatures.GetFeatureHiding(),
 		CustomTheme:                    clusterFeatures.GetCustomTheme(),
 		IsIGSEnabled:                   clusterFeatures.GetIdentityGovernance(),
+		IsPolicyEnabled:                policy != nil && policy.Enabled,
 		FeatureLimits: webclient.FeatureLimits{
 			AccessListCreateLimit:               int(clusterFeatures.GetAccessList().GetCreateLimit()),
 			AccessMonitoringMaxReportRangeLimit: int(clusterFeatures.GetAccessMonitoring().GetMaxReportRangeLimit()),

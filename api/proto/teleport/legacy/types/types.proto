@@ -6677,16 +6677,26 @@ message JamfSpecV1 {
   // Jamf API username.
   // Username and password are used to acquire short-lived Jamf Pro API tokens.
   // See https://developer.jamf.com/jamf-pro/docs/jamf-pro-api-overview.
-  // Required.
+  // Prefer using client_id and client_secret.
+  // Either username+password or client_id+client_secret are required.
   string username = 5 [(gogoproto.jsontag) = "username,omitempty"];
   // Jamf API password.
   // Username and password are used to acquire short-lived Jamf Pro API tokens.
   // See https://developer.jamf.com/jamf-pro/docs/jamf-pro-api-overview.
-  // Required.
+  // Prefer using client_id and client_secret.
+  // Either username+password or client_id+client_secret are required.
   string password = 6 [(gogoproto.jsontag) = "password,omitempty"];
   // Inventory sync entries.
   // If empty a default sync configuration is used.
   repeated JamfInventoryEntry inventory = 7 [(gogoproto.jsontag) = "inventory,omitempty"];
+  // Jamf API client ID.
+  // See https://developer.jamf.com/jamf-pro/docs/client-credentials.
+  // Either username+password or client_id+client_secret are required.
+  string client_id = 8 [(gogoproto.jsontag) = "client_id,omitempty"];
+  // Jamf API client secret.
+  // See https://developer.jamf.com/jamf-pro/docs/client-credentials.
+  // Either username+password or client_id+client_secret are required.
+  string client_secret = 9 [(gogoproto.jsontag) = "client_secret,omitempty"];
 }
 
 // JamfInventoryEntry is an inventory sync entry for [JamfSpecV1].
@@ -6780,6 +6790,10 @@ message AWSMatcher {
   // KubeAppDiscovery controls whether Kubernetes App Discovery will be enabled for agents running on
   // discovered clusters, currently only affects AWS EKS discovery in integration mode.
   bool KubeAppDiscovery = 8 [(gogoproto.jsontag) = "kube_app_discovery,omitempty"];
+  // SetupAccessForARN is the role that the discovery service should create EKS Access Entries for.
+  // This value should match the IAM identity that Teleport Kubernetes Service uses.
+  // If this value is empty, the discovery service will attempt to set up access for its own identity (self).
+  string SetupAccessForARN = 9 [(gogoproto.jsontag) = "setup_access_for_arn,omitempty"];
 }
 
 // AssumeRole provides a role ARN and ExternalID to assume an AWS role

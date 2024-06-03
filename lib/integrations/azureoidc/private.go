@@ -129,20 +129,22 @@ func exchangeToken(ctx context.Context, tenantID string, token msalToken) (strin
 // getPrivateAPIToken uses the azure CLI token cache to exchange a refresh token
 // for an access token authenticated to the "private" Azure API.
 func getPrivateAPIToken(ctx context.Context, tenantID string) (string, error) {
+	var err error
 	tokens, err := getRefreshTokens()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 	for _, token := range tokens {
+		var tokenStr string
 		slog.DebugContext(ctx, "trying token", "client_id", token.ClientID)
-		token, err := exchangeToken(ctx, tenantID, token)
+		tokenStr, err = exchangeToken(ctx, tenantID, token)
 		if err != nil {
 			slog.DebugContext(ctx, "error exchanging token", "err", err)
 		} else {
-			return token, nil
+			return tokenStr, nil
 		}
 	}
-	return "", trace.Errorf("no viable token")
+	return "", trace.Wrap(err, "no viable token")
 }
 
 // privateAPIGet invokes GET on the given endpoint of the "private" main.iam.ad.ext.azure.com azure API.

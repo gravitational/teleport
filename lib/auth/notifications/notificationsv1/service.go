@@ -176,7 +176,12 @@ func (s *Service) ListNotifications(ctx context.Context, req *notificationsv1.Li
 			// If the last item in this page (ie. the current item in the stream) was a user-specific notification, then the userNotificationsNextKey should be the next item in the userNotifsStream, and
 			// the globalNotificationsNextKey should be the current (and unconsumed) item in the globalNotifsStream. And vice-versa.
 			if item.GetMetadata().GetLabels()[types.NotificationScope] == "user" {
-				nextGlobalKey = globalNotifsStream.Item().GetMetadata().GetName()
+				// If the provided globalKey was "", then return that as the nextGlobalKey again.
+				if globalKey != "" || !found {
+					nextGlobalKey = globalNotifsStream.Item().GetMetadata().GetName()
+				} else {
+					nextGlobalKey = ""
+				}
 				// Advance to the next user-specific notification.
 				ok := userNotifsStream.Next()
 				if ok {
@@ -186,7 +191,12 @@ func (s *Service) ListNotifications(ctx context.Context, req *notificationsv1.Li
 					nextUserKey = ""
 				}
 			} else {
-				nextUserKey = userNotifsStream.Item().GetMetadata().GetName()
+				// If the provided userKey was "", then return that as the nextUserKey again.
+				if userKey != "" || !found {
+					nextUserKey = userNotifsStream.Item().GetMetadata().GetName()
+				} else {
+					nextUserKey = ""
+				}
 				// Advance to the next global notification.
 				ok := globalNotifsStream.Next()
 				if ok {

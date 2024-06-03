@@ -282,7 +282,7 @@ func TestNotifications(t *testing.T) {
 
 	// Fetch the next 3 notifications, starting from the previously received startKeys.
 	// After this fetch, there should be no more global notifications for auditor, so the next page token
-	// for global notifications should be "end".
+	// for global notifications should be "".
 	resp, err = auditorClient.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{
 		PageSize:  3,
 		PageToken: resp.NextPageToken,
@@ -290,6 +290,16 @@ func TestNotifications(t *testing.T) {
 	require.NoError(t, err)
 	expectedNextKeys = fmt.Sprintf("%s,", notificationIdMap["auditor-2"])
 
+	require.Equal(t, expectedNextKeys, resp.NextPageToken)
+	finalOut = append(finalOut, resp.Notifications...)
+
+	// Fetch a page of 1 notification, starting from the previously received startKeys.
+	resp, err = auditorClient.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{
+		PageSize:  1,
+		PageToken: resp.NextPageToken,
+	})
+	require.NoError(t, err)
+	expectedNextKeys = fmt.Sprintf("%s,", notificationIdMap["auditor-1"])
 	require.Equal(t, expectedNextKeys, resp.NextPageToken)
 	finalOut = append(finalOut, resp.Notifications...)
 

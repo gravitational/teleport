@@ -43,6 +43,7 @@ import { ShowResources } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb'
 import { DefaultTab } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 
 import { NodeSubKind } from 'shared/services';
+import { waitForever } from 'shared/utils/wait';
 
 import { UserPreferences } from 'teleterm/services/tshd/types';
 import { UnifiedResourceResponse } from 'teleterm/ui/services/resources';
@@ -204,7 +205,7 @@ export function UnifiedResources(props: {
       discoverUrl={discoverUrl}
       // Reset the component state when query params object change.
       // JSON.stringify on the same object will always produce the same string.
-      key={JSON.stringify(mergedParams)}
+      key={`${JSON.stringify(mergedParams)}-${rootCluster.showResources}`}
     />
   );
 }
@@ -230,8 +231,11 @@ const Resources = memo(
     const { fetch, resources, attempt, clear } = useUnifiedResourcesFetch({
       fetchFunc: useCallback(
         async (paginationParams, signal) => {
-          const showRequestableResources =
-            props.showResources === ShowResources.REQUESTABLE;
+          // Block call if we don't know yet what resources to show.
+          // We will remount the component and do the call when showResources changes.
+          if (props.showResources === ShowResources.UNSPECIFIED) {
+            await waitForever(signal);
+          }
           const response = await retryWithRelogin(
             appContext,
             props.clusterUri,
@@ -239,7 +243,7 @@ const Resources = memo(
               appContext.resourcesService.listUnifiedResources(
                 {
                   clusterUri: props.clusterUri,
-                  searchAsRoles: showRequestableResources,
+                  searchAsRoles: false,
                   sortBy: {
                     isDesc: props.queryParams.sort.dir === 'DESC',
                     field: props.queryParams.sort.fieldName,
@@ -250,7 +254,8 @@ const Resources = memo(
                   pinnedOnly: props.queryParams.pinnedOnly,
                   startKey: paginationParams.startKey,
                   limit: paginationParams.limit,
-                  includeRequestable: showRequestableResources,
+                  includeRequestable:
+                    props.showResources === ShowResources.REQUESTABLE,
                 },
                 signal
               )
@@ -259,7 +264,6 @@ const Resources = memo(
           return {
             startKey: response.nextKey,
             agents: response.resources,
-            totalCount: response.resources.length,
           };
         },
         [
@@ -320,11 +324,7 @@ const Resources = memo(
             },
           };
         })}
-        resourcesFetchAttempt={
-          props.showResources === ShowResources.UNSPECIFIED
-            ? { status: 'processing' }
-            : attempt
-        }
+        resourcesFetchAttempt={attempt}
         fetchResources={fetch}
         availableKinds={[
           {

@@ -16,7 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, useRef, useCallback, MutableRefObject } from 'react';
+import {
+  useState,
+  useRef,
+  useCallback,
+  MutableRefObject,
+  useEffect,
+} from 'react';
 
 import { ResourcesResponse } from 'teleport/services/agents';
 import { ApiError } from 'teleport/services/api/parseError';
@@ -57,6 +63,11 @@ export function useKeyBasedPagination<T>({
   // cause rerenders.
   const abortController = useRef<AbortController | null>(null);
   const pendingPromise = useRef<Promise<ResourcesResponse<T>> | null>(null);
+
+  useEffect(() => {
+    // Abort a pending request when the hook unmounts.
+    return () => abortController.current?.abort();
+  }, []);
 
   const clear = useCallback(() => {
     abortController.current?.abort();
