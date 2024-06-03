@@ -21,6 +21,7 @@ package vnet
 
 import (
 	"context"
+	"net"
 	"runtime"
 
 	"github.com/gravitational/trace"
@@ -32,16 +33,22 @@ var (
 	ErrVnetNotImplemented = &trace.NotImplementedError{Message: "VNet is not implemented on " + runtime.GOOS}
 )
 
-func createAndSetupTUNDeviceWithoutRoot(ctx context.Context, ipv6Prefix, dnsAddr string) (<-chan tun.Device, <-chan error) {
-	errCh := make(chan error, 1)
-	errCh <- trace.Wrap(ErrVnetNotImplemented)
-	return nil, errCh
+func createUnixSocket() (*net.UnixListener, string, error) {
+	return nil, "", trace.Wrap(ErrVnetNotImplemented)
 }
 
 func sendTUNNameAndFd(socketPath, tunName string, fd uintptr) error {
 	return trace.Wrap(ErrVnetNotImplemented)
 }
 
+func receiveTUNDevice(socket *net.UnixListener) (tun.Device, error) {
+	return nil, trace.Wrap(ErrVnetNotImplemented)
+}
+
 func configureOS(ctx context.Context, cfg *osConfig) error {
+	return trace.Wrap(ErrVnetNotImplemented)
+}
+
+func execAdminSubcommand(ctx context.Context, socketPath, ipv6Prefix, dnsAddr string) error {
 	return trace.Wrap(ErrVnetNotImplemented)
 }
