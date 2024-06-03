@@ -71,7 +71,7 @@ jobs:
 
       - name: Copy the new artifacts on top of the existing repository
         run: |
-          cp -rv "${ARITFACTS_DIR}" .
+          cp -rv "${ARITFACTS_DIR}/"* .
 
       - name: Package chart repository
         run: |
