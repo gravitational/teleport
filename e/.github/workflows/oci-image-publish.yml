@@ -58,7 +58,7 @@ jobs:
         # Even after changing AWS roles, the docker daemon should still be able to use these credentials
         # until they expire.  
       - name: Login to Pending ECR Registry
-        uses: docker/login-action@e92390c5fb421da1463c202d546fed0ec5c39f20 # v3.1.0
+        uses: docker/login-action@0d4c9c5ea7693da7b068278f7b52bda2a190a446 # v3.2.0
         with:
           registry: ${{ vars.ECR_PENDING_REPO_BASE }}
 
@@ -84,7 +84,7 @@ jobs:
           role-duration-seconds: 900
 
       - name: Login to Production ECR Registry
-        uses: docker/login-action@e92390c5fb421da1463c202d546fed0ec5c39f20 # v3.1.0
+        uses: docker/login-action@0d4c9c5ea7693da7b068278f7b52bda2a190a446 # v3.2.0
         with:
           # Don't use `vars.OCI_PUBLIC_REPO_BASE` here due to a bug with the login action.
           # The login action checks to see if the registry is exactly equal to `public.ecr.aws`,
