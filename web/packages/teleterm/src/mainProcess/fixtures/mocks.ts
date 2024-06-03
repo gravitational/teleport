@@ -33,7 +33,6 @@ export class MockMainProcessClient implements MainProcessClient {
       jsonSchemaFile: createMockFileStorage(),
       platform: this.getRuntimeSettings().platform,
     });
-    this.configService.set('feature.vnet', true);
   }
 
   subscribeToNativeThemeUpdate() {

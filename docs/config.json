@@ -479,21 +479,21 @@
           ]
         },
         {
-          "title": "Access Graph",
+          "title": "Teleport Policy",
           "slug": "/access-controls/access-graph/",
           "forScopes": [
             "enterprise"
           ],
           "entries": [
             {
-              "title": "TAG for Self-Hosted Clusters",
+              "title": "Teleport Policy for Self-Hosted Clusters",
               "slug": "/access-controls/access-graph/self-hosted/",
               "forScopes": [
                 "enterprise"
               ]
             },
             {
-              "title": "TAG for Self-Hosted Clusters with Helm",
+              "title": "Teleport Policy for Self-Hosted Clusters with Helm",
               "slug": "/access-controls/access-graph/self-hosted-helm/",
               "forScopes": [
                 "enterprise"
@@ -1348,12 +1348,16 @@
           "slug": "/database-access/enroll-google-cloud-databases/",
           "entries": [
             {
-              "title": "PostgreSQL on GCP Cloud SQL",
-              "slug": "/database-access/enroll-google-cloud-databases/postgres-cloudsql/"
+              "title": "Cloud Spanner",
+              "slug": "/database-access/enroll-google-cloud-databases/spanner/"
             },
             {
-              "title": "MySQL on GCP Cloud SQL",
+              "title": "Cloud SQL for MySQL",
               "slug": "/database-access/enroll-google-cloud-databases/mysql-cloudsql/"
+            },
+            {
+              "title": "Cloud SQL for PostgreSQL",
+              "slug": "/database-access/enroll-google-cloud-databases/postgres-cloudsql/"
             }
           ]
         },
@@ -1948,6 +1952,11 @@
     },
     "helm": {
       "version": "3.4.2"
+    },
+    "jamf": {
+      "api_endpoint": "https://yourtenant.jamfcloud.com",
+      "client_id": "your-client-id",
+      "client_secret": "your-client-secret"
     },
     "kubernetes": {
       "major_version": "1",
