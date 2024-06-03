@@ -12,6 +12,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/time/rate"
 
+	ossteleport "github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
@@ -528,7 +529,6 @@ func (a *assignmentProcessor) unregisterUserTarget(assignment types.OktaAssignme
 	}
 
 	return remainingAssignmentNames
-
 }
 
 // getAssignmentClient returns the assignment client.
@@ -580,7 +580,8 @@ func (a *assignmentProcessor) emitAuditEvent(ctx context.Context, assignment typ
 			Code: eventCode,
 		},
 		ServerMetadata: apievents.ServerMetadata{
-			ServerID: a.hostID,
+			ServerVersion: ossteleport.Version,
+			ServerID:      a.hostID,
 		},
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: assignment.GetName(),

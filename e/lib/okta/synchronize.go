@@ -7,6 +7,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/okta/okta-sdk-golang/v2/okta"
 
+	ossteleport "github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -96,7 +97,8 @@ func (s *Service) emitSyncError(ctx context.Context, err error) {
 			Code: events.OktaSyncFailureCode,
 		},
 		ServerMetadata: apievents.ServerMetadata{
-			ServerID: s.hostID,
+			ServerVersion: ossteleport.Version,
+			ServerID:      s.hostID,
 		},
 		Status: apievents.Status{
 			Success: false,
@@ -148,7 +150,6 @@ func (s *Service) synchronizeAndEmitEvents(ctx context.Context) {
 
 // synchronize will synchronize the Okta groups and applications with the backend.
 func (s *Service) synchronize(ctx context.Context) error {
-
 	if err := s.syncUsers(ctx); err != nil {
 		return trace.Wrap(err)
 	}
@@ -510,7 +511,8 @@ func (s *Service) addAppOktaResource(target *[]*apievents.OktaResource, app type
 
 // emitSyncEventsInBatches will emit synchronize events in batches so that they're not too large.
 func (s *Service) emitSyncEventsInBatches(ctx context.Context, eventName, eventCode string,
-	added []*apievents.OktaResource, updated []*apievents.OktaResource, deleted []*apievents.OktaResource) {
+	added []*apievents.OktaResource, updated []*apievents.OktaResource, deleted []*apievents.OktaResource,
+) {
 	numResourcesAdded := len(added)
 	numResourcesUpdated := len(updated)
 	numResourcesDeleted := len(deleted)
@@ -550,7 +552,8 @@ func (s *Service) emitSyncEventsInBatches(ctx context.Context, eventName, eventC
 				Code: eventCode,
 			},
 			ServerMetadata: apievents.ServerMetadata{
-				ServerID: s.hostID,
+				ServerVersion: ossteleport.Version,
+				ServerID:      s.hostID,
 			},
 			OktaResourcesUpdatedMetadata: apievents.OktaResourcesUpdatedMetadata{
 				Added:            int32(len(batch.added)),
