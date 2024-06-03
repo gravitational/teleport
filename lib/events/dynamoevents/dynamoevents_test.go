@@ -18,6 +18,7 @@ package dynamoevents
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"net/url"
@@ -112,6 +113,32 @@ func TestSearchSessionEvensBySessionID(t *testing.T) {
 	tt := setupDynamoContext(t)
 
 	tt.suite.SearchSessionEventsBySessionID(t)
+}
+
+// TestCheckpointOutsideOfWindow tests if [Log] doesn't panic
+// if checkpoint date is outside of the window [fromUTC,toUTC].
+func TestCheckpointOutsideOfWindow(t *testing.T) {
+	tt := &Log{}
+
+	key := checkpointKey{
+		Date: "2022-10-02",
+	}
+	keyB, err := json.Marshal(key)
+	require.NoError(t, err)
+
+	results, nextKey, err := tt.SearchEvents(
+		context.Background(),
+		events.SearchEventsRequest{
+			From:     time.Date(2021, 10, 10, 0, 0, 0, 0, time.UTC),
+			To:       time.Date(2021, 11, 10, 0, 0, 0, 0, time.UTC),
+			Limit:    100,
+			StartKey: string(keyB),
+			Order:    types.EventOrderAscending,
+		},
+	)
+	require.NoError(t, err)
+	require.Empty(t, results)
+	require.Empty(t, nextKey)
 }
 
 func TestSizeBreak(t *testing.T) {
