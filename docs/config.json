@@ -1957,6 +1957,11 @@
     "helm": {
       "version": "3.4.2"
     },
+    "jamf": {
+      "api_endpoint": "https://yourtenant.jamfcloud.com",
+      "client_id": "your-client-id",
+      "client_secret": "your-client-secret"
+    },
     "kubernetes": {
       "major_version": "1",
       "minor_version": "17"
