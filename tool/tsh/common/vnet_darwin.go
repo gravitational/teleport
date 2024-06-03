@@ -44,7 +44,18 @@ func (c *vnetCommand) run(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(vnet.Run(cf.Context, appProvider))
+
+	processManager, err := vnet.SetupAndRun(cf.Context, appProvider)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	go func() {
+		<-cf.Context.Done()
+		processManager.Close()
+	}()
+
+	return trace.Wrap(processManager.Wait())
 }
 
 type vnetAdminSetupCommand struct {

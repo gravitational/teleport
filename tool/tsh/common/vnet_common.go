@@ -105,6 +105,7 @@ func (p *vnetAppProvider) GetDialOptions(ctx context.Context, profileName string
 	dialOpts := &vnet.DialOptions{
 		WebProxyAddr:            profile.WebProxyAddr,
 		ALPNConnUpgradeRequired: profile.TLSRoutingConnUpgradeRequired,
+		InsecureSkipVerify:      p.cf.InsecureSkipVerify,
 	}
 	if dialOpts.ALPNConnUpgradeRequired {
 		dialOpts.RootClusterCACertPool, err = p.getRootClusterCACertPool(ctx, profileName)
