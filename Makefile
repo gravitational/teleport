@@ -119,7 +119,7 @@ is_fips_on_arm64 := yes
 endif
 endif
 
-# Do not build RDP client on ARM or 386, or for FIPS builds on arm64.
+# Do not build RDP client on 32-bit ARM or 386, or for FIPS builds on arm64.
 ifneq ("$(ARCH)","arm")
 ifneq ("$(ARCH)","386")
 ifneq ("$(is_fips_on_arm64)","yes")
