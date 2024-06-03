@@ -46,7 +46,7 @@ which takes to **Add Service Provider To Teleport** step.
 
 With this option, the minimum configuration values required to add a service provider are:
 1. **Entity ID:** The SAML metadata value or an endpoint of the service provider.
-2. **ACS URL:** The endpoint where users will be redirected after SAML authentication. ACS URL
+1. **ACS URL:** The endpoint where users will be redirected after SAML authentication. ACS URL
 is also referred to as SAML SSO URL.
 
 To configure iamshowcase app, the values you need to provide are the following:
@@ -185,7 +185,8 @@ click **Login** button, which will now forward you to iamshowcase protected page
 This page shows Teleport user details along with other attributes such as roles are
 federated by Teleport SAML IdP.
 
-This concludes a working service provider added to Teleport SAML IdP.
+This demonstrates adding a service provider to Teleport configured with a working idp-initiated SSO login flow.
+
 ## Recommended: Creating dedicated role to manage service provider
 
 For production, we recommend creating a dedicated role to manage service provider.
