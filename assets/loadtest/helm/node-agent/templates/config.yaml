@@ -40,4 +40,4 @@ data:
     echo "  listen_addr: '0.0.0.0:30$REPLICA'" >> /etc/teleport.yaml
     HOST="$(hostname)-$REPLICA"
     cat /etc/teleport.yaml
-    exec teleport start -c /etc/teleport.yaml --nodename $HOST
+    exec dumb-init --rewrite 15:3 -- teleport start -c /etc/teleport.yaml --nodename $HOST
