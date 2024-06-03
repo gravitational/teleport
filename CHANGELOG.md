@@ -55,7 +55,7 @@ following Linux distro versions:
 * Ubuntu 19.04 (disco)
 * Ubuntu 19.10 (eoan)
 * Ubuntu 20.10 (groovy)
-* Ubuntu 21.04 (hirsuite)
+* Ubuntu 21.04 (hirsute)
 * Ubuntu 21.10 (impish)
 * Ubuntu 22.10 (kinetic)
 * Ubuntu 23.04 (lunar)
