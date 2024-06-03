@@ -43,10 +43,32 @@ We also updated the shortcut to open a new terminal on macOS to Control + Shift 
 See [configuration](docs/pages/connect-your-client/teleport-connect.mdx#configuration)
 for the current list of shortcuts.
 
-### Teleport plugins improvement
+#### Removal of support for Debian 9 and Ubuntu non-LTS versions
 
-Teleport plugins have under major improvements in v16. Starting with v16, all
-plugins will have:
+Upon release of v16, we will no longer provide support or releases for the
+following Linux distro versions:
+* Debian 9 (stretch)
+* Ubuntu 16.10 (yakkety)
+* Ubuntu 17.04 (zesty)
+* Ubuntu 17.10 (artful)
+* Ubuntu 18.10 (cosmic)
+* Ubuntu 19.04 (disco)
+* Ubuntu 19.10 (eoan)
+* Ubuntu 20.10 (groovy)
+* Ubuntu 21.04 (hirsuite)
+* Ubuntu 21.10 (impish)
+* Ubuntu 22.10 (kinetic)
+* Ubuntu 23.04 (lunar)
+* Ubuntu 23.10 (mantic)
+
+This change applies to all Teleport versions.
+
+### New features
+
+#### Teleport plugins improvement
+
+Teleport plugins have undergone major improvements in v16. Starting with v16,
+all plugins will have:
 * amd64 and arm64 binaries available
 * amd64 and arm64 images available via multi-arch image manifests
 * major and minor version rolling tags (i.e. `public.ecr.aws/gravitational/teleport-plugin-email:16`)
