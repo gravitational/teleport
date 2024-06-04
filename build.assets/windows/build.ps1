@@ -35,7 +35,7 @@ function New-TempDirectory {
     string
     #>
 
-    $TempDirectoryPath = Join-Path -Path "$([System.IO.Path]::GetTempPath())" -ChildPath "$($(New-Guid).Guid)"
+    $TempDirectoryPath = Join-Path -Path "$([System.IO.Path]::GetTempPath())" -ChildPath "$([guid]::newguid().Guid)"
     New-Item -ItemType Directory -Path "$TempDirectoryPath" | Out-Null
 
     return "$TempDirectoryPath"
@@ -304,7 +304,7 @@ function Invoke-SignBinary {
     )
 
     if (! $SignedBinaryPath) {
-        $ShouldMoveSignedBinary = true
+        $ShouldMoveSignedBinary = $true
         $SignedBinaryPath = Join-Path -Path $(New-TempDirectory) -ChildPath "signed.exe"
     }
 
@@ -312,7 +312,7 @@ function Invoke-SignBinary {
     wsl-ubuntu-command sign-binary "$UnsignedBinaryPath" "$SignedBinaryPath"
 
     if ($ShouldMoveSignedBinary) {
-        Move-Item -Path $SignedBinaryPath -Destination $UnsignedBinaryPath
+        Move-Item -Path $SignedBinaryPath -Destination $UnsignedBinaryPath -Force
     }
 }
 
