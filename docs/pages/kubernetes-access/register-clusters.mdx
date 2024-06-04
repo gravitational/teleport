@@ -9,13 +9,8 @@ manually, rather than letting Teleport [discover the cluster
 automatically](../auto-discovery/kubernetes.mdx). There are a few ways to do
 this:
 
-- [Deploy the Teleport Kubernetes
-  Service with IAM Joining](./register-clusters/iam-joining.mdx) on your cluster of
-  choice.
-- Deploy the Teleport Kubernetes Service outside your Kubernetes cluster (e.g.,
-  directly  on a virtual machine) and [give it access to a
-  kubeconfig](./register-clusters/static-kubeconfig.mdx).
-- Deploy the Teleport Kubernetes Service outside of Kubernetes  and [use dynamic
-  configuration resources](./register-clusters/dynamic-registration.mdx) to
-  register your clusters.
+{/*TOPICS*/}
 
+- [Dynamic Kubernetes Cluster Registration](register-clusters/dynamic-registration.mdx): Register and unregister Kubernetes clusters without restarting a Teleport Kubernetes Service instance.
+- [Register a Kubernetes Cluster using IAM Joining](register-clusters/iam-joining.mdx): Connecting a Kubernetes cluster to Teleport with IAM joining.
+- [Register a Kubernetes Cluster with a Static kubeconfig](register-clusters/static-kubeconfig.mdx): Connecting standalone Teleport installations to Kubernetes clusters.
