@@ -1238,10 +1238,6 @@
       "title": "Database Access",
       "entries": [
         {
-          "title": "Introduction",
-          "slug": "/database-access/introduction/"
-        },
-        {
           "title": "Getting Started",
           "slug": "/database-access/getting-started/"
         },
@@ -2021,11 +2017,6 @@
     {
       "source": "/application-access/",
       "destination": "/application-access/introduction/",
-      "permanent": true
-    },
-    {
-      "source": "/database-access/",
-      "destination": "/database-access/introduction/",
       "permanent": true
     },
     {
