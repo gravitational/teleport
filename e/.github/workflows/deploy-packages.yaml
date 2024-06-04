@@ -51,10 +51,16 @@ on:
         description: "This field adds the provided value to a run step, allowing the calling actor to associate the started run with the GHA run ID."
         type: string
         required: false
+      deploy:
+        description: "Deploys the packages if true. Set to false if package is already deployed and only tests should be run."
+        type: boolean
+        required: true
+        default: true
 
 jobs:
   determine-runner:
     name: Determine what runner the job should be sent to
+    if: ${{ inputs.deploy }}
     runs-on: ubuntu-latest
     outputs:
       runner: ${{ steps.output-step.outputs.runner }}
@@ -105,6 +111,7 @@ jobs:
 
   deploy:
     name: Deploy packages to ${{ inputs.repo-type }} repo
+    if: ${{ inputs.deploy }}
     # Note that the value of this string is arbitrary as long as it contains the `${{ inputs.repo-type }}`
     # and `${{ inputs.environment }}` expressions
     concurrency:
@@ -118,34 +125,12 @@ jobs:
       id-token: write   # Required for aws-actions/configure-aws-credentials
     environment: ${{ inputs.environment }}
     runs-on: ${{ fromJson(needs.determine-runner.outputs.runner) }}
-    outputs:
-      # This is the actual name of the version channel used in the repo component. It's calculated here and
-      # used when installing pacakges for smoke tests.
-      component-version-channel: ${{ steps.component-version-channel.outputs.component-version-channel }}
     env:
       TOOL_BINARY_PATH: os-package-repo-tool
       DOWNLOAD_DIRECTORY: /tmp/artifacts
       GNUPGHOME: /tmp/gnupg
       CACHE_PATH: /mnt/oprt-cache
     steps:
-      - name: Derive and set version channel
-        id: component-version-channel
-        if: inputs.package-to-test != ''
-        env:
-          # This is copy/pasted from https://semver.org/#is-there-a-suggested-regular-expression-regex-to-check-a-semver-string
-          # with the addition of "v?" to match Teleport's tag naming scheme
-          SEMVER_TAG_REGEX: ^v?(?P<major>0|[1-9]\d*)\.(?P<minor>0|[1-9]\d*)\.(?P<patch>0|[1-9]\d*)(?:-(?P<prerelease>(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+(?P<buildmetadata>[0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$
-          VERSION_CHANNEL: ${{ inputs.version-channel }}
-        run: |
-          # Check if the artifact version is a semver
-          if echo "$VERSION_CHANNEL" | grep --perl-regexp --quiet "$SEMVER_TAG_REGEX"; then
-            # Ensure exactly one "v" prefix exists, and trim the first '.' and everything after
-            echo "component-version-channel=$(echo "v${VERSION_CHANNEL#v}" | sed -e 's/\..*//')" >> "$GITHUB_OUTPUT"
-            exit
-          fi
-
-          # If not a semver (such as when it's set to "cloud")
-          echo "component-version-channel=$VERSION_CHANNEL" >> "$GITHUB_OUTPUT"
       - name: Derive and set repo type-specific variables for APT
         if: inputs.repo-type == 'apt'
         run: |
@@ -378,500 +363,113 @@ jobs:
           # This is a do-nothing step so that agents calling this workflow can determine what concurrency group
           # this run is using
 
-  
   # These jobs are designed to be a very final test to verify that we didn't just publish a broken release
   # They are very much not a catch-all even of the few basic tests they run - but if they fail, something
   # is really broken.
-  apt-debian-smoke-test:
-    name: Test packages deployed to APT repo on Debian
-    if: inputs.repo-type == 'apt' && inputs.package-to-test != ''
+  setup-test-environment:
+    name: Setup Test Environment
     needs: deploy
-    runs-on: ubuntu-latest
-    environment: ${{ inputs.environment}}
-    # A container is used here to maintain consistency in the testing methodology for both APT and YUM
-    strategy:
-      fail-fast: false
-      matrix:
-        # Multiple images are used to test for the ever recurring libc version issue
-        container-image: 
-          - "ubuntu:24.04"
-          - "ubuntu:22.04"
-          - "ubuntu:20.04"
-          - "ubuntu:18.04"
-          - "debian:10"
-          - "debian:11"
-          - "debian:12"
-    container:
-      image: ${{ matrix.container-image }}
-    defaults:
-      run:
-        shell: bash
-    steps:
-      - name: Log package to test
-        run: echo "${{ inputs.package-to-test }}"
-      # Note: These values are intentionally hard-coded here to prevent false positives or negatives due
-      #       to a value in one of our code/IaC repos changing without the change propegating everywhere.
-      - name: Derive and set Github environment-specific variables for production
-        if: contains(fromJSON('["promote", "build-prod", "publish-prod"]'), inputs.environment)
-        run: |
-          echo "APT_REPO_DOMAIN_NAME=apt.releases.teleport.dev" >> "$GITHUB_ENV"
-      - name: Derive and set Github environment-specific variables for development
-        if: contains(fromJSON('["build", "build-stage", "publish-stage"]'), inputs.environment)
-        run: |
-          echo "APT_REPO_DOMAIN_NAME=apt.releases.development.teleport.dev" >> "$GITHUB_ENV"
-      - name: Log set variables
-        run: |
-          echo "Set variables:"
-          env
-      - name: Setup for package install
-        env:
-          ARTIFACT_TAG: ${{ inputs.artifact-tag }}
-        run: |
-          # The container images are missing a couple of minor things needed for the install instructions
-          # on the downloads page
-          # sudo is not available in the image, so create a simple do-nothing script to replace it
-          SUDO_PATH="/usr/bin/sudo"
-          echo '$@' > "$SUDO_PATH"
-          chmod +x "$SUDO_PATH"
-          sudo echo "Running this with pseudo-sudo"
-
-          # Install apt-file and curl
-          apt update
-          apt install -y apt-file curl
-
-          # Set the package version
-          echo "PACKAGE_VERSION=${ARTIFACT_TAG#v}" >> "$GITHUB_ENV"
-      - name: Prepare to install the package
-        env:
-          RELEASE_CHANNEL: ${{ inputs.release-channel }}
-          VERSION_CHANNEL: ${{ needs.deploy.outputs.component-version-channel }}
-        run: |
-          # Install teleport based off of instructions from https://goteleport.com/docs/installation/#linux
-          # This is designed to be changed as little as possible from the source
-          sudo curl https://$APT_REPO_DOMAIN_NAME/gpg \
-            -o /usr/share/keyrings/teleport-archive-keyring.asc
-          source /etc/os-release
-          echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] \
-            https://$APT_REPO_DOMAIN_NAME/${ID?} ${VERSION_CODENAME?} $RELEASE_CHANNEL/$VERSION_CHANNEL" \
-            | sudo tee /etc/apt/sources.list.d/teleport.list > /dev/null
-          sudo apt-get update
-      - name: Log package pre-install information
-        env:
-          PACKAGE_TO_TEST: ${{ inputs.package-to-test }}
-        run: |
-          # Setup
-          apt-file update > /dev/null
-
-          # Log data
-          echo "Available versions of package:"
-          apt-cache policy "$PACKAGE_TO_TEST"
-
-          echo "Package files:"
-          apt-file list "$PACKAGE_TO_TEST"
-
-      # do teleport package tests
-      - name: Install the package
-        if: inputs.do-teleport-package-tests && inputs.package-to-test != 'teleport-ent-updater'
-        env:
-          PACKAGE_TO_TEST: ${{ inputs.package-to-test }}
-        run: |
-          sudo apt-get install -y "$PACKAGE_TO_TEST=$PACKAGE_VERSION"
-      - name: Log Teleport version
-        if: inputs.do-teleport-package-tests && inputs.package-to-test != 'teleport-ent-updater'
-        run: teleport version
-      - name: Verify installed Teleport version matches provided artifact version
-        if: inputs.do-teleport-package-tests && inputs.package-to-test != 'teleport-ent-updater'
-        env:
-          ARTIFACT_TAG: ${{ inputs.artifact-tag }}
-        run: |
-          REPORTED_VERSION=$(teleport version --raw)
-          if [ "$REPORTED_VERSION" != "${ARTIFACT_TAG#v}" ]; then
-            echo "Installed version ($REPORTED_VERSION) does not match uploaded artifact version (${ARTIFACT_TAG#v})!!!"
-            exit 406  # Picking this number as Googling "error code 406" will show that it is a "not acceptable" error
-          fi
-
-      # do teleport updater tests
-      - name: Set initial Teleport installation version
-        if: inputs.do-teleport-package-tests && inputs.package-to-test == 'teleport-ent-updater'
-        env:
-          # Arbitrary teleport version for initial teleport installation
-          TELEPORT_TAG: v14.3.17
-        run: echo "TELEPORT_VERSION=${TELEPORT_TAG#v}" >> "$GITHUB_ENV"
-      - name: Install the teleport and teleport updater packages
-        if: inputs.do-teleport-package-tests && inputs.package-to-test == 'teleport-ent-updater'
-        run: sudo apt-get install -y "teleport-ent=$TELEPORT_VERSION" "teleport-ent-updater=$PACKAGE_VERSION"
-      - name: Log Teleport version
-        if: inputs.do-teleport-package-tests && inputs.package-to-test == 'teleport-ent-updater'
-        run: teleport version
-      - name: Verify installed Teleport version matches provided artifact version
-        if: inputs.do-teleport-package-tests && inputs.package-to-test == 'teleport-ent-updater'
-        run: |
-          REPORTED_VERSION=$(teleport version --raw)
-          if [ "$REPORTED_VERSION" != "$TELEPORT_VERSION" ]; then
-            echo "Installed version ($REPORTED_VERSION) does not match uploaded artifact version ($TELEPORT_VERSION)!!!"
-            exit 406  # Picking this number as Googling "error code 406" will show that it is a "not acceptable" error
-          fi
-      - name: Test update
-        if: inputs.do-teleport-package-tests && inputs.package-to-test == 'teleport-ent-updater'
-        env:
-          AUTO_UPDATES_DOMAIN_NAME: ${{ vars.AUTO_UPDATES_DOMAIN_NAME }}
-        run: |
-          TARGET_VERSION=$(curl "https://${AUTO_UPDATES_DOMAIN_NAME}/v1/stable/cloud/version")
-          echo 'apt' > /etc/teleport-upgrade.d/installer
-          echo "${AUTO_UPDATES_DOMAIN_NAME}/v1/stable/cloud" > /etc/teleport-upgrade.d/endpoint
-          teleport-upgrade force
-          REPORTED_VERSION=$(teleport version --raw)
-          if [ "$REPORTED_VERSION" != "${TARGET_VERSION#v}" ]; then
-            echo "Reported version ($REPORTED_VERSION) does not match target version (${TARGET_VERSION#v})"
-            exit 406  # Picking this number as Googling "error code 406" will show that it is a "not acceptable" error
-          fi
-      - name: Test system update
-        if: inputs.do-teleport-package-tests && inputs.package-to-test == 'teleport-ent-updater'
-        run: |
-          BEFORE_UPGRADE=$(teleport version --raw)
-          # Perform a system update.
-          # The teleport version is expected to be locked
-          apt-mark hold teleport-ent-updater
-          apt-get upgrade -y
-          AFTER_UPGRADE=$(teleport version --raw)
-          if [ "$BEFORE_UPGRADE" != "$AFTER_UPGRADE" ]; then
-            echo "Before upgrade version ($BEFORE_UPGRADE) does not match after upgrade version ($AFTER_UPGRADE))"
-            exit 406  # Picking this number as Googling "error code 406" will show that it is a "not acceptable" error
-          fi
-
-  yum-rhel-smoke-test:
-    name: Test packages deployed to YUM repo on RHEL
-    if: inputs.repo-type == 'yum' && inputs.package-to-test != ''
-    needs: deploy
+    # Run tests if deploy is successful or skipped
+    if: |
+      always() &&
+      (needs.deploy.result == 'success' || needs.deploy.result == 'skipped') &&
+      inputs.do-teleport-package-tests &&
+      inputs.package-to-test != ''
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
-    # A container is used here to maintain consistency in the testing methodology for both APT and YUM
-    strategy:
-      fail-fast: false
-      matrix:
-        # Multiple images are used to test for the ever recurring libc version issue
-        container-image:
-          - centos:7
-          # These are the closest we can easily get to rhel 7/8/9
-          - registry.access.redhat.com/ubi7:7.9
-          - registry.access.redhat.com/ubi8:8.7
-          - registry.access.redhat.com/ubi9:9.1
-    container:
-      image: ${{ matrix.container-image }}
     defaults:
       run:
         shell: bash
+    outputs:
+      test-environment: ${{ steps.set-test-environment.outputs.test-environment }}
+      version-channel: ${{ steps.set-version-channel.outputs.version-channel }}
+      auto-updates-domain-name: ${{ steps.set-auto-updates-domain-name.outputs.domain-name }}
     steps:
       # Note: These values are intentionally hard-coded here to prevent false positives or negatives due
       #       to a value in one of our code/IaC repos changing without the change propegating everywhere.
       - name: Derive and set Github environment-specific variables for production
         if: contains(fromJSON('["promote", "build-prod", "publish-prod"]'), inputs.environment)
-        run: |
-          echo "YUM_REPO_DOMAIN_NAME=yum.releases.teleport.dev" >> "$GITHUB_ENV"
-          echo "FORCE_INSTALL_PROD_PUBLIC_KEY=false" >> "$GITHUB_ENV"
+        run: echo "TEST_ENVIRONMENT=test-prod" >> "$GITHUB_ENV"
       - name: Derive and set Github environment-specific variables for development
         if: contains(fromJSON('["build", "build-stage", "publish-stage"]'), inputs.environment)
+        run: echo "TEST_ENVIRONMENT=test-stage" >> "$GITHUB_ENV"
+      - name: Set test environment
+        id: set-test-environment
+        run: echo "test-environment=${TEST_ENVIRONMENT}" >> "$GITHUB_OUTPUT"
+
+      - name: Set version channel
+        id: set-version-channel
+        env:
+          # This is copy/pasted from https://semver.org/#is-there-a-suggested-regular-expression-regex-to-check-a-semver-string
+          # with the addition of "v?" to match Teleport's tag naming scheme
+          SEMVER_TAG_REGEX: ^v?(?P<major>0|[1-9]\d*)\.(?P<minor>0|[1-9]\d*)\.(?P<patch>0|[1-9]\d*)(?:-(?P<prerelease>(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+(?P<buildmetadata>[0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$
+          VERSION_CHANNEL: ${{ inputs.version-channel }}
         run: |
-          echo "YUM_REPO_DOMAIN_NAME=yum.releases.development.teleport.dev" >> "$GITHUB_ENV"
-          # This is required as the RPMs are signed by the prod key, not the dev key
-          # Without this yum will fail due to a signing key mismatch
-          echo "FORCE_INSTALL_PROD_PUBLIC_KEY=true" >> "$GITHUB_ENV"
+          # Check if the artifact version is a semver
+          if echo "$VERSION_CHANNEL" | grep --perl-regexp --quiet "$SEMVER_TAG_REGEX"; then
+            # Ensure exactly one "v" prefix exists, and trim the first '.' and everything after
+            echo "version-channel=$(echo "v${VERSION_CHANNEL#v}" | sed -e 's/\..*//')" >> "$GITHUB_OUTPUT"
+            exit
+          fi
+
+          # If not a semver (such as when it's set to "cloud")
+          echo "version-channel=$VERSION_CHANNEL" >> "$GITHUB_OUTPUT"
+
+      - name: Set auto updates domain name
+        id: set-auto-updates-domain-name
+        env:
+          AUTO_UPDATES_DOMAIN_NAME: ${{ vars.AUTO_UPDATES_DOMAIN_NAME }}
+        run: echo "domain-name=${AUTO_UPDATES_DOMAIN_NAME}" >> "$GITHUB_OUTPUT"
+
       - name: Log set variables
         run: |
           echo "Set variables:"
           env
-      - name: Setup for package install
-        env:
-          ARTIFACT_TAG: ${{ inputs.artifact-tag }}
-        run: |
-          # The container images are missing a couple of minor things needed for the install instructions
-          # on the downloads page
-          # sudo is not available in the image, so create a simple do-nothing script to replace it
-          SUDO_PATH="/usr/bin/sudo"
-          echo '$@' > "$SUDO_PATH"
-          chmod +x "$SUDO_PATH"
-          sudo echo "Running this with pseudo-sudo"
 
-          # Install yum-utils for yum-config-manager
-          yum install -y yum-utils
-
-          # Add the prod signing key specifically if required in a dev context to deal with prod-signed RPMs
-          if $FORCE_INSTALL_PROD_PUBLIC_KEY; then
-            rpm --import https://yum.releases.teleport.dev/gpg
-          fi
-
-          # Set the package version
-          echo "PACKAGE_VERSION=$(echo "${ARTIFACT_TAG#v}" | sed 's/-/_/g')" >> "$GITHUB_ENV"
-      - name: Prepare to install the package
-        env:
-          RELEASE_CHANNEL: ${{ inputs.release-channel }}
-          VERSION_CHANNEL: ${{ needs.deploy.outputs.component-version-channel }}
-        run: |
-          # Install teleport based off of instructions from https://goteleport.com/docs/installation/#linux
-          # This is designed to be changed as little as possible from the source
-          source /etc/os-release
-
-          # The UBI images use a slightly different from normal format for VERSION_ID so it must be accounted for here
-          VERSION_ID=$(echo $VERSION_ID | cut -d'.' -f1)
-
-          sudo yum-config-manager --add-repo $(rpm --eval "https://${YUM_REPO_DOMAIN_NAME}/$ID/$VERSION_ID/Teleport/%{_arch}/$RELEASE_CHANNEL/$VERSION_CHANNEL/teleport-yum.repo")
-      - name: Log package pre-install information
-        env:
-          PACKAGE_TO_TEST: ${{ inputs.package-to-test }}
-        run: |
-          echo "Available versions of package:"
-          yum --showduplicates -y list available "$PACKAGE_TO_TEST"
-
-          echo "Deployed package version:"
-          yum --showduplicates -y list available "$PACKAGE_TO_TEST-$PACKAGE_VERSION"
-
-          echo "Package files:"
-          repoquery -l "$PACKAGE_TO_TEST-$PACKAGE_VERSION"
-
-      # do teleport package tests
-      - name: Install the package
-        if: inputs.do-teleport-package-tests && inputs.package-to-test != 'teleport-ent-updater'
-        env:
-          PACKAGE_TO_TEST: ${{ inputs.package-to-test }}
-        run: |
-          sudo yum install -y "$PACKAGE_TO_TEST-$PACKAGE_VERSION"
-      - name: Log Teleport version
-        if: inputs.do-teleport-package-tests && inputs.package-to-test != 'teleport-ent-updater'
-        run: teleport version
-      - name: Verify installed Teleport version matches provided artifact version
-        if: inputs.do-teleport-package-tests && inputs.package-to-test != 'teleport-ent-updater'
-        env:
-          ARTIFACT_TAG: ${{ inputs.artifact-tag }}
-        run: |
-          REPORTED_VERSION=$(teleport version --raw)
-          if [ "$REPORTED_VERSION" != "${ARTIFACT_TAG#v}" ]; then
-            echo "Installed version ($REPORTED_VERSION) does not match uploaded artifact version (${ARTIFACT_TAG#v})!!!"
-            exit 406  # Picking this number as Googling "error code 406" will show that it is a "not acceptable" error
-          fi
-
-      # do teleport updater tests
-      - name: Set initial Teleport installation version
-        if: inputs.do-teleport-package-tests && inputs.package-to-test == 'teleport-ent-updater'
-        env:
-          # Arbitrary teleport version for initial teleport installation
-          TELEPORT_TAG: v14.3.17
-        run: echo "TELEPORT_VERSION=$(echo "${TELEPORT_TAG#v}" | sed 's/-/_/g')" >> "$GITHUB_ENV"
-      - name: Install the teleport and teleport updater packages
-        if: inputs.do-teleport-package-tests && inputs.package-to-test == 'teleport-ent-updater'
-        run: sudo yum install -y "teleport-ent-$TELEPORT_VERSION" "teleport-ent-updater-$PACKAGE_VERSION"
-      - name: Log Teleport version
-        if: inputs.do-teleport-package-tests && inputs.package-to-test == 'teleport-ent-updater'
-        run: teleport version
-      - name: Verify installed Teleport version matches provided artifact version
-        if: inputs.do-teleport-package-tests && inputs.package-to-test == 'teleport-ent-updater'
-        run: |
-          REPORTED_VERSION=$(teleport version --raw)
-          if [ "$REPORTED_VERSION" != "$TELEPORT_VERSION" ]; then
-            echo "Installed version ($REPORTED_VERSION) does not match uploaded artifact version ($TELEPORT_VERSION)!!!"
-            exit 406  # Picking this number as Googling "error code 406" will show that it is a "not acceptable" error
-          fi
-      - name: Test update
-        if: inputs.do-teleport-package-tests && inputs.package-to-test == 'teleport-ent-updater'
-        env:
-          AUTO_UPDATES_DOMAIN_NAME: ${{ vars.AUTO_UPDATES_DOMAIN_NAME }}
-        run: |
-          TARGET_VERSION=$(curl "https://${AUTO_UPDATES_DOMAIN_NAME}/v1/stable/cloud/version")
-          echo 'yum' > /etc/teleport-upgrade.d/installer
-          echo "${AUTO_UPDATES_DOMAIN_NAME}/v1/stable/cloud" > /etc/teleport-upgrade.d/endpoint
-          teleport-upgrade force
-          REPORTED_VERSION=$(teleport version --raw)
-          if [ "$REPORTED_VERSION" != "${TARGET_VERSION#v}" ]; then
-            echo "Reported version ($REPORTED_VERSION) does not match target version (${TARGET_VERSION#v})"
-            exit 406  # Picking this number as Googling "error code 406" will show that it is a "not acceptable" error
-          fi
-      - name: Test system update
-        if: inputs.do-teleport-package-tests && inputs.package-to-test == 'teleport-ent-updater'
-        run: |
-          BEFORE_UPGRADE=$(teleport version --raw)
-          # Perform a system update.
-          # The teleport version is expected to be locked
-          yum upgrade -y teleport-ent
-          AFTER_UPGRADE=$(teleport version --raw)
-          if [ "$BEFORE_UPGRADE" != "$AFTER_UPGRADE" ]; then
-            echo "Before upgrade version ($BEFORE_UPGRADE) does not match after upgrade version ($AFTER_UPGRADE))"
-            exit 406  # Picking this number as Googling "error code 406" will show that it is a "not acceptable" error
-          fi
-
-  zypper-suse-smoke-test:
-    name: Test packages deployed to Zypper repo on SUSE
-    # Zypper changes are deployed via yum logic which is why the repo type checks for "yum" here
-    if: inputs.repo-type == 'yum' && inputs.package-to-test != ''
-    needs: deploy
-    runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}
-    # A container is used here to maintain consistency in the testing methodology for both APT, YUM, and Zypper
+  teleport-tests:
+    name: Run teleport tests
+    needs: setup-test-environment
+    if: |
+      always() && needs.setup-test-environment.result == 'success' &&
+      inputs.package-to-test == 'teleport-ent'
+    uses: ./.github/workflows/integrations.yaml
     strategy:
       fail-fast: false
       matrix:
-        # Multiple images are used to test for the ever recurring libc version issue
-        container-image:
-          # SUSE Linux Enterprise Edition
-          - registry.suse.com/suse/sles12sp5:latest # The other tags are too specific so latest is used instead
-          - registry.suse.com/bci/bci-base:15.5
-    container:
-      image: ${{ matrix.container-image }}
-    defaults:
-      run:
-        shell: bash
-    steps:
-      # Note: These values are intentionally hard-coded here to prevent false positives or negatives due
-      #       to a value in one of our code/IaC repos changing without the change propegating everywhere.
-      - name: Derive and set Github environment-specific variables for production
-        if: contains(fromJSON('["promote", "build-prod", "publish-prod"]'), inputs.environment)
-        run: |
-          echo "ZYPPER_REPO_DOMAIN_NAME=zypper.releases.teleport.dev" >> "$GITHUB_ENV"
-          echo "FORCE_INSTALL_PROD_PUBLIC_KEY=false" >> "$GITHUB_ENV"
-      - name: Derive and set Github environment-specific variables for development
-        if: contains(fromJSON('["build", "build-stage", "publish-stage"]'), inputs.environment)
-        run: |
-          echo "ZYPPER_REPO_DOMAIN_NAME=zypper.releases.development.teleport.dev" >> "$GITHUB_ENV"
-          # This is required as the RPMs are signed by the prod key, not the dev key
-          # Without this zypper will fail due to a signing key mismatch
-          echo "FORCE_INSTALL_PROD_PUBLIC_KEY=true" >> "$GITHUB_ENV"
-      - name: Log set variables
-        run: |
-          echo "Set variables:"
-          env
-      - name: Setup for package install
-        env:
-          ARTIFACT_TAG: ${{ inputs.artifact-tag }}
-        run: |
-          # The container images are missing a couple of minor things needed for the install instructions
-          # on the downloads page
-          # sudo is not available in the image, so create a simple do-nothing script to replace it
-          SUDO_PATH="/usr/bin/sudo"
-          echo '$@' > "$SUDO_PATH"
-          chmod +x "$SUDO_PATH"
-          sudo echo "Running this with pseudo-sudo"
+        # Test cases defined in ./assets/systemd-unit-upgrader-tests/scripts/run.sh
+        test-case:
+          - "test_pre_install"
+          - "test_teleport_basic"
+    with:
+      repo-type: ${{ inputs.repo-type }}
+      environment: ${{ needs.setup-test-environment.outputs.test-environment }}
+      package-to-test: ${{ inputs.package-to-test }}
+      release-channel: ${{ inputs.release-channel }}
+      version-channel: ${{ needs.setup-test-environment.outputs.version-channel }}
+      artifact-tag: ${{ inputs.artifact-tag }}
+      auto-updates-domain-name: ${{ needs.setup-test-environment.outputs.auto-updates-domain-name }}
+      test-case: ${{ matrix.test-case }}
 
-          # Add the prod signing key specifically if required in a dev context to deal with prod-signed RPMs
-          # This logic is required because the SLES containers do not have curl, wget, or pre-existing package
-          # repos available. RPM also seems to have some sort of root CA trust issue as well, despite openssl
-          # working.
-          if $FORCE_INSTALL_PROD_PUBLIC_KEY; then
-            GPG_KEY_PATH="/tmp/teleport.gpg"
-            openssl s_client -quiet -connect zypper.releases.teleport.dev:443 -servername zypper.releases.teleport.dev <<EOF 2>/dev/null | sed '1,/^\r$/d' > "$GPG_KEY_PATH"
-          GET /gpg HTTP/1.0
-          Host: zypper.releases.teleport.dev
-
-          EOF
-            rpm --import "$GPG_KEY_PATH"
-            rm "$GPG_KEY_PATH"
-          fi
-
-          # Set the package version
-          # Note that if we ever republish a tag then the `-1` at the end will refer to the original version
-          echo "PACKAGE_VERSION=$(echo "${ARTIFACT_TAG#v}" | sed 's/-/_/g')-1" >> "$GITHUB_ENV"
-      - name: Prepare to install the package
-        env:
-          RELEASE_CHANNEL: ${{ inputs.release-channel }}
-          VERSION_CHANNEL: ${{ needs.deploy.outputs.component-version-channel }}
-        run: |
-          # Install teleport based off of instructions from https://goteleport.com/docs/installation/#linux
-          # This is designed to be changed as little as possible from the source
-          source /etc/os-release
-          VERSION_ID=$(echo $VERSION_ID | cut -d'.' -f1)
-
-          # This is required on container images specifically
-          GPG_KEY_PATH="/tmp/teleport.gpg"
-          openssl s_client -quiet -connect "$ZYPPER_REPO_DOMAIN_NAME:443" -servername "$ZYPPER_REPO_DOMAIN_NAME" <<EOF 2>/dev/null | sed '1,/^\r$/d' > "$GPG_KEY_PATH"
-          GET /gpg HTTP/1.0
-          Host: ${ZYPPER_REPO_DOMAIN_NAME}
-
-          EOF
-          rpm --import "$GPG_KEY_PATH"
-          rm "$GPG_KEY_PATH"
-
-          sudo zypper addrepo --refresh --repo $(rpm --eval "https://${ZYPPER_REPO_DOMAIN_NAME}/$ID/$VERSION_ID/Teleport/%{_arch}/$RELEASE_CHANNEL/$VERSION_CHANNEL/teleport-zypper.repo")
-
-      - name: Log package cache information
-        env:
-          PACKAGE_TO_TEST: ${{ inputs.package-to-test }}
-        run: |
-          zypper search -s "$PACKAGE_TO_TEST"
-
-      # do teleport package tests
-      - name: Install the package
-        if: inputs.do-teleport-package-tests && inputs.package-to-test != 'teleport-ent-updater'
-        env:
-          PACKAGE_TO_TEST: ${{ inputs.package-to-test }}
-        run: |
-          sudo zypper install -y "$PACKAGE_TO_TEST=$PACKAGE_VERSION"
-      - name: Log Teleport version
-        if: inputs.do-teleport-package-tests && inputs.package-to-test != 'teleport-ent-updater'
-        run: teleport version
-      - name: Verify installed Teleport version matches provided artifact version
-        if: inputs.do-teleport-package-tests && inputs.package-to-test != 'teleport-ent-updater'
-        env:
-          ARTIFACT_TAG: ${{ inputs.artifact-tag }}
-        run: |
-          REPORTED_VERSION=$(teleport version --raw)
-          if [ "$REPORTED_VERSION" != "${ARTIFACT_TAG#v}" ]; then
-            echo "Installed version ($REPORTED_VERSION) does not match uploaded artifact version (${ARTIFACT_TAG#v})!!!"
-            exit 406  # Picking this number as Googling "error code 406" will show that it is a "not acceptable" error
-          fi
-
-      # do teleport updater tests
-      - name: Install curl and awk dependencies
-        if: inputs.do-teleport-package-tests && inputs.package-to-test == 'teleport-ent-updater'
-        run: |
-          # Install teleport based off of instructions from https://goteleport.com/docs/installation/#linux
-          # This is designed to be changed as little as possible from the source
-          source /etc/os-release
-          VERSION_ID=$(echo $VERSION_ID | cut -d'.' -f1)
-          if [ "$VERSION_ID" == "12" ]; then
-            zypper addrepo --refresh http://download.opensuse.org/update/leap/15.4/sle/ sle
-          fi
-          zypper install -y curl gawk
-      - name: Set initial Teleport installation version
-        if: inputs.do-teleport-package-tests && inputs.package-to-test == 'teleport-ent-updater'
-        env:
-          # Arbitrary teleport version for initial teleport installation
-          TELEPORT_TAG: v14.3.17
-        run: echo "TELEPORT_VERSION=$(echo "${TELEPORT_TAG#v}" | sed 's/-/_/g')-1" >> "$GITHUB_ENV"
-      - name: Install the teleport and teleport updater packages
-        if: inputs.do-teleport-package-tests && inputs.package-to-test == 'teleport-ent-updater'
-        run: zypper install -y "teleport-ent-$TELEPORT_VERSION" "teleport-ent-updater-$PACKAGE_VERSION"
-      - name: Log Teleport version
-        if: inputs.do-teleport-package-tests && inputs.package-to-test == 'teleport-ent-updater'
-        run: teleport version
-      - name: Verify installed Teleport version matches provided artifact version
-        if: inputs.do-teleport-package-tests && inputs.package-to-test == 'teleport-ent-updater'
-        run: |
-          REPORTED_VERSION=$(teleport version --raw)-1
-          if [ "$REPORTED_VERSION" != "$TELEPORT_VERSION" ]; then
-            echo "Installed version ($REPORTED_VERSION) does not match uploaded artifact version ($TELEPORT_VERSION)!!!"
-            exit 406  # Picking this number as Googling "error code 406" will show that it is a "not acceptable" error
-          fi
-      - name: Test update
-        if: inputs.do-teleport-package-tests && inputs.package-to-test == 'teleport-ent-updater'
-        env:
-          AUTO_UPDATES_DOMAIN_NAME: ${{ vars.AUTO_UPDATES_DOMAIN_NAME }}
-        run: |
-          TARGET_VERSION=$(curl "https://${AUTO_UPDATES_DOMAIN_NAME}/v1/stable/cloud/version")
-          echo 'zypper' > /etc/teleport-upgrade.d/installer
-          echo "${AUTO_UPDATES_DOMAIN_NAME}/v1/stable/cloud" > /etc/teleport-upgrade.d/endpoint
-          teleport-upgrade force
-          REPORTED_VERSION=$(teleport version --raw)
-          if [ "$REPORTED_VERSION" != "${TARGET_VERSION#v}" ]; then
-            echo "Reported version ($REPORTED_VERSION) does not match target version (${TARGET_VERSION#v})"
-            exit 406  # Picking this number as Googling "error code 406" will show that it is a "not acceptable" error
-          fi
-      - name: Test system update
-        if: inputs.do-teleport-package-tests && inputs.package-to-test == 'teleport-ent-updater'
-        run: |
-          BEFORE_UPGRADE=$(teleport version --raw)
-          # Perform a system update.
-          # The teleport version is expected to be locked
-          zypper addlock teleport-ent-updater
-          zypper update -y
-          AFTER_UPGRADE=$(teleport version --raw)
-          if [ "$BEFORE_UPGRADE" != "$AFTER_UPGRADE" ]; then
-            echo "Before upgrade version ($BEFORE_UPGRADE) does not match after upgrade version ($AFTER_UPGRADE))"
-            exit 406  # Picking this number as Googling "error code 406" will show that it is a "not acceptable" error
-          fi
+  updater-tests:
+    name: Run updater tests
+    needs: setup-test-environment
+    if: |
+      always() && needs.setup-test-environment.result == 'success' &&
+      inputs.package-to-test == 'teleport-ent-updater'
+    uses: ./.github/workflows/integrations.yaml
+    strategy:
+      fail-fast: false
+      matrix:
+        # Test cases defined in ./assets/systemd-unit-upgrader-tests/scripts/run.sh
+        test-case:
+          - "test_pre_install"
+          - "test_updater_basic"
+    with:
+      repo-type: ${{ inputs.repo-type }}
+      environment: ${{ needs.setup-test-environment.outputs.test-environment }}
+      package-to-test: ${{ inputs.package-to-test }}
+      release-channel: ${{ inputs.release-channel }}
+      version-channel: ${{ needs.setup-test-environment.outputs.version-channel }}
+      artifact-tag: ${{ inputs.artifact-tag }}
+      auto-updates-domain-name: ${{ needs.setup-test-environment.outputs.auto-updates-domain-name }}
+      test-case: ${{ matrix.test-case }}
