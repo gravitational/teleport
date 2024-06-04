@@ -126,10 +126,10 @@ func (p *mfaPrompt) promptWebauthn(ctx context.Context, chal *proto.MFAAuthentic
 
 func (p *mfaPrompt) promptMFA(ctx context.Context, chal *proto.MFAAuthenticateChallenge, runOpts libmfa.RunOpts) (*proto.MFAAuthenticateResponse, error) {
 	resp, err := p.promptAppMFA(ctx, &api.PromptMFARequest{
-		RootClusterUri: p.resourceURI.GetRootClusterURI().String(),
-		Reason:         p.cfg.PromptReason,
-		Totp:           runOpts.PromptTOTP,
-		Webauthn:       runOpts.PromptWebauthn,
+		ClusterUri: p.resourceURI.GetClusterURI().String(),
+		Reason:     p.cfg.PromptReason,
+		Totp:       runOpts.PromptTOTP,
+		Webauthn:   runOpts.PromptWebauthn,
 	})
 	if err != nil {
 		return nil, trail.FromGRPC(err)
