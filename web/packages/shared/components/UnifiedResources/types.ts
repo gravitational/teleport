@@ -141,7 +141,11 @@ export enum PinningSupport {
   Hidden = 'Hidden',
 }
 
-export type IncludedResourceMode = 'all' | 'requestable' | 'accessible';
+export type IncludedResourceMode =
+  | 'none'
+  | 'all'
+  | 'requestable'
+  | 'accessible';
 
 export type ResourceItemProps = {
   name: string;
