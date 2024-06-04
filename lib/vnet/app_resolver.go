@@ -206,7 +206,8 @@ func (r *TCPAppResolver) fqdnMatchesProfile(ctx context.Context, profileName, fq
 		}
 		// The queried app fqdn is a subdomain of this custom zone suffix. Check if the custom zone is valid.
 		if err := r.customDNSZoneChecker.validate(ctx, clusterName, zone.GetSuffix()); err != nil {
-			return false, trace.Wrap(err, "validating custom DNS zone %q for cluster %q", zone.GetSuffix(), clusterName)
+			r.slog.ErrorContext(ctx, "Failed to validate custom DNS zone %q for cluster %q", "error", err)
+			return false, trace.Wrap(err, "validating custom DNS zone")
 		}
 		return true, nil
 	}
