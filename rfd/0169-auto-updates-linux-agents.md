@@ -265,6 +265,8 @@ To ensure that SELinux permissions do not prevent the `teleport-updater` binary 
 To ensure that `teleport` package removal does not interfere with `teleport-updater`, package removal will run `apt purge` (or `yum` equivalent) while ensuring that `/etc/teleport.yaml` and `/var/lib/teleport` are not purged.
 Failure to do this could result in `/etc/teleport.yaml` being removed when an operator runs `apt purge` at a later date.
 
+To ensure that backups are consistent, the updater will use the [SQLite backup API](https://www.sqlite.org/backup.html) to perform the backup.
+
 #### Failure Conditions
 
 If the new version of Teleport fails to start, the installation of Teleport is reverted as described above.
