@@ -403,6 +403,24 @@ func onProxyCommandApp(cf *CLIConf) error {
 		alpnproxy.WithMiddleware(libclient.NewAppCertChecker(tc, routeToApp, nil)),
 	}
 
+	// Virtual profiles (e.g. indirect use via `tbot proxy app`) will attempt
+	// relogin which is not possible. For these, we'll need to load the app
+	// certificate manually and prepend the config option.
+	if profile.IsVirtual {
+		cert, needLogin, err := loadAppCertificate(tc, app.GetName())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if needLogin {
+			return trace.BadParameter("app identity requires relogin but this is impossible with a virtual profile")
+		}
+
+		opts = append([]alpnproxy.LocalProxyConfigOpt{
+			alpnproxy.WithClientCert(cert),
+		}, opts...)
+	}
+
 	addr := "localhost:0"
 	if cf.LocalProxyPort != "" {
 		addr = fmt.Sprintf("127.0.0.1:%s", cf.LocalProxyPort)
