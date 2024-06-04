@@ -193,7 +193,10 @@ function GuidedTile({ integration }: { integration: BotIntegration }) {
   return (
     <IntegrationTile
       as={Link}
-      to={integration.link}
+      to={{
+        pathname: integration.link,
+        state: { previousPathname: location.pathname },
+      }}
       onClick={() => {
         userEventService.captureIntegrationEnrollEvent({
           event: IntegrationEnrollEvent.Started,
