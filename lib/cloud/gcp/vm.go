@@ -26,7 +26,10 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/url"
+	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -55,6 +58,10 @@ const sshUser = "teleport"
 // sshDefaultTimeout is the default timeout for dialing an instance.
 const sshDefaultTimeout = 10 * time.Second
 
+// urlErrorCodePattern is a regex for attempting to extract an HTTP error
+// code from a *url.Error.
+var urlErrorCodePattern = regexp.MustCompile(`\b[2-5]\d{2}\b`)
+
 // convertAPIError converts an error from the GCP API into a trace error.
 func convertAPIError(err error) error {
 	var googleError *googleapi.Error
@@ -67,6 +74,15 @@ func convertAPIError(err error) error {
 			return trace.ReadError(code, []byte(apiError.Reason()))
 		} else if apiError.GRPCStatus() != nil {
 			return trail.FromGRPC(apiError)
+		}
+	}
+	var urlError *url.Error
+	if errors.As(err, &urlError) {
+		if codeStr := urlErrorCodePattern.FindString(urlError.Error()); codeStr != "" {
+			code, err := strconv.Atoi(codeStr)
+			if err == nil {
+				return trace.ReadError(code, []byte(urlError.Error()))
+			}
 		}
 	}
 	return err

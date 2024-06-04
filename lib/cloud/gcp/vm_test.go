@@ -21,8 +21,10 @@ package gcp
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -70,10 +72,19 @@ func TestConvertAPIError(t *testing.T) {
 			name: "api grpc error",
 			err:  fromError(t, status.Error(codes.PermissionDenied, "abcd1234")),
 		},
+		{
+			name: "url error",
+			err: &url.Error{
+				Op:  http.MethodGet,
+				URL: "https://example.com",
+				Err: fmt.Errorf("wrong code 99, wrong code 2007, wrong code 678, right code 403, wrong code 401 abcd1234"),
+			},
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			require.True(t, trace.IsAccessDenied(convertAPIError(tc.err)))
+			err := convertAPIError(tc.err)
+			require.True(t, trace.IsAccessDenied(err), "unexpected error of type %T: %v", tc.err, err)
 			require.Contains(t, tc.err.Error(), "abcd1234")
 		})
 	}
