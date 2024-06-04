@@ -93,15 +93,21 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}
 	cfg.SetDefaults()
 
-	return &Service{
-		clock:                   cfg.Clock,
-		log:                     cfg.Logger,
-		pluginStatusSink:        cfg.PluginStatusSink,
-		semaphoreSvc:            cfg.SemaphoreSvc,
-		hostID:                  cfg.HostID,
-		directoryReconciler:     cfg.DirectoryReconciler,
-		accessGraphSynchronizer: cfg.AccessGraphSynchronizer,
-	}, nil
+	svc := &Service{
+		clock:               cfg.Clock,
+		log:                 cfg.Logger,
+		pluginStatusSink:    cfg.PluginStatusSink,
+		semaphoreSvc:        cfg.SemaphoreSvc,
+		hostID:              cfg.HostID,
+		directoryReconciler: cfg.DirectoryReconciler,
+	}
+
+	// Be explicit and assign `accessGraphSynchronizer` only if the config field is non-nil
+	// to avoid assigning {*AccessGraphSynchronizer, nil} to the interface type.
+	if cfg.AccessGraphSynchronizer != nil {
+		svc.accessGraphSynchronizer = cfg.AccessGraphSynchronizer
+	}
+	return svc, nil
 }
 
 // Run runs the service indefinitely (until the context is canceled), retrying if needed.

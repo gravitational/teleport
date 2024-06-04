@@ -3,10 +3,13 @@ package entraid
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/microsoftgraph/msgraph-sdk-go/models"
 
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
@@ -19,7 +22,7 @@ func (r *DirectoryReconciler) reconcileUsers(ctx context.Context) (map[entraUniq
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	entraUsers, err := listEntraUsers(ctx, r.graphClient, r.tenantID)
+	entraUsers, err := listEntraUsers(ctx, r.graphClient, r.tenantID, r.ssoConnectorID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -91,10 +94,10 @@ func listTeleportUsers(ctx context.Context, svc userAccessPoint) (map[string]typ
 	return result, nil
 }
 
-func listEntraUsers(ctx context.Context, graphClient graphClient, tenantID string) (map[string]types.User, error) {
+func listEntraUsers(ctx context.Context, graphClient graphClient, tenantID string, ssoConnectorID string) (map[string]types.User, error) {
 	result := map[string]types.User{}
 	err := graphClient.IterateUsers(ctx, func(u models.Userable) bool {
-		user, err := convertUser(u, tenantID)
+		user, err := convertUser(u, tenantID, ssoConnectorID)
 		if err == nil {
 			result[user.GetName()] = user
 		} else {
@@ -106,7 +109,7 @@ func listEntraUsers(ctx context.Context, graphClient graphClient, tenantID strin
 	return result, trace.Wrap(err)
 }
 
-func convertUser(in models.Userable, tenantID string) (types.User, error) {
+func convertUser(in models.Userable, tenantID string, ssoConnectorID string) (types.User, error) {
 	upn := in.GetUserPrincipalName()
 	if upn == nil {
 		return nil, trace.BadParameter("expected Entra ID user to have a UPN")
@@ -131,9 +134,19 @@ func convertUser(in models.Userable, tenantID string) (types.User, error) {
 	out.SetStaticLabels(labels)
 	out.SetOrigin(types.OriginEntraID)
 	// Explicitly set to UNSET for idempotency.
-	// TODO(justinas): we should create SSO users instead of local, so this has no potential to clobber user-set passwords.
 	out.SetPasswordState(types.PasswordState_PASSWORD_STATE_UNSET)
-	// TODO(justinas): set CreatedBy, etc.
+
+	out.SetCreatedBy(types.CreatedBy{
+		User: types.UserRef{
+			Name: teleport.UserSystem,
+		},
+		Time: time.Now().UTC(),
+		Connector: &types.ConnectorRef{
+			ID:       ssoConnectorID,
+			Type:     constants.SAML,
+			Identity: *upn,
+		},
+	})
 
 	return out, trace.Wrap(err)
 }

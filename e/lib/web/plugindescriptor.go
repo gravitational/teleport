@@ -93,6 +93,7 @@ var defaultPluginDescriptors map[types.PluginType]pluginDescriptor = map[types.P
 	types.PluginTypeServiceNow: pluginInstallerFn(installServiceNowPlugin),
 	types.PluginTypeSlack:      slackDescriptor{},
 	types.PluginTypeGitlab:     pluginInstallerFn(installGitlabPlugin),
+	types.PluginTypeEntraID:    entraIDPluginDescriptor{},
 }
 
 func installDiscordPlugin(ctx context.Context, sessCtx *web.SessionContext, w http.ResponseWriter, r *http.Request, p *Plugin) (*ui.Plugin, error) {

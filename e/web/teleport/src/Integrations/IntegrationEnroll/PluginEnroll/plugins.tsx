@@ -16,6 +16,7 @@ import discordIcon from 'design/assets/images/icons/discord.svg';
 import mattermostIcon from 'design/assets/images/icons/mattermost.svg';
 import msteamsIcon from 'design/assets/images/icons/msteams.svg';
 import JamfIcon from 'design/assets/images/icons/jamf.svg';
+import entraIdIcon from 'design/assets/images/icons/entra-id.svg';
 import FieldInput from 'shared/components/FieldInput';
 import FieldSelect from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
@@ -25,6 +26,10 @@ import { PluginKind } from 'teleport/services/integrations';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import { BaseView } from 'teleport/components/Wizard/flow';
 
+import { UPGRADE_POLICY_URL } from 'teleport/services/sales';
+
+import { Attempt } from 'shared/hooks/useAttemptNext';
+
 import cfg from 'e-teleport/config';
 
 import { SetUpScim } from './MultiStep/Okta/SetUpScim';
@@ -32,6 +37,10 @@ import { PluginEnrollSuccess } from './MultiStep/PluginEnrollSuccess';
 import { CreateOkta } from './MultiStep/Okta/CreateOkta';
 import { ImportUserGroupsAndApps } from './MultiStep/Okta/ImportUserGroupsAndApps/ImportUserGroupsAndApps';
 import { FormDataField } from './MultiStep/Okta/types';
+
+import { CreateEntra } from './MultiStep/Entra/CreateEntra';
+import { FormMixin as EntraFormMixin } from './MultiStep/Entra/FormMixin';
+import { RunScript } from './MultiStep/Entra/RunScript';
 
 export type View = BaseView<{
   title: string;
@@ -88,7 +97,10 @@ export type PluginBase = {
    * Describes whether the plugin can be self hosted.
    */
   selfHostable: boolean;
+
   disabledIfNoMdmSupport?: boolean;
+  requiresIgs?: boolean;
+
   /**
    * views represents all the views for each step
    * in a multi step plugin enrollment eg: okta.
@@ -120,7 +132,7 @@ export type CloudHostablePlugin = PluginBase & {
   fullName: string;
   Description?: () => JSX.Element;
   Setup?: () => JSX.Element;
-  FormMixin?: () => JSX.Element;
+  FormMixin?: (props: { attempt: Attempt }) => JSX.Element;
   NextSteps?: (props: { successData?: EnrollSuccessResponse }) => JSX.Element;
   permissions?: CategoryPermissions[];
   disabledIfNoMdmSupport?: boolean;
@@ -1393,6 +1405,100 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     cloudHostable: false,
     selfHostable: true,
   },
+  {
+    type: 'entra-id',
+    name: 'Microsoft Entra ID',
+    icon: entraIdIcon,
+    url: '',
+    fullName: 'Entra ID directory synchronization',
+    cloudHostable: true,
+    selfHostable: true,
+    requiresIgs: true,
+
+    permissions: [
+      {
+        category: 'Read information about your Entra ID tenant',
+        permissions: [
+          { title: 'Users, groups and roles in the directory' },
+          { title: 'Connected enterprise applications' },
+        ],
+      },
+      {
+        category: 'Create an enterprise application for your Teleport cluster',
+        permissions: [
+          { title: 'Provide SSO to your Teleport cluster via SAML' },
+          { title: 'Allow access to your Entra ID tenant data via OIDC' },
+        ],
+      },
+    ],
+    Description: () => (
+      <Box mb={3}>
+        <Text>
+          The Entra ID integration synchronizes users and groups from your Entra
+          ID directory and provides an SSO connector to sign into Teleport via
+          Entra ID.
+        </Text>
+        <Text mt={3} fontSize={4}>
+          Included with Teleport Identity:
+        </Text>
+        <StyledUl>
+          <li>
+            <strong>Directory synchronization</strong>: Routinely synchronizes
+            Entra ID users and groups with Teleport
+          </li>
+          <li>
+            <strong>SSO integration</strong>: A SAML SSO connector that grants
+            Entra ID directory users access to the Teleport cluster.
+          </li>
+        </StyledUl>
+        <Text mt={3} fontSize={4}>
+          Included with Teleport Policy:
+        </Text>
+        <StyledUl>
+          <li>
+            <strong>Access Graph integration</strong>: analyze your Entra ID
+            directory and SSO applications using Teleport Access Graph.
+          </li>
+        </StyledUl>
+        {!cfg.oss.isPolicyEnabled && (
+          <ButtonLockedFeature
+            event={CtaEvent.CTA_ENTRA_ID}
+            width={'460px'}
+            mt={2}
+            mb={3}
+            url={UPGRADE_POLICY_URL}
+          >
+            Unlock Access Graph integration with Teleport Policy
+          </ButtonLockedFeature>
+        )}
+      </Box>
+    ),
+
+    NextSteps: () => {
+      return (
+        <Text typography="body1">
+          <p>
+            To assign roles based on SSO attributes visit the{' '}
+            <ReactRouterLink to={cfg.oss.routes.sso}>
+              Auth Connectors
+            </ReactRouterLink>{' '}
+            page.
+          </p>
+          <p>
+            It may take a while before all users and groups are synced to
+            Teleport.
+          </p>
+        </Text>
+      );
+    },
+
+    views: () => [
+      { title: 'Connect Entra', component: CreateEntra },
+      { title: 'Set up permissions', component: RunScript },
+      { title: 'Finished', component: PluginEnrollSuccess, hide: true },
+    ],
+    FormMixin: EntraFormMixin,
+  },
 ];
 
 export const pluginMap = Object.fromEntries(plugins.map(p => [p.type, p]));
@@ -1438,6 +1544,8 @@ export function pluginTypeToIntegrationEnrollKind(p: PluginKind) {
       return IntegrationEnrollKind.Jamf;
     case 'opsgenie':
       return IntegrationEnrollKind.OpsGenie;
+    case 'entra-id':
+      return IntegrationEnrollKind.EntraId;
     default:
       return IntegrationEnrollKind.Unspecified;
   }

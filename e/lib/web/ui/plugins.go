@@ -188,6 +188,8 @@ func pluginDetails(p types.Plugin) string {
 		return fmt.Sprintf(`Incidents will be created at %q`, settings.ServiceNow.ApiEndpoint)
 	case *types.PluginSpecV1_Gitlab:
 		return fmt.Sprintf(`Gitlab users, projects and groups will be imported from %q`, settings.Gitlab.ApiEndpoint)
+	case *types.PluginSpecV1_EntraId:
+		return "Users and groups will be synchronized from the Entra ID directory"
 	default:
 		return ""
 	}

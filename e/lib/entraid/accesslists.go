@@ -12,6 +12,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/microsoftgraph/msgraph-sdk-go/models"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
@@ -261,7 +262,7 @@ func convertGroupMember(ctx context.Context, in models.DirectoryObjectable, al *
 				AccessList: al.GetName(),
 				Name:       teleportUser.GetName(),
 				Joined:     time.Now().UTC(),
-				AddedBy:    "admin", // TODO(justinas): 'entra-id-importer', once it has its own identity
+				AddedBy:    teleport.UserSystem,
 			},
 		)
 		if err != nil {

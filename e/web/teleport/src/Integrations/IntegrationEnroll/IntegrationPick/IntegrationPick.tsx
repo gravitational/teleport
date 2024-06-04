@@ -191,12 +191,15 @@ function PluginTile({
 }) {
   const hostedButNoAccess = !hasAccess && plugin.cloudHostable;
 
-  const pluginAccess: PluginAccess =
-    plugin.disabledIfNoMdmSupport && !cfg.mobileDeviceManagement
-      ? 'requires-enterprise'
-      : hostedButNoAccess
-        ? 'denied'
-        : 'allowed';
+  const pluginAccess: PluginAccess = (() => {
+    if (plugin.disabledIfNoMdmSupport && !cfg.mobileDeviceManagement) {
+      return 'requires-enterprise';
+    }
+    if (plugin.requiresIgs && !cfg.isIgsEnabled) {
+      return 'requires-identity';
+    }
+    return hostedButNoAccess ? 'denied' : 'allowed';
+  })();
 
   const pluginEnrollable = pluginAccess === 'allowed' && !pluginAlreadyEnrolled;
 
@@ -278,7 +281,11 @@ function canBeSelfHosted(
   return plugin.selfHostable;
 }
 
-type PluginAccess = 'allowed' | 'denied' | 'requires-enterprise';
+type PluginAccess =
+  | 'allowed'
+  | 'denied'
+  | 'requires-enterprise'
+  | 'requires-identity';
 
 function RenderTooltip({
   pluginAccess,
@@ -323,6 +330,27 @@ function RenderTooltip({
           children={
             <Box textAlign="center" maxWidth="200px">
               <Text>Unlock {pluginName} plugin with Teleport Enterprise</Text>
+              <ButtonLockedFeature
+                width="165px"
+                mt={2}
+                mb={1}
+                noIcon
+                event={getCTAForPlugin(pluginType)}
+              >
+                Contact Sales
+              </ButtonLockedFeature>
+            </Box>
+          }
+        />
+      );
+    case 'requires-identity':
+      return (
+        <ToolTipNoPermBadge
+          badgeTitle={BadgeTitle.LackingIgs}
+          sticky={true}
+          children={
+            <Box textAlign="center" maxWidth="200px">
+              <Text>Unlock {pluginName} plugin with Teleport Identity</Text>
               <ButtonLockedFeature
                 width="165px"
                 mt={2}

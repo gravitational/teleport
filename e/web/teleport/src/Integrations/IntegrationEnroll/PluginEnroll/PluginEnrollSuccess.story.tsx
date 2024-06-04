@@ -23,3 +23,17 @@ export const SuccessfullyEnrolledOkta = () => {
     </MemoryRouter>
   );
 };
+
+export const SuccessfullyEnrolledEntraId = () => {
+  const pathname = cfg.getIntegrationEnrollRoute('entra-id');
+  return (
+    <MemoryRouter initialEntries={[pathname]}>
+      <Route path={cfg.routes.integrationEnroll}>
+        <PluginEnrollSuccess
+          plugin={pluginMap['entra-id'] as CloudHostablePlugin}
+        />
+        ;
+      </Route>
+    </MemoryRouter>
+  );
+};

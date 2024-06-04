@@ -2870,6 +2870,32 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
               Lacking Permissions
             </div>
           </div>
+          <div
+            class="c8 c1 c21"
+            data-testid="tile-entra-id"
+            disabled=""
+          >
+            <img
+              class="c22 c23"
+              src="file_stub"
+            />
+            <div
+              class="c14"
+              style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
+            >
+              <div
+                class="c18"
+              >
+                Microsoft Entra ID
+              </div>
+            </div>
+            <div
+              class="c24 c20"
+              data-testid="tooltip"
+            >
+              Teleport Identity Only
+            </div>
+          </div>
         </div>
       </div>
       <div

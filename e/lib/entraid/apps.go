@@ -53,17 +53,21 @@ func entraAppToProto(ctx context.Context, app models.Applicationable, ssoSetting
 	}, nil
 }
 
-func getAppSAMLSigningCertificates(ctx context.Context, client *http.Client, tenantID, appID string) ([]string, error) {
-	uri := url.URL{
+func FederationMetadataURL(tenantID, appID string) string {
+	return (&url.URL{
 		Scheme: "https",
 		Host:   "login.microsoftonline.com",
 		Path:   path.Join(tenantID, "federationmetadata", "2007-06", "federationmetadata.xml"),
 		RawQuery: url.Values{
 			"appid": {appID},
 		}.Encode(),
-	}
+	}).String()
+}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, uri.String(), nil)
+func getAppSAMLSigningCertificates(ctx context.Context, client *http.Client, tenantID, appID string) ([]string, error) {
+	uri := FederationMetadataURL(tenantID, appID)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, uri, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

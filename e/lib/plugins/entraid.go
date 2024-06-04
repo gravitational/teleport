@@ -18,16 +18,17 @@ func entraIDInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps in
 	}
 
 	authServer := deps.parentProcess.GetAuthServer()
-	integration, err := authServer.GetIntegration(ctx, plugin.GetName())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	azureSpec := integration.GetAzureOIDCIntegrationSpec()
-	if azureSpec == nil {
-		return nil, trace.BadParameter("expected %q to be an %q integration, was %q instead", integration.GetName(), types.IntegrationSubKindAzureOIDC, integration.GetSubKind())
-	}
 
 	return func() error {
+		integration, err := authServer.Services.GetIntegration(ctx, plugin.GetName())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		azureSpec := integration.GetAzureOIDCIntegrationSpec()
+		if azureSpec == nil {
+			return trace.BadParameter("expected %q to be an %q integration, was %q instead", integration.GetName(), types.IntegrationSubKindAzureOIDC, integration.GetSubKind())
+		}
+
 		closeEvent, err := services.EntraIDPluginInit(deps.lifetime, deps.parentProcess, deps.statusSink, entraSpec, azureSpec)
 		if err != nil {
 			return trace.Wrap(err)
@@ -46,7 +47,7 @@ func entraIDInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps in
 			return trace.Wrap(err)
 		}
 
-		deps.log.Info("Gitlab plugin has stopped")
+		deps.log.Info("Entra ID plugin has stopped")
 		return nil
 	}, nil
 }

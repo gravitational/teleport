@@ -152,6 +152,9 @@ const cfg = {
       testConnection:
         '/v1/webapi/sites/:clusterId/integration/externalauditstorage/test',
     },
+
+    azureOidcConfigureScriptPath:
+      '/webapi/scripts/integrations/configure/azureoidc.sh?authConnectorName=:authConnectorName',
   },
 
   getTrustedDevicesUrl(params: UrlResourcesParams) {
@@ -361,11 +364,25 @@ const cfg = {
     });
   },
 
+  getAzureOidcConfigureScriptUrl(p: UrlAzureOidcConfigureIdp) {
+    let path = cfg.api.azureOidcConfigureScriptPath;
+    return (
+      cfg.oss.baseUrl +
+      generatePath(path, { ...p }) +
+      (p.accessGraph ? '&accessGraph=true' : '')
+    );
+  },
+
   init(json: object) {
     // this will apply server config by merging it with oss cfg
     ossCfg.init({ isEnterprise: true, routes: cfg.routes, ...json });
   },
 };
+
+export interface UrlAzureOidcConfigureIdp {
+  authConnectorName: string;
+  accessGraph: boolean;
+}
 
 export type EnterpriseConfig = typeof cfg;
 

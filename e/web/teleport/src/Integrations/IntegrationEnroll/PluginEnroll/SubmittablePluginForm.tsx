@@ -63,8 +63,8 @@ export function SubmittablePluginForm({
       let formData = new FormData(e.currentTarget as HTMLFormElement);
 
       try {
-        // Currently, only okta plugin support validating and cleaning up.
-        if (plugin.type === 'okta') {
+        // Currently, only the following plugins support validating and cleaning up.
+        if (plugin.type === 'okta' || plugin.type === 'entra-id') {
           await pluginsService.validatePlugin(formData);
           const required = await pluginsService.checkPluginRequiresCleanup(
             plugin.type
@@ -199,7 +199,9 @@ export function SubmittablePluginForm({
                   value={`${plugin.type}-default`}
                 />
                 <input type="hidden" name="type" value={plugin.type} />
-                <Box>{plugin.FormMixin && <plugin.FormMixin />}</Box>
+                <Box>
+                  {plugin.FormMixin && <plugin.FormMixin attempt={attempt} />}
+                </Box>
                 <Box mt={6} mb={6}>
                   <ButtonPrimary
                     type="submit"

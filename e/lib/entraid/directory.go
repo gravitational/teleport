@@ -38,6 +38,8 @@ type DirectoryReconciler struct {
 
 	// defaultOwners specifies the default owners for access lists synchronized from Entra ID.
 	defaultOwners []accesslist.Owner
+	// ssoConnectorID specifies the ID (name) of the Auth connector that imported users are associated with
+	ssoConnectorID string
 	// tenantID specifies the Entra Tenant ID
 	tenantID string
 }
@@ -53,6 +55,8 @@ type DirectoryReconcilerConfig struct {
 
 	// DefaultOwners specifies the default owners for access lists synchronized from Entra ID.
 	DefaultOwners []accesslist.Owner
+	// SSOConnectorID specifies the ID (name) of the Auth connector that imported users are associated with
+	SSOConnectorID string
 	// TenantID specifies the Entra Tenant ID
 	TenantID string
 }
@@ -70,6 +74,9 @@ func (cfg *DirectoryReconcilerConfig) Validate() error {
 	}
 	if len(cfg.DefaultOwners) == 0 {
 		return trace.BadParameter("DefaultOwners is required")
+	}
+	if cfg.SSOConnectorID == "" {
+		return trace.BadParameter("SSOConnectorID is required")
 	}
 	if cfg.TenantID == "" {
 		return trace.BadParameter("TenantID is required")

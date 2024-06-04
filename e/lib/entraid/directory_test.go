@@ -81,6 +81,7 @@ func TestEntraIDService(t *testing.T) {
 
 	tenantID := uuid.NewString()
 	defaultOwners := []accesslist.Owner{{Name: "admin"}, {Name: "reviewer"}}
+	const ssoConnectorID = "my-sso-connector"
 
 	// Set up data
 	graphClient := newFakeGraphClient()
@@ -118,7 +119,7 @@ func TestEntraIDService(t *testing.T) {
 	bobEntra.SetUserPrincipalName(&bobUPN)
 	graphClient.users = append(graphClient.users, bobEntra)
 
-	bobTeleport, err := convertUser(bobEntra, tenantID)
+	bobTeleport, err := convertUser(bobEntra, tenantID, ssoConnectorID)
 	require.NoError(t, err)
 	bobTeleport, err = identitySvc.CreateUser(ctx, bobTeleport)
 	require.NoError(t, err)
@@ -131,7 +132,7 @@ func TestEntraIDService(t *testing.T) {
 	carolEntra.SetUserPrincipalName(&carolUPN)
 	graphClient.users = append(graphClient.users, carolEntra)
 
-	carolTeleport, err := convertUser(carolEntra, tenantID)
+	carolTeleport, err := convertUser(carolEntra, tenantID, ssoConnectorID)
 	require.NoError(t, err)
 	carolTeleport, err = identitySvc.CreateUser(ctx, carolTeleport)
 	require.NoError(t, err)
@@ -158,7 +159,7 @@ func TestEntraIDService(t *testing.T) {
 	daveEntra.SetId(&daveID)
 	daveEntra.SetUserPrincipalName(&daveUPN)
 
-	daveTeleport, err := convertUser(daveEntra, tenantID)
+	daveTeleport, err := convertUser(daveEntra, tenantID, ssoConnectorID)
 	require.NoError(t, err)
 	_, err = identitySvc.CreateUser(ctx, daveTeleport)
 	require.NoError(t, err)
@@ -208,11 +209,12 @@ func TestEntraIDService(t *testing.T) {
 	require.NoError(t, err)
 
 	r := &DirectoryReconciler{
-		userSvc:       identitySvc,
-		accessListSvc: alSvc,
-		graphClient:   graphClient,
-		defaultOwners: defaultOwners,
-		tenantID:      tenantID,
+		userSvc:        identitySvc,
+		accessListSvc:  alSvc,
+		graphClient:    graphClient,
+		defaultOwners:  defaultOwners,
+		ssoConnectorID: ssoConnectorID,
+		tenantID:       tenantID,
 	}
 	err = r.Reconcile(ctx)
 	require.NoError(t, err)
@@ -224,6 +226,8 @@ func TestEntraIDService(t *testing.T) {
 		require.Equal(t, tenantID, aliceTeleport.GetAllLabels()[types.EntraTenantIDLabel])
 		require.Equal(t, aliceUPN, aliceTeleport.GetAllLabels()[types.EntraUPNLabel])
 		require.Equal(t, aliceSAMAccountName, aliceTeleport.GetAllLabels()[types.EntraSAMAccountNameLabel])
+		require.NotNil(t, aliceTeleport.GetCreatedBy().Connector)
+		require.Equal(t, ssoConnectorID, aliceTeleport.GetCreatedBy().Connector.ID)
 
 		teamATeleportExpected, err := convertGroup(teamAEntra, tenantID, defaultOwners)
 		require.NoError(t, err)

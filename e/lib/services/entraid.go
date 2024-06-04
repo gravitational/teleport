@@ -29,10 +29,16 @@ const (
 )
 
 func startEntraIDService(ctx context.Context, process *service.TeleportProcess, statusSink common.StatusSink, spec *types.PluginEntraIDSettings, integrationSpec *types.AzureOIDCIntegrationSpecV1) error {
+	logger := process.Config.Logger.With(teleport.ComponentKey, teleport.Component(eteleport.ComponentEntraID, process.GetID()))
+	features := modules.GetModules().Features()
+	if !features.IdentityGovernanceSecurity {
+		logger.ErrorContext(ctx, "Entra ID service requires Teleport Identity. Entra ID sync will not run.")
+		return nil
+	}
+
 	// Register our request for AccessGraphPlugin credentials.
 	process.RegisterWithAuthServer(types.RoleAccessGraphPlugin, entraIDIdentityEvent)
 
-	logger := process.Config.Logger.With(teleport.ComponentKey, teleport.Component(eteleport.ComponentEntraID, process.GetID()))
 	authServer := process.GetAuthServer()
 
 	// Wait for EntraID credentials.
@@ -80,11 +86,12 @@ func startEntraIDService(ctx context.Context, process *service.TeleportProcess, 
 	}
 
 	directoryReconciler, err := entraid.NewDirectoryReconciler(entraid.DirectoryReconcilerConfig{
-		GraphClient:   graphClient,
-		UserSvc:       authServer,
-		AccessListSvc: authServer,
-		DefaultOwners: owners,
-		TenantID:      integrationSpec.TenantID,
+		GraphClient:    graphClient,
+		UserSvc:        authServer,
+		AccessListSvc:  authServer,
+		DefaultOwners:  owners,
+		TenantID:       integrationSpec.TenantID,
+		SSOConnectorID: spec.SyncSettings.SsoConnectorId,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -92,7 +99,6 @@ func startEntraIDService(ctx context.Context, process *service.TeleportProcess, 
 
 	// Construct Access Graph reconciler. This remains nil if access graph sync is not enabled.
 	var tagSynchronizer *entraid.AccessGraphSynchronizer
-	features := modules.GetModules().Features()
 	if spec.AccessGraphSettings != nil && features.AccessGraph {
 		tagCfg := process.Config.AccessGraph
 		if !tagCfg.Enabled || tagCfg.Addr == "" {

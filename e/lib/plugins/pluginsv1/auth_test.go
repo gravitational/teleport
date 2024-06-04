@@ -387,5 +387,8 @@ func TestGetAvailablePluginTypes(t *testing.T) {
 		{
 			Type: types.PluginTypeGitlab,
 		},
+		{
+			Type: types.PluginTypeEntraID,
+		},
 	}, resp.PluginTypes)
 }

@@ -20,12 +20,14 @@ const onboardSupportPluginKinds: PluginKind[] = [
   'okta',
   'opsgenie',
   'jamf',
+  'entra-id',
 ];
 
 const defaultIsCloudFlag = cfg.oss.isCloud;
 const defaultMdmFlag = cfg.oss.mobileDeviceManagement;
 const defaultEasFlag = cfg.oss.externalAuditStorage;
 const defaultIsEnterprise = cfg.oss.isEnterprise;
+const defaultIsIgsEnabled = cfg.oss.isIgsEnabled;
 
 export default {
   title: 'TeleportE/Integrations/Picker',
@@ -40,11 +42,14 @@ export default {
           cfg.oss.mobileDeviceManagement = defaultMdmFlag;
           cfg.oss.externalAuditStorage = defaultEasFlag;
           cfg.oss.isEnterprise = defaultIsEnterprise;
+          cfg.oss.isIgsEnabled = defaultIsIgsEnabled;
+          worker.stop();
         };
       }, []);
 
       // Reset request handlers added in individual stories.
       worker.resetHandlers();
+      worker.start();
       return <Story />;
     },
   ],
@@ -110,6 +115,28 @@ export const NoAccess = () => {
 export const RequiresEnterprise = () => {
   cfg.oss.mobileDeviceManagement = false;
   cfg.oss.externalAuditStorage = false;
+  cfg.oss.isIgsEnabled = false;
+  worker.use(
+    rest.get(cfg.api.pluginTypesPath, (req, res, ctx) => {
+      return res(ctx.json(onboardSupportPluginKinds));
+    })
+  );
+
+  worker.use(
+    rest.get(cfg.getPluginUrl(), (req, res, ctx) => {
+      return res(ctx.json(mockGetPluginsReply));
+    })
+  );
+  const ctx = createTeleportContextE();
+
+  return render(ctx);
+};
+
+export const FullFeatures = () => {
+  cfg.oss.mobileDeviceManagement = true;
+  cfg.oss.externalAuditStorage = true;
+  cfg.oss.isEnterprise = true;
+  cfg.oss.isIgsEnabled = true;
   worker.use(
     rest.get(cfg.api.pluginTypesPath, (req, res, ctx) => {
       return res(ctx.json(onboardSupportPluginKinds));

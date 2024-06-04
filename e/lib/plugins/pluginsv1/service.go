@@ -46,6 +46,7 @@ func getStaticPlugins() []types.PluginType {
 		types.PluginTypeMattermost,
 		types.PluginTypeServiceNow,
 		types.PluginTypeGitlab,
+		types.PluginTypeEntraID,
 	}
 }
 
