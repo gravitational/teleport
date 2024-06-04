@@ -35,7 +35,7 @@ function New-TempDirectory {
     string
     #>
 
-    $TempDirectoryPath = Join-Path -Path "$([System.IO.Path]::GetTempPath())" -ChildPath "$($(New-Guid).Guid)"
+    $TempDirectoryPath = Join-Path -Path "$([System.IO.Path]::GetTempPath())" -ChildPath "$([guid]::newguid().Guid)"
     New-Item -ItemType Directory -Path "$TempDirectoryPath" | Out-Null
 
     return "$TempDirectoryPath"
@@ -298,8 +298,17 @@ function Invoke-SignBinary {
         [string] $SignedBinaryPath
     )
 
+    if (! $SignedBinaryPath) {
+        $ShouldMoveSignedBinary = $true
+        $SignedBinaryPath = Join-Path -Path $(New-TempDirectory) -ChildPath "signed.exe"
+    }
+
     Write-Host "Signing $UnsignedBinaryPath using WSL sign-binary script:"
     wsl-ubuntu-command sign-binary "$UnsignedBinaryPath" "$SignedBinaryPath"
+
+    if ($ShouldMoveSignedBinary) {
+        Move-Item -Path $SignedBinaryPath -Destination $UnsignedBinaryPath -Force
+    }
 }
 
 function Build-WindowsAuthenticationPackage {
