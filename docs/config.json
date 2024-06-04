@@ -265,6 +265,10 @@
           "slug": "/access-controls/introduction/"
         },
         {
+          "title": "All Topics",
+          "slug": "/access-controls/"
+        },
+        {
           "title": "Getting Started",
           "slug": "/access-controls/getting-started/"
         },
@@ -2420,11 +2424,6 @@
     {
       "source": "/deploy-a-cluster/",
       "destination": "/deploy-a-cluster/introduction/",
-      "permanent": true
-    },
-    {
-      "source": "/access-controls/",
-      "destination": "/access-controls/introduction/",
       "permanent": true
     },
     {
