@@ -1,0 +1,6 @@
+authToken: auth-token
+proxyAddr: proxy.example.com:3080
+roles: jamf
+jamfApiEndpoint: "testjamf.jamfcloud.com/api"
+jamfUsername: teleport-jamf
+jamfPassword: secret-jamf-password
