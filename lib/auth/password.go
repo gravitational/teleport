@@ -263,7 +263,10 @@ func (a *Server) checkOTP(user string, otpToken string) (*types.MFADevice, error
 		}
 
 		if err := a.checkTOTP(ctx, user, otpToken, dev); err != nil {
-			log.WithError(err).Errorf("Using TOTP device %q", dev.GetName())
+			log.
+				WithError(err).
+				WithField("device", dev.GetName()).
+				Debug("TOTP device failed verification. This is expected if the user has multiple TOTP devices.")
 			continue
 		}
 		return dev, nil

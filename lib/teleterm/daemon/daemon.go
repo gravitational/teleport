@@ -132,15 +132,15 @@ func (s *Service) relogin(ctx context.Context, req *api.ReloginRequest) error {
 	return nil
 }
 
-// retryWithRelogin tries the given function. If the function returns an error that appears to be
+// RetryWithRelogin tries the given function. If the function returns an error that appears to be
 // resolvable with relogin, then it requests relogin and tries the function a second time.
 //
-// retryWithRelogin is reserved for cases where the retryable request does not originate from the
+// RetryWithRelogin is reserved for cases where the retryable request does not originate from the
 // Electron app, for example when the request is made a long-running goroutine such as a gateway.
 // When the request originates from the Electron app and daemon.Service is merely an intermediary,
 // the retry flow is handled by clusters.addMetadataToRetryableError and the JavaScript version of
 // client.RetryWithRelogin with the same name.
-func (s *Service) retryWithRelogin(ctx context.Context, reloginReq *api.ReloginRequest, fn func() error) error {
+func (s *Service) RetryWithRelogin(ctx context.Context, reloginReq *api.ReloginRequest, fn func() error) error {
 	err := fn()
 	if err == nil {
 		return nil
@@ -405,8 +405,8 @@ func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) (t
 	// This can happen if the user cert was refreshed by anything other than the gateway itself. For
 	// example, if you execute `tsh ssh` within Connect after your user cert expires or there are two
 	// gateways that subsequently go through this flow.
-	if err := s.retryWithRelogin(ctx, reloginReq, reissueGatewayCerts); err != nil {
-		notifyErr := s.notifyApp(ctx, &api.SendNotificationRequest{
+	if err := s.RetryWithRelogin(ctx, reloginReq, reissueGatewayCerts); err != nil {
+		notifyErr := s.NotifyApp(ctx, &api.SendNotificationRequest{
 			Subject: &api.SendNotificationRequest_CannotProxyGatewayConnection{
 				CannotProxyGatewayConnection: &api.CannotProxyGatewayConnection{
 					GatewayUri: g.URI().String(),
@@ -880,8 +880,8 @@ func (s *Service) UpdateAndDialTshdEventsServerAddress(serverAddress string) err
 	return nil
 }
 
-// notifyApp sends a notification (usually an error) to the Electron App.
-func (s *Service) notifyApp(ctx context.Context, notification *api.SendNotificationRequest) error {
+// NotifyApp sends a notification (usually an error) to the Electron App.
+func (s *Service) NotifyApp(ctx context.Context, notification *api.SendNotificationRequest) error {
 	tshdEventsCtx, cancelTshdEventsCtx := context.WithTimeout(ctx, tshdEventsTimeout)
 	defer cancelTshdEventsCtx()
 

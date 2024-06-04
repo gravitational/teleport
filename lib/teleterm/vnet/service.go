@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport"
 	vnetproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
+	apiteleterm "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/vnet/v1"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
@@ -192,19 +193,52 @@ func (p *appProvider) GetCachedClient(ctx context.Context, profileName, leafClus
 
 func (p *appProvider) ReissueAppCert(ctx context.Context, profileName, leafClusterName string, app types.Application) (tls.Certificate, error) {
 	clusterURI := uri.NewClusterURI(profileName).AppendLeafCluster(leafClusterName)
-	cluster, _, err := p.daemonService.ResolveClusterURI(clusterURI)
-	if err != nil {
+	appURI := clusterURI.AppendApp(app.GetName())
+
+	reloginReq := &apiteleterm.ReloginRequest{
+		RootClusterUri: clusterURI.GetRootClusterURI().String(),
+		Reason: &apiteleterm.ReloginRequest_VnetCertExpired{
+			VnetCertExpired: &apiteleterm.VnetCertExpired{
+				TargetUri: appURI.String(),
+			},
+		},
+	}
+
+	var cert tls.Certificate
+
+	reissueCert := func() error {
+		cluster, _, err := p.daemonService.ResolveClusterURI(clusterURI)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		client, err := p.daemonService.GetCachedClient(ctx, clusterURI)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		cert, err = cluster.ReissueAppCert(ctx, client, app)
+		return trace.Wrap(err)
+	}
+
+	if err := p.daemonService.RetryWithRelogin(ctx, reloginReq, reissueCert); err != nil {
+		notifyErr := p.daemonService.NotifyApp(ctx, &apiteleterm.SendNotificationRequest{
+			Subject: &apiteleterm.SendNotificationRequest_CannotProxyVnetConnection{
+				CannotProxyVnetConnection: &apiteleterm.CannotProxyVnetConnection{
+					TargetUri: appURI.String(),
+					Error:     err.Error(),
+				},
+			},
+		})
+		if notifyErr != nil {
+			log.ErrorContext(ctx, "Failed to send a notification for an error encountered during VNet cert reissue",
+				"cert_reissue_error", err, "notify_error", notifyErr)
+		}
+
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	client, err := p.daemonService.GetCachedClient(ctx, clusterURI)
-	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
-	}
-
-	// TODO(ravicious): Copy stuff from DaemonService.reissueGatewayCerts in order to handle expired certs.
-	cert, err := cluster.ReissueAppCert(ctx, client, app)
-	return cert, trace.Wrap(err)
+	return cert, nil
 }
 
 // GetDialOptions returns ALPN dial options for the profile.

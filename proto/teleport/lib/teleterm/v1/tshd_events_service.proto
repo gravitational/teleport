@@ -45,6 +45,7 @@ message ReloginRequest {
   string root_cluster_uri = 1;
   oneof reason {
     GatewayCertExpired gateway_cert_expired = 2;
+    VnetCertExpired vnet_cert_expired = 3;
   }
 }
 
@@ -59,6 +60,16 @@ message GatewayCertExpired {
   string target_uri = 2;
 }
 
+// VnetCertExpired describes which app the user was trying to reach with an expired cert.
+//
+// As this message originates from within a local proxy used by VNet, the proxy is not able to say
+// under which address the user was trying to reach the app. Best it can do is point at the cluster
+// to which the app belongs and the name of the app.
+message VnetCertExpired {
+  // target_uri for now points solely at apps, but it's not called app_uri to make it future-proof.
+  string target_uri = 1;
+}
+
 message ReloginResponse {}
 
 // SendNotification
@@ -66,6 +77,7 @@ message ReloginResponse {}
 message SendNotificationRequest {
   oneof subject {
     CannotProxyGatewayConnection cannot_proxy_gateway_connection = 1;
+    CannotProxyVnetConnection cannot_proxy_vnet_connection = 2;
   }
 }
 
@@ -77,6 +89,13 @@ message CannotProxyGatewayConnection {
   string gateway_uri = 1;
   string target_uri = 2;
   string error = 3;
+}
+
+// CannotProxyVnetConnection describes which app couldn't have been proxied through VNet and why.
+// At the moment this is used solely when refreshing an expired cert.
+message CannotProxyVnetConnection {
+  string target_uri = 1;
+  string error = 2;
 }
 
 message SendNotificationResponse {}
