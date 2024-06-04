@@ -185,7 +185,11 @@ func (p *appProvider) ListProfiles() ([]string, error) {
 	return profiles, trace.Wrap(err)
 }
 
-func (p *appProvider) GetCachedClient(ctx context.Context, profileName, leafClusterName string) (*client.ClusterClient, error) {
+func (p *appProvider) GetCachedClient(ctx context.Context, profileName, leafClusterName string) (vnet.ClusterClient, error) {
+	return p.getCachedClient(ctx, profileName, leafClusterName)
+}
+
+func (p *appProvider) getCachedClient(ctx context.Context, profileName, leafClusterName string) (*client.ClusterClient, error) {
 	uri := uri.NewClusterURI(profileName).AppendLeafCluster(leafClusterName)
 	client, err := p.daemonService.GetCachedClient(ctx, uri)
 	return client, trace.Wrap(err)
@@ -263,7 +267,7 @@ func (p *appProvider) GetDialOptions(ctx context.Context, profileName string) (*
 }
 
 func (p *appProvider) GetVnetConfig(ctx context.Context, profileName, leafClusterName string) (*vnetproto.VnetConfig, error) {
-	clusterClient, err := p.GetCachedClient(ctx, profileName, leafClusterName)
+	clusterClient, err := p.getCachedClient(ctx, profileName, leafClusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
