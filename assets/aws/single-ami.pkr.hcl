@@ -187,7 +187,7 @@ build {
 
   provisioner "shell" {
     remote_folder = local.remote_folder
-    inline = ["mkdir /tmp/files"]
+    inline = ["mkdir -pv /tmp/files /tmp/tarballs"]
   }
 
   provisioner "file" {
