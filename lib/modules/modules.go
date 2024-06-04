@@ -293,6 +293,10 @@ type Modules interface {
 	SetFeatures(Features)
 	// BuildType returns build type (OSS, Community or Enterprise)
 	BuildType() string
+	// IsEnterpriseBuild returns if the binary was built with enterprise modules
+	IsEnterpriseBuild() bool
+	// IsOSSBuild returns if the binary was built without enterprise modules
+	IsOSSBuild() bool
 	// AttestHardwareKey attests a hardware key and returns its associated private key policy.
 	AttestHardwareKey(context.Context, interface{}, *keys.AttestationStatement, crypto.PublicKey, time.Duration) (*keys.AttestationData, error)
 	// GenerateAccessRequestPromotions generates a list of valid promotions for given access request.
@@ -377,6 +381,16 @@ var teleportBuildType = BuildOSS
 // BuildType returns build type (OSS, Community or Enterprise)
 func (p *defaultModules) BuildType() string {
 	return teleportBuildType
+}
+
+// IsEnterpriseBuild returns false for [defaultModules].
+func (p *defaultModules) IsEnterpriseBuild() bool {
+	return false
+}
+
+// IsOSSBuild returns true for [defaultModules].
+func (p *defaultModules) IsOSSBuild() bool {
+	return true
 }
 
 // PrintVersion prints the Teleport version.
