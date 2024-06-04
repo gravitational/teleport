@@ -147,7 +147,7 @@ func TestUserPreferencesCRUD(t *testing.T) {
 					DefaultTab:            userpreferencesv1.DefaultTab_DEFAULT_TAB_PINNED,
 					ViewMode:              userpreferencesv1.ViewMode_VIEW_MODE_CARD,
 					LabelsViewMode:        userpreferencesv1.LabelsViewMode_LABELS_VIEW_MODE_COLLAPSED,
-					AvailableResourceMode: userpreferencesv1.AvailableResourceMode_AVAILABLE_RESOURCE_MODE_ALL,
+					AvailableResourceMode: userpreferencesv1.AvailableResourceMode_AVAILABLE_RESOURCE_MODE_NONE,
 				},
 				ClusterPreferences: defaultPref.ClusterPreferences,
 			},
@@ -259,7 +259,7 @@ func TestUserPreferencesCRUD(t *testing.T) {
 						DefaultTab:            userpreferencesv1.DefaultTab_DEFAULT_TAB_PINNED,
 						ViewMode:              userpreferencesv1.ViewMode_VIEW_MODE_LIST,
 						LabelsViewMode:        userpreferencesv1.LabelsViewMode_LABELS_VIEW_MODE_COLLAPSED,
-						AvailableResourceMode: userpreferencesv1.AvailableResourceMode_AVAILABLE_RESOURCE_MODE_ALL,
+						AvailableResourceMode: userpreferencesv1.AvailableResourceMode_AVAILABLE_RESOURCE_MODE_NONE,
 					},
 					Assist: &userpreferencesv1.AssistUserPreferences{
 						PreferredLogins: []string{"baz"},
@@ -287,7 +287,7 @@ func TestUserPreferencesCRUD(t *testing.T) {
 					DefaultTab:            userpreferencesv1.DefaultTab_DEFAULT_TAB_PINNED,
 					ViewMode:              userpreferencesv1.ViewMode_VIEW_MODE_LIST,
 					LabelsViewMode:        userpreferencesv1.LabelsViewMode_LABELS_VIEW_MODE_COLLAPSED,
-					AvailableResourceMode: userpreferencesv1.AvailableResourceMode_AVAILABLE_RESOURCE_MODE_ALL,
+					AvailableResourceMode: userpreferencesv1.AvailableResourceMode_AVAILABLE_RESOURCE_MODE_NONE,
 				},
 				Assist: &userpreferencesv1.AssistUserPreferences{
 					PreferredLogins: []string{"baz"},

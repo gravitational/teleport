@@ -352,6 +352,9 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
   ) => {
     let mode = AvailableResourceMode.UNSPECIFIED;
     switch (includedResourceMode) {
+      case 'none':
+        mode = AvailableResourceMode.NONE;
+        break;
       case 'accessible':
         mode = AvailableResourceMode.ACCESSIBLE;
         break;
@@ -746,6 +749,11 @@ export function getResourceAvailabilityFilter(
   canRequestAllResources: boolean
 ): ResourceAvailabilityFilter {
   switch (availableResourceMode) {
+    case AvailableResourceMode.NONE:
+      if (!canRequestAllResources) {
+        return { mode: 'accessible', canRequestAll: false };
+      }
+      return { mode: 'none', canRequestAll: true };
     case AvailableResourceMode.ALL:
       if (!canRequestAllResources) {
         return { mode: 'accessible', canRequestAll: false };

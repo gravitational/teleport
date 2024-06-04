@@ -1268,10 +1268,6 @@
             {
               "title": "PostgreSQL",
               "slug": "/database-access/auto-user-provisioning/postgres/"
-            },
-            {
-              "title": "Database Access Controls",
-              "slug": "/database-access/auto-user-provisioning/database-access-controls/"
             }
           ]
         },
@@ -1436,10 +1432,6 @@
         {
           "title": "Using the Teleport Database Service",
           "slug": "/database-access/guides/"
-        },
-        {
-          "title": "Architecture",
-          "slug": "/database-access/architecture/"
         },
         {
           "title": "Reference",
@@ -1888,10 +1880,10 @@
           "title": "Trusted Clusters",
           "slug": "/architecture/trustedclusters/"
         },
-        {
-          "title": "Teleport Nodes",
-          "slug": "/architecture/nodes/"
-        },
+	{
+	  "title": "Teleport Agents",
+	  "slug": "/architecture/agents/"
+	},
         {
           "title": "Session Recording",
           "slug": "/architecture/session-recording/"
