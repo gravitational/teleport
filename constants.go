@@ -750,7 +750,7 @@ const (
 	// EnvSSHSessionReason is a reason attached to started sessions meant to describe their intent.
 	EnvSSHSessionReason = "TELEPORT_SESSION_REASON"
 
-	// EnvSSHSessionInvited is an environment variable listning people invited to a session.
+	// EnvSSHSessionInvited is an environment variable listing people invited to a session.
 	EnvSSHSessionInvited = "TELEPORT_SESSION_JOIN_MODE"
 
 	// EnvSSHSessionDisplayParticipantRequirements is set to true or false to indicate if participant
