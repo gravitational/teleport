@@ -106,6 +106,7 @@ func (a *AthenaContext) GetLog() *Log {
 // AthenaContextConfig is optional config to override defaults in athena context.
 type AthenaContextConfig struct {
 	MaxBatchSize int
+	BypassSNS    bool
 }
 
 type InfraOutputs struct {
@@ -169,13 +170,6 @@ func SetupAthenaContext(t *testing.T, ctx context.Context, cfg AthenaContextConf
 	if ok, _ := strconv.ParseBool(testEnabled); !ok {
 		t.Skip("Skipping AWS-dependent test suite.")
 	}
-	var bypassSNS bool
-	if s := os.Getenv(teleport.AWSRunTests + "_ATHENA_BYPASS_SNS"); s != "" {
-		if ok, _ := strconv.ParseBool(s); ok {
-			t.Log("bypassing SNS for Athena audit log events")
-			bypassSNS = true
-		}
-	}
 
 	testID := fmt.Sprintf("auditlogs-integrationtests-%v", uuid.New().String())
 
@@ -208,7 +202,7 @@ func SetupAthenaContext(t *testing.T, ctx context.Context, cfg AthenaContextConf
 	}
 
 	topicARN := infraOut.TopicARN
-	if bypassSNS {
+	if cfg.BypassSNS {
 		topicARN = topicARNBypass
 	}
 	log, err := New(ctx, Config{
