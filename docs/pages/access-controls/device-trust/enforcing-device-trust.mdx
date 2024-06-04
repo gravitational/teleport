@@ -42,14 +42,14 @@ applies to the resources in its `allow` rules. It
 works similarly to [`require_session_mfa`](../guides/per-session-mfa.mdx).
 
 <Admonition type="warning" title="require-trusted-device role">
-  The preset `require-trusted-device` role does not enforce
-  [Apps](#app-access-support) or [Desktops](#desktop-access-support).
+  The preset `require-trusted-device` role does not enforce the use of a trusted
+  device for [Apps](#app-access-support) or [Desktops](#desktop-access-support).
   Refer to their corresponding sections for instructions.
 </Admonition>
 
-The role below is an example of full device trust enforcement. Alternatively,
-you may set options.device_trust_mode=required on an existing role for similar
-effects.
+The role below exemplifies trusted device enforcement for DB, K8s and SSH.
+Alternatively, you may set options.device_trust_mode=required on an existing
+role for similar effects.
 
 ```yaml
 kind: role
@@ -60,15 +60,23 @@ spec:
   options:
     device_trust_mode: "required"
   allow:
-    logins: ["{{internal.logins}}"]
-    kubernetes_groups: ["{{internal.kubernetes_groups}}"]
+    db_labels:
+      '*': '*'
+    db_names:
+    - '*'
+    db_users:
+    - '*'
+    kubernetes_groups:
+    - '{{internal.kubernetes_groups}}'
+    - system:masters
+    - developers
+    - viewers
+    kubernetes_labels:
+      '*': '*'
+    logins:
+    - '{{internal.logins}}'
     node_labels:
       '*': '*'
-    app_labels:
-      '*': '*'
-    windows_desktop_labels:
-      '*': '*'
-    windows_desktop_logins: ["Administrator", "{{internal.windows_logins}}"]
 ```
 
 Update the role:
