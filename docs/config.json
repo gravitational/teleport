@@ -84,7 +84,7 @@
         },
         {
           "title": "Teleport Enterprise Cloud",
-          "slug": "/choose-an-edition/teleport-cloud/introduction/",
+          "slug": "/choose-an-edition/teleport-cloud/",
           "forScopes": ["cloud"],
           "entries": [
             {
@@ -923,7 +923,7 @@
       "entries": [
         {
           "title": "Introduction",
-          "slug": "/auto-discovery/introduction/"
+          "slug": "/auto-discovery/"
         },
         {
           "title": "Servers",
@@ -2019,21 +2019,6 @@
       "permanent": true
     },
     {
-      "source": "/application-access/",
-      "destination": "/application-access/introduction/",
-      "permanent": true
-    },
-    {
-      "source": "/desktop-access/",
-      "destination": "/desktop-access/introduction/",
-      "permanent": true
-    },
-    {
-      "source": "/kubernetes-access/",
-      "destination": "/kubernetes-access/introduction/",
-      "permanent": true
-    },
-    {
       "source": "/kubernetes-access/guides/migration/",
       "destination": "/kubernetes-access/introduction/",
       "permanent": true
@@ -2350,7 +2335,7 @@
     },
     {
       "source": "/cloud/introduction/",
-      "destination": "/choose-an-edition/teleport-cloud/introduction/",
+      "destination": "/choose-an-edition/teleport-cloud/",
       "permanent": true
     },
     {
@@ -2615,7 +2600,7 @@
     },
     {
       "source": "/deploy-a-cluster/teleport-cloud/introduction/",
-      "destination": "/choose-an-edition/teleport-cloud/introduction/",
+      "destination": "/choose-an-edition/teleport-cloud/",
       "permanent": true
     },
     {
@@ -2716,11 +2701,6 @@
     {
       "source": "/try-out-teleport/",
       "destination": "/",
-      "permanent": true
-    },
-    {
-      "source": "/choose-an-edition/",
-      "destination": "/choose-an-edition/introduction/",
       "permanent": true
     },
     {
@@ -2840,7 +2820,7 @@
     },
     {
       "source": "/choose-an-edition/teleport-cloud/",
-      "destination": "/choose-an-edition/teleport-cloud/introduction/",
+      "destination": "/choose-an-edition/teleport-cloud/",
       "permanent": true
     },
     {
