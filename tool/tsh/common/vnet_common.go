@@ -72,7 +72,7 @@ func (p *vnetAppProvider) ListProfiles() ([]string, error) {
 
 // GetCachedClient returns a cached [*client.ClusterClient] for the given profile and leaf cluster.
 // [leafClusterName] may be empty when requesting a client for the root cluster.
-func (p *vnetAppProvider) GetCachedClient(ctx context.Context, profileName, leafClusterName string) (*client.ClusterClient, error) {
+func (p *vnetAppProvider) GetCachedClient(ctx context.Context, profileName, leafClusterName string) (vnet.ClusterClient, error) {
 	return p.clientCache.Get(ctx, profileName, leafClusterName)
 }
 
@@ -202,11 +202,11 @@ func (p *vnetAppProvider) reissueAppCert(ctx context.Context, tc *client.Telepor
 		RequesterName:  proto.UserCertsRequest_TSH_APP_LOCAL_PROXY,
 	}
 
-	clusterClient, err := p.GetCachedClient(ctx, profileName, leafClusterName)
+	clusterClient, err := p.clientCache.Get(ctx, profileName, leafClusterName)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err, "getting cached cluster client")
 	}
-	rootClient, err := p.GetCachedClient(ctx, profileName, "")
+	rootClient, err := p.clientCache.Get(ctx, profileName, "")
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err, "getting cached root client")
 	}
