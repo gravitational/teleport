@@ -169,6 +169,16 @@ func (p *enterpriseModules) BuildType() string {
 	return modules.BuildEnterprise
 }
 
+// IsEnterpriseBuild returns true for [enterpriseModules].
+func (p *enterpriseModules) IsEnterpriseBuild() bool {
+	return true
+}
+
+// IsOSSBuild returns false for [enterpriseModules].
+func (p *enterpriseModules) IsOSSBuild() bool {
+	return false
+}
+
 // LicenseExpiry returns the license expiry time.
 func (p *enterpriseModules) LicenseExpiry() time.Time {
 	return p.licenseExpiry
