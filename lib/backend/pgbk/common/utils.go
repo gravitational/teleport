@@ -282,7 +282,7 @@ func SetupAndMigrate(
 // See https://www.cockroachlabs.com/docs/stable/online-schema-changes#schema-changes-within-transactions
 func SetupAndMigrateDynamic(
 	ctx context.Context,
-	log logrus.FieldLogger,
+	log *slog.Logger,
 	db interface {
 	BeginTx(context.Context, pgx.TxOptions) (pgx.Tx, error)
 	Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
