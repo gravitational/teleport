@@ -318,7 +318,7 @@ func TestCreateOrJoinSession(t *testing.T) {
 	require.NoError(t, err)
 
 	runningSessionID := rsession.NewID()
-	sess, _, err := newSession(context.Background(), runningSessionID, registry, newTestServerContext(t, srv, nil), newMockSSHChannel())
+	sess, _, err := newSession(context.Background(), runningSessionID, registry, newTestServerContext(t, srv, nil), newMockSSHChannel(), sessionTypeInteractive)
 	require.NoError(t, err)
 	registry.sessions[runningSessionID] = sess
 
