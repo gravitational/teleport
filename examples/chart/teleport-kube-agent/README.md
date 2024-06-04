@@ -6,6 +6,7 @@ with an existing Teleport cluster:
 - Teleport Application access
 - Teleport Database access
 - Teleport Kubernetes App Discovery
+- Teleport Jamf service
 
 To use it, you will need:
 - an existing Teleport cluster (at least proxy and auth services)
@@ -254,6 +255,60 @@ to use for discovery you can use `kubernetesDiscovery` property of the chart.
 
 When discovery is running, `kubeClusterName` should be set in values, since it is used as a name for discovery field and as a target label
 for the app service, so it can expose discovered apps.
+
+## Jamf service
+
+To use [Teleport Jamf service](https://goteleport.com/docs/access-controls/device-trust/jamf-integration/), 
+you will also need:
+- provide your Jamf Pro API endpoint
+- provide your Jamf Pro API credentials (username and password)
+
+To install the agent, run:
+
+```sh
+$ helm install teleport-kube-agent . \
+  --create-namespace \
+  --namespace teleport \
+  --set roles=jamf \
+  --set proxyAddr=${PROXY_ENDPOINT?} \
+  --set jamfApiEndpoint=${JAMF_API_ENDPOINT?} \
+  --set jamfUsername=${JAMF_USERNAME?} \
+  --set jamfPassword=${JAMF_PASSWORD?}
+```
+
+Set the values in the above command as appropriate for your setup.
+
+The Helm chart will install Secrets by default. To avoid specifying the Jamf Pro API password in plain text, it's possible to create a secret containing the password beforehand. To do so, run:
+
+```sh
+export JAMF_PASSWORD=`<jamf password> | base64 -w0`
+export JAMF_SECRET_NAME=teleport-jamf-api-credentials
+export TELEPORT_NAMESPACE=teleport
+
+cat <<EOF > secrets.yaml
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ${JAMF_SECRET_NAME}
+  namespace: ${TELEPORT_NAMESPACE?}
+type: Opaque
+data:
+  jamfPassword: ${JAMF_PASSWORD?}
+EOF
+
+$ kubectl apply -f secret.yaml
+
+$ helm install teleport-kube-agent . \
+  --create-namespace \
+  --namespace ${TELEPORT_NAMESPACE?} \
+  --set roles=jamf \
+  --set proxyAddr=${PROXY_ENDPOINT?} \
+  --set jamfApiEndpoint=${JAMF_API_ENDPOINT?} \
+  --set jamfUsername=${JAMF_USERNAME?} \
+  --set jamfCredentialsSecret.name=${JAMF_SECRET_NAME?} \
+  --set jamfCredentialsSecret.create=false
+```
 
 ## Troubleshooting
 
