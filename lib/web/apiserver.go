@@ -771,13 +771,10 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.DELETE("/webapi/sites/:site/locks/:uuid", h.WithClusterAuth(h.deleteClusterLock))
 
 	// active sessions handlers
-	// Deprecated: The connect/ws variant should be used instead.
-	// TODO(lxea): DELETE in v16
-	h.GET("/webapi/sites/:site/connect", h.WithClusterAuthWebSocket(false, h.siteNodeConnect))     // connect to an active session (via websocket)
-	h.GET("/webapi/sites/:site/connect/ws", h.WithClusterAuthWebSocket(true, h.siteNodeConnect))   // connect to an active session (via websocket, with auth over websocket)
+	h.GET("/webapi/sites/:site/connect/ws", h.WithClusterAuthWebSocket(h.siteNodeConnect))         // connect to an active session (via websocket, with auth over websocket)
 	h.GET("/webapi/sites/:site/sessions", h.WithClusterAuth(h.clusterActiveAndPendingSessionsGet)) // get list of active and pending sessions
 
-	h.GET("/webapi/sites/:site/kube/:clusterName/connect/ws", h.WithClusterAuthWebSocket(true, h.podConnect)) // connect to a pod with exec (via websocket, with auth over websocket)
+	h.GET("/webapi/sites/:site/kube/:clusterName/connect/ws", h.WithClusterAuthWebSocket(h.podConnect)) // connect to a pod with exec (via websocket, with auth over websocket)
 
 	// Audit events handlers.
 	h.GET("/webapi/sites/:site/events/search", h.WithClusterAuth(h.clusterSearchEvents))                 // search site events
@@ -894,18 +891,10 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/desktops", h.WithClusterAuth(h.clusterDesktopsGet))
 	h.GET("/webapi/sites/:site/desktopservices", h.WithClusterAuth(h.clusterDesktopServicesGet))
 	h.GET("/webapi/sites/:site/desktops/:desktopName", h.WithClusterAuth(h.getDesktopHandle))
-	// GET /webapi/sites/:site/desktops/:desktopName/connect?access_token=<bearer_token>&username=<username>&width=<width>&height=<height>
-	// Deprecated: The connect/ws variant should be used instead.
-	// TODO(lxea): DELETE in v16
-	h.GET("/webapi/sites/:site/desktops/:desktopName/connect", h.WithClusterAuthWebSocket(false, h.desktopConnectHandle))
 	// GET /webapi/sites/:site/desktops/:desktopName/connect?username=<username>&width=<width>&height=<height>
-	h.GET("/webapi/sites/:site/desktops/:desktopName/connect/ws", h.WithClusterAuthWebSocket(true, h.desktopConnectHandle))
-	// GET /webapi/sites/:site/desktopplayback/:sid?access_token=<bearer_token>
-	// Deprecated: The desktopplayback/ws variant should be used instead.
-	// TODO(lxea): DELETE in v16
-	h.GET("/webapi/sites/:site/desktopplayback/:sid", h.WithClusterAuthWebSocket(false, h.desktopPlaybackHandle))
+	h.GET("/webapi/sites/:site/desktops/:desktopName/connect/ws", h.WithClusterAuthWebSocket(h.desktopConnectHandle))
 	// GET /webapi/sites/:site/desktopplayback/:sid/ws
-	h.GET("/webapi/sites/:site/desktopplayback/:sid/ws", h.WithClusterAuthWebSocket(true, h.desktopPlaybackHandle))
+	h.GET("/webapi/sites/:site/desktopplayback/:sid/ws", h.WithClusterAuthWebSocket(h.desktopPlaybackHandle))
 	h.GET("/webapi/sites/:site/desktops/:desktopName/active", h.WithClusterAuth(h.desktopIsActive))
 
 	// GET a Connection Diagnostics by its name
@@ -974,7 +963,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/user-groups", h.WithClusterAuth(h.getUserGroups))
 
 	// WebSocket endpoint for the chat conversation, websocket auth
-	h.GET("/webapi/sites/:site/assistant/ws", h.WithClusterAuthWebSocket(true, h.assistant))
+	h.GET("/webapi/sites/:site/assistant/ws", h.WithClusterAuthWebSocket(h.assistant))
 
 	// Fetches the user's preferences
 	h.GET("/webapi/user/preferences", h.WithAuth(h.getUserPreferences))
@@ -4151,24 +4140,11 @@ var authnWsUpgrader = websocket.Upgrader{
 }
 
 // WithClusterAuthWebSocket wraps a ClusterWebsocketHandler to ensure that a request is authenticated
-// to this proxy via websocket if websocketAuth is true, or via query parameter if false (the same as WithAuth), as
-// well as to grab the remoteSite (which can represent this local cluster or a remote trusted cluster)
-// as specified by the ":site" url parameter.
-//
-// TODO(lxea): remove the 'websocketAuth' bool once the deprecated websocket handlers are removed
-func (h *Handler) WithClusterAuthWebSocket(websocketAuth bool, fn ClusterWebsocketHandler) httprouter.Handle {
+// to this proxy via websocket, as well as to grab the remoteSite (which can represent this local
+// cluster or a remote trusted cluster) as specified by the ":site" url parameter.
+func (h *Handler) WithClusterAuthWebSocket(fn ClusterWebsocketHandler) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
-		var sctx *SessionContext
-		var ws *websocket.Conn
-		var site reversetunnelclient.RemoteSite
-		var err error
-
-		if websocketAuth {
-			sctx, ws, site, err = h.authenticateWSRequestWithCluster(w, r, p)
-		} else {
-			sctx, ws, site, err = h.authenticateWSRequestWithClusterDeprecated(w, r, p)
-		}
-
+		sctx, ws, site, err := h.authenticateWSRequestWithCluster(w, r, p)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -4198,19 +4174,6 @@ func (h *Handler) authenticateWSRequestWithCluster(w http.ResponseWriter, r *htt
 		return nil, nil, nil, trace.Wrap(err)
 	}
 
-	return sctx, ws, site, nil
-}
-
-// TODO(lxea): remove once the deprecated websocket handlers are removed
-func (h *Handler) authenticateWSRequestWithClusterDeprecated(w http.ResponseWriter, r *http.Request, p httprouter.Params) (*SessionContext, *websocket.Conn, reversetunnelclient.RemoteSite, error) {
-	sctx, site, err := h.authenticateRequestWithCluster(w, r, p)
-	if err != nil {
-		return nil, nil, nil, trace.Wrap(err)
-	}
-	ws, err := authnWsUpgrader.Upgrade(w, r, nil)
-	if err != nil {
-		return nil, nil, nil, trace.Wrap(err)
-	}
 	return sctx, ws, site, nil
 }
 
