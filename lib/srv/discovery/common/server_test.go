@@ -150,6 +150,51 @@ func TestNewAWSNodeFromEC2Instance(t *testing.T) {
 			},
 		},
 		{
+			name: "valid with hostname override by tag",
+			ec2Instance: makeEC2Instance(func(i *ec2types.Instance) {
+				i.Tags = append(i.Tags, ec2types.Tag{
+					Key:   aws.String("TeleportHostname"),
+					Value: aws.String("my-custom-hostname"),
+				})
+			}),
+			awsCloudMetadata: &types.AWSInfo{
+				AccountID:   "123456789012",
+				Region:      "us-east-1",
+				Integration: "myintegration",
+			},
+			errCheck: require.NoError,
+			expectedServer: &types.ServerV2{
+				Kind:    "node",
+				Version: "v2",
+				SubKind: "openssh-ec2-ice",
+				Metadata: types.Metadata{
+					Labels: map[string]string{
+						"account-id":               "123456789012",
+						"region":                   "us-east-1",
+						"MyTag":                    "MyTagValue",
+						"TeleportHostname":         "my-custom-hostname",
+						"teleport.dev/instance-id": "i-123456789abcedf",
+						"teleport.dev/account-id":  "123456789012",
+					},
+					Namespace: "default",
+				},
+				Spec: types.ServerSpecV2{
+					Addr:     "172.31.1.1:22",
+					Hostname: "my-custom-hostname",
+					CloudMetadata: &types.CloudMetadata{
+						AWS: &types.AWSInfo{
+							AccountID:   "123456789012",
+							InstanceID:  "i-123456789abcedf",
+							Region:      "us-east-1",
+							VPCID:       "vpc-abcd",
+							SubnetID:    "subnet-123",
+							Integration: "myintegration",
+						},
+					},
+				},
+			},
+		},
+		{
 			name: "missing ec2 private dns name",
 			ec2Instance: makeEC2Instance(func(i *ec2types.Instance) {
 				i.PrivateDnsName = nil
@@ -293,6 +338,52 @@ func TestNewAWSNodeFromEC2v1Instance(t *testing.T) {
 				Spec: types.ServerSpecV2{
 					Addr:     "172.31.1.1:22",
 					Hostname: "my-private-dns.compute.aws",
+					CloudMetadata: &types.CloudMetadata{
+						AWS: &types.AWSInfo{
+							AccountID:   "123456789012",
+							InstanceID:  "i-123456789abcedf",
+							Region:      "us-east-1",
+							VPCID:       "vpc-abcd",
+							SubnetID:    "subnet-123",
+							Integration: "myintegration",
+						},
+					},
+				},
+			},
+		},
+
+		{
+			name: "valid with hostname override by tag",
+			ec2Instance: makeEC2Instance(func(i *ec2v1.Instance) {
+				i.Tags = append(i.Tags, &ec2v1.Tag{
+					Key:   aws.String("TeleportHostname"),
+					Value: aws.String("my-custom-hostname"),
+				})
+			}),
+			awsCloudMetadata: &types.AWSInfo{
+				AccountID:   "123456789012",
+				Region:      "us-east-1",
+				Integration: "myintegration",
+			},
+			errCheck: require.NoError,
+			expectedServer: &types.ServerV2{
+				Kind:    "node",
+				Version: "v2",
+				SubKind: "openssh-ec2-ice",
+				Metadata: types.Metadata{
+					Labels: map[string]string{
+						"account-id":               "123456789012",
+						"region":                   "us-east-1",
+						"MyTag":                    "MyTagValue",
+						"TeleportHostname":         "my-custom-hostname",
+						"teleport.dev/instance-id": "i-123456789abcedf",
+						"teleport.dev/account-id":  "123456789012",
+					},
+					Namespace: "default",
+				},
+				Spec: types.ServerSpecV2{
+					Addr:     "172.31.1.1:22",
+					Hostname: "my-custom-hostname",
 					CloudMetadata: &types.CloudMetadata{
 						AWS: &types.AWSInfo{
 							AccountID:   "123456789012",
