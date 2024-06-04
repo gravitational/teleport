@@ -6,20 +6,20 @@ description: Comprehensive reference of subcommands, flags, and arguments for th
 The CLI tool that supports the Teleport Access Platform is called `teleport`, and allows Teleport services to be managed
 over the command line:
 
-- [Auth](../../architecture/authentication.mdx)
-- [Node/SSH](../../architecture/agents.mdx)
-- [Proxy](../../architecture/proxy.mdx)
-- [App](../../application-access/introduction.mdx)
-- [Database](../../database-access/introduction.mdx)
-- [Windows Desktop](../../desktop-access/introduction.mdx)
-- [Kubernetes](../../kubernetes-access/introduction.mdx)
+- [Auth](../architecture/authentication.mdx)
+- [Node/SSH](../architecture/agents.mdx)
+- [Proxy](../architecture/proxy.mdx)
+- [App](../../admin-guides/enroll-resources/application-access/introduction.mdx)
+- [Database](../../index.mdx)
+- [Windows Desktop](../../admin-guides/enroll-resources/desktop-access/introduction.mdx)
+- [Kubernetes](../../admin-guides/enroll-resources/kubernetes-access/introduction.mdx)
 
 The primary commands for the `teleport` CLI are as follows:
 
 | Command | Description |
 | - | - |
 | `teleport app start` | Starts the Teleport Application Service. |
-| `teleport configure` | Generates and writes a [configuration YAML file](../config.mdx) for the Teleport service. This file should be customized in production to suit the needs of your environment, and the default output should only be used when testing. |
+| `teleport configure` | Generates and writes a [configuration YAML file](../config-references/config.mdx) for the Teleport service. This file should be customized in production to suit the needs of your environment, and the default output should only be used when testing. |
 | `teleport db configure aws create-iam` | Generates, creates, and attaches desired IAM policies to a Teleport-managed database. |
 | `teleport db configure aws print-iam` | Generates and outputs current IAM policies for a Teleport-managed database. |
 | `teleport db configure bootstrap` | Used to bootstrap a configuration to the Teleport Database Service by reading a provided configuration. |
@@ -29,7 +29,7 @@ The primary commands for the `teleport` CLI are as follows:
 | `teleport install systemd` | Creates a systemd unit file, used to configure and install a `teleport` service daemon. |
 | `teleport join openssh` | Registers an OpenSSH server with Teleport. |
 | `teleport node configure` | Generates a configuration YAML file for a Teleport Node accessed via SSH. This file should be customized in production to suit the needs of your environment, and the default output should only be used when testing. |
-| `teleport start` | Starts the `teleport` process in the foreground using the current shell session, including any services configured by the [configuration YAML file](../config.mdx). |
+| `teleport start` | Starts the `teleport` process in the foreground using the current shell session, including any services configured by the [configuration YAML file](../config-references/config.mdx). |
 | `teleport status` | Prints the status of the current active Teleport SSH session. |
 | `teleport version` | Prints the current release version of the Teleport binary installed on your system. |
 | `teleport debug set-log-level` | Changes instance log level. |
@@ -45,7 +45,7 @@ For more information on subcommands when working with the `teleport` cli, use th
 The `teleport start` command includes a large number of optional configuration flags.
 
 While configuration flags for `teleport start` can be used to set parameters for Teleport's configuration,
-we recommend using a [configuration file](../config.mdx) in production.
+we recommend using a [configuration file](../config-references/config.mdx) in production.
 
 ### Flags
 
@@ -53,7 +53,7 @@ we recommend using a [configuration file](../config.mdx) in production.
 | - | - | - | - |
 | `-d, --debug` | none | none | enable verbose logging to stderr |
 | `--insecure-no-tls` | `false` | `true` or `false` | Tells proxy to not generate default self-signed TLS certificates. This is useful when running Teleport on kubernetes (behind reverse proxy) or behind things like AWS ELBs, GCP LBs or Azure Load Balancers where SSL termination is provided externally. |
-| `-r, --roles` | `proxy`, `node`, `auth` | **string** comma-separated list of `proxy`, `node`, `auth`, `db`, or `app` | start listed services/roles. These roles are explained in the [Core Concepts](../../core-concepts.mdx) document. |
+| `-r, --roles` | `proxy`, `node`, `auth` | **string** comma-separated list of `proxy`, `node`, `auth`, `db`, or `app` | start listed services/roles. These roles are explained in the [Core Concepts](../../get-started/core-concepts.mdx) document. |
 | `--pid-file` | none | **string** filepath | create a PID file at the path |
 | `--advertise-ip` | none | **string** IP | advertise IP to clients, often used behind NAT |
 | `-l, --listen-ip` | `0.0.0.0` | [**net. IP**](https://golang.org/pkg/net/#IP) | binds services to IP |
@@ -64,7 +64,7 @@ we recommend using a [configuration file](../config.mdx) in production.
 | `-c, --config` | `/etc/teleport.yaml` | **string** `.yaml` filepath | starts services with config specified in the YAML file, overrides CLI flags if set |
 | `--apply-on-startup` | none | **string** `.yaml` filepath | On startup, always apply resources described in the file at the given path. Only supports the following kinds: `token`, `role`, `user`, `cluster-auth-preference`, `cluster-networking-config`. |
 | `--bootstrap` | none | **string** `.yaml` filepath | bootstrap configured YAML resources {/* TODO link how to configure this file */} |
-| `--labels` | none | **string** comma-separated list | assigns a set of labels to a node, for example env=dev,app=web. See the explanation of labeling mechanism in the [Labeling Nodes](../../management/admin/labels.mdx) section. |
+| `--labels` | none | **string** comma-separated list | assigns a set of labels to a node, for example env=dev,app=web. See the explanation of labeling mechanism in the [Labeling Nodes](../../admin-guides/access-controls/labels/labels.mdx) section. |
 | `--insecure` | none | none | disable certificate validation on Proxy Service, validation still occurs on Auth Service. |
 | `--fips` | none | none | start Teleport in FedRAMP/FIPS 140-2 mode. |
 | `--skip-version-check` | `false` | `true` or `false` | Skips version checks between the Auth Server this Teleport instance |
@@ -80,11 +80,11 @@ The `--roles` flag when used with `teleport --start` instructs Teleport on which
 
 | Service | Role Name | Description |
 | - | - | - |
-| [Node](../../architecture/agents.mdx) | `node` | Allows SSH connections from authenticated clients. |
-| [Auth](../../architecture/authentication.mdx) | `auth` | Authenticates and authorizes hosts and users who want access to Teleport-managed resources or information about a cluster. |
-| [Proxy](../../architecture/proxy.mdx) | `proxy` | The gateway that clients use to connect to the Auth Service or resources managed by Teleport. |
-| [App](../../application-access/introduction.mdx) | `app` | Provides access to applications. |
-| [Database](../../database-access/reference.mdx) | `db` | Provides access to databases. |
+| [Node](../architecture/agents.mdx) | `node` | Allows SSH connections from authenticated clients. |
+| [Auth](../architecture/authentication.mdx) | `auth` | Authenticates and authorizes hosts and users who want access to Teleport-managed resources or information about a cluster. |
+| [Proxy](../architecture/proxy.mdx) | `proxy` | The gateway that clients use to connect to the Auth Service or resources managed by Teleport. |
+| [App](../../admin-guides/enroll-resources/application-access/introduction.mdx) | `app` | Provides access to applications. |
+| [Database](../../index.mdx) | `db` | Provides access to databases. |
 
 <Notice type="tip" scope={["cloud"]}>
 

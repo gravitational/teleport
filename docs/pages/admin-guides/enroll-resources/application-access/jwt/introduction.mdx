@@ -1,0 +1,125 @@
+---
+title: Use JWT Tokens With Application Access
+description: How to use JWT tokens for authentication with Teleport application access.
+---
+
+Teleport sends a JWT token signed with Teleport's authority with each request
+to a target application in a `Teleport-Jwt-Assertion` header.
+
+You can use the JWT token to get information about the authenticated Teleport
+user, its roles, and its traits. This allows you to:
+
+- Map Teleport identity/roles/traits onto the identity/roles/traits of your web application.
+- Trust Teleport identity to automatically sign in users into your application.
+
+## Introduction to JWTs
+
+JSON Web Token (JWT) is an open standard that defines a secure way to transfer
+information between parties as a JSON Object.
+
+For an in-depth explanation please visit [https://jwt.io/introduction/](https://jwt.io/introduction/).
+
+Teleport JWTs include three sections:
+
+- Header
+- Payload
+- Signature
+
+### Header
+
+*Example Header*
+
+```json
+{
+  "alg": "RS256",
+  "typ": "JWT"
+}
+```
+
+### Payload
+
+*Example Payload*
+
+```json
+{
+  "aud": [
+    "http://127.0.0.1:34679"
+  ],
+  "iss": "aws",
+  "nbf": 1603835795,
+  "sub": "alice",
+  // Teleport user name.
+  "username": "alice"
+  // Teleport user roles.
+  "roles": [
+    "admin"
+  ],
+  // Teleport user traits.
+  "traits": {
+    "logins": [
+      "root",
+      "ubuntu",
+      "ec2-user"
+    ]
+  },
+  // Teleport identity expiration.
+  "exp": 1603943800,
+}
+```
+
+The JWT will be sent with the header: `Teleport-Jwt-Assertion`.
+
+*Example Teleport JWT Assertion*
+
+```json
+eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOlsiaHR0cDovLzEyNy4wLjAuMTozNDY3OSJdLCJleHAiOjE2MDM5NDM4MDAsImlzcyI6ImF3cyIsIm5iZiI6MTYwMzgzNTc5NSwicm9sZXMiOlsiYWRtaW4iXSwic3ViIjoiYmVuYXJlbnQiLCJ1c2VybmFtZSI6ImJlbmFyZW50In0.PZGUyFfhEWl22EDniWRLmKAjb3fL0D4cTmkxEfb-Q30hVMzVhka5WB8AUsPsLPVhTzsQ6Nkk1DnXHdz6oxrqDDfumuRrDnpJpjiXj_l0D3bExrchN61enzBHxSD13VkRIqP1V6l4i8yt8kXDIBWc-QejLTodA_GtczkDfnnpuAfaxIbD7jEwF27KI4kZu7uES9LMu2iCLdV9ZqarA-6HeDhXPA37OJ3P6eVQzYpgaOBYro5brEiVpuJLr1yA0gncmR4FqmhCpCj-KmHi2vmjmJAuuHId6HZoEZJjC9IAsNlrSA4GHH9j82o7FF1F4J2s38bRy3wZv46MT8X8-QBSpg
+```
+
+## Inject JWT
+
+You can inject a JWT token into any header using [headers passthrough](../guides/connecting-apps.mdx)
+configuration and the `{{internal.jwt}}` template variable. This variable will
+be replaced with JWT token signed by Teleport JWT CA containing user identity
+information like described above.
+
+For example:
+
+```yaml
+- name: "elasticsearch"
+  uri: https://localhost:4321
+  public_addr: elastic.example.com
+  rewrite:
+    headers:
+    - "Authorization: Bearer {{internal.jwt}}"
+```
+
+## Validate JWT
+
+Teleport provides a JSON Web Key Set (`jwks`) endpoint to verify that the JWT
+can be trusted. This endpoint is `https://[cluster-name]:3080/.well-known/jwks.json`:
+
+*Example jwks.json*
+
+```json
+{
+  "keys": [
+    {
+      "kty": "RSA",
+      "n": "xk-0VSVZY76QGqeN9TD-FJp32s8jZrpsalnRoFwlZ_JwPbbd5-_bPKcz8o2tv1eJS0Ll6ePxRCyK68Jz2UC4V4RiYaqJCRq_qVpDQMB1sQ7p9M-8qvT82FJ-Rv-W4RNe3xRmBSFDYdXaFm51Uk8OIYfv-oZ0kGptKpkNY390aJOzjHPH2MqSvhk9Xn8GwM8kEbpSllavdJCRPCeNVGJXiSCsWrOA_wsv_jqBP6g3UOA9GnI8R6HR14OxV3C184vb3NxIqxtrW0C4W6UtSbMDcKcNCgajq2l56pHO8In5GoPCrHqlo379LE5QqpXeeHj8uqcjeGdxXTuPrRq1AuBpvQ",
+      "e": "AQAB",
+      "alg": "RS256"
+    }
+  ]
+}
+```
+
+See the example Go program used to validate Teleport's JWT tokens on our
+[GitHub](https://github.com/gravitational/teleport/blob/v(=teleport.version=)/examples/jwt/verify-jwt.go).
+
+## Application guides
+
+Many existing web applications and APIs support JWT authentication.
+
+The following guides are currently available showing how to configure it:
+
+- [ElasticSearch](elasticsearch.mdx)

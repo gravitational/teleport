@@ -1,0 +1,80 @@
+---
+title: High Availability Application Service Deployments
+description: How to configure Teleport application access in a Highly Available (HA) configuration.
+---
+
+You can deploy the Application Service in a Highly Available (HA) configuration
+in a couple of common ways: combined instances and separate instances. Both of
+those revolve around pointing multiple Application Services to the same
+application.
+
+## Combined instances
+
+The most common approach is to assign the same `name` to each Application Service
+proxying the application.
+
+If you have two Application Services proxying the same application, configuration for
+both agents would be identical:
+
+```yaml
+# Same config for both agents.
+app_service:
+  enabled: "yes"
+  apps:
+  - name: "elastic"
+    uri: https://elasticsearch.example.com:9200
+```
+
+With this configuration, you will see only a single entry for the application in
+`tsh apps ls`:
+
+```code
+$ tsh apps ls
+Application Description Type Public Address            Labels
+----------- ----------- ---- ------------------------- -------------------
+elastic                 HTTP elastic.proxy.example.com teleport.dev/origin
+```
+
+When connecting, Teleport will randomly pick the Application Service instance to
+connect through to provide some load balancing. If the selected instance is down
+(e.g. in case of AZ outage), Teleport will try to connect via other instances.
+
+## Separate instances
+
+With separate instances, each Application Service instance proxying the application
+assigns it a different name. This allows you to explicitly pick the agent
+you want to connect to the application over:
+
+```yaml
+# Application service instance #1.
+app_service:
+  enabled: "yes"
+  apps:
+  # Note the name is different than instance #2 but the URI is the same.
+  - name: "elastic-us-east-1a"
+    uri: https://elasticsearch.example.com:9200
+```
+
+```yaml
+# Application service instance #2.
+app_service:
+  enabled: "yes"
+  apps:
+  # Note the name is different than instance #2 but the URI is the same.
+  - name: "elastic-us-east-1b"
+    uri: https://elasticsearch.example.com:9200
+```
+
+With this configuration, both services will appear as two separate entries in
+`tsh apps ls` output and you will have to pick one explicitly when connecting:
+
+```code
+$ tsh apps ls
+Application         Description Type Public Address            Labels
+------------------- ----------- ---- ------------------------- -------------------
+elastic-us-east-1a              HTTP elastic.proxy.example.com teleport.dev/origin
+elastic-us-east-1b              HTTP elastic.proxy.example.com teleport.dev/origin
+```
+
+This approach is useful when you want to have control over which instance you
+wish to connect to.

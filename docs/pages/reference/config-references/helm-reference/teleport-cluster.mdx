@@ -1,0 +1,2188 @@
+---
+title: teleport-cluster Chart Reference
+description: Values that can be set using the teleport-cluster Helm chart
+---
+
+The `teleport-cluster` Helm chart deploys a Teleport cluster on Kubernetes.
+This includes deploying proxies, auth servers, and [kubernetes-access](../../../admin-guides/enroll-resources/kubernetes-access/introduction.mdx).
+See the [Teleport HA Architecture page](../../../admin-guides/self-hosting/deploy-a-cluster/high-availability.mdx)
+for more details.
+
+You can
+[browse the source on GitHub](https://github.com/gravitational/teleport/tree/branch/v(=teleport.major_version=)/examples/chart/teleport-cluster).
+
+The `teleport-cluster` chart runs three Teleport services, split into two sets of pods:
+
+| Teleport service | Running in | Purpose | Documentation |
+| - | - | - | - |
+| `auth_service` | auth `Deployment` | Authenticates users and hosts, and issues certificates. | [Auth documentation](../../architecture/authentication.mdx)
+| `kubernetes_service` | auth `Deployment` | Provides secure access to the Kubernetes<br/>cluster where the Teleport cluster is hosted. | [Kubernetes Access documentation](../../../admin-guides/enroll-resources/kubernetes-access/introduction.mdx) |
+| `proxy_service` | proxy `Deployment` | Runs the externally-facing parts of a Teleport<br/>cluster, such as the web UI, SSH proxy and reverse tunnel service. | [Proxy documentation](../../architecture/proxy.mdx) |
+
+<Admonition type="tip" title="Additional Kubernetes Clusters and Teleport Services">
+If you want to provide access to resources like Databases, Applications or other
+Kubernetes clusters than the one hosting the Teleport cluster, you should use the
+[`teleport-kube-agent` Helm chart](teleport-kube-agent.mdx).
+
+- `teleport-cluster` hosts a Teleport cluster, you should only need one.
+- `teleport-kube-agent` connects to an existing Teleport cluster and exposes configured resources.
+
+This reference details available values for the `teleport-cluster` chart.
+</Admonition>
+
+The `teleport-cluster` chart can be deployed in four different modes.
+Get started with a guide for each mode:
+
+| `chartMode` | Purpose | Guide |
+| - | - | - |
+| `standalone` | Runs by relying only on Kubernetes resources. | [Getting Started - Kubernetes](../../../admin-guides/self-hosting/deploy-a-cluster/helm-deployments/kubernetes-cluster.mdx) |
+| `aws` | Leverages AWS managed services to store data. | [Running an HA Teleport cluster using an AWS EKS Cluster](../../../admin-guides/self-hosting/deploy-a-cluster/helm-deployments/aws.mdx) |
+| `gcp` | Leverages GCP managed services to store data. | [Running an HA Teleport cluster using a Google Cloud GKE cluster](../../../admin-guides/self-hosting/deploy-a-cluster/helm-deployments/gcp.mdx) |
+| `azure` | Leverages Azure managed services to store data. | [Running an HA Teleport cluster using a Microsoft Azure AKS cluster](../../../admin-guides/self-hosting/deploy-a-cluster/helm-deployments/azure.mdx) |
+| `scratch` (v12 and above) | Generates empty Teleport configuration. User must pass their own config. This is discouraged, use `standalone` mode with [`auth.teleportConfig`](#authteleportconfig) and [`proxy.teleportConfig`](#proxyteleportconfig) instead. | [Running a Teleport cluster with a custom config](../../../admin-guides/self-hosting/deploy-a-cluster/helm-deployments/custom.mdx) |
+
+<Admonition type="note" title="Custom mode removal">
+`custom` mode has been removed in Teleport version 12. See the [version 12
+migration guide](../../../admin-guides/self-hosting/deploy-a-cluster/helm-deployments/migration-v12.mdx) for
+more information.
+</Admonition>
+
+<Admonition type="warning" title="Version Compatibility">
+The chart is versioned with Teleport. No compatibility guarantees are ensured
+between new charts and previous major Teleport versions. It is strongly recommended
+to always deploy a Teleport version with the same major version as the Helm chart.
+</Admonition>
+
+(!docs/pages/includes/backup-warning.mdx!)
+
+## `clusterName`
+
+| Type     | Default value | Required? | `teleport.yaml` equivalent                               |
+|----------|---------------|-----------|----------------------------------------------------------|
+| `string` | `nil`         | Yes       | `auth_service.cluster_name`, `proxy_service.public_addr` |
+
+`clusterName` controls the name used to refer to the Teleport cluster, along with
+the externally-facing public address used to access it. In most setups this must
+be a fully-qualified domain name (e.g. `teleport.example.com`) as this value is
+used as the cluster's public address by default.
+
+<Admonition type="note">
+When using a fully qualified domain name as your `clusterName`, you will also
+need to configure the DNS provider for this domain to point to the external
+load balancer address of your Teleport cluster.
+
+(!docs/pages/includes/kubernetes-access/helm/kubernetes-externaladdress.mdx!)
+
+You will need to manually add a DNS A record pointing `teleport.example.com` to
+the IP, or a CNAME record pointing to the hostname of the Kubernetes load balancer.
+
+<Details title="Using Application Access?">
+(!docs/pages/includes/dns-app-access.mdx!)
+</Details>
+</Admonition>
+
+<Admonition type="warning">
+The `clusterName` cannot be changed during a Teleport cluster's lifespan.
+If you need to change it, you must redeploy a completely new cluster.
+</Admonition>
+
+## `kubeClusterName`
+
+| Type | Default value | Required? | `teleport.yaml` equivalent |
+| - | - | - | - |
+| `string` | `clusterName` value | no | `kubernetes_service.kube_cluster_name` |
+
+`kubeClusterName` sets the name used for Kubernetes access.
+This name will be shown to Teleport users connecting to the Kubernetes cluster.
+
+## `auth`
+| Type     | Default value | Required? |
+|----------|---------------|-----------|
+| `object` | {}            | no        |
+
+The `teleport-cluster` chart deploys two sets of pods, one for the Auth Service
+and another for the Proxy Service.
+
+`auth` allows you to set chart values only for Kubernetes resources related to the Teleport Auth Service.
+This is merged with chart-scoped values and takes precedence in case of conflict.
+
+For example, to override the [`postStart`](#postStart) value only for auth pods:
+```yaml
+# By default all pods postStart command should be "echo starting"
+postStart: ["echo", "starting"]
+
+auth:
+  # But we override the `postStart` value specifically for auth pods
+  postStart: ["curl", "http://hook"]
+  imagePullPolicy: Always
+```
+
+### `proxyProtocol`
+
+| Component   | Type     | Default value  | Required? | `teleport.yaml` equivalent |
+|-------------|----------|----------------|-----------|----------------------------|
+| `proxy`     | `string` | `null`         | no        | `proxy_service.proxy_protocol`  |
+
+
+The `proxyProtocol` value controls whether the Proxy pods will
+accept PROXY lines with the client's IP address when they are
+behind a L4 load balancer (e.g. AWS ELB, GCP L4 LB, etc) with PROXY protocol
+enabled. Since L4 LBs do not preserve the client's IP address, PROXY protocol is
+required to ensure that Teleport can properly audit the client's IP address.
+
+When Teleport pods are not behind a L4 LB with PROXY protocol enabled, this
+value should be set to `off` to prevent Teleport from accepting PROXY headers
+from untrusted sources.
+
+Possible values are:
+- `on`: will enable the PROXY protocol for all connections and will require the
+  L4 LB to send a PROXY header.
+- `off` will disable the PROXY protocol for all connections and denies all
+  connections prefixed a PROXY header.
+
+If `proxyProtocol` is unspecified, Teleport does not require PROXY header for the
+connection, but will accept it if present. This mode is considered insecure
+and should only be used for testing purposes.
+
+See the [PROXY Protocol security section](../../../admin-guides/common-operations/security/proxy-protocol.mdx) for more details.
+
+
+### `auth.teleportConfig`
+
+| Type     | Default value | Required? |
+|----------|---------------|-----------|
+| `object` | {}            | no        |
+
+`auth.teleportConfig` contains YAML teleport configuration for auth pods.
+The configuration will be merged with the chart-generated configuration
+and will take precedence in case of conflict. This field allows customization of/overrides to
+any bit of configuration in `teleport.yaml` without having to use
+[the `scratch` chart mode](#chartmode).
+
+The merge logic is as follows:
+- object fields are merged recursively
+- lists are replaced
+- values (string, integer, boolean, ...) are replaced
+- fields can be unset by setting them to `null` or `~`
+
+See the [Teleport Configuration Reference](../config.mdx) for the list of supported fields.
+
+```yaml
+auth:
+  teleportConfig:
+    teleport:
+      cache:
+        enabled: false
+    auth_service:
+      client_idle_timeout: 2h
+      client_idle_timeout_message: "Connection closed after 2 hours without activity"
+```
+
+## `proxy`
+| Type     | Default value | Required? |
+|----------|---------------|-----------|
+| `object` | {}            | no        |
+
+The `teleport-cluster` charts deploys two sets of pods: one for the Auth Service
+and another for the Proxy Service.
+
+`proxy` allows you to set chart values only for Kubernetes resources related to the Teleport Proxy Service.
+This is merged with chart-scoped values and takes precedence in case of conflict.
+
+For example, to override the [`postStart`](#postStart) value only for Teleport Proxy Service pods
+and annotate the Kubernetes Service deployed for the Teleport Proxy Service:
+```yaml
+# By default all pods postStart command should be "echo starting"
+postStart: ["echo", "starting"]
+
+proxy:
+  # But we override the `postStart` value specifically for proxy pods
+  postStart: ["curl", "http://hook"]
+  imagePullPolicy: Always
+
+  # We also annotate only the Kubernetes Service sending traffic to Proxy Service pods.
+  annotations:
+    service:
+      external-dns.alpha.kubernetes.io/hostname: "teleport.example.com"
+```
+
+### `proxy.teleportConfig`
+
+| Type     | Default value | Required? |
+|----------|---------------|-----------|
+| `object` | {}            | no        |
+
+`proxy.teleportConfig` contains YAML teleport configuration for proxy pods
+The configuration will be merged with the chart-generated configuration
+and will take precedence in case of conflict. This field allows customization of/overrides to
+any bit of configuration in `teleport.yaml` without having to use
+[the `scratch` chart mode](#chartmode).
+
+The merge logic is as follows:
+- object fields are merged recursively
+- lists are replaced
+- values (string, integer, boolean, ...) are replaced
+- fields can be unset by setting them to `null` or `~`
+
+See the [Teleport Configuration Reference](../config.mdx) for the list of supported fields.
+
+```yaml
+proxy:
+  teleportConfig:
+    teleport:
+      cache:
+        enabled: false
+    proxy_service:
+      https_keypairs:
+        - key_file: /my-custom-mount/key.pem
+          cert_file: /my-custom-mount/cert.pem
+```
+
+## `authentication`
+
+### `authentication.type`
+
+| Type     | Default value | Required? | `teleport.yaml` equivalent         |
+|----------|---------------|-----------|------------------------------------|
+| `string` | `local`       | Yes       | `auth_service.authentication.type` |
+
+`authentication.type` controls the authentication scheme used by Teleport.
+Possible values are `local` and `github` for Teleport Community Edition, plus `oidc` and `saml` for Enterprise.
+
+### `authentication.connectorName`
+
+| Type     | Default value | Required? | `teleport.yaml` equivalent                   |
+|----------|---------------|-----------|----------------------------------------------|
+| `string` | `""`          | No        | `auth_service.authentication.connector_name` |
+
+`authentication.connectorName` sets the default authentication connector.
+[The SSO documentation](../../../admin-guides/authentication/sso/overview.mdx) explains how to create
+authentication connectors for common identity providers. In addition to SSO
+connector names, the following built-in connectors are supported:
+
+- [`local`](../../operations/users.mdx) for local users
+- [`passwordless`](../../../admin-guides/authentication/passwordless.mdx) to enable by
+default passwordless authentication.
+
+Defaults to `local`.
+
+### `authentication.localAuth`
+
+| Type   | Default value | Required? | `teleport.yaml` equivalent               |
+|--------|---------------|-----------|------------------------------------------|
+| `bool` | `true`        | No        | `auth_service.authentication.local_auth` |
+
+`authentication.localAuth` controls whether local authentication is enabled.
+When disabled, users can only log in through authentication connectors like `saml`, `oidc` or `github`.
+
+[Disabling local auth is required for FedRAMP / FIPS](../../operations/compliance-frameworks/fedramp.mdx).
+
+### `authentication.lockingMode`
+
+| Type     | Default value | Required? | `teleport.yaml` equivalent                 |
+|----------|---------------|-----------|--------------------------------------------|
+| `string` | `""`          | No        | `auth_service.authentication.locking_mode` |
+
+`authentication.lockingMode` controls the locking mode cluster-wide. Possible values are `best_effort` and `strict`.
+See [the locking modes documentation](../../../admin-guides/access-controls/locking.mdx) for more
+details.
+
+Defaults to Teleport's binary default when empty: `best_effort`.
+
+### `authentication.passwordless`
+
+| Type   | Default value | Required? | `teleport.yaml` equivalent               |
+|--------|---------------|-----------|------------------------------------------|
+| `bool` | `nil`         | No        | `auth_service.authentication.passwordless` |
+
+`authentication.passwordless` controls whether passwordless authentication is enabled.
+
+[Can be used to forbid passwordless access to your cluster](../../../admin-guides/authentication/passwordless.mdx)
+
+### `authentication.secondFactor`
+
+| Type     | Default value | Required? | `teleport.yaml` equivalent                  |
+|----------|---------------|-----------|---------------------------------------------|
+| `string` | `otp`         | Yes       | `auth_service.authentication.second_factor` |
+
+`authentication.secondFactor` controls the second factor used for local user authentication. Possible values supported by this chart
+are `on`, `otp`, and `webauthn`.
+
+When set to `on` or `webauthn`, the `authenticationSecondFactor.webauthn` section can also be used.
+The configured `rp_id` defaults to `clusterName`.
+
+<Admonition type="warning">
+If you set `publicAddr` for users to access the cluster under a domain different
+to [`clusterName`](#clusterName), you must manually set the webauthn [Relying
+Party Identifier (RP
+ID)](https://www.w3.org/TR/webauthn-2/#relying-party-identifier). If you don't,
+RP ID will default to `clusterName` and users will fail to register second
+factors.
+
+You can do this by setting the value
+`auth.teleportConfig.auth_service.authentication.webauthn.rp_id`.
+
+RP ID must be both a valid domain, and part of the full domain users are connecting to.
+For example, if users are accessing the cluster with the domain
+"teleport.example.com", RP ID can be "teleport.example.com" or "example.com".
+
+Changing the RP ID will invalidate all already registered webauthn second factors.
+</Admonition>
+
+### `authentication.webauthn`
+
+See [Second Factor - WebAuthn](../../../admin-guides/authentication/webauthn.mdx) for more details.
+
+#### `authentication.webauthn.attestationAllowedCas`
+
+| Type    | Default value | Required? | `teleport.yaml` equivalent                                     |
+|---------|---------------|-----------|----------------------------------------------------------------|
+| `array` | `[]`          | No        | `auth_service.authentication.webauthn.attestation_allowed_cas` |
+
+`authentication.webauthn.attestationAllowedCas` is an optional allow list of certificate authorities (as local file paths or in-line PEM certificate string) for
+[device verification](https://developers.yubico.com/WebAuthn/WebAuthn_Developer_Guide/Attestation.html).
+This field allows you to restrict which device models and vendors you trust.
+Devices outside of the list will be rejected during registration.
+By default all devices are allowed.
+
+#### `authentication.webauthn.attestationDeniedCas`
+
+| Type    | Default value | Required? | `teleport.yaml` equivalent                                    |
+|---------|---------------|-----------|---------------------------------------------------------------|
+| `array` | `[]`          | No        | `auth_service.authentication.webauthn.attestation_denied_cas` |
+
+`authentication.webauthn.attestationDeniedCas` is optional deny list of certificate authorities (as local file paths or in-line PEM certificate string) for
+[device verification](https://developers.yubico.com/WebAuthn/WebAuthn_Developer_Guide/Attestation.html).
+This field allows you to forbid specific device models and vendors, while allowing all others (provided they clear attestation_allowed_cas as well).
+Devices within this list will be rejected during registration.
+By default no devices are forbidden.
+
+## `proxyListenerMode`
+
+| Type     | Default value | Required? | `teleport.yaml` equivalent         |
+|----------|---------------|-----------|------------------------------------|
+| `string` | `nil`         | no        | `auth_service.proxy_listener_mode` |
+
+`proxyListenerMode` controls proxy TLS routing used by Teleport. Possible values are `multiplex`, `separate`.
+
+`values.yaml` example:
+
+  ```yaml
+  proxyListenerMode: multiplex
+  ```
+
+## `sessionRecording`
+
+| Type     | Default value | Required? | `teleport.yaml` equivalent       |
+|----------|---------------|-----------|----------------------------------|
+| `string` | `""`          | no        | `auth_service.session_recording` |
+
+`sessionRecording` controls the `session_recording` field in the `teleport.yaml` configuration.
+It is passed as-is in the configuration.
+For possible values, [see the Teleport Configuration Reference](../config.mdx).
+
+`values.yaml` example:
+
+  ```yaml
+  sessionRecording: proxy
+  ```
+
+## `separatePostgresListener`
+
+| Type   | Default value | Required? | `teleport.yaml` equivalent           |
+|--------|---------------|-----------|--------------------------------------|
+| `bool` | `false`       | no        | `proxy_service.postgres_listen_addr` |
+
+`separatePostgresListener` controls whether Teleport will multiplex PostgreSQL
+traffic for the Teleport Database Service over a separate TLS listener to
+Teleport's web UI.
+
+When `separatePostgresListener` is `false` (the default), PostgreSQL traffic will be directed to port 443 (the default Teleport web
+UI port). This works in situations when Teleport is terminating its own TLS traffic, i.e. when using certificates from LetsEncrypt
+or providing a certificate/private key pair via Teleport's `proxy_service.https_keypairs` config.
+
+When `separatePostgresListener` is `true`, PostgreSQL traffic will be directed to a separate Postgres-only listener on port 5432.
+This also adds the port to the `Service` that the chart creates. This is useful when terminating TLS at a load balancer
+in front of Teleport, such as when using AWS ACM.
+
+These settings will not apply if [`proxyListenerMode`](#proxylistenermode) is set to `multiplex`.
+
+`values.yaml` example:
+
+  ```yaml
+  separatePostgresListener: true
+  ```
+
+## `separateMongoListener`
+
+| Type   | Default value | Required? | `teleport.yaml` equivalent        |
+|--------|---------------|-----------|-----------------------------------|
+| `bool` | `false`       | no        | `proxy_service.mongo_listen_addr` |
+
+`separateMongoListener` controls whether Teleport will multiplex PostgreSQL traffic for the Teleport Database Service
+over a separate TLS listener to Teleport's web UI.
+
+When `separateMongoListener` is `false` (the default), MongoDB traffic will be directed to port 443 (the default Teleport web
+UI port). This works in situations when Teleport is terminating its own TLS traffic, i.e. when using certificates from LetsEncrypt
+or providing a certificate/private key pair via Teleport's `proxy_service.https_keypairs` config.
+
+When `separateMongoListener` is `true`, MongoDB traffic will be directed to a separate Mongo-only listener on port 27017.
+This also adds the port to the `Service` that the chart creates. This is useful when terminating TLS at a load balancer
+in front of Teleport, such as when using AWS ACM.
+
+These settings will not apply if [`proxyListenerMode`](#proxylistenermode) is set to `multiplex`.
+
+`values.yaml` example:
+
+  ```yaml
+  separateMongoListener: true
+  ```
+
+## `publicAddr`
+
+| Type           | Default value | Required? | `teleport.yaml` equivalent  |
+|----------------|---------------|-----------|-----------------------------|
+| `list[string]` | `[]`          | no        | `proxy_service.public_addr` |
+
+`publicAddr` controls the advertised addresses for TLS connections.
+
+When `publicAddr` is not set, the address used is [`clusterName`](#clusterName) on port 443.
+
+<Admonition type="warning">
+If you set `publicAddr` for users to access the cluster under a domain different
+to [`clusterName`](#clusterName) you must manually set the webauthn [Relying
+Party Identifier (RP
+ID)](https://www.w3.org/TR/webauthn-2/#relying-party-identifier). If you don't,
+RP ID will default to `clusterName` and users will fail to register second
+factors.
+
+You can do this by setting the value
+`auth.teleportConfig.auth_service.authentication.webauthn.rp_id`.
+
+RP ID must be both a valid domain, and part of the full domain users are connecting to.
+For example, if users are accessing the cluster with the domain
+"teleport.example.com", RP ID can be "teleport.example.com" or "example.com".
+
+Changing the RP ID will invalidate all already registered webauthn second factors.
+</Admonition>
+
+`values.yaml` example:
+
+  ```yaml
+  publicAddr: ["loadbalancer.example.com:443"]
+  ```
+
+## `kubePublicAddr`
+
+| Type           | Default value | Required? | `teleport.yaml` equivalent       |
+|----------------|---------------|-----------|----------------------------------|
+| `list[string]` | `[]`          | no        | `proxy_service.kube_public_addr` |
+
+`kubePublicAddr` controls the advertised addresses for the Kubernetes proxy.
+This setting will not apply if [`proxyListenerMode`](#proxylistenermode) is set to `multiplex`.
+
+When `kubePublicAddr` is not set, the addresses are inferred from [`publicAddr`](#publicAddr) if set,
+else [`clusterName`](#clusterName) is used. Default port is 3026.
+
+`values.yaml` example:
+
+  ```yaml
+  kubePublicAddr: ["loadbalancer.example.com:3026"]
+  ```
+
+## `mongoPublicAddr`
+
+| Type           | Default value | Required? | `teleport.yaml` equivalent        |
+|----------------|---------------|-----------|-----------------------------------|
+| `list[string]` | `[]`          | no        | `proxy_service.mongo_public_addr` |
+
+`mongoPublicAddr` controls the advertised addresses to MongoDB clients.
+This setting will not apply if [`proxyListenerMode`](#proxylistenermode) is set to `multiplex` and
+requires [`separateMongoListener`](#separatePostgresListener) enabled.
+
+When `mongoPublicAddr` is not set, the addresses are inferred from [`clusterName`](#clusterName) is used.
+Default port is 27017.
+
+`values.yaml` example:
+
+  ```yaml
+  mongoPublicAddr: ["loadbalancer.example.com:27017"]
+  ```
+
+## `mysqlPublicAddr`
+
+| Type           | Default value | Required? | `teleport.yaml` equivalent        |
+|----------------|---------------|-----------|-----------------------------------|
+| `list[string]` | `[]`          | no        | `proxy_service.mysql_public_addr` |
+
+`mysqlPublicAddr` controls the advertised addresses for the MySQL proxy.
+This setting will not apply if [`proxyListenerMode`](#proxylistenermode) is set to `multiplex`.
+
+When `mysqlPublicAddr` is not set, the addresses are inferred from [`publicAddr`](#publicAddr) if set,
+else [`clusterName`](#clusterName) is used. Default port is 3036.
+
+`values.yaml` example:
+
+  ```yaml
+  mysqlPublicAddr: ["loadbalancer.example.com:3036"]
+  ```
+
+## `postgresPublicAddr`
+
+| Type | Default value | Required? | `teleport.yaml` equivalent |
+| - | - | - | - |
+| `list[string]` | `[]` | no | `proxy_service.postgres_public_addr` |
+
+`postgresPublicAddr` controls the advertised addresses to postgres clients.
+This setting will not apply if [`proxyListenerMode`](#proxylistenermode) is set to `multiplex` and
+requires [`separatePostgresListener`](#separatePostgresListener) enabled.
+
+When `postgresPublicAddr` is not set, the addresses are inferred from [`publicAddr`](#publicAddr) if set,
+else [`clusterName`](#clusterName) is used. Default port is 5432.
+
+`values.yaml` example:
+
+  ```yaml
+  postgresPublicAddr: ["loadbalancer.example.com:5432"]
+  ```
+
+## `sshPublicAddr`
+
+| Type           | Default value | Required? | `teleport.yaml` equivalent      |
+|----------------|---------------|-----------|---------------------------------|
+| `list[string]` | `[]`          | no        | `proxy_service.ssh_public_addr` |
+
+`sshPublicAddr` controls the advertised addresses for SSH clients. This is also used by the `tsh` client.
+This setting will not apply if [`proxyListenerMode`](#proxylistenermode) is set to `multiplex`.
+
+When `sshPublicAddr` is not set, the addresses are inferred from [`publicAddr`](#publicAddr) if set,
+else [`clusterName`](#clusterName) is used. Default port is 3023.
+
+`values.yaml` example:
+
+  ```yaml
+  sshPublicAddr: ["loadbalancer.example.com:3023"]
+  ```
+
+## `tunnelPublicAddr`
+
+| Type           | Default value | Required? | `teleport.yaml` equivalent         |
+|----------------|---------------|-----------|------------------------------------|
+| `list[string]` | `[]`          | no        | `proxy_service.tunnel_public_addr` |
+
+`tunnelPublicAddr` controls the advertised addresses to trusted clusters or nodes joining via node-tunneling.
+This setting will not apply if [`proxyListenerMode`](#proxylistenermode) is set to `multiplex`.
+
+When `tunnelPublicAddr` is not set, the addresses are inferred from [`publicAddr`](#publicAddr) if set,
+else [`clusterName`](#clusterName) is used. Default port is 3024.
+
+`values.yaml` example:
+
+  ```yaml
+  tunnelPublicAddr: ["loadbalancer.example.com:3024"]
+  ```
+
+## `enterprise`
+
+| Type   | Default value |
+|--------|---------------|
+| `bool` | `false`       |
+
+`enterprise` controls whether to use Teleport Community Edition or Teleport Enterprise.
+
+Setting `enterprise` to `true` will use the Teleport Enterprise image.
+
+You will also need to download your Enterprise license from the Teleport dashboard and add it as a Kubernetes secret to use this:
+
+```code
+$ kubectl --namespace teleport create secret generic license --from-file=/path/to/downloaded/license.pem
+```
+
+<Admonition type="tip">
+  If you installed the Teleport chart into a specific namespace, the `license` secret you create must also be added to the same namespace.
+</Admonition>
+
+<Admonition type="note">
+  The file added to the secret must be called `license.pem`. If you have renamed it, you can specify the filename to use in the secret creation command:
+
+  ```code
+  $ kubectl --namespace teleport create secret generic license --from-file=license.pem=/path/to/downloaded/this-is-my-teleport-license.pem
+  ```
+</Admonition>
+
+`values.yaml` example:
+
+  ```yaml
+  enterprise: true
+  ```
+
+## `installCRDs`
+
+| Type   | Default value |
+|--------|---------------|
+| `bool` | `false`       |
+
+CRDs are not namespace-scoped resources - they can be installed only once in a cluster.
+
+CRDs are required by the Teleport Kubernetes Operator and are installed by default when `operator.enabled` is true.
+`installCRDs` overrides this behavior and allows users to indicate whether to deploy Teleport CRDs.
+
+If several releases of the `teleport-cluster` chart are deployed in the same Kubernetes cluster, only one
+release should have `installCRDs` enabled. Unless you are deploying multiple `teleport-cluster` Helm releases in
+the same Kubernetes cluster or installing the CRDs on your own you should not have to set this value.
+
+`values.yaml` example:
+
+  ```yaml
+  installCRDs: true
+  ```
+
+## `operator`
+
+### `operator.enabled`
+
+| Type   | Default value |
+|--------|---------------|
+| `bool` | `false`       |
+
+`operator.enabled` controls whether to deploy the Teleport Kubernetes Operator as a side-car.
+
+Enabling the operator will also deploy the Teleport CRDs in the Kubernetes cluster.
+If you are deploying multiple releases of the Helm chart in the same cluster you can override this behavior with
+[`installCRDs`](#installCRDs).
+
+`values.yaml` example:
+
+  ```yaml
+  operator:
+   enabled: true
+  ```
+
+### `operator.image`
+
+| Type     | Default value                                    |
+|----------|--------------------------------------------------|
+| `string` | `public.ecr.aws/gravitational/teleport-operator` |
+
+`operator.image` sets the Teleport Kubernetes Operator container image used for Teleport pods in the cluster.
+You can override this to use your own Teleport Operator image rather than a Teleport-published image.
+
+This setting requires [`operator.enabled`](#operatorenabled).
+
+`values.yaml` example:
+
+  ```yaml
+  operator:
+    image: my.docker.registry/teleport-operator-image-name
+  ```
+
+### `operator.resources`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+See the [Kubernetes resource](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/)
+documentation.
+
+It is recommended to set resource requests/limits for each container based on their observed usage.
+
+`values.yaml` example:
+
+  ```yaml
+  operator:
+    resources:
+      requests:
+        cpu: 1
+        memory: 2Gi
+  ```
+
+## `global`
+
+### `global.clusterDomain`
+
+| Type     | Default value                                    |
+|----------|--------------------------------------------------|
+| `string` | `cluster.local` |
+
+`global.clusterDomain` sets the the domain suffix used by the Kubernetes DNS service. 
+This is used to resolve service names in the cluster.
+
+`values.yaml` example:
+
+  ```yaml
+  global:
+    clusterDomain: custom-domain.org
+  ```
+
+
+## `teleportVersionOverride`
+
+| Type     | Default value |
+|----------|---------------|
+| `string` | `nil`         |
+
+Normally the version of Teleport being used will match the version of the chart
+being installed. If you install chart version 10.0.0, you'll be using Teleport
+10.0.0. Upgrading the Helm chart will use the latest version from the repo.
+
+You can optionally override this to use a different published Teleport Docker
+image tag like `10.1.2` or `11`.
+
+<Admonition type="danger">
+`teleportVersionOverride` MUST NOT be used to control the Teleport version.
+This chart is designed to run a specific Teleport version. You will face
+compatibility issues trying to run a different Teleport version with it.
+
+If you want to run Teleport version `X.Y.Z`, you should use
+`helm --version X.Y.Z` instead.
+</Admonition>
+
+See our [installation guide](../../../get-started/download-install/installation.mdx) for information on
+Docker image versions.
+
+`values.yaml` example:
+
+  ```yaml
+  teleportVersionOverride: "11"
+  ```
+
+## `acme`
+
+| Type   | Default value | `teleport.yaml` equivalent   |
+|--------|---------------|------------------------------|
+| `bool` | `false`       | `proxy_service.acme.enabled` |
+
+ACME is a protocol for getting Web X.509 certificates.
+
+Setting acme to `true` enables the ACME protocol and will attempt to get a free TLS certificate from Let's Encrypt.
+Setting acme to `false` (the default) will cause Teleport to generate and use self-signed certificates for its web UI.
+
+<Admonition type="note">
+  ACME can only be used for single-pod clusters. It is not suitable for use in HA configurations.
+</Admonition>
+
+<Admonition type="warning">
+  Using a self-signed TLS certificate and disabling TLS verification is OK for testing, but is not viable when running a production Teleport
+  cluster as it will drastically reduce security. You must configure valid TLS certificates on your Teleport cluster for production workloads.
+
+  One option might be to use Teleport's built-in ACME support or enable [cert-manager support](#highavailabilitycertmanager).
+</Admonition>
+
+## `acmeEmail`
+
+| Type     | Default value | `teleport.yaml` equivalent |
+|----------|---------------|----------------------------|
+| `string` | `nil`         | `proxy_service.acme.email` |
+
+`acmeEmail` is the email address to provide during certificate registration (this is a Let's Encrypt requirement).
+
+## `acmeURI`
+
+| Type     | Default value                   | `teleport.yaml` equivalent |
+|----------|---------------------------------|----------------------------|
+| `string` | Let's Encrypt production server | `proxy_service.acme.uri`   |
+
+`acmeURI` is the ACME server to use for getting certificates.
+
+As an example, this can be overridden to use the [Let's Encrypt staging server](https://letsencrypt.org/docs/staging-environment/) for testing.
+
+You can also use any other ACME-compatible server.
+
+`values.yaml` example:
+
+  ```yaml
+  acme: true
+  acmeEmail: user@email.com
+  acmeURI: https://acme-staging-v02.api.letsencrypt.org/directory
+  ```
+
+## `podSecurityPolicy`
+
+### `podSecurityPolicy.enabled`
+
+| Type   | Default value                                         |
+|--------|-------------------------------------------------------|
+| `bool` | `true` for 1.22 and lower, `false` for 1.23 and higher|
+
+By default, Teleport charts used to install a [`podSecurityPolicy`](https://github.com/gravitational/teleport/blob/branch/v(=teleport.major_version=)/examples/chart/teleport-cluster/templates/psp.yaml).
+
+PodSecurityPolicy resource has been removed in Kubernetes 1.25
+and replaced since 1.23 by PodSecurityAdmission. If you are running on
+Kubernetes 1.23 or later it is recommended to disable PSPs and use PSAs.
+The steps are documented in the
+[PSP removal guide](../../../admin-guides/self-hosting/deploy-a-cluster/helm-deployments/migration-kubernetes-1-25-psp.mdx).
+
+To disable PSP creation, you can set `enabled` to `false`.
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/policy/pod-security-policy/)
+
+`values.yaml` example:
+
+  ```yaml
+  podSecurityPolicy:
+    enabled: false
+  ```
+
+## `labels`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+`labels` can be used to add a map of key-value pairs relating to the Teleport
+cluster being deployed. These labels can then be used with Teleport's RBAC
+policies to define access rules for the cluster.
+
+<Admonition type="note">
+  These are Teleport-specific RBAC labels, not Kubernetes labels.
+  See [`extraLabels`](#extraLabels) for setting additional labels on Kubernetes
+  resources.
+</Admonition>
+
+`values.yaml` example:
+
+  ```yaml
+  labels:
+    environment: production
+    region: us-east
+  ```
+
+## `chartMode`
+
+| Type     | Default value |
+|----------|---------------|
+| `string` | `standalone`  |
+
+`chartMode` is used to configure the chart's operation mode. You can find more information about each mode on its specific guide page:
+
+| `chartMode`  | Guide                                                                                                              |
+|--------------|--------------------------------------------------------------------------------------------------------------------|
+| `standalone` | [Getting Started - Kubernetes](../../../admin-guides/self-hosting/deploy-a-cluster/helm-deployments/kubernetes-cluster.mdx)            |
+| `aws`        | [Running an HA Teleport cluster using an AWS EKS Cluster](../../../admin-guides/self-hosting/deploy-a-cluster/helm-deployments/aws.mdx)         |
+| `gcp`        | [Running an HA Teleport cluster using a Google Cloud GKE cluster](../../../admin-guides/self-hosting/deploy-a-cluster/helm-deployments/gcp.mdx) |
+| `azure`      | [Running an HA Teleport cluster using a Microsoft Azure AKS cluster](../../../admin-guides/self-hosting/deploy-a-cluster/helm-deployments/azure.mdx) |
+| `scratch`    | [Running a Teleport cluster with a custom config](../../../admin-guides/self-hosting/deploy-a-cluster/helm-deployments/custom.mdx)              |
+
+<Admonition type="warning">
+Using the `scratch` chart mode is discouraged. Precise chart and Teleport
+knowledge is required to write a fully working cluster configuration.
+
+If you want a working cluster with blocks of custom configuration, it is
+recommended to use one of the other modes and rely on
+[`auth.teleportConfig`](#authteleportconfig) and [`proxy.teleportConfig`](#proxyteleportconfig)
+to inject your custom configuration.
+</Admonition>
+
+## `podMonitor`
+
+`podMonitor` controls [the PodMonitor CR (from monitoring.coreos.com/v1)
+](https://github.com/prometheus-operator/prometheus-operator/blob/main/Documentation/api.md#monitoring.coreos.com/v1.PodMonitor)
+that monitors the workload (Auth and Proxy Services) deployed by the chart.
+This custom resource configures Prometheus and makes it scrape Teleport metrics.
+
+The CRD is deployed by the prometheus-operator and allows workload to
+get monitored. You need to deploy the `prometheus-operator`
+in the cluster prior to configuring the `podMonitor` section of the chart. See
+[the prometheus-operator documentation](https://prometheus-operator.dev/docs/prologue/introduction/)
+for setup instructions.
+
+### `podMonitor.enabled`
+
+| Type   | Default value |
+|--------|---------------|
+| `bool` | `false`       |
+
+Whether the chart should deploy a `PodMonitor` resource. This is disabled by
+default as it requires the `PodMonitor` CRD to be installed in the cluster.
+
+### `podMonitor.additionalLabels`
+
+| Type                   | Default value              |
+|------------------------|----------------------------|
+| `object[string]string` | `{"prometheus":"default"}` |
+
+Additional labels to put on the created PodMonitor Resource.
+Those labels are used to be selected by a specific Prometheus instance.
+
+### `podMonitor.interval`
+
+| Type     | Default value |
+|----------|---------------|
+| `string` | `30s`         |
+
+`interval` is the interval between two metrics scrapes by Prometheus.
+
+## `persistence`
+
+<Details title="Read this if using Kubernetes 1.23+ on EKS">
+
+Changes in Kubernetes 1.23+ mean that persistent volumes will not automatically be provisioned in AWS EKS clusters
+without additional configuration.
+
+See [AWS documentation on the EBS CSI driver](https://docs.aws.amazon.com/eks/latest/userguide/ebs-csi.html) for more details.
+This driver addon must be configured to use persistent volumes in EKS clusters after Kubernetes 1.23.
+
+</Details>
+
+### `persistence.enabled`
+
+| Type   | Default value |
+|--------|---------------|
+| `bool` | `true`        |
+
+`persistence.enabled` can be used to enable data persistence using either a new or pre-existing `PersistentVolumeClaim`.
+
+`values.yaml` example:
+
+  ```yaml
+  persistence:
+    enabled: true
+  ```
+
+### `persistence.existingClaimName`
+
+| Type     | Default value |
+|----------|---------------|
+| `string` | `nil`         |
+
+`persistence.existingClaimName` can be used to provide the name of a pre-existing `PersistentVolumeClaim` to use if desired.
+
+The default is left blank, which will automatically create a `PersistentVolumeClaim` to use for Teleport storage in `standalone` or `scratch` mode.
+
+`values.yaml` example:
+
+  ```yaml
+  persistence:
+    existingClaimName: my-existing-pvc-name
+  ```
+
+### `persistence.storageClassName`
+
+| Type   | Default value |
+|--------|---------------|
+| `string` | `nil`        |
+
+`persistence.storageClassName` can be used to set the storage class for the `PersistentVolumeClaim`.
+
+`values.yaml` example:
+
+  ```yaml
+  persistence:
+    storageClassName: ebs-ssd
+  ```
+
+### `persistence.volumeSize`
+
+| Type     | Default value |
+|----------|---------------|
+| `string` | `10Gi`        |
+
+You can set `volumeSize` to request a different size of persistent volume when installing the Teleport chart in `standalone` or `scratch` mode.
+
+<Admonition type="note">
+  `volumeSize` will be ignored if `existingClaimName` is set.
+</Admonition>
+
+`values.yaml` example:
+
+  ```yaml
+  persistence:
+    volumeSize: 50Gi
+  ```
+
+## `aws`
+
+`aws` settings are described in the AWS guide: [Running an HA Teleport cluster using an AWS EKS Cluster](../../../admin-guides/self-hosting/deploy-a-cluster/helm-deployments/aws.mdx)
+
+### `aws.region`
+
+`aws.region` is the AWS region where the DynamoDB tables are located.
+
+### `aws.backendTable`
+
+`aws.backendTable` is the DynamoDB table name to use for backend storage.
+Teleport will attempt to create this table automatically if it does not exist.
+The container will need an appropriately-provisioned IAM role with permissions
+to create DynamoDB tables.
+
+### `aws.auditLogTable`
+
+`aws.auditLogTable` is the DynamoDB table name to use for audit log storage.
+Teleport will attempt to create this table automatically if it does not exist.
+The container will need an appropriately-provisioned IAM role with permissions
+to create DynamoDB tables. This MUST NOT be the same table name as used
+for `aws.backendTable` as the schemas are different.
+
+If you are using the Athena backend, you don't need to set this value.
+If you set this value, audit logs will be sent both to the Athena and DynamoDB
+backends, this is useful when migrating backends.
+If both `aws.athenaURL` and `aws.auditLogTable` (DynamoDB) are set, the
+`aws.auditLogPrimaryBackend` value configures which backend is used for querying.
+Teleport queries the audit backend to display the audit log in the web UI,
+export events using the audit log collector, or perform any action that needs to
+inspect past audit events.
+
+### `aws.auditLogMirrorOnStdout`
+
+`aws.auditLogMirrorOnStdout` controls whether to mirror audit log entries to
+stdout in JSON format (useful for external log collectors).
+
+Defaults to `false`.
+
+### `aws.auditLogPrimaryBackend`
+
+`auditLogPrimaryBackend` controls which backend is used for queries when multiple
+audit backends are enabled. This setting has no effect when a single audit log
+backend is enabled.
+
+This setting is used when migrating from DynamoDB to Athena.
+Possible values are `dynamo` and `athena`.
+
+### `aws.athenaURL`
+
+`athenaURL` contains the Athena audit log backend configuration.
+When this value is set, Teleport will export events to the Athena audit backend.
+
+To use the Athena audit backend, you must set up the required infrastructure
+(S3 buckets, SQS queue, AthenaDB, IAM roles and permissions, ...).
+
+The requirements are described in [the Athena backend documentation](../../operations/backends.mdx)
+
+If both `aws.athenaURL` and `aws.auditLogTable` (DynamoDB) are set, the
+`aws.auditLogPrimaryBackend` value configures which backend is used for querying.
+
+### `aws.sessionRecordingBucket`
+
+`aws.sessionRecordingBucket` is the S3 bucket name to use for recorded session
+storage. Teleport will attempt to create this bucket automatically if it does
+not exist.
+
+The container will need an appropriately-provisioned IAM role with permissions
+to create S3 buckets.
+
+### `aws.backups`
+
+`aws.backups` controls if DynamoDB backups are enabled when Teleport configures
+the Dynamo backend.
+
+### `aws.dynamoAutoScaling`
+
+Whether Teleport should configure DynamoDB's autoscaling. Defaults to `false`.
+
+<Admonition type="warning">
+  DynamoDB autoscaling is no longer recommended. Teleport now defaults to "on
+  demand" DynamoDB billing, which has more reliable performance.
+</Admonition>
+
+### `aws.accessMonitoring`
+
+`aws.accessMonitoring` configures the [Access Monitoring](../../../admin-guides/access-monitoring.mdx)
+feature of the Auth Service.
+
+Using this features requires setting up specific AWS infrastructure as described
+in [the AccessMonitoring configuration section](../../../admin-guides/access-monitoring.mdx).
+The [Terraform example](https://github.com/gravitational/teleport/tree/v(=teleport.version=)/examples/athena)
+code will output the chart values for this section.
+
+#### `aws.accessMonitoring.enabled`
+`aws.accessMonitoring.enabled` enables Access Monitoring. This requires
+`aws.athenaURL` to be set.
+
+#### `aws.accessMonitoring.reportResults`
+
+`aws.accessMonitoring.reportResults` is the bucket uri where the query results
+are reported.
+
+For example: `s3://example-athena-long-term/report_results`.
+
+#### `aws.accessMonitoring.roleARN`
+
+`aws.accessMonitoring.roleARN` is the ARN of the role that is assumed to run the
+reports.
+
+#### `aws.accessMonitoring.workgroup`
+
+`aws.accessMonitoring.workgroup` is the Athena workgroup in which Teleport runs
+queries.
+
+## `gcp`
+
+`gcp` settings are described in the GCP guide: [Running an HA Teleport cluster using a Google Cloud GKE cluster](../../../admin-guides/self-hosting/deploy-a-cluster/helm-deployments/gcp.mdx)
+
+## `azure`
+
+`azure` settings are described in the Azure guide: [Running an HA Teleport cluster using a Microsoft Azure AKS cluster](../../../admin-guides/self-hosting/deploy-a-cluster/helm-deployments/azure.mdx)
+
+## `highAvailability`
+
+`highAvailability` contains settings controlling how Teleport pods are
+replicated and scheduled. This allows Teleport to run in a highly-available
+fashion: Teleport should sustain the crash/loss of a machine without interrupting
+the service.
+
+### For auth pods
+
+When using "standalone" or "scratch" mode, you must use highly-available storage
+(etcd, DynamoDB or Firestore) for multiple replicas to be supported.
+Manually configuring NFS-based storage or ReadWriteMany volume claims
+is NOT supported and will result in errors. Using Teleport's built-in
+ACME client (as opposed to using cert-manager or passing certs through a secret)
+is not supported with multiple replicas.
+
+### For proxy pods
+
+Proxy pods need to be provided a certificate to be replicated (via either
+`tls.existingSecretName` or `highAvailability.certManager`) or be exposed
+via an ingress (`ingress.enabled`).
+If proxy pods are replicable, they will default to 2 replicas,
+even if `highAvailability.replicaCount` is 1. To force a single proxy replica,
+set `proxy.highAvailability.replicaCount: 1`.
+
+### `highAvailability.replicaCount`
+
+| Type  | Default value |
+|-------|---------------|
+| `int` | `1`           |
+
+Controls the amount of pod replicas. The [`highAvailability`](#highAvailability) section describes
+the replication requirements.
+
+<Admonition type="warning" title="Version Compatibility">
+  If you set a value greater than 1, you **must** meet the replication criteria described above. Failure to do so will result in errors and inconsistent data.
+</Admonition>
+
+## `highAvailability.requireAntiAffinity`
+
+| Type   | Default value |
+|--------|---------------|
+| `bool` | `false`       |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#node-affinity)
+
+Setting `highAvailability.requireAntiAffinity` to `true` will use `requiredDuringSchedulingIgnoredDuringExecution` to require that multiple
+Teleport pods must not be scheduled on the same physical host.
+
+<Admonition type="warning">
+  This can result in Teleport pods failing to be scheduled in very small clusters or during node downtime, so should be used with caution.
+</Admonition>
+
+ Setting `highAvailability.requireAntiAffinity` to `false` (the default) uses `preferredDuringSchedulingIgnoredDuringExecution` to make node
+ anti-affinity a soft requirement.
+
+<Admonition type="note">
+  This setting only has any effect when `highAvailability.replicaCount` is greater than `1`.
+</Admonition>
+
+`values.yaml` example:
+
+  ```yaml
+  highAvailability:
+    requireAntiAffinity: true
+  ```
+
+## `highAvailability.podDisruptionBudget`
+
+### `highAvailability.podDisruptionBudget.enabled`
+
+| Type   | Default value |
+|--------|---------------|
+| `bool` | `false`       |
+
+[Kubernetes reference](https://kubernetes.io/docs/tasks/run-application/configure-pdb/)
+
+Enable a Pod Disruption Budget for the Teleport Pod to ensure HA during voluntary disruptions.
+
+`values.yaml` example:
+
+  ```yaml
+  highAvailability:
+    podDisruptionBudget:
+      enabled: true
+  ```
+
+### `highAvailability.podDisruptionBudget.minAvailable`
+
+| Type  | Default value |
+|-------|---------------|
+| `int` | `1`           |
+
+[Kubernetes reference](https://kubernetes.io/docs/tasks/run-application/configure-pdb/)
+
+Ensures that this number of replicas is available during voluntary disruptions, can be a number of replicas or a percentage.
+
+`values.yaml` example:
+
+  ```yaml
+  highAvailability:
+    podDisruptionBudget:
+      minAvailable: 1
+  ```
+
+## `highAvailability.certManager`
+
+See the [cert-manager](https://cert-manager.io/docs/) docs for more information.
+
+### `highAvailability.certManager.enabled`
+
+| Type   | Default value | `teleport.yaml` equivalent                                        |
+|--------|---------------|-------------------------------------------------------------------|
+| `bool` | `false`       | `proxy_service.https_keypairs` (to provide your own certificates) |
+
+Setting `highAvailability.certManager.enabled` to `true` will use `cert-manager` to provision a TLS certificate for a Teleport
+cluster deployed in HA mode.
+
+<Admonition type="note" title="Installing cert-manager">
+  You must install and configure `cert-manager` in your Kubernetes cluster yourself.
+
+  See the [cert-manager Helm install instructions](https://cert-manager.io/docs/installation/kubernetes/#option-2-install-crds-as-part-of-the-helm-release)
+  and the relevant sections of the [AWS](../../../admin-guides/self-hosting/deploy-a-cluster/helm-deployments/aws.mdx) and [GCP](../../../admin-guides/self-hosting/deploy-a-cluster/helm-deployments/gcp.mdx) guides for more information.
+</Admonition>
+
+### `highAvailability.certManager.addCommonName`
+
+| Type   | Default value | `teleport.yaml` equivalent                                        |
+|--------|---------------|-------------------------------------------------------------------|
+| `bool` | `false`       | `proxy_service.https_keypairs` (to provide your own certificates) |
+
+Setting `highAvailability.certManager.addCommonName` to `true` will instruct `cert-manager` to set the commonName field in its certificate signing request to the issuing CA.
+
+<Admonition type="note" title="Enabling common name field">
+  You must install and configure `cert-manager` in your Kubernetes cluster yourself.
+
+  See the [cert-manager Helm install instructions](https://cert-manager.io/docs/installation/kubernetes/#option-2-install-crds-as-part-of-the-helm-release)
+  and the relevant sections of the [AWS](../../../admin-guides/self-hosting/deploy-a-cluster/helm-deployments/aws.mdx) and [GCP](../../../admin-guides/self-hosting/deploy-a-cluster/helm-deployments/gcp.mdx) guides for more information.
+</Admonition>
+
+`values.yaml` example:
+
+  ```yaml
+  highAvailability:
+    certManager:
+      enabled: true
+      addCommonName: true
+      issuerName: letsencrypt-production
+  ```
+
+### `highAvailability.certManager.addPublicAddrs`
+
+| Type   | Default value | `teleport.yaml` equivalent                                        |
+|--------|---------------|-------------------------------------------------------------------|
+| `bool` | `false`       | `proxy_service.https_keypairs` (to provide your own certificates) |
+
+Setting `highAvailability.certManager.addPublicAddrs` to `true` will instruct `cert-manager` to also add any additional addresses configured under the `publicAddr` chart value
+in its certificate signing request to the issuing CA.
+
+`values.yaml` example:
+
+  ```yaml
+  publicAddr: ['teleport.example.com:443']
+  highAvailability:
+    certManager:
+      enabled: true
+      addPublicAddrs: true
+      issuerName: letsencrypt-production
+  ```
+
+### `highAvailability.certManager.issuerName`
+
+| Type     | Default value | `teleport.yaml` equivalent |
+|----------|---------------|----------------------------|
+| `string` | `nil`         | None                       |
+
+Sets the name of the `cert-manager` `Issuer` or `ClusterIssuer` to use for issuing certificates.
+
+<Admonition type="note" title="Configuring an Issuer">
+  You must install configure an appropriate `Issuer` supporting a DNS01 challenge yourself.
+
+  Please see the [cert-manager DNS01 docs](https://cert-manager.io/docs/configuration/acme/dns01/#supported-dns01-providers) and the relevant sections
+  of the [AWS](../../../admin-guides/self-hosting/deploy-a-cluster/helm-deployments/aws.mdx) and [GCP](../../../admin-guides/self-hosting/deploy-a-cluster/helm-deployments/gcp.mdx) guides for more information.
+</Admonition>
+
+`values.yaml` example:
+
+  ```yaml
+  highAvailability:
+    certManager:
+      enabled: true
+      issuerName: letsencrypt-production
+  ```
+
+### `highAvailability.certManager.issuerKind`
+
+| Type     | Default value | `teleport.yaml` equivalent |
+|----------|---------------|----------------------------|
+| `string` | `Issuer`      | None                       |
+
+Sets the `Kind` of `Issuer` to be used when issuing certificates with `cert-manager`. Defaults to `Issuer` to keep permissions
+scoped to a single namespace.
+
+`values.yaml` example:
+
+  ```yaml
+  highAvailability:
+    certManager:
+      issuerKind: ClusterIssuer
+  ```
+
+### `highAvailability.certManager.issuerGroup`
+
+| Type     | Default value     |
+|----------|-------------------|
+| `string` | `cert-manager.io` |
+
+Sets the `Group` of `Issuer` to be used when issuing certificates with `cert-manager`. Defaults to `cert-manager.io` to use built-in issuers.
+
+`values.yaml` example:
+
+  ```yaml
+  highAvailability:
+    certManager:
+      issuerGroup: cert-manager.io
+  ```
+
+## `highAvailability.minReadySeconds`
+
+| Type      | Default value |
+|-----------|---------------|
+| `integer` | `15`          |
+
+Amount of time to wait during a pod rollout before moving to the next pod.
+[See Kubernetes documentation](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#min-ready-seconds).
+
+This is used to give time for the agents to connect back to newly created pods before continuing the rollout.
+
+`values.yaml` example:
+
+  ```yaml
+  highAvailability:
+    minReadySeconds: 15
+  ```
+
+## `tls.existingSecretName`
+
+| Type     | Default value | `teleport.yaml` equivalent     |
+|----------|---------------|--------------------------------|
+| `string` | `""`          | `proxy_service.https_keypairs` |
+
+`tls.existingSecretName` tells Teleport to use an existing Kubernetes TLS secret to secure its web UI using HTTPS. This can be
+set to use a TLS certificate issued by a trusted internal CA rather than a public-facing CA like Let's Encrypt.
+
+You should create the secret in the same namespace as Teleport using a command like this:
+
+```shell
+kubectl create secret tls my-tls-secret --cert=/path/to/cert/file --key=/path/to/key/file
+```
+
+See https://kubernetes.io/docs/concepts/configuration/secret/#tls-secrets for more information.
+
+`values.yaml` example:
+
+  ```yaml
+  tls:
+    existingSecretName: my-tls-secret
+  ```
+
+## `tls.existingCASecretName`
+
+| Type     | Default value |
+|----------|---------------|
+| `string` | `""`          |
+
+`tls.existingCASecretName` sets the `SSL_CERT_FILE` environment variable to load a trusted CA or bundle in PEM format into Teleport pods.
+This can be set to inject a root and/or intermediate CA so that Teleport can build a full trust chain on startup.
+This can also be used to trust private CAs when contacting an OIDC provider, an S3-compatible backend, or any external service without
+modifying the Teleport base image.
+
+This is likely to be needed
+if Teleport fails to start when `tls.existingSecretName` is set with a `User Message: unable to verify HTTPS certificate chain` error
+in the pod logs.
+
+You should create the secret in the same namespace as Teleport using a command like this:
+
+```shell
+kubectl create secret generic my-root-ca --from-file=ca.pem=/path/to/root-ca.pem
+```
+
+<Notice type="warning" title="Root CA filename">
+  The filename used for the root CA in the secret must be `ca.pem`.
+</Notice>
+
+`values.yaml` example:
+
+  ```yaml
+  tls:
+    existingCASecretName: my-root-ca
+  ```
+
+## `image`
+
+| Type     | Default value                           |
+|----------|-----------------------------------------|
+| `string` | `public.ecr.aws/gravitational/teleport` |
+
+`image` sets the Teleport container image used for Teleport Community pods in the cluster.
+
+You can override this to use your own Teleport Community image rather than a Teleport-published image.
+
+`values.yaml` example:
+
+  ```yaml
+  image: my.docker.registry/teleport-community-image-name
+  ```
+
+## `enterpriseImage`
+
+| Type     | Default value                               |
+|----------|---------------------------------------------|
+| `string` | `public.ecr.aws/gravitational/teleport-ent` |
+
+`enterpriseImage` sets the container image used for Teleport Enterprise pods in the cluster.
+
+You can override this to use your own Teleport Enterprise image rather than a Teleport-published image.
+
+`values.yaml` example:
+
+  ```yaml
+  enterpriseImage: my.docker.registry/teleport-enterprise-image-name
+  ```
+
+## `log`
+
+### `log.level`
+
+<Admonition type="note">
+  This field used to be called `logLevel`. For backwards compatibility this name can still be used, but we recommend changing your values file to use `log.level`.
+</Admonition>
+
+| Type     | Default value | `teleport.yaml` equivalent |
+|----------|---------------|----------------------------|
+| `string` | `INFO`        | `teleport.log.severity`    |
+
+`log.level` sets the log level used for the Teleport process.
+
+Available log levels (in order of most to least verbose) are: `DEBUG`, `INFO`, `WARNING`, `ERROR`.
+
+The default is `INFO`, which is recommended in production.
+
+`DEBUG` is useful during first-time setup or to see more detailed logs for debugging.
+
+`values.yaml` example:
+
+  ```yaml
+  log:
+    level: DEBUG
+  ```
+
+### `log.output`
+
+| Type     | Default value | `teleport.yaml` equivalent |
+|----------|---------------|----------------------------|
+| `string` | `stderr`      | `teleport.log.output`      |
+
+`log.output` sets the output destination for the Teleport process.
+
+This can be set to any of the built-in values: `stdout`, `stderr` or `syslog` to use that destination.
+
+The value can also be set to a file path (such as `/var/log/teleport.log`) to write logs to a file. Bear in mind that a few service startup messages will still go to `stderr` for resilience.
+
+`values.yaml` example:
+
+  ```yaml
+  log:
+    output: stderr
+  ```
+
+### `log.format`
+
+| Type     | Default value | `teleport.yaml` equivalent   |
+|----------|---------------|------------------------------|
+| `string` | `text`        | `teleport.log.format.output` |
+
+`log.format` sets the output type for the Teleport process.
+
+Possible values are `text` (default) or `json`.
+
+`values.yaml` example:
+
+  ```yaml
+  log:
+    format: json
+  ```
+
+### `log.extraFields`
+
+| Type   | Default value                                   | `teleport.yaml` equivalent         |
+|--------|-------------------------------------------------|------------------------------------|
+| `list` | `["timestamp", "level", "component", "caller"]` | `teleport.log.format.extra_fields` |
+
+`log.extraFields` sets the fields used in logging for the Teleport process.
+
+See the [Teleport config file reference](../config.mdx) for more details on possible values for `extra_fields`.
+
+`values.yaml` example:
+
+  ```yaml
+  log:
+    extraFields: ["timestamp", "level"]
+  ```
+
+## `nodeSelector`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+`nodeSelector` can be used to add a map of key-value pairs to constrain the
+nodes that Teleport pods will run on.
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector)
+
+`values.yaml` example:
+
+  ```yaml
+  nodeSelector:
+    role: bastion
+    environment: security
+  ```
+
+## `affinity`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity)
+
+Kubernetes affinity to set for pod assignments.
+
+<Admonition type="note">
+  You cannot set both `affinity` and `highAvailability.requireAntiAffinity` as they conflict with each other. Only set one or the other.
+</Admonition>
+
+`values.yaml` example:
+
+  ```yaml
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: gravitational.io/dedicated
+            operator: In
+            values:
+            - teleport
+  ```
+
+## `annotations`
+### `annotations.config`
+
+| Type     | Default value | `teleport.yaml` equivalent |
+|----------|---------------|----------------------------|
+| `object` | `{}`          | None                       |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
+
+Kubernetes annotations which should be applied to the `ConfigMap` created by the chart.
+
+`values.yaml` example:
+
+  ```yaml
+  annotations:
+    config:
+      kubernetes.io/annotation: value
+  ```
+
+### `annotations.deployment`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
+
+Kubernetes annotations which should be applied to the `Deployment` created by the chart.
+
+`values.yaml` example:
+
+  ```yaml
+  annotations:
+    deployment:
+      kubernetes.io/annotation: value
+  ```
+
+### `annotations.pod`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
+
+Kubernetes annotations which should be applied to each `Pod` created by the chart.
+
+`values.yaml` example:
+
+  ```yaml
+  annotations:
+    pod:
+      kubernetes.io/annotation: value
+  ```
+
+### `annotations.service`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
+
+Kubernetes annotations which should be applied to the `Service` created by the chart.
+
+`values.yaml` example:
+
+  ```yaml
+  annotations:
+    service:
+      kubernetes.io/annotation: value
+  ```
+
+### `annotations.serviceAccount`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
+
+Kubernetes annotations which should be applied to the `serviceAccount` created by the chart.
+
+`values.yaml` example:
+
+  ```yaml
+  annotations:
+    serviceAccount:
+      kubernetes.io/annotation: value
+  ```
+
+### `annotations.certSecret`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
+
+Kubernetes annotations which should be applied to the `secret` generated by
+`cert-manager` from the `certificate` created by the chart.  Only valid when
+`highAvailability.certManager.enabled` is set to `true` and requires
+`cert-manager` v1.5.0+.
+
+`values.yaml` example:
+
+  ```yaml
+  annotations:
+    certSecret:
+      kubernetes.io/annotation: value
+  ```
+
+### `annotations.ingress`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
+
+Kubernetes annotations which should be applied to the `Ingress` created by the chart.
+
+`values.yaml` example:
+
+  ```yaml
+  annotations:
+    ingress:
+      alb.ingress.kubernetes.io/target-type: ip
+      alb.ingress.kubernetes.io/backend-protocol: HTTPS
+  ```
+
+## `extraLabels`
+
+`extraLabels` contains additional Kubernetes labels to apply on the resources
+created by the chart.
+
+See [the Kubernetes label documentation](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/)
+for more information.
+
+Note: for PodMonitor labels, see `podMonitor.additionalLabels` instead.
+
+### `extraLabels.certSecret`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+`extraLabels.certSecret` are labels to set on the certificate secret
+generated by cert-manager v1.5+ when `highAvailability.certManager.enabled`
+is true.
+
+### `extraLabels.clusterRole`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+`extraLabels.clusterRole` are labels to set on the ClusterRole.
+
+### `extraLabels.clusterRoleBinding`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+`extraLabels.clusterRoleBinding` are labels to set on the ClusterRoleBinding.
+
+### `extraLabels.role`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+`extraLabels.role` are labels to set on the Role.
+
+### `extraLabels.deployment`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+`extraLabels.deployment` are labels to set on the Deployment.
+
+### `extraLabels.ingress`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+`extraLabels.ingress` are labels to set on the Ingress.
+
+### `extraLabels.job`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+`extraLabels.job` are labels to set on the Job run by the Helm hook.
+
+### `extraLabels.persistentVolumeClaim`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+`extraLabels.persistentVolumeClaim` are labels to set on the PersistentVolumeClaim.
+
+### `extraLabels.pod`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+`extraLabels.pod` are labels to set on the Pods created by the Deployment.
+
+### `extraLabels.podDisruptionBudget`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+`extraLabels.podDisruptionBudget` are labels to set on the podDisruptionBudget.
+
+### `extraLabels.secret`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+`extraLabels.secret` are labels to set on the Secret.
+
+### `extraLabels.service`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+`extraLabels.service` are labels to set on the Service.
+
+### `extraLabels.serviceAccount`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+`extraLabels.serviceAccount` are labels to set on the ServiceAccount.
+
+## `serviceAccount.create`
+
+| Type      | Default value | Required? |
+|-----------|---------------|-----------|
+| `boolean` | `true`        | No        |
+
+[Kubernetes reference](https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/)
+
+Boolean value that specifies whether service account should be created or not.
+
+## `serviceAccount.name`
+
+| Type     | Default value | Required? |
+|----------|---------------|-----------|
+| `string` | `""`          | No        |
+
+Name to use for teleport service account.
+If `serviceAccount.create` is false, service account with this name should be created in current namespace before installing helm chart.
+
+## `service.type`
+
+| Type     | Default value  | Required? |
+|----------|----------------|-----------|
+| `string` | `LoadBalancer` | Yes       |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/services-networking/service/)
+
+Allows to specify the service type.
+
+`values.yaml` example:
+
+  ```yaml
+  service:
+    type: LoadBalancer
+  ```
+
+## `service.spec.loadBalancerIP`
+
+| Type     | Default value | Required? |
+|----------|---------------|-----------|
+| `string` | `nil`         | No        |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/services-networking/service/#loadbalancer)
+
+Allows to specify the `loadBalancerIP`.
+
+`values.yaml` example:
+
+  ```yaml
+  service:
+    spec:
+      loadBalancerIP: 1.2.3.4
+  ```
+
+## `ingress.enabled`
+
+| Type      | Default value | Required? |
+|-----------|---------------|-----------|
+| `boolean` | `false`       | No        |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/services-networking/ingress/)
+
+Boolean value that specifies whether to generate a Kubernetes `Ingress` for the Teleport deployment.
+
+`values.yaml` example:
+
+  ```yaml
+  ingress:
+    enabled: true
+  ```
+
+## `ingress.suppressAutomaticWildcards`
+
+| Type      | Default value | Required? |
+|-----------|---------------|-----------|
+| `boolean` | `false`       | No        |
+
+Setting `suppressAutomaticWildcards` to true will not automatically add `*.<clusterName>` as a hostname served
+by the Ingress. This may be desirable if you don't use Teleport application access, or want to configure
+individual public addresses for applications instead.
+
+`values.yaml` example:
+
+  ```yaml
+  ingress:
+    enabled: true
+    suppressAutomaticWildcards: true
+  ```
+
+## `ingress.spec`
+
+| Type      | Default value | Required? |
+|-----------|---------------|-----------|
+| `object`  | `{}`          | No        |
+
+Object value which can be used to define additional properties for the configured Ingress.
+
+For example, you can use this to set an `ingressClassName`:
+
+`values.yaml` example:
+
+  ```yaml
+  ingress:
+    enabled: true
+    spec:
+      ingressClassName: alb
+  ```
+
+## `extraArgs`
+
+| Type   | Default value |
+|--------|---------------|
+| `list` | `[]`          |
+
+A list of extra arguments to pass to the `teleport start` command when running a Teleport Pod.
+
+`values.yaml` example:
+
+  ```yaml
+  extraArgs:
+  - "--bootstrap=/etc/teleport-bootstrap/roles.yaml"
+  ```
+
+## `extraEnv`
+
+| Type   | Default value |
+|--------|---------------|
+| `list` | `[]`          |
+
+[Kubernetes reference](https://kubernetes.io/docs/tasks/inject-data-application/define-environment-variable-container/)
+
+A list of extra environment variables to be set on the main Teleport container.
+
+`values.yaml` example:
+
+  ```yaml
+  extraEnv:
+  - name: MY_ENV
+    value: my-value
+  ```
+
+## `extraVolumes`
+
+| Type   | Default value |
+|--------|---------------|
+| `list` | `[]`          |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/storage/volumes/)
+
+A list of extra Kubernetes `Volumes` which should be available to any `Pod` created by the chart. These volumes
+will also be available to any `initContainers` configured by the chart.
+
+`values.yaml` example:
+
+  ```yaml
+  extraVolumes:
+  - name: myvolume
+    secret:
+      secretName: mysecret
+  ```
+
+## `extraVolumeMounts`
+
+| Type   | Default value |
+|--------|---------------|
+| `list` | `[]`          |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/storage/volumes/)
+
+A list of extra Kubernetes volume mounts which should be mounted into any `Pod` created by the chart. These volume
+mounts will also be mounted into any `initContainers` configured by the chart.
+
+`values.yaml` example:
+
+  ```yaml
+  extraVolumeMounts:
+  - name: myvolume
+    mountPath: /path/to/mount/volume
+  ```
+
+## `imagePullPolicy`
+
+| Type     | Default value  |
+|----------|----------------|
+| `string` | `IfNotPresent` |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/containers/images/#updating-images)
+
+Allows the `imagePullPolicy` for any pods created by the chart to be overridden.
+
+`values.yaml` example:
+
+  ```yaml
+  imagePullPolicy: Always
+  ```
+
+## `imagePullSecrets`
+
+| Type   | Default value |
+|--------|---------------|
+| `list` | `[]`          |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/containers/images/#specifying-imagepullsecrets-on-a-pod)
+
+A list of secrets containing authorization tokens which can be optionally used to access a private Docker registry.
+
+`values.yaml` example:
+
+  ```yaml
+  imagePullSecrets:
+  - name: my-docker-registry-key
+  ```
+
+## `initContainers`
+
+| Type   | Default value |
+|--------|---------------|
+| `list` | `[]`          |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/workloads/pods/init-containers/)
+
+A list of `initContainers` which will be run before the main Teleport container in any pod created by the chart.
+
+`values.yaml` example:
+
+  ```yaml
+  initContainers:
+  - name: teleport-init
+    image: alpine
+    args: ['echo test']
+  ```
+
+## `postStart`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+[Kubernetes reference](https://kubernetes.io/docs/tasks/configure-pod-container/attach-handler-lifecycle-event/)
+
+A `postStart` lifecycle handler to be configured on the main Teleport container.
+
+`values.yaml` example:
+
+  ```yaml
+  postStart:
+    command:
+    - echo
+    - foo
+  ```
+
+## `resources`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/)
+
+Resource requests/limits which should be configured for Teleport containers. These resource limits will also be
+applied to `initContainers`.
+
+<Admonition type="danger">
+Setting CPU limits is an anti-pattern and is harmful in most cases. Unless you enabled
+[the Static CPU management policy](https://kubernetes.io/docs/tasks/administer-cluster/cpu-management-policies/#static-policy),
+a multithreaded workload with CPU limits will very likely not behave the way you expect when approaching its CPU limit.
+
+Teleport will become unstable once throttling starts. We recommend not to set CPU limits.
+See [the GitHub PR](https://github.com/gravitational/teleport/pull/36251) for technical details.
+</Admonition>
+
+`values.yaml` example:
+
+  ```yaml
+  resources:
+    requests:
+      cpu: 1
+      memory: 2Gi
+  ```
+
+## `podSecurityContext`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/security/pod-security-standards/)
+
+The `podSecurityContext` applies to the main Teleport pods.
+
+`values.yaml` example:
+
+  ```yaml
+  podSecurityContext:
+    fsGroup: 65532
+  ```
+
+## `securityContext`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/security/pod-security-standards/)
+
+The `securityContext` applies to the main Teleport containers.
+
+`values.yaml` example:
+
+  ```yaml
+  securityContext:
+    runAsUser: 99
+  ```
+
+## `tolerations`
+
+| Type   | Default value |
+|--------|---------------|
+| `list` | `[]`          |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/)
+
+Kubernetes Tolerations to set for pod assignment.
+
+`values.yaml` example:
+
+  ```yaml
+  tolerations:
+  - key: "dedicated"
+    operator: "Equal"
+    value: "teleport"
+    effect: "NoSchedule"
+  ```
+
+## `priorityClassName`
+
+| Type     | Default value |
+|----------|---------------|
+| `string` | `""`          |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/)
+
+Kubernetes PriorityClass to set for pod.
+
+`values.yaml` example:
+
+  ```yaml
+  priorityClassName: "system-cluster-critical"
+  ```
+
+## `probeTimeoutSeconds`
+
+| Type      | Default value |
+|-----------|---------------|
+| `integer` | `1`           |
+
+[Kubernetes reference](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/)
+
+Kubernetes timeouts for the liveness and readiness probes.
+
+`values.yaml` example:
+
+  ```yaml
+  probeTimeoutSeconds: 5
+  ```

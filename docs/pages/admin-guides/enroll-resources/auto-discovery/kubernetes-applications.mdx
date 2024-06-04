@@ -1,0 +1,23 @@
+---
+title: "Enroll Kubernetes Services as Teleport Applications"
+description: "Teleport can automatically detect applications running in your Kubernetes clusters and register them with Teleport for secure access."
+---
+
+Teleport can automatically detect applications running in your Kubernetes
+clusters and register them with your Teleport cluster. In this setup, users with
+Kubernetes-hosted infrastructure can configure secure access to any new
+applications they deploy with no need for manual intervention beyond the initial
+setup step.
+
+To enroll Kubernetes applications automatically, your Teleport cluster requires
+the Teleport Discovery Service and Teleport Application Service. The Teleport
+Discovery Service queries your Kubernetes clusters to detect running
+applications, and registers these applications with your cluster. The Teleport
+Application Service then detects the new application resources and proxies user
+traffic to them.
+
+{/*TOPICS*/}
+
+- [Get Started with Kubernetes Application Discovery](kubernetes-applications/get-started.mdx): Detailed guide for configuring Kubernetes Application Discovery.
+- [Kubernetes App Discovery Architecture](kubernetes-applications/architecture.mdx): Learn how Teleport automatically discovers applications running on Kubernetes.
+- [Kubernetes Application Discovery Reference](kubernetes-applications/reference.mdx): This guide is a comprehensive reference of configuration options for automatically enrolling Kubernetes applications with Teleport.

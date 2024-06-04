@@ -1,0 +1,73 @@
+---
+title: Upgrading Compatibility Overview
+description: Provides a high-level description of how to upgrade the components in your Teleport cluster. Read this guide before following upgrade instructions for your environment.
+---
+
+Since Teleport is a distributed system with a number of services that run on
+potentially many hosts, you should take care when upgrading the cluster to
+ensure that all components remain compatible.
+
+This guide provides an overview of how to upgrade the components in your
+Teleport cluster while preserving compatibility.
+
+## Component compatibility
+
+(!docs/pages/includes/compatibility.mdx!)
+
+In Teleport Enterprise Cloud, we manage the Auth and Proxy Services for you. You
+can determine the current version of these services by running the following
+command, where `mytenant` is the name of your Teleport Enterprise Cloud tenant:
+
+```code
+$ curl -s https://mytenant.teleport.sh/webapi/ping | jq '.server_version'
+```
+
+## Upgrading a self-hosted Teleport cluster
+
+Because of the component compatibility guarantees we described in the previous
+section, you must adhere to the following sequence when upgrading a self-hosted
+Teleport cluster:
+
+1. Back up your Teleport cluster state as a precaution against any unforeseen
+   incidents while upgrading the Auth Service, which may perform data
+   migrations on its backend. Follow the instructions in [Backup and
+   Restore](../../../admin-guides/common-operations/backup-restore.mdx).
+
+1. If several Auth Service instances are running in a high availability
+   configuration (for example, in an AWS Auto Scaling group), you must shrink
+   the group to **just one Auth Service** before performing an upgrade.
+
+1. Upgrade the **Auth Service** to the next **major version first**. If there
+   are data format changes introduced in the new version, the Auth Service
+   performs the necessary migrations.  After the upgrade, start the Auth Service
+   and CONFIRM that it's in a healthy state before continuing.
+
+1. Upgrade Proxy Service instances to the same version number as the Auth
+   Service. Proxy Service instances are stateless and can be upgraded in any
+   sequence or at the same time.
+
+1. Upgrade your Teleport agents to the same version number as the Auth Service.
+   You can upgrade resource agents in any sequence or at the same time.
+   
+   If you are upgrading more then one version number, repeat these steps until
+   you reach your target major version number.
+
+## Upgrading multiple Teleport clusters
+
+When upgrading multiple Teleport clusters with a trust relationship, you must
+upgrade in the following sequence to avoid compatibility issues. 
+
+You must upgrade all clusters one major version at a time. For example, if you
+would like to upgrade your clusters from v10 to v12, you must follow the
+sequence below to upgrade clusters from v10 to v11, then repeat the sequence to
+upgrade from v10 to v11.
+
+1. Upgrade the root cluster—that is, the cluster that other clusters
+   trust—first.
+1. Verify the upgrade was successful.
+1. Upgrade the trusted leaf clusters.
+
+## Next steps
+
+Return to the [Upgrading Introduction](../../../index.mdx) for how to upgrade
+individual components within your Teleport cluster.

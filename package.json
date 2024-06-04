@@ -2,6 +2,7 @@
   "name": "teleport-ui",
   "version": "1.0.0",
   "scripts": {
+    "all-topics": "node docs/gen-topic-pages/index.js --in docs/pages/get-started,docs/pages/admin-guides,docs/pages/user-guides,docs/pages/reference",
     "build-ui": "yarn build-ui-oss && yarn build-ui-e",
     "build-ui-oss": "yarn workspace @gravitational/teleport build",
     "build-ui-e": "yarn workspace @gravitational/teleport.e build",
