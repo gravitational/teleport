@@ -800,8 +800,10 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/auth/export", h.authExportPublic)
 	h.GET("/webapi/auth/export", h.authExportPublic)
 
-	// token generation
+	// join token handlers
 	h.POST("/webapi/token", h.WithAuth(h.createTokenHandle))
+	h.GET("/webapi/tokens", h.WithAuth(h.getTokens))
+	h.DELETE("/webapi/tokens", h.WithAuth(h.deleteToken))
 
 	// join scripts
 	h.GET("/scripts/:token/install-node.sh", h.WithLimiter(h.getNodeJoinScriptHandle))
