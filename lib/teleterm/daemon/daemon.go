@@ -370,7 +370,7 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 // per-session MFA checks.
 func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) (tls.Certificate, error) {
 	reloginReq := &api.ReloginRequest{
-		RootClusterUri: g.TargetURI().GetClusterURI().String(),
+		RootClusterUri: g.TargetURI().GetRootClusterURI().String(),
 		Reason: &api.ReloginRequest_GatewayCertExpired{
 			GatewayCertExpired: &api.GatewayCertExpired{
 				GatewayUri: g.URI().String(),
