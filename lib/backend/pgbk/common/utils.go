@@ -213,8 +213,8 @@ func RetryTx(
 	ctx context.Context,
 	log *slog.Logger,
 	db interface {
-	BeginTx(context.Context, pgx.TxOptions) (pgx.Tx, error)
-},
+		BeginTx(context.Context, pgx.TxOptions) (pgx.Tx, error)
+	},
 	txOptions pgx.TxOptions,
 	isIdempotent bool,
 	f func(tx pgx.Tx) error,
@@ -255,9 +255,9 @@ func SetupAndMigrate(
 	ctx context.Context,
 	log *slog.Logger,
 	db interface {
-	BeginTx(context.Context, pgx.TxOptions) (pgx.Tx, error)
-	Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
-},
+		BeginTx(context.Context, pgx.TxOptions) (pgx.Tx, error)
+		Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
+	},
 	tableName string,
 	schemas []string,
 ) error {
@@ -284,9 +284,9 @@ func SetupAndMigrateDynamic(
 	ctx context.Context,
 	log *slog.Logger,
 	db interface {
-	BeginTx(context.Context, pgx.TxOptions) (pgx.Tx, error)
-	Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
-},
+		BeginTx(context.Context, pgx.TxOptions) (pgx.Tx, error)
+		Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
+	},
 	tableName string,
 	schemasBuilder SchemasBuilder,
 ) error {
