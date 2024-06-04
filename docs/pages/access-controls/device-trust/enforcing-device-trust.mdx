@@ -41,30 +41,34 @@ can be configured with the `spec.options.device_trust_mode` option and
 applies to the resources in its `allow` rules. It
 works similarly to [`require_session_mfa`](../guides/per-session-mfa.mdx).
 
-<Admonition type="tip" title="v13.3.6+">
-  Teleport version 13.3.6 and above has the preset `require-trusted-device` role.
-  Make sure you update the "allow" rules in the role according to your requirements.
+<Admonition type="warning" title="require-trusted-device role">
+  The preset `require-trusted-device` role does not enforce
+  [Apps](#app-access-support) or [Desktops](#desktop-access-support).
+  Refer to their corresponding sections for instructions.
 </Admonition>
 
-To enforce authenticated device checks for a specific role, update the role with
-the following:
+The role below is an example of full device trust enforcement. Alternatively,
+you may set options.device_trust_mode=required on an existing role for similar
+effects.
 
-```diff
+```yaml
 kind: role
 version: v7
 metadata:
   name: require-trusted-device
 spec:
   options:
-    # require authenticated device check for this role
-+   device_trust_mode: "required" # add this line
+    device_trust_mode: "required"
   allow:
-    logins: ['admin']
-    kubernetes_groups: ['edit']
+    logins: ["{{internal.logins}}"]
+    kubernetes_groups: ["{{internal.kubernetes_groups}}"]
     node_labels:
       '*': '*'
-    ...
-
+    app_labels:
+      '*': '*'
+    windows_desktop_labels:
+      '*': '*'
+    windows_desktop_logins: ["Administrator", "{{internal.windows_logins}}"]
 ```
 
 Update the role:
