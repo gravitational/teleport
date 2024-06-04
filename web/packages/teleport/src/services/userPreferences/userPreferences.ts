@@ -144,7 +144,7 @@ export function convertBackendUserPreferences(
       preferences.clusterPreferences
     ),
     unifiedResourcePreferences: {
-      availableResourceMode: AvailableResourceMode.ALL,
+      availableResourceMode: AvailableResourceMode.NONE,
       ...preferences.unifiedResourcePreferences,
     },
   };
