@@ -1345,7 +1345,7 @@ func (process *TeleportProcess) enterpriseServicesEnabled() bool {
 // enterpriseServicesEnabledWithCommunityBuild will return true if any
 // enterprise services are enabled with an OSS teleport build.
 func (process *TeleportProcess) enterpriseServicesEnabledWithCommunityBuild() bool {
-	return modules.GetModules().BuildType() == modules.BuildOSS &&
+	return modules.GetModules().IsOSSBuild() &&
 		(process.Config.Okta.Enabled || process.Config.Jamf.Enabled())
 }
 

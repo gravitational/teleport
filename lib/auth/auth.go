@@ -1285,7 +1285,7 @@ func (a *Server) runPeriodicOperations() {
 	defer instancePeriodics.Stop()
 
 	var ossDesktopsCheck <-chan time.Time
-	if modules.GetModules().BuildType() == modules.BuildOSS {
+	if modules.GetModules().IsOSSBuild() {
 		ossDesktopsCheck = interval.New(interval.Config{
 			Duration:      OSSDesktopsCheckPeriod,
 			FirstDuration: utils.HalfJitter(time.Second * 10),
@@ -5521,7 +5521,7 @@ func (a *Server) syncDesktopsLimitAlert(ctx context.Context) {
 
 // desktopsLimitExceeded checks if number of non-AD desktops exceeds limit for OSS distribution. Returns always false for Enterprise.
 func (a *Server) desktopsLimitExceeded(ctx context.Context) (bool, error) {
-	if modules.GetModules().BuildType() != modules.BuildOSS {
+	if modules.GetModules().IsEnterpriseBuild() {
 		return false, nil
 	}
 
