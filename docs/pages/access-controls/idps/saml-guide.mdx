@@ -18,8 +18,8 @@ authenticate to external services.
   Reference](./saml-reference.mdx) before proceeding.
 - User with permission to create service provider resource. The preset `editor` role has this permission.
 - SAML application (also known as a SAML service provider or SP) for testing. For this guide, we'll be using
-[RSA Simple Test Service Provider](https://sptest.iamshowcase.com/) (iamshowcase app) - a free test service that
-let's us test Teleport SAML IdP. The test service has a protected page, which can be accessed only after a
+[RSA Simple Test Service Provider](https://sptest.iamshowcase.com/) - a free test service that
+lets us test Teleport SAML IdP. The test service has a protected page, which can be accessed only after a
 user is federated to the site with a valid SAML assertion flow.
 ![iamshowcase protected page](../../../img/access-controls/saml-idp/iamshowcase-protected-page.png)
 
@@ -49,7 +49,7 @@ With this option, the minimum configuration values required to add a service pro
 1. **ACS URL:** The endpoint where users will be redirected after SAML authentication. ACS URL
 is also referred to as SAML SSO URL.
 
-To configure iamshowcase app, the values you need to provide are the following:
+To configure Simple Test Service Provider, the values you need to provide are the following:
 - **App Name:** `iamshowcase`
 - **Entity ID:** `iamshowcase`
 - **ACS URL:** `https://sptest.iamshowcase.com/acs`
@@ -58,8 +58,8 @@ Click **Finish** button, the `iamshowcase` app is now added to Teleport.
 
 <Details title="Reference `tctl` based configuration" closed>
 
-The following `saml_idp_service_provider` spec is a reference for adding RSA Simple Test
-Service Provider (iamshowcase app) to Teleport:
+The following `saml_idp_service_provider` spec is a reference for adding Simple Test
+Service Provider to Teleport:
 ```yaml
 kind: saml_idp_service_provider
 metadata:
@@ -103,14 +103,14 @@ required to configure service provider metadata.
 
 In the **Add Service Provider To Teleport** page, provide a SAML service provider name (`iamshowcase`).
 Now click **+ Add Entity Descriptor (optional)** button, which will expand entity descriptor editor.
-Copy iamshowcase app metadata file, which is available at the URL `https://sptest.iamshowcase.com/testsp_metadata.xml`
+Copy Simple Test Service Provider metadata file, which is available at the URL `https://sptest.iamshowcase.com/testsp_metadata.xml`
 and paste it to entity descriptor editor in Teleport Web UI.
 
 Click **Finish** button, the `iamshowcase` app is now added to Teleport.
 
 <Details title="Reference `tctl` based configuration" closed>
 
-First download the service provider metadata from iamshowcase app as `iamshowcase.xml`:
+First download the service provider metadata from Simple Test Service Provider as `iamshowcase.xml`:
 
 ```code
 $ curl -o iamshowcase.xml https://sptest.iamshowcase.com/testsp_metadata.xml
@@ -165,10 +165,10 @@ shown in the SAML app enrollment flow.
 
 ![Teleport IdP metadata](../../../img/access-controls/saml-idp/teleport-idp-metadata.png)
 
-In the case of iamshowcase app, which this guide is based on, the sample app is designed to grant access protected page
+In the case of Simple Test Service Provider, which this guide is based on, the sample app is designed to grant access protected page
 for any well formatted IdP federated SAML assertion data.
 
-As such, when you click **Finish** button in the previous step, the protected page of the iamshowcase app is
+As such, when you click **Finish** button in the previous step, the protected page of the Simple Test Service Provider is
 already available to access under resources page.
 
 ## Step 3/3. Verify access to iamshowcase protected page
