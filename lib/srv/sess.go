@@ -2129,18 +2129,8 @@ func (s *session) trackSession(ctx context.Context, teleportUser string, policyS
 		InitialCommand: initialCommand,
 	}
 
-	invitedUsers := s.scx.env[teleport.EnvSSHSessionInvited]
-
-	// Until Teleport 16, there was a typo that caused EnvSSHSessionInvited to take
-	// on an incorrect value, so we must check both the current and old (incorrect)
-	// environment variable.
-	// TODO(zmb3): DELETE IN 17
-	if invitedUsers == "" {
-		invitedUsers = s.scx.env["TELEPORT_SESSION_JOIN_MODE"]
-	}
-
-	if invitedUsers != "" {
-		if err := json.Unmarshal([]byte(s.scx.env[teleport.EnvSSHSessionInvited]), &trackerSpec.Invited); err != nil {
+	if invitedUsers := s.scx.env[teleport.EnvSSHSessionInvited]; invitedUsers != "" {
+		if err := json.Unmarshal([]byte(invitedUsers), &trackerSpec.Invited); err != nil {
 			return trace.Wrap(err)
 		}
 	}
