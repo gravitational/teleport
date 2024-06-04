@@ -52,7 +52,6 @@ import (
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -71,7 +70,16 @@ type testPack struct {
 	localAddress     tcpip.Address
 }
 
-func newTestPack(t *testing.T, ctx context.Context, clock clockwork.FakeClock, appProvider AppProvider) *testPack {
+type testPackConfig struct {
+	clock       clockwork.FakeClock
+	appProvider AppProvider
+
+	// customDNSZones is a map where the keys are custom DNS zones that should be valid, and the values are a
+	// slice of all Teleport clusters they should be valid for.
+	customDNSZones map[string][]string
+}
+
+func newTestPack(t *testing.T, ctx context.Context, cfg testPackConfig) *testPack {
 	// Create two sides of an emulated TUN interface: writes to one can be read on the other, and vice versa.
 	tun1, tun2 := newSplitTUN()
 
@@ -120,7 +128,22 @@ func newTestPack(t *testing.T, ctx context.Context, clock clockwork.FakeClock, a
 	}})
 
 	dnsIPv6 := ipv6WithSuffix(vnetIPv6Prefix, []byte{2})
-	tcpHandlerResolver, err := NewTCPAppResolver(appProvider, withClock(clock))
+
+	lookupTXT := func(ctx context.Context, customDNSZone string) ([]string, error) {
+		clusters, ok := cfg.customDNSZones[customDNSZone]
+		if !ok {
+			return nil, nil
+		}
+		txtRecords := make([]string, 0, len(clusters))
+		for _, cluster := range clusters {
+			txtRecords = append(txtRecords, clusterTXTRecordPrefix+cluster)
+		}
+		return txtRecords, nil
+	}
+
+	tcpHandlerResolver, err := NewTCPAppResolver(cfg.appProvider,
+		withClock(cfg.clock),
+		withLookupTXTFunc(lookupTXT))
 	require.NoError(t, err)
 
 	// Create the VNet and connect it to the other side of the TUN.
@@ -230,9 +253,10 @@ func (n noUpstreamNameservers) UpstreamNameservers(ctx context.Context) ([]strin
 }
 
 type testClusterSpec struct {
-	apps         []string
-	cidrRange    string
-	leafClusters map[string]testClusterSpec
+	apps           []string
+	cidrRange      string
+	customDNSZones []string
+	leafClusters   map[string]testClusterSpec
 }
 
 type echoAppProvider struct {
@@ -258,16 +282,16 @@ func (p *echoAppProvider) ListProfiles() ([]string, error) {
 // GetCachedClient returns a [*client.ClusterClient] for the given profile and leaf cluster.
 // [leafClusterName] may be empty when requesting a client for the root cluster. Returned clients are
 // expected to be cached, as this may be called frequently.
-func (p *echoAppProvider) GetCachedClient(ctx context.Context, profileName, leafClusterName string) (*client.ClusterClient, error) {
+func (p *echoAppProvider) GetCachedClient(ctx context.Context, profileName, leafClusterName string) (ClusterClient, error) {
 	rootCluster, ok := p.clusters[profileName]
 	if !ok {
 		return nil, trace.NotFound("no cluster for %s", profileName)
 	}
 	if leafClusterName == "" {
-		return &client.ClusterClient{
-			AuthClient: &echoAppAuthClient{
-				clusterName: profileName,
-				apps:        rootCluster.apps,
+		return &fakeClusterClient{
+			clusterName: profileName,
+			authClient: &fakeAuthClient{
+				apps: rootCluster.apps,
 			},
 		}, nil
 	}
@@ -275,10 +299,10 @@ func (p *echoAppProvider) GetCachedClient(ctx context.Context, profileName, leaf
 	if !ok {
 		return nil, trace.NotFound("no cluster for %s.%s", profileName, leafClusterName)
 	}
-	return &client.ClusterClient{
-		AuthClient: &echoAppAuthClient{
-			clusterName: leafClusterName,
-			apps:        leafCluster.apps,
+	return &fakeClusterClient{
+		clusterName: leafClusterName,
+		authClient: &fakeAuthClient{
+			apps: leafCluster.apps,
 		},
 	}, nil
 }
@@ -300,7 +324,7 @@ func (p *echoAppProvider) GetVnetConfig(ctx context.Context, profileName, leafCl
 		if rootCluster.cidrRange == "" {
 			return nil, trace.NotFound("vnet_config not found")
 		}
-		return &vnet.VnetConfig{
+		cfg := &vnet.VnetConfig{
 			Kind:    types.KindVnetConfig,
 			Version: types.V1,
 			Metadata: &headerv1.Metadata{
@@ -309,7 +333,13 @@ func (p *echoAppProvider) GetVnetConfig(ctx context.Context, profileName, leafCl
 			Spec: &vnet.VnetConfigSpec{
 				Ipv4CidrRange: rootCluster.cidrRange,
 			},
-		}, nil
+		}
+		for _, zone := range rootCluster.customDNSZones {
+			cfg.Spec.CustomDnsZones = append(cfg.Spec.CustomDnsZones,
+				&vnet.CustomDNSZone{Suffix: zone},
+			)
+		}
+		return cfg, nil
 	}
 	leafCluster, ok := rootCluster.leafClusters[leafClusterName]
 	if !ok {
@@ -318,7 +348,7 @@ func (p *echoAppProvider) GetVnetConfig(ctx context.Context, profileName, leafCl
 	if leafCluster.cidrRange == "" {
 		return nil, trace.NotFound("vnet_config not found")
 	}
-	return &vnet.VnetConfig{
+	cfg := &vnet.VnetConfig{
 		Kind:    types.KindVnetConfig,
 		Version: types.V1,
 		Metadata: &headerv1.Metadata{
@@ -327,23 +357,40 @@ func (p *echoAppProvider) GetVnetConfig(ctx context.Context, profileName, leafCl
 		Spec: &vnet.VnetConfigSpec{
 			Ipv4CidrRange: leafCluster.cidrRange,
 		},
-	}, nil
+	}
+	for _, zone := range leafCluster.customDNSZones {
+		cfg.Spec.CustomDnsZones = append(cfg.Spec.CustomDnsZones,
+			&vnet.CustomDNSZone{Suffix: zone},
+		)
+	}
+	return cfg, nil
 }
 
-// echoAppAuthClient is a fake auth client that answers GetResources requests with a static list of apps and
-// basic/faked predicate filtering.
-type echoAppAuthClient struct {
-	authclient.ClientI
+type fakeClusterClient struct {
+	authClient  *fakeAuthClient
 	clusterName string
-	apps        []string
 }
 
-func (c *echoAppAuthClient) GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error) {
+func (c *fakeClusterClient) CurrentCluster() authclient.ClientI {
+	return c.authClient
+}
+
+func (c *fakeClusterClient) ClusterName() string {
+	return c.clusterName
+}
+
+// fakeAuthClient is a fake auth client that answers GetResources requests with a static list of apps and
+// basic/faked predicate filtering.
+type fakeAuthClient struct {
+	authclient.ClientI
+	apps []string
+}
+
+func (c *fakeAuthClient) GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error) {
 	resp := &proto.ListResourcesResponse{}
 	for _, app := range c.apps {
 		// Poor-man's predicate expression filter.
-		appPublicAddr := app + "." + c.clusterName
-		if !strings.Contains(req.PredicateExpression, appPublicAddr) {
+		if !strings.Contains(req.PredicateExpression, app) {
 			continue
 		}
 		resp.Resources = append(resp.Resources, &proto.PaginatedResource{
@@ -466,25 +513,44 @@ func TestDialFakeApp(t *testing.T) {
 
 	appProvider := newEchoAppProvider(map[string]testClusterSpec{
 		"root1.example.com": {
-			apps:      []string{"echo1", "echo2"},
+			apps: []string{
+				"echo1.root1.example.com",
+				"echo2.root1.example.com",
+				"echo.myzone.example.com",
+				"echo.nested.myzone.example.com",
+				"not.in.a.custom.zone",
+				"in.an.invalid.zone",
+			},
+			customDNSZones: []string{
+				"myzone.example.com",
+				// This zone will not have a valid TXT record because it is not included in the
+				// customDNSZones passed to newTestPack.
+				"an.invalid.zone",
+			},
 			cidrRange: "192.168.2.0/24",
 			leafClusters: map[string]testClusterSpec{
 				"leaf1.example.com": {
-					apps: []string{"echo1"},
+					apps: []string{"echo1.leaf1.example.com"},
 				},
 			},
 		},
 		"root2.example.com": {
-			apps: []string{"echo1", "echo2"},
+			apps: []string{"echo1.root2.example.com", "echo2.root2.example.com"},
 			leafClusters: map[string]testClusterSpec{
 				"leaf2.example.com": {
-					apps: []string{"echo1"},
+					apps: []string{"echo1.leaf2.example.com"},
 				},
 			},
 		},
 	}, dialOpts, reissueClientCert)
 
-	p := newTestPack(t, ctx, clock, appProvider)
+	p := newTestPack(t, ctx, testPackConfig{
+		clock:       clock,
+		appProvider: appProvider,
+		customDNSZones: map[string][]string{
+			"myzone.example.com": {"root1.example.com", "another.random.cluster.example.com"},
+		},
+	})
 
 	validTestCases := []struct {
 		app        string
@@ -496,6 +562,14 @@ func TestDialFakeApp(t *testing.T) {
 		},
 		{
 			app:        "echo2.root1.example.com",
+			expectCIDR: "192.168.2.0/24",
+		},
+		{
+			app:        "echo.myzone.example.com",
+			expectCIDR: "192.168.2.0/24",
+		},
+		{
+			app:        "echo.nested.myzone.example.com",
 			expectCIDR: "192.168.2.0/24",
 		},
 		{
@@ -551,6 +625,8 @@ func TestDialFakeApp(t *testing.T) {
 		t.Parallel()
 		invalidTestCases := []string{
 			"not.an.app.example.com.",
+			"not.in.a.custom.zone",
+			"in.an.invalid.zone",
 			// Leaf clusters not supported yet.
 			"echo1.leaf1.example.com.",
 			"echo2.leaf1.example.com.",
