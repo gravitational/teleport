@@ -7,7 +7,7 @@ should match the snapshot:
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-plugin-event-handler
-        app.kubernetes.io/version: 17.0.0-dev.fred-macos-manifests-1.2
+        app.kubernetes.io/version: 17.0.0-dev.fred-macos-manifests-1.3
         helm.sh/chart: teleport-plugin-event-handler-17.0.0-dev.fred-macos-manifests-1
       name: RELEASE-NAME-teleport-plugin-event-handler
     spec:
