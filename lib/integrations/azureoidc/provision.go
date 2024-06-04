@@ -18,8 +18,11 @@ package azureoidc
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"fmt"
 	"os"
+	"os/exec"
 	"os/user"
 	"path/filepath"
 
@@ -54,6 +57,20 @@ func createGraphClient() (*msgraphsdk.GraphServiceClient, error) {
 	return msgraphsdk.NewGraphServiceClient(adapter), nil
 }
 
+// EnsureAZLogin invokes `az login` and waits for the command to successfully complete.
+// In Azure Cloud Shell, this has the effect of retrieving on-behalf-of user credentials
+// which we need to read SSO information (see [CreateTAGCacheFile] and ./private.go),
+// as well as prompting the user to choose the desired Azure subscription / directory tenant.
+func EnsureAZLogin(ctx context.Context) error {
+	fmt.Println("We will execute `az login` to acquire the necessary permissions and allow you to choose the desired Entra ID tenant.")
+	fmt.Println("Please follow the instructions below.")
+	cmd := exec.CommandContext(ctx, "az", "login", "--only-show-errors")
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return trace.Wrap(cmd.Run())
+}
+
 func getAzureDir() (string, error) {
 	usr, err := user.Current()
 	if err != nil {
@@ -67,7 +84,8 @@ type azureCLIProfile struct {
 }
 
 type azureCLISubscription struct {
-	TenantID string `json:"tenantID"`
+	TenantID  string `json:"tenantID"`
+	IsDefault bool   `json:"isDefault"`
 }
 
 // getTenantID infers the Azure tenant ID from the Azure CLI profiles.
@@ -87,14 +105,14 @@ func getTenantID() (string, error) {
 
 	var profile azureCLIProfile
 	if err := json.Unmarshal(payload, &profile); err != nil {
-		return "", trace.Wrap(err)
-	}
-	if len(profile.Subscriptions) == 0 {
-		return "", trace.BadParameter("subscription not found")
+		return "", trace.Wrap(err, "failed to parse Azure profile")
 	}
 
-	// Users are expected to run this in the Azure Cloud Shell,
-	// where they are by default authenticated to only one subscription.
-	return profile.Subscriptions[0].TenantID, nil
+	for _, subscription := range profile.Subscriptions {
+		if subscription.IsDefault {
+			return subscription.TenantID, nil
+		}
+	}
 
+	return "", trace.NotFound("subscription not found")
 }
