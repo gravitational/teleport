@@ -1,0 +1,50 @@
+---
+title: Common Operations
+description: Contains guides for performing common tasks on a Teleport cluster after the initial setup phase.
+---
+
+{/*TOPICS*/}
+
+- [Backup and Restore](common-operations/backup-restore.mdx): How to back up and restore your Teleport cluster state.
+- [External Audit Storage](common-operations/external-audit-storage.mdx): Store audit logs and session recordings on your own infrastructure with Teleport Enterprise Cloud.
+- [Run Teleport as a Daemon](common-operations/daemon.mdx): Configure Teleport to run as a daemon using systemd
+- [Troubleshooting](common-operations/troubleshooting.mdx): Troubleshooting and Collecting Metrics of Teleport Processes
+- [Uninstall Teleport](common-operations/uninstall-teleport.mdx): How to remove Teleport from your system
+
+## Configure Teleport as an identity provider
+
+How to set up Teleport's identity provider functionality ([more info](common-operations/idps.mdx))
+
+- [Access GCP Web Console and API with a federated authentication.](common-operations/idps/saml-gcp-workforce-identity-federation.mdx): Manage Google Cloud Platform (GCP) web console access with Teleport SAMl IdP.
+- [SAML IdP Attribute Mapping](common-operations/idps/saml-attribute-mapping.mdx): How to map user attributes to custom SAML response
+- [SAML Identity Provider Reference](common-operations/idps/saml-reference.mdx): Reference documentation for the SAML identity provider
+- [Use Teleport's SAML Provider to authenticate with Grafana](common-operations/idps/saml-grafana.mdx): Configure Grafana to use identities provided by Teleport.
+- [Using Teleport as a SAML identity provider](common-operations/idps/saml-guide.mdx): How to configure and use Teleport as a SAML identity provider.
+
+## Exporting Teleport Audit Events
+
+Learn how to export Teleport audit events to your log management solution. ([more info](common-operations/export-audit-events.mdx))
+
+- [Export Events with Fluentd](common-operations/export-audit-events/fluentd.mdx): Forwarding events with Fluentd and Teleport event handler
+- [Export Teleport Audit Events to Panther](common-operations/export-audit-events/panther.mdx): How to configure the Teleport Event Handler plugin and Fluentd to send audit logs to Panther
+- [Export Teleport Audit Events to Splunk](common-operations/export-audit-events/splunk.mdx): How to configure the Teleport Event Handler plugin to send audit logs to Splunk
+- [Export Teleport Audit Events to the Elastic Stack](common-operations/export-audit-events/elastic-stack.mdx): How to configure Teleport's Event Handler plugin to send audit events to the Elastic Stack
+- [Export Teleport Audit Events with Datadog](common-operations/export-audit-events/datadog.mdx): How to configure the Teleport Event Handler plugin and Fluentd to send audit logs to Datadog
+
+## Secure Practices for Teleport Clusters
+
+Highlights recommended practices and ways to harden security for your Teleport cluster. ([more info](common-operations/security.mdx))
+
+- [PROXY protocol](common-operations/security/proxy-protocol.mdx): How to securely configure PROXY protocol usage with Teleport
+- [Reducing the Blast Radius of Attacks](common-operations/security/reduce-blast-radius.mdx): How to configure Teleport to minimize the scope of security breaches
+- [Restrict Access for Privileged Accounts](common-operations/security/restrict-privileges.mdx): Explains the risks of root-level access to Teleport-protected resources.
+- [Revoking Access](common-operations/security/revoking-access.mdx): Learn how to revoke access before Teleport certificates expire
+
+## Using and Managing Teleport Certificate Authorities
+
+Guides to common operations involving Teleport certificate authorities, such as rotating CAs. ([more info](common-operations/ca.mdx))
+
+- [Cert Authority Rotation](common-operations/ca/ca-rotation.mdx): How to rotate Teleport's certificate authority
+- [Database CA Migrations](common-operations/ca/db-ca-migrations.mdx): How to complete Teleport Database CA migrations.
+- [Database Cert Authority Rotation](common-operations/ca/db-ca-rotation.mdx): How to rotate Teleport database certificate authorities
+- [Using Teleport's Certificate Authority with GitHub](common-operations/ca/ssh-key-extensions.mdx): How to use Teleport's short-lived SSH certificates with the GitHub Certificate Authority.

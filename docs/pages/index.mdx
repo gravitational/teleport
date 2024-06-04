@@ -55,17 +55,17 @@ components verify through strong cryptographic techniques.
 
 Get started with Teleport Access:
 
-- [Enroll resources](agents/introduction.mdx) to protect with Teleport using
+- [Enroll resources](admin-guides/enroll-resources/agents/introduction.mdx) to protect with Teleport using
   cryptographic identity.
-- [Set up passwordless authentication](access-controls/guides/passwordless.mdx)
+- [Set up passwordless authentication](admin-guides/authentication/passwordless.mdx)
   to enable users to access resources with hardware keys, including biometric
   credentials like Touch ID and YubiKey Bio.
-- [Integrate your Single Sign-On provider](access-controls/sso.mdx): Allow users
+- [Integrate your Single Sign-On provider](admin-guides/authentication/sso/overview.mdx): Allow users
   to access infrastructure resources with IdPs like Okta.
-- [Use Teleport as an identity provider](access-controls/idps/saml-guide.mdx) to
+- [Use Teleport as an identity provider](admin-guides/common-operations/idps/saml-guide.mdx) to
   authenticate to external services.
 - [Issue and govern identities for automated
-  systems](machine-id/introduction.mdx) using Machine ID.
+  systems](admin-guides/enroll-resources/machine-id/introduction.mdx) using Machine ID.
 
 ### Teleport Identity
 
@@ -84,18 +84,18 @@ restrictions and potential security breaches.
 
 Get started with Teleport Identity:
 
-- [Access Requests](./access-controls/access-requests.mdx): Temporarily
+- [Access Requests](admin-guides/access-controls/just-in-time/access-requests/overview.mdx): Temporarily
   provision minimal privileges to complete a task.
-- [Access Lists](./access-controls/access-lists.mdx): Regularly audit and
+- [Access Lists](admin-guides/access-controls/just-in-time/access-lists.mdx): Regularly audit and
   control membership to specific roles and traits, which then tie easily back
   into Teleport's existing RBAC system.
-- [Device Trust](./access-controls/device-trust.mdx): Require an up-to-date,
+- [Device Trust](admin-guides/authentication/device-trust/concepts.mdx): Require an up-to-date,
   registered device for each authentication by giving every device a
   cryptographic identity. 
-- [Session & Identity Locks](./access-controls/guides/locking.mdx): Lock
+- [Session & Identity Locks](admin-guides/access-controls/locking.mdx): Lock
   suspicious or compromised identities and stop all their activity across all
   protocols and services.
-- [Access Monitoring](./access-controls/access-monitoring.mdx): Detect overly
+- [Access Monitoring](admin-guides/access-monitoring.mdx): Detect overly
   broad privileges and inspect sessions that are not using strong protection,
   such as multi-factor authentication and Device Trust.
 
@@ -121,5 +121,5 @@ role-based access controls.
 
 Learn more:
 
-- [Teleport Core Concepts](./core-concepts.mdx)
-- [Architecture Guides](./architecture/introduction.mdx)
+- [Teleport Core Concepts](get-started/core-concepts.mdx)
+- [Architecture Guides](reference/architecture/introduction.mdx)

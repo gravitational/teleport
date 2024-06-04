@@ -1,0 +1,36 @@
+---
+title: Just-in-Time Access with Teleport
+description: Provide elevated privileges for a limited period of time to allow users to access resources without the need for permanent admin roles.
+---
+
+{/*TOPICS*/}
+
+## Access Lists
+
+Use Access Lists in Teleport ([more info](just-in-time/access-lists.mdx))
+
+- [Getting Started with Access Lists](just-in-time/access-lists/guide.mdx): Learn how to use Access Lists to manage and audit long lived access to Teleport resources.
+
+## Just-in-Time Access Request Plugins
+
+Use Teleport's Access Request plugins to least-privilege access without sacrificing productivity. ([more info](just-in-time/access-request-plugins.mdx))
+
+- [Access Requests with Microsoft Teams](just-in-time/access-request-plugins/ssh-approval-msteams.mdx): How to set up Teleport's Microsoft Teams plugin for privilege elevation approvals.
+- [Access Requests with Opsgenie](just-in-time/access-request-plugins/opsgenie.mdx): How to set up Teleport's Opsgenie plugin for privilege elevation approvals.
+- [Access Requests with ServiceNow](just-in-time/access-request-plugins/servicenow.mdx): How to set up Teleport's ServiceNow plugin for privilege elevation approvals.
+- [Routing Access Request notifications](just-in-time/access-request-plugins/notification-routing-rules.mdx): How to set up Teleport's Access Monitoring Rules to route Access Request notifications
+- [Run the Discord Access Request Plugin](just-in-time/access-request-plugins/ssh-approval-discord.mdx): How to set up Teleport's Discord plugin for privilege elevation approvals.
+- [Run the Jira Access Request Plugin](just-in-time/access-request-plugins/ssh-approval-jira.mdx): How to set up the Teleport Jira plugin to notify users when another user requests elevated privileges.
+- [Run the Mattermost Access Request plugin](just-in-time/access-request-plugins/ssh-approval-mattermost.mdx): How to set up Teleport's Mattermost plugin for privilege elevation approvals.
+- [Run the PagerDuty Access Request Plugin](just-in-time/access-request-plugins/ssh-approval-pagerduty.mdx): How to set up Teleport's PagerDuty plugin for privilege elevation approvals.
+- [Run the Slack Access Request Plugin](just-in-time/access-request-plugins/ssh-approval-slack.mdx): How to set up Teleport's Slack plugin for privilege elevation approvals.
+- [Teleport Access Requests with Email](just-in-time/access-request-plugins/ssh-approval-email.mdx): How to set up the Teleport email plugin to notify users when another user requests elevated privileges.
+
+## Just-in-Time Access Requests
+
+Just-in-time Access Requests allow Teleport users to request access to a resource or role depending on need. ([more info](just-in-time/access-requests.mdx))
+
+- [Just-in-Time Access Requests](just-in-time/access-requests/overview.mdx): Use just-in-time Access Requests to request elevated privileges.
+- [Resource Access Requests](just-in-time/access-requests/resource-requests.mdx): Teleport allows users to request access to specific resources from the CLI or UI. Requests can be escalated via ChatOps or anywhere else via our flexible Authorization Workflow API.
+- [Role Access Requests](just-in-time/access-requests/role-requests.mdx): Use Just-in-time Access Requests to request new roles with elevated privileges.
+- [Teleport Community Edition Role Access Requests](just-in-time/access-requests/oss-role-requests.mdx): Teleport Community Edition allows users to request access to roles from the CLI.
