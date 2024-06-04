@@ -11,6 +11,7 @@
 # | Teleport Application service | `app`             | [`apps`](#apps) or [`appResources`](#appresources) |
 # | Teleport Database service    | `db`              | [`databases`](#databases) or [`databaseResources`](#databaseresources) |
 # | Teleport Discovery service   | `discovery`       | [`kubeClusterName`](#kubeclustername) |
+# | Teleport Jamf service        | `jamf`            | [`jamf`](#jamf) |
 #
 # For example:
 # ```yaml
@@ -407,6 +408,59 @@ kubernetesDiscovery:
     namespaces: ["*"]
     labels:
       "*": "*"
+
+################################################################
+# Values that must be provided if Jamf service is enabled.
+################################################################
+
+# jamfApiEndpoint(string) -- sets the Jamf Pro API endpoint used for Jamf service.
+# Example: "https://yourtenant.jamfcloud.com/api".
+#
+# This setting is required if the chart `roles` contains `jamf`.
+jamfApiEndpoint: ""
+
+# jamfUsername(string) -- sets the Jamf Pro API username used for Jamf service.
+#
+# This setting is required if the chart `roles` contains `jamf`.
+jamfUsername: ""
+# jamfPassword(string) -- sets the Jamf Pro API password used for Jamf service.
+#
+# This setting is required if the chart `roles` contains `jamf`.
+jamfPassword: ""
+
+# jamfCredentialsSecret -- manages the Jamf Pro API secret creation and its name.
+jamfCredentialsSecret:
+  # jamfCredentialsSecret.create(bool) -- controls whether the chart creates the
+  # Kubernetes `Secret` containing the Jamf Pro API password.
+  # If false, you must create a Kubernetes Secret with the configured name in
+  # the Helm release namespace.
+  create: true
+  # jamfCredentialsSecret.name(string) -- is the name of the Kubernetes Secret
+  # containing the Jamf Pro API password used by the chart.
+  #
+  # If `jamfCredentialsSecret.create` is `false`, the chart will not attempt to create the secret itself.
+  # Instead, it will read the value from an existing secret. `jamfCredentialsSecret.name`
+  # configures the name of this secret. This allows you to configure this secret externally and avoid having a plaintext
+  # Jamf Pro API password stored in your Teleport chart values.
+  #
+  # To create your own Jamf Pro API password secret, you can use a command like this:
+  #
+  # ```code
+  # $ kubectl --namespace teleport create secret generic my-jamf-secret --from-literal=jamfPassword=<replace-with-actual-password>
+  # ```
+  #
+  # <Admonition type="note">
+  #   The key used for the Jamf Pro API password inside the secret must be `jamfPassword`, as in the command above.
+  # </Admonition>
+  #
+  # For example:
+  #
+  # ```yaml
+  # jamfCredentialsSecret:
+  #   create: false
+  #   name: my-jamf-secret
+  # ```
+  name: teleport-jamf-api-credentials
 
 ################################################################
 # Values that you may need to change.

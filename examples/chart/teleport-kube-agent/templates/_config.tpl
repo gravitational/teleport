@@ -128,6 +128,16 @@ discovery_service:
   enabled: false
 {{- end }}
 
+jamf_service:
+  {{- if contains "jamf" (.Values.roles | toString) }}
+  enabled: true
+  api_endpoint: {{ required "jamfApiEndpoint is required in chart values when jamf role is enabled, see README" .Values.jamfApiEndpoint }}
+  username: {{ required "jamfUsername is required in chart values when jamf role is enabled, see README" .Values.jamfUsername }}
+  password_file: "/etc/teleport-jamf-api-credentials/password"
+  {{- else }}
+  enabled: false
+  {{- end }}
+
 auth_service:
   enabled: false
 ssh_service:
