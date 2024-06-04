@@ -43,7 +43,7 @@ func NewHostUsers(ctx context.Context, storage *local.PresenceService, uuid stri
 	//nolint:staticcheck // SA4023. False positive on macOS.
 	backend, err := newHostUsersBackend()
 	switch {
-	case trace.IsNotImplemented(err):
+	case trace.IsNotImplemented(err), trace.IsNotFound(err):
 		log.Debugf("Skipping host user management: %v", err)
 		return nil
 	case err != nil: //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
@@ -465,14 +465,15 @@ func (u *HostUserManagement) UserCleanup() {
 	cleanupTicker := time.NewTicker(time.Minute * 5)
 	defer cleanupTicker.Stop()
 	for {
-		if err := u.DeleteAllUsers(); err != nil {
-			if trace.IsNotFound(err) {
-				log.Debugf("Error during temporary user cleanup: %s, stopping cleanup job", err)
-				return
-			} else {
-				log.Error("Error during temporary user cleanup: ", err)
-			}
+		err := u.DeleteAllUsers()
+		switch {
+		case trace.IsNotFound(err):
+			log.Debugf("Error during temporary user cleanup: %s, stopping cleanup job", err)
+			return
+		case err != nil:
+			log.Error("Error during temporary user cleanup: ", err)
 		}
+
 		select {
 		case <-cleanupTicker.C:
 		case <-u.ctx.Done():
