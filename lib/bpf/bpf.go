@@ -304,6 +304,10 @@ func (s *Service) CloseSession(ctx *SessionContext) error {
 	return trace.NewAggregate(errs...)
 }
 
+func (s *Service) Enabled() bool {
+	return true
+}
+
 // processAccessEvents pulls events off the perf ring buffer, parses them, and emits them to
 // the audit log.
 func (s *Service) processAccessEvents() {
