@@ -13519,8 +13519,8 @@ type SessionTrackerSpecV1 struct {
 	// Reason is an arbitrary string that may be used to describe the session and/or it's
 	// purpose.
 	Reason string `protobuf:"bytes,7,opt,name=Reason,proto3" json:"reason,omitempty"`
-	// Invited is a list of invited users, this field is interpreted by different
-	// clients on a best-effort basis and used for delivering notifications to invited users.
+	// Invited is a list of invited users, this field can be used by
+	// clients to deliver notifications to invited users.
 	Invited []string `protobuf:"bytes,8,rep,name=Invited,proto3" json:"invited,omitempty"`
 	// Hostname identifies the target this session is connected to.
 	Hostname string `protobuf:"bytes,9,opt,name=Hostname,proto3" json:"target_hostname,omitempty"`
