@@ -280,7 +280,7 @@ func (s *Service) ResolveClusterWithDetails(ctx context.Context, uri string) (*c
 		return nil, nil, trace.Wrap(err)
 	}
 
-	withDetails, err := cluster.GetWithDetails(ctx, proxyClient.CurrentCluster())
+	withDetails, err := cluster.GetWithDetails(ctx, proxyClient.CurrentCluster(), s.cfg.ClusterIDCache)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -1133,9 +1133,9 @@ func (s *Service) findGatewayByTargetURI(targetURI uri.ResourceURI) (gateway.Gat
 
 // GetCachedClient returns a client from the cache if it exists,
 // otherwise it dials the remote server.
-func (s *Service) GetCachedClient(ctx context.Context, clusterURI uri.ResourceURI) (*client.ClusterClient, error) {
-	profileName := clusterURI.GetProfileName()
-	leafClusterName := clusterURI.GetLeafClusterName()
+func (s *Service) GetCachedClient(ctx context.Context, resourceURI uri.ResourceURI) (*client.ClusterClient, error) {
+	profileName := resourceURI.GetProfileName()
+	leafClusterName := resourceURI.GetLeafClusterName()
 	clt, err := s.clientCache.Get(ctx, profileName, leafClusterName)
 	return clt, trace.Wrap(err)
 }
