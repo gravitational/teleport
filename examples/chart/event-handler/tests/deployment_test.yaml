@@ -9,3 +9,12 @@ tests:
         tag: v98.76.54
     asserts:
       - matchSnapshot: {}
+
+  - it: uses the recreate strategy if a PV is mounted
+    set:
+      persistentVolumeClaim:
+        enabled: true
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
