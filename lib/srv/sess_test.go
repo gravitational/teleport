@@ -994,6 +994,8 @@ func TestTrackingSession(t *testing.T) {
 		recordingMode   string
 		createError     error
 		moderated       bool
+		interactive     bool
+		botUser         bool
 		assertion       require.ErrorAssertionFunc
 		createAssertion func(t *testing.T, count int)
 	}{
@@ -1001,6 +1003,7 @@ func TestTrackingSession(t *testing.T) {
 			name:          "node with proxy recording mode",
 			component:     teleport.ComponentNode,
 			recordingMode: types.RecordAtProxy,
+			interactive:   true,
 			assertion:     require.NoError,
 			createAssertion: func(t *testing.T, count int) {
 				require.Equal(t, 0, count)
@@ -1010,6 +1013,7 @@ func TestTrackingSession(t *testing.T) {
 			name:          "node with node recording mode",
 			component:     teleport.ComponentNode,
 			recordingMode: types.RecordAtNode,
+			interactive:   true,
 			assertion:     require.NoError,
 			createAssertion: func(t *testing.T, count int) {
 				require.Equal(t, 1, count)
@@ -1019,6 +1023,7 @@ func TestTrackingSession(t *testing.T) {
 			name:          "proxy with proxy recording mode",
 			component:     teleport.ComponentProxy,
 			recordingMode: types.RecordAtProxy,
+			interactive:   true,
 			assertion:     require.NoError,
 			createAssertion: func(t *testing.T, count int) {
 				require.Equal(t, 1, count)
@@ -1028,6 +1033,7 @@ func TestTrackingSession(t *testing.T) {
 			name:          "proxy with node recording mode",
 			component:     teleport.ComponentProxy,
 			recordingMode: types.RecordAtNode,
+			interactive:   true,
 			assertion:     require.NoError,
 			createAssertion: func(t *testing.T, count int) {
 				require.Equal(t, 0, count)
@@ -1038,6 +1044,7 @@ func TestTrackingSession(t *testing.T) {
 			component:     teleport.ComponentNode,
 			recordingMode: types.RecordAtNodeSync,
 			assertion:     require.NoError,
+			interactive:   true,
 			createError:   trace.ConnectionProblem(context.DeadlineExceeded, ""),
 			createAssertion: func(t *testing.T, count int) {
 				require.Equal(t, 1, count)
@@ -1048,10 +1055,31 @@ func TestTrackingSession(t *testing.T) {
 			component:     teleport.ComponentNode,
 			recordingMode: types.RecordAtNodeSync,
 			moderated:     true,
+			interactive:   true,
 			assertion:     require.Error,
 			createError:   trace.ConnectionProblem(context.DeadlineExceeded, ""),
 			createAssertion: func(t *testing.T, count int) {
 				require.Equal(t, 1, count)
+			},
+		},
+		{
+			name:          "bot session",
+			component:     teleport.ComponentNode,
+			recordingMode: types.RecordAtNode,
+			interactive:   true,
+			botUser:       true,
+			assertion:     require.NoError,
+			createAssertion: func(t *testing.T, count int) {
+				require.Equal(t, 0, count)
+			},
+		},
+		{
+			name:          "non-interactive session",
+			component:     teleport.ComponentNode,
+			recordingMode: types.RecordAtNode,
+			assertion:     require.NoError,
+			createAssertion: func(t *testing.T, count int) {
+				require.Equal(t, 0, count)
 			},
 		},
 	}
@@ -1075,6 +1103,10 @@ func TestTrackingSession(t *testing.T) {
 				Spec: types.SessionRecordingConfigSpecV2{
 					Mode: tt.recordingMode,
 				},
+			}
+
+			if tt.botUser {
+				scx.Identity.BotName = "test-bot"
 			}
 
 			sess := &session{
@@ -1103,7 +1135,13 @@ func TestTrackingSession(t *testing.T) {
 				id:   rsession.NewID(),
 				mode: types.SessionPeerMode,
 			}
-			err = sess.trackSession(ctx, me.Name, nil, p)
+
+			sessType := sessionTypeNonInteractive
+			if tt.interactive {
+				sessType = sessionTypeInteractive
+			}
+
+			err = sess.trackSession(ctx, me.Name, nil, p, sessType)
 			tt.assertion(t, err)
 			tt.createAssertion(t, trackingService.CreatedCount())
 		})
