@@ -2,7 +2,7 @@ module github.com/gravitational/teleport
 
 go 1.22.0
 
-toolchain go1.22.3
+toolchain go1.22.4
 
 require (
 	cloud.google.com/go/cloudsqlconn v1.10.0
