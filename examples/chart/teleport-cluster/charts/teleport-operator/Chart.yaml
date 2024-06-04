@@ -1,4 +1,4 @@
-.version: &version "17.0.0-dev.fred-macos-manifest-1.6"
+.version: &version "17.0.0-dev.fred-macos-manifest-publishing-1-1"
 
 name: teleport-operator
 apiVersion: v2
