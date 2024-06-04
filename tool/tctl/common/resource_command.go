@@ -934,7 +934,7 @@ func (rc *ResourceCommand) createKubeCluster(ctx context.Context, client *authcl
 	return nil
 }
 
-func (rc *ResourceCommand) createCrownJewel(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
+func (rc *ResourceCommand) createCrownJewel(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	crownJewel, err := services.UnmarshalCrownJewel(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -956,7 +956,7 @@ func (rc *ResourceCommand) createCrownJewel(ctx context.Context, client *auth.Cl
 	return nil
 }
 
-func (rc *ResourceCommand) updateCrownJewel(ctx context.Context, client *auth.Client, resource services.UnknownResource) error {
+func (rc *ResourceCommand) updateCrownJewel(ctx context.Context, client *authclient.Client, resource services.UnknownResource) error {
 	in, err := services.UnmarshalCrownJewel(resource.Raw)
 	if err != nil {
 		return trace.Wrap(err)

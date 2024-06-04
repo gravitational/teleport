@@ -333,6 +333,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.OktaAssignmentResult{}
 	case OktaAccessListSyncEvent:
 		e = &events.OktaAccessListSync{}
+	case AccessGraphAccessPathChangedEvent:
+		e = &events.AccessPathChanged{}
 	case AccessListCreateEvent:
 		e = &events.AccessListCreate{}
 	case AccessListUpdateEvent:
