@@ -466,7 +466,12 @@ func (u *HostUserManagement) UserCleanup() {
 	defer cleanupTicker.Stop()
 	for {
 		if err := u.DeleteAllUsers(); err != nil {
-			log.Error("Error during temporary user cleanup: ", err)
+			if trace.IsNotFound(err) {
+				log.Debugf("Error during temporary user cleanup: %s, stopping cleanup job", err)
+				return
+			} else {
+				log.Error("Error during temporary user cleanup: ", err)
+			}
 		}
 		select {
 		case <-cleanupTicker.C:
