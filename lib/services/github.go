@@ -179,7 +179,7 @@ func MarshalOSSGithubConnector(githubConnector types.GithubConnector, opts ...Ma
 		// Only return an error if the endpoint url is set and the build is OSS
 		// so that the enterprise marshaler can call this marshaler to produce
 		// the final output without receiving an error.
-		if modules.GetModules().BuildType() == modules.BuildOSS &&
+		if modules.GetModules().IsOSSBuild() &&
 			githubConnector.Spec.EndpointURL != "" {
 			return nil, fmt.Errorf("GitHub endpoint URL is set: %w", ErrRequiresEnterprise)
 		}
