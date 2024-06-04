@@ -541,11 +541,7 @@ func getChartURL(version string) (*url.URL, error) {
 	if ver.PreRelease != "" {
 		repo = agentStagingRepoURL
 	}
-	return &url.URL{
-		Scheme: repo.Scheme,
-		Host:   repo.Host,
-		Path:   fmt.Sprintf("%s-%s.tgz", agentName, version),
-	}, nil
+	return repo.JoinPath(fmt.Sprintf("%s-%s.tgz", agentName, version)), nil
 }
 
 // getChartData returns kube agent Helm chart data ready to be used by Helm SDK. We don't use native Helm
