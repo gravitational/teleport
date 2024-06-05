@@ -3493,8 +3493,7 @@ func readPodExecRequestFromWS(ws *websocket.Conn) (*PodExecRequest, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	err = ws.SetReadDeadline(time.Time{})
-	if err != nil {
+	if err := ws.SetReadDeadline(time.Time{}); err != nil {
 		return nil, trace.Wrap(err, "failed to set read deadline for websocket connection")
 	}
 
