@@ -2717,11 +2717,6 @@
       "permanent": true
     },
     {
-      "source": "/deploy-a-cluster/",
-      "destination": "/deploy-a-cluster/introduction/",
-      "permanent": true
-    },
-    {
       "source": "/management/",
       "destination": "/management/introduction/",
       "permanent": true
@@ -2729,11 +2724,6 @@
     {
       "source": "/connect-your-client/",
       "destination": "/connect-your-client/introduction/",
-      "permanent": true
-    },
-    {
-      "source": "/server-access/",
-      "destination": "/server-access/introduction/",
       "permanent": true
     },
     {
