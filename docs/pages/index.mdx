@@ -4,6 +4,9 @@ description: Provides an overview of the purpose and benefits of Teleport Access
 tocDepth: 3
 ---
 
+Teleport is the easiest and most secure way to access and protect all your
+infrastructure.
+
 The Teleport Access Platform is a suite of software and managed services that
 delivers on-demand, least-privileged access to infrastructure on a foundation of
 cryptographic identity and Zero Trust, with built-in identity security and
@@ -45,17 +48,23 @@ protected behind a firewall.
 All infrastructure resources belong to a unified inventory, with a single
 role-based access controls system to allow for least-privilege access. You can
 enable users to authenticate to resources using Single Sign-On providers like
-GitHub and Google Workspace. Connectivity takes place through short-lived
-credentials that Teleport components verify through strong cryptographic
-techniques.
+Okta, and Teleport itself can act as an identity provider. Connectivity takes
+place through short-lived credentials that Teleport components verify through
+strong cryptographic techniques.
 
-Get started with Teleport Access by enrolling resources in your cluster:
+Get started with Teleport Access:
 
-- [Servers](server-access/introduction.mdx)
-- [Databases](database-access/introduction.mdx)
-- [Kubernetes clusters](kubernetes-access/introduction.mdx)
-- [Windows desktops](desktop-access/introduction.mdx)
-- [Applications](application-access/introduction.mdx)
+- [Enroll resources](agents/introduction.mdx) to protect with Teleport using
+  cryptographic identity.
+- [Set up passwordless authentication](access-controls/guides/passwordless.mdx)
+  to enable users to access resources with hardware keys, including biometric
+  credentiasl like Touch ID and YubiKey Bio.
+- [Integrate your Single Sign-On provider](access-controls/sso.mdx): Allow users
+  to access infrastructure resources with IdPs like Okta.
+- [Use Teleport as an identity provider](access-controls/idps/saml-guide.mdx) to
+  authenticate to exernal services.
+- [Issue and govern identities for automated
+  systems](machine-id/introduction.mdx) using Machine ID.
 
 ### Teleport Identity
 
