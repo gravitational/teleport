@@ -170,6 +170,7 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
   text-align: center;
   cursor: pointer;
   opacity: 1;
+  pointer-events: auto;
 }
 
 .c16:hover {
@@ -1308,6 +1309,7 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
   text-align: center;
   cursor: pointer;
   opacity: 0.45;
+  pointer-events: none;
 }
 
 .c16:hover {
@@ -1327,6 +1329,7 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
   text-align: center;
   cursor: pointer;
   opacity: 1;
+  pointer-events: auto;
 }
 
 .c21:hover {
@@ -2471,6 +2474,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
   text-align: center;
   cursor: pointer;
   opacity: 1;
+  pointer-events: auto;
 }
 
 .c16:hover {
@@ -2490,6 +2494,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
   text-align: center;
   cursor: pointer;
   opacity: 0.45;
+  pointer-events: none;
 }
 
 .c21:hover {

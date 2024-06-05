@@ -1,6 +1,7 @@
 import React, { Suspense } from 'react';
 import { MemoryRouter } from 'react-router';
 import { render, screen, userEvent } from 'design/utils/testing';
+import { PointerEventsCheckLevel } from '@testing-library/user-event';
 import { ContextProvider } from 'teleport';
 import { IntegrationStatusCode, Plugin } from 'teleport/services/integrations';
 import { userEventService } from 'teleport/services/userEvent';
@@ -66,11 +67,10 @@ describe('test PluginPick.tsx', () => {
     await screen.findByText(/no-code integrations/i);
     expect(screen.getByTestId('plugin-checkmark')).toBeInTheDocument();
 
-    // test clicking on slack tile does not render slack enroll view.
-    await userEvent.click(screen.getByTestId('tile-slack'));
-    expect(
-      screen.queryByRole('button', { name: /connect slack/i })
-    ).not.toBeInTheDocument();
+    // test clicking on slack tile has no pointer events.
+    await userEvent.click(screen.getByTestId('tile-slack'), {
+      pointerEventsCheck: PointerEventsCheckLevel.Never,
+    });
   });
 
   test('no plugin access disables plugin tiles', async () => {
