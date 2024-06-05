@@ -419,7 +419,10 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		out.Resource = r
 		return &out, nil
 	} else if r := in.GetAccessList(); r != nil {
-		out.Resource, err = accesslistv1conv.FromProto(r)
+		out.Resource, err = accesslistv1conv.FromProto(
+			r,
+			accesslistv1conv.WithOwnersIneligibleStatusField(r.GetSpec().GetOwners()),
+		)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -431,7 +434,10 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		}
 		return &out, nil
 	} else if r := in.GetAccessListMember(); r != nil {
-		out.Resource, err = accesslistv1conv.FromMemberProto(r)
+		out.Resource, err = accesslistv1conv.FromMemberProto(
+			r,
+			accesslistv1conv.WithMemberIneligibleStatusField(r),
+		)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
