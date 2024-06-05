@@ -262,8 +262,41 @@ func installGitlabPlugin(ctx context.Context, sessCtx *web.SessionContext, w htt
 
 func installJamfPlugin(ctx context.Context, sessCtx *web.SessionContext, w http.ResponseWriter, r *http.Request, p *Plugin) (*ui.Plugin, error) {
 	apiEndpoint := r.FormValue("apiEndpoint")
+	if apiEndpoint == "" {
+		return nil, trace.BadParameter("jamf API endpoint required")
+	}
+
+	clientId := r.FormValue("clientId")
+	clientSecret := r.FormValue("clientSecret")
+
+	// username and password are set by older UI versions.
+	// DELETE IN 17, never set by the 16 UI (codingllama).
 	username := r.FormValue("username")
 	password := r.FormValue("password")
+
+	var credentialsSpec *types.PluginStaticCredentialsSpecV1
+	switch {
+	case clientId != "" && clientSecret != "":
+		credentialsSpec = &types.PluginStaticCredentialsSpecV1{
+			Credentials: &types.PluginStaticCredentialsSpecV1_OAuthClientSecret{
+				OAuthClientSecret: &types.PluginStaticCredentialsOAuthClientSecret{
+					ClientId:     clientId,
+					ClientSecret: clientSecret,
+				},
+			},
+		}
+	case username != "" && password != "":
+		credentialsSpec = &types.PluginStaticCredentialsSpecV1{
+			Credentials: &types.PluginStaticCredentialsSpecV1_BasicAuth{
+				BasicAuth: &types.PluginStaticCredentialsBasicAuth{
+					Username: username,
+					Password: password,
+				},
+			},
+		}
+	default:
+		return nil, trace.BadParameter("jamf API credentials required")
+	}
 
 	pluginReq := &pluginspb.CreatePluginRequest{
 		Plugin: &types.PluginV1{
@@ -293,14 +326,7 @@ func installJamfPlugin(ctx context.Context, sessCtx *web.SessionContext, w http.
 					Name: types.PluginTypeJamf,
 				},
 			},
-			Spec: &types.PluginStaticCredentialsSpecV1{
-				Credentials: &types.PluginStaticCredentialsSpecV1_BasicAuth{
-					BasicAuth: &types.PluginStaticCredentialsBasicAuth{
-						Username: username,
-						Password: password,
-					},
-				},
-			},
+			Spec: credentialsSpec,
 		},
 	}
 

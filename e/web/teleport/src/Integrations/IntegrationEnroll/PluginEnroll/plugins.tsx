@@ -584,45 +584,35 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     ),
     Setup: () => (
       <Text>
-        <p>Create a read-only Jamf user for inventory sync:</p>
-
         <ol>
           <li>
-            Access {'https://yourtenant.jamfcloud.com/accounts.html'}, replacing
-            “yourtenant” with your Jamf Pro account URL.{' '}
-          </li>
-
-          <li>
-            {' '}
-            Create a new Standard Account with the following settings:
-            <ul>
-              <li> Username: teleport (change as desired)</li>
-              <li> Access Level: Full Access</li>
-              <li> Privilege Set: Custom</li>
-              <li> Access Status: Enabled</li>
-              <li> Password: (a strong password of your choice)</li>
-              <li> Privileges:</li>
-              <ul>
-                <li>Advanced Computer Searches: Read</li>
-                <li>Computers: Read</li>
-              </ul>
-            </ul>
+            Create a Jamf role with the "Read Computers" privilege. Follow the
+            instructions at{' '}
+            <Link
+              href="https://learn.jamf.com/en-US/bundle/jamf-pro-documentation-current/page/API_Roles_and_Clients.html"
+              target="_blank"
+            >
+              Jamf API Roles and Clients.
+            </Link>
           </li>
           <li>
-            Take note of the user and password you created in order to configure
-            the Jamf integration on this screen.
+            Create a Jamf API client, assigning to it the role created above.
+          </li>
+          <li>
+            Take note of the Client ID and Client Secret of your API client to
+            configure the Jamf integration on this screen.
           </li>
         </ol>
       </Text>
     ),
     permissions: [
       {
-        category: 'API Access',
+        category: 'Jamf API',
         permissions: [
           {
-            title: 'Read-only access to Jamf API.',
+            title: 'Read Computers',
             description:
-              'Teleport will authenticate to Jamf API using Jamf account credential (username + password).',
+              'A Jamf role with the Read Computers permission must be assigned to the API client.',
           },
         ],
       },
@@ -637,8 +627,8 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
       },
     ],
     FormMixin: () => {
-      const [username, setUsername] = useState('');
-      const [password, setPassword] = useState('');
+      const [clientId, setClientId] = useState('');
+      const [clientSecret, setClientSecret] = useState('');
       const [apiEndpoint, setApiEndpoint] = useState('');
       return (
         <InputIconContainer style={{ position: 'relative' }}>
@@ -655,24 +645,24 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
           />
           <StyledFieldInput
             width="500px"
-            label="Jamf Account Username"
-            name="username" // must be the same name as expected by the backend as form value
-            rule={requiredField('Username must be specified')}
-            value={username}
-            onChange={e => setUsername(e.target.value)}
-            placeholder="username"
-            toolTipContent="Username of the account that will be used to authenticate with Jamf API. We recommend using a read-only account."
+            label="Jamf API Client ID"
+            name="clientId" // must be the same name as expected by the backend as form value
+            rule={requiredField('Client ID must be specified')}
+            value={clientId}
+            onChange={e => setClientId(e.target.value)}
+            placeholder="Client ID"
+            toolTipContent="Jamf API Client ID."
           />
           <StyledFieldInput
             width="500px"
-            label="Jamf Account Password"
-            name="password" // must be the same name as expected by the backend as form value
-            rule={requiredField('Password must be specified')}
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            placeholder="password"
+            label="Jamf API Client Secret"
+            name="clientSecret" // must be the same name as expected by the backend as form value
+            rule={requiredField('Client Secret must be specified')}
+            value={clientSecret}
+            onChange={e => setClientSecret(e.target.value)}
+            placeholder="Client Secret"
             type="password"
-            toolTipContent="Password of the account that will be used to authenticate with Jamf API.  We recommend using a read-only account."
+            toolTipContent="Jamf API Client Secret."
           />
         </InputIconContainer>
       );

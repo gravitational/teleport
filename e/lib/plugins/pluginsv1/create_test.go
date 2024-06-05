@@ -408,10 +408,18 @@ func TestService_CreatePlugin_jamf(t *testing.T) {
 
 	const username = "llama"
 	const password = "secret"
+	const clientID = "llama-UUID"
+	const clientSecret = "supersecretsecret!!1!"
 	jamfEnv.API.SetUsers([]*jamffake.User{
 		{
 			Username: username,
 			Password: password,
+		},
+	})
+	jamfEnv.API.SetAPIClients([]*jamffake.APIClient{
+		{
+			ID:     clientID,
+			Secret: clientSecret,
 		},
 	})
 
@@ -437,7 +445,7 @@ func TestService_CreatePlugin_jamf(t *testing.T) {
 			},
 		},
 	}
-	okStaticCreds := &types.PluginStaticCredentialsV1{
+	okBasicAuth := &types.PluginStaticCredentialsV1{
 		ResourceHeader: types.ResourceHeader{
 			Metadata: types.Metadata{
 				Name: "jamf-static-credentials",
@@ -447,6 +455,21 @@ func TestService_CreatePlugin_jamf(t *testing.T) {
 			Credentials: &types.PluginStaticCredentialsSpecV1_BasicAuth{
 				BasicAuth: &types.PluginStaticCredentialsBasicAuth{
 					Username: username, Password: password,
+				},
+			},
+		},
+	}
+	okOauthSecret := &types.PluginStaticCredentialsV1{
+		ResourceHeader: types.ResourceHeader{
+			Metadata: types.Metadata{
+				Name: "jamf-static-credentials",
+			},
+		},
+		Spec: &types.PluginStaticCredentialsSpecV1{
+			Credentials: &types.PluginStaticCredentialsSpecV1_OAuthClientSecret{
+				OAuthClientSecret: &types.PluginStaticCredentialsOAuthClientSecret{
+					ClientId:     clientID,
+					ClientSecret: clientSecret,
 				},
 			},
 		},
@@ -461,9 +484,14 @@ func TestService_CreatePlugin_jamf(t *testing.T) {
 		wantErr     string
 	}{
 		{
-			name:        "ok",
+			name:        "basic auth",
 			plugin:      okPlugin,
-			staticCreds: okStaticCreds,
+			staticCreds: okBasicAuth,
+		},
+		{
+			name:        "oauth secret",
+			plugin:      okPlugin,
+			staticCreds: okOauthSecret,
 		},
 		{
 			name: "bad plugin URL",
@@ -472,14 +500,14 @@ func TestService_CreatePlugin_jamf(t *testing.T) {
 				cp.Spec.GetJamf().JamfSpec.ApiEndpoint = jamfEnv.APIEndpoint + "badllama"
 				return cp
 			}(),
-			staticCreds: okStaticCreds,
+			staticCreds: okBasicAuth,
 			wantErr:     "failed to verify Jamf endpoint and credentials",
 		},
 		{
 			name:   "bad plugin credentials",
 			plugin: okPlugin,
 			staticCreds: func() *types.PluginStaticCredentialsV1 {
-				cp := proto.Clone(okStaticCreds).(*types.PluginStaticCredentialsV1)
+				cp := proto.Clone(okBasicAuth).(*types.PluginStaticCredentialsV1)
 				cp.Spec.GetBasicAuth().Username = "badllama"
 				return cp
 			}(),

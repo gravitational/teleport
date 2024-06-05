@@ -310,15 +310,23 @@ func (s *Service) updatePluginAndCreateStaticCredentials(ctx context.Context, pl
 
 	// Verify Jamf API endpoint and credentials.
 	if plugin.GetType() == types.PluginTypeJamf {
-		user, pass := staticCreds[0].GetBasicAuth()
+		// Pass any existing credentials to NewClient.
+		var user, pass, clientID, clientSecret string
+		if len(staticCreds) > 0 {
+			sc := staticCreds[0]
+			user, pass = sc.GetBasicAuth()
+			clientID, clientSecret = sc.GetOAuthClientSecret()
+		}
 
 		// Creating a client automatically verifies the credentials.
 		if _, err := jamf.NewClient(ctx, jamf.ClientOpts{
-			Logger:     s.logger,
-			HTTPClient: s.httpClient,
-			APIURL:     plugin.Spec.GetJamf().JamfSpec.ApiEndpoint,
-			Username:   user,
-			Password:   pass,
+			Logger:       s.logger,
+			HTTPClient:   s.httpClient,
+			APIURL:       plugin.Spec.GetJamf().JamfSpec.ApiEndpoint,
+			Username:     user,
+			Password:     pass,
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
 		}); err != nil {
 			s.logger.WarnContext(ctx, "failed to verify Jamf endpoint and credentials", "error", err)
 			return trace.Errorf("failed to verify Jamf endpoint and credentials")

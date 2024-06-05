@@ -17,19 +17,27 @@ func jamfInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 	}
 
 	// For now, we'll just choose the first static credential until we have a need for rotation or other complexity.
-	username, password := deps.staticCredentials[0].GetBasicAuth()
-	if username == "" || password == "" {
-		return nil, trace.BadParameter("username or password empty")
+	sc := deps.staticCredentials[0]
+
+	// username+password is set for plugins created before the introduction of
+	// clientID+clientSecret.
+	username, password := sc.GetBasicAuth()
+	clientID, clientSecret := sc.GetOAuthClientSecret()
+	if (username == "" || password == "") && (clientID == "" || clientSecret == "") {
+		return nil, trace.BadParameter("credentials must be present")
 	}
 
 	jamfSettings := plugin.Spec.GetJamf()
 	if jamfSettings == nil {
 		return nil, trace.BadParameter("field Spec.Jamf must be present")
 	}
+
 	// Assign credential to a new variable so that the parent plugin instance (without credential) remains unchanged.
 	jamfSpec := *jamfSettings.JamfSpec
 	jamfSpec.Username = username
 	jamfSpec.Password = password
+	jamfSpec.ClientId = clientID
+	jamfSpec.ClientSecret = clientSecret
 
 	return func() error {
 		closeEvent, err := services.JamfPluginInit(deps.lifetime, deps.parentProcess, deps.HTTPClient, deps.statusSink, &jamfSpec)
