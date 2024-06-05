@@ -187,7 +187,7 @@ func (c *Cluster) ReissueAppCert(ctx context.Context, clusterClient *client.Clus
 		RouteToApp:     routeToApp,
 		AccessRequests: c.status.ActiveRequests.AccessRequests,
 		RequesterName:  proto.UserCertsRequest_TSH_APP_LOCAL_PROXY,
-	}, c.clusterClient.NewMFAPrompt(mfa.WithPromptReasonSessionMFA("Application", routeToApp.Name)))
+	}, c.clusterClient.NewMFAPrompt(mfa.WithPromptReasonSessionMFA("application", routeToApp.Name)))
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
