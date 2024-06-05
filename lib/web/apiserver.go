@@ -3420,7 +3420,7 @@ func (h *Handler) podConnect(
 
 	sess := session.Session{
 		Kind:                  types.KubernetesSessionKind,
-		Login:                 strings.Join([]string{execReq.Namespace, execReq.Pod, execReq.Container}, "/"),
+		Login:                 "root",
 		ClusterName:           clusterName,
 		KubernetesClusterName: execReq.KubeCluster,
 		Moderated:             accessEvaluator.IsModerated(),
