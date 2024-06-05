@@ -1,5 +1,5 @@
 ---
-title: What is Teleport?
+title: Introduction to Teleport
 description: Provides an overview of the purpose and benefits of Teleport Access Platform, which allows you to implement Zero Trust for all of your infrastructure.
 tocDepth: 3
 ---
@@ -83,13 +83,20 @@ restrictions and potential security breaches.
 
 Get started with Teleport Identity:
 
-- [Access Requests](./access-controls/access-requests.mdx)
-- [Access Lists](./access-controls/access-lists.mdx)
-- [Device Trust](./access-controls/device-trust.mdx)
-- [Access Monitoring](./access-controls/access-monitoring.mdx)
-- [Session & Identity Locks](./access-controls/guides/locking.mdx)
-- [Jamf Endpoint
-  Management](./access-controls/device-trust/jamf-integration.mdx)
+- [Access Requests](./access-controls/access-requests.mdx): Temporarily
+  provision minimal privileges to complete a task.
+- [Access Lists](./access-controls/access-lists.mdx): Regularly audit and
+  control membership to specific roles and traits, which then tie easily back
+  into Teleport's existing RBAC system.
+- [Device Trust](./access-controls/device-trust.mdx): Require an up-to-date,
+  registered device for each authentication by giving every device a
+  cryptographic identity. 
+- [Session & Identity Locks](./access-controls/guides/locking.mdx): Lock
+  suspicious or compromised identities and stop all their activity across all
+  protocols and services.
+- [Access Monitoring](./access-controls/access-monitoring.mdx): Detect overly
+  broad privileges and inspect sessions that are not using strong protection,
+  such as multi-factor authentication and Device Trust.
 
 ### Teleport Policy
 
