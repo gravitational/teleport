@@ -53,6 +53,8 @@ export const NotificationsTypesE = () => {
                 notification={notification}
                 key={notification.id}
                 closeNotificationsList={() => null}
+                markNotificationAsClicked={() => null}
+                removeNotification={() => null}
               />
             );
           })}

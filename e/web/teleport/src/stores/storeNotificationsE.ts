@@ -3,8 +3,9 @@ import { UserContext } from 'teleport/services/user';
 import {
   StoreNotifications,
   Notification,
-  NotificationKind,
 } from 'teleport/stores/storeNotifications';
+
+import { LocalNotificationKind } from 'teleport/services/notifications';
 
 import { AccessList } from 'e-teleport/services/accessmanagement';
 import cfg from 'e-teleport/config';
@@ -55,20 +56,22 @@ export class StoreNotificationsE extends StoreNotifications {
         id: a.id,
         date: a.audit.nextDate,
         item: {
-          kind: NotificationKind.AccessList,
+          kind: LocalNotificationKind.AccessList,
           resourceName: a.title,
           route: cfg.getAccessListManagementRoute(a.id),
         },
       };
     });
 
-    this.updateNotificationsByKind(notices, NotificationKind.AccessList);
+    this.updateNotificationsByKind(notices, LocalNotificationKind.AccessList);
   }
 
   updateOrRemoveAccessListNotification(accessList: AccessList) {
     // Filter out possibly stale access list notice.
     const filtered = this.state.notifications.filter(
-      n => n.item.kind === NotificationKind.AccessList && n.id !== accessList.id
+      n =>
+        n.item.kind === LocalNotificationKind.AccessList &&
+        n.id !== accessList.id
     );
     // Add the latest access list notice if requires review.
     if (
@@ -81,14 +84,14 @@ export class StoreNotificationsE extends StoreNotifications {
         id: accessList.id,
         date: accessList.audit.nextDate,
         item: {
-          kind: NotificationKind.AccessList,
+          kind: LocalNotificationKind.AccessList,
           resourceName: accessList.title,
           route: cfg.getAccessListManagementRoute(accessList.id),
         },
       });
     }
 
-    this.updateNotificationsByKind(filtered, NotificationKind.AccessList);
+    this.updateNotificationsByKind(filtered, LocalNotificationKind.AccessList);
   }
 }
 

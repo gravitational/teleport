@@ -31,6 +31,8 @@ import history from 'teleport/services/history';
 import {
   Notification as NotificationType,
   NotificationSubKind,
+  LocalNotificationKind,
+  LocalNotificationGroupedKind,
 } from 'teleport/services/notifications';
 import {
   notificationContentFactory,
@@ -106,6 +108,31 @@ export function notificationContentFactoryE(
         type: 'informational',
         icon: Icons.UserList,
         redirectRoute: cfg.getAccessRequestRoute(requestId),
+      };
+      break;
+    }
+
+    case LocalNotificationKind.AccessList:
+      const redirectRoute = getLabelValue(labels, 'redirect-route');
+
+      notificationContent = {
+        kind: 'redirect',
+        title: notification.title,
+        type: 'warning',
+        icon: Icons.UserList,
+        redirectRoute,
+        hideDate: true,
+      };
+      break;
+
+    case LocalNotificationGroupedKind.AccessListGrouping: {
+      notificationContent = {
+        kind: 'redirect',
+        title: notification.title,
+        type: 'warning',
+        icon: Icons.UserList,
+        redirectRoute: cfg.getAccessListManagementRoute(null),
+        hideDate: true,
       };
       break;
     }

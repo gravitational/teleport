@@ -77,6 +77,9 @@ export function ViewEditAccessList() {
 
   function updateAccessList(newAccessList: AccessList) {
     modifyAccessList(newAccessList);
+
+    // When an access list is modified, any existing clicked/seen states for it should be reset.
+    ctx.storeNotifications.resetStatesForNotification(accessList.id);
   }
 
   function modifyAccessList(newAccessList: AccessList) {
