@@ -311,8 +311,7 @@ func (p *podHandler) handler(r *http.Request) error {
 func (p *podHandler) handleResize(termSizeQueue *termSizeQueue) func(context.Context, terminal.Envelope) {
 	return func(ctx context.Context, envelope terminal.Envelope) {
 		var e map[string]any
-		err := json.Unmarshal([]byte(envelope.Payload), &e)
-		if err != nil {
+		if err := json.Unmarshal([]byte(envelope.Payload), &e); err != nil {
 			p.log.Warnf("Failed to parse resize payload: %v", err)
 			return
 		}
