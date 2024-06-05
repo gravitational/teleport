@@ -170,10 +170,6 @@ export default function useAccessRequestCheckout() {
             id: role,
             name: role,
             clusterName,
-            originalItem: {
-              kind: 'role',
-              role: role,
-            },
           });
         });
         break;
@@ -186,7 +182,7 @@ export default function useAccessRequestCheckout() {
             kind,
             id,
             name,
-            originalItem: { kind: 'resource', resource: resourceRequest },
+            originalItem: resourceRequest,
             clusterName: ctx.clustersService.findClusterByResource(
               resourceRequest.resource.uri
             )?.name,
@@ -204,15 +200,17 @@ export default function useAccessRequestCheckout() {
     return workspaceAccessRequest.getCollapsed();
   }
 
-  async function toggleResource({
-    originalItem,
-  }: PendingListItemWithOriginalItem) {
-    if (originalItem.kind === 'role') {
-      await workspaceAccessRequest.addOrRemoveRole(originalItem.role);
+  async function toggleResource(
+    pendingListItem: PendingListItemWithOriginalItem
+  ) {
+    if (pendingListItem.kind === 'role') {
+      await workspaceAccessRequest.addOrRemoveRole(pendingListItem.id);
       return;
     }
 
-    await workspaceAccessRequest.addOrRemoveResource(originalItem.resource);
+    await workspaceAccessRequest.addOrRemoveResource(
+      pendingListItem.originalItem
+    );
   }
 
   function getAssumedRequests() {
@@ -385,12 +383,13 @@ export default function useAccessRequestCheckout() {
   };
 }
 
-type PendingListItemWithOriginalItem = Omit<PendingListItem, 'kind'> & {
-  kind: ResourceKind;
-  originalItem:
+type PendingListItemWithOriginalItem = Omit<PendingListItem, 'kind'> &
+  (
+    | {
+        kind: Exclude<ResourceKind, 'role'>;
+        originalItem: ResourceRequest;
+      }
     | {
         kind: 'role';
-        role: string;
       }
-    | { kind: 'resource'; resource: ResourceRequest };
-};
+  );
