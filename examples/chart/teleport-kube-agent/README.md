@@ -309,7 +309,7 @@ metadata:
   namespace: ${TELEPORT_NAMESPACE?}
 type: Opaque
 data:
-  jamfClientSecret: ${JAMF_CLIENT_SECRET?}
+  jamfSecret: ${JAMF_CLIENT_SECRET?}
 EOF
 
 $ kubectl apply -f secret.yaml

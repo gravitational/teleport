@@ -465,11 +465,11 @@ jamfCredentialsSecret:
   # To create your own Jamf Pro API Client Secret, you can use a command like this:
   #
   # ```code
-  # $ kubectl --namespace teleport create secret generic my-jamf-secret --from-literal=jamfClientSecret=<replace-with-actual-secret>
+  # $ kubectl --namespace teleport create secret generic my-jamf-secret --from-literal=jamfSecret=<replace-with-actual-secret>
   # ```
   #
   # <Admonition type="note">
-  #   The key used for the Jamf Pro API Client Secret inside the secret must be `jamfClientSecret`, as in the command above.
+  #   The key used for the Jamf Pro API Client Secret inside the secret must be `jamfSecret`, as in the command above.
   # </Admonition>
   #
   # For example:
@@ -483,11 +483,11 @@ jamfCredentialsSecret:
   # For Teleport versions lower than v16, use Jamf Pro API password:
   #
   # ```code
-  # $ kubectl --namespace teleport create secret generic my-jamf-secret --from-literal=jamfPassword=<replace-with-actual-password>
+  # $ kubectl --namespace teleport create secret generic my-jamf-secret --from-literal=jamfSecret=<replace-with-actual-password>
   # ```
   #
   # <Admonition type="note">
-  #   The key used for the Jamf Pro API password inside the secret must be `jamfPassword`, as in the command above.
+  #   The key used for the Jamf Pro API password inside the secret must be `jamfSecret`, as in the command above.
   # </Admonition>
   name: teleport-jamf-api-credentials
 

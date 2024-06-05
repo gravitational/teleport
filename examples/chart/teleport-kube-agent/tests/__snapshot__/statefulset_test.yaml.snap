@@ -1176,8 +1176,8 @@ should mount extraVolumes and extraVolumeMounts:
       secret:
         secretName: teleport-jamf-api-credentials
         items:
-        - key: jamfPassword
-          path: password
+        - key: jamfSecret
+          path: secret
 should mount tls.existingCASecretName and set environment when set in values:
   1: |
     containers:
