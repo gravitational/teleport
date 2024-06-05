@@ -812,6 +812,50 @@ matches snapshot for initcontainers.yaml:
     metadata:
       name: RELEASE-NAME
       namespace: NAMESPACE
+matches snapshot for jamf-service-existing-secret-username-password.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |-
+        app_service:
+          enabled: false
+        auth_service:
+          enabled: false
+        db_service:
+          enabled: false
+        discovery_service:
+          enabled: false
+        jamf_service:
+          api_endpoint: https://testjamf.jamfcloud.com/api
+          enabled: true
+          password_file: /etc/teleport-jamf-api-credentials/secret
+          username: teleport-jamf
+        kubernetes_service:
+          enabled: false
+        proxy_service:
+          enabled: false
+        ssh_service:
+          enabled: false
+        teleport:
+          join_params:
+            method: token
+            token_name: /etc/teleport-secrets/auth-token
+          log:
+            format:
+              extra_fields:
+              - timestamp
+              - level
+              - component
+              - caller
+              output: text
+            output: stderr
+            severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for jamf-service-existing-secret.yaml:
   1: |
     apiVersion: v1
@@ -830,6 +874,50 @@ matches snapshot for jamf-service-existing-secret.yaml:
           client_id: teleport-jamf-client-id
           client_secret_file: /etc/teleport-jamf-api-credentials/secret
           enabled: true
+        kubernetes_service:
+          enabled: false
+        proxy_service:
+          enabled: false
+        ssh_service:
+          enabled: false
+        teleport:
+          join_params:
+            method: token
+            token_name: /etc/teleport-secrets/auth-token
+          log:
+            format:
+              extra_fields:
+              - timestamp
+              - level
+              - component
+              - caller
+              output: text
+            output: stderr
+            severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+matches snapshot for jamf-service-username-password.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |-
+        app_service:
+          enabled: false
+        auth_service:
+          enabled: false
+        db_service:
+          enabled: false
+        discovery_service:
+          enabled: false
+        jamf_service:
+          api_endpoint: testjamf.jamfcloud.com/api
+          enabled: true
+          password_file: /etc/teleport-jamf-api-credentials/secret
+          username: teleport-jamf
         kubernetes_service:
           enabled: false
         proxy_service:

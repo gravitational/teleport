@@ -566,6 +566,7 @@ tests:
     template: statefulset.yaml
     values:
       - ../.lint/jamf-service.yaml
+      - ../.lint/jamf-service-username-password.yaml
     asserts:
       - contains:
           path: spec.template.spec.volumes
@@ -586,6 +587,7 @@ tests:
     template: statefulset.yaml
     values:
       - ../.lint/jamf-service-existing-secret.yaml
+      - ../.lint/jamf-service-existing-secret-username-password.yaml
     asserts:
       - contains:
           path: spec.template.spec.volumes
