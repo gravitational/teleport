@@ -246,6 +246,9 @@ export function RequestCheckout<T extends PendingListItem>({
                   {
                     key: 'kind',
                     headerText: 'Type',
+                    render: item => (
+                      <Cell>{getPrettyResourceKind(item.kind)}</Cell>
+                    ),
                   },
                   {
                     key: 'name',
@@ -622,6 +625,29 @@ function TextBox({
       />
     </LabelInput>
   );
+}
+
+function getPrettyResourceKind(kind: ResourceKind): string {
+  switch (kind) {
+    case 'role':
+      return 'Role';
+    case 'app':
+      return 'Application';
+    case 'node':
+      return 'Server';
+    case 'resource':
+      return 'Resource';
+    case 'db':
+      return 'Database';
+    case 'kube_cluster':
+      return 'Kubernetes';
+    case 'user_group':
+      return 'User Group';
+    case 'windows_desktop':
+      return 'Desktop';
+    default:
+      kind satisfies never;
+  }
 }
 
 const requireText = (value: string, requireReason: boolean) => () => {
