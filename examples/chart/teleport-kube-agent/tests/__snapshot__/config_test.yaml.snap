@@ -241,9 +241,9 @@ matches snapshot for all-v6.yaml:
           enabled: false
         jamf_service:
           api_endpoint: testjamf.jamfcloud.com/api
+          client_id: teleport-jamf-client-id
+          client_secret_file: /etc/teleport-jamf-api-credentials/secret
           enabled: true
-          password_file: /etc/teleport-jamf-api-credentials/password
-          username: teleport-jamf
         kubernetes_service:
           enabled: true
           kube_cluster_name: test-kube-cluster-name
@@ -827,9 +827,9 @@ matches snapshot for jamf-service-existing-secret.yaml:
           enabled: false
         jamf_service:
           api_endpoint: https://testjamf.jamfcloud.com/api
+          client_id: teleport-jamf-client-id
+          client_secret_file: /etc/teleport-jamf-api-credentials/secret
           enabled: true
-          password_file: /etc/teleport-jamf-api-credentials/password
-          username: teleport-jamf
         kubernetes_service:
           enabled: false
         proxy_service:
@@ -870,10 +870,10 @@ matches snapshot for jamf-service.yaml:
         discovery_service:
           enabled: false
         jamf_service:
-          api_endpoint: testjamf.jamfcloud.com/api
+          api_endpoint: https://testjamf.jamfcloud.com/api
+          client_id: teleport-jamf-client-id
+          client_secret_file: /etc/teleport-jamf-api-credentials/secret
           enabled: true
-          password_file: /etc/teleport-jamf-api-credentials/password
-          username: teleport-jamf
         kubernetes_service:
           enabled: false
         proxy_service:

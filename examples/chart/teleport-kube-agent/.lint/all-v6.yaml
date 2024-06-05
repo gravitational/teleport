@@ -16,8 +16,8 @@ databases:
     labels:
       database: staging
 jamfApiEndpoint: "testjamf.jamfcloud.com/api"
-jamfUsername: teleport-jamf
-jamfPassword: secret-jamf-password
+jamfClientId: teleport-jamf-client-id
+jamfClientSecret: secret-jamf-client-secret
 annotations:
   config:
     kubernetes.io/config: "test-annotation"
