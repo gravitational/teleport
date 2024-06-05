@@ -160,9 +160,29 @@ tests:
           of: ConfigMap
       - matchSnapshot: {}
 
+  - it: matches snapshot for jamf-service-username-password.yaml
+    values:
+      - ../.lint/jamf-service-username-password.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
   - it: matches snapshot for jamf-service-existing-secret.yaml
     values:
       - ../.lint/jamf-service-existing-secret.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: matches snapshot for jamf-service-existing-secret-username-password.yaml
+    values:
+      - ../.lint/jamf-service-existing-secret-username-password.yaml
     asserts:
       - hasDocuments:
           count: 1

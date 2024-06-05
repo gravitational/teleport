@@ -506,6 +506,55 @@ tests:
       - matchSnapshot:
           path: spec.template.spec
 
+  - it: should mount jamfCredentialsSecret.name when role is jamf
+    template: statefulset.yaml
+    values:
+      - ../.lint/jamf-service.yaml
+      - ../.lint/jamf-service-username-password.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: jamf-api-credentials
+            secret:
+              secretName: teleport-jamf-api-credentials
+              items:
+              - key: jamfSecret
+                path: secret
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport-jamf-api-credentials
+            name: jamf-api-credentials
+            readOnly: true
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should mount jamfCredentialsSecret if it already exists and when role is jamf
+    template: statefulset.yaml
+    values:
+      - ../.lint/jamf-service-existing-secret.yaml
+      - ../.lint/jamf-service-existing-secret-username-password.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: jamf-api-credentials
+            secret:
+              secretName: existing-teleport-jamf-secret
+              items:
+              - key: jamfSecret
+                path: secret
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport-jamf-api-credentials
+            name: jamf-api-credentials
+            readOnly: true
+      - matchSnapshot:
+          path: spec.template.spec
+
+
   - it: should mount tls.existingCASecretName and set environment when set in values
     template: statefulset.yaml
     values:
@@ -559,48 +608,6 @@ tests:
           content:
             name: HTTPS_PROXY
             value: http://username:password@my.proxy.host:3128
-      - matchSnapshot:
-          path: spec.template.spec
-
-  - it: should mount jamfCredentialsSecret.name when role is jamf
-    template: statefulset.yaml
-    values:
-      - ../.lint/jamf-service.yaml
-      - ../.lint/jamf-service-username-password.yaml
-    asserts:
-      - contains:
-          path: spec.template.spec.volumes
-          content:
-            name: jamf-api-credentials
-            secret:
-              secretName: teleport-jamf-api-credentials
-      - contains:
-          path: spec.template.spec.containers[0].volumeMounts
-          content:
-            mountPath: /etc/teleport-jamf-api-credentials
-            name: jamf-api-credentials
-            readOnly: true
-      - matchSnapshot:
-          path: spec.template.spec
-
-  - it: should mount jamfCredentialsSecret already exists and when role is jamf
-    template: statefulset.yaml
-    values:
-      - ../.lint/jamf-service-existing-secret.yaml
-      - ../.lint/jamf-service-existing-secret-username-password.yaml
-    asserts:
-      - contains:
-          path: spec.template.spec.volumes
-          content:
-            name: jamf-api-credentials
-            secret:
-              secretName: existing-teleport-jamf-secret
-      - contains:
-          path: spec.template.spec.containers[0].volumeMounts
-          content:
-            mountPath: /etc/teleport-jamf-api-credentials
-            name: jamf-api-credentials
-            readOnly: true
       - matchSnapshot:
           path: spec.template.spec
 

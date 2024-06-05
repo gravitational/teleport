@@ -914,7 +914,7 @@ matches snapshot for jamf-service-username-password.yaml:
         discovery_service:
           enabled: false
         jamf_service:
-          api_endpoint: testjamf.jamfcloud.com/api
+          api_endpoint: https://testjamf.jamfcloud.com/api
           enabled: true
           password_file: /etc/teleport-jamf-api-credentials/secret
           username: teleport-jamf
