@@ -21,16 +21,21 @@ import (
 	"crypto/tls"
 	"errors"
 	"sync"
+	"sync/atomic"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
 	vnetproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
+	prehogv1alpha "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	apiteleterm "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/vnet/v1"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
+	"github.com/gravitational/teleport/lib/teleterm/clusteridcache"
+	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/vnet"
@@ -54,6 +59,7 @@ type Service struct {
 	mu             sync.Mutex
 	status         status
 	processManager *vnet.ProcessManager
+	usageReporter  *usageReporter
 }
 
 // New creates an instance of Service.
@@ -68,14 +74,31 @@ func New(cfg Config) (*Service, error) {
 }
 
 type Config struct {
-	DaemonService      *daemon.Service
+	// DaemonService is used to get cached clients and for usage reporting. If DaemonService was not
+	// one giant blob of methods, Config could accept two separate services instead.
+	DaemonService *daemon.Service
+	// InsecureSkipVerify signifies whether VNet is going to verify the identity of the proxy service.
 	InsecureSkipVerify bool
+	// ClusterIDCache is used for usage reporting to read cluster ID that needs to be included with
+	// every event.
+	ClusterIDCache *clusteridcache.Cache
+	// InstallationID is a unique ID of this particular Connect installation, used for usage
+	// reporting.
+	InstallationID string
 }
 
 // CheckAndSetDefaults checks and sets the defaults
 func (c *Config) CheckAndSetDefaults() error {
 	if c.DaemonService == nil {
 		return trace.BadParameter("missing DaemonService")
+	}
+
+	if c.ClusterIDCache == nil {
+		return trace.BadParameter("missing ClusterIDCache")
+	}
+
+	if c.InstallationID == "" {
+		return trace.BadParameter("missing InstallationID")
 	}
 
 	return nil
@@ -93,9 +116,25 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 		return &api.StartResponse{}, nil
 	}
 
+	usageReporter, err := NewUsageReporter(UsageReporterConfig{
+		ClientCache:    s.cfg.DaemonService,
+		EventConsumer:  s.cfg.DaemonService,
+		ClusterIDCache: s.cfg.ClusterIDCache,
+		InstallationID: s.cfg.InstallationID,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer func() {
+		if s.status != statusRunning {
+			usageReporter.Stop()
+		}
+	}()
+
 	appProvider := &appProvider{
 		daemonService:      s.cfg.DaemonService,
 		insecureSkipVerify: s.cfg.InsecureSkipVerify,
+		usageReporter:      usageReporter,
 	}
 
 	processManager, err := vnet.SetupAndRun(ctx, appProvider)
@@ -124,6 +163,7 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 	}()
 
 	s.processManager = processManager
+	s.usageReporter = usageReporter
 	s.status = statusRunning
 	return &api.StartResponse{}, nil
 }
@@ -155,6 +195,7 @@ func (s *Service) stopLocked() error {
 	if err != nil && !errors.Is(err, context.Canceled) {
 		return trace.Wrap(err)
 	}
+	s.usageReporter.Stop()
 
 	s.status = statusNotRunning
 	return nil
@@ -177,6 +218,7 @@ func (s *Service) Close() error {
 
 type appProvider struct {
 	daemonService      *daemon.Service
+	usageReporter      *usageReporter
 	insecureSkipVerify bool
 }
 
@@ -274,4 +316,175 @@ func (p *appProvider) GetVnetConfig(ctx context.Context, profileName, leafCluste
 	vnetConfigClient := clusterClient.AuthClient.VnetConfigServiceClient()
 	vnetConfig, err := vnetConfigClient.GetVnetConfig(ctx, &vnetproto.GetVnetConfigRequest{})
 	return vnetConfig, trace.Wrap(err)
+}
+
+// OnNewConnection submits a usage event once per appProvider lifetime.
+// That is, if a user makes multiple connections to a single app, OnNewConnection submits a single
+// event. This is to mimic how Connect submits events for its app gateways. This lets us compare
+// popularity of VNet and app gateways.
+func (p *appProvider) OnNewConnection(ctx context.Context, profileName, leafClusterName string, app types.Application) error {
+	// Enqueue the event from a separate goroutine since we don't care about errors anyway and we also
+	// don't want to slow down VNet connections.
+	go func() {
+		uri := uri.NewClusterURI(profileName).AppendLeafCluster(leafClusterName).AppendApp(app.GetName())
+
+		// Not passing ctx to ReportApp since ctx is tied to the lifetime of the connection.
+		// If it's a short-lived connection, inheriting its context would interrupt reporting.
+		err := p.usageReporter.ReportApp(uri)
+		if err != nil {
+			log.ErrorContext(ctx, "Failed to submit usage event", "app", uri, "error", err)
+		}
+	}()
+
+	return nil
+}
+
+type usageReporter struct {
+	cfg UsageReporterConfig
+	// reportedApps contains a set of URIs for apps which usage has been already reported.
+	// App gateways (local proxies) in Connect report a single event per gateway created per app. VNet
+	// needs to replicate this behavior, hence why it keeps track of reported apps to report only one
+	// event per app per VNet's lifespan.
+	reportedApps map[string]struct{}
+	// mu protects access to reportedApps.
+	mu sync.Mutex
+	// close is used to abort a ReportApp call that's currently in flight.
+	close chan struct{}
+	// closed signals that usageReporter has been stopped and no more events should be reported.
+	closed atomic.Bool
+}
+
+type clientCache interface {
+	GetCachedClient(context.Context, uri.ResourceURI) (*client.ClusterClient, error)
+	ResolveClusterURI(uri uri.ResourceURI) (*clusters.Cluster, *client.TeleportClient, error)
+}
+
+type eventConsumer interface {
+	ReportUsageEvent(*apiteleterm.ReportUsageEventRequest) error
+}
+
+type UsageReporterConfig struct {
+	ClientCache   clientCache
+	EventConsumer eventConsumer
+	// clusterIDCache stores cluster ID that needs to be included with each usage event. It's updated
+	// outside of usageReporter – the middleware merely reads data from it. If the cache does not
+	// contain the given cluster ID, usageReporter drops the event.
+	ClusterIDCache *clusteridcache.Cache
+	InstallationID string
+}
+
+func (c *UsageReporterConfig) CheckAndSetDefaults() error {
+	if c.ClientCache == nil {
+		return trace.BadParameter("missing ClientCache")
+	}
+
+	if c.EventConsumer == nil {
+		return trace.BadParameter("missing EventConsumer")
+	}
+
+	if c.ClusterIDCache == nil {
+		return trace.BadParameter("missing ClusterIDCache")
+	}
+
+	if c.InstallationID == "" {
+		return trace.BadParameter("missing InstallationID")
+	}
+
+	return nil
+}
+
+func NewUsageReporter(cfg UsageReporterConfig) (*usageReporter, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &usageReporter{
+		cfg:          cfg,
+		reportedApps: make(map[string]struct{}),
+		close:        make(chan struct{}),
+	}, nil
+}
+
+// ReportApp adds an event related to the given app to the events queue, if the app wasn't reported
+// already. Only one invocation of ReportApp can be in flight at a time.
+func (r *usageReporter) ReportApp(appURI uri.ResourceURI) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.closed.Load() {
+		return trace.CompareFailed("usage reporter has been stopped")
+	}
+
+	if _, hasAppBeenReported := r.reportedApps[appURI.String()]; hasAppBeenReported {
+		return nil
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go func() {
+		select {
+		case <-r.close:
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+
+	rootClusterURI := appURI.GetRootClusterURI()
+	client, err := r.cfg.ClientCache.GetCachedClient(ctx, appURI)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	rootClusterName := client.RootClusterName()
+	_, tc, err := r.cfg.ClientCache.ResolveClusterURI(appURI)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	clusterID, ok := r.cfg.ClusterIDCache.Load(rootClusterURI)
+	if !ok {
+		return trace.NotFound("cluster ID for %q not found", rootClusterURI)
+	}
+
+	log.DebugContext(ctx, "Reporting usage event", "app", appURI.String())
+
+	err = r.cfg.EventConsumer.ReportUsageEvent(&apiteleterm.ReportUsageEventRequest{
+		AuthClusterId: clusterID,
+		PrehogReq: &prehogv1alpha.SubmitConnectEventRequest{
+			DistinctId: r.cfg.InstallationID,
+			Timestamp:  timestamppb.Now(),
+			Event: &prehogv1alpha.SubmitConnectEventRequest_ProtocolUse{
+				ProtocolUse: &prehogv1alpha.ConnectProtocolUseEvent{
+					ClusterName:   rootClusterName,
+					UserName:      tc.Username,
+					Protocol:      "app",
+					Origin:        "vnet",
+					AccessThrough: "vnet",
+				},
+			},
+		},
+	})
+	if err != nil {
+		return trace.Wrap(err, "adding usage event to queue")
+	}
+
+	r.reportedApps[appURI.String()] = struct{}{}
+
+	return nil
+}
+
+// Stop aborts the reporting of an event that's currently in progress and prevents further events
+// from being reported. It blocks until the current ReportApp call aborts.
+func (r *usageReporter) Stop() {
+	if r.closed.Load() {
+		return
+	}
+
+	// Prevent new calls to ReportApp from being made.
+	r.closed.Store(true)
+	// Abort context of the ReportApp call currently in flight.
+	close(r.close)
+	// Block until the current ReportApp call aborts.
+	r.mu.Lock()
+	defer r.mu.Unlock()
 }
