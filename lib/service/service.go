@@ -997,7 +997,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 			Clock:  cfg.Clock,
 		})
 		if err != nil {
-			cfg.Logger.ErrorContext(supervisor.ExitContext(), "Error creating cloud label importer.", "error", err)
+			cfg.Logger.ErrorContext(supervisor.ExitContext(), "Cloud labels will not be imported", "error", err)
 		}
 	}
 
