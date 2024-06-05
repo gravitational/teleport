@@ -18,25 +18,21 @@
 
 import { TshdEventContextBridgeService } from 'teleterm/types';
 import { IAppContext } from 'teleterm/ui/types';
-import * as tshdEvents from 'teleterm/services/tshdEvents';
+import Logger from 'teleterm/logger';
 
 export function createTshdEventsContextBridgeService(
   ctx: IAppContext
 ): TshdEventContextBridgeService {
+  const logger = new Logger('tshd events UI');
+
   return {
     relogin: async ({ request, onRequestCancelled }) => {
-      await ctx.reloginService.relogin(
-        request as tshdEvents.ReloginRequest,
-        onRequestCancelled
-      );
+      await ctx.reloginService.relogin(request, onRequestCancelled);
       return {};
     },
 
     sendNotification: async ({ request }) => {
-      ctx.tshdNotificationsService.sendNotification(
-        request as tshdEvents.SendNotificationRequest
-      );
-
+      ctx.tshdNotificationsService.sendNotification(request);
       return {};
     },
 
@@ -45,7 +41,7 @@ export function createTshdEventsContextBridgeService(
       onRequestCancelled,
     }) => {
       await ctx.headlessAuthenticationService.sendPendingHeadlessAuthentication(
-        request as tshdEvents.SendPendingHeadlessAuthenticationRequest,
+        request,
         onRequestCancelled
       );
       return {};
@@ -58,7 +54,7 @@ export function createTshdEventsContextBridgeService(
       }>(resolve => {
         const { closeDialog } = ctx.modalsService.openImportantDialog({
           kind: 'reauthenticate',
-          promptMfaRequest: request as tshdEvents.PromptMfaRequest,
+          promptMfaRequest: request,
           onSuccess: totpCode => resolve({ hasCanceledModal: false, totpCode }),
           onCancel: () =>
             resolve({
@@ -85,6 +81,25 @@ export function createTshdEventsContextBridgeService(
       }
 
       return { totpCode };
+    },
+
+    getUsageReportingSettings: async () => {
+      return {
+        usageReportingSettings: {
+          enabled: ctx.configService.get('usageReporting.enabled').value,
+        },
+      };
+    },
+
+    reportUnexpectedVnetShutdown: async ({ request }) => {
+      if (!ctx.unexpectedVnetShutdownListener) {
+        logger.warn(
+          `Dropping unexpected VNet shutdown event, no listener present; error: ${request.error}`
+        );
+      } else {
+        ctx.unexpectedVnetShutdownListener(request);
+      }
+      return {};
     },
   };
 }

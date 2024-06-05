@@ -119,7 +119,7 @@ func (client *InstanceMetadataClient) GetTags(ctx context.Context) (map[string]s
 		gcpLabels = inst.Labels
 	} else if trace.IsAccessDenied(err) {
 		client.labelPermissionErrorOnce.Do(func() {
-			slog.WarnContext(ctx, "Access denied to instance labels, does the instance have compute.instances.get permission?", "error", err)
+			slog.WarnContext(ctx, "Access denied to instance labels, does the instance have compute.instances.get permission?")
 		})
 	} else {
 		return nil, trace.Wrap(err)
@@ -129,7 +129,7 @@ func (client *InstanceMetadataClient) GetTags(ctx context.Context) (map[string]s
 	gcpTags, err := client.instancesClient.GetInstanceTags(ctx, req)
 	if trace.IsAccessDenied(err) {
 		client.tagPermissionErrorOnce.Do(func() {
-			slog.WarnContext(ctx, "Access denied to resource management tags, does the instance have compute.instances.listEffectiveTags permission?", "error", err)
+			slog.WarnContext(ctx, "Access denied to resource management tags, does the instance have compute.instances.listEffectiveTags permission?")
 		})
 	} else if err != nil {
 		return nil, trace.Wrap(err)

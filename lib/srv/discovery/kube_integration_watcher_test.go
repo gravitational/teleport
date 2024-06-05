@@ -126,22 +126,22 @@ func TestGetAgentVersion(t *testing.T) {
 
 func TestServer_getKubeFetchers(t *testing.T) {
 	eks1, err := fetchers.NewEKSFetcher(fetchers.EKSFetcherConfig{
-		EKSClientGetter: &cloud.TestCloudClients{},
-		FilterLabels:    types.Labels{"l1": []string{"v1"}},
-		Region:          "region1",
+		ClientGetter: &cloud.TestCloudClients{STS: &mocks.STSMock{}},
+		FilterLabels: types.Labels{"l1": []string{"v1"}},
+		Region:       "region1",
 	})
 	require.NoError(t, err)
 	eks2, err := fetchers.NewEKSFetcher(fetchers.EKSFetcherConfig{
-		EKSClientGetter: &cloud.TestCloudClients{},
-		FilterLabels:    types.Labels{"l1": []string{"v1"}},
-		Region:          "region1",
-		Integration:     "aws1"})
+		ClientGetter: &cloud.TestCloudClients{STS: &mocks.STSMock{}},
+		FilterLabels: types.Labels{"l1": []string{"v1"}},
+		Region:       "region1",
+		Integration:  "aws1"})
 	require.NoError(t, err)
 	eks3, err := fetchers.NewEKSFetcher(fetchers.EKSFetcherConfig{
-		EKSClientGetter: &cloud.TestCloudClients{},
-		FilterLabels:    types.Labels{"l1": []string{"v1"}},
-		Region:          "region1",
-		Integration:     "aws1"})
+		ClientGetter: &cloud.TestCloudClients{STS: &mocks.STSMock{}},
+		FilterLabels: types.Labels{"l1": []string{"v1"}},
+		Region:       "region1",
+		Integration:  "aws1"})
 	require.NoError(t, err)
 
 	aks1, err := fetchers.NewAKSFetcher(fetchers.AKSFetcherConfig{

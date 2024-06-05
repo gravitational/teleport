@@ -39,11 +39,11 @@ func CompareResources[T any](resA, resB T) int {
 	} else {
 		equal = cmp.Equal(resA, resB,
 			ignoreProtoXXXFields(),
-			cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 			cmpopts.IgnoreFields(types.DatabaseV3{}, "Status"),
 			cmpopts.IgnoreFields(types.UserSpecV2{}, "Status"),
 			cmpopts.IgnoreFields(accesslist.AccessList{}, "Status"),
-			cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision"),
+			cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
 			cmpopts.IgnoreUnexported(headerv1.Metadata{}),
 
 			// Managed by IneligibleStatusReconciler, ignored by all others.

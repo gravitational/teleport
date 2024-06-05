@@ -34,7 +34,9 @@ import (
 	"cloud.google.com/go/compute/apiv1/computepb"
 	resourcemanager "cloud.google.com/go/resourcemanager/apiv3"
 	"cloud.google.com/go/resourcemanager/apiv3/resourcemanagerpb"
+	"github.com/googleapis/gax-go/v2/apierror"
 	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/api/googleapi"
@@ -58,6 +60,14 @@ func convertAPIError(err error) error {
 	var googleError *googleapi.Error
 	if errors.As(err, &googleError) {
 		return trace.ReadError(googleError.Code, []byte(googleError.Message))
+	}
+	var apiError *apierror.APIError
+	if errors.As(err, &apiError) {
+		if code := apiError.HTTPCode(); code != -1 {
+			return trace.ReadError(code, []byte(apiError.Reason()))
+		} else if apiError.GRPCStatus() != nil {
+			return trail.FromGRPC(apiError)
+		}
 	}
 	return err
 }
@@ -341,7 +351,8 @@ func (clt *instancesClient) getTagBindingsClient(ctx context.Context, zone strin
 		endpoint := zone + "-cloudresourcemanager.googleapis.com:443"
 		opts = append(opts, option.WithEndpoint(endpoint))
 	}
-	return resourcemanager.NewTagBindingsClient(ctx, opts...)
+	client, err := resourcemanager.NewTagBindingsClient(ctx, opts...)
+	return client, trace.Wrap(convertAPIError(err))
 }
 
 // GetInstanceTags gets the GCP tags for the instance.

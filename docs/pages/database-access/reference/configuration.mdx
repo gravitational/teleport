@@ -104,7 +104,21 @@ metadata:
     env: example
 
 spec:
-  # Database protocol.
+  # Database protocol. Valid options are:
+  # "cassandra"
+  # "clickhouse"
+  # "clickhouse-http"
+  # "cockroachdb"
+  # "dynamodb"
+  # "elasticsearch"
+  # "mongodb"
+  # "mysql"
+  # "oracle"
+  # "postgres"
+  # "redis"
+  # "snowflake"
+  # "spanner"
+  # "sqlserver"
   protocol: "postgres"
 
   # Database connection endpoint.
@@ -167,7 +181,7 @@ spec:
       # Redshift cluster identifier.
       cluster_id: "redshift-cluster-1"
 
-  # Optional GCP configuration for Cloud SQL.
+  # GCP configuration (required for Cloud SQL and Spanner databases).
   gcp:
     # GCP project ID.
     project_id: "xxx-1234"

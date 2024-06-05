@@ -70,7 +70,6 @@ func onAppLogin(cf *CLIConf) error {
 		AccessRequests: profile.ActiveRequests.AccessRequests,
 	}
 
-	// TODO (Joerger): DELETE IN v17.0.0
 	clusterClient, err := tc.ConnectToCluster(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
@@ -79,12 +78,8 @@ func onAppLogin(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	appCertParams.RouteToApp.SessionID, err = authclient.TryCreateAppSessionForClientCertV15(cf.Context, rootClient, tc.Username, appCertParams.RouteToApp)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 
-	key, _, err := clusterClient.IssueUserCertsWithMFA(cf.Context, appCertParams, tc.NewMFAPrompt(mfa.WithPromptReasonSessionMFA("Application", app.GetName())))
+	key, err := appLogin(cf.Context, tc, clusterClient, rootClient, appCertParams)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -98,6 +93,25 @@ func onAppLogin(cf *CLIConf) error {
 	}
 
 	return nil
+}
+
+func appLogin(
+	ctx context.Context,
+	tc *client.TeleportClient,
+	clusterClient *client.ClusterClient,
+	rootClient authclient.ClientI,
+	appCertParams client.ReissueParams,
+) (*client.Key, error) {
+	// TODO (Joerger): DELETE IN v17.0.0
+	var err error
+	appCertParams.RouteToApp.SessionID, err = authclient.TryCreateAppSessionForClientCertV15(ctx, rootClient, tc.Username, appCertParams.RouteToApp)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	key, _, err := clusterClient.IssueUserCertsWithMFA(ctx, appCertParams,
+		tc.NewMFAPrompt(mfa.WithPromptReasonSessionMFA("Application", appCertParams.RouteToApp.Name)))
+	return key, trace.Wrap(err)
 }
 
 func localProxyRequiredForApp(tc *client.TeleportClient) bool {

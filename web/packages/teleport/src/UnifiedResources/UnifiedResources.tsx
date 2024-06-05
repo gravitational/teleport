@@ -27,6 +27,8 @@ import {
   useUnifiedResourcesFetch,
   UnifiedResourcesPinning,
   BulkAction,
+  IncludedResourceMode,
+  ResourceAvailabilityFilter,
 } from 'shared/components/UnifiedResources';
 import { ClusterDropdown } from 'shared/components/ClusterDropdown/ClusterDropdown';
 
@@ -95,17 +97,20 @@ export function ClusterResources({
   clusterId,
   isLeafCluster,
   getActionButton,
-  includeRequestable,
   showCheckout = false,
+  availabilityFilter,
   bulkActions = [],
 }: {
   clusterId: string;
   isLeafCluster: boolean;
-  getActionButton?: (resource: UnifiedResource) => JSX.Element;
-  includeRequestable?: boolean;
+  getActionButton?: (
+    resource: UnifiedResource,
+    includedResourceMode: IncludedResourceMode
+  ) => JSX.Element;
   showCheckout?: boolean;
   /** A list of actions that can be performed on the selected items. */
   bulkActions?: BulkAction[];
+  availabilityFilter?: ResourceAvailabilityFilter;
 }) {
   const teleCtx = useTeleport();
   const flags = teleCtx.getFeatureFlags();
@@ -126,6 +131,7 @@ export function ClusterResources({
       fieldName: 'name',
       dir: 'ASC',
     },
+    includedResourceMode: availabilityFilter?.mode,
     pinnedOnly:
       preferences?.unifiedResourcePreferences?.defaultTab === DefaultTab.PINNED,
   });
@@ -157,7 +163,7 @@ export function ClusterResources({
             searchAsRoles: '',
             limit: paginationParams.limit,
             startKey: paginationParams.startKey,
-            includeRequestable,
+            includedResourceMode: params.includedResourceMode,
           },
           signal
         );
@@ -175,8 +181,8 @@ export function ClusterResources({
         params.query,
         params.search,
         params.sort,
+        params.includedResourceMode,
         teleCtx.resourceService,
-        includeRequestable,
       ]
     ),
   });
@@ -209,6 +215,7 @@ export function ClusterResources({
         params={params}
         fetchResources={fetch}
         resourcesFetchAttempt={attempt}
+        availabilityFilter={availabilityFilter}
         unifiedResourcePreferences={preferences.unifiedResourcePreferences}
         updateUnifiedResourcesPreferences={preferences => {
           updatePreferences({ unifiedResourcePreferences: preferences });
@@ -232,9 +239,10 @@ export function ClusterResources({
         resources={resources.map(resource => ({
           resource,
           ui: {
-            ActionButton: getActionButton?.(resource) || (
-              <ResourceActionButton resource={resource} />
-            ),
+            ActionButton: getActionButton?.(
+              resource,
+              params.includedResourceMode
+            ) || <ResourceActionButton resource={resource} />,
           },
         }))}
         setParams={newParams => {

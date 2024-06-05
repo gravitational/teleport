@@ -38,10 +38,12 @@ export const SelfHostedAutoDiscoverDirections = ({
   clusterPublicUrl,
   discoveryGroupName,
   setDiscoveryGroupName,
+  showSubHeader = true,
 }: {
   clusterPublicUrl: string;
   discoveryGroupName: string;
   setDiscoveryGroupName(n: string): void;
+  showSubHeader?: boolean;
 }) => {
   const yamlContent = `version: v3
 teleport:
@@ -61,14 +63,18 @@ discovery_service:
 
   return (
     <Box mt={2}>
-      <Flex alignItems="center">
-        <Text>
-          Auto-enrolling requires you to configure a{' '}
-          <Mark>Discovery Service</Mark>
-        </Text>
-        <ToolTipInfo children={discoveryServiceToolTip} />
-      </Flex>
-      <br />
+      {showSubHeader && (
+        <>
+          <Flex alignItems="center">
+            <Text>
+              Auto-enrolling requires you to configure a{' '}
+              <Mark>Discovery Service</Mark>
+            </Text>
+            <ToolTipInfo children={discoveryServiceToolTip} />
+          </Flex>
+          <br />
+        </>
+      )}
       <StyledBox mb={5}>
         <Text bold>Step 1: Create a Join Token</Text>
         <Text mb={2}>

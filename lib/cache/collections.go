@@ -30,6 +30,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
+	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
@@ -212,6 +213,7 @@ type cacheCollections struct {
 	clusterNames             collectionReader[clusterNameGetter]
 	clusterNetworkingConfigs collectionReader[clusterNetworkingConfigGetter]
 	databases                collectionReader[services.DatabaseGetter]
+	databaseObjects          collectionReader[services.DatabaseObjectsGetter]
 	databaseServers          collectionReader[databaseServerGetter]
 	discoveryConfigs         collectionReader[services.DiscoveryConfigsGetter]
 	installers               collectionReader[installerGetter]
@@ -537,6 +539,15 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.databases
+		case types.KindDatabaseObject:
+			if c.DatabaseObjects == nil {
+				return nil, trace.BadParameter("missing parameter DatabaseObject")
+			}
+			collections.databaseObjects = &genericCollection[*dbobjectv1.DatabaseObject, services.DatabaseObjectsGetter, databaseObjectExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.databaseObjects
 		case types.KindKubernetesCluster:
 			if c.Kubernetes == nil {
 				return nil, trace.BadParameter("missing parameter Kubernetes")
@@ -1412,6 +1423,51 @@ func (databaseExecutor) getReader(cache *Cache, cacheOK bool) services.DatabaseG
 }
 
 var _ executor[types.Database, services.DatabaseGetter] = databaseExecutor{}
+
+type databaseObjectExecutor struct{}
+
+func (databaseObjectExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*dbobjectv1.DatabaseObject, error) {
+	var out []*dbobjectv1.DatabaseObject
+	var nextToken string
+	for {
+		var page []*dbobjectv1.DatabaseObject
+		var err error
+
+		page, nextToken, err = cache.DatabaseObjects.ListDatabaseObjects(ctx, 0, nextToken)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out = append(out, page...)
+		if nextToken == "" {
+			break
+		}
+	}
+	return out, nil
+}
+
+func (databaseObjectExecutor) upsert(ctx context.Context, cache *Cache, resource *dbobjectv1.DatabaseObject) error {
+	_, err := cache.databaseObjectsCache.UpsertDatabaseObject(ctx, resource)
+	return trace.Wrap(err)
+}
+
+func (databaseObjectExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return trace.Wrap(cache.databaseObjectsCache.DeleteAllDatabaseObjects(ctx))
+}
+
+func (databaseObjectExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return trace.Wrap(cache.databaseObjectsCache.DeleteDatabaseObject(ctx, resource.GetName()))
+}
+
+func (databaseObjectExecutor) isSingleton() bool { return false }
+
+func (databaseObjectExecutor) getReader(cache *Cache, cacheOK bool) services.DatabaseObjectsGetter {
+	if cacheOK {
+		return cache.databaseObjectsCache
+	}
+	return cache.Config.DatabaseObjects
+}
+
+var _ executor[*dbobjectv1.DatabaseObject, services.DatabaseObjectsGetter] = databaseObjectExecutor{}
 
 type appExecutor struct{}
 
@@ -3170,4 +3226,5 @@ func (accessMonitoringRulesExecutor) getReader(cache *Cache, cacheOK bool) acces
 type accessMonitoringRuleGetter interface {
 	GetAccessMonitoringRule(ctx context.Context, name string) (*accessmonitoringrulesv1.AccessMonitoringRule, error)
 	ListAccessMonitoringRules(ctx context.Context, limit int, startKey string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
+	ListAccessMonitoringRulesWithFilter(ctx context.Context, pageSize int, nextToken string, subjects []string, notificationName string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
 }

@@ -1,0 +1,61 @@
+<Tabs>
+
+<TabItem label="Configure Teleport With Automatic CA Download">
+Provide the following information and then generate a configuration file for the
+Teleport Database Service:
+- <Var name="example.teleport.sh:443" /> The host **and port** of your Teleport
+Proxy Service or Enterprise Cloud site
+- <Var name="public-ip" /> The Cloud SQL instance public IP address. The address
+can be found on the "Connect to this instance" panel on the "Overview" page in
+the Cloud SQL instance's dashboard.
+- <Var name="project-id"/> The GCP project ID. You can normally see it in the
+organization view at the top of the GCP dashboard.
+- <Var name="instance-id"/> The name of your Cloud SQL instance.
+
+```code
+$ sudo teleport db configure create \
+   -o file \
+   --name=cloudsql \
+   --protocol={{ dbProtocol }} \
+   --labels=env=dev \
+   --token={{ token }} \
+   --proxy=<Var name="example.teleport.sh:443" />  \
+   --uri=<Var name="public-ip" />:{{ dbPort }} \
+   --gcp-project-id=<Var name="project-id" /> \
+   --gcp-instance-id=<Var name="instance-id" /> 
+```
+</TabItem>
+
+<TabItem label="Configure Teleport With Manual CA Download">
+Provide the following information and then generate a configuration file for the
+Teleport Database Service:
+- <Var name="example.teleport.sh:443" /> The host **and port** of your Teleport
+Proxy Service or Enterprise Cloud site
+- <Var name="public-ip" /> The Cloud SQL instance public IP address. The address
+can be found on the "Connect to this instance" panel on the "Overview" page in
+the Cloud SQL instance's dashboard.
+- <Var name="project-id"/> The GCP project ID. You can normally see it in the
+organization view at the top of the GCP dashboard.
+- <Var name="instance-id"/> The name of your Cloud SQL instance.
+- <Var name="/path/to/cloudsql/instance/server-ca.pem" /> The path to the Cloud
+SQL instance root CA certificate
+
+```code
+$ sudo teleport db configure create \
+   -o file \
+   --name=cloudsql \
+   --protocol={{ dbProtocol }} \
+   --labels=env=dev \
+   --token={{ token }} \
+   --proxy=<Var name="example.teleport.sh:443" />  \
+   --uri=<Var name="public-ip" />:{{ dbPort }} \
+   --gcp-project-id=<Var name="project-id" /> \
+   --gcp-instance-id=<Var name="instance-id" /> \
+   --ca-cert-file=<Var name="/path/to/cloudsql/instance/server-ca.pem" /> 
+```
+</TabItem>
+
+</Tabs>
+
+This command will generate a Teleport Database Service configuration file and
+save it to `/etc/teleport.yaml`.

@@ -77,7 +77,7 @@ func MarshalDatabase(database types.Database, opts ...MarshalOption) ([]byte, er
 			return nil, trace.Wrap(err)
 		}
 
-		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, database))
+		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, database))
 	default:
 		return nil, trace.BadParameter("unsupported database resource %T", database)
 	}
@@ -104,9 +104,6 @@ func UnmarshalDatabase(data []byte, opts ...MarshalOption) (types.Database, erro
 		}
 		if err := database.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
-		}
-		if cfg.ID != 0 {
-			database.SetResourceID(cfg.ID)
 		}
 		if cfg.Revision != "" {
 			database.SetRevision(cfg.Revision)
