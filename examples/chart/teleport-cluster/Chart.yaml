@@ -1,4 +1,4 @@
-.version: &version "17.0.0-dev.fred-macos-manifests-1.5"
+.version: &version "17.0.0-dev.fred-macos-manifests-1.6"
 
 name: teleport-cluster
 apiVersion: v2
