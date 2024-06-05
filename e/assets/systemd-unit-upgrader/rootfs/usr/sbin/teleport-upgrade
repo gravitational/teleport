@@ -472,7 +472,7 @@ is_critical() {
 do_reload_or_restart() {
     # fail quietly when systemd is disabled. This is only relevant when testing
     # in a container.
-    if systemctl status > /dev/null 2>&1; then
+    if [ -d "/run/systemd/system" ]; then
         systemctl daemon-reload
         # reload or restart the service if it's currently running
         if [[ "$restart_mode" == "reload" ]]; then
