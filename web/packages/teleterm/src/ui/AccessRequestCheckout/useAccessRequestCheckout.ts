@@ -24,6 +24,7 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 import {
   ReviewerOption,
   getDryRunMaxDuration,
+  PendingListItem,
 } from 'shared/components/AccessRequests/NewRequest';
 
 import { CreateRequest } from 'shared/components/AccessRequests/Shared/types';
@@ -34,7 +35,7 @@ import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
   PendingAccessRequest,
   extractResourceRequestProperties,
-  toResourceRequest,
+  ResourceRequest,
 } from 'teleterm/ui/services/workspacesService/accessRequestsService';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 import {
@@ -151,20 +152,8 @@ export default function useAccessRequestCheckout() {
 
   function getPendingAccessRequestsPerResource(
     pendingRequest: PendingAccessRequest
-  ): {
-    kind: ResourceKind;
-    clusterName: string;
-    id: string;
-    name: string;
-  }[] {
-    const data: {
-      kind: ResourceKind;
-      clusterName: string;
-      /** Identifier of the resource. Should be sent in requests. */
-      id: string;
-      /** Name of the resource, for presentation purposes only. */
-      name: string;
-    }[] = [];
+  ): PendingListItemWithOriginalItem[] {
+    const data: PendingListItemWithOriginalItem[] = [];
     if (!workspaceAccessRequest) {
       return data;
     }
@@ -173,8 +162,17 @@ export default function useAccessRequestCheckout() {
       case 'role': {
         const clusterName =
           ctx.clustersService.findCluster(rootClusterUri)?.name;
-        pendingRequest.roles.forEach(r => {
-          data.push({ kind: 'role', id: r, name: r, clusterName });
+        pendingRequest.roles.forEach(role => {
+          data.push({
+            kind: 'role',
+            id: role,
+            name: role,
+            clusterName,
+            originalItem: {
+              kind: 'role',
+              role: role,
+            },
+          });
         });
         break;
       }
@@ -186,6 +184,7 @@ export default function useAccessRequestCheckout() {
             kind,
             id,
             name,
+            originalItem: { kind: 'resource', resource: resourceRequest },
             clusterName: ctx.clustersService.findClusterByResource(
               resourceRequest.resource.uri
             )?.name,
@@ -203,24 +202,15 @@ export default function useAccessRequestCheckout() {
     return workspaceAccessRequest.getCollapsed();
   }
 
-  async function toggleResource(
-    kind: ResourceKind,
-    resourceId: string,
-    resourceName: string
-  ) {
-    if (kind === 'role') {
-      await workspaceAccessRequest.addOrRemoveRole(resourceId);
+  async function toggleResource({
+    originalItem,
+  }: PendingListItemWithOriginalItem) {
+    if (originalItem.kind === 'role') {
+      await workspaceAccessRequest.addOrRemoveRole(originalItem.role);
       return;
     }
 
-    await workspaceAccessRequest.addOrRemoveResource(
-      toResourceRequest({
-        kind,
-        resourceId,
-        resourceName,
-        clusterUri,
-      })
-    );
+    await workspaceAccessRequest.addOrRemoveResource(originalItem.resource);
   }
 
   function getAssumedRequests() {
@@ -385,3 +375,13 @@ export default function useAccessRequestCheckout() {
     setRequestTTL,
   };
 }
+
+type PendingListItemWithOriginalItem = Omit<PendingListItem, 'kind'> & {
+  kind: ResourceKind;
+  originalItem:
+    | {
+        kind: 'role';
+        role: string;
+      }
+    | { kind: 'resource'; resource: ResourceRequest };
+};
