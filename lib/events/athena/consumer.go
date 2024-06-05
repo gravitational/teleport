@@ -429,9 +429,7 @@ func (s *sqsMessagesCollector) getEventsChan() <-chan eventAndAckID {
 // It runs until context is canceled (via timeout) or when maxItems is reached.
 // MaxItems is soft limit and can happen that it will return more items then MaxItems.
 func (s *sqsMessagesCollector) fromSQS(ctx context.Context) {
-	// Errors should be immediately process by error handling loop, so 10 size
-	// should be enough to not cause blocking.
-	errorsC := make(chan error, 10)
+	errorsC := make(chan error)
 	defer close(errorsC)
 
 	// errhandle loop for receiving single event errors.
@@ -566,7 +564,11 @@ func (s *sqsMessagesCollector) receiveMessagesAndSendOnChan(ctx context.Context,
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			return collectedEventsMetadata{}
 		}
-		errorsC <- trace.Wrap(err)
+		select {
+		case errorsC <- trace.Wrap(err):
+		case <-ctx.Done():
+			return collectedEventsMetadata{}
+		}
 
 		// We don't want to retry receiving message immediately to prevent huge load
 		// on CPU if calls are contantly failing.
@@ -584,7 +586,10 @@ func (s *sqsMessagesCollector) receiveMessagesAndSendOnChan(ctx context.Context,
 	for _, msg := range sqsOut.Messages {
 		event, err := s.auditEventFromSQSorS3(ctx, msg)
 		if err != nil {
-			errorsC <- trace.Wrap(err)
+			select {
+			case errorsC <- trace.Wrap(err):
+			case <-ctx.Done():
+			}
 			continue
 		}
 		eventsC <- eventAndAckID{
