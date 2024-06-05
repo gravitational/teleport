@@ -3404,6 +3404,10 @@ func (h *Handler) podConnect(
 	}
 	execReq.Term = params.Term
 
+	if err := execReq.Validate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)

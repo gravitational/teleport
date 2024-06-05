@@ -91,6 +91,35 @@ type PodExecRequest struct {
 	Term session.TerminalParams `json:"term"`
 }
 
+func (r *PodExecRequest) Validate() error {
+	if r.KubeCluster == "" {
+		return trace.BadParameter("missing parameter KubeCluster")
+	}
+	if r.Namespace == "" {
+		return trace.BadParameter("missing parameter Namespace")
+	}
+	if r.Pod == "" {
+		return trace.BadParameter("missing parameter Pod")
+	}
+	if r.Command == "" {
+		return trace.BadParameter("missing parameter Command")
+	}
+	if len(r.Namespace) > 63 {
+		return trace.BadParameter("Namespace is too long, maximum length is 63 characters")
+	}
+	if len(r.Pod) > 63 {
+		return trace.BadParameter("Pod is too long, maximum length is 63 characters")
+	}
+	if len(r.Container) > 63 {
+		return trace.BadParameter("Container is too long, maximum length is 63 characters")
+	}
+	if len(r.Command) > 10000 {
+		return trace.BadParameter("Command is too long, maximum length is 10000 characters")
+	}
+
+	return nil
+}
+
 // ServeHTTP sends session metadata to web UI to signal beginning of the session, then
 // handles Kube exec request and connects it to web based terminal input/output.
 func (p *podHandler) ServeHTTP(_ http.ResponseWriter, r *http.Request) {
