@@ -3400,7 +3400,7 @@ func (h *Handler) podConnect(
 			return nil, trace.BadParameter("timed out waiting for pod exec request data on websocket connection")
 		}
 
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	execReq.Term = params.Term
 
